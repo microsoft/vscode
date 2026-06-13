@@ -39,6 +39,7 @@ export {
 	type SessionTurnCompleteAction,
 	type SessionTurnStartedAction,
 	type SessionUsageAction,
+	type SessionAgentChangedAction,
 	type SessionServerToolsChangedAction,
 	type SessionActiveClientChangedAction,
 	type SessionActiveClientToolsChangedAction,
@@ -57,6 +58,12 @@ export {
 	type ChangesetFileRemovedAction,
 	type ChangesetOperationsChangedAction,
 	type ChangesetClearedAction,
+	type AnnotationsSetAction,
+	type AnnotationsUpdatedAction,
+	type AnnotationsRemovedAction,
+	type AnnotationsEntrySetAction,
+	type AnnotationsEntryRemovedAction,
+	type ResourceWatchChangedAction,
 	type StateAction,
 } from './protocol/actions.js';
 
@@ -90,6 +97,7 @@ import type {
 	RootActiveSessionsChangedAction,
 	SessionDeltaAction,
 	SessionModelChangedAction,
+	SessionAgentChangedAction,
 	SessionReasoningAction,
 	SessionResponsePartAction,
 	SessionToolCallApprovedAction,
@@ -115,7 +123,7 @@ import type {
 } from './protocol/actions.js';
 
 import type { SessionAddedParams, SessionRemovedParams, SessionSummaryChangedParams, AuthRequiredParams } from './protocol/notifications.js';
-import type { RootAction as IRootAction_, SessionAction as ISessionAction_, ClientSessionAction as IClientSessionAction_, ServerSessionAction as IServerSessionAction_, TerminalAction as ITerminalAction_, ClientTerminalAction as IClientTerminalAction_, ChangesetAction as IChangesetAction_ } from './protocol/action-origin.generated.js';
+import type { RootAction as IRootAction_, SessionAction as ISessionAction_, ClientSessionAction as IClientSessionAction_, ServerSessionAction as IServerSessionAction_, TerminalAction as ITerminalAction_, ClientTerminalAction as IClientTerminalAction_, ChangesetAction as IChangesetAction_, AnnotationsAction as IAnnotationsAction_, ClientAnnotationsAction as IClientAnnotationsAction_ } from './protocol/action-origin.generated.js';
 
 /**
  * Discriminated union of all server→client protocol notifications other than
@@ -136,6 +144,8 @@ export type ServerSessionAction = IServerSessionAction_;
 export type TerminalAction = ITerminalAction_;
 export type ClientTerminalAction = IClientTerminalAction_;
 export type ChangesetAction = IChangesetAction_;
+export type AnnotationsAction = IAnnotationsAction_;
+export type ClientAnnotationsAction = IClientAnnotationsAction_;
 
 // Root actions
 export type IAgentsChangedAction = RootAgentsChangedAction;
@@ -160,6 +170,7 @@ export type ITitleChangedAction = SessionTitleChangedAction;
 export type IUsageAction = SessionUsageAction;
 export type IReasoningAction = SessionReasoningAction;
 export type IModelChangedAction = SessionModelChangedAction;
+export type IAgentChangedAction = SessionAgentChangedAction;
 export type ICustomizationsChangedAction = import('./protocol/actions.js').SessionCustomizationsChangedAction;
 export type ICustomizationToggledAction = import('./protocol/actions.js').SessionCustomizationToggledAction;
 
@@ -188,4 +199,8 @@ export function isTerminalAction(action: StateAction): action is TerminalAction 
 
 export function isChangesetAction(action: StateAction): action is ChangesetAction {
 	return action.type.startsWith('changeset/');
+}
+
+export function isAnnotationsAction(action: StateAction): action is AnnotationsAction {
+	return action.type.startsWith('annotations/');
 }

@@ -11,6 +11,7 @@ import { ResponsePartKind, ToolCallConfirmationReason } from '../../common/state
 import type { ClaudeMapperState } from './claudeMapSessionEvents.js';
 import { SUBAGENT_TOOL_NAMES, type SubagentRegistry } from './claudeSubagentRegistry.js';
 import { buildClaudeToolMeta, getClaudeInvocationMessage, getClaudeToolDisplayName, getClaudeToolInputString } from './claudeToolDisplay.js';
+import { stripClientToolNamePrefix } from './clientTools/claudeClientToolMcpServer.js';
 
 /**
  * Phase 12 — SDK tool names that spawn subagent sessions. Re-exported
@@ -232,7 +233,11 @@ export function emitInnerAssistantSignals(
 			continue;
 		}
 		if (block.type === 'tool_use') {
-			state.startToolBlock(index, block.id, block.name, turnId);
+			// Strip the in-process MCP server prefix so subagent client-tool
+			// calls render with their real name (matches the top-level stream
+			// mapper). SDK-owned tools and Task/Agent passes through unchanged.
+			const toolName = stripClientToolNamePrefix(block.name);
+			state.startToolBlock(index, block.id, toolName, turnId);
 			// Inner tool input arrives pre-parsed on the synthesized
 			// `assistant` message (not via `input_json_delta` chunks), so
 			// seed the registry directly. Without this the live
@@ -241,9 +246,9 @@ export function emitInnerAssistantSignals(
 			// always computes rich text) drifts from live — violating D6.
 			state.toolCalls.seedParsedInput(block.id, block.input);
 			registry.noteInnerTool(block.id, parentToolUseId);
-			const displayName = getClaudeToolDisplayName(block.name);
-			const meta = buildClaudeToolMeta(block.name);
-			const toolInputStr = getClaudeToolInputString(block.name, block.input);
+			const displayName = getClaudeToolDisplayName(toolName);
+			const meta = buildClaudeToolMeta(toolName);
+			const toolInputStr = getClaudeToolInputString(toolName, block.input);
 			signals.push({
 				kind: 'action',
 				session,
@@ -251,7 +256,7 @@ export function emitInnerAssistantSignals(
 					type: ActionType.SessionToolCallStart,
 					turnId,
 					toolCallId: block.id,
-					toolName: block.name,
+					toolName,
 					displayName,
 					...(meta ? { _meta: meta } : {}),
 				},
@@ -263,7 +268,7 @@ export function emitInnerAssistantSignals(
 					type: ActionType.SessionToolCallReady,
 					turnId,
 					toolCallId: block.id,
-					invocationMessage: getClaudeInvocationMessage(block.name, displayName, block.input),
+					invocationMessage: getClaudeInvocationMessage(toolName, displayName, block.input),
 					...(toolInputStr !== undefined ? { toolInput: toolInputStr } : {}),
 					confirmed: ToolCallConfirmationReason.NotNeeded,
 				},

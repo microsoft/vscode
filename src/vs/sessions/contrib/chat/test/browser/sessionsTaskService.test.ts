@@ -71,7 +71,7 @@ function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISession 
 		lastTurnEnd: chat.lastTurnEnd,
 		description: chat.description,
 		chats: observableValue('chats', [chat]),
-		mainChat: chat,
+		mainChat: constObservable(chat),
 		capabilities: { supportsMultipleChats: false },
 	} satisfies ISession;
 	return session;

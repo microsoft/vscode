@@ -182,6 +182,11 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 		// Insert sentinel for this request if it doesn't exist yet
 		if (!this._checkpoints.some(cp => cp.requestId === requestId)) {
 			this._checkpoints.push({ requestId, undoStopId: undefined, edits: [] });
+			if (currentIdx === this._checkpoints.length - 2) {
+				transaction(tx => {
+					this._currentCheckpointIndex.set(this._checkpoints.length - 1, tx);
+				});
+			}
 		}
 	}
 
@@ -190,13 +195,14 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 			return [];
 		}
 
+		// Ensure the sentinel and undo-branch splice are handled before deduping
+		// tool calls; a matching stale forward checkpoint should not block a new branch.
+		this.ensureRequestCheckpoint(requestId);
+
 		// Deduplicate: ignore if this tool call was already added
 		if (this._checkpoints.some(cp => cp.undoStopId === tc.toolCallId)) {
 			return [];
 		}
-
-		// Ensure the sentinel and undo-branch splice are handled
-		this.ensureRequestCheckpoint(requestId);
 
 		const fileEdits = fileEditsToExternalEdits(tc);
 		if (fileEdits.length === 0) {
@@ -331,24 +337,7 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 		// Navigate to one before it so the request's edits are fully undone.
 		const targetIdx = stopId === undefined ? cpIdx - 1 : cpIdx;
 
-		// Navigate to the target checkpoint
-		const currentIdx = this._currentCheckpointIndex.get();
-		if (targetIdx < currentIdx) {
-			// Undo forward checkpoints
-			for (let i = currentIdx; i > targetIdx; i--) {
-				await this._writeCheckpointContent(this._checkpoints[i], 'before');
-			}
-		} else if (targetIdx > currentIdx) {
-			// Redo to reach the target
-			for (let i = currentIdx + 1; i <= targetIdx; i++) {
-				await this._writeCheckpointContent(this._checkpoints[i], 'after');
-			}
-		}
-
-		transaction(tx => {
-			this._currentCheckpointIndex.set(targetIdx, tx);
-		});
-		this._rebuildEntries();
+		await this._undoRedoSequencer.queue(() => this._navigateToCheckpointIndex(targetIdx));
 	}
 
 	getSnapshotUri(requestId: string, uri: URI, stopId: string | undefined): URI | undefined {
@@ -619,19 +608,13 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 			return;
 		}
 
-		await this._writeCheckpointContent(this._checkpoints[idx], 'before');
-
 		// Skip past any sentinel checkpoints (they have no edits)
 		let newIdx = idx - 1;
 		while (newIdx >= 0 && this._checkpoints[newIdx].undoStopId === undefined) {
 			newIdx--;
 		}
 
-		transaction(tx => {
-			this._currentCheckpointIndex.set(newIdx, tx);
-		});
-		this._rebuildEntries();
-		this._syncAiContributionMarks();
+		await this._navigateToCheckpointIndex(newIdx);
 	}
 
 	private async _redoInteractionImpl(): Promise<void> {
@@ -649,13 +632,7 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 			return;
 		}
 
-		await this._writeCheckpointContent(this._checkpoints[nextIdx], 'after');
-
-		transaction(tx => {
-			this._currentCheckpointIndex.set(nextIdx, tx);
-		});
-		this._rebuildEntries();
-		this._syncAiContributionMarks();
+		await this._navigateToCheckpointIndex(nextIdx);
 	}
 
 	// ---- Explanations (stubs) -----------------------------------------------
@@ -744,6 +721,29 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 		return [...resources.values()];
 	}
 
+	private async _navigateToCheckpointIndex(targetIdx: number): Promise<void> {
+		const currentIdx = this._currentCheckpointIndex.get();
+		if (targetIdx === currentIdx) {
+			return;
+		}
+
+		if (targetIdx < currentIdx) {
+			for (let i = currentIdx; i > targetIdx; i--) {
+				await this._writeCheckpointContent(this._checkpoints[i], 'before');
+			}
+		} else {
+			for (let i = currentIdx + 1; i <= targetIdx; i++) {
+				await this._writeCheckpointContent(this._checkpoints[i], 'after');
+			}
+		}
+
+		transaction(tx => {
+			this._currentCheckpointIndex.set(targetIdx, tx);
+		});
+		this._rebuildEntries();
+		this._syncAiContributionMarks();
+	}
+
 	private _rebuildEntries(): void {
 		const currentIdx = this._currentCheckpointIndex.get();
 		const resourceMap = new Map<string, { resource: URI; beforeContentUri?: URI; afterContentUri?: URI; requestId: string; added: number; removed: number }>();
@@ -784,7 +784,9 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 	}
 
 	private async _writeCheckpointContent(checkpoint: IAgentHostCheckpoint, direction: 'before' | 'after'): Promise<void> {
-		const ops = checkpoint.edits.map(async edit => {
+		const edits = direction === 'before' ? [...checkpoint.edits].reverse() : checkpoint.edits;
+
+		for (const edit of edits) {
 			try {
 				if (direction === 'before') {
 					// Undoing this edit
@@ -855,9 +857,9 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 				}
 			} catch (err) {
 				this._logService.warn(`[AgentHostEditingSession] Failed to ${direction === 'before' ? 'undo' : 'redo'} ${edit.kind} for ${edit.resource.toString()}`, err);
+				throw err;
 			}
-		});
-		await Promise.all(ops);
+		}
 	}
 
 	/**

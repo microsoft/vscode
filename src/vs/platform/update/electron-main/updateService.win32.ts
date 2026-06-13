@@ -60,10 +60,19 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 	private availableUpdate: IAvailableUpdate | undefined;
 	private updateCancellationTokenSource: CancellationTokenSource | undefined;
 
+	private readonly readyMutexName: string;
+	private readonly updatingMutexName: string;
+	private readonly setupMutexName: string;
+
 	@memoize
 	get cachePath(): Promise<string> {
 		const result = path.join(tmpdir(), `vscode-${this.productService.quality}-${this.productService.target}-${process.arch}`);
 		return mkdir(result, { recursive: true }).then(() => result);
+	}
+
+	@memoize
+	private get mutex(): Promise<typeof import('@vscode/windows-mutex')> {
+		return import('@vscode/windows-mutex');
 	}
 
 	constructor(
@@ -80,6 +89,10 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		@IMeteredConnectionService meteredConnectionService: IMeteredConnectionService,
 	) {
 		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService, telemetryService, applicationStorageMainService, meteredConnectionService, true);
+
+		this.readyMutexName = `${productService.win32MutexName}-ready`;
+		this.updatingMutexName = `${productService.win32MutexName}-updating`;
+		this.setupMutexName = `${productService.win32MutexName}setup`;
 
 		lifecycleMainService.setRelaunchHandler(this);
 	}
@@ -344,53 +357,72 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		const cachePath = await this.cachePath;
 		const sessionEndFlagPath = path.join(cachePath, 'session-ending.flag');
 		const cancelFilePath = path.join(cachePath, `cancel.flag`);
-		await this.unlink(cancelFilePath);
-
 		const progressFilePath = path.join(cachePath, `update-progress`);
-		await this.unlink(progressFilePath);
-
 		this.availableUpdate.updateFilePath = path.join(cachePath, `CodeSetup-${this.productService.quality}-${update.version}.flag`);
 		this.availableUpdate.cancelFilePath = cancelFilePath;
 
-		await pfs.Promises.writeFile(this.availableUpdate.updateFilePath, 'flag');
-		const child = spawn(this.availableUpdate.packagePath,
-			[
-				'/verysilent',
-				'/log',
-				`/update="${this.availableUpdate.updateFilePath}"`,
-				`/progress="${progressFilePath}"`,
-				`/sessionend="${sessionEndFlagPath}"`,
-				`/cancel="${cancelFilePath}"`,
-				'/nocloseapplications',
-				'/mergetasks=runcode,!desktopicon,!quicklaunchicon'
-			],
-			{
-				detached: true,
-				stdio: ['ignore', 'ignore', 'ignore'],
-				windowsVerbatimArguments: true,
-				env: { ...process.env, __COMPAT_LAYER: 'RunAsInvoker' }
-			}
-		);
+		const mutex = await this.mutex;
+		const skippedSpawn = this.isInstallerActive(mutex);
 
-		// Track the process so we can cancel it if needed
-		this.availableUpdate.updateProcess = child;
+		// Skip the spawn if another Inno Setup is already running for this product (background update or a manual installer);
+		// otherwise Inno's "Setup is already running" modal pops up. The `-ready` mutex poll below still advances our state when it finishes.
+		if (skippedSpawn) {
+			this.logService.info('update#doApplyUpdate: another instance is already running setup, waiting for it to finish');
+		} else {
+			await this.unlink(cancelFilePath);
+			await this.unlink(progressFilePath);
+			await pfs.Promises.writeFile(this.availableUpdate.updateFilePath, 'flag');
 
-		child.once('exit', () => {
-			this.availableUpdate = undefined;
-			this.setState(State.Idle(getUpdateType()));
-		});
+			const child = spawn(this.availableUpdate.packagePath,
+				[
+					'/verysilent',
+					'/log',
+					`/update="${this.availableUpdate.updateFilePath}"`,
+					`/progress="${progressFilePath}"`,
+					`/sessionend="${sessionEndFlagPath}"`,
+					`/cancel="${cancelFilePath}"`,
+					'/nocloseapplications',
+					'/mergetasks=runcode,!desktopicon,!quicklaunchicon'
+				],
+				{
+					detached: true,
+					stdio: ['ignore', 'ignore', 'ignore'],
+					windowsVerbatimArguments: true,
+					env: { ...process.env, __COMPAT_LAYER: 'RunAsInvoker' }
+				}
+			);
 
-		const readyMutexName = `${this.productService.win32MutexName}-ready`;
-		const mutex = await import('@vscode/windows-mutex');
+			// Track the process so we can cancel it if needed
+			this.availableUpdate.updateProcess = child;
+
+			child.once('exit', () => {
+				this.availableUpdate = undefined;
+				this.setState(State.Idle(getUpdateType()));
+			});
+		}
 
 		this.updateCancellationTokenSource?.dispose(true);
 		const cts = this.updateCancellationTokenSource = new CancellationTokenSource();
 		const token = cts.token;
 
 		const poll = async () => {
+			// If we skipped the spawn, the foreign installer was active when we started; treat that as having seen it run
+			// so a quick exit (cancel/fail) before the first poll iteration still drops us to Idle.
+			let seenRunning = skippedSpawn;
 			while (this.state.type === StateType.Updating && !token.isCancellationRequested) {
-				if (mutex.isActive(readyMutexName)) {
+				if (mutex.isActive(this.readyMutexName)) {
 					this.setState(State.Ready(update, explicit, this._overwrite));
+					return;
+				}
+
+				// Inno gone without `-ready` => install cancelled/failed; drop to Idle.
+				if (this.isInstallerActive(mutex)) {
+					seenRunning = true;
+				} else if (seenRunning) {
+					if (!this.availableUpdate?.updateProcess) {
+						this.availableUpdate = undefined;
+						this.setState(State.Idle(getUpdateType()));
+					}
 					return;
 				}
 
@@ -435,14 +467,21 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			return;
 		}
 
+		const { updateProcess, updateFilePath, cancelFilePath } = this.availableUpdate;
+
+		// Another instance owns the installer: abort if it's still running so we don't start a new
+		// update cycle on top of it; keep `availableUpdate` so quit-and-install can still complete.
+		if (!updateProcess && this.isInstallerActive(await this.mutex)) {
+			throw new Error('Cannot cancel pending update: another instance is still running setup');
+		}
+
 		// Cancel the polling loop
 		this.updateCancellationTokenSource?.dispose(true);
 		this.updateCancellationTokenSource = undefined;
 
-		this.logService.trace('update#cancelPendingUpdate: cancelling pending update');
-		const { updateProcess, updateFilePath, cancelFilePath } = this.availableUpdate;
-
 		if (updateProcess && updateProcess.exitCode === null) {
+			this.logService.trace('update#cancelPendingUpdate: cancelling pending update');
+
 			// Remove all listeners to prevent the exit handler from changing state
 			updateProcess.removeAllListeners();
 			const exitPromise = new Promise<boolean>(resolve => updateProcess.once('exit', () => resolve(true)));
@@ -541,6 +580,10 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		} else {
 			this.setState(State.Ready(update, true, false));
 		}
+	}
+
+	private isInstallerActive(mutex: typeof import('@vscode/windows-mutex')): boolean {
+		return mutex.isActive(this.updatingMutexName) || mutex.isActive(this.setupMutexName);
 	}
 
 	private async unlink(path: string | undefined): Promise<void> {

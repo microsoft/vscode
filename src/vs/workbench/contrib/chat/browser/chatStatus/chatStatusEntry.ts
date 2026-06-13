@@ -159,7 +159,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			const quotas = this.chatEntitlementService.quotas;
 			const chatQuotaExceeded = quotas.chat?.percentRemaining === 0;
 			const completionsQuotaExceeded = quotas.completions?.percentRemaining === 0;
-			const isPooledQuotaDepleted = quotas.premiumChat?.unlimited && quotas.premiumChat.hasQuota === false && !(quotas.additionalUsageEnabled ?? false);
+			const isPooledQuotaDepleted = quotas.premiumChat?.unlimited && quotas.premiumChat.hasQuota === false;
 
 			// Disabled
 			if (this.chatEntitlementService.sentiment.disabled || this.chatEntitlementService.sentiment.untrusted) {
@@ -177,8 +177,9 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 				}
 			}
 
-			// Signed out
-			else if (this.chatEntitlementService.entitlement === ChatEntitlement.Unknown && !this.chatEntitlementService.hasByokModels) {
+			// Signed out — keep showing Sign-in affordance even when BYOK models are present
+			// so air-gapped users can still authenticate to unlock the full Copilot experience.
+			else if (this.chatEntitlementService.entitlement === ChatEntitlement.Unknown) {
 				return this.getSetupEntryProps();
 			}
 
@@ -188,7 +189,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 				if (chatQuotaExceeded && !completionsQuotaExceeded) {
 					quotaWarning = localize('chatQuotaExceededStatus', "Chat quota reached");
 				} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
-					quotaWarning = localize('completionsQuotaExceededStatus', "Inline suggestions quota reached");
+					quotaWarning = localize('completionsQuotaExceededStatus', "Inline suggestions limit reached");
 				} else {
 					quotaWarning = localize('chatAndCompletionsQuotaExceededStatus', "Quota reached");
 				}

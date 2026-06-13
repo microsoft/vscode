@@ -571,6 +571,98 @@ suite('AgentHostEditingSession', () => {
 			assert.strictEqual(session.entries.get().length, 1);
 			assert.ok(session.entries.get()[0].modifiedURI.path.includes('a.ts'));
 		});
+
+		test('redo loop advances until no redo remains', async () => {
+			const fileUri = toAgentHostUri(URI.file('/workspace/file.ts'), 'local');
+			const contentMap = new Map<string, string>();
+			contentMap.set(fileUri.toString(), 'before');
+			contentMap.set(toAgentHostUri(URI.parse('content://after-1'), 'local').toString(), 'after-1');
+			contentMap.set(toAgentHostUri(URI.parse('content://after-2'), 'local').toString(), 'after-2');
+			const session = createSession(store, contentMap);
+
+			session.addToolCallEdits('req-1', makeToolCall({
+				toolCallId: 'tc-1',
+				filePath: '/workspace/file.ts',
+				beforeURI: URI.file('/workspace/file.ts').toString(),
+				afterURI: 'content://after-1',
+			}));
+
+			session.addToolCallEdits('req-2', makeToolCall({
+				toolCallId: 'tc-2',
+				filePath: '/workspace/file.ts',
+				beforeURI: 'content://after-1',
+				afterURI: 'content://after-2',
+			}));
+
+			await session.restoreSnapshot('req-1', undefined);
+			while (session.canRedo.get()) {
+				await session.redoInteraction();
+			}
+
+			assert.deepStrictEqual({
+				content: contentMap.get(fileUri.toString()),
+				canRedo: session.canRedo.get(),
+				disablement: session.requestDisablement.get(),
+				lastRequest: session.entries.get()[0]?.lastModifyingRequestId,
+			}, {
+				content: 'after-2',
+				canRedo: false,
+				disablement: [],
+				lastRequest: 'req-2',
+			});
+		});
+
+		test('ai contribution lifecycle follows add, restore, undo, redo, and dispose', () => runWithFakedTimers({}, async () => {
+			const workspace = new MutableObservableWorkspace();
+			setupAiContributionFeature(store, workspace);
+
+			const fileUri = toAgentHostUri(URI.file('/workspace/file.ts'), 'local');
+			const contentMap = new Map<string, string>();
+			contentMap.set(fileUri.toString(), 'before');
+			contentMap.set(toAgentHostUri(URI.parse('content://after-1'), 'local').toString(), 'after-1');
+			const session = createSession(store, contentMap);
+			store.add(workspace.createDocument({ uri: fileUri, initialValue: 'before' }, undefined));
+			await timeout(1500);
+
+			session.addToolCallEdits('req-1', makeToolCall({
+				toolCallId: 'tc-1',
+				filePath: '/workspace/file.ts',
+				beforeURI: URI.file('/workspace/file.ts').toString(),
+				afterURI: 'content://after-1',
+			}));
+			const afterAdd = hasAiContributions([fileUri], 'chatAndAgent');
+
+			await session.restoreSnapshot('req-1', undefined);
+			const afterRestore = hasAiContributions([fileUri], 'chatAndAgent');
+
+			await session.redoInteraction();
+			const afterRedo = hasAiContributions([fileUri], 'chatAndAgent');
+
+			await session.undoInteraction();
+			const afterUndo = hasAiContributions([fileUri], 'chatAndAgent');
+
+			await session.redoInteraction();
+			const afterSecondRedo = hasAiContributions([fileUri], 'chatAndAgent');
+
+			session.dispose();
+			const afterDispose = hasAiContributions([fileUri], 'chatAndAgent');
+
+			assert.deepStrictEqual({
+				afterAdd,
+				afterRestore,
+				afterRedo,
+				afterUndo,
+				afterSecondRedo,
+				afterDispose,
+			}, {
+				afterAdd: true,
+				afterRestore: false,
+				afterRedo: true,
+				afterUndo: false,
+				afterSecondRedo: true,
+				afterDispose: false,
+			});
+		}));
 	});
 
 	suite('getDiffsForFilesInSession', () => {
@@ -977,6 +1069,99 @@ suite('AgentHostEditingSession', () => {
 			assert.strictEqual(session.requestDisablement.get().length, 1);
 			assert.strictEqual(session.requestDisablement.get()[0].requestId, 'req-1');
 		});
+
+		test('restoreSnapshot with stopId restores a specific tool call among multiple calls in one request', async () => {
+			const fileUri = toAgentHostUri(URI.file('/workspace/file.ts'), 'local');
+			const contentMap = new Map<string, string>();
+			contentMap.set(fileUri.toString(), 'before');
+			contentMap.set(toAgentHostUri(URI.parse('content://after-1'), 'local').toString(), 'after-1');
+			contentMap.set(toAgentHostUri(URI.parse('content://after-2'), 'local').toString(), 'after-2');
+			const session = createSession(store, contentMap);
+
+			session.addToolCallEdits('req-1', makeToolCall({
+				toolCallId: 'tc-1',
+				filePath: '/workspace/file.ts',
+				beforeURI: URI.file('/workspace/file.ts').toString(),
+				afterURI: 'content://after-1',
+			}));
+
+			session.addToolCallEdits('req-1', makeToolCall({
+				toolCallId: 'tc-2',
+				filePath: '/workspace/file.ts',
+				beforeURI: 'content://after-1',
+				afterURI: 'content://after-2',
+			}));
+
+			await session.restoreSnapshot('req-1', 'tc-1');
+
+			assert.deepStrictEqual({
+				content: contentMap.get(fileUri.toString()),
+				canUndo: session.canUndo.get(),
+				canRedo: session.canRedo.get(),
+				disablement: session.requestDisablement.get(),
+			}, {
+				content: 'after-1',
+				canUndo: true,
+				canRedo: true,
+				disablement: [{ requestId: 'req-1', afterUndoStop: 'tc-2' }],
+			});
+		});
+
+		test('same-path checkpoint replay is deterministic', async () => {
+			const fileUri = toAgentHostUri(URI.file('/workspace/file.ts'), 'local');
+			const contentMap = new Map<string, string>();
+			contentMap.set(fileUri.toString(), 'before');
+			contentMap.set(toAgentHostUri(URI.parse('content://after-1'), 'local').toString(), 'after-1');
+			contentMap.set(toAgentHostUri(URI.parse('content://after-2'), 'local').toString(), 'after-2');
+			const session = createSession(store, contentMap);
+
+			session.addToolCallEdits('req-1', makeToolCall({
+				toolCallId: 'tc-1',
+				filePath: '/workspace/file.ts',
+				beforeURI: URI.file('/workspace/file.ts').toString(),
+				afterURI: 'content://after-1',
+			}));
+
+			session.addToolCallEdits('req-2', makeToolCall({
+				toolCallId: 'tc-2',
+				filePath: '/workspace/file.ts',
+				beforeURI: 'content://after-1',
+				afterURI: 'content://after-2',
+			}));
+
+			const replayToEnd = async () => {
+				while (session.canRedo.get()) {
+					await session.redoInteraction();
+				}
+				return {
+					content: contentMap.get(fileUri.toString()),
+					entries: session.entries.get().map(entry => ({
+						uri: entry.modifiedURI.toString(),
+						lastRequest: entry.lastModifyingRequestId,
+					})),
+					disablement: session.requestDisablement.get(),
+				};
+			};
+
+			await session.restoreSnapshot('req-1', undefined);
+			const firstReplay = await replayToEnd();
+
+			await session.restoreSnapshot('req-1', undefined);
+			const secondReplay = await replayToEnd();
+
+			assert.deepStrictEqual({ firstReplay, secondReplay }, {
+				firstReplay: {
+					content: 'after-2',
+					entries: [{ uri: fileUri.toString(), lastRequest: 'req-2' }],
+					disablement: [],
+				},
+				secondReplay: {
+					content: 'after-2',
+					entries: [{ uri: fileUri.toString(), lastRequest: 'req-2' }],
+					disablement: [],
+				},
+			});
+		});
 	});
 
 	suite('undo branch (splice stale checkpoints)', () => {
@@ -1059,6 +1244,14 @@ suite('AgentHostEditingSession', () => {
 			assert.deepStrictEqual(session.entries.get(), []);
 			// hasEditsInRequest returns true because the sentinel exists
 			assert.strictEqual(session.hasEditsInRequest('req-1'), true);
+		});
+
+		test('active request is not disabled immediately after ensureRequestCheckpoint', () => {
+			const session = createSession(store, new Map());
+
+			session.ensureRequestCheckpoint('req-1');
+
+			assert.deepStrictEqual(session.requestDisablement.get(), []);
 		});
 
 		test('request without edits appears in requestDisablement after undo', async () => {

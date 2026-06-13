@@ -40,6 +40,11 @@
 		// UI
 		"debugToolBar.background": "#660000",
 		"focusBorder": "#ff6666aa",
+		// agent sessions
+		"agentsPanel.border": "#ff666633",
+		"agentsChatInput.border": "#ff666633",
+		"agentsChatInput.focusBorder": "#ff6666aa",
+		"agentsNewSessionButton.border": "#ff666633",
 		"button.background": "#833",
 		"dropdown.background": "#580000",
 		"input.background": "#580000",

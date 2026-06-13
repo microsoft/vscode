@@ -7,7 +7,7 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, IObservable } from '../../../../../base/common/observable.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../../nls.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -15,7 +15,7 @@ import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
 
@@ -48,9 +48,9 @@ export class IsolationPicker extends Disposable {
 	private _triggerElement: HTMLElement | undefined;
 
 	constructor(
+		private readonly _session: IObservable<IActiveSession | undefined>,
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
@@ -68,7 +68,7 @@ export class IsolationPicker extends Disposable {
 		}));
 
 		this._register(autorun(reader => {
-			const session = this.sessionsManagementService.activeSession.read(reader);
+			const session = this._session.read(reader);
 			const isLoading = session?.loading.read(reader);
 			const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
 			const providerSession = provider instanceof CopilotChatSessionsProvider ? provider.getSession(session!.sessionId) : undefined;
@@ -88,7 +88,7 @@ export class IsolationPicker extends Disposable {
 	}
 
 	private _getSessionIsolationMode(): IsolationMode {
-		const session = this.sessionsManagementService.activeSession.get();
+		const session = this._session.get();
 		const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
 		const providerSession = provider instanceof CopilotChatSessionsProvider ? provider.getSession(session!.sessionId) : undefined;
 		return providerSession?.isolationMode.get() ?? 'worktree';
@@ -182,7 +182,7 @@ export class IsolationPicker extends Disposable {
 	}
 
 	private _setModeOnSession(mode: IsolationMode): void {
-		const session = this.sessionsManagementService.activeSession.get();
+		const session = this._session.get();
 		const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
 		const providerSession = provider instanceof CopilotChatSessionsProvider ? provider.getSession(session!.sessionId) : undefined;
 		providerSession?.setIsolationMode(mode);

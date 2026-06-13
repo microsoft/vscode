@@ -17,12 +17,21 @@ export const IAICustomizationWorkspaceService = createDecorator<IAICustomization
  * Extended storage type for AI Customization that includes built-in prompts
  * shipped with the application, alongside the core `PromptsStorage` values.
  */
-export type AICustomizationPromptsStorage = PromptsStorage | 'builtin';
+export type AICustomizationSource = 'local' | 'user' | 'extension' | 'plugin' | 'builtin';
+
+export namespace AICustomizationSources {
+	export const local: AICustomizationSource = 'local';
+	export const user: AICustomizationSource = 'user';
+	export const extension: AICustomizationSource = 'extension';
+	export const plugin: AICustomizationSource = 'plugin';
+	export const builtin: AICustomizationSource = 'builtin';
+	export const all: AICustomizationSource[] = [local, user, extension, plugin, builtin];
+}
 
 /**
  * Storage type discriminator for built-in customizations shipped with the application.
  */
-export const BUILTIN_STORAGE: AICustomizationPromptsStorage = 'builtin';
+export const BUILTIN_STORAGE = AICustomizationSources.builtin;
 
 /**
  * Possible section IDs for the AI Customization Management Editor sidebar.
@@ -48,7 +57,7 @@ export interface IStorageSourceFilter {
 	/**
 	 * Which storage groups to display (e.g. workspace, user, extension, builtin).
 	 */
-	readonly sources: readonly string[];
+	readonly sources: readonly AICustomizationSource[];
 
 	/**
 	 * If set, only user files under these roots are shown (allowlist).
@@ -67,11 +76,29 @@ export interface IWelcomePageFeatures {
 }
 
 /**
- * Applies a storage source filter to an array of items that have uri and storage.
+ * Applies a source filter to an array of items that have uri and source.
+ * Removes items whose source is not in the filter's source list,
+ * and for user-source items, removes those not under an allowed root.
+ */
+export function applySourceFilter<T extends { readonly uri: URI; readonly source: AICustomizationSource }>(items: readonly T[], filter: IStorageSourceFilter): readonly T[] {
+	const sourceSet = new Set(filter.sources);
+	return items.filter(item => {
+		if (!sourceSet.has(item.source)) {
+			return false;
+		}
+		if (item.source === AICustomizationSources.user && filter.includedUserFileRoots) {
+			return filter.includedUserFileRoots.some(root => isEqualOrParent(item.uri, root));
+		}
+		return true;
+	});
+}
+
+/**
+ * Applies a storage filter to an array of items that have uri and storage.
  * Removes items whose storage is not in the filter's source list,
  * and for user-storage items, removes those not under an allowed root.
  */
-export function applyStorageSourceFilter<T extends { readonly uri: URI; readonly storage: string }>(items: readonly T[], filter: IStorageSourceFilter): readonly T[] {
+export function applyStorageSourceFilter<T extends { readonly uri: URI; readonly storage: PromptsStorage }>(items: readonly T[], filter: IStorageSourceFilter): readonly T[] {
 	const sourceSet = new Set(filter.sources);
 	return items.filter(item => {
 		if (!sourceSet.has(item.storage)) {

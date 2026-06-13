@@ -197,10 +197,14 @@ export interface ILanguageModelChatMetadata {
 	readonly tooltip?: string;
 	readonly detail?: string;
 	readonly multiplierNumeric?: number;
+	readonly isBYOK?: boolean;
 	readonly pricing?: string;
 	readonly inputCost?: number;
-	readonly outputCost?: number;
 	readonly cacheCost?: number;
+	readonly outputCost?: number;
+	readonly longContextInputCost?: number;
+	readonly longContextCacheCost?: number;
+	readonly longContextOutputCost?: number;
 	readonly priceCategory?: string;
 	readonly family: string;
 	readonly maxInputTokens: number;
@@ -423,6 +427,14 @@ export interface ILanguageModelsService {
 
 	configureLanguageModelsProviderGroup(vendorId: string, name?: string): Promise<void>;
 
+	renameLanguageModelsProviderGroup(vendorId: string, providerGroupName: string): Promise<void>;
+
+	updateLanguageModelsProviderGroupApiKey(vendorId: string, providerGroupName: string): Promise<void>;
+
+	addLanguageModelsProviderGroupModel(vendorId: string, providerGroupName: string): Promise<void>;
+
+	openLanguageModelsProviderGroupSettings(vendorId: string, providerGroupName: string): Promise<void>;
+
 	/**
 	 * Opens the language models configuration file and navigates to
 	 * or creates the per-model configuration for the given model.
@@ -637,6 +649,54 @@ interface IChatControlResponse {
 		readonly free?: Record<string, { readonly label: string; readonly featured?: boolean }>;
 		readonly paid?: Record<string, { readonly label: string; readonly featured?: boolean; readonly minVSCodeVersion?: string }>;
 	};
+}
+
+/**
+ * Builds the per-model configuration submenu actions from a model's
+ * {@link ILanguageModelConfigurationSchema}. The current value is read from
+ * `currentConfig` and selections are routed through `setValue`, allowing the
+ * caller to decide whether changes apply globally or to a per-editor override.
+ */
+export function createModelConfigurationActions(
+	schema: ILanguageModelConfigurationSchema | undefined,
+	currentConfig: IStringDictionary<unknown>,
+	setValue: (key: string, value: unknown) => void,
+): IAction[] {
+	if (!schema?.properties) {
+		return [];
+	}
+
+	const actions: IAction[] = [];
+
+	for (const [key, propSchema] of Object.entries(schema.properties)) {
+		if (!propSchema.enum || !Array.isArray(propSchema.enum) || propSchema.enum.length < 2) {
+			continue;
+		}
+		const currentValue = currentConfig[key] ?? propSchema.default;
+		const label = (typeof propSchema.title === 'string' ? propSchema.title : undefined)
+			?? key.replace(/([a-z])([A-Z])/g, '$1 $2')
+				.replace(/^./, s => s.toUpperCase());
+		const defaultValue = propSchema.default;
+		const enumItemLabels = propSchema.enumItemLabels;
+		const enumDescriptions = propSchema.enumDescriptions;
+		const enumActions: IAction[] = propSchema.enum.map((value: unknown, index: number) => {
+			const itemLabel = enumItemLabels?.[index] ?? String(value);
+			const displayLabel = value === defaultValue ? localize('models.enumDefault', "{0} (default)", itemLabel) : itemLabel;
+			const tooltip = enumDescriptions?.[index] ?? '';
+			return {
+				id: `configureModel.${key}.${value}`,
+				label: displayLabel,
+				class: undefined,
+				enabled: true,
+				tooltip,
+				checked: currentValue === value,
+				run: () => setValue(key, value)
+			};
+		});
+		actions.push(new SubmenuAction(`configureModel.${key}`, label, enumActions));
+	}
+
+	return actions;
 }
 
 export class LanguageModelsService implements ILanguageModelsService {
@@ -1179,7 +1239,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 				...group,
 				settings: Object.keys(updatedSettings).length > 0 ? updatedSettings : undefined
 			};
-			if (!updatedGroup.settings && Object.keys(updatedGroup).filter(k => k !== 'name' && k !== 'vendor' && k !== 'range' && k !== 'settings').length === 0) {
+			if (!updatedGroup.settings && Object.keys(updatedGroup).filter(k => k !== 'name' && k !== 'vendor' && k !== 'range' && k !== 'modelsRange' && k !== 'settings').length === 0) {
 				// Remove the group entirely if it only had model config
 				await this._languageModelsConfigurationService.removeLanguageModelsProviderGroup(group);
 			} else {
@@ -1214,43 +1274,12 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 	getModelConfigurationActions(modelId: string): IAction[] {
 		const metadata = this._modelCache.get(modelId);
-		const schema = metadata?.configurationSchema;
-		if (!schema?.properties) {
-			return [];
-		}
-
-		const actions: IAction[] = [];
 		const currentConfig = this._modelConfigurations.get(modelId) ?? {};
-
-		for (const [key, propSchema] of Object.entries(schema.properties)) {
-			if (!propSchema.enum || !Array.isArray(propSchema.enum) || propSchema.enum.length < 2) {
-				continue;
-			}
-			const currentValue = currentConfig[key] ?? propSchema.default;
-			const label = (typeof propSchema.title === 'string' ? propSchema.title : undefined)
-				?? key.replace(/([a-z])([A-Z])/g, '$1 $2')
-					.replace(/^./, s => s.toUpperCase());
-			const defaultValue = propSchema.default;
-			const enumItemLabels = propSchema.enumItemLabels;
-			const enumDescriptions = propSchema.enumDescriptions;
-			const enumActions: IAction[] = propSchema.enum.map((value: unknown, index: number) => {
-				const itemLabel = enumItemLabels?.[index] ?? String(value);
-				const displayLabel = value === defaultValue ? localize('models.enumDefault', "{0} (default)", itemLabel) : itemLabel;
-				const tooltip = enumDescriptions?.[index] ?? '';
-				return {
-					id: `configureModel.${key}.${value}`,
-					label: displayLabel,
-					class: undefined,
-					enabled: true,
-					tooltip,
-					checked: currentValue === value,
-					run: () => this.setModelConfiguration(modelId, { [key]: value })
-				};
-			});
-			actions.push(new SubmenuAction(`configureModel.${key}`, label, enumActions));
-		}
-
-		return actions;
+		return createModelConfigurationActions(
+			metadata?.configurationSchema,
+			currentConfig,
+			(key, value) => this.setModelConfiguration(modelId, { [key]: value })
+		);
 	}
 
 	async configureLanguageModelsProviderGroup(vendorId: string, providerGroupName?: string): Promise<void> {
@@ -1296,6 +1325,96 @@ export class LanguageModelsService implements ILanguageModelsService {
 			}
 			throw error;
 		}
+	}
+
+	async renameLanguageModelsProviderGroup(vendorId: string, providerGroupName: string): Promise<void> {
+		const vendor = this.getVendors().find(({ vendor }) => vendor === vendorId);
+		if (!vendor) {
+			throw new Error(`Vendor ${vendorId} not found.`);
+		}
+
+		const languageModelProviderGroups = this._languageModelsConfigurationService.getLanguageModelsProviderGroups();
+		const existing = languageModelProviderGroups.find(group => group.vendor === vendorId && group.name === providerGroupName);
+		if (!existing) {
+			throw new Error(`Language model provider group ${providerGroupName} for vendor ${vendorId} not found.`);
+		}
+
+		const name = await this.promptForName(languageModelProviderGroups, vendor, existing);
+		if (!name || name === existing.name) {
+			return;
+		}
+
+		await this._languageModelsConfigurationService.updateLanguageModelsProviderGroup(existing, { ...existing, name });
+	}
+
+	async updateLanguageModelsProviderGroupApiKey(vendorId: string, providerGroupName: string): Promise<void> {
+		const vendor = this.getVendors().find(({ vendor }) => vendor === vendorId);
+		const schema = vendor?.configuration as IJSONSchema | undefined;
+		const apiKeySchema = schema?.properties?.apiKey;
+		if (!vendor || !schema || !apiKeySchema) {
+			return;
+		}
+
+		const existing = this._languageModelsConfigurationService.getLanguageModelsProviderGroups().find(group => group.vendor === vendorId && group.name === providerGroupName);
+		if (!existing) {
+			throw new Error(`Language model provider group ${providerGroupName} for vendor ${vendorId} not found.`);
+		}
+
+		try {
+			const existingConfiguration = await this._resolveConfiguration(existing, schema);
+			const apiKey = await this.promptForValue(existing.name, 'apiKey', apiKeySchema, !!schema.required?.includes('apiKey'), existingConfiguration);
+			if (apiKey === undefined || apiKey === existingConfiguration.apiKey) {
+				return;
+			}
+
+			const configuration = { ...existingConfiguration, apiKey };
+			const updated = {
+				...await this._resolveLanguageModelProviderGroup(existing.name, vendorId, configuration, schema),
+				settings: existing.settings
+			};
+			await this._languageModelsConfigurationService.updateLanguageModelsProviderGroup(existing, updated);
+			await this._deleteSecretsInConfiguration(existing, schema);
+		} catch (error) {
+			if (isCancellationError(error)) {
+				return;
+			}
+			throw error;
+		}
+	}
+
+	async addLanguageModelsProviderGroupModel(vendorId: string, providerGroupName: string): Promise<void> {
+		const vendor = this.getVendors().find(({ vendor }) => vendor === vendorId);
+		const schema = vendor?.configuration as IJSONSchema | undefined;
+		const modelsSchema = schema?.properties?.models;
+		if (!vendor || !modelsSchema) {
+			return;
+		}
+
+		const group = this._languageModelsConfigurationService.getLanguageModelsProviderGroups().find(group => group.vendor === vendorId && group.name === providerGroupName);
+		if (!group) {
+			throw new Error(`Language model provider group ${providerGroupName} for vendor ${vendorId} not found.`);
+		}
+
+		const hasModels = Array.isArray(group.models);
+		const snippet = hasModels ? this.getSnippetForArrayItem(modelsSchema) : this.getSnippetForProperty('models', modelsSchema);
+		if (!snippet) {
+			return;
+		}
+
+		await this._languageModelsConfigurationService.configureLanguageModels({
+			group,
+			snippet,
+			snippetTarget: hasModels ? 'models' : 'group'
+		});
+	}
+
+	async openLanguageModelsProviderGroupSettings(vendorId: string, providerGroupName: string): Promise<void> {
+		const group = this._languageModelsConfigurationService.getLanguageModelsProviderGroups().find(group => group.vendor === vendorId && group.name === providerGroupName);
+		if (!group) {
+			throw new Error(`Language model provider group ${providerGroupName} for vendor ${vendorId} not found.`);
+		}
+
+		await this._languageModelsConfigurationService.configureLanguageModels({ group });
 	}
 
 	async configureModel(modelId: string): Promise<void> {
@@ -1404,16 +1523,38 @@ export class LanguageModelsService implements ILanguageModelsService {
 		for (const property of Object.keys(schema.properties)) {
 			if (configuration[property] === undefined) {
 				const propertySchema = schema.properties[property];
-				if (propertySchema && typeof propertySchema !== 'boolean' && propertySchema.defaultSnippets?.[0]) {
-					const snippet = propertySchema.defaultSnippets[0];
-					let bodyText = snippet.bodyText ?? JSON.stringify(snippet.body, null, '\t');
-					// Handle ^ prefix for raw values (numbers/booleans) - remove quotes around ^-prefixed values
-					bodyText = bodyText.replace(/"(\^[^"]*)"/g, (_, value) => value.substring(1));
-					return `"${property}": ${bodyText}`;
+				const snippet = this.getSnippetForProperty(property, propertySchema);
+				if (snippet) {
+					return snippet;
 				}
 			}
 		}
 		return undefined;
+	}
+
+	private getSnippetForProperty(property: string, propertySchema: IJSONSchema): string | undefined {
+		const bodyText = this.getDefaultSnippetBodyText(propertySchema);
+		return bodyText ? `"${property}": ${bodyText}` : undefined;
+	}
+
+	private getSnippetForArrayItem(propertySchema: IJSONSchema): string | undefined {
+		return this.getDefaultSnippetBodyText(propertySchema, true);
+	}
+
+	private getDefaultSnippetBodyText(propertySchema: IJSONSchema, arrayItem = false): string | undefined {
+		const snippet = propertySchema.defaultSnippets?.[0];
+		if (!snippet) {
+			return undefined;
+		}
+
+		const bodyText = arrayItem
+			? Array.isArray(snippet.body) && snippet.body.length > 0 ? JSON.stringify(snippet.body[0], null, '\t') : undefined
+			: snippet.bodyText ?? JSON.stringify(snippet.body, null, '\t');
+		if (!bodyText) {
+			return undefined;
+		}
+
+		return bodyText.replace(/"(\^[^"]*)"/g, (_, value) => value.substring(1));
 	}
 
 	private async promptForName(languageModelProviderGroups: readonly ILanguageModelsProviderGroup[], vendor: IUserFriendlyLanguageModel, existing: ILanguageModelsProviderGroup | undefined): Promise<string | undefined> {
@@ -1443,7 +1584,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 						inputBox.severity = Severity.Error;
 						return;
 					}
-					if (!existing && languageModelProviderGroups.some(g => g.name === value)) {
+					if (languageModelProviderGroups.some(group => group !== existing && group.vendor === vendor.vendor && group.name === value)) {
 						inputBox.validationMessage = localize('nameExists', "A language models group with this name already exists");
 						inputBox.severity = Severity.Error;
 						return;
@@ -1574,15 +1715,16 @@ export class LanguageModelsService implements ILanguageModelsService {
 		}
 	}
 
-	private async promptForEnum(groupName: string, property: string, propertySchema: IJSONSchema, existing: IStringDictionary<unknown> | undefined): Promise<string | undefined> {
+	private async promptForEnum(groupName: string, property: string, propertySchema: IJSONSchema & { enumItemLabels?: string[] }, existing: IStringDictionary<unknown> | undefined): Promise<string | undefined> {
 		const values = propertySchema.enum;
 		if (!Array.isArray(values) || values.length === 0) {
 			return undefined;
 		}
 		const enumDescriptions = propertySchema.enumDescriptions;
+		const enumItemLabels = Array.isArray(propertySchema.enumItemLabels) ? propertySchema.enumItemLabels : undefined;
 		const initial = existing?.[property] !== undefined ? String(existing[property]) : (propertySchema.default !== undefined ? String(propertySchema.default) : undefined);
 		const items: IQuickPickItem[] = values.map((value, index) => ({
-			label: String(value),
+			label: enumItemLabels?.[index] ?? String(value),
 			description: enumDescriptions?.[index],
 			id: String(value)
 		}));
@@ -1729,7 +1871,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 		const result: IStringDictionary<unknown> = {};
 		for (const key in group) {
-			if (key === 'vendor' || key === 'name' || key === 'range' || key === 'settings') {
+			if (key === 'vendor' || key === 'name' || key === 'range' || key === 'modelsRange' || key === 'settings') {
 				continue;
 			}
 			let value = group[key];
@@ -1767,7 +1909,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 			return;
 		}
 
-		const { vendor, name, range, ...configuration } = group;
+		const { vendor, name, range, modelsRange, ...configuration } = group;
 		for (const key in configuration) {
 			const value = group[key];
 			if (schema.properties?.[key]?.secret) {

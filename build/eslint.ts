@@ -3,25 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import eventStream from 'event-stream';
-import vfs from 'vinyl-fs';
+import { ESLint } from 'eslint';
 import { eslintFilter } from './filters.ts';
-import gulpEslint from './gulp-eslint.ts';
 
-function eslint(): NodeJS.ReadWriteStream {
-	return vfs
-		.src(Array.from(eslintFilter), { base: '.', follow: true, allowEmpty: true })
-		.pipe(
-			gulpEslint((results) => {
-				if (results.warningCount > 0 || results.errorCount > 0) {
-					throw new Error(`eslint failed with ${results.warningCount + results.errorCount} warnings and/or errors`);
-				}
-			})
-		).pipe(eventStream.through(function () { /* noop, important for the stream to end */ }));
+async function eslint(): Promise<void> {
+	const linter = new ESLint({
+		cache: true,
+		cacheLocation: '.eslintcache',
+		cacheStrategy: 'content',
+		concurrency: 'auto',
+		errorOnUnmatchedPattern: false,
+	});
+	const formatter = await linter.loadFormatter('compact');
+
+	const results = await linter.lintFiles(Array.from(eslintFilter));
+	const message = await formatter.format(results);
+	if (message) {
+		console.log(message);
+	}
+
+	let warningCount = 0;
+	let errorCount = 0;
+	for (const r of results) {
+		warningCount += r.warningCount;
+		errorCount += r.errorCount;
+	}
+	if (warningCount > 0 || errorCount > 0) {
+		throw new Error(`eslint failed with ${warningCount + errorCount} warnings and/or errors`);
+	}
 }
 
 if (import.meta.main) {
-	eslint().on('error', (err) => {
+	eslint().catch((err) => {
 		console.error();
 		console.error(err);
 		process.exit(1);

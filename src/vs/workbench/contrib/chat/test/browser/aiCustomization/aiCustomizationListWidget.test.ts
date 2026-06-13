@@ -16,7 +16,7 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 import { AICustomizationListWidget } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
 import { IAICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { extractExtensionIdFromPath, getCustomizationSecondaryText, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
-import { AICustomizationManagementSection, IAICustomizationWorkspaceService, IStorageSourceFilter } from '../../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection, AICustomizationSources, IAICustomizationWorkspaceService, IStorageSourceFilter } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
@@ -195,7 +195,7 @@ suite('aiCustomizationListWidget', () => {
 				managementSections: [AICustomizationManagementSection.Agents],
 				isSessionsWindow: false,
 				welcomePageFeatures: { showGettingStartedBanner: false },
-				getStorageSourceFilter: () => ({ sources: [] }),
+				getStorageSourceFilter: () => ({ sources: AICustomizationSources.all }),
 				getSkillUIIntegrations: () => new Map(),
 				hasOverrideProjectRoot: observableValue('test', false),
 				commitFiles: async () => { },
@@ -213,7 +213,7 @@ suite('aiCustomizationListWidget', () => {
 				activeHarness,
 				availableHarnesses: observableValue('test', [descriptor]),
 				setActiveSession: () => { },
-				getStorageSourceFilter: () => ({ sources: [] }),
+				getStorageSourceFilter: () => ({ sources: AICustomizationSources.all }),
 				getActiveDescriptor: () => descriptor,
 				findHarnessById: (id) => id === descriptor.id ? descriptor : undefined,
 				registerExternalHarness: () => ({ dispose() { } }),
@@ -241,8 +241,7 @@ suite('aiCustomizationListWidget', () => {
 				getItems: () => observableValue('test', [] as readonly never[]),
 				getCount: () => observableValue('test', 0),
 				getPluginCount: () => observableValue('test', 0),
-				getActiveItemSource: () => ({ onDidChange: Event.None, fetchItems: async () => [], sessionResource: activeSessionResource.get(), dispose() { } }),
-				getPromptsServiceItemProvider: () => ({ onDidChange: Event.None, provideChatSessionCustomizations: async () => undefined }),
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], sessionResource: activeSessionResource.get(), dispose() { } }),
 			});
 		});
 
