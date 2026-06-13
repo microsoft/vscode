@@ -1835,13 +1835,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		if (!history || history.length === 0) {
 			return false;
 		}
-		const allResponsesEmpty = history.every(turn => {
-			if (turn instanceof vscode.ChatResponseTurn) {
-				return turn.response.length === 0;
-			}
-			return true;
-		});
-		return !allResponsesEmpty;
+		return history.some(turn => 'response' in turn && Array.isArray(turn.response) && turn.response.length > 0);
 	}
 
 	async delegate(
