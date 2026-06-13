@@ -302,12 +302,18 @@ async function processResourceRequest(
 		}
 	}
 
-	const webviewId = getWebviewIdForClient(client);
+	let webviewId = getWebviewIdForClient(client);
 
 	// Refs https://github.com/microsoft/vscode/issues/244143
-	// With PlzDedicatedWorker, worker subresources and blob workers
-	// will use clients different from the window client.
-	if (!webviewId && client.type !== 'worker' && client.type !== 'sharedworker') {
+	// With PlzDedicatedWorker, worker subresources and blob workers use
+	// clients different from the window client and don't have an `id`
+	// search param of their own. Resolve the owning iframe by origin
+	// so the request can still be routed.
+	if (!webviewId && (client.type === 'worker' || client.type === 'sharedworker')) {
+		webviewId = await getWebviewIdForWorkerClient(client);
+	}
+
+	if (!webviewId) {
 		console.error('Could not resolve webview id');
 		return notFound();
 	}
@@ -467,11 +473,16 @@ async function processLocalhostRequest(
 		// that are not spawned by vs code
 		return fetch(event.request);
 	}
-	const webviewId = getWebviewIdForClient(client);
+	let webviewId = getWebviewIdForClient(client);
 	// Refs https://github.com/microsoft/vscode/issues/244143
-	// With PlzDedicatedWorker, worker subresources and blob workers
-	// will use clients different from the window client.
-	if (!webviewId && client.type !== 'worker' && client.type !== 'sharedworker') {
+	// With PlzDedicatedWorker, worker subresources and blob workers use
+	// clients different from the window client and don't have an `id`
+	// search param of their own. Resolve the owning iframe by origin
+	// so the request can still be routed.
+	if (!webviewId && (client.type === 'worker' || client.type === 'sharedworker')) {
+		webviewId = await getWebviewIdForWorkerClient(client);
+	}
+	if (!webviewId) {
 		console.error('Could not resolve webview id');
 		return fetch(event.request);
 	}
@@ -526,6 +537,14 @@ function getWebviewIdForClient(client) {
 }
 
 /**
+ * @param {URL} url
+ * @returns {boolean}
+ */
+function isWebviewIframe(url) {
+	return (url.pathname === `${rootPath}/` || url.pathname === `${rootPath}/index.html` || url.pathname === `${rootPath}/index-no-csp.html`);
+}
+
+/**
  * @param {string} webviewId
  * @returns {Promise<Client[]>}
  */
@@ -533,9 +552,37 @@ async function getOuterIframeClient(webviewId) {
 	const allClients = await sw.clients.matchAll({ includeUncontrolled: true });
 	return allClients.filter(client => {
 		const clientUrl = new URL(client.url);
-		const hasExpectedPathName = (clientUrl.pathname === `${rootPath}/` || clientUrl.pathname === `${rootPath}/index.html` || clientUrl.pathname === `${rootPath}/index-no-csp.html`);
-		return hasExpectedPathName && clientUrl.searchParams.get('id') === webviewId;
+		return isWebviewIframe(clientUrl) && clientUrl.searchParams.get('id') === webviewId;
 	});
+}
+
+/**
+ * Find the webview id for a worker client by matching the worker's URL
+ * origin against window clients that look like a webview iframe. Blob
+ * workers inherit their parent iframe's origin. Some webviews can share
+ * an origin, so only resolve when the origin maps to a single webview id.
+ *
+ * @param {Client} workerClient
+ * @returns {Promise<string|null>}
+ */
+async function getWebviewIdForWorkerClient(workerClient) {
+	const workerUrl = new URL(workerClient.url);
+	const allClients = await sw.clients.matchAll({ type: 'window', includeUncontrolled: true });
+	/** @type {string|null} */
+	let matchedId = null;
+	for (const c of allClients) {
+		const cUrl = new URL(c.url);
+		if (isWebviewIframe(cUrl) && cUrl.origin === workerUrl.origin) {
+			const id = cUrl.searchParams.get('id');
+			if (id) {
+				if (matchedId && matchedId !== id) {
+					return null;
+				}
+				matchedId = id;
+			}
+		}
+	}
+	return matchedId;
 }
 
 /**
