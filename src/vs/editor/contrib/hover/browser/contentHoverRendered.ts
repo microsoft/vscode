@@ -415,6 +415,15 @@ class RenderedContentHoverParts extends Disposable {
 				hoverPart: renderedPart.hoverPart,
 				hoverElement: renderedPart.hoverElement,
 			};
+			// Re-add copy button to the new element after verbosity update
+			if (renderedPart.hoverElement) {
+				this._register(new HoverCopyButton(
+					renderedPart.hoverElement,
+					() => this._markdownHoverParticipant.getAccessibleContent(renderedPart.hoverPart),
+					this._clipboardService,
+					this._hoverService
+				));
+			}
 		}
 		if (focus) {
 			if (index >= 0) {
