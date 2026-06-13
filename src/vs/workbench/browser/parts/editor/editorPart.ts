@@ -24,7 +24,7 @@ import { EditorDropTarget } from './editorDropTarget.js';
 import { Color } from '../../../../base/common/color.js';
 import { CenteredViewLayout, CenteredViewState } from '../../../../base/browser/ui/centered/centeredViewLayout.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { Parts, IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
+import { Parts, IWorkbenchLayoutService, Position, SecondarySideBarLocation, auxiliaryBarPositionFromConfiguration, LayoutSettings } from '../../../services/layout/browser/layoutService.js';
 import { DeepPartial, assertType } from '../../../../base/common/types.js';
 import { CompositeDragAndDropObserver } from '../../dnd.js';
 import { DeferredPromise, Promises } from '../../../../base/common/async.js';
@@ -1133,9 +1133,14 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		let lastOpenHorizontalPosition: Position | undefined;
 		let lastOpenVerticalPosition: Position | undefined;
 		const openPartAtPosition = (position: Position) => {
+			const auxiliaryBarPosition = auxiliaryBarPositionFromConfiguration(
+				this.layoutService.getSideBarPosition(),
+				this.configurationService.getValue<SecondarySideBarLocation>(LayoutSettings.SECONDARY_SIDE_BAR_LOCATION)
+			);
+
 			if (!this.layoutService.isVisible(Parts.PANEL_PART) && position === this.layoutService.getPanelPosition()) {
 				this.layoutService.setPartHidden(false, Parts.PANEL_PART);
-			} else if (!this.layoutService.isVisible(Parts.AUXILIARYBAR_PART) && position === (this.layoutService.getSideBarPosition() === Position.RIGHT ? Position.LEFT : Position.RIGHT)) {
+			} else if (!this.layoutService.isVisible(Parts.AUXILIARYBAR_PART) && position === auxiliaryBarPosition) {
 				this.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
 			}
 		};
