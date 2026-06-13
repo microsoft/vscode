@@ -23,6 +23,12 @@ import * as strings from '../../../base/common/strings.js';
  * **NOTE**: These methods work and make sense both on the model and on the view model.
  */
 export class CursorColumns {
+	/**
+	 * Threshold used to distinguish between a "sticky" end-of-line position
+	 * and actual virtual space columns.
+	 */
+	public static readonly MAX_VIRTUAL_SPACE_COLUMNS = 1000000;
+
 
 	private static _nextVisibleColumn(codePoint: number, visibleColumn: number, tabSize: number): number {
 		if (codePoint === CharCode.Tab) {

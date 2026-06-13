@@ -252,7 +252,7 @@ export class CursorMoveCommands {
 		));
 	}
 
-	public static moveTo(viewModel: IViewModel, cursor: CursorState, inSelectionMode: boolean, _position: IPosition, _viewPosition: IPosition | undefined): PartialCursorState {
+	public static moveTo(viewModel: IViewModel, cursor: CursorState, inSelectionMode: boolean, _position: IPosition, _viewPosition: IPosition | undefined, leftoverVisibleColumns: number = 0): PartialCursorState {
 		if (inSelectionMode) {
 			if (cursor.modelState.selectionStartKind === SelectionStartKind.Word) {
 				return this.word(viewModel, cursor, inSelectionMode, _position);
@@ -267,7 +267,7 @@ export class CursorMoveCommands {
 				? viewModel.coordinatesConverter.validateViewPosition(new Position(_viewPosition.lineNumber, _viewPosition.column), position)
 				: viewModel.coordinatesConverter.convertModelPositionToViewPosition(position)
 		);
-		return CursorState.fromViewState(cursor.viewState.move(inSelectionMode, viewPosition.lineNumber, viewPosition.column, 0));
+		return CursorState.fromViewState(cursor.viewState.move(inSelectionMode, viewPosition.lineNumber, viewPosition.column, leftoverVisibleColumns));
 	}
 
 	public static simpleMove(viewModel: IViewModel, cursors: CursorState[], direction: CursorMove.SimpleMoveDirection, inSelectionMode: boolean, value: number, unit: CursorMove.Unit): PartialCursorState[] | null {
