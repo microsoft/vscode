@@ -404,6 +404,78 @@ suite('CopilotAgentSession', () => {
 		}]);
 	});
 
+	test('maps symbol Resource attachments to SDK selection so the range survives (#315193)', async () => {
+		// Symbols arrive as a Resource with displayKind 'symbol' AND a populated selection.range. Keying the selection
+		// branch off the `selection` field (not displayKind === 'selection') keeps the range instead of degrading the
+		// symbol to a plain file reference.
+		const symbolUri = URI.file('/workspace/sym.ts');
+		const { session, mockSession } = await createAgentSession(disposables, {
+			fileContents: {
+				[symbolUri.toString()]: 'line0\nline1\nfunction foo() {}\nline3',
+			},
+		});
+
+		await session.send('explain this', [
+			{
+				type: MessageAttachmentKind.Resource,
+				uri: symbolUri.toString(),
+				label: 'foo',
+				displayKind: 'symbol',
+				selection: {
+					range: {
+						start: { line: 2, character: 9 },
+						end: { line: 2, character: 12 },
+					},
+				},
+			},
+		]);
+
+		assert.deepStrictEqual(mockSession.sendRequests, [{
+			prompt: 'explain this',
+			attachments: [
+				{
+					type: 'selection',
+					filePath: symbolUri.fsPath,
+					displayName: 'foo',
+					text: 'foo',
+					selection: {
+						start: { line: 2, character: 9 },
+						end: { line: 2, character: 12 },
+					},
+				},
+			],
+		}]);
+	});
+
+	test('falls back to file reference when reading a symbol Resource attachment fails', async () => {
+		const symbolUri = URI.file('/workspace/missing.ts');
+		const { session, mockSession } = await createAgentSession(disposables, {
+			fileReadErrors: [symbolUri.toString()],
+		});
+
+		await session.send('explain this', [
+			{
+				type: MessageAttachmentKind.Resource,
+				uri: symbolUri.toString(),
+				label: 'foo',
+				displayKind: 'symbol',
+				selection: {
+					range: {
+						start: { line: 2, character: 9 },
+						end: { line: 2, character: 12 },
+					},
+				},
+			},
+		]);
+
+		assert.deepStrictEqual(mockSession.sendRequests, [{
+			prompt: 'explain this',
+			attachments: [
+				{ type: 'file', path: symbolUri.fsPath, displayName: 'foo' },
+			],
+		}]);
+	});
+
 	test('sends simple attachments as text blobs and restores them from SDK blobs', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
 
