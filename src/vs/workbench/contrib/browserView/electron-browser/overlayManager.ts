@@ -269,7 +269,7 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 				const clientY = overlapCenter.y - this.targetWindow.scrollY;
 				// Only report this overlay if it's the one actually painted at
 				// the sample point (a z-index check via hit-testing).
-				const elementAtPoint = this.getTopmostElementAt(clientX, clientY, overlays);
+				const elementAtPoint = this.getTopmostElementAt(clientX, clientY);
 				if (elementAtPoint && overlay.element.contains(elementAtPoint)) {
 					overlappingOverlays.push({
 						type: overlay.type,
@@ -282,14 +282,17 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 		return overlappingOverlays;
 	}
 
-	private getTopmostElementAt(clientX: number, clientY: number, overlays: ReadonlyArray<{ element: HTMLElement; type: BrowserOverlayType }>): Element | null {
-		// `elementsFromPoint` returns hits front-to-back. Get the first relevant one.
-		let elementAtPoint = this.targetWindow.document.elementsFromPoint(clientX, clientY)
-			.find(el => !el.classList.contains(CONTEXT_VIEW_BLOCK_CLASS)) ?? null;
-		// `elementsFromPoint` does not pierce shadow DOM, so drill into the host
-		// unless the host is itself a tracked overlay.
-		if (elementAtPoint?.shadowRoot && !isElementInAnyOverlay(elementAtPoint, overlays)) {
-			elementAtPoint = elementAtPoint.shadowRoot.elementFromPoint(clientX, clientY);
+	private getTopmostElementAt(clientX: number, clientY: number): Element | null {
+		// `elementsFromPoint` returns hits front-to-back; skip the transparent
+		// `.context-view-block` so the overlay painted beneath it is found.
+		const topmostAt = (root: DocumentOrShadowRoot): Element | null =>
+			root.elementsFromPoint(clientX, clientY)
+				.find(el => !el.classList.contains(CONTEXT_VIEW_BLOCK_CLASS)) ?? null;
+
+		const elementAtPoint = topmostAt(this.targetWindow.document);
+		// `elementsFromPoint` does not pierce shadow DOM, so drill into the host.
+		if (elementAtPoint?.shadowRoot) {
+			return topmostAt(elementAtPoint.shadowRoot);
 		}
 		return elementAtPoint;
 	}
@@ -321,10 +324,6 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 
 		super.dispose();
 	}
-}
-
-function isElementInAnyOverlay(elementAtPoint: Element, overlays: ReadonlyArray<{ element: HTMLElement; type: BrowserOverlayType }>): boolean {
-	return overlays.some(overlay => overlay.element.contains(elementAtPoint));
 }
 
 function getOverlappingRectangleCenterPoint(rect1: IDomNodePagePosition, rect2: IDomNodePagePosition): { x: number; y: number } | null {
