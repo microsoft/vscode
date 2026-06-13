@@ -85,6 +85,11 @@ export interface AgentPromptProps extends GenericBasePromptElementProps {
 	 * An explicit summarization mode configuration can still force Full mode.
 	 */
 	readonly forceSimpleSummary?: boolean;
+
+	/**
+	 * Effective enterprise policy content resolved before prompt rendering.
+	 */
+	readonly enterprisePolicy?: string;
 }
 
 /** Proportion of the prompt token budget any singular textual tool result is allowed to use. */
@@ -132,8 +137,15 @@ export class AgentPrompt extends PromptElement<AgentPromptProps> {
 		const debugTargetSessionIds = extractDebugTargetSessionIds([...this.props.promptContext.chatVariables].map(v => v.reference));
 		const templateVariablesContext = this.promptVariablesService.buildTemplateVariablesContext(sessionId, debugTargetSessionIds);
 		const customizationsSnapshot = this.getOrFreezeCustomizationsIndex();
+		const enterprisePolicy = this.props.enterprisePolicy;
 		const baseInstructions = <>
 			{!omitBaseAgentInstructions && baseAgentInstructions}
+			{enterprisePolicy && <SystemMessage>
+				<Tag name='enterprisePolicy'>
+					The following enterprise policy content must be followed:<br />
+					{enterprisePolicy}
+				</Tag>
+			</SystemMessage>}
 			{await this.getAgentCustomInstructions(customizationsSnapshot?.frozen)}
 			{isAutopilot && <SystemMessage priority={80}>
 				When you have fully completed the task, call the task_complete tool to signal that you are done.<br />

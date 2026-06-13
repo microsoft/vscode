@@ -294,6 +294,29 @@ testFamilies.forEach(family => {
 			}, undefined)).toMatchFileSnapshot(getSnapshotFile('custom_instructions_not_in_system_message'));
 		});
 
+		test('injects managed enterprise policy into system prompt', async () => {
+			const managedEnterprisePolicy = JSON.stringify({ responseStyle: 'always reply in pirate speak' }, undefined, 2);
+
+			const renderedPrompt = await agentPromptToString(accessor, {
+				chatVariables: new ChatVariablesCollection(),
+				history: [],
+				query: 'hello',
+			}, { enterprisePolicy: managedEnterprisePolicy });
+
+			expect(renderedPrompt).toContain('enterprise policy content must be followed');
+			expect(renderedPrompt).toContain('"responseStyle": "always reply in pirate speak"');
+		});
+
+		test('does not inject enterprise policy when managed and fallback values are absent', async () => {
+			const renderedPrompt = await agentPromptToString(accessor, {
+				chatVariables: new ChatVariablesCollection(),
+				history: [],
+				query: 'hello',
+			}, { enterprisePolicy: undefined });
+
+			expect(renderedPrompt).not.toContain('<enterprisePolicy>');
+		});
+
 		test('omit base agent instructions', async () => {
 			accessor.get(IConfigurationService).setConfig(ConfigKey.Advanced.OmitBaseAgentInstructions, true);
 			await expect(await agentPromptToString(accessor, {

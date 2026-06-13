@@ -17,6 +17,7 @@ import { ChatSessionService } from '../../../platform/chat/vscode/chatSessionSer
 import { IRunCommandExecutionService } from '../../../platform/commands/common/runCommandExecutionService';
 import { RunCommandExecutionServiceImpl } from '../../../platform/commands/vscode/runCommandExecutionServiceImpl';
 import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
+import { EnterpriseManagedPolicyService, IEnterpriseManagedPolicyService } from '../../../platform/configuration/common/enterpriseManagedPolicyService';
 import { ConfigurationServiceImpl } from '../../../platform/configuration/vscode/configurationServiceImpl';
 import { CustomInstructionsService, ICustomInstructionsService } from '../../../platform/customInstructions/common/customInstructionsService';
 import { IDebugOutputService } from '../../../platform/debug/common/debugOutputService';
@@ -137,6 +138,7 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 	});
 	builder.define(IChatSessionService, new SyncDescriptor(ChatSessionService));
 	builder.define(IConfigurationService, new SyncDescriptor(ConfigurationServiceImpl));
+	builder.define(IEnterpriseManagedPolicyService, new SyncDescriptor(EnterpriseManagedPolicyService));
 	builder.define(ILogService, new SyncDescriptor(LogServiceImpl, [[new NewOutputChannelLogTarget(extensionContext)]]));
 	builder.define(IChatQuotaService, new SyncDescriptor(ChatQuotaService));
 	builder.define(ITasksService, new SyncDescriptor(TasksService));
