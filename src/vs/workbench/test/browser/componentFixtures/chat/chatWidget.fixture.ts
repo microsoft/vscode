@@ -38,10 +38,14 @@ export interface IFixtureMessage {
 		| { kind: 'markdown'; text: string }
 		| { kind: 'progress'; text: string }
 		| { kind: 'terminalConfirmation'; command: string; title?: string; disclaimer?: string; requestUnsandboxedExecution?: boolean; requestUnsandboxedExecutionReason?: string; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean; confirmation?: { commandLine: string; cwdLabel?: string; cdPrefix?: string } }
+		| { kind: 'toolConfirmation'; title: string; message: string; subtitle?: string; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean }
 		| { kind: 'elicitation'; title: string; message: string; confirmation?: { commandLine: string; cwdLabel?: string; cdPrefix?: string }; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean }
 	>;
 	readonly responseComplete?: boolean;
 }
+
+type FixtureAssistantPart = NonNullable<IFixtureMessage['assistant']>[number];
+type RiskBearingPart = Extract<FixtureAssistantPart, { kind: 'terminalConfirmation' | 'toolConfirmation' | 'elicitation' }>;
 
 export interface IChatWidgetFixtureOptions {
 	readonly messages: ReadonlyArray<IFixtureMessage>;
@@ -74,10 +78,23 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 		source: ToolDataSource.Internal,
 	};
 
+	const fixtureGenericToolData: IToolData = {
+		id: 'fixture.fetchTool',
+		displayName: 'Fetch',
+		modelDescription: 'Fetch the contents of a web page',
+		source: ToolDataSource.Internal,
+	};
+
+	const fixtureTools = [fixtureToolData, fixtureGenericToolData];
+
+	// Parts whose kinds can carry risk assessment data.
+	const isRiskBearingPart = (p: FixtureAssistantPart): p is RiskBearingPart =>
+		p.kind === 'terminalConfirmation' || p.kind === 'elicitation' || p.kind === 'toolConfirmation';
+
 	// Collect risk assessments from messages so the risk badge service can
 	// return them synchronously via getCached().
-	const hasRiskAssessment = options.messages.some(m => m.assistant?.some(p => (p.kind === 'terminalConfirmation' || p.kind === 'elicitation') && p.riskAssessment));
-	const hasRiskLoading = options.messages.some(m => m.assistant?.some(p => (p.kind === 'terminalConfirmation' || p.kind === 'elicitation') && p.riskLoading));
+	const hasRiskAssessment = options.messages.some(m => m.assistant?.some(p => isRiskBearingPart(p) && !!p.riskAssessment));
+	const hasRiskLoading = options.messages.some(m => m.assistant?.some(p => isRiskBearingPart(p) && !!p.riskLoading));
 	const riskFeatureExplicitlyDisabled = options.riskAssessmentEnabled === false;
 	const needsRiskService = hasRiskAssessment || hasRiskLoading || riskFeatureExplicitlyDisabled;
 
@@ -104,8 +121,8 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 				reg.defineInstance(ILanguageModelToolsService, new class extends mock<ILanguageModelToolsService>() {
 					override onDidChangeTools = Event.None;
 					override onDidPrepareToolCallBecomeUnresponsive = Event.None;
-					override getTools() { return [fixtureToolData]; }
-					override getTool(id: string) { return id === fixtureToolData.id ? fixtureToolData : undefined; }
+					override getTools() { return fixtureTools; }
+					override getTool(id: string) { return fixtureTools.find(t => t.id === id); }
 				}());
 				reg.defineInstance(IChatToolRiskAssessmentService, new class extends mock<IChatToolRiskAssessmentService>() {
 					override isEnabled() { return !riskFeatureExplicitlyDisabled; }
@@ -113,7 +130,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 						// Return the first risk assessment found in the fixture messages.
 						for (const m of options.messages) {
 							for (const p of m.assistant ?? []) {
-								if ((p.kind === 'terminalConfirmation' || p.kind === 'elicitation') && p.riskAssessment) {
+								if (isRiskBearingPart(p) && p.riskAssessment) {
 									return p.riskAssessment;
 								}
 							}
@@ -187,6 +204,22 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 					generateUuid(),
 					undefined,
 					{ command: part.command },
+				);
+				model.acceptResponseProgress(request, toolInvocation);
+			} else if (part.kind === 'toolConfirmation') {
+				// A generic (non-terminal) tool confirmation. Leaving `toolSpecificData`
+				// undefined routes the renderer to the generic `ToolConfirmationSubPart`,
+				// which surfaces the risk badge as a footer banner.
+				const toolInvocation = new ChatToolInvocation(
+					{
+						invocationMessage: new MarkdownString(part.title),
+						originMessage: part.subtitle,
+						confirmationMessages: { title: part.title, message: new MarkdownString(part.message) },
+					},
+					fixtureGenericToolData,
+					generateUuid(),
+					undefined,
+					{ url: part.message },
 				);
 				model.acceptResponseProgress(request, toolInvocation);
 			}
