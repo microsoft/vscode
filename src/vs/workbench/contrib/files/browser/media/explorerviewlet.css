@@ -106,3 +106,14 @@
 .monaco-workbench.context-menu-visible .explorer-folders-view.highlight .monaco-list-row {
 	outline: none !important;
 }
+
+/* "Load more" entry shown for folders that exceed explorer.fileLimit */
+.monaco-workbench .explorer-folders-view .monaco-icon-label.explorer-load-more .label-name {
+	color: var(--vscode-textLink-foreground);
+	font-style: italic;
+}
+
+/* Tint the codicon to match the link-styled label so the row reads as a single action */
+.monaco-workbench .explorer-folders-view .monaco-icon-label.explorer-load-more::before {
+	color: var(--vscode-textLink-foreground);
+}
