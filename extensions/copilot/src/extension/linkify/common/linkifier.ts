@@ -187,6 +187,21 @@ export class Linkifier implements ILinkifier {
 						break;
 					} else if (this._state.accumulationType === LinkifierState.AccumulationType.Word && /\s/.test(part)) {
 						const toAppend = this._state.pendingText + part;
+
+						// Check if the accumulated text contains an unclosed `[` that could be
+						// the start of a markdown link, e.g. "abc[src/main.ts " → split into
+						// "abc" (complete word) + "[src/main.ts " (continue as PotentialLink).
+						const bracketIndex = toAppend.indexOf('[');
+						if (bracketIndex !== -1 && !toAppend.includes(']', bracketIndex)) {
+							const beforeBracket = toAppend.slice(0, bracketIndex);
+							if (beforeBracket) {
+								const r = await this.doLinkifyAndAppend(beforeBracket, {}, token);
+								out.push(...r.parts);
+							}
+							this._state = new LinkifierState.Accumulating(toAppend.slice(bracketIndex), LinkifierState.AccumulationType.PotentialLink);
+							break;
+						}
+
 						this._state = LinkifierState.Default;
 
 						// Check if we've found special tokens
