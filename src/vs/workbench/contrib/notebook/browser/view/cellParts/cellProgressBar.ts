@@ -8,7 +8,7 @@ import { defaultProgressBarStyles } from '../../../../../../platform/theme/brows
 import { ICellViewModel } from '../../notebookBrowser.js';
 import { CellViewModelStateChangeEvent } from '../../notebookViewEvents.js';
 import { CellContentPart } from '../cellPart.js';
-import { NotebookCellExecutionState } from '../../../common/notebookCommon.js';
+import { NotebookCellExecutionState, NotebookCellExecutionProgress } from '../../../common/notebookCommon.js';
 import { ICellExecutionStateChangedEvent, INotebookExecutionStateService } from '../../../common/notebookExecutionStateService.js';
 
 export class CellProgressBar extends CellContentPart {
@@ -59,15 +59,42 @@ export class CellProgressBar extends CellContentPart {
 
 	private _updateForExecutionState(element: ICellViewModel, e?: ICellExecutionStateChangedEvent): void {
 		const exeState = e?.changed ?? this._notebookExecutionStateService.getCellExecution(element.uri);
+		setProgressBar(this._collapsedProgressBar, exeState?.progress);
+		setProgressBar(this._progressBar, exeState?.progress);
 		const progressBar = element.isInputCollapsed ? this._collapsedProgressBar : this._progressBar;
 		if (exeState?.state === NotebookCellExecutionState.Executing && (!exeState.didPause || element.isInputCollapsed)) {
 			showProgressBar(progressBar);
-		} else {
+		} else if (progressBar.hasTotal()) {
+			progressBar.done();
+		}
+		else {
 			progressBar.hide();
 		}
 	}
 }
 
 function showProgressBar(progressBar: ProgressBar): void {
-	progressBar.infinite().show(500);
+	if (progressBar.hasTotal()) {
+		progressBar.show(500);
+	}
+	else {
+		progressBar.infinite().show(500);
+	}
+}
+
+function setProgressBar(progressBar: ProgressBar, progress: NotebookCellExecutionProgress | undefined): void {
+	if (typeof progress?.total === 'number') {
+		progressBar.total(progress.total);
+	}
+
+	if (!progressBar.hasTotal() && (typeof progress?.increment === 'number' || typeof progress?.progress === 'number')) {
+		progressBar.total(100);
+	}
+
+	if (typeof progress?.progress === 'number') {
+		progressBar.setWorked(progress?.progress);
+	}
+	if (typeof progress?.increment === 'number') {
+		progressBar.worked(progress?.increment);
+	}
 }
