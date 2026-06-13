@@ -207,7 +207,7 @@ function computeUnchangedMoves(
 		for (extendToTop = 0; extendToTop < linesAbove; extendToTop++) {
 			const origLine = move.original.startLineNumber - extendToTop - 1;
 			const modLine = move.modified.startLineNumber - extendToTop - 1;
-			if (origLine > originalLines.length || modLine > modifiedLines.length) {
+			if (origLine < 1 || modLine < 1 || origLine > originalLines.length || modLine > modifiedLines.length) {
 				break;
 			}
 			if (modifiedSet.contains(modLine) || originalSet.contains(origLine)) {
