@@ -219,7 +219,6 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	configValues?: Record<string, unknown>;
 	fileContents?: Record<string, string>;
 	fileReadErrors?: readonly string[];
-	fileSizes?: Record<string, number>;
 	/** Configure the mock session before {@link CopilotAgentSession.initializeSession} runs. */
 	configureMockSession?: (session: MockCopilotSession) => void;
 	/** Optional feedback ("comments") server-tool host wired into the session. */
@@ -297,10 +296,6 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 				throw new Error('read failed');
 			}
 			return { value: VSBuffer.fromString(options?.fileContents?.[resource.toString()] ?? options?.fileContents?.[resource.fsPath] ?? '') };
-		},
-		stat: async (resource: URI) => {
-			const size = options?.fileSizes?.[resource.toString()] ?? options?.fileSizes?.[resource.fsPath] ?? 0;
-			return { size } as unknown as Awaited<ReturnType<IFileService['stat']>>;
 		},
 	} as Partial<IFileService> as IFileService);
 	services.set(ISessionDataService, createSessionDataService());
@@ -409,137 +404,10 @@ suite('CopilotAgentSession', () => {
 		}]);
 	});
 
-	test('forwards image Resource attachments as SDK blobs with detected MIME (#320516)', async () => {
-		const pngUri = URI.file('/workspace/attachments/abc/Pasted Image.png');
-		const pngBytes = 'fake png bytes';
-		const noExtUri = URI.file('/workspace/attachments/def/photo');
-		const noExtBytes = 'fake image bytes';
-		const wavUri = URI.file('/workspace/attachments/ghi/voice.wav');
-		const wavBytes = 'fake audio bytes';
-		const jpegUri = URI.file('/workspace/attachments/jkl/snapshot.png');
-		const jpegBytes = 'fake jpeg bytes';
-		const docUri = URI.file('/workspace/notes.txt');
-		const { session, mockSession } = await createAgentSession(disposables, {
-			fileContents: {
-				[pngUri.toString()]: pngBytes,
-				[noExtUri.toString()]: noExtBytes,
-				[wavUri.toString()]: wavBytes,
-				[jpegUri.toString()]: jpegBytes,
-				[docUri.toString()]: 'plain document',
-			},
-		});
-
-		await session.send('look at this', [
-			// Path-based MIME detection: a `.png` resource (any displayKind) goes as a blob.
-			{ type: MessageAttachmentKind.Resource, uri: pngUri.toString(), label: 'Pasted Image', displayKind: 'image' },
-			// `displayKind: 'image'` with no path extension falls back to image/png.
-			{ type: MessageAttachmentKind.Resource, uri: noExtUri.toString(), label: 'photo', displayKind: 'image' },
-			// `displayKind: 'image'` over a path that resolves to a NON-image MIME (.wav -> audio/x-wav): still force
-			// image/png — never propagate a non-image MIME under an `'image'` hint.
-			{ type: MessageAttachmentKind.Resource, uri: wavUri.toString(), label: 'voice', displayKind: 'image' },
-			// Producer-declared `contentType` is authoritative — the snapshot path says `.png` but the producer says
-			// JPEG, and that's what we forward.
-			{ type: MessageAttachmentKind.Resource, uri: jpegUri.toString(), label: 'snapshot', displayKind: 'image', contentType: 'image/jpeg' },
-			// Non-image resources still go as `file` references.
-			{ type: MessageAttachmentKind.Resource, uri: docUri.toString(), label: 'notes.txt', displayKind: 'document' },
-		]);
-
-		assert.deepStrictEqual(mockSession.sendRequests, [{
-			prompt: 'look at this',
-			attachments: [
-				{
-					type: 'blob',
-					data: encodeBase64(VSBuffer.fromString(pngBytes)),
-					mimeType: 'image/png',
-					displayName: 'Pasted Image',
-				},
-				{
-					type: 'blob',
-					data: encodeBase64(VSBuffer.fromString(noExtBytes)),
-					mimeType: 'image/png',
-					displayName: 'photo',
-				},
-				{
-					type: 'blob',
-					data: encodeBase64(VSBuffer.fromString(wavBytes)),
-					mimeType: 'image/png',
-					displayName: 'voice',
-				},
-				{
-					type: 'blob',
-					data: encodeBase64(VSBuffer.fromString(jpegBytes)),
-					mimeType: 'image/jpeg',
-					displayName: 'snapshot',
-				},
-				{ type: 'file', path: docUri.fsPath, displayName: 'notes.txt' },
-			],
-		}]);
-	});
-
-	test('keeps non-image Resource attachments as file references even when contentType is set', async () => {
-		const pdfUri = URI.file('/workspace/spec.pdf');
-		const { session, mockSession } = await createAgentSession(disposables, {
-			fileContents: {
-				// Read shouldn't fire for non-image content types; if it does the test fails loudly.
-				[pdfUri.toString()]: 'never-read',
-			},
-		});
-
-		await session.send('attach this', [
-			{ type: MessageAttachmentKind.Resource, uri: pdfUri.toString(), label: 'spec.pdf', displayKind: 'document', contentType: 'application/pdf' },
-		]);
-
-		assert.deepStrictEqual(mockSession.sendRequests, [{
-			prompt: 'attach this',
-			attachments: [
-				{ type: 'file', path: pdfUri.fsPath, displayName: 'spec.pdf' },
-			],
-		}]);
-	});
-
-	test('falls back to file reference when reading an image Resource attachment fails', async () => {
-		const pngUri = URI.file('/workspace/missing.png');
-		const { session, mockSession } = await createAgentSession(disposables, {
-			fileReadErrors: [pngUri.toString()],
-		});
-
-		await session.send('look at this', [
-			{ type: MessageAttachmentKind.Resource, uri: pngUri.toString(), label: 'missing.png', displayKind: 'image' },
-		]);
-
-		assert.deepStrictEqual(mockSession.sendRequests, [{
-			prompt: 'look at this',
-			attachments: [
-				{ type: 'file', path: pngUri.fsPath, displayName: 'missing.png' },
-			],
-		}]);
-	});
-
-	test('falls back to file reference when an image Resource attachment exceeds the inline size cap', async () => {
-		const pngUri = URI.file('/workspace/huge.png');
-		const { session, mockSession } = await createAgentSession(disposables, {
-			fileSizes: {
-				[pngUri.toString()]: 10 * 1024 * 1024,
-			},
-			fileContents: {
-				// Should never be read once the size cap fires; included to make the test fail loudly if it is.
-				[pngUri.toString()]: 'never-read',
-			},
-		});
-
-		await session.send('describe this image', [
-			{ type: MessageAttachmentKind.Resource, uri: pngUri.toString(), label: 'huge.png', displayKind: 'image' },
-		]);
-
-		assert.deepStrictEqual(mockSession.sendRequests, [{
-			prompt: 'describe this image',
-			attachments: [
-				{ type: 'file', path: pngUri.fsPath, displayName: 'huge.png' },
-			],
-		}]);
-	});
-
 	test('maps symbol Resource attachments to SDK selection so the range survives (#315193)', async () => {
+		// Symbols arrive as a Resource with displayKind 'symbol' AND a populated selection.range. Keying the selection
+		// branch off the `selection` field (not displayKind === 'selection') keeps the range instead of degrading the
+		// symbol to a plain file reference.
 		const symbolUri = URI.file('/workspace/sym.ts');
 		const { session, mockSession } = await createAgentSession(disposables, {
 			fileContents: {
@@ -593,8 +461,8 @@ suite('CopilotAgentSession', () => {
 				displayKind: 'symbol',
 				selection: {
 					range: {
-						start: { line: 0, character: 0 },
-						end: { line: 0, character: 3 },
+						start: { line: 2, character: 9 },
+						end: { line: 2, character: 12 },
 					},
 				},
 			},

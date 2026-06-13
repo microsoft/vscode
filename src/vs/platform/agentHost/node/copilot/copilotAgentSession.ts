@@ -9,7 +9,6 @@ import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
-import { getMediaMime } from '../../../../base/common/mime.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isAbsolute, join } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase, normalizePath } from '../../../../base/common/resources.js';
@@ -32,7 +31,7 @@ import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmit
 import type { LanguageModelToolInvokedClassification, LanguageModelToolInvokedEvent } from '../../../telemetry/common/languageModelToolTelemetry.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
-import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment, type MessageResourceAttachment } from '../../common/state/protocol/state.js';
+import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
 import { MessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type PendingMessage, type SessionInputAnswer, type SessionInputOption, type SessionInputQuestion, type SessionInputRequest, type ToolCallResult, type ToolResultContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
@@ -84,15 +83,6 @@ function getEmptyToolResultText(binaryResults: readonly { readonly type: 'image'
 	}
 	return 'Tool produced the attached file';
 }
-
-/**
- * Defensive cap on the raw byte size of an inline `blob` image attachment. Anything larger falls back to a `file`
- * reference so we don't inflate a multi-MB file into a base64-bloated JSON-RPC frame. The chat composer's image picker
- * already runs `resizeImage` (capping at 2048×2048) before producing image variable attachments, so this cap only ever
- * trips for non-image-variable paths — most commonly a workspace image file attached via `#file:huge.png`, where no
- * upstream resize runs.
- */
-const INLINE_IMAGE_BLOB_MAX_BYTES = 5 * 1024 * 1024;
 
 /**
  * Display labels and descriptions for the SDK's `exit_plan_mode` action ids.
@@ -968,18 +958,12 @@ export class CopilotAgentSession extends Disposable {
 	 * {@link MessageAttachmentBase.displayKind} advisory hint controls
 	 * which one). Embedded resources (e.g. inline image bytes) map to the
 	 * SDK's `blob` variant.
+	 * Simple attachments with a model representation map to `text/plain`
+	 * blob attachments.
 	 *
 	 * Any Resource attachment carrying a {@link TextSelection} (e.g. `displayKind === 'selection'` or `'symbol'`) is
 	 * mapped to the SDK's `selection` variant so the range survives the round-trip — keying off the `selection` field
 	 * rather than just `displayKind` avoids symbol attachments degrading to a plain file reference (#315193).
-	 *
-	 * Resource attachments classified as images (via `attachment.contentType`, the URI's extension, or the protocol's
-	 * advisory `'image'` displayKind) are forwarded as `blob` variants so the SDK gets an explicit MIME type and can
-	 * route them to the model's native vision channel — the SDK's `file` variant carries no MIME info, so vision-capable
-	 * models would otherwise fall back to a tool-call view path and effectively miss the image (#320516).
-	 *
-	 * Simple attachments with a model representation map to `text/plain`
-	 * blob attachments.
 	 *
 	 * For selections we read the resource content from disk and slice it
 	 * by the carried range (the protocol's {@link TextSelection} only
@@ -1019,71 +1003,8 @@ export class CopilotAgentSession extends Disposable {
 		if (attachment.displayKind === 'selection') {
 			return { type: 'file' as const, path, displayName };
 		}
-		if (attachment.displayKind === 'image' || attachment.displayKind === 'document' || attachment.displayKind === undefined) {
-			const mimeType = this._getImageMimeType(attachment, uri.path);
-			if (mimeType) {
-				const blob = await this._tryReadAsBlob(uri, mimeType, displayName);
-				if (blob) {
-					return blob;
-				}
-			}
-		}
 		const type = attachment.displayKind === 'directory' ? 'directory' : 'file';
 		return { type, path, displayName };
-	}
-
-	/**
-	 * Returns an image MIME type for an attachment, or `undefined` for non-images so they keep the reference-style
-	 * `file` path. Prefers `contentType` (authoritative), then path-derived MIME, then the `'image'` displayKind hint
-	 * (falls back to `image/png`). Never propagates a non-image MIME under an `'image'` hint.
-	 */
-	private _getImageMimeType({ contentType, displayKind }: MessageResourceAttachment, path: string): string | undefined {
-		if (contentType) {
-			return contentType.startsWith('image/') ? contentType : undefined;
-		}
-		const mime = getMediaMime(path);
-		if (mime?.startsWith('image/')) {
-			return mime;
-		}
-		if (displayKind === 'image') {
-			return 'image/png';
-		}
-		return undefined;
-	}
-
-	/**
-	 * Reads the attachment bytes from `uri` and wraps them as a `blob` SDK attachment. Returns `undefined` on read
-	 * failure (or when the attachment exceeds {@link INLINE_IMAGE_BLOB_MAX_BYTES}) so the caller can fall back to a
-	 * `file` reference attachment.
-	 *
-	 * The cap is a defense for paths where no upstream resize runs — most notably a workspace image file attached as
-	 * `#file:huge.png`, which arrives as a `Resource` with `displayKind: 'document'` and bypasses the chat composer's
-	 * `resizeImage` step. The image-variable path already caps at 2048×2048 well below this limit, so this only trips
-	 * on outliers.
-	 */
-	private async _tryReadAsBlob(uri: URI, mimeType: string, displayName: string): Promise<CopilotSdkAttachment | undefined> {
-		try {
-			try {
-				const stat = await this._fileService.stat(uri);
-				if (stat.size > INLINE_IMAGE_BLOB_MAX_BYTES) {
-					this._logService.warn(`[Copilot:${this.sessionId}] Image attachment ${uri.toString()} is ${stat.size} bytes (cap ${INLINE_IMAGE_BLOB_MAX_BYTES}); falling back to file reference.`);
-					return undefined;
-				}
-			} catch {
-				// Stat failure (e.g. provider doesn't support stat): fall through to read. The read either succeeds with
-				// acceptable bytes or fails and we surface that via the outer catch.
-			}
-			const contents = await this._fileService.readFile(uri);
-			return {
-				type: 'blob' as const,
-				data: encodeBase64(contents.value),
-				mimeType,
-				displayName,
-			};
-		} catch (err) {
-			this._logService.warn(`[Copilot:${this.sessionId}] Failed to read image attachment ${uri.toString()} as blob; falling back to file reference: ${err}`);
-			return undefined;
-		}
 	}
 
 	private async _readSelectedText(uri: URI, range: { readonly start: { readonly line: number; readonly character: number }; readonly end: { readonly line: number; readonly character: number } }): Promise<string> {
