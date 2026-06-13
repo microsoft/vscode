@@ -130,7 +130,9 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 					await this.updateResultCount();
 				}
 				this.updateButtons(this._foundMatch);
-				this.focusFindBox();
+				if (!options.checkImeCompletionState || !e.fromCompositionEnd) {
+					this.focusFindBox();
+				}
 				this._delayedUpdateHistory();
 			}
 		}));
@@ -412,6 +414,9 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 	}
 
 	protected focusFindBox() {
+		if (this._findInput.isImeSessionInProgress) {
+			return;
+		}
 		// Focus back onto the find box, which
 		// requires focusing onto the next button first
 		this.nextBtn.focus();
