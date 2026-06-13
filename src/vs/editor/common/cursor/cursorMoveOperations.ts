@@ -5,12 +5,13 @@
 
 import * as strings from '../../../base/common/strings.js';
 import { Constants } from '../../../base/common/uint.js';
+import { TextEditorCursorStyle } from '../config/editorOptions.js';
 import { CursorColumns } from '../core/cursorColumns.js';
 import { Position } from '../core/position.js';
 import { Range } from '../core/range.js';
-import { AtomicTabMoveOperations, Direction } from './cursorAtomicMoveOperations.js';
 import { CursorConfiguration, ICursorSimpleModel, SelectionStartKind, SingleCursorState } from '../cursorCommon.js';
 import { PositionAffinity } from '../model.js';
+import { AtomicTabMoveOperations, Direction } from './cursorAtomicMoveOperations.js';
 
 export class CursorPosition {
 	_cursorPositionBrand: void = undefined;
@@ -81,6 +82,19 @@ export class MoveOperations {
 
 			lineNumber = p.lineNumber;
 			column = p.column;
+
+			// For block cursors, skip left past injected text entirely so the block
+			// does not render on an injected (e.g. inlay hint) character.
+			if (config.cursorStyle !== TextEditorCursorStyle.Line && config.cursorStyle !== TextEditorCursorStyle.LineThin) {
+				const dest = new Position(lineNumber, column);
+				const leftOfInjected = model.normalizePosition(dest, PositionAffinity.LeftOfInjectedText);
+				if (!dest.equals(leftOfInjected)) {
+					// Landed inside injected text; jump one more step left to land before the hint.
+					const beforeInjected = MoveOperations.left(config, model, leftOfInjected);
+					lineNumber = beforeInjected.lineNumber;
+					column = beforeInjected.column;
+				}
+			}
 		}
 
 		return cursor.move(inSelectionMode, lineNumber, column, 0);
