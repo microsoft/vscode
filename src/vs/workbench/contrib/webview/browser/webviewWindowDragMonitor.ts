@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DataTransfers } from '../../../../base/browser/dnd.js';
 import * as DOM from '../../../../base/browser/dom.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -39,7 +40,7 @@ export class WebviewWindowDragMonitor extends Disposable {
 		}));
 
 		this._register(DOM.addDisposableListener(targetWindow, DOM.EventType.DRAG, (event) => {
-			if (event.shiftKey) {
+			if (isDragIntoEditorEvent(event)) {
 				onDragEnd();
 			} else {
 				onDragStart();
@@ -47,12 +48,21 @@ export class WebviewWindowDragMonitor extends Disposable {
 		}));
 
 		this._register(DOM.addDisposableListener(targetWindow, DOM.EventType.DRAG_OVER, (event) => {
-			if (event.shiftKey) {
+			if (isDragIntoEditorEvent(event)) {
 				onDragEnd();
 			} else {
 				onDragStart();
 			}
 		}));
 
+	}
+}
+
+
+function isDragIntoEditorEvent(e: DragEvent): boolean {
+	if (e.dataTransfer?.types.includes(DataTransfers.INTERNAL_URI_LIST)) {
+		return e.shiftKey;
+	} else {
+		return true;
 	}
 }
