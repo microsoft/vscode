@@ -12,7 +12,7 @@ import { IExtHostRpcService } from './extHostRpcService.js';
 import { IExtHostTerminalService } from './extHostTerminalService.js';
 import { Emitter, type Event } from '../../../base/common/event.js';
 import { URI } from '../../../base/common/uri.js';
-import { AsyncIterableObject, Barrier, type AsyncIterableEmitter } from '../../../base/common/async.js';
+import { AsyncIterableProducer, Barrier, type AsyncIterableEmitter } from '../../../base/common/async.js';
 
 export interface IExtHostTerminalShellIntegration extends ExtHostTerminalShellIntegrationShape {
 	readonly _serviceBrand: undefined;
@@ -400,7 +400,7 @@ class InternalTerminalShellExecution {
 	private _createDataStream(): AsyncIterable<string> {
 		if (!this._dataStream) {
 			if (this._isEnded) {
-				return AsyncIterableObject.EMPTY;
+				return AsyncIterableProducer.fromArray([]);
 			}
 			this._dataStream = new ShellExecutionDataStream();
 		}
@@ -432,7 +432,7 @@ class InternalTerminalShellExecution {
 
 class ShellExecutionDataStream extends Disposable {
 	private _barrier: Barrier | undefined;
-	private _iterables: AsyncIterableObject<string>[] = [];
+	private _iterables: AsyncIterableProducer<string>[] = [];
 	private _emitters: AsyncIterableEmitter<string>[] = [];
 
 	createIterable(): AsyncIterable<string> {
@@ -440,7 +440,7 @@ class ShellExecutionDataStream extends Disposable {
 			this._barrier = new Barrier();
 		}
 		const barrier = this._barrier;
-		const iterable = new AsyncIterableObject<string>(async emitter => {
+		const iterable = new AsyncIterableProducer<string>(async emitter => {
 			this._emitters.push(emitter);
 			await barrier.wait();
 		});
@@ -459,7 +459,7 @@ class ShellExecutionDataStream extends Disposable {
 	}
 
 	async flush(): Promise<void> {
-		await Promise.all(this._iterables.map(e => e.toPromise()));
+		await Promise.all(this._iterables.map(async e => { for await (const _ of e) { /* drain */ } }));
 	}
 }
 
