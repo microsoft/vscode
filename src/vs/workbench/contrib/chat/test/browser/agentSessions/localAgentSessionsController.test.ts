@@ -771,4 +771,42 @@ suite('LocalAgentsSessionsController', () => {
 			});
 		});
 	});
+
+	test('should update item when onDidChangeSessionTitle fires for unloaded session', async () => {
+		return runWithFakedTimers({}, async () => {
+			const controller = createController();
+
+			const sessionResource = LocalChatSessionUri.forSession('title-change-session');
+
+			// Set up a history-only item (no model loaded)
+			mockChatService.setLiveSessionItems([]);
+			mockChatService.setHistorySessionItems([{
+				sessionResource,
+				title: 'Original Title',
+				lastMessageDate: Date.now() - 10000,
+				isActive: false,
+				lastResponseState: ResponseModelState.Complete,
+				timing: createTestTiming()
+			}]);
+
+			await controller.refresh(CancellationToken.None);
+			assert.strictEqual(controller.items.length, 1);
+			assert.strictEqual(controller.items[0].label, 'Original Title');
+
+			// Listen for the change event
+			let changeEvent: { addedOrUpdated?: readonly IChatSessionItem[] } | undefined;
+			disposables.add(controller.onDidChangeChatSessionItems(e => {
+				changeEvent = e;
+			}));
+
+			// Fire the title change event (simulating rename of unloaded session)
+			mockChatService.fireDidChangeSessionTitle(sessionResource, 'Renamed Title');
+
+			// The item should be updated
+			assert.ok(changeEvent, 'onDidChangeChatSessionItems should have fired');
+			assert.strictEqual(changeEvent!.addedOrUpdated?.length, 1);
+			assert.strictEqual(changeEvent!.addedOrUpdated![0].label, 'Renamed Title');
+			assert.strictEqual(controller.items.find(i => i.resource.toString() === sessionResource.toString())?.label, 'Renamed Title');
+		});
+	});
 });

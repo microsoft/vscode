@@ -504,6 +504,7 @@ export class ChatSessionStore extends Disposable {
 			const index = this.internalGetIndex();
 			if (index.entries[sessionId]) {
 				index.entries[sessionId].title = title;
+				await this.flushIndex();
 			}
 		});
 	}
