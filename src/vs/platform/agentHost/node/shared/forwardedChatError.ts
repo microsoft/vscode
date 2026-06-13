@@ -83,16 +83,50 @@ function statusToFetchType(status: number): string {
  */
 export function buildForwardedChatError(err: CopilotApiError): IForwardedChatError {
 	const status = err.status === COPILOT_API_ERROR_STATUS_STREAMING ? 502 : err.status;
-	const message = err.envelope.error.message;
-	const code = err.envelope.error.type;
 	const requestId = typeof err.envelope.request_id === 'string' ? err.envelope.request_id : '';
+	// CAPI rate-limit/quota errors carry their fine-grained code in the
+	// response body (e.g. `{ "error": { "code": "quota_exceeded", ... } }`).
+	// The proxy synthesizes a non-conforming body into the Anthropic envelope
+	// as `error.type: 'api_error'` with the raw body as the message, so prefer
+	// a CAPI code/message parsed out of the message when present.
+	const capiError = extractCapiError(err.envelope.error.message) ?? { code: err.envelope.error.type, message: err.envelope.error.message };
 	return {
 		fetchError: {
 			type: statusToFetchType(status),
-			reason: message,
+			reason: capiError.message ?? err.envelope.error.message,
 			requestId,
-			capiError: { code, message },
+			capiError,
 		},
+	};
+}
+
+/**
+ * Attempts to parse a CAPI-style error body (`{ "error": { "code", "message" } }`)
+ * out of an envelope message string. Returns `undefined` when the message is
+ * not such a JSON payload.
+ */
+function extractCapiError(message: string): { code?: string; message?: string } | undefined {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(message);
+	} catch {
+		return undefined;
+	}
+	if (!parsed || typeof parsed !== 'object') {
+		return undefined;
+	}
+	const error = (parsed as { error?: unknown }).error;
+	if (!error || typeof error !== 'object') {
+		return undefined;
+	}
+	const code = (error as { code?: unknown }).code;
+	const msg = (error as { message?: unknown }).message;
+	if (typeof code !== 'string' && typeof msg !== 'string') {
+		return undefined;
+	}
+	return {
+		code: typeof code === 'string' ? code : undefined,
+		message: typeof msg === 'string' ? msg : undefined,
 	};
 }
 

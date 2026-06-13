@@ -69,6 +69,19 @@ suite('forwardedChatError', () => {
 			const forwarded = buildForwardedChatError(makeApiError(500, 'api_error', 'boom', null));
 			assert.strictEqual(forwarded.fetchError.requestId, '');
 		});
+
+		test('extracts CAPI code and message from a synthesized error body', () => {
+			const body = JSON.stringify({ error: { message: 'You have exceeded your monthly quota', code: 'quota_exceeded' } });
+			const forwarded = buildForwardedChatError(makeApiError(402, 'api_error', body));
+			assert.deepStrictEqual(forwarded, {
+				fetchError: {
+					type: 'quotaExceeded',
+					reason: 'You have exceeded your monthly quota',
+					requestId: 'req-1',
+					capiError: { code: 'quota_exceeded', message: 'You have exceeded your monthly quota' },
+				},
+			} satisfies IForwardedChatError);
+		});
 	});
 
 	suite('encode / parse round-trip', () => {

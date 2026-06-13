@@ -11,7 +11,6 @@ import {
 	getChatErrorDetailsFromFetchError,
 	getChatErrorDetailsFromMeta,
 	getCopilotPlanFromEntitlement,
-	getFilteredMessage,
 	getQuotaMessageForPlan,
 	IChatFetchErrorPayload,
 } from '../../common/chatErrorMessages.js';
