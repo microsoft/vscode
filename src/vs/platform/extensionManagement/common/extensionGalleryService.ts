@@ -24,7 +24,7 @@ import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { asJson, asTextOrError, IRequestService, isClientError, isServerError, isSuccess } from '../../request/common/request.js';
-import { resolveMarketplaceHeaders } from '../../externalServices/common/marketplace.js';
+import { resolveMarketplaceHeaders, resolveNetrcAuthorizationHeader } from '../../externalServices/common/marketplace.js';
 import { IStorageService } from '../../storage/common/storage.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
@@ -638,6 +638,20 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 
 	isEnabled(): boolean {
 		return this.extensionGalleryManifestService.extensionGalleryManifestStatus === ExtensionGalleryManifestStatus.Available;
+	}
+
+	/**
+	 * Returns base request headers for every gallery call.
+	 * Stable headers (User-Agent, machine ID, etc.) come from the cached commonHeadersPromise.
+	 * The Authorization header is re-resolved on every call so that a rotated ~/.netrc token
+	 * is picked up without requiring a VS Code restart.
+	 */
+	private async getBaseHeaders(): Promise<IHeaders> {
+		const cached = await this.commonHeadersPromise;
+		const serviceUrl = this.productService.extensionsGallery?.serviceUrl;
+		if (!serviceUrl) { return cached; }
+		const authorization = await resolveNetrcAuthorizationHeader(serviceUrl, this.environmentService, this.fileService, this.configurationService);
+		return authorization ? { ...cached, Authorization: authorization } : cached;
 	}
 
 	getExtensions(extensionInfos: ReadonlyArray<IExtensionInfo>, token: CancellationToken): Promise<IGalleryExtension[]>;
@@ -1432,7 +1446,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			}, 0)
 		});
 
-		const commonHeaders = await this.commonHeadersPromise;
+		const commonHeaders = await this.getBaseHeaders();
 		const headers = {
 			...commonHeaders,
 			'Content-Type': 'application/json',
@@ -1587,7 +1601,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		const stopWatch = new StopWatch();
 
 		try {
-			const commonHeaders = await this.commonHeadersPromise;
+			const commonHeaders = await this.getBaseHeaders();
 			const headers = {
 				...commonHeaders,
 				'Content-Type': 'application/json',
@@ -1692,7 +1706,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		const url = format2(resource, { publisher, name, version, statTypeName: type });
 
 		const Accept = '*/*;api-version=4.0-preview.1';
-		const commonHeaders = await this.commonHeadersPromise;
+		const commonHeaders = await this.getBaseHeaders();
 		const headers = { ...commonHeaders, Accept };
 		try {
 			await this.requestService.request({
@@ -1883,7 +1897,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 	}
 
 	private async getAsset(extension: string, asset: IGalleryExtensionAsset, assetType: string, extensionVersion: string, callSite: string, options: Omit<IRequestOptions, 'callSite'> = {}, token: CancellationToken = CancellationToken.None): Promise<IRequestContext> {
-		const commonHeaders = await this.commonHeadersPromise;
+		const commonHeaders = await this.getBaseHeaders();
 		const baseOptions = { type: 'GET' };
 		const headers = { ...commonHeaders, ...(options.headers || {}) };
 		options = { ...options, ...baseOptions, headers };
