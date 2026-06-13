@@ -64,7 +64,7 @@ import { TestId } from '../../contrib/testing/common/testId.js';
 import { CoverageDetails, DetailType, ICoverageCount, IFileCoverage, ISerializedTestResults, ITestErrorMessage, ITestItem, ITestRunProfileReference, ITestTag, TestMessageType, TestResultItem, TestRunProfileBitset, denamespaceTestTag, namespaceTestTag } from '../../contrib/testing/common/testTypes.js';
 import { AiSettingsSearchResult, AiSettingsSearchResultKind } from '../../services/aiSettingsSearch/common/aiSettingsSearch.js';
 import { EditorGroupColumn } from '../../services/editor/common/editorGroupColumn.js';
-import { ACTIVE_GROUP, SIDE_GROUP } from '../../services/editor/common/editorService.js';
+import { ACTIVE_GROUP, MODAL_GROUP, SIDE_GROUP } from '../../services/editor/common/editorService.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { Dto, SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
 import * as extHostProtocol from './extHost.protocol.js';
@@ -326,6 +326,10 @@ export namespace ViewColumn {
 
 		if (column === types.ViewColumn.Beside) {
 			return SIDE_GROUP;
+		}
+
+		if (column === types.ViewColumn.Modal) {
+			return MODAL_GROUP;
 		}
 
 		return ACTIVE_GROUP; // default is always the active group
