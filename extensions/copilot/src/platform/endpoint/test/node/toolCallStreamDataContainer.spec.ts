@@ -52,6 +52,16 @@ describe('toolCallStreamDataContainer', () => {
 	});
 
 	it.each([
+		{ beginToolCalls: [] },
+		{ copilotToolCallStreamUpdates: [] },
+		{ beginToolCalls: [], copilotToolCallStreamUpdates: [] },
+	])('rejects empty tool-stream arrays: %j', payload => {
+		const encoded = encodeToolCallStreamData(payload);
+
+		expect(decodeToolCallStreamData(encoded)).toBeUndefined();
+	});
+
+	it.each([
 		{ beginToolCalls: 'bad' },
 		{ beginToolCalls: [{ id: 1, name: 'apply_patch' }] },
 		{ beginToolCalls: [{ id: 'call-1', name: 1 }] },

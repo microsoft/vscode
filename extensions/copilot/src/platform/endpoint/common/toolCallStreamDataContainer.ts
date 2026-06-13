@@ -48,7 +48,7 @@ function sanitizeToolCallStreamData(value: unknown): ToolCallStreamData | undefi
 }
 
 function sanitizeBeginToolCalls(value: unknown): ICopilotBeginToolCall[] | undefined {
-	if (!Array.isArray(value)) {
+	if (!Array.isArray(value) || value.length === 0) {
 		return undefined;
 	}
 
@@ -68,7 +68,7 @@ function sanitizeBeginToolCalls(value: unknown): ICopilotBeginToolCall[] | undef
 }
 
 function sanitizeToolCallStreamUpdates(value: unknown): ICopilotToolCallStreamUpdate[] | undefined {
-	if (!Array.isArray(value)) {
+	if (!Array.isArray(value) || value.length === 0) {
 		return undefined;
 	}
 

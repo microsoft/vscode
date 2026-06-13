@@ -8,6 +8,7 @@ import { describe, expect, it, vi } from 'vitest';
 import * as vscode from 'vscode';
 import { ChatFetchResponseType, ChatLocation } from '../../../chat/common/commonTypes';
 import { NoopOTelService, resolveOTelConfig } from '../../../otel/common/index';
+import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import type { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { CustomDataPartMimeTypes } from '../../common/endpointTypes';
 import { encodeToolCallStreamData } from '../../common/toolCallStreamDataContainer';
@@ -33,7 +34,7 @@ describe('ExtensionContributedChatEndpoint', () => {
 			location: ChatLocation.Panel,
 			requestOptions: {},
 			telemetryProperties: { turnIndex: '5' }
-		}, new vscode.CancellationTokenSource().token);
+		}, CancellationToken.None);
 
 		expect(result.type).toBe(ChatFetchResponseType.Success);
 		expect(capturedOptions?.modelOptions?._telemetryTurn).toBe(5);
@@ -59,7 +60,7 @@ describe('ExtensionContributedChatEndpoint', () => {
 				location: ChatLocation.Panel,
 				requestOptions: {},
 				telemetryProperties: { turnIndex }
-			}, new vscode.CancellationTokenSource().token);
+			}, CancellationToken.None);
 
 			expect(result.type).toBe(ChatFetchResponseType.Success);
 		}
@@ -90,7 +91,7 @@ describe('ExtensionContributedChatEndpoint', () => {
 			location: ChatLocation.Panel,
 			requestOptions: {},
 			telemetryProperties: {}
-		}, new vscode.CancellationTokenSource().token);
+		}, CancellationToken.None);
 
 		expect(result.type).toBe(ChatFetchResponseType.Success);
 		expect(finishedDeltas).toContainEqual({
@@ -123,7 +124,7 @@ describe('ExtensionContributedChatEndpoint', () => {
 			location: ChatLocation.Panel,
 			requestOptions: {},
 			telemetryProperties: {}
-		}, new vscode.CancellationTokenSource().token);
+		}, CancellationToken.None);
 
 		expect(result.type).toBe(ChatFetchResponseType.Success);
 		expect(finishedDeltas).toContainEqual({
@@ -160,7 +161,7 @@ describe('ExtensionContributedChatEndpoint', () => {
 			location: ChatLocation.Panel,
 			requestOptions: {},
 			telemetryProperties: {}
-		}, new vscode.CancellationTokenSource().token);
+		}, CancellationToken.None);
 
 		expect(result.type).toBe(ChatFetchResponseType.Success);
 		expect(finishedDeltas).toEqual([
@@ -199,7 +200,7 @@ describe('ExtensionContributedChatEndpoint', () => {
 			location: ChatLocation.Panel,
 			requestOptions: {},
 			telemetryProperties: {}
-		}, new vscode.CancellationTokenSource().token);
+		}, CancellationToken.None);
 
 		expect(result.type).toBe(ChatFetchResponseType.Success);
 		expect(finishedDeltas).toEqual([{ text: 'hello' }]);
@@ -228,7 +229,40 @@ describe('ExtensionContributedChatEndpoint', () => {
 			location: ChatLocation.Panel,
 			requestOptions: {},
 			telemetryProperties: {}
-		}, new vscode.CancellationTokenSource().token);
+		}, CancellationToken.None);
+
+		expect(result.type).toBe(ChatFetchResponseType.Success);
+		expect(finishedDeltas).toEqual([{ text: 'hello' }]);
+	});
+
+	it('ignores empty ToolCallStream arrays without forwarding a no-op delta', async () => {
+		const finishedDeltas: unknown[] = [];
+		const languageModel = createLanguageModel(() => undefined, [
+			new vscode.LanguageModelDataPart(
+				encodeToolCallStreamData({ beginToolCalls: [] }),
+				CustomDataPartMimeTypes.ToolCallStream
+			),
+			new vscode.LanguageModelDataPart(
+				encodeToolCallStreamData({ copilotToolCallStreamUpdates: [] }),
+				CustomDataPartMimeTypes.ToolCallStream
+			),
+			new vscode.LanguageModelTextPart('hello')
+		]);
+		const endpoint = createEndpoint(languageModel);
+
+		const result = await endpoint.makeChatRequest2({
+			debugName: 'test',
+			messages: [{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'hello' }]
+			}],
+			finishedCb: async (_text, _index, delta) => {
+				finishedDeltas.push(delta);
+			},
+			location: ChatLocation.Panel,
+			requestOptions: {},
+			telemetryProperties: {}
+		}, CancellationToken.None);
 
 		expect(result.type).toBe(ChatFetchResponseType.Success);
 		expect(finishedDeltas).toEqual([{ text: 'hello' }]);
