@@ -481,7 +481,9 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 					delete this._extHostConnections[reconnectionToken];
 					this._extHostLifetimeTokens.deleteAndDispose(reconnectionToken);
 				});
-				con.start(startParams);
+				con.start(startParams).catch(error => {
+					this._logService.error(`${logPrefix} Failed to start extension host connection:`, error);
+				});
 			}
 
 		} else if (msg.desiredConnectionType === ConnectionType.Tunnel) {
