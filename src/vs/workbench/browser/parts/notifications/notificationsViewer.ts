@@ -15,6 +15,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { dispose, DisposableStore, Disposable } from '../../../../base/common/lifecycle.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { INotificationViewItem, NotificationViewItem, NotificationViewItemContentChangeKind, INotificationMessage, ChoiceAction, NotificationsSettings, getNotificationsPosition } from '../../../common/notifications.js';
+import { isCodeSpan } from '../../../common/notificationMessageParser.js';
 import { ClearNotificationAction, ExpandNotificationAction, CollapseNotificationAction, ConfigureNotificationAction, getNotificationExpandIcon, getNotificationCollapseIcon } from './notificationsActions.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
@@ -144,9 +145,13 @@ class NotificationMessageRenderer {
 	static render(message: INotificationMessage, actionHandler?: IMessageActionHandler): HTMLElement {
 		const messageContainer = $('span');
 
-		for (const node of message.linkedText.nodes) {
+		for (const node of message.nodes) {
 			if (typeof node === 'string') {
 				messageContainer.appendChild(document.createTextNode(node));
+			} else if (isCodeSpan(node)) {
+				const code = $('code');
+				code.appendChild(document.createTextNode(node.code));
+				messageContainer.appendChild(code);
 			} else {
 				let title = node.title;
 
