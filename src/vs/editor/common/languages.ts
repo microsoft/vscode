@@ -1164,6 +1164,8 @@ export const enum CodeActionTriggerType {
 export interface CodeActionContext {
 	only?: string;
 	trigger: CodeActionTriggerType;
+	/** When set, only these diagnostics are included in the code action request sent to providers. */
+	diagnostics?: readonly IMarkerData[];
 }
 
 export interface CodeActionList extends IDisposable {
