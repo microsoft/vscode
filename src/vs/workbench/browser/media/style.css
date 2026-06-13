@@ -353,3 +353,629 @@ body {
 	outline: 1px dashed var(--vscode-toolbar-hoverOutline);
 	outline-offset: -1px;
 }
+
+/* SOLO BRANDING START: solo-workbench-chrome */
+/* Solo desktop shell.
+ * Applied to the disposable Code OSS checkout by scripts/fork/apply-branding.mjs.
+ * This intentionally targets product structure: welcome, top activity row, titlebar,
+ * and right agent pane. It avoids restyling stock Getting Started into a fake app.
+ */
+
+.monaco-workbench {
+	--solo-radius-sm: 6px;
+	--solo-radius-md: 8px;
+	--solo-radius-lg: 14px;
+	/* Surfaces/strokes match Cursor Dark: #141414 chrome, #181818 editor,
+	 * white-alpha borders. Keeps the workbench chrome seamless with the theme. */
+	--solo-stroke: rgba(228, 228, 228, 0.075);
+	--solo-stroke-strong: rgba(228, 228, 228, 0.16);
+	--solo-surface-0: #181818;
+	--solo-surface-1: #141414;
+	--solo-surface-2: #1f1f1f;
+	--solo-surface-3: #262626;
+	--solo-ink-0: #e4e4e4;
+	--solo-ink-1: rgba(228, 228, 228, 0.92);
+	--solo-ink-2: rgba(228, 228, 228, 0.55);
+	--solo-shadow: 0 18px 54px rgba(0, 0, 0, 0.36);
+	background-color: var(--solo-surface-0) !important;
+	color: var(--solo-ink-1);
+}
+
+.monaco-workbench .part.titlebar {
+	position: relative;
+	height: 32px;
+	border-bottom: 1px solid var(--solo-stroke);
+	background: rgba(20, 20, 20, 0.92) !important;
+	backdrop-filter: blur(18px);
+	box-shadow: none;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container {
+	padding: 0 8px;
+}
+
+/* Native title bar, like Cursor: centered window title (folder/file name) and
+ * the real right-hand action cluster — layout toggles, Chat, Accounts, Manage,
+ * and the Agents Window launcher. Nothing here is faked or force-hidden. */
+.monaco-workbench .part.titlebar .window-title,
+.monaco-workbench .part.titlebar .titlebar-center {
+	color: var(--solo-ink-2);
+	font-size: 12px;
+	font-weight: 560;
+	letter-spacing: 0;
+}
+
+.monaco-workbench .part.titlebar .titlebar-right .action-label,
+.monaco-workbench .part.titlebar .titlebar-right .codicon {
+	color: var(--solo-ink-2) !important;
+}
+
+.monaco-workbench .part.titlebar .titlebar-right .action-label:hover {
+	color: var(--solo-ink-0) !important;
+}
+
+/* Render the native "Open in Agents Window" action as Cursor's right-side pill. */
+.monaco-workbench .part.titlebar [aria-label^="Open in Agents Window"] {
+	display: inline-flex !important;
+	align-items: center;
+	height: 22px;
+	margin: 0 2px;
+	padding: 0 10px;
+	border: 1px solid var(--solo-stroke);
+	border-radius: 999px;
+	background: rgba(255, 255, 255, 0.05);
+	color: var(--solo-ink-1) !important;
+	font-size: 11px;
+	font-weight: 560;
+}
+
+.monaco-workbench .part.titlebar [aria-label^="Open in Agents Window"]:hover {
+	background: rgba(255, 255, 255, 0.09);
+	color: var(--solo-ink-0) !important;
+}
+
+/* The fork ships the Agents Window launcher as an icon-only widget (its real
+ * label is hard-collapsed to width:0). Render Cursor's wording as the widget's
+ * own ::after — a flex sibling of the icon — so it isn't subject to that. */
+.monaco-workbench .part.titlebar .open-in-agents-titlebar-widget::after {
+	content: "Agents Window";
+	margin-left: 6px;
+	font-size: 11px;
+	font-weight: 560;
+	letter-spacing: 0;
+}
+
+/* Hide the leftover Copilot "Sign In" entry point in the title bar (not a Cursor
+ * element; sign-in remains available from the chat panel). Tracked by DEV-109. */
+.monaco-workbench .part.titlebar .action-item[aria-label="Sign In"] {
+	display: none !important;
+}
+
+/* Command Center (centered project/file name with back/forward navigation),
+ * enabled to mirror Cursor. Keep it visually quiet to match the dark chrome. */
+.monaco-workbench .part.titlebar .command-center .action-item {
+	color: var(--solo-ink-2) !important;
+}
+
+.monaco-workbench .part.activitybar {
+	border-right: 0;
+	border-bottom: 1px solid var(--solo-stroke);
+	background: var(--solo-surface-1) !important;
+}
+
+.monaco-workbench .part.activitybar.left,
+.monaco-workbench .part.activitybar.right {
+	display: none !important;
+	width: 0 !important;
+	min-width: 0 !important;
+	border: 0 !important;
+	overflow: hidden !important;
+}
+
+.monaco-workbench .activitybar .content,
+.monaco-workbench .activitybar .monaco-action-bar,
+.monaco-workbench .activitybar .actions-container {
+	background: transparent !important;
+}
+
+.monaco-workbench .activitybar .action-label {
+	border-radius: var(--solo-radius-sm);
+	opacity: 0.68;
+}
+
+.monaco-workbench .activitybar .action-item {
+	margin: 0 3px !important;
+}
+
+.monaco-workbench .activitybar .action-item[aria-label*="Run"],
+.monaco-workbench .activitybar .action-item[aria-label*="Debug"],
+.monaco-workbench .activitybar .action-item[aria-label*="Extensions"],
+.monaco-workbench .activitybar .action-label[aria-label*="Run"],
+.monaco-workbench .activitybar .action-label[aria-label*="Debug"],
+.monaco-workbench .activitybar .action-label[aria-label*="Extensions"] {
+	display: none !important;
+}
+
+.monaco-workbench .activitybar .action-item::before,
+.monaco-workbench .activitybar .action-item::after {
+	display: none !important;
+}
+
+.monaco-workbench .activitybar .action-item.checked .action-label,
+.monaco-workbench .activitybar .action-label:hover {
+	opacity: 1;
+	background: rgba(255, 255, 255, 0.085) !important;
+}
+
+.monaco-workbench .activitybar .badge,
+.monaco-workbench .activitybar .badge .badge-content,
+.monaco-workbench .composite-bar .badge,
+.monaco-workbench .composite-bar .badge-content {
+	display: none !important;
+	min-width: 14px;
+	height: 14px;
+	border-radius: 999px;
+	background: #e7e7e8 !important;
+	color: #0a0a0b !important;
+	font-size: 9px;
+	font-weight: 700;
+}
+
+.monaco-workbench .part.sidebar,
+.monaco-workbench .part.auxiliarybar,
+.monaco-workbench .part.panel,
+.monaco-workbench .part.statusbar {
+	background: var(--solo-surface-1) !important;
+}
+
+.monaco-workbench .part.sidebar {
+	border-right: 1px solid var(--solo-stroke);
+	/* With the activity bar pinned to the top, VS Code's grid leaves the sidebar
+	 * part ~one activity-row short of the status bar. Force it to fill its grid
+	 * cell so the workbench root (a default grey) can't peek through as a strip. */
+	height: 100% !important;
+}
+
+.monaco-workbench .part.sidebar > .title,
+.monaco-workbench .part.sidebar > .composite.title {
+	display: none !important;
+	height: 0 !important;
+}
+
+.monaco-workbench .part.sidebar .title-label,
+.monaco-workbench .part.sidebar .composite.title .title-label {
+	color: var(--solo-ink-2);
+	font-size: 11px;
+	font-weight: 650;
+	letter-spacing: 0;
+	text-transform: uppercase;
+}
+
+.monaco-workbench .part.sidebar .pane-header,
+.monaco-workbench .part.sidebar .pane-body,
+.monaco-workbench .part.sidebar .monaco-list,
+.monaco-workbench .part.sidebar .monaco-list-rows {
+	background: transparent !important;
+}
+
+/* Cursor-style section headers — keep the workspace/folder name, Outline and
+ * Timeline visible as small uppercase grey rows. Their action buttons (new
+ * file/folder, refresh, collapse-all) reveal on hover, like Cursor. */
+.monaco-workbench .part.sidebar .pane > .pane-header {
+	height: 22px !important;
+	min-height: 22px !important;
+	padding: 0 12px !important;
+	border: 0 !important;
+	background: transparent !important;
+	color: var(--solo-ink-2);
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 0.02em;
+	text-transform: uppercase;
+	overflow: visible !important;
+}
+
+.monaco-workbench .part.sidebar .pane > .pane-header .title,
+.monaco-workbench .part.sidebar .pane > .pane-header .title-label {
+	display: flex !important;
+	align-items: center;
+	color: var(--solo-ink-2);
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+}
+
+.monaco-workbench .part.sidebar .pane > .pane-header .actions {
+	opacity: 0;
+	transition: opacity 0.12s ease;
+}
+
+.monaco-workbench .part.sidebar .pane > .pane-header:hover .actions,
+.monaco-workbench .part.sidebar .pane > .pane-header:focus-within .actions {
+	opacity: 1;
+}
+
+.monaco-workbench .part.sidebar .pane.collapsed > .pane-header {
+	border-top: 1px solid var(--solo-stroke);
+}
+
+.monaco-workbench .part.sidebar .monaco-list-row,
+.monaco-workbench .part.sidebar .monaco-tree-row {
+	min-height: 24px !important;
+	color: var(--solo-ink-1);
+}
+
+.monaco-workbench .part.sidebar .monaco-list-row .label-name,
+.monaco-workbench .part.sidebar .monaco-tree-row .label-name {
+	font-size: 12px;
+	font-weight: 480;
+}
+
+.monaco-workbench .part.sidebar .monaco-list-row:hover,
+.monaco-workbench .part.sidebar .monaco-tree-row:hover,
+.monaco-workbench .part.sidebar .monaco-list-row.focused,
+.monaco-workbench .part.sidebar .monaco-list-row.selected {
+	background: rgba(255, 255, 255, 0.055) !important;
+}
+
+.monaco-workbench .part.sidebar .action-label,
+.monaco-workbench .part.sidebar .codicon {
+	color: var(--solo-ink-2) !important;
+}
+
+.monaco-workbench .explorer-folders-view {
+	padding-top: 2px;
+}
+
+.monaco-workbench .explorer-folders-view .monaco-list-row {
+	border: 1px solid transparent;
+	border-radius: var(--solo-radius-sm);
+}
+
+.monaco-workbench .part.editor > .content,
+.monaco-workbench .part.editor .editor-group-container,
+.monaco-workbench .part.editor .editor-instance,
+.monaco-workbench .part.editor .monaco-editor {
+	background: var(--solo-surface-0) !important;
+}
+
+.monaco-workbench .part.editor .editor-group-container > .title {
+	height: 36px;
+	border-bottom: 1px solid var(--solo-stroke);
+	background: var(--solo-surface-0) !important;
+}
+
+.monaco-workbench .part.editor .tabs-and-actions-container,
+.monaco-workbench .part.editor .editor-actions {
+	background: var(--solo-surface-0) !important;
+}
+
+.monaco-workbench .part.editor .tabs-container {
+	gap: 2px;
+	padding-left: 6px;
+}
+
+.monaco-workbench .part.editor .tabs-container > .tab {
+	height: 30px;
+	margin: 3px 1px 3px 0;
+	border: 1px solid transparent;
+	border-radius: var(--solo-radius-sm);
+	overflow: hidden;
+	color: var(--solo-ink-2);
+	background: transparent !important;
+}
+
+.monaco-workbench .part.editor .tabs-container > .tab.active {
+	border-color: var(--solo-stroke);
+	background: var(--solo-surface-2) !important;
+	color: var(--solo-ink-0);
+}
+
+.monaco-workbench .part.editor .tabs-container > .tab:not(.active):hover {
+	background: rgba(255, 255, 255, 0.04) !important;
+	color: var(--solo-ink-1);
+}
+
+.monaco-workbench .part.editor .tabs-container > .tab .tab-label {
+	font-size: 12px;
+	font-weight: 520;
+}
+
+/* Keep Cursor's empty-editor experience: the watermark command list renders
+ * natively (previously force-hidden), so opening a folder with no file open
+ * shows the keybinding hints instead of a blank void. */
+.monaco-workbench .editor-group-watermark {
+	color: var(--solo-ink-2);
+}
+
+.monaco-workbench .editor-group-container.empty > .editor-container {
+	background:
+		radial-gradient(ellipse 72% 45% at 50% 38%, rgba(255, 255, 255, 0.022), transparent 66%),
+		var(--solo-surface-0) !important;
+}
+
+.monaco-workbench .part.auxiliarybar {
+	border-left: 1px solid var(--solo-stroke);
+	box-shadow: -14px 0 30px rgba(0, 0, 0, 0.16);
+}
+
+.monaco-workbench .part.auxiliarybar .composite-bar-container,
+.monaco-workbench .part.auxiliarybar .activitybar,
+.monaco-workbench .part.auxiliarybar .global-actions {
+	display: none !important;
+	width: 0 !important;
+	min-width: 0 !important;
+	overflow: hidden !important;
+}
+
+.monaco-workbench .part.auxiliarybar > .composite.title,
+.monaco-workbench .part.auxiliarybar > .title {
+	height: 42px;
+	padding: 0 18px;
+	border-bottom: 1px solid var(--solo-stroke);
+	background: var(--solo-surface-1) !important;
+}
+
+.monaco-workbench .part.auxiliarybar > .composite.title .actions-container > .action-item:not(:first-child),
+.monaco-workbench .part.auxiliarybar > .title .actions-container > .action-item:not(:first-child) {
+	display: none !important;
+}
+
+.monaco-workbench .part.auxiliarybar .title-label h2,
+.monaco-workbench .part.auxiliarybar .composite.title h2 {
+	font-size: 0;
+}
+
+.monaco-workbench .part.auxiliarybar .title-label h2::before,
+.monaco-workbench .part.auxiliarybar .composite.title h2::before {
+	content: "New Agent";
+	color: var(--solo-ink-0);
+	font-size: 14px;
+	font-weight: 620;
+	letter-spacing: 0;
+}
+
+.monaco-workbench .part.auxiliarybar .content {
+	background: var(--solo-surface-1) !important;
+}
+
+.monaco-workbench .part.auxiliarybar .pane,
+.monaco-workbench .part.auxiliarybar .pane-body,
+.monaco-workbench .part.auxiliarybar .monaco-scrollable-element {
+	background: transparent !important;
+}
+
+.monaco-workbench .part.auxiliarybar .interactive-session,
+.monaco-workbench .part.auxiliarybar .interactive-list,
+.monaco-workbench .part.auxiliarybar .chat-view-pane,
+.monaco-workbench .part.auxiliarybar .chat-view {
+	background: var(--solo-surface-1) !important;
+}
+
+.monaco-workbench .part.auxiliarybar .chat-welcome-view,
+.monaco-workbench .part.auxiliarybar .chat-empty-state,
+.monaco-workbench .part.auxiliarybar .interactive-session .welcome,
+.monaco-workbench .part.auxiliarybar .interactive-list .monaco-list-row {
+	color: var(--solo-ink-2);
+}
+
+.monaco-workbench .part.auxiliarybar .interactive-input-part {
+	margin: 14px 16px 12px;
+	border: 1px solid var(--solo-stroke-strong);
+	border-radius: 14px;
+	background: #18181a !important;
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
+	overflow: hidden;
+}
+
+.monaco-workbench .part.auxiliarybar .interactive-input-part:focus-within {
+	border-color: rgba(255, 255, 255, 0.26);
+	background: #1d1d20 !important;
+}
+
+.monaco-workbench .part.auxiliarybar .interactive-input-part .monaco-editor,
+.monaco-workbench .part.auxiliarybar .interactive-input-part textarea,
+.monaco-workbench .part.auxiliarybar .interactive-input-part .input-editor {
+	background: transparent !important;
+}
+
+.monaco-workbench .part.auxiliarybar .interactive-input-part .monaco-toolbar,
+.monaco-workbench .part.auxiliarybar .interactive-input-part .actions-container,
+.monaco-workbench .part.auxiliarybar .interactive-input-part .chat-input-toolbars {
+	background: transparent !important;
+}
+
+.monaco-workbench .part.auxiliarybar .interactive-input-part .action-label,
+.monaco-workbench .part.auxiliarybar .interactive-input-part .codicon {
+	color: var(--solo-ink-2) !important;
+}
+
+.monaco-workbench .part.auxiliarybar .interactive-input-part .monaco-button,
+.monaco-workbench .part.auxiliarybar .interactive-input-part .monaco-text-button {
+	border: 0 !important;
+	border-radius: 999px;
+	background: rgba(255, 255, 255, 0.06) !important;
+	color: var(--solo-ink-1) !important;
+}
+
+.monaco-workbench .part.statusbar {
+	display: flex !important;
+	height: 18px !important;
+	min-height: 18px !important;
+	border-top: 1px solid var(--solo-stroke);
+	background: rgba(11, 11, 12, 0.98) !important;
+	color: var(--solo-ink-2) !important;
+	font-size: 11px;
+	opacity: 0.86;
+	overflow: hidden !important;
+}
+
+.monaco-workbench .part.statusbar:hover {
+	opacity: 0.92;
+}
+
+.monaco-workbench .part.statusbar .statusbar-item {
+	color: var(--solo-ink-2) !important;
+	opacity: 0.78;
+	height: 16px !important;
+	margin-top: 1px;
+	border-radius: var(--solo-radius-sm);
+	font-size: 11px;
+}
+
+.monaco-workbench .part.statusbar .statusbar-item:hover {
+	background: rgba(255, 255, 255, 0.06) !important;
+	color: var(--solo-ink-0) !important;
+	opacity: 1;
+}
+
+.monaco-workbench .monaco-button,
+.monaco-workbench .monaco-text-button,
+.monaco-workbench .monaco-action-bar .action-label,
+.monaco-workbench .monaco-list-row {
+	border-radius: var(--solo-radius-sm);
+}
+
+.monaco-workbench .monaco-list-row:hover,
+.monaco-workbench .monaco-list-row.focused,
+.monaco-workbench .monaco-list-row.selected {
+	background: rgba(255, 255, 255, 0.06) !important;
+}
+
+.monaco-workbench .agentSessionsWelcome {
+	background:
+		radial-gradient(ellipse 70% 48% at 50% 36%, rgba(255, 255, 255, 0.035), transparent 62%),
+		var(--solo-surface-0) !important;
+	color: var(--solo-ink-0);
+}
+
+.monaco-workbench .agentSessionsWelcome-scrollable {
+	align-items: stretch;
+	justify-content: center;
+}
+
+.monaco-workbench .agentSessionsWelcome-content {
+	position: relative;
+	display: grid;
+	grid-template-rows: 1fr auto auto auto 1fr;
+	width: min(640px, calc(100% - 48px));
+	max-width: 640px;
+	min-height: 100%;
+	padding: 0;
+}
+
+.monaco-workbench .agentSessionsWelcome-header {
+	grid-row: 2;
+	align-items: center;
+	max-width: none;
+}
+
+.monaco-workbench .agentSessionsWelcome-header::before {
+	content: "";
+	width: 40px;
+	height: 40px;
+	margin-bottom: 12px;
+	border-radius: 50%;
+	background: url("code-icon.svg") center / contain no-repeat;
+	box-shadow: 0 12px 36px rgba(0, 0, 0, 0.42);
+}
+
+.monaco-workbench .agentSessionsWelcome-header h1.product-name {
+	margin: 0 0 4px;
+	color: var(--solo-ink-0);
+	font-size: 25px;
+	font-weight: 720;
+	letter-spacing: 0;
+	text-transform: none;
+}
+
+.monaco-workbench .agentSessionsWelcome-startEntries {
+	justify-content: center;
+	width: 100%;
+	margin-top: 26px;
+	gap: 12px;
+}
+
+.monaco-workbench .agentSessionsWelcome-startEntry {
+	display: grid;
+	grid-template-rows: 20px auto;
+	align-items: center;
+	justify-items: start;
+	width: 150px;
+	height: 78px;
+	padding: 14px 16px;
+	border: 1px solid var(--solo-stroke);
+	border-radius: var(--solo-radius-md);
+	background: rgba(255, 255, 255, 0.055);
+	color: var(--solo-ink-0);
+	font-size: 13px;
+	font-weight: 610;
+	box-shadow: none;
+}
+
+.monaco-workbench .agentSessionsWelcome-startEntry:hover {
+	border-color: var(--solo-stroke-strong);
+	background: rgba(255, 255, 255, 0.085);
+	color: var(--solo-ink-0);
+}
+
+.monaco-workbench .agentSessionsWelcome-startEntry .codicon {
+	color: var(--solo-ink-1) !important;
+	font-size: 18px;
+}
+
+.monaco-workbench .agentSessionsWelcome-chatSection {
+	display: none;
+}
+
+.monaco-workbench .agentSessionsWelcome-sessionsSection {
+	grid-row: 3;
+	max-width: none;
+	margin-top: 28px;
+}
+
+.monaco-workbench .agentSessionsWelcome-sessionsSection::before {
+	content: "Recent projects";
+	display: block;
+	margin-bottom: 10px;
+	color: var(--solo-ink-2);
+	font-size: 12px;
+	font-weight: 620;
+}
+
+.monaco-workbench .agentSessionsWelcome-walkthroughCard,
+.monaco-workbench .agentSessionsWelcome-tosCard {
+	display: none;
+}
+
+.monaco-workbench .agentSessionsWelcome-sessionsGrid .agent-session-item,
+.monaco-workbench .agentSessionsWelcome-sessionsGrid .monaco-list-row {
+	border-radius: var(--solo-radius-sm);
+	background: transparent !important;
+}
+
+.monaco-workbench .agentSessionsWelcome-footer {
+	grid-row: 4;
+	max-width: none;
+	margin-top: 26vh;
+}
+
+.monaco-workbench .agentSessionsWelcome-footer::before {
+	content: "New window for parallel agents";
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 32px;
+	padding: 0 18px;
+	border-radius: 999px;
+	background: rgba(255, 255, 255, 0.075);
+	color: var(--solo-ink-1);
+	font-size: 13px;
+	font-weight: 560;
+}
+
+.monaco-workbench .agentSessionsWelcome-showOnStartup,
+.monaco-workbench .agentSessionsWelcome-footerLink {
+	display: none;
+}
+/* SOLO BRANDING END: solo-workbench-chrome */

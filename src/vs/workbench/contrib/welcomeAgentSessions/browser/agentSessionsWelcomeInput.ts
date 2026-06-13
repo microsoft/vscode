@@ -69,7 +69,7 @@ export class AgentSessionsWelcomeInput extends EditorInput {
 	}
 
 	override getName() {
-		return localize('agentSessionsWelcome', "Welcome");
+		return localize('agentSessionsWelcome', "Solo");
 	}
 
 	get showTelemetryNotice(): boolean {

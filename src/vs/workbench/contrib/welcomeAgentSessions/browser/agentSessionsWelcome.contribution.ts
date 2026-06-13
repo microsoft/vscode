@@ -37,7 +37,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	EditorPaneDescriptor.create(
 		AgentSessionsWelcomePage,
 		AgentSessionsWelcomePage.ID,
-		localize('agentSessionsWelcome', "Agent Sessions Welcome")
+		localize('agentSessionsWelcome', "Solo Welcome")
 	),
 	[
 		new SyncDescriptor(AgentSessionsWelcomeInput)
@@ -74,7 +74,7 @@ class AgentSessionsWelcomeEditorResolverContribution extends Disposable implemen
 			`${AgentSessionsWelcomeInput.RESOURCE.scheme}:${AgentSessionsWelcomeInput.RESOURCE.authority}/**`,
 			{
 				id: AgentSessionsWelcomePage.ID,
-				label: localize('agentSessionsWelcome.displayName', "Agent Sessions Welcome"),
+				label: localize('agentSessionsWelcome.displayName', "Solo Welcome"),
 				priority: RegisteredEditorPriority.builtin,
 			},
 			{
@@ -99,7 +99,7 @@ registerAction2(class OpenAgentSessionsWelcomeAction extends Action2 {
 	constructor() {
 		super({
 			id: AgentSessionsWelcomePage.COMMAND_ID,
-			title: localize('openAgentSessionsWelcome', "Open Agent Sessions Welcome"),
+			title: localize('openAgentSessionsWelcome', "Open Solo Welcome"),
 			precondition: ChatContextKeys.enabled
 		});
 	}
@@ -156,12 +156,17 @@ class AgentSessionsWelcomeRunnerContribution extends Disposable implements IWork
 		// Check if there's prefill data from a workspace transfer - always show welcome page in that case
 		const hasPrefillData = !!this.storageService.get('chat.welcomeViewPrefill', StorageScope.APPLICATION);
 
-		// Don't open if there are already editors open (unless we have prefill data)
+		// In an empty Solo window, the stock empty editor is not product UI. Folder
+		// workspaces stay editor-first and keep the agent pane on the right.
+		if (!hasPrefillData && this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
+			return;
+		}
+
 		if (this.editorService.activeEditor && !hasPrefillData) {
 			return;
 		}
 
-		// Open the agent sessions welcome page
+		// Open the Solo welcome page
 		const input = this.instantiationService.createInstance(AgentSessionsWelcomeInput, { initiator: 'startup', workspaceKind: getWorkspaceKind(this.workspaceContextService) });
 		await this.editorService.openEditor(input, { pinned: false });
 	}

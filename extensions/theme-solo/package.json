@@ -1,0 +1,39 @@
+{
+	"name": "theme-solo",
+	"displayName": "Solo Theme",
+	"description": "Solo's built-in color theme and product defaults.",
+	"categories": [
+		"Themes"
+	],
+	"version": "1.0.0",
+	"publisher": "vscode",
+	"license": "MIT",
+	"engines": {
+		"vscode": "*"
+	},
+	"contributes": {
+		"themes": [
+			{
+				"id": "Solo Dark",
+				"label": "Solo Dark",
+				"uiTheme": "vs-dark",
+				"path": "./themes/solo-dark.json"
+			}
+		],
+		"configurationDefaults": {
+			"workbench.colorTheme": "Solo Dark",
+			"workbench.iconTheme": "vs-seti",
+			"workbench.startupEditor": "agentSessionsWelcomePage",
+			"workbench.activityBar.location": "top",
+			"workbench.activityBar.compact": true,
+			"workbench.secondarySideBar.defaultVisibility": "visibleInWorkspace",
+			"workbench.sideBar.location": "left",
+			"workbench.view.alwaysShowHeaderActions": false,
+			"workbench.tips.enabled": true,
+			"workbench.navigationControl.enabled": true,
+			"window.commandCenter": true,
+			"window.title": "${dirty}${activeEditorShort}${separator}${rootNameShort}",
+			"window.titleBarStyle": "custom"
+		}
+	}
+}
