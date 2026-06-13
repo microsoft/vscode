@@ -25,7 +25,7 @@ class TestableExecuteHookService {
 	public transcriptPath: Uri | undefined;
 	public flushedSessionIds: string[] = [];
 
-	async executeHook(hookType: string, hooks: ChatRequestHooks | undefined, input: unknown, sessionId?: string): Promise<ChatHookResult[]> {
+	async executeHook(hookType: string, hooks: ChatRequestHooks | undefined, input: unknown, sessionId?: string, _token?: unknown, model?: string): Promise<ChatHookResult[]> {
 		if (!hooks) {
 			return [];
 		}
@@ -44,6 +44,7 @@ class TestableExecuteHookService {
 			hook_event_name: hookType,
 			...(sessionId ? { session_id: sessionId } : undefined),
 			...(this.transcriptPath ? { transcript_path: this.transcriptPath } : undefined),
+			...(model ? { model } : undefined),
 		};
 		const fullInput = (typeof input === 'object' && input !== null)
 			? { ...commonInput, ...input }
