@@ -11,7 +11,7 @@ import { ISelection, Selection } from './core/selection.js';
 import { ICommand } from './editorCommon.js';
 import { IEditorConfiguration } from './config/editorConfiguration.js';
 import { PositionAffinity, TextModelResolvedOptions } from './model.js';
-import { AutoClosingPairs } from './languages/languageConfiguration.js';
+import { AutoClosingPairs, IStringConcatenation } from './languages/languageConfiguration.js';
 import { ILanguageConfigurationService } from './languages/languageConfigurationRegistry.js';
 import { createScopedLineTokens } from './languages/supports.js';
 import { IElectricAction } from './languages/supports/electricCharacter.js';
@@ -74,12 +74,14 @@ export class CursorConfiguration {
 	public readonly autoClosingOvertype: EditorAutoClosingEditStrategy;
 	public readonly autoSurround: EditorAutoSurroundStrategy;
 	public readonly autoIndent: EditorAutoIndentStrategy;
+	public readonly stringConcatenationOnEnter: boolean;
 	public readonly autoClosingPairs: AutoClosingPairs;
 	public readonly surroundingPairs: CharacterMap;
 	public readonly blockCommentStartToken: string | null;
 	public readonly shouldAutoCloseBefore: { quote: (ch: string) => boolean; bracket: (ch: string) => boolean; comment: (ch: string) => boolean };
 	public readonly wordSegmenterLocales: string[];
 	public readonly overtypeOnPaste: boolean;
+	public readonly stringConcatenation: IStringConcatenation | undefined;
 
 	private readonly _languageId: string;
 	private _electricChars: { [key: string]: boolean } | null;
@@ -142,6 +144,7 @@ export class CursorConfiguration {
 		this.autoClosingOvertype = options.get(EditorOption.autoClosingOvertype);
 		this.autoSurround = options.get(EditorOption.autoSurround);
 		this.autoIndent = options.get(EditorOption.autoIndent);
+		this.stringConcatenationOnEnter = options.get(EditorOption.stringConcatenationOnEnter);
 		this.wordSegmenterLocales = options.get(EditorOption.wordSegmenterLocales);
 		this.overtypeOnPaste = options.get(EditorOption.overtypeOnPaste);
 
@@ -164,6 +167,7 @@ export class CursorConfiguration {
 		}
 
 		const commentsConfiguration = this.languageConfigurationService.getLanguageConfiguration(languageId).comments;
+		this.stringConcatenation = this.languageConfigurationService.getLanguageConfiguration(languageId).stringConcatenation;
 		this.blockCommentStartToken = commentsConfiguration?.blockCommentStartToken ?? null;
 	}
 

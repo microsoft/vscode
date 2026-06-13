@@ -855,6 +855,14 @@ export interface IEditorOptions {
 	 * Controls whether the accessibility hint should be provided to screen reader users when an inline completion is shown.
 	 */
 	inlineCompletionsAccessibilityVerbose?: boolean;
+
+	/**
+	 * Enable/disable automatic string concatenation formatting when pressing Enter inside string literal.
+	 * When enabled, pressing Enter inside a string will automatically close the current string and open
+	 * a new one with the appropriate concatenation operator for the current language.
+	 * Defaults to true.
+	 */
+	stringConcatenationOnEnter?: boolean;
 }
 
 /**
@@ -5945,7 +5953,8 @@ export const enum EditorOption {
 	effectiveEditContext,
 	scrollOnMiddleClick,
 	effectiveAllowVariableFonts,
-	doubleClickSelectsBlock
+	doubleClickSelectsBlock,
+	stringConcatenationOnEnter
 }
 
 export const EditorOptions = {
@@ -6857,7 +6866,19 @@ export const EditorOptions = {
 	wrappingIndent: register(new WrappingIndentOption()),
 	wrappingStrategy: register(new WrappingStrategy()),
 	effectiveEditContextEnabled: register(new EffectiveEditContextEnabled()),
-	effectiveAllowVariableFonts: register(new EffectiveAllowVariableFonts())
+	effectiveAllowVariableFonts: register(new EffectiveAllowVariableFonts()),
+
+	stringConcatenationOnEnter: register(new EditorBooleanOption(
+		EditorOption.stringConcatenationOnEnter,
+		'stringConcatenationOnEnter',
+		true,
+		{
+			markdownDescription: nls.localize(
+				'stringConcatenationOnEnter',
+				'Controls whether pressing `Enter` inside a string literal automatically splits into two concatenated strings using appropriate operator for the current language.'
+			)
+		}
+	)),
 };
 
 type EditorOptionsType = typeof EditorOptions;

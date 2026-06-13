@@ -8,7 +8,7 @@ import { Disposable, IDisposable, markAsSingleton, toDisposable } from '../../..
 import * as strings from '../../../base/common/strings.js';
 import { ITextModel } from '../model.js';
 import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from '../core/wordHelper.js';
-import { EnterAction, FoldingRules, IAutoClosingPair, IndentationRule, LanguageConfiguration, AutoClosingPairs, CharacterPair, ExplicitLanguageConfiguration } from './languageConfiguration.js';
+import { EnterAction, FoldingRules, IAutoClosingPair, IndentationRule, LanguageConfiguration, AutoClosingPairs, CharacterPair, ExplicitLanguageConfiguration, IStringConcatenation } from './languageConfiguration.js';
 import { CharacterPairSupport } from './supports/characterPair.js';
 import { BracketElectricCharacterSupport } from './supports/electricCharacter.js';
 import { IndentRulesSupport } from './supports/indentRules.js';
@@ -249,6 +249,7 @@ function combineLanguageConfigurations(configs: LanguageConfiguration[]): Langua
 		folding: undefined,
 		colorizedBracketPairs: undefined,
 		__electricCharacterSupport: undefined,
+		stringConcatenation: undefined,
 	};
 	for (const entry of configs) {
 		result = {
@@ -263,6 +264,7 @@ function combineLanguageConfigurations(configs: LanguageConfiguration[]): Langua
 			folding: entry.folding || result.folding,
 			colorizedBracketPairs: entry.colorizedBracketPairs || result.colorizedBracketPairs,
 			__electricCharacterSupport: entry.__electricCharacterSupport || result.__electricCharacterSupport,
+			stringConcatenation: entry.stringConcatenation || result.stringConcatenation,
 		};
 	}
 
@@ -360,6 +362,7 @@ export class ResolvedLanguageConfiguration {
 	public readonly indentationRules: IndentationRule | undefined;
 	public readonly foldingRules: FoldingRules;
 	public readonly bracketsNew: LanguageBracketsConfiguration;
+	public readonly stringConcatenation: IStringConcatenation | undefined;
 
 	constructor(
 		public readonly languageId: string,
@@ -391,6 +394,7 @@ export class ResolvedLanguageConfiguration {
 			languageId,
 			this.underlyingConfig
 		);
+		this.stringConcatenation = ResolvedLanguageConfiguration._handleStringConcatenation(this.underlyingConfig);
 	}
 
 	public getWordDefinition(): RegExp {
@@ -471,6 +475,21 @@ export class ResolvedLanguageConfiguration {
 		}
 
 		return comments;
+	}
+
+	private static _handleStringConcatenation(
+		conf: LanguageConfiguration
+	): IStringConcatenation | undefined {
+		if (!conf.stringConcatenation) {
+			return undefined;
+		}
+		const excludedPatterns = conf.stringConcatenation.excludedPatterns;
+		if (!Array.isArray(excludedPatterns)) {
+			return undefined;
+		}
+		return {
+			excludedPatterns: excludedPatterns.filter(s => typeof s === 'string'),
+		};
 	}
 }
 

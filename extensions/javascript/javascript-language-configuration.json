@@ -249,5 +249,15 @@
 				"appendText": "// "
 			}
 		},
-	]
+	],
+	"stringConcatenation":{
+		"excludedPatterns":[
+			"^\\s*import",
+			"^\\s*export",
+			"^\\s*require",
+			"^\\s*//",
+			"^\\s*/\\*",
+			"^\\s*@"                         
+		]
+	}
 }

@@ -1589,6 +1589,88 @@ suite('Editor Controller', () => {
 		}));
 	}
 
+	function setupStringTokenizationForLanguage(languageId: string): void {
+		class BaseState implements IState {
+			constructor(public readonly parent: State | null = null) { }
+			clone(): IState { return this; }
+			equals(other: IState): boolean {
+				if (!(other instanceof BaseState)) { return false; }
+				if (!this.parent && !other.parent) { return true; }
+				if (!this.parent || !other.parent) { return false; }
+				return this.parent.equals(other.parent);
+			}
+		}
+		class StringState implements IState {
+			constructor(public readonly char: string, public readonly parentState: State) { }
+			clone(): IState { return this; }
+			equals(other: IState): boolean { return other instanceof StringState && this.char === other.char && this.parentState.equals(other.parentState); }
+		}
+		class BlockCommentState implements IState {
+			constructor(public readonly parentState: State) { }
+			clone(): IState { return this; }
+			equals(other: IState): boolean { return other instanceof StringState && this.parentState.equals(other.parentState); }
+		}
+		type State = BaseState | StringState | BlockCommentState;
+
+		const encodedLanguageId = languageService.languageIdCodec.encodeLanguageId(languageId);
+		disposables.add(TokenizationRegistry.register(languageId, {
+			getInitialState: () => new BaseState(),
+			tokenize: undefined!,
+			tokenizeEncoded: function (line: string, hasEOL: boolean, _state: IState): EncodedTokenizationResult {
+				let state = <State>_state;
+				const tokens: { length: number; type: StandardTokenType }[] = [];
+				const generateToken = (length: number, type: StandardTokenType, newState?: State) => {
+					if (tokens.length > 0 && tokens[tokens.length - 1].type === type) {
+						tokens[tokens.length - 1].length += length;
+					} else {
+						tokens.push({ length, type });
+					}
+					line = line.substring(length);
+					if (newState) { state = newState; }
+				};
+				while (line.length > 0) { advance(); }
+				const result = new Uint32Array(tokens.length * 2);
+				let startIndex = 0;
+				for (let i = 0; i < tokens.length; i++) {
+					result[2 * i] = startIndex;
+					result[2 * i + 1] = (
+						(encodedLanguageId << MetadataConsts.LANGUAGEID_OFFSET)
+						| (tokens[i].type << MetadataConsts.TOKEN_TYPE_OFFSET)
+					);
+					startIndex += tokens[i].length;
+				}
+				return new EncodedTokenizationResult(result, [], state);
+
+				function advance(): void {
+					if (state instanceof BaseState) {
+						const m1 = line.match(/^[^'"`{}/]+/g);
+						if (m1) { return generateToken(m1[0].length, StandardTokenType.Other); }
+						if (/^['"`]/.test(line)) { return generateToken(1, StandardTokenType.String, new StringState(line.charAt(0), state)); }
+						if (/^{/.test(line)) { return generateToken(1, StandardTokenType.Other, new BaseState(state)); }
+						if (/^}/.test(line)) { return generateToken(1, StandardTokenType.Other, state.parent || new BaseState()); }
+						if (/^\/\//.test(line)) { return generateToken(line.length, StandardTokenType.Comment, state); }
+						if (/^\/\*/.test(line)) { return generateToken(2, StandardTokenType.Comment, new BlockCommentState(state)); }
+						return generateToken(1, StandardTokenType.Other, state);
+					} else if (state instanceof StringState) {
+						const m1 = line.match(/^[^\\'"`\$]+/g);
+						if (m1) { return generateToken(m1[0].length, StandardTokenType.String); }
+						if (/^\\/.test(line)) { return generateToken(2, StandardTokenType.String); }
+						if (line.charAt(0) === state.char) { return generateToken(1, StandardTokenType.String, state.parentState); }
+						if (/^\$\{/.test(line)) { return generateToken(2, StandardTokenType.Other, new BaseState(state)); }
+						return generateToken(1, StandardTokenType.Other, state);
+					} else if (state instanceof BlockCommentState) {
+						const m1 = line.match(/^[^*]+/g);
+						if (m1) { return generateToken(m1[0].length, StandardTokenType.String); }
+						if (/^\*\//.test(line)) { return generateToken(2, StandardTokenType.Comment, state.parentState); }
+						return generateToken(1, StandardTokenType.Other, state);
+					} else {
+						throw new Error(`unknown state`);
+					}
+				}
+			}
+		}));
+	}
+
 	function setAutoClosingLanguageEnabledSet(chars: string): void {
 		disposables.add(languageConfigurationService.register(autoClosingLanguageId, {
 			autoCloseBefore: chars,
@@ -4328,6 +4410,62 @@ suite('Editor Controller', () => {
 			viewModel.type('\n', 'keyboard');
 			assertCursor(viewModel, new Selection(4, 2, 4, 2));
 			assert.strictEqual(model.getLineContent(4), '\t');
+		});
+	});
+
+	test('String Concatenation in C++ on Enter', () => {
+		disposables.add(languageService.registerLanguage({ id: 'cpp' }));
+		setupStringTokenizationForLanguage('cpp');
+		disposables.add(languageConfigurationService.register('cpp', {
+			stringConcatenation: { excludedPatterns: [] }
+		}));
+		usingCursor({
+			text: ['std::string s = "hello world";'],
+			languageId: 'cpp',
+			editorOpts: { stringConcatenationOnEnter: true, autoIndent: 'full' }
+		}, (editor, model, viewModel) => {
+			model.tokenization.forceTokenization(1);
+			moveTo(editor, viewModel, 1, 21, false);
+			viewModel.type('\n', 'keyboard');
+			assert.strictEqual(model.getValue(), 'std::string s = "hel"\n+ "lo world";');
+		});
+	});
+
+	test('String Concatenation in Python on Enter', () => {
+		disposables.add(languageService.registerLanguage({ id: 'python' }));
+		setupStringTokenizationForLanguage('python');
+		disposables.add(languageConfigurationService.register('python', {
+			stringConcatenation: { excludedPatterns: [] }
+		}));
+		usingCursor({
+			text: ['message = "hello world"'],
+			languageId: 'python',
+			editorOpts: { stringConcatenationOnEnter: true, autoIndent: 'full' }
+		}, (editor, model, viewModel) => {
+			model.tokenization.forceTokenization(1);
+			moveTo(editor, viewModel, 1, 16, false);
+			viewModel.type('\n', 'keyboard');
+			assert.strictEqual(model.getValue(), 'message = "hell"\n"o world"');
+		});
+	});
+
+	test('String concatenation should not be applied on #include', () => {
+		disposables.add(languageService.registerLanguage({ id: 'c' }));
+		setupStringTokenizationForLanguage('c');
+		disposables.add(languageConfigurationService.register('c', {
+			stringConcatenation: { excludedPatterns: ['^\\s*#\\s*include'] }
+		}));
+
+		usingCursor({
+			text: ['#include <stdio.h>'],
+			languageId: 'c',
+			editorOpts: { stringConcatenationOnEnter: true, autoIndent: 'full' }
+		}, (editor, model, viewModel) => {
+			model.tokenization.forceTokenization(1);
+			moveTo(editor, viewModel, 1, 13, false);
+			viewModel.type('\n', 'keyboard');
+			// concatenation not applied, normal Enter behaviour
+			assert.strictEqual(model.getValue(), '#include <st\ndio.h>');
 		});
 	});
 
