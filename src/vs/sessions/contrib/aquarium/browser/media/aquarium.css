@@ -121,7 +121,8 @@
 	will-change: transform, opacity;
 	pointer-events: none;
 	opacity: 0;
-	transition: opacity 360ms ease-out;
+	/* width/height transition lets a fed fish visibly puff up as it grows. */
+	transition: opacity 360ms ease-out, width 300ms ease-out, height 300ms ease-out;
 }
 
 /* JS sets per-fish transition-delay before adding `.visible` for staggered
