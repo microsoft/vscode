@@ -132,6 +132,14 @@ export class HoverColorPickerParticipant implements IEditorHoverParticipant<Colo
 		disposables.add(model.onDidChangeColor((color: Color) => {
 			updateColorPresentations(editorModel, model, color, range, colorHover);
 		}));
+		disposables.add(this._colorPicker.onEscape(() => {
+			context.hide();
+			editor.focus();
+		}));
+		disposables.add(this._colorPicker.onResult(() => {
+			context.hide();
+			editor.focus();
+		}));
 		disposables.add(editor.onDidChangeModelContent((e) => {
 			if (editorUpdatedByColorPicker) {
 				editorUpdatedByColorPicker = false;
