@@ -53,9 +53,11 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 	private readonly _foldingIconStore = this._register(new DisposableStore());
 	private readonly _rootDomNode: HTMLElement = document.createElement('div');
+	private readonly _contentDomNode: HTMLElement = document.createElement('div');
 	private readonly _lineNumbersDomNode: HTMLElement = document.createElement('div');
 	private readonly _linesDomNodeScrollable: HTMLElement = document.createElement('div');
 	private readonly _linesDomNode: HTMLElement = document.createElement('div');
+	private readonly _shadowDomNode: HTMLElement = document.createElement('div');
 
 	private readonly _editor: ICodeEditor;
 
@@ -87,10 +89,16 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._linesDomNodeScrollable.className = 'sticky-widget-lines-scrollable';
 		this._linesDomNodeScrollable.appendChild(this._linesDomNode);
 
+		this._contentDomNode.className = 'sticky-widget-content';
+		this._contentDomNode.appendChild(this._lineNumbersDomNode);
+		this._contentDomNode.appendChild(this._linesDomNodeScrollable);
+
+		this._shadowDomNode.className = 'sticky-widget-shadow';
+
 		this._rootDomNode.className = 'sticky-widget';
 		this._rootDomNode.classList.toggle('peek', editor instanceof EmbeddedCodeEditorWidget);
-		this._rootDomNode.appendChild(this._lineNumbersDomNode);
-		this._rootDomNode.appendChild(this._linesDomNodeScrollable);
+		this._rootDomNode.appendChild(this._contentDomNode);
+		this._rootDomNode.appendChild(this._shadowDomNode);
 		this._setHeight(0);
 
 		const updateScrollLeftPosition = () => {
@@ -266,6 +274,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			this._rootDomNode.style.display = 'block';
 			this._lineNumbersDomNode.style.height = `${this._height}px`;
 			this._linesDomNodeScrollable.style.height = `${this._height}px`;
+			this._contentDomNode.style.height = `${this._height}px`;
 			this._rootDomNode.style.height = `${this._height}px`;
 		}
 
