@@ -283,14 +283,10 @@ export class AgentSessionsWelcomePage extends EditorPane {
 	}
 
 	private async buildStartEntries(container: HTMLElement): Promise<void> {
-		const workspaces = await this.getRecentlyOpenedWorkspaces(false);
-		const openEntry = workspaces.length > 0
-			? { icon: Codicon.folderOpened, label: localize('openRecent', "Open Recent..."), command: 'workbench.action.openRecent' }
-			: { icon: Codicon.folderOpened, label: localize('openFolder', "Open Folder..."), command: 'workbench.action.files.openFolder' };
 		const entries = [
-			openEntry,
-			{ icon: Codicon.newFile, label: localize('newFile', "New file..."), command: 'welcome.showNewFileEntries' },
-			{ icon: Codicon.repoClone, label: localize('cloneRepo', "Clone Git Repository..."), command: 'git.clone' },
+			{ icon: Codicon.folderOpened, label: localize('openProject', "Open project"), command: 'workbench.action.files.openFolder' },
+			{ icon: Codicon.repoClone, label: localize('cloneRepo', "Clone repo"), command: 'git.clone' },
+			{ icon: Codicon.remote, label: localize('connectViaSsh', "Connect via SSH"), command: 'workbench.action.showCommands' },
 		];
 
 		for (const entry of entries) {
@@ -732,7 +728,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		// Content
 		const content = append(tosCard, $('.agentSessionsWelcome-walkthroughCard-content'));
 		const title = append(content, $('.agentSessionsWelcome-walkthroughCard-title'));
-		title.textContent = localize('tosTitle', "Try GitHub Copilot for free, no sign-in required!");
+		title.textContent = localize('tosTitle', "Use Solo agents with your selected provider.");
 
 		const desc = append(content, $('.agentSessionsWelcome-walkthroughCard-description'));
 		const descriptionMarkdown = new MarkdownString(
@@ -889,7 +885,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		}
 		const chatViewLocation = this.viewDescriptorService.getViewLocationById(ChatViewId);
 		if (chatViewLocation === ViewContainerLocation.AuxiliaryBar) {
-			this.layoutService.setAuxiliaryBarMaximized(true);
+			this.layoutService.setAuxiliaryBarMaximized(false);
 		}
 	}
 
