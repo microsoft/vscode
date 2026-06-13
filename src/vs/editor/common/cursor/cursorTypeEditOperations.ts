@@ -468,7 +468,8 @@ export class InterceptorElectricCharOperation {
 			return null;
 		}
 		if (electricAction.matchOpenBracket) {
-			const endColumn = (lineTokens.getLineContent() + ch).lastIndexOf(electricAction.matchOpenBracket) + 1;
+			const lastOpenBracketIndex = (lineTokens.getLineContent() + ch).lastIndexOf(electricAction.matchOpenBracket);
+			const endColumn = lastOpenBracketIndex === -1 ? 0 : position.column;
 			const match = model.bracketPairs.findMatchingBracketUp(electricAction.matchOpenBracket, {
 				lineNumber: position.lineNumber,
 				column: endColumn
