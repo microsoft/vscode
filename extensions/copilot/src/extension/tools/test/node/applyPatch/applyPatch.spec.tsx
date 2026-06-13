@@ -88,6 +88,42 @@ suite('ApplyPatch Tool', () => {
 
 	});
 
+	it('reports live patch progress for string raw input', async () => {
+		const tool = accessor.get(IInstantiationService).createInstance(ApplyPatchTool);
+
+		const result = await tool.handleToolStream({
+			input: undefined,
+			rawInput: {
+				explanation: 'Update one file',
+				input: '*** Begin Patch\n*** Update File: /workspace/foo.ts\n@@\n-old\n+new\n*** End Patch\n'
+			}
+		}, CancellationToken.None);
+
+		expect(result.invocationMessage.value).toContain('Generating patch (7 lines)');
+	});
+
+	it('falls back to generic progress when raw input is undefined', async () => {
+		const tool = accessor.get(IInstantiationService).createInstance(ApplyPatchTool);
+
+		const result = await tool.handleToolStream({ input: undefined, rawInput: undefined }, CancellationToken.None);
+
+		expect(result.invocationMessage.value).toBe('Generating patch');
+	});
+
+	it('falls back to generic progress when raw input input is not a string', async () => {
+		const tool = accessor.get(IInstantiationService).createInstance(ApplyPatchTool);
+
+		const result = await tool.handleToolStream({
+			input: undefined,
+			rawInput: {
+				explanation: 'Update one file',
+				input: { patch: '*** Begin Patch' }
+			} as unknown as Partial<IApplyPatchToolParams>
+		}, CancellationToken.None);
+
+		expect(result.invocationMessage.value).toBe('Generating patch');
+	});
+
 	suite('healedPatchAffectsSameFiles', () => {
 		const makePatch = (lines: string[]) => ['*** Begin Patch', ...lines, '*** End Patch'].join('\n');
 

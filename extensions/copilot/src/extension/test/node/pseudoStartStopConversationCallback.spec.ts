@@ -322,7 +322,47 @@ suite('Tool stream throttling', () => {
 		responseSource.resolve();
 
 		await processor.doProcessResponse(responseSource.asyncIterable, stream, CancellationToken.None);
+	});
 
-		assert.strictEqual(updateCalls.length, 0);
+	test('apply_patch stream updates expose partial input before final completion', async () => {
+		const responseSource = new AsyncIterableSource<IResponsePart>();
+		const processor = new PseudoStopStartResponseProcessor([], undefined);
+
+		responseSource.emitOne({
+			delta: {
+				text: '',
+				copilotToolCallStreamUpdates: [{
+					id: 'tool1',
+					name: 'apply_patch',
+					arguments: '{"explanation":"Start drafting patch","input":"*** Begin Patch\\n*** Update File: /workspace/foo.ts\\n@@\\n-const a = 1;\\n+const a = 2;'
+				}]
+			}
+		});
+		clock.tick(100);
+		responseSource.emitOne({
+			delta: {
+				text: '',
+				copilotToolCallStreamUpdates: [{
+					id: 'tool1',
+					name: 'apply_patch',
+					arguments: '{"explanation":"Start drafting patch","input":"*** Begin Patch\\n*** Update File: /workspace/foo.ts\\n@@\\n-const a = 1;\\n+const a = 2;\\n*** End Patch\\n"}'
+				}]
+			}
+		});
+		responseSource.resolve();
+
+		await processor.doProcessResponse(responseSource.asyncIterable, stream, CancellationToken.None);
+
+		assert.strictEqual(updateCalls.length, 2);
+		assert.deepStrictEqual(updateCalls.map(call => call.streamData.partialInput), [
+			{
+				explanation: 'Start drafting patch',
+				input: '*** Begin Patch\n*** Update File: /workspace/foo.ts\n@@\n-const a = 1;\n+const a = 2;'
+			},
+			{
+				explanation: 'Start drafting patch',
+				input: '*** Begin Patch\n*** Update File: /workspace/foo.ts\n@@\n-const a = 1;\n+const a = 2;\n*** End Patch\n'
+			}
+		]);
 	});
 });
