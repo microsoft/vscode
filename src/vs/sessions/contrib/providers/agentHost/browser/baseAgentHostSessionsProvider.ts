@@ -40,7 +40,7 @@ import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from 
 import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../../common/sessionConfig.js';
-import { IChat, IGitHubInfo, ISession, ISessionAgentRef, ISessionChangeset, ISessionChangesSummary, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, sessionFileChangesEqual, SessionStatus, toSessionId } from '../../../../services/sessions/common/session.js';
+import { IChat, IGitHubInfo, gitHubInfoEqual, ISession, ISessionAgentRef, ISessionChangeset, ISessionChangesSummary, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, sessionFileChangesEqual, SessionStatus, toSessionId } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -262,7 +262,15 @@ export class AgentHostSessionAdapter implements ISession {
 					gitHubService.findPullRequestNumberByHeadBranch(coords.owner, coords.repo, coords.branch)
 				);
 			});
-		this.gitHubInfo = derived<IGitHubInfo | undefined>(this, reader => {
+		// Latches the last known icon for a given PR identity. The live PR model is
+		// shared and ref-counted: when the session goes inactive (and agent host sessions
+		// don't poll) the model can be released, disposed and later re-acquired in an
+		// unpopulated state, so `livePR` momentarily reads `undefined`. Without latching,
+		// the icon would downgrade to the fallback dot (it flickers on list updates and
+		// disappears entirely when clicking away from a session). Keyed by the full PR
+		// identity so a different PR never reuses a stale icon.
+		let lastKnownPr: { readonly owner: string; readonly repo: string; readonly number: number; readonly icon: ThemeIcon } | undefined;
+		this.gitHubInfo = derivedOpts<IGitHubInfo | undefined>({ owner: this, equalsFn: gitHubInfoEqual }, reader => {
 			const coords = gitHubCoords.read(reader);
 			if (!coords) {
 				return undefined;
@@ -275,11 +283,22 @@ export class AgentHostSessionAdapter implements ISession {
 			const uri = URI.parse(`https://github.com/${coords.owner}/${coords.repo}/pull/${prNumber}`);
 			let icon: ThemeIcon | undefined;
 			if (gitHubService) {
-				const ref = reader.store.add(gitHubService.createPullRequestModelReference(coords.owner, coords.repo, prNumber));
+				// Hold the PR model reference in `delayedStore` (not `store`) so the cached,
+				// ref-counted model survives across recomputations. With `store`, the reference
+				// is released before the recompute runs, dropping the refcount to 0 and disposing
+				// the model, so `livePR` momentarily reads `undefined`.
+				const ref = reader.delayedStore.add(gitHubService.createPullRequestModelReference(coords.owner, coords.repo, prNumber));
 				const livePR = ref.object.pullRequest.read(reader);
 				if (livePR) {
 					icon = computePullRequestIcon(livePR.isDraft ? 'draft' : livePR.state);
 				}
+			}
+			if (icon) {
+				lastKnownPr = { owner: coords.owner, repo: coords.repo, number: prNumber, icon };
+			} else if (lastKnownPr && lastKnownPr.owner === coords.owner && lastKnownPr.repo === coords.repo && lastKnownPr.number === prNumber) {
+				// The live model hasn't produced a state yet (e.g. it was just re-acquired);
+				// keep showing the last known icon for this same PR instead of the fallback dot.
+				icon = lastKnownPr.icon;
 			}
 			return {
 				owner: coords.owner,
