@@ -54,7 +54,7 @@ function __vsc_apply_env_vars
 	if test $__vsc_applied_env_vars -eq 1;
 		return
 	end
-	set -l __vsc_applied_env_vars 1
+	set -g __vsc_applied_env_vars 1
 	# Apply EnvironmentVariableCollections if needed
 	if test -n "$VSCODE_ENV_REPLACE"
 		set ITEMS (string split : $VSCODE_ENV_REPLACE)
@@ -115,11 +115,14 @@ end
 # Sent right before executing an interactive command.
 # Marks the beginning of command output.
 function __vsc_cmd_executed --on-event fish_preexec
+	# Preserve $status: __vsc_esc / printf below would otherwise leave $status=0
+	set -l __vsc_saved_status $status
 	__vsc_esc E (__vsc_escape_value "$argv") $__vsc_nonce
 	__vsc_esc C
 
 	# Creates a marker to indicate a command was run.
 	set --global _vsc_has_cmd
+	return $__vsc_saved_status
 end
 
 
@@ -136,18 +139,22 @@ end
 # Sent right after an interactive command has finished executing.
 # Marks the end of command output.
 function __vsc_cmd_finished --on-event fish_postexec
-	__vsc_esc D $status
+	set -l __vsc_saved_status $status
+	__vsc_esc D $__vsc_saved_status
+	return $__vsc_saved_status
 end
 
 # Sent when a command line is cleared or reset, but no command was run.
 # Marks the cleared line with neither success nor failure.
 function __vsc_cmd_clear --on-event fish_cancel
+	set -l __vsc_saved_status $status
 	if test $vsc_initialized -eq 0;
-		return
+		return $__vsc_saved_status
 	end
 	__vsc_esc E "" $__vsc_nonce
 	__vsc_esc C
 	__vsc_esc D
+	return $__vsc_saved_status
 end
 
 # Preserve the user's existing prompt, to wrap in our escape sequences.
@@ -178,6 +185,7 @@ end
 # Sent whenever a new fish prompt is about to be displayed.
 # Updates the current working directory.
 function __vsc_update_cwd --on-event fish_prompt
+	set -l __vsc_saved_status $status
 	__vsc_esc P Cwd=(__vsc_escape_value "$PWD")
 
 	# If a command marker exists, remove it.
@@ -187,10 +195,12 @@ function __vsc_update_cwd --on-event fish_prompt
 	else
 		__vsc_cmd_clear
 	end
+	return $__vsc_saved_status
 end
 
 if test -n "$__vscode_shell_env_reporting"
 	function __vsc_update_env --on-event fish_prompt
+		set -l __vsc_saved_status $status
 		if test (count $envVarsToReport) -gt 0
 			__vsc_esc EnvSingleStart 1
 
@@ -203,17 +213,20 @@ if test -n "$__vscode_shell_env_reporting"
 
 			__vsc_esc EnvSingleEnd
 		end
+		return $__vsc_saved_status
 	end
 end
 
 # Sent at the start of the prompt.
 # Marks the beginning of the prompt (and, implicitly, a new line).
 function __vsc_fish_prompt_start
+	set -l __vsc_saved_status $status
 	# Applying environment variables is deferred to after config.fish has been
 	# evaluated
 	__vsc_apply_env_vars
 	__vsc_esc A
 	set -g vsc_initialized 1
+	return $__vsc_saved_status
 end
 
 # Sent at the end of the prompt.
