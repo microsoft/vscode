@@ -12,7 +12,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { getOutOfWorkspaceEditorResources, extractRangeFromFilter, IWorkbenchSearchConfiguration } from '../common/search.js';
 import { ISearchService, ISearchComplete } from '../../../services/search/common/search.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { untildify } from '../../../../base/common/labels.js';
+import { untildify, shorten } from '../../../../base/common/labels.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { URI } from '../../../../base/common/uri.js';
 import { toLocalResource, dirname, basenameOrAuthority } from '../../../../base/common/resources.js';
@@ -612,9 +612,22 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		// Filter excludes & convert to picks
 		const configuration = this.configuration;
-		return fileMatches
+		let picks = fileMatches
 			.filter(resource => !excludes.has(resource))
 			.map(resource => this.createAnythingPick(resource, configuration));
+
+		// Shorten paths to make them more distinguishable
+		if (picks.length > 1) {
+			const descriptions = picks.map(pick => pick.description || '');
+			const shortenedDescriptions = shorten(descriptions);
+			for (let i = 0; i < picks.length; i++) {
+				if (shortenedDescriptions[i]) {
+					picks[i].description = shortenedDescriptions[i];
+				}
+			}
+		}
+
+		return picks;
 	}
 
 	private async doFileSearch(query: IPreparedQuery, token: CancellationToken): Promise<URI[]> {
