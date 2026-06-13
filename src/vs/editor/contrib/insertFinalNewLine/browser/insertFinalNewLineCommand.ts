@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from '../../../../base/common/strings.js';
 import { EditOperation, ISingleEditOperation } from '../../../common/core/editOperation.js';
 import { Position } from '../../../common/core/position.js';
 import { Selection } from '../../../common/core/selection.js';
@@ -40,10 +39,16 @@ export class InsertFinalNewLineCommand implements ICommand {
  */
 export function insertFinalNewLine(model: ITextModel): ISingleEditOperation | undefined {
 	const lineCount = model.getLineCount();
-	const lastLine = model.getLineContent(lineCount);
-	const lastLineIsEmptyOrWhitespace = strings.lastNonWhitespaceIndex(lastLine) === -1;
+	if (!lineCount) {
+		return;
+	}
 
-	if (!lineCount || lastLineIsEmptyOrWhitespace) {
+	// Only skip when the last line is genuinely empty: an empty trailing line
+	// indicates the buffer already ends with an EOL (e.g. "foo\n" has 2 lines,
+	// the second being ""). A whitespace-only last line still needs an EOL
+	// appended to be POSIX-conformant.
+	const lastLineLength = model.getLineLength(lineCount);
+	if (lastLineLength === 0) {
 		return;
 	}
 
