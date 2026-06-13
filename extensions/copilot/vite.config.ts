@@ -30,6 +30,11 @@ export default defineConfig(({ mode }) => ({
 			ignored: exclude,
 		}
 	},
+	oxc: {
+		jsx: {
+			development: false,
+		}
+	},
 	plugins: [
 		wasm()
 	]
