@@ -6,6 +6,7 @@
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
 import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolResultContentType, TurnState } from '../../common/state/sessionState.js';
+import { stripProxyErrorMarker, tryBuildChatErrorMeta } from '../shared/forwardedChatError.js';
 import type { AgentMessageDeltaNotification } from './protocol/generated/v2/AgentMessageDeltaNotification.js';
 import type { CommandExecutionOutputDeltaNotification } from './protocol/generated/v2/CommandExecutionOutputDeltaNotification.js';
 import type { FileChangeOutputDeltaNotification } from './protocol/generated/v2/FileChangeOutputDeltaNotification.js';
@@ -714,7 +715,8 @@ export function mapTurnCompleted(
 				turnId,
 				error: {
 					errorType: 'CodexError',
-					message: errMessage,
+					message: stripProxyErrorMarker(errMessage),
+					_meta: tryBuildChatErrorMeta(errMessage),
 				},
 			},
 			{

@@ -363,6 +363,7 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 				}
 				return {
 					...tc,
+					...(action._meta !== undefined ? { _meta: action._meta } : {}),
 					partialInput: (tc.partialInput ?? '') + action.content,
 					invocationMessage: action.invocationMessage ?? tc.invocationMessage,
 				};
@@ -381,7 +382,6 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 						invocationMessage: action.invocationMessage,
 						toolInput: action.toolInput,
 						confirmed: action.confirmed,
-						_meta: action._meta ?? base._meta,
 					};
 				}
 				return {
@@ -392,7 +392,6 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 					confirmationTitle: action.confirmationTitle,
 					edits: action.edits,
 					editable: action.editable,
-					_meta: action._meta ?? base._meta,
 					...(action.options ? { options: action.options } : {}),
 				};
 			}));
@@ -498,6 +497,7 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 				}
 				return {
 					...tc,
+					...(action._meta !== undefined ? { _meta: action._meta } : {}),
 					content: action.content,
 				};
 			});
