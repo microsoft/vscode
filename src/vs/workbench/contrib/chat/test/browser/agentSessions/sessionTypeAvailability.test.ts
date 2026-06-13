@@ -32,7 +32,7 @@ function createChatSessionsService(config: ITypeConfig): IChatSessionsService {
 		}
 		override getChatSessionContribution(type: string): ResolvedChatSessionsExtensionPoint | undefined {
 			if (type === TYPE && config.registered) {
-				return { type: TYPE, name: TYPE, displayName: TYPE, description: '' };
+				return { type: TYPE, name: TYPE, displayName: TYPE, description: '', icon: undefined };
 			}
 			return undefined;
 		}
