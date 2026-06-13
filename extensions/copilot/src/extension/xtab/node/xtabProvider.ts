@@ -1279,11 +1279,17 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				}
 
 				const targetContent = new StringText(targetTextDoc.getText());
+				const targetLines = targetContent.getLines();
+				if (nextCursorLineOneBased > targetLines.length) {
+					tracer.trace(`Predicted cross-file cursor line error: exceedsTargetDocumentLines (line ${nextCursorLineOneBased}, target has ${targetLines.length})`);
+					telemetry.setNextCursorLineError('crossFile:exceedsTargetDocumentLines');
+					return new NoNextEditReason.NoSuggestions(request.documentBeforeEdits, editWindow, nextCursorPosition, targetDocumentId);
+				}
 				const syntheticDoc = new StatelessNextEditDocument(
 					targetDocumentId,
 					promptPieces.activeDoc.workspaceRoot,
 					LanguageId.create(targetTextDoc.languageId),
-					targetContent.getLines(),
+					targetLines,
 					LineEdit.empty,
 					targetContent,
 					new Edits(StringEdit, []),
