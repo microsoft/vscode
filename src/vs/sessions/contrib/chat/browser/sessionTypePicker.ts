@@ -242,7 +242,7 @@ export class SessionTypePicker extends Disposable {
 			const isFirstInGroup = providerId !== lastProviderId;
 			lastProviderId = providerId;
 			const isCurrent = this._picked?.providerId === providerId && this._picked?.sessionTypeId === sessionType.id;
-			const availability = getSessionTypeAvailability(this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, sessionType.id);
+			const availability = getSessionTypeAvailability(this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, sessionType.chatSessionType ?? sessionType.id);
 			const unavailable = availability !== SessionTypeAvailability.Available;
 			const item: ISessionTypePickerItem = isCurrent
 				? { providerId, sessionTypeId: sessionType.id, label: sessionType.label, checked: true }

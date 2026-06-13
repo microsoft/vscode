@@ -34,6 +34,12 @@ export enum SessionTypeAvailability {
  * shown an explanation with no upgrade button. Unavailable types are greyed out
  * in the picker either way.
  *
+ * While the type's contribution isn't registered yet (e.g. during a window
+ * reload before the extension host re-registers), this returns
+ * {@link SessionTypeAvailability.Available} so a harness is never locked
+ * prematurely; the model picker is the backstop and shows "No models available"
+ * for an active session in that window.
+ *
  * Shared by the chat input session-type picker and the Agents window harness
  * picker so both surfaces apply the same rule.
  */
@@ -46,9 +52,19 @@ export function getSessionTypeAvailability(
 	if (chatSessionsService.supportsAutoModelForSessionType(type) || hasModelsTargetingSessionType(languageModelsService, type)) {
 		return SessionTypeAvailability.Available;
 	}
-	// The lock is model-based (above); the SKU only decides whether the locked
-	// type offers an upgrade. Everyone other than Free / Student — including a
-	// not-yet-resolved SKU — gets no upgrade affordance.
+	// The "no Auto" signal comes from the type's contribution, which loads
+	// asynchronously. While it's missing — e.g. during a window reload before the
+	// extension host re-registers contributions — we can't conclude the type
+	// requires explicit models, so stay selectable (the model picker is the
+	// backstop and shows "No models available" for an active session). This also
+	// keeps harnesses that do support Auto, like the Copilot CLI, from flashing a
+	// locked state before their contribution loads.
+	if (!chatSessionsService.getChatSessionContribution(type)) {
+		return SessionTypeAvailability.Available;
+	}
+	// Determinate and unusable: the lock is model-based (above); the SKU only
+	// decides whether the locked type offers an upgrade. Everyone other than
+	// Free / Student gets no upgrade affordance.
 	const entitlement = chatEntitlementService.entitlement;
 	const canUpgrade = entitlement === ChatEntitlement.Free || entitlement === ChatEntitlement.EDU;
 	return canUpgrade ? SessionTypeAvailability.UpgradeRequired : SessionTypeAvailability.NoModels;
@@ -71,19 +87,21 @@ function hasModelsTargetingSessionType(languageModelsService: ILanguageModelsSer
 
 /**
  * The inline description shown for an unavailable session type, or `undefined`
- * when nothing should be shown inline. Free / Student users get an actionable
- * "[Upgrade]" link. The {@link SessionTypeAvailability.NoModels} case shows
- * nothing inline (the explanation lives in the hover only) so it does not flash
- * "No models available" while the entitlement/SKU is still resolving.
+ * when it is available. Free / Student users get an actionable "[Upgrade]"
+ * link; paid users with no models get a plain "No models available" note.
  */
 export function getSessionTypeUnavailableDescription(availability: SessionTypeAvailability): IMarkdownString | undefined {
-	if (availability === SessionTypeAvailability.UpgradeRequired) {
-		return new MarkdownString(
-			localize('chat.sessionType.upgradeLink', "[Upgrade](command:workbench.action.chat.upgradePlan)"),
-			{ isTrusted: { enabledCommands: ['workbench.action.chat.upgradePlan'] } }
-		);
+	switch (availability) {
+		case SessionTypeAvailability.UpgradeRequired:
+			return new MarkdownString(
+				localize('chat.sessionType.upgradeLink', "[Upgrade](command:workbench.action.chat.upgradePlan)"),
+				{ isTrusted: { enabledCommands: ['workbench.action.chat.upgradePlan'] } }
+			);
+		case SessionTypeAvailability.NoModels:
+			return new MarkdownString(localize('chat.sessionType.noModels', "No models available"));
+		default:
+			return undefined;
 	}
-	return undefined;
 }
 
 /**
@@ -107,13 +125,15 @@ export function getSessionTypeUnavailableHover(availability: SessionTypeAvailabi
 
 /**
  * Plain-text description for surfaces that cannot render markdown (e.g. the
- * mobile picker sheet), or `undefined` when nothing should be shown. Only the
- * Upgrade prompt is surfaced inline; the {@link SessionTypeAvailability.NoModels}
- * case stays silent (the mobile sheet has no hover) so it does not flash while
- * the entitlement/SKU is still resolving.
+ * mobile picker sheet), or `undefined` when the session type is available.
  */
 export function getSessionTypeUnavailableLabel(availability: SessionTypeAvailability): string | undefined {
-	return availability === SessionTypeAvailability.UpgradeRequired
-		? localize('chat.sessionType.upgradeMobile', "Requires GitHub Copilot Pro")
-		: undefined;
+	switch (availability) {
+		case SessionTypeAvailability.UpgradeRequired:
+			return localize('chat.sessionType.upgradeMobile', "Requires GitHub Copilot Pro");
+		case SessionTypeAvailability.NoModels:
+			return localize('chat.sessionType.noModels', "No models available");
+		default:
+			return undefined;
+	}
 }

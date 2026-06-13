@@ -789,6 +789,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					this.setCurrentLanguageModelToDefault();
 				}
 			}
+			// The available-model set changed: re-evaluate whether sending is
+			// possible (a `requiresCustomModels` session may now have, or have
+			// lost, its models).
+			this._updateInputContentContextKeys();
 		};
 		this._register(this.languageModelsService.onDidChangeLanguageModels(resetCurrentLanguageModelIfUnavailable));
 		this._register(this.languageModelsService.onDidChangeModelVisibility(resetCurrentLanguageModelIfUnavailable));
@@ -1023,6 +1027,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				const sessionType = this.getCurrentSessionType();
 				return !sessionType || sessionType === localChatSessionType;
 			},
+			showAutoModel: () => this._showAutoModel(),
 			modelConfiguration: this._modelConfigStore,
 		};
 	}
@@ -1507,6 +1512,27 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private getModels(): ILanguageModelChatMetadataAndIdentifier[] {
 		return this.getModelsForSessionType(this.getCurrentSessionType());
+	}
+
+	/**
+	 * True when the current session type can fall back to the synthetic "Auto"
+	 * model. Defaults to `true` when no session type is set. See
+	 * {@link hasNoAvailableModel} for the "nothing to send with" state, which
+	 * additionally requires an empty model list.
+	 */
+	private _showAutoModel(): boolean {
+		const sessionType = this.getCurrentSessionType();
+		return !sessionType || this.chatSessionsService.supportsAutoModelForSessionType(sessionType);
+	}
+
+	/**
+	 * True when the current session type cannot fall back to the Auto model
+	 * and no models are available to it — e.g. the Claude agent host for a
+	 * Copilot Free / Student user. In this state there is no model to send a
+	 * request with, so sending is blocked.
+	 */
+	private hasNoAvailableModel(): boolean {
+		return !this._showAutoModel() && this.getModels().length === 0;
 	}
 
 	private getModelsForSessionType(sessionType: string | undefined): ILanguageModelChatMetadataAndIdentifier[] {
@@ -1998,7 +2024,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _updateInputContentContextKeys(): void {
 		const inputHasText = !!this._inputEditor?.getModel()?.getValue().trim();
 		this.inputEditorHasText.set(inputHasText);
-		this.inputEditorHasSendableContent.set(inputHasText || this._attachmentModel.attachments.some(isExplicitFileOrImageVariableEntry));
+		const hasSendableContent = inputHasText || this._attachmentModel.attachments.some(isExplicitFileOrImageVariableEntry);
+		// Block sending when the session type has no usable model (and can't
+		// fall back to Auto): there is nothing to send the request with.
+		this.inputEditorHasSendableContent.set(hasSendableContent && !this.hasNoAvailableModel());
 	}
 
 	private getOrCreateOptionEmitter(optionGroupId: string): Emitter<IChatSessionProviderOptionItem> {
@@ -2084,6 +2113,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (!visibleOptionGroups.length) {
 			this.chatSessionHasOptions.set(false);
 			this.chatSessionOptionsValid.set(true);
+			// Session type may have changed whether a usable model exists; keep
+			// the send-enablement context key in sync.
+			this._updateInputContentContextKeys();
 			return [];
 		}
 
@@ -2091,6 +2123,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.chatSessionHasOptions.set(true);
 		this.chatSessionOptionsValid.set(allOptionsValid);
+
+		// Session type may have changed whether a usable model exists; keep the
+		// send-enablement context key in sync.
+		this._updateInputContentContextKeys();
 
 		return visibleOptionGroups;
 	}

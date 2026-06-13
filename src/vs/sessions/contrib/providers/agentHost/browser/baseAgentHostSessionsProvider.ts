@@ -1270,6 +1270,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		const next = rootState.agents.map((agent): ISessionType => ({
 			id: agent.provider,
+			// The chat session contribution and language models for an agent-host
+			// agent are registered under its resource scheme (`agent-host-<provider>`),
+			// not the bare provider id, so carry it for availability lookups.
+			chatSessionType: this.resourceSchemeForProvider(agent.provider),
 			label: this._formatSessionTypeLabel(agent.displayName?.trim() || agent.provider),
 			icon: this.iconForAgentProvider(agent.provider) ?? this.icon,
 		}));
@@ -1800,12 +1804,23 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			.filter((m): m is ILanguageModelChatMetadataAndIdentifier => !!m);
 	}
 
-	getModelPickerOptions(_sessionId: string): ISessionModelPickerOptions {
+	getModelPickerOptions(sessionId: string): ISessionModelPickerOptions {
+		// A session type that requires an explicit model selection cannot fall
+		// back to Auto. When it has no models (e.g. the Claude agent host for a
+		// Copilot Free / Student user), the picker shows a "No models available"
+		// state instead of Auto. Harnesses that support Auto (e.g. the Copilot
+		// CLI agent host) keep the Auto fallback. Derive this from the
+		// contribution's declarative `showAutoModel` flag (keyed by the
+		// session's resource scheme, which is the registered
+		// `agent-host-<provider>` chat session type) rather than hardcoding names.
+		const resourceScheme = this._resolveSessionResourceScheme(sessionId);
+		const showAutoModel = !resourceScheme || this._chatSessionsService.supportsAutoModelForSessionType(resourceScheme);
 		return {
 			useGroupedModelPicker: true,
 			showFeatured: true,
 			showUnavailableFeatured: false,
 			showManageModelsAction: false,
+			showAutoModel,
 		};
 	}
 
