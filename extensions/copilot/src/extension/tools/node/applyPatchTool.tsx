@@ -191,11 +191,12 @@ export class ApplyPatchTool implements ICopilotTool<IApplyPatchToolParams> {
 
 	async handleToolStream(options: vscode.LanguageModelToolInvocationStreamOptions<IApplyPatchToolParams>, _token: vscode.CancellationToken): Promise<vscode.LanguageModelToolStreamResult> {
 		const partialInput = options.rawInput as Partial<IApplyPatchToolParams> | undefined;
+		const patchInput = partialInput && typeof partialInput === 'object' && typeof partialInput.input === 'string' ? partialInput.input : undefined;
 
 		let invocationMessage: MarkdownString;
-		if (partialInput && typeof partialInput === 'object' && partialInput.input) {
-			const lineCount = count(partialInput.input, '\n') + 1;
-			const files = [...identify_files_needed(partialInput.input), ...identify_files_added(partialInput.input)]
+		if (patchInput) {
+			const lineCount = count(patchInput, '\n') + 1;
+			const files = [...identify_files_needed(patchInput), ...identify_files_added(patchInput)]
 				.map(f => this.promptPathRepresentationService.resolveFilePath(f))
 				.filter(isDefined)
 				.map(uri => formatUriForFileWidget(uri));
