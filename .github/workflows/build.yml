@@ -3,7 +3,7 @@ name: Release VS Code Fork
 on:
   push:
     tags:
-      - 'v*' # Triggers whenever you push a version tag like v1.0.0
+      - 'v0.0.1' # Triggers whenever you push a version tag like v1.0.0
 
 jobs:
   build:
