@@ -13,7 +13,7 @@ import { FileKind } from '../../../platform/files/common/files.js';
 import { IModelService } from '../../../editor/common/services/model.js';
 import { ILanguageService } from '../../../editor/common/languages/language.js';
 import { IQuickInputService, IQuickInputButton, IQuickPickItem, QuickPickInput } from '../../../platform/quickinput/common/quickInput.js';
-import { getIconClasses } from '../../../editor/common/services/getIconClasses.js';
+import { getFileIconInfo } from '../../../editor/common/services/getFileIconInfo.js';
 import { ICommandHandler } from '../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
@@ -299,7 +299,7 @@ abstract class BaseSwitchWindow extends Action2 {
 				windowId: window.id,
 				label: window.title,
 				ariaLabel: window.dirty ? localize('windowDirtyAriaLabel', "{0}, window with unsaved changes", window.title) : window.title,
-				iconClasses: getIconClasses(modelService, languageService, resource, fileKind),
+				iconClasses: getFileIconInfo(modelService, languageService, resource, fileKind).classes,
 				description: (currentWindowId === window.id) ? localize('current', "Current Window") : undefined,
 				buttons: window.dirty ? [this.closeDirtyWindowAction] : currentWindowId === window.id ? [this.closeActiveWindowAction] : [this.closeWindowAction]
 			};
@@ -310,7 +310,7 @@ abstract class BaseSwitchWindow extends Action2 {
 					const pick: IWindowPickItem = {
 						windowId: auxiliaryWindow.id,
 						label: auxiliaryWindow.title,
-						iconClasses: getIconClasses(modelService, languageService, auxiliaryWindow.filename ? URI.file(auxiliaryWindow.filename) : undefined, FileKind.FILE),
+						iconClasses: getFileIconInfo(modelService, languageService, auxiliaryWindow.filename ? URI.file(auxiliaryWindow.filename) : undefined, FileKind.FILE).classes,
 						description: (currentWindowId === auxiliaryWindow.id) ? localize('current', "Current Window") : undefined,
 						buttons: currentWindowId === auxiliaryWindow.id ? [this.closeActiveWindowAction] : [this.closeWindowAction]
 					};

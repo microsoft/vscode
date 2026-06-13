@@ -8,7 +8,7 @@ import { extname } from '../../../../../base/common/path.js';
 import { basename, joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
-import { getIconClassesForLanguageId } from '../../../../../editor/common/services/getIconClasses.js';
+import { getFileIconInfoForLanguageId } from '../../../../../editor/common/services/getFileIconInfo.js';
 import * as nls from '../../../../../nls.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -117,7 +117,7 @@ async function computePicks(snippetService: ISnippetsService, userDataProfileSer
 				description: `(${label})`,
 				filepath: joinPath(dir, `${languageId}.json`),
 				hint: true,
-				iconClasses: getIconClassesForLanguageId(languageId)
+				iconClasses: getFileIconInfoForLanguageId(languageId).classes
 			});
 		}
 	}

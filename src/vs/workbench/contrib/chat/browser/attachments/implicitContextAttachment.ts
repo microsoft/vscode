@@ -16,7 +16,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { basename, dirname } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isLocation, Location } from '../../../../../editor/common/languages.js';
-import { getIconClasses } from '../../../../../editor/common/services/getIconClasses.js';
+import { getFileIconInfo } from '../../../../../editor/common/services/getFileIconInfo.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../nls.js';
@@ -204,7 +204,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		// Derive icon classes from resourceUri for file/folder icons
 		if (icon && (ThemeIcon.isFile(icon) || ThemeIcon.isFolder(icon)) && resourceUri) {
 			const fileKind = ThemeIcon.isFolder(icon) ? FileKind.FOLDER : FileKind.FILE;
-			const iconClasses = getIconClasses(this.modelService, this.languageService, resourceUri, fileKind);
+			const iconClasses = getFileIconInfo(this.modelService, this.languageService, resourceUri, fileKind).classes;
 			resourceLabel.setLabel(name, undefined, { extraClasses: iconClasses, title });
 		} else {
 			resourceLabel.setLabel(name, undefined, { iconPath: icon, title });

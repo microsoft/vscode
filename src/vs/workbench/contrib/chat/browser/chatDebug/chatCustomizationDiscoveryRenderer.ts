@@ -13,7 +13,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { dirname } from '../../../../../base/common/resources.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
-import { getIconClasses } from '../../../../../editor/common/services/getIconClasses.js';
+import { getFileIconInfo } from '../../../../../editor/common/services/getFileIconInfo.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../nls.js';
 import { FileKind } from '../../../../../platform/files/common/files.js';
@@ -63,7 +63,7 @@ function createInlineFileLink(uri: URI, displayText: string, fileKind: FileKind,
 	link.tabIndex = -1;
 
 	const iconEl = DOM.append(link, $('span.icon'));
-	const iconClasses = getIconClasses(modelService, languageService, uri, fileKind);
+	const iconClasses = getFileIconInfo(modelService, languageService, uri, fileKind).classes;
 	iconEl.classList.add(...iconClasses);
 
 	DOM.append(link, $('span.icon-label', undefined, displayText));

@@ -15,7 +15,7 @@ import { IRange } from '../../../../../../editor/common/core/range.js';
 import { EditorContextKeys } from '../../../../../../editor/common/editorContextKeys.js';
 import { Location, SymbolKinds } from '../../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
-import { getIconClasses } from '../../../../../../editor/common/services/getIconClasses.js';
+import { getFileIconInfo } from '../../../../../../editor/common/services/getFileIconInfo.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { DefinitionAction } from '../../../../../../editor/contrib/gotoSymbol/browser/goToCommands.js';
 import * as nls from '../../../../../../nls.js';
@@ -179,7 +179,7 @@ export class InlineAnchorWidget extends Disposable {
 
 			location = this.data.symbol.location;
 			iconText = [this.data.symbol.name];
-			iconClasses = ['codicon', ...getIconClasses(modelService, languageService, undefined, undefined, SymbolKinds.toIcon(symbol.kind))];
+			iconClasses = ['codicon', ...getFileIconInfo(modelService, languageService, undefined, undefined, SymbolKinds.toIcon(symbol.kind)).classes];
 
 			this._store.add(instantiationService.invokeFunction(accessor => hookUpSymbolAttachmentDragAndContextMenu(accessor, element, originalContextKeyService, { value: symbol.location, name: symbol.name, kind: symbol.kind }, MenuId.ChatInlineSymbolAnchorContext)));
 		} else {
@@ -205,7 +205,7 @@ export class InlineAnchorWidget extends Disposable {
 			}
 
 			let fileKind = location.uri.path.endsWith('/') ? FileKind.FOLDER : FileKind.FILE;
-			const recomputeIconClasses = () => getIconClasses(modelService, languageService, location.uri, fileKind, fileKind === FileKind.FOLDER && !themeService.getFileIconTheme().hasFolderIcons ? FolderThemeIcon : defaultIcon);
+			const recomputeIconClasses = () => getFileIconInfo(modelService, languageService, location.uri, fileKind, fileKind === FileKind.FOLDER && !themeService.getFileIconTheme().hasFolderIcons ? FolderThemeIcon : defaultIcon).classes;
 
 			iconClasses = recomputeIconClasses();
 

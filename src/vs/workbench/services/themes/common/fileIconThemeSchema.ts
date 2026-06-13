@@ -39,7 +39,7 @@ const schema: IJSONSchema = {
 		},
 		rootFolderNames: {
 			type: 'object',
-			description: nls.localize('schema.rootFolderNames', 'Associates root folder names to icons. The object key is the root folder name. No patterns or wildcards are allowed. Root folder name matching is case insensitive.'),
+			description: nls.localize('schema.rootFolderNames', 'Associates root folder names to icons. The object key is the root folder name. Keys may contain \'*\' wildcards to match patterns. Root folder name matching is case insensitive.'),
 			additionalProperties: {
 				type: 'string',
 				description: nls.localize('schema.folderName', 'The ID of the icon definition for the association.')
@@ -47,7 +47,7 @@ const schema: IJSONSchema = {
 		},
 		rootFolderNamesExpanded: {
 			type: 'object',
-			description: nls.localize('schema.rootFolderNamesExpanded', 'Associates root folder names to icons for expanded root folders. The object key is the root folder name. No patterns or wildcards are allowed. Root folder name matching is case insensitive.'),
+			description: nls.localize('schema.rootFolderNamesExpanded', 'Associates root folder names to icons for expanded root folders. The object key is the root folder name. Keys may contain \'*\' wildcards to match patterns. Root folder name matching is case insensitive.'),
 			additionalProperties: {
 				type: 'string',
 				description: nls.localize('schema.rootFolderNameExpanded', 'The ID of the icon definition for the association.')
@@ -55,7 +55,7 @@ const schema: IJSONSchema = {
 		},
 		folderNames: {
 			type: 'object',
-			description: nls.localize('schema.folderNames', 'Associates folder names to icons. The object key is the folder name, not including any path segments. No patterns or wildcards are allowed. Folder name matching is case insensitive.'),
+			description: nls.localize('schema.folderNames', 'Associates folder names to icons. The object key is the folder name, not including any path segments. Keys may contain \'*\' wildcards to match patterns (e.g., \'test_*\', \'*_generated\'). Folder name matching is case insensitive.'),
 			additionalProperties: {
 				type: 'string',
 				description: nls.localize('schema.folderName', 'The ID of the icon definition for the association.')
@@ -63,7 +63,7 @@ const schema: IJSONSchema = {
 		},
 		folderNamesExpanded: {
 			type: 'object',
-			description: nls.localize('schema.folderNamesExpanded', 'Associates folder names to icons for expanded folders. The object key is the folder name, not including any path segments. No patterns or wildcards are allowed. Folder name matching is case insensitive.'),
+			description: nls.localize('schema.folderNamesExpanded', 'Associates folder names to icons for expanded folders. The object key is the folder name, not including any path segments. Keys may contain \'*\' wildcards to match patterns. Folder name matching is case insensitive.'),
 			additionalProperties: {
 				type: 'string',
 				description: nls.localize('schema.folderNameExpanded', 'The ID of the icon definition for the association.')
@@ -71,7 +71,7 @@ const schema: IJSONSchema = {
 		},
 		fileExtensions: {
 			type: 'object',
-			description: nls.localize('schema.fileExtensions', 'Associates file extensions to icons. The object key is the file extension name. The extension name is the last segment of a file name after the last dot (not including the dot). Extensions are compared case insensitive.'),
+			description: nls.localize('schema.fileExtensions', 'Associates file extensions to icons. The object key is a file extension or a multi-part extension (e.g., \'ts\', \'test.ts\', \'stories.tsx\'). Keys may contain \'*\' wildcards to match patterns (e.g., \'stories.*\' matches any file with .stories. in its name). Extensions are compared case insensitive.'),
 
 			additionalProperties: {
 				type: 'string',
@@ -80,7 +80,7 @@ const schema: IJSONSchema = {
 		},
 		fileNames: {
 			type: 'object',
-			description: nls.localize('schema.fileNames', 'Associates file names to icons. The object key is the full file name, but not including any path segments. File name can include dots and a possible file extension. No patterns or wildcards are allowed. File name matching is case insensitive.'),
+			description: nls.localize('schema.fileNames', 'Associates file names to icons. The object key is the full file name, but not including any path segments. File name can include dots and a possible file extension. Keys may contain \'*\' wildcards to match patterns (e.g., \'*.test.ts\', \'web.*.config\', \'.env.*\', \'*.env.*\'). File name matching is case insensitive.'),
 
 			additionalProperties: {
 				type: 'string',

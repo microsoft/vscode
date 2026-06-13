@@ -32,6 +32,7 @@ export interface IIconLabelValueOptions {
 	suffix?: string;
 	hideIcon?: boolean;
 	extraClasses?: readonly string[];
+	extraAttributes?: Readonly<Record<string, string>>;
 	bold?: boolean;
 	italic?: boolean;
 	strikethrough?: boolean;
@@ -50,6 +51,7 @@ class FastLabelNode {
 	private _textContent: string | undefined;
 	private _classNames: string[] | undefined;
 	private _empty: boolean | undefined;
+	private _attributes: Readonly<Record<string, string>> | undefined;
 
 	constructor(private _element: HTMLElement) {
 	}
@@ -84,6 +86,30 @@ class FastLabelNode {
 
 		this._empty = empty;
 		this._element.style.marginLeft = empty ? '0' : '';
+	}
+
+	setAttributes(attributes: Readonly<Record<string, string>> | undefined): void {
+		if (this.disposed || equals(attributes, this._attributes)) {
+			return;
+		}
+
+		// Remove previous attributes that are no longer present
+		if (this._attributes) {
+			for (const key of Object.keys(this._attributes)) {
+				if (!attributes || !Object.prototype.hasOwnProperty.call(attributes, key)) {
+					this._element.removeAttribute(key);
+				}
+			}
+		}
+
+		// Set new attributes
+		if (attributes) {
+			for (const [key, value] of Object.entries(attributes)) {
+				this._element.setAttribute(key, value);
+			}
+		}
+
+		this._attributes = attributes;
 	}
 
 	dispose(): void {
@@ -190,6 +216,7 @@ export class IconLabel extends Disposable {
 
 		this.domNode.classNames = labelClasses;
 		this.domNode.element.setAttribute('aria-label', ariaLabel);
+		this.domNode.setAttributes(options?.extraAttributes);
 		this.labelContainer.classList.value = '';
 		this.labelContainer.classList.add(...containerClasses);
 		this.setupHover(options?.descriptionTitle ? this.labelContainer : this.element, options?.title);

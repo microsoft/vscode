@@ -15,7 +15,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { CompletionItemKind, CompletionItemKinds, CompletionItemTag } from '../../../common/languages.js';
-import { getIconClasses } from '../../../common/services/getIconClasses.js';
+import { getFileIconInfo } from '../../../common/services/getFileIconInfo.js';
 import { IModelService } from '../../../common/services/model.js';
 import { ILanguageService } from '../../../common/languages/language.js';
 import * as nls from '../../../../nls.js';
@@ -183,18 +183,20 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 			// special logic for 'file' completion items
 			data.icon.className = 'icon hide';
 			data.iconContainer.className = 'icon hide';
-			const labelClasses = getIconClasses(this._modelService, this._languageService, URI.from({ scheme: 'fake', path: element.textLabel }), FileKind.FILE);
-			const detailClasses = getIconClasses(this._modelService, this._languageService, URI.from({ scheme: 'fake', path: completion.detail }), FileKind.FILE);
-			labelOptions.extraClasses = labelClasses.length > detailClasses.length ? labelClasses : detailClasses;
+			const labelInfo = getFileIconInfo(this._modelService, this._languageService, URI.from({ scheme: 'fake', path: element.textLabel }), FileKind.FILE);
+			const detailInfo = getFileIconInfo(this._modelService, this._languageService, URI.from({ scheme: 'fake', path: completion.detail }), FileKind.FILE);
+			const chosenInfo = labelInfo.classes.length > detailInfo.classes.length ? labelInfo : detailInfo;
+			labelOptions.extraClasses = chosenInfo.classes;
+			labelOptions.extraAttributes = chosenInfo.attributes;
 
 		} else if (completion.kind === CompletionItemKind.Folder && this._themeService.getFileIconTheme().hasFolderIcons) {
 			// special logic for 'folder' completion items
 			data.icon.className = 'icon hide';
 			data.iconContainer.className = 'icon hide';
-			labelOptions.extraClasses = [
-				getIconClasses(this._modelService, this._languageService, URI.from({ scheme: 'fake', path: element.textLabel }), FileKind.FOLDER),
-				getIconClasses(this._modelService, this._languageService, URI.from({ scheme: 'fake', path: completion.detail }), FileKind.FOLDER)
-			].flat();
+			const labelInfo = getFileIconInfo(this._modelService, this._languageService, URI.from({ scheme: 'fake', path: element.textLabel }), FileKind.FOLDER);
+			const detailInfo = getFileIconInfo(this._modelService, this._languageService, URI.from({ scheme: 'fake', path: completion.detail }), FileKind.FOLDER);
+			labelOptions.extraClasses = [...labelInfo.classes, ...detailInfo.classes];
+			labelOptions.extraAttributes = labelInfo.attributes ?? detailInfo.attributes;
 		} else {
 			// normal icon
 			data.icon.className = 'icon hide';

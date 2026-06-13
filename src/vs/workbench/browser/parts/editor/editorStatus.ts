@@ -40,7 +40,7 @@ import { ICodeEditor, getCodeEditor } from '../../../../editor/browser/editorBro
 import { Schemas } from '../../../../base/common/network.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
-import { getIconClassesForLanguageId } from '../../../../editor/common/services/getIconClasses.js';
+import { getFileIconInfoForLanguageId } from '../../../../editor/common/services/getFileIconInfo.js';
 import { Promises, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
@@ -1183,7 +1183,7 @@ export class ChangeLanguageAction extends Action2 {
 					id: languageId,
 					label: languageName,
 					meta: extensions,
-					iconClasses: getIconClassesForLanguageId(languageId),
+					iconClasses: getFileIconInfoForLanguageId(languageId).classes,
 					description
 				};
 			});
@@ -1341,7 +1341,7 @@ export class ChangeLanguageAction extends Action2 {
 			return {
 				id: languageId,
 				label: languageName,
-				iconClasses: getIconClassesForLanguageId(languageId),
+				iconClasses: getFileIconInfoForLanguageId(languageId).classes,
 				description: (languageId === currentAssociation) ? localize('currentAssociation', "Current Association") : undefined
 			};
 		});
