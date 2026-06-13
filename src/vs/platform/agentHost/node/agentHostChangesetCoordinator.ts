@@ -25,14 +25,13 @@ import {
 	META_CHANGES_SUMMARY,
 	META_CHANGESET_BRANCH,
 	META_CHANGESET_SESSION,
-	META_CHANGESET_UNCOMMITTED,
 	META_LEGACY_DIFFS,
 } from './agentHostChangesetService.js';
 import { ChangesSummary } from '../common/state/protocol/state.js';
 
 /**
  * Raw metadata blob values for the session DB, batch-read by the caller.
- * Keys are the changeset-specific metadata keys ({@link META_CHANGESET_UNCOMMITTED}
+ * Keys are the changeset-specific metadata keys ({@link META_CHANGESET_BRANCH}
  * etc.); values are the raw `string | undefined` payloads as returned by
  * `ISessionDatabase.getMetadataObject`.
  */
@@ -47,7 +46,6 @@ export type IChangesetSessionMetadata = Record<string, string | undefined>;
  */
 export const CHANGESET_DB_METADATA_KEYS: Record<string, true> = {
 	[META_CHANGESET_BRANCH]: true,
-	[META_CHANGESET_UNCOMMITTED]: true,
 	[META_CHANGESET_SESSION]: true,
 	[META_CHANGES_SUMMARY]: true,
 	[META_LEGACY_DIFFS]: true,
@@ -90,9 +88,6 @@ export class ChangesetSessionCoordinator extends Disposable {
 	 * once restore / materialization has populated the session summary.
 	 */
 	private readonly _pendingSessionRefreshes = new Set<string>();
-	/** Sessions that currently have at least one uncommitted changeset subscriber. */
-	private readonly _subscribedUncommittedSessions = new Set<string>();
-
 	/**
 	 * Per-session set of turn ids that have at least one live subscriber to
 	 * `<sessionUri>/changeset/turn/<turnId>`. Drives the per-turn recompute
@@ -102,6 +97,16 @@ export class ChangesetSessionCoordinator extends Disposable {
 	 * pure waste).
 	 */
 	private readonly _subscribedTurns = new Map<string, Set<string>>();
+	/**
+	 * Sessions that have at least one live subscriber to
+	 * `<sessionUri>/changeset/uncommitted`. Drives the uncommitted recompute
+	 * gating: the changeset service skips the on-turn-complete uncommitted
+	 * recompute when this set says no client is watching, and the
+	 * coordinator skips the on-git-state-changed refresh in the same case.
+	 * The uncommitted URI carries no catalogue-chip aggregate, so the next
+	 * subscriber gets a fresh snapshot from `_triggerUncommittedRefresh`.
+	 */
+	private readonly _subscribedUncommittedSessions = new Set<string>();
 	private readonly _changesetFileMonitor: ChangesetFileMonitorCoordinator;
 
 	constructor(
@@ -129,8 +134,10 @@ export class ChangesetSessionCoordinator extends Disposable {
 
 	/**
 	 * Returns `true` when at least one client is subscribed to
-	 * `<session>/changeset/uncommitted`. Consulted by the changeset service
-	 * before triggering uncommitted refresh work.
+	 * `<session>/changeset/uncommitted`. Consulted by the changeset
+	 * service via the probe installed in the constructor, and by
+	 * {@link onSessionGitStateChanged} before re-triggering an uncommitted
+	 * refresh.
 	 */
 	hasUncommittedSubscribers(session: string): boolean {
 		return this._subscribedUncommittedSessions.has(session);
@@ -164,7 +171,6 @@ export class ChangesetSessionCoordinator extends Disposable {
 		this._changesets.registerStaticChangesets(sessionStr);
 		this._changesets.restorePersistedStaticChangesets(sessionStr, {
 			branchRaw: metadata[META_CHANGESET_BRANCH],
-			uncommittedRaw: metadata[META_CHANGESET_UNCOMMITTED],
 			sessionRaw: metadata[META_CHANGESET_SESSION],
 			legacyRaw: metadata[META_LEGACY_DIFFS],
 		});
@@ -193,6 +199,7 @@ export class ChangesetSessionCoordinator extends Disposable {
 	 */
 	onSessionGitStateChanged(sessionStr: string): void {
 		this._logService.debug(`[ChangesetSessionCoordinator] Git state changed for ${sessionStr}; refreshing static changesets. hasWorkingDirectory=${!!this._configurationService.getEffectiveWorkingDirectory(sessionStr)}`);
+		this._triggerBranchRefresh(sessionStr);
 		this._triggerSessionRefresh(sessionStr);
 		this._triggerUncommittedRefresh(sessionStr);
 	}
@@ -205,8 +212,8 @@ export class ChangesetSessionCoordinator extends Disposable {
 		this._pendingBranchRefreshes.delete(sessionStr);
 		this._pendingUncommittedRefreshes.delete(sessionStr);
 		this._pendingSessionRefreshes.delete(sessionStr);
-		this._subscribedUncommittedSessions.delete(sessionStr);
 		this._subscribedTurns.delete(sessionStr);
+		this._subscribedUncommittedSessions.delete(sessionStr);
 		this._changesetFileMonitor.onSessionDisposed(sessionStr);
 	}
 
@@ -503,7 +510,7 @@ export class ChangesetSessionCoordinator extends Disposable {
 			this._pendingUncommittedRefreshes.add(sessionStr);
 			return;
 		}
-		this._changesets.refreshUncommittedChangeset(sessionStr);
+		void this._changesets.computeUncommittedChangeset(sessionStr);
 	}
 
 	private _triggerSessionRefresh(sessionStr: string): void {

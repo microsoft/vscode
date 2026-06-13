@@ -48,6 +48,7 @@ class NewChatInSessionsWindowAction extends Action2 {
 			id: NEW_SESSION_ACTION_ID,
 			title: localize2('chat.newEdits.label', "New Chat"),
 			category: CHAT_CATEGORY,
+			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 2,
 				// Don't shadow Ctrl/Cmd+N (and Ctrl/Cmd+L) when focus is in the
