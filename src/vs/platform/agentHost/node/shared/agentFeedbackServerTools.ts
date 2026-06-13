@@ -5,9 +5,11 @@
 
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { FEEDBACK_ANNOTATION_META_KEY, type IFeedbackAnnotationMeta } from '../../common/agentFeedbackAnnotations.js';
+import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import type { AnnotationsAction } from '../../common/state/sessionActions.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import type { Annotation, AnnotationsState, StringOrMarkdown, TextRange, ToolDefinition } from '../../common/state/sessionState.js';
+import type { IServerToolGroup } from './agentServerToolHost.js';
 
 /**
  * Server-side implementation of the agent feedback ("comments") tools.
@@ -28,14 +30,6 @@ export const addCommentToolName = 'addComment';
 export const listCommentsToolName = 'listComments';
 export const deleteCommentsToolName = 'deleteComments';
 export const resolveCommentsToolName = 'resolveComments';
-
-/** Tool names provided by the agent host as server tools. */
-export const feedbackServerToolNames: readonly string[] = [
-	addCommentToolName,
-	listCommentsToolName,
-	deleteCommentsToolName,
-	resolveCommentsToolName,
-];
 
 const addCommentInputSchema: ToolDefinition['inputSchema'] = {
 	type: 'object',
@@ -376,3 +370,25 @@ export function applyFeedbackTool(state: AnnotationsState, sessionResource: stri
 			throw new Error(`Unknown feedback server tool: ${toolName}`);
 	}
 }
+
+/**
+ * The feedback ("comments") server-tool group, contributed to the
+ * {@link AgentServerToolHost} at startup (see `node/agentService.ts`). Wraps
+ * the pure {@link applyFeedbackTool} executor with the annotations-channel I/O:
+ * it reads the session's current {@link AnnotationsState}, applies the tool,
+ * and dispatches the resulting annotation actions through the state manager
+ * (the single writer).
+ */
+export const feedbackServerToolGroup: IServerToolGroup = {
+	definitions: feedbackServerToolDefinitions,
+	execute(stateManager, sessionUri, toolName, rawArgs): string {
+		const annotationsUri = buildAnnotationsUri(sessionUri);
+		const snapshot = stateManager.getSnapshot(annotationsUri);
+		const state: AnnotationsState = (snapshot?.state as AnnotationsState | undefined) ?? { annotations: [] };
+		const outcome = applyFeedbackTool(state, sessionUri, toolName, rawArgs);
+		for (const action of outcome.actions) {
+			stateManager.dispatchServerAction(annotationsUri, action);
+		}
+		return outcome.result;
+	},
+};

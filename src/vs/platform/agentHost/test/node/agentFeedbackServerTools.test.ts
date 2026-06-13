@@ -12,12 +12,13 @@ import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { Annotation, AnnotationsState, SessionStatus, SessionSummary } from '../../common/state/sessionState.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import { AgentFeedbackToolHost } from '../../node/shared/agentFeedbackToolHost.js';
+import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
 import {
 	addCommentToolName,
 	applyFeedbackTool,
 	deleteCommentsToolName,
 	feedbackServerToolDefinitions,
+	feedbackServerToolGroup,
 	listCommentsToolName,
 	resolveCommentsToolName,
 } from '../../node/shared/agentFeedbackServerTools.js';
@@ -157,11 +158,11 @@ suite('AgentFeedbackServerTools', () => {
 		});
 	});
 
-	suite('AgentFeedbackToolHost', () => {
+	suite('AgentServerToolHost', () => {
 
 		let disposables: DisposableStore;
 		let manager: AgentHostStateManager;
-		let host: AgentFeedbackToolHost;
+		let host: AgentServerToolHost;
 
 		function makeSummary(): SessionSummary {
 			return {
@@ -177,7 +178,7 @@ suite('AgentFeedbackServerTools', () => {
 		setup(() => {
 			disposables = new DisposableStore();
 			manager = disposables.add(new AgentHostStateManager(new NullLogService()));
-			host = new AgentFeedbackToolHost(manager);
+			host = new AgentServerToolHost(manager, [feedbackServerToolGroup]);
 		});
 
 		teardown(() => disposables.dispose());
@@ -194,7 +195,7 @@ suite('AgentFeedbackServerTools', () => {
 			assert.strictEqual(state.annotations[0].entries[0].text, 'hello');
 		});
 
-		test('advertise publishes the feedback tools as server tools', () => {
+		test('advertise publishes the server tools as server tools', () => {
 			manager.createSession(makeSummary());
 			host.advertise(sessionResource);
 			const state = manager.getSessionState(sessionResource);
