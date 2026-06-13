@@ -13,7 +13,7 @@ import { IChatWebSocketManager } from '../../../platform/networking/node/chatWeb
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITokenizerProvider } from '../../../platform/tokenizer/node/tokenizer';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { resolveModelInfo } from '../common/byokProvider';
+import { isAzureOpenAIAPIKeyUrl, resolveModelInfo } from '../common/byokProvider';
 import { OpenAIEndpoint } from '../node/openAIEndpoint';
 import { AbstractOpenAICompatibleLMProvider, LanguageModelChatConfiguration, OpenAICompatibleLanguageModelChatInformation } from './abstractLanguageModelChatProvider';
 import { byokKnownModelToAPIInfoWithEffort } from './byokModelInfo';
@@ -260,7 +260,7 @@ export class CustomEndpointOAIEndpoint extends OpenAIEndpoint {
 			headers['anthropic-version'] = '2023-06-01';
 			Object.assign(headers, this.getAnthropicBetaHeader());
 		} else if (!userSuppliedAuth) {
-			if (this._modelUrl.includes('openai.azure')) {
+			if (isAzureOpenAIAPIKeyUrl(this._modelUrl)) {
 				headers['api-key'] = this._apiKey;
 			} else {
 				headers['Authorization'] = `Bearer ${this._apiKey}`;
