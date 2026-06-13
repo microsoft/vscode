@@ -22,6 +22,13 @@ import { computeDiff } from '../notebookDiff.js';
 
 const PREFIX_FOR_UNMATCHED_ORIGINAL_CELLS = `unmatchedOriginalCell`;
 
+/**
+ * Maximum size in bytes of output data to include in hash computation.
+ * For larger outputs (e.g., base64-encoded images), we only hash a portion
+ * to avoid performance issues during diff computation.
+ */
+const MAX_OUTPUT_DATA_SIZE_FOR_HASH = 64 * 1024; // 64KB
+
 class MirrorCell {
 	private readonly textModel: MirrorModel;
 	private _hash?: number;
@@ -75,7 +82,23 @@ class MirrorCell {
 		}
 
 		const digests = this.outputs.flatMap(op =>
-			op.outputs.map(o => hash(Array.from(o.data.buffer)))
+			op.outputs.map(o => {
+				const dataBuffer = o.data.buffer;
+				const bufferSize = dataBuffer.byteLength;
+				
+				// For large outputs (e.g., base64-encoded images), only hash a portion
+				// to avoid performance issues during diff computation
+				if (bufferSize > MAX_OUTPUT_DATA_SIZE_FOR_HASH) {
+					// Hash the first chunk and last chunk to detect changes
+					const chunkSize = MAX_OUTPUT_DATA_SIZE_FOR_HASH / 2;
+					const firstChunk = Array.from(dataBuffer.subarray(0, chunkSize));
+					const lastChunk = Array.from(dataBuffer.subarray(bufferSize - chunkSize));
+					// Include size in the hash data to detect size changes
+					return hash([bufferSize, ...firstChunk, ...lastChunk]);
+				} else {
+					return hash(Array.from(dataBuffer));
+				}
+			})
 		);
 		for (const digest of digests) {
 			hashValue = numberHash(digest, hashValue);
