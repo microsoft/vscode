@@ -38,7 +38,7 @@ import {
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { parseRenameCommand } from './agentHostRenameCommand.js';
 import { SessionPermissionManager } from './sessionPermissions.js';
-import { toChatErrorMeta, tryParseForwardedChatError } from './shared/forwardedChatError.js';
+import { stripProxyErrorMarker, toChatErrorMeta, tryParseForwardedChatError } from './shared/forwardedChatError.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
@@ -1108,7 +1108,7 @@ function buildSendFailedError(err: unknown): ErrorInfo {
 	const message = String(err);
 	const forwarded = tryParseForwardedChatError(err instanceof Error ? err.message : message);
 	if (forwarded) {
-		return { errorType: 'sendFailed', message, _meta: toChatErrorMeta(forwarded) };
+		return { errorType: 'sendFailed', message: stripProxyErrorMarker(message), _meta: toChatErrorMeta(forwarded) };
 	}
 	return { errorType: 'sendFailed', message };
 }

@@ -26,7 +26,7 @@ import { type ClientPluginCustomization, type MessageAttachment, type PendingMes
 import type { ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
-import { tryBuildChatErrorMeta } from '../shared/forwardedChatError.js';
+import { stripProxyErrorMarker, tryBuildChatErrorMeta } from '../shared/forwardedChatError.js';
 import { IAgentSdkDownloader, IAgentSdkPackage } from '../agentSdkDownloader.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
@@ -1140,7 +1140,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			this._fire(sessionUri, {
 				type: ActionType.SessionError,
 				turnId: effectiveTurnId,
-				error: { errorType: 'CodexTurnError', message, _meta: tryBuildChatErrorMeta(message) },
+				error: { errorType: 'CodexTurnError', message: stripProxyErrorMarker(message), _meta: tryBuildChatErrorMeta(message) },
 			});
 			this._fire(sessionUri, { type: ActionType.SessionTurnComplete, turnId: effectiveTurnId });
 		} finally {

@@ -229,6 +229,20 @@ export function tryParseForwardedChatError(errorText: string | undefined): IForw
 }
 
 /**
+ * Removes the `VSCODE_PROXY_ERROR:<base64>` marker (and anything after it) from
+ * an error message so the human-readable text isn't polluted by the forwarding
+ * payload. The structured payload is consumed separately via `_meta`. A no-op
+ * when no marker is present.
+ */
+export function stripProxyErrorMarker(text: string): string {
+	const idx = text.indexOf(PROXY_ERROR_PREFIX);
+	if (idx === -1) {
+		return text;
+	}
+	return text.slice(0, idx).trim() || text.slice(0, idx);
+}
+
+/**
  * Wraps a {@link IForwardedChatError} into the `_meta` record carried on the
  * protocol `ErrorInfo`. The core consumer reads `_meta.chatError`.
  */

@@ -45,7 +45,7 @@ import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './cop
 import { buildSandboxConfigForSdk } from './sandboxConfigForSdk.js';
 import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, synthesizeSkillToolCall, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
-import { tryBuildChatErrorMeta, tryBuildChatErrorMetaFromFields } from '../shared/forwardedChatError.js';
+import { stripProxyErrorMarker, tryBuildChatErrorMeta, tryBuildChatErrorMetaFromFields } from '../shared/forwardedChatError.js';
 import { McpCustomizationController, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
 import { mapSessionEvents } from './mapSessionEvents.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
@@ -2166,7 +2166,7 @@ export class CopilotAgentSession extends Disposable {
 				turnId: this._turnId,
 				error: {
 					errorType: e.data.errorType,
-					message: e.data.message,
+					message: stripProxyErrorMarker(e.data.message),
 					stack: e.data.stack,
 					_meta: tryBuildChatErrorMetaFromFields(e.data) ?? tryBuildChatErrorMeta(e.data.message),
 				},

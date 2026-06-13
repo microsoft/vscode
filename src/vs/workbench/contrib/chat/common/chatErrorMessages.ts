@@ -89,30 +89,29 @@ const GITHUB_SUPPORT_URL = 'https://support.github.com/contact';
 const CanceledMessage: IChatResponseErrorDetails = { message: localize('chatError.canceled', "Canceled") };
 
 /**
- * Converts a number of seconds into a human readable string like
- * "6 hours 50 minutes". Replicated from the Copilot extension's
- * `secondsToHumanReadableTime` (`extensions/copilot/src/util/common/time.ts`)
- * to keep rate-limit messaging identical.
+ * Converts a number of seconds into a human readable, localized string like
+ * "6 hours 50 minutes". Based on the Copilot extension's
+ * `secondsToHumanReadableTime` (`extensions/copilot/src/util/common/time.ts`),
+ * but the unit fragments are externalized so they translate in non-English
+ * locales.
  */
 function secondsToHumanReadableTime(seconds: number): string {
 	if (seconds < 90) {
-		return `${seconds} seconds`;
+		return localize('chatError.duration.seconds', "{0} seconds", seconds);
 	}
 
 	const minutes = Math.floor(seconds / 60);
 	if (seconds <= 5400) {
-		return `${minutes} minutes`;
+		return localize('chatError.duration.minutes', "{0} minutes", minutes);
 	}
 
 	const hours = Math.floor(minutes / 60);
 	const remainingMinutes = minutes % 60;
 
-	let result = `${hours} hours`;
 	if (remainingMinutes > 0) {
-		result += ` ${remainingMinutes} minutes`;
+		return localize('chatError.duration.hoursMinutes', "{0} hours {1} minutes", hours, remainingMinutes);
 	}
-
-	return result;
+	return localize('chatError.duration.hours', "{0} hours", hours);
 }
 
 function getRateLimitMessage(fetchError: IChatFetchErrorPayload, copilotPlan: string | undefined): string {

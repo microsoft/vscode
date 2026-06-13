@@ -9,7 +9,7 @@ import { LogLevel, type ILogService } from '../../../log/common/log.js';
 import type { AgentSignal } from '../../common/agentService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { ResponsePartKind, ToolResultContentType, type ToolResultContent, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
-import { PROXY_ERROR_PREFIX, tryBuildChatErrorMeta } from '../shared/forwardedChatError.js';
+import { stripProxyErrorMarker, tryBuildChatErrorMeta } from '../shared/forwardedChatError.js';
 import { buildTopLevelSubagentReadyAction, emitInnerAssistantSignals, mapSubagentSystemMessage, SUBAGENT_SPAWNING_TOOL_NAMES, tagWithParent } from './claudeSubagentSignals.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
 import { stripClientToolNamePrefix, hasClientToolNamePrefix } from './clientTools/claudeClientToolMcpServer.js';
@@ -490,19 +490,6 @@ function getResultErrorText(message: Extract<SDKMessage, { type: 'result' }>): s
 		return message.errors?.join('\n');
 	}
 	return undefined;
-}
-
-/**
- * Removes the trailing `VSCODE_PROXY_ERROR:<base64>` marker (and anything after
- * it) from an error message so the human-readable text isn't polluted by the
- * forwarding payload. The structured payload is consumed separately via `_meta`.
- */
-function stripProxyErrorMarker(text: string): string {
-	const idx = text.indexOf(PROXY_ERROR_PREFIX);
-	if (idx === -1) {
-		return text;
-	}
-	return text.slice(0, idx).trim() || text.slice(0, idx);
 }
 
 function mapStreamEvent(
