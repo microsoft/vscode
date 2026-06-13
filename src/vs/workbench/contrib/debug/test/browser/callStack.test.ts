@@ -16,8 +16,9 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
 import { createDecorationsForStackFrame } from '../../browser/callStackEditorContribution.js';
-import { getContext, getContextForContributedActions, getSpecificSourceName } from '../../browser/callStackView.js';
+import { computeCallStackBodySizes, getContext, getContextForContributedActions, getSpecificSourceName } from '../../browser/callStackView.js';
 import { debugStackframe, debugStackframeFocused } from '../../browser/debugIcons.js';
 import { getStackFrameThreadAndSessionToFocus } from '../../browser/debugService.js';
 import { DebugSession } from '../../browser/debugSession.js';
@@ -334,6 +335,30 @@ suite('Debug - CallStack', () => {
 
 		assert.strictEqual(getSpecificSourceName(firstStackFrame), '.../b/c/d/internalModule.js');
 		assert.strictEqual(getSpecificSourceName(secondStackFrame), '.../x/c/d/internalModule.js');
+	});
+
+	test('computeCallStackBodySizes vertical with multiple views caps size to content', () => {
+		const sizes = computeCallStackBodySizes(Orientation.VERTICAL, 66, 3);
+		assert.strictEqual(sizes.minimumBodySize, 66);
+		assert.strictEqual(sizes.maximumBodySize, 66);
+	});
+
+	test('computeCallStackBodySizes vertical with single view allows expansion', () => {
+		const sizes = computeCallStackBodySizes(Orientation.VERTICAL, 66, 1);
+		assert.strictEqual(sizes.minimumBodySize, 66);
+		assert.strictEqual(sizes.maximumBodySize, Number.POSITIVE_INFINITY);
+	});
+
+	test('computeCallStackBodySizes vertical limits minimum to max visible rows', () => {
+		const sizes = computeCallStackBodySizes(Orientation.VERTICAL, 500, 2);
+		assert.strictEqual(sizes.minimumBodySize, 198);
+		assert.strictEqual(sizes.maximumBodySize, 500);
+	});
+
+	test('computeCallStackBodySizes horizontal uses panel defaults', () => {
+		const sizes = computeCallStackBodySizes(Orientation.HORIZONTAL, 66, 3);
+		assert.strictEqual(sizes.minimumBodySize, 170);
+		assert.strictEqual(sizes.maximumBodySize, Number.POSITIVE_INFINITY);
 	});
 
 	test('stack frame toString()', () => {
