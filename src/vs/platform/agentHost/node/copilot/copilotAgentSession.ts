@@ -961,6 +961,10 @@ export class CopilotAgentSession extends Disposable {
 	 * Simple attachments with a model representation map to `text/plain`
 	 * blob attachments.
 	 *
+	 * Any Resource attachment carrying a {@link TextSelection} (e.g. `displayKind === 'selection'` or `'symbol'`) is
+	 * mapped to the SDK's `selection` variant so the range survives the round-trip — keying off the `selection` field
+	 * rather than just `displayKind` avoids symbol attachments degrading to a plain file reference (#315193).
+	 *
 	 * For selections we read the resource content from disk and slice it
 	 * by the carried range (the protocol's {@link TextSelection} only
 	 * carries the range, not the inline text). On read failure the
@@ -987,7 +991,7 @@ export class CopilotAgentSession extends Disposable {
 		const uri = URI.parse(attachment.uri);
 		const path = uri.scheme === 'file' ? uri.fsPath : uri.toString();
 		const displayName = attachment.label ?? path;
-		if (attachment.displayKind === 'selection' && attachment.selection) {
+		if (attachment.selection) {
 			try {
 				const text = await this._readSelectedText(uri, attachment.selection.range);
 				return { type: 'selection' as const, filePath: path, displayName, text, selection: attachment.selection.range };
@@ -2546,7 +2550,13 @@ export class CopilotAgentSession extends Disposable {
 			if (e.data.tip) {
 				attributes.tip = e.data.tip;
 			}
-			this._logService.info(`[Copilot:${sessionId}] [${e.data.infoType}]: ${e.data.message}`, new OtelData(attributes));
+			const message = `[Copilot:${sessionId}] [${e.data.infoType}]: ${e.data.message}`;
+			const otelData = new OtelData(attributes);
+			if (e.data.infoType === 'mcp') {
+				this._logService.info(message, otelData);
+			} else {
+				this._logService.trace(message, otelData);
+			}
 		}));
 
 		this._register(wrapper.onSessionWarning(e => {
