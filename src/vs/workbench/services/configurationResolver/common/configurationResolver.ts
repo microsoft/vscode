@@ -6,6 +6,7 @@
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { ErrorNoTelemetry } from '../../../../base/common/errors.js';
 import { IProcessEnvironment } from '../../../../base/common/platform.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
@@ -47,6 +48,21 @@ export interface IConfigurationResolverService {
 	 * and resolveWithInteractionReplace will have contributed variables resolved.
 	 */
 	contributeVariable(variable: string, resolution: () => Promise<string | undefined>): void;
+
+	/**
+	 * Runs `fn` while pinning the `${file}` (and related `file*`) variables to the
+	 * given URI rather than the current active editor. Callers use this to capture
+	 * the active file at the moment a user action is triggered (e.g. F5) so that
+	 * later asynchronous work which changes the active editor does not alter
+	 * variable resolution.
+	 *
+	 * Passing `undefined` pins the resolver to "no active editor", which will make
+	 * file variables throw the usual "please open an editor" error instead of
+	 * silently picking up a different editor that happened to become active.
+	 *
+	 * Overrides are stacked: nested calls respect the most recently pushed value.
+	 */
+	withActiveFileOverride<T>(resource: URI | undefined, fn: () => Promise<T>): Promise<T>;
 }
 
 interface PromptStringInputInfo {

@@ -28,9 +28,12 @@ import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keyb
 import { IListService } from '../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
 import { ActiveEditorContext, PanelFocusContext, ResourceContextKey } from '../../../common/contextkeys.js';
 import { ViewContainerLocation } from '../../../common/views.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IPathService } from '../../../services/path/common/pathService.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
@@ -768,11 +771,21 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_STATE.isEqualTo('inactive')),
 	handler: async (accessor: ServicesAccessor, debugStartOptions?: { config?: Partial<IConfig>; noDebug?: boolean }) => {
 		const debugService = accessor.get(IDebugService);
-		await saveAllBeforeDebugStart(accessor.get(IConfigurationService), accessor.get(IEditorService));
+		const editorService = accessor.get(IEditorService);
+		const pathService = accessor.get(IPathService);
+		// Snapshot the active editor resource synchronously before any `await`. The
+		// subsequent `saveAllBeforeDebugStart` and debugger bootstrapping can yield
+		// for long enough that a user shifting focus causes `${file}` to resolve to
+		// a different editor than what was active when F5 was pressed. See #278130.
+		const activeFileOverride = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, {
+			supportSideBySide: SideBySideEditor.PRIMARY,
+			filterByScheme: [Schemas.file, Schemas.vscodeUserData, pathService.defaultUriScheme]
+		});
+		await saveAllBeforeDebugStart(accessor.get(IConfigurationService), editorService);
 		const { launch, name, getConfig } = debugService.getConfigurationManager().selectedConfiguration;
 		const config = await getConfig();
 		const configOrName = config ? Object.assign(deepClone(config), debugStartOptions?.config) : name;
-		await debugService.startDebugging(launch, configOrName, { noDebug: debugStartOptions?.noDebug, startedByUser: true }, false);
+		await debugService.startDebugging(launch, configOrName, { noDebug: debugStartOptions?.noDebug, startedByUser: true, activeFileOverride }, false);
 	}
 });
 
