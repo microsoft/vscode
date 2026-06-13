@@ -1998,6 +1998,9 @@ declare namespace monaco.editor {
 		_findMatchBrand: void;
 		readonly range: Range;
 		readonly matches: string[] | null;
+		readonly groups: {
+			[key: string]: string;
+		} | null;
 	}
 
 	/**
