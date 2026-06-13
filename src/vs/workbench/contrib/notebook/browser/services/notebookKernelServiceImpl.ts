@@ -27,11 +27,70 @@ class KernelInfo {
 	readonly time: number;
 
 	readonly notebookPriorities = new ResourceMap<number>();
+	readonly replPriorities = new Map<string, number>(); // key: document filter selector
 
 	constructor(kernel: INotebookKernel) {
 		this.kernel = kernel;
 		this.score = -1;
 		this.time = KernelInfo._logicClock++;
+	}
+
+	private static _selectorKey(selector: { language?: string; notebookType?: string; scheme?: string; pattern?: string | vscode.RelativePattern }): string {
+		const patternStr = typeof selector.pattern === 'string' ? selector.pattern : 
+			selector.pattern ? `${selector.pattern.baseUri}:${selector.pattern.pattern}` : '*';
+		return `${selector.language ?? '*'}/${selector.notebookType ?? '*'}/${selector.scheme ?? '*'}/${patternStr}`;
+	}
+
+	setReplAffinity(selector: { language?: string; notebookType?: string; scheme?: string; pattern?: string | vscode.RelativePattern }, preference: number | undefined): void {
+		const key = KernelInfo._selectorKey(selector);
+		if (preference === undefined) {
+			this.replPriorities.delete(key);
+		} else {
+			this.replPriorities.set(key, preference);
+		}
+	}
+
+	getReplAffinity(notebook: INotebookTextModelLike): number | undefined {
+		// Check for affinity based on document properties for any notebook that could be a REPL
+		// Don't restrict to 'repl' notebook type as REPLs can be any notebook type
+		
+		// Try to extract language information from notebook metadata
+		let language: string | undefined;
+		if ('metadata' in notebook && notebook.metadata) {
+			// Check for language_info in metadata (Jupyter style)
+			const languageInfo = (notebook.metadata as any)?.language_info;
+			if (languageInfo?.name) {
+				language = languageInfo.name;
+			}
+		}
+
+		// Generate candidates for matching, prioritizing more specific selectors
+		const candidates: string[] = [];
+
+		// Most specific matches first
+		if (language) {
+			candidates.push(KernelInfo._selectorKey({ language, notebookType: notebook.notebookType, scheme: notebook.uri.scheme }));
+			candidates.push(KernelInfo._selectorKey({ language, notebookType: notebook.notebookType }));
+			candidates.push(KernelInfo._selectorKey({ language, scheme: notebook.uri.scheme }));
+			candidates.push(KernelInfo._selectorKey({ language }));
+		}
+		
+		// notebook type + scheme specific
+		candidates.push(KernelInfo._selectorKey({ notebookType: notebook.notebookType, scheme: notebook.uri.scheme }));
+		candidates.push(KernelInfo._selectorKey({ notebookType: notebook.notebookType }));
+		candidates.push(KernelInfo._selectorKey({ scheme: notebook.uri.scheme }));
+		
+		// Fallback to empty selector (matches all)
+		candidates.push(KernelInfo._selectorKey({}));
+
+		for (const key of candidates) {
+			const priority = this.replPriorities.get(key);
+			if (priority !== undefined) {
+				return priority;
+			}
+		}
+
+		return undefined;
 	}
 }
 
@@ -239,10 +298,15 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 		for (const info of this._kernels.values()) {
 			const score = NotebookKernelService._score(info.kernel, notebook);
 			if (score) {
+				// Check REPL-specific affinity first, then fall back to notebook affinity
+				// Don't assume specific notebook type - any notebook could be a REPL
+				const replAffinity = info.getReplAffinity(notebook);
+				const instanceAffinity = replAffinity ?? info.notebookPriorities.get(notebook.uri) ?? 1 /* vscode.NotebookControllerPriority.Default */;
+
 				kernels.push({
 					score,
 					kernel: info.kernel,
-					instanceAffinity: info.notebookPriorities.get(notebook.uri) ?? 1 /* vscode.NotebookControllerPriority.Default */,
+					instanceAffinity,
 				});
 			}
 		}
@@ -265,7 +329,15 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 			return info.selected;
 		}
 
-		const preferred = info.all.filter(kernel => this._kernels.get(kernel.id)?.notebookPriorities.get(notebook.uri) === 2 /* vscode.NotebookControllerPriority.Preferred */);
+		// Consider REPL-specific preferred kernels for any notebook that has REPL affinity
+		// Don't assume specific notebook type
+		const preferred = info.all.filter(kernel => {
+			const kernelInfo = this._kernels.get(kernel.id);
+			if (!kernelInfo) return false;
+			const replAffinity = kernelInfo.getReplAffinity(notebook);
+			return replAffinity === 2 /* vscode.NotebookControllerPriority.Preferred */ ||
+				kernelInfo.notebookPriorities.get(notebook.uri) === 2 /* vscode.NotebookControllerPriority.Preferred */;
+		});
 		if (preferred.length === 1) {
 			return preferred[0];
 		}
@@ -281,6 +353,17 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 		if (oldKernel !== kernel?.id) {
 			if (kernel) {
 				this._notebookBindings.set(key, kernel.id);
+				
+				// If kernel is selected for an untitled document, clear REPL affinity
+				// This prevents temporary REPL affinity from affecting other documents
+				if (notebook.uri.scheme === 'untitled' && kernel) {
+					const kernelInfo = this._kernels.get(kernel.id);
+					if (kernelInfo) {
+						// Clear all REPL affinities for this kernel when bound to untitled document
+						kernelInfo.replPriorities.clear();
+						this._onDidChangeNotebookAffinity.fire();
+					}
+				}
 			} else {
 				this._notebookBindings.delete(key);
 			}
@@ -308,6 +391,15 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 		} else {
 			info.notebookPriorities.set(notebook, preference);
 		}
+		this._onDidChangeNotebookAffinity.fire();
+	}
+
+	updateKernelReplAffinity(kernel: INotebookKernel, selector: { language?: string; notebookType?: string; scheme?: string; pattern?: string | vscode.RelativePattern }, preference: number | undefined): void {
+		const info = this._kernels.get(kernel.id);
+		if (!info) {
+			throw new Error(`UNKNOWN kernel '${kernel.id}'`);
+		}
+		info.setReplAffinity(selector, preference);
 		this._onDidChangeNotebookAffinity.fire();
 	}
 
