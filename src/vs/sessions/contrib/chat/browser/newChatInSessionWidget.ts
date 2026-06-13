@@ -173,6 +173,10 @@ export class NewChatInSessionWidget extends Disposable {
 	focusInput(): void {
 		this._newChatInput.focus();
 	}
+
+	attach(uris: URI[]): void {
+		this._newChatInput.attach(uris);
+	}
 }
 
 // #endregion
