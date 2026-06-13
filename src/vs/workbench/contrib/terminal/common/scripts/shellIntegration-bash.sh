@@ -3,6 +3,11 @@
 #   Licensed under the MIT License. See License.txt in the project root for license information.
 # ---------------------------------------------------------------------------------------------
 
+# Skip shell integration for non-bash shells (e.g. busybox ash symlinked as /bin/bash)
+if [ -z "${BASH_VERSION-}" ]; then
+	return 2>/dev/null || :
+fi
+
 # Prevent the script recursing when setting up
 if [[ -n "${VSCODE_SHELL_INTEGRATION:-}" ]]; then
 	builtin return
