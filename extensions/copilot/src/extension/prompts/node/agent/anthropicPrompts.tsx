@@ -633,8 +633,12 @@ class AnthropicPromptResolver implements IAgentPrompt {
 			|| endpoint.family.includes('4-5') || endpoint.family.includes('4.5');
 	}
 
-	private isOpus(endpoint: IChatEndpoint): boolean {
-		return endpoint.model.startsWith('claude-opus') || endpoint.family.startsWith('claude-opus');
+	private isSonnet(endpoint: IChatEndpoint): boolean {
+		return endpoint.model.startsWith('claude-sonnet') || endpoint.family.startsWith('claude-sonnet');
+	}
+
+	private isHaiku(endpoint: IChatEndpoint): boolean {
+		return endpoint.model.startsWith('claude-haiku') || endpoint.family.startsWith('claude-haiku');
 	}
 
 	private isOpus47(endpoint: IChatEndpoint): boolean {
@@ -649,13 +653,18 @@ class AnthropicPromptResolver implements IAgentPrompt {
 		if (this.isClaude45(endpoint)) {
 			return Claude45DefaultPrompt;
 		}
+		if (this.isSonnet(endpoint)) {
+			return Claude46SonnetPrompt;
+		}
+		if (this.isHaiku(endpoint)) {
+			return Claude45DefaultPrompt;
+		}
 		if (this.isOpus47(endpoint) && this.configurationService.getExperimentBasedConfig(ConfigKey.Claude47OpusPromptEnabled, this.experimentationService)) {
 			return Claude47OpusPrompt;
 		}
-		if (this.isOpus(endpoint)) {
-			return Claude46OpusPrompt;
-		}
-		return Claude46SonnetPrompt;
+		// Default for every other current and future model (including ones not
+		// yet individually recognized): the latest general-purpose Opus prompt.
+		return Claude46OpusPrompt;
 	}
 
 	resolveReminderInstructions(endpoint: IChatEndpoint): ReminderInstructionsConstructor | undefined {

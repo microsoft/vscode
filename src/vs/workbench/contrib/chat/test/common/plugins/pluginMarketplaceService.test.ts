@@ -400,7 +400,7 @@ suite('PluginMarketplaceService - GitHub marketplace refs', () => {
 			onDidChangeTrust: Event.None,
 		} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService);
 		instantiationService.stub(IExtensionsWorkbenchService, {
-			getAutoUpdateValue: () => true,
+			getAutoUpdateValue: () => 'on',
 		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
 
 		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
@@ -439,7 +439,7 @@ suite('PluginMarketplaceService - getMarketplacePluginMetadata', () => {
 			onDidChangeTrust: Event.None,
 		} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService);
 		instantiationService.stub(IExtensionsWorkbenchService, {
-			getAutoUpdateValue: () => true,
+			getAutoUpdateValue: () => 'on',
 		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
 
 		return store.add(instantiationService.createInstance(PluginMarketplaceService));
@@ -518,7 +518,7 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 			onDidChangeTrust: Event.None,
 		} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService);
 		instantiationService.stub(IExtensionsWorkbenchService, {
-			getAutoUpdateValue: () => true,
+			getAutoUpdateValue: () => 'on',
 		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
 
 		return store.add(instantiationService.createInstance(PluginMarketplaceService));
@@ -738,7 +738,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 			onDidChangeTrust: Event.None,
 		} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService);
 		instantiationService.stub(IExtensionsWorkbenchService, {
-			getAutoUpdateValue: () => true,
+			getAutoUpdateValue: () => 'on',
 		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
 
 		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
@@ -791,7 +791,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 				onDidChangeTrust: Event.None,
 			} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService);
 			instantiationService.stub(IExtensionsWorkbenchService, {
-				getAutoUpdateValue: () => true,
+				getAutoUpdateValue: () => 'on',
 			} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
 			return store.add(instantiationService.createInstance(PluginMarketplaceService));
 		}

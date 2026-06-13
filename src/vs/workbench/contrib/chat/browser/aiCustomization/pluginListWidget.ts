@@ -589,8 +589,6 @@ export class PluginListWidget extends Disposable {
 		// Empty state
 		this.emptyContainer = DOM.append(this.element, $('.mcp-empty-state'));
 		const emptyHeader = DOM.append(this.emptyContainer, $('.empty-state-header'));
-		const emptyIcon = DOM.append(emptyHeader, $('.empty-icon'));
-		emptyIcon.classList.add(...ThemeIcon.asClassNameArray(pluginIcon));
 		this.emptyText = DOM.append(emptyHeader, $('.empty-text'));
 		this.emptySubtext = DOM.append(this.emptyContainer, $('.empty-subtext'));
 
