@@ -52,7 +52,7 @@ import { RepositoryActionRunner, RepositoryRenderer } from './scmRepositoryRende
 import { isDark } from '../../../../platform/theme/common/theme.js';
 import { LabelFuzzyScore } from '../../../../base/browser/ui/tree/abstractTree.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
-import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from '../../../browser/parts/editor/editorCommands.js';
+import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_DIFF_EDITOR_IN_MODAL_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from '../../../browser/parts/editor/editorCommands.js';
 import { getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { Button, ButtonWithDescription, ButtonWithDropdown } from '../../../../base/browser/ui/button/button.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -1723,7 +1723,11 @@ export class SCMViewPane extends ViewPane {
 						preserveFocus: true,
 					});
 				} else {
-					await this.commandService.executeCommand(e.element.command.id, ...(e.element.command.arguments || []), e);
+					if (e.element.command.id === API_OPEN_DIFF_EDITOR_COMMAND_ID && this.configurationService.getValue<boolean>('scm.allowOpenInModalEditor')) {
+						await this.commandService.executeCommand(API_OPEN_DIFF_EDITOR_IN_MODAL_COMMAND_ID, ...(e.element.command.arguments || []), e);
+					} else {
+						await this.commandService.executeCommand(e.element.command.id, ...(e.element.command.arguments || []), e);
+					}
 				}
 			} else {
 				await e.element.open(!!e.editorOptions.preserveFocus);
