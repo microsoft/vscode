@@ -271,6 +271,28 @@ suite('Workbench - TerminalInstance', () => {
 				container.remove();
 			}
 		});
+
+		test('custom key event handler should return false for keys that are part of an IME composition to prevent raw key from being sent to shell', async () => {
+			const instance = await createTerminalInstance();
+			let capturedHandler: ((e: KeyboardEvent) => boolean) | undefined;
+			instance.xterm!.raw.attachCustomKeyEventHandler = handler => { capturedHandler = handler; };
+			const container = document.createElement('div');
+			document.body.appendChild(container);
+			instance.attachToElement(container);
+			instance.setVisible(true);
+
+			// A key event with isComposing=true (eg. "." being converted to "。" by a Chinese IME)
+			// should be blocked so xterm.js doesn't send the raw key to the shell.
+			const composingEvent = new KeyboardEvent('keydown', { key: '.', isComposing: true, cancelable: true });
+			try {
+				deepStrictEqual(
+					{ result: capturedHandler?.(composingEvent), defaultPrevented: composingEvent.defaultPrevented },
+					{ result: false, defaultPrevented: false }
+				);
+			} finally {
+				container.remove();
+			}
+		});
 	});
 	suite('DEFAULT_COMMANDS_TO_SKIP_SHELL', () => {
 		test('should include zoom commands so they are not consumed by kitty keyboard protocol', () => {
