@@ -12,7 +12,7 @@ import { IAgentConnection, IAgentCreateSessionConfig, IAgentResolveSessionConfig
 import { ActionType, StateAction } from '../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { RootState, TerminalClaimKind, type TerminalState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import type { ActionEnvelope, IRootConfigChangedAction, SessionAction, TerminalAction, INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import type { ActionEnvelope, IRootConfigChangedAction, SessionAction, TerminalAction, INotification, ClientAnnotationsAction } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, ResourceMkdirParams, ResourceMkdirResult } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 
 import { AgentHostPty } from '../../browser/agentHostPty.js';
@@ -32,7 +32,7 @@ class MockAgentConnection implements IAgentConnection {
 	readonly onDidNotification: Event<INotification> = this._onDidNotification.event;
 	readonly onMcpNotification: Event<import('../../../../../platform/agentHost/common/agentService.js').IMcpNotification> = Event.None;
 
-	readonly dispatchedActions: { channel: string; action: SessionAction | TerminalAction | IRootConfigChangedAction }[] = [];
+	readonly dispatchedActions: { channel: string; action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction }[] = [];
 	readonly createdTerminals: CreateTerminalParams[] = [];
 	readonly disposedTerminals: URI[] = [];
 	readonly subscribedResources: URI[] = [];
@@ -116,7 +116,7 @@ class MockAgentConnection implements IAgentConnection {
 	getActiveSubscriptions(): readonly IActiveSubscriptionInfo[] {
 		return [];
 	}
-	dispatch(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
+	dispatch(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
 		this.dispatchedActions.push({ channel, action });
 	}
 
