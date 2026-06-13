@@ -15,6 +15,7 @@ import { Disposable, DisposableStore, dispose } from '../../../../../../base/com
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { isThemeColor } from '../../../../../../editor/common/editorCommon.js';
+import { Command } from '../../../../../../editor/common/languages.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
@@ -34,6 +35,11 @@ import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidg
 import type { IManagedHoverTooltipMarkdownString } from '../../../../../../base/browser/ui/hover/hover.js';
 
 const $ = DOM.$;
+
+// Notebook status bar commands may come from workbench providers (using `id`)
+// or from extensions where the command id lives on the `command` property.
+// Prefer `id` when both are present.
+type NotebookCellStatusBarCommand = Command & { command?: string };
 
 
 export class CellEditorStatusBar extends CellContentPart {
@@ -370,8 +376,12 @@ class CellStatusBarItem extends Disposable {
 			return;
 		}
 
-		const id = typeof command === 'string' ? command : command.id;
+		const id = this.resolveCommandId(command);
 		const args = typeof command === 'string' ? [] : command.arguments ?? [];
+
+		if (!id) {
+			return;
+		}
 
 		if (typeof command === 'string' || !command.arguments || !Array.isArray(command.arguments) || command.arguments.length === 0) {
 			args.unshift(this._context);
@@ -384,5 +394,14 @@ class CellStatusBarItem extends Disposable {
 		} catch (error) {
 			this._notificationService.error(toErrorMessage(error));
 		}
+	}
+
+	private resolveCommandId(command: string | NotebookCellStatusBarCommand): string | undefined {
+		if (typeof command === 'string') {
+			return command;
+		}
+
+		const resolvedId = command.id ?? command.command;
+		return typeof resolvedId === 'string' ? resolvedId : undefined;
 	}
 }
