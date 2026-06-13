@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
+import { hash } from '../../../../base/common/hash.js';
 import { FileAccess } from '../../../../base/common/network.js';
 import { dirname } from '../../../../base/common/path.js';
 import { OS, OperatingSystem } from '../../../../base/common/platform.js';
@@ -61,7 +62,13 @@ class AgentHostTerminalSandboxHost implements ITerminalSandboxEngineHost {
 			return undefined;
 		}
 		const sandboxRoot = URI.joinPath(userHome, this._productService.dataFolderName, SANDBOX_TEMP_DIR_NAME);
-		return URI.joinPath(sandboxRoot, `agenthost_${this._sessionId}`);
+		// Keep the per-session leaf short and bounded: the sandbox runtime
+		// creates its network-bridge UNIX sockets (e.g. `claude-socks-<id>.sock`,
+		// ~35 bytes) directly under this directory, and the full socket path must
+		// stay within the AF_UNIX 108-byte limit. The raw session id is a URI
+		// segment (often a UUID), so hash it to a short hex string instead.
+		const sessionLeaf = `agenthost_${(hash(this._sessionId) >>> 0).toString(16)}`;
+		return URI.joinPath(sandboxRoot, sessionLeaf);
 	}
 
 	async getWorkspaceStorageReadRoot(): Promise<URI | undefined> {

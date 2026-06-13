@@ -207,7 +207,7 @@ export function setup(logger: Logger) {
 			//   *-Test_Copilot_CLI_session*.png` — last-frame screenshot of
 			//   the Agents Window when a test fails; the JSON dump in the
 			//   chat usually surfaces the raw `tool_result` payload.
-			if (process.platform !== 'darwin') {
+			if (process.platform === 'win32') {
 				this.skip();
 			}
 
@@ -377,7 +377,7 @@ export function setup(logger: Logger) {
 			// The AgentHost-side sandbox log we assert on is
 			// `<logsPath>/agenthost.log` (the utility-process log), produced by
 			// CopilotAgentSession when it auto-approves a sandboxed shell call.
-			if (process.platform !== 'darwin') {
+			if (process.platform === 'win32') {
 				this.skip();
 			}
 
@@ -475,7 +475,7 @@ export function setup(logger: Logger) {
 			// The AgentHost-side sandbox log we assert on is
 			// `<logsPath>/agenthost.log` (the utility-process log), produced by
 			// CopilotAgentSession when it auto-approves a sandboxed shell call.
-			if (process.platform !== 'darwin') {
+			if (process.platform === 'win32') {
 				this.skip();
 			}
 
