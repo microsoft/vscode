@@ -235,6 +235,10 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 		// bypass any specified proxy for the given semi-colon-separated list of hosts
 		'proxy-bypass-list',
 
+		// override Chromium feature state for troubleshooting
+		'enable-features',
+		'disable-features',
+
 		'remote-debugging-port'
 	];
 

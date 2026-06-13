@@ -233,6 +233,8 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'proxy-server': { type: 'string' },
 	'proxy-bypass-list': { type: 'string' },
 	'proxy-pac-url': { type: 'string' },
+	'enable-features': { type: 'string' },
+	'disable-features': { type: 'string' },
 	'js-flags': { type: 'string' }, // chrome js flags
 	'inspect': { type: 'string', allowEmptyValue: true },
 	'inspect-brk': { type: 'string', allowEmptyValue: true },

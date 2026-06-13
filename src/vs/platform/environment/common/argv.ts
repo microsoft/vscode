@@ -158,6 +158,8 @@ export interface NativeParsedArgs {
 	'proxy-server'?: string;
 	'proxy-bypass-list'?: string;
 	'proxy-pac-url'?: string;
+	'enable-features'?: string;
+	'disable-features'?: string;
 	'inspect'?: string;
 	'inspect-brk'?: string;
 	'js-flags'?: string;
