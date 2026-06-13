@@ -43,6 +43,7 @@ import { CONTEXT_MODELS_SEARCH_FOCUS } from '../../common/constants.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { LANGUAGE_MODEL_CHAT_PROVIDER_EXTENSION_TAG } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import Severity from '../../../../../base/common/severity.js';
 import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import { formatTokenCount } from '../../../../../base/common/numbers.js';
@@ -1050,7 +1051,6 @@ export class ChatModelsWidget extends Disposable {
 	private tableMinWidth: number = 0;
 	private addButtonContainer!: HTMLElement;
 	private addButton!: Button;
-	private browseMarketplaceButton!: Button;
 	private dropdownActions: IAction[] = [];
 	private viewModel: ChatModelsViewModel;
 	private delayedFiltering: Delayer<void>;
@@ -1071,6 +1071,7 @@ export class ChatModelsWidget extends Disposable {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 
@@ -1190,13 +1191,17 @@ export class ChatModelsWidget extends Disposable {
 			}
 		}));
 
-		this.browseMarketplaceButton = this._register(new Button(this.addButtonContainer, {
-			...buttonOptions,
-			secondary: true,
-		}));
-		this.browseMarketplaceButton.label = `$(${Codicon.extensions.id}) ${localize('models.installProviderExtensions', "Install Model Providers")}`;
-		this.browseMarketplaceButton.element.classList.add('models-browse-marketplace-button');
-		this._register(this.browseMarketplaceButton.onDidClick(() => this.openLanguageModelProviderExtensionsSearch()));
+		// The marketplace button is hidden in the Agents window where installing
+		// model provider extensions is not supported.
+		if (!this.environmentService.isSessionsWindow) {
+			const browseMarketplaceButton = this._register(new Button(this.addButtonContainer, {
+				...buttonOptions,
+				secondary: true,
+			}));
+			browseMarketplaceButton.label = `$(${Codicon.extensions.id}) ${localize('models.installProviderExtensions', "Install Model Providers")}`;
+			browseMarketplaceButton.element.classList.add('models-browse-marketplace-button');
+			this._register(browseMarketplaceButton.onDidClick(() => this.openLanguageModelProviderExtensionsSearch()));
+		}
 
 		// Table container
 		this.tableContainer = DOM.append(container, $('.models-table-container'));

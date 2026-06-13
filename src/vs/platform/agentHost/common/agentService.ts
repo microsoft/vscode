@@ -57,23 +57,75 @@ export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLogging
 export const AgentHostCustomTerminalToolEnabledSettingId = 'chat.agentHost.customTerminalTool.enabled';
 
 /**
- * Configuration key that holds the absolute path to the **SDK root directory**
- * — the directory that contains a `node_modules/@anthropic-ai/claude-agent-sdk`
- * subtree. When non-empty, the agent host treats it as a dev override and skips
- * the on-demand download from `product.agentSdks.claude` for the Claude SDK.
+ * Configuration key controlling whether the Claude provider is registered in
+ * the agent host process. When `false`, the agent host skips registering the
+ * Claude provider regardless of SDK availability. Defaults to `true`.
  *
- * Empty (the default) means: load the SDK from `product.agentSdks.claude` if
- * the build supplies one; otherwise the Claude provider is not registered.
- * The agent host process must be restarted for changes to take effect.
+ * Independent of {@link ClaudePreferAgentHostAgentsSettingId} /
+ * {@link ClaudePreferAgentHostEditorSettingId}, which control whether the
+ * workbench surfaces the agent host's Claude provider (vs. the GitHub Copilot
+ * Chat extension's). This setting is strictly about whether the agent host
+ * advertises Claude at all. The agent host process must be restarted for
+ * changes to take effect.
  */
-export const AgentHostClaudeAgentSdkRootSettingId = 'chat.agentHost.claudeAgent.sdkRoot';
+export const AgentHostClaudeAgentEnabledSettingId = 'chat.agentHost.claudeAgent.enabled';
 
 /**
- * Environment variable form of {@link AgentHostClaudeAgentSdkRootSettingId}.
- * Set by the agent host starters from the setting, and may also be set
- * directly by developers as an override.
+ * Configuration key controlling whether the Codex provider is registered in
+ * the agent host process. When `false` (the default), the agent host skips
+ * registering the Codex provider regardless of SDK availability. The agent
+ * host process must be restarted for changes to take effect.
+ */
+export const AgentHostCodexAgentEnabledSettingId = 'chat.agentHost.codexAgent.enabled';
+
+/**
+ * Optional override that points at an **SDK root directory** containing a
+ * `node_modules/@anthropic-ai/claude-agent-sdk` subtree. When set, the agent
+ * host loads the Claude SDK from that path instead of the bare import (which
+ * resolves via this repo's `node_modules` in dev) or the on-demand download
+ * from `product.agentSdks.claude` (built products). Mainly exists for the
+ * remote server's `--claude-sdk-root` CLI flag and for one-off developer
+ * overrides pointing at an out-of-tree SDK build.
  */
 export const AgentHostClaudeSdkRootEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_SDK_ROOT';
+
+/**
+ * Environment variable form of {@link AgentHostClaudeAgentEnabledSettingId}.
+ * Set by the agent host starters from the setting. Accepts `'true'` /
+ * `'false'`; absent means "default" (`true` for Claude, `false` for Codex).
+ */
+export const AgentHostClaudeAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_AGENT_ENABLED';
+
+/**
+ * Environment variable form of {@link AgentHostCodexAgentEnabledSettingId}.
+ * Set by the agent host starters from the setting. Accepts `'true'` /
+ * `'false'`; absent means "default" (`false`).
+ */
+export const AgentHostCodexAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CODEX_AGENT_ENABLED';
+
+/**
+ * Resolves the effective enable state for a Claude/Codex provider from the
+ * env-var value forwarded by the starter. Recognized values (case- and
+ * whitespace-insensitive):
+ *
+ *  - `'true'`  / `'1'` → enabled
+ *  - `'false'` / `'0'` → disabled
+ *  - `undefined`, empty string, or any other value → falls through to
+ *    {@link defaultEnabled}
+ */
+export function isAgentEnabled(envValue: string | undefined, defaultEnabled: boolean): boolean {
+	if (envValue === undefined || envValue === '') {
+		return defaultEnabled;
+	}
+	const normalized = envValue.trim().toLowerCase();
+	if (normalized === 'false' || normalized === '0') {
+		return false;
+	}
+	if (normalized === 'true' || normalized === '1') {
+		return true;
+	}
+	return defaultEnabled;
+}
 
 /**
  * Configuration key that controls the sandbox mode for the Copilot SDK's built-in
@@ -278,10 +330,11 @@ export function buildAgentHostOTelEnv(
  * the caller spreads into the spawned child's environment.
  */
 export interface IAgentSdkStarterSettings {
-	readonly claudeSdkRoot?: string;
 	readonly codexSdkRoot?: string;
 	readonly codexHome?: string;
 	readonly codexBinaryArgs?: readonly string[];
+	readonly claudeAgentEnabled?: boolean;
+	readonly codexAgentEnabled?: boolean;
 }
 
 export function buildAgentSdkEnv(
@@ -295,11 +348,16 @@ export function buildAgentSdkEnv(
 		}
 		out[key] = value;
 	};
-	setIfMissing(AgentHostClaudeSdkRootEnvVar, settings.claudeSdkRoot);
 	setIfMissing(AgentHostCodexAgentSdkRootEnvVar, settings.codexSdkRoot);
 	setIfMissing(AgentHostCodexAgentCodexHomeEnvVar, settings.codexHome);
 	if (Array.isArray(settings.codexBinaryArgs) && settings.codexBinaryArgs.length > 0) {
 		setIfMissing(AgentHostCodexAgentBinaryArgsEnvVar, JSON.stringify(settings.codexBinaryArgs));
+	}
+	if (settings.claudeAgentEnabled !== undefined) {
+		setIfMissing(AgentHostClaudeAgentEnabledEnvVar, settings.claudeAgentEnabled ? 'true' : 'false');
+	}
+	if (settings.codexAgentEnabled !== undefined) {
+		setIfMissing(AgentHostCodexAgentEnabledEnvVar, settings.codexAgentEnabled ? 'true' : 'false');
 	}
 	return out;
 }
@@ -1090,6 +1148,7 @@ export interface IAgentService {
 	 * like `ahp-root://` survive the wire format without normalization.
 	 */
 	dispatchAction(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void;
+	dispatchAction(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void;
 
 	/**
 	 * List the contents of a directory on the agent host's filesystem.
@@ -1201,6 +1260,7 @@ export interface IAgentConnection {
 	 * than {@link URI} objects so authority-less scheme URIs like
 	 * `ahp-root://` survive the wire format without normalization.
 	 */
+	dispatch(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void;
 	dispatch(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void;
 
 	// ---- Events (connection-level) ------------------------------------------

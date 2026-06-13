@@ -27,6 +27,7 @@ import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/san
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
 import { AgentSignal, IMcpNotification } from '../../common/agentService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
+import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmitter.js';
 import type { LanguageModelToolInvokedClassification, LanguageModelToolInvokedEvent } from '../../../telemetry/common/languageModelToolTelemetry.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
@@ -887,6 +888,7 @@ export class CopilotAgentSession extends Disposable {
 			requestUnsandboxedCommandConfirmation: request => this._requestUnsandboxedCommandConfirmation(request),
 			createClientSdkTools: () => this._createClientSdkTools(),
 			createServerSdkTools: () => this._createServerSdkTools(),
+			createServerSdkTools: () => this._createServerSdkTools(),
 			handlePreToolUse: input => this._handlePreToolUse(input),
 			handlePostToolUse: input => this._handlePostToolUse(input),
 		};
@@ -958,6 +960,10 @@ export class CopilotAgentSession extends Disposable {
 	 * Simple attachments with a model representation map to `text/plain`
 	 * blob attachments.
 	 *
+	 * Any Resource attachment carrying a {@link TextSelection} (e.g. `displayKind === 'selection'` or `'symbol'`) is
+	 * mapped to the SDK's `selection` variant so the range survives the round-trip — keying off the `selection` field
+	 * rather than just `displayKind` avoids symbol attachments degrading to a plain file reference (#315193).
+	 *
 	 * For selections we read the resource content from disk and slice it
 	 * by the carried range (the protocol's {@link TextSelection} only
 	 * carries the range, not the inline text). On read failure the
@@ -984,7 +990,7 @@ export class CopilotAgentSession extends Disposable {
 		const uri = URI.parse(attachment.uri);
 		const path = uri.scheme === 'file' ? uri.fsPath : uri.toString();
 		const displayName = attachment.label ?? path;
-		if (attachment.displayKind === 'selection' && attachment.selection) {
+		if (attachment.selection) {
 			try {
 				const text = await this._readSelectedText(uri, attachment.selection.range);
 				return { type: 'selection' as const, filePath: path, displayName, text, selection: attachment.selection.range };
@@ -2539,7 +2545,21 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		this._register(wrapper.onSessionInfo(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Session info [${e.data.infoType}]: ${e.data.message}`);
+			const attributes: Record<string, OtelAttributeValue> = { infoType: e.data.infoType };
+			if (e.data.tip) {
+				attributes.tip = e.data.tip;
+			}
+			const message = `[Copilot:${sessionId}] [${e.data.infoType}]: ${e.data.message}`;
+			const otelData = new OtelData(attributes);
+			if (e.data.infoType === 'mcp') {
+				this._logService.info(message, otelData);
+			} else {
+				this._logService.trace(message, otelData);
+			}
+		}));
+
+		this._register(wrapper.onSessionWarning(e => {
+			this._logService.warn(`[Copilot:${sessionId}] ${e.data.message}`, new OtelData({ warningType: e.data.warningType }));
 		}));
 
 		this._register(wrapper.onSessionModelChange(e => {

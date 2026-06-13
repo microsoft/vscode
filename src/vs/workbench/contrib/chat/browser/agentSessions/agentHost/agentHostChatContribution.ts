@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
@@ -12,13 +13,14 @@ import { type ProtectedResourceMetadata } from '../../../../../../platform/agent
 import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
-import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionsService, isLocalAgentHostTarget } from '../../../common/chatSessionsService.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
@@ -29,6 +31,62 @@ import { AgentHostSessionHandler } from './agentHostSessionHandler.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { AgentHostSessionListController } from './agentHostSessionListController.js';
 import { AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
+
+const LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX = 'agent-host-';
+
+Registry.as<IAsyncChatSessionActivationRegistry>(ChatSessionsExtensions.AsyncActivation).register({
+	matchSessionType: sessionType => isLocalAgentHostTarget(sessionType),
+	waitForActivation: waitForLocalAgentHostActivation,
+});
+
+async function waitForLocalAgentHostActivation(accessor: ServicesAccessor, sessionType: string): Promise<boolean> {
+	const configurationService = accessor.get(IConfigurationService);
+	if (!configurationService.getValue<boolean>(AgentHostEnabledSettingId)) {
+		return false;
+	}
+
+	const provider = getLocalAgentHostProviderForSessionType(sessionType);
+	if (!provider) {
+		return false;
+	}
+
+	const agentHostService = accessor.get(IAgentHostService);
+	const environmentService = accessor.get(IWorkbenchEnvironmentService);
+	while (true) {
+		const rootState = agentHostService.rootState.value;
+		if (rootState instanceof Error) {
+			return false;
+		}
+		if (rootState) {
+			return rootState.agents.some(agent => agent.provider === provider && shouldRegisterAgent(agent.provider, configurationService, environmentService.isSessionsWindow));
+		}
+
+		const changed = await Promise.race([
+			Event.toPromise(agentHostService.rootState.onDidChange).then(() => true),
+			Event.toPromise(agentHostService.onAgentHostExit).then(() => false),
+		]);
+		if (!changed) {
+			return false;
+		}
+	}
+}
+
+function getLocalAgentHostProviderForSessionType(sessionType: string): AgentProvider | undefined {
+	if (!isLocalAgentHostTarget(sessionType) || !sessionType.startsWith(LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX)) {
+		return undefined;
+	}
+	return sessionType.slice(LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX.length) || undefined;
+}
+
+function shouldRegisterAgent(provider: AgentProvider, configurationService: IConfigurationService, isSessionsWindow: boolean): boolean {
+	if (provider !== 'claude') {
+		return true;
+	}
+	const settingId = isSessionsWindow
+		? ClaudePreferAgentHostAgentsSettingId
+		: ClaudePreferAgentHostEditorSettingId;
+	return configurationService.getValue<boolean>(settingId) === true;
+}
 
 export { AgentHostSessionHandler } from './agentHostSessionHandler.js';
 export { AgentHostSessionListController } from './agentHostSessionListController.js';
@@ -139,13 +197,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	 * to avoid Claude appearing twice in the same window.
 	 */
 	private _shouldRegisterAgent(provider: AgentProvider): boolean {
-		if (provider !== 'claude') {
-			return true;
-		}
-		const settingId = this._isSessionsWindow
-			? ClaudePreferAgentHostAgentsSettingId
-			: ClaudePreferAgentHostEditorSettingId;
-		return this._configurationService.getValue<boolean>(settingId) === true;
+		return shouldRegisterAgent(provider, this._configurationService, this._isSessionsWindow);
 	}
 
 	private _handleRootStateChange(rootState: RootState): void {

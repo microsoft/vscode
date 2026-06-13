@@ -346,6 +346,7 @@ suite('RunSubagentTool', () => {
 				isDefaultForLocation: {},
 				multiplierNumeric,
 				capabilities: { toolCalling: true },
+				isBYOK: vendor !== COPILOT_VENDOR_ID,
 			};
 		}
 
