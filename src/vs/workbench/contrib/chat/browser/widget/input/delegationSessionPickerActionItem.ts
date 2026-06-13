@@ -12,11 +12,13 @@ import { IActionWidgetService } from '../../../../../../platform/actionWidget/br
 import { IActionWidgetDropdownAction } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
+import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
 import { AgentSessionProviders, AgentSessionTarget, getAgentCanContinueIn, getAgentSessionProvider, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
@@ -45,9 +47,11 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IGitService private readonly gitService: IGitService,
 	) {
-		super(action, chatSessionPosition, delegate, pickerOptions, actionWidgetService, keybindingService, contextKeyService, chatSessionsService, commandService, openerService, telemetryService);
+		super(action, chatSessionPosition, delegate, pickerOptions, actionWidgetService, keybindingService, contextKeyService, chatSessionsService, commandService, openerService, telemetryService, chatEntitlementService, configurationService);
 		this._isSessionsWindow = IsSessionsWindowContext.getValue(contextKeyService) === true;
 	}
 

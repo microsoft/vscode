@@ -14,7 +14,7 @@ The sessions list (`SessionsView` + `SessionsList`) displays every session known
 |------|---------|
 | `contrib/sessions/browser/views/sessionsView.ts` | `SessionsView` — ViewPane with header, new-session button, sort/group/filter persistence |
 | `contrib/sessions/browser/views/sessionsList.ts` | `SessionsList` — tree control, grouping/filtering logic, menu IDs, context keys |
-| `contrib/sessions/browser/views/sessionsListModelService.ts` | `ISessionsListModelService` — pin/read state (UI-only, not synced to providers) |
+| `services/sessions/browser/sessionsListModelService.ts` | `ISessionsListModelService` — pin/read state + shared status icon (UI-only, not synced to providers) |
 | `contrib/sessions/browser/views/sessionsViewActions.ts` | All registered actions (sort, group, filter, pin, archive, rename, navigate) |
 
 ---
@@ -167,11 +167,11 @@ Context keys available for `when` clauses when contributing to session list menu
 | Key | Type | Description |
 |-----|------|-------------|
 | `sessionItem.isPinned` | boolean | Whether the session is pinned |
-| `sessionItem.isArchived` | boolean | Whether the session is archived |
-| `sessionItem.isRead` | boolean | Whether the session has been read |
+| `sessionIsArchived` | boolean | Whether the session is archived |
+| `sessionIsRead` | boolean | Whether the session has been read |
 | `sessionItem.hasBranchName` | boolean | Whether the session has a git branch name |
 | `chatSessionType` | string | Session type ID (use to scope actions to specific providers) |
-| `ChatSessionProviderIdContext` | string | Provider ID |
+| `chatSessionProviderId` | string | Provider ID |
 
 ### Per-Section
 
@@ -185,3 +185,4 @@ Context keys available for `when` clauses when contributing to session list menu
 |-----|------|-------------|
 | `sessionsViewPane.grouping` | string | Current grouping mode (`'workspace'` or `'date'`) |
 | `sessionsViewPane.sorting` | string | Current sorting mode (`'created'` or `'updated'`) |
+| `sessionsViewPane.workspaceGroupCapped` | boolean | Whether workspace groups are capped (primary-only) or fully expanded |

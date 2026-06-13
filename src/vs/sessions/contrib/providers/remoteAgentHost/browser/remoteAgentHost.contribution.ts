@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { disposableTimeout, IntervalTimer } from '../../../../../base/common/async.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
@@ -14,13 +15,13 @@ import { type AgentProvider, type IAgentConnection } from '../../../../../platfo
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, type IRemoteAgentHostSSHConnection, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, getEntryAddress } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { TunnelAgentHostsSettingId } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { PROTOCOL_VERSION } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
-import { AgentHostLocalFilePermissionsSettingId } from '../../../../../platform/agentHost/common/agentHostPermissionService.js';
+import { AgentHostLocalFilePermissionsSettingId } from '../../../../../platform/agentHost/common/agentHostResourceService.js';
 import { type ProtectedResourceMetadata } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type AgentInfo, type RootState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -28,17 +29,17 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { OpenSessionEventsFileAction } from '../../agentHost/browser/openSessionEventsFileActions.js';
 import { authenticateProtectedResources, AgentHostAuthTokenCache, resolveAuthenticationInteractively } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAuth.js';
-import { AgentHostLanguageModelProvider } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
+import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionHandler.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
-import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ICustomizationHarnessService } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IAgentHostFileSystemService } from '../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
 import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
-import { remoteAgentHostSessionTypeId } from '../common/remoteAgentHostSessionType.js';
+import { findRemoteAgentHostSessionTypeAuthority, isRemoteAgentHostSessionType, remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { createRemoteAgentHarnessDescriptor, RemoteAgentPluginController } from './remoteAgentHostCustomizationHarness.js';
 import { RemoteAgentHostLogForwarder } from './remoteAgentHostLogForwarder.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
@@ -47,6 +48,64 @@ import { ISSHRemoteAgentHostService, SSHAuthMethod } from '../../../../../platfo
 import { IAgentHostTerminalService } from '../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { logTerminalRecovery } from '../../../../common/sessionsTelemetry.js';
+
+Registry.as<IAsyncChatSessionActivationRegistry>(ChatSessionsExtensions.AsyncActivation).register({
+	matchSessionType: sessionType => isRemoteAgentHostSessionType(sessionType),
+	waitForActivation: waitForRemoteAgentHostActivation,
+});
+
+async function waitForRemoteAgentHostActivation(accessor: ServicesAccessor, sessionType: string): Promise<boolean> {
+	const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
+	const address = getAddressForSessionType(sessionType, remoteAgentHostService);
+	if (!address) {
+		return false;
+	}
+
+	while (true) {
+		const connection = remoteAgentHostService.getConnection(address);
+		if (connection) {
+			const rootState = connection.rootState.value;
+			if (rootState instanceof Error) {
+				return false;
+			}
+			if (rootState) {
+				const authority = agentHostAuthority(address);
+				return rootState.agents.some(agent => remoteAgentHostSessionTypeId(authority, agent.provider) === sessionType);
+			}
+
+			await Promise.race([
+				Event.toPromise(connection.rootState.onDidChange),
+				Event.toPromise(remoteAgentHostService.onDidChangeConnections),
+			]);
+			continue;
+		}
+
+		const connectionInfo = remoteAgentHostService.connections.find(connection => connection.address === address);
+		if (connectionInfo && !RemoteAgentHostConnectionStatus.isConnecting(connectionInfo.status)) {
+			return false;
+		}
+
+		if (!connectionInfo && !remoteAgentHostService.configuredEntries.some(entry => getEntryAddress(entry) === address)) {
+			return false;
+		}
+
+		await Event.toPromise(remoteAgentHostService.onDidChangeConnections);
+	}
+}
+
+function getAddressForSessionType(sessionType: string, remoteAgentHostService: IRemoteAgentHostService): string | undefined {
+	const authorities = new Map<string, string>();
+	for (const connection of remoteAgentHostService.connections) {
+		authorities.set(agentHostAuthority(connection.address), connection.address);
+	}
+	for (const entry of remoteAgentHostService.configuredEntries) {
+		const address = getEntryAddress(entry);
+		authorities.set(agentHostAuthority(address), address);
+	}
+
+	const authority = findRemoteAgentHostSessionTypeAuthority(sessionType, authorities.keys());
+	return authority ? authorities.get(authority) : undefined;
+}
 
 /** Initial auto-reconnect delay after a failed SSH reconnect attempt. */
 const SSH_RECONNECT_INITIAL_DELAY = 1000;
@@ -192,7 +251,14 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	/** Per-address sessions provider, registered for all configured entries. */
 	private readonly _providerStores = this._register(new DisposableMap<string, DisposableStore>());
 	private readonly _providerInstances = new Map<string, RemoteAgentHostSessionsProvider>();
-	private readonly _pendingSSHReconnects = new Set<string>();
+	/**
+	 * In-flight reconnect attempts keyed by host id (`sshConfigHost` for SSH,
+	 * `distro` for WSL). Stores the {@link _attemptManagedReconnect} promise
+	 * so concurrent on-demand callers (e.g. a user click on "Select..." while
+	 * the periodic poll is already reconnecting) join the existing attempt
+	 * rather than racing it.
+	 */
+	private readonly _pendingSSHReconnects = new Map<string, Promise<void>>();
 
 	/** Per-host SSH auto-reconnect state (timer + attempts + paused). */
 	private readonly _sshReconnectStates = this._register(new DisposableMap<string, SSHReconnectState>());
@@ -220,7 +286,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		// Reconcile providers when configured entries change
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(RemoteAgentHostsSettingId) || e.affectsConfiguration(RemoteAgentHostsEnabledSettingId) || e.affectsConfiguration(RemoteAgentHostAutoConnectSettingId)) {
-				// User changed config — give paused SSH auto-reconnect a fresh chance.
+				// User changed config — give paused auto-reconnect a fresh chance.
 				this._resumeSSHReconnects();
 				this._reconcile();
 			}
@@ -321,12 +387,12 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	private _createProvider(entry: IRemoteAgentHostEntry): void {
 		const address = getEntryAddress(entry);
 		const sshConnection = entry.connection.type === RemoteAgentHostEntryType.SSH ? entry.connection : undefined;
-		const connectOnDemand = sshConnection
-			? () => this._connectSSHOnDemand(sshConnection, entry.name, address)
-			: undefined;
-		const disconnectOnDemand = sshConnection
-			? () => this._disconnectSSHOnDemand(sshConnection)
-			: undefined;
+		let connectOnDemand: (() => Promise<void>) | undefined;
+		let disconnectOnDemand: (() => Promise<void>) | undefined;
+		if (sshConnection) {
+			connectOnDemand = () => this._connectSSHOnDemand(sshConnection, entry.name, address);
+			disconnectOnDemand = () => this._disconnectSSHOnDemand(sshConnection);
+		}
 		const store = new DisposableStore();
 		const provider = this._instantiationService.createInstance(
 			RemoteAgentHostSessionsProvider, { address, name: entry.name, connectOnDemand, disconnectOnDemand });
@@ -419,6 +485,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			return;
 		}
 		if (this._pendingSSHReconnects.has(sshConfigHost)) {
+			await this._pendingSSHReconnects.get(sshConfigHost)!.catch(() => undefined);
 			return;
 		}
 		this._sshReconnectStates.get(sshConfigHost)?.resetForResume();
@@ -433,69 +500,19 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	}
 
 	private async _attemptSSHReconnect(sshConfigHost: string, name: string, address: string, options: { userInitiated?: boolean } = {}): Promise<void> {
-		this._pendingSSHReconnects.add(sshConfigHost);
-		const state = this._getOrCreateSSHReconnectState(sshConfigHost);
-		const attempt = state.attempts;
-		const provider = this._providerInstances.get(address);
-		if (options.userInitiated) {
-			provider?.setConnectionStatus(RemoteAgentHostConnectionStatus.connecting);
-		}
-		this._logService.info(`[RemoteAgentHost] Re-establishing SSH tunnel for ${sshConfigHost} (attempt ${attempt + 1})`);
-		try {
-			await this._sshService.reconnect(sshConfigHost, name);
-			this._pendingSSHReconnects.delete(sshConfigHost);
-			this._sshReconnectStates.deleteAndDispose(sshConfigHost);
-			this._logService.info(`[RemoteAgentHost] SSH tunnel re-established for ${sshConfigHost}`);
-		} catch (err) {
-			this._pendingSSHReconnects.delete(sshConfigHost);
-			if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
-				this._sshReconnectStates.deleteAndDispose(sshConfigHost);
-				return;
-			}
-			if (options.userInitiated) {
-				provider?.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
-			}
-			if (shouldPauseSSHReconnectAfterFailure(err)) {
-				this._logService.info(`[RemoteAgentHost] Pausing SSH auto-reconnect for ${sshConfigHost} after user cancellation`);
-				provider?.unpublishCachedSessions();
-				const liveState = this._getOrCreateSSHReconnectState(sshConfigHost);
-				liveState.paused = true;
-				liveState.pausedAt = Date.now();
-				return;
-			}
-			this._logService.error(`[RemoteAgentHost] SSH reconnect failed for ${sshConfigHost}`, err);
-			// Surface protocol-version mismatches on the provider so the
-			// workspace picker can show the host's message and the user
-			// can read it. Other errors stay as the existing disconnected
-			// state.
-			const incompatible = RemoteAgentHostConnectionStatus.fromConnectError(err, [PROTOCOL_VERSION]);
-			if (incompatible) {
-				provider?.setConnectionStatus(incompatible);
-				// Don't keep retrying on incompatible — user needs to
-				// upgrade/downgrade. Drop retry state instead of pausing.
-				this._sshReconnectStates.deleteAndDispose(sshConfigHost);
-				return;
-			}
-			// Host is unreachable — unpublish any cached sessions we
-			// were showing so the UI doesn't list stale entries for a
-			// host we cannot currently reach.
-			provider?.unpublishCachedSessions();
-
-			// State may have been cleared (e.g. host removed) while the
-			// reconnect was in flight — re-resolve to be safe.
-			const liveState = this._getOrCreateSSHReconnectState(sshConfigHost);
-			liveState.attempts = attempt + 1;
-			if (liveState.attempts >= SSH_RECONNECT_MAX_ATTEMPTS) {
-				this._logService.info(`[RemoteAgentHost] Pausing SSH auto-reconnect for ${sshConfigHost} after ${liveState.attempts} consecutive failures`);
-				liveState.paused = true;
-				liveState.pausedAt = Date.now();
-				return;
-			}
-			if (options.userInitiated) {
-				return;
-			}
-			this._scheduleSSHReconnect(sshConfigHost, name, address, liveState);
-		}
+		await this._attemptManagedReconnect({
+			kind: 'SSH',
+			key: sshConfigHost,
+			address,
+			userInitiated: !!options.userInitiated,
+			maxAttempts: SSH_RECONNECT_MAX_ATTEMPTS,
+			shouldPause: shouldPauseSSHReconnectAfterFailure,
+			pending: this._pendingSSHReconnects,
+			states: this._sshReconnectStates,
+			getOrCreateState: key => this._getOrCreateSSHReconnectState(key),
+			doConnect: () => this._sshService.reconnect(sshConfigHost, name).then(() => undefined),
+			schedule: state => this._scheduleSSHReconnect(sshConfigHost, name, address, state as SSHReconnectState),
+		});
 	}
 
 	private _scheduleSSHReconnect(sshConfigHost: string, name: string, address: string, state: SSHReconnectState): void {
@@ -548,6 +565,109 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		}
 		if (resumed > 0) {
 			this._logService.info(`[RemoteAgentHost] Resuming SSH auto-reconnect for ${resumed} paused host(s)`);
+		}
+	}
+
+	/**
+	 * Shared retry-loop body for SSH managed-reconnect entries.
+	 *
+	 * Handles `connecting`/`disconnected`/`incompatible` provider status,
+	 * cached-session unpublishing on failure, pause-on-cancel, and
+	 * pause-after-max-attempts. An optional pre-check can bail out without
+	 * incrementing the attempt counter (returns `{ skip: true }`).
+	 */
+	private async _attemptManagedReconnect(opts: {
+		readonly kind: 'SSH';
+		readonly key: string;
+		readonly address: string;
+		readonly userInitiated: boolean;
+		readonly maxAttempts: number;
+		readonly shouldPause: (err: unknown) => boolean;
+		readonly pending: Map<string, Promise<void>>;
+		readonly states: DisposableMap<string, SSHReconnectState>;
+		readonly getOrCreateState: (key: string) => SSHReconnectState;
+		readonly preCheck?: (userInitiated: boolean) => Promise<{ readonly skip: boolean; readonly reason?: string } | undefined>;
+		readonly doConnect: () => Promise<void>;
+		readonly schedule: (state: SSHReconnectState) => void;
+	}): Promise<void> {
+		// Wrap the body so we can store our own promise in `opts.pending` for
+		// concurrent on-demand callers to join. The inner IIFE keeps the
+		// existing control flow intact; only the bookkeeping moves out.
+		const runPromise = (async () => {
+			const state = opts.getOrCreateState(opts.key);
+			const attempt = state.attempts;
+			const provider = this._providerInstances.get(opts.address);
+			if (opts.userInitiated) {
+				provider?.setConnectionStatus(RemoteAgentHostConnectionStatus.connecting);
+			}
+			this._logService.info(`[RemoteAgentHost] Re-establishing ${opts.kind} connection for ${opts.key} (attempt ${attempt + 1})`);
+			try {
+				if (opts.preCheck) {
+					const result = await opts.preCheck(opts.userInitiated);
+					if (result?.skip) {
+						if (result.reason) {
+							this._logService.info(`[RemoteAgentHost] ${opts.kind} reconnect for ${opts.key}: ${result.reason}; skipping`);
+						}
+						return;
+					}
+				}
+				await opts.doConnect();
+				opts.states.deleteAndDispose(opts.key);
+				this._logService.info(`[RemoteAgentHost] ${opts.kind} connection re-established for ${opts.key}`);
+			} catch (err) {
+				if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
+					opts.states.deleteAndDispose(opts.key);
+					return;
+				}
+				if (opts.userInitiated) {
+					provider?.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
+				}
+				if (opts.shouldPause(err)) {
+					this._logService.info(`[RemoteAgentHost] Pausing ${opts.kind} auto-reconnect for ${opts.key} after user cancellation`);
+					provider?.unpublishCachedSessions();
+					const liveState = opts.getOrCreateState(opts.key);
+					liveState.paused = true;
+					liveState.pausedAt = Date.now();
+					return;
+				}
+				this._logService.error(`[RemoteAgentHost] ${opts.kind} reconnect failed for ${opts.key}`, err);
+				// Surface protocol-version mismatches on the provider so the
+				// workspace picker can show the host's message and the user
+				// can read it. Other errors stay as the existing disconnected
+				// state.
+				const incompatible = RemoteAgentHostConnectionStatus.fromConnectError(err, [PROTOCOL_VERSION]);
+				if (incompatible) {
+					provider?.setConnectionStatus(incompatible);
+					// Don't keep retrying on incompatible — user needs to
+					// upgrade/downgrade. Drop retry state instead of pausing.
+					opts.states.deleteAndDispose(opts.key);
+					return;
+				}
+				// Host is unreachable — unpublish any cached sessions we
+				// were showing so the UI doesn't list stale entries for a
+				// host we cannot currently reach.
+				provider?.unpublishCachedSessions();
+				// State may have been cleared (e.g. host removed) while the
+				// reconnect was in flight — re-resolve to be safe.
+				const liveState = opts.getOrCreateState(opts.key);
+				liveState.attempts = attempt + 1;
+				if (liveState.attempts >= opts.maxAttempts) {
+					this._logService.info(`[RemoteAgentHost] Pausing ${opts.kind} auto-reconnect for ${opts.key} after ${liveState.attempts} consecutive failures`);
+					liveState.paused = true;
+					liveState.pausedAt = Date.now();
+					return;
+				}
+				if (opts.userInitiated) {
+					return;
+				}
+				opts.schedule(liveState);
+			}
+		})();
+		opts.pending.set(opts.key, runPromise);
+		try {
+			await runPromise;
+		} finally {
+			opts.pending.delete(opts.key);
 		}
 	}
 
@@ -751,6 +871,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			description: agent.description,
 			canDelegate: true,
 			requiresCustomModels: true,
+			supportsAutoModel: agentHostProviderSupportsAutoModel(agent.provider),
 			supportsDelegation: false,
 			capabilities: {
 				supportsCheckpoints: true,
@@ -959,7 +1080,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 // Side-effect registrations for the remote agent host feature
 import './remoteAgentHostActions.js';
 import './manageRemoteAgentHosts.js';
-import '../../agentHost/browser/agentHostModelPicker.js';
 import '../../agentHost/browser/agentHostAgentPicker.js';
 import { AgentCustomizationItemProvider } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentCustomizationItemProvider.js';
 import { Codicon } from '../../../../../base/common/codicons.js';

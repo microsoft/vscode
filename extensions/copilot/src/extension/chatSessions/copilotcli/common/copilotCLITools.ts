@@ -490,6 +490,7 @@ export interface RequestIdDetails {
 	readonly modeInstructions?: StoredModeInstructions;
 	readonly responseModelId?: string;
 	readonly creditsUsed?: number;
+	readonly isUsingAutoModel?: boolean;
 }
 
 /**
@@ -700,7 +701,7 @@ export function buildChatHistoryFromEvents(sessionId: string, modelId: string | 
 				const resolvedRequestModelId = details?.responseModelId ?? currentModelId;
 				currentResponseModelId = resolvedRequestModelId;
 				currentCreditsUsed = details?.creditsUsed;
-				turns.push(new ChatRequestTurn2(`${commandPrefix}${prompt}`, undefined, references, '', [], undefined, details?.requestId ?? event.id, resolvedRequestModelId, modeInstructions2));
+				turns.push(new ChatRequestTurn2(`${commandPrefix}${prompt}`, undefined, references, '', [], undefined, details?.requestId ?? event.id, details?.isUsingAutoModel ? 'auto' : resolvedRequestModelId, modeInstructions2));
 				currentRequestTurnIndex = turns.length - 1;
 				continue;
 			}

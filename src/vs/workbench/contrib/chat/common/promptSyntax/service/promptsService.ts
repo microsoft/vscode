@@ -16,6 +16,7 @@ import { IHandOff, ParsedPromptFile } from '../promptFileParser.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { IResolvedPromptSourceFolder } from '../config/promptFileLocations.js';
 import { ChatRequestHooks } from '../hookSchema.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 
 /**
  * A single structured debug detail entry from the instructions context computer.
@@ -212,6 +213,24 @@ export namespace IAgentSource {
 			return { storage: promptPath.storage };
 		}
 	}
+
+	export function isEquals(a: IAgentSource | undefined, b: IAgentSource | undefined): boolean {
+		if (a === b) {
+			return true;
+		}
+		if (!a || !b) {
+			return false;
+		}
+		if (a.storage !== b.storage) {
+			return false;
+		}
+		if (a.storage === PromptsStorage.extension && b.storage === PromptsStorage.extension) {
+			return ExtensionIdentifier.equals(a.extensionId, b.extensionId);
+		} else if (a.storage === PromptsStorage.plugin && b.storage === PromptsStorage.plugin) {
+			return isEqual(a.pluginUri, b.pluginUri);
+		}
+		return true;
+	}
 }
 
 /**
@@ -235,6 +254,8 @@ export function isCustomAgentVisibility(obj: unknown): obj is ICustomAgentVisibi
 }
 
 export interface ICustomAgent {
+
+	readonly id: string;
 	/**
 	 * URI of a custom agent file.
 	 */

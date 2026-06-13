@@ -75,6 +75,7 @@ import '../workbench/services/integrity/electron-browser/integrityService.js';
 import '../workbench/services/workingCopy/electron-browser/workingCopyBackupService.js';
 import '../workbench/services/checksum/electron-browser/checksumService.js';
 import '../platform/remote/electron-browser/sharedProcessTunnelService.js';
+import '../platform/tunnel/electron-browser/sharedProcessTunnelProxyService.js';
 import '../workbench/services/tunnel/electron-browser/tunnelService.js';
 import '../platform/diagnostics/electron-browser/diagnosticsService.js';
 import '../platform/profiling/electron-browser/profilingService.js';
@@ -208,11 +209,12 @@ import './electron-browser/sessions.desktop.contribution.js';
 import '../workbench/services/agentHost/electron-browser/agentHostService.js';
 import '../platform/agentHost/electron-browser/remoteAgentHostService.js';
 import '../platform/agentHost/electron-browser/sshRemoteAgentHostService.js';
+import '../platform/agentHost/electron-browser/wslRemoteAgentHostService.js';
 import './contrib/providers/remoteAgentHost/electron-browser/tunnelAgentHostService.js';
 import './contrib/providers/remoteAgentHost/browser/remoteAgentHost.contribution.js';
 import './contrib/providers/remoteAgentHost/browser/remoteAgentHostTerminal.contribution.js';
 import './contrib/providers/remoteAgentHost/browser/tunnelAgentHost.contribution.js';
-
+import './contrib/providers/remoteAgentHost/browser/wslAgentHost.contribution.js';
 // Chat
 import './contrib/agentFeedback/browser/agentFeedback.contribution.js';
 import './contrib/chat/electron-browser/chat.contribution.js';

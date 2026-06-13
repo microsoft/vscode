@@ -27,6 +27,7 @@ Use tabs, not spaces.
 ## Comments
 
 - Use JSDoc style comments for functions, interfaces, enums, and classes
+- Do not write large comments in the middle of a method or comments that explain a single line. If a line or block needs a paragraph of explanation to be understood, treat that as a signal that the code itself is unclear: extract a well-named function, introduce an explanatory variable, or simplify the logic instead. Keep any remaining inline comment to a brief note.
 
 ## Strings
 

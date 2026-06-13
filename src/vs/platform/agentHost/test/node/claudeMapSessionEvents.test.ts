@@ -10,7 +10,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import type { AgentSignal } from '../../common/agentService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { ResponsePartKind, ToolResultContentType } from '../../common/state/sessionState.js';
-import { ToolCallConfirmationReason } from '../../common/state/protocol/state.js';
+import { ToolCallConfirmationReason, ToolCallContributorKind } from '../../common/state/protocol/state.js';
 import { ClaudeMapperState, mapSDKMessageToAgentSignals } from '../../node/claude/claudeMapSessionEvents.js';
 import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
 import {
@@ -191,6 +191,42 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 				toolCallId: 'tu_1',
 				toolName: 'Read',
 				displayName: 'Read file',
+			},
+		}]);
+		assert.deepStrictEqual(log.warns, []);
+	});
+
+	test('Test 8b — content_block_start for an mcp__client__* tool sets the Client contributor', () => {
+		// Regression: the mapper used to emit an invalid `toolClientId` field
+		// on the SessionToolCallStart action. Because the spread bypassed
+		// TypeScript's excess-property check and the reducer reads
+		// `action.contributor`, the contributor came through as `undefined`,
+		// so the workbench routed client tools to the server-tool path and
+		// never executed them — the in-process MCP handler hung forever.
+		const log = new CapturingLogService();
+		const state = new ClaudeMapperState();
+		const CLIENT_ID = 'client-abc';
+
+		const signals = mapSDKMessageToAgentSignals(
+			makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, 'tu_c', 'mcp__client__problems')),
+			SESSION,
+			TURN_ID,
+			state,
+			log,
+			r(),
+			CLIENT_ID,
+		);
+
+		assert.deepStrictEqual(signals, [{
+			kind: 'action',
+			session: SESSION,
+			action: {
+				type: ActionType.SessionToolCallStart,
+				turnId: TURN_ID,
+				toolCallId: 'tu_c',
+				toolName: 'problems',
+				displayName: 'problems',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: CLIENT_ID },
 			},
 		}]);
 		assert.deepStrictEqual(log.warns, []);

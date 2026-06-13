@@ -17,9 +17,10 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { ChatRequestVariableSet } from '../../attachments/chatVariableEntries.js';
+import { isByokModel } from '../../chatSelectedModel.js';
 import { IChatProgress, IChatService } from '../../chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, GeneralPurposeAgentName } from '../../constants.js';
-import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
+import { COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
 import { ChatModel, IChatRequestModeInstructions } from '../../model/chatModel.js';
 import { getChatSessionType } from '../../model/chatUri.js';
 import { IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../participants/chatAgents.js';
@@ -509,10 +510,19 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		if (subagent && !explicitModelResolved) {
 			const modeModelQualifiedNames = subagent.model;
 			if (modeModelQualifiedNames) {
+				// When the main model is BYOK (flagged via `metadata.isBYOK`), skip Copilot/CAPI fallback models
+				// for built-in agents (e.g. Explore), whose model list is a curated convenience fallback. A
+				// user-authored agent's model list is a deliberate choice and is always honored as-is.
+				const mainModelMetadata = mainModelId ? this.languageModelsService.lookupLanguageModel(mainModelId) : undefined;
+				const mainModelIsByok = !!mainModelMetadata && isByokModel(mainModelMetadata);
+				const skipCopilotFallbacks = mainModelIsByok && isBuiltinAgent(subagent.source, subagent.uri, this.productService);
 				// Find the actual model identifier from the qualified name(s)
 				for (const qualifiedName of modeModelQualifiedNames) {
 					const lmByQualifiedName = this.languageModelsService.lookupLanguageModelByQualifiedName(qualifiedName);
 					if (lmByQualifiedName?.identifier) {
+						if (skipCopilotFallbacks && lmByQualifiedName.metadata.vendor === COPILOT_VENDOR_ID) {
+							continue;
+						}
 						modeModelId = lmByQualifiedName.identifier;
 						break;
 					}

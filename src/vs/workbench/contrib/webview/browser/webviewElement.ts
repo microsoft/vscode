@@ -205,6 +205,9 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		}));
 
 		this._register(this.on('did-click-link', ({ uri }) => {
+			if (!this.isActiveElement()) {
+				return;
+			}
 			this._onDidClickLink.fire(uri);
 		}));
 
@@ -714,8 +717,12 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		return event.isTrusted || !!this._content.options.forwardUntrustedKeypressEvents;
 	}
 
+	private isActiveElement(): boolean {
+		return !!this.element && this.window?.document.activeElement === this.element;
+	}
+
 	private handleKeyEvent(type: 'keydown' | 'keyup', event: KeyEvent) {
-		if (!this.shouldForwardKeyEvent(event)) {
+		if (!this.shouldForwardKeyEvent(event) || !this.isActiveElement()) {
 			return;
 		}
 
