@@ -3024,8 +3024,7 @@ class LayoutStateModel extends Disposable {
 				this.applyAuxiliaryBarHiddenOverride(true);
 			} else if (
 				startupEditor !== 'agentSessionsWelcomePage' &&
-				(defaultAuxiliaryBarVisibility === 'maximized' ||
-				(defaultAuxiliaryBarVisibility === 'maximizedInWorkspace' && this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY))
+				(defaultAuxiliaryBarVisibility === 'maximized' || (defaultAuxiliaryBarVisibility === 'maximizedInWorkspace' && this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY))
 			) {
 				this.applyAuxiliaryBarMaximizedOverride();
 			}

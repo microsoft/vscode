@@ -87,12 +87,10 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 	let errorCount = 0;
 
 	const productJson = es.through(function (file: VinylFile) {
-		const product = JSON.parse(file.contents!.toString('utf8'));
+		JSON.parse(file.contents!.toString('utf8'));
 
-		if (product.extensionsGallery) {
-			console.error(`product.json: Contains 'extensionsGallery'`);
-			errorCount++;
-		}
+		// Solo ships a configured extension gallery (Open VSX) in product.json by
+		// design, so the upstream check forbidding `extensionsGallery` is dropped.
 
 		this.emit('data', file);
 	});
