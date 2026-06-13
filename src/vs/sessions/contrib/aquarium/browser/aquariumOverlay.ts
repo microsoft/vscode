@@ -25,6 +25,8 @@ export const SESSIONS_DEVELOPER_JOY_ENABLED_SETTING = 'sessions.developerJoy.ena
 const FISH_COUNT = 50;
 const FISH_MIN_SIZE = 22;
 const FISH_MAX_SIZE = 48;
+/** Each eaten pellet multiplies the fish's size by this. Unbounded on purpose. */
+const FISH_GROWTH_FACTOR = 1.08;
 
 const SCATTER_RADIUS = 145;
 const SCATTER_RADIUS_SQ = SCATTER_RADIUS * SCATTER_RADIUS;
@@ -671,6 +673,7 @@ function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbe
 				const nearestDist = Math.max(Math.sqrt(nearestDistSq), 1);
 				if (nearestDist < EAT_RADIUS) {
 					removeFood(nearestPellet);
+					f.grow(FISH_GROWTH_FACTOR);
 				} else {
 					accelX += (nearestPellet.positionX - centerX) / nearestDist * 200;
 					accelY += (nearestPellet.positionY - centerY) / nearestDist * 200;

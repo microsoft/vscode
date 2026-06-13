@@ -70,7 +70,8 @@ export class Fish {
 	positionY: number;
 	velocityX: number;
 	velocityY: number;
-	readonly size: number;
+	/** Current rendered size in px. Grows when the fish eats (see {@link grow}). */
+	size: number;
 
 	/** Timestamp until which this fish is in "panic" mode (faster, scattering). */
 	panicUntil = 0;
@@ -138,6 +139,17 @@ export class Fish {
 		// frame, mimicking a body roll. Floor at 0.05 to avoid zero-width.
 		const flipScaleX = Math.sign(this.facing) * Math.max(Math.abs(this.facing), 0.05);
 		this.innerElement.style.transform = `scaleX(${flipScaleX.toFixed(3)})`;
+	}
+
+	/**
+	 * Grow the fish by a multiplicative `factor`. Growth is intentionally
+	 * unbounded — a fish that keeps eating keeps getting bigger. The element's
+	 * footprint is updated so the body SVG (sized at 100%) scales with it.
+	 */
+	grow(factor: number): void {
+		this.size *= factor;
+		this.element.style.width = `${this.size}px`;
+		this.element.style.height = `${this.size}px`;
 	}
 }
 
