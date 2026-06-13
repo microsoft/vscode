@@ -457,10 +457,13 @@ export class ResolvedLanguageConfiguration {
 		const comments: ICommentsConfiguration = {};
 
 		if (commentRule.lineComment) {
+			// Surrounding whitespace is not part of the comment marker; spacing on
+			// insertion is controlled by the `editor.comments.insertSpace` setting.
+			// Keeping it would break comment toggling, see #249958.
 			if (typeof commentRule.lineComment === 'string') {
-				comments.lineCommentToken = commentRule.lineComment;
+				comments.lineCommentToken = commentRule.lineComment.trim();
 			} else {
-				comments.lineCommentToken = commentRule.lineComment.comment;
+				comments.lineCommentToken = commentRule.lineComment.comment.trim();
 				comments.lineCommentNoIndent = commentRule.lineComment.noIndent;
 			}
 		}
