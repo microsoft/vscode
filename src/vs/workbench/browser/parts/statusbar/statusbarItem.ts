@@ -8,7 +8,7 @@ import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle
 import { SimpleIconLabel } from '../../../../base/browser/ui/iconLabel/simpleIconLabel.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { IStatusbarEntry, isTooltipWithCommands, ShowTooltipCommand, StatusbarEntryKinds, TooltipContent } from '../../../services/statusbar/browser/statusbar.js';
+import { IStatusbarEntry, isTooltipWithCommands, ShowTooltipCommand, StatusbarEntryKind, StatusbarEntryKinds, TooltipContent } from '../../../services/statusbar/browser/statusbar.js';
 import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from '../../../../base/common/actions.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ThemeColor } from '../../../../base/common/themables.js';
@@ -51,6 +51,10 @@ export class StatusbarEntryItem extends Disposable {
 
 	get hasCommand(): boolean {
 		return typeof this.entry?.command !== 'undefined';
+	}
+
+	get kind(): StatusbarEntryKind {
+		return this.entry?.kind ?? 'standard';
 	}
 
 	constructor(

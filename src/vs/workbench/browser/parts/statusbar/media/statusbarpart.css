@@ -127,19 +127,27 @@
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.left.first-visible-item > .statusbar-item-label,
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.right.last-visible-item > .statusbar-item-label,
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-background-color > .statusbar-item-label {
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-background-color > .statusbar-item-label,
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.rainbow-color > .statusbar-item-label {
 	margin-left: 0; /* Reduce margin to let element attach to the corners */
 	margin-right: 0;
 	padding-left: 8px; /* But increase padding to preserve our usual spacing */
 	padding-right: 8px;
 }
 
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-left.has-background-color > .statusbar-item-label {
+/* Rainbow color mode: rainbow item backgrounds are picked at HSL lightness 27%, so force a light foreground so text stays readable regardless of the active theme. */
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.rainbow-color {
+	color: #ffffff;
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-left.has-background-color > .statusbar-item-label,
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-left.rainbow-color > .statusbar-item-label {
 	padding-left: 3px;
 	padding-right: 10px;
 }
 
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-right.has-background-color > .statusbar-item-label {
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-right.has-background-color > .statusbar-item-label,
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-right.rainbow-color > .statusbar-item-label {
 	padding-left: 10px;
 	padding-right: 3px;
 }

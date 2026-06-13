@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { isStatusbarEntryLocation, IStatusbarEntryPriority, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
+import { isStatusbarEntryLocation, IStatusbarEntryPriority, StatusbarAlignment, StatusbarEntryKind } from '../../../services/statusbar/browser/statusbar.js';
 import { hide, show, isAncestorOfActiveElement } from '../../../../base/browser/dom.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -13,6 +13,7 @@ export interface IStatusbarViewModelEntry {
 	readonly id: string;
 	readonly extensionId: string | undefined;
 	readonly name: string;
+	readonly kind: StatusbarEntryKind;
 	readonly hasCommand: boolean;
 	readonly alignment: StatusbarAlignment;
 	readonly priority: IStatusbarEntryPriority;

@@ -627,6 +627,16 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('statusBarVisibility', "Controls the visibility of the status bar at the bottom of the workbench."),
 				agentsWindow: { default: false, readOnly: true },
 			},
+			'workbench.statusBar.colorMode': {
+				'type': 'string',
+				'enum': ['default', 'rainbow'],
+				'default': 'default',
+				'enumDescriptions': [
+					localize('statusBarColorModeDefault', "Use the standard theme color for the status bar."),
+					localize('statusBarColorModeRainbow', "Apply a rainbow of colors across status bar entries, grouped by category.")
+				],
+				'description': localize('statusBarColorMode', "Controls the color mode of the status bar.")
+			},
 			[NotificationsSettings.NOTIFICATIONS_POSITION]: {
 				'type': 'string',
 				'enum': [NotificationsPosition.BOTTOM_RIGHT, NotificationsPosition.BOTTOM_LEFT, NotificationsPosition.TOP_RIGHT],
