@@ -255,7 +255,9 @@ Provider-supplied customization rows that include an explicit storage origin are
 
 ### Sidebar Entrypoint Mode
 
-The Agents sidebar `AICustomizationShortcutsWidget` supports three entrypoint modes via `sessions.customizations.sidebarMode`: `welcome` (default) keeps the per-category sidebar rows but opens the AI Customization management editor welcome page, `section` restores per-category deep linking, and `single` replaces the per-category rows with one Customizations entry that opens the welcome page. All modes keep the active customization harness in sync with the active session before opening the editor.
+The Agents sidebar `AICustomizationShortcutsWidget` supports three entrypoint modes via `sessions.customizations.sidebarMode`: `section` (default) shows per-category sidebar rows, and clicking a category deep-links to that category's section in the AI Customization management editor. `welcome` is a legacy alias for `section`. `single` replaces the per-category rows with one Customizations entry that opens the welcome page. All modes keep the active customization harness in sync with the active session before opening the editor.
+
+The AI Customization overview cards in the Agents window behave like the sidebar category rows: activating a card opens the management editor with that section selected instead of resetting to the welcome page.
 
 When the harness selector dropdown is disabled in the management editor, the sidebar overview button displays the active harness name and harness icon (matching the picker icon) with a distinct background treatment.
 
