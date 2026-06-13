@@ -31,6 +31,11 @@ declare module 'vscode' {
 		color?: ThemeColor;
 
 		/**
+		 * The background color of this decoration.
+		 */
+		backgroundColor?: ThemeColor;
+
+		/**
 		 * A flag expressing that this decoration should be
 		 * propagated to its parents.
 		 */

@@ -3289,7 +3289,7 @@ export interface DecorationRequest {
 	readonly uri: UriComponents;
 }
 
-export type DecorationData = [boolean, string, string | ThemeIcon, ThemeColor];
+export type DecorationData = [boolean, string, string | ThemeIcon, ThemeColor | undefined, ThemeColor?];
 export type DecorationReply = { [id: number]: DecorationData };
 
 export interface ExtHostDecorationsShape {
