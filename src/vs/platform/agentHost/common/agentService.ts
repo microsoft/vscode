@@ -13,7 +13,7 @@ import { URI } from '../../../base/common/uri.js';
 import type { IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { ISyncedCustomization } from './agentPluginManager.js';
-import type { IAgentFeedbackToolHost } from './agentFeedbackAnnotations.js';
+import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentSubscription.js';
 import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
@@ -739,13 +739,13 @@ export interface IAgent {
 	readonly onDidMaterializeSession?: Event<IAgentMaterializeSessionEvent>;
 
 	/**
-	 * Provides the agent host's feedback tool host so the provider can
-	 * advertise and execute the feedback ("comments") server tools against a
-	 * session's annotations channel. Optional: providers that do not support
-	 * server-side feedback tools simply omit it. Called once during
-	 * registration with the {@link IAgentService}.
+	 * Provides the agent host's server-tool host so the provider can advertise
+	 * and execute the agent host's server tools (feedback "comments" today, more
+	 * in the future) against a session's state. Optional: providers that do not
+	 * support server-side tools simply omit it. Called once during registration
+	 * with the {@link IAgentService}.
 	 */
-	setFeedbackToolHost?(host: IAgentFeedbackToolHost): void;
+	setServerToolHost?(host: IAgentServerToolHost): void;
 
 	/** Create a new session. Returns server-owned session metadata. */
 	createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult>;

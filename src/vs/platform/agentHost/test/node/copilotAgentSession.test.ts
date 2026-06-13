@@ -24,7 +24,7 @@ import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToo
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, type SessionDeltaAction, type SessionErrorAction, type SessionInputRequestedAction, type SessionResponsePartAction, type SessionToolCallCompleteAction, type SessionToolCallReadyAction, type SessionToolCallStartAction, type SessionTurnCompleteAction } from '../../common/state/sessionActions.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type ToolResultContent, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, MessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
 import { ActiveClientState } from '../../node/activeClientState.js';
 import { type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
@@ -33,8 +33,7 @@ import { buildCopilotSystemNotification } from '../../node/copilot/copilotSystem
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { createSessionDataService, createZeroDiffComputeService } from '../common/sessionTestHelpers.js';
-import { IAgentFeedbackToolHost } from '../../common/agentFeedbackAnnotations.js';
-import { feedbackServerToolNames } from '../../node/shared/agentFeedbackServerTools.js';
+import { IAgentServerToolHost } from '../../common/agentServerTools.js';
 
 // ---- Mock CopilotSession (SDK level) ----------------------------------------
 
@@ -221,8 +220,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	fileReadErrors?: readonly string[];
 	/** Configure the mock session before {@link CopilotAgentSession.initializeSession} runs. */
 	configureMockSession?: (session: MockCopilotSession) => void;
-	/** Optional feedback ("comments") server-tool host wired into the session. */
-	feedbackToolHost?: IAgentFeedbackToolHost;
+	/** Optional server-tool host wired into the session. */
+	serverToolHost?: IAgentServerToolHost;
 }): Promise<{
 	session: CopilotAgentSession;
 	runtime: ICopilotSessionRuntime;
@@ -342,7 +341,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			activeClientState: options?.activeClientState,
 			resolveMcpChildId: () => undefined,
 			workingDirectory: options?.workingDirectory,
-			feedbackToolHost: options?.feedbackToolHost,
+			serverToolHost: options?.serverToolHost,
 		},
 	));
 
@@ -2934,11 +2933,18 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
-	// ---- Feedback server tools ---------------------------------------------
+	// ---- Server tools -------------------------------------------------------
 
-	suite('feedback server tools', () => {
+	suite('server tools', () => {
 
-		class FakeFeedbackToolHost implements IAgentFeedbackToolHost {
+		const fakeToolDefinitions: readonly ToolDefinition[] = [
+			{ name: 'serverToolA', description: 'A', inputSchema: { type: 'object', properties: {} } },
+			{ name: 'serverToolB', description: 'B', inputSchema: { type: 'object', properties: {} } },
+		];
+
+		class FakeServerToolHost implements IAgentServerToolHost {
+			readonly definitions: readonly ToolDefinition[] = fakeToolDefinitions;
+			readonly toolNames: readonly string[] = fakeToolDefinitions.map(def => def.name);
 			readonly advertised: string[] = [];
 			readonly executions: Array<{ sessionUri: string; toolName: string; rawArgs: unknown }> = [];
 			result = 'ok';
@@ -2957,38 +2963,38 @@ suite('CopilotAgentSession', () => {
 			}
 		}
 
-		test('advertises the feedback tools on initialize and exposes them as server SDK tools', async () => {
-			const feedbackToolHost = new FakeFeedbackToolHost();
-			const { runtime } = await createAgentSession(disposables, { feedbackToolHost });
+		test('advertises the server tools on initialize and exposes them as server SDK tools', async () => {
+			const serverToolHost = new FakeServerToolHost();
+			const { runtime } = await createAgentSession(disposables, { serverToolHost });
 
 			const sessionUri = AgentSession.uri('copilot', 'test-session-1').toString();
-			assert.deepStrictEqual(feedbackToolHost.advertised, [sessionUri]);
+			assert.deepStrictEqual(serverToolHost.advertised, [sessionUri]);
 
 			const tools = runtime.createServerSdkTools();
-			assert.deepStrictEqual(tools.map(t => t.name).sort(), [...feedbackServerToolNames].sort());
+			assert.deepStrictEqual(tools.map(t => t.name).sort(), [...serverToolHost.toolNames].sort());
 		});
 
 		test('server tool handler routes to the host and returns a success result', async () => {
-			const feedbackToolHost = new FakeFeedbackToolHost();
-			feedbackToolHost.result = 'listed 2 comments';
-			const { runtime } = await createAgentSession(disposables, { feedbackToolHost });
+			const serverToolHost = new FakeServerToolHost();
+			serverToolHost.result = 'listed 2 comments';
+			const { runtime } = await createAgentSession(disposables, { serverToolHost });
 
 			const tools = runtime.createServerSdkTools();
-			const result = await invokeClientToolHandler(tools[0], 'tc-feedback', { foo: 'bar' });
+			const result = await invokeClientToolHandler(tools[0], 'tc-server-tool', { foo: 'bar' });
 
 			const sessionUri = AgentSession.uri('copilot', 'test-session-1').toString();
-			assert.deepStrictEqual(feedbackToolHost.executions, [{ sessionUri, toolName: tools[0].name, rawArgs: { foo: 'bar' } }]);
+			assert.deepStrictEqual(serverToolHost.executions, [{ sessionUri, toolName: tools[0].name, rawArgs: { foo: 'bar' } }]);
 			assert.strictEqual(result.resultType, 'success');
 			assert.strictEqual(result.textResultForLlm, 'listed 2 comments');
 		});
 
 		test('server tool handler surfaces host failures as a failure result', async () => {
-			const feedbackToolHost = new FakeFeedbackToolHost();
-			feedbackToolHost.error = new Error('boom');
-			const { runtime } = await createAgentSession(disposables, { feedbackToolHost });
+			const serverToolHost = new FakeServerToolHost();
+			serverToolHost.error = new Error('boom');
+			const { runtime } = await createAgentSession(disposables, { serverToolHost });
 
 			const tools = runtime.createServerSdkTools();
-			const result = await invokeClientToolHandler(tools[0], 'tc-feedback');
+			const result = await invokeClientToolHandler(tools[0], 'tc-server-tool');
 
 			assert.strictEqual(result.resultType, 'failure');
 			assert.strictEqual(result.textResultForLlm, 'boom');
@@ -3000,12 +3006,12 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(runtime.createServerSdkTools(), []);
 		});
 
-		test('auto-approves every feedback tool without prompting for confirmation', async () => {
-			const feedbackToolHost = new FakeFeedbackToolHost();
-			const { runtime, signals } = await createAgentSession(disposables, { feedbackToolHost });
+		test('auto-approves every server tool without prompting for confirmation', async () => {
+			const serverToolHost = new FakeServerToolHost();
+			const { runtime, signals } = await createAgentSession(disposables, { serverToolHost });
 
 			const results = [];
-			for (const toolName of feedbackServerToolNames) {
+			for (const toolName of serverToolHost.toolNames) {
 				results.push(await runtime.handlePermissionRequest({ kind: 'custom-tool', toolCallId: `tc-${toolName}`, toolName }));
 			}
 
@@ -3013,7 +3019,7 @@ suite('CopilotAgentSession', () => {
 				results,
 				pendingConfirmations: signals.filter(s => s.kind === 'pending_confirmation').length,
 			}, {
-				results: feedbackServerToolNames.map(() => ({ kind: 'approve-once' })),
+				results: serverToolHost.toolNames.map(() => ({ kind: 'approve-once' })),
 				pendingConfirmations: 0,
 			});
 		});
