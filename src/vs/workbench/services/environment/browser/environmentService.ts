@@ -266,8 +266,19 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	@memoize
 	get profile(): string | undefined { return this.payload?.get('profile'); }
 
-	@memoize
-	get editSessionId(): string | undefined { return this.options.editSessionId; }
+	private _editSessionId: string | undefined = undefined;
+	private _editSessionIdInitialized = false;
+	get editSessionId(): string | undefined {
+		if (!this._editSessionIdInitialized) {
+			this._editSessionId = this.options.editSessionId;
+			this._editSessionIdInitialized = true;
+		}
+		return this._editSessionId;
+	}
+	set editSessionId(value: string | undefined) {
+		this._editSessionId = value;
+		this._editSessionIdInitialized = true;
+	}
 
 	private payload: Map<string, string> | undefined;
 
