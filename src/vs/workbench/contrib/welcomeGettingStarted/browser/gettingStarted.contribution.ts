@@ -263,7 +263,7 @@ CommandsRegistry.registerCommand({
 	id: 'welcome.newWorkspaceChat',
 	handler: (accessor, stepID: string) => {
 		const commandService = accessor.get(ICommandService);
-		commandService.executeCommand('workbench.action.chat.open', { mode: 'agent', query: '#new ', isPartialQuery: true });
+		commandService.executeCommand('workbench.action.chat.open', { mode: 'agent', query: '#newWorkspace ', isPartialQuery: true });
 	}
 });
 
