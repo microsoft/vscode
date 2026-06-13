@@ -16,6 +16,7 @@ import { ILanguageConfigurationService } from '../../../common/languages/languag
 import { FoldingRegions } from '../../folding/browser/foldingRanges.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { StickyElement, StickyModel, StickyRange } from './stickyScrollElement.js';
+import { ITextModel } from '../../../common/model.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
@@ -320,8 +321,8 @@ abstract class StickyModelFromCandidateFoldingProvider extends StickyModelCandid
 	}
 
 	protected createStickyModel(token: CancellationToken, model: FoldingRegions): StickyModel {
-		const foldingElement = this._fromFoldingRegions(model);
 		const textModel = this._editor.getModel();
+		const foldingElement = this._fromFoldingRegions(model, textModel);
 		return new StickyModel(textModel.uri, textModel.getVersionId(), foldingElement, undefined);
 	}
 
@@ -329,40 +330,94 @@ abstract class StickyModelFromCandidateFoldingProvider extends StickyModelCandid
 		return model !== null;
 	}
 
-
-	private _fromFoldingRegions(foldingRegions: FoldingRegions): StickyElement {
-		const length = foldingRegions.length;
+	private _fromFoldingRegions(foldingRegions: FoldingRegions, textModel: ITextModel): StickyElement {
+		const foldHeaderDetection = this._editor.getOption(EditorOption.stickyScroll).foldHeaderDetection;
 		const orderedStickyElements: StickyElement[] = [];
+		const root = new StickyElement(undefined, [], undefined);
 
-		// The root sticky outline element
-		const stickyOutlineElement = new StickyElement(
-			undefined,
-			[],
-			undefined
-		);
-
-		for (let i = 0; i < length; i++) {
-			// Finding the parent index of the current range
+		for (let i = 0; i < foldingRegions.length; i++) {
 			const parentIndex = foldingRegions.getParentIndex(i);
+			const parentNode = parentIndex !== -1 ? orderedStickyElements[parentIndex] : root;
+			const parentStart = parentIndex !== -1 ? foldingRegions.getStartLineNumber(parentIndex) : 1;
+			const foldStart = foldingRegions.getStartLineNumber(i);
 
-			let parentNode;
-			if (parentIndex !== -1) {
-				// Access the reference of the parent node
-				parentNode = orderedStickyElements[parentIndex];
-			} else {
-				// In that case the parent node is the root node
-				parentNode = stickyOutlineElement;
-			}
+			const headerLine = foldHeaderDetection
+				? this._findFoldHeaderLine(textModel, foldStart, parentStart)
+				: foldStart;
 
 			const child = new StickyElement(
-				new StickyRange(foldingRegions.getStartLineNumber(i), foldingRegions.getEndLineNumber(i) + 1),
+				new StickyRange(headerLine, foldingRegions.getEndLineNumber(i) + 1),
 				[],
 				parentNode
 			);
 			parentNode.children.push(child);
 			orderedStickyElements.push(child);
 		}
-		return stickyOutlineElement;
+		return root;
+	}
+
+	/**
+	 * Maximum number of lines to scan upward when searching for the opening
+	 * bracket of a multi-line signature. Kept small to avoid crossing into
+	 * unrelated scopes in pathological files.
+	 */
+	private static readonly _SIGNATURE_SCAN_LIMIT = 15;
+
+	/**
+	 * Given the raw fold-start line, walks upward to find the line that best
+	 * represents the scope header (e.g. the function-name line rather than a
+	 * lone Allman `{`), then delegates to {@link _findSignatureOpeningLine} to
+	 * handle multi-line signatures.
+	 */
+	private _findFoldHeaderLine(textModel: ITextModel, foldStart: number, parentStart: number): number {
+		// Walk past a lone Allman `{` and any blank lines above it.
+		let line = foldStart;
+		while (line > 1 && textModel.getLineContent(line).trim() === '{') { line--; }
+		while (line > 1 && textModel.getLineContent(line).trim() === '') { line--; }
+
+		// If the walk overshot into a lone `}` (e.g. an orphaned `{` block with
+		// no signature above it), give up and show the raw fold-start line.
+		if (textModel.getLineContent(line).trim() === '}') { return foldStart; }
+
+		// Walk past trailing-return-type continuation lines (`-> ReturnType`).
+		// This is a best-effort heuristic for languages like C++ and Rust where
+		// a trailing return type may appear on its own line between `)` and `{`.
+		while (line > 1 && textModel.getLineContent(line).trim().startsWith('->')) { line--; }
+		while (line > 1 && textModel.getLineContent(line).trim() === '') { line--; }
+
+		const lowerBound = Math.max(parentStart, line - StickyModelFromCandidateFoldingProvider._SIGNATURE_SCAN_LIMIT);
+		return this._findSignatureOpeningLine(textModel, line, lowerBound);
+	}
+
+	/**
+	 * Scans right-to-left from `startLine` down to `lowerBound` looking for
+	 * the line that contains the **outermost** unmatched `(` or `[` — i.e. the
+	 * line where a multi-line signature opens. Returns `startLine` unchanged
+	 * when no multi-line signature is detected (single-line declaration or
+	 * no-paren scope).
+	 *
+	 * **Limitation:** The scanner operates on raw character content and is not
+	 * aware of string literals or comments. A `(` inside a comment or string
+	 * above `startLine` could be misidentified as a signature opener. The
+	 * {@link _SIGNATURE_SCAN_LIMIT} bound and the depth-zero early-break on the
+	 * first scanned line keep the practical exposure small.
+	 */
+	private _findSignatureOpeningLine(textModel: ITextModel, startLine: number, lowerBound: number): number {
+		let depth = 0;
+		for (let line = startLine; line >= lowerBound; line--) {
+			const content = textModel.getLineContent(line);
+			for (let col = content.length - 1; col >= 0; col--) {
+				const ch = content[col];
+				if (ch === ')' || ch === ']') { depth++; }
+				else if (ch === '(' || ch === '[') {
+					if (--depth === 0) { return line; }
+				}
+			}
+			// No unmatched `)` on the first scanned line means there is no
+			// multi-line signature to walk back through.
+			if (line === startLine && depth === 0) { break; }
+		}
+		return startLine;
 	}
 }
 
