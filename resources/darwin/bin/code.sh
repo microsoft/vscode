@@ -20,7 +20,7 @@ function app_realpath() {
 		[[ $SOURCE != /* ]] && SOURCE=$DIR/$SOURCE
 	done
 	SOURCE_DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
-	echo "${SOURCE_DIR%%${SOURCE_DIR#*.app}}"
+	echo "$SOURCE_DIR" | grep -o '.*\.app'
 }
 
 APP_PATH="$(app_realpath "${BASH_SOURCE[0]}")"
