@@ -1031,3 +1031,103 @@
 		opacity: 1;
 	}
 }
+
+/* SOLO BRANDING START: solo-sessions-chrome */
+/* Solo Agents Window shell.
+ * This keeps the existing vs/sessions product surface, but aligns it with the
+ * main Solo workbench instead of the old VS Code-like chrome.
+ */
+
+.agent-sessions-workbench {
+	--solo-radius-sm: 6px;
+	--solo-radius-md: 8px;
+	--solo-radius-lg: 14px;
+	--solo-stroke: rgba(228, 228, 228, 0.075);
+	--solo-stroke-strong: rgba(228, 228, 228, 0.16);
+	--solo-surface-0: #181818;
+	--solo-surface-1: #141414;
+	--solo-surface-2: #1f1f1f;
+	--solo-surface-3: #262626;
+	--solo-ink-0: #e4e4e4;
+	--solo-ink-1: rgba(228, 228, 228, 0.92);
+	--solo-ink-2: rgba(228, 228, 228, 0.55);
+	--solo-shadow: 0 18px 54px rgba(0, 0, 0, 0.36);
+	background: var(--solo-surface-0);
+}
+
+.agent-sessions-workbench.shell-gradient-background::before {
+	background:
+		radial-gradient(ellipse 70% 48% at 50% 18%, rgba(255, 255, 255, 0.035), transparent 62%),
+		var(--solo-surface-0) !important;
+}
+
+.agent-sessions-workbench .part.titlebar {
+	height: 34px;
+	border-bottom: 1px solid var(--solo-stroke);
+	background: rgba(11, 11, 12, 0.92) !important;
+	backdrop-filter: blur(18px);
+}
+
+.agent-sessions-workbench .part.titlebar > .sessions-titlebar-container {
+	padding: 0 8px;
+}
+
+.agent-sessions-workbench .part.sidebar {
+	border-right: 1px solid var(--solo-stroke);
+	background: var(--solo-surface-1) !important;
+}
+
+.agent-sessions-workbench .part.sidebar > .content,
+.agent-sessions-workbench .part.sidebar > .sidebar-footer {
+	background: transparent !important;
+}
+
+.agent-sessions-workbench .part.sessionspart,
+.agent-sessions-workbench .part.auxiliarybar,
+.agent-sessions-workbench .part.panel,
+.agent-sessions-workbench .monaco-grid-view .part.editor:not(.modal-editor-part) {
+	border-color: var(--solo-stroke);
+	border-radius: var(--solo-radius-lg);
+	background: var(--solo-surface-1) !important;
+	box-shadow: var(--solo-shadow);
+}
+
+.agent-sessions-workbench .part.sessionspart .session-view,
+.agent-sessions-workbench .part.sessionspart .session-view .session-view-content,
+.agent-sessions-workbench .part.sessionspart .interactive-session {
+	background: transparent !important;
+}
+
+.agent-sessions-workbench .interactive-input-part {
+	border: 1px solid var(--solo-stroke-strong);
+	border-radius: 16px;
+	background: #1a1a1c !important;
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
+	overflow: hidden;
+}
+
+.agent-sessions-workbench .interactive-input-part:focus-within {
+	border-color: rgba(255, 255, 255, 0.26);
+	background: #1d1d20 !important;
+}
+
+.agent-sessions-workbench .session-header-bar,
+.agent-sessions-workbench .chat-composite-bar {
+	border: 1px solid var(--solo-stroke);
+	border-radius: 999px;
+	background: rgba(255, 255, 255, 0.045);
+}
+
+.agent-sessions-workbench .monaco-action-bar .action-label,
+.agent-sessions-workbench .monaco-button,
+.agent-sessions-workbench .sidebar-action-button {
+	border-radius: var(--solo-radius-sm);
+}
+
+.agent-sessions-workbench .monaco-action-bar .action-label:hover,
+.agent-sessions-workbench .monaco-action-bar .action-label.checked,
+.agent-sessions-workbench .monaco-list-row.focused,
+.agent-sessions-workbench .monaco-list-row.selected {
+	background: rgba(255, 255, 255, 0.07) !important;
+}
+/* SOLO BRANDING END: solo-sessions-chrome */
