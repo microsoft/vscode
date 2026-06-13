@@ -17,6 +17,7 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { BrowserEditorInput } from '../common/browserEditorInput.js';
+import { getBrowserPreferredGroup } from './browserEditorGroup.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -330,6 +331,10 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			if (targetGroup === undefined) {
 				return; // If the parent isn't open, don't open the child either
 			}
+		} else {
+			// Keep the browser docked in the main editor area even when editors
+			// are forced modal via `workbench.editor.useModal: 'all'`.
+			targetGroup = getBrowserPreferredGroup(this.editorGroupsService, this.configurationService);
 		}
 
 		const editorOptions = {
