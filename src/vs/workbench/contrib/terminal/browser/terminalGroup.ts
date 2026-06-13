@@ -327,6 +327,10 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 	override dispose(): void {
 		this._terminalInstances = [];
 		this._onInstancesChanged.fire();
+		for (const disposables of this._instanceDisposables.values()) {
+			dispose(disposables);
+		}
+		this._instanceDisposables.clear();
 		this._splitPaneContainer?.dispose();
 		super.dispose();
 	}
