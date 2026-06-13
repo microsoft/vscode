@@ -11,6 +11,7 @@ import { ILogService } from '../../../log/common/log.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { FileEditKind, ToolResultContentType, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
+import { IEditSurvivalReporterFactory } from './editSurvivalReporter.js';
 
 const SESSION_DB_SCHEME = 'session-db';
 
@@ -86,6 +87,7 @@ export class FileEditTracker {
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
 		@IDiffComputeService private readonly _diffComputeService: IDiffComputeService,
+		@IEditSurvivalReporterFactory private readonly _editSurvivalReporterFactory: IEditSurvivalReporterFactory,
 	) { }
 
 	/**
@@ -182,6 +184,16 @@ export class FileEditTracker {
 		} catch (err) {
 			this._logService.warn(`[FileEditTracker] Failed to persist file edit to database: ${filePath}`, err);
 		}
+
+		this._editSurvivalReporterFactory.launch({
+			sessionUri: this._sessionUri,
+			turnId,
+			toolCallId,
+			filePath,
+			beforeText,
+			afterText,
+			isCreate,
+		});
 
 		return {
 			type: ToolResultContentType.FileEdit,
