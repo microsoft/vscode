@@ -6,9 +6,10 @@
 import type * as nbformat from '@jupyterlab/nbformat';
 import type { NotebookCell, NotebookCellData, NotebookCellOutput, NotebookData, NotebookDocument } from 'vscode';
 import { CellOutputMetadata, hasKey, type CellMetadata } from './common';
-import { textMimeTypes, NotebookCellKindMarkup, CellOutputMimeTypes, defaultNotebookFormat } from './constants';
+import { textMimeTypes, NotebookCellKindMarkup, NotebookCellKindCode, CellOutputMimeTypes, defaultNotebookFormat } from './constants';
 
 const textDecoder = new TextDecoder();
+const textEncoder = new TextEncoder();
 
 export function createJupyterCellFromNotebookCell(
 	vscCell: NotebookCellData,
@@ -462,7 +463,7 @@ function fixupOutput(output: nbformat.IOutput): nbformat.IOutput {
 export function serializeNotebookToString(data: NotebookData): string {
 	const notebookContent = getNotebookMetadata(data);
 	// use the preferred language from document metadata or the first cell language as the notebook preferred cell language
-	const preferredCellLanguage = notebookContent.metadata?.language_info?.name ?? data.cells.find(cell => cell.kind === 2)?.languageId;
+	const preferredCellLanguage = notebookContent.metadata?.language_info?.name ?? data.cells.find(cell => cell.kind === NotebookCellKindCode)?.languageId;
 
 	notebookContent.cells = data.cells
 		.map(cell => createJupyterCellFromNotebookCell(cell, preferredCellLanguage))
@@ -474,6 +475,64 @@ export function serializeNotebookToString(data: NotebookData): string {
 
 	return serializeNotebookToJSON(notebookContent, indentAmount);
 }
+
+export function serializeNotebookToBytes(data: NotebookData): Uint8Array {
+	const notebookContent = getNotebookMetadata(data);
+	// use the preferred language from document metadata or the first cell language as the notebook preferred cell language
+	const preferredCellLanguage = notebookContent.metadata?.language_info?.name ?? data.cells.find(cell => cell.kind === 2)?.languageId;
+
+	const cells = data.cells
+		.map(cell => createJupyterCellFromNotebookCell(cell, preferredCellLanguage))
+		.map(pruneCell);
+
+	const indentAmount = data.metadata && typeof data.metadata.indentAmount === 'string' ?
+		data.metadata.indentAmount :
+		' ';
+	const effectiveIndentAmount = indentAmount.slice(0, 10);
+
+	const chunks: Uint8Array[] = [];
+	let totalLength = 0;
+	const append = (value: string) => {
+		const chunk = textEncoder.encode(value);
+		chunks.push(chunk);
+		totalLength += chunk.byteLength;
+	};
+
+	append('{\n');
+	append(`${effectiveIndentAmount}"cells": [`);
+	if (cells.length > 0) {
+		append('\n');
+		for (let i = 0; i < cells.length; i++) {
+			if (i > 0) {
+				append(',\n');
+			}
+			append(indentLines(JSON.stringify(sortObjectPropertiesRecursively(cells[i]), undefined, indentAmount), effectiveIndentAmount + effectiveIndentAmount));
+		}
+		append(`\n${effectiveIndentAmount}`);
+	}
+	append('],\n');
+	append(`${effectiveIndentAmount}"metadata": ${indentFollowingLines(JSON.stringify(sortObjectPropertiesRecursively(notebookContent.metadata || {}), undefined, indentAmount), effectiveIndentAmount)},\n`);
+	append(`${effectiveIndentAmount}"nbformat": ${JSON.stringify(notebookContent.nbformat || defaultNotebookFormat.major)},\n`);
+	append(`${effectiveIndentAmount}"nbformat_minor": ${JSON.stringify(notebookContent.nbformat_minor ?? defaultNotebookFormat.minor)}\n`);
+	append('}\n');
+
+	const result = new Uint8Array(totalLength);
+	let offset = 0;
+	for (const chunk of chunks) {
+		result.set(chunk, offset);
+		offset += chunk.byteLength;
+	}
+	return result;
+}
+
+function indentLines(value: string, indent: string): string {
+	return indent + value.replace(/\n/g, `\n${indent}`);
+}
+
+function indentFollowingLines(value: string, indent: string): string {
+	return value.replace(/\n/g, `\n${indent}`);
+}
+
 function serializeNotebookToJSON(notebookContent: Partial<nbformat.INotebookContent>, indentAmount: string): string {
 	// ipynb always ends with a trailing new line (we add this so that SCMs do not show unnecessary changes, resulting from a missing trailing new line).
 	const sorted = sortObjectPropertiesRecursively(notebookContent);
