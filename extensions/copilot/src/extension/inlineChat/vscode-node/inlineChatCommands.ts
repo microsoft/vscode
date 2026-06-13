@@ -117,6 +117,9 @@ export function registerInlineChatCommands(accessor: ServicesAccessor): IDisposa
 			return;
 		}
 		const { edits } = await comment.suggestion;
+		if (!vscode.window.visibleTextEditors.includes(activeEditor)) {
+			return;
+		}
 		activeEditor.edit(editBuilder => {
 			edits.forEach(edit => {
 				editBuilder.replace(edit.range, edit.newText);
