@@ -54,7 +54,7 @@ import { ShellManager } from './copilotShellTools.js';
 import { isRestrictedTelemetryEnabled } from './copilotTokenFields.js';
 import { CopilotSlashCommandCompletionProvider } from './copilotSlashCommandCompletionProvider.js';
 import { DiscoveredType, SessionCustomizationDiscovery, areDiscoveredDirectoriesEqual, type IDiscoveredDirectory } from './sessionCustomizationDiscovery.js';
-
+import { IProductService } from '../../../product/common/productService.js';
 /**
  * Maps a VS Code {@link LogLevel} to the Copilot CLI runtime's `logLevel`
  * option so the spawned CLI logs (written to `~/.copilot/logs/process-*.log`)
@@ -253,6 +253,15 @@ function prependAnnouncementToFirstTurn(
 	return result;
 }
 
+function initializeIntegrationId(isCodeOSS: boolean) {
+	// Initialize integration id
+	if (isCodeOSS) {
+		process.env.GITHUB_COPILOT_INTEGRATION_ID = 'code-oss';
+	} else {
+		process.env.GITHUB_COPILOT_INTEGRATION_ID = 'vsode-chat';
+	}
+}
+
 /**
  * Agent provider backed by the Copilot SDK {@link CopilotClient}.
  */
@@ -343,8 +352,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
 		@IAgentHostCompletions completions: IAgentHostCompletions,
 		@IAgentHostCheckpointService private readonly _checkpointService: IAgentHostCheckpointService,
+		@IProductService _productService: IProductService,
 	) {
 		super();
+		initializeIntegrationId(_productService.quality === 'code-oss');
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController));
 		this._sessionLauncher = this._instantiationService.createInstance(CopilotSessionLauncher);
 		this.onDidCustomizationsChange = this._plugins.onDidChange;
