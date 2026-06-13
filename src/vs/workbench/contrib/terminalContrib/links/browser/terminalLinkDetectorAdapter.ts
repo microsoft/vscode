@@ -103,6 +103,9 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 			l.text = l.text.slice(0, -1);
 			l.bufferRange.end.x--;
 		}
+		if (this._store.isDisposed) {
+			throw new Error('Terminal link detector adapter has been disposed');
+		}
 		return this._instantiationService.createInstance(TerminalLink,
 			this._detector.xterm,
 			l.bufferRange,
