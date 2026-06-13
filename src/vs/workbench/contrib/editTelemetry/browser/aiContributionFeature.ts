@@ -13,10 +13,16 @@ import { createDocWithJustReason } from './helpers/documentWithAnnotatedEdits.js
 import { DocumentEditSourceTracker } from './telemetry/editTracker.js';
 
 export type AiContributionLevel = 'chatAndAgent' | 'all';
+type ExplicitAiContributionFeature = 'chat' | 'inlineSuggest';
 
 interface TrackerEntry {
 	readonly trackerStore: DisposableStore;
 	readonly tracker: DocumentEditSourceTracker;
+}
+
+interface ExplicitAiContributionMark {
+	readonly resource: UriComponents;
+	readonly feature: ExplicitAiContributionFeature;
 }
 
 /**
@@ -26,6 +32,7 @@ export class AiContributionFeature extends Disposable {
 
 	private readonly _trackers = new ResourceMap<TrackerEntry>();
 	private readonly _documentsByUri = new ResourceMap<AnnotatedDocument>();
+	private readonly _explicitMarks = new ResourceMap<Set<ExplicitAiContributionFeature>>();
 
 	constructor(
 		annotatedDocuments: IAnnotatedDocuments,
@@ -59,6 +66,10 @@ export class AiContributionFeature extends Disposable {
 			return this._hasAiContributions(resources, level);
 		}));
 
+		this._register(CommandsRegistry.registerCommand('_aiEdits.markAiContributions', (_accessor, marks: readonly ExplicitAiContributionMark[]) => {
+			this._markAiContributions(marks);
+		}));
+
 		this._register(CommandsRegistry.registerCommand('_aiEdits.clearAiContributions', (_accessor, resources: UriComponents[]) => {
 			this._clearAiContributions(resources);
 		}));
@@ -72,6 +83,7 @@ export class AiContributionFeature extends Disposable {
 		for (const [, entry] of this._trackers) {
 			entry.trackerStore.dispose();
 		}
+		this._explicitMarks.clear();
 		super.dispose();
 	}
 
@@ -82,15 +94,33 @@ export class AiContributionFeature extends Disposable {
 		return { trackerStore, tracker };
 	}
 
+	private _markAiContributions(marks: readonly ExplicitAiContributionMark[]): void {
+		for (const mark of marks) {
+			const resource = URI.revive(mark.resource);
+			let features = this._explicitMarks.get(resource);
+			if (!features) {
+				features = new Set<ExplicitAiContributionFeature>();
+				this._explicitMarks.set(resource, features);
+			}
+			features.add(mark.feature);
+		}
+	}
+
 	private _hasAiContributions(resources: UriComponents[], level: AiContributionLevel): boolean {
 		for (const resource of resources) {
-			const entry = this._trackers.get(URI.revive(resource));
+			const uri = URI.revive(resource);
+			const entry = this._trackers.get(uri);
 			if (entry) {
 				for (const edit of entry.tracker.getTrackedRanges()) {
-					if (edit.source.category === 'ai' && (level === 'all' || edit.source.feature === 'chat')) {
+					if (edit.source.category === 'ai' && this._featureMatchesLevel(edit.source.feature, level)) {
 						return true;
 					}
 				}
+			}
+
+			const explicitMarks = this._explicitMarks.get(uri);
+			if (explicitMarks && [...explicitMarks].some(feature => this._featureMatchesLevel(feature, level))) {
+				return true;
 			}
 		}
 		return false;
@@ -98,7 +128,16 @@ export class AiContributionFeature extends Disposable {
 
 	private _clearAiContributions(resources?: UriComponents[]): void {
 		const uris = resources ? resources.map(r => URI.revive(r)) : [...this._trackers.keys()];
+		if (!resources) {
+			for (const uri of this._explicitMarks.keys()) {
+				if (!this._trackers.has(uri)) {
+					uris.push(uri);
+				}
+			}
+		}
 		for (const uri of uris) {
+			this._explicitMarks.delete(uri);
+
 			const entry = this._trackers.get(uri);
 			if (entry) {
 				entry.trackerStore.dispose();
@@ -111,5 +150,9 @@ export class AiContributionFeature extends Disposable {
 				}
 			}
 		}
+	}
+
+	private _featureMatchesLevel(feature: ExplicitAiContributionFeature, level: AiContributionLevel): boolean {
+		return level === 'all' || feature === 'chat';
 	}
 }
