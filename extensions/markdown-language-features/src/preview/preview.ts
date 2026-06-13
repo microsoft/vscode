@@ -162,11 +162,16 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			const watcher = this._register(vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(resource, '*')));
 			this._register(watcher.onDidChange(uri => {
 				if (this.isPreviewOf(uri)) {
-					// Only use the file system event when VS Code does not already know about the file.
-					// This is needed to avoid duplicate refreshes
-					if (!vscode.workspace.textDocuments.some(doc => areUrisEqual(doc.uri, uri))) {
-						this.refresh();
-					}
+					// Always refresh on a file system change for the previewed resource. Previously this
+					// path was skipped when the resource was already open as a `TextDocument`, on the
+					// assumption that `onDidChangeTextDocument` would handle the refresh. That assumption
+					// does not always hold for external file overwrites (see #265277): the text document
+					// model reload can be skipped or delayed (e.g. etag/stat caching, remote/network FS
+					// timing, or content-equality short-circuits), leaving the preview showing stale
+					// content. Any genuine duplicate refresh that overlaps with `onDidChangeTextDocument`
+					// is already coalesced by the `#throttleTimer` debounce and version-equality check in
+					// `#updatePreview`, so unconditionally refreshing here is safe.
+					this.refresh();
 				}
 			}));
 		}
