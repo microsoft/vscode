@@ -345,11 +345,12 @@ export class InlineEditsGutterIndicator extends Disposable {
 		const gutterViewPortPaddingTop = 2;
 
 		// Entire gutter view from top left to bottom right
-		const gutterWidthWithoutPadding = layout.decorationsLeft + layout.decorationsWidth - layout.glyphMarginLeft - 2 * gutterViewPortPaddingLeft;
-		const gutterHeightWithoutPadding = layout.height - 2 * gutterViewPortPaddingTop;
+		const gutterWidthWithoutPadding = Math.max(0, layout.decorationsLeft + layout.decorationsWidth - layout.glyphMarginLeft - 2 * gutterViewPortPaddingLeft);
+		const gutterHeightWithoutPadding = Math.max(0, layout.height - 2 * gutterViewPortPaddingTop);
 		const gutterViewPortWithStickyScroll = Rect.fromLeftTopWidthHeight(gutterViewPortPaddingLeft, gutterViewPortPaddingTop, gutterWidthWithoutPadding, gutterHeightWithoutPadding);
-		const gutterViewPortWithoutStickyScrollWithoutPaddingTop = gutterViewPortWithStickyScroll.withTop(this._stickyScrollHeight.read(reader));
-		const gutterViewPortWithoutStickyScroll = gutterViewPortWithStickyScroll.withTop(gutterViewPortWithoutStickyScrollWithoutPaddingTop.top + gutterViewPortPaddingTop);
+		const stickyScrollTop = Math.min(this._stickyScrollHeight.read(reader), gutterViewPortWithStickyScroll.bottom);
+		const gutterViewPortWithoutStickyScrollWithoutPaddingTop = gutterViewPortWithStickyScroll.withTop(stickyScrollTop);
+		const gutterViewPortWithoutStickyScroll = gutterViewPortWithStickyScroll.withTop(Math.min(gutterViewPortWithoutStickyScrollWithoutPaddingTop.top + gutterViewPortPaddingTop, gutterViewPortWithStickyScroll.bottom));
 
 		// The glyph margin area across all relevant lines
 		const verticalEditRange = s.lineOffsetRange.read(reader);
