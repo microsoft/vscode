@@ -33,13 +33,14 @@ import { ILogService } from '../../../platform/log/common/log.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { ISecretStorageService } from '../../../platform/secrets/common/secrets.js';
 import { AuthenticationSessionInfo, getCurrentAuthenticationSessionInfo } from '../../services/authentication/browser/authenticationService.js';
-import { AuthenticationSessionAccount, IAuthenticationService, INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
+import { ACCOUNTS_AVATAR_SETTING, AuthenticationSessionAccount, IAuthenticationService, INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { ILifecycleService, LifecyclePhase } from '../../services/lifecycle/common/lifecycle.js';
 import { IUserDataProfileService } from '../../services/userDataProfile/common/userDataProfile.js';
 import { DEFAULT_ICON } from '../../services/userDataProfile/common/userDataProfileIcons.js';
 import { isString } from '../../../base/common/types.js';
+import { URI } from '../../../base/common/uri.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
 import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND } from '../../common/theme.js';
 import { IBaseActionViewItemOptions } from '../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -264,6 +265,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 
 	private initialized = false;
 	private sessionFromEmbedder = new Lazy<Promise<AuthenticationSessionInfo | undefined>>(() => getCurrentAuthenticationSessionInfo(this.secretStorageService, this.productService));
+	private avatarImg: HTMLImageElement | undefined;
 
 	constructor(
 		contextMenuActionsProvider: () => IAction[],
@@ -301,11 +303,13 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 	private registerListeners(): void {
 		this._register(this.authenticationService.onDidRegisterAuthenticationProvider(async (e) => {
 			await this.addAccountsFromProvider(e.id);
+			this.updateAvatar();
 		}));
 
 		this._register(this.authenticationService.onDidUnregisterAuthenticationProvider((e) => {
 			this.groupedAccounts.delete(e.id);
 			this.problematicProviders.delete(e.id);
+			this.updateAvatar();
 		}));
 
 		this._register(this.authenticationService.onDidChangeSessions(async e => {
@@ -320,6 +324,13 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 				} catch (e) {
 					this.logService.error(e);
 				}
+			}
+			this.updateAvatar();
+		}));
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ACCOUNTS_AVATAR_SETTING)) {
+				this.updateAvatar();
 			}
 		}));
 	}
@@ -351,6 +362,56 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		}
 
 		this.initialized = true;
+		this.updateAvatar();
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+
+		this.avatarImg = $('img.accounts-avatar') as HTMLImageElement;
+		this.avatarImg.alt = '';
+		this.avatarImg.setAttribute('aria-hidden', 'true');
+		this.avatarImg.draggable = false;
+		this.avatarImg.style.display = 'none';
+		this.avatarImg.onerror = () => {
+			this.avatarImg!.style.display = 'none';
+			this.label.classList.remove('has-avatar');
+		};
+		append(this.label, this.avatarImg);
+
+		this.updateAvatar();
+	}
+
+	private updateAvatar(): void {
+		if (!this.avatarImg) {
+			return;
+		}
+
+		// Find the first account that has an icon
+		let avatarIcon: URI | undefined;
+		if (this.configurationService.getValue<boolean>(ACCOUNTS_AVATAR_SETTING)) {
+			for (const accounts of this.groupedAccounts.values()) {
+				for (const account of accounts) {
+					if (account.icon) {
+						avatarIcon = account.icon;
+						break;
+					}
+				}
+				if (avatarIcon) {
+					break;
+				}
+			}
+		}
+
+		if (avatarIcon) {
+			this.avatarImg.src = avatarIcon.toString(true);
+			this.avatarImg.style.display = '';
+			this.label.classList.add('has-avatar');
+		} else {
+			this.avatarImg.removeAttribute('src');
+			this.avatarImg.style.display = 'none';
+			this.label.classList.remove('has-avatar');
+		}
 	}
 
 	//#region overrides
@@ -536,6 +597,10 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 			// can't sign out of it, update the account to mark it as "can't sign out"
 			if (!canSignOut) {
 				existingAccount.canSignOut = canSignOut;
+			}
+			// Update the icon if the provider supplied a new one
+			if (account.icon) {
+				existingAccount.icon = account.icon;
 			}
 		} else {
 			accounts.push({ ...account, canSignOut });

@@ -13,9 +13,19 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
  */
 export const INTERNAL_AUTH_PROVIDER_PREFIX = '__';
 
+/**
+ * Setting that controls whether the profile image (avatar) of a signed-in account
+ * is shown in account related UI.
+ */
+export const ACCOUNTS_AVATAR_SETTING = 'workbench.accounts.showAvatar';
+
 export interface AuthenticationSessionAccount {
 	label: string;
 	id: string;
+	/**
+	 * An optional icon for the account. This is typically a URI to a profile image/avatar.
+	 */
+	icon?: URI;
 }
 
 export interface AuthenticationSession {
