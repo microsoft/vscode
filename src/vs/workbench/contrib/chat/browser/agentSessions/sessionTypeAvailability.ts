@@ -7,7 +7,7 @@ import { IMarkdownString, MarkdownString } from '../../../../../base/common/html
 import { localize } from '../../../../../nls.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
-import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../common/languageModels.js';
+import { ILanguageModelsService } from '../../common/languageModels.js';
 import { hasModelsTargetingSession } from '../widget/input/chatModelSelectionLogic.js';
 
 /**
@@ -27,12 +27,16 @@ export enum SessionTypeAvailability {
  * Whether the given session type can currently produce a request, and if not,
  * why. A session type is usable when it can fall back to the synthetic "Auto"
  * model ({@link IChatSessionsService.supportsAutoModelForSessionType}) or has at
- * least one model targeting it (e.g. a user-configured BYOK model). When it is
- * not usable, Copilot Free / Student (EDU) users see an Upgrade affordance
- * ({@link SessionTypeAvailability.UpgradeRequired}); users already on a paid
- * plan simply have no models ({@link SessionTypeAvailability.NoModels}) and are
- * shown an explanation with no upgrade button. Unavailable types are greyed out
- * in the picker either way.
+ * least one model targeting it (e.g. a user-configured BYOK model). A type that
+ * does not require its own models ({@link IChatSessionsService.requiresCustomModelsForSessionType})
+ * — e.g. the cloud delegation agent, which runs remotely without a local model —
+ * also stays usable on a paid plan even with neither an Auto fallback nor a
+ * targeted model. When a type is not usable, Copilot Free / Student (EDU) users
+ * see an Upgrade affordance ({@link SessionTypeAvailability.UpgradeRequired});
+ * paid users whose type genuinely requires its own models but has none simply
+ * have no models ({@link SessionTypeAvailability.NoModels}) and are shown an
+ * explanation with no upgrade button. Unavailable types are greyed out in the
+ * picker either way.
  *
  * While the type's contribution isn't registered yet (e.g. during a window
  * reload before the extension host re-registers), this returns
@@ -62,12 +66,20 @@ export function getSessionTypeAvailability(
 	if (!chatSessionsService.getChatSessionContribution(type)) {
 		return SessionTypeAvailability.Available;
 	}
-	// Determinate and unusable: the lock is model-based (above); the SKU only
-	// decides whether the locked type offers an upgrade. Everyone other than
-	// Free / Student gets no upgrade affordance.
+	// No Auto fallback and no targeted models. Copilot Free / Student users must
+	// upgrade to unlock such a type (e.g. the cloud delegation agent is a paid
+	// feature), so they always get the Upgrade affordance.
 	const entitlement = chatEntitlementService.entitlement;
 	const canUpgrade = entitlement === ChatEntitlement.Free || entitlement === ChatEntitlement.EDU;
-	return canUpgrade ? SessionTypeAvailability.UpgradeRequired : SessionTypeAvailability.NoModels;
+	if (canUpgrade) {
+		return SessionTypeAvailability.UpgradeRequired;
+	}
+	// On a paid plan only types that genuinely need their own models are unusable
+	// here. A type that does not require custom models (e.g. the cloud delegation
+	// agent, which runs remotely without a local model) stays selectable.
+	return chatSessionsService.requiresCustomModelsForSessionType(type)
+		? SessionTypeAvailability.NoModels
+		: SessionTypeAvailability.Available;
 }
 
 /**
@@ -76,13 +88,10 @@ export function getSessionTypeAvailability(
  * since a session type that requires its own models cannot use them.
  */
 function hasModelsTargetingSessionType(languageModelsService: ILanguageModelsService, type: string): boolean {
-	const models = languageModelsService.getLanguageModelIds()
-		.map((id): ILanguageModelChatMetadataAndIdentifier | undefined => {
-			const metadata = languageModelsService.lookupLanguageModel(id);
-			return metadata ? { identifier: id, metadata } : undefined;
-		})
-		.filter((m): m is ILanguageModelChatMetadataAndIdentifier => !!m);
-	return hasModelsTargetingSession(models, type);
+	return languageModelsService.getLanguageModelIds().some(id => {
+		const metadata = languageModelsService.lookupLanguageModel(id);
+		return !!metadata && hasModelsTargetingSession([{ identifier: id, metadata }], type);
+	});
 }
 
 /**
