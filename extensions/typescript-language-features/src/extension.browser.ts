@@ -94,7 +94,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Api> {
 	// context.subscriptions.push(task.register(lazyClientHost.map(x => x.serviceClient)));
 
 	import('./languageFeatures/tsconfig').then(module => {
-		context.subscriptions.push(module.register());
+		context.subscriptions.push(module.register(versionProvider, context.workspaceState));
 	});
 
 	context.subscriptions.push(lazilyActivateClient(lazyClientHost, pluginManager, activeJsTsEditorTracker, async () => {
