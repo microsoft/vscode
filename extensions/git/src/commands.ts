@@ -5644,7 +5644,8 @@ export class CommandCenter {
 						options.modal = false;
 						break;
 					default: {
-						const hintLines = (err.stderr || err.stdout || err.message || String(err))
+						const rawOutput = err.stderr || err.stdout || err.message || String(err);
+						const hintLines = rawOutput
 							.replace(/^error: /mi, '')
 							.replace(/^> husky.*$/mi, '')
 							.split(/[\r\n]/)
@@ -5653,6 +5654,12 @@ export class CommandCenter {
 						message = hintLines.length > 0
 							? l10n.t('Git: {0}', err.stdout ? hintLines[hintLines.length - 1] : hintLines[0])
 							: l10n.t('Git error');
+
+						// If all non-empty lines in the output are warnings, treat as warning
+						if (hintLines.length > 0 && hintLines.every((line: string) => /^warning:/i.test(line))) {
+							type = 'warning';
+							options.modal = false;
+						}
 
 						break;
 					}
