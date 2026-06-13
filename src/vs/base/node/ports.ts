@@ -198,12 +198,28 @@ export function findFreePortFaster(startPort: number, giveUpAfter: number, timeo
 	});
 }
 
-function dispose(socket: net.Socket): void {
+
+/**
+ * Maximum time to wait for a 'close' event to fire after the socket stream
+ * ends. For unix domain sockets, the close event may not fire consistently
+ * due to what appears to be a Node.js bug.
+ *
+ * @see https://github.com/microsoft/vscode/issues/211462#issuecomment-2155471996
+ */
+export const socketEndTimeoutMs = 30_000;
+
+export function dispose(socket: net.Socket, allowSendingQueuedMessages = false): void {
 	try {
 		socket.removeAllListeners('connect');
 		socket.removeAllListeners('error');
-		socket.end();
-		socket.destroy();
+		if (allowSendingQueuedMessages) {
+			const timeout = setTimeout(() => socket.destroy(), socketEndTimeoutMs);
+			socket.once('close', () => clearTimeout(timeout));
+			socket.destroySoon();
+		} else {
+			socket.end();
+			socket.destroy();
+		}
 		socket.unref();
 	} catch (error) {
 		console.error(error); // otherwise this error would get lost in the callback chain

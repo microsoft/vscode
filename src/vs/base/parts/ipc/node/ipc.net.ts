@@ -17,6 +17,7 @@ import { Platform, platform } from '../../../common/platform.js';
 import { generateUuid } from '../../../common/uuid.js';
 import { ClientConnectionEvent, IPCServer } from '../common/ipc.js';
 import { ChunkStream, Client, ISocket, Protocol, SocketCloseEvent, SocketCloseEventType, SocketDiagnostics, SocketDiagnosticsEventType } from '../common/ipc.net.js';
+import { socketEndTimeoutMs } from '../../../node/ports.js';
 
 export function upgradeToISocket(req: http.IncomingMessage, socket: Socket, {
 	debugLabel,
@@ -84,14 +85,6 @@ export function upgradeToISocket(req: http.IncomingMessage, socket: Socket, {
 	}
 }
 
-/**
- * Maximum time to wait for a 'close' event to fire after the socket stream
- * ends. For unix domain sockets, the close event may not fire consistently
- * due to what appears to be a Node.js bug.
- *
- * @see https://github.com/microsoft/vscode/issues/211462#issuecomment-2155471996
- */
-const socketEndTimeoutMs = 30_000;
 
 export class NodeSocket implements ISocket {
 
