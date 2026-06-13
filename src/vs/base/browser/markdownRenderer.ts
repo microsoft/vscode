@@ -861,7 +861,50 @@ function completeSingleLinePattern(token: marked.Tokens.Text | marked.Tokens.Par
 		}
 	}
 
-	return undefined;
+	// Fallback: if the paragraph ends with a partial HTML tag (e.g. `<sup><span`
+	// while streaming HTML content), strip the partial tag so it isn't rendered
+	// as raw escaped text. Once the rest of the tag arrives in a later chunk it
+	// will be re-tokenized correctly. See issue #239765.
+	return completeUnclosedHtmlTag(token);
+}
+
+/**
+ * Detect whether `token`'s merged raw text ends inside an unclosed HTML tag
+ * such as `<sup` or `<span style="color:red"`. If so, return a re-lexed
+ * version with the partial tag trimmed off so it isn't rendered as raw
+ * escaped text during streaming.
+ *
+ * Only trims when the trailing `<` is followed by characters that look like
+ * the start of a tag (letter, `/`, `!`, or `?`) so that markdown using `<`
+ * as a literal character (e.g. `5 < 10`) is left alone.
+ */
+function completeUnclosedHtmlTag(token: marked.Tokens.Text | marked.Tokens.Paragraph): marked.Token | undefined {
+	const merged = mergeRawTokenText(token.tokens ?? []);
+
+	// Find the last `<`. If everything after it contains a `>`, the tag is
+	// already closed and there is nothing to do.
+	const lastOpen = merged.lastIndexOf('<');
+	if (lastOpen === -1) {
+		return undefined;
+	}
+	const trailing = merged.slice(lastOpen);
+	if (trailing.includes('>')) {
+		return undefined;
+	}
+
+	// Only treat this as a partial tag if it actually looks like one.
+	// Allowed shapes: `<x...`, `</x...`, `<!...`, `<?...`. Bare `<` followed
+	// by whitespace/EOL or other non-tag characters is left as literal text.
+	if (!/^<[/!?a-zA-Z]/.test(trailing)) {
+		return undefined;
+	}
+
+	const trimmed = merged.slice(0, lastOpen).trimEnd();
+	if (!trimmed) {
+		return undefined;
+	}
+
+	return marked.lexer(trimmed)[0];
 }
 
 function hasLinkTextAndStartOfLinkTarget(str: string): boolean {
