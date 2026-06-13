@@ -211,15 +211,6 @@ export function registerChatCopyActions() {
 				}
 			}
 
-			// If there is a text selection, and focus is inside the widget, copy the selected text.
-			// Otherwise, context menu with no selection -> copy the full item
-			const nativeSelection = dom.getActiveWindow().getSelection();
-			const selectedText = nativeSelection?.toString();
-			if (widget && selectedText && selectedText.length > 0 && dom.isAncestor(dom.getActiveElement(), widget.domNode)) {
-				await clipboardService.writeText(selectedText);
-				return;
-			}
-
 			if (!isRequestVM(item) && !isResponseVM(item)) {
 				return;
 			}
