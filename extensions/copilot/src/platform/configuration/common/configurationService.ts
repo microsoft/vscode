@@ -559,6 +559,8 @@ export enum AzureAuthMode {
 export namespace AzureAuthMode {
 	/** Microsoft authentication provider ID for VS Code authentication API */
 	export const MICROSOFT_AUTH_PROVIDER = 'microsoft';
+	/** Microsoft Sovereign Cloud authentication provider ID for VS Code authentication API */
+	export const MICROSOFT_SOVEREIGN_CLOUD_AUTH_PROVIDER = 'microsoft-sovereign-cloud';
 	/** Azure Cognitive Services scope for Entra ID authentication */
 	export const COGNITIVE_SERVICES_SCOPE = 'https://cognitiveservices.azure.com/.default';
 }
