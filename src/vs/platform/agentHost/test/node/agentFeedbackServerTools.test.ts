@@ -112,7 +112,7 @@ suite('AgentFeedbackServerTools', () => {
 		const outcome = applyFeedbackTool(state, sessionResource, resolveCommentsToolName, { commentIds: ['a'], resolved: false });
 		const set = outcome.actions[0] as Extract<typeof outcome.actions[0], { type: ActionType.AnnotationsSet }>;
 		assert.strictEqual(set.annotation.resolved, false);
-		assert.deepStrictEqual(set.annotation._meta?.[FEEDBACK_ANNOTATION_META_KEY], { kind: 'codeReview', state: 'accepted', sessionResource });
+		assert.deepStrictEqual(set.annotation._meta?.[FEEDBACK_ANNOTATION_META_KEY], { kind: 'codeReview', state: 'submitted', sessionResource });
 	});
 
 	test('unknown tool name throws', () => {

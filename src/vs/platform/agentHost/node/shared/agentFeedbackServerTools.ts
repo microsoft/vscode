@@ -59,7 +59,7 @@ const listCommentsInputSchema: ToolDefinition['inputSchema'] = {
 const deleteCommentsInputSchema: ToolDefinition['inputSchema'] = {
 	type: 'object',
 	properties: {
-		commentIds: { type: 'array', description: 'Comment IDs to delete.' },
+		commentIds: { type: 'array', items: { type: 'string' }, description: 'Comment IDs to delete.' },
 	},
 	required: ['commentIds'],
 };
@@ -67,7 +67,7 @@ const deleteCommentsInputSchema: ToolDefinition['inputSchema'] = {
 const resolveCommentsInputSchema: ToolDefinition['inputSchema'] = {
 	type: 'object',
 	properties: {
-		commentIds: { type: 'array', description: 'Comment IDs to update.' },
+		commentIds: { type: 'array', items: { type: 'string' }, description: 'Comment IDs to update.' },
 		resolved: { type: 'boolean', description: 'Whether the comments should be marked as resolved. Defaults to true.' },
 	},
 	required: ['commentIds'],
@@ -349,7 +349,7 @@ export function applyFeedbackTool(state: AnnotationsState, sessionResource: stri
 				const nextMeta: IFeedbackAnnotationMeta = {
 					...meta,
 					kind: meta?.kind ?? 'user',
-					state: resolved ? 'resolved' : 'accepted',
+					state: resolved ? 'resolved' : 'submitted',
 					sessionResource: meta?.sessionResource ?? sessionResource,
 				};
 				const nextAnnotation: Annotation = {
