@@ -1,0 +1,23 @@
+# PR Auto-Fix — lightweight caller. The heavy logic lives in getnodus/workflow.
+# When CI fails or PRs are conflicted, Claude Code auto-repairs them.
+
+name: PR Auto-Fix
+
+on:
+  workflow_run:
+    workflows: ["chat-lib tests", "Component Fixtures"]
+    types: [completed]
+  schedule:
+    - cron: '17 */3 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  call:
+    uses: getnodus/workflow/.github/workflows/pr-autofix.yml@main
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+      actions: read
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
