@@ -1,78 +1,112 @@
-# Visual Studio Code - Open Source ("Code - OSS")
-[![Feature Requests](https://img.shields.io/github/issues/microsoft/vscode/feature-request.svg)](https://github.com/microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc)
-[![Bugs](https://img.shields.io/github/issues/microsoft/vscode/bug.svg)](https://github.com/microsoft/vscode/issues?utf8=✓&q=is%3Aissue+is%3Aopen+label%3Abug)
-[![Gitter](https://img.shields.io/badge/chat-on%20gitter-yellow.svg)](https://gitter.im/Microsoft/vscode)
+# Solo – Bring Your Own IDE
 
-## The Repository
+Solo is a customizable, extensible IDE framework that lets you build a code editor tailored to your workflow. Built on a foundation of VS Code OSS, Solo removes the Microsoft customizations and provides a foundation for creating personalized development environments.
 
-This repository ("`Code - OSS`") is where we (Microsoft) develop the [Visual Studio Code](https://code.visualstudio.com) product together with the community. Not only do we work on code and issues here, but we also publish our [roadmap](https://github.com/microsoft/vscode/wiki/Roadmap), [monthly iteration plans](https://github.com/microsoft/vscode/wiki/Iteration-Plans), and our [endgame plans](https://github.com/microsoft/vscode/wiki/Running-the-Endgame). This source code is available to everyone under the standard [MIT license](https://github.com/microsoft/vscode/blob/main/LICENSE.txt).
+## What is Solo?
 
-## Visual Studio Code
+Solo is like [Conductor.build](https://conductor.build) but for IDEs. It's a "bring your own IDE" framework—a flexible platform where you can:
 
-<p align="center">
-  <img alt="VS Code in action" src="https://github.com/user-attachments/assets/56af271c-949d-454c-a3ea-16188c063414">
-</p>
+- Start with a solid, proven editor foundation (VS Code OSS)
+- Customize the UI, theme, and default behavior to match your workflow
+- Add, remove, or modify extensions and language support
+- Build IDE experiences tailored to specific teams, organizations, or use cases
+- Extend core functionality without being locked into Microsoft's product direction
 
-[Visual Studio Code](https://code.visualstudio.com) is a distribution of the `Code - OSS` repository with Microsoft-specific customizations released under a traditional [Microsoft product license](https://code.visualstudio.com/License/).
+## Getting Started
 
-[Visual Studio Code](https://code.visualstudio.com) combines the simplicity of a code editor with what developers need for their core edit-build-debug cycle. It provides comprehensive code editing, navigation, and understanding support along with lightweight debugging, a rich extensibility model, and lightweight integration with existing tools.
+### Prerequisites
 
-Visual Studio Code is updated monthly with new features and bug fixes. You can download it for Windows, macOS, and Linux on [Visual Studio Code's website](https://code.visualstudio.com/Download). To get the latest releases every day, install the [Insiders build](https://code.visualstudio.com/insiders).
+- **Node.js**: v20 or later
+- **npm**: 10.x or later
+- **Build tools**: C++ compiler (for native modules)
+  - **Linux**: `sudo apt-get install build-essential python3`
+  - **macOS**: Xcode Command Line Tools (`xcode-select --install`)
+  - **Windows**: Visual Studio Build Tools or Visual Studio Community
+
+### Build and Run
+
+```bash
+# Install dependencies
+npm install
+
+# Build the project
+npm run compile
+
+# Run Solo
+npm start
+```
+
+For development with hot reload:
+
+```bash
+npm run watch
+```
+
+## Project Structure
+
+- **`src/`**: Core editor source code
+- **`extensions/`**: Built-in extensions (language support, themes, etc.)
+- **`build/`**: Build scripts and configuration
+- **`test/`**: Unit and integration tests
+
+## Customization
+
+Solo's extensibility is designed around:
+
+- **Themes & UI**: Customize colors, fonts, and layout
+- **Extensions**: Add language support, tools, and features via the extension marketplace
+- **Configuration**: Deep customization through settings and keybindings
+- **Core Behavior**: Modify default editor behavior and workflows
+
+## Testing
+
+```bash
+# Run unit tests (Node.js)
+npm run test-node
+
+# Run unit tests (Browser)
+npm run test-browser
+
+# Run extension tests
+npm run test-extension
+```
 
 ## Contributing
 
-There are many ways in which you can participate in this project, for example:
+We welcome contributions! To get started:
 
-* [Submit bugs and feature requests](https://github.com/microsoft/vscode/issues), and help us verify as they are checked in
-* Review [source code changes](https://github.com/microsoft/vscode/pulls)
-* Review the [documentation](https://github.com/microsoft/vscode-docs) and make pull requests for anything from typos to new content.
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/my-feature`)
+3. Make your changes
+4. Run tests to ensure nothing is broken
+5. Submit a pull request
 
-If you are interested in fixing issues and contributing directly to the code base,
-please see the document [How to Contribute](https://github.com/microsoft/vscode/wiki/How-to-Contribute), which covers the following:
+Please include a clear description of what you're adding or fixing.
 
-* [How to build and run from source](https://github.com/microsoft/vscode/wiki/How-to-Contribute)
-* [The development workflow, including debugging and running tests](https://github.com/microsoft/vscode/wiki/How-to-Contribute#debugging)
-* [Coding guidelines](https://github.com/microsoft/vscode/wiki/Coding-Guidelines)
-* [Submitting pull requests](https://github.com/microsoft/vscode/wiki/How-to-Contribute#pull-requests)
-* [Finding an issue to work on](https://github.com/microsoft/vscode/wiki/How-to-Contribute#where-to-contribute)
-* [Contributing to translations](https://aka.ms/vscodeloc)
+## Development
 
-## Feedback
+### Key Commands
 
-* Ask a question on [Stack Overflow](https://stackoverflow.com/questions/tagged/vscode)
-* [Request a new feature](CONTRIBUTING.md)
-* Upvote [popular feature requests](https://github.com/microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc)
-* [File an issue](https://github.com/microsoft/vscode/issues)
-* Connect with the extension author community on [GitHub Discussions](https://github.com/microsoft/vscode-discussions/discussions) or [Slack](https://aka.ms/vscode-dev-community)
-* Follow [@code](https://x.com/code) and let us know what you think!
+- `npm run compile`: Build the project
+- `npm run watch`: Watch for file changes and rebuild
+- `npm run test-*`: Run tests (see Testing section)
+- `npm run check-cyclic-dependencies`: Verify dependency health
 
-See our [wiki](https://github.com/microsoft/vscode/wiki/Feedback-Channels) for a description of each of these channels and information on some other available community-driven channels.
+### Architecture
 
-## Related Projects
+Solo is built on TypeScript with a modular architecture. Key layers:
 
-Many of the core components and extensions to VS Code live in their own repositories on GitHub. For example, the [node debug adapter](https://github.com/microsoft/vscode-node-debug) and the [mono debug adapter](https://github.com/microsoft/vscode-mono-debug) repositories are separate from each other. For a complete list, please visit the [Related Projects](https://github.com/microsoft/vscode/wiki/Related-Projects) page on our [wiki](https://github.com/microsoft/vscode/wiki).
+- **Workbench**: UI and window management
+- **Editor**: Core text editing
+- **Extensions**: Extensibility system
+- **Services**: Language, debug, terminal, etc.
 
-## Bundled Extensions
-
-VS Code includes a set of built-in extensions located in the [extensions](extensions) folder, including grammars and snippets for many languages. Extensions that provide rich language support (inline suggestions, Go to Definition) for a language have the suffix `language-features`. For example, the `json` extension provides coloring for `JSON` and the `json-language-features` extension provides rich language support for `JSON`.
-
-## Development Container
-
-This repository includes a Visual Studio Code Dev Containers / GitHub Codespaces development container.
-
-* For [Dev Containers](https://aka.ms/vscode-remote/download/containers), use the **Dev Containers: Clone Repository in Container Volume...** command which creates a Docker volume for better disk I/O on macOS and Windows.
-  * If you already have VS Code and Docker installed, you can also click [here](https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://github.com/microsoft/vscode) to get started. This will cause VS Code to automatically install the Dev Containers extension if needed, clone the source code into a container volume, and spin up a dev container for use.
-
-* For Codespaces, install the [GitHub Codespaces](https://marketplace.visualstudio.com/items?itemName=GitHub.codespaces) extension in VS Code, and use the **Codespaces: Create New Codespace** command.
-
-Docker / the Codespace should have at least **4 cores and 6 GB of RAM (8 GB recommended)** to run a full build. See the [development container README](.devcontainer/README.md) for more information.
-
-## Code of Conduct
-
-This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/). For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
+For more details, see the source code documentation.
 
 ## License
 
-Copyright (c) Microsoft Corporation. All rights reserved.
-
 Licensed under the [MIT](LICENSE.txt) license.
+
+---
+
+**Solo is built on VS Code OSS** – a proven, stable foundation for creating modern IDEs. We maintain compatibility with VS Code's extension API while providing the flexibility to build customized experiences.
