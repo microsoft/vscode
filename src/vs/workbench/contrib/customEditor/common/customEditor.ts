@@ -54,6 +54,8 @@ export interface ICustomEditorModelManager {
 	add(resource: URI, viewType: string, model: Promise<ICustomEditorModel>): Promise<IReference<ICustomEditorModel>>;
 
 	disposeAllModelsForView(viewType: string): void;
+
+	disposeAllModelsForResource(resource: URI): void;
 }
 
 export interface ICustomEditorModel extends IDisposable {
