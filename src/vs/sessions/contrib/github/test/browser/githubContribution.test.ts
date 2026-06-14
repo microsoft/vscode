@@ -8,7 +8,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore, IDisposable, ImmortalReference, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { GitHubPullRequestModel } from '../../browser/models/githubPullRequestModel.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -167,7 +167,7 @@ class TestSession implements ISession {
 	readonly description: ReturnType<typeof observableValue<IMarkdownString | undefined>>;
 	readonly lastTurnEnd: ReturnType<typeof observableValue<Date | undefined>>;
 	readonly chats: ReturnType<typeof observableValue<readonly IChat[]>>;
-	readonly mainChat: IChat;
+	readonly mainChat: IObservable<IChat>;
 	readonly capabilities: ISessionCapabilities = { supportsMultipleChats: false };
 
 	constructor(id: string, gitHubInfo: IGitHubInfo | undefined, archived: boolean) {
@@ -204,7 +204,7 @@ class TestSession implements ISession {
 
 		const checkpoints = observableValue<IChatCheckpoints | undefined>(`test.checkpoints.${id}`, undefined);
 
-		this.mainChat = {
+		const mainChat: IChat = {
 			resource: this.resource,
 			createdAt: this.createdAt,
 			title: this.title,
@@ -219,7 +219,8 @@ class TestSession implements ISession {
 			description: this.description,
 			lastTurnEnd: this.lastTurnEnd,
 		};
-		this.chats = observableValue<readonly IChat[]>(`test.chats.${id}`, [this.mainChat]);
+		this.mainChat = constObservable(mainChat);
+		this.chats = observableValue<readonly IChat[]>(`test.chats.${id}`, [mainChat]);
 	}
 }
 

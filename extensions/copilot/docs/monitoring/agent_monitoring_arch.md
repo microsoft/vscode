@@ -376,8 +376,8 @@ return this._otel.startActiveSpan('invoke_agent child', { parentTraceContext: pa
 | Namespace | Used By | Examples |
 |---|---|---|
 | `gen_ai.*` | All agents (standard) | `gen_ai.operation.name`, `gen_ai.usage.input_tokens` |
-| `copilot_chat.*` | Extension-specific | `copilot_chat.session_id`, `copilot_chat.chat_session_id` |
-| `github.copilot.*` | CLI SDK internal | `github.copilot.cost`, `github.copilot.aiu` |
+| `copilot_chat.*` | Extension-specific (legacy; several keys dual-emit alongside `github.copilot.*`) | `copilot_chat.session_id`, `copilot_chat.chat_session_id` |
+| `github.copilot.*` | Canonical Copilot namespace — extension-emitted enrichment (foreground agent, Claude agent, CLI bridge) + CLI SDK internal metrics | `github.copilot.agent.type`, `github.copilot.git.repository`, `github.copilot.tool.parameters.edit_type`, `github.copilot.hook.decision`, `github.copilot.cost`, `github.copilot.aiu` |
 | `claude_code.*` | Claude subprocess | `claude_code.token.usage`, `claude_code.cost.usage` |
 
 ---

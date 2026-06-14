@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, PauseableEmitter } from '../../../../../base/common/event.js';
-import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
@@ -25,8 +25,8 @@ export class SearchResultImpl extends Disposable implements ISearchResult {
 		merge: mergeSearchResultEvents
 	}));
 	readonly onChange: Event<IChangeEvent> = this._onChange.event;
-	private _onWillChangeModelListener: IDisposable | undefined;
-	private _onDidChangeModelListener: IDisposable | undefined;
+	private readonly _onWillChangeModelListener = this._register(new MutableDisposable());
+	private readonly _onDidChangeModelListener = this._register(new MutableDisposable());
 	private _plainTextSearchResult: PlainTextSearchHeadingImpl;
 	private _aiTextSearchResult: AITextSearchHeadingImpl;
 
@@ -157,8 +157,7 @@ export class SearchResultImpl extends Disposable implements ISearchResult {
 
 	private onDidAddNotebookEditorWidget(widget: NotebookEditorWidget): void {
 
-		this._onWillChangeModelListener?.dispose();
-		this._onWillChangeModelListener = widget.onWillChangeModel(
+		this._onWillChangeModelListener.value = widget.onWillChangeModel(
 			(model) => {
 				if (model) {
 					this.onNotebookEditorWidgetRemoved(widget, model?.uri);
@@ -166,9 +165,8 @@ export class SearchResultImpl extends Disposable implements ISearchResult {
 			}
 		);
 
-		this._onDidChangeModelListener?.dispose();
 		// listen to view model change as we are searching on both inputs and outputs
-		this._onDidChangeModelListener = widget.onDidAttachViewModel(
+		this._onDidChangeModelListener.value = widget.onDidAttachViewModel(
 			() => {
 				if (widget.hasModel()) {
 					this.onNotebookEditorWidgetAdded(widget, widget.textModel.uri);
@@ -291,8 +289,6 @@ export class SearchResultImpl extends Disposable implements ISearchResult {
 	override async dispose(): Promise<void> {
 		this._aiTextSearchResult?.dispose();
 		this._plainTextSearchResult?.dispose();
-		this._onWillChangeModelListener?.dispose();
-		this._onDidChangeModelListener?.dispose();
 		super.dispose();
 	}
 }

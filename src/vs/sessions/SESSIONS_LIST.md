@@ -14,7 +14,7 @@ The sessions list (`SessionsView` + `SessionsList`) displays every session known
 |------|---------|
 | `contrib/sessions/browser/views/sessionsView.ts` | `SessionsView` — ViewPane with header, new-session button, sort/group/filter persistence |
 | `contrib/sessions/browser/views/sessionsList.ts` | `SessionsList` — tree control, grouping/filtering logic, menu IDs, context keys |
-| `contrib/sessions/browser/views/sessionsListModelService.ts` | `ISessionsListModelService` — pin/read state (UI-only, not synced to providers) |
+| `services/sessions/browser/sessionsListModelService.ts` | `ISessionsListModelService` — pin/read state + shared status icon (UI-only, not synced to providers) |
 | `contrib/sessions/browser/views/sessionsViewActions.ts` | All registered actions (sort, group, filter, pin, archive, rename, navigate) |
 
 ---
@@ -59,7 +59,7 @@ Archived sessions always go to the "Done" section regardless of grouping mode. A
 When grouping by workspace, the list shows only **primary** workspace sections by default:
 
 - A workspace qualifies as primary if it has recent activity (last 4 days), matches the open window's folder, or contains the most recently updated session
-- Remaining workspaces collapse behind a "Show N more" toggle
+- Remaining workspaces collapse behind a "+N more workspaces" toggle
 - Within each workspace, sessions beyond 5 also show a "Show more" toggle
 - The find widget bypasses all capping
 
@@ -79,7 +79,7 @@ The **active session is always visible** even if it would be excluded by filters
 
 ### Find
 
-A built-in find widget filters the list by session title and section label. When active, it bypasses workspace group capping so all matching sessions are visible.
+A built-in find widget filters the list by session title and section label. When a search pattern is entered, it bypasses workspace group capping so all matching sessions are visible. Simply opening the find widget (without typing) does not reorder the list.
 
 ### Pinning
 
@@ -90,6 +90,7 @@ Pinned sessions appear in a dedicated "Pinned" section at the top. Pin state is 
 - Sessions start as **unread**
 - A session becomes **read** when the user opens it or explicitly marks it
 - A session becomes **unread** when it completes in the background (transitions from InProgress to a terminal status while not active)
+- Pin and read state are cleaned up when a provider reports a real session removal; remote agent host disconnects hide cached sessions without reporting them as removed
 
 ### Navigation
 
@@ -123,7 +124,7 @@ The sessions list defines menu IDs that contributions can target to add actions.
 
 | Menu | Constant | Where it appears | Use for |
 |------|----------|------------------|---------|
-| `SessionSectionToolbar` | `SessionSectionToolbarMenuId` | Toolbar on section headers (Pinned, workspace groups, Done) | Section-scoped actions like "New Session for Workspace", "Archive All", "Restore All". |
+| `SessionSectionToolbar` | `SessionSectionToolbarMenuId` | Toolbar on section headers (Pinned, workspace groups, Done) | Section-scoped actions like "New Session for Workspace", "Archive All", "Restore All". Section headers also show a collapsible chevron on hover/focus; the chevron uses the same ghost icon hover background token as toolbar icon buttons. |
 
 ### View Title Menus
 
@@ -166,11 +167,11 @@ Context keys available for `when` clauses when contributing to session list menu
 | Key | Type | Description |
 |-----|------|-------------|
 | `sessionItem.isPinned` | boolean | Whether the session is pinned |
-| `sessionItem.isArchived` | boolean | Whether the session is archived |
-| `sessionItem.isRead` | boolean | Whether the session has been read |
+| `sessionIsArchived` | boolean | Whether the session is archived |
+| `sessionIsRead` | boolean | Whether the session has been read |
 | `sessionItem.hasBranchName` | boolean | Whether the session has a git branch name |
 | `chatSessionType` | string | Session type ID (use to scope actions to specific providers) |
-| `ChatSessionProviderIdContext` | string | Provider ID |
+| `chatSessionProviderId` | string | Provider ID |
 
 ### Per-Section
 
@@ -184,3 +185,4 @@ Context keys available for `when` clauses when contributing to session list menu
 |-----|------|-------------|
 | `sessionsViewPane.grouping` | string | Current grouping mode (`'workspace'` or `'date'`) |
 | `sessionsViewPane.sorting` | string | Current sorting mode (`'created'` or `'updated'`) |
+| `sessionsViewPane.workspaceGroupCapped` | boolean | Whether workspace groups are capped (primary-only) or fully expanded |

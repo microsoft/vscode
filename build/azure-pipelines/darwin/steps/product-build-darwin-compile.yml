@@ -114,6 +114,10 @@ steps:
 
   - template: ../../common/install-builtin-extensions.yml@self
 
+  - template: ../../common/agent-sdk-produce.yml@self
+    parameters:
+      vscodePlatform: darwin
+
   - script: npx deemon --detach --wait -- node build/azure-pipelines/common/downloadCopilotVsix.ts
     env:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
@@ -369,7 +373,7 @@ steps:
         fi
         echo "Startup timers:"
         cat "$TIMERS_FILE"
-      timeoutInMinutes: 3
+      timeoutInMinutes: 5
       displayName: Verify signature
 
     - script: |

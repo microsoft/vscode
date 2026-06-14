@@ -5,7 +5,6 @@
 
 import { PromptElement, PromptElementProps, PromptPiece, PromptSizing } from '@vscode/prompt-tsx';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
-import { isHiddenModelG } from '../../../../platform/endpoint/common/chatModelCapabilities';
 import { CUSTOM_TOOL_SEARCH_NAME, isAnthropicContextEditingEnabled } from '../../../../platform/networking/common/anthropic';
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
 import { IToolDeferralService } from '../../../../platform/networking/common/toolDeferralService';
@@ -625,19 +624,26 @@ class AnthropicPromptResolver implements IAgentPrompt {
 	) { }
 
 	private isSonnet4(endpoint: IChatEndpoint): boolean {
-		return endpoint.model === 'claude-sonnet-4' || endpoint.model === 'claude-sonnet-4-20250514';
+		return endpoint.model === 'claude-sonnet-4' || endpoint.model === 'claude-sonnet-4-20250514'
+			|| endpoint.family === 'claude-sonnet-4';
 	}
 
 	private isClaude45(endpoint: IChatEndpoint): boolean {
-		return endpoint.model.includes('4-5') || endpoint.model.includes('4.5');
+		return endpoint.model.includes('4-5') || endpoint.model.includes('4.5')
+			|| endpoint.family.includes('4-5') || endpoint.family.includes('4.5');
 	}
 
-	private isOpus(endpoint: IChatEndpoint): boolean {
-		return endpoint.model.startsWith('claude-opus');
+	private isSonnet(endpoint: IChatEndpoint): boolean {
+		return endpoint.model.startsWith('claude-sonnet') || endpoint.family.startsWith('claude-sonnet');
+	}
+
+	private isHaiku(endpoint: IChatEndpoint): boolean {
+		return endpoint.model.startsWith('claude-haiku') || endpoint.family.startsWith('claude-haiku');
 	}
 
 	private isOpus47(endpoint: IChatEndpoint): boolean {
-		return endpoint.model.startsWith('claude-opus-4-7') || endpoint.model.startsWith('claude-opus-4.7');
+		return endpoint.model.startsWith('claude-opus-4-7') || endpoint.model.startsWith('claude-opus-4.7')
+			|| endpoint.family.startsWith('claude-opus-4-7') || endpoint.family.startsWith('claude-opus-4.7');
 	}
 
 	resolveSystemPrompt(endpoint: IChatEndpoint): SystemPrompt | undefined {
@@ -647,13 +653,18 @@ class AnthropicPromptResolver implements IAgentPrompt {
 		if (this.isClaude45(endpoint)) {
 			return Claude45DefaultPrompt;
 		}
+		if (this.isSonnet(endpoint)) {
+			return Claude46SonnetPrompt;
+		}
+		if (this.isHaiku(endpoint)) {
+			return Claude45DefaultPrompt;
+		}
 		if (this.isOpus47(endpoint) && this.configurationService.getExperimentBasedConfig(ConfigKey.Claude47OpusPromptEnabled, this.experimentationService)) {
 			return Claude47OpusPrompt;
 		}
-		if (this.isOpus(endpoint)) {
-			return Claude46OpusPrompt;
-		}
-		return Claude46SonnetPrompt;
+		// Default for every other current and future model (including ones not
+		// yet individually recognized): the latest general-purpose Opus prompt.
+		return Claude46OpusPrompt;
 	}
 
 	resolveReminderInstructions(endpoint: IChatEndpoint): ReminderInstructionsConstructor | undefined {
@@ -693,21 +704,3 @@ class AnthropicReminderInstructions extends PromptElement<ReminderInstructionsPr
 }
 
 PromptRegistry.registerPrompt(AnthropicPromptResolver);
-
-class HiddenModelGPromptResolver implements IAgentPrompt {
-	static readonly familyPrefixes: readonly string[] = [];
-
-	static matchesModel(endpoint: IChatEndpoint): boolean {
-		return isHiddenModelG(endpoint);
-	}
-
-	resolveSystemPrompt(_endpoint: IChatEndpoint): SystemPrompt | undefined {
-		return Claude46OpusPrompt;
-	}
-
-	resolveReminderInstructions(_endpoint: IChatEndpoint): ReminderInstructionsConstructor | undefined {
-		return AnthropicReminderInstructionsOptimized;
-	}
-}
-
-PromptRegistry.registerPrompt(HiddenModelGPromptResolver);

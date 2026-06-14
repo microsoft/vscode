@@ -6,9 +6,9 @@
 import type * as vscode from 'vscode';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IChatSessionMetadataStore } from '../common/chatSessionMetadataStore';
-import { ICopilotCLIModels, formatModelDetails, matchesCopilotCLIModel } from '../copilotcli/node/copilotCli';
+import { ICopilotCLIModels, matchesCopilotCLIModel } from '../copilotcli/node/copilotCli';
 import { ICopilotCLISession } from '../copilotcli/node/copilotcliSession';
-import { formatModelDetailsWithCredits } from '../../../platform/chat/common/chatModelDetails';
+import { formatModelDetails } from '../../../platform/chat/common/chatModelDetails';
 
 export interface CopilotCLIModelDetails {
 	readonly result: vscode.ChatResult;
@@ -37,10 +37,8 @@ export async function getCopilotCLIModelDetails(session: ICopilotCLISession, req
 		.find(modelInfo => !!modelInfo);
 
 	let details: string | undefined;
-	if (modelInfo && creditsUsed !== undefined) {
-		details = formatModelDetailsWithCredits(modelInfo.name, creditsUsed);
-	} else if (modelInfo) {
-		details = formatModelDetails(modelInfo);
+	if (modelInfo) {
+		details = formatModelDetails(modelInfo.name, modelInfo.multiplier, creditsUsed);
 	}
 
 	return {
@@ -52,12 +50,12 @@ export async function getCopilotCLIModelDetails(session: ICopilotCLISession, req
 /**
  * Persists the concrete response model id and credits used so rebuilt history can recover details for auto-mode requests.
  */
-export async function persistCopilotCLIResponseModelId(sessionId: string, requestId: string, responseModelId: string | undefined, chatSessionMetadataStore: IChatSessionMetadataStore, logService: ILogService, creditsUsed?: number): Promise<void> {
+export async function persistCopilotCLIResponseModelId(sessionId: string, requestId: string, responseModelId: string | undefined, isUsingAutoModel: boolean, chatSessionMetadataStore: IChatSessionMetadataStore, logService: ILogService, creditsUsed?: number): Promise<void> {
 	if (!responseModelId && creditsUsed === undefined) {
 		return;
 	}
 	try {
-		await chatSessionMetadataStore.updateRequestDetails(sessionId, [{ vscodeRequestId: requestId, responseModelId, creditsUsed }]);
+		await chatSessionMetadataStore.updateRequestDetails(sessionId, [{ vscodeRequestId: requestId, responseModelId, creditsUsed, isUsingAutoModel }]);
 	} catch (ex) {
 		logService.error(ex, 'Failed to persist response model id');
 	}

@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { URI } from '../../../../../base/common/uri.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import {
 	JSON_RPC_PARSE_ERROR,
 	type InitializeResult,
 	type JsonRpcErrorResponse,
 } from '../../../common/state/sessionProtocol.js';
+import { ROOT_STATE_URI } from '../../../common/state/sessionState.js';
 import { IServerHandle, nextSessionUri, startServer, TestProtocolClient } from './testHelpers.js';
 
 suite('Protocol WebSocket — Handshake & Errors', function () {
@@ -43,7 +43,7 @@ suite('Protocol WebSocket — Handshake & Errors', function () {
 		const result = await client.call<InitializeResult>('initialize', {
 			protocolVersions: [PROTOCOL_VERSION],
 			clientId: 'test-handshake',
-			initialSubscriptions: [URI.from({ scheme: 'agenthost', path: '/root' }).toString()],
+			initialSubscriptions: [ROOT_STATE_URI],
 		});
 
 		assert.strictEqual(result.protocolVersion, PROTOCOL_VERSION);
@@ -75,16 +75,16 @@ suite('Protocol WebSocket — Handshake & Errors', function () {
 
 		let gotError = false;
 		try {
-			await client.call('createSession', { session: nextSessionUri(), provider: 'nonexistent' });
+			await client.call('createSession', { channel: nextSessionUri(), provider: 'nonexistent' });
 		} catch {
 			gotError = true;
 		}
 		assert.ok(gotError, 'should have received an error for invalid provider');
 
 		// Server should still be functional
-		await client.call('createSession', { session: nextSessionUri(), provider: 'mock' });
+		await client.call('createSession', { channel: nextSessionUri(), provider: 'mock' });
 		const notif = await client.waitForNotification(n =>
-			n.method === 'notification' && (n.params as { notification: { type: string } }).notification.type === 'notify/sessionAdded'
+			n.method === 'root/sessionAdded'
 		);
 		assert.ok(notif);
 	});

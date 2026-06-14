@@ -415,7 +415,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		// In async mode, signal the agent so it can drive send_to_terminal.
 		if (this._asyncMode) {
 			if (shouldFireInputNeeded) {
-				if (detectsSensitiveInputPrompt(outputLastLine)) {
+				if (this._isSensitivePrompt(outputLastLine)) {
 					this._logService.trace('OutputMonitor: Async mode - sensitive input prompt detected, signaling sensitive UI');
 					this._onDidDetectSensitiveInputNeeded.fire();
 				} else {
@@ -433,7 +433,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		// event so the tool can show a confirmation dialog that focuses the terminal —
 		// the secret must never be routed through the model.
 		if (shouldFireInputNeeded) {
-			if (detectsSensitiveInputPrompt(outputLastLine)) {
+			if (this._isSensitivePrompt(outputLastLine)) {
 				this._logService.trace('OutputMonitor: Sensitive input prompt detected, signaling sensitive UI');
 				this._onDidDetectSensitiveInputNeeded.fire();
 			} else {
@@ -596,8 +596,16 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	}
 
 	private _isSensitivePrompt(prompt: string): boolean {
+		if (isCanonicalSudoSPrompt(this._command, prompt)) {
+			return false;
+		}
+
 		return detectsSensitiveInputPrompt(prompt);
 	}
+}
+
+function isCanonicalSudoSPrompt(command: string, prompt: string): boolean {
+	return /(?:^|\s)sudo\s+-S(?:\s|$)/.test(command) && /^\[sudo\]\s+password for .+:\s*$/i.test(prompt);
 }
 
 /**

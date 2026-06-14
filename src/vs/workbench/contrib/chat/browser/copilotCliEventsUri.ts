@@ -5,6 +5,7 @@
 
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { parseRemoteAgentHostSessionTypeAuthority } from '../../../../platform/agentHost/common/agentHostSessionType.js';
 import { agentHostAuthority, toAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IRemoteAgentHostConnectionInfo } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 
@@ -15,8 +16,6 @@ import { IRemoteAgentHostConnectionInfo } from '../../../../platform/agentHost/c
 const COPILOT_CLI_PROVIDER = 'copilotcli';
 export const COPILOT_CLI_LOCAL_AH_SCHEME = `agent-host-${COPILOT_CLI_PROVIDER}`;
 export const COPILOT_CLI_EH_SCHEME = COPILOT_CLI_PROVIDER;
-const REMOTE_PROVIDER_PREFIX = 'remote-';
-const REMOTE_PROVIDER_SUFFIX = `-${COPILOT_CLI_PROVIDER}`;
 
 /**
  * Builds the local `events.jsonl` URI under `~/.copilot/session-state/<rawId>/`.
@@ -27,6 +26,13 @@ const REMOTE_PROVIDER_SUFFIX = `-${COPILOT_CLI_PROVIDER}`;
  */
 export function buildLocalEventsUri(userHome: URI, rawSessionId: string): URI {
 	return joinPath(userHome, '.copilot', 'session-state', rawSessionId, 'events.jsonl');
+}
+
+/**
+ * Builds the local `~/.copilot/logs` directory URI.
+ */
+export function buildLocalCopilotLogsUri(userHome: URI): URI {
+	return joinPath(userHome, '.copilot', 'logs');
 }
 
 /**
@@ -56,16 +62,43 @@ export function buildRemoteEventsUri(connection: IRemoteAgentHostConnectionInfo,
 }
 
 /**
+ * Builds a `vscode-agent-host://` URI for the host's `~/.copilot/logs`
+ * directory, using the connection's reported home directory.
+ */
+export function buildRemoteCopilotLogsUri(connection: IRemoteAgentHostConnectionInfo): URI | undefined {
+	const homePath = connection.defaultDirectory;
+	if (!homePath) {
+		return undefined;
+	}
+	const trimmed = homePath.endsWith('/') ? homePath.slice(0, -1) : homePath;
+	const remoteFileUri = URI.from({
+		scheme: 'file',
+		path: `${trimmed}/.copilot/logs`,
+	});
+	const authority = agentHostAuthority(connection.address);
+	return toAgentHostUri(remoteFileUri, authority);
+}
+
+/**
  * Parses the connection authority out of a remote AH chat session scheme
  * of the form `remote-<authority>-copilotcli`. Returns `undefined` for
  * any other scheme, including the local `copilotcli` scheme.
  */
 export function parseRemoteAuthorityFromScheme(scheme: string): string | undefined {
-	if (!scheme.startsWith(REMOTE_PROVIDER_PREFIX) || !scheme.endsWith(REMOTE_PROVIDER_SUFFIX)) {
+	return parseRemoteAgentHostSessionTypeAuthority(scheme, COPILOT_CLI_PROVIDER);
+}
+
+/**
+ * Extracts the raw Copilot CLI session id from a chat session resource.
+ */
+export function getCopilotCliSessionRawId(sessionResource: URI | undefined): string | undefined {
+	if (!sessionResource) {
 		return undefined;
 	}
-	const authority = scheme.slice(REMOTE_PROVIDER_PREFIX.length, scheme.length - REMOTE_PROVIDER_SUFFIX.length);
-	return authority || undefined;
+	if (sessionResource.scheme !== COPILOT_CLI_LOCAL_AH_SCHEME && sessionResource.scheme !== COPILOT_CLI_EH_SCHEME && !parseRemoteAuthorityFromScheme(sessionResource.scheme)) {
+		return undefined;
+	}
+	return getRawSessionId(sessionResource);
 }
 
 export type ResolveEventsUriResult =
@@ -88,7 +121,7 @@ export function resolveEventsUri(
 	if (!sessionResource) {
 		return { kind: 'no-session' };
 	}
-	const rawId = sessionResource.path.startsWith('/') ? sessionResource.path.substring(1) : sessionResource.path;
+	const rawId = getRawSessionId(sessionResource);
 	if (!rawId) {
 		return { kind: 'no-session' };
 	}
@@ -111,4 +144,9 @@ export function resolveEventsUri(
 	}
 
 	return { kind: 'unsupported-scheme', scheme: sessionResource.scheme };
+}
+
+function getRawSessionId(sessionResource: URI): string | undefined {
+	const rawId = sessionResource.path.startsWith('/') ? sessionResource.path.substring(1) : sessionResource.path;
+	return rawId || undefined;
 }
