@@ -357,14 +357,14 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer {
-	grid-template-rows: 1fr auto auto auto 1fr;
+	grid-template-rows: 1fr auto auto 1fr auto;
 	grid-template-columns: minmax(0, 330px);
 	grid-template-areas:
 		"."
 		"header"
 		"left-column"
-		"footer"
-		".";
+		"."
+		"footer";
 	justify-content: center;
 	align-content: center;
 	max-width: none;
@@ -413,11 +413,23 @@
 	color: var(--vscode-descriptionForeground);
 }
 
-.monaco-workbench .part.editor > .content .gettingStartedContainer .solo-welcome-settings-link {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .solo-welcome-settings-link,
+.monaco-workbench .part.editor > .content .gettingStartedContainer .solo-welcome-settings-link:hover,
+.monaco-workbench .part.editor > .content .gettingStartedContainer .solo-welcome-settings-link:focus,
+.monaco-workbench .part.editor > .content .gettingStartedContainer .solo-welcome-settings-link:focus-visible,
+.monaco-workbench .part.editor > .content .gettingStartedContainer .solo-welcome-settings-link:active {
 	padding: 0;
 	color: var(--vscode-textLink-foreground);
 	font-size: inherit;
 	line-height: inherit;
+	background: transparent !important;
+	outline: none !important;
+	box-shadow: none !important;
+	border: none;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .solo-welcome-settings-link:hover {
+	text-decoration: underline;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .start-container h2 {
@@ -500,7 +512,7 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer > .footer {
-	margin-top: 130px;
+	margin-bottom: 30px;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .solo-welcome-agent-cta {

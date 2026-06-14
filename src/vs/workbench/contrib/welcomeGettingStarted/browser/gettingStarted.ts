@@ -930,7 +930,7 @@ export class GettingStartedPage extends EditorPane {
 
 		const header = $('.header.solo-welcome-header', {},
 			$('.solo-welcome-lockup', { 'aria-label': this.productService.nameLong, 'role': 'img' }),
-			$('p.subtitle.description.solo-welcome-plan', {},
+			$('p.solo-welcome-plan', {},
 				$('button.button-link.solo-welcome-settings-link', { 'x-dispatch': 'openSoloSettings' }, localize('gettingStarted.soloSettings', "Settings"))
 			)
 		);

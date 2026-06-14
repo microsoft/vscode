@@ -11,6 +11,13 @@
 	overflow: hidden;
 }
 
+/* No focus outline framing the welcome container (it gets focus for scrolling) */
+.agentSessionsWelcome:focus,
+.agentSessionsWelcome:focus-visible,
+.agentSessionsWelcome.focused {
+	outline: none !important;
+}
+
 .agentSessionsWelcome-scrollable {
 	height: 100%;
 	display: flex !important;
@@ -280,9 +287,27 @@
 .agentSessionsWelcome-settingsLink {
 	margin-top: 8px;
 	padding: 0;
+	border: none;
+	background: transparent;
+	-webkit-appearance: none;
+	appearance: none;
 	color: var(--vscode-textLink-foreground);
 	font-size: 11px;
 	line-height: 14px;
+	cursor: pointer;
+}
+
+.agentSessionsWelcome-settingsLink:hover {
+	text-decoration: underline;
+}
+
+.agentSessionsWelcome-settingsLink:focus {
+	outline: none;
+}
+
+.agentSessionsWelcome-settingsLink:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
 }
 
 .agentSessionsWelcome-startEntries {

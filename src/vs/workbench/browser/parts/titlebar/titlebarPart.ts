@@ -490,6 +490,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		if (!this.isAuxiliary && hasCustomTitlebar(this.configurationService, this.titleBarStyle)) {
 			this.createSoloSidebarToggle();
+			this.createSoloNavButtons();
 		}
 
 		// Title
@@ -668,6 +669,22 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			EventHelper.stop(e);
 			void this.commandService.executeCommand('workbench.action.toggleSidebarVisibility');
 		}));
+	}
+
+	private createSoloNavButtons(): void {
+		const makeButton = (modifier: string, iconClass: string, title: string, commandId: string) => {
+			const button = append(this.leftContent, $(`button.solo-titlebar-nav-button.${modifier}`)) as HTMLButtonElement;
+			button.type = 'button';
+			button.title = title;
+			button.setAttribute('aria-label', title);
+			button.appendChild($(`span.codicon.${iconClass}`));
+			this._register(addDisposableListener(button, EventType.CLICK, e => {
+				EventHelper.stop(e);
+				void this.commandService.executeCommand(commandId);
+			}));
+		};
+		makeButton('solo-nav-back', 'codicon-arrow-left', localize('soloNavBack', "Go Back"), 'workbench.action.navigateBack');
+		makeButton('solo-nav-forward', 'codicon-arrow-right', localize('soloNavForward', "Go Forward"), 'workbench.action.navigateForward');
 	}
 
 	private actionViewItemProvider(action: IAction, options: IBaseActionViewItemOptions): IActionViewItem | undefined {

@@ -46,25 +46,14 @@
 	margin-right: 0; /* by default the icon label has a padding right and this isn't wanted when not showing tabs and not showing breadcrumbs */
 }
 
-/* Solo: calmer Cursor-like tabs */
-.monaco-workbench .part.editor > .content .editor-group-container > .title {
-	background: color-mix(in srgb, var(--vscode-editorGroupHeader-tabsBackground) 94%, #050505);
-}
-
+/* Solo: Cursor-like tabs — square, flush with the editor, blue line on the active tab */
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container {
 	min-height: 34px;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab {
-	border-radius: 8px 8px 0 0;
-	margin: 3px 2px 0;
-	height: calc(var(--editor-group-tab-height) - 3px);
-	overflow: hidden;
-}
-
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.selected {
-	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+	border-radius: 0;
+	margin: 0;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.active):hover {
@@ -76,5 +65,5 @@
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label {
-	border-radius: 6px;
+	border-radius: 4px;
 }

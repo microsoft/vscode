@@ -264,6 +264,24 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	order: 10002 // to the right of the chat button
 });
 
+// Solo: also surface a plain chat toggle in the right-hand title bar cluster, between
+// the layout icon and the Manage gear (the center sparkle badge is hidden via CSS).
+MenuRegistry.appendMenuItem(MenuId.TitleBar, {
+	command: {
+		id: 'workbench.action.chat.toggle',
+		title: localize('soloToggleChat', "Toggle Chat"),
+		icon: Codicon.chatSparkle,
+		// Toggled (checked) when a chat surface is visible -> CSS swaps to the filled chat icon.
+		toggled: ContextKeyExpr.notEquals(ChatContextKeys.foregroundSessionCount.key, 0),
+	},
+	when: ContextKeyExpr.and(
+		ChatContextKeys.enabled,
+		InEditorZenModeContext.negate()
+	),
+	group: 'navigation',
+	order: 1
+});
+
 // Add to the global title bar if command center is disabled
 MenuRegistry.appendMenuItem(MenuId.TitleBar, {
 	submenu: MenuId.ChatTitleBarMenu,

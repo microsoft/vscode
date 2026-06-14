@@ -1,0 +1,108 @@
+/*---------------------------------------------------------------------------------------------
+ *  Solo: custom title-bar / layout-control icons.
+ *
+ *  These replace the default codicon glyphs for the window's layout toggles and the
+ *  settings gear with Solo's custom two-tone SVGs. We keep the codicon glyph in place
+ *  (so the element keeps its natural 1em sizing) but make it transparent and paint the
+ *  SVG as the element background. Two-tone fills are preserved because the SVG is drawn
+ *  as an image rather than a single-color font glyph / mask.
+ *
+ *  Icon IDs come from:
+ *    - src/vs/workbench/browser/actions/layoutActions.ts (panel-left[-off], panel-right[-off], panel-bottom)
+ *    - src/vs/workbench/browser/parts/panel/panelActions.ts (panel-layout-icon[-off])
+ *    - src/vs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions.ts (auxiliarybar-*-layout-icon[-off])
+ *    - Codicon.settingsGear (settings-gear)
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .codicon.codicon-panel-left,
+.monaco-workbench .codicon.codicon-panel-left-off,
+.monaco-workbench .codicon.codicon-panel-right,
+.monaco-workbench .codicon.codicon-panel-right-off,
+.monaco-workbench .codicon.codicon-panel-bottom,
+.monaco-workbench .codicon.codicon-panel-layout-icon,
+.monaco-workbench .codicon.codicon-panel-layout-icon-off,
+.monaco-workbench .codicon.codicon-auxiliarybar-left-layout-icon,
+.monaco-workbench .codicon.codicon-auxiliarybar-left-off-layout-icon,
+.monaco-workbench .codicon.codicon-auxiliarybar-right-layout-icon,
+.monaco-workbench .codicon.codicon-auxiliarybar-right-off-layout-icon,
+.monaco-workbench .codicon.codicon-settings-gear {
+	color: transparent !important;
+	background-position: center;
+	background-repeat: no-repeat;
+	background-size: contain;
+}
+
+/* Primary (left) side bar toggle */
+.monaco-workbench .codicon.codicon-panel-left {
+	background-image: url('./solo-icons/sidebar-left-active.svg');
+}
+.monaco-workbench .codicon.codicon-panel-left-off {
+	background-image: url('./solo-icons/sidebar-left-inactive.svg');
+}
+
+/* Secondary (right) side bar toggle */
+.monaco-workbench .codicon.codicon-panel-right,
+.monaco-workbench .codicon.codicon-auxiliarybar-right-layout-icon {
+	background-image: url('./solo-icons/sidebar-right-active.svg');
+}
+.monaco-workbench .codicon.codicon-panel-right-off,
+.monaco-workbench .codicon.codicon-auxiliarybar-right-off-layout-icon {
+	background-image: url('./solo-icons/sidebar-right-inactive.svg');
+}
+.monaco-workbench .codicon.codicon-auxiliarybar-left-layout-icon {
+	background-image: url('./solo-icons/sidebar-left-active.svg');
+}
+.monaco-workbench .codicon.codicon-auxiliarybar-left-off-layout-icon {
+	background-image: url('./solo-icons/sidebar-left-inactive.svg');
+}
+
+/* Bottom panel toggle */
+.monaco-workbench .codicon.codicon-panel-bottom,
+.monaco-workbench .codicon.codicon-panel-layout-icon {
+	background-image: url('./solo-icons/panel-bottom-active.svg');
+}
+.monaco-workbench .codicon.codicon-panel-layout-icon-off {
+	background-image: url('./solo-icons/panel-bottom-inactive.svg');
+}
+
+/* Settings gear (the title bar "Manage" uses codicon-settings-view-bar-icon) */
+.monaco-workbench .codicon.codicon-settings-gear,
+.monaco-workbench .part.titlebar .codicon.codicon-settings-view-bar-icon {
+	color: transparent !important;
+	background-position: center;
+	background-repeat: no-repeat;
+	background-size: contain;
+	background-image: url('./solo-icons/settings-gear.svg');
+}
+
+/* Chat toggle in the title bar (scoped so chat-sparkle icons elsewhere are untouched).
+ * Outline when chat is hidden; filled when the action is toggled on (chat visible). */
+.monaco-workbench .part.titlebar .codicon.codicon-chat-sparkle {
+	color: transparent !important;
+	background-position: center;
+	background-repeat: no-repeat;
+	background-size: contain;
+	background-image: url('./solo-icons/chat-inactive.svg');
+}
+.monaco-workbench .part.titlebar .codicon.codicon-chat-sparkle.checked,
+.monaco-workbench .part.titlebar .checked .codicon.codicon-chat-sparkle {
+	background-image: url('./solo-icons/chat-active.svg');
+}
+
+/* Title-bar custom icons: fully remove the glyph (so it never reappears "doubled" when
+ * the hover rule re-colors it) and size them to match the left controls (~16px; the
+ * panel matches the left toggle's 14px height). */
+.monaco-workbench .part.titlebar .codicon.codicon-chat-sparkle::before,
+.monaco-workbench .part.titlebar .codicon.codicon-panel-layout-icon::before,
+.monaco-workbench .part.titlebar .codicon.codicon-panel-layout-icon-off::before,
+.monaco-workbench .part.titlebar .codicon.codicon-settings-view-bar-icon::before {
+	content: '' !important;
+}
+.monaco-workbench .part.titlebar .codicon.codicon-chat-sparkle,
+.monaco-workbench .part.titlebar .codicon.codicon-settings-view-bar-icon {
+	background-size: 16px;
+}
+.monaco-workbench .part.titlebar .codicon.codicon-panel-layout-icon,
+.monaco-workbench .part.titlebar .codicon.codicon-panel-layout-icon-off {
+	background-size: auto 14px;
+}
