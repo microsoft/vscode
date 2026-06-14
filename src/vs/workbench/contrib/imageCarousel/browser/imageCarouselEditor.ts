@@ -127,8 +127,10 @@ export class ImageCarouselEditor extends EditorPane {
 		const currentImageId = this._flatImages[this._currentIndex]?.image.id;
 		this.setSections(input.collection.sections);
 
-		if (this._elements && isPureImageAppend(previousImageIds, this._flatImages.map(entry => entry.image.id))) {
+		// Fall back to a full rebuild when no image is currently shown, so the main image gets populated.
+		if (this._elements && currentImageId !== undefined && isPureImageAppend(previousImageIds, this._flatImages.map(entry => entry.image.id))) {
 			this._appendThumbnails(previousImageIds.length);
+			this._refreshThumbnailLabels();
 			this._syncNavigationChrome();
 			return;
 		}
@@ -427,10 +429,12 @@ export class ImageCarouselEditor extends EditorPane {
 	}
 
 	/**
-	 * Syncs the navigation chrome — counter, prev/next buttons and each thumbnail's
-	 * label + active state — to `_currentIndex` and the current image count. Shared by
-	 * full image updates (`updateCurrentImage`) and in-place refresh appends
-	 * (`refreshFromInput`) so the two paths never drift. Touches no main-image state.
+	 * Syncs the per-navigation chrome — counter, prev/next buttons and the active
+	 * thumbnail selection — to `_currentIndex`. Shared by full image updates
+	 * (`updateCurrentImage`) and in-place refresh appends (`refreshFromInput`) so the
+	 * two paths never drift. Touches no main-image state. Thumbnail aria-labels are
+	 * handled separately (see `_refreshThumbnailLabels`) since they only change when the
+	 * image count changes, not on every navigation.
 	 */
 	private _syncNavigationChrome(): void {
 		if (!this._elements) {
@@ -442,19 +446,31 @@ export class ImageCarouselEditor extends EditorPane {
 		this._elements.nextBtn.disabled = this._currentIndex === this._flatImages.length - 1;
 
 		for (let i = 0; i < this._thumbnailElements.length; i++) {
-			const thumbnail = this._thumbnailElements[i];
-			const isItemVideo = isVideoMimeType(this._flatImages[i].image.mimeType);
-			thumbnail.ariaLabel = isItemVideo
-				? localize('imageCarousel.thumbnailLabelVideo', "Video {0} of {1}", i + 1, this._flatImages.length)
-				: localize('imageCarousel.thumbnailLabelImage', "Image {0} of {1}", i + 1, this._flatImages.length);
-
 			const isActive = i === this._currentIndex;
+			const thumbnail = this._thumbnailElements[i];
 			thumbnail.classList.toggle('active', isActive);
 			if (isActive) {
 				thumbnail.setAttribute('aria-current', 'page');
 			} else {
 				thumbnail.removeAttribute('aria-current');
 			}
+		}
+	}
+
+	/**
+	 * Rewrites each thumbnail's "{n} of {total}" aria-label. Only needed when the image
+	 * count changes (i.e. after an append), not on plain prev/next navigation.
+	 */
+	private _refreshThumbnailLabels(): void {
+		if (!this._elements) {
+			return;
+		}
+
+		for (let i = 0; i < this._thumbnailElements.length; i++) {
+			const isItemVideo = isVideoMimeType(this._flatImages[i].image.mimeType);
+			this._thumbnailElements[i].ariaLabel = isItemVideo
+				? localize('imageCarousel.thumbnailLabelVideo', "Video {0} of {1}", i + 1, this._flatImages.length)
+				: localize('imageCarousel.thumbnailLabelImage', "Image {0} of {1}", i + 1, this._flatImages.length);
 		}
 	}
 
@@ -568,7 +584,6 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 			this._elements.captionText.style.display = 'none';
 			this._elements.captionSeparator.style.display = 'none';
 		}
-		// Sync counter, nav buttons and thumbnail labels/selection to the new index.
 		this._syncNavigationChrome();
 
 		// Announce to screen readers with full context (position + caption/name)

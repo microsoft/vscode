@@ -5,6 +5,7 @@
 
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
@@ -374,16 +375,20 @@ export class ChatImageCarouselService extends Disposable implements IChatImageCa
 		let lastSignature = sectionsSignature(initialSections);
 
 		const scheduler = store.add(new RunOnceScheduler(async () => {
-			const sections = await this.collectSections(viewModel, fileCache);
-			if (input.isDisposed()) {
-				return;
+			try {
+				const sections = await this.collectSections(viewModel, fileCache);
+				if (input.isDisposed()) {
+					return;
+				}
+				const signature = sectionsSignature(sections);
+				if (signature === lastSignature) {
+					return;
+				}
+				lastSignature = signature;
+				input.updateCollection(toCarouselCollection(buildCollectionArgs(sections, 0, viewModel.sessionResource).collection));
+			} catch (error) {
+				onUnexpectedError(error);
 			}
-			const signature = sectionsSignature(sections);
-			if (signature === lastSignature) {
-				return;
-			}
-			lastSignature = signature;
-			input.updateCollection(toCarouselCollection(buildCollectionArgs(sections, 0, viewModel.sessionResource).collection));
 		}, CAROUSEL_REFRESH_DELAY));
 
 		store.add(viewModel.onDidChange(() => scheduler.schedule()));
