@@ -10,7 +10,7 @@ import { promisify } from 'util';
 
 import glob from 'glob';
 import gulpWatch from '../lib/watch/index.ts';
-import { nlsPlugin, createNLSCollector, finalizeNLS, postProcessNLS } from './nls-plugin.ts';
+import { nlsPlugin, createNLSCollector, finalizeNLS, postProcessNLS, type FinalizeNLSOptions } from './nls-plugin.ts';
 import { convertPrivateFields, adjustSourceMap, type ConvertPrivateFieldsResult } from './private-to-property.ts';
 import { getVersion } from '../lib/getVersion.ts';
 import { getGitCommitDate } from '../lib/date.ts';
@@ -812,6 +812,15 @@ ${tslib}`,
 
 	// Create shared NLS collector (only used if doNls is true)
 	const nlsCollector = createNLSCollector();
+	// For the server-web target we need two separate NLS collectors so that
+	// nls.messages.js (loaded by the browser client) uses indices that match
+	// the CDN-hosted locale translations (which are built from the web/browser-only
+	// NLS).  Server entry points contribute ~178 extra strings that sort between
+	// browser module IDs, shifting every browser string's index and causing
+	// "NLS MISSING" errors when a non-English locale is selected.
+	const browserNlsCollector = (doNls && target === 'server-web') ? createNLSCollector() : null;
+	// Set of entry points that are server-only in the server-web target.
+	const serverWebServerEntryPoints = new Set<string>(target === 'server-web' ? serverEntryPoints : []);
 	const preserveEnglish = false; // Production mode: replace messages with null
 
 	// Get entry points based on target
@@ -820,7 +829,7 @@ ${tslib}`,
 	const bundleCssEntryPoints = getCssBundleEntryPointsForTarget(target);
 
 	// Collect all build results (with write: false)
-	const buildResults: { outPath: string; result: esbuild.BuildResult }[] = [];
+	const buildResults: { outPath: string; result: esbuild.BuildResult; nlsGroup: 'browser' | 'server' | undefined }[] = [];
 
 	// Create the file content mapper plugin (injects product config, builtin extensions)
 	const contentMapperPlugin = fileContentMapperPlugin(outDir, target);
@@ -830,6 +839,11 @@ ${tslib}`,
 		const entryPath = path.join(REPO_ROOT, SRC_DIR, `${entryPoint}.ts`);
 		const outPath = path.join(REPO_ROOT, outDir, `${entryPoint}.js`);
 
+		// For server-web, route server entry points to the server NLS collector
+		// and browser entry points to the browser-only NLS collector.
+		const isServerEntry = serverWebServerEntryPoints.has(entryPoint);
+		const activeCollector = (browserNlsCollector && !isServerEntry) ? browserNlsCollector : nlsCollector;
+
 		// Use CSS external plugin for entry points that don't need bundled CSS
 		const plugins: esbuild.Plugin[] = bundleCssEntryPoints.has(entryPoint) ? [] : [cssExternalPlugin()];
 		// Add content mapper plugin to inject product config and builtin extensions
@@ -837,7 +851,7 @@ ${tslib}`,
 		if (doNls) {
 			plugins.unshift(nlsPlugin({
 				baseDir: path.join(REPO_ROOT, SRC_DIR),
-				collector: nlsCollector,
+				collector: activeCollector,
 			}));
 		}
 
@@ -880,7 +894,7 @@ ${tslib}`,
 
 		const result = await esbuild.build(buildOptions);
 
-		buildResults.push({ outPath, result });
+		buildResults.push({ outPath, result, nlsGroup: browserNlsCollector ? (isServerEntry ? 'server' : 'browser') : undefined });
 	}));
 
 	// Bundle bootstrap files (with minimist inlined) directly from TypeScript source
@@ -923,19 +937,43 @@ ${tslib}`,
 			tsconfigRaw,
 		});
 
-		buildResults.push({ outPath, result });
+		buildResults.push({ outPath, result, nlsGroup: browserNlsCollector ? 'server' : undefined });
 	}
 
 	// Finalize NLS: sort entries, assign indices, write metadata files
 	let indexMap = new Map<string, number>();
+	let browserIndexMap = new Map<string, number>();
 	if (doNls) {
-		// Also write NLS files to out-build for backwards compatibility with test runner
-		const nlsResult = await finalizeNLS(
-			nlsCollector,
-			path.join(REPO_ROOT, outDir),
-			[path.join(REPO_ROOT, 'out-build')]
-		);
-		indexMap = nlsResult.indexMap;
+		if (browserNlsCollector) {
+			// For server-web: write server NLS JSON files from the server-only collector,
+			// and write nls.messages.js from the browser-only collector.
+			// This ensures the browser NLS indices match CDN-hosted locale translations
+			// (which are built from the web/browser-only NLS).
+			const outBuildDir = path.join(REPO_ROOT, 'out-build');
+			const serverNlsResult = await finalizeNLS(
+				nlsCollector,
+				path.join(REPO_ROOT, outDir),
+				[outBuildDir],
+				{ skipNlsJs: true } satisfies FinalizeNLSOptions
+			);
+			indexMap = serverNlsResult.indexMap;
+
+			const browserNlsResult = await finalizeNLS(
+				browserNlsCollector,
+				path.join(REPO_ROOT, outDir),
+				[outBuildDir],
+				{ skipNlsJsonFiles: true } satisfies FinalizeNLSOptions
+			);
+			browserIndexMap = browserNlsResult.indexMap;
+		} else {
+			// Also write NLS files to out-build for backwards compatibility with test runner
+			const nlsResult = await finalizeNLS(
+				nlsCollector,
+				path.join(REPO_ROOT, outDir),
+				[path.join(REPO_ROOT, 'out-build')]
+			);
+			indexMap = nlsResult.indexMap;
+		}
 	}
 
 	// Post-process and write all output files
@@ -950,10 +988,13 @@ ${tslib}`,
 	// code-split chunks), and we need the NLS/mangle edits from the .js pass
 	// to be available when adjusting the .map.
 	const deferredMaps: { path: string; text: string; contents: Uint8Array }[] = [];
-	for (const { result } of buildResults) {
+	for (const { result, nlsGroup } of buildResults) {
 		if (!result.outputFiles) {
 			continue;
 		}
+
+		// For server-web, browser bundles use browserIndexMap, server bundles use indexMap.
+		const activeIndexMap = nlsGroup === 'browser' ? browserIndexMap : indexMap;
 
 		for (const file of result.outputFiles) {
 			await fs.promises.mkdir(path.dirname(file.path), { recursive: true });
@@ -977,9 +1018,9 @@ ${tslib}`,
 				}
 
 				// Apply NLS post-processing if enabled (JS only)
-				if (file.path.endsWith('.js') && doNls && indexMap.size > 0) {
+				if (file.path.endsWith('.js') && doNls && activeIndexMap.size > 0) {
 					const preNLSCode = content;
-					const nlsResult = postProcessNLS(content, indexMap, preserveEnglish);
+					const nlsResult = postProcessNLS(content, activeIndexMap, preserveEnglish);
 					content = nlsResult.code;
 					if (nlsResult.edits.length > 0) {
 						nlsEdits.set(file.path, { preNLSCode, edits: nlsResult.edits });
