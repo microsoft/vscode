@@ -260,6 +260,13 @@ export interface IWorkbenchConstructionOptions {
 	readonly enabledExtensions?: readonly ExtensionId[];
 
 	/**
+	 * List of extensions allowed to use proposed APIs in this session.
+	 * This is the equivalent of the `--enable-proposed-api` command line flag.
+	 * An empty array enables proposed APIs for all extensions.
+	 */
+	readonly enabledExtensionProposedApi?: readonly ExtensionId[];
+
+	/**
 	 * Additional domains allowed to open from the workbench without the
 	 * link protection popup.
 	 */
