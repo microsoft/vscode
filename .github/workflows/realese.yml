@@ -1,0 +1,73 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+        arch: [x64, arm64]
+        exclude:
+          - os: windows-latest
+            arch: arm64  # Windows arm64 not typically needed
+          - os: ubuntu-latest
+            arch: arm64  # Linux arm64 requires special setup
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build for ${{ matrix.os }}-${{ matrix.arch }}
+        run: |
+          if [ "${{ matrix.os }}" = "macos-latest" ]; then
+            npm run gulp vscode-darwin-${{ matrix.arch }}
+          elif [ "${{ matrix.os }}" = "windows-latest" ]; then
+            npm run gulp vscode-win32-${{ matrix.arch }}
+          else
+            npm run gulp vscode-linux-${{ matrix.arch }}
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: riftcode-${{ matrix.os }}-${{ matrix.arch }}
+          path: VSCode-${{ matrix.os }}-${{ matrix.arch }}/
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Create Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --generate-notes \
+            --title "${{ github.ref_name }}" \
+            riftcode-macos-* \
+            riftcode-windows-* \
+            riftcode-linux-*
