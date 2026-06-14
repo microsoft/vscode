@@ -10,6 +10,7 @@ import { LogEntry } from '../../src/platform/workspaceRecorder/common/workspaceL
 import { coalesce } from '../../src/util/vs/base/common/arrays';
 import { StringText } from '../../src/util/vs/editor/common/core/text/abstractText';
 import { Processor } from './alternativeAction/processor';
+import { ISerializedEdit } from './logRecordingTypes';
 import { IInputRow } from './parseInput';
 import { applyEditsToContent } from './responseStep';
 
@@ -30,6 +31,12 @@ export interface IProcessedRow {
 		readonly relativePath: string;
 		readonly originalOpIdx: number;
 	};
+	/**
+	 * Per-file next edits (including the anchor file) with each file's
+	 * request-time content, used to build cross-file labels. Files whose content
+	 * could not be reconstructed from the replayed workspace are omitted.
+	 */
+	readonly targetFileEdits: readonly { readonly relativePath: string; readonly docContent: string; readonly edit: ISerializedEdit }[];
 	readonly recordingInfo: IRecordingInformation;
 	/**
 	 * Log entries that occurred *after* the NES request bookmark, in original
@@ -207,6 +214,27 @@ function _processRow(row: IInputRow): IProcessedRow | { error: string } {
 		return map;
 	})();
 
+	// Resolve each touched file's request-time content for cross-file edit
+	// labels, reusing the request-time content snapshot above (same source the
+	// cursor-jump cross-file detector uses). Files with no effective edit, or
+	// whose request-time content cannot be reconstructed (e.g. first observed
+	// only after the request), are dropped.
+	const targetFileEdits: { relativePath: string; docContent: string; edit: ISerializedEdit }[] = [];
+	for (const fileEdit of recording.nextUserEdit.fileEdits) {
+		if (fileEdit.edit.length === 0) {
+			continue;
+		}
+		const docContent = idToContentAtRequest.get(fileEdit.id);
+		if (docContent === undefined) {
+			continue;
+		}
+		targetFileEdits.push({
+			relativePath: fileEdit.relativePath,
+			docContent,
+			edit: fileEdit.edit,
+		});
+	}
+
 	return {
 		originalRowIndex: row.originalRowIndex,
 		row,
@@ -216,6 +244,7 @@ function _processRow(row: IInputRow): IProcessedRow | { error: string } {
 		activeDocument,
 		activeFilePath,
 		nextUserEdit: recording.nextUserEdit,
+		targetFileEdits,
 		recordingInfo,
 		recordingAfterRequest: split.recordingAfterRequest,
 		activeDocLogId: split.currentFile.id,

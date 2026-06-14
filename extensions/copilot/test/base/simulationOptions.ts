@@ -11,6 +11,7 @@ export const BASELINE_RUN_COUNT = 10;
 
 export enum NesDatagenSampleTask {
 	Xtab = 'xtab',
+	XtabCrossFile = 'xtab-cross-file',
 	CursorSameFile = 'cursor-same-file',
 	CursorCrossFile = 'cursor-cross-file',
 	CursorBoth = 'cursor-both',
@@ -26,6 +27,8 @@ export type NesDatagen = {
 	readonly sameFileJumpMinAbove: number;
 	/** Minimum same-file lines below the request cursor for a move to count as a jump. */
 	readonly sameFileJumpMinBelow: number;
+	/** Per-file patch block order in the label (xtab-cross-file only). */
+	readonly patchOrder?: 'first-touch' | 'anchor-first';
 };
 
 export class SimulationOptions {
@@ -197,6 +200,7 @@ export class SimulationOptions {
 				sampleTask: SimulationOptions.validateSampleTask(argv['sample-task']),
 				sameFileJumpMinAbove: typeof argv['same-file-jump-min-above'] === 'number' ? argv['same-file-jump-min-above'] : 2,
 				sameFileJumpMinBelow: typeof argv['same-file-jump-min-below'] === 'number' ? argv['same-file-jump-min-below'] : 5,
+				patchOrder: argv['patch-order'] === 'anchor-first' ? 'anchor-first' : 'first-touch',
 			}
 			: undefined;
 
@@ -276,13 +280,15 @@ export class SimulationOptions {
 			`                                     Format is inferred from the extension: .jsonl/.ndjson → JSON Lines, otherwise JSON array`,
 			`  --out                              Output path for the JSON Lines file. Default: <input-path>_output.jsonl`,
 			`  --sample-task                      Which target to generate (default: xtab)`,
-			`                                     Values: xtab, cursor-same-file, cursor-cross-file, cursor-both`,
+			`                                     Values: xtab, xtab-cross-file, cursor-same-file, cursor-cross-file, cursor-both`,
 			`                                       xtab               → edit-prediction sample (assistant = an edit)`,
+			`                                       xtab-cross-file    → multi-file edit-prediction sample (one patch block per touched file)`,
 			`                                       cursor-same-file   → next-cursor-line sample restricted to the active file`,
 			`                                       cursor-cross-file  → next-cursor-line sample for a jump to another file`,
 			`                                       cursor-both        → tries same-file first, falls back to cross-file (one sample per row)`,
 			`  --same-file-jump-min-above         Minimum lines above request cursor for a same-file move to count as a jump (default: 2)`,
 			`  --same-file-jump-min-below         Minimum lines below request cursor for a same-file move to count as a jump (default: 5)`,
+			`  --patch-order                      Per-file patch block order in the xtab-cross-file label: first-touch (default) | anchor-first`,
 			``,
 			`Global options (placed before 'nes-datagen'):`,
 			`  --config-file                      Path to a JSON config file (required for nes-datagen)`,
