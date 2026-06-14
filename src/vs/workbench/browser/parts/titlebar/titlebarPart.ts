@@ -672,7 +672,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	}
 
 	private createSoloNavButtons(): void {
-		const makeButton = (modifier: string, iconClass: string, title: string, commandId: string) => {
+		const makeButton = (modifier: string, iconClass: string, title: string, commandId: string, contextKeyName: string) => {
 			const button = append(this.leftContent, $(`button.solo-titlebar-nav-button.${modifier}`)) as HTMLButtonElement;
 			button.type = 'button';
 			button.title = title;
@@ -680,11 +680,26 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			button.appendChild($(`span.codicon.${iconClass}`));
 			this._register(addDisposableListener(button, EventType.CLICK, e => {
 				EventHelper.stop(e);
-				void this.commandService.executeCommand(commandId);
+				if (!button.classList.contains('disabled')) {
+					void this.commandService.executeCommand(commandId);
+				}
+			}));
+
+			// Reflect the navigation context key as a disabled visual state.
+			const updateDisabled = () => {
+				const canNavigate = !!this.contextKeyService.getContextKeyValue<boolean>(contextKeyName);
+				button.classList.toggle('disabled', !canNavigate);
+				button.setAttribute('aria-disabled', String(!canNavigate));
+			};
+			updateDisabled();
+			this._register(this.contextKeyService.onDidChangeContext(e => {
+				if (e.affectsSome(new Set([contextKeyName]))) {
+					updateDisabled();
+				}
 			}));
 		};
-		makeButton('solo-nav-back', 'codicon-arrow-left', localize('soloNavBack', "Go Back"), 'workbench.action.navigateBack');
-		makeButton('solo-nav-forward', 'codicon-arrow-right', localize('soloNavForward', "Go Forward"), 'workbench.action.navigateForward');
+		makeButton('solo-nav-back', 'codicon-arrow-left', localize('soloNavBack', "Go Back"), 'workbench.action.navigateBack', 'canNavigateBack');
+		makeButton('solo-nav-forward', 'codicon-arrow-right', localize('soloNavForward', "Go Forward"), 'workbench.action.navigateForward', 'canNavigateForward');
 	}
 
 	private actionViewItemProvider(action: IAction, options: IBaseActionViewItemOptions): IActionViewItem | undefined {

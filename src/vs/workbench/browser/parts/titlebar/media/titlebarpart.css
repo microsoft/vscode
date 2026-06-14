@@ -613,18 +613,22 @@
 	order: 3;
 }
 
-.monaco-workbench .part.titlebar .solo-titlebar-nav-button .codicon {
-	font-size: 16px;
-}
-
-.monaco-workbench .part.titlebar .solo-titlebar-nav-button:hover,
-.monaco-workbench .part.titlebar .solo-titlebar-nav-button:focus-visible {
+.monaco-workbench .part.titlebar .solo-titlebar-nav-button:hover:not(.disabled),
+.monaco-workbench .part.titlebar .solo-titlebar-nav-button:focus-visible:not(.disabled) {
 	background-color: rgba(255, 255, 255, 0.075);
 	color: var(--solo-ink-0, inherit);
 	outline: none;
 }
 
-/* Hide the command center's built-in back/forward (replaced by the left ones above) */
+/* Disabled state: dim the button when navigation history is empty */
+.monaco-workbench .part.titlebar .solo-titlebar-nav-button.disabled {
+	opacity: 0.35;
+	pointer-events: none;
+}
+
+/* Hide the command center's built-in back/forward (replaced by the left Solo
+ * nav buttons above).
+ * Upstream target: src/vs/workbench/browser/parts/titlebar/commandCenterControl.ts */
 .monaco-workbench .part.titlebar .command-center .action-item:has(.codicon-arrow-left),
 .monaco-workbench .part.titlebar .command-center .action-item:has(.codicon-arrow-right) {
 	display: none !important;
