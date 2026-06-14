@@ -6,7 +6,9 @@
 			"type": "shell",
 			"command": "npm ci",
 			"inAgents": true,
-			"runOptions": { "runOn": "worktreeCreated" }
+			"runOptions": {
+				"runOn": "worktreeCreated"
+			}
 		},
 		{
 			"label": "Compile & Launch Extension Host",
@@ -39,7 +41,9 @@
 				"options": {
 					"shell": {
 						"executable": "cmd.exe",
-						"args": ["/c"]
+						"args": [
+							"/c"
+						]
 					}
 				}
 			},
@@ -61,9 +65,9 @@
 		{
 			"label": "start-watch-tasks",
 			"dependsOn": [
-				"npm: watch:tsc-extension",
-				"npm: watch:tsc-extension-web",
-				"npm: watch:tsc-simulation-workbench",
+				"npm: watch:typecheck-extension",
+				"npm: watch:typecheck-extension-web",
+				"npm: watch:typecheck-simulation-workbench",
 				"npm: watch:esbuild"
 			],
 			"dependsOrder": "parallel",
@@ -92,11 +96,11 @@
 		},
 		{
 			"type": "npm",
-			"script": "watch:tsc-extension",
+			"script": "watch:typecheck-extension",
 			"group": "build",
 			"problemMatcher": "$tsc-watch",
 			"isBackground": true,
-			"label": "npm: watch:tsc-extension",
+			"label": "npm: watch:typecheck-extension",
 			"presentation": {
 				"group": "watch",
 				"reveal": "never"
@@ -104,11 +108,11 @@
 		},
 		{
 			"type": "npm",
-			"script": "watch:tsc-extension-web",
+			"script": "watch:typecheck-extension-web",
 			"group": "build",
 			"problemMatcher": "$tsc-watch",
 			"isBackground": true,
-			"label": "npm: watch:tsc-extension-web",
+			"label": "npm: watch:typecheck-extension-web",
 			"presentation": {
 				"group": "watch",
 				"reveal": "never"
@@ -116,11 +120,11 @@
 		},
 		{
 			"type": "npm",
-			"script": "watch:tsc-simulation-workbench",
+			"script": "watch:typecheck-simulation-workbench",
 			"group": "build",
 			"problemMatcher": "$tsc-watch",
 			"isBackground": true,
-			"label": "npm: watch:tsc-simulation-workbench",
+			"label": "npm: watch:typecheck-simulation-workbench",
 			"presentation": {
 				"group": "watch",
 				"reveal": "never"
@@ -144,7 +148,12 @@
 			"command": "${workspaceFolder}/script/simulate.sh",
 			"windows": {
 				"command": "powershell",
-				"args": ["-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/script/simulate.ps1"]
+				"args": [
+					"-ExecutionPolicy",
+					"Bypass",
+					"-File",
+					"${workspaceFolder}/script/simulate.ps1"
+				]
 			},
 			"args": [],
 			"group": {

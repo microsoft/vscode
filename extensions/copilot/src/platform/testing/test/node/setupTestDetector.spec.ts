@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+/* eslint-disable local/code-no-unused-expressions */
 
 import { beforeEach, expect, suite, test, vi } from 'vitest';
 import type * as vscode from 'vscode';

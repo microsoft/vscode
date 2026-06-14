@@ -28,13 +28,8 @@ function makeToolsService(tool: ICopilotTool<unknown> | undefined): IToolsServic
 	}();
 }
 
-const logService = new class extends mock<import('../../../../../platform/log/common/logService').ILogService>() {
-	override trace = vi.fn();
-	override warn = vi.fn();
-}();
-
 function makeHandler(tool: ICopilotTool<unknown> | undefined) {
-	return new UserQuestionHandler(logService, makeToolsService(tool));
+	return new UserQuestionHandler(makeToolsService(tool));
 }
 
 const toolInvocationToken = {} as import('vscode').ChatParticipantToolToken;

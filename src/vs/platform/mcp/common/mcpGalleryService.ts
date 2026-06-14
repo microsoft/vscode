@@ -16,7 +16,7 @@ import { asJson, asText, IRequestService } from '../../request/common/request.js
 import { GalleryMcpServerStatus, IGalleryMcpServer, IMcpGalleryService, IMcpServerArgument, IMcpServerInput, IMcpServerKeyValueInput, IMcpServerPackage, IQueryOptions, RegistryType, SseTransport, StreamableHttpTransport, Transport, TransportType } from './mcpManagement.js';
 import { IMcpGalleryManifestService, McpGalleryManifestStatus, getMcpGalleryManifestResourceUri, McpGalleryResourceType, IMcpGalleryManifest } from './mcpGalleryManifest.js';
 import { IIterativePager, IIterativePage } from '../../../base/common/paging.js';
-import { CancellationError } from '../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../base/common/errors.js';
 import { isObject, isString } from '../../../base/common/types.js';
 
 interface IMcpRegistryInfo {
@@ -949,11 +949,20 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			url += `&search=${text}`;
 		}
 
-		const context = await this.requestService.request({
-			type: 'GET',
-			url,
-			callSite: 'mcpGalleryService.queryMcpServers'
-		}, token);
+		let context;
+		try {
+			context = await this.requestService.request({
+				type: 'GET',
+				url,
+				callSite: 'mcpGalleryService.queryMcpServers'
+			}, token);
+		} catch (error) {
+			if (isCancellationError(error)) {
+				throw error;
+			}
+			this.logService.error(`Failed to query MCP gallery: ${error}`);
+			return { servers: [], metadata: { count: 0 } };
+		}
 
 		const data = await asJson(context);
 

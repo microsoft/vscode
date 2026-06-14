@@ -25,6 +25,22 @@ export class ChatQuestionCarouselData implements IChatQuestionCarousel {
 	 */
 	public dismissedByTerminalInput?: boolean;
 
+	/**
+	 * Marks the carousel as dismissed with the given answers and clears draft
+	 * state. Safe to call multiple times — subsequent calls are no-ops.
+	 */
+	dismiss(answers: IChatQuestionAnswers | undefined): void {
+		if (this.isUsed) {
+			return;
+		}
+		this.data = answers ?? {};
+		this.isUsed = true;
+		this.draftAnswers = undefined;
+		this.draftCurrentIndex = undefined;
+		this.draftCollapsed = undefined;
+		void this.completion.complete({ answers });
+	}
+
 	constructor(
 		public questions: IChatQuestion[],
 		public allowSkip: boolean,

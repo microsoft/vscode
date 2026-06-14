@@ -192,6 +192,11 @@ export interface PullRequestFile {
 	sha?: string;
 }
 
+export interface CreatedPullRequest {
+	number: number;
+	url: string;
+}
+
 interface GitHubContentResponse {
 	content?: string;
 	encoding?: string;
@@ -279,6 +284,19 @@ export interface IOctoKitService {
 	 * @param authOptions - Authentication options. By default, uses silent auth and throws {@link PermissiveAuthRequiredError} if not authenticated.
 	 */
 	addPullRequestComment(pullRequestId: string, commentBody: string, authOptions: AuthOptions): Promise<PullRequestComment | null>;
+
+	/**
+	 * Creates a pull request.
+	 * @param owner The repository owner
+	 * @param repo The repository name
+	 * @param title The pull request title
+	 * @param body The pull request body
+	 * @param head The source branch name
+	 * @param base The target branch name
+	 * @param draft Whether to create the PR as a draft
+	 * @param authOptions - Authentication options. By default, uses silent auth and throws {@link PermissiveAuthRequiredError} if not authenticated.
+	 */
+	createPullRequest(owner: string, repo: string, title: string, body: string, head: string, base: string, draft: boolean, authOptions: AuthOptions): Promise<CreatedPullRequest>;
 
 	/**
 	 * Gets all open Copilot sessions.
@@ -456,6 +474,9 @@ export class BaseOctoKitService {
 	private static readonly _outageStatusCacheTTL = 5 * 60 * 1000; // 5 minutes
 	private _cachedOutageStatus: { value: GitHubOutageStatus; timestamp: number } | undefined;
 
+	private static readonly _userReposScopeCacheTTL = 5 * 60 * 1000; // 5 minutes
+	private _cachedUserReposScope: { token: string; qualifiers: string; timestamp: number } | undefined;
+
 	constructor(
 		protected readonly _capiClientService: ICAPIClientService,
 		protected readonly _fetcherService: IFetcherService,
@@ -521,6 +542,25 @@ export class BaseOctoKitService {
 
 	protected async addPullRequestCommentWithToken(pullRequestId: string, commentBody: string, token: string): Promise<PullRequestComment | null> {
 		return addPullRequestCommentGraphQLRequest(this._fetcherService, this._logService, this._telemetryService, this._capiClientService.dotcomAPIURL, token, pullRequestId, commentBody);
+	}
+
+	protected async createPullRequestWithToken(owner: string, repo: string, title: string, body: string, head: string, base: string, draft: boolean, token: string): Promise<CreatedPullRequest> {
+		const response = await this._makeGHAPIRequest(`repos/${owner}/${repo}/pulls`, 'POST', token, {
+			title,
+			body,
+			head,
+			base,
+			draft,
+		});
+
+		if (!response?.html_url || typeof response.number !== 'number') {
+			throw new Error(`Failed to create pull request for ${owner}/${repo}`);
+		}
+
+		return {
+			url: response.html_url,
+			number: response.number,
+		};
 	}
 
 	protected async getPullRequestFromSessionWithToken(globalId: string, token: string): Promise<PullRequestSearchItem | null> {
@@ -590,9 +630,12 @@ export class BaseOctoKitService {
 	}
 
 	protected async getUserRepositoriesWithToken(token: string, query?: string): Promise<{ owner: string; name: string }[]> {
-		// If query provided, use GitHub search API
-		if (query && query.trim()) {
-			return this.searchUserRepositoriesWithToken(token, query.trim());
+		const trimmedQuery = query?.trim();
+
+		// If query provided, use GitHub search API scoped to the user and their orgs.
+		// Without a user:/org: scope, /search/repositories does not return private repos.
+		if (trimmedQuery) {
+			return this.searchUserRepositoriesWithToken(token, trimmedQuery);
 		}
 
 		// Fetch the most recently updated repos with push access
@@ -609,20 +652,24 @@ export class BaseOctoKitService {
 			return [];
 		}
 
-		// Filter to repos with push access
-		const items = result
+		return result
 			.filter((repo: { permissions?: { push?: boolean } }) => repo.permissions?.push)
 			.map((repo: { name: string; owner: { login: string } }) => ({
 				owner: repo.owner.login,
 				name: repo.name
 			}));
-		return items || [];
 	}
 
 	private async searchUserRepositoriesWithToken(token: string, query: string): Promise<{ owner: string; name: string }[]> {
-		// Use GitHub search API to find repos matching the query
-		// Search in repos the user has push access to
-		const searchQuery = encodeURIComponent(`${query} in:name fork:true`);
+		const scope = await this._getUserReposSearchScope(token);
+		if (!scope) {
+			return [];
+		}
+
+		// `user:<login>` plus `org:<org>` qualifiers are ORed by the search API, so a
+		// single call covers the authed user's own repos and any org repos they belong
+		// to (including private ones).
+		const searchQuery = encodeURIComponent(`${query} in:name fork:true ${scope}`);
 		const result = await this._makeGHAPIRequest(
 			`search/repositories?q=${searchQuery}&sort=updated&per_page=100`,
 			'GET',
@@ -632,18 +679,45 @@ export class BaseOctoKitService {
 			'github-rest-search-repos'
 		);
 
-		if (!result || !result.items || !Array.isArray(result.items)) {
+		if (!result || !Array.isArray(result.items)) {
 			return [];
 		}
 
-		// Filter to only repos with push access
-		const items = result.items
+		return result.items
 			.filter((repo: { permissions?: { push?: boolean } }) => repo.permissions?.push)
 			.map((repo: { name: string; owner: { login: string } }) => ({
 				owner: repo.owner.login,
 				name: repo.name
 			}));
-		return items || [];
+	}
+
+	private async _getUserReposSearchScope(token: string): Promise<string | undefined> {
+		const now = Date.now();
+		if (this._cachedUserReposScope
+			&& this._cachedUserReposScope.token === token
+			&& (now - this._cachedUserReposScope.timestamp) < BaseOctoKitService._userReposScopeCacheTTL) {
+			return this._cachedUserReposScope.qualifiers;
+		}
+
+		const [user, orgs] = await Promise.all([
+			this._makeGHAPIRequest('user', 'GET', token, undefined, undefined, 'github-rest-get-user'),
+			this.getUserOrganizationsWithToken(token)
+		]);
+
+		const qualifiers: string[] = [];
+		if (user?.login) {
+			qualifiers.push(`user:${user.login}`);
+		}
+		for (const org of orgs) {
+			qualifiers.push(`org:${org}`);
+		}
+		if (qualifiers.length === 0) {
+			return undefined;
+		}
+
+		const joined = qualifiers.join(' ');
+		this._cachedUserReposScope = { token, qualifiers: joined, timestamp: now };
+		return joined;
 	}
 
 	protected async getRecentlyCommittedReposWithToken(token: string): Promise<{ owner: string; name: string }[]> {

@@ -64,7 +64,7 @@ export class UserDataSyncConflictsViewPane extends TreeViewPane implements IUser
 		this.treeView.dataProvider = { getChildren() { return that.getTreeItems(); } };
 	}
 
-	private async getTreeItems(): Promise<ITreeItem[]> {
+	private async getTreeItems(): Promise<readonly ITreeItem[]> {
 		const roots: ITreeItem[] = [];
 
 		const conflictResources: UserDataSyncConflictResource[] = this.userDataSyncService.conflicts

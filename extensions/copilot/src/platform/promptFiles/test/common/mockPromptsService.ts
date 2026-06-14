@@ -9,7 +9,7 @@ import { Emitter, Event } from '../../../../util/vs/base/common/event';
 import { Disposable } from '../../../../util/vs/base/common/lifecycle';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { PromptFileParser } from '../../../../util/vs/workbench/contrib/chat/common/promptSyntax/promptFileParser';
-import { IPromptsService, ParsedPromptFile } from '../../common/promptsService';
+import { IPromptsService, IAgentInstructionFile, ParsedPromptFile } from '../../common/promptsService';
 import { ResourceMap } from '../../../../util/vs/base/common/map';
 
 export class MockPromptsService extends Disposable implements IPromptsService {
@@ -109,6 +109,25 @@ export class MockPromptsService extends Disposable implements IPromptsService {
 
 	getPlugins(_token: CancellationToken): Promise<readonly ChatPlugin[]> {
 		return Promise.resolve(this._plugins);
+	}
+
+	private _agentInstructions: readonly IAgentInstructionFile[] = [];
+	private _nestedAgentMDs: readonly IAgentInstructionFile[] = [];
+
+	setAgentInstructions(files: readonly IAgentInstructionFile[]): void {
+		this._agentInstructions = files;
+	}
+
+	setNestedAgentMDs(files: readonly IAgentInstructionFile[]): void {
+		this._nestedAgentMDs = files;
+	}
+
+	listAgentInstructions(_token: CancellationToken): Promise<IAgentInstructionFile[]> {
+		return Promise.resolve([...this._agentInstructions]);
+	}
+
+	listNestedAgentMDs(_token: CancellationToken): Promise<IAgentInstructionFile[]> {
+		return Promise.resolve([...this._nestedAgentMDs]);
 	}
 
 	/** Register content so parseFile returns a parsed result for the given URI. */

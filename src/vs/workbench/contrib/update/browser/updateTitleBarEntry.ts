@@ -12,15 +12,17 @@ import { Disposable, MutableDisposable, toDisposable } from '../../../../base/co
 import { isWeb } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
-import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, IMenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { DisablementReason, IUpdateService, State, StateType } from '../../../../platform/update/common/update.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { InEditorZenModeContext } from '../../../common/contextkeys.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { computeProgressPercent } from '../common/updateUtils.js';
@@ -34,8 +36,23 @@ const UPDATE_TITLE_BAR_CONTEXT = new RawContextKey<boolean>('updateTitleBar', fa
 const DISABLED_REMINDER_LAST_SHOWN_KEY = 'update/disabledReminderLastShown';
 const DISABLED_REMINDER_PERIOD = 30 * 24 * 60 * 60 * 1000; // 30 days
 
+const UPDATE_TITLE_BAR_SETTING = 'update.titleBar';
+
 const ACTIONABLE_STATES: readonly StateType[] = [StateType.AvailableForDownload, StateType.Downloaded, StateType.Ready];
 const DETAILED_STATES: readonly StateType[] = [...ACTIONABLE_STATES, StateType.CheckingForUpdates, StateType.Downloading, StateType.Updating, StateType.Overwriting];
+
+/**
+ * Optional secondary placement for the update indicator (e.g. used by the Agents
+ * app). Limited to one because the contribution tracks a single rendered entry.
+ */
+let additionalMenuPlacement: { readonly menuId: MenuId; readonly item: Omit<IMenuItem, 'command'> } | undefined;
+
+export function registerUpdateTitleBarMenuPlacement(menuId: MenuId, item: Omit<IMenuItem, 'command'> = {}): void {
+	if (additionalMenuPlacement) {
+		throw new Error('An additional update title bar menu placement is already registered');
+	}
+	additionalMenuPlacement = { menuId, item };
+}
 
 registerAction2(class UpdateIndicatorTitleBarAction extends Action2 {
 	constructor() {
@@ -46,7 +63,7 @@ registerAction2(class UpdateIndicatorTitleBarAction extends Action2 {
 			menu: [{
 				id: MenuId.TitleBarAdjacentCenter,
 				order: 0,
-				when: UPDATE_TITLE_BAR_CONTEXT,
+				when: ContextKeyExpr.and(UPDATE_TITLE_BAR_CONTEXT, InEditorZenModeContext.negate(), ContextKeyExpr.not('inDebugMode')),
 			}]
 		});
 	}
@@ -68,6 +85,7 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IChatService private readonly chatService: IChatService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService private readonly hostService: IHostService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -89,28 +107,59 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 			this.onStateChange();
 		}));
 
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(UPDATE_TITLE_BAR_SETTING)) {
+				this.onStateChange();
+			}
+		}));
+
 		this._register(actionViewItemService.register(
 			MenuId.TitleBarAdjacentCenter,
 			UPDATE_TITLE_BAR_ACTION_ID,
-			(action, options) => {
-				this.entry = instantiationService.createInstance(UpdateTitleBarEntry, action, options, this.tooltip, () => {
-					this.tooltipVisible = false;
-					if (!ACTIONABLE_STATES.includes(this.state.type) && !DETAILED_STATES.includes(this.state.type)) {
-						this.context.set(false);
-					}
-				});
-				if (this.tooltipVisible) {
-					this.entry.showTooltip();
-				}
-				return this.entry;
-			}
+			(action, options) => this.createEntry(instantiationService, action, options)
 		));
+
+		if (additionalMenuPlacement) {
+			const { menuId, item } = additionalMenuPlacement;
+			MenuRegistry.appendMenuItem(menuId, {
+				...item,
+				command: {
+					id: UPDATE_TITLE_BAR_ACTION_ID,
+					title: localize('updateIndicatorTitleBarAction', 'Update'),
+				},
+				when: item.when ? ContextKeyExpr.and(UPDATE_TITLE_BAR_CONTEXT, item.when) : UPDATE_TITLE_BAR_CONTEXT,
+			});
+			this._register(actionViewItemService.register(
+				menuId,
+				UPDATE_TITLE_BAR_ACTION_ID,
+				(action, options) => this.createEntry(instantiationService, action, options)
+			));
+		}
 
 		void this.onStateChange(true);
 	}
 
+	private createEntry(instantiationService: IInstantiationService, action: IAction, options: IBaseActionViewItemOptions): UpdateTitleBarEntry {
+		this.entry = instantiationService.createInstance(UpdateTitleBarEntry, action, options, this.tooltip, () => {
+			this.tooltipVisible = false;
+			if (!ACTIONABLE_STATES.includes(this.state.type) && !DETAILED_STATES.includes(this.state.type)) {
+				this.context.set(false);
+			}
+		});
+		if (this.tooltipVisible) {
+			this.entry.showTooltip();
+		}
+		return this.entry;
+	}
+
 	private async onStateChange(startup = false) {
 		this.pendingShow.clear();
+
+		if (this.configurationService.getValue<boolean>(UPDATE_TITLE_BAR_SETTING) === false) {
+			this.context.set(false);
+			return;
+		}
+
 		if (ACTIONABLE_STATES.includes(this.state.type)) {
 			await this.setContextWhenChatIdle(true);
 		} else {

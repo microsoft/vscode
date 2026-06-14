@@ -5,7 +5,7 @@
 
 import type * as vscode from 'vscode';
 import { coalesce } from '../../../base/common/arrays.js';
-import { DeferredPromise, raceCancellation, timeout } from '../../../base/common/async.js';
+import { DeferredPromise, raceCancellation, raceCancellationError, timeout } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter } from '../../../base/common/event.js';
@@ -420,7 +420,10 @@ export class ChatAgentResponseStream {
 							checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
 
 							dto.resolveId = generateUuid();
+						}
+						_report(dto);
 
+						if (part.resolve) {
 							const cts = new CancellationTokenSource();
 							part.resolve(cts.token)
 								.then(() => {
@@ -430,7 +433,6 @@ export class ChatAgentResponseStream {
 								.then(() => cts.dispose(), () => cts.dispose());
 							that._sessionDisposables.add(toDisposable(() => cts.dispose(true)));
 						}
-						_report(dto);
 					} else if (part instanceof extHostTypes.ChatResponseExternalEditPart) {
 						const p = this.externalEdit(part.uris, part.callback);
 						p.then((value) => part.didGetApplied(value));
@@ -545,6 +547,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			model: dto.model,
 			userInvocable: dto.userInvocable,
 			disableModelInvocation: dto.disableModelInvocation,
+			enabled: dto.enabled,
 		});
 	}
 
@@ -571,6 +574,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			pluginUri: dto.pluginUri ? URI.revive(dto.pluginUri) : undefined,
 			sessionTypes: dto.sessionTypes,
 			userInvocable: dto.userInvocable,
+			disableModelInvocation: dto.disableModelInvocation,
 		});
 	}
 
@@ -817,14 +821,21 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return disposables;
 	}
 
-	async $provideChatSessionCustomizations(handle: number, token: CancellationToken): Promise<IChatSessionCustomizationItemDto[] | undefined> {
+	async $provideChatSessionCustomizations(handle: number, sessionResource: UriComponents | undefined, token: CancellationToken): Promise<IChatSessionCustomizationItemDto[] | undefined> {
 		const providerData = this._customizationProviders.get(handle);
 		if (!providerData) {
 			return undefined;
 		}
 
+		// The proposed API requires a real session URI; bail out when the
+		// internal caller (e.g. the management UI populating a global list)
+		// has nothing scoped to forward.
+		if (!sessionResource) {
+			return undefined;
+		}
+
 		try {
-			const items = await providerData.provider.provideChatSessionCustomizations(token);
+			const items = await providerData.provider.provideChatSessionCustomizations(URI.revive(sessionResource), token);
 			if (!items) {
 				return undefined;
 			}
@@ -834,11 +845,13 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				type: typeConvert.ChatSessionCustomizationType.from(item.type),
 				name: item.name,
 				description: item.description,
+				source: item.source,
 				groupKey: item.groupKey,
 				badge: item.badge,
 				badgeTooltip: item.badgeTooltip,
 				extensionId: item.extensionId,
 				pluginUri: item.pluginUri,
+				userInvocable: item.userInvocable,
 			} satisfies IChatSessionCustomizationItemDto));
 		} catch (err) {
 			return undefined;
@@ -1529,7 +1542,9 @@ class CachedPromise<T> {
 			this.cachedPromise = promise;
 		}
 
-		return raceCancellation(this.cachedPromise, token, []);
+		// Each caller observes the shared computation through its own token so that
+		// one caller cancelling does not affect concurrent callers.
+		return raceCancellationError(this.cachedPromise, token);
 	}
 
 	clear(): void {

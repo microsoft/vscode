@@ -30,6 +30,7 @@ import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { IChatContextService } from '../contextContrib/chatContextService.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
+import { BrowserEditorInput } from '../../../browserView/common/browserEditorInput.js';
 
 export class ChatImplicitContextContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'chat.implicitContext';
@@ -162,6 +163,14 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 		return undefined;
 	}
 
+	private findActiveBrowserEditor(): BrowserEditorInput | undefined {
+		const activeEditorPane = this.editorService.activeEditorPane;
+		if (activeEditorPane?.input instanceof BrowserEditorInput) {
+			return activeEditorPane.input;
+		}
+		return undefined;
+	}
+
 	private findActiveNotebookEditor(): INotebookEditor | undefined {
 		return getNotebookEditorFromEditorPane(this.editorService.activeEditorPane);
 	}
@@ -171,6 +180,7 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 		const codeEditor = this.findActiveCodeEditor();
 		const model = codeEditor?.getModel();
 		const selection = codeEditor?.getSelection();
+		const useSuggestedContext = this.configurationService.getValue<boolean>('chat.implicitContext.suggestedContext');
 		let newValue: Location | URI | StringChatContextValue | undefined;
 		let isSelection = false;
 
@@ -182,7 +192,7 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 				newValue = { uri: model.uri, range: selection } satisfies Location;
 				isSelection = true;
 			} else {
-				if (this.configurationService.getValue('chat.implicitContext.suggestedContext')) {
+				if (useSuggestedContext) {
 					newValue = model.uri;
 				} else {
 					const visibleRanges = codeEditor?.getVisibleRanges();
@@ -243,6 +253,11 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 			if (webviewContext) {
 				newValue = webviewContext;
 			}
+		}
+
+		const browser = this.findActiveBrowserEditor();
+		if (browser?.isSharingAvailable && useSuggestedContext) {
+			newValue = browser.resource;
 		}
 
 		const uri = newValue instanceof URI ? newValue : (isStringImplicitContextValue(newValue) ? undefined : newValue?.uri);
@@ -387,6 +402,9 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 
 	get name(): string {
 		if (URI.isUri(this.value)) {
+			if (this.value.scheme === Schemas.vscodeBrowser) {
+				return `browser`;
+			}
 			return `file:${basename(this.value)}`;
 		}
 		if (isLocation(this.value)) {
@@ -472,6 +490,10 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 
 	public toBaseEntries(): IChatRequestVariableEntry[] {
 		if (!this.value) {
+			return [];
+		}
+
+		if (URI.isUri(this.value) && this.value.scheme === Schemas.vscodeBrowser) {
 			return [];
 		}
 

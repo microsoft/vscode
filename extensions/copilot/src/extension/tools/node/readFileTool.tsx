@@ -74,6 +74,7 @@ export interface IReadFileParamsV2 {
 }
 
 const MAX_LINES_PER_READ = 2000;
+const MAX_LINE_LENGTH = 2000;
 
 export type ReadFileParams = IReadFileParamsV1 | IReadFileParamsV2;
 
@@ -218,7 +219,7 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 
 			// Check if file is external (outside workspace, not open in editor, etc.)
 			const isExternal = await this.instantiationService.invokeFunction(
-				accessor => isFileExternalAndNeedsConfirmation(accessor, uri!, this._promptContext, { readOnly: true })
+				accessor => isFileExternalAndNeedsConfirmation(accessor, uri!, this._promptContext, { readOnly: true, workingDirectory: options.workingDirectory })
 			);
 
 			if (isExternal) {
@@ -243,7 +244,7 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 				};
 			}
 
-			await this.instantiationService.invokeFunction(accessor => assertFileOkForTool(accessor, uri!, this._promptContext, { readOnly: true }));
+			await this.instantiationService.invokeFunction(accessor => assertFileOkForTool(accessor, uri!, this._promptContext, { readOnly: true, workingDirectory: options.workingDirectory }));
 
 			try {
 				documentSnapshot = await this.getSnapshot(uri);
@@ -425,7 +426,19 @@ class ReadFileResult extends PromptElement<ReadFileResultProps> {
 			this.props.startLine - 1, 0,
 			this.props.endLine - 1, Infinity,
 		);
-		let contents = documentSnapshot.getText(range);
+		const rawContents = documentSnapshot.getText(range);
+		let hadLongLines = false;
+		let contents = rawContents.split('\n').map(line => {
+			if (line.length > MAX_LINE_LENGTH) {
+				hadLongLines = true;
+				return line.slice(0, MAX_LINE_LENGTH) + ' [truncated]';
+			}
+			return line;
+		}).join('\n');
+
+		if (hadLongLines) {
+			contents += `\n[One or more long lines were truncated at ${MAX_LINE_LENGTH} characters]\n`;
+		}
 
 		if (this.props.truncated) {
 			contents += `\n[File content truncated at line ${this.props.endLine}. Use ${ToolName.ReadFile} with offset/limit parameters to view more.]\n`;

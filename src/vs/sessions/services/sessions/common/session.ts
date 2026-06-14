@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from '../../../../base/common/codicons.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IObservable } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 
 export interface ISessionType {
 	/** Unique identifier (e.g., 'copilot-cli', 'copilot-cloud', 'claude-code'). */
@@ -18,46 +19,6 @@ export interface ISessionType {
 	readonly label: string;
 	/** Icon for this session type. */
 	readonly icon: ThemeIcon;
-}
-
-/** Session type ID for local Copilot CLI sessions. */
-export const COPILOT_CLI_SESSION_TYPE = 'copilotcli';
-
-/** Session type ID for Copilot Cloud sessions. */
-export const COPILOT_CLOUD_SESSION_TYPE = 'copilot-cloud-agent';
-
-/** Copilot CLI session type — local background agent running in a Git worktree. */
-export const CopilotCLISessionType: ISessionType = {
-	id: COPILOT_CLI_SESSION_TYPE,
-	label: localize('copilotCLI', "Copilot CLI"),
-	icon: Codicon.copilot,
-};
-
-/** Copilot Cloud session type - cloud-hosted agent. */
-export const CopilotCloudSessionType: ISessionType = {
-	id: COPILOT_CLOUD_SESSION_TYPE,
-	label: localize('copilotCloud', "Cloud"),
-	icon: Codicon.cloud,
-};
-
-/** Session type ID for Claude Code sessions. */
-export const CLAUDE_CODE_SESSION_TYPE = 'claude-code';
-
-/** Claude Code session type — local agent powered by Claude. */
-export const ClaudeCodeSessionType: ISessionType = {
-	id: CLAUDE_CODE_SESSION_TYPE,
-	label: localize('claudeCode', "Claude"),
-	icon: Codicon.claude,
-};
-
-/**
- * Returns whether the given session type represents a workspace-backed
- * agent (e.g. Copilot CLI, Claude Code) that operates on a worktree or
- * repository — regardless of whether the agent runs locally or remotely.
- * TODO: Somehow make this contributable so we don't have to hardcode session types here.
- */
-export function isWorkspaceAgentSessionType(sessionType: string | undefined): boolean {
-	return sessionType === COPILOT_CLI_SESSION_TYPE || sessionType === CLAUDE_CODE_SESSION_TYPE;
 }
 
 export const GITHUB_REMOTE_FILE_SCHEME = 'github-remote-file';
@@ -78,16 +39,11 @@ export const enum SessionStatus {
 	Error = 4,
 }
 
-/**
- * A repository within a session workspace.
- */
-export interface ISessionRepository {
+export interface ISessionGitRepository {
 	/** The source repository URI. */
 	readonly uri: URI;
 	/** The working directory URI (e.g., a git worktree or checkout path). */
-	readonly workingDirectory: URI | undefined;
-	/** Provider-chosen display detail (e.g., branch name, host name). */
-	readonly detail: string | undefined;
+	readonly workTreeUri: URI | undefined;
 	/** Current branch name. */
 	readonly branchName?: string;
 	/** Name of the base branch. */
@@ -104,24 +60,55 @@ export interface ISessionRepository {
 	readonly outgoingChanges?: number;
 	/** Number of files with uncommitted changes. */
 	readonly uncommittedChanges?: number;
+	/** Whether a Git operation is currently in progress. */
+	readonly hasGitOperationInProgress?: boolean;
+	/** GitHub information associated with the repository. */
+	readonly gitHubInfo: IObservable<IGitHubInfo | undefined>;
+}
+
+/**
+ * A folder within a session workspace.
+ */
+export interface ISessionFolder {
+	/** Canonical URI of the folder. */
+	readonly root: URI;
+	/** Working directory used for file operations. */
+	readonly workingDirectory: URI;
+	/** Display name for the folder (e.g., repository or directory basename). */
+	readonly name: string;
+	/** Optional description shown alongside the name (e.g., parent folder path). */
+	readonly description: string | undefined;
+	/** Git repository information associated with this folder. */
+	readonly gitRepository?: ISessionGitRepository;
 }
 
 /**
  * Workspace information for a session, encapsulating one or more repositories.
  */
 export interface ISessionWorkspace {
+	/** URI identifying the workspace. */
+	readonly uri: URI;
 	/** Display label for the workspace (e.g., "my-app", "org/repo", "host:/path"). */
 	readonly label: string;
 	/** Optional description shown alongside the label (e.g., parent folder path "~/work"). */
 	readonly description?: string;
-	/** Optional group name for categorizing this workspace in pickers (e.g., "Copilot Chat", "Local"). */
+	/**
+	 * Optional group label for categorizing this workspace in pickers. The
+	 * workspace picker uses this to bucket entries into top-level tabs
+	 * (e.g. `"Local"`, `"Cloud"`, `"Remote"`). Providers contribute the
+	 * label — the picker just renders whatever values are present.
+	 */
 	readonly group?: string;
 	/** Icon for the workspace. */
 	readonly icon: ThemeIcon;
-	/** Repositories in this workspace. */
-	readonly repositories: ISessionRepository[];
+	/** Folders in this session workspace. */
+	readonly folders: ISessionFolder[];
 	/** Whether the session requires workspace trust to operate. */
 	readonly requiresWorkspaceTrust: boolean;
+	/**
+	 * Whether this workspace is a virtual
+	 */
+	readonly isVirtualWorkspace: boolean;
 }
 
 /**
@@ -140,10 +127,71 @@ export interface IGitHubInfo {
 		readonly uri: URI;
 		/** Icon reflecting the PR state. */
 		readonly icon?: ThemeIcon;
+		/** Object ID of the base ref (merge target) commit. */
+		readonly baseRefOid?: string;
+		/** Object ID of the head ref (PR branch) commit. */
+		readonly headRefOid?: string;
 	};
 }
 
+export interface ISessionChangesSummary {
+	readonly files: number;
+	readonly additions: number;
+	readonly deletions: number;
+}
+
 export type ISessionFileChange = IChatSessionFileChange | IChatSessionFileChange2;
+
+export interface ISessionChangeset {
+	/** Unique identifier for the changeset. */
+	readonly id: string;
+	/** Display label for the changeset. */
+	readonly label: string;
+	/** Optional description for the changeset. */
+	readonly description?: string;
+	/** Optional category for the changeset. */
+	readonly category?: string;
+	/** Whether the changeset is enabled. */
+	readonly isEnabled: IObservable<boolean>;
+	/**
+	 * Whether this changeset should be selected by default when the UI
+	 * switches to its session. May change with session state (e.g. an
+	 * archived session may default to a snapshot changeset rather than a
+	 * live one). Producers should ensure at most one changeset in a
+	 * session reports `true` at any time.
+	 */
+	readonly isDefault: IObservable<boolean>;
+	/**
+	 * Whether this changeset is currently loading its file changes.
+	 */
+	readonly isLoadingChanges: IObservable<boolean>;
+	/** Observable for the file changes in this changeset. */
+	readonly changes: IObservable<readonly ISessionFileChange[]>;
+	/** Reference to the original checkpoint for this changeset. */
+	readonly originalCheckpointRef: IObservable<string | undefined>;
+	/** Reference to the modified checkpoint for this changeset. */
+	readonly modifiedCheckpointRef: IObservable<string | undefined>;
+}
+
+/**
+ * A custom agent reference used by session-level selection. Mirrors the Agent
+ * Host protocol's `AgentSelection` shape but lives in the sessions layer so the
+ * sessions service API does not leak the protocol type to non-Agent-Host
+ * consumers.
+ */
+export interface ISessionAgentRef {
+	/** Stable agent URI (matches the contributing customization's agent ref). */
+	readonly uri: string;
+	/** Agent name. */
+	readonly name: string;
+}
+
+export interface IChatCheckpoints {
+	/** Reference to the first checkpoint in the chat. */
+	readonly firstCheckpointRef: string;
+	/** Reference to the last checkpoint in the chat. */
+	readonly lastCheckpointRef: string;
+}
 
 /**
  * A single chat within a session, produced by the sessions management layer.
@@ -164,6 +212,8 @@ export interface IChat {
 	readonly status: IObservable<SessionStatus>;
 	/** File changes produced by the chat. */
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
+	/** Checkpoints associated with the chat. */
+	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
 	/** Currently selected mode identifier and kind. */
@@ -189,7 +239,7 @@ export interface ISession {
 	readonly resource: URI;
 	/** ID of the provider that owns this session. */
 	readonly providerId: string;
-	/** Session type ID (e.g., 'copilot-cli', 'copilot-cloud'). */
+	/** Session type ID (e.g., 'copilot-cli', 'copilot-cloud', 'local'). */
 	readonly sessionType: string;
 	/** Icon for this session. */
 	readonly icon: ThemeIcon;
@@ -206,11 +256,14 @@ export interface ISession {
 	readonly updatedAt: IObservable<Date>;
 	/** Current session status. */
 	readonly status: IObservable<SessionStatus>;
+	/** Summary of file changes produced by the session. */
+	readonly changesSummary?: IObservable<ISessionChangesSummary | undefined>;
 	/** File changes produced by the session. */
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
+	/** Changesets produced by the session. */
+	readonly changesets: IObservable<readonly ISessionChangeset[]>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
-	/** Currently selected mode identifier and kind. */
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	/** Whether the session is still initializing (e.g., resolving git repository). */
 	readonly loading: IObservable<boolean>;
@@ -222,12 +275,10 @@ export interface ISession {
 	readonly description: IObservable<IMarkdownString | undefined>;
 	/** Timestamp of when the last agent turn ended, if any. */
 	readonly lastTurnEnd: IObservable<Date | undefined>;
-	/** GitHub information associated with this session, if any. */
-	readonly gitHubInfo: IObservable<IGitHubInfo | undefined>;
 	/** The chats belonging to this session group. */
 	readonly chats: IObservable<readonly IChat[]>;
-	/** The main (first) chat of this session. */
-	readonly mainChat: IChat;
+	/** The main (first) chat of this session. Providers may replace it for a new session via {@link ISessionsProvider.createNewChat}. */
+	readonly mainChat: IObservable<IChat>;
 	/** Capabilities of this session. */
 	readonly capabilities: ISessionCapabilities;
 }
@@ -254,7 +305,27 @@ export function toSessionId(providerId: string, resource: URI): string {
 export interface ISessionCapabilities {
 	/** Whether this session supports multiple chats. */
 	readonly supportsMultipleChats: boolean;
+	/**
+	 * Whether the session's underlying runtime (e.g. a cloud agent host)
+	 * already runs `runOptions.runOn === 'worktreeCreated'` tasks during
+	 * environment provisioning. When `true`, the agents-window
+	 * client-side dispatcher must NOT run those tasks itself to avoid
+	 * double-execution. Defaults to `false` for sessions backed by local
+	 * or remote agent hosts, where the client is the only thing that
+	 * could trigger them.
+	 */
+	readonly runsWorktreeCreatedTasks?: boolean;
 }
+
+/**
+ * Well-known workspace group labels used by the workspace picker to bucket
+ * recents and browse actions into top-level tabs. Providers contribute one
+ * of these (or any custom string) on each `ISessionWorkspace` and
+ * `ISessionWorkspaceBrowseAction`; the picker discovers tabs from the union
+ * of contributed values.
+ */
+export const SESSION_WORKSPACE_GROUP_LOCAL = localize('sessionWorkspaceGroup.local', "Local");
+export const SESSION_WORKSPACE_GROUP_REMOTE = localize('sessionWorkspaceGroup.remote', "Remote");
 
 export interface ISessionWorkspaceBrowseAction {
 	/** Display label for the browse action. */
@@ -262,10 +333,10 @@ export interface ISessionWorkspaceBrowseAction {
 	/** Optional description shown alongside the label in the workspace picker. */
 	readonly description?: string;
 	/**
-	 * Optional non-localized group key used to merge actions in the workspace picker.
-	 * Actions sharing the same group key are combined into a single picker entry
-	 * with a submenu. The first action's label is used as the display text for
-	 * the merged entry (e.g. "Folders").
+	 * Optional group label used by the workspace picker to bucket browse
+	 * actions into top-level tabs (e.g. `"Local"`, `"Cloud"`, `"Remote"`).
+	 * Providers contribute the label — the picker dynamically renders tabs
+	 * for whichever values are present and filters items accordingly.
 	 */
 	readonly group?: string;
 	/** Icon for the browse action. */
@@ -274,4 +345,92 @@ export interface ISessionWorkspaceBrowseAction {
 	readonly providerId: string;
 	/** Execute the browse action and return the selected workspace, or undefined if cancelled. */
 	run(): Promise<ISessionWorkspace | undefined>;
+	/**
+	 * Optional method to enumerate folders inline (e.g. for a phone-friendly
+	 * picker that shows a folder list with search-as-you-type instead of
+	 * opening a separate file dialog). Implementations should respect the
+	 * cancellation token so stale queries can be aborted as the user types.
+	 *
+	 * @param query Case-insensitive substring filter (empty string returns the default set).
+	 * @param token Cancellation token; the implementation should resolve with
+	 * a partial result or empty array once cancelled.
+	 */
+	listFolders?(query: string, token: CancellationToken): Promise<readonly ISessionWorkspace[]>;
+}
+
+/**
+ * Structural equality for arrays of {@link ISessionFileChange}. Used as an
+ * `equalsFn` on the `changes` observables so that providers can re-publish a
+ * freshly-built array without notifying observers when the underlying file
+ * changes have not actually changed.
+ */
+export function sessionFileChangesEqual(a: readonly ISessionFileChange[], b: readonly ISessionFileChange[]): boolean {
+	if (a === b) {
+		return true;
+	}
+
+	if (a.length !== b.length) {
+		return false;
+	}
+
+	for (let i = 0; i < a.length; i++) {
+		const x = a[i], y = b[i];
+		if (x === y) {
+			continue;
+		}
+
+		if (x.insertions !== y.insertions || x.deletions !== y.deletions) {
+			return false;
+		}
+
+		const xIsIChatSessionFileChange2 = isIChatSessionFileChange2(x);
+		const yIsIChatSessionFileChange2 = isIChatSessionFileChange2(y);
+		if (xIsIChatSessionFileChange2 !== yIsIChatSessionFileChange2) {
+			return false;
+		}
+
+		const xUri = xIsIChatSessionFileChange2 ? x.uri : x.modifiedUri;
+		const yUri = yIsIChatSessionFileChange2 ? y.uri : y.modifiedUri;
+		if (!isEqual(xUri, yUri)) {
+			return false;
+		}
+
+		const xModified = xIsIChatSessionFileChange2 ? x.modifiedUri : undefined;
+		const yModified = yIsIChatSessionFileChange2 ? y.modifiedUri : undefined;
+		if (!isEqual(xModified, yModified)) {
+			return false;
+		}
+
+		if (!isEqual(x.originalUri, y.originalUri)) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+/**
+ * Structural equality for {@link IGitHubInfo}. Used as an `equalsFn` on the `gitHubInfo` observable
+ * so that providers can re-publish updated info without notifying observers when the underlying GitHub
+ * info has not actually changed.
+ */
+export function gitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | undefined): boolean {
+	if (a === b) {
+		return true;
+	}
+
+	if (a === undefined || b === undefined) {
+		return false;
+	}
+
+	const aIcon = a.pullRequest?.icon;
+	const bIcon = b.pullRequest?.icon;
+
+	return a.owner === b.owner &&
+		a.repo === b.repo &&
+		a.pullRequest?.number === b.pullRequest?.number &&
+		isEqual(a.pullRequest?.uri, b.pullRequest?.uri) &&
+		(aIcon === bIcon || (!!aIcon && !!bIcon && ThemeIcon.isEqual(aIcon, bIcon))) &&
+		a.pullRequest?.baseRefOid === b.pullRequest?.baseRefOid &&
+		a.pullRequest?.headRefOid === b.pullRequest?.headRefOid;
 }

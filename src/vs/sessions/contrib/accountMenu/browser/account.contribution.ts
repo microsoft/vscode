@@ -19,23 +19,17 @@ import { appendUpdateMenuItems as registerUpdateMenuItems } from '../../../../wo
 import { Menus } from '../../../browser/menus.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { fillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { $, addDisposableListener, append, disposableWindowInterval, EventType, getDomNodePagePosition } from '../../../../base/browser/dom.js';
+import { $, append, disposableWindowInterval, getDomNodePagePosition } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { ActionBar, ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction, Separator } from '../../../../base/common/actions.js';
-import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { IUpdateService, State, StateType } from '../../../../platform/update/common/update.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { IHostService } from '../../../../workbench/services/host/browser/host.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { URI } from '../../../../base/common/uri.js';
-import { isWindows, isMacintosh } from '../../../../base/common/platform.js';
-import { UpdateHoverWidget } from './updateHoverWidget.js';
+import { registerUpdateTitleBarMenuPlacement } from '../../../../workbench/contrib/update/browser/updateTitleBarEntry.js';
 import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { ChatStatusDashboard } from '../../../../workbench/contrib/chat/browser/chatStatus/chatStatusDashboard.js';
+import { ChatStatusDashboard, IChatStatusDashboardOptions } from '../../../../workbench/contrib/chat/browser/chatStatus/chatStatusDashboard.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { getAccountProfileImageUrl, getAccountTitleBarBadgeKey, getAccountTitleBarState, resolveAccountInfo } from '../../../browser/accountTitleBarState.js';
@@ -50,109 +44,20 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 // --- Account Menu Items --- //
 const AccountMenu = Menus.AccountMenu;
 const SessionsTitleBarAccountWidgetAction = 'sessions.action.titleBarAccountWidget';
-const SessionsTitleBarUpdateWidgetAction = 'sessions.action.titleBarUpdateWidget';
 const SESSIONS_ACCOUNT_TITLEBAR_PANEL_WIDTH = 360;
 
-function shouldHideSessionsTitleBarUpdateWidget(type: StateType): boolean {
-	return type === StateType.Uninitialized
-		|| type === StateType.Idle
-		|| type === StateType.Disabled
-		|| type === StateType.CheckingForUpdates;
-}
+const PERSONALIZE_ACTION_IDS: readonly string[] = [
+	'workbench.action.openSettings',
+];
+const SIGN_OUT_ACTION_ID = 'workbench.action.agenticSignOut';
+const SIGN_IN_ACTION_ID = 'workbench.action.agenticSignIn';
 
-function isPrimarySessionsTitleBarUpdateWidget(type: StateType): boolean {
-	return type === StateType.AvailableForDownload
-		|| type === StateType.Downloaded
-		|| type === StateType.Ready;
-}
-
-function isBusySessionsTitleBarUpdateWidget(type: StateType): boolean {
-	return type === StateType.Downloading
-		|| type === StateType.Overwriting
-		|| type === StateType.Updating
-		|| type === StateType.Restarting;
-}
-
-function getSessionsTitleBarUpdateLabel(state: State): string {
-	switch (state.type) {
-		case StateType.AvailableForDownload:
-			return localize('sessionsTitleBarUpdateAvailable', "Update Available");
-		case StateType.Downloaded:
-			return localize('sessionsTitleBarInstallUpdate', "Install Update");
-		case StateType.Ready:
-			return localize('sessionsTitleBarRestartToUpdate', "Restart to Update");
-		case StateType.Downloading:
-		case StateType.Overwriting:
-			return localize('sessionsTitleBarDownloading', "Downloading...");
-		case StateType.Updating:
-		case StateType.Restarting:
-			return localize('sessionsTitleBarInstalling', "Installing...");
-		default:
-			return localize('sessionsTitleBarUpdate', "Update");
-	}
-}
-
-function getSessionsTitleBarUpdateAriaLabel(state: State): string {
-	switch (state.type) {
-		case StateType.AvailableForDownload:
-			return localize('sessionsTitleBarUpdateAvailableAria', "Update available");
-		case StateType.Downloaded:
-			return localize('sessionsTitleBarInstallUpdateAria', "Install downloaded update");
-		case StateType.Ready:
-			return localize('sessionsTitleBarRestartToUpdateAria', "Restart to apply update");
-		case StateType.Downloading:
-		case StateType.Overwriting:
-			return localize('sessionsTitleBarDownloadingAria', "Update download in progress");
-		case StateType.Updating:
-		case StateType.Restarting:
-			return localize('sessionsTitleBarInstallingAria', "Update install in progress");
-		default:
-			return localize('sessionsTitleBarUpdateAria', "Update");
-	}
-}
-
-async function runSessionsUpdateAction(
-	state: State,
-	updateService: IUpdateService,
-	openerService: IOpenerService,
-	productService: IProductService,
-	dialogService: IDialogService,
-	hostService: IHostService,
-): Promise<void> {
-	if (state.type === StateType.AvailableForDownload) {
-		const isInsiderOrExploration = productService.quality === 'insider' || productService.quality === 'exploration';
-		const hasCrossAppCoordinator = (isWindows || isMacintosh) && isInsiderOrExploration;
-		if (!hasCrossAppCoordinator) {
-			const { confirmed } = await dialogService.confirm({
-				message: localize('sessionsUpdateFromVSCode.title', "Update from VS Code"),
-				detail: localize('sessionsUpdateFromVSCode.detail', "This will close the Agents app and open VS Code so you can install the update.\n\nLaunch Agents again after the update is complete."),
-				primaryButton: localize('sessionsUpdateFromVSCode.open', "Close and Open VS Code"),
-			});
-
-			if (confirmed) {
-				await openerService.open(URI.from({
-					scheme: productService.urlProtocol,
-					query: 'windowId=_blank',
-				}), { openExternal: true });
-				await hostService.shutdown();
-			}
-
-			return;
-		}
-
-		await updateService.downloadUpdate(true);
-		return;
-	}
-
-	if (state.type === StateType.Ready) {
-		await updateService.quitAndInstall();
-		return;
-	}
-
-	if (state.type === StateType.Downloaded) {
-		await updateService.applyUpdate();
-	}
-}
+// Register the shared VS Code update title bar entry into the Agents titlebar layout.
+registerUpdateTitleBarMenuPlacement(Menus.TitleBarRightLayout, {
+	when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated()),
+	group: 'navigation',
+	order: 99,
+});
 
 // Sign In (shown when signed out)
 registerAction2(class extends Action2 {
@@ -160,6 +65,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.action.agenticSignIn',
 			title: localize2('signIn', 'Sign In'),
+			icon: Codicon.signIn,
 			menu: {
 				id: AccountMenu,
 				when: ContextKeyExpr.notEquals('defaultAccountStatus', 'available'),
@@ -180,6 +86,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.action.agenticSignOut',
 			title: localize2('signOut', 'Sign Out'),
+			icon: Codicon.signOut,
 			menu: {
 				id: AccountMenu,
 				when: ContextKeyExpr.equals('defaultAccountStatus', 'available'),
@@ -203,8 +110,8 @@ registerAction2(class extends Action2 {
 		const accountLabel = defaultAccount.accountName;
 		const { confirmed } = await dialogService.confirm({
 			type: Severity.Info,
-			message: localize('agenticSignOutMessage', "Sign out of the Agents app?"),
-			detail: localize('agenticSignOutDetail', "This will sign out '{0}' from the Agents app.", accountLabel),
+			message: localize('agenticSignOutMessage', "Sign out of the Agents window?"),
+			detail: localize('agenticSignOutDetail', "This will sign out '{0}' from the Agents window.", accountLabel),
 			primaryButton: localize({ key: 'agenticSignOutButton', comment: ['&& denotes a mnemonic'] }, "&&Sign Out")
 		});
 
@@ -220,26 +127,16 @@ registerAction2(class extends Action2 {
 	}
 });
 
-// Color Theme (hidden on phone — no theme picker UI on mobile)
-MenuRegistry.appendMenuItem(AccountMenu, {
-	command: {
-		id: 'workbench.action.selectTheme',
-		title: localize('selectColorTheme', "Color Theme"),
-	},
-	when: IsPhoneLayoutContext.negate(),
-	group: '2_settings',
-	order: 1,
-});
-
 // Settings (hidden on phone — no settings UI on mobile)
 MenuRegistry.appendMenuItem(AccountMenu, {
 	command: {
 		id: 'workbench.action.openSettings',
 		title: localize('settings', "Settings"),
+		icon: Codicon.settingsGear,
 	},
 	when: IsPhoneLayoutContext.negate(),
 	group: '2_settings',
-	order: 2,
+	order: 1,
 });
 
 // Update actions
@@ -333,7 +230,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		this.renderState();
 
 		const info = await resolveAccountInfo(this.defaultAccountService, this.authenticationService);
-		if (requestId !== this.accountRequestCounter) {
+		if (requestId !== this.accountRequestCounter || this._store.isDisposed) {
 			return;
 		}
 
@@ -524,63 +421,78 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 
 	private createCombinedPanelContent(panelStore: DisposableStore): HTMLElement {
 		const panel = $('div.sessions-account-titlebar-panel');
+
+		// Build the menu actions once and partition them.
+		const menu = this.menuService.createMenu(AccountMenu, this.contextKeyService);
+		const rawActions: IAction[] = [];
+		fillInActionBarActions(menu.getActions(), rawActions);
+		menu.dispose();
+		const partitioned = this.partitionMenuActions(rawActions);
+
+		// Header: account label + sign-out icon.
 		const headerSection = append(panel, $('.sessions-account-titlebar-panel-header'));
+		const loadedAvatarUrl = !this.isAccountLoading ? this.loadedAvatarUrl : undefined;
+		if (loadedAvatarUrl) {
+			const avatar = append(headerSection, $('img.sessions-account-titlebar-panel-avatar', {
+				alt: this.getAvatarAltText(true),
+				draggable: 'false',
+				src: loadedAvatarUrl,
+			})) as HTMLImageElement;
+			avatar.decoding = 'async';
+			avatar.referrerPolicy = 'no-referrer';
+		}
 		const title = append(headerSection, $('div.sessions-account-titlebar-panel-title'));
 		title.textContent = this.getPanelHeaderLabel();
-		const headerActions = this.getHeaderActions();
-		if (headerActions.length > 0) {
-			const headerActionsContainer = append(headerSection, $('.sessions-account-titlebar-panel-header-actions'));
-			for (const action of headerActions) {
-				const button = append(headerActionsContainer, $('button.sessions-account-titlebar-panel-header-action', { type: 'button' })) as HTMLButtonElement;
-				button.disabled = !action.enabled;
-				button.setAttribute('aria-label', action.tooltip || action.label);
-				button.title = action.tooltip || action.label;
-				button.classList.add(...ThemeIcon.asClassNameArray(this.getHeaderActionIcon(action)));
+		const headerActionsContainer = append(headerSection, $('.sessions-account-titlebar-panel-header-actions'));
 
-				panelStore.add(addDisposableListener(button, EventType.CLICK, async event => {
-					event.preventDefault();
-					event.stopPropagation();
-					this.hoverService.hideHover(true);
-					this.clickPanelDisposable.clear();
-					await Promise.resolve(action.run());
-				}));
-			}
+		// CTA buttons (Manage Budget, Upgrade) will be rendered here by the dashboard
+		const ctaButtonsContainer = append(headerActionsContainer, $('.sessions-account-titlebar-panel-cta-actions'));
+
+		const headerActionBar = panelStore.add(new ActionBar(headerActionsContainer));
+		panelStore.add(headerActionBar.onWillRun(() => {
+			this.hoverService.hideHover(true);
+			this.clickPanelDisposable.clear();
+		}));
+
+		for (const action of partitioned.personalize) {
+			headerActionBar.push(action, { icon: true, label: false });
+		}
+		if (partitioned.signOut) {
+			headerActionBar.push(partitioned.signOut, { icon: true, label: false });
 		}
 
-		const actions = this.getPanelActions();
-		if (actions.length > 0) {
+		// Other panel actions (sign-in, etc.) — only render if there's at least one non-separator action.
+		if (partitioned.other.some(a => !(a instanceof Separator))) {
 			const actionsSection = append(panel, $('.sessions-account-titlebar-panel-actions'));
+			const actionsActionBar = panelStore.add(new ActionBar(actionsSection, {
+				orientation: ActionsOrientation.VERTICAL,
+			}));
+			panelStore.add(actionsActionBar.onWillRun(() => {
+				this.hoverService.hideHover(true);
+				this.clickPanelDisposable.clear();
+			}));
 			let lastWasSeparator = true;
-
-			for (const action of actions) {
+			for (const action of partitioned.other) {
 				if (action instanceof Separator) {
 					if (!lastWasSeparator) {
-						append(actionsSection, $('.sessions-account-titlebar-panel-separator'));
+						actionsActionBar.push(action);
 						lastWasSeparator = true;
 					}
 					continue;
 				}
-
 				lastWasSeparator = false;
-				const button = append(actionsSection, $('button.sessions-account-titlebar-panel-action', { type: 'button' })) as HTMLButtonElement;
-				button.disabled = !action.enabled;
-				button.setAttribute('aria-label', action.tooltip || action.label);
-				button.classList.toggle('checked', !!action.checked);
-				append(button, ...renderLabelWithIcons(action.label));
-
-				panelStore.add(addDisposableListener(button, EventType.CLICK, async event => {
-					event.preventDefault();
-					event.stopPropagation();
-					this.hoverService.hideHover(true);
-					this.clickPanelDisposable.clear();
-					await Promise.resolve(action.run());
-				}));
+				actionsActionBar.push(action, { icon: false, label: true });
 			}
 		}
 
+		// Subscription / Copilot dashboard.
 		const contentSection = append(panel, $('.sessions-account-titlebar-panel-content'));
 		if (this.shouldShowCopilotDashboardHover()) {
-			append(contentSection, this.createCopilotHoverContent());
+			const subscriptionSection = append(contentSection, $('section.sessions-account-titlebar-panel-section.subscription', {
+				'aria-label': localize('sessionsAccountSubscriptionSectionLabel', "Subscription")
+			}));
+			const dashboard = this.createCopilotHoverContent({ compactQuotaLayout: true, ctaButtonsContainer });
+			append(subscriptionSection, dashboard);
 		} else if (!this.isAccountLoading) {
 			const summary = append(contentSection, $('.sessions-account-titlebar-panel-summary'));
 			summary.textContent = this.lastState.ariaLabel;
@@ -589,9 +501,58 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		return panel;
 	}
 
+	private partitionMenuActions(rawActions: IAction[]): { signOut: IAction | undefined; personalize: IAction[]; other: IAction[] } {
+		let signOut: IAction | undefined;
+		const personalizeMap = new Map<string, IAction>();
+		const other: IAction[] = [];
+
+		const pushSeparator = () => {
+			// Collapse runs and skip leading separators so groups whose only
+			// items get filtered (e.g. update.*) don't leave orphans behind.
+			if (other.length === 0 || other[other.length - 1] instanceof Separator) {
+				return;
+			}
+			other.push(new Separator());
+		};
+
+		for (const action of rawActions) {
+			if (action instanceof Separator) {
+				pushSeparator();
+				continue;
+			}
+			if (action.id === SIGN_OUT_ACTION_ID) {
+				signOut = action;
+				continue;
+			}
+			if (PERSONALIZE_ACTION_IDS.includes(action.id)) {
+				personalizeMap.set(action.id, action);
+				continue;
+			}
+			if (action.id.startsWith('update.')) {
+				continue;
+			}
+			if (this.isAccountLoading && action.id === SIGN_IN_ACTION_ID) {
+				continue;
+			}
+			other.push(action);
+		}
+
+		// Trim trailing separator left after filtering.
+		if (other.length > 0 && other[other.length - 1] instanceof Separator) {
+			other.pop();
+		}
+
+		// Preserve canonical personalize order.
+		const personalize = PERSONALIZE_ACTION_IDS
+			.map(id => personalizeMap.get(id))
+			.filter((a): a is IAction => !!a);
+
+		return { signOut, personalize, other };
+	}
+
 	private getPanelHeaderLabel(): string {
 		if (this.accountName) {
-			return localize('signedInAsHeader', "Signed in as {0}", this.accountName);
+			return this.accountName;
 		}
 
 		if (this.isAccountLoading) {
@@ -601,60 +562,11 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		return localize('accountMenuHeaderFallback', "Account");
 	}
 
-	private getHeaderActions(): IAction[] {
-		const menu = this.menuService.createMenu(AccountMenu, this.contextKeyService);
-		const rawActions: IAction[] = [];
-		fillInActionBarActions(menu.getActions(), rawActions);
-		menu.dispose();
-
-		const themeAction = rawActions.find(action => !(action instanceof Separator) && action.id === 'workbench.action.selectTheme');
-		const settingsAction = rawActions.find(action => !(action instanceof Separator) && action.id === 'workbench.action.openSettings');
-		const signOutAction = rawActions.find(action => !(action instanceof Separator) && action.id === 'workbench.action.agenticSignOut');
-
-		return [themeAction, settingsAction, signOutAction].filter((action): action is IAction => !!action);
-	}
-
-	private getPanelActions(): IAction[] {
-		const menu = this.menuService.createMenu(AccountMenu, this.contextKeyService);
-		const rawActions: IAction[] = [];
-		fillInActionBarActions(menu.getActions(), rawActions);
-		menu.dispose();
-
-		return rawActions.filter(action => {
-			if (action instanceof Separator) {
-				return true;
-			}
-
-			// Hide sign-in while account is still loading
-			if (this.isAccountLoading && action.id === 'workbench.action.agenticSignIn') {
-				return false;
-			}
-
-			return action.id !== 'workbench.action.agenticSignOut'
-				&& action.id !== 'workbench.action.openSettings'
-				&& action.id !== 'workbench.action.selectTheme'
-				&& !action.id.startsWith('update.');
-		});
-	}
-
-	private getHeaderActionIcon(action: IAction): ThemeIcon {
-		switch (action.id) {
-			case 'workbench.action.selectTheme':
-				return Codicon.symbolColor;
-			case 'workbench.action.openSettings':
-				return Codicon.settingsGear;
-			case 'workbench.action.agenticSignOut':
-				return Codicon.signOut;
-			default:
-				return Codicon.circleLargeFilled;
-		}
-	}
-
 	private shouldShowCopilotDashboardHover(): boolean {
 		return !this.chatEntitlementService.sentiment.hidden && !!this.accountName;
 	}
 
-	private createCopilotHoverContent(): HTMLElement {
+	private createCopilotHoverContent(extraOptions?: Partial<IChatStatusDashboardOptions>): HTMLElement {
 		const store = new DisposableStore();
 		this.copilotDashboardStore.value = store;
 		const dashboardElement = ChatStatusDashboard.instantiateInContents(this.instantiationService, store, {
@@ -662,6 +574,8 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 			disableModelSelection: true,
 			disableProviderOptions: true,
 			disableCompletionsSnooze: true,
+			disableQuickSettingsCollapsible: true,
+			...extraOptions,
 		});
 
 		store.add(disposableWindowInterval(mainWindow, () => {
@@ -674,105 +588,11 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 	}
 }
 
-class TitleBarUpdateWidget extends BaseActionViewItem {
-
-	private container: HTMLElement | undefined;
-	private labelElement: HTMLElement | undefined;
-	private readonly updateHoverWidget: UpdateHoverWidget;
-	private readonly hoverAttachment = this._register(new MutableDisposable());
-
-	constructor(
-		action: IAction,
-		options: IBaseActionViewItemOptions | undefined,
-		@IUpdateService private readonly updateService: IUpdateService,
-		@IHoverService private readonly hoverService: IHoverService,
-		@IProductService private readonly productService: IProductService,
-		@IOpenerService private readonly openerService: IOpenerService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@IHostService private readonly hostService: IHostService,
-	) {
-		super(undefined, action, options);
-		this.updateHoverWidget = new UpdateHoverWidget(this.updateService, this.productService, this.hoverService);
-		this._register(this.updateService.onStateChange(() => this.renderState()));
-	}
-
-	override render(container: HTMLElement): void {
-		super.render(container);
-
-		this.container = container;
-		container.classList.add('sessions-update-titlebar-widget');
-		container.setAttribute('role', 'button');
-
-		this.labelElement = append(container, $('span.sessions-update-titlebar-widget-label'));
-		this.hoverAttachment.value = this.updateHoverWidget.attachTo(container);
-
-		this.renderState();
-	}
-
-	override onClick(): void {
-		const state = this.updateService.state;
-		if (shouldHideSessionsTitleBarUpdateWidget(state.type) || isBusySessionsTitleBarUpdateWidget(state.type)) {
-			return;
-		}
-
-		void runSessionsUpdateAction(
-			state,
-			this.updateService,
-			this.openerService,
-			this.productService,
-			this.dialogService,
-			this.hostService,
-		);
-	}
-
-	private renderState(): void {
-		if (!this.container || !this.labelElement) {
-			return;
-		}
-
-		const state = this.updateService.state;
-		const hidden = shouldHideSessionsTitleBarUpdateWidget(state.type);
-		const busy = isBusySessionsTitleBarUpdateWidget(state.type);
-		const primary = isPrimarySessionsTitleBarUpdateWidget(state.type);
-
-		this.container.classList.toggle('hidden', hidden);
-		this.container.classList.toggle('disabled', busy);
-		this.container.classList.toggle('primary-state', primary);
-		this.container.classList.toggle('busy-state', busy);
-
-		if (hidden) {
-			this.container.removeAttribute('aria-label');
-			this.labelElement.textContent = '';
-			return;
-		}
-
-		this.container.setAttribute('aria-label', getSessionsTitleBarUpdateAriaLabel(state));
-		this.labelElement.textContent = getSessionsTitleBarUpdateLabel(state);
-	}
-}
-
 // --- Register custom view item --- //
 
 // Actions registered at module level so Menus.TitleBarRightLayout is non-empty when the
 // toolbar is first constructed. The run() is a no-op — rendering is handled by the custom
 // view items registered in AccountWidgetContribution.
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: SessionsTitleBarUpdateWidgetAction,
-			title: localize2('agentsUpdateTitleBar', "Agents Update"),
-			menu: {
-				id: Menus.TitleBarRightLayout,
-				group: 'navigation',
-				order: 99,
-				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated()),
-			}
-		});
-	}
-
-	run(): void { }
-});
-
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -799,10 +619,6 @@ class AccountWidgetContribution extends Disposable implements IWorkbenchContribu
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-
-		this._register(actionViewItemService.register(Menus.TitleBarRightLayout, SessionsTitleBarUpdateWidgetAction, (action, options) => {
-			return instantiationService.createInstance(TitleBarUpdateWidget, action, options);
-		}, undefined));
 
 		this._register(actionViewItemService.register(Menus.TitleBarRightLayout, SessionsTitleBarAccountWidgetAction, (action, options) => {
 			return instantiationService.createInstance(TitleBarAccountWidget, action, options);

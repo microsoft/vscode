@@ -380,7 +380,7 @@ Object.assign(product, {
 			'publicCodeMatchesUrl': 'https://aka.ms/github-copilot-match-public-code',
 			'manageSettingsUrl': 'https://aka.ms/github-copilot-settings',
 			'managePlanUrl': 'https://aka.ms/github-copilot-manage-plan',
-			'manageAdditionalSpendUrl': 'https://aka.ms/github-copilot-manage-overage',
+			'manageOverageUrl': 'https://aka.ms/github-copilot-manage-overage',
 			'upgradePlanUrl': 'https://aka.ms/github-copilot-upgrade-plan',
 			'signUpUrl': 'https://aka.ms/github-sign-up',
 			'provider': {

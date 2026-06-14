@@ -16,6 +16,7 @@ function makeConfig(overrides: Partial<OTelConfig> = {}): OTelConfig {
 		otlpEndpoint: 'http://localhost:4318',
 		otlpProtocol: 'http',
 		captureContent: false,
+		maxAttributeSizeChars: 0,
 		dbSpanExporter: false,
 		logLevel: 'info',
 		httpInstrumentation: false,
@@ -32,6 +33,11 @@ const emptyEnv: Record<string, string | undefined> = {};
 describe('deriveCopilotCliOTelEnv', () => {
 	it('returns empty when disabled', () => {
 		const result = deriveCopilotCliOTelEnv(makeConfig({ enabled: false }), emptyEnv);
+		expect(result).toEqual({});
+	});
+
+	it('returns empty in db-only mode (enabled but not enabledExplicitly)', () => {
+		const result = deriveCopilotCliOTelEnv(makeConfig({ enabledExplicitly: false, enabledVia: 'dbSpanExporterOnly', dbSpanExporter: true }), emptyEnv);
 		expect(result).toEqual({});
 	});
 
@@ -78,6 +84,11 @@ describe('deriveCopilotCliOTelEnv', () => {
 describe('deriveClaudeOTelEnv', () => {
 	it('returns empty when disabled', () => {
 		const result = deriveClaudeOTelEnv(makeConfig({ enabled: false }), emptyEnv);
+		expect(result).toEqual({});
+	});
+
+	it('returns empty in db-only mode (enabled but not enabledExplicitly)', () => {
+		const result = deriveClaudeOTelEnv(makeConfig({ enabledExplicitly: false, enabledVia: 'dbSpanExporterOnly', dbSpanExporter: true }), emptyEnv);
 		expect(result).toEqual({});
 	});
 
