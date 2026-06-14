@@ -783,6 +783,42 @@ suite('Configuration Resolver Service', () => {
 		const result = await configurationResolverService!.resolveWithInteractionReplace(workspace, configuration, 'tasks');
 		assert.strictEqual(result, undefined);
 	});
+
+	suite('resolveSettingValue', () => {
+		test('resolves env variable', async () => {
+			const result = await configurationResolverService!.resolveSettingValue(workspace, '/prefix/${env:key1}/suffix');
+			assert.strictEqual(result, '/prefix/Value for key1/suffix');
+		});
+
+		test('resolves workspaceFolder', async () => {
+			const result = await configurationResolverService!.resolveSettingValue(workspace, '${workspaceFolder}/node_modules');
+			if (platform.isWindows) {
+				assert.strictEqual(result, '\\VSCode\\workspaceLocation/node_modules');
+			} else {
+				assert.strictEqual(result, '/VSCode/workspaceLocation/node_modules');
+			}
+		});
+
+		test('returns original value when env variable is missing', async () => {
+			const result = await configurationResolverService!.resolveSettingValue(workspace, '${env:DEFINITELY_UNSET_VAR_XYZ_12345}/path');
+			assert.strictEqual(result, '/path');
+		});
+
+		test('returns original value on resolution error (no folder)', async () => {
+			const result = await configurationResolverService!.resolveSettingValue(undefined, '${workspaceFolder}/lib');
+			assert.strictEqual(result, '${workspaceFolder}/lib');
+		});
+
+		test('returns plain string unchanged', async () => {
+			const result = await configurationResolverService!.resolveSettingValue(workspace, '/usr/local/bin/node');
+			assert.strictEqual(result, '/usr/local/bin/node');
+		});
+
+		test('does not resolve command variables', async () => {
+			const result = await configurationResolverService!.resolveSettingValue(workspace, '${command:someCommand}/path');
+			assert.strictEqual(result, '${command:someCommand}/path');
+		});
+	});
 });
 
 
