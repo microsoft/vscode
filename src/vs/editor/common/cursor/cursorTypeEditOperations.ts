@@ -1038,9 +1038,9 @@ export function unshiftIndent(config: CursorConfiguration, indentation: string, 
 
 export function shouldSurroundChar(config: CursorConfiguration, ch: string): boolean {
 	if (isQuote(ch)) {
-		return (config.autoSurround === 'quotes' || config.autoSurround === 'languageDefined');
+		return (config.autoSurround === 'quotes' || config.autoSurround === 'both' || config.autoSurround === 'languageDefined');
 	} else {
 		// Character is a bracket
-		return (config.autoSurround === 'brackets' || config.autoSurround === 'languageDefined');
+		return (config.autoSurround === 'brackets' || config.autoSurround === 'both' || config.autoSurround === 'languageDefined');
 	}
 }
