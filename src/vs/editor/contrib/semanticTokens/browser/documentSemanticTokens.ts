@@ -43,7 +43,7 @@ export class DocumentSemanticTokensFeature extends Disposable {
 
 		const register = (model: ITextModel) => {
 			this._watchers.get(model.uri)?.dispose();
-			this._watchers.set(model.uri, new ModelSemanticColoring(model, semanticTokensStylingService, themeService, languageFeatureDebounceService, languageFeaturesService));
+			this._watchers.set(model.uri, new ModelSemanticColoring(model, semanticTokensStylingService, languageFeatureDebounceService, languageFeaturesService));
 		};
 		const deregister = (model: ITextModel, modelSemanticColoring: ModelSemanticColoring) => {
 			modelSemanticColoring.dispose();
@@ -98,7 +98,12 @@ export class DocumentSemanticTokensFeature extends Disposable {
 				handleSettingOrThemeChange();
 			}
 		}));
-		this._register(themeService.onDidColorThemeChange(handleSettingOrThemeChange));
+		this._register(themeService.onDidColorThemeChange(() => {
+			handleSettingOrThemeChange();
+			for (const watcher of this._watchers.values()) {
+				watcher.handleThemeChange();
+			}
+		}));
 		bindProviderChangeListeners();
 		this._register(provider.onDidChange(() => {
 			bindProviderChangeListeners();
@@ -134,7 +139,6 @@ class ModelSemanticColoring extends Disposable {
 	constructor(
 		model: ITextModel,
 		@ISemanticTokensStylingService private readonly _semanticTokensStylingService: ISemanticTokensStylingService,
-		@IThemeService themeService: IThemeService,
 		@ILanguageFeatureDebounceService languageFeatureDebounceService: ILanguageFeatureDebounceService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
@@ -175,13 +179,13 @@ class ModelSemanticColoring extends Disposable {
 			this._fetchDocumentSemanticTokens.schedule(0);
 		}));
 
-		this._register(themeService.onDidColorThemeChange(_ => {
-			// clear out existing tokens
-			this._setDocumentSemanticTokens(null, null, null, []);
-			this._fetchDocumentSemanticTokens.schedule(this._debounceInformation.get(this._model));
-		}));
-
 		this._fetchDocumentSemanticTokens.schedule(0);
+	}
+
+	public handleThemeChange(): void {
+		// clear out existing tokens
+		this._setDocumentSemanticTokens(null, null, null, []);
+		this._fetchDocumentSemanticTokens.schedule(this._debounceInformation.get(this._model));
 	}
 
 	public handleRegistryChange(): void {
