@@ -795,9 +795,6 @@ class PolicyDiagnosticsAction extends Action2 {
 
 			const managedSettingsData = {
 				managedSettings: policyData?.managedSettings,
-				enabledPlugins: policyData?.enabledPlugins,
-				extraKnownMarketplaces: policyData?.extraKnownMarketplaces,
-				strictKnownMarketplaces: policyData?.strictKnownMarketplaces,
 			};
 			content += '```json\n';
 			content += JSON.stringify(managedSettingsData, null, 2);

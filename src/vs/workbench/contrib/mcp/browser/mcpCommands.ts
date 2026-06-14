@@ -344,7 +344,7 @@ export class McpAgentHostServerOptionsCommand extends Action2 {
 
 		if (picked.action === 'showOutput') {
 			if (logOutputChannelId) {
-				outputService.showChannel(logOutputChannelId);
+				await outputService.showChannel(logOutputChannelId);
 			}
 			return;
 		}
