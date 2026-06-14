@@ -22,8 +22,6 @@ import * as path from '../../../util/vs/base/common/path';
 import { windowsToGitBashPath } from '../../../util/vs/workbench/contrib/terminalContrib/suggest/browser/terminalGitBashHelpers';
 import { PythonTerminalService } from './copilotCLIPythonTerminalService';
 import { CopilotCLITerminalLinkProvider, SessionDirResolver } from './copilotCLITerminalLinkProvider';
-
-//@ts-ignore
 import powershellScript from './copilotCLIShim.ps1';
 
 const COPILOT_CLI_SHIM_JS = 'copilotCLIShim.js';

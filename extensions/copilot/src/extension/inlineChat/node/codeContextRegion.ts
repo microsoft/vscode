@@ -6,6 +6,7 @@
 import type * as vscode from 'vscode';
 import { TextDocumentSnapshot } from '../../../platform/editing/common/textDocumentSnapshot';
 import { ILanguage } from '../../../util/common/languages';
+import { createFencedCodeBlock, languageIdToMDCodeBlockLang } from '../../../util/common/markdown';
 import { FilePathCodeMarker } from '../../context/node/resolvers/selectionContextHelpers';
 
 /**
@@ -60,12 +61,14 @@ export class CodeContextRegion {
 		if (!this.hasContent) {
 			return [];
 		}
-		const result: string[] = [];
-		result.push('```' + this.language.languageId); // TODO@ulugbekna: use languageIdToMDCodeBlockLang & createFencedCodeBlock
-		result.push(FilePathCodeMarker.forDocument(this.language, this.document));//
-		result.push(...this.lines);
-		result.push('```');
-		return result;
+		const code = this.lines.join('\n');
+		const codeBlock = createFencedCodeBlock(
+			this.language.languageId,
+			code,
+			false,
+			this.document.uri.path
+		);
+		return codeBlock.split('\n');
 	}
 
 	public prependLine(lineIndex: number): boolean {
