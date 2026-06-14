@@ -8,6 +8,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import * as platform from '../../../../../base/common/platform.js';
+import { Position } from '../../../../common/core/position.js';
 import { ICodeEditor, IEditorMouseEvent, IMouseTarget } from '../../../../browser/editorBrowser.js';
 import { EditorOption, MouseMiddleClickAction } from '../../../../common/config/editorOptions.js';
 import { ICursorSelectionChangedEvent } from '../../../../common/cursorEvents.js';
@@ -137,6 +138,7 @@ export class ClickLinkGesture extends Disposable {
 	private _lastMouseMoveEvent: ClickLinkMouseEvent | null;
 	private _hasTriggerKeyOnMouseDown: boolean;
 	private _lineNumberOnMouseDown: number;
+	private _positionOnMouseDown: Position | null;
 
 	constructor(editor: ICodeEditor, opts?: IClickLinkGestureOptions) {
 		super();
@@ -148,6 +150,7 @@ export class ClickLinkGesture extends Disposable {
 		this._lastMouseMoveEvent = null;
 		this._hasTriggerKeyOnMouseDown = false;
 		this._lineNumberOnMouseDown = 0;
+		this._positionOnMouseDown = null;
 
 		this._register(this._editor.onDidChangeConfiguration((e) => {
 			if (e.hasChanged(EditorOption.multiCursorModifier) || e.hasChanged(EditorOption.mouseMiddleClickAction)) {
@@ -159,6 +162,7 @@ export class ClickLinkGesture extends Disposable {
 				this._lastMouseMoveEvent = null;
 				this._hasTriggerKeyOnMouseDown = false;
 				this._lineNumberOnMouseDown = 0;
+				this._positionOnMouseDown = null;
 				this._onCancel.fire();
 			}
 		}));
@@ -167,7 +171,7 @@ export class ClickLinkGesture extends Disposable {
 		this._register(this._editor.onMouseUp((e: IEditorMouseEvent) => this._onEditorMouseUp(new ClickLinkMouseEvent(e, this._opts))));
 		this._register(this._editor.onKeyDown((e: IKeyboardEvent) => this._onEditorKeyDown(new ClickLinkKeyboardEvent(e, this._opts))));
 		this._register(this._editor.onKeyUp((e: IKeyboardEvent) => this._onEditorKeyUp(new ClickLinkKeyboardEvent(e, this._opts))));
-		this._register(this._editor.onMouseDrag(() => this._resetHandler()));
+		this._register(this._editor.onMouseDrag((e: IEditorMouseEvent) => this._onEditorMouseDrag(e)));
 
 		this._register(this._editor.onDidChangeCursorSelection((e) => this._onDidChangeCursorSelection(e)));
 		this._register(this._editor.onDidChangeModel((e) => this._resetHandler()));
@@ -198,6 +202,22 @@ export class ClickLinkGesture extends Disposable {
 		// With this flag we prevent goto definition if the mouse was down before the trigger key was pressed.
 		this._hasTriggerKeyOnMouseDown = mouseEvent.hasTriggerModifier;
 		this._lineNumberOnMouseDown = this._extractLineNumberFromMouseEvent(mouseEvent);
+		this._positionOnMouseDown = mouseEvent.target.position;
+	}
+
+	private _onEditorMouseDrag(mouseEvent: IEditorMouseEvent): void {
+		// The editor fires mouse drag events while the user is holding the mouse button down,
+		// including when the editor's drag-and-drop tracking is active (which happens when
+		// clicking on a non-empty selection). In that case, even sub-character pointer jitter
+		// produces drag events. Only treat it as a real drag if the pointer actually moved to
+		// a different position than where the mouse went down — otherwise a Ctrl+click on a
+		// selected word would be incorrectly cancelled (https://github.com/microsoft/vscode/issues/249371).
+		const downPos = this._positionOnMouseDown;
+		const currentPos = mouseEvent.target.position;
+		if (downPos && currentPos && downPos.lineNumber === currentPos.lineNumber && downPos.column === currentPos.column) {
+			return;
+		}
+		this._resetHandler();
 	}
 
 	private _onEditorMouseUp(mouseEvent: ClickLinkMouseEvent): void {
@@ -231,6 +251,7 @@ export class ClickLinkGesture extends Disposable {
 	private _resetHandler(): void {
 		this._lastMouseMoveEvent = null;
 		this._hasTriggerKeyOnMouseDown = false;
+		this._positionOnMouseDown = null;
 		this._onCancel.fire();
 	}
 }
