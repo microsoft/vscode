@@ -1,0 +1,64 @@
+name: Release VS Code Fork
+
+on:
+  push:
+    tags:
+      - 'v0.0.1' # Triggers whenever you push a version tag like v1.0.0
+
+jobs:
+  build:
+    name: Build for ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            gulp_task: vscode-linux-x64-min
+            artifact_path: ../VSCode-linux-x64
+          - os: windows-latest
+            gulp_task: vscode-win32-x64-min
+            artifact_path: ../VSCode-win32-x64
+          - os: macos-latest
+            gulp_task: vscode-darwin-x64-min
+            artifact_path: ../VSCode-darwin-x64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18 # VS Code requires specific Node versions matching its Electron core
+          cache: 'yarn'
+
+      - name: Install Python & Build Tools (Windows Only)
+        if: matrix.os == 'windows-latest'
+        run: |
+          npm install --global windows-build-tools --vs2015
+          
+      - name: Install Dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Compile and Package
+        run: |
+          yarn gulp compile
+          yarn gulp ${{ matrix.matrix.gulp_task }}
+
+      - name: Zip Artifacts (Unix)
+        if: matrix.os != 'windows-latest'
+        run: tar -czf ${{ matrix.gulp_task }}.tar.gz -C ${{ matrix.artifact_path }} .
+
+      - name: Zip Artifacts (Windows)
+        if: matrix.os == 'windows-latest'
+        run: Compress-Archive -Path ${{ matrix.artifact_path }}\* -DestinationPath ${{ matrix.gulp_task }}.zip
+
+      - name: Upload Binaries to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            *.tar.gz
+            *.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
