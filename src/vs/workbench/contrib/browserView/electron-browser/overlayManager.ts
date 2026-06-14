@@ -289,9 +289,14 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 	private getTopmostElementAt(clientX: number, clientY: number): Element | null {
 		// `elementsFromPoint` returns hits front-to-back; skip transparent blockers
 		// so the overlay painted beneath them is found.
-		const topmostAt = (root: DocumentOrShadowRoot): Element | null =>
-			root.elementsFromPoint(clientX, clientY)
+		const topmostAt = (root: DocumentOrShadowRoot): Element | null => {
+			const elementAtPoint = root.elementFromPoint(clientX, clientY);
+			if (elementAtPoint && !isContextViewBlocker(elementAtPoint)) {
+				return elementAtPoint;
+			}
+			return root.elementsFromPoint(clientX, clientY)
 				.find(el => !isContextViewBlocker(el)) ?? null;
+		};
 
 		const elementAtPoint = topmostAt(this.targetWindow.document);
 		// `elementsFromPoint` does not pierce shadow DOM, so drill into the host.
