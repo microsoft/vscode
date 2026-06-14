@@ -12,6 +12,12 @@ import { TerminalSettingId } from '../../../../../platform/terminal/common/termi
 import { terminalProfileBaseProperties } from '../../../../../platform/terminal/common/terminalPlatformConfiguration.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
 
+/**
+ * Default idle silence timeout in milliseconds. Used as both the configuration
+ * default and the runtime fallback when the setting is unavailable.
+ */
+export const DEFAULT_IDLE_SILENCE_TIMEOUT_MS = 300_000; // 5 minutes
+
 export const enum TerminalChatAgentToolsSettingId {
 	EnableAutoApprove = 'chat.tools.terminal.enableAutoApprove',
 	AutoApprove = 'chat.tools.terminal.autoApprove',
@@ -596,6 +602,13 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			}
 		}
 	},
+	[AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests]: {
+		markdownDescription: localize('agentSandbox.retryWithAllowNetworkRequests', "Controls whether agent mode terminal commands can retry in the sandbox with unrestricted network access after user confirmation. This applies only when {0} is set to `on` and preserves file system sandboxing while relaxing network restrictions for an approved command.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
+		type: 'boolean',
+		default: true,
+		tags: ['preview'],
+		restricted: true
+	},
 	[AgentSandboxSettingId.AgentSandboxAutoApproveUnsandboxedCommands]: {
 		markdownDescription: localize('agentSandbox.autoApproveUnsandboxedCommands', "Controls whether agent mode terminal commands that run outside the sandbox are auto-approved. This applies only when both {0} and {1} are enabled.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``, `\`#${AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands}#\``),
 		type: 'boolean',
@@ -650,7 +663,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			},
 			allowWrite: {
 				type: 'array',
-				description: localize('agentSandbox.linuxFileSystemSetting.allowWrite', "Array of additional paths to allow write access. Leave empty to disallow writes outside the workspace folders and sandbox temp directory."),
+				description: localize('agentSandbox.linuxFileSystemSetting.allowWrite', "Array of additional paths to allow write access. Leave empty to disallow writes outside the workspace folders, workspace storage folder, and sandbox temp directory."),
 				items: { type: 'string' },
 				default: []
 			},
@@ -688,7 +701,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			},
 			allowWrite: {
 				type: 'array',
-				description: localize('agentSandbox.macFileSystemSetting.allowWrite', "Array of additional paths to allow write access. Leave empty to disallow writes outside the workspace folders and sandbox temp directory."),
+				description: localize('agentSandbox.macFileSystemSetting.allowWrite', "Array of additional paths to allow write access. Leave empty to disallow writes outside the workspace folders, workspace storage folder, and sandbox temp directory."),
 				items: { type: 'string' },
 				default: []
 			},
@@ -726,7 +739,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			},
 			allowWrite: {
 				type: 'array',
-				description: localize('agentSandbox.windowsFileSystemSetting.allowWrite', "Array of additional paths to allow read/write access. Leave empty to disallow writes outside the workspace folders and sandbox temp directory."),
+				description: localize('agentSandbox.windowsFileSystemSetting.allowWrite', "Array of additional paths to allow read/write access. Leave empty to disallow writes outside the workspace folders, workspace storage folder, and sandbox temp directory."),
 				items: { type: 'string' },
 				default: []
 			}
@@ -779,7 +792,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 	[TerminalChatAgentToolsSettingId.IdleSilenceTimeoutMs]: {
 		restricted: true,
 		type: 'number',
-		default: 60000,
+		default: DEFAULT_IDLE_SILENCE_TIMEOUT_MS,
 		minimum: 0,
 		tags: ['experimental'],
 		experiment: {

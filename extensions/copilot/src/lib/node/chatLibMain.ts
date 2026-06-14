@@ -203,6 +203,13 @@ export interface INESResult {
 			readonly start: number;
 			readonly endExclusive: number;
 		};
+		/**
+		 * URI of the document the edit should be applied to. When omitted, the
+		 * edit targets the document that was passed to {@link INESProvider.getNextEdit}.
+		 * For cross-file suggestions this points at a different document, and the
+		 * {@link range} offsets are resolved against that target document.
+		 */
+		readonly targetDocumentUri?: string;
 	};
 }
 
@@ -332,6 +339,7 @@ class NESProvider extends Disposable implements INESProvider<NESResult> {
 				result: internalResult.result?.edit ? {
 					newText: internalResult.result.edit.newText,
 					range: internalResult.result.edit.replaceRange,
+					...(internalResult.result.targetDocumentId ? { targetDocumentUri: internalResult.result.targetDocumentId.uri } : {}),
 				} : undefined,
 				docId,
 				requestUuid: context.requestUuid,

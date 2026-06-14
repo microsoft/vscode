@@ -75,7 +75,7 @@ export interface IEndpointBody {
 	prediction?: Prediction;
 	messages?: any[];
 	n?: number;
-	reasoning?: { effort?: string; summary?: string };
+	reasoning?: { effort?: string; summary?: string; context?: 'current_turn' | 'all_turns' };
 	tool_choice?: OptionalChatRequestParams['tool_choice'] | { type: 'function'; name: string } | string;
 	top_logprobs?: number;
 	intent?: boolean;
@@ -119,7 +119,8 @@ export interface IEndpointBody {
 		budget_tokens?: number;
 	};
 	output_config?: {
-		effort?: 'low' | 'medium' | 'high';
+		/** Validated against the endpoint's declared `reasoning_effort` levels, not a hardcoded set. */
+		effort?: string;
 	};
 
 	/** ChatCompletions API for Anthropic models */
@@ -148,6 +149,26 @@ export function stringifyUrlOrRequestMetadata(urlOrRequestMetadata: string | Req
 		return urlOrRequestMetadata;
 	}
 	return JSON.stringify(urlOrRequestMetadata);
+}
+
+/**
+ * Whether the given value is {@link RequestMetadata} (routed through CAPI) rather
+ * than a literal URL string (fetched directly, e.g. BYOK / custom endpoints).
+ *
+ * This is the exact discriminant used by `networkRequest`: a `RequestMetadata`
+ * object is dispatched via {@link ICAPIClientService.makeRequest}, whereas a
+ * `string` URL is sent straight to {@link IFetcherService.fetch}.
+ */
+export function isCAPIRequestMetadata(urlOrRequestMetadata: string | RequestMetadata): urlOrRequestMetadata is RequestMetadata {
+	return typeof urlOrRequestMetadata !== 'string';
+}
+
+/**
+ * Whether requests for this endpoint are routed through CAPI (the Copilot proxy)
+ * rather than fetched directly from a literal URL (BYOK / custom endpoints).
+ */
+export function isCAPIEndpoint(endpoint: IEndpoint): boolean {
+	return isCAPIRequestMetadata(endpoint.urlOrRequestMetadata);
 }
 
 export interface IEmbeddingsEndpoint extends IEndpoint {
@@ -251,6 +272,8 @@ export type IChatRequestTelemetryProperties = {
 	parentHeaderRequestId?: string;
 	/** For a subagent: The modelCallId from the parent agent's model call that triggered this subagent invocation. */
 	parentModelCallId?: string;
+	/** The conversation turn index, matching the panel.request turn measurement. */
+	turnIndex?: string;
 	/** The 0-based iteration number of the tool-calling loop that produced this request. */
 	iterationNumber?: string;
 };
@@ -502,7 +525,7 @@ function networkRequest(
 		// pass the controller abort signal to the request
 		request.signal = abort.signal;
 	}
-	if (typeof endpoint.urlOrRequestMetadata === 'string') {
+	if (!isCAPIRequestMetadata(endpoint.urlOrRequestMetadata)) {
 		const requestPromise = fetcher.fetch(endpoint.urlOrRequestMetadata, request).catch(reason => {
 			if (canRetryOnce && canRetryOnceNetworkError(reason)) {
 				// disconnect and retry the request once if the connection was reset
@@ -518,7 +541,7 @@ function networkRequest(
 		});
 		return requestPromise;
 	} else {
-		return capiClientService.makeRequest(request, endpoint.urlOrRequestMetadata as RequestMetadata);
+		return capiClientService.makeRequest(request, endpoint.urlOrRequestMetadata);
 	}
 }
 

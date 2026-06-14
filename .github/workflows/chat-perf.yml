@@ -149,7 +149,7 @@ jobs:
         run: |
           node -e "
             require('./scripts/chat-simulation/common/perf-scenarios').registerPerfScenarios();
-            const { getScenarioIds } = require('./scripts/chat-simulation/common/mock-llm-server');
+            const { getScenarioIds } = require('./scripts/chat-simulation/common/mock-llm-server.ts');
             const userInput = process.env.SCENARIOS_INPUT || '';
             const parsed = userInput.split(',').map(s => s.trim()).filter(Boolean);
             const allScens = parsed.length > 0 ? parsed : getScenarioIds();
@@ -243,7 +243,7 @@ jobs:
           node -e "
             const fs = require('fs');
             require('./scripts/chat-simulation/common/perf-scenarios').registerPerfScenarios();
-            const { getScenarioIds } = require('./scripts/chat-simulation/common/mock-llm-server');
+            const { getScenarioIds } = require('./scripts/chat-simulation/common/mock-llm-server.ts');
             const userInput = process.env.SCENARIOS_INPUT || '';
             const parsed = userInput.split(',').map(s => s.trim()).filter(Boolean);
             const allScens = parsed.length > 0 ? parsed : getScenarioIds();

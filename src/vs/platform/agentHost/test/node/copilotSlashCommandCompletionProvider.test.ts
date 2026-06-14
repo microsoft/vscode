@@ -12,20 +12,6 @@ import { CopilotSlashCommandCompletionProvider, parseLeadingSlashCommand } from 
 
 suite('CopilotSlashCommandCompletionProvider', () => {
 
-	let _savedRubberDuckEnv: string | undefined;
-	suiteSetup(() => {
-		_savedRubberDuckEnv = process.env['RUBBER_DUCK_AGENT'];
-		process.env['RUBBER_DUCK_AGENT'] = 'true';
-	});
-
-	suiteTeardown(() => {
-		if (_savedRubberDuckEnv === undefined) {
-			delete process.env['RUBBER_DUCK_AGENT'];
-		} else {
-			process.env['RUBBER_DUCK_AGENT'] = _savedRubberDuckEnv;
-		}
-	});
-
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('parseLeadingSlashCommand', () => {
@@ -87,7 +73,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 	});
 
 	suite('provideCompletionItems', () => {
-		const provider = new CopilotSlashCommandCompletionProvider('copilotcli');
+		const provider = new CopilotSlashCommandCompletionProvider('copilotcli', { hasHistory: () => true, isRubberDuckEnabled: () => true });
 		const session = 'copilotcli:/abc';
 
 		async function run(text: string, offset = text.length) {
@@ -182,30 +168,26 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 		});
 
 		test('omits /compact when session has no history', async () => {
-			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', { hasHistory: () => false });
+			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', { hasHistory: () => false, isRubberDuckEnabled: () => true });
 			const items = await gated.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage, channel: session, text: '/', offset: 1,
 			}, CancellationToken.None);
 			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/research ', '/rubber-duck ']);
 		});
 
-		test('omits /rubber-duck when env var is unset', async () => {
-			const saved = process.env['RUBBER_DUCK_AGENT'];
-			delete process.env['RUBBER_DUCK_AGENT'];
-			try {
-				const items = await run('/');
-				assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/compact', '/research ']);
-			} finally {
-				if (saved !== undefined) {
-					process.env['RUBBER_DUCK_AGENT'] = saved;
-				}
-			}
+		test('omits /rubber-duck when not enabled', async () => {
+			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', { hasHistory: () => true, isRubberDuckEnabled: () => false });
+			const items = await gated.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage, channel: session, text: '/', offset: 1,
+			}, CancellationToken.None);
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/compact', '/research ']);
 		});
 
 		test('passes raw session id (no scheme/slash) to hasHistory', async () => {
 			let seen: string | undefined;
 			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', {
 				hasHistory: (id: string) => { seen = id; return true; },
+				isRubberDuckEnabled: () => true,
 			});
 			await gated.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage, channel: 'copilotcli:/abc', text: '/', offset: 1,

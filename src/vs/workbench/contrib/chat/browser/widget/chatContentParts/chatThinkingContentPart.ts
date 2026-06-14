@@ -213,6 +213,7 @@ const funWorkingMessages = [
 	localize('chat.working.fun.1', "Bribing the hamster"),
 	localize('chat.working.fun.2', "Reticulating splines"),
 	localize('chat.working.fun.3', "Untangling the spaghetti"),
+	localize('chat.working.fun.4', "Communing with the codebase"),
 
 	// Minecraft
 	localize('chat.working.fun.minecraft.1', "Mining diamonds"),
@@ -221,7 +222,7 @@ const funWorkingMessages = [
 	localize('chat.working.fun.ms.1', "Summoning Clippy"),
 ];
 
-const FUN_WORKING_MESSAGE_RATE = 100;
+const FUN_WORKING_MESSAGE_RATE = 50;
 
 type ThinkingPhrasesConfiguration = { mode?: 'replace' | 'append'; phrases?: string[] };
 
@@ -2173,6 +2174,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			this.titleShimmerSpan = undefined;
 			this.titleDetailContainer = undefined;
 			this._titleDetailRendered.clear();
+			this._titleFileWidgetStore.clear();
 			this.currentTitle = title;
 			return;
 		}
@@ -2197,10 +2199,11 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 
 		// Dispose previous detail rendering
 		this._titleDetailRendered.clear();
+		this._titleFileWidgetStore.clear();
 
 		const result = this.chatContentMarkdownRenderer.render(new MarkdownString(title));
 		result.element.classList.add('collapsible-title-content', 'chat-thinking-title-detail');
-		renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._store);
+		renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._titleFileWidgetStore);
 		this._titleDetailRendered.value = result;
 
 		if (this.titleDetailContainer) {

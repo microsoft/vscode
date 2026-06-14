@@ -22,11 +22,15 @@ src/vs/platform/terminal/node/** @anthonykim1
 # Electron Main
 src/vs/code/** @deepak1556
 
+# Workbench Layout & Editor Parts
+src/vs/workbench/browser/parts/** @benibenj
+src/vs/workbench/services/editor/** @benibenj
+src/vs/workbench/services/layout/** @benibenj
+
 # Workbench Services
 src/vs/workbench/services/authentication/** @TylerLeonhardt
 src/vs/workbench/services/browserView/** @kycutler @jruales
 src/vs/workbench/services/dialogs/** @alexr00
-src/vs/workbench/services/editor/common/customEditorLabelService.ts @benibenj
 src/vs/workbench/services/languageDetection/** @TylerLeonhardt
 src/vs/workbench/services/views/** @sandy081 @benibenj
 
@@ -79,3 +83,8 @@ test/sanity/** @dmitrivMS
 # Agents Workbench
 # Ensure the Agents workbench team is aware of changes to the sessions model and services
 src/vs/sessions/services/sessions/** @sandy081 @lszomoru
+
+# Ensure the Agents workbench team is aware of changes to the core workbench layout
+src/vs/sessions/contrib/layout/** @benibenj
+src/vs/sessions/browser/parts/** @benibenj
+src/vs/sessions/browser/workbench.ts @benibenj

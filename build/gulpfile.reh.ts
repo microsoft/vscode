@@ -29,7 +29,8 @@ import * as cp from 'child_process';
 import log from 'fancy-log';
 import buildfile from './buildfile.ts';
 import { fetchUrls, fetchGithub } from './lib/fetch.ts';
-import { getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getRipgrepExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';
+import { getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotTgrepExcludeFilter, getRipgrepExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';
+import { readAgentSdkResults } from './agent-sdk/common.ts';
 
 
 const rcedit = promisify(rceditCallback);
@@ -163,6 +164,48 @@ function extractAlpinefromDocker(nodeVersion: string, platform: string, arch: st
 	return es.readArray([new File({ path: 'node', contents, stat: { mode: parseInt('755', 8) } as fs.Stats })]);
 }
 
+// WSL1 binfmt_elf rejects PT_LOAD segments with p_align > PAGE_SIZE (0x1000).
+// Node 24 linux-x64 ships an `lpstub` LOAD segment aligned to 2 MiB for hugepage
+// remapping; clamp it so the binary still loads under WSL1.
+function patchElfLoadAlign(): NodeJS.ReadWriteStream {
+	return es.mapSync<File, File>(file => {
+		if (!file.contents || !Buffer.isBuffer(file.contents)) {
+			return file;
+		}
+		const buf = file.contents;
+		if (buf.length < 64) {
+			return file;
+		}
+		if (buf[0] !== 0x7f || buf[1] !== 0x45 || buf[2] !== 0x4c || buf[3] !== 0x46) {
+			return file;
+		}
+		if (buf[4] !== 2 /* ELFCLASS64 */ || buf[5] !== 1 /* ELFDATA2LSB */) {
+			return file;
+		}
+		const e_phoff = Number(buf.readBigUInt64LE(0x20));
+		const e_phentsize = buf.readUInt16LE(0x36);
+		const e_phnum = buf.readUInt16LE(0x38);
+		if (e_phentsize !== 56) {
+			return file;
+		}
+		const PT_LOAD = 1;
+		const MAX_ALIGN = 0x1000n;
+		for (let i = 0; i < e_phnum; i++) {
+			const off = e_phoff + i * e_phentsize;
+			if (off + e_phentsize > buf.length) {
+				break;
+			}
+			if (buf.readUInt32LE(off) !== PT_LOAD) {
+				continue;
+			}
+			if (buf.readBigUInt64LE(off + 48) > MAX_ALIGN) {
+				buf.writeBigUInt64LE(MAX_ALIGN, off + 48);
+			}
+		}
+		return file;
+	});
+}
+
 const { nodeVersion, internalNodeVersion } = getNodeVersion();
 
 BUILD_TARGETS.forEach(({ platform, arch }) => {
@@ -229,14 +272,16 @@ function nodejs(platform: string, arch: string): NodeJS.ReadWriteStream | undefi
 				fetchUrls(`/dist/v${nodeVersion}/win-${arch}/node.exe`, { base: 'https://nodejs.org', checksumSha256 }))
 				.pipe(rename('node.exe'));
 		case 'darwin':
-		case 'linux':
-			return (product.nodejsRepository !== 'https://nodejs.org' ?
+		case 'linux': {
+			const downloaded = (product.nodejsRepository !== 'https://nodejs.org' ?
 				fetchGithub(product.nodejsRepository, { version: `${nodeVersion}-${internalNodeVersion}`, name: expectedName!, checksumSha256 }) :
 				fetchUrls(`/dist/v${nodeVersion}/node-v${nodeVersion}-${platform}-${arch}.tar.gz`, { base: 'https://nodejs.org', checksumSha256 })
 			).pipe(flatmap(stream => stream.pipe(gunzip()).pipe(untar())))
 				.pipe(filter('**/node'))
 				.pipe(util.setExecutableBit('**'))
 				.pipe(rename('node'));
+			return platform === 'linux' && arch === 'x64' ? downloaded.pipe(patchElfLoadAlign()) : downloaded;
+		}
 		case 'alpine':
 			return product.nodejsRepository !== 'https://nodejs.org' ?
 				fetchGithub(product.nodejsRepository, { version: `${nodeVersion}-${internalNodeVersion}`, name: expectedName!, checksumSha256 })
@@ -318,7 +363,22 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 
 		let productJsonContents = '';
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
-			.pipe(jsonEditor({ commit, date: readISODate(sourceFolderName), version }))
+			.pipe(jsonEditor((json: Record<string, unknown>) => {
+				json.commit = commit;
+				json.date = readISODate(sourceFolderName);
+				json.version = version;
+				// Stamp agentSdks from the per-platform results file produced
+				// by `build/agent-sdk/produce.ts`. REH-only: REH-web is
+				// browser-served and the agent host is node-only, so the
+				// SDK config has no consumer there.
+				if (type === 'reh') {
+					const agentSdks = readAgentSdkResults();
+					if (Object.keys(agentSdks).length > 0) {
+						json.agentSdks = agentSdks;
+					}
+				}
+				return json;
+			}))
 			.pipe(es.through(function (file) {
 				productJsonContents = file.contents.toString();
 				this.emit('data', file);
@@ -338,6 +398,7 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 		const copilotRuntimePrebuilds = gulp.src(getCopilotRuntimePrebuildFiles(platform, arch, 'remote/node_modules'), { base: 'remote', dot: true, allowEmpty: true });
 		const deps = es.merge(cleanedDeps, copilotRuntimePrebuilds)
 			.pipe(filter(getCopilotExcludeFilter(platform, arch)))
+			.pipe(filter(getCopilotTgrepExcludeFilter(platform, arch)))
 			.pipe(filter(getRipgrepExcludeFilter(platform, arch)))
 			.pipe(jsFilter)
 			.pipe(util.stripSourceMappingURL())
@@ -462,6 +523,7 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 		const deps = (await Promise.all([
 			promisify(glob)('**/*.node', { cwd }),
 			promisify(glob)('**/rg.exe', { cwd }),
+			promisify(glob)('**/tgrep.exe', { cwd }),
 		])).flatMap(o => o);
 		const packageJsonContents = JSON.parse(await fs.promises.readFile(path.join(cwd, 'package.json'), 'utf8'));
 		const productContents = JSON.parse(await fs.promises.readFile(path.join(cwd, 'product.json'), 'utf8'));

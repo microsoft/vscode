@@ -35,6 +35,11 @@ function getCommandDescription(command: CopilotSlashCommandName): string {
 export interface ICopilotSlashCommandSessionInfo {
 	/** `sessionId` is the raw id (URI path without the leading slash). */
 	hasHistory(sessionId: string): boolean;
+	/**
+	 * Whether the experimental rubber duck critic subagent is enabled via
+	 * the agent host config. When absent or `false`, `/rubber-duck` is hidden.
+	 */
+	isRubberDuckEnabled?(): boolean;
 }
 
 /**
@@ -97,6 +102,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 
 		// `/abc` → typed = 'abc'; empty after just '/' → typed = ''.
 		const typed = leading.typed;
+		const rubberDuckEnabled = this._sessionInfo?.isRubberDuckEnabled?.() ?? false;
 		const items: CompletionItem[] = [];
 		for (const command of COMMANDS) {
 			if (typed.length > 0 && !command.startsWith(typed)) {
@@ -107,7 +113,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 				continue;
 			}
 			// `/rubber-duck` is only available when the feature is enabled.
-			if (command === 'rubber-duck' && !process.env['RUBBER_DUCK_AGENT']) {
+			if (command === 'rubber-duck' && !rubberDuckEnabled) {
 				continue;
 			}
 			items.push({

@@ -34,7 +34,7 @@ import { IBoundarySashes } from '../../../../base/browser/ui/sash/sash.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, EditorTabsVisibleContext, IsTopRightEditorGroupContext } from '../../../common/contextkeys.js';
+import { EditorAreaFocusContext, EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, EditorTabsVisibleContext, IsTopRightEditorGroupContext } from '../../../common/contextkeys.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 
 export interface IEditorPartUIState {
@@ -1042,6 +1042,12 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	}
 
 	protected handleContextKeys(): void {
+		// Bind `editorAreaFocus` to the editor part's scoped context key service so
+		// it evaluates to `true` only when keyboard focus is within the editor area.
+		// Applies to all editor parts (main, modal, auxiliary) so callers can gate
+		// shortcuts on focus being in any editor area regardless of which part.
+		EditorAreaFocusContext.bindTo(this.scopedContextKeyService).set(true);
+
 		const multipleEditorGroupsContext = EditorPartMultipleEditorGroupsContext.bindTo(this.scopedContextKeyService);
 		const maximizedEditorGroupContext = EditorPartMaximizedEditorGroupContext.bindTo(this.scopedContextKeyService);
 		const editorTabsVisibleContext = EditorTabsVisibleContext.bindTo(this.scopedContextKeyService);

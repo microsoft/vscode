@@ -10,9 +10,11 @@ import type { URI } from './state.js';
 
 import type { RootAgentsChangedAction, RootActiveSessionsChangedAction, RootTerminalsChangedAction, RootConfigChangedAction } from '../channels-root/actions.js';
 
-import type { SessionReadyAction, SessionCreationFailedAction, SessionTurnStartedAction, SessionDeltaAction, SessionResponsePartAction, SessionToolCallStartAction, SessionToolCallDeltaAction, SessionToolCallReadyAction, SessionToolCallConfirmedAction, SessionToolCallCompleteAction, SessionToolCallResultConfirmedAction, SessionToolCallContentChangedAction, SessionTurnCompleteAction, SessionTurnCancelledAction, SessionErrorAction, SessionTitleChangedAction, SessionUsageAction, SessionReasoningAction, SessionModelChangedAction, SessionAgentChangedAction, SessionServerToolsChangedAction, SessionActiveClientChangedAction, SessionActiveClientToolsChangedAction, SessionPendingMessageSetAction, SessionPendingMessageRemovedAction, SessionQueuedMessagesReorderedAction, SessionInputRequestedAction, SessionInputAnswerChangedAction, SessionInputCompletedAction, SessionCustomizationsChangedAction, SessionCustomizationToggledAction, SessionCustomizationUpdatedAction, SessionCustomizationRemovedAction, SessionTruncatedAction, SessionIsReadChangedAction, SessionIsArchivedChangedAction, SessionActivityChangedAction, SessionChangesetsChangedAction, SessionConfigChangedAction, SessionMetaChangedAction } from '../channels-session/actions.js';
+import type { SessionReadyAction, SessionCreationFailedAction, SessionTurnStartedAction, SessionDeltaAction, SessionResponsePartAction, SessionToolCallStartAction, SessionToolCallDeltaAction, SessionToolCallReadyAction, SessionToolCallConfirmedAction, SessionToolCallCompleteAction, SessionToolCallResultConfirmedAction, SessionToolCallContentChangedAction, SessionTurnCompleteAction, SessionTurnCancelledAction, SessionErrorAction, SessionTitleChangedAction, SessionUsageAction, SessionReasoningAction, SessionModelChangedAction, SessionAgentChangedAction, SessionServerToolsChangedAction, SessionActiveClientChangedAction, SessionActiveClientToolsChangedAction, SessionPendingMessageSetAction, SessionPendingMessageRemovedAction, SessionQueuedMessagesReorderedAction, SessionInputRequestedAction, SessionInputAnswerChangedAction, SessionInputCompletedAction, SessionCustomizationsChangedAction, SessionCustomizationToggledAction, SessionCustomizationUpdatedAction, SessionCustomizationRemovedAction, SessionMcpServerStateChangedAction, SessionTruncatedAction, SessionIsReadChangedAction, SessionIsArchivedChangedAction, SessionActivityChangedAction, SessionChangesetsChangedAction, SessionConfigChangedAction, SessionMetaChangedAction } from '../channels-session/actions.js';
 
-import type { ChangesetStatusChangedAction, ChangesetFileSetAction, ChangesetFileRemovedAction, ChangesetOperationsChangedAction, ChangesetClearedAction } from '../channels-changeset/actions.js';
+import type { ChangesetStatusChangedAction, ChangesetFileSetAction, ChangesetFileRemovedAction, ChangesetOperationsChangedAction, ChangesetOperationStatusChangedAction, ChangesetClearedAction } from '../channels-changeset/actions.js';
+
+import type { AnnotationsSetAction, AnnotationsUpdatedAction, AnnotationsRemovedAction, AnnotationsEntrySetAction, AnnotationsEntryRemovedAction } from '../channels-annotations/actions.js';
 
 import type { TerminalDataAction, TerminalInputAction, TerminalResizedAction, TerminalClaimedAction, TerminalTitleChangedAction, TerminalCwdChangedAction, TerminalExitedAction, TerminalClearedAction, TerminalCommandDetectionAvailableAction, TerminalCommandExecutedAction, TerminalCommandFinishedAction } from '../channels-terminal/actions.js';
 
@@ -61,6 +63,7 @@ export const enum ActionType {
 	SessionCustomizationToggled = 'session/customizationToggled',
 	SessionCustomizationUpdated = 'session/customizationUpdated',
 	SessionCustomizationRemoved = 'session/customizationRemoved',
+	SessionMcpServerStateChanged = 'session/mcpServerStateChanged',
 	SessionTruncated = 'session/truncated',
 	SessionIsReadChanged = 'session/isReadChanged',
 	SessionIsArchivedChanged = 'session/isArchivedChanged',
@@ -72,7 +75,13 @@ export const enum ActionType {
 	ChangesetFileSet = 'changeset/fileSet',
 	ChangesetFileRemoved = 'changeset/fileRemoved',
 	ChangesetOperationsChanged = 'changeset/operationsChanged',
+	ChangesetOperationStatusChanged = 'changeset/operationStatusChanged',
 	ChangesetCleared = 'changeset/cleared',
+	AnnotationsSet = 'annotations/set',
+	AnnotationsUpdated = 'annotations/updated',
+	AnnotationsRemoved = 'annotations/removed',
+	AnnotationsEntrySet = 'annotations/entrySet',
+	AnnotationsEntryRemoved = 'annotations/entryRemoved',
 	RootTerminalsChanged = 'root/terminalsChanged',
 	RootConfigChanged = 'root/configChanged',
 	TerminalData = 'terminal/data',
@@ -160,6 +169,7 @@ export type StateAction =
 	| SessionCustomizationToggledAction
 	| SessionCustomizationUpdatedAction
 	| SessionCustomizationRemovedAction
+	| SessionMcpServerStateChangedAction
 	| SessionTruncatedAction
 	| SessionIsReadChangedAction
 	| SessionIsArchivedChangedAction
@@ -171,7 +181,13 @@ export type StateAction =
 	| ChangesetFileSetAction
 	| ChangesetFileRemovedAction
 	| ChangesetOperationsChangedAction
+	| ChangesetOperationStatusChangedAction
 	| ChangesetClearedAction
+	| AnnotationsSetAction
+	| AnnotationsUpdatedAction
+	| AnnotationsRemovedAction
+	| AnnotationsEntrySetAction
+	| AnnotationsEntryRemovedAction
 	| TerminalDataAction
 	| TerminalInputAction
 	| TerminalResizedAction
