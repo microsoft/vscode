@@ -22,6 +22,7 @@ import { AnthropicMessagesTool, ContextManagement } from './anthropic';
 import { FinishedCallback, OpenAiFunctionTool, OpenAiResponsesFunctionTool, OpenAiToolSearchTool, OptionalChatRequestParams, Prediction } from './fetch';
 import { FetcherId, FetchOptions, IAbortController, IFetcherService, PaginationOptions, Response } from './fetcherService';
 import { ChatCompletion, OpenAIContextManagement, RawMessageConversionCallback, rawMessageToCAPI } from './openai';
+import { getConfiguredProxyUrl, maybeInterceptUrlThroughProxy } from './proxyUtils';
 
 /**
  * Encapsulates all the functionality related to making GET/POST requests using
@@ -464,6 +465,7 @@ export interface INetworkRequestOptions {
  */
 export type InteractionTypeOverride = 'conversation-subagent' | 'conversation-compaction' | 'conversation-background';
 
+
 function networkRequest(
 	accessor: ServicesAccessor,
 	options: INetworkRequestOptions,
@@ -526,12 +528,19 @@ function networkRequest(
 		request.signal = abort.signal;
 	}
 	if (!isCAPIRequestMetadata(endpoint.urlOrRequestMetadata)) {
-		const requestPromise = fetcher.fetch(endpoint.urlOrRequestMetadata, request).catch(reason => {
+		// Apply proxy interception if configured
+		let fetchUrl: string = endpoint.urlOrRequestMetadata;
+		const proxyUrl = getConfiguredProxyUrl();
+		if (proxyUrl && typeof fetchUrl === 'string') {
+			fetchUrl = maybeInterceptUrlThroughProxy(fetchUrl, proxyUrl, headers);
+		}
+
+		const requestPromise = fetcher.fetch(fetchUrl, request).catch(reason => {
 			if (canRetryOnce && canRetryOnceNetworkError(reason)) {
 				// disconnect and retry the request once if the connection was reset
 				telemetryService.sendGHTelemetryEvent('networking.disconnectAll');
 				return fetcher.disconnectAll().then(() => {
-					return fetcher.fetch(endpoint.urlOrRequestMetadata as string, request);
+					return fetcher.fetch(fetchUrl, request);
 				});
 			} else if (fetcher.isAbortError(reason)) {
 				throw new CancellationError();
