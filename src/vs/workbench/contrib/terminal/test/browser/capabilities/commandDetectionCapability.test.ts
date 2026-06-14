@@ -134,6 +134,48 @@ suite('CommandDetectionCapability', () => {
 		});
 	});
 
+	test('should report exit code 130 when a command is interrupted with ^C', async () => {
+		// First, run a normal command
+		await printStandardCommand('$ ', 'echo test', 'test', undefined, 0);
+
+		// Now simulate an interrupted command: the terminal buffer shows the command
+		// text ending with ^C, and the shell reports undefined as the exit code.
+		capability.handlePromptStart();
+		await writeP(xterm, `\r$ `);
+		capability.handleCommandStart();
+		await writeP(xterm, 'echo test^C');
+		capability.handleCommandExecuted();
+		await writeP(xterm, `\r\n`);
+		capability.handleCommandFinished(undefined as any);
+
+		await printCommandStart('$ ');
+
+		assertCommands([
+			{ command: 'echo test^C', exitCode: 130, cwd: undefined, marker: { line: 2 } }
+		]);
+	});
+
+	test('should inherit previous exit code for duplicate commands without ^C', async () => {
+		// Run a command normally
+		await printStandardCommand('$ ', 'echo test', 'test', undefined, 0);
+
+		// Run the same command with undefined exit code (history merge scenario)
+		// but without ^C - should inherit the previous exit code
+		capability.handlePromptStart();
+		await writeP(xterm, `\r$ `);
+		capability.handleCommandStart();
+		await writeP(xterm, 'echo test');
+		capability.handleCommandExecuted();
+		await writeP(xterm, `\r\ntest\r\n`);
+		capability.handleCommandFinished(undefined as any);
+
+		await printCommandStart('$ ');
+
+		assertCommands([
+			{ command: 'echo test', exitCode: 0, cwd: undefined, marker: { line: 2 } }
+		]);
+	});
+
 	test('should preserve explicit newlines at 80-column wrap boundaries in command output', async () => {
 		const boundaryWidthLine = 'A'.repeat(80);
 		await printStandardCommand('$ ', 'cat content.txt', `${boundaryWidthLine}\r\nafter`, undefined, 0);
