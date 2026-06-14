@@ -289,7 +289,7 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 				tooltip: c.command.tooltip || '',
 				label: c.command.title,
 				run: (event) => {
-					return this._commandService.executeCommand(c.command.id);
+					return this._commandService.executeCommand(c.command.id, ...(c.command.arguments ?? []));
 				},
 			}));
 
