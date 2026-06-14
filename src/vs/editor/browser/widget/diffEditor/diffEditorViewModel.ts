@@ -11,14 +11,17 @@ import { IDiffProviderFactoryService } from './diffProviderFactoryService.js';
 import { filterWithPrevious } from './utils.js';
 import { readHotReloadableExport } from '../../../../base/common/hotReloadHelpers.js';
 import { ISerializedLineRange, LineRange, LineRangeSet } from '../../../common/core/ranges/lineRange.js';
+import { Range } from '../../../common/core/range.js';
 import { DefaultLinesDiffComputer } from '../../../common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer.js';
 import { IDocumentDiff } from '../../../common/diff/documentDiffProvider.js';
 import { MovedText } from '../../../common/diff/linesDiffComputer.js';
-import { DetailedLineRangeMapping, LineRangeMapping, RangeMapping } from '../../../common/diff/rangeMapping.js';
+import { DetailedLineRangeMapping, LineRangeMapping, RangeMapping, lineRangeMappingFromRangeMappings } from '../../../common/diff/rangeMapping.js';
 import { IDiffEditorModel, IDiffEditorViewModel } from '../../../common/editorCommon.js';
 import { ITextModel } from '../../../common/model.js';
 import { TextEditInfo } from '../../../common/model/bracketPairsTextModelPart/bracketPairsTree/beforeEditPositionMapper.js';
 import { combineTextEditInfos } from '../../../common/model/bracketPairsTextModelPart/bracketPairsTree/combineTextEditInfos.js';
+import { lengthAdd, lengthDiffNonNegative, lengthGetLineCount, lengthToPosition, lengthZero, positionToLength, lengthOfRange, toLength } from '../../../common/model/bracketPairsTextModelPart/bracketPairsTree/length.js';
+import { TextModelText } from '../../../common/model/textModelText.js';
 import { DiffEditorOptions } from './diffEditorOptions.js';
 import { optimizeSequenceDiffs } from '../../../common/diff/defaultLinesDiffComputer/heuristicSequenceOptimizations.js';
 import { isDefined } from '../../../../base/common/types.js';
@@ -304,9 +307,9 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 				// TODO@hediet fishy?
 				return;
 			}
-			result = normalizeDocumentDiff(result, model.original, model.modified);
 			result = applyOriginalEdits(result, originalTextEditInfos, model.original, model.modified) ?? result;
 			result = applyModifiedEdits(result, modifiedTextEditInfos, model.original, model.modified) ?? result;
+			result = normalizeDocumentDiff(result, model.original, model.modified);
 
 			transaction(tx => {
 				/** @description write diff result */
@@ -394,6 +397,7 @@ function normalizeDocumentDiff(diff: IDocumentDiff, original: ITextModel, modifi
 function normalizeRangeMapping(rangeMapping: RangeMapping, original: ITextModel, modified: ITextModel): RangeMapping {
 	let originalRange = rangeMapping.originalRange;
 	let modifiedRange = rangeMapping.modifiedRange;
+
 	if (
 		originalRange.startColumn === 1 && modifiedRange.startColumn === 1 &&
 		(originalRange.endColumn !== 1 || modifiedRange.endColumn !== 1) &&
@@ -649,9 +653,6 @@ export const enum RevealPreference {
 }
 
 function applyOriginalEdits(diff: IDocumentDiff, textEdits: TextEditInfo[], originalTextModel: ITextModel, modifiedTextModel: ITextModel): IDocumentDiff | undefined {
-	return undefined;
-	/*
-	TODO@hediet
 	if (textEdits.length === 0) {
 		return diff;
 	}
@@ -661,9 +662,9 @@ function applyOriginalEdits(diff: IDocumentDiff, textEdits: TextEditInfo[], orig
 	if (!diff3) {
 		return undefined;
 	}
-	return flip(diff3);*/
+	return flip(diff3);
 }
-/*
+
 function flip(diff: IDocumentDiff): IDocumentDiff {
 	return {
 		changes: diff.changes.map(c => c.flip()),
@@ -672,15 +673,12 @@ function flip(diff: IDocumentDiff): IDocumentDiff {
 		quitEarly: diff.quitEarly,
 	};
 }
-*/
+
 function applyModifiedEdits(diff: IDocumentDiff, textEdits: TextEditInfo[], originalTextModel: ITextModel, modifiedTextModel: ITextModel): IDocumentDiff | undefined {
-	return undefined;
-	/*
-	TODO@hediet
 	if (textEdits.length === 0) {
 		return diff;
 	}
-	if (diff.changes.some(c => !c.innerChanges) || diff.moves.length > 0) {
+	if (diff.changes.some(c => !c.innerChanges) || diff.moves.some(m => m.changes.some(c => !c.innerChanges))) {
 		// TODO support these cases
 		return undefined;
 	}
@@ -690,19 +688,19 @@ function applyModifiedEdits(diff: IDocumentDiff, textEdits: TextEditInfo[], orig
 	const moves = diff.moves.map(m => {
 		const newModifiedRange = applyEditToLineRange(m.lineRangeMapping.modified, textEdits);
 		return newModifiedRange ? new MovedText(
-			new SimpleLineRangeMapping(m.lineRangeMapping.original, newModifiedRange),
+			new LineRangeMapping(m.lineRangeMapping.original, newModifiedRange),
 			applyModifiedEditsToLineRangeMappings(m.changes, textEdits, originalTextModel, modifiedTextModel),
 		) : undefined;
 	}).filter(isDefined);
 
 	return {
 		identical: false,
-		quitEarly: false,
+		quitEarly: diff.quitEarly,
 		changes,
 		moves,
-	};*/
+	};
 }
-/*
+
 function applyEditToLineRange(range: LineRange, textEdits: TextEditInfo[]): LineRange | undefined {
 	let rangeStartLineNumber = range.startLineNumber;
 	let rangeEndLineNumberEx = range.endLineNumberExclusive;
@@ -726,10 +724,10 @@ function applyEditToLineRange(range: LineRange, textEdits: TextEditInfo[]): Line
 			return undefined;
 		} else if (textEditStartLineNumber < rangeStartLineNumber && textEditEndLineNumber <= rangeEndLineNumberEx) {
 			// the text edit ends inside our range
-			rangeStartLineNumber = textEditEndLineNumber + 1;
+			rangeStartLineNumber = textEditEndLineNumber;
 			rangeStartLineNumber += delta;
 			rangeEndLineNumberEx += delta;
-		} else if (rangeStartLineNumber <= textEditStartLineNumber && textEditEndLineNumber < rangeStartLineNumber) {
+		} else if (rangeStartLineNumber <= textEditStartLineNumber && rangeEndLineNumberEx < textEditEndLineNumber) {
 			// the text edit starts inside our range
 			rangeEndLineNumberEx = textEditStartLineNumber;
 		} else {
@@ -740,12 +738,15 @@ function applyEditToLineRange(range: LineRange, textEdits: TextEditInfo[]): Line
 	return new LineRange(rangeStartLineNumber, rangeEndLineNumberEx);
 }
 
-function applyModifiedEditsToLineRangeMappings(changes: readonly LineRangeMapping[], textEdits: TextEditInfo[], originalTextModel: ITextModel, modifiedTextModel: ITextModel): LineRangeMapping[] {
-	const diffTextEdits = changes.flatMap(c => c.innerChanges!.map(c => new TextEditInfo(
-		positionToLength(c.originalRange.getStartPosition()),
-		positionToLength(c.originalRange.getEndPosition()),
-		lengthOfRange(c.modifiedRange).toLength(),
-	)));
+function applyModifiedEditsToLineRangeMappings(changes: readonly DetailedLineRangeMapping[], textEdits: TextEditInfo[], originalTextModel: ITextModel, modifiedTextModel: ITextModel): DetailedLineRangeMapping[] {
+	const diffTextEdits = changes.flatMap(c => c.innerChanges!.map(innerChange => {
+		const modifiedRangeLength = lengthOfRange(innerChange.modifiedRange);
+		return new TextEditInfo(
+			positionToLength(innerChange.originalRange.getStartPosition()),
+			positionToLength(innerChange.originalRange.getEndPosition()),
+			toLength(modifiedRangeLength.lineCount, modifiedRangeLength.columnCount),
+		);
+	}));
 
 	const combined = combineTextEditInfos(diffTextEdits, textEdits);
 
@@ -764,9 +765,8 @@ function applyModifiedEditsToLineRangeMappings(changes: readonly LineRangeMappin
 
 	const newChanges = lineRangeMappingFromRangeMappings(
 		rangeMappings,
-		originalTextModel.getLinesContent(),
-		modifiedTextModel.getLinesContent(),
+		new TextModelText(originalTextModel),
+		new TextModelText(modifiedTextModel),
 	);
 	return newChanges;
 }
-*/
