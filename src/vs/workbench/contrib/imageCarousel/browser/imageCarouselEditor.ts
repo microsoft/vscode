@@ -52,6 +52,7 @@ export class ImageCarouselEditor extends EditorPane {
 	private _flatImages: IFlatImageEntry[] = [];
 	private readonly _contentDisposables = this._register(new DisposableStore());
 	private readonly _imageDisposables = this._register(new DisposableStore());
+	private readonly _inputDisposables = this._register(new DisposableStore());
 	private readonly _blobUrlCache = new Map<string, string>();
 
 	private _videoWebview: IWebviewElement | undefined;
@@ -90,20 +91,44 @@ export class ImageCarouselEditor extends EditorPane {
 	override async setInput(input: ImageCarouselEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 
-		this._sections = input.collection.sections;
+		this._inputDisposables.clear();
+		this._inputDisposables.add(input.onDidChangeCollection(() => this.refreshFromInput(input)));
+
+		this.setSections(input.collection.sections);
+		this._currentIndex = Math.min(input.startIndex, Math.max(0, this._flatImages.length - 1));
+		this.buildSlideshow();
+	}
+
+	/**
+	 * Flattens the section images into `_flatImages` for global index-based navigation.
+	 */
+	private setSections(sections: ReadonlyArray<ICarouselSection>): void {
+		this._sections = sections;
 		this._flatImages = [];
 		for (let s = 0; s < this._sections.length; s++) {
 			for (let i = 0; i < this._sections[s].images.length; i++) {
 				this._flatImages.push({ sectionIndex: s, imageIndexInSection: i, image: this._sections[s].images[i] });
 			}
 		}
-		this._currentIndex = Math.min(input.startIndex, Math.max(0, this._flatImages.length - 1));
+	}
+
+	/**
+	 * Rebuilds the carousel after its input's collection changed (e.g. new images
+	 * were added to the originating chat session while the carousel is open),
+	 * keeping the currently viewed image focused when it is still present.
+	 */
+	private refreshFromInput(input: ImageCarouselEditorInput): void {
+		const currentImageId = this._flatImages[this._currentIndex]?.image.id;
+		this.setSections(input.collection.sections);
+		const newIndex = currentImageId ? this._flatImages.findIndex(entry => entry.image.id === currentImageId) : -1;
+		this._currentIndex = newIndex >= 0 ? newIndex : clamp(this._currentIndex, 0, Math.max(0, this._flatImages.length - 1));
 		this.buildSlideshow();
 	}
 
 	override clearInput(): void {
 		this._videoWebview?.dispose();
 		this._videoWebview = undefined;
+		this._inputDisposables.clear();
 		this._contentDisposables.clear();
 		this._imageDisposables.clear();
 		this._revokeCachedBlobUrls();
@@ -131,7 +156,9 @@ export class ImageCarouselEditor extends EditorPane {
 
 		this._contentDisposables.clear();
 		this._imageDisposables.clear();
-		this._revokeCachedBlobUrls();
+		// Keep cached blob URLs for images that are still present so a live refresh
+		// doesn't re-decode every unchanged thumbnail and the main image.
+		this._pruneBlobUrlCache(new Set(this._flatImages.map(entry => entry.image.id)));
 		clearNode(this._container);
 
 		if (this._flatImages.length === 0) {
@@ -562,6 +589,19 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 			URL.revokeObjectURL(url);
 		}
 		this._blobUrlCache.clear();
+	}
+
+	/**
+	 * Revokes and drops cached blob URLs for images whose ids are no longer
+	 * present, keeping the rest so unchanged images can reuse them across rebuilds.
+	 */
+	private _pruneBlobUrlCache(keepIds: ReadonlySet<string>): void {
+		for (const [id, url] of this._blobUrlCache) {
+			if (!keepIds.has(id)) {
+				URL.revokeObjectURL(url);
+				this._blobUrlCache.delete(id);
+			}
+		}
 	}
 
 	private async _loadRawData(image: ICarouselImage): Promise<Uint8Array> {

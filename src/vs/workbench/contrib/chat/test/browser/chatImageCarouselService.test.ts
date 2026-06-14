@@ -5,14 +5,23 @@
 
 import assert from 'assert';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { timeout } from '../../../../../base/common/async.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { buildCollectionArgs, buildSingleImageArgs, collectCarouselSections, findClickedImageIndex, ICarouselSection } from '../../browser/chatImageCarouselService.js';
+import { buildCollectionArgs, buildSingleImageArgs, ChatImageCarouselService, collectCarouselSections, createCachingReadFile, findClickedImageIndex, ICarouselSection } from '../../browser/chatImageCarouselService.js';
 import { IChatToolInvocationSerialized } from '../../common/chatService/chatService.js';
 import { ChatResponseResource } from '../../common/model/chatModel.js';
 import { IImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
-import { IChatRequestViewModel, IChatResponseViewModel } from '../../common/model/chatViewModel.js';
+import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel } from '../../common/model/chatViewModel.js';
 import { ToolDataSource } from '../../common/tools/languageModelToolsService.js';
+import type { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import type { IFileService } from '../../../../../platform/files/common/files.js';
+import type { IChatWidgetService } from '../../browser/chat.js';
+import type { ImageCarouselEditorInput } from '../../../imageCarousel/browser/imageCarouselEditorInput.js';
+import type { IImageCarouselCollection } from '../../../imageCarousel/browser/imageCarouselTypes.js';
 
 suite('ChatImageCarouselService helpers', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -399,6 +408,114 @@ suite('ChatImageCarouselService helpers', () => {
 			assert.ok(data instanceof Uint8Array, 'image data should be Uint8Array');
 			assert.deepStrictEqual([...data], [1, 2, 3]);
 		});
+	});
+
+	suite('createCachingReadFile', () => {
+
+		test('reads each URI once and serves repeats from the cache', async () => {
+			const cache = new Map<string, Uint8Array>();
+			const calls: string[] = [];
+			const readFile = createCachingReadFile(async uri => {
+				calls.push(uri.toString());
+				return new Uint8Array([calls.length]);
+			}, cache);
+
+			const a = URI.file('/a.png');
+			const b = URI.file('/b.png');
+			const first = await readFile(a);
+			const firstAgain = await readFile(a);
+			const second = await readFile(b);
+
+			assert.deepStrictEqual(
+				{ calls, first: [...first], firstAgain: [...firstAgain], second: [...second] },
+				{ calls: [a.toString(), b.toString()], first: [1], firstAgain: [1], second: [2] }
+			);
+		});
+	});
+
+	suite('live refresh', () => {
+
+		/** A little past the carousel's 300ms refresh debounce, so the scheduled refresh has fired. */
+		const REFRESH_DELAY_PADDED = 400;
+
+		function imageIdFor(varId: string): string {
+			return URI.from({ scheme: 'data', path: `${varId}/cat.png` }).toString();
+		}
+
+		function requestWithImage(requestId: string, imageVarId: string): IChatRequestViewModel {
+			return makeRequest(requestId, [makeImageVariableEntry({ id: imageVarId, value: new Uint8Array([1, 2, 3]) })], `req ${requestId}`);
+		}
+
+		function imageIdsOf(collection: IImageCarouselCollection | undefined): string[] {
+			return collection?.sections.flatMap(section => section.images.map(image => image.id)) ?? [];
+		}
+
+		test('streams newly added images into the open carousel, dedups text-only changes, and stops after dispose', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const disposables = new DisposableStore();
+			const onDidChange = disposables.add(new Emitter<void>());
+			const onWillDispose = disposables.add(new Emitter<void>());
+
+			// Mutable chat session: starts with one image, grows as the agent streams.
+			const items: IChatRequestViewModel[] = [requestWithImage('req-1', 'img-1')];
+			const viewModel = {
+				getItems: () => items,
+				onDidChange: onDidChange.event,
+				sessionResource: URI.parse('chat-session://test/session'),
+			} as unknown as IChatViewModel;
+
+			// Stand-in carousel input recording every pushed collection.
+			let disposed = false;
+			const updates: IImageCarouselCollection[] = [];
+			const input = {
+				updateCollection: (collection: IImageCarouselCollection) => updates.push(collection),
+				isDisposed: () => disposed,
+				onWillDispose: onWillDispose.event,
+			} as unknown as ImageCarouselEditorInput;
+
+			const chatWidgetService = { lastFocusedWidget: { viewModel } } as unknown as IChatWidgetService;
+			const commandService = { executeCommand: async () => input } as unknown as ICommandService;
+			const fileService = { readFile: async () => ({ value: { buffer: new Uint8Array() } }) } as unknown as IFileService;
+
+			const service = disposables.add(new ChatImageCarouselService(chatWidgetService, commandService, fileService));
+
+			try {
+				await service.openCarouselAtResource(URI.parse(imageIdFor('img-1')));
+				const afterOpen = updates.length;
+
+				// Two more screenshots arrive while the carousel is open.
+				items.push(requestWithImage('req-2', 'img-2'), requestWithImage('req-3', 'img-3'));
+				onDidChange.fire();
+				await timeout(REFRESH_DELAY_PADDED);
+				const afterImagesAdded = updates.length;
+				const refreshedImageIds = imageIdsOf(updates.at(-1));
+
+				// A text-only streaming delta (no new images) must not push another update.
+				onDidChange.fire();
+				await timeout(REFRESH_DELAY_PADDED);
+				const afterTextOnly = updates.length;
+
+				// Once the carousel closes the live refresh is torn down.
+				disposed = true;
+				onWillDispose.fire();
+				items.push(requestWithImage('req-4', 'img-4'));
+				onDidChange.fire();
+				await timeout(REFRESH_DELAY_PADDED);
+				const afterDispose = updates.length;
+
+				assert.deepStrictEqual(
+					{ afterOpen, afterImagesAdded, afterTextOnly, afterDispose, refreshedImageIds },
+					{
+						afterOpen: 0,
+						afterImagesAdded: 1,
+						afterTextOnly: 1,
+						afterDispose: 1,
+						refreshedImageIds: [imageIdFor('img-1'), imageIdFor('img-2'), imageIdFor('img-3')],
+					}
+				);
+			} finally {
+				disposables.dispose();
+			}
+		}));
 	});
 
 });
