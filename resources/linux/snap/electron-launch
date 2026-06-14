@@ -153,7 +153,7 @@ if [[ -n "$XDG_RUNTIME_DIR" && -z "$DISABLE_WAYLAND" ]]; then
     fi
     wayland_sockpath="$XDG_RUNTIME_DIR/../$wdisplay"
     wayland_snappath="$XDG_RUNTIME_DIR/$wdisplay"
-    if [ -S "$wayland_sockpath" ]; then
+    if [ -S "$wayland_snappath" ]; then
         # if running under wayland, use it
         #export WAYLAND_DEBUG=1
         # shellcheck disable=SC2034
