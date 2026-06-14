@@ -1047,6 +1047,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	detachFromElement(): void {
 		this._wrapperElement.remove();
 		this._container = undefined;
+		// Stop listening on the old container so drops there don't reach this instance after another terminal attaches.
+		this._dndObserver.clear();
 	}
 
 	attachToElement(container: HTMLElement): void {
