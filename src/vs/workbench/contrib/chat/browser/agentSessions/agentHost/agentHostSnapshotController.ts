@@ -7,6 +7,7 @@ import { Sequencer } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { constObservable, derived, derivedOpts, IObservable, IReader, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -302,6 +303,23 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 
 	hasEditsInRequest(requestId: string, _reader?: IReader): boolean {
 		return this._checkpoints.some(cp => cp.requestId === requestId);
+	}
+
+	getModifiedFileResourcesForRequests(requestIds: ReadonlySet<string>): readonly URI[] {
+		const seen = new ResourceSet();
+		const result: URI[] = [];
+		for (const cp of this._checkpoints) {
+			if (!requestIds.has(cp.requestId)) {
+				continue;
+			}
+			for (const edit of cp.edits) {
+				if (!seen.has(edit.resource)) {
+					seen.add(edit.resource);
+					result.push(edit.resource);
+				}
+			}
+		}
+		return result;
 	}
 
 	// ---- Unsupported / no-op (agent host owns edits server-side) ------------
