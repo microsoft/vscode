@@ -152,7 +152,6 @@ export abstract class AbstractCustomOAIBYOKModelProvider extends AbstractOpenAIC
 		const modelInfo = resolveModelInfo(model.id, this._name, undefined, modelCapabilities);
 		if (modelCapabilities?.url?.includes('/responses')) {
 			modelInfo.supported_endpoints = [
-				ModelSupportedEndpoint.ChatCompletions,
 				ModelSupportedEndpoint.Responses
 			];
 		}
