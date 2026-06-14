@@ -49,7 +49,7 @@ async function openGitHubIssue(
 	await commands.executeCommand('workbench.action.openIssueReporter', {
 		issueTitle: 'Copilot completion feedback',
 		issueSource: 'vscode',
-		data: body,
+		issueBody: body,
 	});
 }
 
