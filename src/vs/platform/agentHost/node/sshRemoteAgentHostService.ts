@@ -580,14 +580,14 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	private readonly _connections = this._register(new DisposableMap<string, SSHConnection>());
 
 	/**
-	 * In-flight first-time establishments, keyed by `connectionKey`. The
-	 * {@link _connections} map only dedups *completed* connections; without
-	 * this, multiple windows restoring the same remote at once each run the
-	 * full establishment in parallel, every one spawning its own competing
-	 * `code agent host` (a machine-wide singleton) and clobbering the shared
-	 * remote lockfile/token — so all but one fail to connect (see #249861).
-	 * Concurrent callers for the same key share a single establishment and
-	 * therefore a single agent host.
+	 * In-flight establishments for keys with no completed connection yet,
+	 * keyed by `connectionKey`. The {@link _connections} map only dedups
+	 * *completed* connections; without this, multiple windows restoring the
+	 * same remote at once each run the full establishment in parallel, every
+	 * one spawning its own competing `code agent host` (a machine-wide
+	 * singleton) and clobbering the shared remote lockfile/token — so all but
+	 * one fail to connect (see #249861). Concurrent callers for the same key
+	 * share a single establishment and therefore a single agent host.
 	 */
 	private readonly _pendingConnects = new Map<string, Promise<ISSHConnectResult>>();
 
