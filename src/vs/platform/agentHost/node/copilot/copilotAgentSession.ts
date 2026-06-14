@@ -2161,6 +2161,9 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onSessionError(e => {
 			this._logService.error(`[Copilot:${sessionId}] Session error: ${e.data.errorType} - ${e.data.message}`);
+			// Prefer the structured SDK fields (the Copilot CLI classifies its own
+			// CAPI errors); fall back to decoding a forwarded marker from the message.
+			const meta = tryBuildChatErrorMetaFromFields(e.data) ?? tryBuildChatErrorMeta(e.data.message);
 			this._emitAction({
 				type: ActionType.SessionError,
 				turnId: this._turnId,
@@ -2168,7 +2171,7 @@ export class CopilotAgentSession extends Disposable {
 					errorType: e.data.errorType,
 					message: stripProxyErrorMarker(e.data.message),
 					stack: e.data.stack,
-					_meta: tryBuildChatErrorMetaFromFields(e.data) ?? tryBuildChatErrorMeta(e.data.message),
+					...(meta ? { _meta: meta } : {}),
 				},
 			});
 		}));

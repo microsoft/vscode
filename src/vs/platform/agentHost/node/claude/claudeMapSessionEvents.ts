@@ -9,7 +9,7 @@ import { LogLevel, type ILogService } from '../../../log/common/log.js';
 import type { AgentSignal } from '../../common/agentService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { ResponsePartKind, ToolResultContentType, type ToolResultContent, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
-import { stripProxyErrorMarker, tryBuildChatErrorMeta } from '../shared/forwardedChatError.js';
+import { extractForwardedErrorInfo } from '../shared/forwardedChatError.js';
 import { buildTopLevelSubagentReadyAction, emitInnerAssistantSignals, mapSubagentSystemMessage, SUBAGENT_SPAWNING_TOOL_NAMES, tagWithParent } from './claudeSubagentSignals.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
 import { stripClientToolNamePrefix, hasClientToolNamePrefix } from './clientTools/claudeClientToolMcpServer.js';
@@ -447,7 +447,6 @@ function mapResult(
 	// messaging (rate limit, quota + upgrade affordance, etc.).
 	const errorText = getResultErrorText(message);
 	if (errorText !== undefined) {
-		const meta = tryBuildChatErrorMeta(errorText);
 		signals.push({
 			kind: 'action',
 			session,
@@ -456,8 +455,7 @@ function mapResult(
 				turnId,
 				error: {
 					errorType: message.subtype,
-					message: stripProxyErrorMarker(errorText),
-					...(meta ? { _meta: meta } : {}),
+					...extractForwardedErrorInfo(errorText),
 				},
 			},
 		});

@@ -20,6 +20,17 @@ import { CopilotApiError, COPILOT_API_ERROR_STATUS_STREAMING } from './copilotAp
 export const PROXY_ERROR_PREFIX = 'VSCODE_PROXY_ERROR:';
 
 /**
+ * Upper bound on the base64 marker payload we will decode. A forwarded chat
+ * error serializes to well under 1 KB; this cap prevents an oversized or
+ * adversarial marker riding along in model-influenced error text from driving
+ * an unbounded base64/JSON allocation.
+ */
+const MAX_FORWARDED_MARKER_B64_LENGTH = 8 * 1024;
+
+/** Standard base64 alphabet with optional padding. */
+const FORWARDED_MARKER_B64_PATTERN = /^[A-Za-z0-9+/]+={0,2}$/;
+
+/**
  * Serialized chat fetch error payload. This is the JSON shape forwarded over
  * the protocol's `ErrorInfo._meta.chatError`. The core consumer
  * (`src/vs/workbench/contrib/chat/common/chatErrorMessages.ts`) reads the same
@@ -186,7 +197,13 @@ export function buildForwardedChatErrorFromFields(data: ISdkChatErrorFields): IF
 	if (!type) {
 		return undefined;
 	}
-	const capiError = (data.errorCode || data.message) ? { code: data.errorCode, message: data.message } : undefined;
+	// The Copilot CLI SDK classifies quota errors only via `errorType: 'quota'`
+	// (or a 402 status) and does not carry a fine-grained CAPI code. Default to
+	// the generic `quota_exceeded` code so the core formatter renders the
+	// plan-specific quota message (matching the extension's CLI handling, which
+	// calls `getQuotaMessageForPlan` directly) instead of the bare title.
+	const code = data.errorCode ?? (type === 'quotaExceeded' ? 'quota_exceeded' : undefined);
+	const capiError = (code || data.message) ? { code, message: data.message } : undefined;
 	return {
 		fetchError: {
 			type,
@@ -217,6 +234,11 @@ export function tryParseForwardedChatError(errorText: string | undefined): IForw
 	const start = idx + PROXY_ERROR_PREFIX.length;
 	const end = errorText.slice(start).search(/[\s"']/);
 	const b64 = end === -1 ? errorText.slice(start) : errorText.slice(start, start + end);
+	// Reject empty, oversized, or non-base64 payloads before decoding so a
+	// stray/adversarial marker in model-influenced text can't be parsed.
+	if (b64.length === 0 || b64.length > MAX_FORWARDED_MARKER_B64_LENGTH || !FORWARDED_MARKER_B64_PATTERN.test(b64)) {
+		return undefined;
+	}
 	try {
 		const parsed = JSON.parse(Buffer.from(b64, 'base64').toString()) as IForwardedChatError;
 		if (parsed && typeof parsed === 'object' && parsed.fetchError && typeof parsed.fetchError.type === 'string') {
@@ -269,4 +291,23 @@ export function tryBuildChatErrorMeta(errorText: string | undefined): Record<str
 export function tryBuildChatErrorMetaFromFields(data: ISdkChatErrorFields): Record<string, unknown> | undefined {
 	const forwarded = buildForwardedChatErrorFromFields(data);
 	return forwarded ? toChatErrorMeta(forwarded) : undefined;
+}
+
+/**
+ * Decodes a forwarded {@link PROXY_ERROR_PREFIX} marker out of an error message
+ * and returns the cleaned human-readable message together with the protocol
+ * `ErrorInfo._meta` record. When no marker is present the message is returned
+ * unchanged and `_meta` is omitted, so the result can be spread directly onto
+ * an `ErrorInfo` without changing behavior for plain errors:
+ *
+ * ```ts
+ * error: { errorType: 'CodexError', ...extractForwardedErrorInfo(message) }
+ * ```
+ */
+export function extractForwardedErrorInfo(message: string): { message: string; _meta?: Record<string, unknown> } {
+	const forwarded = tryParseForwardedChatError(message);
+	if (!forwarded) {
+		return { message };
+	}
+	return { message: stripProxyErrorMarker(message), _meta: toChatErrorMeta(forwarded) };
 }

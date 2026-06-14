@@ -11,6 +11,7 @@ import {
 	buildForwardedChatError,
 	buildForwardedChatErrorFromFields,
 	encodeForwardedChatError,
+	extractForwardedErrorInfo,
 	IForwardedChatError,
 	PROXY_ERROR_PREFIX,
 	toChatErrorMeta,
@@ -112,6 +113,13 @@ suite('forwardedChatError', () => {
 			const badPayload = `${PROXY_ERROR_PREFIX}${Buffer.from(JSON.stringify({ fetchError: {} })).toString('base64')}`;
 			assert.strictEqual(tryParseForwardedChatError(badPayload), undefined);
 		});
+
+		test('returns undefined for an oversized marker payload without decoding it', () => {
+			// A marker that rode along in model-influenced text could be arbitrarily
+			// large; the parser must reject it before allocating/decoding.
+			const huge = `${PROXY_ERROR_PREFIX}${'A'.repeat(9 * 1024)}`;
+			assert.strictEqual(tryParseForwardedChatError(huge), undefined);
+		});
 	});
 
 	suite('buildForwardedChatErrorFromFields', () => {
@@ -147,6 +155,15 @@ suite('forwardedChatError', () => {
 			} satisfies IForwardedChatError);
 		});
 
+		test('defaults a quota error without an explicit code to quota_exceeded so the plan message renders', () => {
+			// The Copilot CLI SDK reports quota errors only via `errorType: 'quota'`
+			// (no fine-grained CAPI code). Without the default, the core formatter
+			// would fall through to the generic "Quota Exceeded" title.
+			const fromType = buildForwardedChatErrorFromFields({ errorType: 'quota', message: 'no credits' });
+			const fromStatus = buildForwardedChatErrorFromFields({ errorType: 'unknown', message: 'no credits', statusCode: 402 });
+			assert.deepStrictEqual([fromType?.fetchError.capiError?.code, fromStatus?.fetchError.capiError?.code], ['quota_exceeded', 'quota_exceeded']);
+		});
+
 		test('falls back to status-code mapping for an unknown category', () => {
 			assert.strictEqual(buildForwardedChatErrorFromFields({ errorType: 'something', message: 'm', statusCode: 429 })?.fetchError.type, 'rateLimited');
 		});
@@ -167,6 +184,21 @@ suite('forwardedChatError', () => {
 			const forwarded = buildForwardedChatError(makeApiError(402, 'quota_error', 'no credits'));
 			assert.deepStrictEqual(tryBuildChatErrorMeta(encodeForwardedChatError(forwarded)), { chatError: forwarded });
 			assert.strictEqual(tryBuildChatErrorMeta('plain message'), undefined);
+		});
+	});
+
+	suite('extractForwardedErrorInfo', () => {
+
+		test('strips the marker and attaches _meta for a marked message', () => {
+			const forwarded = buildForwardedChatError(makeApiError(402, 'quota_error', 'no credits'));
+			const marked = `quota ${encodeForwardedChatError(forwarded)}`;
+			assert.deepStrictEqual(extractForwardedErrorInfo(marked), { message: 'quota', _meta: { chatError: forwarded } });
+		});
+
+		test('returns the message unchanged and omits _meta for a plain message', () => {
+			const info = extractForwardedErrorInfo('something went wrong');
+			assert.deepStrictEqual(info, { message: 'something went wrong' });
+			assert.ok(!Object.hasOwn(info, '_meta'), '_meta should be omitted, not set to undefined');
 		});
 	});
 });
