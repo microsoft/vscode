@@ -164,3 +164,13 @@ width of 1px should use the token.
 
 Applies to the `border: 1px solid <color>` shorthand and `border-width: 1px`.
 Other widths have no token — leave them as-is.
+
+## `.monaco-editor-background` must be opaque
+
+`.monaco-editor-background` must use a fully opaque color — making it
+`transparent` (or any partial alpha) is forbidden. Monaco reuses this layer to
+carve the reverse-rounded notches out of text selections, so a non-opaque
+background introduces subtle rendering bugs (blocky selection corners) and
+performance problems. To blend an embedded editor into its surface, keep
+`.monaco-editor` transparent and paint `.monaco-editor-background` with the
+container's solid background color.

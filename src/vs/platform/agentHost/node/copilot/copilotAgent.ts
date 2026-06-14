@@ -32,6 +32,7 @@ import { AgentHostSessionSyncEnabledConfigKey, AutoApproveLevel, ISchemaProperty
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IMcpNotification } from '../../common/agentService.js';
 import { getEffectiveAgents } from '../../common/customAgents.js';
+import { IAgentFeedbackToolHost } from '../../common/agentFeedbackAnnotations.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDataService.js';
@@ -50,6 +51,7 @@ import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitP
 import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
 import { CopilotSessionLauncher, ContextTierConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, getCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
 import { ShellManager } from './copilotShellTools.js';
+import { isRestrictedTelemetryEnabled } from './copilotTokenFields.js';
 import { CopilotSlashCommandCompletionProvider } from './copilotSlashCommandCompletionProvider.js';
 import { DiscoveredType, SessionCustomizationDiscovery, areDiscoveredDirectoriesEqual, type IDiscoveredDirectory } from './sessionCustomizationDiscovery.js';
 
@@ -275,6 +277,21 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _client: CopilotClient | undefined;
 	private _clientStarting: Promise<CopilotClient> | undefined;
 	private _githubToken: string | undefined;
+	private _feedbackToolHost: IAgentFeedbackToolHost | undefined;
+
+	setFeedbackToolHost(host: IAgentFeedbackToolHost): void {
+		this._feedbackToolHost = host;
+	}
+
+	/** Reflects the `rt=1` field on the GitHub Copilot bearer token; gates enhanced GH telemetry. */
+	private _restrictedTelemetryEnabled = false;
+	private readonly _onDidChangeRestrictedTelemetry = this._register(new Emitter<void>());
+	readonly onDidChangeRestrictedTelemetry = this._onDidChangeRestrictedTelemetry.event;
+
+	get restrictedTelemetryEnabled(): boolean {
+		return this._restrictedTelemetryEnabled;
+	}
+
 	private readonly _sessions = this._register(new DisposableMap<string, CopilotAgentSession>());
 	/**
 	 * Per-session MCP-notification subscriptions, keyed by `sessionId`.
@@ -448,6 +465,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		const tokenChanged = this._githubToken !== token;
 		this._githubToken = token;
+		this._updateRestrictedTelemetry(token);
 		this._logService.info(`[Copilot] Auth token ${tokenChanged ? 'updated' : 'unchanged'}`);
 		if (tokenChanged && this._client && this._sessions.size === 0) {
 			this._logService.info('[Copilot] Restarting CopilotClient with new token');
@@ -457,6 +475,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 			void this._refreshModels();
 		}
 		return true;
+	}
+
+	private _updateRestrictedTelemetry(token: string | undefined): void {
+		const rtEnabled = isRestrictedTelemetryEnabled(token);
+		if (rtEnabled !== this._restrictedTelemetryEnabled) {
+			this._restrictedTelemetryEnabled = rtEnabled;
+			this._logService.info(`[Copilot] Restricted telemetry ${rtEnabled ? 'enabled' : 'disabled'}`);
+			this._onDidChangeRestrictedTelemetry.fire();
+		}
 	}
 
 	private async _refreshModels(): Promise<void> {
@@ -561,6 +588,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			env['COPILOT_CLI_RUN_AS_NODE'] = '1';
 			env['USE_BUILTIN_RIPGREP'] = 'false';
+			env['COPILOT_MCP_APPS'] = 'true';
 
 			// Enable the rubber duck critic subagent in the CLI when the agent host
 			// config opts in. `RUBBER_DUCK_AGENT` is the SDK's required interface for
@@ -1623,6 +1651,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				clientSnapshot: launchPlan.snapshot,
 				activeClientState: launchPlan.activeClientState,
 				resolveMcpChildId: name => findMcpChildId(activeClient.pluginController.getCustomizations(), name),
+				feedbackToolHost: this._feedbackToolHost,
 			},
 		);
 

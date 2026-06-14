@@ -2377,6 +2377,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			attempt: lastRequest.attempt + 1,
 			location: this.location,
 			userSelectedModelId: this.input.currentLanguageModel,
+			userSelectedModelConfiguration: this.input.currentLanguageModel ? this.input.getModelConfiguration(this.input.currentLanguageModel) : undefined,
 			modeInfo: this.input.currentModeInfo,
 		};
 		const result = await this.chatService.resendRequest(lastRequest, options);
@@ -2655,6 +2656,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const result = await this.chatService.sendRequest(this.viewModel.sessionResource, requestInputs.input, {
 			userSelectedModelId: this.input.currentLanguageModel,
+			userSelectedModelConfiguration: this.input.currentLanguageModel ? this.input.getModelConfiguration(this.input.currentLanguageModel) : undefined,
 			location: this.location,
 			locationData: this._location.resolveData?.(),
 			parserContext: { selectedAgent: this._lastSelectedAgent, mode: modeKind, attachmentCapabilities: this._lastSelectedAgent?.capabilities ?? this.attachmentCapabilities },
@@ -2680,7 +2682,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// visibility sync before firing events to hide the welcome view
 		this.updateChatViewVisibility();
-		this.input.acceptInput(options?.storeToHistory ?? isUserQuery);
+		this.input.acceptInput(options?.storeToHistory ?? isUserQuery, options?.preserveFocus);
 
 		this._maybeStartGoalSummary(requestInputs.input);
 
