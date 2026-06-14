@@ -359,6 +359,12 @@ body {
  * Applied to the disposable Code OSS checkout by scripts/fork/apply-branding.mjs.
  * This intentionally targets product structure: welcome, top activity row, titlebar,
  * and right agent pane. It avoids restyling stock Getting Started into a fake app.
+ *
+ * NOTE ON !important: Many overrides below use !important because upstream VS Code
+ * sets colors/layout via inline styles (from JS) or selectors of equal specificity.
+ * When rebasing, verify each !important is still needed — prefer increasing selector
+ * specificity (e.g., .monaco-workbench.solo-dark .part.titlebar) over !important
+ * when the upstream rule is purely CSS.
  */
 
 .monaco-workbench {
@@ -410,13 +416,20 @@ body {
 }
 
 /* Solo: chat now lives in the right title-bar cluster (between layout and gear);
- * hide the chat sparkle badge that the agent-status widget paints by the search box. */
+ * hide the chat sparkle badge that the agent-status widget paints by the search box.
+ * Target: src/vs/workbench/contrib/chat/browser/agentSessions/agentTitleBarStatusWidget.ts */
 .monaco-workbench .part.titlebar .agent-status-badge-section.sparkle {
 	display: none !important;
 }
 
 /* Solo: strip the layout-toggle + accounts clutter from the title bar so the
- * right side reads like Cursor (layout, chat, gear, Agents Window). */
+ * right side reads like Cursor (panel, chat, gear, Agents Window).
+ *
+ * Upstream selector targets (verify on rebase):
+ *   .codicon-configure-layout-icon       → src/vs/workbench/browser/actions/layoutActions.ts
+ *   .codicon-auxiliarybar-right-*-icon    → src/vs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions.ts
+ *   .codicon-accounts-view-bar-icon      → src/vs/workbench/browser/parts/globalCompositeBar.ts
+ */
 .monaco-workbench .part.titlebar .action-item:has(.codicon-configure-layout-icon),
 .monaco-workbench .part.titlebar .action-item:has(.codicon-auxiliarybar-right-off-layout-icon),
 .monaco-workbench .part.titlebar .action-item:has(.codicon-auxiliarybar-right-layout-icon),
@@ -865,9 +878,15 @@ body {
 }
 
 /* Solo: the welcome page is chrome-less like Cursor — hide the editor tab bar
- * (the "Solo" tab + split/more actions) for the group showing the welcome. */
-.monaco-workbench .editor-group-container:has(.agentSessionsWelcome) > .title,
-.monaco-workbench .editor-group-container:has(.gettingStartedContainer) > .title {
+ * (the "Solo" tab + split/more actions) for the group showing the welcome.
+ *
+ * Upstream selector targets (verify on rebase):
+ *   .editor-group-container > .title   → src/vs/workbench/browser/parts/editor/editorGroupView.ts
+ *   .agentSessionsWelcome              → src/vs/workbench/contrib/welcomeAgentSessions/browser/agentSessionsWelcome.ts
+ *   .gettingStartedContainer           → src/vs/workbench/contrib/welcomeGettingStarted/browser/gettingStarted.ts
+ */
+.monaco-workbench .part.editor .editor-group-container:has(.agentSessionsWelcome) > .title,
+.monaco-workbench .part.editor .editor-group-container:has(.gettingStartedContainer) > .title {
 	display: none !important;
 }
 
@@ -875,7 +894,7 @@ body {
  * bottom (the JS layout still reserves the tab-bar height). Make the welcome
  * editor fill the whole group, and paint every editor layer that hosts the
  * welcome with the welcome color (#1F1F1F) so no #181818 strip shows.
- * The .part.editor prefix is needed to outrank the generic editor-bg rule above. */
+ * The .part.editor prefix outranks the generic editor-bg rule. */
 .monaco-workbench .part.editor .editor-group-container:has(.agentSessionsWelcome),
 .monaco-workbench .part.editor .editor-group-container:has(.gettingStartedContainer),
 .monaco-workbench .part.editor .editor-instance:has(.agentSessionsWelcome),
@@ -883,17 +902,21 @@ body {
 	background: var(--solo-surface-2) !important;
 }
 
-/* Make the welcome editor instance fill its container so the welcome reaches the
- * status bar (no separate strip) — the layout otherwise reserves the hidden tab bar. */
-.monaco-workbench .part.editor .editor-instance:has(.agentSessionsWelcome),
-.monaco-workbench .part.editor .editor-instance:has(.gettingStartedContainer) {
-	height: 100% !important;
-}
-
+/* Make the welcome editor fill its container so the welcome reaches the status
+ * bar (no strip from the hidden tab bar). Use flex-grow to participate in the
+ * layout rather than forcing absolute geometry. The .editor-container normally
+ * uses top/height set by JS; override both so the content stretches fully. */
 .monaco-workbench .part.editor .editor-group-container:has(.agentSessionsWelcome) > .editor-container,
 .monaco-workbench .part.editor .editor-group-container:has(.gettingStartedContainer) > .editor-container {
 	top: 0 !important;
 	height: 100% !important;
+}
+
+.monaco-workbench .part.editor .editor-group-container:has(.agentSessionsWelcome) .editor-instance,
+.monaco-workbench .part.editor .editor-group-container:has(.gettingStartedContainer) .editor-instance {
+	flex: 1;
+	height: 100%;
+	overflow: hidden;
 }
 
 .monaco-workbench .agentSessionsWelcome-scrollable {
