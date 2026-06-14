@@ -306,6 +306,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -446,41 +447,74 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 	//#region Dialog
 
 	private async doShowModal(question: string, trustedOption: { label: string; sublabel: string }, untrustedOption: { label: string; sublabel: string }, markdownStrings: string[], trustParentString?: string): Promise<void> {
-		await this.dialogService.prompt({
-			type: Severity.Info,
-			message: question,
-			checkbox: trustParentString ? {
-				label: trustParentString
-			} : undefined,
-			buttons: [
-				{
-					label: trustedOption.label,
-					run: async ({ checkboxChecked }) => {
-						if (checkboxChecked) {
-							await this.workspaceTrustManagementService.setParentFolderTrust(true);
-						} else {
-							await this.workspaceTrustRequestService.completeWorkspaceTrustRequest(true);
+		const startTime = Date.now();
+		let decision: 'trust' | 'dontTrust' | 'dismissed' = 'dismissed';
+		let trustParentFolderChecked = false;
+
+		try {
+			await this.dialogService.prompt({
+				type: Severity.Info,
+				message: question,
+				checkbox: trustParentString ? {
+					label: trustParentString
+				} : undefined,
+				buttons: [
+					{
+						label: trustedOption.label,
+						run: async ({ checkboxChecked }) => {
+							decision = 'trust';
+							trustParentFolderChecked = !!checkboxChecked;
+							if (checkboxChecked) {
+								await this.workspaceTrustManagementService.setParentFolderTrust(true);
+							} else {
+								await this.workspaceTrustRequestService.completeWorkspaceTrustRequest(true);
+							}
+						}
+					},
+					{
+						label: untrustedOption.label,
+						run: ({ checkboxChecked }) => {
+							decision = 'dontTrust';
+							trustParentFolderChecked = !!checkboxChecked;
+							this.updateWorkbenchIndicators(false);
+							this.workspaceTrustRequestService.cancelWorkspaceTrustRequest();
 						}
 					}
-				},
-				{
-					label: untrustedOption.label,
-					run: () => {
-						this.updateWorkbenchIndicators(false);
-						this.workspaceTrustRequestService.cancelWorkspaceTrustRequest();
-					}
-				}
-			],
-			custom: {
-				buttonDetails: [
-					trustedOption.sublabel,
-					untrustedOption.sublabel
 				],
-				disableCloseAction: true,
-				icon: Codicon.shield,
-				markdownDetails: markdownStrings.map(md => { return { markdown: new MarkdownString(md) }; })
-			}
-		});
+				custom: {
+					buttonDetails: [
+						trustedOption.sublabel,
+						untrustedOption.sublabel
+					],
+					disableCloseAction: true,
+					icon: Codicon.shield,
+					markdownDetails: markdownStrings.map(md => { return { markdown: new MarkdownString(md) }; })
+				}
+			});
+		} finally {
+			type WorkspaceTrustStartupDialogEvent = {
+				decision: 'trust' | 'dontTrust' | 'dismissed';
+				trustParentFolderChecked: boolean;
+				trustParentFolderShown: boolean;
+				userThinkDurationMs: number;
+			};
+
+			type WorkspaceTrustStartupDialogEventClassification = {
+				owner: 'rwoll';
+				comment: 'Logged when the user makes a decision on the startup workspace trust dialog';
+				decision: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The decision the user made: trust, dontTrust, or dismissed' };
+				trustParentFolderChecked: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the trust parent folder checkbox was checked when the decision was made' };
+				trustParentFolderShown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the trust parent folder checkbox was shown in the dialog' };
+				userThinkDurationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds the user spent thinking, from the dialog being shown to the decision being made (or the dialog being dismissed).' };
+			};
+
+			this.telemetryService.publicLog2<WorkspaceTrustStartupDialogEvent, WorkspaceTrustStartupDialogEventClassification>('workspaceTrustStartupDialogDecision', {
+				decision,
+				trustParentFolderChecked,
+				trustParentFolderShown: !!trustParentString,
+				userThinkDurationMs: Date.now() - startTime
+			});
+		}
 
 		this.storageService.store(STARTUP_PROMPT_SHOWN_KEY, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
