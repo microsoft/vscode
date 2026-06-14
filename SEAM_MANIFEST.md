@@ -56,7 +56,7 @@ Supporting (repo root / tooling), also new files:
 | `scripts/sync-upstream.sh` | wire `upstream`, fetch, report the next rebase target |
 | `scripts/verify-seam.sh` | binary guard: flag defaults off + flag-off path uses the stock view |
 | `docs/REBASE_RUNBOOK.md` | the "kept in sync" methodology |
-| `.github/workflows/upstream-sync.yml` | CI: rebase the patch stack onto upstream tags and run the fast checks |
+| `.github/workflows/upstream-sync.yml` *(lives on `main`, not this PR — kept out so the inherited engineering-system guard passes; see AX-WORKFLOW-UPSTREAM-SYNC)* | CI: rebase the patch stack onto upstream tags and run the fast checks |
 
 ---
 
