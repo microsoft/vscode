@@ -421,6 +421,59 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		assert.strictEqual(service.relayCalled, 1); // no new relay
 	});
 
+	test('concurrent connects to the same host share one establishment', async () => {
+		// Restoring multiple windows calls connect() for the same host at
+		// once. Without in-flight dedup each call runs the full establishment
+		// in parallel, every one spawning its own competing agent host and
+		// clobbering the shared remote lockfile/token, so all but one fail
+		// (#249861). Only one establishment (one start + one relay) should run.
+		service.execResponses = [
+			{ stdout: '', code: 1 },              // cat state file (not found)
+			{ stdout: 'Linux\n', code: 0 },       // uname -s
+			{ stdout: 'x86_64\n', code: 0 },      // uname -m
+			{ stdout: '1.0.0\n', code: 0 },       // CLI --version (already installed)
+			{ stdout: '', code: 0 },              // echo state file (write)
+		];
+
+		const config = makeConfig({ sshConfigHost: 'myalias' });
+		const [r1, r2, r3] = await Promise.all([
+			service.connect(config),
+			service.connect(config),
+			service.connect(config),
+		]);
+
+		// Exactly one agent host started and one relay opened, shared by all.
+		assert.strictEqual(service.startCalled, 1);
+		assert.strictEqual(service.relayCalled, 1);
+		// Only one SSH client was created (the others reused the in-flight result).
+		assert.strictEqual(service.mockClients.length, 1);
+		// All callers got the same connection.
+		assert.strictEqual(r1.connectionId, r2.connectionId);
+		assert.strictEqual(r2.connectionId, r3.connectionId);
+		assert.strictEqual(r1.connectionToken, r3.connectionToken);
+	});
+
+	test('connect after an in-flight connect settles returns the established connection', async () => {
+		// Once a connect completes, its pending entry is cleared. A later
+		// duplicate connect for the same host returns the established
+		// connection (via the _connections fast-path) without restarting.
+		service.execResponses = [
+			{ stdout: '', code: 1 },
+			{ stdout: 'Linux\n', code: 0 },
+			{ stdout: 'x86_64\n', code: 0 },
+			{ stdout: '1.0.0\n', code: 0 },
+			{ stdout: '', code: 0 },
+		];
+
+		const config = makeConfig({ sshConfigHost: 'myalias' });
+		const r1 = await service.connect(config);
+		const r2 = await service.connect(config);
+
+		assert.strictEqual(service.startCalled, 1);
+		assert.strictEqual(service.relayCalled, 1);
+		assert.strictEqual(r1.connectionId, r2.connectionId);
+	});
+
 	test('creates fresh relay on reconnect without restarting agent', async () => {
 		// First connect: uname, CLI check, findRunningAgentHost (no state), write state
 		service.execResponses = [
