@@ -1115,20 +1115,24 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 
 		// https://github.com/microsoft/vscode/issues/225916
 
-		const model = createTextModel([
-			'const fn = () =>',
-			'    doSomething()',
-		].join('\n'), languageId, {});
-		disposables.add(model);
+		const bracketPairs = [['{', '}'], ['[', ']'], ['(', ')']];
 
-		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel) => {
-			editor.setSelection(new Selection(2, 5, 2, 18));
-			viewModel.type('{', 'keyboard');
-			assert.strictEqual(model.getValue(), [
+		for (const [open, close] of bracketPairs) {
+			const model = createTextModel([
 				'const fn = () =>',
-				'    {doSomething()}',
-			].join('\n'));
-		});
+				'    doSomething()',
+			].join('\n'), languageId, {});
+			disposables.add(model);
+
+			withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel) => {
+				editor.setSelection(new Selection(2, 5, 2, 18));
+				viewModel.type(open, 'keyboard');
+				assert.strictEqual(model.getValue(), [
+					'const fn = () =>',
+					`    ${open}doSomething()${close}`,
+				].join('\n'), `failed to surround selection with ${open}${close}`);
+			});
+		}
 	});
 
 	// Failing tests...
