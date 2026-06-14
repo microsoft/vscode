@@ -22,7 +22,7 @@ import { IStorageService } from '../../../../platform/storage/common/storage.js'
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IWebviewElement, IWebviewService } from '../../webview/browser/webview.js';
 import { ImageCarouselEditorInput } from './imageCarouselEditorInput.js';
-import { ICarouselImage, ICarouselSection, isVideoMimeType } from './imageCarouselTypes.js';
+import { ICarouselImage, ICarouselSection, isPureImageAppend, isVideoMimeType } from './imageCarouselTypes.js';
 
 /**
  * A flat entry referencing a specific image within a section, used
@@ -113,13 +113,26 @@ export class ImageCarouselEditor extends EditorPane {
 	}
 
 	/**
-	 * Rebuilds the carousel after its input's collection changed (e.g. new images
+	 * Refreshes the carousel after its input's collection changed (e.g. new images
 	 * were added to the originating chat session while the carousel is open),
 	 * keeping the currently viewed image focused when it is still present.
+	 *
+	 * When the collection only grew (the common live-refresh case), the new
+	 * thumbnails are appended in place — the main image, its zoom and the rest of
+	 * the DOM are left untouched, so there is no teardown/rebuild flicker. Any
+	 * other change falls back to a full rebuild.
 	 */
 	private refreshFromInput(input: ImageCarouselEditorInput): void {
+		const previousImageIds = this._flatImages.map(entry => entry.image.id);
 		const currentImageId = this._flatImages[this._currentIndex]?.image.id;
 		this.setSections(input.collection.sections);
+
+		if (this._elements && isPureImageAppend(previousImageIds, this._flatImages.map(entry => entry.image.id))) {
+			this._appendThumbnails(previousImageIds.length);
+			this._syncNavigationChrome();
+			return;
+		}
+
 		const newIndex = currentImageId ? this._flatImages.findIndex(entry => entry.image.id === currentImageId) : -1;
 		this._currentIndex = newIndex >= 0 ? newIndex : clamp(this._currentIndex, 0, Math.max(0, this._flatImages.length - 1));
 		this.buildSlideshow();
@@ -308,100 +321,141 @@ export class ImageCarouselEditor extends EditorPane {
 
 		// Build section thumbnails
 		this._thumbnailElements = [];
-		let flatIndex = 0;
-		for (let s = 0; s < this._sections.length; s++) {
-			const section = this._sections[s];
-
-			// Add separator between sections (not before the first)
-			if (s > 0 && this._sections.length > 1) {
-				const separator = h('div.thumbnail-separator').root;
-				separator.setAttribute('aria-hidden', 'true');
-				this._elements.sectionsContainer.appendChild(separator);
-			}
-
-			for (let i = 0; i < section.images.length; i++) {
-				const image = section.images[i];
-				const currentFlatIndex = flatIndex;
-				const isItemVideo = isVideoMimeType(image.mimeType);
-
-				const btn = document.createElement('button');
-				btn.className = isItemVideo ? 'thumbnail video-thumbnail' : 'thumbnail';
-				btn.ariaLabel = isItemVideo
-					? localize('imageCarousel.thumbnailLabelVideo', "Video {0} of {1}", currentFlatIndex + 1, this._flatImages.length)
-					: localize('imageCarousel.thumbnailLabelImage', "Image {0} of {1}", currentFlatIndex + 1, this._flatImages.length);
-
-				if (isItemVideo) {
-					const icon = h('span.codicon.codicon-play.thumbnail-play-icon');
-					icon.root.setAttribute('aria-hidden', 'true');
-					btn.appendChild(icon.root);
-				} else {
-					const img = document.createElement('img');
-					img.className = 'thumbnail-image';
-					img.alt = image.name;
-					const thumbnailDisposables = this._contentDisposables.add(new DisposableStore());
-
-					const markBroken = () => {
-						if (thumbnailDisposables.isDisposed) {
-							return;
-						}
-
-						if (!btn.classList.contains('broken')) {
-							btn.classList.add('broken');
-							img.removeAttribute('src');
-							img.alt = '';
-							img.remove();
-							const fallback = h('span.codicon.codicon-warning.thumbnail-broken-icon');
-							fallback.root.setAttribute('aria-hidden', 'true');
-							btn.appendChild(fallback.root);
-						}
-					};
-
-					this._loadBlobUrl(image).then(url => {
-						if (thumbnailDisposables.isDisposed) {
-							return;
-						}
-
-						if (url) {
-							const preloader = new Image();
-							thumbnailDisposables.add(addDisposableListener(preloader, 'load', () => {
-								if (btn.classList.contains('broken')) {
-									return;
-								}
-								img.src = url;
-								if (!img.parentElement) {
-									btn.appendChild(img);
-								}
-							}));
-							thumbnailDisposables.add(addDisposableListener(preloader, 'error', () => {
-								markBroken();
-							}));
-							preloader.src = url;
-						} else {
-							markBroken();
-						}
-					}, () => {
-						markBroken();
-					});
-					thumbnailDisposables.add(addDisposableListener(img, 'error', () => {
-						markBroken();
-					}));
-				}
-
-				this._contentDisposables.add(addDisposableListener(btn, 'click', () => {
-					this._currentIndex = currentFlatIndex;
-					this.updateCurrentImage();
-				}));
-
-				this._elements.sectionsContainer.appendChild(btn);
-				this._thumbnailElements.push(btn);
-				flatIndex++;
-			}
-		}
+		this._appendThumbnails(0);
 
 		this._container.appendChild(elements.root);
 
 		// Set initial image
 		this.updateCurrentImage();
+	}
+
+	/**
+	 * Appends thumbnail buttons for `_flatImages` starting at `fromFlatIndex` to the
+	 * existing strip, inserting a section separator before the first image of each
+	 * section after the first. Shared by the initial build and incremental
+	 * live-refresh appends, so the flat index keeps lining up with `_thumbnailElements`.
+	 */
+	private _appendThumbnails(fromFlatIndex: number): void {
+		if (!this._elements) {
+			return;
+		}
+
+		for (let flatIndex = fromFlatIndex; flatIndex < this._flatImages.length; flatIndex++) {
+			const entry = this._flatImages[flatIndex];
+			const image = entry.image;
+			const currentFlatIndex = flatIndex;
+			const isItemVideo = isVideoMimeType(image.mimeType);
+
+			// Add separator before the first image of each section after the first.
+			if (entry.imageIndexInSection === 0 && entry.sectionIndex > 0 && this._sections.length > 1) {
+				const separator = h('div.thumbnail-separator').root;
+				separator.setAttribute('aria-hidden', 'true');
+				this._elements.sectionsContainer.appendChild(separator);
+			}
+
+			const btn = document.createElement('button');
+			btn.className = isItemVideo ? 'thumbnail video-thumbnail' : 'thumbnail';
+			btn.ariaLabel = isItemVideo
+				? localize('imageCarousel.thumbnailLabelVideo', "Video {0} of {1}", currentFlatIndex + 1, this._flatImages.length)
+				: localize('imageCarousel.thumbnailLabelImage', "Image {0} of {1}", currentFlatIndex + 1, this._flatImages.length);
+
+			if (isItemVideo) {
+				const icon = h('span.codicon.codicon-play.thumbnail-play-icon');
+				icon.root.setAttribute('aria-hidden', 'true');
+				btn.appendChild(icon.root);
+			} else {
+				const img = document.createElement('img');
+				img.className = 'thumbnail-image';
+				img.alt = image.name;
+				const thumbnailDisposables = this._contentDisposables.add(new DisposableStore());
+
+				const markBroken = () => {
+					if (thumbnailDisposables.isDisposed) {
+						return;
+					}
+
+					if (!btn.classList.contains('broken')) {
+						btn.classList.add('broken');
+						img.removeAttribute('src');
+						img.alt = '';
+						img.remove();
+						const fallback = h('span.codicon.codicon-warning.thumbnail-broken-icon');
+						fallback.root.setAttribute('aria-hidden', 'true');
+						btn.appendChild(fallback.root);
+					}
+				};
+
+				this._loadBlobUrl(image).then(url => {
+					if (thumbnailDisposables.isDisposed) {
+						return;
+					}
+
+					if (url) {
+						const preloader = new Image();
+						thumbnailDisposables.add(addDisposableListener(preloader, 'load', () => {
+							if (btn.classList.contains('broken')) {
+								return;
+							}
+							img.src = url;
+							if (!img.parentElement) {
+								btn.appendChild(img);
+							}
+						}));
+						thumbnailDisposables.add(addDisposableListener(preloader, 'error', () => {
+							markBroken();
+						}));
+						preloader.src = url;
+					} else {
+						markBroken();
+					}
+				}, () => {
+					markBroken();
+				});
+				thumbnailDisposables.add(addDisposableListener(img, 'error', () => {
+					markBroken();
+				}));
+			}
+
+			this._contentDisposables.add(addDisposableListener(btn, 'click', () => {
+				this._currentIndex = currentFlatIndex;
+				this.updateCurrentImage();
+			}));
+
+			this._elements.sectionsContainer.appendChild(btn);
+			this._thumbnailElements.push(btn);
+		}
+	}
+
+	/**
+	 * Syncs the navigation chrome — counter, prev/next buttons and each thumbnail's
+	 * label + active state — to `_currentIndex` and the current image count. Shared by
+	 * full image updates (`updateCurrentImage`) and in-place refresh appends
+	 * (`refreshFromInput`) so the two paths never drift. Touches no main-image state.
+	 */
+	private _syncNavigationChrome(): void {
+		if (!this._elements) {
+			return;
+		}
+
+		this._elements.counter.textContent = localize('imageCarousel.counter', "{0} / {1}", this._currentIndex + 1, this._flatImages.length);
+		this._elements.prevBtn.disabled = this._currentIndex === 0;
+		this._elements.nextBtn.disabled = this._currentIndex === this._flatImages.length - 1;
+
+		for (let i = 0; i < this._thumbnailElements.length; i++) {
+			const thumbnail = this._thumbnailElements[i];
+			const isItemVideo = isVideoMimeType(this._flatImages[i].image.mimeType);
+			thumbnail.ariaLabel = isItemVideo
+				? localize('imageCarousel.thumbnailLabelVideo', "Video {0} of {1}", i + 1, this._flatImages.length)
+				: localize('imageCarousel.thumbnailLabelImage', "Image {0} of {1}", i + 1, this._flatImages.length);
+
+			const isActive = i === this._currentIndex;
+			thumbnail.classList.toggle('active', isActive);
+			if (isActive) {
+				thumbnail.setAttribute('aria-current', 'page');
+			} else {
+				thumbnail.removeAttribute('aria-current');
+			}
+		}
 	}
 
 	/**
@@ -514,7 +568,8 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 			this._elements.captionText.style.display = 'none';
 			this._elements.captionSeparator.style.display = 'none';
 		}
-		this._elements.counter.textContent = localize('imageCarousel.counter', "{0} / {1}", navigationIndex + 1, this._flatImages.length);
+		// Sync counter, nav buttons and thumbnail labels/selection to the new index.
+		this._syncNavigationChrome();
 
 		// Announce to screen readers with full context (position + caption/name)
 		const itemKind = isVideo
@@ -523,24 +578,6 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 		this._elements.ariaStatus.textContent = currentImage.caption
 			? localize('imageCarousel.statusWithCaption', "{0} {1} of {2}: {3}", itemKind, navigationIndex + 1, this._flatImages.length, currentImage.caption)
 			: localize('imageCarousel.statusWithName', "{0} {1} of {2}: {3}", itemKind, navigationIndex + 1, this._flatImages.length, currentImage.name);
-
-		// Update button states
-		this._elements.prevBtn.disabled = navigationIndex === 0;
-		this._elements.nextBtn.disabled = navigationIndex === this._flatImages.length - 1;
-
-		// Update thumbnail selection — only toggle active class and
-		// call getBoundingClientRect on the active thumbnail to avoid
-		// layout thrashing across all thumbnails on every navigation.
-		for (let i = 0; i < this._thumbnailElements.length; i++) {
-			const isActive = i === navigationIndex;
-			const thumbnail = this._thumbnailElements[i];
-			thumbnail.classList.toggle('active', isActive);
-			if (isActive) {
-				thumbnail.setAttribute('aria-current', 'page');
-			} else {
-				thumbnail.removeAttribute('aria-current');
-			}
-		}
 
 		// Scroll the active thumbnail into view without blocking the main thread.
 		// Using scrollIntoView with 'nearest' avoids forced layout from

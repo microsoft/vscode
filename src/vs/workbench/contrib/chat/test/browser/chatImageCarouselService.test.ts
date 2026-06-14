@@ -11,7 +11,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { buildCollectionArgs, buildSingleImageArgs, ChatImageCarouselService, collectCarouselSections, createCachingReadFile, findClickedImageIndex, ICarouselSection } from '../../browser/chatImageCarouselService.js';
+import { buildCollectionArgs, buildSingleImageArgs, ChatImageCarouselService, collectCarouselSections, createCachingReadFile, findClickedImageIndex, ICarouselCollectionArgs, ICarouselSection } from '../../browser/chatImageCarouselService.js';
 import { IChatToolInvocationSerialized } from '../../common/chatService/chatService.js';
 import { ChatResponseResource } from '../../common/model/chatModel.js';
 import { IImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
@@ -510,6 +510,89 @@ suite('ChatImageCarouselService helpers', () => {
 						afterTextOnly: 1,
 						afterDispose: 1,
 						refreshedImageIds: [imageIdFor('img-1'), imageIdFor('img-2'), imageIdFor('img-3')],
+					}
+				);
+			} finally {
+				disposables.dispose();
+			}
+		}));
+
+		test('serves multiple chats from the one service, opening each on its first image and live-refreshing only the active carousel', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const disposables = new DisposableStore();
+
+			// Two chat sessions, each with its own change signal and a distinct
+			// sessionResource (so their carousel collection ids differ).
+			const onDidChangeA = disposables.add(new Emitter<void>());
+			const onDidChangeB = disposables.add(new Emitter<void>());
+			const itemsA: IChatRequestViewModel[] = [requestWithImage('reqA-1', 'imgA-1')];
+			const itemsB: IChatRequestViewModel[] = [requestWithImage('reqB-1', 'imgB-1')];
+			const vmA = { getItems: () => itemsA, onDidChange: onDidChangeA.event, sessionResource: URI.parse('chat-session://test/a') } as unknown as IChatViewModel;
+			const vmB = { getItems: () => itemsB, onDidChange: onDidChangeB.event, sessionResource: URI.parse('chat-session://test/b') } as unknown as IChatViewModel;
+
+			const onWillDisposeA = disposables.add(new Emitter<void>());
+			const onWillDisposeB = disposables.add(new Emitter<void>());
+			const updatesA: IImageCarouselCollection[] = [];
+			const updatesB: IImageCarouselCollection[] = [];
+			const inputA = { updateCollection: (c: IImageCarouselCollection) => updatesA.push(c), isDisposed: () => false, onWillDispose: onWillDisposeA.event } as unknown as ImageCarouselEditorInput;
+			const inputB = { updateCollection: (c: IImageCarouselCollection) => updatesB.push(c), isDisposed: () => false, onWillDispose: onWillDisposeB.event } as unknown as ImageCarouselEditorInput;
+
+			// The same singleton service handles both chats; the focused widget switches between opens.
+			const widget = { viewModel: vmA };
+			const chatWidgetService = { lastFocusedWidget: widget } as unknown as IChatWidgetService;
+
+			// Record the args each open passes to the command and hand back the matching input.
+			const openArgs: unknown[] = [];
+			const inputsToReturn: ImageCarouselEditorInput[] = [inputA, inputB];
+			const commandService = {
+				executeCommand: async (_id: string, args: unknown) => {
+					openArgs.push(args);
+					return inputsToReturn.shift();
+				},
+			} as unknown as ICommandService;
+			const fileService = { readFile: async () => ({ value: { buffer: new Uint8Array() } }) } as unknown as IFileService;
+
+			const service = disposables.add(new ChatImageCarouselService(chatWidgetService, commandService, fileService));
+
+			const openedImageIds = (args: unknown): string[] => {
+				const collection = (args as ICarouselCollectionArgs | undefined)?.collection;
+				return collection ? collection.sections.flatMap(section => section.images.map(image => image.id)) : [];
+			};
+
+			try {
+				// Chat A: clicking the first screenshot opens the real collection (not the single-image fallback).
+				await service.openCarouselAtResource(URI.parse(imageIdFor('imgA-1')));
+
+				// More screenshots stream into chat A.
+				itemsA.push(requestWithImage('reqA-2', 'imgA-2'));
+				onDidChangeA.fire();
+				await timeout(REFRESH_DELAY_PADDED);
+
+				// New chat B opens its own carousel on its first screenshot; A's live refresh is swapped out.
+				widget.viewModel = vmB;
+				await service.openCarouselAtResource(URI.parse(imageIdFor('imgB-1')));
+
+				// A keeps streaming, but its carousel must no longer update (refresh torn down).
+				itemsA.push(requestWithImage('reqA-3', 'imgA-3'));
+				onDidChangeA.fire();
+				await timeout(REFRESH_DELAY_PADDED);
+
+				// B streams and its carousel refreshes.
+				itemsB.push(requestWithImage('reqB-2', 'imgB-2'));
+				onDidChangeB.fire();
+				await timeout(REFRESH_DELAY_PADDED);
+
+				assert.deepStrictEqual(
+					{
+						openAImageIds: openedImageIds(openArgs[0]),
+						openBImageIds: openedImageIds(openArgs[1]),
+						inputAUpdates: updatesA.map(imageIdsOf),
+						inputBUpdates: updatesB.map(imageIdsOf),
+					},
+					{
+						openAImageIds: [imageIdFor('imgA-1')],
+						openBImageIds: [imageIdFor('imgB-1')],
+						inputAUpdates: [[imageIdFor('imgA-1'), imageIdFor('imgA-2')]],
+						inputBUpdates: [[imageIdFor('imgB-1'), imageIdFor('imgB-2')]],
 					}
 				);
 			} finally {
