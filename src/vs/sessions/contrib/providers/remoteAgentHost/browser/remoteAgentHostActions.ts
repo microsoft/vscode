@@ -35,11 +35,11 @@ import { SessionsCategories } from '../../../../common/categories.js';
 import { SessionWorkspacePickerGroupContext } from '../../../../common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsViewService } from '../../../../browser/sessionsViewService.js';
+import { ISessionsViewService } from '../../../../services/sessions/browser/sessionsViewService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
-import { ISessionsPartService } from '../../../../browser/parts/sessionsPartService.js';
+import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 
 /** Action / command IDs registered by this file. */
 export const RemoteAgentHostCommandIds = {

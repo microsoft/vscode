@@ -24,7 +24,7 @@ import { OverviewRulerLane } from '../../../../editor/common/model.js';
 import { themeColorFromId } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import * as nls from '../../../../nls.js';
-import { IAgentFeedbackService, AgentFeedbackState } from './agentFeedbackService.js';
+import { AgentFeedbackKind, IAgentFeedbackService, AgentFeedbackState } from './agentFeedbackService.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { createAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
@@ -215,13 +215,10 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			}
 			itemMeta.appendChild(lineInfo);
 
-			if (comment.source !== SessionEditorCommentSource.AgentFeedback) {
+			const typeLabel = this._getTypeLabel(comment);
+			if (typeLabel) {
 				const typeBadge = $('span.agent-feedback-widget-item-type');
-				typeBadge.textContent = this._getTypeLabel(comment);
-				itemMeta.appendChild(typeBadge);
-			} else if (comment.state === AgentFeedbackState.Created) {
-				const typeBadge = $('span.agent-feedback-widget-item-type');
-				typeBadge.textContent = nls.localize('suggestedComment', "Suggested");
+				typeBadge.textContent = typeLabel;
 				itemMeta.appendChild(typeBadge);
 			}
 
@@ -349,14 +346,15 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		}
 	}
 
-	private _getTypeLabel(comment: ISessionEditorComment): string {
-		if (comment.source === SessionEditorCommentSource.PRReview) {
-			return nls.localize('prReviewComment', "PR Review");
+	private _getTypeLabel(comment: ISessionEditorComment): string | undefined {
+		switch (comment.kind) {
+			case AgentFeedbackKind.PRReview:
+				return nls.localize('prReviewComment', "PR Review");
+			case AgentFeedbackKind.AgentReview:
+				return nls.localize('agentReviewComment', "Agent Review");
+			default:
+				return undefined;
 		}
-
-		return comment.suggestion
-			? nls.localize('feedbackSuggestion', "Feedback Suggestion")
-			: nls.localize('feedbackComment', "Feedback");
 	}
 
 	private _renderSuggestion(comment: ISessionEditorComment): HTMLElement {
@@ -601,7 +599,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			comment.suggestion,
 			createAgentFeedbackContext(this._editor, this._codeEditorService, comment.resourceUri, comment.range),
 			comment.sourceId,
-			'prReview',
+			AgentFeedbackKind.PRReview,
 		);
 		this._agentFeedbackService.addReply(this._sessionResource, feedback.id, replyText);
 		this._agentFeedbackService.setNavigationAnchor(this._sessionResource, toSessionEditorCommentId(SessionEditorCommentSource.AgentFeedback, feedback.id));
@@ -667,7 +665,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			comment.suggestion,
 			createAgentFeedbackContext(this._editor, this._codeEditorService, comment.resourceUri, comment.range),
 			comment.sourceId,
-			'prReview',
+			AgentFeedbackKind.PRReview,
 		);
 		this._agentFeedbackService.setNavigationAnchor(this._sessionResource, toSessionEditorCommentId(SessionEditorCommentSource.AgentFeedback, feedback.id));
 		this._codeReviewService.markPRReviewCommentConverted(this._sessionResource, comment.sourceId);

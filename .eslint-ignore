@@ -56,3 +56,7 @@
 **/.build/**
 **/.vscode-test/**
 !.vscode
+
+# Vendored third-party libraries
+src/vs/base/common/lit-html/**
+src/vs/base/common/signals-core/**

@@ -69,10 +69,6 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 				const actions: IActionWidgetDropdownAction[] = [...this._getAdditionalActions().map(a => ({ ...action, ...a }))];
 				for (const sessionTypeItem of this._sessionTypeItems) {
-					if (!this._isVisible(sessionTypeItem.type)) {
-						continue;
-					}
-
 					const lockedForEntitlement = this._isLockedForEntitlement(sessionTypeItem.type);
 					actions.push({
 						...action,
@@ -115,7 +111,8 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		}));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.AgentHostDefaultChatProvider)) {
+			if (e.affectsConfiguration(ChatConfiguration.EditorDefaultProvider) ||
+				e.affectsConfiguration(ChatConfiguration.CopilotCliHideExtensionHostEditor)) {
 				this._updateAgentSessionItems();
 				if (this.element) {
 					this.renderLabel(this.element);
@@ -169,7 +166,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 			commandId: `workbench.action.chat.openNewChatSessionInPlace.${AgentSessionProviders.Local}`,
 		};
 
-		const agentSessionItems: ISessionTypeItem[] = [localSessionItem];
+		const allAgentSessionItems: ISessionTypeItem[] = [localSessionItem];
 
 		const contributions = this.chatSessionsService.getAllChatSessionContributions();
 		for (const contribution of contributions) {
@@ -177,7 +174,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 			const agentSessionType = getAgentSessionProvider(contribution.type);
 			if (agentSessionType) {
 				// Well-known session type — use hardcoded metadata
-				agentSessionItems.push({
+				allAgentSessionItems.push({
 					type: agentSessionType,
 					label: getAgentSessionProviderName(agentSessionType),
 					hoverDescription: getAgentSessionProviderDescription(agentSessionType),
@@ -189,7 +186,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 				// Extension-contributed session type — always use in-place
 				// (openNewChatSessionExternal requires a menu action registered
 				// by _registerMenuItems, which may not exist for extensions)
-				agentSessionItems.push({
+				allAgentSessionItems.push({
 					type: contribution.type,
 					label: contribution.displayName ?? contribution.name ?? contribution.type,
 					hoverDescription: contribution.description ?? '',
@@ -197,6 +194,9 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 				});
 			}
 		}
+
+		// Filter out hidden items based on settings
+		const agentSessionItems = allAgentSessionItems.filter(item => this._isVisible(item.type));
 
 		// When the experimental "local agent host as default" setting is
 		// enabled, hoist the agent-host item to the front of the picker so it
@@ -215,16 +215,21 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 	/**
 	 * The default session type for the picker when no session is yet active.
-	 * Defaults to {@link AgentSessionProviders.Local} but is overridden to
-	 * {@link AgentSessionProviders.AgentHostCopilot} when the experimental
-	 * {@link ChatConfiguration.AgentHostDefaultChatProvider} setting is enabled
-	 * and that provider is registered.
+	 * Defaults to {@link AgentSessionProviders.Local} but is overridden based on
+	 * the experimental {@link ChatConfiguration.EditorDefaultProvider} setting
+	 * when the selected provider is registered.
 	 */
 	protected _getDefaultSessionType(): AgentSessionTarget {
 		return getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService) as AgentSessionTarget;
 	}
 
-	protected _isVisible(_type: AgentSessionTarget): boolean {
+	protected _isVisible(type: AgentSessionTarget): boolean {
+		// Hide the Extension Host Copilot CLI in the editor picker when configured.
+		const hideEhCopilotCli = this.configurationService.getValue<boolean>(ChatConfiguration.CopilotCliHideExtensionHostEditor) ?? false;
+		if (hideEhCopilotCli && type === AgentSessionProviders.Background) {
+			return false;
+		}
+
 		return true;
 	}
 

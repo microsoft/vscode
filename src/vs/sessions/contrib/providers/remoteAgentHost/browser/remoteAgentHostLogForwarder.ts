@@ -287,7 +287,10 @@ function formatRecord(record: IOtlpLogRecord): string {
 	// from the OTLP nanosecond integer string.
 	const timestamp = formatTimestamp(record.timeUnixNano);
 	const severity = record.severityText.toUpperCase().padEnd(5);
-	return `[${timestamp}] [${severity}] ${record.body}`;
+	const attributes = record.attributes && Object.keys(record.attributes).length > 0
+		? ` ${JSON.stringify(record.attributes)}`
+		: '';
+	return `[${timestamp}] [${severity}] ${record.body}${attributes}`;
 }
 
 function formatTimestamp(timeUnixNano: string): string {

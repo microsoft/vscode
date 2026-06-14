@@ -472,7 +472,7 @@
 		{
 			"label": "Install & Watch",
 			"type": "shell",
-			"command": "npm install && npm run watch",
+			"command": "npm install && npm run watch-transpile",
 			"windows": {
 				"command": "cmd /c \"npm install && npm run watch-transpile\""
 			},

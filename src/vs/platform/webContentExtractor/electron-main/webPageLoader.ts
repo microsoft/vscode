@@ -52,6 +52,7 @@ export class WebPageLoader extends Disposable {
 	private readonly _idleDebounceTimer = this._register(new TimeoutTimer());
 	private _onResult = (_result: WebContentExtractResult) => { };
 	private _didFinishLoad = false;
+	private _receivedMarkdown = false;
 
 	constructor(
 		browserWindowFactory: (options: BrowserWindowConstructorOptions) => BrowserWindow,
@@ -161,6 +162,12 @@ export class WebPageLoader extends Disposable {
 		headers['DNT'] = '1';
 		headers['Sec-GPC'] = '1';
 
+		// For the main document request, prefer markdown responses from sites that
+		// support agent-friendly content negotiation (e.g. Microsoft Learn, Cloudflare docs).
+		if (details.resourceType === 'mainFrame') {
+			headers['Accept'] = 'text/markdown, text/html;q=0.9, application/xhtml+xml;q=0.9, application/xml;q=0.8, */*;q=0.7';
+		}
+
 		callback({ requestHeaders: headers });
 	}
 
@@ -184,6 +191,14 @@ export class WebPageLoader extends Disposable {
 				}
 				if (lowerName === 'content-type') {
 					contentType = headers[name]?.[0]?.toLowerCase();
+				}
+			}
+
+			// Track whether the current main-frame response is markdown (redirects can change content-type)
+			if (details.resourceType === 'mainFrame') {
+				this._receivedMarkdown = contentType?.split(';')[0].trim() === 'text/markdown';
+				if (this._receivedMarkdown) {
+					this.trace('Received text/markdown response, will extract document text content directly');
 				}
 			}
 
@@ -430,6 +445,14 @@ export class WebPageLoader extends Disposable {
 			const cts = new CancellationTokenSource();
 			try {
 				await raceTimeout((async () => {
+					// If the server returned text/markdown, the document is already plain text.
+					// Extract it directly from the document instead of running accessibility/DOM heuristics.
+					if (this._receivedMarkdown) {
+						this.trace('Extracting markdown text content from document');
+						result = await this._window.webContents.executeJavaScript('document.body?.textContent ?? document.documentElement?.textContent ?? ""') ?? '';
+						return;
+					}
+
 					if (!cts.token.isCancellationRequested) {
 						result = await this.extractAccessibilityTreeContent(cts.token) ?? '';
 					}

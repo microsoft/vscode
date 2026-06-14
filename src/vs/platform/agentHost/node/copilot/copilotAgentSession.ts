@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ExitPlanModeRequest, MessageOptions, PermissionRequestResult, SessionConfig, Tool, ToolResultObject } from '@github/copilot-sdk';
+import type { ExitPlanModeRequest, MessageOptions, PermissionRequestResult, SessionConfig, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -23,9 +23,11 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { ILogService } from '../../../log/common/log.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
+import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
-import { AgentSignal } from '../../common/agentService.js';
+import { AgentSignal, IMcpNotification } from '../../common/agentService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
+import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmitter.js';
 import type { LanguageModelToolInvokedClassification, LanguageModelToolInvokedEvent } from '../../../telemetry/common/languageModelToolTelemetry.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
@@ -41,10 +43,15 @@ import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
 import { parseLeadingSlashCommand } from './copilotSlashCommandCompletionProvider.js';
 import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
+import { buildSandboxConfigForSdk } from './sandboxConfigForSdk.js';
+import { IAgentFeedbackToolHost } from '../../common/agentFeedbackAnnotations.js';
+import { feedbackServerToolDefinitions, feedbackServerToolNames } from '../shared/agentFeedbackServerTools.js';
 import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, synthesizeSkillToolCall, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
+import { McpCustomizationController, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
 import { mapSessionEvents } from './mapSessionEvents.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
+import { McpServerStatus, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
 
 /**
  * The full set of agent modes the Copilot SDK accepts. Wider than the
@@ -283,6 +290,14 @@ export interface ICopilotAgentSessionOptions {
 	/** Snapshot of the active client's tools and plugins at session creation time. */
 	readonly clientSnapshot?: IActiveClientSnapshot;
 	/**
+	 * Looks up the AHP id of an existing child MCP customization by
+	 * server name, so SDK MCP state events can target plugin-derived
+	 * entries narrowly. Returns `undefined` for SDK servers that have
+	 * no corresponding plugin entry — the session surfaces those as
+	 * bare top-level customizations via {@link CopilotAgentSession.topLevelMcpCustomizations}.
+	 */
+	readonly resolveMcpChildId: (serverName: string) => string | undefined;
+	/**
 	 * Live holder of the owning client's identity, shared by reference with
 	 * the agent's per-session {@link ActiveClient}. Read at tool-call stamp
 	 * time so a window reload (new `clientId`, identical tools) stamps with
@@ -290,6 +305,13 @@ export interface ICopilotAgentSessionOptions {
 	 * {@link clientSnapshot} is used (test / standalone path).
 	 */
 	readonly activeClientState?: ActiveClientState;
+	/**
+	 * Server-side host for the feedback ("comments") tools. When provided,
+	 * the session advertises the feedback tools as server tools and exposes
+	 * SDK tool handlers that execute them against this session's annotations
+	 * channel.
+	 */
+	readonly feedbackToolHost?: IAgentFeedbackToolHost;
 }
 
 /**
@@ -304,7 +326,7 @@ export class CopilotAgentSession extends Disposable {
 	readonly sessionUri: URI;
 
 	/** Tracks active tool invocations so we can produce past-tense messages on completion. */
-	private readonly _activeToolCalls = new Map<string, { toolName: string; displayName: string; parameters: Record<string, unknown> | undefined; content: ToolResultContent[]; parentToolCallId: string | undefined; startTimeMs: number; mcpServerName: string | undefined }>();
+	private readonly _activeToolCalls = new Map<string, { toolName: string; displayName: string; parameters: Record<string, unknown> | undefined; content: ToolResultContent[]; parentToolCallId: string | undefined; startTimeMs: number; mcpServerName: string | undefined; meta: Record<string, unknown> | undefined }>();
 	private readonly _parentToolCallIdsByAgentId = new Map<string, string>();
 	/** Pending permission requests awaiting a renderer-side decision. */
 	private readonly _pendingPermissions = new Map<string, DeferredPromise<boolean>>();
@@ -342,6 +364,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _sessionDataDir: URI;
 	/** Protocol turn ID set by {@link send}, used for file edit tracking. */
 	private _turnId = '';
+	/** Accumulated Copilot usage for the current top-level turn, in nano-AIU. */
+	private _turnCopilotUsageTotalNanoAiu = 0;
 	/** SDK session wrapper, set by {@link initializeSession}. */
 	private _wrapper!: CopilotSessionWrapper;
 	/** Last agent mode pushed to the SDK via {@link applyMode}, to elide redundant `rpc.mode.set` calls. */
@@ -386,6 +410,27 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _shellManager: ShellManager | undefined;
 	private readonly _workingDirectory: URI | undefined;
 	private readonly _customizationDirectory: URI | undefined;
+	private readonly _feedbackToolHost: IAgentFeedbackToolHost | undefined;
+	/** Bridges SDK-reported MCP server state into AHP customization actions. */
+	private readonly _mcpCustomizations: McpCustomizationController;
+
+	/**
+	 * Fans MCP server notifications (today: `notifications/tools/list_changed`)
+	 * up to the agent and on to the protocol server. Fired by the
+	 * `onToolsUpdated` listener once per ready MCP channel.
+	 */
+	private readonly _onMcpNotification = this._register(new Emitter<IMcpNotification>());
+	readonly onMcpNotification = this._onMcpNotification.event;
+
+	/**
+	 * Pending MCP `sampling/createMessage` requests received over the
+	 * AHP `mcp://` channel, keyed by the cancellation handle we passed
+	 * into {@link rpc.mcp.executeSampling}. Tracked so that session
+	 * teardown can issue a best-effort
+	 * {@link rpc.mcp.cancelSamplingExecution} for each one instead of
+	 * leaving the SDK-side promise (and the upstream App) hanging.
+	 */
+	private readonly _pendingMcpSamplings = new Set<string>();
 
 	/**
 	 * Current markdown response part IDs for the active turn, keyed by
@@ -418,6 +463,7 @@ export class CopilotAgentSession extends Disposable {
 		this._shellManager = options.shellManager;
 		this._workingDirectory = options.workingDirectory;
 		this._customizationDirectory = options.customizationDirectory;
+		this._feedbackToolHost = options.feedbackToolHost;
 
 		this._appliedSnapshot = options.clientSnapshot ?? { tools: [], plugins: [] };
 		this._clientToolNames = new Set(this._appliedSnapshot.tools.map(t => t.name));
@@ -437,12 +483,20 @@ export class CopilotAgentSession extends Disposable {
 
 		this._editTracker = this._instantiationService.createInstance(FileEditTracker, options.sessionUri.toString(), this._databaseRef.object);
 
+		this._mcpCustomizations = this._register(new McpCustomizationController({
+			providerId: this.sessionUri.scheme,
+			sessionId: this.sessionId,
+			resolveChildId: options.resolveMcpChildId,
+			emit: action => this._emitAction(action),
+		}));
+
 		this._register(toDisposable(() => this._denyPendingPermissions()));
 		this._register(toDisposable(() => this._shellManager?.dispose()));
 		this._register(toDisposable(() => this._cancelPendingUserInputs()));
 		this._register(toDisposable(() => this._cancelPendingElicitations()));
 		this._register(toDisposable(() => this._cancelPendingPlanReviews()));
 		this._register(toDisposable(() => this._drainPendingSteeringFlips()));
+		this._register(toDisposable(() => this._cancelPendingMcpSamplings()));
 
 		// When a shell tool associates a terminal with a tool call, fire a
 		// tool_content_changed event so the UI can connect to the terminal
@@ -584,6 +638,7 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	resetTurnState(turnId: string): void {
 		this._turnId = turnId;
+		this._turnCopilotUsageTotalNanoAiu = 0;
 		this._currentMarkdownPartIds.clear();
 		this._currentReasoningPartIds.clear();
 		this._parentToolCallIdsByAgentId.clear();
@@ -740,6 +795,37 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
+	 * Builds SDK tool handlers for the agent host's feedback ("comments")
+	 * server tools. Each handler executes the tool against this session's
+	 * annotations channel via the {@link IAgentFeedbackToolHost} and returns
+	 * its textual result. Returns an empty list when no feedback tool host is
+	 * wired (e.g. test / standalone construction).
+	 */
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	private _createServerSdkTools(): Tool<any>[] {
+		const host = this._feedbackToolHost;
+		if (!host) {
+			return [];
+		}
+		const sessionUri = this.sessionUri.toString();
+		return feedbackServerToolDefinitions.map(def => ({
+			name: def.name,
+			description: def.description ?? '',
+			parameters: def.inputSchema ?? { type: 'object' as const, properties: {} },
+			handler: async (args: Record<string, unknown>): Promise<ToolResultObject> => {
+				try {
+					const text = host.executeTool(sessionUri, def.name, args);
+					return { textResultForLlm: text, resultType: 'success' };
+				} catch (error) {
+					const message = error instanceof Error ? error.message : String(error);
+					this._logService.error(error, `[Copilot:${this.sessionId}] Failed in feedback server tool handler: tool=${def.name}`);
+					return { textResultForLlm: message, resultType: 'failure', error: message };
+				}
+			},
+		}));
+	}
+
+	/**
 	 * Resolves a pending client tool call. If the SDK handler has not yet
 	 * registered for `toolCallId`, the result is buffered so the handler
 	 * resolves immediately once it does.
@@ -788,6 +874,11 @@ export class CopilotAgentSession extends Disposable {
 		this._wrapper = this._register(wrapper);
 		this._subscribeToEvents();
 		this._subscribeForLogging();
+
+		// Advertise the feedback ("comments") server tools for this session so
+		// clients see them as server-provided. Execution happens in-process via
+		// the SDK tool handlers built in `_createServerSdkTools`.
+		this._feedbackToolHost?.advertise(this.sessionUri.toString());
 	}
 
 	private _createRuntimeAdapter(): ICopilotSessionRuntime {
@@ -798,6 +889,7 @@ export class CopilotAgentSession extends Disposable {
 			handleElicitationRequest: context => this._handleElicitationRequest(context),
 			requestUnsandboxedCommandConfirmation: request => this._requestUnsandboxedCommandConfirmation(request),
 			createClientSdkTools: () => this._createClientSdkTools(),
+			createServerSdkTools: () => this._createServerSdkTools(),
 			handlePreToolUse: input => this._handlePreToolUse(input),
 			handlePostToolUse: input => this._handlePostToolUse(input),
 		};
@@ -808,6 +900,7 @@ export class CopilotAgentSession extends Disposable {
 	async send(prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, mode?: CopilotSdkMode): Promise<void> {
 		if (turnId) {
 			this._turnId = turnId;
+			this._turnCopilotUsageTotalNanoAiu = 0;
 		}
 		this._logService.info(`[Copilot:${this.sessionId}] sendMessage called: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}" (${attachments?.length ?? 0} attachments)`);
 
@@ -868,6 +961,10 @@ export class CopilotAgentSession extends Disposable {
 	 * Simple attachments with a model representation map to `text/plain`
 	 * blob attachments.
 	 *
+	 * Any Resource attachment carrying a {@link TextSelection} (e.g. `displayKind === 'selection'` or `'symbol'`) is
+	 * mapped to the SDK's `selection` variant so the range survives the round-trip — keying off the `selection` field
+	 * rather than just `displayKind` avoids symbol attachments degrading to a plain file reference (#315193).
+	 *
 	 * For selections we read the resource content from disk and slice it
 	 * by the carried range (the protocol's {@link TextSelection} only
 	 * carries the range, not the inline text). On read failure the
@@ -894,7 +991,7 @@ export class CopilotAgentSession extends Disposable {
 		const uri = URI.parse(attachment.uri);
 		const path = uri.scheme === 'file' ? uri.fsPath : uri.toString();
 		const displayName = attachment.label ?? path;
-		if (attachment.displayKind === 'selection' && attachment.selection) {
+		if (attachment.selection) {
 			try {
 				const text = await this._readSelectedText(uri, attachment.selection.range);
 				return { type: 'selection' as const, filePath: path, displayName, text, selection: attachment.selection.range };
@@ -1009,9 +1106,95 @@ export class CopilotAgentSession extends Disposable {
 		await this._wrapper.session.disconnect();
 	}
 
-	async setModel(model: string, reasoningEffort?: SessionConfig['reasoningEffort']): Promise<void> {
+	async setModel(model: string, reasoningEffort?: SessionConfig['reasoningEffort'], contextTier?: SessionConfig['contextTier']): Promise<void> {
 		this._logService.info(`[Copilot:${this.sessionId}] Changing model to: ${model}`);
-		await this._wrapper.session.setModel(model, { reasoningEffort });
+		await this._wrapper.session.setModel(model, { reasoningEffort, contextTier });
+	}
+
+	/**
+	 * Dispatches an MCP JSON-RPC method received on the `mcp://` side
+	 * channel to the Copilot SDK's `session.rpc.mcp.*` surface.
+	 *
+	 * Mapping:
+	 *  - `tools/list` → `rpc.mcp.apps.listTools`
+	 *  - `tools/call` → `rpc.mcp.apps.callTool`
+	 *  - `resources/read` → `rpc.mcp.apps.readResource`
+	 *  - `resources/list` → `rpc.mcp.apps.listResources` (empty list fallback)
+	 *  - `resources/templates/list` → `rpc.mcp.apps.listResourceTemplates` (empty list fallback)
+	 *  - `sampling/createMessage` → `rpc.mcp.executeSampling`
+	 *
+	 * Other MCP methods are rejected with `Method not found` (the caller
+	 * translates that into a JSON-RPC `-32601`).
+	 */
+	async handleMcpRequest(serverName: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {
+		const apps = this._wrapper.session.rpc.mcp.apps;
+		switch (method) {
+			case 'tools/list':
+				return apps.listTools({ serverName, originServerName: serverName });
+			case 'tools/call': {
+				const name = params && typeof params['name'] === 'string' ? params['name'] : undefined;
+				if (!name) {
+					throw new Error(`tools/call missing 'name' parameter`);
+				}
+				const rawArgs = params ? params['arguments'] : undefined;
+				const args = isObject(rawArgs) ? rawArgs as Record<string, unknown> : undefined;
+				return apps.callTool({ serverName, toolName: name, arguments: args, originServerName: serverName });
+			}
+			case 'resources/read': {
+				const uri = params && typeof params['uri'] === 'string' ? params['uri'] : undefined;
+				if (!uri) {
+					throw new Error(`resources/read missing 'uri' parameter`);
+				}
+				return apps.readResource({ serverName, uri });
+			}
+			case 'resources/list': {
+				// Not implemented in the SDK yet
+				return { resources: [] };
+			}
+			case 'resources/templates/list': {
+				// Not implemented in the SDK yet
+				return { resourceTemplates: [] };
+			}
+			case 'sampling/createMessage':
+				return this._handleSamplingCreateMessage(serverName, params);
+			default:
+				throw new Error(`Method not found: ${method}`);
+		}
+	}
+
+	/**
+	 * Forwards an App→host `sampling/createMessage` request received
+	 * over the AHP `mcp://` channel to `rpc.mcp.executeSampling`. The
+	 * Copilot runtime owns the MCP→chat-completion conversion and the
+	 * sampling response shape, so we pass the raw MCP params through
+	 * untouched and return the SDK's result directly.
+	 *
+	 * Resolves the JSON-RPC request with the `CreateMessageResult` on
+	 * success and rejects on failure/cancellation, mirroring the
+	 * `sampling/createMessage` MCP contract.
+	 */
+	private async _handleSamplingCreateMessage(serverName: string, params: Record<string, unknown> | undefined): Promise<unknown> {
+		if (!params) {
+			throw new Error(`sampling/createMessage missing params`);
+		}
+
+		const requestId = generateUuid();
+		const mcpRequestId = generateUuid();
+		this._pendingMcpSamplings.add(requestId);
+		try {
+			const result = await this._wrapper.session.rpc.mcp.executeSampling({
+				requestId,
+				serverName,
+				mcpRequestId,
+				request: params,
+			});
+			if (result.action === 'success') {
+				return result.result ?? null;
+			}
+			throw new Error(`sampling/createMessage ${result.action}${result.error ? `: ${result.error}` : ''}`);
+		} finally {
+			this._pendingMcpSamplings.delete(requestId);
+		}
 	}
 
 	/**
@@ -1088,6 +1271,17 @@ export class CopilotAgentSession extends Disposable {
 					this._logService.info(`[Copilot:${this.sessionId}] Auto-approving Copilot SDK tool-output temp file ${request.path}`);
 					return { kind: 'approve-once' };
 				}
+			}
+
+			// Auto-approve the agent host's feedback ("comments") server tools.
+			// They only read or mutate the session's own annotations channel
+			// (server-held feedback state) and never touch the workspace, shell,
+			// or network, so prompting for them is redundant noise.
+			if (request.kind === 'custom-tool' && typeof request.toolName === 'string'
+				&& feedbackServerToolNames.includes(request.toolName)
+			) {
+				this._logService.info(`[Copilot:${this.sessionId}] Auto-approving feedback server tool ${request.toolName}`);
+				return { kind: 'approve-once' };
 			}
 
 			const isShellRequest = request.kind === 'shell'
@@ -1198,25 +1392,31 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Returns true when our custom shell tool is registered and the
-	 * {@link TerminalSandboxEngine} reports sandboxing is enabled — i.e.
-	 * shell commands run inside the sandbox by default. The shell tool
-	 * prompts on its own when escalating to unsandboxed execution, so the
-	 * SDK's pre-call permission prompt is redundant in that case.
+	 * Returns true when shell commands run inside a sandbox by default — either
+	 * through the AgentHost's own {@link TerminalSandboxEngine} (when the custom
+	 * terminal tool is enabled) or through the SDK's built-in shell tool wrapped
+	 * by the `sandboxConfig` we pushed via `session.options.update`.
 	 *
-	 * Returns false when shell tools are not registered (the SDK's built-in
-	 * terminal runs unsandboxed unless `AgentHostConfigKey.EnableCustomTerminalTool`
-	 * is set)
-	 * so the standard confirmation flow is preserved.
+	 * In both cases the shell tool prompts on its own when escalating to
+	 * unsandboxed execution, so the SDK's pre-call `shell` permission prompt
+	 * is redundant and we auto-approve it.
+	 *
+	 * Returns false when neither sandbox path is configured, so the standard
+	 * confirmation flow is preserved.
 	 */
 	private async _isShellSandboxedByDefault(): Promise<boolean> {
-		if (!this._shellManager) {
-			return false;
+		const customTerminalToolEnabled = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.EnableCustomTerminalTool) === true;
+		if (customTerminalToolEnabled) {
+			if (!this._shellManager) {
+				return false;
+			}
+			return this._shellManager.getOrCreateSandboxEngine().isEnabled();
 		}
-		if (this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.EnableCustomTerminalTool) !== true) {
-			return false;
-		}
-		return this._shellManager.getOrCreateSandboxEngine().isEnabled();
+		// SDK-managed shell path: gate on the same host config that
+		// `CopilotSessionLauncher` reads when forwarding `sandboxConfig` to
+		// the SDK, so the two stay in lock-step.
+		const sandbox = this._configurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox);
+		return buildSandboxConfigForSdk(process.platform, sandbox) !== undefined;
 	}
 
 	/**
@@ -1766,14 +1966,19 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
-			this._activeToolCalls.set(e.data.toolCallId, { toolName: e.data.toolName, displayName, parameters, content: [], parentToolCallId, startTimeMs: Date.now(), mcpServerName: e.data.mcpServerName });
+			this._activeToolCalls.set(e.data.toolCallId, { toolName: e.data.toolName, displayName, parameters, content: [], parentToolCallId, startTimeMs: Date.now(), mcpServerName: e.data.mcpServerName, meta: undefined });
 			const toolKind = getToolKind(e.data.toolName);
 			const subagentMeta = toolKind === 'subagent' ? getSubagentMetadata(parameters) : undefined;
 
-			let contributor: { readonly kind: ToolCallContributorKind.Client; readonly clientId: string } | undefined;
+			let contributor: { readonly kind: ToolCallContributorKind.Client; readonly clientId: string } | { readonly kind: ToolCallContributorKind.MCP; readonly customizationId: string } | undefined;
 			const isClientTool = this._clientToolNames.has(e.data.toolName);
 			if (isClientTool && this._activeClientState.clientId) {
 				contributor = { kind: ToolCallContributorKind.Client, clientId: this._activeClientState.clientId };
+			} else if (e.data.mcpServerName) {
+				const customizationId = this._mcpCustomizations.customizationIdForServer(e.data.mcpServerName);
+				if (customizationId !== undefined) {
+					contributor = { kind: ToolCallContributorKind.MCP, customizationId };
+				}
 			}
 
 			// A new tool call invalidates the current markdown and reasoning
@@ -1799,6 +2004,21 @@ export class CopilotAgentSession extends Disposable {
 			}
 			if (e.data.mcpToolName) {
 				meta.mcpToolName = e.data.mcpToolName;
+			}
+			// TODO(sdk-gap): the Copilot SDK doesn't yet surface MCP App
+			// `_meta.ui.resourceUri` on `tool.execution_start`; we attach
+			// it on `tool.execution_complete` below so the App webview
+			// mounts on completion. Drop-in once the SDK exposes it here:
+			//   const resourceUri = e.data.toolDescription?._meta?.ui?.resourceUri;
+			//   if (resourceUri) { meta.ui = { resourceUri }; }
+
+			// Stash the start-time meta on the tracked tool call so the
+			// `tool.execution_complete` emission below can merge any
+			// additional namespaces (e.g. `ui`) on top without dropping
+			// what we already published at start time.
+			const tracked = this._activeToolCalls.get(e.data.toolCallId);
+			if (tracked) {
+				tracked.meta = meta;
 			}
 
 			this._emitAction({
@@ -1847,8 +2067,9 @@ export class CopilotAgentSession extends Disposable {
 
 			// For client tools, do NOT auto-ready — the tool handler will fire
 			// a separate tool_ready signal once the deferred is in place (or
-			// the permission flow fires it first).
-			if (contributor) {
+			// the permission flow fires it first). MCP tools have no such
+			// handler and are auto-readied below alongside built-in tools.
+			if (contributor?.kind === ToolCallContributorKind.Client) {
 				return;
 			}
 
@@ -1909,6 +2130,22 @@ export class CopilotAgentSession extends Disposable {
 			}
 
 			this._sendToolInvokedTelemetry(e.data.success, e.data.error?.code, tracked);
+			const resourceUri = e.data.toolDescription?._meta?.ui?.resourceUri;
+			let completeMeta: Record<string, unknown> | undefined = tracked.meta;
+			if (resourceUri) {
+				const ui: Record<string, unknown> = { resourceUri };
+				if (tracked.mcpServerName) {
+					const channel = this._mcpCustomizations.channelForServer(tracked.mcpServerName);
+					if (channel !== undefined) {
+						ui.channel = channel;
+					}
+				}
+				// Merge the `ui` namespace on top of whatever meta we
+				// emitted at start time (`toolKind`, `subagentDescription`,
+				// `toolArguments`, …). Reducers replace the whole `_meta`
+				// blob, so we must do the merge here.
+				completeMeta = { ...(tracked.meta ?? {}), ui };
+			}
 			this._emitAction({
 				type: ActionType.SessionToolCallComplete,
 				turnId: this._turnId,
@@ -1919,6 +2156,7 @@ export class CopilotAgentSession extends Disposable {
 					content: content.length > 0 ? content : undefined,
 					error: e.data.error,
 				},
+				_meta: completeMeta,
 			}, parentToolCallId);
 		}));
 
@@ -2002,7 +2240,17 @@ export class CopilotAgentSession extends Disposable {
 			if (typeof e.data.cost === 'number') {
 				metadata.cost = e.data.cost;
 			}
-			this._logService.trace(`[Copilot:${sessionId}] Usage: model=${e.data.model}, in=${e.data.inputTokens ?? '?'}, out=${e.data.outputTokens ?? '?'}, cacheRead=${e.data.cacheReadTokens ?? '?'}, cost=${e.data.cost ?? '?'}`);
+			// TODO: `copilotUsage` is marked `asInternal` in the SDK schema so it is not exposed on the generated
+			// `AssistantUsageData` type, but it is present at runtime. Read it dynamically.
+			const copilotUsage = (e.data as unknown as Record<string, unknown>).copilotUsage as { totalNanoAiu?: number } | undefined;
+			if (typeof copilotUsage?.totalNanoAiu === 'number') {
+				this._turnCopilotUsageTotalNanoAiu += copilotUsage.totalNanoAiu;
+				metadata.copilotUsage = {
+					...copilotUsage,
+					totalNanoAiu: this._turnCopilotUsageTotalNanoAiu,
+				};
+			}
+			this._logService.trace(`[Copilot:${sessionId}] Usage: model=${e.data.model}, in=${e.data.inputTokens ?? '?'}, out=${e.data.outputTokens ?? '?'}, cacheRead=${e.data.cacheReadTokens ?? '?'}, cost=${e.data.cost ?? '?'}, totalNanoAiu=${metadata.copilotUsage ? this._turnCopilotUsageTotalNanoAiu : '?'}`);
 			const usage: UsageInfo = {
 				inputTokens: e.data.inputTokens,
 				outputTokens: e.data.outputTokens,
@@ -2040,6 +2288,127 @@ export class CopilotAgentSession extends Disposable {
 			this._lastAppliedMode = newMode;
 			this._syncAhpConfigFromSdkMode(newMode);
 		}));
+
+		// Translate SDK-reported MCP server lifecycle into AHP customization
+		// actions. The controller decides whether each server is a
+		// plugin-derived child (narrow `SessionMcpServerStateChanged`) or a
+		// bare top-level entry (`SessionCustomizationUpdated`).
+		this._register(wrapper.onMcpServersLoaded(e => {
+			this._applyMcpServerList(e.data.servers);
+		}));
+		this._register(wrapper.onMcpServerStatusChanged(e => {
+			const server = this._toSdkMcpServer(e.data.serverName, e.data.status, e.data.error);
+			if (!server) {
+				this._mcpCustomizations.remove(e.data.serverName);
+				return;
+			}
+			this._mcpCustomizations.applyOne(server);
+		}));
+
+		this._register(wrapper.onToolsUpdated(() => {
+			this._fireMcpToolsListChanged();
+		}));
+
+		// Seed the inventory with any servers the SDK has already loaded by
+		// the time we attach. The `session.mcp_servers_loaded` event may
+		// have fired before our subscription (e.g. for restored sessions or
+		// when servers are configured at session-creation time), and there
+		// is no replay. Subsequent `applyAll` calls from the event are
+		// idempotent, so this safely converges either way.
+		this._seedMcpServersFromRpc();
+	}
+
+	/**
+	 * One-shot fetch of `rpc.mcp.list` at subscription time. Best-effort:
+	 * any failure is logged and the inventory simply stays empty until the
+	 * next live event arrives.
+	 */
+	private _seedMcpServersFromRpc(): void {
+		const mcpRpc = this._wrapper.session.rpc?.mcp;
+		if (!mcpRpc) {
+			// Older SDKs (and test mocks) may not expose the MCP RPC surface.
+			return;
+		}
+		mcpRpc.list().then(result => {
+			if (this._store.isDisposed) {
+				return;
+			}
+			this._applyMcpServerList(result.servers);
+		}, err => {
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to seed MCP server inventory`, err);
+		});
+	}
+
+	private _applyMcpServerList(servers: readonly { readonly name: string; readonly status: SdkMcpServerStatus; readonly error?: string }[]): void {
+		const sdkServers = servers
+			.map(s => this._toSdkMcpServer(s.name, s.status, s.error))
+			.filter(isDefined);
+		this._mcpCustomizations.applyAll(sdkServers);
+	}
+
+	/**
+	 * Broadcasts `notifications/tools/list_changed` for every MCP server
+	 * currently in the `Ready` state. The SDK's `session.tools_updated`
+	 * event is a coarse "tools refreshed" hint that doesn't identify
+	 * which server changed, so we fan out to all ready channels. Clients
+	 * are expected to refetch `tools/list` on each notification.
+	 */
+	private _fireMcpToolsListChanged(): void {
+		for (const { channel } of this._mcpCustomizations.readyChannels()) {
+			this._onMcpNotification.fire({
+				channel,
+				method: 'notifications/tools/list_changed',
+			});
+		}
+	}
+
+	/** Snapshot of MCP servers that have no plugin-derived child entry. */
+	topLevelMcpCustomizations() {
+		return this._mcpCustomizations.topLevelCustomizations();
+	}
+
+	/**
+	 * Translates the SDK's flat MCP status string into AHP's discriminated
+	 * {@link McpServerState} union. Returns `undefined` for
+	 * `not_configured`, which has no AHP equivalent — the server is
+	 * dropped from the inventory.
+	 *
+	 * V1 maps `needs-auth` to {@link McpServerStatus.Starting}: OAuth
+	 * handling is intentionally out of scope, so authRequired transitions
+	 * are masked as "still connecting" until the auth pipeline lands.
+	 */
+	private _toSdkMcpServer(name: string, status: SdkMcpServerStatus, error?: string): ISdkMcpServer | undefined {
+		const state = this._translateSdkMcpStatus(status, error);
+		if (!state) {
+			return undefined;
+		}
+		return { name, state };
+	}
+
+	private _translateSdkMcpStatus(status: SdkMcpServerStatus, error?: string): McpServerState | undefined {
+		switch (status) {
+			case 'connected':
+				return { kind: McpServerStatus.Ready };
+			case 'failed':
+				return {
+					kind: McpServerStatus.Error,
+					error: {
+						errorType: 'mcp-server-failed',
+						message: error ?? 'MCP server failed to start',
+					},
+				};
+			case 'pending':
+			case 'needs-auth':
+				// TODO: surface `needs-auth` as McpServerStatus.AuthRequired
+				// once OAuth wiring is in place.
+				return { kind: McpServerStatus.Starting };
+			case 'disabled':
+				return { kind: McpServerStatus.Stopped };
+			case 'not_configured':
+				return undefined;
+			default:
+				return undefined;
+		}
 	}
 
 	/**
@@ -2177,7 +2546,21 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		this._register(wrapper.onSessionInfo(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Session info [${e.data.infoType}]: ${e.data.message}`);
+			const attributes: Record<string, OtelAttributeValue> = { infoType: e.data.infoType };
+			if (e.data.tip) {
+				attributes.tip = e.data.tip;
+			}
+			const message = `[Copilot:${sessionId}] [${e.data.infoType}]: ${e.data.message}`;
+			const otelData = new OtelData(attributes);
+			if (e.data.infoType === 'mcp') {
+				this._logService.info(message, otelData);
+			} else {
+				this._logService.trace(message, otelData);
+			}
+		}));
+
+		this._register(wrapper.onSessionWarning(e => {
+			this._logService.warn(`[Copilot:${sessionId}] ${e.data.message}`, new OtelData({ warningType: e.data.warningType }));
 		}));
 
 		this._register(wrapper.onSessionModelChange(e => {
@@ -2393,6 +2776,16 @@ export class CopilotAgentSession extends Disposable {
 			pending.deferred.complete({ approved: false });
 		}
 		this._pendingPlanReviews.clear();
+	}
+
+	private _cancelPendingMcpSamplings(): void {
+		const pending = Array.from(this._pendingMcpSamplings);
+		this._pendingMcpSamplings.clear();
+		for (const requestId of pending) {
+			this._wrapper.session.rpc.mcp.cancelSamplingExecution({ requestId }).catch(() => {
+				// Best-effort: SDK may have already torn down.
+			});
+		}
 	}
 
 	private _cancelPendingClientToolCalls(): void {

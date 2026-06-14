@@ -463,6 +463,7 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 	supportedAgents(): never { throw new Error('FakeQuery: supportedAgents not modeled'); }
 	mcpServerStatus(): never { throw new Error('FakeQuery: mcpServerStatus not modeled'); }
 	getContextUsage(): never { throw new Error('FakeQuery: getContextUsage not modeled'); }
+	usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET(): never { throw new Error('FakeQuery: usage_EXPERIMENTAL not modeled'); }
 	/** Phase 11 — programmable tool-name snapshot returned by `reloadPlugins()`. */
 	reloadPluginsResults: readonly string[][] = [];
 	reloadPluginsCallCount = 0;
@@ -668,7 +669,6 @@ function stubAgentSdkDownloader(): IAgentSdkDownloader {
 		_serviceBrand: undefined,
 		isAvailable: () => false,
 		loadSdkRoot: () => { throw new Error('test stub: downloader.loadSdkRoot should not be called'); },
-		resolveSdkTarget: () => undefined,
 	};
 }
 
