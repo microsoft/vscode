@@ -18,7 +18,7 @@ import { coalesce } from '../../../util/vs/base/common/arrays';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { ResourceSet } from '../../../util/vs/base/common/map';
-import { isEqualOrParent } from '../../../util/vs/base/common/resources';
+import { isEqual, isEqualOrParent } from '../../../util/vs/base/common/resources';
 import { URI } from '../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { DiagnosticSeverity, ExtendedLanguageModelToolResult, LanguageModelPromptTsxPart, MarkdownString, Range } from '../../../vscodeTypes';
@@ -97,11 +97,13 @@ export class GetErrorsTool extends Disposable implements ICopilotTool<IGetErrors
 
 			for (const path of nonNotebookPaths) {
 				// we support file or folder paths
-				if (isEqualOrParent(resource, path.uri)) {
+				// Check exact URI equality first: `isEqual` normalizes Windows drive-letter casing,
+				// while `isEqualOrParent` preserves normal path-casing semantics.
+				const isExactMatch = isEqual(resource, path.uri);
+				if (isExactMatch || isEqualOrParent(resource, path.uri)) {
 					foundMatch = true;
 
 					// Track the input URI that matched - prefer exact matches, otherwise use the folder
-					const isExactMatch = resource.toString() === path.uri.toString();
 					if (isExactMatch) {
 						// Exact match - this is the file itself, no input folder
 						inputUri = undefined;
