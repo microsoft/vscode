@@ -287,19 +287,26 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 	}
 
 	private getTopmostElementAt(clientX: number, clientY: number): Element | null {
-		// `elementsFromPoint` returns hits front-to-back; skip transparent blockers
-		// so the overlay painted beneath them is found.
 		const topmostAt = (root: DocumentOrShadowRoot): Element | null => {
+			// Fast path: `elementFromPoint` returns only the single topmost hit and
+			// avoids the array allocation of `elementsFromPoint`. This runs on every
+			// overlay state change, which can fire frequently, so favor it whenever the
+			// topmost hit is a real element we care about.
 			const elementAtPoint = root.elementFromPoint(clientX, clientY);
 			if (elementAtPoint && !isContextViewBlocker(elementAtPoint)) {
 				return elementAtPoint;
 			}
+			// Slow path: the topmost hit is a transparent context-view blocker (or there
+			// was no hit). Walk the full front-to-back hit list and return the first
+			// element that is not a blocker, i.e. the overlay actually painted beneath it.
 			return root.elementsFromPoint(clientX, clientY)
 				.find(el => !isContextViewBlocker(el)) ?? null;
 		};
 
 		const elementAtPoint = topmostAt(this.targetWindow.document);
-		// `elementsFromPoint` does not pierce shadow DOM, so drill into the host.
+		// Neither `elementFromPoint` nor `elementsFromPoint` pierces shadow DOM, so when
+		// the topmost element hosts a shadow root, re-run the hit-test inside it to find
+		// the overlay rendered within (e.g. context views that use shadow DOM).
 		if (elementAtPoint?.shadowRoot) {
 			return topmostAt(elementAtPoint.shadowRoot);
 		}
