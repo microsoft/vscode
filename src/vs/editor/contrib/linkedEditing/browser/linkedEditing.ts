@@ -300,6 +300,18 @@ export class LinkedEditingContribution extends Disposable implements IEditorCont
 			}
 		}
 
+		// After an edit, if the cursor is still within the reference range of
+		// active decorations, skip re-querying the provider. The _syncRanges
+		// mechanism handles content synchronization. Re-querying can destroy
+		// valid ranges when the provider cannot resolve linked ranges for
+		// intermediate states (e.g., empty tag name when tag has attributes).
+		if (this._currentDecorations.length > 0) {
+			const range = this._currentDecorations.getRange(0);
+			if (range && range.containsPosition(position)) {
+				return;
+			}
+		}
+
 		if (!this._currentRequestPosition?.equals(position)) {
 			// Get the current range of the first decoration (reference range)
 			const currentRange = this._currentDecorations.getRange(0);
