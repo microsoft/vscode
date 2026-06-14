@@ -75,7 +75,19 @@ export class CopilotUtilitySmallChatEndpoint {
 	static readonly capiFamily: string = CHAT_MODEL.GPT4OMINI;
 
 	static async resolve(modelFetcher: IModelMetadataFetcher, instantiationService: IInstantiationService): Promise<IChatEndpoint> {
-		const modelMetadata = await modelFetcher.getChatModelFromCapiFamily(CopilotUtilitySmallChatEndpoint.capiFamily);
+		// The small/fast family is selected client-side (see above) and is not
+		// guaranteed to exist in every account's CAPI `/models` response — the
+		// server may rename it or stop advertising it for some plans/rollouts.
+		// When it is unavailable, degrade to the API-marked base utility model
+		// (the same model that backs `copilot-utility`) so background flows like
+		// commit message and branch name generation keep working instead of
+		// throwing all the way up to their callers.
+		let modelMetadata: IChatModelInformation;
+		try {
+			modelMetadata = await modelFetcher.getChatModelFromCapiFamily(CopilotUtilitySmallChatEndpoint.capiFamily);
+		} catch {
+			modelMetadata = await modelFetcher.getCopilotUtilityModel();
+		}
 		return instantiationService.createInstance(CopilotChatEndpoint, modelMetadata);
 	}
 }
