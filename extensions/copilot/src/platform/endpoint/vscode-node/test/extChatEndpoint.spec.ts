@@ -9,6 +9,7 @@ import * as vscode from 'vscode';
 import { ChatFetchResponseType, ChatLocation } from '../../../chat/common/commonTypes';
 import { NoopOTelService, resolveOTelConfig } from '../../../otel/common/index';
 import type { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
+import { IOTelService } from '../../../otel/common/otelService';
 import { ExtensionContributedChatEndpoint } from '../extChatEndpoint';
 
 describe('ExtensionContributedChatEndpoint', () => {
@@ -64,6 +65,52 @@ describe('ExtensionContributedChatEndpoint', () => {
 
 		expect(capturedOptions.map(options => options.modelOptions?._telemetryTurn)).toEqual([undefined, undefined, undefined, undefined, undefined, undefined]);
 	});
+
+	it('forwards enableThinking and reasoningEffort to modelOptions', async () => {
+		const stream = (async function* () {
+			yield { value: 'ok' };
+		})();
+
+		const sendRequestSpy = vi.fn(async () => ({
+			stream,
+		} as unknown as any));
+
+		const mockLanguageModel = {
+			id: 'test',
+			vendor: 'test',
+			name: 'Test',
+			family: 'test',
+			version: '1',
+			maxInputTokens: 8192,
+			capabilities: {},
+			sendRequest: sendRequestSpy,
+		} as unknown as vscode.LanguageModelChat;
+
+		const endpoint = new ExtensionContributedChatEndpoint(
+			mockLanguageModel,
+			{} as IInstantiationService,
+			{ getActiveTraceContext: vi.fn(() => null) } as unknown as IOTelService,
+		);
+
+		const token = { isCancellationRequested: false, onCancellationRequested: vi.fn() } as unknown as vscode.CancellationToken;
+
+		await endpoint.makeChatRequest2({
+			debugName: 'test',
+			messages: [],
+			finishedCb: undefined,
+			location: ChatLocation.Panel,
+			modelCapabilities: {
+				enableThinking: true,
+				reasoningEffort: 'high',
+			},
+		}, token);
+
+		const callArgs = sendRequestSpy.mock.calls[0] as unknown[];
+		const modelOptions = (callArgs[1] as vscode.LanguageModelChatRequestOptions).modelOptions;
+		expect(modelOptions).toBeDefined();
+		expect((modelOptions as Record<string, unknown>)['enableThinking']).toBe(true);
+		expect((modelOptions as Record<string, unknown>)['reasoningEffort']).toBe('high');
+	});
 });
 
 function createLanguageModel(captureOptions: (options: vscode.LanguageModelChatRequestOptions) => void): vscode.LanguageModelChat {
@@ -89,3 +136,4 @@ function createLanguageModel(captureOptions: (options: vscode.LanguageModelChatR
 function createInstantiationService(): IInstantiationService {
 	return { createInstance: vi.fn() } as unknown as IInstantiationService;
 }
+
