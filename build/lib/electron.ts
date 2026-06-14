@@ -110,7 +110,7 @@ export const config = {
 	companyName: 'Microsoft Corporation',
 	copyright: 'Copyright (C) 2026 Microsoft. All rights reserved',
 	darwinExecutable: product.nameShort,
-	darwinIcon: 'resources/darwin/code.icns',
+	darwinIcon: 'resources/darwin/solo.icon',
 	darwinBundleIdentifier: product.darwinBundleIdentifier,
 	darwinApplicationCategoryType: 'public.app-category.developer-tools',
 	darwinHelpBookFolder: 'VS Code HelpBook',

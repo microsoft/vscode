@@ -63,6 +63,36 @@ export class SettingsEditor2Input extends EditorInput {
 
 const PreferencesEditorIcon = registerIcon('preferences-editor-label-icon', Codicon.settings, nls.localize('preferencesEditorLabelIcon', 'Icon of the preferences editor label.'));
 
+export class SoloSettingsEditorInput extends EditorInput {
+
+	static readonly ID: string = 'workbench.input.soloSettings';
+
+	readonly resource: URI = URI.from({
+		scheme: Schemas.vscodeSettings,
+		path: `solosettings`
+	});
+
+	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
+		return super.matches(otherInput) || otherInput instanceof SoloSettingsEditorInput;
+	}
+
+	override get typeId(): string {
+		return SoloSettingsEditorInput.ID;
+	}
+
+	override getName(): string {
+		return nls.localize('soloSettingsEditorInputName', "Solo Settings");
+	}
+
+	override getIcon(): ThemeIcon {
+		return PreferencesEditorIcon;
+	}
+
+	override async resolve(): Promise<null> {
+		return null;
+	}
+}
+
 export class PreferencesEditorInput extends EditorInput {
 
 	static readonly ID: string = 'workbench.input.preferences';

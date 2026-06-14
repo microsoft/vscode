@@ -249,7 +249,9 @@ export class AgentSessionsWelcomePage extends EditorPane {
 
 		// Header
 		const header = append(this.contentContainer, $('.agentSessionsWelcome-header'));
-		append(header, $('h1.product-name', {}, this.productService.nameLong));
+		append(header, $('.agentSessionsWelcome-brandLockup', { 'aria-label': this.productService.nameLong, 'role': 'img' }));
+		const settingsLink = append(header, $('button.agentSessionsWelcome-settingsLink.button-link', {}, localize('settings', "Settings")));
+		this.contentDisposables.add(addDisposableListener(settingsLink, 'click', () => this.commandService.executeCommand('workbench.action.openSoloSettings')));
 
 		const startEntries = append(header, $('.agentSessionsWelcome-startEntries'));
 		await this.buildStartEntries(startEntries);
@@ -286,7 +288,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		const entries = [
 			{ icon: Codicon.folderOpened, label: localize('openProject', "Open project"), command: 'workbench.action.files.openFolder' },
 			{ icon: Codicon.repoClone, label: localize('cloneRepo', "Clone repo"), command: 'git.clone' },
-			{ icon: Codicon.remote, label: localize('connectViaSsh', "Connect via SSH"), command: 'workbench.action.showCommands' },
+			{ icon: Codicon.terminal, label: localize('connectViaSsh', "Connect via SSH"), command: 'workbench.action.showCommands' },
 		];
 
 		for (const entry of entries) {

@@ -124,3 +124,50 @@
 .monaco-workbench .sidebar.pane-composite-part > .title.has-composite-bar > .title-actions .monaco-action-bar .action-item {
 	max-width: 150px;
 }
+
+/* Solo: softer sidebar chrome */
+.monaco-workbench .part.sidebar {
+	border-right: 1px solid rgba(255, 255, 255, 0.055);
+}
+
+.monaco-workbench.sidebar-right .part.sidebar {
+	border-right: 0;
+	border-left: 1px solid rgba(255, 255, 255, 0.055);
+}
+
+.monaco-workbench .part.sidebar > .title {
+	height: 36px;
+	padding: 0 8px;
+	box-sizing: border-box;
+	background-color: color-mix(in srgb, var(--vscode-sideBar-background) 94%, #050505);
+}
+
+.monaco-workbench .part.sidebar > .title > .title-label h2 {
+	text-transform: none;
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 0.01em;
+	opacity: 0.86;
+}
+
+.monaco-workbench .viewlet .collapsible.header {
+	min-height: 28px;
+	border-radius: 7px;
+	margin: 3px 6px;
+}
+
+.monaco-workbench .viewlet .collapsible.header:hover {
+	background-color: rgba(255, 255, 255, 0.04);
+}
+
+.monaco-workbench .viewlet .collapsible.header .title {
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 0;
+	text-transform: none;
+}
+
+.monaco-workbench .part.sidebar .title-actions .action-label,
+.monaco-workbench .viewlet .collapsible.header .actions .action-label {
+	border-radius: 6px;
+}

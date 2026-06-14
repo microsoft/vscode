@@ -161,7 +161,6 @@ async function main(buildDir?: string, outDir?: string): Promise<void> {
 	const dmgName = `VSCode-darwin-${arch}`;
 	const artifactPath = path.join(outDir, `${dmgName}.dmg`);
 	const backgroundPath = path.join(import.meta.dirname, `dmg-background-${quality}.tiff`);
-	const diskIconPath = path.join(root, 'resources', 'darwin', 'code.icns');
 	let title = 'Code OSS';
 	switch (quality) {
 		case 'stable':
@@ -194,7 +193,7 @@ async function main(buildDir?: string, outDir?: string): Promise<void> {
 	let settingsContent = fs.readFileSync(settingsTemplatePath, 'utf8');
 	settingsContent = settingsContent
 		.replace('{{VOLUME_NAME}}', JSON.stringify(title))
-		.replace('{{BADGE_ICON}}', JSON.stringify(diskIconPath))
+		.replace('{{BADGE_ICON}}', 'None')
 		.replace('{{BACKGROUND}}', JSON.stringify(backgroundPath))
 		.replace('{{APP_PATH}}', JSON.stringify(appPath))
 		.replace('{{APP_NAME}}', JSON.stringify(product.nameLong + '.app'));

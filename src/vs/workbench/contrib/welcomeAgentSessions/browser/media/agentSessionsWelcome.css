@@ -255,6 +255,80 @@
 	margin: 0;
 }
 
+/* Solo: Cursor-like welcome landing */
+.agentSessionsWelcome {
+	background: var(--vscode-welcomePage-background);
+}
+
+.agentSessionsWelcome-content {
+	max-width: 920px;
+	padding: 56px 40px;
+}
+
+.agentSessionsWelcome-header {
+	align-items: center;
+	text-align: center;
+	max-width: 820px;
+}
+
+.agentSessionsWelcome-brandLockup {
+	width: 110px;
+	height: 24px;
+	background: url('../../../../browser/media/solo-lockup.svg') center / contain no-repeat;
+}
+
+.agentSessionsWelcome-settingsLink {
+	margin-top: 8px;
+	padding: 0;
+	color: var(--vscode-textLink-foreground);
+	font-size: 11px;
+	line-height: 14px;
+}
+
+.agentSessionsWelcome-startEntries {
+	justify-content: center;
+	gap: 8px;
+}
+
+.agentSessionsWelcome-startEntry {
+	padding: 7px 11px;
+	border: 1px solid rgba(255, 255, 255, 0.065);
+	border-radius: 999px;
+	background-color: rgba(255, 255, 255, 0.035);
+	color: var(--vscode-foreground);
+}
+
+.agentSessionsWelcome-startEntry:hover {
+	background-color: rgba(255, 255, 255, 0.065);
+	color: var(--vscode-foreground);
+}
+
+.agentSessionsWelcome-chatSection {
+	margin-top: 30px;
+}
+
+.agentSessionsWelcome-chatWidget .interactive-input-part {
+	padding: 0;
+}
+
+.agentSessionsWelcome-suggestedPrompt,
+.agentSessionsWelcome-agentsBanner .agents-banner-button,
+.agentSessionsWelcome-sessionsSection .agentSessionsWelcome-walkthroughCard {
+	border-color: rgba(255, 255, 255, 0.075);
+	background-color: rgba(255, 255, 255, 0.04);
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+.agentSessionsWelcome-suggestedPrompt:hover,
+.agentSessionsWelcome-agentsBanner .agents-banner-button:hover,
+.agentSessionsWelcome-sessionsSection .agentSessionsWelcome-walkthroughCard:hover {
+	background-color: rgba(255, 255, 255, 0.07);
+}
+
+.agentSessionsWelcome-sessionsGrid .agent-session-item {
+	border-radius: 9px;
+}
+
 /* Walkthroughs section */
 .agentSessionsWelcome-sessionsSection .agentSessionsWelcome-walkthroughCard {
 	width: 100%;

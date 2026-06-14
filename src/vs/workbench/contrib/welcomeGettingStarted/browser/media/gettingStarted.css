@@ -259,6 +259,37 @@
 	padding-right: 24px;
 }
 
+/* Solo: make classic Getting Started match the AI-native shell */
+.monaco-workbench .part.editor > .content .gettingStartedContainer {
+	background: var(--vscode-editor-background);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer h1 {
+	font-size: 42px;
+	font-weight: 520;
+	letter-spacing: -0.04em;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .subtitle {
+	font-size: 18px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer {
+	max-width: 980px;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .getting-started-category,
+.monaco-workbench .part.editor > .content .gettingStartedContainer .getting-started-step,
+.monaco-workbench .part.editor > .content .gettingStartedContainer .getting-started-footer {
+	border-radius: 12px;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .getting-started-category:hover,
+.monaco-workbench .part.editor > .content .gettingStartedContainer .getting-started-step:hover {
+	background-color: rgba(255, 255, 255, 0.045);
+}
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .recently-opened li:hover .recently-opened-delete-button,
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .recently-opened li:focus-within .recently-opened-delete-button {
 	visibility: visible;
@@ -318,6 +349,181 @@
 	margin: 8px 8px 8px 1px;
 	padding: 3px 6px 6px;
 	text-align: left;
+}
+
+/* Solo: Cursor-style empty window landing */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories {
+	padding: 0;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer {
+	grid-template-rows: 1fr auto auto auto 1fr;
+	grid-template-columns: minmax(0, 330px);
+	grid-template-areas:
+		"."
+		"header"
+		"left-column"
+		"footer"
+		".";
+	justify-content: center;
+	align-content: center;
+	max-width: none;
+	min-height: 100%;
+	gap: 0;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer > .header {
+	align-self: auto;
+	margin-bottom: 26px;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer > .categories-column-left {
+	display: flex;
+	flex-direction: column;
+	gap: 22px;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer > .categories-column-right {
+	display: none;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer > .categories-column > div {
+	margin-bottom: 0;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .solo-welcome-header {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .solo-welcome-lockup {
+	width: 110px;
+	height: 24px;
+	background: url('../../../../browser/media/solo-lockup.svg') left center / contain no-repeat;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .solo-welcome-plan {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	margin: 8px 0 0;
+	font-size: 11px;
+	line-height: 14px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .solo-welcome-settings-link {
+	padding: 0;
+	color: var(--vscode-textLink-foreground);
+	font-size: inherit;
+	line-height: inherit;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .start-container h2 {
+	display: none;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .start-container ul {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 8px;
+	line-height: normal;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .start-container li {
+	min-width: 0;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .start-container li > .button-link {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	justify-content: space-between;
+	width: 100%;
+	min-height: 50px;
+	box-sizing: border-box;
+	padding: 10px;
+	border: 1px solid color-mix(in srgb, var(--vscode-foreground) 9%, transparent);
+	border-radius: 6px;
+	background: color-mix(in srgb, var(--vscode-sideBar-background) 85%, var(--vscode-editor-background));
+	color: var(--vscode-foreground);
+	font-size: 11px;
+	line-height: 14px;
+	text-align: left;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .start-container li > .button-link:hover {
+	background: color-mix(in srgb, var(--vscode-list-hoverBackground) 78%, var(--vscode-editor-background));
+	border-color: color-mix(in srgb, var(--vscode-foreground) 16%, transparent);
+	text-decoration: none;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .start-container .icon-widget {
+	padding: 0;
+	top: 0;
+	font-size: 15px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .recently-opened h2 {
+	margin: 0 0 9px;
+	color: var(--vscode-descriptionForeground);
+	font-size: 10px;
+	font-weight: 500;
+	line-height: 14px;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .recently-opened ul {
+	line-height: 20px;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .recently-opened li {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(110px, 1fr);
+	gap: 12px;
+	padding: 0 24px 0 0;
+	font-size: 11px;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .recently-opened li > .button-link {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	color: var(--vscode-foreground);
+	text-align: left;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .recently-opened li > .path {
+	padding-left: 0;
+	color: var(--vscode-descriptionForeground);
+	text-align: right;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer > .footer {
+	margin-top: 130px;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .solo-welcome-agent-cta {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	padding: 7px 13px;
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--vscode-sideBar-background) 88%, var(--vscode-editor-background));
+	box-shadow: 0 10px 26px rgba(0, 0, 0, 0.22);
+	color: var(--vscode-descriptionForeground);
+	font-size: 11px;
+	line-height: 14px;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .solo-welcome-agent-cta:hover {
+	background: var(--vscode-list-hoverBackground);
+	color: var(--vscode-foreground);
+	text-decoration: none;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .solo-welcome-agent-cta-icon {
+	font-size: 11px;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .getting-started-category {

@@ -4362,3 +4362,72 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	background: transparent;
 	font-size: 11px;
 }
+
+/* Solo: composer and chat surfaces */
+.interactive-session {
+	max-width: 980px;
+}
+
+.interactive-list {
+	background:
+		radial-gradient(circle at 50% 0, rgba(255, 255, 255, 0.04), transparent 30rem),
+		var(--vscode-chat-list-background);
+}
+
+.interactive-item-container {
+	padding: 14px 18px;
+}
+
+.interactive-item-container .header .avatar {
+	border-radius: 9px;
+	outline-color: rgba(255, 255, 255, 0.08);
+}
+
+.interactive-item-container .header .username {
+	font-size: 12px;
+	letter-spacing: 0.01em;
+}
+
+.interactive-item-container.interactive-request,
+.interactive-item-container.interactive-response {
+	border-radius: 14px;
+	margin: 6px 10px;
+}
+
+.interactive-item-container.interactive-request {
+	background: rgba(255, 255, 255, 0.035);
+	border: 1px solid rgba(255, 255, 255, 0.055);
+}
+
+.interactive-input-part,
+.chat-input-container,
+.interactive-input-and-side-toolbar {
+	border-radius: 14px;
+}
+
+.interactive-input-part {
+	padding: 10px 12px 12px;
+}
+
+.chat-input-container {
+	background-color: rgba(255, 255, 255, 0.045);
+	border: 1px solid rgba(255, 255, 255, 0.085);
+	box-shadow:
+		0 16px 42px rgba(0, 0, 0, 0.22),
+		inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+.chat-input-container:focus-within {
+	border-color: color-mix(in srgb, var(--vscode-focusBorder) 48%, rgba(255, 255, 255, 0.12));
+}
+
+.chat-input-toolbars .monaco-action-bar .action-label,
+.interactive-input-part .monaco-action-bar .action-label {
+	border-radius: 7px;
+}
+
+.chat-attached-context,
+.chat-attached-context-attachment,
+.chat-used-context {
+	border-radius: 9px;
+}

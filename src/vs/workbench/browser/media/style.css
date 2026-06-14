@@ -858,8 +858,8 @@ body {
 	position: relative;
 	display: grid;
 	grid-template-rows: 1fr auto auto auto 1fr;
-	width: min(640px, calc(100% - 48px));
-	max-width: 640px;
+	width: min(430px, calc(100% - 48px));
+	max-width: 430px;
 	min-height: 100%;
 	padding: 0;
 }
@@ -871,29 +871,32 @@ body {
 }
 
 .monaco-workbench .agentSessionsWelcome-header::before {
-	content: "";
-	width: 40px;
-	height: 40px;
-	margin-bottom: 12px;
-	border-radius: 50%;
-	background: url("code-icon.svg") center / contain no-repeat;
-	box-shadow: 0 12px 36px rgba(0, 0, 0, 0.42);
+	display: none;
 }
 
 .monaco-workbench .agentSessionsWelcome-header h1.product-name {
-	margin: 0 0 4px;
-	color: var(--solo-ink-0);
-	font-size: 25px;
-	font-weight: 720;
-	letter-spacing: 0;
-	text-transform: none;
+	display: none;
+}
+
+.monaco-workbench .agentSessionsWelcome-brandLockup {
+	width: 110px;
+	height: 24px;
+	background: url("solo-lockup.svg") center / contain no-repeat;
+}
+
+.monaco-workbench .agentSessionsWelcome-settingsLink {
+	margin-top: 8px;
+	padding: 0;
+	color: var(--vscode-textLink-foreground);
+	font-size: 11px;
+	line-height: 14px;
 }
 
 .monaco-workbench .agentSessionsWelcome-startEntries {
 	justify-content: center;
 	width: 100%;
-	margin-top: 26px;
-	gap: 12px;
+	margin-top: 22px;
+	gap: 8px;
 }
 
 .monaco-workbench .agentSessionsWelcome-startEntry {
@@ -901,9 +904,9 @@ body {
 	grid-template-rows: 20px auto;
 	align-items: center;
 	justify-items: start;
-	width: 150px;
-	height: 78px;
-	padding: 14px 16px;
+	width: 128px;
+	height: 66px;
+	padding: 11px 13px;
 	border: 1px solid var(--solo-stroke);
 	border-radius: var(--solo-radius-md);
 	background: rgba(255, 255, 255, 0.055);
@@ -957,7 +960,7 @@ body {
 .monaco-workbench .agentSessionsWelcome-footer {
 	grid-row: 4;
 	max-width: none;
-	margin-top: 26vh;
+	margin-top: 22vh;
 }
 
 .monaco-workbench .agentSessionsWelcome-footer::before {
@@ -966,11 +969,11 @@ body {
 	align-items: center;
 	justify-content: center;
 	min-height: 32px;
-	padding: 0 18px;
+	padding: 0 15px;
 	border-radius: 999px;
 	background: rgba(255, 255, 255, 0.075);
 	color: var(--solo-ink-1);
-	font-size: 13px;
+	font-size: 12px;
 	font-weight: 560;
 }
 

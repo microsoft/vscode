@@ -217,6 +217,39 @@
 	background: var(--vscode-button-hoverBackground);
 }
 
+/* Solo: onboarding should feel like the same product shell */
+.onboarding-a-overlay {
+	background: rgba(0, 0, 0, 0.58);
+	backdrop-filter: blur(14px);
+	-webkit-backdrop-filter: blur(14px);
+}
+
+.onboarding-a-card {
+	border-radius: 18px;
+	background:
+		linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 160px),
+		var(--vscode-editor-background);
+	border-color: rgba(255, 255, 255, 0.085);
+	box-shadow:
+		0 24px 80px rgba(0, 0, 0, 0.48),
+		inset 0 1px 0 rgba(255, 255, 255, 0.045);
+}
+
+.onboarding-a-step-title {
+	font-size: 26px;
+	letter-spacing: -0.025em;
+}
+
+.onboarding-a-step-subtitle,
+.onboarding-a-footer {
+	border-color: rgba(255, 255, 255, 0.07);
+}
+
+.onboarding-a-close-btn,
+.onboarding-a-btn {
+	border-radius: 8px;
+}
+
 .onboarding-a-btn-secondary {
 	background: var(--vscode-button-secondaryBackground);
 	color: var(--vscode-button-secondaryForeground);

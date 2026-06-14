@@ -88,7 +88,7 @@ const defaultChat = product.defaultChatAgent;
  * tab. When dismissed, the welcome tab is revealed underneath.
  *
  * Steps:
- * 1. Sign In — sessions-style sign-in hero with GitHub Copilot, Google, and Apple options
+ * 1. Sign In — sessions-style sign-in hero with GitHub, Google, and Apple options
  * 2. Personalize — Theme selection grid + keymap pills
  * 3. Agent Sessions — Feature cards showcasing AI capabilities
  */
@@ -180,7 +180,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		this.overlay = append(container, $('.onboarding-a-overlay'));
 		this.overlay.setAttribute('role', 'dialog');
 		this.overlay.setAttribute('aria-modal', 'true');
-		this.overlay.setAttribute('aria-label', localize('onboarding.a.aria', "Welcome to Visual Studio Code"));
+		this.overlay.setAttribute('aria-label', localize('onboarding.a.aria', "Welcome to Solo"));
 
 		// Card
 		this.card = append(this.overlay, $('.onboarding-a-card'));
@@ -447,7 +447,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 				if (!this._footerSignInBtn && !this._userSignedIn) {
 					this._footerSignInBtn = append(this.footerLeft, $<HTMLButtonElement>('button.onboarding-a-signin-nudge-btn'));
 					this._footerSignInBtn.type = 'button';
-					this._footerSignInBtn.textContent = localize('onboarding.sessions.signInNudge', "Sign in to use GitHub Copilot");
+					this._footerSignInBtn.textContent = localize('onboarding.sessions.signInNudge', "Sign in to use Solo");
 					this.stepDisposables.add(addDisposableListener(this._footerSignInBtn, EventType.CLICK, async () => {
 						this._logAction('signInNudge');
 						await this._handleSignIn();
@@ -479,10 +479,10 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		const content = append(wrapper, $('.onboarding-a-signin-content'));
 		const contentMain = append(content, $('.onboarding-a-signin-content-main'));
 		const title = append(contentMain, $('h2.onboarding-a-signin-title'));
-		title.textContent = localize('onboarding.signIn.heroTitle', "Welcome to VS Code");
+		title.textContent = localize('onboarding.signIn.heroTitle', "Welcome to Solo");
 
 		const subtitle = append(contentMain, $('p.onboarding-a-signin-subtitle'));
-		subtitle.textContent = localize('onboarding.signIn.heroSubtitle', "Sign in to use GitHub Copilot.");
+		subtitle.textContent = localize('onboarding.signIn.heroSubtitle', "Sign in to use Solo's AI features.");
 
 		const actions = append(contentMain, $('.onboarding-a-signin-actions'));
 
@@ -511,13 +511,13 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 
 		const disclaimerCol = append(footer, $('.onboarding-a-signin-disclaimer-col'));
 
-		// GitHub Copilot disclaimer
+		// Solo AI disclaimer
 		const copilotDisclaimer = append(disclaimerCol, $('.onboarding-a-signin-disclaimer'));
 		copilotDisclaimer.append(localize('onboarding.signIn.disclaimer.prefix', "By signing in, you agree to {0}'s ", defaultChat.provider.default.name));
 		this._createInlineLink(copilotDisclaimer, localize('onboarding.signIn.disclaimer.terms', "Terms"), defaultChat.termsStatementUrl);
 		copilotDisclaimer.append(localize('onboarding.signIn.disclaimer.middle', " and "));
 		this._createInlineLink(copilotDisclaimer, localize('onboarding.signIn.disclaimer.privacy', "Privacy Statement"), defaultChat.privacyStatementUrl);
-		copilotDisclaimer.append(localize('onboarding.signIn.disclaimer.copilotPrefix', ". {0} Copilot may show ", defaultChat.provider.default.name));
+		copilotDisclaimer.append(localize('onboarding.signIn.disclaimer.copilotPrefix', ". Solo may show "));
 		this._createInlineLink(copilotDisclaimer, localize('onboarding.signIn.disclaimer.publicCode', "public code"), defaultChat.publicCodeMatchesUrl);
 		copilotDisclaimer.append(localize('onboarding.signIn.disclaimer.improveSuffix', " suggestions and use your data to improve the product."));
 		copilotDisclaimer.append(' ');
@@ -899,7 +899,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 			this._createKbd(localize('onboarding.personalize.tip.shift', "Shift")),
 			'+',
 			this._createKbd(localize('onboarding.personalize.tip.p', "P")),
-			localize('onboarding.personalize.tip.suffix', " to access all VS Code commands."),
+			localize('onboarding.personalize.tip.suffix', " to access all Solo commands."),
 		);
 	}
 
@@ -960,7 +960,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 	private async _applyKeymap(keymapId: string): Promise<void> {
 		const keymap = (product.onboardingKeymaps ?? []).find(k => k.id === keymapId);
 		if (!keymap?.extensionId) {
-			return; // VS Code default, nothing to install
+			return; // Solo default, nothing to install
 		}
 
 		try {
@@ -1152,11 +1152,11 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 
 		this._createFeatureCard(moreGrid, Codicon.rocket,
 			localize('onboarding.sessions.runAnywhere', "Run Agents Anywhere"),
-			localize('onboarding.sessions.runAnywhere.desc', "Run agents locally for interactive work, in the background with Copilot CLI, or in the cloud with cloud agents that open a pull request your team can review."));
+			localize('onboarding.sessions.runAnywhere.desc', "Run agents locally for interactive work, in the background with Solo CLI, or in the cloud with cloud agents that open a pull request your team can review."));
 
 		this._createFeatureCard(moreGrid, Codicon.settingsGear,
 			localize('onboarding.sessions.customize', "Customize Your Agents"),
-			localize('onboarding.sessions.customize.desc', "Tailor Copilot to your project with custom instructions and agents, skills, reusable prompts, and MCP servers that connect to the tools and context you rely on."));
+			localize('onboarding.sessions.customize.desc', "Tailor Solo to your project with custom instructions and agents, skills, reusable prompts, and MCP servers that connect to the tools and context you rely on."));
 
 		// Tutorial link at bottom of content, above footer
 		const docsRow = append(wrapper, $('.onboarding-a-sessions-docs'));

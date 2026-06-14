@@ -39,7 +39,7 @@ import { IWorkbenchEnvironmentService } from '../../../services/environment/comm
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { KeybindingsEditorInput } from '../../../services/preferences/browser/keybindingsEditorInput.js';
 import { DEFINE_KEYBINDING_EDITOR_CONTRIB_ID, IDefineKeybindingEditorContribution, IPreferencesService } from '../../../services/preferences/common/preferences.js';
-import { PreferencesEditorInput, SettingsEditor2Input } from '../../../services/preferences/common/preferencesEditorInput.js';
+import { PreferencesEditorInput, SettingsEditor2Input, SoloSettingsEditorInput } from '../../../services/preferences/common/preferencesEditorInput.js';
 import { SettingsEditorModel } from '../../../services/preferences/common/preferencesModels.js';
 import { CURRENT_PROFILE_CONTEXT, IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { ExplorerFolderContext, ExplorerRootContext } from '../../files/common/files.js';
@@ -51,6 +51,7 @@ import { PreferencesEditor } from './preferencesEditor.js';
 import { preferencesOpenSettingsIcon } from './preferencesIcons.js';
 import { IPreferencesRenderer, UserSettingsRenderer, WorkspaceSettingsRenderer } from './preferencesRenderers.js';
 import { SettingsEditor2, SettingsFocusContext } from './settingsEditor2.js';
+import { SoloSettingsEditor } from './soloSettingsEditor.js';
 
 const SETTINGS_EDITOR_COMMAND_SEARCH = 'settings.action.search';
 
@@ -66,6 +67,7 @@ const SETTINGS_EDITOR_COMMAND_FILTER_ONLINE = 'settings.filterByOnline';
 const SETTINGS_EDITOR_COMMAND_FILTER_UNTRUSTED = 'settings.filterUntrusted';
 
 const SETTINGS_COMMAND_OPEN_SETTINGS = 'workbench.action.openSettings';
+const SETTINGS_COMMAND_OPEN_SOLO_SETTINGS = 'workbench.action.openSoloSettings';
 const SETTINGS_COMMAND_FILTER_TELEMETRY = 'settings.filterByTelemetry';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
@@ -87,6 +89,17 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	),
 	[
 		new SyncDescriptor(PreferencesEditorInput)
+	]
+);
+
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(
+		SoloSettingsEditor,
+		SoloSettingsEditor.ID,
+		nls.localize('soloSettingsEditor', "Solo Settings")
+	),
+	[
+		new SyncDescriptor(SoloSettingsEditorInput)
 	]
 );
 
@@ -146,7 +159,23 @@ class SettingsEditor2InputSerializer implements IEditorSerializer {
 	}
 }
 
+class SoloSettingsEditorInputSerializer implements IEditorSerializer {
+
+	canSerialize(editorInput: EditorInput): boolean {
+		return true;
+	}
+
+	serialize(editorInput: EditorInput): string {
+		return '';
+	}
+
+	deserialize(instantiationService: IInstantiationService): EditorInput {
+		return instantiationService.createInstance(SoloSettingsEditorInput);
+	}
+}
+
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(PreferencesEditorInput.ID, PreferencesEditorInputSerializer);
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(SoloSettingsEditorInput.ID, SoloSettingsEditorInputSerializer);
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(KeybindingsEditorInput.ID, KeybindingsEditorInputSerializer);
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(SettingsEditor2Input.ID, SettingsEditor2InputSerializer);
 
@@ -246,9 +275,31 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				});
 			}
 			run(accessor: ServicesAccessor, args: string | IOpenSettingsActionOptions) {
-				// args takes a string for backcompat
-				const opts = typeof args === 'string' ? { query: args } : sanitizeOpenSettingsArgs(args);
-				return accessor.get(IPreferencesService).openSettings({ ...opts });
+				if (typeof args === 'string' || args?.query || args?.revealSetting) {
+					// Preserve deep links and filtered settings requests.
+					const opts = typeof args === 'string' ? { query: args } : sanitizeOpenSettingsArgs(args);
+					return accessor.get(IPreferencesService).openSettings({ ...opts });
+				}
+				return accessor.get(IEditorService).openEditor(
+					accessor.get(IInstantiationService).createInstance(SoloSettingsEditorInput),
+					{ pinned: true, revealIfOpened: true }
+				);
+			}
+		}));
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: SETTINGS_COMMAND_OPEN_SOLO_SETTINGS,
+					title: nls.localize2('openSoloSettings', "Open Solo Settings"),
+					category,
+					f1: true,
+				});
+			}
+			run(accessor: ServicesAccessor) {
+				return accessor.get(IEditorService).openEditor(
+					accessor.get(IInstantiationService).createInstance(SoloSettingsEditorInput),
+					{ pinned: true, revealIfOpened: true }
+				);
 			}
 		}));
 		this._register(registerAction2(class extends Action2 {

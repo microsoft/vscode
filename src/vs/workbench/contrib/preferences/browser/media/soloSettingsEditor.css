@@ -1,0 +1,291 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.solo-settings-editor {
+	height: 100%;
+	color: var(--vscode-foreground);
+	background:
+		radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--vscode-focusBorder) 8%, transparent), transparent 32rem),
+		var(--vscode-editor-background);
+	overflow: hidden;
+}
+
+.solo-settings-shell {
+	display: grid;
+	grid-template-columns: minmax(180px, 240px) minmax(520px, 720px);
+	gap: 28px;
+	height: 100%;
+	box-sizing: border-box;
+	padding: 32px clamp(24px, 6vw, 96px);
+	overflow: auto;
+}
+
+.solo-settings-sidebar {
+	min-width: 0;
+	padding-top: 8px;
+}
+
+.solo-settings-profile {
+	display: grid;
+	gap: 6px;
+	margin-bottom: 12px;
+	padding: 0 8px;
+}
+
+.solo-settings-lockup {
+	width: 116px;
+	height: 25px;
+	background: url('../../../../browser/media/solo-lockup.svg') left center / contain no-repeat;
+}
+
+.solo-settings-profile-plan,
+.solo-settings-row-description,
+.solo-settings-section-title {
+	color: var(--vscode-descriptionForeground);
+}
+
+.solo-settings-profile-plan {
+	margin-top: 2px;
+	font-size: 11px;
+}
+
+.solo-settings-search {
+	width: 100%;
+	height: 28px;
+	box-sizing: border-box;
+	margin-bottom: 8px;
+	padding: 0 10px;
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-radius: 7px;
+	color: var(--vscode-input-foreground);
+	background: var(--vscode-input-background);
+	outline: none;
+}
+
+.solo-settings-search:focus {
+	border-color: var(--vscode-focusBorder);
+}
+
+.solo-settings-nav-section {
+	padding: 8px 0;
+	border-bottom: 1px solid color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
+}
+
+.solo-settings-nav-section:last-child {
+	border-bottom: 0;
+}
+
+.solo-settings-nav-item {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	width: 100%;
+	height: 28px;
+	margin: 1px 0;
+	padding: 0 9px;
+	border: 0;
+	border-radius: 7px;
+	color: var(--vscode-descriptionForeground);
+	background: transparent;
+	font: inherit;
+	font-size: 12px;
+	text-align: left;
+	cursor: default;
+}
+
+.solo-settings-nav-item:not(:disabled) {
+	cursor: pointer;
+}
+
+.solo-settings-nav-item.active {
+	color: var(--vscode-foreground);
+	background: color-mix(in srgb, var(--vscode-list-activeSelectionBackground) 42%, transparent);
+}
+
+.solo-settings-nav-item:not(:disabled):hover {
+	color: var(--vscode-foreground);
+	background: var(--vscode-list-hoverBackground);
+}
+
+.solo-settings-nav-icon {
+	width: 14px;
+	text-align: center;
+}
+
+.solo-settings-nav-external {
+	margin-left: auto;
+	font-size: 11px;
+	opacity: 0.8;
+}
+
+.solo-settings-main {
+	min-width: 0;
+	padding-bottom: 64px;
+}
+
+.solo-settings-title {
+	margin: 0 0 24px;
+	font-size: 18px;
+	font-weight: 650;
+	letter-spacing: -0.01em;
+}
+
+.solo-settings-section {
+	margin-bottom: 24px;
+}
+
+.solo-settings-section-title {
+	margin: 0 0 10px 8px;
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: none;
+}
+
+.solo-settings-card {
+	overflow: hidden;
+	border: 1px solid color-mix(in srgb, var(--vscode-foreground) 9%, transparent);
+	border-radius: 12px;
+	background: color-mix(in srgb, var(--vscode-sideBar-background) 82%, var(--vscode-editor-background));
+	box-shadow: 0 10px 28px rgba(0, 0, 0, 0.12);
+}
+
+.solo-settings-row {
+	display: flex;
+	align-items: center;
+	gap: 16px;
+	min-height: 54px;
+	box-sizing: border-box;
+	padding: 11px 12px;
+	border-bottom: 1px solid color-mix(in srgb, var(--vscode-foreground) 7%, transparent);
+}
+
+.solo-settings-row:last-child {
+	border-bottom: 0;
+}
+
+.solo-settings-row-text {
+	min-width: 0;
+	flex: 1;
+}
+
+.solo-settings-row-title {
+	font-size: 12px;
+	font-weight: 600;
+	line-height: 18px;
+}
+
+.solo-settings-row-description {
+	margin-top: 1px;
+	font-size: 11px;
+	line-height: 16px;
+}
+
+.solo-settings-button,
+.solo-settings-select {
+	height: 26px;
+	border: 1px solid color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
+	border-radius: 7px;
+	color: var(--vscode-button-secondaryForeground);
+	background: var(--vscode-button-secondaryBackground);
+	font: inherit;
+	font-size: 12px;
+}
+
+.solo-settings-button {
+	min-width: 52px;
+	padding: 0 10px;
+	cursor: pointer;
+}
+
+.solo-settings-button:hover,
+.solo-settings-select:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.solo-settings-select {
+	min-width: 104px;
+	padding: 0 8px;
+}
+
+.solo-settings-layout-row {
+	align-items: stretch;
+}
+
+.solo-settings-layout-choices {
+	display: flex;
+	gap: 10px;
+}
+
+.solo-settings-layout-choice {
+	display: grid;
+	gap: 5px;
+	place-items: center;
+	min-width: 66px;
+	padding: 7px;
+	border: 1px solid color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
+	border-radius: 10px;
+	color: var(--vscode-descriptionForeground);
+	background: transparent;
+	font: inherit;
+	font-size: 11px;
+}
+
+.solo-settings-layout-choice.active {
+	color: var(--vscode-foreground);
+	border-color: color-mix(in srgb, var(--vscode-focusBorder) 55%, transparent);
+	background: color-mix(in srgb, var(--vscode-focusBorder) 12%, transparent);
+}
+
+.solo-settings-layout-preview {
+	width: 34px;
+	height: 22px;
+	border: 1px solid color-mix(in srgb, var(--vscode-foreground) 20%, transparent);
+	border-radius: 4px;
+	background:
+		linear-gradient(90deg, color-mix(in srgb, var(--vscode-focusBorder) 35%, transparent) 0 32%, transparent 32%),
+		color-mix(in srgb, var(--vscode-editor-background) 72%, var(--vscode-sideBar-background));
+}
+
+.solo-settings-toggle {
+	position: relative;
+	width: 34px;
+	height: 20px;
+	border: 0;
+	border-radius: 999px;
+	background: var(--vscode-input-background);
+	box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--vscode-foreground) 14%, transparent);
+	cursor: pointer;
+}
+
+.solo-settings-toggle.checked {
+	background: color-mix(in srgb, var(--vscode-charts-green) 75%, var(--vscode-button-background));
+}
+
+.solo-settings-toggle-knob {
+	position: absolute;
+	top: 3px;
+	left: 3px;
+	width: 14px;
+	height: 14px;
+	border-radius: 50%;
+	background: var(--vscode-editor-background);
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+	transition: transform 120ms ease;
+}
+
+.solo-settings-toggle.checked .solo-settings-toggle-knob {
+	transform: translateX(14px);
+}
+
+@media (max-width: 780px) {
+	.solo-settings-shell {
+		grid-template-columns: 1fr;
+		padding: 20px;
+	}
+
+	.solo-settings-sidebar {
+		display: none;
+	}
+}

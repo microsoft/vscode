@@ -427,3 +427,47 @@
 		opacity: 0.4;
 	}
 }
+
+/* Solo: agent sessions as soft task rows */
+.agent-sessions-viewer {
+	background: transparent;
+}
+
+.agent-sessions-viewer .monaco-list-row {
+	border-radius: 10px;
+}
+
+.agent-sessions-viewer .monaco-list-row:hover {
+	background-color: rgba(255, 255, 255, 0.045);
+}
+
+.agent-sessions-viewer .monaco-list-row.selected {
+	background-color: rgba(255, 255, 255, 0.065);
+}
+
+.agent-sessions-viewer .agent-session-item {
+	padding: 9px 8px;
+}
+
+.agent-sessions-viewer .agent-session-title-row {
+	font-size: 12px;
+	font-weight: 600;
+}
+
+.agent-sessions-viewer .agent-session-details-row,
+.agent-sessions-viewer .agent-session-section {
+	color: var(--vscode-descriptionForeground);
+}
+
+.agent-sessions-viewer .agent-session-icon {
+	width: 18px;
+	height: 18px;
+	border-radius: 6px;
+	background: rgba(255, 255, 255, 0.045);
+}
+
+.agent-sessions-viewer .agent-sessions-empty-filter-message {
+	margin: 8px;
+	border-radius: 10px;
+	background: rgba(255, 255, 255, 0.035);
+}
