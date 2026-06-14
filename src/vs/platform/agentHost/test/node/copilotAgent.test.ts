@@ -510,6 +510,22 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('createSession falls back to user home when workingDirectory is omitted', async () => {
+		const agent = createTestAgent(disposables);
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+
+			const result = await agent.createSession({
+				session: AgentSession.uri('copilotcli', 'home-fallback'),
+			});
+
+			assert.strictEqual(result.provisional, true);
+			assert.strictEqual(result.workingDirectory?.toString(), URI.file(os.homedir()).toString());
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	suite('restart on startup config change', () => {
 
 		class StopCountingClient extends TestCopilotClient {
