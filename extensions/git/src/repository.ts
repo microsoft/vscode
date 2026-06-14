@@ -1073,7 +1073,7 @@ export class Repository implements Disposable {
 		// Default branch protection provider
 		const onBranchProtectionProviderChanged = filterEvent(this.branchProtectionProviderRegistry.onDidChangeBranchProtectionProviders, e => pathEquals(e.fsPath, root.fsPath));
 		this.disposables.push(onBranchProtectionProviderChanged(root => this.updateBranchProtectionMatchers(root)));
-		this.disposables.push(this.branchProtectionProviderRegistry.registerBranchProtectionProvider(root, new GitBranchProtectionProvider(root)));
+		this.disposables.push(this.branchProtectionProviderRegistry.registerBranchProtectionProvider(root, new GitBranchProtectionProvider(root, this.logger)));
 
 		const statusBar = new StatusBarCommands(this, remoteSourcePublisherRegistry);
 		this.disposables.push(statusBar);
@@ -1497,8 +1497,13 @@ export class Repository implements Disposable {
 			return message;
 		}
 
+		const chatConfig = workspace.getConfiguration('chat');
+		if (chatConfig.get<boolean>('disableAIFeatures', false)) {
+			return message;
+		}
+
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
-		const addAICoAuthor = config.get<'off' | 'chatAndAgent' | 'all'>('addAICoAuthor', 'all');
+		const addAICoAuthor = config.get<'off' | 'chatAndAgent' | 'all'>('addAICoAuthor', 'off');
 
 		if (addAICoAuthor === 'off') {
 			return message;

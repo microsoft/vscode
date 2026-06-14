@@ -33,7 +33,7 @@ You MUST check compilation output before running ANY script or declaring work co
 
 ### TypeScript compilation steps
 - Monitor the `start-watch-tasks` task outputs for real-time compilation errors as you make changes
-- This task runs `npm: watch:tsc-extension`,`npm: watch:tsc-extension-web`, `npm: watch:tsc-simulation-workbench`, and `npm: watch:esbuild` to incrementally compile the project
+- This task runs `npm: watch:typecheck-extension`,`npm: watch:typecheck-extension-web`, `npm: watch:typecheck-simulation-workbench`, and `npm: watch:esbuild` to incrementally compile the project
 - Start the task if it's not already running in the background
 
 ## Project Architecture
@@ -46,7 +46,7 @@ You MUST check compilation output before running ANY script or declaring work co
 - **`src/util/`**: Common utilities, VS Code API abstractions, and service infrastructure
 
 #### Build & Configuration
-- **`.esbuild.ts`**: Build configuration for bundling extension, web worker, and simulation workbench
+- **`.esbuild.mts`**: Build configuration for bundling extension, web worker, and simulation workbench
 - **`tsconfig.json`**: TypeScript configuration extending base config with React JSX settings
 - **`vite.config.ts`**: Test configuration for Vitest unit tests
 - **`package.json`**: Extension manifest with VS Code contributions, dependencies, and scripts

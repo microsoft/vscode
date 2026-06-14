@@ -16,10 +16,10 @@ import { ChatFetchResponseType, ChatLocation, ChatResponse } from '../../chat/co
 import { getTextPart } from '../../chat/common/globalStringUtils';
 import { CHAT_MODEL, ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { ILogService } from '../../log/common/logService';
-import { isAnthropicContextEditingEnabled } from '../../networking/common/anthropic';
+import { isAnthropicContextEditingEnabled, isExtendedCacheTtlEnabled } from '../../networking/common/anthropic';
 import { FinishedCallback, getRequestId, ICopilotToolCall, OptionalChatRequestParams } from '../../networking/common/fetch';
 import { IFetcherService, Response } from '../../networking/common/fetcherService';
-import { createCapiRequestBody, IChatEndpoint, ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions } from '../../networking/common/networking';
+import { createCapiRequestBody, IChatEndpoint, IChatEndpointTokenPricing, ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions, InteractionTypeOverride } from '../../networking/common/networking';
 import { CAPIChatMessage, ChatCompletion, FinishedCompletionReason, RawMessageConversionCallback } from '../../networking/common/openai';
 import { prepareChatCompletionForReturn } from '../../networking/node/chatStream';
 import { IChatWebSocketManager } from '../../networking/node/chatWebSocketManager';
@@ -29,9 +29,10 @@ import { ITelemetryService, TelemetryProperties } from '../../telemetry/common/t
 import { TelemetryData } from '../../telemetry/common/telemetryData';
 import { ITokenizerProvider } from '../../tokenizer/node/tokenizer';
 import { ICAPIClientService } from '../common/capiClient';
-import { isAnthropicFamily, isGeminiFamily, modelSupportsContextEditing, modelSupportsToolSearch } from '../common/chatModelCapabilities';
+import { getModelCapabilityOverride, isAnthropicFamily, isGeminiFamily, modelSupportsContextEditing, modelSupportsToolSearch } from '../common/chatModelCapabilities';
 import { IDomainService } from '../common/domainService';
 import { CustomModel, IChatModelInformation, ModelSupportedEndpoint } from '../common/endpointProvider';
+import { normalizeTokenPrices } from '../../../extension/conversation/common/languageModelAccess';
 import { createMessagesRequestBody, processResponseFromMessagesEndpoint } from './messagesApi';
 import { createResponsesRequestBody, getResponsesApiCompactionThreshold, processResponseFromChatEndpoint } from './responsesApi';
 import { filterHistoryImages } from './imageLimits';
@@ -135,6 +136,8 @@ export class ChatEndpoint implements IChatEndpoint {
 	public readonly isPremium?: boolean | undefined;
 	public readonly multiplier?: number | undefined;
 	public readonly restrictedToSkus?: string[] | undefined;
+	public readonly tokenPricing?: IChatEndpointTokenPricing | undefined;
+	public readonly priceCategory?: string | undefined;
 	public readonly customModel?: CustomModel | undefined;
 	public readonly maxPromptImages?: number | undefined;
 
@@ -159,12 +162,19 @@ export class ChatEndpoint implements IChatEndpoint {
 		this.modelProvider = modelMetadata.vendor;
 		this.name = modelMetadata.name;
 		this.version = modelMetadata.version;
-		this.family = modelMetadata.capabilities.family;
-		this.tokenizer = modelMetadata.capabilities.tokenizer;
+		const capabilityOverride = getModelCapabilityOverride(this.model, this._configurationService);
+		this.family = capabilityOverride?.family ?? modelMetadata.capabilities.family;
+		this.tokenizer = modelMetadata.capabilities.tokenizer ?? TokenizerType.O200K;
 		this.showInModelPicker = modelMetadata.model_picker_enabled;
 		this.isPremium = modelMetadata.billing?.is_premium;
 		this.multiplier = modelMetadata.billing?.multiplier;
 		this.restrictedToSkus = modelMetadata.billing?.restricted_to;
+		const normalized = normalizeTokenPrices(modelMetadata.billing?.token_prices);
+		this.tokenPricing = normalized ? {
+			default: { inputPrice: normalized.default.inputPrice, outputPrice: normalized.default.outputPrice, cacheReadTokenPrice: normalized.default.cachePrice ?? 0, contextMax: normalized.default.contextMax },
+			longContext: normalized.longContext ? { inputPrice: normalized.longContext.inputPrice, outputPrice: normalized.longContext.outputPrice, cacheReadTokenPrice: normalized.longContext.cachePrice ?? 0, contextMax: normalized.longContext.contextMax } : undefined,
+		} : undefined;
+		this.priceCategory = modelMetadata.model_picker_price_category;
 		this.isFallback = modelMetadata.is_chat_fallback;
 		this.supportsToolCalls = !!modelMetadata.capabilities.supports.tool_calls;
 		this.supportsVision = !!modelMetadata.capabilities.supports.vision;
@@ -173,8 +183,8 @@ export class ChatEndpoint implements IChatEndpoint {
 		this.minThinkingBudget = modelMetadata.capabilities.supports.min_thinking_budget;
 		this.maxThinkingBudget = modelMetadata.capabilities.supports.max_thinking_budget;
 		this.supportsReasoningEffort = modelMetadata.capabilities.supports.reasoning_effort;
-		this.supportsToolSearch = modelMetadata.capabilities.supports.tool_search ?? modelSupportsToolSearch(this.model, this._configurationService, this._expService);
-		this.supportsContextEditing = modelMetadata.capabilities.supports.context_editing ?? modelSupportsContextEditing(this.model);
+		this.supportsToolSearch = modelMetadata.capabilities.supports.tool_search ?? modelSupportsToolSearch(this);
+		this.supportsContextEditing = modelMetadata.capabilities.supports.context_editing ?? modelSupportsContextEditing(this);
 		this._supportsStreaming = !!modelMetadata.capabilities.supports.streaming;
 		this.customModel = modelMetadata.custom_model;
 		this.maxPromptImages = modelMetadata.capabilities.limits?.vision?.max_prompt_images;
@@ -184,33 +194,42 @@ export class ChatEndpoint implements IChatEndpoint {
 	// so getExtraHeaders can gate the interleaved-thinking header on whether thinking is actually enabled for the
 	// request, rather than using the location check. Once plumbed, replace isAllowedConversationAgentModel with
 	// an enableThinking check for the thinking header (keep location gate for context management / tool search).
-	public getExtraHeaders(_location?: ChatLocation): Record<string, string> {
+	public getExtraHeaders(location?: ChatLocation, interactionTypeOverride?: InteractionTypeOverride): Record<string, string> {
 		const headers: Record<string, string> = { ...this.modelMetadata.requestHeaders };
 
 		if (this.useMessagesApi) {
-
 			const modelProviderPreference = this._configurationService.getConfig(ConfigKey.TeamInternal.ModelProviderPreference);
 			if (modelProviderPreference) {
 				headers['X-Model-Provider-Preference'] = modelProviderPreference;
 			}
-
-			const betas: string[] = [];
-
-			if (!this.supportsAdaptiveThinking) {
-				betas.push('interleaved-thinking-2025-05-14');
-			}
-			if (this.supportsToolSearch) {
-				betas.push('advanced-tool-use-2025-11-20');
-			}
-			if (isAnthropicContextEditingEnabled(this, this._configurationService, this._expService)) {
-				betas.push('context-management-2025-06-27');
-			}
-			if (betas.length > 0) {
-				headers['anthropic-beta'] = betas.join(',');
-			}
 		}
 
+		Object.assign(headers, this.getAnthropicBetaHeader(location, interactionTypeOverride));
+
 		return headers;
+	}
+
+	protected getAnthropicBetaHeader(location?: ChatLocation, interactionTypeOverride?: InteractionTypeOverride): Record<string, string> {
+		if (!this.useMessagesApi) {
+			return {};
+		}
+		const betas: string[] = [];
+		if (!this.supportsAdaptiveThinking) {
+			betas.push('interleaved-thinking-2025-05-14');
+		}
+		if (this.supportsToolSearch) {
+			betas.push('advanced-tool-use-2025-11-20');
+		}
+		if (isAnthropicContextEditingEnabled(this, this._configurationService, this._expService)) {
+			betas.push('context-management-2025-06-27');
+		}
+		// Mirror the body-side gate from messagesApi.ts so the beta header is never sent for
+		// requests that won't actually emit `ttl: '1h'` (subagents, non-Agent locations, etc.).
+		const isSubagent = interactionTypeOverride === 'conversation-subagent';
+		if (isExtendedCacheTtlEnabled(this, this._configurationService, this._expService, location, isSubagent)) {
+			betas.push('extended-cache-ttl-2025-04-11');
+		}
+		return betas.length > 0 ? { 'anthropic-beta': betas.join(',') } : {};
 	}
 
 	public get modelMaxPromptTokens(): number {
@@ -353,6 +372,17 @@ export class ChatEndpoint implements IChatEndpoint {
 			// Only override tool_choice if experiment provides a value and user hasn't specified a function call
 			if (geminiFunctionCallingMode && typeof body.tool_choice !== 'object') {
 				body.tool_choice = geminiFunctionCallingMode;
+			}
+		}
+
+		// Force low reasoning effort for Gemini 3 models when the experiment is enabled
+		if (this.family.toLowerCase().includes('gemini-3')) {
+			const lowReasoningEnabled = this._configurationService.getExperimentBasedConfig(
+				ConfigKey.EnableGemini3LowReasoningEffort,
+				this._expService
+			);
+			if (lowReasoningEnabled) {
+				body.reasoning_effort = 'low';
 			}
 		}
 

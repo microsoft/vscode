@@ -77,9 +77,9 @@ async function copyCopilotCliWorkerFiles() {
 	await copyCopilotCLIFolders(sourceDir, targetDir);
 }
 
-async function copyCopilotCliSharpFiles() {
-	const sourceDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'sharp');
-	const targetDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'sdk', 'sharp');
+async function copyCopilotCliTGrepFiles() {
+	const sourceDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'tgrep');
+	const targetDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'sdk', 'tgrep');
 
 	await copyCopilotCLIFolders(sourceDir, targetDir);
 }
@@ -108,15 +108,28 @@ async function copyCopilotCliQueryFiles() {
 async function copyCopilotCliPrebuildFiles() {
 	const sourceDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'prebuilds');
 	const targetDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'sdk', 'prebuilds');
-
 	await fs.promises.rm(targetDir, { recursive: true, force: true });
 	await fs.promises.mkdir(targetDir, { recursive: true });
 	await fs.promises.cp(sourceDir, targetDir, {
 		recursive: true, force: true, filter: (src) => {
 			try {
-				// Only copy computer.node and win32.node files
 				if (fs.statSync(src).isFile()) {
-					return src.endsWith('computer.node') || src.endsWith('win32.node');
+					const normalizedSrc = src.split(path.sep).join(path.posix.sep);
+					if (normalizedSrc.includes('/prebuilds/linuxmusl-')) {
+						return false;
+					}
+					return src.endsWith('computer.node')
+						|| src.endsWith('runtime.node')
+						|| src.endsWith('cli-native.node')
+						// node-pty natives: pty.node (+ spawn-helper) on Unix,
+						// conpty.node and its companions on Windows. `endsWith('pty.node')`
+						// also matches `conpty.node`. The conpty native additionally needs
+						// conpty_console_list.node and the conpty/ helpers (OpenConsole.exe,
+						// conpty.dll) to actually spawn. The *.pdb debug symbols are skipped.
+						|| src.endsWith('pty.node')
+						|| src.endsWith('conpty_console_list.node')
+						|| src.endsWith('spawn-helper')
+						|| normalizedSrc.includes('/conpty/');
 				}
 				return true;
 			} catch {
@@ -180,9 +193,9 @@ async function main() {
 
 	await removeCopilotCLIShim();
 	await copyCopilotCliWorkerFiles();
-	await copyCopilotCliSharpFiles();
 	await copyCopilotCliDefinitionFiles();
 	await copyCopilotCliSkillsFiles();
+	await copyCopilotCliTGrepFiles();
 	await copyCopilotCliQueryFiles();
 	await copyCopilotCliPrebuildFiles();
 

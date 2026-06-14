@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as l10n from '@vscode/l10n';
-import { ProgressLocation, Uri, window } from 'vscode';
+import { ProgressLocation, Uri, window, workspace } from 'vscode';
 import { compute4GramTextSimilarity } from '../../../platform/editSurvivalTracking/common/editSurvivalTracker';
 import { IGitCommitMessageService } from '../../../platform/git/common/gitCommitMessageService';
 import { IGitDiffService } from '../../../platform/git/common/gitDiffService';
@@ -68,58 +68,64 @@ export class GitCommitMessageServiceImpl implements IGitCommitMessageService {
 			return undefined;
 		}
 
-		return window.withProgress({ location: ProgressLocation.SourceControl }, async () => {
-			try {
-				// Explicitly refresh (best effort) the repository state to make
-				// sure that the repository state is up-to-date before generating
-				// the commit message.
-				await repository.status();
-			} catch (err) { }
+		return workspace.isAgentSessionsWorkspace
+			? this._doGenerateCommitMessage(repository, cancellationToken)
+			: window.withProgress({ location: ProgressLocation.SourceControl }, async () => {
+				return this._doGenerateCommitMessage(repository, cancellationToken);
+			});
+	}
 
-			const indexChanges = repository.state.indexChanges.length;
-			const workingTreeChanges = repository.state.workingTreeChanges.length;
-			const untrackedChanges = repository.state.untrackedChanges?.length ?? 0;
+	private async _doGenerateCommitMessage(repository: Repository, cancellationToken: CancellationToken): Promise<string | undefined> {
+		try {
+			// Explicitly refresh (best effort) the repository state to make
+			// sure that the repository state is up-to-date before generating
+			// the commit message.
+			await repository.status();
+		} catch (err) { }
 
-			if (indexChanges + workingTreeChanges + untrackedChanges === 0) {
-				window.showInformationMessage(l10n.t('Cannot generate a commit message because there are no changes.'));
-				return undefined;
-			}
+		const indexChanges = repository.state.indexChanges.length;
+		const workingTreeChanges = repository.state.workingTreeChanges.length;
+		const untrackedChanges = repository.state.untrackedChanges?.length ?? 0;
 
-			const resources = repository.state.indexChanges.length > 0
-				// Index
-				? repository.state.indexChanges
-				// Working tree, untracked changes
-				: [
-					...repository.state.workingTreeChanges,
-					...repository.state.untrackedChanges ?? []
-				];
+		if (indexChanges + workingTreeChanges + untrackedChanges === 0) {
+			window.showInformationMessage(l10n.t('Cannot generate a commit message because there are no changes.'));
+			return undefined;
+		}
 
-			const changes = await this._gitDiffService.getChangeDiffs(repository, resources);
+		const resources = repository.state.indexChanges.length > 0
+			// Index
+			? repository.state.indexChanges
+			// Working tree, untracked changes
+			: [
+				...repository.state.workingTreeChanges,
+				...repository.state.untrackedChanges ?? []
+			];
 
-			if (changes.length === 0) {
-				window.showInformationMessage(l10n.t('Cannot generate a commit message because the changes were excluded from the context due to content exclusion rules.'));
-				return undefined;
-			}
+		const changes = await this._gitDiffService.getChangeDiffs(repository, resources);
 
-			const diffs = changes.map(diff => diff.diff);
-			const attemptCount = this._getAttemptCount(repository, diffs);
-			const recentCommitMessages = await this._getRecentCommitMessages(repository);
+		if (changes.length === 0) {
+			window.showInformationMessage(l10n.t('Cannot generate a commit message because the changes were excluded from the context due to content exclusion rules.'));
+			return undefined;
+		}
 
-			const repositoryName = basename(repository.rootUri);
-			const branchName = repository.state.HEAD?.name ?? '';
-			const gitCommitMessageGenerator = this._instantiationService.createInstance(GitCommitMessageGenerator);
-			const commitMessage = await gitCommitMessageGenerator.generateGitCommitMessage(repositoryName, branchName, changes, recentCommitMessages, attemptCount, cancellationToken);
+		const diffs = changes.map(diff => diff.diff);
+		const attemptCount = this._getAttemptCount(repository, diffs);
+		const recentCommitMessages = await this._getRecentCommitMessages(repository);
 
-			// Save generated commit message
-			if (commitMessage && repository.state.HEAD && repository.state.HEAD.commit) {
-				const commitMessages = this._commitMessages.get(repository.rootUri.toString()) ?? new Map<string, CommitMessage>();
-				commitMessages.set(repository.state.HEAD.commit, { attemptCount, changes: diffs, message: commitMessage });
+		const repositoryName = basename(repository.rootUri);
+		const branchName = repository.state.HEAD?.name ?? '';
+		const gitCommitMessageGenerator = this._instantiationService.createInstance(GitCommitMessageGenerator);
+		const commitMessage = await gitCommitMessageGenerator.generateGitCommitMessage(repositoryName, branchName, changes, recentCommitMessages, attemptCount, cancellationToken);
 
-				this._commitMessages.set(repository.rootUri.toString(), commitMessages);
-			}
+		// Save generated commit message
+		if (commitMessage && repository.state.HEAD && repository.state.HEAD.commit) {
+			const commitMessages = this._commitMessages.get(repository.rootUri.toString()) ?? new Map<string, CommitMessage>();
+			commitMessages.set(repository.state.HEAD.commit, { attemptCount, changes: diffs, message: commitMessage });
 
-			return commitMessage;
-		});
+			this._commitMessages.set(repository.rootUri.toString(), commitMessages);
+		}
+
+		return commitMessage;
 	}
 
 	async getRepository(uri?: Uri): Promise<Repository | null> {

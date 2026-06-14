@@ -2,7 +2,7 @@ pr: none
 
 schedules:
   - cron: "0 5 * * Mon-Fri"
-    displayName: Mon-Fri at 5:00 UTC (build, publish and release)
+    displayName: Mon-Fri at 5:00 UTC (build, publish, and release)
     branches:
       include:
         - main
@@ -132,7 +132,7 @@ variables:
   - name: VSCODE_BUILD_STAGE_WEB
     value: ${{ eq(parameters.VSCODE_BUILD_WEB, true) }}
   - name: VSCODE_CIBUILD
-    value: ${{ or(and(in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI'), not(startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'))), eq(parameters.VSCODE_BUILD_TYPE, 'CI')) }}
+    value: ${{ or(in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI'), eq(parameters.VSCODE_BUILD_TYPE, 'CI')) }}
   - name: VSCODE_PUBLISH
     value: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false)) }}
   - name: VSCODE_SCHEDULEDBUILD
@@ -223,6 +223,9 @@ extends:
           os: linux
         jobs:
           - template: build/azure-pipelines/product-copilot.yml@self
+            parameters:
+              VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
+              VSCODE_RELEASE: ${{ parameters.VSCODE_RELEASE }}
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
         - stage: Windows
@@ -525,32 +528,32 @@ extends:
                   container: centos
                   arch: arm64
 
-            # Debian 10
+            # Debian 11
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
               - template: build/azure-pipelines/common/sanity-tests.yml@self
                 parameters:
-                  name: debian_10_amd64
-                  displayName: Debian 10 amd64
+                  name: debian_11_amd64
+                  displayName: Debian 11 amd64
                   poolName: 1es-ubuntu-22.04-x64
-                  container: debian-10
+                  container: debian-11
                   arch: amd64
 
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true) }}:
               - template: build/azure-pipelines/common/sanity-tests.yml@self
                 parameters:
-                  name: debian_10_arm32
-                  displayName: Debian 10 arm32
+                  name: debian_11_arm32
+                  displayName: Debian 11 arm32
                   poolName: 1es-azure-linux-3-arm64
-                  container: debian-10
+                  container: debian-11
                   arch: arm
 
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
               - template: build/azure-pipelines/common/sanity-tests.yml@self
                 parameters:
-                  name: debian_10_arm64
-                  displayName: Debian 10 arm64
+                  name: debian_11_arm64
+                  displayName: Debian 11 arm64
                   poolName: 1es-azure-linux-3-arm64
-                  container: debian-10
+                  container: debian-11
                   arch: arm64
 
             # Debian 12
@@ -581,42 +584,42 @@ extends:
                   container: debian-12
                   arch: arm64
 
-            # Fedora 36
+            # Fedora 42
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
               - template: build/azure-pipelines/common/sanity-tests.yml@self
                 parameters:
-                  name: fedora_36_amd64
-                  displayName: Fedora 36 amd64
+                  name: fedora_42_amd64
+                  displayName: Fedora 42 amd64
                   poolName: 1es-ubuntu-22.04-x64
-                  container: fedora-36
+                  container: fedora-42
                   arch: amd64
 
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
               - template: build/azure-pipelines/common/sanity-tests.yml@self
                 parameters:
-                  name: fedora_36_arm64
-                  displayName: Fedora 36 arm64
+                  name: fedora_42_arm64
+                  displayName: Fedora 42 arm64
                   poolName: 1es-azure-linux-3-arm64
-                  container: fedora-36
+                  container: fedora-42
                   arch: arm64
 
-            # Fedora 40
+            # Fedora 43
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
               - template: build/azure-pipelines/common/sanity-tests.yml@self
                 parameters:
-                  name: fedora_40_amd64
-                  displayName: Fedora 40 amd64
+                  name: fedora_43_amd64
+                  displayName: Fedora 43 amd64
                   poolName: 1es-ubuntu-22.04-x64
-                  container: fedora-40
+                  container: fedora-43
                   arch: amd64
 
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
               - template: build/azure-pipelines/common/sanity-tests.yml@self
                 parameters:
-                  name: fedora_40_arm64
-                  displayName: Fedora 40 arm64
+                  name: fedora_43_arm64
+                  displayName: Fedora 43 arm64
                   poolName: 1es-azure-linux-3-arm64
-                  container: fedora-40
+                  container: fedora-43
                   arch: arm64
 
             # openSUSE Leap 16.0
@@ -750,50 +753,6 @@ extends:
                   - template: build/azure-pipelines/product-release.yml@self
                     parameters:
                       VSCODE_RELEASE: ${{ parameters.VSCODE_RELEASE }}
-
-      - ${{ if and(in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI'), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/')) }}:
-        - stage: TriggerStableBuild
-          displayName: Trigger Stable Build
-          dependsOn: []
-          pool:
-            name: 1es-ubuntu-22.04-x64
-            os: linux
-          jobs:
-            - job: TriggerStableBuild
-              displayName: Trigger Stable Build
-              steps:
-                - checkout: none
-                - script: |
-                    set -e
-                    node -e '
-                      async function main() {
-                        const body = JSON.stringify({
-                          definition: { id: Number(process.env.DEFINITION_ID) },
-                          sourceBranch: process.env.SOURCE_BRANCH,
-                          sourceVersion: process.env.SOURCE_VERSION,
-                          templateParameters: { VSCODE_QUALITY: "stable", VSCODE_RELEASE: "false" }
-                        });
-                        console.log(`Triggering stable build on ${process.env.SOURCE_BRANCH} @ ${process.env.SOURCE_VERSION}...`);
-                        const response = await fetch(process.env.BUILDS_API_URL, {
-                          method: "POST",
-                          headers: { "Authorization": `Bearer ${process.env.SYSTEM_ACCESSTOKEN}`, "Content-Type": "application/json" },
-                          body
-                        });
-                        if (!response.ok) {
-                          throw new Error(`Request failed with status ${response.status}: ${await response.text()}`);
-                        }
-                        const build = await response.json();
-                        console.log(`Build queued successfully — ID: ${build.id}, URL: ${build._links.web.href}`);
-                      }
-                      main().catch(err => { console.error(err); process.exit(1); });
-                    '
-                  displayName: Queue stable build
-                  env:
-                    SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-                    DEFINITION_ID: $(System.DefinitionId)
-                    SOURCE_BRANCH: $(Build.SourceBranch)
-                    SOURCE_VERSION: $(Build.SourceVersion)
-                    BUILDS_API_URL: $(System.TeamFoundationCollectionUri)$(System.TeamProject)/_apis/build/builds?api-version=7.0
 
       - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
         - stage: node_modules

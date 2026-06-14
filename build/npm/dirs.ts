@@ -38,7 +38,7 @@ export const dirs = [
 	'extensions/markdown-math',
 	'extensions/media-preview',
 	'extensions/merge-conflict',
-	'extensions/mermaid-chat-features',
+	'extensions/mermaid-markdown-features',
 	'extensions/microsoft-authentication',
 	'extensions/notebook-renderers',
 	'extensions/npm',
@@ -63,6 +63,7 @@ export const dirs = [
 	'.vscode/extensions/vscode-selfhost-import-aid',
 	'.vscode/extensions/vscode-selfhost-test-provider',
 	'.vscode/extensions/vscode-extras',
+	'.vscode/extensions/vscode-pr-pinger',
 ];
 
 if (existsSync(`${import.meta.dirname}/../../.build/distro/npm`)) {

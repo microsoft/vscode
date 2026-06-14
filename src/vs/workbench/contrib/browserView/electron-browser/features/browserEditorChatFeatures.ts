@@ -5,9 +5,9 @@
 
 import { localize, localize2 } from '../../../../../nls.js';
 import { $ } from '../../../../../base/browser/dom.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { Event } from '../../../../../base/common/event.js';
 import { IContextKey, IContextKeyService, ContextKeyExpr, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
-import { Action2, registerAction2, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { Action2, registerAction2, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { ServicesAccessor, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyMod, KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -15,7 +15,6 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { Event } from '../../../../../base/common/event.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -23,25 +22,28 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IChatWidgetService } from '../../../chat/browser/chat.js';
+import { IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
+import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { IElementData, IElementAncestor, BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
-import { IBrowserViewModel } from '../../../browserView/common/browserView.js';
+import { IBrowserViewModel, BrowserViewSharingState } from '../../../browserView/common/browserView.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { WorkbenchHoverDelegate } from '../../../../../platform/hover/browser/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
-import { BrowserEditor, BrowserEditorContribution, IBrowserEditorWidgetContribution, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_FOCUSED } from '../browserEditor.js';
+import { BrowserEditor, BrowserEditorContribution, BrowserWidgetLocation, IBrowserEditorWidget, BrowserActionCategory, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL, BrowserActionGroup } from '../browserEditor.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
+import product from '../../../../../platform/product/common/product.js';
+import { AgentHostEnabledSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
 import { safeSetInnerHtml } from '../../../../../base/browser/domSanitize.js';
-import { BrowserActionCategory } from '../browserViewActions.js';
+import { AgentHostChatToolsEnabledSettingId } from '../browserViewWorkbenchService.js';
 
 // Register tools
-import { canShareBrowserWithAgentContext } from '../tools/browserTools.contribution.js';
+import '../tools/browserTools.contribution.js';
 
 /**
  * Format an array of element ancestors into a CSS-selector-like path string.
@@ -60,55 +62,7 @@ function formatElementPath(ancestors: readonly IElementAncestor[] | undefined): 
 		.join(' > ');
 }
 
-function createBoxShorthand(entries: Map<string, string>, propertyName: 'margin' | 'padding'): string | undefined {
-	const topKey = `${propertyName}-top`;
-	const rightKey = `${propertyName}-right`;
-	const bottomKey = `${propertyName}-bottom`;
-	const leftKey = `${propertyName}-left`;
-
-	const top = entries.get(topKey);
-	const right = entries.get(rightKey);
-	const bottom = entries.get(bottomKey);
-	const left = entries.get(leftKey);
-
-	if (top === undefined || right === undefined || bottom === undefined || left === undefined) {
-		return undefined;
-	}
-
-	entries.delete(topKey);
-	entries.delete(rightKey);
-	entries.delete(bottomKey);
-	entries.delete(leftKey);
-
-	return `${top} ${right} ${bottom} ${left}`;
-}
-
-function formatElementMap(entries: Readonly<Record<string, string>> | undefined): string | undefined {
-	if (!entries || Object.keys(entries).length === 0) {
-		return undefined;
-	}
-
-	const normalizedEntries = new Map(Object.entries(entries));
-	const lines: string[] = [];
-
-	const marginShorthand = createBoxShorthand(normalizedEntries, 'margin');
-	if (marginShorthand) {
-		lines.push(`- margin: ${marginShorthand}`);
-	}
-
-	const paddingShorthand = createBoxShorthand(normalizedEntries, 'padding');
-	if (paddingShorthand) {
-		lines.push(`- padding: ${paddingShorthand}`);
-	}
-
-	for (const [name, value] of Array.from(normalizedEntries.entries()).sort(([a], [b]) => a.localeCompare(b))) {
-		lines.push(`- ${name}: ${value}`);
-	}
-
-	return lines.join('\n');
-}
-
-function createElementContextValue(elementData: IElementData, displayName: string, attachCss: boolean): string {
+function createElementContextValue(elementData: IElementData, displayName: string): string {
 	const sections: string[] = [];
 	sections.push('Attached Element Context from Integrated Browser');
 	sections.push(`Element: ${displayName}`);
@@ -119,18 +73,10 @@ function createElementContextValue(elementData: IElementData, displayName: strin
 
 	const htmlPath = formatElementPath(elementData.ancestors);
 	if (htmlPath) {
-		sections.push(`HTML Path:\n${htmlPath}`);
+		sections.push(`HTML Path: ${htmlPath}`);
 	}
 
-	const attributeTable = formatElementMap(elementData.attributes);
-	if (attributeTable) {
-		sections.push(`Attributes:\n${attributeTable}`);
-	}
-
-	const innerText = elementData.innerText?.trim();
-	if (innerText) {
-		sections.push(`Inner Text:\n\`\`\`text\n${innerText}\n\`\`\``);
-	}
+	sections.push(`Outer HTML:\n\`\`\`html\n${elementData.outerHTML}\n\`\`\``);
 
 	if (elementData.dimensions) {
 		const { top, left, width, height } = elementData.dimensions;
@@ -139,15 +85,7 @@ function createElementContextValue(elementData: IElementData, displayName: strin
 		);
 	}
 
-	sections.push(`Outer HTML:\n\`\`\`html\n${elementData.outerHTML}\n\`\`\``);
-
-	if (attachCss) {
-		const computedStyleTable = formatElementMap(elementData.computedStyles);
-		if (computedStyleTable) {
-			sections.push(`Computed Styles:\n${computedStyleTable}`);
-		}
-		sections.push(`Full Computed CSS:\n\`\`\`css\n${elementData.computedStyle}\n\`\`\``);
-	}
+	sections.push(`CSS:\n\`\`\`css\n${elementData.computedStyle}\n\`\`\``);
 
 	return sections.join('\n\n');
 }
@@ -157,6 +95,17 @@ const BROWSER_EDITOR_ACTIVE = ContextKeyExpr.equals('activeEditor', BrowserEdito
 const BrowserCategory = localize2('browserCategory', "Browser");
 
 const CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE = new RawContextKey<boolean>('browserElementSelectionActive', false, localize('browser.elementSelectionActive', "Whether element selection is currently active"));
+const CONTEXT_BROWSER_AREA_SELECTION_ACTIVE = new RawContextKey<boolean>('browserAreaSelectionActive', false, localize('browser.areaSelectionActive', "Whether area selection is currently active"));
+
+type IntegratedBrowserAddScreenshotToChatAddedEvent = {
+	screenshotType: 'viewport' | 'area' | 'fullPage';
+};
+
+type IntegratedBrowserAddScreenshotToChatAddedClassification = {
+	screenshotType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What kind of screenshot was captured (viewport, area, or fullPage).' };
+	owner: 'jruales';
+	comment: 'A screenshot was successfully added to chat from Integrated Browser.';
+};
 
 
 /**
@@ -164,8 +113,8 @@ const CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE = new RawContextKey<boolean>('bro
  * console log attachment to chat, and agent sharing.
  */
 export class BrowserEditorChatIntegration extends BrowserEditorContribution {
-	private _elementSelectionCts: CancellationTokenSource | undefined;
 	private readonly _elementSelectionActiveContext: IContextKey<boolean>;
+	private readonly _areaSelectionActiveContext: IContextKey<boolean>;
 
 	// Share with Agent
 	private readonly _shareButtonContainer: HTMLElement;
@@ -173,11 +122,12 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 
 	constructor(
 		editor: BrowserEditor,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IChatService private readonly chatService: IChatService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -185,6 +135,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 	) {
 		super(editor);
 		this._elementSelectionActiveContext = CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE.bindTo(contextKeyService);
+		this._areaSelectionActiveContext = CONTEXT_BROWSER_AREA_SELECTION_ACTIVE.bindTo(contextKeyService);
 
 		// Build share toggle button
 		const hoverDelegate = this._register(instantiationService.createInstance(
@@ -202,44 +153,52 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 			hoverDelegate
 		}));
 		this._shareButton.element.classList.add('browser-share-toggle');
-		this._shareButton.label = '$(agent)';
+		this._shareButton.label = '$(share-window)';
 
 		this._register(this._shareButton.onDidClick(() => {
 			this._toggleShareWithAgent();
 		}));
 
-		// Show share button only when chat is enabled and browser tools are enabled
-		const updateShareButtonVisibility = () => {
-			this._shareButtonContainer.style.display = contextKeyService.contextMatchesRules(canShareBrowserWithAgentContext) ? '' : 'none';
-		};
-		updateShareButtonVisibility();
-		const agentSharingKeys = new Set(canShareBrowserWithAgentContext.keys());
-		this._register(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(agentSharingKeys))(() => {
-			updateShareButtonVisibility();
+		// Auto-disable element selection when the user sends a chat request.
+		this._register(this.chatService.onDidSubmitRequest(() => {
+			if (this.editor.model?.isElementSelectionActive) {
+				void this.editor.model.toggleElementSelection(false);
+			}
 		}));
 	}
 
-	override get urlBarWidgets(): readonly IBrowserEditorWidgetContribution[] {
-		return [{ element: this._shareButtonContainer, order: 50 }];
+	override get widgets(): readonly IBrowserEditorWidget[] {
+		return [{ location: BrowserWidgetLocation.PostUrl, element: this._shareButtonContainer, order: 50 }];
 	}
 
-	protected override subscribeToModel(model: IBrowserViewModel, store: DisposableStore): void {
+	protected override onModelAttached(model: IBrowserViewModel, store: DisposableStore): void {
 		// Manage sharing state
 		this._updateSharingState(true);
-		store.add(model.onDidChangeSharedWithAgent(() => {
+		store.add(model.onDidChangeSharingState(() => {
 			this._updateSharingState(false);
 		}));
-		store.add(Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(new Set(canShareBrowserWithAgentContext.keys())))(() => {
-			this._updateSharingState(false);
+		store.add(model.onDidSelectElement(async data => {
+			try {
+				await this._attachElementDataToChat(data, model);
+			} catch (error) {
+				this.logService.error('BrowserEditor.addElementToChat: Failed to attach element', error);
+			}
+		}));
+
+		// Sync context key with model state
+		this._elementSelectionActiveContext.set(model.isElementSelectionActive);
+		store.add(model.onDidChangeElementSelectionActive(active => {
+			this._elementSelectionActiveContext.set(active);
+		}));
+		this._areaSelectionActiveContext.set(model.isAreaSelectionActive);
+		store.add(model.onDidChangeAreaSelectionActive(active => {
+			this._areaSelectionActiveContext.set(active);
 		}));
 	}
 
-	override clear(): void {
-		if (this._elementSelectionCts) {
-			this._elementSelectionCts.dispose(true);
-			this._elementSelectionCts = undefined;
-		}
+	override onModelDetached(): void {
 		this._elementSelectionActiveContext.reset();
+		this._areaSelectionActiveContext.reset();
 	}
 
 	// -- Sharing -------------------------------------------------------
@@ -249,24 +208,28 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		if (!model) {
 			return;
 		}
-		model.setSharedWithAgent(!model.sharedWithAgent);
+		model.setSharedWithAgent(model.sharingState !== BrowserViewSharingState.Shared);
 	}
 
 	private _updateSharingState(isInitialState: boolean): void {
 		const model = this.editor.model;
-		const sharingEnabled = this.contextKeyService.contextMatchesRules(canShareBrowserWithAgentContext);
-		const isShared = sharingEnabled && !!model && model.sharedWithAgent;
+		const isShared = model?.sharingState === BrowserViewSharingState.Shared;
+		const isUnavailable = !model || model.sharingState === BrowserViewSharingState.Unavailable;
 
 		this.editor.browserContainer.classList.toggle('animate', !isInitialState);
 		this.editor.browserContainer.classList.toggle('shared', isShared);
 
+		this._shareButtonContainer.style.display = isUnavailable ? 'none' : '';
 		this._shareButton.checked = isShared;
 		this._shareButton.label = isShared
-			? localize('browser.sharingWithAgent', "Sharing with Agent") + ' $(agent)'
-			: '$(agent)';
-		this._shareButton.setTitle(isShared
+			? localize('browser.sharingWithAgent', "Sharing with Agent") + ' $(share-window)'
+			: '$(share-window)';
+
+		const title = isShared
 			? localize('browser.unshareWithAgent', "Stop Sharing with Agent")
-			: localize('browser.shareWithAgent', "Share with Agent"));
+			: localize('browser.shareWithAgent', "Share with Agent");
+		this._shareButton.setTitle(title);
+		this._shareButton.element.setAttribute('aria-label', title);
 	}
 
 	private static readonly SHARING_CONTENT_WARNING_DONT_ASK_KEY = 'browserView.agentSharingContentWarning.dontAskAgain';
@@ -313,89 +276,39 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		return result.confirmed;
 	}
 
+	// -- Chat widget helpers --------------------------------------------
+
+	/**
+	 * Reveal the chat widget and wait for its viewModel to be bound before
+	 * returning. When the chat panel is opened for the first time the session
+	 * model loads asynchronously, and once it loads {@link ChatInputPart}'s
+	 * `_syncFromModel` clears any attachments that were added before the model
+	 * was bound. Callers must use this helper before calling
+	 * {@linkcode IChatWidget.attachmentModel.addContext} so the attachment is
+	 * not silently discarded.
+	 */
+	private async _revealChatWidgetForAttachment(): Promise<IChatWidget | undefined> {
+		const widget = await this.chatWidgetService.revealWidget() ?? this.chatWidgetService.lastFocusedWidget;
+		if (widget && !widget.viewModel) {
+			await Event.toPromise(widget.onDidChangeViewModel);
+		}
+		return widget;
+	}
+
+	/**
+	 * Reveal the chat widget and attach the given entries. Returns false if no widget was available.
+	 * Callers are responsible for running {@link _confirmContentAttachmentRisk} first.
+	 */
+	private async _attachToChat(entries: readonly IChatRequestVariableEntry[]): Promise<boolean> {
+		const widget = await this._revealChatWidgetForAttachment();
+		if (!widget?.attachmentModel) {
+			return false;
+		}
+		widget.attachmentModel.addContext(...entries);
+		return true;
+	}
+
 	// -- Element Selection ----------------------------------------------
-
-	/**
-	 * Start element selection in the browser view, wait for a user selection, and add it to chat.
-	 */
-	async addElementToChat(): Promise<void> {
-		// If selection is already active, cancel it
-		if (this._elementSelectionCts) {
-			this._elementSelectionCts.dispose(true);
-			return;
-		}
-
-		// Start new selection
-		const cts = new CancellationTokenSource();
-		this._elementSelectionCts = cts;
-		this._elementSelectionActiveContext.set(true);
-		cts.token.onCancellationRequested(() => {
-			if (this._elementSelectionCts === cts) {
-				this._elementSelectionCts = undefined;
-				this._elementSelectionActiveContext.set(false);
-			}
-		});
-
-		type IntegratedBrowserAddElementToChatStartEvent = {};
-
-		type IntegratedBrowserAddElementToChatStartClassification = {
-			owner: 'jruales';
-			comment: 'The user initiated an Add Element to Chat action in Integrated Browser.';
-		};
-
-		this.telemetryService.publicLog2<IntegratedBrowserAddElementToChatStartEvent, IntegratedBrowserAddElementToChatStartClassification>('integratedBrowser.addElementToChat.start', {});
-
-		try {
-			const model = this.editor.model;
-			if (!model) {
-				throw new Error('No browser view model found');
-			}
-
-			// Make the browser the focused view
-			this.editor.ensureBrowserFocus();
-
-			// Get element data from user selection
-			const elementData = await model.getElementData(cts.token);
-			if (!elementData) {
-				throw new Error('Element data not found');
-			}
-
-			await this._attachElementDataToChat(elementData, model);
-
-		} catch (error) {
-			if (!cts.token.isCancellationRequested) {
-				this.logService.error('BrowserEditor.addElementToChat: Failed to select element', error);
-			}
-		} finally {
-			cts.dispose(true);
-		}
-	}
-
-	/**
-	 * Accept the currently focused element during element selection and attach it to chat.
-	 */
-	async addFocusedElementToChat(): Promise<void> {
-		if (!this._elementSelectionCts) {
-			return;
-		}
-
-		const cts = this._elementSelectionCts;
-		const model = this.editor.model;
-		if (!model) {
-			return;
-		}
-
-		try {
-			const elementData = await model.getFocusedElementData();
-			if (!elementData) {
-				return;
-			}
-
-			await this._attachElementDataToChat(elementData, model);
-		} finally {
-			cts.dispose(true);
-		}
-	}
 
 	private async _attachElementDataToChat(elementData: IElementData, model: IBrowserViewModel) {
 		const bounds = elementData.bounds;
@@ -419,22 +332,19 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 			displayNameFull = `${last.tagName.toLowerCase()}${last.id ? `#${last.id}` : ''}${last.classNames && last.classNames.length ? `.${last.classNames.join('.')}` : ''}${pseudo}`;
 		}
 
-		const attachCss = this.configurationService.getValue<boolean>('chat.sendElementsToChat.attachCSS');
-		const value = createElementContextValue(elementData, displayNameFull, attachCss);
+		const value = createElementContextValue(elementData, displayNameFull);
 
 		toAttach.push({
 			id: 'element-' + Date.now(),
 			name: displayNameShort,
 			fullName: displayNameFull,
 			value: value,
-			modelDescription: attachCss
-				? 'Structured browser element context with HTML path, attributes, and computed styles.'
-				: 'Structured browser element context with HTML path and attributes.',
+			modelDescription: 'Structured browser element context with HTML path, outer HTML, dimensions, and computed styles.',
 			kind: 'element',
 			icon: ThemeIcon.fromId(Codicon.layout.id),
 			ancestors: elementData.ancestors,
 			attributes: elementData.attributes,
-			computedStyles: attachCss ? elementData.computedStyles : undefined,
+			computedStyles: elementData.computedStyles,
 			dimensions: elementData.dimensions,
 			innerText,
 		});
@@ -458,24 +368,21 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		if (!await this._confirmContentAttachmentRisk(elementData.url ?? model.url)) {
 			return;
 		}
-
-		const widget = await this.chatWidgetService.revealWidget() ?? this.chatWidgetService.lastFocusedWidget;
-		widget?.attachmentModel?.addContext(...toAttach);
+		if (!await this._attachToChat(toAttach)) {
+			return;
+		}
 
 		type IntegratedBrowserAddElementToChatAddedEvent = {
-			attachCss: boolean;
 			attachImages: boolean;
 		};
 
 		type IntegratedBrowserAddElementToChatAddedClassification = {
-			attachCss: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether chat.sendElementsToChat.attachCSS was enabled.' };
 			attachImages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether chat.sendElementsToChat.attachImages was enabled.' };
 			owner: 'jruales';
 			comment: 'An element was successfully added to chat from Integrated Browser.';
 		};
 
 		this.telemetryService.publicLog2<IntegratedBrowserAddElementToChatAddedEvent, IntegratedBrowserAddElementToChatAddedClassification>('integratedBrowser.addElementToChat.added', {
-			attachCss,
 			attachImages
 		});
 	}
@@ -512,10 +419,148 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 				icon: ThemeIcon.fromId(Codicon.terminal.id),
 			});
 
-			const widget = await this.chatWidgetService.revealWidget() ?? this.chatWidgetService.lastFocusedWidget;
-			widget?.attachmentModel?.addContext(...toAttach);
+			await this._attachToChat(toAttach);
 		} catch (error) {
 			this.logService.error('BrowserEditor.addConsoleLogsToChat: Failed to get console logs', error);
+		}
+	}
+
+	// -- Screenshot ----------------------------------------------------
+
+	/**
+	 * Capture a viewport screenshot of the current browser view and attach it to chat.
+	 */
+	async addScreenshotToChat(): Promise<void> {
+		const model = this.editor.model;
+		if (!model) {
+			return;
+		}
+
+		try {
+			// Capture the screenshot BEFORE revealing the chat panel or prompting the
+			// user so the image reflects what the user saw when they pressed the button,
+			// not a reflowed version of the page after the panel opens or a later version
+			// after the dialog appears.
+			const screenshotBuffer = await model.captureScreenshot({ quality: 80 });
+
+			if (!await this._confirmContentAttachmentRisk(model.url)) {
+				return;
+			}
+
+			const toAttach: IChatRequestVariableEntry[] = [{
+				id: 'browser-screenshot-' + Date.now(),
+				name: localize('browserScreenshot', 'Browser Screenshot'),
+				fullName: localize('browserScreenshot', 'Browser Screenshot'),
+				kind: 'image',
+				value: screenshotBuffer.buffer,
+				mimeType: 'image/jpeg',
+			}];
+
+			if (!await this._attachToChat(toAttach)) {
+				return;
+			}
+
+			this.telemetryService.publicLog2<IntegratedBrowserAddScreenshotToChatAddedEvent, IntegratedBrowserAddScreenshotToChatAddedClassification>('integratedBrowser.addScreenshotToChat.added', {
+				screenshotType: 'viewport'
+			});
+		} catch (error) {
+			this.logService.error('BrowserEditor.addScreenshotToChat: Failed to capture screenshot', error);
+		}
+	}
+
+	/**
+	 * Drive the area-screenshot flow: present the drag-to-select picker, capture the
+	 * user-drawn region, and attach the resulting image to chat.
+	 */
+	async addAreaScreenshotToChat(): Promise<void> {
+		const model = this.editor.model;
+		if (!model) {
+			return;
+		}
+
+		// Toggle off if already active — second invocation cancels.
+		if (model.isAreaSelectionActive) {
+			void model.toggleAreaSelection(false);
+			return;
+		}
+
+		this.editor.ensureBrowserFocus();
+
+		// `onDidPickArea` fires exactly once per session with the user-drawn rectangle
+		// or `undefined` on cancellation, so we don't have to reconcile rect vs.
+		// activation-state events across the IPC boundary.
+		const pickPromise = Event.toPromise(Event.once(model.onDidPickArea));
+		void model.toggleAreaSelection(true);
+		const rect = await pickPromise;
+
+		if (!rect) {
+			return;
+		}
+
+		try {
+			// Added awaitNextPaint because the area selection UI (a dashed rectangle) was every so often making its way
+			// into the captured screenshot.
+			const screenshotBuffer = await model.captureScreenshot({ quality: 80, pageRect: rect, awaitNextPaint: true });
+
+			if (!await this._confirmContentAttachmentRisk(model.url)) {
+				return;
+			}
+
+			const toAttach: IChatRequestVariableEntry[] = [{
+				id: 'browser-area-screenshot-' + Date.now(),
+				name: localize('browserAreaScreenshot', 'Browser Area Screenshot'),
+				fullName: localize('browserAreaScreenshot', 'Browser Area Screenshot'),
+				kind: 'image',
+				value: screenshotBuffer.buffer,
+				mimeType: 'image/jpeg',
+			}];
+
+			if (!await this._attachToChat(toAttach)) {
+				return;
+			}
+
+			this.telemetryService.publicLog2<IntegratedBrowserAddScreenshotToChatAddedEvent, IntegratedBrowserAddScreenshotToChatAddedClassification>('integratedBrowser.addScreenshotToChat.added', {
+				screenshotType: 'area'
+			});
+		} catch (error) {
+			this.logService.error('BrowserEditor.addAreaScreenshotToChat: Failed to capture area screenshot', error);
+		}
+	}
+
+	/**
+	 * Capture a full-page screenshot (including content scrolled off-screen) and attach it to chat.
+	 */
+	async addFullPageScreenshotToChat(): Promise<void> {
+		const model = this.editor.model;
+		if (!model) {
+			return;
+		}
+
+		try {
+			const screenshotBuffer = await model.captureScreenshot({ fullPage: true, format: 'png' });
+
+			if (!await this._confirmContentAttachmentRisk(model.url)) {
+				return;
+			}
+
+			const toAttach: IChatRequestVariableEntry[] = [{
+				id: 'browser-fullpage-screenshot-' + Date.now(),
+				name: localize('browserFullPageScreenshot', 'Browser Full Page Screenshot'),
+				fullName: localize('browserFullPageScreenshot', 'Browser Full Page Screenshot'),
+				kind: 'image',
+				value: screenshotBuffer.buffer,
+				mimeType: 'image/png',
+			}];
+
+			if (!await this._attachToChat(toAttach)) {
+				return;
+			}
+
+			this.telemetryService.publicLog2<IntegratedBrowserAddScreenshotToChatAddedEvent, IntegratedBrowserAddScreenshotToChatAddedClassification>('integratedBrowser.addScreenshotToChat.added', {
+				screenshotType: 'fullPage'
+			});
+		} catch (error) {
+			this.logService.error('BrowserEditor.addFullPageScreenshotToChat: Failed to capture full-page screenshot', error);
 		}
 	}
 }
@@ -538,8 +583,8 @@ class AddElementToChatAction extends Action2 {
 			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled),
 			toggled: CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE,
 			menu: {
-				id: MenuId.BrowserActionsToolbar,
-				group: 'actions',
+				id: MenuId.BrowserChatActionsMenu,
+				group: '1_element',
 				order: 1,
 				when: ChatContextKeys.enabled
 			},
@@ -556,7 +601,8 @@ class AddElementToChatAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
 		if (browserEditor instanceof BrowserEditor) {
-			await browserEditor.getContribution(BrowserEditorChatIntegration)?.addElementToChat();
+			browserEditor.ensureBrowserFocus();
+			void browserEditor.model?.toggleElementSelection(undefined);
 		}
 	}
 }
@@ -573,8 +619,8 @@ class AddConsoleLogsToChatAction extends Action2 {
 			f1: true,
 			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled),
 			menu: {
-				id: MenuId.BrowserActionsToolbar,
-				group: 'actions',
+				id: MenuId.BrowserChatActionsMenu,
+				group: '1_element',
 				order: 2,
 				when: ChatContextKeys.enabled
 			}
@@ -588,40 +634,113 @@ class AddConsoleLogsToChatAction extends Action2 {
 	}
 }
 
-class AddFocusedElementToChatAction extends Action2 {
+class AddScreenshotToChatAction extends Action2 {
+	static readonly ID = BrowserViewCommandId.AddScreenshotToChat;
+
 	constructor() {
 		super({
-			id: 'workbench.action.browser.addFocusedElementToChat',
-			title: localize2('browser.addFocusedElementToChat', 'Add Focused Element to Chat'),
+			id: AddScreenshotToChatAction.ID,
+			title: localize2('browser.addScreenshotToChatAction', 'Add Screenshot to Chat'),
 			category: BrowserActionCategory,
-			f1: false,
-			precondition: CONTEXT_BROWSER_FOCUSED,
-			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib + 50,
-				primary: KeyMod.CtrlCmd | KeyCode.Enter,
-				when: CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE
+			icon: Codicon.deviceCamera,
+			f1: true,
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled),
+			menu: {
+				id: MenuId.BrowserChatActionsMenu,
+				group: '2_screenshots',
+				order: 1,
+				when: ChatContextKeys.enabled
 			}
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const browserEditor = accessor.get(IEditorService).activeEditorPane;
+	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
 		if (browserEditor instanceof BrowserEditor) {
-			await browserEditor.getContribution(BrowserEditorChatIntegration)?.addFocusedElementToChat();
+			await browserEditor.getContribution(BrowserEditorChatIntegration)?.addScreenshotToChat();
+		}
+	}
+}
+
+class AddAreaScreenshotToChatAction extends Action2 {
+	static readonly ID = BrowserViewCommandId.AddAreaScreenshotToChat;
+
+	constructor() {
+		super({
+			id: AddAreaScreenshotToChatAction.ID,
+			title: localize2('browser.addAreaScreenshotToChatAction', 'Add Area Screenshot to Chat'),
+			category: BrowserActionCategory,
+			icon: Codicon.screenFull,
+			f1: true,
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled),
+			toggled: CONTEXT_BROWSER_AREA_SELECTION_ACTIVE,
+			menu: {
+				id: MenuId.BrowserChatActionsMenu,
+				group: '2_screenshots',
+				order: 2,
+				when: ChatContextKeys.enabled
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+		if (browserEditor instanceof BrowserEditor) {
+			await browserEditor.getContribution(BrowserEditorChatIntegration)?.addAreaScreenshotToChat();
+		}
+	}
+}
+
+class AddFullPageScreenshotToChatAction extends Action2 {
+	static readonly ID = BrowserViewCommandId.AddFullPageScreenshotToChat;
+
+	constructor() {
+		const enabledSetting = ContextKeyExpr.has('config.workbench.browser.experimentalUserTools.enabled');
+		super({
+			id: AddFullPageScreenshotToChatAction.ID,
+			title: localize2('browser.addFullPageScreenshotToChatAction', 'Add Full Page Screenshot to Chat (Experimental)'),
+			category: BrowserActionCategory,
+			icon: Codicon.deviceCamera,
+			f1: true,
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled, enabledSetting),
+			menu: {
+				id: MenuId.BrowserChatActionsMenu,
+				group: '2_screenshots',
+				order: 3,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, enabledSetting)
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+		if (browserEditor instanceof BrowserEditor) {
+			await browserEditor.getContribution(BrowserEditorChatIntegration)?.addFullPageScreenshotToChat();
 		}
 	}
 }
 
 registerAction2(AddElementToChatAction);
 registerAction2(AddConsoleLogsToChatAction);
-registerAction2(AddFocusedElementToChatAction);
+registerAction2(AddScreenshotToChatAction);
+registerAction2(AddAreaScreenshotToChatAction);
+registerAction2(AddFullPageScreenshotToChatAction);
+
+// Expose the chat actions submenu (Add Element to Chat, etc.) as a split button in the browser actions toolbar.
+// The primary action (chevron's left side) is the first item in the submenu.
+MenuRegistry.appendMenuItem(MenuId.BrowserActionsToolbar, {
+	submenu: MenuId.BrowserChatActionsMenu,
+	title: localize2('browser.chatActionsSubmenu', "Add to Chat"),
+	icon: Codicon.inspect,
+	group: BrowserActionGroup.Tools,
+	order: 1,
+	when: ChatContextKeys.enabled,
+	isSplitButton: true
+});
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	...workbenchConfigurationNodeBase,
 	properties: {
 		'workbench.browser.enableChatTools': {
 			type: 'boolean',
-			default: false,
+			default: true,
 			experiment: { mode: 'startup' },
 			tags: ['experimental'],
 			markdownDescription: localize(
@@ -639,7 +758,26 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 						value: localize('browser.enableChatTools', 'When enabled, chat agents can use browser tools to open and interact with pages in the Integrated Browser.')
 					}
 				},
-			}
+			},
+			agentsWindow: { default: true },
+		},
+		[AgentHostChatToolsEnabledSettingId]: {
+			type: 'boolean',
+			markdownDescription: localize('workbench.browser.agentHostChatToolsEnabled', "When enabled, integrated browser tools are exposed as client-provided tools to agent host sessions in the Sessions window. Requires {0} and {1}.", `\`#${AgentHostEnabledSettingId}#\``, '`#workbench.browser.enableChatTools#`'),
+			default: false,
+			experiment: { mode: 'startup' },
+			tags: ['experimental', 'advanced'],
+			included: product.quality !== 'stable',
+		},
+		'workbench.browser.experimentalUserTools.enabled': {
+			type: 'boolean',
+			default: false,
+			experiment: { mode: 'startup' },
+			tags: ['experimental'],
+			markdownDescription: localize(
+				{ comment: ['This is the description for a setting.'], key: 'browser.experimentalUserTools.enabled' },
+				"When enabled, experimental user-facing tools are available in the Integrated Browser's Add to Chat menu."
+			),
 		}
 	}
 });

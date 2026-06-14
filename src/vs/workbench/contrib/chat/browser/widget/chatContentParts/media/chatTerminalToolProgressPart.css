@@ -8,6 +8,10 @@
 	min-width: 0;
 }
 
+.chat-terminal-progress-row > div:first-child {
+	display: none;
+}
+
 .chat-terminal-content-part .chat-terminal-content-title {
 	border: 1px solid var(--vscode-chat-requestBorder);
 	border-radius: var(--vscode-cornerRadius-medium);
@@ -97,6 +101,21 @@
 	pointer-events: none;
 }
 
+.chat-terminal-content-part .chat-terminal-content-title .chat-terminal-command-block .chat-terminal-command-decoration .monaco-pixel-spinner {
+	display: none;
+}
+
+.chat-terminal-content-part .chat-terminal-content-title .chat-terminal-command-block .chat-terminal-command-decoration.chat-terminal-running-spinner {
+	color: var(--vscode-terminalCommandDecoration-defaultBackground);
+	pointer-events: none;
+	margin-right: 3px;
+	margin-left: 2px;
+}
+
+.chat-terminal-content-part .chat-terminal-content-title .chat-terminal-command-block .chat-terminal-command-decoration.chat-terminal-running-spinner .monaco-pixel-spinner {
+	display: inline-grid;
+}
+
 .chat-terminal-content-part .chat-terminal-content-title .chat-terminal-command-block .chat-terminal-command-decoration:focus-visible,
 .chat-terminal-content-part .chat-terminal-content-title .chat-terminal-command-block .terminal-command-decoration:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
@@ -156,7 +175,9 @@
 	border-bottom: 0;
 }
 
-.chat-terminal-output-container.expanded { display: block; }
+.chat-terminal-output-container.expanded {
+	display: block;
+}
 .chat-terminal-output-container > .monaco-scrollable-element {
 	width: 100%;
 	background: inherit;
@@ -238,4 +259,20 @@ div.chat-terminal-content-part.progress-step > div.chat-terminal-output-containe
 .chat-terminal-output-info {
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-chat-font-size-body-xs);
+}
+
+.chat-used-context-label .chat-terminal-show-link {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+	text-decoration: none;
+}
+
+.chat-used-context-label .chat-terminal-show-link:hover {
+	text-decoration: underline;
+	color: var(--vscode-textLink-activeForeground);
+}
+
+.chat-terminal-show-link-container {
+	display: inline;
+	white-space: nowrap;
 }

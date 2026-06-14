@@ -21,7 +21,7 @@ import { ILogService } from '../../../platform/log/common/log.js';
 import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData, ISymbolVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatSessionProviderOptionItem } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
-import { isUntitledChatSession } from '../../contrib/chat/common/model/chatUri.js';
+import { getChatSessionType, isUntitledChatSession } from '../../contrib/chat/common/model/chatUri.js';
 import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/participants/chatAgents.js';
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
 import { ChatSessionContentContextDto, ExtHostChatSessionsShape, IChatAgentProgressShape, IChatNewSessionRequestDto, IChatSessionDto, IChatSessionProviderOptions, IChatSessionRequestHistoryItemDto, MainContext, MainThreadChatSessionsShape } from './extHost.protocol.js';
@@ -651,7 +651,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 
 		const sessionResource = URI.revive(sessionResourceComponents);
 
-		const controllerData = this.getChatSessionItemController(sessionResource.scheme);
+		const controllerData = this.getChatSessionItemController(getChatSessionType(sessionResource));
 		let inputState: vscode.ChatSessionInputState;
 		if (controllerData?.controller.getChatSessionInputState) {
 			const result = await controllerData.controller.getChatSessionInputState(isUntitledChatSession(sessionResource) ? undefined : sessionResource, {
@@ -754,9 +754,10 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			return;
 		}
 
-		const controllerData = this.getChatSessionItemController(sessionResource.scheme);
+		const sessionType = getChatSessionType(sessionResource);
+		const controllerData = this.getChatSessionItemController(sessionType);
 		if (!controllerData || !controllerData.controller.getChatSessionInputState) {
-			this._logService.warn(`No valid controller found for scheme ${sessionResource.scheme}`);
+			this._logService.warn(`No valid controller found for session type ${sessionType}`);
 			return;
 		}
 
@@ -866,7 +867,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 
 		const requestTurn = this.convertRequestDtoToRequestTurn(request);
 
-		const controllerData = this.getChatSessionItemController(sessionResource.scheme);
+		const controllerData = this.getChatSessionItemController(getChatSessionType(sessionResource));
 		if (controllerData?.controller.forkHandler) {
 			const item = await controllerData.controller.forkHandler(sessionResource, requestTurn, token);
 			return typeConvert.ChatSessionItem.from(item);
@@ -949,8 +950,8 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		initialSessionOptions: ReadonlyArray<{ optionId: string; value: string }> | undefined,
 		token: CancellationToken,
 	): Promise<vscode.ChatSessionInputState> {
-		const scheme = sessionResource?.scheme;
-		const controllerData = scheme ? this.getChatSessionItemController(scheme) : undefined;
+		const sessionType = sessionResource ? getChatSessionType(sessionResource) : undefined;
+		const controllerData = sessionType ? this.getChatSessionItemController(sessionType) : undefined;
 		const resolvedResource = sessionResource && !isUntitledChatSession(sessionResource) ? sessionResource : undefined;
 		if (controllerData?.controller.getChatSessionInputState) {
 			const result = await controllerData.controller.getChatSessionInputState(

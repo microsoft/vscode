@@ -17,9 +17,9 @@ import { InstantiationService } from '../../../instantiation/common/instantiatio
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ToolResultContentType } from '../../common/state/sessionState.js';
-import { createZeroDiffComputeService } from '../common/sessionTestHelpers.js';
+import { createZeroDiffComputeService, TestDiffComputeService } from '../common/sessionTestHelpers.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
-import { FileEditTracker, buildSessionDbUri, parseSessionDbUri } from '../../node/copilot/fileEditTracker.js';
+import { FileEditTracker, buildSessionDbUri, parseSessionDbUri } from '../../node/shared/fileEditTracker.js';
 
 suite('FileEditTracker', () => {
 
@@ -104,6 +104,45 @@ suite('FileEditTracker', () => {
 		assert.strictEqual(result, undefined);
 	});
 
+	test('Write to non-existent file records kind=create with removed=0', async () => {
+		// Phase 8 live-E2E finding: a `Write` to a brand-new file was reporting
+		// `diff.removed=1` because the differ saw an empty before-content
+		// against a one-line after-content. The tracker now overrides
+		// `removed` to 0 when the file did not exist before the edit, and
+		// records `kind=create` instead of `edit`. Other counts (`added`)
+		// are still passed through from the diff service unchanged.
+		const services = new ServiceCollection();
+		services.set(ILogService, new NullLogService());
+		services.set(IFileService, fileService);
+		// Fixed `{ added: 1, removed: 1 }` matches the production diff
+		// output observed in the live-E2E run; the tracker should clamp
+		// `removed` to 0 for create.
+		services.set(IDiffComputeService, new TestDiffComputeService({ added: 1, removed: 1 }));
+		const inst: IInstantiationService = disposables.add(new InstantiationService(services));
+		const localTracker = inst.createInstance(FileEditTracker, 'copilot:/test-session', db);
+
+		await localTracker.trackEditStart('/workspace/brand-new.txt');
+		await fileService.writeFile(URI.file('/workspace/brand-new.txt'), VSBuffer.fromString('fresh'));
+		await localTracker.completeEdit('/workspace/brand-new.txt');
+
+		const fileEdit = await localTracker.takeCompletedEdit('turn-1', 'tc-create', '/workspace/brand-new.txt');
+		assert.ok(fileEdit);
+
+		const records = await db.getAllFileEdits();
+		const created = records.find(r => r.toolCallId === 'tc-create');
+		assert.deepStrictEqual({
+			diff: fileEdit.diff,
+			kind: created?.kind,
+			addedLines: created?.addedLines,
+			removedLines: created?.removedLines,
+		}, {
+			diff: { added: 1, removed: 0 },
+			kind: 'create',
+			addedLines: 1,
+			removedLines: 0,
+		});
+	});
+
 	test('before and after content can be read from database', async () => {
 		await fileService.writeFile(URI.file('/workspace/file.ts'), VSBuffer.fromString('original'));
 
@@ -112,9 +151,6 @@ suite('FileEditTracker', () => {
 		await tracker.completeEdit('/workspace/file.ts');
 
 		await tracker.takeCompletedEdit('turn-1', 'tc-3', '/workspace/file.ts');
-
-		// Wait for the fire-and-forget DB write to complete
-		await new Promise(r => setTimeout(r, 50));
 
 		const content = await db.readFileEditContent('tc-3', '/workspace/file.ts');
 		assert.ok(content);

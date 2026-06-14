@@ -18,7 +18,7 @@ import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
-import { buildAgentMarkdown } from '../agentTypes';
+import { buildAgentMarkdown, DEFAULT_READ_TOOLS } from '../agentTypes';
 import { PlanAgentProvider } from '../planAgentProvider';
 
 suite('PlanAgentProvider', () => {
@@ -247,6 +247,24 @@ suite('PlanAgentProvider', () => {
 		const content = await getAgentContent(agents[0]);
 
 		assert.ok(content.includes('vscode/askQuestions'));
+	});
+
+	test('exposes only default read tools plus agent and askQuestions in plan mode by default', async () => {
+		const provider = createProvider();
+		const agents = await provider.provideCustomAgents({}, {} as any);
+
+		assert.equal(agents.length, 1);
+		const content = await getAgentContent(agents[0]);
+
+		const toolsMatch = content.match(/tools: \[([^\]]+)\]/);
+		assert.ok(toolsMatch, 'Tools list not found in agent content');
+		const actualTools = (toolsMatch[1].match(/'([^']+)'/g) || []).map(tool => tool.slice(1, -1)).sort();
+		const expectedTools = [...DEFAULT_READ_TOOLS, 'agent', 'vscode/askQuestions'].sort();
+
+		assert.deepStrictEqual(actualTools, expectedTools);
+		assert.ok(!actualTools.includes('edit'));
+		assert.ok(!actualTools.includes('createFile'));
+		assert.ok(!actualTools.includes('apply_patch'));
 	});
 
 	test('has correct label property', () => {

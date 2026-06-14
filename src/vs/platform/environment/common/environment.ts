@@ -91,15 +91,7 @@ export interface IEnvironmentService {
 	serviceMachineIdResource: URI;
 
 	// --- agent sessions workspace
-	agentSessionsWorkspace?: URI;
-
-	/**
-	 * When running as the embedded Agents app, the user roaming data home of
-	 * the host VS Code application (i.e. the default profile's settings/User
-	 * directory). `undefined` when not running as embedded.
-	 */
-	readonly hostUserRoamingDataHome?: URI;
-
+	agentSessionsWorkspace: URI;
 	// --- Policy
 	policyFile?: URI;
 

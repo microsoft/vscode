@@ -11,7 +11,7 @@ declare module 'vscode' {
 	/**
 	 * Indicates where a chat resource was loaded from.
 	 */
-	export type ChatResourceSource = 'local' | 'user' | 'extension' | 'plugin';
+	export type ChatResourceSource = 'local' | 'user' | 'extension' | 'plugin' | 'builtin';
 
 	/**
 	 * Represents a chat-related resource, such as a custom agent, instructions, prompt file, skill, or slash command.
@@ -96,6 +96,12 @@ declare module 'vscode' {
 		 * Whether this custom agent should be excluded from model invocation.
 		 */
 		readonly disableModelInvocation: boolean;
+
+		/**
+		 * Whether this custom agent is enabled. Disabled agents are included in the list
+		 * but should not be offered to users or used in automated flows.
+		 */
+		readonly enabled: boolean;
 	}
 
 	/**
@@ -186,6 +192,12 @@ declare module 'vscode' {
 		 * Whether this skill should be shown to users as invocable.
 		 */
 		readonly userInvocable?: boolean;
+
+		/**
+		 * Whether this skill should be excluded from model invocation.
+		 * When true, the skill can only be triggered manually via `/name`.
+		 */
+		readonly disableModelInvocation: boolean;
 	}
 
 	/**
@@ -244,6 +256,22 @@ declare module 'vscode' {
 		 * Optional session types that describe when the hook should be offered.
 		 */
 		readonly sessionTypes?: readonly string[];
+
+		/**
+		 * Where the chat resource was loaded from.
+		 */
+		readonly source: ChatResourceSource;
+
+		/**
+		 * The contributing extension identifier when {@link source} is `extension`.
+		 */
+		readonly extensionId?: string;
+
+		/**
+		 * The contributing plugin URI when {@link source} is `plugin`.
+		 */
+		readonly pluginUri?: Uri;
+
 	}
 
 	export interface ChatPlugin {
@@ -252,6 +280,7 @@ declare module 'vscode' {
 		 * Optional session types that describe when the plugin should be offered.
 		 */
 		readonly sessionTypes?: readonly string[];
+
 	}
 
 	// #endregion

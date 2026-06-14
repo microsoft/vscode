@@ -10,6 +10,8 @@ import { IChatHookService } from '../../../platform/chat/common/chatHookService'
 import { IChatMLFetcher } from '../../../platform/chat/common/chatMLFetcher';
 import { ISessionTranscriptService, NullSessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { MockChatMLFetcher } from '../../../platform/chat/test/common/mockChatMLFetcher';
+import { ISessionStore } from '../../../platform/chronicle/common/sessionStore';
+import { SessionStore } from '../../../platform/chronicle/node/sessionStore';
 import { IDiffService } from '../../../platform/diff/common/diffService';
 import { DiffServiceImpl } from '../../../platform/diff/node/diffServiceImpl';
 import { EmbeddingType, IEmbeddingsComputer } from '../../../platform/embeddings/common/embeddingsComputer';
@@ -54,13 +56,14 @@ import { SyncDescriptor } from '../../../util/vs/platform/instantiation/common/d
 import { ILanguageModelServer } from '../../agents/node/langModelServer';
 import { MockLanguageModelServer } from '../../agents/node/test/mockLanguageModelServer';
 import { IClaudeRuntimeDataService } from '../../chatSessions/claude/common/claudeRuntimeDataService';
+import { ClaudePlanFileTracker, IClaudePlanFileTracker } from '../../chatSessions/claude/common/claudePlanFileTracker';
+import { IClaudeSessionStateService } from '../../chatSessions/claude/common/claudeSessionStateService';
 import { IClaudeToolPermissionService } from '../../chatSessions/claude/common/claudeToolPermissionService';
 import { ClaudeCodeModels, IClaudeCodeModels } from '../../chatSessions/claude/node/claudeCodeModels';
 import { IClaudeCodeSdkService } from '../../chatSessions/claude/node/claudeCodeSdkService';
 import { ClaudeRuntimeDataService } from '../../chatSessions/claude/node/claudeRuntimeDataService';
-import { IClaudePluginService } from '../../chatSessions/claude/node/claudeSkills';
-import { IClaudeSessionStateService } from '../../chatSessions/claude/common/claudeSessionStateService';
 import { ClaudeSessionStateService } from '../../chatSessions/claude/node/claudeSessionStateService';
+import { IClaudePluginService } from '../../chatSessions/claude/node/claudeSkills';
 import { MockClaudeCodeSdkService } from '../../chatSessions/claude/node/test/mockClaudeCodeSdkService';
 import { MockClaudeToolPermissionService } from '../../chatSessions/claude/node/test/mockClaudeToolPermissionService';
 import { CommandServiceImpl, ICommandService } from '../../commands/node/commandService';
@@ -74,7 +77,6 @@ import { IChatDiskSessionResources } from '../../prompts/common/chatDiskSessionR
 import { ChatDiskSessionResources } from '../../prompts/node/chatDiskSessionResourcesImpl';
 import { CodeMapperService, ICodeMapperService } from '../../prompts/node/codeMapper/codeMapperService';
 import { FixCookbookService, IFixCookbookService } from '../../prompts/node/inline/fixCookbookService';
-import { AgentMemoryService, IAgentMemoryService } from '../../tools/common/agentMemoryService';
 import { EditToolLearningService, IEditToolLearningService } from '../../tools/common/editToolLearningService';
 import { IMemoryCleanupService, MemoryCleanupService } from '../../tools/common/memoryCleanupService';
 import { ToolDeferralService } from '../../tools/common/toolDeferralService';
@@ -84,9 +86,7 @@ import { ToolGroupingService } from '../../tools/common/virtualTools/toolGroupin
 import '../../tools/node/allTools';
 import { TestToolsService } from '../../tools/node/test/testToolsService';
 import { TestToolEmbeddingsComputer } from '../../tools/test/node/virtualTools/testVirtualTools';
-import { ISimilarFilesContextService } from '../../xtab/common/similarFilesContextService';
-import { ISessionStore } from '../../../platform/chronicle/common/sessionStore';
-import { SessionStore } from '../../../platform/chronicle/node/sessionStore';
+import { ISimilarFilesContextService, NullSimilarFilesContextService } from '../../xtab/common/similarFilesContextService';
 
 export interface ISimulationModelConfig {
 	chatModel?: string;
@@ -127,6 +127,7 @@ export function createExtensionUnitTestingServices(disposables: Pick<DisposableS
 	testingServiceCollection.define(IChatDiskSessionResources, new SyncDescriptor(ChatDiskSessionResources));
 	testingServiceCollection.define(IClaudeCodeSdkService, new SyncDescriptor(MockClaudeCodeSdkService));
 	testingServiceCollection.define(IClaudeToolPermissionService, new SyncDescriptor(MockClaudeToolPermissionService));
+	testingServiceCollection.define(IClaudePlanFileTracker, new SyncDescriptor(ClaudePlanFileTracker));
 	testingServiceCollection.define(IClaudeCodeModels, new SyncDescriptor(ClaudeCodeModels));
 	testingServiceCollection.define(IClaudeSessionStateService, new SyncDescriptor(ClaudeSessionStateService));
 	testingServiceCollection.define(IClaudeRuntimeDataService, new SyncDescriptor(ClaudeRuntimeDataService));
@@ -152,7 +153,6 @@ export function createExtensionUnitTestingServices(disposables: Pick<DisposableS
 	testingServiceCollection.define(ITodoListContextProvider, new SyncDescriptor(TodoListContextProvider));
 	testingServiceCollection.define(ILanguageModelServer, new SyncDescriptor(MockLanguageModelServer));
 	testingServiceCollection.define(IEditToolLearningService, new SyncDescriptor(EditToolLearningService));
-	testingServiceCollection.define(IAgentMemoryService, new SyncDescriptor(AgentMemoryService));
 	testingServiceCollection.define(IMemoryCleanupService, new SyncDescriptor(MemoryCleanupService));
 	testingServiceCollection.define(IGitService, new SyncDescriptor(NullGitExtensionService));
 	testingServiceCollection.define(IGitExtensionService, new SyncDescriptor(NullGitExtensionService));
@@ -177,14 +177,6 @@ class NullClaudePluginService implements IClaudePluginService {
 
 	async getPluginLocations(): Promise<never[]> {
 		return [];
-	}
-}
-
-class NullSimilarFilesContextService implements ISimilarFilesContextService {
-	declare readonly _serviceBrand: undefined;
-
-	async compute(): Promise<undefined> {
-		return undefined;
 	}
 }
 

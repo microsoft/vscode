@@ -5,13 +5,14 @@
 
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { basename } from '../../../../../../base/common/resources.js';
+import { basename, dirname } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { hash } from '../../../../../../base/common/hash.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
-import { type CustomizationRef } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { customizationId, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { CustomizationType, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IAgentHostFileSystemService, SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
 
 // Re-export so existing consumers don't need to change their import source.
@@ -47,8 +48,18 @@ interface ISyncableFile {
 	readonly type: PromptsType;
 }
 
+/**
+ * An MCP server configured directly in VS Code (i.e. not contributed by an
+ * agent plugin) that should be bundled into the synthetic plugin so the
+ * agent host can launch it.
+ */
+export interface ISyncableMcpServer {
+	readonly name: string;
+	readonly configuration: IMcpServerConfiguration;
+}
+
 interface IBundleResult {
-	readonly ref: CustomizationRef;
+	readonly ref: ClientPluginCustomization;
 }
 
 /**
@@ -62,6 +73,7 @@ interface IBundleResult {
  *
  * ```
  * .plugin/plugin.json
+ * .mcp.json        ← MCP servers configured in VS Code
  * rules/          ← instruction files
  * commands/       ← prompt files
  * agents/         ← agent files
@@ -96,16 +108,17 @@ export class SyncedCustomizationBundler extends Disposable {
 	}
 
 	/**
-	 * Bundles the given files into the in-memory plugin filesystem.
+	 * Bundles the given files and MCP servers into the in-memory plugin
+	 * filesystem.
 	 *
-	 * Overwrites any previous bundle content. Returns a {@link CustomizationRef}
+	 * Overwrites any previous bundle content. Returns a {@link ClientPluginCustomization}
 	 * pointing at the virtual plugin directory with a content-based nonce.
 	 *
-	 * @returns The bundle result, or `undefined` if no syncable files were provided.
+	 * @returns The bundle result, or `undefined` if there is nothing to sync.
 	 */
-	async bundle(files: readonly ISyncableFile[]): Promise<IBundleResult | undefined> {
+	async bundle(files: readonly ISyncableFile[], mcpServers: readonly ISyncableMcpServer[] = []): Promise<IBundleResult | undefined> {
 		const syncable = files.filter(f => pluginDirForType(f.type) !== undefined);
-		if (syncable.length === 0) {
+		if (syncable.length === 0 && mcpServers.length === 0) {
 			return undefined;
 		}
 
@@ -127,12 +140,40 @@ export class SyncedCustomizationBundler extends Disposable {
 		for (const file of syncable) {
 			const dir = pluginDirForType(file.type)!;
 			const fileName = basename(file.uri);
-			const destUri = URI.joinPath(this._rootUri, dir, fileName);
+
+			// Skills are conventionally directories containing SKILL.md.
+			// The file locator returns the SKILL.md URI, so basename is
+			// always "SKILL.md" — which would cause every skill to collide.
+			// Preserve the directory structure: skills/{skillName}/SKILL.md.
+			let destUri: URI;
+			let hashKey: string;
+			if (file.type === PromptsType.skill && fileName.toLowerCase() === 'skill.md') {
+				const skillDirName = basename(dirname(file.uri));
+				destUri = URI.joinPath(this._rootUri, dir, skillDirName, fileName);
+				hashKey = `${dir}/${skillDirName}/${fileName}`;
+			} else {
+				destUri = URI.joinPath(this._rootUri, dir, fileName);
+				hashKey = `${dir}/${fileName}`;
+			}
 
 			const content = await this._fileService.readFile(file.uri);
 			await this._fileService.writeFile(destUri, content.value);
 
-			hashParts.push(`${dir}/${fileName}:${content.value.toString()}`);
+			hashParts.push(`${hashKey}:${content.value.toString()}`);
+		}
+
+		// Write MCP servers into `.mcp.json`. The agent host's Open Plugin
+		// adapter reads this file relative to the plugin root. Servers are
+		// sorted by name so the serialized content (and nonce) is stable.
+		if (mcpServers.length > 0) {
+			const servers: Record<string, IMcpServerConfiguration> = {};
+			for (const server of [...mcpServers].sort((a, b) => a.name.localeCompare(b.name))) {
+				servers[server.name] = server.configuration;
+			}
+			const mcpContent = JSON.stringify({ mcpServers: servers }, null, '\t');
+			const mcpUri = URI.joinPath(this._rootUri, '.mcp.json');
+			await this._fileService.writeFile(mcpUri, VSBuffer.fromString(mcpContent));
+			hashParts.push(`.mcp.json:${mcpContent}`);
 		}
 
 		// Stable nonce: sort so file ordering doesn't matter
@@ -141,11 +182,14 @@ export class SyncedCustomizationBundler extends Disposable {
 
 		this._lastNonce = nonce;
 
+		const rootUriString = this._rootUri.toString() as ProtocolURI;
 		return {
 			ref: {
-				uri: this._rootUri.toString() as ProtocolURI,
-				displayName: DISPLAY_NAME,
-				description: `${syncable.length} customization(s) synced from VS Code`,
+				type: CustomizationType.Plugin,
+				id: customizationId(rootUriString),
+				uri: rootUriString,
+				name: DISPLAY_NAME,
+				enabled: true,
 				nonce,
 			},
 		};

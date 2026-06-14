@@ -64,7 +64,7 @@ fn get_update_endpoint() -> Result<String, CodeError> {
 	}
 	VSCODE_CLI_UPDATE_ENDPOINT
 		.map(|s| s.to_string())
-		.ok_or_else(|| CodeError::UpdatesNotConfigured("no service url"))
+		.ok_or(CodeError::UpdatesNotConfigured("no service url"))
 }
 
 impl UpdateService {
@@ -91,11 +91,7 @@ impl UpdateService {
 			quality_download_segment(quality),
 		);
 
-		let mut response = spanf!(
-			self.log,
-			self.log.span("server.version.resolve"),
-			self.client.make_request("GET", download_url)
-		)?;
+		let mut response = self.client.make_request("GET", download_url).await?;
 
 		if !response.status_code.is_success() {
 			return Err(response.into_err().await.into());
@@ -131,11 +127,7 @@ impl UpdateService {
 			quality_download_segment(quality),
 		);
 
-		let mut response = spanf!(
-			self.log,
-			self.log.span("server.version.resolve"),
-			self.client.make_request("GET", download_url)
-		)?;
+		let mut response = self.client.make_request("GET", download_url).await?;
 
 		if !response.status_code.is_success() {
 			return Err(response.into_err().await.into());
@@ -204,9 +196,9 @@ pub enum TargetKind {
 impl TargetKind {
 	fn download_segment(&self, platform: Platform) -> Option<String> {
 		match *self {
-			TargetKind::Server => Some(platform.headless()),
+			TargetKind::Server => platform.headless(),
 			TargetKind::Archive => platform.archive(),
-			TargetKind::Web => Some(platform.web()),
+			TargetKind::Web => platform.web(),
 			TargetKind::Cli => Some(platform.cli()),
 		}
 	}
@@ -243,23 +235,24 @@ impl Platform {
 			_ => None,
 		}
 	}
-	pub fn headless(&self) -> String {
-		match self {
+	pub fn headless(&self) -> Option<String> {
+		let name = match self {
 			Platform::LinuxAlpineARM64 => "server-alpine-arm64",
 			Platform::LinuxAlpineX64 => "server-linux-alpine",
 			Platform::LinuxX64 => "server-linux-x64",
 			Platform::LinuxX64Legacy => "server-linux-legacy-x64",
 			Platform::LinuxARM64 => "server-linux-arm64",
 			Platform::LinuxARM64Legacy => "server-linux-legacy-arm64",
-			Platform::LinuxARM32 => "server-linux-armhf",
-			Platform::LinuxARM32Legacy => "server-linux-legacy-armhf",
+			// No remote server is built for arm32 since Node.js dropped
+			// 32-bit Linux on armv7 in v24.
+			Platform::LinuxARM32 | Platform::LinuxARM32Legacy => return None,
 			Platform::DarwinX64 => "server-darwin",
 			Platform::DarwinARM64 => "server-darwin-arm64",
 			Platform::WindowsX64 => "server-win32-x64",
 			Platform::WindowsX86 => "server-win32",
 			Platform::WindowsARM64 => "server-win32-arm64",
-		}
-		.to_owned()
+		};
+		Some(name.to_owned())
 	}
 
 	pub fn cli(&self) -> String {
@@ -281,8 +274,8 @@ impl Platform {
 		.to_owned()
 	}
 
-	pub fn web(&self) -> String {
-		format!("{}-web", self.headless())
+	pub fn web(&self) -> Option<String> {
+		self.headless().map(|h| format!("{h}-web"))
 	}
 
 	pub fn env_default() -> Option<Platform> {

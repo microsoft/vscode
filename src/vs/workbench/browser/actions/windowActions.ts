@@ -8,7 +8,7 @@ import { IWindowOpenable } from '../../../platform/window/common/window.js';
 import { IDialogService } from '../../../platform/dialogs/common/dialogs.js';
 import { MenuRegistry, MenuId, Action2, registerAction2 } from '../../../platform/actions/common/actions.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
-import { IsMainWindowFullscreenContext, IsSessionsWindowContext } from '../../common/contextkeys.js';
+import { IsMainWindowFullscreenContext } from '../../common/contextkeys.js';
 import { IsMacNativeContext, IsDevelopmentContext, IsWebContext, IsIOSContext } from '../../../platform/contextkey/common/contextkeys.js';
 import { Categories } from '../../../platform/action/common/actionCommonCategories.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -290,7 +290,6 @@ export class OpenRecentAction extends BaseOpenRecentAction {
 			},
 			category: Categories.File,
 			f1: true,
-			precondition: IsSessionsWindowContext.negate(),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.KeyR,
@@ -422,7 +421,6 @@ class NewWindowAction extends Action2 {
 				mnemonicTitle: localize({ key: 'miNewWindow', comment: ['&& denotes a mnemonic'] }, "New &&Window"),
 			},
 			f1: true,
-			precondition: IsSessionsWindowContext.negate(),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: isWeb ? (isWindows ? KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.Shift | KeyCode.KeyN) : KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyN) : KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyN,
@@ -432,7 +430,6 @@ class NewWindowAction extends Action2 {
 				id: MenuId.MenubarFileMenu,
 				group: '1_new',
 				order: 3,
-				when: IsSessionsWindowContext.negate()
 			}
 		});
 	}
@@ -520,5 +517,4 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	submenu: MenuId.MenubarRecentMenu,
 	group: '2_open',
 	order: 4,
-	when: IsSessionsWindowContext.negate()
 });

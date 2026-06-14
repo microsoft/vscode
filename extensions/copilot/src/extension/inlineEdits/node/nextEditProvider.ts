@@ -43,7 +43,7 @@ import { NesChangeHint } from '../common/nesTriggerHint';
 import { RejectionCollector } from '../common/rejectionCollector';
 import { DebugRecorder } from './debugRecorder';
 import { INesConfigs } from './nesConfigs';
-import { CachedOrRebasedEdit, NextEditCache } from './nextEditCache';
+import { CachedEdit, CachedOrRebasedEdit, NextEditCache } from './nextEditCache';
 import { LlmNESTelemetryBuilder, ReusedRequestKind } from './nextEditProviderTelemetry';
 import { INextEditResult, NextEditResult } from './nextEditResult';
 import { SpeculativeCancelReason, SpeculativeRequestManager } from './speculativeRequestManager';
@@ -344,6 +344,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		let isRebasedCachedEdit = false;
 		let isSubsequentCachedEdit = false;
 		let isFromSpeculativeRequest = false;
+		let cacheEntry: CachedEdit | undefined;
 
 		if (cachedEdit) {
 			logger.trace('using cached edit');
@@ -362,6 +363,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			telemetryBuilder.setSubsequentEditOrder(cachedEdit.rebasedEditIndex ?? cachedEdit.subsequentN);
 			// back-date the recording bookmark of the cached edit to the bookmark of the original request.
 			logContext.recordingBookmark = req.log.recordingBookmark;
+			cacheEntry = cachedEdit.baseCacheEntry ?? cachedEdit;
 
 		} else {
 			logger.trace(`fetching next edit with shouldExpandEditWindow=${shouldExpandEditWindow}`);
@@ -403,6 +405,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 						logContext.setResponseResults([suggestedNextEdit]); // TODO: other streamed edits?
 						edit = { actualEdit: suggestedNextEdit, isFromCursorJump: result.val.isFromCursorJump };
 						isFromSpeculativeRequest = result.val.isFromSpeculativeRequest ?? false;
+						cacheEntry = result.val.baseCacheEntry ?? result.val;
 					}
 				}
 			}
@@ -450,7 +453,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 
 		telemetryBuilder.setStatus('notAccepted'); // Acceptance pending.
 
-		const nextEditResult = new NextEditResult(logContext.requestId, req, { edit: edit.actualEdit, isFromCursorJump: edit.isFromCursorJump, documentBeforeEdits: currentDocument, targetDocumentId, isSubsequentEdit: isSubsequentCachedEdit });
+		const nextEditResult = new NextEditResult(logContext.requestId, req, { edit: edit.actualEdit, isFromCursorJump: edit.isFromCursorJump, documentBeforeEdits: currentDocument, targetDocumentId, isSubsequentEdit: isSubsequentCachedEdit, cacheEntry });
 
 		telemetryBuilder.setHasNextEdit(true);
 
@@ -471,7 +474,6 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 	private determineNesConfigs(telemetryBuilder: LlmNESTelemetryBuilder, logContext: InlineEditRequestLogContext): INesConfigs {
 		const nesConfigs: INesConfigs = {
 			isAsyncCompletions: this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsAsyncCompletions, this._expService),
-			isEagerBackupRequest: this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsEagerBackupRequest, this._expService),
 		};
 
 		telemetryBuilder.setNESConfigs({ ...nesConfigs });
@@ -573,48 +575,6 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 					return firstEdit.map(val => ({ ...val, isFromSpeculativeRequest: true }));
 				}
 				return nextEditResult.nextEdit.isError() ? nextEditResult.nextEdit : requestToReuse.firstEdit.p;
-			} else if (nesConfigs.isEagerBackupRequest) {
-				// The pending request is stale (document diverged). Start a backup request
-				// in parallel so that if rebase fails, we already have a head start.
-				logger.trace('starting eager backup request in parallel with rebase attempt');
-
-				// _executeNewNextEditRequest cancels the current _pendingStatelessNextEditRequest,
-				// but we're still trying to join+rebase requestToReuse. Temporarily clear the
-				// pending field so the stale request isn't cancelled prematurely.
-				this._pendingStatelessNextEditRequest = null;
-				const backupPromise = this._executeNewNextEditRequest(req, doc, historyContext, nesConfigs, shouldExpandEditWindow, logger, telemetryBuilder, cancellationToken);
-				const cancelBackupRequest = () => {
-					void backupPromise
-						.then(r => r.nextEditRequest.cancellationTokenSource.cancel())
-						.catch(() => undefined);
-				};
-
-				// Simultaneously attempt to join + rebase the stale request
-				const nextEditResult = await this._joinNextEditRequest(requestToReuse, reusedRequestKind, telemetryBuilder, logContext, cancellationToken);
-				const cacheResult = await requestToReuse.firstEdit.p;
-				if (cacheResult.isOk() && cacheResult.val.edit) {
-					const rebaseResult = this._nextEditCache.tryRebaseCacheEntry(cacheResult.val, documentAtInvocationTime, selectionAtInvocationTime);
-					if (rebaseResult.edit) {
-						logger.trace('rebase succeeded, cancelling eager backup request');
-						cancelBackupRequest();
-						telemetryBuilder.setStatelessNextEditTelemetry(nextEditResult.telemetry);
-						return Result.ok(rebaseResult.edit);
-					}
-					this._logRebaseFailure(rebaseResult.failureInfo, logContext);
-				}
-
-				if (cancellationToken.isCancellationRequested) {
-					logger.trace('cancelled after rebase failed (eager backup path)');
-					cancelBackupRequest();
-					telemetryBuilder.setStatelessNextEditTelemetry(nextEditResult.telemetry);
-					return Result.error(new NoNextEditReason.GotCancelled('afterFailedRebase'));
-				}
-
-				// Rebase failed — use the backup request that's already been running in parallel
-				logger.trace('rebase failed, using eager backup request');
-				const backupRes = await backupPromise;
-				telemetryBuilder.setStatelessNextEditTelemetry(backupRes.nextEditResult.telemetry);
-				return backupRes.nextEditResult.nextEdit.isError() ? backupRes.nextEditResult.nextEdit : backupRes.nextEditRequest.firstEdit.p;
 			} else {
 				const nextEditResult = await this._joinNextEditRequest(requestToReuse, reusedRequestKind, telemetryBuilder, logContext, cancellationToken);
 
@@ -695,12 +655,20 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		const curDocId = doc.id;
 		const logger = parentLogger.createSubLogger('_executeNewNextEditRequest');
 
-		const recording = this._debugRecorder?.getRecentLog();
-
 		const logContext = req.log;
+
+		// Refresh the recording bookmark to the moment we snapshot document/selection state
+		// for the prompt. The bookmark created at provider entry can be stale by the time
+		// we reach here (after debounce/awaits)
+		if (this._debugRecorder) {
+			const refreshedBookmark = this._debugRecorder.createBookmark();
+			logContext.recordingBookmark = refreshedBookmark;
+			telemetryBuilder.setRequestBookmark(refreshedBookmark);
+		}
 
 		const activeDocAndIdx = assertDefined(historyContext.getDocumentAndIdx(curDocId));
 		const activeDocSelection = doc.selection.get()[0] as OffsetRange | undefined;
+		const recording = this._debugRecorder?.getRecentLog();
 
 		const projectedDocuments = historyContext.documents.map(doc => this._processDoc(doc));
 
@@ -723,7 +691,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			nLinesEditWindow,
 			false, // isSpeculative
 			logContext,
-			req.log.recordingBookmark,
+			logContext.recordingBookmark,
 			recording,
 			req.providerRequestStartDateTime,
 		);

@@ -123,8 +123,13 @@ export async function generateUserPrompt(request: ChatRequest, prompt: string | 
 		request: prompt ?? request.prompt,
 		editedFileEvents: request.editedFileEvents,
 	});
-	if (messages.length === 1 && messages[0].role === ChatRole.User && messages[0].content.length === 1 && messages[0].content[0].type === ChatCompletionContentPartKind.Text) {
-		return messages[0].content[0].text;
+
+	const userMessages = messages.filter(message => message.role === ChatRole.User);
+	if (userMessages.length > 0) {
+		const textParts = userMessages.flatMap(message => message.content);
+		if (textParts.every(part => part.type === ChatCompletionContentPartKind.Text)) {
+			return textParts.map(part => part.text).join('');
+		}
 	}
 	throw new Error(`[CopilotCLISession] Unexpected generated prompt structure.`);
 

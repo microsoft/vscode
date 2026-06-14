@@ -130,6 +130,8 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				subAgentInvocationId: isProposedApiEnabled(extension, 'chatParticipantPrivate') ? options.subAgentInvocationId : undefined,
 				chatStreamToolCallId: isProposedApiEnabled(extension, 'chatParticipantAdditions') ? options.chatStreamToolCallId : undefined,
 				preToolUseResult: isProposedApiEnabled(extension, 'chatParticipantPrivate') ? options.preToolUseResult : undefined,
+				traceparent: isProposedApiEnabled(extension, 'chatParticipantPrivate') ? options.traceparent : undefined,
+				tracestate: isProposedApiEnabled(extension, 'chatParticipantPrivate') ? options.tracestate : undefined,
 			}, token);
 
 			const dto: Dto<IToolResult> = result instanceof SerializableObjectWithBuffers ? result.value : result;
@@ -190,7 +192,10 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			options.chatRequestId = dto.chatRequestId;
 			options.chatInteractionId = dto.chatInteractionId;
 			options.chatSessionResource = URI.revive(dto.context?.sessionResource);
+			options.workingDirectory = URI.revive(dto.context?.workingDirectory);
 			options.subAgentInvocationId = dto.subAgentInvocationId;
+			options.traceparent = dto.traceparent;
+			options.tracestate = dto.tracestate;
 		}
 
 		if (isProposedApiEnabled(item.extension, 'chatParticipantAdditions') && dto.modelId) {
@@ -292,6 +297,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			chatRequestId: context.chatRequestId,
 			chatSessionResource: context.chatSessionResource,
 			chatInteractionId: context.chatInteractionId,
+			workingDirectory: URI.revive(context.workingDirectory),
 			forceConfirmationReason: context.forceConfirmationReason
 		};
 		if (context.forceConfirmationReason) {

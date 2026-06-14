@@ -206,6 +206,24 @@ suite('NotebookCommon', () => {
 		disposables.dispose();
 	});
 
+	test('prioritizes mimetypes with 10+ entries (numeric index sort)', () => {
+		// Regression for the case where `Array.from(uniqueIndices).sort()` did a
+		// lexicographic sort on numeric indices, so `[2, 10]` became `[10, 2]`
+		// and the reverse-splice loop removed the wrong entries.
+		const mimes = Array.from({ length: 12 }, (_, i) => `type/${i}`);
+		const m = new MimeTypeDisplayOrder(mimes);
+		assert.deepStrictEqual(m.toArray(), mimes);
+
+		m.prioritize('type/11', ['type/2', 'type/10']);
+		assert.deepStrictEqual(m.toArray(), [
+			'type/0', 'type/1', 'type/3', 'type/4', 'type/5',
+			'type/6', 'type/7', 'type/8', 'type/9', 'type/11',
+			'type/2', 'type/10',
+		]);
+
+		disposables.dispose();
+	});
+
 	test('sortMimeTypes glob', function () {
 		assert.deepStrictEqual(
 			new MimeTypeDisplayOrder([

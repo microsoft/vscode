@@ -288,12 +288,18 @@ export class OTelSqliteStore {
 
 	/**
 	 * Coalesce TTFT from foreground extension (`copilot_chat.time_to_first_token`, ms)
-	 * and CLI runtime (`github.copilot.time_to_first_chunk`, seconds → ms).
+	 * and CLI runtime. The CLI runtime historically emitted `github.copilot.time_to_first_chunk`
+	 * (seconds) but is migrating to the OTel GenAI semconv attribute
+	 * `gen_ai.response.time_to_first_chunk` (also seconds). Accept both for forward/backward
+	 * compatibility while the runtime rollout completes.
+	 *
+	 * @see https://github.com/open-telemetry/semantic-conventions/pull/3607 (semconv addition)
 	 */
 	private _ttftMs(span: ICompletedSpanData): number | null {
 		const foreground = this._attr(span, CopilotChatAttr.TIME_TO_FIRST_TOKEN);
 		if (foreground !== null) { return foreground as number; }
-		const cli = span.attributes['github.copilot.time_to_first_chunk'];
+		const cli = span.attributes['gen_ai.response.time_to_first_chunk']
+			?? span.attributes['github.copilot.time_to_first_chunk'];
 		if (cli === undefined) { return null; }
 		const sec = typeof cli === 'number' ? cli : parseFloat(String(cli));
 		return isNaN(sec) ? null : Math.round(sec * 1000);

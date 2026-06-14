@@ -102,7 +102,6 @@ Guidelines for session memory (`/memories/session/`):
 
 </memoryGuidelines>
 
-
 </memoryInstructions>
 
 <instructions>
@@ -129,12 +128,6 @@ I am working in a workspace with the following folders:
 
 ### User
 ~~~md
-<context>
-(Date removed from snapshot)
-</context>
-<reminderInstructions>
-
-</reminderInstructions>
 <user_query>
 previous turn
 </user_query>

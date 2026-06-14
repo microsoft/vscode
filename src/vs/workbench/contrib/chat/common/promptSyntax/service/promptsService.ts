@@ -16,6 +16,7 @@ import { IHandOff, ParsedPromptFile } from '../promptFileParser.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { IResolvedPromptSourceFolder } from '../config/promptFileLocations.js';
 import { ChatRequestHooks } from '../hookSchema.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 
 /**
  * A single structured debug detail entry from the instructions context computer.
@@ -202,6 +203,36 @@ export type IAgentSource = {
 	readonly pluginUri: URI;
 };
 
+export namespace IAgentSource {
+	export function fromPromptPath(promptPath: IPromptPath): IAgentSource {
+		if (promptPath.storage === PromptsStorage.extension) {
+			return { storage: PromptsStorage.extension, extensionId: promptPath.extension.identifier };
+		} else if (promptPath.storage === PromptsStorage.plugin) {
+			return { storage: PromptsStorage.plugin, pluginUri: promptPath.pluginUri! };
+		} else {
+			return { storage: promptPath.storage };
+		}
+	}
+
+	export function isEquals(a: IAgentSource | undefined, b: IAgentSource | undefined): boolean {
+		if (a === b) {
+			return true;
+		}
+		if (!a || !b) {
+			return false;
+		}
+		if (a.storage !== b.storage) {
+			return false;
+		}
+		if (a.storage === PromptsStorage.extension && b.storage === PromptsStorage.extension) {
+			return ExtensionIdentifier.equals(a.extensionId, b.extensionId);
+		} else if (a.storage === PromptsStorage.plugin && b.storage === PromptsStorage.plugin) {
+			return isEqual(a.pluginUri, b.pluginUri);
+		}
+		return true;
+	}
+}
+
 /**
  * The visibility/availability of an agent.
  * - 'all': available as custom agent in picker AND can be used as subagent
@@ -223,6 +254,8 @@ export function isCustomAgentVisibility(obj: unknown): obj is ICustomAgentVisibi
 }
 
 export interface ICustomAgent {
+
+	readonly id: string;
 	/**
 	 * URI of a custom agent file.
 	 */
@@ -293,6 +326,12 @@ export interface ICustomAgent {
 	 * Optional session types that describe when this agent should be offered.
 	 */
 	readonly sessionTypes?: readonly string[];
+
+	/**
+	 * Whether this agent is enabled. Disabled agents are included in the list
+	 * but should not be offered to users or used in automated flows.
+	 */
+	readonly enabled: boolean;
 }
 
 export interface IAgentInstructions {
@@ -572,6 +611,15 @@ export interface IPromptsService extends IDisposable {
 	 * Validates if the provided command name is a valid prompt slash command.
 	 */
 	isValidSlashCommandName(name: string): boolean;
+
+	/**
+	 * Synchronously checks whether `name` matches a discovered prompt slash command.
+	 * Backed by a cache that is populated lazily on the first call and refreshed on
+	 * subsequent {@link onDidChangeSlashCommands} firings, so the very first call after
+	 * service creation may return `false` for known commands until the first discovery
+	 * completes.
+	 */
+	hasPromptSlashCommand(name: string): boolean;
 
 	/**
 	 * Gets the prompt file for a slash command.

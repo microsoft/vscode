@@ -1,6 +1,8 @@
 ---
 name: chat-customizations-editor
 description: Use when working on the Chat Customizations editor — the management UI for agents, skills, instructions, hooks, prompts, MCP servers, and plugins.
+metadata:
+  allowed-tools: Bash(npx @playwright/cli:*)
 ---
 
 # Chat Customizations Editor
@@ -106,7 +108,7 @@ Without all three, built-in regrouping silently doesn't run and the fixture only
 ### Editor contribution service mocks
 
 The management editor embeds a `CodeEditorWidget`. Electron-side editor contributions (e.g., `AgentFeedbackEditorWidgetContribution`) are instantiated automatically and crash if their injected services aren't registered. The fixture must mock at minimum:
-- `IAgentFeedbackService` — needs `onDidChangeFeedback`, `onDidChangeNavigation` as `Event.None`
+- `IAgentFeedbackService` — needs `onDidChangeFeedback`, `onDidChangeNavigation`, `onDidAddFeedback`, `onDidConvertFeedback`, `onDidAddReply`, `onDidSubmitFeedback` as `Event.None`
 - `ICodeReviewService` — needs `getReviewState()` / `getPRReviewState()` returning idle observables
 - `IChatEditingService` — needs `editingSessionsObs` as empty observable
 - `IAgentSessionsService` — needs `model.sessions` as empty array
@@ -115,7 +117,7 @@ These are cross-layer imports from `vs/sessions/` — use `// eslint-disable-nex
 
 ### CI regression gates
 
-Key fixtures have `blocksCi: true` in their labels. The `screenshot-test.yml` GitHub Action captures screenshots on every PR to `main` and **fails the CI status check** if any `blocks-ci`-labeled fixture's screenshot changes. This catches layout regressions automatically.
+Key fixtures have `blocksCi: true` in their labels. The `component-fixtures.yml` GitHub Action captures screenshots on every PR to `main` and **fails the CI status check** if any `blocks-ci`-labeled fixture's screenshot changes. This catches layout regressions automatically.
 
 Currently gated fixtures: `LocalHarness`, `McpServersTab`, `McpServersTabNarrow`, `AgentsTabNarrow`. When adding a new section or layout-critical fixture, add `blocksCi: true`:
 
@@ -150,30 +152,29 @@ See the `sessions` skill for sessions-window specific guidance.
 
 Component fixtures use mock data and a fixed container size. Layout bugs caused by reflow timing, real data shapes, or narrow window sizes often **don't reproduce in fixtures**. When a user reports a broken layout, debug in the live Code OSS product.
 
-For launching Code OSS with CDP and connecting `agent-browser`, see the **`launch` skill**. Use `--user-data-dir /tmp/code-oss-debug` to avoid colliding with an already-running instance from another worktree.
+For launching Code OSS with CDP and connecting `@playwright/cli`, see the **`launch` skill**. Use `--user-data-dir /tmp/code-oss-debug` to avoid colliding with an already-running instance from another worktree.
 
 ### Navigating to the customizations editor
 
-After connecting, use `snapshot -i` to find the "Open Customizations" button (in the Chat panel header), then click it. To switch sections, use `eval` with a DOM click since sidebar items aren't interactive refs:
+After connecting, use `snapshot` to find the "Open Customizations" button (in the Chat panel header), then click it. To switch sections, use `eval` with a DOM click since sidebar items aren't interactive refs:
 
 ```bash
-npx agent-browser eval "const items = [...document.querySelectorAll('.section-list-item')]; \
-  items.find(el => el.textContent?.includes('MCP'))?.click();"
+npx @playwright/cli eval "(() => { const items = [...document.querySelectorAll('.section-list-item')]; items.find(el => el.textContent?.includes('MCP'))?.click(); })()"
 ```
 
 ### Inspecting widget layout
 
-`agent-browser eval` doesn't always print return values. Use `document.title` as a return channel:
+`@playwright/cli eval` wraps the expression in `() => (...)` — use an IIFE for multi-statement code. Use `document.title` as a return channel:
 
 ```bash
-npx agent-browser eval "const w = document.querySelector('.mcp-list-widget'); \
+npx @playwright/cli eval "(() => { const w = document.querySelector('.mcp-list-widget'); \
   const lc = w?.querySelector('.mcp-list-container'); \
   const rows = lc?.querySelectorAll('.monaco-list-row'); \
   document.title = 'DBG:rows=' + (rows?.length ?? -1) \
     + ',listH=' + (lc?.offsetHeight ?? -1) \
     + ',seStH=' + (lc?.querySelector('.monaco-scrollable-element')?.style?.height ?? '') \
-    + ',wH=' + (w?.offsetHeight ?? -1);"
-npx agent-browser eval "document.title" 2>&1
+    + ',wH=' + (w?.offsetHeight ?? -1); })()"
+npx @playwright/cli eval "document.title" 2>&1
 ```
 
 Key diagnostics:

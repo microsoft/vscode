@@ -112,11 +112,8 @@ Guidelines for session memory (`/memories/session/`):
 
 </memoryGuidelines>
 
-
 </memoryInstructions>
 
-
-[copilot_cache_control: { type: 'ephemeral' }]
 ~~~
 
 
@@ -132,8 +129,6 @@ You are currently running in "Plan" mode. Below are your instructions for this m
 custom mode instructions
 </modeInstructions>
 
-
-[copilot_cache_control: { type: 'ephemeral' }]
 ~~~
 
 
@@ -156,8 +151,6 @@ Session memory (/memories/session/) is empty. No session notes have been created
 Repository memory (/memories/repo/) is empty. No workspace-scoped notes have been created yet.
 </repoMemory>
 
-
-[copilot_cache_control: { type: 'ephemeral' }]
 ~~~
 
 
@@ -174,6 +167,4 @@ Do NOT create markdown files to document changes unless requested.
 hello
 </userRequest>
 
-
-[copilot_cache_control: { type: 'ephemeral' }]
 ~~~

@@ -139,6 +139,12 @@ export class NodeOTelService implements IOTelService {
 				resource,
 				spanProcessors: this._spanProcessors,
 			});
+			// Mark this provider so consumers (e.g. the Copilot CLI span bridge) can detect when the
+			// global OTel provider is the extension's own provider. Attaching extra span processors to
+			// it would re-forward spans the extension already emits and produce duplicate debug entries.
+			// Defined as a non-enumerable, non-writable marker so it does not surface in logs/inspection
+			// output or get accidentally mutated.
+			Object.defineProperty(tracerProvider, '__copilotChatOwnProvider', { value: true });
 			tracerProvider.register();
 			this._tracer = api.trace.getTracer(this.config.serviceName, this.config.serviceVersion);
 			this._otelApi = api;
@@ -344,7 +350,7 @@ export class NodeOTelService implements IOTelService {
 		if (!ctx.traceId || !ctx.spanId) {
 			return undefined;
 		}
-		return { traceId: ctx.traceId, spanId: ctx.spanId };
+		return { traceId: ctx.traceId, spanId: ctx.spanId, traceFlags: ctx.traceFlags, traceState: ctx.traceState?.serialize() };
 	}
 
 	// ── Trace Context Store ── (for cross-boundary propagation)
@@ -620,7 +626,9 @@ class RealSpanHandle implements ISpanHandle {
 
 	getSpanContext(): TraceContext | undefined {
 		const ctx = this._span.spanContext();
-		return ctx.traceId && ctx.spanId ? { traceId: ctx.traceId, spanId: ctx.spanId } : undefined;
+		return ctx.traceId && ctx.spanId
+			? { traceId: ctx.traceId, spanId: ctx.spanId, traceFlags: ctx.traceFlags, traceState: ctx.traceState?.serialize() }
+			: undefined;
 	}
 
 	end(): void {

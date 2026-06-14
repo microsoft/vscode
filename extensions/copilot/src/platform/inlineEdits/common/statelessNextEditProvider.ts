@@ -414,6 +414,12 @@ export interface IStatelessNextEditTelemetry {
 	readonly nDiffsInPrompt: number | undefined;
 	readonly diffTokensInPrompt: number | undefined;
 
+	/* neighbor (similar files) snippets info */
+	readonly nNeighborSnippetsComputed: number | undefined;
+	readonly nNeighborSnippetsInPrompt: number | undefined;
+	/** JSON-encoded array of original input indices of snippets included in the prompt. */
+	readonly neighborSnippetIndicesInPrompt: string | undefined;
+
 	/* lint errors info */
 	readonly lintErrors: string | undefined;
 
@@ -506,6 +512,9 @@ export class StatelessNextEditTelemetryBuilder {
 			cursorJumpResponse: this._cursorJumpResponse,
 			nDiffsInPrompt: this._nDiffsInPrompt,
 			diffTokensInPrompt: this._diffTokensInPrompt,
+			nNeighborSnippetsComputed: this._nNeighborSnippetsComputed,
+			nNeighborSnippetsInPrompt: this._nNeighborSnippetsInPrompt,
+			neighborSnippetIndicesInPrompt: this._neighborSnippetIndicesInPrompt,
 			lintErrors: this._lintErrors,
 			terminalOutput: this._terminalOutput,
 			similarFilesContext: this._similarFilesContext,
@@ -700,6 +709,24 @@ export class StatelessNextEditTelemetryBuilder {
 	private _diffTokensInPrompt: number | undefined;
 	public setDiffTokensInPrompt(n: number): this {
 		this._diffTokensInPrompt = n;
+		return this;
+	}
+
+	private _nNeighborSnippetsComputed: number | undefined;
+	public setNNeighborSnippetsComputed(n: number): this {
+		this._nNeighborSnippetsComputed = n;
+		return this;
+	}
+
+	private _nNeighborSnippetsInPrompt: number | undefined;
+	public setNNeighborSnippetsInPrompt(n: number): this {
+		this._nNeighborSnippetsInPrompt = n;
+		return this;
+	}
+
+	private _neighborSnippetIndicesInPrompt: string | undefined;
+	public setNeighborSnippetIndicesInPrompt(indices: readonly number[]): this {
+		this._neighborSnippetIndicesInPrompt = JSON.stringify(indices);
 		return this;
 	}
 
