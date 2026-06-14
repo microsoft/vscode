@@ -120,6 +120,105 @@ suite('AuthenticationMcpAccessService', () => {
 		});
 	});
 
+	suite('isAccessAllowedForUrl URL binding (security)', () => {
+		const serverUrl = 'https://server.example.com/mcp';
+
+		test('grants access when the supplied URL matches the stored URL', () => {
+			authenticationMcpAccessService.updateAllowedMcpServers('github', 'user@example.com', [
+				{ id: 'http-server', name: 'HTTP Server', allowed: true, url: serverUrl }
+			]);
+
+			const result = authenticationMcpAccessService.isAccessAllowedForUrl('github', 'user@example.com', 'http-server', serverUrl);
+			assert.strictEqual(result, true);
+		});
+
+		test('grants access despite cosmetic origin differences (root slash, host case)', () => {
+			authenticationMcpAccessService.updateAllowedMcpServers('github', 'user@example.com', [
+				{ id: 'http-server', name: 'HTTP Server', allowed: true, url: 'https://server.example.com' }
+			]);
+
+			// "foo.com" and "foo.com/" are the same origin, and the host is case-insensitive.
+			assert.strictEqual(
+				authenticationMcpAccessService.isAccessAllowedForUrl('github', 'user@example.com', 'http-server', 'https://server.example.com/'),
+				true
+			);
+			assert.strictEqual(
+				authenticationMcpAccessService.isAccessAllowedForUrl('github', 'user@example.com', 'http-server', 'https://SERVER.EXAMPLE.COM'),
+				true
+			);
+		});
+
+		test('re-prompts when a path trailing slash differs (foo.com/a vs foo.com/a/)', () => {
+			authenticationMcpAccessService.updateAllowedMcpServers('github', 'user@example.com', [
+				{ id: 'http-server', name: 'HTTP Server', allowed: true, url: 'https://server.example.com/mcp' }
+			]);
+
+			// A trailing slash on a path points at a different endpoint, so the user must re-consent.
+			const result = authenticationMcpAccessService.isAccessAllowedForUrl('github', 'user@example.com', 'http-server', 'https://server.example.com/mcp/');
+			assert.strictEqual(result, undefined);
+		});
+
+		test('re-prompts (returns undefined) when the URL changed for the same server id', () => {
+			authenticationMcpAccessService.updateAllowedMcpServers('github', 'user@example.com', [
+				{ id: 'http-server', name: 'HTTP Server', allowed: true, url: serverUrl }
+			]);
+
+			const result = authenticationMcpAccessService.isAccessAllowedForUrl('github', 'user@example.com', 'http-server', 'https://evil.example.com/mcp');
+			assert.strictEqual(result, undefined);
+		});
+
+		test('breaks legacy grants that have no stored URL when a URL is supplied', () => {
+			// Legacy grant: stored before URL binding existed, so it has no URL.
+			authenticationMcpAccessService.updateAllowedMcpServers('github', 'user@example.com', [
+				{ id: 'http-server', name: 'HTTP Server', allowed: true }
+			]);
+
+			const result = authenticationMcpAccessService.isAccessAllowedForUrl('github', 'user@example.com', 'http-server', serverUrl);
+			assert.strictEqual(result, undefined);
+		});
+
+		test('inspection (isAccessAllowed) returns the stored decision regardless of stored URL', () => {
+			authenticationMcpAccessService.updateAllowedMcpServers('github', 'user@example.com', [
+				{ id: 'http-server', name: 'HTTP Server', allowed: true, url: serverUrl }
+			]);
+
+			const result = authenticationMcpAccessService.isAccessAllowed('github', 'user@example.com', 'http-server');
+			assert.strictEqual(result, true);
+		});
+
+		test('stdio servers (inspection, no URL) are unaffected', () => {
+			authenticationMcpAccessService.updateAllowedMcpServers('github', 'user@example.com', [
+				{ id: 'stdio-server', name: 'Stdio Server', allowed: true }
+			]);
+
+			const result = authenticationMcpAccessService.isAccessAllowed('github', 'user@example.com', 'stdio-server');
+			assert.strictEqual(result, true);
+		});
+
+		test('product.json trusted servers bypass the URL check', () => {
+			productService.trustedMcpAuthAccess = ['trusted-http-server'];
+
+			const result = authenticationMcpAccessService.isAccessAllowedForUrl('github', 'user@example.com', 'trusted-http-server', 'https://anything.example.com/mcp');
+			assert.strictEqual(result, true);
+		});
+
+		test('a management toggle that omits the URL does not clear the stored binding', () => {
+			authenticationMcpAccessService.updateAllowedMcpServers('github', 'user@example.com', [
+				{ id: 'http-server', name: 'HTTP Server', allowed: true, url: serverUrl }
+			]);
+
+			// Simulate the management UI toggling access without knowledge of the URL.
+			authenticationMcpAccessService.updateAllowedMcpServers('github', 'user@example.com', [
+				{ id: 'http-server', name: 'HTTP Server', allowed: true }
+			]);
+
+			const stored = authenticationMcpAccessService.readAllowedMcpServers('github', 'user@example.com')
+				.find(s => s.id === 'http-server');
+			assert.strictEqual(stored?.url, serverUrl);
+			assert.strictEqual(authenticationMcpAccessService.isAccessAllowedForUrl('github', 'user@example.com', 'http-server', serverUrl), true);
+		});
+	});
+
 	suite('readAllowedMcpServers', () => {
 		test('returns empty array when no data exists', () => {
 			const result = authenticationMcpAccessService.readAllowedMcpServers('github', 'user@example.com');

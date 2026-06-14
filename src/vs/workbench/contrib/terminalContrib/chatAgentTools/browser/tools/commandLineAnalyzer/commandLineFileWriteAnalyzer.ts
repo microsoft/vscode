@@ -146,9 +146,14 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 							const fileUri = URI.isUri(fileWrite) ? fileWrite : URI.file(fileWrite);
 							// TODO: Handle command substitutions/complex destinations properly https://github.com/microsoft/vscode/issues/274167
 							// TODO: Handle environment variables properly https://github.com/microsoft/vscode/issues/274166
-							if (fileUri.fsPath.match(/[$\(\){}`~]/)) {
+							// `~` catches POSIX tilde expansion (e.g. `~/foo`) and `%` catches Windows
+							// environment variable expansions (e.g. `%APPDATA%\foo`). Neither is
+							// recognized as absolute by `posix.isAbsolute` / `win32.isAbsolute`, so
+							// without this guard they would be joined onto cwd and incorrectly classified
+							// as inside the workspace while expanding at runtime to a location outside it.
+							if (fileUri.fsPath.match(/[$\(\){}`~%]/)) {
 								isAutoApproveAllowed = false;
-								this._log('File write blocked due to likely containing a variable, sub-command, or tilde expansion', fileUri.toString());
+								this._log('File write blocked due to likely containing a variable, sub-command, or tilde/environment-variable expansion', fileUri.toString());
 								break;
 							}
 

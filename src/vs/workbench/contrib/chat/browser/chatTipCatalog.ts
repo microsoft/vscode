@@ -330,25 +330,6 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		],
 	},
 	{
-		id: 'tip.agenticBrowser',
-		tier: ChatTipTier.Qol,
-		buildMessage() {
-			return new MarkdownString(
-				localize(
-					'tip.agenticBrowser',
-					"Enable [{0}](command:workbench.action.openSettings?%5B%22workbench.browser.enableChatTools%22%5D \"Open Settings\") to let the agent open and interact with pages in the Integrated Browser.",
-					'agentic browser integration'
-				)
-			);
-		},
-		when: ContextKeyExpr.and(
-			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
-			ContextKeyExpr.notEquals('config.workbench.browser.enableChatTools', true),
-		),
-		excludeWhenSettingsChanged: ['workbench.browser.enableChatTools'],
-		dismissWhenCommandsClicked: ['workbench.action.openSettings'],
-	},
-	{
 		id: 'tip.mermaid',
 		tier: ChatTipTier.Qol,
 		buildMessage() {

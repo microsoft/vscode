@@ -13,6 +13,7 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { Event } from '../../../../../base/common/event.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { IChatRequestViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
+import { ITerminalChatService } from '../../../../contrib/terminal/browser/terminal.js';
 import '../../../../contrib/chat/browser/widget/chatContentParts/media/chatQuestionCarousel.css';
 
 function createCarousel(questions: IChatQuestion[], allowSkip: boolean = true): IChatQuestionCarousel {
@@ -53,6 +54,9 @@ function renderCarousel(context: ComponentFixtureContext, carousel: IChatQuestio
 	const instantiationService = createEditorServices(disposableStore, {
 		additionalServices: (reg) => {
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
+			reg.definePartialInstance(ITerminalChatService, {
+				getTerminalInstanceByExecutionId: () => undefined,
+			});
 		},
 	});
 

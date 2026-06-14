@@ -45,7 +45,7 @@
 	color: var(--vscode-foreground);
 	cursor: pointer;
 	font-size: 12px;
-	font-weight: 600;
+	font-weight: 400;
 	line-height: 18px;
 	font-family: inherit;
 	transition: background-color 0.1s ease;
@@ -124,7 +124,7 @@
 .ai-customization-management-editor .section-list-item .section-count {
 	flex-shrink: 0;
 	font-size: var(--vscode-agents-fontSize-label2);
-	font-weight: var(--vscode-agents-fontWeight-medium);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	color: var(--vscode-descriptionForeground);
 	border-radius: 8px;
 	min-width: 14px;
@@ -315,12 +315,6 @@
 	flex: 1;
 }
 
-.ai-customization-list-widget .list-empty-state .empty-state-icon {
-	font-size: 48px;
-	opacity: 0.4;
-	margin-bottom: 8px;
-}
-
 .ai-customization-list-widget .list-empty-state .empty-state-text {
 	font-size: 16px;
 	font-weight: 500;
@@ -385,7 +379,7 @@
 }
 
 .ai-customization-group-header .group-label {
-	font-weight: var(--vscode-agents-fontWeight-medium);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	text-transform: capitalize;
 	color: var(--vscode-sideBarSectionHeader-foreground, var(--vscode-foreground));
 	overflow: hidden;
@@ -396,7 +390,7 @@
 .ai-customization-group-header .group-count {
 	flex-shrink: 0;
 	font-size: var(--vscode-agents-fontSize-label2);
-	font-weight: var(--vscode-agents-fontWeight-medium);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	color: var(--vscode-descriptionForeground);
 	text-align: right;
 	margin-top: 2px;
@@ -486,7 +480,7 @@
 /* Shared inline badge style — used by MCP "Bridged" badge and item badges */
 .inline-badge {
 	flex-shrink: 0;
-	font-size: var(--vscode-agents-fontSize-label4);
+	font-size: var(--vscode-agents-fontSize-label3);
 	padding: 0 4px;
 	border-radius: 3px;
 	color: var(--vscode-descriptionForeground);
@@ -559,7 +553,7 @@
 
 .ai-customization-list-item .item-description.is-filename {
 	font-family: monospace;
-	font-size: var(--vscode-agents-fontSize-label4);
+	font-size: var(--vscode-agents-fontSize-label3);
 	opacity: 0.7;
 }
 
@@ -589,8 +583,7 @@
 .ai-customization-list-widget .section-title-header,
 .mcp-list-widget .section-title-header {
 	flex-shrink: 0;
-	padding: 0 0 32px;
-	border-bottom: 1px solid var(--vscode-panel-border);
+	padding: 0;
 }
 
 .ai-customization-list-widget .section-title-header .section-title-row,
@@ -733,7 +726,7 @@
 
 .ai-customization-overview .overview-section .section-label {
 	font-size: var(--vscode-agents-fontSize-label1);
-	font-weight: var(--vscode-agents-fontWeight-medium);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -971,12 +964,6 @@
 	flex: 1;
 }
 
-.mcp-list-widget .mcp-empty-state .empty-icon {
-	font-size: 48px;
-	opacity: 0.4;
-	margin-bottom: 8px;
-}
-
 .mcp-list-widget .mcp-empty-state .empty-text {
 	font-size: 16px;
 	font-weight: 500;
@@ -1119,7 +1106,7 @@
 	font-size: var(--vscode-agents-fontSize-label2);
 	padding: 2px 8px;
 	border-radius: 4px;
-	font-weight: var(--vscode-agents-fontWeight-medium);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 }
 
 .mcp-server-item .mcp-server-status.running {

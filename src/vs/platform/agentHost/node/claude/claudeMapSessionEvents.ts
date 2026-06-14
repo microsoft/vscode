@@ -14,7 +14,7 @@ import type { SubagentRegistry } from './claudeSubagentRegistry.js';
 import { stripClientToolNamePrefix, hasClientToolNamePrefix } from './clientTools/claudeClientToolMcpServer.js';
 import { buildClaudeToolMeta, getClaudePastTenseMessage, getClaudeToolDisplayName } from './claudeToolDisplay.js';
 import { ClaudeToolCallRegistry } from './claudeToolCallRegistry.js';
-import { ToolCallConfirmationReason, type StringOrMarkdown } from '../../common/state/protocol/state.js';
+import { ToolCallConfirmationReason, ToolCallContributorKind, type StringOrMarkdown } from '../../common/state/protocol/state.js';
 
 /**
  * Cross-call state for {@link mapSDKMessageToAgentSignals}. One instance
@@ -547,7 +547,7 @@ function mapStreamEvent(
 						toolCallId: block.id,
 						toolName,
 						displayName: getClaudeToolDisplayName(toolName),
-						...(toolClientId ? { toolClientId } : {}),
+						...(toolClientId ? { contributor: { kind: ToolCallContributorKind.Client, clientId: toolClientId } } : {}),
 						...(meta ? { _meta: meta } : {}),
 					},
 				}];

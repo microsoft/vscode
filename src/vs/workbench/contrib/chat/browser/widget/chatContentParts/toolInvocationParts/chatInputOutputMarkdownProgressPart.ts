@@ -116,7 +116,7 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 			// otherwise use the stored expanded state (defaulting to false)
 			(isError && configurationService.getValue<boolean>(ChatConfiguration.AutoExpandToolFailures)) ||
 			(ChatInputOutputMarkdownProgressPart._expandedByDefault.get(toolInvocation) ?? false),
-			shouldShimmerForTool(toolInvocation),
+			shouldShimmerForTool(toolInvocation, message),
 		));
 		this._register(toDisposable(() => ChatInputOutputMarkdownProgressPart._expandedByDefault.set(toolInvocation, collapsibleListPart.expanded)));
 

@@ -135,7 +135,9 @@ A local session may host multiple chats. The hierarchy is stored entirely in the
 
 ## Picker Contributions
 
-Local sessions reuse the Copilot provider's pickers (`ModePicker`, `SessionModelPicker`, `PermissionPicker`) via `when` clauses that match `ActiveSessionTypeContext === 'local'`. The picker actions in `copilotChatSessionsActions.ts` include `IsActiveSessionLocal` in their `when` expressions so the same widgets surface for both the copilot CLI provider and this local provider.
+Local sessions reuse the Copilot provider's pickers (`ModePicker`, `PermissionPicker`) via `when` clauses that match `ActiveSessionTypeContext === 'local'`. The picker actions in `copilotChatSessionsActions.ts` include `IsActiveSessionLocal` in their `when` expressions so the same widgets surface for both the copilot CLI provider and this local provider.
+
+The model picker is contributed by the sessions core (`contrib/chat/browser/modelPicker.ts`), not by this provider. It reads models via `ISessionsProvider.getModels`; for local sessions this returns general-purpose registered language models (those without a `targetChatSessionType` that are user-selectable). This provider's `getModelPickerOptions` returns `showManageModelsAction: true`, so the core picker surfaces the **Manage Models** action for local sessions — the decision lives in the provider, not in core.
 
 ## Differences from `CopilotChatSessionsProvider`
 

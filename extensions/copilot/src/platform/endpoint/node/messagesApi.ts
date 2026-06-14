@@ -170,13 +170,20 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 	}
 
 	const thinkingEnabled = !!thinkingConfig;
-	let effort: 'low' | 'medium' | 'high' | undefined;
-	if (thinkingConfig && endpoint.supportsReasoningEffort?.length) {
-		const candidateEffort = configurationService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride)
-			?? reasoningEffort
-			?? (endpoint.supportsReasoningEffort.length === 1 ? endpoint.supportsReasoningEffort[0] : 'medium');
-		if (candidateEffort === 'low' || candidateEffort === 'medium' || candidateEffort === 'high') {
-			effort = candidateEffort;
+	let effort: string | undefined;
+	if (thinkingConfig) {
+		const declaredLevels = endpoint.supportsReasoningEffort?.length ? endpoint.supportsReasoningEffort : undefined;
+		const explicitlyUnsupported = endpoint.supportsReasoningEffort !== undefined && endpoint.supportsReasoningEffort.length === 0;
+		const defaultEffort = declaredLevels
+			? (declaredLevels.includes('medium') ? 'medium' : declaredLevels[Math.floor((declaredLevels.length - 1) / 2)])
+			: !explicitlyUnsupported && endpoint.supportsAdaptiveThinking ? 'high' : undefined;
+		if (defaultEffort !== undefined) {
+			const candidateEffort = configurationService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride)
+				?? reasoningEffort
+				?? defaultEffort;
+			if (typeof candidateEffort === 'string' && candidateEffort.length > 0 && (!declaredLevels || declaredLevels.includes(candidateEffort))) {
+				effort = candidateEffort;
+			}
 		}
 	}
 
@@ -458,23 +465,27 @@ function rawContentToAnthropicContent(content: readonly Raw.ChatCompletionConten
 			}
 			case Raw.ChatCompletionContentPartKind.Opaque: {
 				if (part.value && typeof part.value === 'object' && 'type' in part.value) {
-					const opaqueValue = part.value as { type: string; thinking?: { id: string; text?: string | string[]; encrypted?: string } };
+					const opaqueValue = part.value as { type: string; thinking?: { id: string; text?: string | string[]; encrypted?: string; redacted?: boolean } };
 					if (opaqueValue.type === 'thinking' && opaqueValue.thinking) {
 						const thinkingText = Array.isArray(opaqueValue.thinking.text)
 							? opaqueValue.thinking.text.join('')
 							: opaqueValue.thinking.text;
-						if (thinkingText && opaqueValue.thinking.encrypted) {
-							// Regular thinking block: text is present, encrypted field contains the signature
-							convertedContent.push({
-								type: 'thinking',
-								thinking: thinkingText,
-								signature: opaqueValue.thinking.encrypted,
-							});
-						} else if (opaqueValue.thinking.encrypted && !thinkingText) {
-							// Redacted thinking block: no text, only encrypted data from Claude
+						if (opaqueValue.thinking.redacted && opaqueValue.thinking.encrypted) {
+							// Genuine redacted_thinking block: `encrypted` holds the opaque `data` blob.
 							convertedContent.push({
 								type: 'redacted_thinking',
 								data: opaqueValue.thinking.encrypted,
+							});
+						} else if (opaqueValue.thinking.encrypted) {
+							// Regular thinking block: `encrypted` holds the signature. The text may be
+							// empty (e.g. `display: "omitted"` or pruned under token budget); the Anthropic
+							// API still accepts a thinking block with an empty `thinking` field as long as
+							// the signature is intact. We must NEVER ship the signature as redacted `data`,
+							// which the API rejects with "Invalid 'data' in 'redacted_thinking' block".
+							convertedContent.push({
+								type: 'thinking',
+								thinking: thinkingText || '',
+								signature: opaqueValue.thinking.encrypted,
 							});
 						}
 					}
@@ -1113,6 +1124,7 @@ export class AnthropicMessagesProcessor {
 						thinking: {
 							id: `thinking_${chunk.index}`,
 							encrypted: data,
+							redacted: true,
 						}
 					});
 				}
