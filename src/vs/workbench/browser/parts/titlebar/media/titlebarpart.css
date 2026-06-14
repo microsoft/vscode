@@ -499,3 +499,184 @@
 	border-radius: 16px;
 	text-align: center;
 }
+
+/* Solo: Cursor-like titlebar chrome and layout controls */
+.monaco-workbench .part.titlebar {
+	box-shadow: none;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container {
+	background: color-mix(in srgb, var(--vscode-titleBar-activeBackground) 92%, #050505);
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container.has-center > .titlebar-left {
+	min-width: 180px;
+}
+
+.monaco-workbench.mac:not(.web) .part.titlebar > .titlebar-container > .titlebar-left {
+	padding-left: 72px;
+	box-sizing: border-box;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container .monaco-toolbar .actions-container {
+	gap: 2px;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center {
+	height: 24px;
+	border-radius: 8px;
+	border-color: rgba(255, 255, 255, 0.09);
+	background-color: rgba(255, 255, 255, 0.045);
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center:HOVER {
+	background-color: rgba(255, 255, 255, 0.075);
+	border-color: rgba(255, 255, 255, 0.14);
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container {
+	padding-right: 8px;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container .monaco-action-bar .action-label {
+	border-radius: 6px;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container .monaco-action-bar .action-item:hover .action-label,
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container .monaco-action-bar .action-item:focus .action-label,
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container .monaco-action-bar .action-label.checked {
+	background-color: rgba(255, 255, 255, 0.075);
+}
+
+.monaco-workbench .part.titlebar .solo-titlebar-layout-toggle {
+	position: relative;
+	z-index: 2500;
+	-webkit-app-region: no-drag;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	margin: 0 2px 0 0;
+	border: 0;
+	border-radius: 6px;
+	background: transparent;
+	color: inherit;
+	cursor: default;
+	order: 1;
+}
+
+.monaco-workbench .part.titlebar .solo-titlebar-layout-toggle:hover,
+.monaco-workbench .part.titlebar .solo-titlebar-layout-toggle:focus-visible {
+	background-color: rgba(255, 255, 255, 0.075);
+	outline: none;
+}
+
+/* Solo: Back/Forward navigation buttons, pinned to the left right after the sidebar toggle */
+.monaco-workbench .part.titlebar .solo-titlebar-nav-button {
+	position: relative;
+	z-index: 2500;
+	-webkit-app-region: no-drag;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	margin: 0 2px 0 0;
+	border: 0;
+	border-radius: 6px;
+	background: transparent;
+	color: var(--solo-ink-2, inherit);
+	cursor: default;
+}
+
+.monaco-workbench .part.titlebar .solo-titlebar-nav-button .codicon {
+	font-size: 16px;
+	color: var(--solo-ink-2) !important;
+}
+
+.monaco-workbench .part.titlebar .solo-titlebar-nav-button:hover .codicon,
+.monaco-workbench .part.titlebar .solo-titlebar-nav-button:focus-visible .codicon {
+	color: var(--solo-ink-0) !important;
+}
+
+.monaco-workbench .part.titlebar .solo-titlebar-nav-button.solo-nav-back {
+	order: 2;
+	margin-left: 2px;
+}
+
+.monaco-workbench .part.titlebar .solo-titlebar-nav-button.solo-nav-forward {
+	order: 3;
+}
+
+.monaco-workbench .part.titlebar .solo-titlebar-nav-button:hover:not(.disabled),
+.monaco-workbench .part.titlebar .solo-titlebar-nav-button:focus-visible:not(.disabled) {
+	background-color: rgba(255, 255, 255, 0.075);
+	color: var(--solo-ink-0, inherit);
+	outline: none;
+}
+
+/* Disabled state: dim the button when navigation history is empty */
+.monaco-workbench .part.titlebar .solo-titlebar-nav-button.disabled {
+	opacity: 0.35;
+	pointer-events: none;
+}
+
+/* Hide the command center's built-in back/forward (replaced by the left Solo
+ * nav buttons above).
+ * Upstream target: src/vs/workbench/browser/parts/titlebar/commandCenterControl.ts */
+.monaco-workbench .part.titlebar .command-center .action-item:has(.codicon-arrow-left),
+.monaco-workbench .part.titlebar .command-center .action-item:has(.codicon-arrow-right) {
+	display: none !important;
+}
+
+.monaco-workbench .part.titlebar .solo-titlebar-layout-toggle svg {
+	width: 17px;
+	height: 14px;
+	display: block;
+	overflow: visible; /* allow the thicker stroke to render without clipping at the viewBox edge */
+}
+
+/* Match the right-side icon color (--solo-ink-2) and stroke thickness of the codicons */
+.monaco-workbench .part.titlebar .solo-titlebar-layout-toggle svg rect:not(.solo-titlebar-layout-toggle-fill) {
+	stroke: var(--solo-ink-2);
+	stroke-width: 3;
+}
+
+.monaco-workbench .part.titlebar .solo-titlebar-layout-toggle .solo-titlebar-layout-toggle-fill {
+	fill: rgba(228, 228, 228, 0.25);
+}
+
+.monaco-workbench .part.titlebar .solo-titlebar-layout-toggle.checked .solo-titlebar-layout-toggle-fill {
+	fill: var(--solo-ink-2);
+}
+
+.monaco-workbench .part.titlebar .solo-titlebar-layout-toggle:hover svg rect:not(.solo-titlebar-layout-toggle-fill) {
+	stroke: var(--solo-ink-0);
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container .codicon-layout-panel,
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container .codicon-layout-panel-off {
+	width: 28px;
+	height: 24px;
+	background-repeat: no-repeat;
+	background-position: center;
+	background-size: 18px 15px;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container .codicon-layout-panel::before,
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container .codicon-layout-panel-off::before {
+	content: '';
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container .codicon-layout-panel {
+	background-image: url("data:image/svg+xml,%3Csvg width='50' height='40' viewBox='0 0 50 40' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='1' y='1' width='48' height='38' rx='4' stroke='%23808080' stroke-width='2'/%3E%3Crect x='4' y='20' width='42' height='16' rx='1' fill='%23808080'/%3E%3C/svg%3E");
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container .codicon-layout-panel-off {
+	background-image: url("data:image/svg+xml,%3Csvg width='50' height='40' viewBox='0 0 50 40' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='1' y='1' width='48' height='38' rx='4' stroke='%23808080' stroke-width='2'/%3E%3Crect x='4' y='20' width='42' height='16' rx='1' fill='%23404040'/%3E%3C/svg%3E");
+}

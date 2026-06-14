@@ -1,26 +1,26 @@
 {
 	"name": "copilot-chat",
 	"displayName": "Solo",
-	"description": "AI chat features powered by Copilot",
+	"description": "AI chat and editing features for Solo",
 	"version": "0.53.0",
 	"build": "1",
 	"completionsCoreVersion": "1.378.1799",
 	"internalLargeStorageAriaKey": "ec712b3202c5462fb6877acae7f1f9d7-c19ad55e-3e3c-4f99-984b-827f6d95bd9e-6917",
 	"ariaKey": "0c6ae279ed8443289764825290e4f9e2-1a736e7c-1324-4338-be46-fc2a58ae4d14-7255",
 	"buildType": "dev",
-	"publisher": "GitHub",
-	"homepage": "https://github.com/features/copilot?editor=vscode",
+	"publisher": "Solo",
+	"homepage": "https://github.com/getnodus/solo",
 	"license": "SEE LICENSE IN LICENSE.txt",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/microsoft/vscode-copilot-chat"
+		"url": "https://github.com/getnodus/solo"
 	},
 	"bugs": {
-		"url": "https://github.com/microsoft/vscode/issues"
+		"url": "https://github.com/getnodus/solo/issues"
 	},
-	"qna": "https://github.com/github-community/community/discussions/categories/copilot",
-	"icon": "assets/copilot.png",
-	"pricing": "Trial",
+	"qna": "https://github.com/getnodus/solo/discussions",
+	"icon": "assets/solo.svg",
+	"pricing": "Free",
 	"engines": {
 		"vscode": "^1.125.0",
 		"npm": ">=9.0.0",
@@ -55,28 +55,7 @@
 		"kotlin",
 		"co-pilot"
 	],
-	"badges": [
-		{
-			"url": "https://img.shields.io/badge/GitHub%20Copilot-Subscription%20Required-orange",
-			"href": "https://github.com/github-copilot/signup?editor=vscode",
-			"description": "%github.copilot.badge.signUp%"
-		},
-		{
-			"url": "https://img.shields.io/github/stars/github/copilot-docs?style=social",
-			"href": "https://github.com/github/copilot-docs",
-			"description": "%github.copilot.badge.star%"
-		},
-		{
-			"url": "https://img.shields.io/youtube/channel/views/UC7c3Kb6jYCRj4JOHHZTxKsQ?style=social",
-			"href": "https://www.youtube.com/@GitHub/search?query=copilot",
-			"description": "%github.copilot.badge.youtube%"
-		},
-		{
-			"url": "https://img.shields.io/twitter/follow/github?style=social",
-			"href": "https://twitter.com/github",
-			"description": "%github.copilot.badge.twitter%"
-		}
-	],
+	"badges": [],
 	"activationEvents": [
 		"onStartupFinished",
 		"onLanguageModelChat:copilot",
@@ -336,7 +315,7 @@
 				"displayName": "%copilot.tools.getVSCodeAPI.name%",
 				"icon": "$(references)",
 				"userDescription": "%copilot.vscode.tool.description%",
-				"modelDescription": "Get comprehensive VS Code API documentation and references for extension development. This tool provides authoritative documentation for VS Code's extensive API surface, including proposed APIs, contribution points, and best practices. Use this tool for understanding complex VS Code API interactions.\n\nWhen to use this tool:\n- User asks about specific VS Code APIs, interfaces, or extension capabilities\n- Need documentation for VS Code extension contribution points (commands, views, settings, etc.)\n- Questions about proposed APIs and their usage patterns\n- Understanding VS Code extension lifecycle, activation events, and packaging\n- Best practices for VS Code extension development architecture\n- API examples and code patterns for extension features\n- Troubleshooting extension-specific issues or API limitations\n\nWhen NOT to use this tool:\n- Creating simple standalone files or scripts unrelated to VS Code extensions\n- General programming questions not specific to VS Code extension development\n- Questions about using VS Code as an editor (user-facing features)\n- Non-extension related development tasks\n- File creation or editing that doesn't involve VS Code extension APIs\n\nCRITICAL usage guidelines:\n1. Always include specific API names, interfaces, or concepts in your query\n2. Mention the extension feature you're trying to implement\n3. Include context about proposed vs stable APIs when relevant\n4. Reference specific contribution points when asking about extension manifest\n5. Be specific about the VS Code version or API version when known\n\nScope: This tool is for EXTENSION DEVELOPMENT ONLY - building tools that extend VS Code itself, not for general file creation or non-extension programming tasks.",
+				"modelDescription": "Get comprehensive editor API documentation and references for extension development. This tool provides authoritative documentation for the editor API surface, including proposed APIs, contribution points, and best practices. Use this tool for understanding complex editor API interactions.\n\nWhen to use this tool:\n- User asks about specific editor APIs, interfaces, or extension capabilities\n- Need documentation for editor extension contribution points (commands, views, settings, etc.)\n- Questions about proposed APIs and their usage patterns\n- Understanding extension lifecycle, activation events, and packaging\n- Best practices for extension development architecture\n- API examples and code patterns for extension features\n- Troubleshooting extension-specific issues or API limitations\n\nWhen NOT to use this tool:\n- Creating simple standalone files or scripts unrelated to extensions\n- General programming questions not specific to extension development\n- Questions about using Solo as an editor (user-facing features)\n- Non-extension related development tasks\n- File creation or editing that doesn't involve editor extension APIs\n\nCRITICAL usage guidelines:\n1. Always include specific API names, interfaces, or concepts in your query\n2. Mention the extension feature you're trying to implement\n3. Include context about proposed vs stable APIs when relevant\n4. Reference specific contribution points when asking about extension manifest\n5. Be specific about the editor version or API version when known\n\nScope: This tool is for EXTENSION DEVELOPMENT ONLY - building tools that extend the editor itself, not for general file creation or non-extension programming tasks.",
 				"inputSchema": {
 					"type": "object",
 					"properties": {
@@ -593,7 +572,7 @@
 				"icon": "$(new-folder)",
 				"userDescription": "%github.copilot.tools.createNewWorkspace.userDescription%",
 				"when": "config.github.copilot.chat.newWorkspaceCreation.enabled",
-				"modelDescription": "Get comprehensive setup steps to help the user create complete project structures in a VS Code workspace. This tool is designed for full project initialization and scaffolding, not for creating individual files.\n\nWhen to use this tool:\n- User wants to create a new complete project from scratch\n- Setting up entire project frameworks (TypeScript projects, React apps, Node.js servers, etc.)\n- Initializing Model Context Protocol (MCP) servers with full structure\n- Creating VS Code extensions with proper scaffolding\n- Setting up Next.js, Vite, or other framework-based projects\n- User asks for \"new project\", \"create a workspace\", \"set up a [framework] project\"\n- Need to establish complete development environment with dependencies, config files, and folder structure\n\nWhen NOT to use this tool:\n- Creating single files or small code snippets\n- Adding individual files to existing projects\n- Making modifications to existing codebases\n- User asks to \"create a file\" or \"add a component\"\n- Simple code examples or demonstrations\n- Debugging or fixing existing code\n\nThis tool provides complete project setup including:\n- Folder structure creation\n- Package.json and dependency management\n- Configuration files (tsconfig, eslint, etc.)\n- Initial boilerplate code\n- Development environment setup\n- Build and run instructions\n\nUse other file creation tools for individual files within existing projects.",
+				"modelDescription": "Get comprehensive setup steps to help the user create complete project structures in a Solo workspace. This tool is designed for full project initialization and scaffolding, not for creating individual files.\n\nWhen to use this tool:\n- User wants to create a new complete project from scratch\n- Setting up entire project frameworks (TypeScript projects, React apps, Node.js servers, etc.)\n- Initializing Model Context Protocol (MCP) servers with full structure\n- Creating editor extensions with proper scaffolding\n- Setting up Next.js, Vite, or other framework-based projects\n- User asks for \"new project\", \"create a workspace\", \"set up a [framework] project\"\n- Need to establish complete development environment with dependencies, config files, and folder structure\n\nWhen NOT to use this tool:\n- Creating single files or small code snippets\n- Adding individual files to existing projects\n- Making modifications to existing codebases\n- User asks to \"create a file\" or \"add a component\"\n- Simple code examples or demonstrations\n- Debugging or fixing existing code\n\nThis tool provides complete project setup including:\n- Folder structure creation\n- Package.json and dependency management\n- Configuration files (tsconfig, eslint, etc.)\n- Initial boilerplate code\n- Development environment setup\n- Build and run instructions\n\nUse other file creation tools for individual files within existing projects.",
 				"inputSchema": {
 					"type": "object",
 					"properties": {
@@ -612,13 +591,13 @@
 			},
 			{
 				"name": "copilot_installExtension",
-				"displayName": "Install Extension in VS Code",
+				"displayName": "Install Extension in Solo",
 				"when": "!config.github.copilot.chat.installExtensionSkill.enabled",
 				"toolReferenceName": "installExtension",
 				"legacyToolReferenceFullNames": [
 					"new/installExtension"
 				],
-				"modelDescription": "Install an extension in VS Code. Use this tool to install an extension in Visual Studio Code as part of a new workspace creation process only.",
+				"modelDescription": "Install an extension in Solo. Use this tool to install an extension as part of a new workspace creation process only.",
 				"inputSchema": {
 					"type": "object",
 					"properties": {
@@ -640,13 +619,13 @@
 			},
 			{
 				"name": "copilot_runVscodeCommand",
-				"displayName": "Run VS Code Command",
+				"displayName": "Run Solo Command",
 				"when": "config.github.copilot.chat.newWorkspaceCreation.enabled",
 				"toolReferenceName": "runCommand",
 				"legacyToolReferenceFullNames": [
 					"new/runVscodeCommand"
 				],
-				"modelDescription": "Run a command in VS Code. Use this tool to run a command in Visual Studio Code as part of a new workspace creation process only.",
+				"modelDescription": "Run a command in Solo. Use this tool to run a command as part of a new workspace creation process only.",
 				"inputSchema": {
 					"type": "object",
 					"properties": {
@@ -685,7 +664,7 @@
 				"legacyToolReferenceFullNames": [
 					"newJupyterNotebook"
 				],
-				"modelDescription": "Generates a new Jupyter Notebook (.ipynb) in VS Code. Jupyter Notebooks are interactive documents commonly used for data exploration, analysis, visualization, and combining code with narrative text. Prefer creating plain Python files or similar unless a user explicitly requests creating a new Jupyter Notebook or already has a Jupyter Notebook opened or exists in the workspace.",
+				"modelDescription": "Generates a new Jupyter Notebook (.ipynb) in Solo. Jupyter Notebooks are interactive documents commonly used for data exploration, analysis, visualization, and combining code with narrative text. Prefer creating plain Python files or similar unless a user explicitly requests creating a new Jupyter Notebook or already has a Jupyter Notebook opened or exists in the workspace.",
 				"userDescription": "%copilot.tools.newJupyterNotebook.description%",
 				"inputSchema": {
 					"type": "object",
@@ -1250,7 +1229,7 @@
 				"displayName": "Session Store SQL",
 				"toolReferenceName": "sessionStoreSql",
 				"when": "github.copilot.sessionSearch.enabled",
-				"userDescription": "Query your Copilot session history using SQL",
+				"userDescription": "Query your Solo session history using SQL",
 				"modelDescription": "Query the local session store containing history from past coding sessions. Uses SQLite syntax (NOT DuckDB or Postgres). SQL queries are read-only — only SELECT and WITH are allowed. Use `datetime('now', '-1 day')` for date math (NOT `now() - INTERVAL '1 day'`), FTS5 `MATCH` for text search.\n\nTables: `sessions`, `turns`, `session_files`, `session_refs`, `checkpoints`, `search_index`. For column details and query patterns, use the **chronicle** skill.\n\nActions: 'query' (execute SQL — supports JOINs, FTS5 MATCH, aggregations), 'reindex' (rebuild index from debug logs).",
 				"tags": [],
 				"canBeReferencedInPrompt": false,
@@ -1373,8 +1352,8 @@
 		"chatParticipants": [
 			{
 				"id": "github.copilot.default",
-				"name": "GitHubCopilot",
-				"fullName": "GitHub Copilot",
+				"name": "Solo",
+				"fullName": "Solo",
 				"description": "%copilot.description%",
 				"isDefault": true,
 				"locations": [
@@ -1442,7 +1421,7 @@
 						"disambiguation": [
 							{
 								"category": "create_new_workspace_or_extension",
-								"description": "The user wants to create a complete Visual Studio Code workspace from scratch, such as a new application or a Visual Studio Code extension. Use this category only if the question relates to generating or creating new workspaces in Visual Studio Code. Do not use this category for updating existing code or generating sample code snippets",
+								"description": "The user wants to create a complete Solo workspace from scratch, such as a new application or an editor extension. Use this category only if the question relates to generating or creating new workspaces in Solo. Do not use this category for updating existing code or generating sample code snippets",
 								"examples": [
 									"Scaffold a Node server.",
 									"Create a sample project which uses the fileSystemProvider API.",
@@ -1458,7 +1437,7 @@
 						"disambiguation": [
 							{
 								"category": "create_jupyter_notebook",
-								"description": "The user wants to create a new Jupyter notebook in Visual Studio Code.",
+								"description": "The user wants to create a new Jupyter notebook in Solo.",
 								"examples": [
 									"Create a notebook to analyze this CSV file."
 								]
@@ -1490,8 +1469,8 @@
 			},
 			{
 				"id": "github.copilot.editingSession",
-				"name": "GitHubCopilot",
-				"fullName": "GitHub Copilot",
+				"name": "Solo",
+				"fullName": "Solo",
 				"description": "%copilot.edits.description%",
 				"isDefault": true,
 				"locations": [
@@ -1503,8 +1482,8 @@
 			},
 			{
 				"id": "github.copilot.editingSessionEditor",
-				"name": "GitHubCopilot",
-				"fullName": "GitHub Copilot",
+				"name": "Solo",
+				"fullName": "Solo",
 				"description": "%copilot.edits.description%",
 				"isDefault": true,
 				"locations": [
@@ -1515,7 +1494,7 @@
 			{
 				"id": "github.copilot.editsAgent",
 				"name": "agent",
-				"fullName": "GitHub Copilot",
+				"fullName": "Solo",
 				"description": "%copilot.agent.description%",
 				"locations": [
 					"panel"
@@ -1572,7 +1551,7 @@
 						"disambiguation": [
 							{
 								"category": "create_new_workspace_or_extension",
-								"description": "The user wants to create a complete Visual Studio Code workspace from scratch, such as a new application or a Visual Studio Code extension. Use this category only if the question relates to generating or creating new workspaces in Visual Studio Code. Do not use this category for updating existing code or generating sample code snippets",
+								"description": "The user wants to create a complete Solo workspace from scratch, such as a new application or an editor extension. Use this category only if the question relates to generating or creating new workspaces in Solo. Do not use this category for updating existing code or generating sample code snippets",
 								"examples": [
 									"Scaffold a Node server.",
 									"Create a sample project which uses the fileSystemProvider API.",
@@ -1588,7 +1567,7 @@
 						"disambiguation": [
 							{
 								"category": "create_jupyter_notebook",
-								"description": "The user wants to create a new Jupyter notebook in Visual Studio Code.",
+								"description": "The user wants to create a new Jupyter notebook in Solo.",
 								"examples": [
 									"Create a notebook to analyze this CSV file."
 								]
@@ -1620,8 +1599,8 @@
 			},
 			{
 				"id": "github.copilot.notebook",
-				"name": "GitHubCopilot",
-				"fullName": "GitHub Copilot",
+				"name": "Solo",
+				"fullName": "Solo",
 				"description": "%copilot.description%",
 				"isDefault": true,
 				"locations": [
@@ -1641,8 +1620,8 @@
 			},
 			{
 				"id": "github.copilot.notebookEditorAgent",
-				"name": "GitHubCopilot",
-				"fullName": "GitHub Copilot",
+				"name": "Solo",
+				"fullName": "Solo",
 				"description": "%copilot.description%",
 				"isDefault": true,
 				"locations": [
@@ -1663,7 +1642,7 @@
 			{
 				"id": "github.copilot.vscode",
 				"name": "vscode",
-				"fullName": "VS Code",
+				"fullName": "Solo",
 				"description": "%copilot.vscode.description%",
 				"when": "!github.copilot.interactiveSession.disabled",
 				"sampleRequest": "%copilot.vscode.sampleRequest%",
@@ -1673,7 +1652,7 @@
 				"disambiguation": [
 					{
 						"category": "vscode_configuration_questions",
-						"description": "The user wants to learn about, use, or configure the Visual Studio Code. Use this category if the users question is specifically about commands, settings, keybindings, extensions and other features available in Visual Studio Code. Do not use this category to answer questions about generating code or creating new projects including Visual Studio Code extensions.",
+						"description": "The user wants to learn about, use, or configure Solo. Use this category if the user's question is specifically about commands, settings, keybindings, extensions and other features available in Solo. Do not use this category to answer questions about generating code or creating new projects including editor extensions.",
 						"examples": [
 							"Switch to light mode.",
 							"Keyboard shortcut to toggle terminal visibility.",
@@ -1734,7 +1713,7 @@
 						"disambiguation": [
 							{
 								"category": "terminal_state_questions",
-								"description": "The user wants to learn about specific state such as the selection, command, or failed command in the integrated terminal in Visual Studio Code.",
+								"description": "The user wants to learn about specific state such as the selection, command, or failed command in the integrated terminal in Solo.",
 								"examples": [
 									"Why did the latest terminal command fail?"
 								]
@@ -1747,11 +1726,11 @@
 		"languageModelChatProviders": [
 			{
 				"vendor": "copilot",
-				"displayName": "Copilot"
+				"displayName": "Solo"
 			},
 			{
 				"vendor": "copilotcli",
-				"displayName": "Copilot CLI",
+				"displayName": "Solo CLI",
 				"when": "false"
 			},
 			{
@@ -2285,7 +2264,7 @@
 		],
 		"interactiveSession": [
 			{
-				"label": "GitHub Copilot",
+				"label": "Solo",
 				"id": "copilot",
 				"icon": "",
 				"when": "!github.copilot.interactiveSession.disabled"
@@ -2384,29 +2363,29 @@
 				"command": "github.copilot.cli.sessions.delete",
 				"title": "%github.copilot.command.deleteAgentSession%",
 				"icon": "$(close)",
-				"category": "Copilot CLI"
+				"category": "Solo CLI"
 			},
 			{
 				"command": "agents.github.copilot.cli.deleteSessions",
 				"title": "%github.copilot.command.deleteAgentSession%",
-				"category": "Copilot CLI"
+				"category": "Solo CLI"
 			},
 			{
 				"command": "github.copilot.cli.sessions.resumeInTerminal",
 				"title": "%github.copilot.command.cli.sessions.resumeInTerminal%",
 				"icon": "$(terminal)",
-				"category": "Copilot CLI"
+				"category": "Solo CLI"
 			},
 			{
 				"command": "github.copilot.cli.sessions.rename",
 				"title": "%github.copilot.command.cli.sessions.rename%",
 				"icon": "$(edit)",
-				"category": "Copilot CLI"
+				"category": "Solo CLI"
 			},
 			{
 				"command": "github.copilot.cli.sessions.setTitle",
 				"title": "%github.copilot.command.cli.sessions.setTitle%",
-				"category": "Copilot CLI"
+				"category": "Solo CLI"
 			},
 			{
 				"command": "github.copilot.claude.sessions.rename",
@@ -2418,37 +2397,37 @@
 				"command": "github.copilot.cli.sessions.openRepository",
 				"title": "%github.copilot.command.cli.sessions.openRepository%",
 				"icon": "$(folder-opened)",
-				"category": "Copilot CLI"
+				"category": "Solo CLI"
 			},
 			{
 				"command": "github.copilot.cli.sessions.openWorktreeInNewWindow",
 				"title": "%github.copilot.command.cli.sessions.openWorktreeInNewWindow%",
 				"icon": "$(folder-opened)",
-				"category": "Copilot CLI"
+				"category": "Solo CLI"
 			},
 			{
 				"command": "github.copilot.cli.sessions.openWorktreeInTerminal",
 				"title": "%github.copilot.command.cli.sessions.openWorktreeInTerminal%",
 				"icon": "$(terminal)",
-				"category": "Copilot CLI"
+				"category": "Solo CLI"
 			},
 			{
 				"command": "github.copilot.cli.sessions.copyWorktreeBranchName",
 				"title": "%github.copilot.command.cli.sessions.copyWorktreeBranchName%",
 				"icon": "$(copy)",
-				"category": "Copilot CLI"
+				"category": "Solo CLI"
 			},
 			{
 				"command": "github.copilot.cli.sessions.commitToWorktree",
 				"title": "%github.copilot.command.cli.sessions.commitToWorktree%",
 				"icon": "$(git-commit)",
-				"category": "Copilot CLI"
+				"category": "Solo CLI"
 			},
 			{
 				"command": "github.copilot.cli.sessions.commitToRepository",
 				"title": "%github.copilot.command.cli.sessions.commitToRepository%",
 				"icon": "$(git-commit)",
-				"category": "Copilot CLI"
+				"category": "Solo CLI"
 			},
 			{
 				"command": "github.copilot.cli.newSession",
@@ -2466,7 +2445,7 @@
 				"command": "github.copilot.cli.openInCopilotCLI",
 				"title": "%github.copilot.command.cli.openInCopilotCLI%",
 				"icon": "$(terminal)",
-				"category": "Copilot CLI"
+				"category": "Solo CLI"
 			},
 			{
 				"command": "github.copilot.chat.compact",
@@ -2896,22 +2875,22 @@
 			{
 				"command": "github.copilot.nes.captureExpected.start",
 				"title": "Record Expected Edit (NES)",
-				"category": "Copilot"
+				"category": "Solo"
 			},
 			{
 				"command": "github.copilot.nes.captureExpected.confirm",
 				"title": "Confirm and Save Expected Edit Capture",
-				"category": "Copilot"
+				"category": "Solo"
 			},
 			{
 				"command": "github.copilot.nes.captureExpected.abort",
 				"title": "Cancel Expected Edit Capture",
-				"category": "Copilot"
+				"category": "Solo"
 			},
 			{
 				"command": "github.copilot.nes.captureExpected.submit",
 				"title": "Submit NES Captures",
-				"category": "Copilot"
+				"category": "Solo"
 			},
 			{
 				"command": "github.copilot.debug.collectWorkspaceIndexDiagnostics",
@@ -2968,132 +2947,132 @@
 				"command": "github.copilot.chat.openSuggestionsPanel",
 				"title": "Open Completions Panel",
 				"enablement": "github.copilot.extensionUnification.activated && !isWeb",
-				"category": "GitHub Copilot"
+				"category": "Solo"
 			},
 			{
 				"command": "github.copilot.chat.toggleStatusMenu",
 				"title": "Open Status Menu",
 				"enablement": "github.copilot.extensionUnification.activated",
-				"category": "GitHub Copilot"
+				"category": "Solo"
 			},
 			{
 				"command": "github.copilot.chat.completions.disable",
 				"title": "Disable Inline Suggestions",
 				"enablement": "github.copilot.extensionUnification.activated && github.copilot.activated && config.editor.inlineSuggest.enabled && github.copilot.completions.enabled",
-				"category": "GitHub Copilot"
+				"category": "Solo"
 			},
 			{
 				"command": "github.copilot.chat.completions.enable",
 				"title": "Enable Inline Suggestions",
 				"enablement": "github.copilot.extensionUnification.activated && github.copilot.activated && !(config.editor.inlineSuggest.enabled && github.copilot.completions.enabled)",
-				"category": "GitHub Copilot"
+				"category": "Solo"
 			},
 			{
 				"command": "github.copilot.chat.completions.toggle",
 				"title": "Toggle (Enable/Disable) Inline Suggestions",
 				"enablement": "github.copilot.extensionUnification.activated && github.copilot.activated",
-				"category": "GitHub Copilot"
+				"category": "Solo"
 			},
 			{
 				"command": "github.copilot.chat.openModelPicker",
 				"title": "Change Completions Model",
-				"category": "GitHub Copilot",
+				"category": "Solo",
 				"enablement": "github.copilot.extensionUnification.activated && !isWeb && github.copilot.completions.hasMultipleModels"
 			},
 			{
 				"command": "github.copilot.chat.applyCopilotCLIAgentSessionChanges",
 				"title": "%github.copilot.command.applyCopilotCLIAgentSessionChanges%",
 				"enablement": "!chatSessionRequestInProgress",
-				"category": "GitHub Copilot"
+				"category": "Solo"
 			},
 			{
 				"command": "github.copilot.chat.applyCopilotCLIAgentSessionChanges.apply",
 				"title": "%github.copilot.chat.applyCopilotCLIAgentSessionChanges.apply%",
 				"enablement": "!chatSessionRequestInProgress",
 				"icon": "$(git-stash-pop)",
-				"category": "GitHub Copilot"
+				"category": "Solo"
 			},
 			{
 				"command": "github.copilot.chat.mergeCopilotCLIAgentSessionChanges.merge",
 				"title": "%github.copilot.chat.mergeCopilotCLIAgentSessionChanges.merge%",
 				"enablement": "!chatSessionRequestInProgress",
 				"icon": "$(git-merge)",
-				"category": "GitHub Copilot"
+				"category": "Solo"
 			},
 			{
 				"command": "github.copilot.chat.mergeCopilotCLIAgentSessionChanges.mergeAndSync",
 				"title": "%github.copilot.chat.mergeCopilotCLIAgentSessionChanges.mergeAndSync%",
 				"enablement": "!chatSessionRequestInProgress",
 				"icon": "$(sync)",
-				"category": "GitHub Copilot"
+				"category": "Solo"
 			},
 			{
 				"command": "github.copilot.sessions.commit",
 				"title": "%github.copilot.command.sessions.commit%",
 				"enablement": "!chatSessionRequestInProgress && !sessions.hasGitOperationInProgress",
 				"icon": "$(git-commit)",
-				"category": "GitHub Copilot"
+				"category": "Solo"
 			},
 			{
 				"command": "github.copilot.sessions.commitAndSync",
 				"title": "%github.copilot.command.sessions.commitAndSync%",
 				"enablement": "!chatSessionRequestInProgress && !sessions.hasGitOperationInProgress",
 				"icon": "$(sync)",
-				"category": "GitHub Copilot"
+				"category": "Solo"
 			},
 			{
 				"command": "github.copilot.sessions.sync",
 				"title": "%github.copilot.command.sessions.sync%",
 				"enablement": "!chatSessionRequestInProgress && !sessions.hasGitOperationInProgress",
 				"icon": "$(sync)",
-				"category": "GitHub Copilot"
+				"category": "Solo"
 			},
 			{
 				"command": "github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR",
 				"title": "%github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR%",
 				"enablement": "!chatSessionRequestInProgress && !sessions.hasGitOperationInProgress",
 				"icon": "$(git-pull-request-create)",
-				"category": "GitHub Copilot"
+				"category": "Solo"
 			},
 			{
 				"command": "github.copilot.chat.createDraftPullRequestCopilotCLIAgentSession.createDraftPR",
 				"title": "%github.copilot.chat.createDraftPullRequestCopilotCLIAgentSession.createDraftPR%",
 				"enablement": "!chatSessionRequestInProgress && !sessions.hasGitOperationInProgress",
 				"icon": "$(git-pull-request-draft)",
-				"category": "GitHub Copilot"
+				"category": "Solo"
 			},
 			{
 				"command": "github.copilot.sessions.discardChanges",
 				"title": "%github.copilot.command.sessions.discardChanges%",
 				"enablement": "!chatSessionRequestInProgress",
 				"icon": "$(discard)",
-				"category": "GitHub Copilot"
+				"category": "Solo"
 			},
 			{
 				"command": "github.copilot.chat.copilotCLI.addFileReference",
 				"title": "%github.copilot.command.chat.copilotCLI.addFileReference%",
 				"enablement": "github.copilot.chat.copilotCLI.hasSession",
-				"category": "Copilot CLI"
+				"category": "Solo CLI"
 			},
 			{
 				"command": "github.copilot.chat.copilotCLI.addSelection",
 				"title": "%github.copilot.command.chat.copilotCLI.addSelection%",
 				"enablement": "github.copilot.chat.copilotCLI.hasSession",
-				"category": "Copilot CLI"
+				"category": "Solo CLI"
 			},
 			{
 				"command": "github.copilot.chat.copilotCLI.acceptDiff",
 				"title": "%github.copilot.command.chat.copilotCLI.acceptDiff%",
 				"enablement": "github.copilot.chat.copilotCLI.hasActiveDiff",
 				"icon": "$(check)",
-				"category": "Copilot CLI"
+				"category": "Solo CLI"
 			},
 			{
 				"command": "github.copilot.chat.copilotCLI.rejectDiff",
 				"title": "%github.copilot.command.chat.copilotCLI.rejectDiff%",
 				"enablement": "github.copilot.chat.copilotCLI.hasActiveDiff",
 				"icon": "$(close)",
-				"category": "Copilot CLI"
+				"category": "Solo CLI"
 			},
 			{
 				"command": "github.copilot.chat.checkoutPullRequestReroute",
@@ -3111,53 +3090,53 @@
 				"command": "github.copilot.chat.cloudSessions.openRepository",
 				"title": "%github.copilot.command.cloudSessions.openRepository.title%",
 				"icon": "$(repo)",
-				"category": "GitHub Copilot"
+				"category": "Solo"
 			},
 			{
 				"command": "github.copilot.chat.cloudSessions.clearCaches",
 				"title": "%github.copilot.command.cloudSessions.clearCaches.title%",
-				"category": "GitHub Copilot"
+				"category": "Solo"
 			},
 			{
 				"command": "github.copilot.sessions.refreshChanges",
 				"title": "%github.copilot.command.sessions.refreshChanges%",
 				"icon": "$(refresh)",
-				"category": "GitHub Copilot"
+				"category": "Solo"
 			},
 			{
 				"command": "github.copilot.sessions.initializeRepository",
 				"title": "%github.copilot.command.sessions.initializeRepository%",
 				"enablement": "!chatSessionRequestInProgress",
 				"icon": "$(repo)",
-				"category": "GitHub Copilot"
+				"category": "Solo"
 			},
 			{
 				"command": "github.copilot.claude.sessions.commit",
 				"title": "%github.copilot.command.claude.sessions.commit%",
 				"enablement": "!chatSessionRequestInProgress",
 				"icon": "$(git-commit)",
-				"category": "GitHub Copilot"
+				"category": "Solo"
 			},
 			{
 				"command": "github.copilot.claude.sessions.commitAndSync",
 				"title": "%github.copilot.command.claude.sessions.commitAndSync%",
 				"enablement": "!chatSessionRequestInProgress",
 				"icon": "$(sync)",
-				"category": "GitHub Copilot"
+				"category": "Solo"
 			},
 			{
 				"command": "github.copilot.claude.sessions.sync",
 				"title": "%github.copilot.command.claude.sessions.sync%",
 				"enablement": "!chatSessionRequestInProgress",
 				"icon": "$(sync)",
-				"category": "GitHub Copilot"
+				"category": "Solo"
 			},
 			{
 				"command": "github.copilot.claude.sessions.initializeRepository",
 				"title": "%github.copilot.command.claude.sessions.initializeRepository%",
 				"enablement": "!chatSessionRequestInProgress",
 				"icon": "$(repo)",
-				"category": "GitHub Copilot"
+				"category": "Solo"
 			}
 		],
 		"configuration": [
@@ -3210,7 +3189,7 @@
 							"pl"
 						],
 						"enumDescriptions": [
-							"Use VS Code's configured display language",
+							"Use Solo's configured display language",
 							"English",
 							"français",
 							"italiano",
@@ -3355,7 +3334,7 @@
 						"additionalProperties": {
 							"type": "boolean"
 						},
-						"markdownDescription": "Enable or disable auto triggering of Copilot completions for specified [languages](https://code.visualstudio.com/docs/languages/identifiers). You can still trigger suggestions manually using `Alt + \\`",
+						"markdownDescription": "Enable or disable auto triggering of Solo completions for specified [languages](https://code.visualstudio.com/docs/languages/identifiers). You can still trigger suggestions manually using `Alt + \\`",
 						"agentsWindow": {
 							"default": {
 								"markdown": true,
@@ -3366,7 +3345,7 @@
 					"github.copilot.selectedCompletionModel": {
 						"type": "string",
 						"default": "",
-						"markdownDescription": "The currently selected completion model ID. To select from a list of available models, use the __\"Change Completions Model\"__ command or open the model picker (from the Copilot menu in the VS Code title bar, select __\"Configure Code Completions\"__ then __\"Change Completions Model\"__. The value must be a valid model ID. An empty value indicates that the default model will be used."
+						"markdownDescription": "The currently selected completion model ID. To select from a list of available models, use the __\"Change Completions Model\"__ command or open the model picker from the Solo menu. The value must be a valid model ID. An empty value indicates that the default model will be used."
 					},
 					"github.copilot.chat.claudeAgent.enabled": {
 						"type": "boolean",
@@ -3666,7 +3645,7 @@
 											"text": "Use underscore for field names."
 										},
 										{
-											"text": "Always add a comment: 'Generated by Copilot'."
+											"text": "Always add a comment: 'Generated by Solo'."
 										}
 									]
 								}
@@ -3680,7 +3659,7 @@
 									"file": ".copilot-codeGeneration-instructions.md"
 								},
 								{
-									"text": "Always add a comment: 'Generated by Copilot'."
+									"text": "Always add a comment: 'Generated by Solo'."
 								}
 							]
 						],
@@ -5286,7 +5265,7 @@
 					"github.copilot.chat.otel.enabled": {
 						"type": "boolean",
 						"default": false,
-						"markdownDescription": "Enable OpenTelemetry trace/metric/log emission for Copilot Chat operations. Env var `COPILOT_OTEL_ENABLED` takes precedence. Requires window reload.",
+						"markdownDescription": "Enable OpenTelemetry trace/metric/log emission for Solo Chat operations. Env var `COPILOT_OTEL_ENABLED` takes precedence. Requires window reload.",
 						"tags": [
 							"advanced"
 						]
@@ -5300,7 +5279,7 @@
 							"file"
 						],
 						"default": "otlp-http",
-						"markdownDescription": "OTel exporter type for Copilot Chat telemetry. Requires window reload.",
+						"markdownDescription": "OTel exporter type for Solo Chat telemetry. Requires window reload.",
 						"tags": [
 							"advanced"
 						]
@@ -5308,7 +5287,7 @@
 					"github.copilot.chat.otel.otlpEndpoint": {
 						"type": "string",
 						"default": "http://localhost:4318",
-						"markdownDescription": "OTLP collector endpoint URL for Copilot Chat OTel data. Env var `OTEL_EXPORTER_OTLP_ENDPOINT` takes precedence. Requires window reload.",
+						"markdownDescription": "OTLP collector endpoint URL for Solo Chat OTel data. Env var `OTEL_EXPORTER_OTLP_ENDPOINT` takes precedence. Requires window reload.",
 						"tags": [
 							"advanced"
 						]
@@ -6733,11 +6712,11 @@
 			{
 				"type": "copilotcli",
 				"name": "cli",
-				"displayName": "Copilot CLI",
+				"displayName": "Solo CLI",
 				"icon": "$(copilot)",
-				"welcomeTitle": "Copilot CLI",
-				"welcomeMessage": "Run tasks in the background with the Copilot CLI",
-				"inputPlaceholder": "Run tasks in the background with the Copilot CLI, type `#` for adding context",
+				"welcomeTitle": "Solo CLI",
+				"welcomeMessage": "Run tasks in the background with Solo CLI",
+				"inputPlaceholder": "Run tasks in the background with Solo CLI, type `#` for adding context",
 				"order": 1,
 				"canDelegate": true,
 				"description": "%github.copilot.session.providerDescription.background%",
@@ -6948,7 +6927,7 @@
 				{
 					"icon": "copilot",
 					"id": "copilot-cli",
-					"title": "GitHub Copilot CLI",
+					"title": "Solo CLI",
 					"titleTemplate": "${sequence}"
 				}
 			]

@@ -218,6 +218,36 @@
 	background-color: var(--vscode-statusBarItem-prominentHoverBackground) !important;
 }
 
+/* Solo: thinner, quieter status bar */
+.monaco-workbench .part.statusbar {
+	height: 22px;
+	border-top: 1px solid rgba(255, 255, 255, 0.055);
+	font-size: 11px;
+}
+
+.monaco-workbench .part.statusbar:not(:focus).status-border-top::after {
+	background-color: transparent;
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item {
+	line-height: 22px;
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item > .statusbar-item-label {
+	margin: 1px 2px;
+	padding: 0 7px;
+	height: 18px;
+	border-radius: 6px;
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item:has([class*="codicon-copilot"]) {
+	display: none;
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:hover:not(.disabled) {
+	outline: none;
+}
+
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.remote-kind {
 	color: var(--vscode-statusBarItem-remoteForeground);
 	background-color: var(--vscode-statusBarItem-remoteBackground);

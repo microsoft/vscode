@@ -69,8 +69,6 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchThemeService } from '../../../services/themes/common/workbenchThemeService.js';
 import { GettingStartedIndexList } from './gettingStartedList.js';
-import { canShowAgentsBanner, createAgentsBanner } from '../../chat/browser/agentSessions/agentSessionsBanner.js';
-import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibleViewAction } from '../../accessibility/browser/accessibleViewActions.js';
 import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
@@ -196,7 +194,6 @@ export class GettingStartedPage extends EditorPane {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
-		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 	) {
 
 		super(GettingStartedPage.ID, group, telemetryService, themeService, storageService);
@@ -450,6 +447,14 @@ export class GettingStartedPage extends EditorPane {
 				} else {
 					this.commandService.executeCommand('workbench.action.files.openFolder');
 				}
+				break;
+			}
+			case 'openSoloSettings': {
+				this.commandService.executeCommand('workbench.action.openSoloSettings');
+				break;
+			}
+			case 'openAgentsWindow': {
+				this.commandService.executeCommand('workbench.action.openAgentsWindow');
 				break;
 			}
 			case 'selectCategory': {
@@ -923,9 +928,11 @@ export class GettingStartedPage extends EditorPane {
 			onShowOnStartupChanged();
 		}));
 
-		const header = $('.header', {},
-			$('h1.product-name.caption', {}, this.productService.nameLong),
-			$('p.subtitle.description', {}, localize({ key: 'gettingStarted.editingEvolved', comment: ['Shown as subtitle on the Welcome page.'] }, "Editing evolved"))
+		const header = $('.header.solo-welcome-header', {},
+			$('.solo-welcome-lockup', { 'aria-label': this.productService.nameLong, 'role': 'img' }),
+			$('p.solo-welcome-plan', {},
+				$('button.button-link.solo-welcome-settings-link', { 'x-dispatch': 'openSoloSettings' }, localize('gettingStarted.soloSettings', "Settings"))
+			)
 		);
 
 		const leftColumn = $('.categories-column.categories-column-left', {},);
@@ -935,23 +942,12 @@ export class GettingStartedPage extends EditorPane {
 		const recentList = this.buildRecentlyOpenedList();
 		const gettingStartedList = this.buildGettingStartedWalkthroughsList();
 
-		const footerChildren: HTMLElement[] = [];
-		if (canShowAgentsBanner(this.chatEntitlementService)) {
-			const agentsBanner = createAgentsBanner(
-				{
-					cssClass: 'getting-started-category.agents-banner',
-					source: 'welcomePage',
-				},
-				this.commandService,
-				this.telemetryService,
-			);
-			this.categoriesSlideDisposables.add(agentsBanner.disposables);
-			footerChildren.push(agentsBanner.element);
-		}
-		footerChildren.push($('p.showOnStartup', {},
-			showOnStartupCheckbox.domNode,
-			showOnStartupLabel,
-		));
+		const footerChildren: HTMLElement[] = [
+			$('button.button-link.solo-welcome-agent-cta', { 'x-dispatch': 'openAgentsWindow' },
+				localize('gettingStarted.soloAgentCta', "Try a new window for running parallel agents"),
+				$('span.codicon.codicon-arrow-right.solo-welcome-agent-cta-icon')
+			)
+		];
 
 		const footer = $('.footer', {}, ...footerChildren);
 
@@ -969,14 +965,8 @@ export class GettingStartedPage extends EditorPane {
 		};
 
 		const layoutRecentList = () => {
-			if (this.container.classList.contains('noWalkthroughs')) {
-				recentList.setLimit(10);
-				reset(leftColumn, startList.getDomElement());
-				reset(rightColumn, recentList.getDomElement());
-			} else {
-				recentList.setLimit(5);
-				reset(leftColumn, startList.getDomElement(), recentList.getDomElement());
-			}
+			recentList.setLimit(5);
+			reset(leftColumn, startList.getDomElement(), recentList.getDomElement());
 		};
 
 		gettingStartedList.onDidChange(layoutLists);
@@ -1099,7 +1089,7 @@ export class GettingStartedPage extends EditorPane {
 
 		const recentlyOpenedList = this.recentlyOpenedList.value = new GettingStartedIndexList(
 			{
-				title: localize('recent', "Recent"),
+				title: localize('recent', "Recent projects"),
 				klass: 'recently-opened',
 				limit: 5,
 				empty: $('.empty-recent', {},

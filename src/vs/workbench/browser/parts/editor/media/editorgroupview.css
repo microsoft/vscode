@@ -218,6 +218,60 @@
 	display: none;
 }
 
+/* Solo: editor surface and empty state */
+.monaco-workbench .part.editor {
+	background: color-mix(in srgb, var(--vscode-editor-background) 96%, #050505);
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container {
+	border-radius: 0;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container.empty {
+	opacity: 1;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-wrapper > .editor-group-watermark {
+	max-width: 360px;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-wrapper .editor-group-watermark .letterpress {
+	width: 64px;
+	height: 64px;
+	max-width: 64px;
+	aspect-ratio: auto;
+	border-radius: 18px;
+	background-image: none !important;
+	background-color: rgba(255, 255, 255, 0.035);
+	border: 1px solid rgba(255, 255, 255, 0.065);
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+	position: relative;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-wrapper .editor-group-watermark .letterpress::before {
+	content: '';
+	position: absolute;
+	inset: 18px;
+	border-radius: 6px;
+	border: 1px solid rgba(255, 255, 255, 0.22);
+	transform: rotate(45deg);
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-wrapper .editor-group-watermark .shortcuts {
+	padding: 12px 14px;
+	border: 1px solid rgba(255, 255, 255, 0.055);
+	border-radius: 12px;
+	background: rgba(255, 255, 255, 0.025);
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-wrapper .editor-group-watermark .shortcuts dl {
+	margin: 6px 0;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title.title-border-bottom::after {
+	background-color: rgba(255, 255, 255, 0.055);
+}
+
 /* Toolbar */
 
 .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-container-toolbar {

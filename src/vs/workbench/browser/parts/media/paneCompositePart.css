@@ -367,3 +367,61 @@
 	margin: 12px;
 	text-align: center;
 }
+
+/* Solo: shared pane headers should feel like app chrome, not legacy tabs */
+.monaco-workbench .pane-composite-part > .title,
+.monaco-workbench .pane-composite-part > .header-or-footer {
+	min-height: 34px;
+	background-color: color-mix(in srgb, var(--vscode-sideBar-background) 94%, #050505);
+}
+
+.monaco-workbench .pane-composite-part > .header-or-footer {
+	padding-left: 6px;
+	padding-right: 6px;
+}
+
+.monaco-workbench .pane-composite-part:not(.empty) > .header,
+.monaco-workbench .pane-composite-part:not(.empty) > .footer {
+	border-color: rgba(255, 255, 255, 0.055);
+}
+
+.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar,
+.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar {
+	line-height: 30px;
+}
+
+.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item,
+.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item {
+	text-transform: none;
+	font-size: 11px;
+	font-weight: 600;
+	padding: 2px 6px;
+}
+
+.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label:not(.codicon-more),
+.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label:not(.codicon-more) {
+	border-radius: 7px;
+}
+
+.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .action-label,
+.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:hover .action-label,
+.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .action-label,
+.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:hover .action-label {
+	background: rgba(255, 255, 255, 0.06) !important;
+	outline: var(--vscode-contrastActiveBorder, unset) solid 1px !important;
+}
+
+.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .active-item-indicator:before,
+.monaco-workbench .pane-composite-part > .header-or-footer.header > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .active-item-indicator:before {
+	bottom: 1px;
+	width: calc(100% - 10px);
+	margin-left: 5px;
+	border-top-width: 2px;
+	border-radius: 2px;
+}
+
+.monaco-workbench .pane-composite-part .empty-pane-message-area .empty-pane-message {
+	max-width: 260px;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.45;
+}

@@ -359,6 +359,12 @@ body {
  * Applied to the disposable Code OSS checkout by scripts/fork/apply-branding.mjs.
  * This intentionally targets product structure: welcome, top activity row, titlebar,
  * and right agent pane. It avoids restyling stock Getting Started into a fake app.
+ *
+ * NOTE ON !important: Many overrides below use !important because upstream VS Code
+ * sets colors/layout via inline styles (from JS) or selectors of equal specificity.
+ * When rebasing, verify each !important is still needed — prefer increasing selector
+ * specificity (e.g., .monaco-workbench.solo-dark .part.titlebar) over !important
+ * when the upstream rule is purely CSS.
  */
 
 .monaco-workbench {
@@ -385,8 +391,7 @@ body {
 	position: relative;
 	height: 32px;
 	border-bottom: 1px solid var(--solo-stroke);
-	background: rgba(20, 20, 20, 0.92) !important;
-	backdrop-filter: blur(18px);
+	background: var(--solo-surface-0) !important;
 	box-shadow: none;
 }
 
@@ -408,6 +413,28 @@ body {
 .monaco-workbench .part.titlebar .titlebar-right .action-label,
 .monaco-workbench .part.titlebar .titlebar-right .codicon {
 	color: var(--solo-ink-2) !important;
+}
+
+/* Solo: chat now lives in the right title-bar cluster (between layout and gear);
+ * hide the chat sparkle badge that the agent-status widget paints by the search box.
+ * Target: src/vs/workbench/contrib/chat/browser/agentSessions/agentTitleBarStatusWidget.ts */
+.monaco-workbench .part.titlebar .agent-status-badge-section.sparkle {
+	display: none !important;
+}
+
+/* Solo: strip the layout-toggle + accounts clutter from the title bar so the
+ * right side reads like Cursor (panel, chat, gear, Agents Window).
+ *
+ * Upstream selector targets (verify on rebase):
+ *   .codicon-configure-layout-icon       → src/vs/workbench/browser/actions/layoutActions.ts
+ *   .codicon-auxiliarybar-right-*-icon    → src/vs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions.ts
+ *   .codicon-accounts-view-bar-icon      → src/vs/workbench/browser/parts/globalCompositeBar.ts
+ */
+.monaco-workbench .part.titlebar .action-item:has(.codicon-configure-layout-icon),
+.monaco-workbench .part.titlebar .action-item:has(.codicon-auxiliarybar-right-off-layout-icon),
+.monaco-workbench .part.titlebar .action-item:has(.codicon-auxiliarybar-right-layout-icon),
+.monaco-workbench .part.titlebar .action-item:has(.codicon-accounts-view-bar-icon) {
+	display: none !important;
 }
 
 .monaco-workbench .part.titlebar .titlebar-right .action-label:hover {
@@ -689,9 +716,7 @@ body {
 }
 
 .monaco-workbench .editor-group-container.empty > .editor-container {
-	background:
-		radial-gradient(ellipse 72% 45% at 50% 38%, rgba(255, 255, 255, 0.022), transparent 66%),
-		var(--solo-surface-0) !important;
+	background: var(--solo-surface-2) !important;
 }
 
 .monaco-workbench .part.auxiliarybar {
@@ -800,10 +825,10 @@ body {
 
 .monaco-workbench .part.statusbar {
 	display: flex !important;
-	height: 18px !important;
-	min-height: 18px !important;
+	height: 22px !important;
+	min-height: 22px !important;
 	border-top: 1px solid var(--solo-stroke);
-	background: rgba(11, 11, 12, 0.98) !important;
+	background: var(--solo-surface-0) !important;
 	color: var(--solo-ink-2) !important;
 	font-size: 11px;
 	opacity: 0.86;
@@ -817,10 +842,15 @@ body {
 .monaco-workbench .part.statusbar .statusbar-item {
 	color: var(--solo-ink-2) !important;
 	opacity: 0.78;
-	height: 16px !important;
-	margin-top: 1px;
+	height: 22px !important;
+	margin-top: 0;
 	border-radius: var(--solo-radius-sm);
 	font-size: 11px;
+}
+
+/* Slightly smaller status-bar icons so they don't clip in the 22px bar */
+.monaco-workbench .part.statusbar .statusbar-item .codicon {
+	font-size: 13px;
 }
 
 .monaco-workbench .part.statusbar .statusbar-item:hover {
@@ -843,10 +873,50 @@ body {
 }
 
 .monaco-workbench .agentSessionsWelcome {
-	background:
-		radial-gradient(ellipse 70% 48% at 50% 36%, rgba(255, 255, 255, 0.035), transparent 62%),
-		var(--solo-surface-0) !important;
+	background: var(--solo-surface-2) !important;
 	color: var(--solo-ink-0);
+}
+
+/* Solo: the welcome page is chrome-less like Cursor — hide the editor tab bar
+ * (the "Solo" tab + split/more actions) for the group showing the welcome.
+ *
+ * Upstream selector targets (verify on rebase):
+ *   .editor-group-container > .title   → src/vs/workbench/browser/parts/editor/editorGroupView.ts
+ *   .agentSessionsWelcome              → src/vs/workbench/contrib/welcomeAgentSessions/browser/agentSessionsWelcome.ts
+ *   .gettingStartedContainer           → src/vs/workbench/contrib/welcomeGettingStarted/browser/gettingStarted.ts
+ */
+.monaco-workbench .part.editor .editor-group-container:has(.agentSessionsWelcome) > .title,
+.monaco-workbench .part.editor .editor-group-container:has(.gettingStartedContainer) > .title {
+	display: none !important;
+}
+
+/* Hiding the tab bar leaves the editor content ~one tab-bar height short at the
+ * bottom (the JS layout still reserves the tab-bar height). Make the welcome
+ * editor fill the whole group, and paint every editor layer that hosts the
+ * welcome with the welcome color (#1F1F1F) so no #181818 strip shows.
+ * The .part.editor prefix outranks the generic editor-bg rule. */
+.monaco-workbench .part.editor .editor-group-container:has(.agentSessionsWelcome),
+.monaco-workbench .part.editor .editor-group-container:has(.gettingStartedContainer),
+.monaco-workbench .part.editor .editor-instance:has(.agentSessionsWelcome),
+.monaco-workbench .part.editor .editor-instance:has(.gettingStartedContainer) {
+	background: var(--solo-surface-2) !important;
+}
+
+/* Make the welcome editor fill its container so the welcome reaches the status
+ * bar (no strip from the hidden tab bar). Use flex-grow to participate in the
+ * layout rather than forcing absolute geometry. The .editor-container normally
+ * uses top/height set by JS; override both so the content stretches fully. */
+.monaco-workbench .part.editor .editor-group-container:has(.agentSessionsWelcome) > .editor-container,
+.monaco-workbench .part.editor .editor-group-container:has(.gettingStartedContainer) > .editor-container {
+	top: 0 !important;
+	height: 100% !important;
+}
+
+.monaco-workbench .part.editor .editor-group-container:has(.agentSessionsWelcome) .editor-instance,
+.monaco-workbench .part.editor .editor-group-container:has(.gettingStartedContainer) .editor-instance {
+	flex: 1;
+	height: 100%;
+	overflow: hidden;
 }
 
 .monaco-workbench .agentSessionsWelcome-scrollable {
@@ -858,8 +928,8 @@ body {
 	position: relative;
 	display: grid;
 	grid-template-rows: 1fr auto auto auto 1fr;
-	width: min(640px, calc(100% - 48px));
-	max-width: 640px;
+	width: min(480px, calc(100% - 48px));
+	max-width: 480px;
 	min-height: 100%;
 	padding: 0;
 }
@@ -871,29 +941,33 @@ body {
 }
 
 .monaco-workbench .agentSessionsWelcome-header::before {
-	content: "";
-	width: 40px;
-	height: 40px;
-	margin-bottom: 12px;
-	border-radius: 50%;
-	background: url("code-icon.svg") center / contain no-repeat;
-	box-shadow: 0 12px 36px rgba(0, 0, 0, 0.42);
+	display: none;
 }
 
 .monaco-workbench .agentSessionsWelcome-header h1.product-name {
-	margin: 0 0 4px;
-	color: var(--solo-ink-0);
-	font-size: 25px;
-	font-weight: 720;
-	letter-spacing: 0;
-	text-transform: none;
+	display: none;
+}
+
+.monaco-workbench .agentSessionsWelcome-brandLockup {
+	width: 110px;
+	height: 24px;
+	background: url("solo-lockup.svg") center / contain no-repeat;
+}
+
+.monaco-workbench .agentSessionsWelcome-settingsLink {
+	margin-top: 8px;
+	padding: 0;
+	color: var(--vscode-textLink-foreground);
+	font-size: 11px;
+	line-height: 14px;
 }
 
 .monaco-workbench .agentSessionsWelcome-startEntries {
 	justify-content: center;
+	flex-wrap: nowrap;
 	width: 100%;
-	margin-top: 26px;
-	gap: 12px;
+	margin-top: 22px;
+	gap: 8px;
 }
 
 .monaco-workbench .agentSessionsWelcome-startEntry {
@@ -901,15 +975,16 @@ body {
 	grid-template-rows: 20px auto;
 	align-items: center;
 	justify-items: start;
-	width: 150px;
-	height: 78px;
-	padding: 14px 16px;
+	width: 152px;
+	height: 66px;
+	padding: 11px 13px;
 	border: 1px solid var(--solo-stroke);
 	border-radius: var(--solo-radius-md);
 	background: rgba(255, 255, 255, 0.055);
 	color: var(--solo-ink-0);
 	font-size: 13px;
 	font-weight: 610;
+	white-space: nowrap;
 	box-shadow: none;
 }
 
@@ -957,7 +1032,7 @@ body {
 .monaco-workbench .agentSessionsWelcome-footer {
 	grid-row: 4;
 	max-width: none;
-	margin-top: 26vh;
+	margin-top: 22vh;
 }
 
 .monaco-workbench .agentSessionsWelcome-footer::before {
@@ -966,11 +1041,11 @@ body {
 	align-items: center;
 	justify-content: center;
 	min-height: 32px;
-	padding: 0 18px;
+	padding: 0 15px;
 	border-radius: 999px;
 	background: rgba(255, 255, 255, 0.075);
 	color: var(--solo-ink-1);
-	font-size: 13px;
+	font-size: 12px;
 	font-weight: 560;
 }
 

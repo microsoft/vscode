@@ -231,3 +231,54 @@ div.chat-welcome-view {
 		background-color: var(--vscode-list-hoverBackground);
 	}
 }
+
+/* Solo: chat welcome should mirror the main landing state */
+div.chat-welcome-view {
+	padding: 20px 18px;
+}
+
+div.chat-welcome-view > .chat-welcome-view-icon,
+div.chat-welcome-view > .chat-welcome-view-icon.large-icon {
+	width: 64px;
+	height: 64px;
+	min-width: 64px;
+	min-height: 64px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 18px;
+	background: rgba(255, 255, 255, 0.035);
+	border: 1px solid rgba(255, 255, 255, 0.065);
+}
+
+div.chat-welcome-view > .chat-welcome-view-icon .codicon,
+div.chat-welcome-view > .chat-welcome-view-icon.large-icon .codicon {
+	font-size: 32px;
+	width: auto;
+	height: auto;
+	margin-bottom: 0;
+}
+
+div.chat-welcome-view > .chat-welcome-view-title {
+	font-size: 15px;
+	letter-spacing: -0.01em;
+	margin-top: 14px;
+}
+
+div.chat-welcome-view > .chat-welcome-view-message {
+	line-height: 1.45;
+	max-width: 320px;
+}
+
+.chat-welcome-view-suggested-prompts {
+	background: linear-gradient(180deg, transparent, var(--vscode-chat-list-background) 18px);
+	padding: 36px 14px 12px;
+}
+
+.chat-welcome-view-suggested-prompts > .chat-welcome-view-suggested-prompt {
+	height: 26px;
+	padding: 0 10px;
+	border-radius: 999px;
+	background-color: rgba(255, 255, 255, 0.04);
+	border-color: rgba(255, 255, 255, 0.075);
+}

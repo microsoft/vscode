@@ -98,3 +98,30 @@
 	display: inline-block;
 	transform: rotate(180deg);
 }
+
+/* Solo: panel as a calm bottom/top drawer */
+.monaco-workbench .part.panel {
+	box-shadow: none;
+}
+
+.monaco-workbench .part.panel.bottom .composite.title,
+.monaco-workbench .part.panel.top,
+.monaco-workbench .part.panel.right,
+.monaco-workbench .part.panel.left {
+	border-color: rgba(255, 255, 255, 0.06);
+}
+
+.monaco-workbench .part.panel > .title {
+	min-height: 34px;
+	background-color: color-mix(in srgb, var(--vscode-panel-background) 94%, #050505);
+}
+
+.monaco-workbench .part.panel .monaco-inputbox {
+	border-radius: 7px;
+	background-color: rgba(255, 255, 255, 0.045);
+}
+
+.monaco-workbench .part.panel > .title > .title-actions .action-label,
+.monaco-workbench .part.panel > .title > .global-actions .action-label {
+	border-radius: 6px;
+}

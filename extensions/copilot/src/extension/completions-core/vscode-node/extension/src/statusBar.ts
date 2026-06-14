@@ -27,7 +27,9 @@ export class CopilotStatusBar extends StatusReporter implements IDisposable {
 	) {
 		super();
 
-		this.item = languages.createLanguageStatusItem(id, '*');
+		// Solo keeps the completion plumbing but does not expose a Copilot-branded
+		// language/status item in the bottom bar.
+		this.item = languages.createLanguageStatusItem(id, { language: 'solo-hidden-status' });
 		this.disposables.push(this.item);
 
 		this.updateStatusBarIndicator();
@@ -101,7 +103,7 @@ export class CopilotStatusBar extends StatusReporter implements IDisposable {
 				this.item.severity = LanguageStatusSeverity.Information;
 				if (!isInlineSuggestEnabled()) {
 					this.item.text = `${Icon.NotConnected} Completions`;
-					this.item.detail = 'VS Code inline suggestions disabled';
+					this.item.detail = 'Inline suggestions disabled';
 				} else if (!enabled) {
 					this.item.text = `${Icon.NotConnected} Completions`;
 					this.item.detail = 'Disabled';

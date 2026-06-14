@@ -228,3 +228,49 @@
 	left: auto;
 	right: 0;
 }
+
+/* Solo: compact rounded activity buttons */
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-label {
+	width: var(--activity-bar-width, 44px);
+	height: 42px;
+}
+
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-label.codicon {
+	font-size: 20px;
+}
+
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item {
+	margin: 1px 0;
+}
+
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item .action-label::after {
+	content: '';
+	position: absolute;
+	inset: 5px 6px;
+	z-index: -1;
+	border-radius: 9px;
+	background: transparent;
+}
+
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .action-label::after,
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover .action-label::after,
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus .action-label::after {
+	background: rgba(255, 255, 255, 0.075);
+}
+
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator:before,
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus .active-item-indicator:before {
+	top: 11px;
+	height: 20px;
+	border-left-width: 2px;
+	border-radius: 2px;
+}
+
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .badge .badge-content {
+	top: 20px;
+	right: 6px;
+	min-width: 7px;
+	height: 14px;
+	line-height: 14px;
+	border-radius: 14px;
+}

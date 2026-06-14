@@ -463,3 +463,36 @@
 .agent-status-badge-section.active.needs-input .agent-status-icon {
 	color: var(--vscode-notificationsWarningIcon-foreground);
 }
+
+/* Solo: agent status pill should sit with the command-center chrome */
+.agent-status-pill {
+	height: 24px;
+	border-radius: 8px;
+	background-color: rgba(255, 255, 255, 0.045);
+	border-color: rgba(255, 255, 255, 0.09);
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.agent-status-pill:hover,
+.agent-status-pill.session-mode {
+	background-color: rgba(255, 255, 255, 0.075);
+	border-color: rgba(255, 255, 255, 0.14);
+}
+
+.agent-status-pill .agent-status-input-area {
+	background-color: transparent;
+	border-radius: 8px;
+}
+
+.agent-status-pill .agent-status-input-area:hover {
+	background-color: rgba(255, 255, 255, 0.045);
+}
+
+.agent-status-badge-section {
+	border-color: rgba(255, 255, 255, 0.075);
+}
+
+.agent-status-badge-section.sparkle .action-container,
+.agent-status-badge-section.sparkle .dropdown-action-container {
+	border-radius: 6px;
+}

@@ -60,3 +60,32 @@
 	width: fit-content;
 	outline-offset: 2px !important;
 }
+
+/* Solo: softer missing/error editor placeholders */
+.monaco-editor-pane-placeholder {
+	gap: 14px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.monaco-editor-pane-placeholder .editor-placeholder-icon-container {
+	width: 68px;
+	height: 68px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 18px;
+	background: rgba(255, 255, 255, 0.035);
+	border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.monaco-editor-pane-placeholder .editor-placeholder-icon-container .codicon {
+	font-size: 32px !important;
+}
+
+.monaco-editor-pane-placeholder .editor-placeholder-label-container {
+	line-height: 1.45;
+}
+
+.monaco-editor-pane-placeholder .editor-placeholder-buttons-container > .monaco-button {
+	border-radius: 8px;
+}

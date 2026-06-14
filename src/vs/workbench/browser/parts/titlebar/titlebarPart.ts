@@ -53,7 +53,7 @@ import { IView } from '../../../../base/browser/ui/grid/grid.js';
 import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
-import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { safeIntl } from '../../../../base/common/date.js';
 import { IsCompactTitleBarContext, TitleBarVisibleContext } from '../../../common/contextkeys.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
@@ -316,7 +316,8 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		@IEditorService editorService: IEditorService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IActionViewItemService private readonly actionViewItemService: IActionViewItemService
+		@IActionViewItemService private readonly actionViewItemService: IActionViewItemService,
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super(id, { hasTitle: false }, themeService, storageService, layoutService);
 
@@ -487,6 +488,11 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			this.installMenubar();
 		}
 
+		if (!this.isAuxiliary && hasCustomTitlebar(this.configurationService, this.titleBarStyle)) {
+			this.createSoloSidebarToggle();
+			this.createSoloNavButtons();
+		}
+
 		// Title
 		this.title = append(this.centerContent, $('div.window-title'));
 		this.createTitle();
@@ -611,6 +617,91 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		}
 	}
 
+	private createSoloSidebarToggle(): void {
+		const button = append(this.leftContent, $('button.solo-titlebar-layout-toggle.solo-sidebar-toggle')) as HTMLButtonElement;
+		button.type = 'button';
+		button.title = localize('soloToggleSidebar', "Toggle Primary Side Bar");
+		button.setAttribute('aria-label', localize('soloToggleSidebarAria', "Toggle Primary Side Bar"));
+
+		const svgNamespace = 'http://www.w3.org/2000/svg';
+		const svg = button.ownerDocument.createElementNS(svgNamespace, 'svg');
+		svg.setAttribute('width', '50');
+		svg.setAttribute('height', '40');
+		svg.setAttribute('viewBox', '0 0 50 40');
+		svg.setAttribute('fill', 'none');
+		svg.setAttribute('aria-hidden', 'true');
+		svg.setAttribute('focusable', 'false');
+
+		const outline = button.ownerDocument.createElementNS(svgNamespace, 'rect');
+		outline.setAttribute('x', '1');
+		outline.setAttribute('y', '1');
+		outline.setAttribute('width', '48');
+		outline.setAttribute('height', '38');
+		outline.setAttribute('rx', '4');
+		outline.setAttribute('stroke', '#808080');
+		outline.setAttribute('stroke-width', '2');
+
+		const sidePanel = button.ownerDocument.createElementNS(svgNamespace, 'rect');
+		sidePanel.classList.add('solo-titlebar-layout-toggle-fill');
+		sidePanel.setAttribute('x', '4');
+		sidePanel.setAttribute('y', '4');
+		sidePanel.setAttribute('width', '13');
+		sidePanel.setAttribute('height', '32');
+		sidePanel.setAttribute('rx', '1');
+		sidePanel.setAttribute('fill', '#404040');
+
+		svg.append(outline, sidePanel);
+		button.appendChild(svg);
+
+		const updateState = () => {
+			const isVisible = this.layoutService.isVisible(Parts.SIDEBAR_PART);
+			button.classList.toggle('checked', isVisible);
+			button.setAttribute('aria-pressed', isVisible ? 'true' : 'false');
+		};
+
+		updateState();
+		this._register(this.layoutService.onDidChangePartVisibility(e => {
+			if (e.partId === Parts.SIDEBAR_PART) {
+				updateState();
+			}
+		}));
+		this._register(addDisposableListener(button, EventType.CLICK, e => {
+			EventHelper.stop(e);
+			void this.commandService.executeCommand('workbench.action.toggleSidebarVisibility');
+		}));
+	}
+
+	private createSoloNavButtons(): void {
+		const makeButton = (modifier: string, iconClass: string, title: string, commandId: string, contextKeyName: string) => {
+			const button = append(this.leftContent, $(`button.solo-titlebar-nav-button.${modifier}`)) as HTMLButtonElement;
+			button.type = 'button';
+			button.title = title;
+			button.setAttribute('aria-label', title);
+			button.appendChild($(`span.codicon.${iconClass}`));
+			this._register(addDisposableListener(button, EventType.CLICK, e => {
+				EventHelper.stop(e);
+				if (!button.classList.contains('disabled')) {
+					void this.commandService.executeCommand(commandId);
+				}
+			}));
+
+			// Reflect the navigation context key as a disabled visual state.
+			const updateDisabled = () => {
+				const canNavigate = !!this.contextKeyService.getContextKeyValue<boolean>(contextKeyName);
+				button.classList.toggle('disabled', !canNavigate);
+				button.setAttribute('aria-disabled', String(!canNavigate));
+			};
+			updateDisabled();
+			this._register(this.contextKeyService.onDidChangeContext(e => {
+				if (e.affectsSome(new Set([contextKeyName]))) {
+					updateDisabled();
+				}
+			}));
+		};
+		makeButton('solo-nav-back', 'codicon-arrow-left', localize('soloNavBack', "Go Back"), 'workbench.action.navigateBack', 'canNavigateBack');
+		makeButton('solo-nav-forward', 'codicon-arrow-right', localize('soloNavForward', "Go Forward"), 'workbench.action.navigateForward', 'canNavigateForward');
+	}
+
 	private actionViewItemProvider(action: IAction, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
 
 		// --- Custom view items registered via IActionViewItemService
@@ -720,7 +811,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			// --- Layout Actions
 			if (this.layoutToolbarMenu) {
 				fillInActionBarActions(
-					this.layoutToolbarMenu.getActions(),
+					this.layoutToolbarMenu.getActions().map(([group, actions]) => [group, actions.filter(action => action.id !== 'workbench.action.toggleSidebarVisibility')]),
 					actions,
 					(group) => group === 'navigation'
 				);
@@ -966,8 +1057,9 @@ export class MainBrowserTitlebarPart extends BrowserTitlebarPart {
 		@IMenuService menuService: IMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
+		@ICommandService commandService: ICommandService,
 	) {
-		super(Parts.TITLEBAR_PART, mainWindow, editorGroupService.mainPart, contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, editorService, menuService, keybindingService, actionViewItemService);
+		super(Parts.TITLEBAR_PART, mainWindow, editorGroupService.mainPart, contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, editorService, menuService, keybindingService, actionViewItemService, commandService);
 	}
 }
 
@@ -1002,9 +1094,10 @@ export class AuxiliaryBrowserTitlebarPart extends BrowserTitlebarPart implements
 		@IMenuService menuService: IMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
+		@ICommandService commandService: ICommandService,
 	) {
 		const id = AuxiliaryBrowserTitlebarPart.COUNTER++;
-		super(`workbench.parts.auxiliaryTitle.${id}`, getWindow(container), editorGroupsContainer, contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, editorService, menuService, keybindingService, actionViewItemService);
+		super(`workbench.parts.auxiliaryTitle.${id}`, getWindow(container), editorGroupsContainer, contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, editorService, menuService, keybindingService, actionViewItemService, commandService);
 	}
 
 	override get preventZoom(): boolean {

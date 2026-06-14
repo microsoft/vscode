@@ -44,7 +44,7 @@ export class CopilotStatusBarPickMenu {
 			await commands.executeCommand(commandSelection.command, ...commandSelection.commandArgs);
 			quickpickList.hide();
 		} else {
-			throw new Error('Unexpected Copilot quick picker selection');
+			throw new Error('Unexpected Solo quick picker selection');
 		}
 	}
 
@@ -106,17 +106,17 @@ export class CopilotStatusBarPickMenu {
 			case 'Normal':
 				statusText = l10n.t('Ready');
 				if (isInlineSuggestEnabled() === false) {
-					statusText += ` (${l10n.t('VS Code inline suggestions disabled')})`;
+					statusText += ` (${l10n.t('Inline suggestions disabled')})`;
 				} else if (this.instantiationService.invokeFunction(isCompletionEnabled) === false) {
 					statusText += ` (${l10n.t('Disabled')})`;
 				}
 				break;
 			case 'Inactive':
-				statusText = this.extensionStatusService.message || l10n.t('Copilot is currently inactive');
+				statusText = this.extensionStatusService.message || l10n.t('Solo is currently inactive');
 				statusIcon = Icon.Blocked;
 				break;
 			default:
-				statusText = this.extensionStatusService.message || l10n.t('Copilot has encountered an error');
+				statusText = this.extensionStatusService.message || l10n.t('Solo has encountered an error');
 				statusIcon = Icon.NotConnected;
 				break;
 		}
@@ -140,7 +140,7 @@ export class CopilotStatusBarPickMenu {
 
 	private newSettingsItem() {
 		return this.newCommandItem(l10n.t('$(settings-gear) Edit Settings...'), 'workbench.action.openSettings', [
-			'GitHub Copilot',
+			'Solo',
 		]);
 	}
 
@@ -154,7 +154,7 @@ export class CopilotStatusBarPickMenu {
 
 	private newDocsItem() {
 		return this.newCommandItem(
-			l10n.t('$(remote-explorer-documentation) View Copilot Documentation...'),
+			l10n.t('$(remote-explorer-documentation) View Solo Documentation...'),
 			CMDOpenDocumentationClient
 		);
 	}
