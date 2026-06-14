@@ -267,8 +267,11 @@ class VoiceChatSessions {
 		controller.updateState(VoiceChatSessionState.GettingReady);
 
 		const voiceChatSession = await this.voiceChatService.createVoiceChatSession(cts.token, { usesAgents: controller.context !== 'inline', model: context?.widget?.viewModel?.model });
-
-		let inputValue = controller.getInput();
+		const initialInput = controller.getInput();
+		let dictationState: DictationInputState = {
+			committedInput: initialInput,
+			previewInput: initialInput
+		};
 
 		let voiceChatTimeout = this.configurationService.getValue<number>(AccessibilityVoiceSettingId.SpeechTimeout);
 		if (!isNumber(voiceChatTimeout) || voiceChatTimeout < 0) {
@@ -288,7 +291,12 @@ class VoiceChatSessions {
 				case SpeechToTextStatus.Recognizing:
 					if (text) {
 						session.hasRecognizedInput = true;
-						session.controller.updateInput(inputValue ? [inputValue, text].join(' ') : text);
+
+						dictationState = applyDictationInputState(
+							dictationState, controller.getInput(), text, status
+						);
+
+						session.controller.updateInput(dictationState.previewInput);
 						if (voiceChatTimeout > 0 && context?.voice?.disableTimeout !== true && !disableTimeout) {
 							acceptTranscriptionScheduler.cancel();
 						}
@@ -297,8 +305,12 @@ class VoiceChatSessions {
 				case SpeechToTextStatus.Recognized:
 					if (text) {
 						session.hasRecognizedInput = true;
-						inputValue = inputValue ? [inputValue, text].join(' ') : text;
-						session.controller.updateInput(inputValue);
+
+						dictationState = applyDictationInputState(
+							dictationState, controller.getInput(), text, status
+						);
+
+						session.controller.updateInput(dictationState.committedInput);
 						if (voiceChatTimeout > 0 && context?.voice?.disableTimeout !== true && !waitingForInput && !disableTimeout) {
 							acceptTranscriptionScheduler.schedule();
 						}
@@ -844,6 +856,65 @@ export function parseNextChatResponseChunk(text: string, offset: number): { read
 	}
 
 	return { chunk, offset };
+}
+
+function composeDictationInput(currentInput: string, recognizedText: string): string {
+	return currentInput ? [currentInput, recognizedText].join(wordDelimiter) : recognizedText;
+}
+
+interface DictationInputState {
+	readonly committedInput: string;
+	readonly previewInput: string;
+}
+
+function stripTrailingPreviewSuffix(currentInput: string, state: DictationInputState): string {
+	if (state.committedInput === state.previewInput) {
+		return currentInput;
+	}
+
+	if (!state.previewInput.startsWith(state.committedInput)) {
+		return currentInput;
+	}
+
+	const previewSuffix = state.previewInput.slice(state.committedInput.length);
+	if (!previewSuffix) {
+		return currentInput;
+	}
+
+	if (currentInput.endsWith(previewSuffix)) {
+		return currentInput.slice(0, currentInput.length - previewSuffix.length);
+	}
+
+	return currentInput;
+}
+
+export function applyDictationInputState(
+	state: DictationInputState,
+	currentInput: string,
+	recognizedText: string,
+	status: SpeechToTextStatus.Recognizing | SpeechToTextStatus.Recognized
+): DictationInputState {
+	let committedInput = state.committedInput;
+
+	// User edits are authoritative.
+	// Treat them as new base for upcoming speech composition.
+	if (currentInput !== state.previewInput) {
+		committedInput = stripTrailingPreviewSuffix(currentInput, state);
+	}
+
+	const nextInput = composeDictationInput(committedInput, recognizedText);
+
+	if (status === SpeechToTextStatus.Recognized) {
+		return {
+			committedInput: nextInput,
+			previewInput: nextInput
+		};
+	}
+
+	return {
+		committedInput,
+		previewInput: nextInput
+	};
 }
 
 export class ReadChatResponseAloud extends Action2 {
