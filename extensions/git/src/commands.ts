@@ -5648,7 +5648,8 @@ export class CommandCenter {
 							.replace(/^error: /mi, '')
 							.replace(/^> husky.*$/mi, '')
 							.split(/[\r\n]/)
-							.filter((line: string) => !!line);
+							.filter((line: string) => !!line)
+							.filter((line: string) => ![/^(remote: )?(Enumerating|Counting|Compressing|Receiving|Resolving) objects:/i, /^remote: Total /i, /^Resolving deltas:/i,].some(pattern => pattern.test(line)));
 
 						message = hintLines.length > 0
 							? l10n.t('Git: {0}', err.stdout ? hintLines[hintLines.length - 1] : hintLines[0])
