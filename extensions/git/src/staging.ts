@@ -7,8 +7,6 @@ import { TextDocument, Range, Selection, Uri, TextEditor, TextEditorDiffInformat
 import { fromGitUri, isGitUri } from './uri';
 import { normalizeEOL } from './eol';
 
-export { normalizeEOL };
-
 export interface LineChange {
 	readonly originalStartLineNumber: number;
 	readonly originalEndLineNumber: number;

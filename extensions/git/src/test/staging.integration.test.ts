@@ -32,7 +32,7 @@ function mockDocument(contents: string, eol: EndOfLine): TextDocument {
 				text,
 				range: new Range(line, 0, line, text.length),
 				rangeIncludingLineBreak: new Range(line, 0, line + 1, 0),
-				firstNonWhitespaceCharacterIndex: text.search(/\S/),
+				firstNonWhitespaceCharacterIndex: text.search(/\S/) === -1 ? text.length : text.search(/\S/),
 				isEmptyOrWhitespace: text.trim().length === 0,
 			};
 		},
@@ -45,15 +45,18 @@ function mockDocument(contents: string, eol: EndOfLine): TextDocument {
 			if (range.isEmpty) {
 				return '';
 			}
+			const startText = lines[range.start.line]?.substring(range.start.character) ?? '';
 			if (range.isSingleLine) {
-				return lines[range.start.line].substring(range.start.character, range.end.character);
+				return startText.substring(0, range.end.character - range.start.character);
 			}
-			const result: string[] = [];
-			result.push(lines[range.start.line].substring(range.start.character));
+			const result: string[] = [startText];
 			for (let i = range.start.line + 1; i < range.end.line; i++) {
 				result.push(lines[i]);
 			}
-			result.push(lines[range.end.line].substring(0, range.end.character));
+			// range.end.line may equal lines.length (EOF), in which case there is no partial line to append
+			if (range.end.line < lines.length) {
+				result.push(lines[range.end.line].substring(0, range.end.character));
+			}
 			return result.join(eolStr);
 		},
 		getWordRangeAtPosition() { return undefined; },

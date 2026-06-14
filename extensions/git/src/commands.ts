@@ -12,7 +12,8 @@ import { ForcePushMode, GitErrorCodes, RefType, Status } from './api/git.constan
 import { Git, GitError, Repository as GitRepository, Stash, Worktree } from './git';
 import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
-import { DiffEditorSelectionHunkToolbarContext, LineChange, applyLineChanges, getIndexDiffInformation, getModifiedRange, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, normalizeEOL, toLineChanges, toLineRanges, compareLineChanges } from './staging';
+import { DiffEditorSelectionHunkToolbarContext, LineChange, applyLineChanges, getIndexDiffInformation, getModifiedRange, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges, compareLineChanges } from './staging';
+import { normalizeEOL } from './eol';
 import { fromGitUri, toGitUri, isGitUri, toMergeUris, toMultiFileDiffEditorUris } from './uri';
 import { coalesce, DiagnosticSeverityConfig, dispose, fromNow, getHistoryItemDisplayName, getStashDescription, grep, isDefined, isDescendant, isLinuxSnap, isRemote, isWindows, pathEquals, relativePath, subject, toDiagnosticSeverity, truncate } from './util';
 import { GitTimelineItem } from './timelineProvider';

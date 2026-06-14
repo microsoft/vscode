@@ -7,7 +7,7 @@
 export const EOL_LF = 1;
 export const EOL_CRLF = 2;
 
-export function normalizeEOL(text: string, targetEOL: number): string {
+export function normalizeEOL(text: string, targetEOL: typeof EOL_LF | typeof EOL_CRLF): string {
 	if (targetEOL === EOL_CRLF) {
 		return text.replace(/(?<!\r)\n/g, '\r\n');
 	} else {
