@@ -29,6 +29,10 @@ import { asCssVariable, selectBorder } from '../../../../platform/theme/common/c
 import { ISelectOptionItem, SeparatorSelectOption } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { TerminalTabbedView } from './terminalTabbedView.js';
+// stokd thin-patch seam (AX-TERMINAL-AGENT-TABS): swap the tabbed view behind a flag. See SEAM_MANIFEST.md.
+import { ITerminalTabsView } from './agentTabs/ITerminalTabsView.js';
+import { AgentTerminalTabbedView } from './agentTabs/agentTerminalTabbedView.js';
+import { TerminalAgentTabsSettingId } from './agentTabs/agentTabsContribution.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { getColorForSeverity } from './terminalStatusList.js';
@@ -56,8 +60,8 @@ import { hasKey } from '../../../../base/common/types.js';
 
 export class TerminalViewPane extends ViewPane {
 	private _parentDomElement: HTMLElement | undefined;
-	private _terminalTabbedView?: TerminalTabbedView;
-	get terminalTabbedView(): TerminalTabbedView | undefined { return this._terminalTabbedView; }
+	private _terminalTabbedView?: ITerminalTabsView;
+	get terminalTabbedView(): ITerminalTabsView | undefined { return this._terminalTabbedView; }
 	private _isInitialized: boolean = false;
 	/**
 	 * Tracks an active promise of terminal creation requested by this component. This helps prevent
@@ -238,7 +242,10 @@ export class TerminalViewPane extends ViewPane {
 		if (!this._parentDomElement) {
 			return;
 		}
-		this._terminalTabbedView = this._register(this.instantiationService.createInstance(TerminalTabbedView, this._parentDomElement));
+		const useAgentTabs = this._configurationService.getValue<boolean>(TerminalAgentTabsSettingId) === true;
+		this._terminalTabbedView = this._register(useAgentTabs
+			? this.instantiationService.createInstance(AgentTerminalTabbedView, this._parentDomElement)
+			: this.instantiationService.createInstance(TerminalTabbedView, this._parentDomElement));
 	}
 
 	// eslint-disable-next-line @typescript-eslint/naming-convention
