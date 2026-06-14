@@ -18,7 +18,11 @@ import { IWorkspaceBackupInfo, IFolderBackupInfo } from '../../backup/common/bac
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { getRemoteAuthority } from '../../remote/common/remoteHosts.js';
-import { IBaseWorkspace, IRawFileWorkspaceFolder, IRawUriWorkspaceFolder, IWorkspaceIdentifier, WorkspaceFolder } from '../../workspace/common/workspace.js';
+import { distinct } from '../../../base/common/arrays.js';
+import { deepClone, mixin } from '../../../base/common/objects.js';
+import { isObject, isString } from '../../../base/common/types.js';
+import { IBaseWorkspace, IRawFileWorkspaceFolder, IRawUriWorkspaceFolder, IWorkspaceIdentifier, WorkspaceFolder, hasWorkspaceFileExtension } from '../../workspace/common/workspace.js';
+import { IStringDictionary } from '../../../base/common/collections.js';
 
 export const IWorkspacesService = createDecorator<IWorkspacesService>('workspacesService');
 
@@ -232,6 +236,111 @@ export function toWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], 
 
 	return result;
 }
+
+//#region Workspace Local Overrides
+
+/**
+ * Returns the URI of the sibling `*.code-workspace.local` file for a given workspace configuration URI.
+ * The local override file is only supported for saved workspaces (`*.code-workspace`).
+ */
+export function getLocalWorkspaceConfigurationUri(workspaceConfigurationUri: URI): URI | undefined {
+	return hasWorkspaceFileExtension(workspaceConfigurationUri) ? workspaceConfigurationUri.with({ path: `${workspaceConfigurationUri.path}.local` }) : undefined;
+}
+
+/**
+ * Merges a local workspace override into the main workspace configuration.
+ *
+ * Merge rules:
+ * - `settings`: deep merge, local values override shared values.
+ * - `folders`: ignored from local overrides.
+ * - `extensions.recommendations` & `extensions.unwantedRecommendations`: concatenate arrays (local additions only).
+ * - `tasks` & `launch`: deep merge with array concatenation.
+ */
+export function mergeWorkspaceConfiguration(main: IStringDictionary<unknown>, local: IStringDictionary<unknown>): IStringDictionary<unknown> {
+	const merged = deepClone(main);
+
+	if (!isObject(local)) {
+		return merged;
+	}
+
+	// settings: deep merge with override
+	const localSettings = local['settings'];
+	if (isObject(localSettings)) {
+		const baseSettings = isObject(merged['settings']) ? deepClone(merged['settings'] as IStringDictionary<unknown>) : {};
+		merged['settings'] = mixin(baseSettings, localSettings, true);
+	}
+
+	// extensions: deep merge but concatenate recommendations/unwantedRecommendations arrays
+	const localExtensions = local['extensions'];
+	if (isObject(localExtensions)) {
+		const baseExtensions = isObject(merged['extensions']) ? deepClone(merged['extensions'] as IStringDictionary<unknown>) : {};
+		const localExtensionsDict = localExtensions as IStringDictionary<unknown>;
+		const baseRecommendations = baseExtensions['recommendations'];
+		const baseUnwantedRecommendations = baseExtensions['unwantedRecommendations'];
+		const mergedExtensions = mixin(baseExtensions, localExtensionsDict, true) as IStringDictionary<unknown>;
+
+		const recommendations = mergeStringArray(baseRecommendations, localExtensionsDict['recommendations']);
+		if (recommendations) {
+			mergedExtensions['recommendations'] = recommendations;
+		}
+
+		const unwantedRecommendations = mergeStringArray(baseUnwantedRecommendations, localExtensionsDict['unwantedRecommendations']);
+		if (unwantedRecommendations) {
+			mergedExtensions['unwantedRecommendations'] = unwantedRecommendations;
+		}
+
+		merged['extensions'] = mergedExtensions;
+	}
+
+	// tasks and launch: deep merge with array concatenation
+	const localTasks = local['tasks'];
+	if (isObject(localTasks)) {
+		merged['tasks'] = deepMergeWithArrayConcat(merged['tasks'], localTasks);
+	}
+
+	const localLaunch = local['launch'];
+	if (isObject(localLaunch)) {
+		merged['launch'] = deepMergeWithArrayConcat(merged['launch'], localLaunch);
+	}
+
+	return merged;
+}
+
+function mergeStringArray(baseValue: unknown, localValue: unknown): string[] | undefined {
+	const baseArray = Array.isArray(baseValue) ? baseValue.filter(isString) : [];
+	const localArray = Array.isArray(localValue) ? localValue.filter(isString) : [];
+
+	if (baseArray.length === 0 && localArray.length === 0) {
+		return undefined;
+	}
+
+	return distinct([...baseArray, ...localArray]);
+}
+
+function deepMergeWithArrayConcat(baseValue: unknown, localValue: unknown): unknown {
+	if (Array.isArray(baseValue) && Array.isArray(localValue)) {
+		return [...baseValue, ...localValue];
+	}
+
+	if (isObject(baseValue) && isObject(localValue)) {
+		const result: IStringDictionary<unknown> = deepClone(baseValue as IStringDictionary<unknown>);
+		for (const [key, value] of Object.entries(localValue as IStringDictionary<unknown>)) {
+			const existing = result[key];
+			if (Array.isArray(existing) && Array.isArray(value)) {
+				result[key] = [...existing, ...value];
+			} else if (isObject(existing) && isObject(value)) {
+				result[key] = deepMergeWithArrayConcat(existing, value);
+			} else {
+				result[key] = deepClone(value);
+			}
+		}
+		return result;
+	}
+
+	return deepClone(localValue);
+}
+
+//#endregion
 
 /**
  * Rewrites the content of a workspace file to be saved at a new location.

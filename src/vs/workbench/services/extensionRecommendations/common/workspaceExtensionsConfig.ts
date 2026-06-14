@@ -12,6 +12,7 @@ import { FileKind, IFileService } from '../../../../platform/files/common/files.
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { isWorkspace, IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { getLocalWorkspaceConfigurationUri, mergeWorkspaceConfiguration } from '../../../../platform/workspaces/common/workspaces.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
@@ -19,6 +20,7 @@ import { localize } from '../../../../nls.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IJSONEditingService, IJSONValue } from '../../configuration/common/jsonEditing.js';
 import { ResourceMap } from '../../../../base/common/map.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
 
 export const EXTENSIONS_CONFIG = '.vscode/extensions.json';
 
@@ -60,7 +62,9 @@ export class WorkspaceExtensionsConfigService extends Disposable implements IWor
 		this._register(workspaceContextService.onDidChangeWorkspaceFolders(e => this._onDidChangeExtensionsConfigs.fire()));
 		this._register(fileService.onDidFilesChange(e => {
 			const workspace = workspaceContextService.getWorkspace();
+			const localConfigurationUri = workspace.configuration ? getLocalWorkspaceConfigurationUri(workspace.configuration) : undefined;
 			if ((workspace.configuration && e.affects(workspace.configuration))
+				|| (localConfigurationUri && e.affects(localConfigurationUri))
 				|| workspace.folders.some(folder => e.affects(folder.toResource(EXTENSIONS_CONFIG)))
 			) {
 				this._onDidChangeExtensionsConfigs.fire();
@@ -92,7 +96,7 @@ export class WorkspaceExtensionsConfigService extends Disposable implements IWor
 	async toggleRecommendation(extensionId: string): Promise<void> {
 		extensionId = extensionId.toLowerCase();
 		const workspace = this.workspaceContextService.getWorkspace();
-		const workspaceExtensionsConfigContent = workspace.configuration ? await this.resolveWorkspaceExtensionConfig(workspace.configuration) : undefined;
+		const workspaceExtensionsConfigContent = workspace.configuration ? await this.resolveWorkspaceExtensionConfig(workspace.configuration, false) : undefined;
 		const workspaceFolderExtensionsConfigContents = new ResourceMap<IExtensionsConfigContent>();
 		await Promise.all(workspace.folders.map(async workspaceFolder => {
 			const extensionsConfigContent = await this.resolveWorkspaceFolderExtensionConfig(workspaceFolder);
@@ -118,7 +122,7 @@ export class WorkspaceExtensionsConfigService extends Disposable implements IWor
 
 	async toggleUnwantedRecommendation(extensionId: string): Promise<void> {
 		const workspace = this.workspaceContextService.getWorkspace();
-		const workspaceExtensionsConfigContent = workspace.configuration ? await this.resolveWorkspaceExtensionConfig(workspace.configuration) : undefined;
+		const workspaceExtensionsConfigContent = workspace.configuration ? await this.resolveWorkspaceExtensionConfig(workspace.configuration, false) : undefined;
 		const workspaceFolderExtensionsConfigContents = new ResourceMap<IExtensionsConfigContent>();
 		await Promise.all(workspace.folders.map(async workspaceFolder => {
 			const extensionsConfigContent = await this.resolveWorkspaceFolderExtensionConfig(workspaceFolder);
@@ -275,10 +279,23 @@ export class WorkspaceExtensionsConfigService extends Disposable implements IWor
 		return result.map(r => r.workspaceOrFolder);
 	}
 
-	private async resolveWorkspaceExtensionConfig(workspaceConfigurationResource: URI): Promise<IExtensionsConfigContent | undefined> {
+	private async resolveWorkspaceExtensionConfig(workspaceConfigurationResource: URI, includeLocal: boolean = true): Promise<IExtensionsConfigContent | undefined> {
 		try {
 			const content = await this.fileService.readFile(workspaceConfigurationResource);
-			const extensionsConfigContent = <IExtensionsConfigContent | undefined>parse(content.value.toString())['extensions'];
+			let workspaceContents = parse(content.value.toString()) as IStringDictionary<unknown>;
+
+			if (includeLocal) {
+				const localConfigurationUri = getLocalWorkspaceConfigurationUri(workspaceConfigurationResource);
+				if (localConfigurationUri) {
+					try {
+						const localContent = await this.fileService.readFile(localConfigurationUri);
+						const localWorkspaceContents = parse(localContent.value.toString()) as IStringDictionary<unknown>;
+						workspaceContents = mergeWorkspaceConfiguration(workspaceContents, localWorkspaceContents);
+					} catch { /* ignore */ }
+				}
+			}
+
+			const extensionsConfigContent = workspaceContents['extensions'] as IExtensionsConfigContent | undefined;
 			return extensionsConfigContent ? this.parseExtensionConfig(extensionsConfigContent) : undefined;
 		} catch (e) { /* Ignore */ }
 		return undefined;
