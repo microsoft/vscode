@@ -33,10 +33,14 @@ const OVERLAY_DEFINITIONS: ReadonlyArray<{ className: string; type: BrowserOverl
 	{ className: 'context-view', type: BrowserOverlayType.Unknown }
 ];
 
-// Transparent full-screen layer that context menus render to capture clicks.
-// It's inside the `.context-view` stacking context (so it ends up above modals/menus) but isn't itself tracked as an overlay,
-// so hit-testing must skip it to find the overlay actually painted underneath.
-const CONTEXT_VIEW_BLOCK_CLASS = 'context-view-block';
+// Transparent full-screen layers that context menus and action widgets render to capture clicks.
+// They sit in higher z-index stacking contexts above other UI, but are not tracked overlays,
+// so hit-testing must skip them to find the overlay actually painted underneath.
+const CONTEXT_VIEW_BLOCKER_CLASSES = ['context-view-block', 'context-view-pointerBlock'];
+
+function isContextViewBlocker(element: Element): boolean {
+	return CONTEXT_VIEW_BLOCKER_CLASSES.some(className => element.classList.contains(className));
+}
 
 export const IBrowserOverlayManager = createDecorator<IBrowserOverlayManager>('browserOverlayManager');
 
@@ -283,11 +287,11 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 	}
 
 	private getTopmostElementAt(clientX: number, clientY: number): Element | null {
-		// `elementsFromPoint` returns hits front-to-back; skip the transparent
-		// `.context-view-block` so the overlay painted beneath it is found.
+		// `elementsFromPoint` returns hits front-to-back; skip transparent blockers
+		// so the overlay painted beneath them is found.
 		const topmostAt = (root: DocumentOrShadowRoot): Element | null =>
 			root.elementsFromPoint(clientX, clientY)
-				.find(el => !el.classList.contains(CONTEXT_VIEW_BLOCK_CLASS)) ?? null;
+				.find(el => !isContextViewBlocker(el)) ?? null;
 
 		const elementAtPoint = topmostAt(this.targetWindow.document);
 		// `elementsFromPoint` does not pierce shadow DOM, so drill into the host.

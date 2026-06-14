@@ -92,6 +92,27 @@ suite('BrowserOverlayManager', () => {
 		assert.deepStrictEqual(overlays.map(o => o.type), [BrowserOverlayType.Dialog]);
 	});
 
+	test('detects obscuring when a context-view pointer block covers the browser on top of a modal', () => {
+		const browserContainer = addElement('browser-container', {
+			position: 'absolute', left: '0px', top: '0px', width: '300px', height: '300px'
+		});
+
+		addElement('monaco-modal-editor-block', {
+			position: 'fixed', left: '0px', top: '0px', width: '400px', height: '400px', zIndex: '2540'
+		});
+
+		const contextView = addElement('context-view', {
+			position: 'fixed', left: '320px', top: '320px', width: '60px', height: '60px', zIndex: '2575'
+		});
+		addElement('context-view-pointerBlock', {
+			position: 'fixed', left: '0px', top: '0px', width: '400px', height: '400px', zIndex: '2'
+		}, contextView);
+
+		const overlays = manager.getOverlappingOverlays(browserContainer);
+
+		assert.deepStrictEqual(overlays.map(o => o.type), [BrowserOverlayType.Dialog]);
+	});
+
 	// A notification toast fully covered by a modal must be reported as the
 	// dialog, not the notification, so callers don't treat a hidden toast as
 	// the active obscuring overlay.
