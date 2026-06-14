@@ -53,7 +53,7 @@
 
 }
 
-.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-label:not(.codicon) {
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-label:not(.codicon):not(.workbench-account-profile-image-container) {
 	font-size: 15px;
 	line-height: var(--activity-bar-action-height, 48px);
 	padding: 0 0 0 var(--activity-bar-width, 48px);
@@ -63,6 +63,24 @@
 	font-size: var(--activity-bar-icon-size, 24px);
 	align-items: center;
 	justify-content: center;
+}
+
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-label.workbench-account-profile-image-container {
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+}
+
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-label .workbench-account-profile-image {
+	display: none;
+	width: var(--activity-bar-icon-size, 24px);
+	height: var(--activity-bar-icon-size, 24px);
+	border-radius: 50%;
+	object-fit: cover;
+}
+
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-label.workbench-account-profile-image-container .workbench-account-profile-image {
+	display: block;
 }
 
 .monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active .action-label.codicon,

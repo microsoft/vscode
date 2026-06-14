@@ -440,6 +440,23 @@
 	color: inherit;
 }
 
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container .action-label.workbench-account-profile-image-container {
+	align-items: center;
+	justify-content: center;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container .action-label .workbench-account-profile-image {
+	display: none;
+	width: 16px;
+	height: 16px;
+	border-radius: 50%;
+	object-fit: cover;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container .action-label.workbench-account-profile-image-container .workbench-account-profile-image {
+	display: block;
+}
+
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container .monaco-action-bar .action-item {
 	display: flex;
 }
