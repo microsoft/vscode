@@ -27,7 +27,7 @@ import { IChatToolRiskAssessmentService, IToolRiskAssessment, ToolRiskLevel, Too
 import { ChatModel, IChatModel } from '../../../common/model/chatModel.js';
 import { IChatService, IChatProgress, IChatInfoMessage, IChatToolInputInvocationData, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../common/constants.js';
-import { SpecedToolAliases, isToolResultInputOutputDetails, IToolData, IToolImpl, IToolInvocation, ToolDataSource, ToolSet, IToolResultTextPart } from '../../../common/tools/languageModelToolsService.js';
+import { SpecedToolAliases, isToolResultInputOutputDetails, IToolData, IToolImpl, IToolInvocation, IToolSet, ToolDataSource, ToolSet, IToolResultTextPart } from '../../../common/tools/languageModelToolsService.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
@@ -1078,6 +1078,45 @@ suite('LanguageModelToolsService', () => {
 
 		const fullReferenceNames = service.toFullReferenceNames(result);
 		assert.deepStrictEqual(fullReferenceNames.sort(), enabledNames.sort(), 'toFullReferenceNames should return the original enabled names');
+	});
+
+	test('toFullReferenceNames does not emit a tool set when a member tool is unchecked', () => {
+		const toolSet = store.add(service.createToolSet(
+			ToolDataSource.Internal,
+			'testToolSet',
+			'refToolSet',
+			{ description: 'Test Tool Set' }
+		));
+
+		const toolSetTool1: IToolData = {
+			id: 'toolSetTool1',
+			toolReferenceName: 'toolSetTool1Ref',
+			modelDescription: 'Tool Set Tool 1',
+			displayName: 'Tool Set Tool 1',
+			source: ToolDataSource.Internal,
+		};
+
+		const toolSetTool2: IToolData = {
+			id: 'toolSetTool2',
+			toolReferenceName: 'toolSetTool2Ref',
+			modelDescription: 'Tool Set Tool 2',
+			displayName: 'Tool Set Tool 2',
+			source: ToolDataSource.Internal,
+		};
+
+		store.add(service.registerToolData(toolSetTool1));
+		store.add(service.registerToolData(toolSetTool2));
+		store.add(toolSet.addTool(toolSetTool1));
+		store.add(toolSet.addTool(toolSetTool2));
+
+		const selection = new Map<IToolData | IToolSet, boolean>([
+			[toolSet, true],
+			[toolSetTool1, true],
+			[toolSetTool2, false],
+		]);
+
+		const fullReferenceNames = service.toFullReferenceNames(selection);
+		assert.deepStrictEqual(fullReferenceNames, [service.getFullReferenceName(toolSetTool1)]);
 	});
 
 	test('toToolAndToolSetEnablementMap with non-existent tool names', () => {

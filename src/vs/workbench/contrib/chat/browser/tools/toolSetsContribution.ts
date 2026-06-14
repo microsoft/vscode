@@ -4,21 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isFalsyOrEmpty } from '../../../../../base/common/arrays.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
+import { Iterable } from '../../../../../base/common/iterator.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { observableFromEvent, observableSignalFromEvent, autorun, transaction } from '../../../../../base/common/observable.js';
 import { basename, joinPath } from '../../../../../base/common/resources.js';
-import { isFalsyOrWhitespace } from '../../../../../base/common/strings.js';
+import { getLeadingWhitespace, isFalsyOrWhitespace } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { assertType, isObject } from '../../../../../base/common/types.js';
+import { assertType, isObject, isString } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
-import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
@@ -35,8 +36,19 @@ import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import * as JSONContributionRegistry from '../../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ChatViewId } from '../chat.js';
+import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { findNodeAtLocation, Node, parseTree } from '../../../../../base/common/json.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
+import { EditOperation } from '../../../../../editor/common/core/editOperation.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { IEditorModel } from '../../../../../editor/common/editorCommon.js';
+import { registerEditorFeature } from '../../../../../editor/common/editorFeatures.js';
+import { CodeLens, CodeLensList, CodeLensProvider } from '../../../../../editor/common/languages.js';
+import { isITextModel, ITextModel } from '../../../../../editor/common/model.js';
+import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { showToolsPicker } from '../actions/chatToolPicker.js';
 
 
 const toolEnumValues: string[] = [];
@@ -86,7 +98,7 @@ const toolSetsSchema: IJSONSchema = {
 const reg = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
 
-abstract class RawToolSetsShape {
+export abstract class RawToolSetsShape {
 
 	static readonly suffix = '.toolsets.jsonc';
 
@@ -321,6 +333,115 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 	}
 }
 
+export interface IConfigureToolSetsOptions {
+	readonly selection?: ReadonlyMap<IToolData | IToolSet, boolean>;
+}
+
+function getSelectionFromArg(arg: unknown): ReadonlyMap<IToolData | IToolSet, boolean> | undefined {
+	if (!isObject(arg)) {
+		return undefined;
+	}
+
+	const selection = (arg as IConfigureToolSetsOptions).selection;
+	if (!(selection instanceof Map)) {
+		return undefined;
+	}
+
+	return selection;
+}
+
+export function getEnabledSelectionReferences(selection: ReadonlyMap<IToolData | IToolSet, boolean>, toolsService: ILanguageModelToolsService): string[] {
+	const enabledToolSets: IToolSet[] = [];
+	const enabledTools: IToolData[] = [];
+
+	for (const [item, enabled] of selection) {
+		if (!enabled) {
+			continue;
+		}
+
+		if (isToolSet(item)) {
+			// Only serialize a tool set when none of its member tools are explicitly
+			// unchecked in the selection. A partially-deselected tool set would otherwise
+			// silently re-enable the deselected member tools, matching the guard in
+			// `toFullReferenceNames`. Members absent from the map inherit the tool set's state.
+			if (Iterable.every(item.getTools(), tool => selection.get(tool) !== false)) {
+				enabledToolSets.push(item);
+			}
+		} else {
+			enabledTools.push(item);
+		}
+	}
+
+	const coveredToolIds = new Set<string>();
+	for (const toolSet of enabledToolSets) {
+		for (const tool of toolSet.getTools()) {
+			coveredToolIds.add(tool.id);
+		}
+	}
+
+	const references: string[] = [];
+	const seen = new Set<string>();
+	const addReference = (referenceName: string) => {
+		if (seen.has(referenceName)) {
+			return;
+		}
+		seen.add(referenceName);
+		references.push(referenceName);
+	};
+
+	for (const toolSet of enabledToolSets) {
+		addReference(toolsService.getFullReferenceName(toolSet));
+	}
+
+	for (const tool of enabledTools) {
+		if (coveredToolIds.has(tool.id)) {
+			continue;
+		}
+		// `getFullReferenceName` already returns the qualified `toolSet/tool` name for tools
+		// that belong to a non-user tool set, even when the tool is not independently
+		// referenceable in prompts. Only include the tool when the reference round-trips, which
+		// filters out orphan tools that cannot be referenced at all.
+		const referenceName = toolsService.getFullReferenceName(tool);
+		if (toolsService.getToolByFullReferenceName(referenceName) !== tool) {
+			continue;
+		}
+		addReference(referenceName);
+	}
+
+	return references;
+}
+
+export function createToolSetFileContents(toolSetName: string, toolReferences: readonly string[]): string {
+	const serializedReferences = toolReferences.map(reference => `\t\t\t${JSON.stringify(reference)}`).join(',\n');
+
+	return [
+		'{',
+		`\t${JSON.stringify(toolSetName)}: {`,
+		'\t\t"tools": [',
+		serializedReferences,
+		'\t\t],',
+		'\t\t"description": "",',
+		'\t\t"icon": "tools"',
+		'\t}',
+		'}',
+	].join('\n');
+}
+
+export function deleteToolSetFromFileContents(rawContents: string, toolSetName: string): { contents: string; isEmpty: boolean } | undefined {
+	const parsed = parse(rawContents);
+	if (!isObject(parsed)) {
+		return undefined;
+	}
+
+	const record = parsed as Record<string, unknown>;
+	if (!Object.hasOwn(record, toolSetName)) {
+		return undefined;
+	}
+
+	delete record[toolSetName];
+	return { contents: JSON.stringify(record, undefined, '\t'), isEmpty: Object.keys(record).length === 0 };
+}
+
 // ---- actions
 
 export class ConfigureToolSets extends Action2 {
@@ -350,7 +471,7 @@ export class ConfigureToolSets extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
+	override async run(accessor: ServicesAccessor, options?: IConfigureToolSetsOptions): Promise<void> {
 
 		const toolsService = accessor.get(ILanguageModelToolsService);
 		const quickInputService = accessor.get(IQuickInputService);
@@ -358,11 +479,28 @@ export class ConfigureToolSets extends Action2 {
 		const userDataProfileService = accessor.get(IUserDataProfileService);
 		const fileService = accessor.get(IFileService);
 		const textFileService = accessor.get(ITextFileService);
+		const chatWidgetService = accessor.get(IChatWidgetService);
 
-		const picks: ((IQuickPickItem & { toolset?: IToolSet }) | IQuickPickSeparator)[] = [];
+		const picks: (IQuickPickItem & { toolset?: IToolSet; kind: 'createFromSelection' | 'createNewFile' | 'existing' })[] = [];
+		// When the command is invoked without an explicit selection (e.g. from F1 or the chat
+		// view title menu), fall back to the tool selection of the active chat widget.
+		const currentSelection = getSelectionFromArg(options)
+			?? chatWidgetService.lastFocusedWidget?.input.selectedToolsModel.entriesMap.get()
+			?? new Map<IToolData | IToolSet, boolean>();
+		const selectedReferences = getEnabledSelectionReferences(currentSelection, toolsService);
+
+		if (selectedReferences.length > 0) {
+			picks.push({
+				label: localize('chat.configureToolSets.createFromCurrentSelection', "Create from current selection..."),
+				kind: 'createFromSelection',
+				alwaysShow: true,
+				iconClass: ThemeIcon.asClassName(Codicon.plus)
+			});
+		}
 
 		picks.push({
 			label: localize('chat.configureToolSets.add', 'Create new tool sets file...'),
+			kind: 'createNewFile',
 			alwaysShow: true,
 			iconClass: ThemeIcon.asClassName(Codicon.plus)
 		});
@@ -374,6 +512,7 @@ export class ConfigureToolSets extends Action2 {
 
 			picks.push({
 				label: toolSet.referenceName,
+				kind: 'existing',
 				toolset: toolSet,
 				tooltip: toolSet.description,
 				iconClass: ThemeIcon.asClassName(toolSet.icon)
@@ -402,6 +541,12 @@ export class ConfigureToolSets extends Action2 {
 					if (!isValidBasename(input)) {
 						return localize('bad_name2', "'{0}' is not a valid file name", input);
 					}
+					if (pick.kind === 'createFromSelection') {
+						const candidate = joinPath(userDataProfileService.currentProfile.promptsHome, `${input}${RawToolSetsShape.suffix}`);
+						if (await fileService.exists(candidate)) {
+							return localize('chat.configureToolSets.fileAlreadyExists', "A file with this name already exists");
+						}
+					}
 					return undefined;
 				}
 			});
@@ -412,7 +557,23 @@ export class ConfigureToolSets extends Action2 {
 
 			resource = joinPath(userDataProfileService.currentProfile.promptsHome, `${name}${RawToolSetsShape.suffix}`);
 
-			if (!await fileService.exists(resource)) {
+			if (pick.kind === 'createFromSelection') {
+				const toolSetName = await quickInputService.input({
+					placeHolder: localize('toolSetName.placeholder', "Type new tool set name"),
+					validateInput: async (input) => {
+						if (isFalsyOrWhitespace(input)) {
+							return localize('toolSetName.bad_name', "Tool set name cannot be empty");
+						}
+						return undefined;
+					}
+				});
+
+				if (!toolSetName || isFalsyOrWhitespace(toolSetName)) {
+					return;
+				}
+
+				await textFileService.write(resource, createToolSetFileContents(toolSetName, selectedReferences));
+			} else if (!await fileService.exists(resource)) {
 				await textFileService.write(resource, [
 					'// Place your tool sets here...',
 					'// Example:',
@@ -437,3 +598,115 @@ export class ConfigureToolSets extends Action2 {
 		await editorService.openEditor({ resource, options: { pinned: true } });
 	}
 }
+/**
+ * Provides a "Configure Tools..." code lens above the `tools` array of every
+ * tool set defined in a `.toolsets.jsonc` file. Clicking the lens opens the
+ * shared tools picker seeded with the currently referenced tools and writes the
+ * new selection back into the array using qualified reference names.
+ */
+class ToolSetsCodeLensProvider extends Disposable implements CodeLensProvider {
+
+	// `_`-prefix marks this as private command
+	private readonly cmdId = `_configureToolSetTools/${generateUuid()}`;
+
+	constructor(
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
+		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	) {
+		super();
+
+		this._register(this.languageFeaturesService.codeLensProvider.register({ language: 'jsonc' }, this));
+
+		this._register(CommandsRegistry.registerCommand(this.cmdId, (_accessor, ...args) => {
+			const modelArg = args[0] as IEditorModel;
+			const rangeArg = args[1];
+			const toolsArg = args[2];
+			if (isITextModel(modelArg) && Range.isIRange(rangeArg) && Array.isArray(toolsArg) && toolsArg.every(isString)) {
+				return this.updateTools(modelArg, Range.lift(rangeArg), toolsArg);
+			}
+			return undefined;
+		}));
+	}
+
+	provideCodeLenses(model: ITextModel, _token: CancellationToken): CodeLensList | undefined {
+		if (!RawToolSetsShape.isToolSetFileName(model.uri)) {
+			return undefined;
+		}
+
+		const root = parseTree(model.getValue());
+		if (!root || root.type !== 'object' || !root.children) {
+			return undefined;
+		}
+
+		const lenses: CodeLens[] = [];
+		for (const property of root.children) {
+			if (property.type !== 'property' || !property.children || property.children.length !== 2) {
+				continue;
+			}
+			const [keyNode, valueNode] = property.children;
+			if (valueNode.type !== 'object') {
+				continue;
+			}
+			const toolsNode = findNodeAtLocation(valueNode, ['tools']);
+			if (!toolsNode || toolsNode.type !== 'array') {
+				continue;
+			}
+
+			const selectedTools = (toolsNode.children ?? [])
+				.filter(item => item.type === 'string' && isString(item.value))
+				.map(item => item.value as string);
+
+			const keyStart = model.getPositionAt(keyNode.offset);
+			const valueRange = this.rangeFromNode(model, toolsNode);
+
+			lenses.push({
+				range: Range.fromPositions(keyStart),
+				command: {
+					title: localize('configure-tools.capitalized.ellipsis', "Configure Tools..."),
+					id: this.cmdId,
+					arguments: [model, valueRange, selectedTools]
+				}
+			});
+		}
+
+		return { lenses };
+	}
+
+	private rangeFromNode(model: ITextModel, node: Node): Range {
+		const start = model.getPositionAt(node.offset);
+		const end = model.getPositionAt(node.offset + node.length);
+		return Range.fromPositions(start, end);
+	}
+
+	private async updateTools(model: ITextModel, range: Range, selectedTools: readonly string[]): Promise<void> {
+		const getToolsEntries = () => this.languageModelToolsService.toToolAndToolSetEnablementMap(selectedTools, undefined);
+		const newSelected = await this.instantiationService.invokeFunction(showToolsPicker, localize('placeholder', "Select tools"), 'toolSetCodeLens', undefined, getToolsEntries);
+		if (!newSelected) {
+			return;
+		}
+
+		const newNames = this.languageModelToolsService.toFullReferenceNames(newSelected);
+		const newValue = this.formatToolsArray(model, range, newNames);
+
+		model.pushStackElement();
+		model.pushEditOperations(null, [EditOperation.replaceMove(range, newValue)], () => null);
+		model.pushStackElement();
+	}
+
+	private formatToolsArray(model: ITextModel, range: Range, toolNames: readonly string[]): string {
+		if (toolNames.length === 0) {
+			return '[]';
+		}
+
+		const { insertSpaces, indentSize } = model.getOptions();
+		const oneIndent = insertSpaces ? ' '.repeat(indentSize) : '\t';
+		const baseIndent = getLeadingWhitespace(model.getLineContent(range.startLineNumber));
+		const itemIndent = baseIndent + oneIndent;
+
+		const items = toolNames.map(name => `${itemIndent}${JSON.stringify(name)}`).join(',\n');
+		return `[\n${items}\n${baseIndent}]`;
+	}
+}
+
+registerEditorFeature(ToolSetsCodeLensProvider);
