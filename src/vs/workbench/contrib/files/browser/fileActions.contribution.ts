@@ -689,7 +689,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	command: {
 		id: SAVE_FILE_COMMAND_ID,
 		title: nls.localize({ key: 'miSave', comment: ['&& denotes a mnemonic'] }, "&&Save"),
-		precondition: ContextKeyExpr.or(ContextKeyExpr.and(ActiveEditorContext, ActiveEditorReadonlyContext.toNegated()), ContextKeyExpr.and(FoldersViewVisibleContext, SidebarFocusContext))
+		precondition: ContextKeyExpr.and(ActiveEditorReadonlyContext.toNegated(), ContextKeyExpr.or(ActiveEditorContext, ContextKeyExpr.and(FoldersViewVisibleContext, SidebarFocusContext)))
 	},
 	order: 1
 });
