@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Sequencer } from '../../../../../base/common/async.js';
+import { Limiter, Sequencer } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -34,6 +34,7 @@ import { ChatSessionOperationLog } from './chatSessionOperationLog.js';
 import { LocalChatSessionUri } from './chatUri.js';
 
 const maxPersistedSessions = 50;
+const maxParallelSessionIndexRebuilds = 10;
 
 const ChatIndexStorageKey = 'chat.ChatSessionStore.index';
 const ChatTransferIndexStorageKey = 'ChatSessionStore.transferIndex';
@@ -537,6 +538,7 @@ export class ChatSessionStore extends Disposable {
 	}
 
 	private indexCache: IChatSessionIndexData | undefined;
+	private indexRebuildAttempted = false;
 	private internalGetIndex(): IChatSessionIndexData {
 		if (this.indexCache) {
 			return this.indexCache;
@@ -581,8 +583,72 @@ export class ChatSessionStore extends Disposable {
 
 	async getIndex(): Promise<IChatSessionIndex> {
 		return this.storeQueue.queue(async () => {
+			await this.rebuildIndexFromSessionFilesIfNeeded();
 			return this.internalGetIndex().entries;
 		});
+	}
+
+	private async rebuildIndexFromSessionFilesIfNeeded(): Promise<void> {
+		if (this.indexRebuildAttempted) {
+			return;
+		}
+		this.indexRebuildAttempted = true;
+
+		const index = this.internalGetIndex();
+		if (Object.keys(index.entries).length > 0) {
+			return;
+		}
+
+		try {
+			const storageDirectory = await this.fileService.resolve(this.storageRoot);
+			if (!storageDirectory.children) {
+				return;
+			}
+
+			const sessionIds = new Set<string>();
+			for (const child of storageDirectory.children) {
+				if (child.isDirectory) {
+					continue;
+				}
+				if (child.name.endsWith('.jsonl')) {
+					sessionIds.add(child.name.slice(0, -'.jsonl'.length));
+				} else if (child.name.endsWith('.json')) {
+					sessionIds.add(child.name.slice(0, -'.json'.length));
+				}
+			}
+
+			if (sessionIds.size === 0) {
+				return;
+			}
+
+			const limiter = new Limiter<IChatSessionEntryMetadata | undefined>(maxParallelSessionIndexRebuilds);
+			const recoveredEntries = await Promise.all([...sessionIds].map(sessionId => limiter.queue(async () => {
+				try {
+					const storageLocation = this.getStorageLocation(sessionId);
+					const session = await this.readSessionFromLocation(storageLocation.flat, storageLocation.log, sessionId);
+					if (session) {
+						return await getSessionMetadata(session.value as ISerializableChatData);
+					}
+				} catch (e) {
+					this.reportError('rebuildIndexFromSessionFile', `Error rebuilding chat session index entry ${sessionId}`, e);
+				}
+				return undefined;
+			})));
+
+			for (const entry of recoveredEntries) {
+				if (entry) {
+					index.entries[entry.sessionId] = entry;
+				}
+			}
+
+			if (Object.keys(index.entries).length > 0) {
+				await this.flushIndex();
+			}
+		} catch (e) {
+			if (toFileOperationResult(e) !== FileOperationResult.FILE_NOT_FOUND) {
+				this.reportError('rebuildIndexFromSessionFiles', 'Error rebuilding chat session index from session files', e);
+			}
+		}
 	}
 
 	getMetadataForSessionSync(sessionResource: URI): IChatSessionEntryMetadata | undefined {
