@@ -169,6 +169,29 @@ export class ClaudeCustomizationProvider extends Disposable implements vscode.Ch
 		return items;
 	}
 
+	async provideSourceFolders(_sessionResource: vscode.Uri, type: vscode.ChatSessionCustomizationType, _token: vscode.CancellationToken): Promise<vscode.ChatSessionCustomizationSourceFolder[]> {
+		const folders: vscode.ChatSessionCustomizationSourceFolder[] = [];
+		for (const folder of this.workspaceService.getWorkspaceFolders()) {
+			for (const root of customizationSearchPaths.workspace) {
+				if (root.type === type) {
+					folders.push({
+						uri: URI.joinPath(folder, ...root.path),
+						label: root.path.join('/'),
+					});
+				}
+			}
+		}
+		for (const root of customizationSearchPaths.user) {
+			if (root.type === type) {
+				folders.push({
+					uri: URI.joinPath(this.envService.userHome, ...root.path),
+					label: `~/${root.path.join('/')}`,
+				});
+			}
+		}
+		return folders;
+	}
+
 	private async discoverInstructions(): Promise<vscode.ChatSessionCustomizationItem[]> {
 		const items: vscode.ChatSessionCustomizationItem[] = [];
 		const candidates: { uri: URI; source: vscode.ChatResourceSource }[] = [];
@@ -296,3 +319,15 @@ export function isEnabledForClaudeCode(customization: { sessionTypes?: readonly 
 	const sessionTypes = customization.sessionTypes;
 	return sessionTypes === undefined || sessionTypes.includes('claude-code') || false;
 }
+
+const customizationSearchPaths = {
+	workspace: [
+		{ path: ['.claude', 'agents'], type: vscode.ChatSessionCustomizationType.Agent },
+		{ path: ['.claude', 'skills'], recursive: true, type: vscode.ChatSessionCustomizationType.Skill },
+	],
+	user: [
+		{ path: ['.claue', 'agents'], type: vscode.ChatSessionCustomizationType.Agent },
+		{ path: ['.agents', 'skills'], recursive: true, type: vscode.ChatSessionCustomizationType.Skill },
+		{ path: ['.copilot', 'instructions'], recursive: true, type: vscode.ChatSessionCustomizationType.Instructions },
+	],
+};

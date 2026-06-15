@@ -86,7 +86,7 @@ import { IWorkbenchMcpServer } from '../../../mcp/common/mcpTypes.js';
 import { IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { EmbeddedMcpServerDetail } from './embeddedMcpServerDetail.js';
 import { EmbeddedAgentPluginDetail } from './embeddedAgentPluginDetail.js';
-import { ICustomizationHarnessService, matchesWorkspaceSubpath } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, ICustomizationSourceFolder, matchesWorkspaceSubpath } from '../../common/customizationHarnessService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { AICustomizationWelcomePage } from './aiCustomizationWelcomePage.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
@@ -1278,20 +1278,26 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 * If multiple source folders exist for the given storage type, shows a
 	 * picker to let the user choose. Otherwise, returns the single match.
 	 *
+	 * Source folders come from the active harness's item provider (via the
+	 * items model) — each session can supply its own set of customization
+	 * locations through `ICustomizationItemProvider.provideSourceFolders`.
+	 *
 	 * @returns the resolved URI, `undefined` when no folder is available,
 	 *          or `null` when the user cancelled the picker.
 	 */
 	private async resolveTargetDirectoryWithPicker(type: PromptsType, target: 'workspace' | 'user'): Promise<URI | undefined | null> {
-		const allFolders = await this.promptsService.getSourceFolders(type);
+		const sessionResource = this.harnessService.activeSessionResource.get();
+		const provider = this.itemsModel.getActiveItemProvider();
+		const allFolders = await provider.provideSourceFolders?.(sessionResource, type, CancellationToken.None) ?? [];
+
 		const projectRoot = this.workspaceService.getActiveProjectRoot();
 		const descriptor = this.harnessService.getActiveDescriptor();
 		const subpaths = descriptor.workspaceSubpaths;
 
 		// Partition folders by whether they're under the active project root.
-		// The storage tags from getSourceFolders() are unreliable (tilde-expanded
-		// user paths like ~/.copilot/skills get tagged PromptsStorage.local),
-		// so we use the project root as the authoritative boundary.
-		let matchingFolders;
+		// We can't rely on a storage tag (tilde-expanded user paths can look
+		// local), so we use the project root as the authoritative boundary.
+		let matchingFolders: readonly ICustomizationSourceFolder[];
 		if (target === 'workspace') {
 			matchingFolders = projectRoot
 				? allFolders.filter(f => {
@@ -1307,7 +1313,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				})
 				: [];
 		} else {
-			matchingFolders = projectRoot
+			let userFolders = projectRoot
 				? allFolders.filter(f => !isEqualOrParent(f.uri, projectRoot))
 				: allFolders;
 
@@ -1317,14 +1323,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 			const filter = this.harnessService.getStorageSourceFilter(type);
 			if (filter.includedUserFileRoots) {
 				const roots = filter.includedUserFileRoots;
-				matchingFolders = matchingFolders.filter(f =>
+				userFolders = userFolders.filter(f =>
 					roots.some(root => isEqualOrParent(f.uri, root))
 				);
 			}
+			matchingFolders = userFolders;
 		}
 
-		// Deduplicate by URI (getSourceFolders may return the same path
-		// from both config-based discovery and the AgenticPromptsService override)
+		// Deduplicate by URI (the provider may return the same path from
+		// multiple discovery sources).
 		const seen = new Set<string>();
 		matchingFolders = matchingFolders.filter(f => {
 			const key = f.uri.toString();
@@ -1347,7 +1354,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		// Multiple directories — ask the user which one to use
 		const items: (IQuickPickItem & { uri: URI })[] = matchingFolders.map(folder => ({
-			label: this.promptsService.getPromptLocationLabel(folder),
+			label: folder.label,
 			description: folder.uri.fsPath,
 			uri: folder.uri,
 		}));

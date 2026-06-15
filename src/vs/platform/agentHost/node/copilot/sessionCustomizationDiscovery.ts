@@ -8,7 +8,7 @@ import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, type IDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
-import { joinPath } from '../../../../base/common/resources.js';
+import { basename, joinPath } from '../../../../base/common/resources.js';
 import { compare as compareStrings } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService, IFileStatWithMetadata } from '../../../files/common/files.js';
@@ -30,6 +30,7 @@ export const enum DiscoveredType {
 export interface IDiscoveredDirectory {
 	readonly uri: URI;
 	readonly type: DiscoveredType;
+	readonly name: string;
 	readonly files: readonly IDiscoveredFile[];
 }
 
@@ -97,6 +98,7 @@ interface ISearchRoot {
 	readonly path: readonly string[];
 	readonly type: DiscoveredType;
 	readonly recursive?: boolean; // whether to watch recursively for changes (defaults to false)
+	readonly name: string;
 }
 
 interface IInstructionFile {
@@ -111,18 +113,18 @@ interface IInstructionFile {
  */
 const searchRoots: { workspace: ISearchRoot[]; user: ISearchRoot[] } = {
 	workspace: [
-		{ path: ['.github', 'agents'], type: DiscoveredType.Agent },
-		{ path: ['.agents', 'agents'], type: DiscoveredType.Agent },
-		{ path: ['.claude', 'agents'], type: DiscoveredType.Agent },
-		{ path: ['.github', 'skills'], recursive: true, type: DiscoveredType.Skill },
-		{ path: ['.agents', 'skills'], recursive: true, type: DiscoveredType.Skill },
-		{ path: ['.claude', 'skills'], recursive: true, type: DiscoveredType.Skill },
-		{ path: ['.github', 'instructions'], recursive: true, type: DiscoveredType.Instruction },
+		{ path: ['.github', 'agents'], type: DiscoveredType.Agent, name: '.github/agents' },
+		{ path: ['.agents', 'agents'], type: DiscoveredType.Agent, name: '.agents/agents' },
+		{ path: ['.claude', 'agents'], type: DiscoveredType.Agent, name: '.claude/agents' },
+		{ path: ['.github', 'skills'], recursive: true, type: DiscoveredType.Skill, name: '.github/skills' },
+		{ path: ['.agents', 'skills'], recursive: true, type: DiscoveredType.Skill, name: '.agents/skills' },
+		{ path: ['.claude', 'skills'], recursive: true, type: DiscoveredType.Skill, name: '.claude/skills' },
+		{ path: ['.github', 'instructions'], recursive: true, type: DiscoveredType.Instruction, name: '.github/instructions' },
 	],
 	user: [
-		{ path: ['.copilot', 'agents'], type: DiscoveredType.Agent },
-		{ path: ['.agents', 'skills'], recursive: true, type: DiscoveredType.Skill },
-		{ path: ['.copilot', 'instructions'], recursive: true, type: DiscoveredType.Instruction },
+		{ path: ['.copilot', 'agents'], type: DiscoveredType.Agent, name: '~/.copilot/agents' },
+		{ path: ['.agents', 'skills'], recursive: true, type: DiscoveredType.Skill, name: '~/.agents/skills' },
+		{ path: ['.copilot', 'instructions'], recursive: true, type: DiscoveredType.Instruction, name: '~/.copilot/instructions' },
 	],
 };
 
@@ -350,7 +352,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 			}
 		}
 		if (files.length > 0) {
-			result.push({ uri: base, type: DiscoveredType.AgentInstruction, files: files.sort(compareDiscoveredFile) });
+			result.push({ uri: base, type: DiscoveredType.AgentInstruction, files: files.sort(compareDiscoveredFile), name: basename(base) });
 		}
 	}
 
@@ -362,15 +364,13 @@ export class SessionCustomizationDiscovery extends Disposable {
 		}
 
 		const rootUri = joinPath(base, ...root.path);
-		let stat: IFileStatWithMetadata;
+		let stat: IFileStatWithMetadata | undefined = undefined;
+		let children: IFileStatWithMetadata[] = [];
 		try {
 			stat = await this._fileService.resolve(rootUri, { resolveMetadata: true });
+			children = stat.children ?? [];
 		} catch {
 			// Root does not exist (or is unreadable) — nothing to discover or watch.
-			return;
-		}
-		if (!stat.isDirectory || !stat.children) {
-			return;
 		}
 
 		// Filenames are dynamic for these roots, so we watch the whole directory.
@@ -379,7 +379,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 
 		if (root.type === DiscoveredType.Skill) {
 			const files: IDiscoveredFile[] = [];
-			for (const child of stat.children) {
+			for (const child of children) {
 				throwIfCancelled(token);
 
 				if (child.isDirectory) {
@@ -395,12 +395,12 @@ export class SessionCustomizationDiscovery extends Disposable {
 					}
 				}
 			}
-			result.push({ uri: rootUri, type: root.type, files: files.sort(compareDiscoveredFile) });
+			result.push({ uri: rootUri, type: root.type, files: files.sort(compareDiscoveredFile), name: root.name });
 		} else if (root.type === DiscoveredType.Agent) {
 			const files: IDiscoveredFile[] = [];
 			// agents are markdown files directly under the root (no subdirectory scanning),
 			// excluding only exact-case README.md.
-			for (const child of stat.children) {
+			for (const child of children) {
 				throwIfCancelled(token);
 
 				if (child.isFile) {
@@ -411,7 +411,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 					}
 				}
 			}
-			result.push({ uri: rootUri, type: root.type, files: files.sort(compareDiscoveredFile) });
+			result.push({ uri: rootUri, type: root.type, files: files.sort(compareDiscoveredFile), name: root.name });
 
 		} else if (root.type === DiscoveredType.Instruction) {
 			const files: IDiscoveredFile[] = [];
@@ -441,8 +441,10 @@ export class SessionCustomizationDiscovery extends Disposable {
 					}
 				}
 			};
-			await findInstructions(stat, 0);
-			result.push({ uri: rootUri, type: root.type, files: files.sort(compareDiscoveredFile) });
+			if (stat) {
+				await findInstructions(stat, 0);
+			}
+			result.push({ uri: rootUri, type: root.type, files: files.sort(compareDiscoveredFile), name: root.name });
 		} else {
 			this._logService.warn(`[SessionCustomizationDiscovery] Unrecognized root type '${root.type}' for root '${rootUri.toString()}'`);
 		}

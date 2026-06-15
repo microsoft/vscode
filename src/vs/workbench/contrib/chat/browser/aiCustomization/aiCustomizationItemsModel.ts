@@ -16,7 +16,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
-import { ICustomizationHarnessService, isPluginCustomizationItem } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, ICustomizationItemProvider, isPluginCustomizationItem } from '../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
@@ -71,6 +71,13 @@ export interface IAICustomizationItemsModel {
 	 * lifetime of the active descriptor.
 	 */
 	getActiveItemSource(): IAICustomizationItemSource;
+
+	/**
+	 * Returns the effective customization item provider for the active
+	 * harness. Falls back to the prompts-service-backed provider when the
+	 * active descriptor does not contribute its own.
+	 */
+	getActiveItemProvider(): ICustomizationItemProvider;
 
 	/**
 	 * Convenience: an observable of the count for the given section.
@@ -209,6 +216,12 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 
 	getActiveItemSource(): IAICustomizationItemSource {
 		return this.getOrCreateSource(this.harnessService.activeSessionResource.get());
+	}
+
+	getActiveItemProvider(): ICustomizationItemProvider {
+		const sessionType = getChatSessionType(this.harnessService.activeSessionResource.get());
+		const descriptor = this.harnessService.findHarnessById(sessionType);
+		return descriptor?.itemProvider ?? this.promptsServiceItemProvider;
 	}
 
 	whenSectionLoaded(section: ItemsModelSection): Promise<void> {

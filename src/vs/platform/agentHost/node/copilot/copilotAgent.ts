@@ -2166,10 +2166,10 @@ export function toDiscoveredDirectoryCustomizations(directories: readonly IDisco
 			type: CustomizationType.Directory,
 			id: customizationId(protocolUri),
 			uri: protocolUri,
-			name: resourceBasename(directory.uri),
+			name: directory.name,
 			enabled: true,
 			contents: toDirectoryContentsType(directory.type),
-			writable: false,
+			writable: directory.type !== DiscoveredType.AgentInstruction, // the folder for agent instructions should not beoffered as source
 			load: { kind: CustomizationLoadStatus.Loaded },
 			children: await Promise.all(directory.files.map(file => toDiscoveredChildCustomization(file.uri, directory.type, fileService))),
 		};
