@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from '../../../nls.js';
+import { PolicyCategory } from '../../../base/common/policy.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
 import product from '../../product/common/product.js';
 import { Registry } from '../../registry/common/platform.js';
@@ -54,6 +55,17 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.agentHost.codexAgent.enabled', "When enabled, the agent host registers the Codex provider (subject to the Codex SDK being reachable). Requires `#chat.agentHost.enabled#`. The agent host process must be restarted for changes to take effect."),
 			default: false,
 			tags: ['experimental', 'advanced'],
+			policy: {
+				name: 'Codex3PIntegration',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.126',
+				localization: {
+					description: {
+						key: 'chat.agentHost.codexAgent.enabled.policy',
+						value: nls.localize('chat.agentHost.codexAgent.enabled.policy', "Enable Codex Agent sessions in VS Code. Start and resume agentic coding sessions powered by OpenAI Codex SDK directly in the editor. Uses your existing Copilot subscription."),
+					}
+				}
+			}
 		},
 		[AgentHostCodexAgentSdkRootSettingId]: {
 			type: 'string',
