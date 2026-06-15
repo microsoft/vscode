@@ -275,6 +275,13 @@ required to debug changes to any libraries licensed under the GNU Lesser General
 		if (entry.url) {
 			output += entry.url + '\n';
 		}
+		// Mark scanner-sourced entries so reviewers know the license text was
+		// read directly from the package's on-disk LICENSE file rather than
+		// pulled from ClearlyDefined / CG. If the text looks unusual or stale,
+		// this points reviewers at the package's installed copy.
+		if (entry.source === 'extension-scanner') {
+			output += '(license text obtained directly from package LICENSE file)\n';
+		}
 		output += '\n';
 		if (entry.licenseText) {
 			output += entry.licenseText + '\n';
