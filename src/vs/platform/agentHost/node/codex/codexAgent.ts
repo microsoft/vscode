@@ -36,7 +36,7 @@ import { createCodexSessionMapState, mapAgentMessageDelta, mapCommandExecutionOu
 import { resolveCodexInput } from './codexPromptResolver.js';
 import { replayThreadToTurns } from './codexReplayMapper.js';
 import { CodexSessionMetadataStore } from './codexSessionMetadataStore.js';
-import { CodexSessionConfigKey, isCodexSupportedModel, narrowAdditionalDirectories, narrowApprovalPolicy, narrowBoolean, narrowReasoningEffort, narrowSandboxMode, narrowWebSearchMode, normalizeCodexModelId, type CodexApprovalPolicy } from './codexSessionConfigKeys.js';
+import { CodexSessionConfigKey, getCodexModelCatalogId, isCodexSupportedModel, narrowAdditionalDirectories, narrowApprovalPolicy, narrowBoolean, narrowReasoningEffort, narrowSandboxMode, narrowWebSearchMode, normalizeCodexModelId, type CodexApprovalPolicy } from './codexSessionConfigKeys.js';
 import type { ReasoningEffort } from './protocol/generated/ReasoningEffort.js';
 import type { WebSearchMode } from './protocol/generated/WebSearchMode.js';
 import type { SandboxMode } from './protocol/generated/v2/SandboxMode.js';
@@ -476,7 +476,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				const response: ModelListResponse = await conn.client.request<'model/list', ModelListResponse>('model/list', { cursor, includeHidden: false });
 				for (const model of response.data) {
 					if (!model.hidden) {
-						codexModelDefaults.set(model.model, model.isDefault);
+						codexModelDefaults.set(getCodexModelCatalogId(model.model), model.isDefault);
 					}
 				}
 				cursor = response.nextCursor;
@@ -486,14 +486,15 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 			const configSchema = this._createReasoningEffortConfigSchema();
 			const filtered = all
-				.filter(m => !!m.supported_endpoints?.includes('/responses') && codexModelDefaults.has(m.id) && isCodexSupportedModel(m.id, m.name))
-				.sort((a, b) => (Number(b.is_chat_default) - Number(a.is_chat_default)) || (Number(codexModelDefaults.get(b.id)) - Number(codexModelDefaults.get(a.id))))
-				.map((m): IAgentModelInfo => ({
+				.map(m => ({ model: m, catalogId: getCodexModelCatalogId(m.id) }))
+				.filter(({ model, catalogId }) => !!model.supported_endpoints?.includes('/responses') && codexModelDefaults.has(catalogId) && isCodexSupportedModel(catalogId, model.name))
+				.sort((a, b) => (Number(b.model.is_chat_default) - Number(a.model.is_chat_default)) || (Number(codexModelDefaults.get(b.catalogId)) - Number(codexModelDefaults.get(a.catalogId))))
+				.map(({ model, catalogId }): IAgentModelInfo => ({
 					provider: this.id,
-					id: m.id,
-					name: m.name ?? m.id,
-					maxContextWindow: m.capabilities?.limits?.max_context_window_tokens,
-					supportsVision: !!m.capabilities?.supports?.vision,
+					id: catalogId,
+					name: model.name ?? catalogId,
+					maxContextWindow: model.capabilities?.limits?.max_context_window_tokens,
+					supportsVision: !!model.capabilities?.supports?.vision,
 					configSchema,
 				}));
 			this._models.set(filtered, undefined);
