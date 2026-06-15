@@ -103,21 +103,20 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 	}
 
 	function setAutoApprove(level: string): void {
-		// Set config on the session state directly — the SessionConfigChanged
-		// reducer only merges into an existing config schema, which agentService
-		// normally registers at session creation time. Tests bypass that wiring.
-		const state = stateManager.getSessionState(sessionKey);
-		if (state) {
-			state.config = {
-				schema: {
-					type: 'object',
-					properties: {
-						autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'autoApprove', 'autopilot'], default: 'default' },
-					},
+		// Establish config on the authoritative session state via the state
+		// manager API. Mutating the object returned by `getSessionState` would
+		// strand the change on a detached composite copy (session merged with
+		// its default chat). `agentService` registers the schema at session
+		// creation time; tests bypass that wiring with this direct set.
+		stateManager.setSessionConfig(sessionKey, {
+			schema: {
+				type: 'object',
+				properties: {
+					autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'autoApprove', 'autopilot'], default: 'default' },
 				},
-				values: { autoApprove: level },
-			};
-		}
+			},
+			values: { autoApprove: level },
+		});
 	}
 
 	function startTurn(turnId: string, text = 'hello'): void {
