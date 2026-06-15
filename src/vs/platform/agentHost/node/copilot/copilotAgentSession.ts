@@ -2107,7 +2107,7 @@ export class CopilotAgentSession extends Disposable {
 				const summary = getTaskCompleteSummary(tracked.parameters, toolOutput);
 				if (summary) {
 					this._emitAction({
-						type: ActionType.SessionResponsePart,
+						type: ActionType.ChatResponsePart,
 						turnId: this._turnId,
 						part: { kind: ResponsePartKind.Markdown, id: generateUuid(), content: summary },
 					});

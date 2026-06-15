@@ -1523,8 +1523,8 @@ suite('CopilotAgentSession', () => {
 			} as SessionEventPayload<'tool.execution_complete'>['data']);
 
 			const actions = getActions(signals);
-			assert.deepStrictEqual(actions.map(a => a.type), [ActionType.SessionResponsePart]);
-			const responsePart = actions[0] as SessionResponsePartAction;
+			assert.deepStrictEqual(actions.map(a => a.type), [ActionType.ChatResponsePart]);
+			const responsePart = actions[0] as ChatResponsePartAction;
 			assert.strictEqual(responsePart.part.kind, ResponsePartKind.Markdown);
 			if (responsePart.part.kind !== ResponsePartKind.Markdown) {
 				return;
