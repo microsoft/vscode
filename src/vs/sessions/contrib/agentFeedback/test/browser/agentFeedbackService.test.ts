@@ -18,6 +18,7 @@ import { NullTelemetryService } from '../../../../../platform/telemetry/common/t
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IEditorService, IVisibleEditorsChangeEvent } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
@@ -50,9 +51,9 @@ suite('AgentFeedbackService - Ordering', () => {
 			override visibleEditorPanes = [];
 		});
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
-			override activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
 			override getSession(_resource: URI) { return undefined; }
 		});
+		instantiationService.stub(ISessionsService, { activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined) } as unknown as ISessionsService);
 
 		service = store.add(instantiationService.createInstance(AgentFeedbackService));
 		session = URI.parse('test://session/1');
@@ -307,9 +308,9 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 			override get visibleEditorPanes() { return visiblePanes; }
 		});
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
-			override activeSession = activeSessionObs;
 			override getSession(resource: URI) { return sessions.get(resource.toString()); }
 		});
+		instantiationService.stub(ISessionsService, { activeSession: activeSessionObs } as unknown as ISessionsService);
 
 		service = store.add(instantiationService.createInstance(AgentFeedbackService));
 
@@ -424,7 +425,6 @@ suite('AgentFeedbackService - State', () => {
 			override getProvider<T extends ISessionsProvider>(_providerId: string): T | undefined { return undefined; }
 		});
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
-			override activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
 			override onDidDeleteSession = Event.None;
 			override getSession(_resource: URI) {
 				return sessionProviderId
@@ -432,6 +432,7 @@ suite('AgentFeedbackService - State', () => {
 					: undefined;
 			}
 		});
+		instantiationService.stub(ISessionsService, { activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined) } as unknown as ISessionsService);
 
 		service = store.add(instantiationService.createInstance(AgentFeedbackService));
 		session = URI.parse('test://session/1');
