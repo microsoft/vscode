@@ -16,6 +16,7 @@ import { workbenchConfigurationNodeBase } from '../../../common/configuration.js
 // Bundle the CSS for every style-override module. Each file gates all of its
 // rules behind a `.style-override-<id>` ancestor class, so the styles are inert
 // until the matching class is toggled onto the workbench container(s) below.
+import './media/fontRamp.css';
 import './media/roundedButtons.css';
 import './media/roundedCorners.css';
 import './media/tabs.css';
@@ -35,6 +36,11 @@ interface IStyleOverrideModule {
  * arbitrary CSS cannot be injected.
  */
 const STYLE_OVERRIDE_MODULES: readonly IStyleOverrideModule[] = [
+	{
+		id: 'fontRamp',
+		label: localize('styleOverrides.fontRamp', "Font Ramp"),
+		description: localize('styleOverrides.fontRamp.description', "Applies a unified typographic ramp across the workbench: headings at 26/18px, 13px body, 12px section titles and tabs, 11px metadata and 10px badges.")
+	},
 	{
 		id: 'roundedButtons',
 		label: localize('styleOverrides.roundedButtons', "Rounded Buttons"),
