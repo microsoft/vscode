@@ -17,6 +17,7 @@ import { workbenchConfigurationNodeBase } from '../../../common/configuration.js
 // rules behind a `.style-override-<id>` ancestor class, so the styles are inert
 // until the matching class is toggled onto the workbench container(s) below.
 import './media/fontRamp.css';
+import './media/paneHeaders.css';
 import './media/roundedButtons.css';
 import './media/roundedCorners.css';
 import './media/tabs.css';
@@ -40,6 +41,11 @@ const STYLE_OVERRIDE_MODULES: readonly IStyleOverrideModule[] = [
 		id: 'fontRamp',
 		label: localize('styleOverrides.fontRamp', "Font Ramp"),
 		description: localize('styleOverrides.fontRamp.description', "Applies a unified typographic ramp across the workbench: headings at 26/18px, 13px body, 12px section titles and tabs, 11px metadata and 10px badges.")
+	},
+	{
+		id: 'paneHeaders',
+		label: localize('styleOverrides.paneHeaders', "Pane Headers"),
+		description: localize('styleOverrides.paneHeaders.description', "Removes view pane header separators, rounds their corners and adds a background tint on hover.")
 	},
 	{
 		id: 'roundedButtons',

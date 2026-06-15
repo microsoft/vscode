@@ -113,6 +113,8 @@
 .style-override-fontRamp .debug-pane .debug-call-stack .session > .state.label,
 /* Settings editor tab labels and section headers. */
 .style-override-fontRamp .settings-tabs-widget > .monaco-action-bar .action-item .action-label,
-.style-override-fontRamp .monaco-editor .settings-header-widget .title-container .title {
+.style-override-fontRamp .monaco-editor .settings-header-widget .title-container .title,
+/* Agent sessions list header ("SESSIONS"). */
+.style-override-fontRamp .chat-viewpane.has-sessions-control .agent-sessions-container .agent-sessions-title-container {
 	text-transform: capitalize;
 }
