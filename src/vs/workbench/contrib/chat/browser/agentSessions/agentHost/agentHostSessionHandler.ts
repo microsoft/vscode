@@ -1037,8 +1037,27 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// Conversation actions (turns, tool calls, pending/queued messages,
 		// input) target the session's default chat channel; session-scoped
 		// actions stay on the session channel.
-		const target = isChatAction(action) ? buildDefaultChatUri(channel.toString()) : channel.toString();
+		const target = isChatAction(action) ? this._resolveDefaultChatUri(channel.toString()) : channel.toString();
 		this._config.connection.dispatch(target, action);
+	}
+
+	/**
+	 * Resolve the channel URI of a session's default chat.
+	 *
+	 * MIGRATION: VS Code currently models every session as having a single
+	 * "default chat". The authoritative URI for that chat is published by the
+	 * backend via {@link SessionState.defaultChat}, so we read it from the live
+	 * session state whenever it is available rather than assuming a URI
+	 * structure. Before the session state has hydrated (e.g. immediately after
+	 * subscribing, when no snapshot has arrived yet) we fall back to
+	 * deterministically deriving the URI from the session URI via
+	 * {@link buildDefaultChatUri}. This fallback — and the single-default-chat
+	 * assumption it encodes — is temporary scaffolding and should be removed
+	 * once multi-chat sessions are modelled directly.
+	 */
+	private _resolveDefaultChatUri(sessionUri: string): string {
+		const defaultChat = this._getSessionState(sessionUri)?.defaultChat;
+		return defaultChat ?? buildDefaultChatUri(sessionUri);
 	}
 
 	private _getCurrentActiveClient(): SessionActiveClient {
@@ -3111,7 +3130,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			ref = undefined;
 		}
 		if (!ref) {
-			const chatUri = URI.parse(buildDefaultChatUri(sessionUri));
+			const chatUri = URI.parse(this._resolveDefaultChatUri(sessionUri));
 			ref = this._config.connection.getSubscription(StateComponents.Chat, chatUri, 'AgentHostSessionHandler');
 			this._defaultChatSubscriptions.set(sessionUri, ref);
 		}

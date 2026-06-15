@@ -1016,9 +1016,12 @@ export class ProtocolServerHandler extends Disposable {
 			if (!state) {
 				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${params.channel}`);
 			}
-			const defaultChat = buildDefaultChatUri(params.channel);
+			const defaultChat = state.defaultChat ?? buildDefaultChatUri(params.channel);
 			if (URI.parse(params.chat).toString() !== URI.parse(defaultChat).toString()) {
-				this._logService.warn(`[ProtocolServer] createChat: additional chats are not yet supported (session ${params.channel}, chat ${params.chat})`);
+				throw new ProtocolError(
+					JsonRpcErrorCodes.InvalidParams,
+					`createChat: additional chats are not yet supported (session ${params.channel}, chat ${params.chat})`,
+				);
 			}
 			return null;
 		},

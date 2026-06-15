@@ -85,14 +85,10 @@ export type { ResourceChange, ResourceWatchState } from './protocol/channels-res
 export { AhpErrorCodes, JsonRpcErrorCodes } from './protocol/errors.js';
 export type { AhpErrorCode, JsonRpcErrorCode } from './protocol/errors.js';
 
-// Snapshot type (re-exported from state).
-//
-// The generated `Snapshot.state` union does not (yet) include `ChatState`
-// even though chats are a subscribable channel (`ahp-chat://`). We widen the
-// VS Code-facing alias so per-chat snapshots type-check end-to-end until the
-// upstream protocol closes the gap.
-import type { Snapshot as ProtocolSnapshot, ChatState } from './protocol/state.js';
-export type IStateSnapshot = Omit<ProtocolSnapshot, 'state'> & { state: ProtocolSnapshot['state'] | ChatState };
+// Snapshot type (re-exported from state). The generated `Snapshot.state`
+// union now includes `ChatState`, so per-chat snapshots type-check directly.
+import type { Snapshot as ProtocolSnapshot } from './protocol/state.js';
+export type IStateSnapshot = ProtocolSnapshot;
 
 // ---- Backward-compatible error code aliases ---------------------------------
 

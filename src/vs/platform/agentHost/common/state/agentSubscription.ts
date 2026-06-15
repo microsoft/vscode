@@ -234,9 +234,18 @@ interface IPendingAction {
 	readonly action: SessionAction;
 }
 
-export interface IPendingSessionAction extends IPendingAction {
-	/** URI of the session this action targets, as stored on the subscription. */
-	readonly sessionUri: string;
+/**
+ * A pending optimistic action awaiting server confirmation, paired with the
+ * channel it was dispatched to so it can be replayed across a reconnect. The
+ * channel is a session channel for {@link SessionStateSubscription} actions and
+ * a chat channel for {@link ChatStateSubscription} actions.
+ */
+export interface IPendingDispatchAction {
+	readonly clientSeq: number;
+	/** The optimistic action awaiting confirmation. */
+	readonly action: SessionAction | ChatAction;
+	/** URI of the channel this action targets, as stored on the subscription. */
+	readonly channel: string;
 }
 
 /**
@@ -357,8 +366,8 @@ export class SessionStateSubscription extends BaseAgentSubscription<SessionState
 	 * to reflect them — the client must explicitly drop entries echoed back
 	 * by the server.
 	 */
-	getPendingActions(): IPendingSessionAction[] {
-		return this._pendingActions.map(p => ({ clientSeq: p.clientSeq, action: p.action, sessionUri: this._sessionUri }));
+	getPendingActions(): IPendingDispatchAction[] {
+		return this._pendingActions.map(p => ({ clientSeq: p.clientSeq, action: p.action, channel: this._sessionUri }));
 	}
 
 	/**
@@ -510,8 +519,8 @@ export class ChatStateSubscription extends BaseAgentSubscription<ChatState> {
 		this._optimisticState = undefined;
 	}
 
-	getPendingActions(): IPendingSessionAction[] {
-		return this._pendingActions.map(p => ({ clientSeq: p.clientSeq, action: p.action as unknown as SessionAction, sessionUri: this._chatUri }));
+	getPendingActions(): IPendingDispatchAction[] {
+		return this._pendingActions.map(p => ({ clientSeq: p.clientSeq, action: p.action, channel: this._chatUri }));
 	}
 
 	dropPendingByClientSeq(clientSeq: number): boolean {
@@ -955,8 +964,8 @@ export class AgentSubscriptionManager extends Disposable {
 	 * either echoed back by the server or explicitly dropped via
 	 * {@link dropPendingSessionAction}.
 	 */
-	getPendingSessionActions(): IPendingSessionAction[] {
-		const out: IPendingSessionAction[] = [];
+	getPendingSessionActions(): IPendingDispatchAction[] {
+		const out: IPendingDispatchAction[] = [];
 		for (const { sub } of this._subscriptions.values()) {
 			if (sub instanceof SessionStateSubscription || sub instanceof ChatStateSubscription) {
 				out.push(...sub.getPendingActions());
