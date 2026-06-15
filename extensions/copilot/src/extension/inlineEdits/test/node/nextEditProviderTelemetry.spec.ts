@@ -8,8 +8,9 @@ import { ChatFetchResponseType } from '../../../../platform/chat/common/commonTy
 import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/documentId';
 import { MutableObservableDocument, MutableObservableWorkspace } from '../../../../platform/inlineEdits/common/observableWorkspace';
 import { FetchResultWithStats, IStatelessNextEditTelemetry } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
+import { eventPropertiesToSimpleObject } from '../../../../platform/telemetry/common/telemetryData';
 import { NullTelemetryService } from '../../../../platform/telemetry/common/nullTelemetryService';
-import { TelemetryEventProperties } from '../../../../platform/telemetry/common/telemetry';
+import { TelemetryEventProperties, TelemetryProperties } from '../../../../platform/telemetry/common/telemetry';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { OffsetRange } from '../../../../util/vs/editor/common/core/ranges/offsetRange';
 import { StringText } from '../../../../util/vs/editor/common/core/text/abstractText';
@@ -481,7 +482,7 @@ describe('TelemetrySender', () => {
 			};
 		}
 
-		async function sendAndFlush(response: Promise<FetchResultWithStats> | undefined): Promise<TelemetryEventProperties | undefined> {
+		async function sendAndFlush(response: Promise<FetchResultWithStats> | undefined): Promise<TelemetryProperties | undefined> {
 			const result = createMockNextEditResult();
 			const builder = createMockBuilder(undefined);
 			builder.nesBuilder.setStatelessNextEditTelemetry(buildStatelessTelemetry(response));
@@ -491,7 +492,7 @@ describe('TelemetrySender', () => {
 			await vi.advanceTimersByTimeAsync(0);
 
 			expect(telemetryService.enhancedEvents).toHaveLength(1);
-			return telemetryService.enhancedEvents[0].properties;
+			return eventPropertiesToSimpleObject(telemetryService.enhancedEvents[0].properties);
 		}
 
 		test('no fetch: fetchResult is undefined', async () => {
@@ -517,10 +518,8 @@ describe('TelemetrySender', () => {
 
 			const properties = await sendAndFlush(response);
 			expect(properties?.fetchResult).toBe(ChatFetchResponseType.Success);
-			// `modelResponse` is set to '' but `eventPropertiesToSimpleObject` (called downstream
-			// of `sendEnhancedGHTelemetryEvent`) strips falsy values, so the only reliable signal
-			// in this state is `fetchResult === 'success'` paired with absent/empty `modelResponse`.
-			expect(properties?.modelResponse).toBe('');
+			// `eventPropertiesToSimpleObject` strips falsy values, including an empty string response.
+			expect(properties?.modelResponse).toBeUndefined();
 		});
 
 		test('successful non-empty response: fetchResult is "success" and modelResponse carries the value', async () => {

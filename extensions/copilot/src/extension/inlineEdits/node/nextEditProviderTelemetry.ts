@@ -1304,7 +1304,7 @@ export class TelemetrySender implements IDisposable {
 		// restricted telemetry table. `fetchResult` carries the underlying
 		// `ChatFetchResponseType` so consumers can tell `success` + empty `modelResponse`
 		// (model responded with nothing) apart from other reasons `modelResponse` is empty.
-		const fetchResult: string | undefined = modelResponse === undefined ? undefined : modelResponse.response.type;
+		const fetchResult: ChatFetchResponseType | undefined = modelResponse?.fetchResult;
 
 		this._telemetryService.sendEnhancedGHTelemetryEvent(NES_GH_TELEMETRY_EVENT_NAME,
 			multiplexProperties({
