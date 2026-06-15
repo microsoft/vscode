@@ -789,7 +789,9 @@ export async function readSkills(pluginRoot: URI, dirs: readonly URI[], fileServ
 
 		let description: string | undefined;
 		try {
-			description = (await parseSkillFile(skillMd, fileService)).description;
+			const parsedInfo = await parseSkillFile(skillMd, fileService);
+			description = parsedInfo.description;
+			name = parsedInfo.name || name;
 		} catch {
 			// Keep the existing best-effort discovery behavior for malformed skills.
 		}
