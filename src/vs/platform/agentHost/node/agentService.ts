@@ -40,7 +40,7 @@ import { IAgentHostGitService } from './agentHostGitService.js';
 import { AgentSideEffects } from './agentSideEffects.js';
 import { AgentServerToolHost } from './shared/agentServerToolHost.js';
 import { feedbackServerToolGroup } from './shared/agentFeedbackServerTools.js';
-import { AgentHostChangesetService, IAgentHostChangesetService, META_CHANGES_SUMMARY } from './agentHostChangesetService.js';
+import { AgentHostChangesetService } from './agentHostChangesetService.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../common/agentHostCheckpointService.js';
 import { CHANGESET_DB_METADATA_KEYS, ChangesetSessionCoordinator } from './agentHostChangesetCoordinator.js';
@@ -60,6 +60,7 @@ import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import { AgentHostOctoKitService, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
+import { IAgentHostChangesetService, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 
 /**
  * Grace period before an empty, unsubscribed session is garbage-collected
