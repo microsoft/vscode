@@ -14,8 +14,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { AgentSession, type IAgentConnection, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { SessionLifecycle, type AgentInfo, type ModelSelection, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { SessionStatus as ProtocolSessionStatus, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { buildDefaultChatUri, SessionStatus as ProtocolSessionStatus, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -53,7 +53,7 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 	override readonly clientId = 'test-client-1';
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
 	public disposedSessions: URI[] = [];
-	public dispatchedActions: { channel: string; action: SessionAction | TerminalAction | IRootConfigChangedAction; clientId: string; clientSeq: number }[] = [];
+	public dispatchedActions: { channel: string; action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction; clientId: string; clientSeq: number }[] = [];
 	public failResolveSessionConfig = false;
 	public resolveSessionConfigResult: ResolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } };
 
@@ -100,11 +100,11 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 		return this.resolveSessionConfigResult;
 	}
 
-	dispatchAction(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
+	dispatchAction(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
 		this.dispatchedActions.push({ channel, action, clientId, clientSeq });
 	}
 
-	override dispatch(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
+	override dispatch(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
 		this.dispatchedActions.push({ channel, action, clientId: this.clientId, clientSeq: this._nextSeq++ });
 	}
 
@@ -453,8 +453,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	});
 
 	test('uses project metadata as workspace group source', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const projectUri = URI.parse('vscode-agent-host://localhost__4321/file/-/home/user/vscode');
-		const workingDirectory = URI.parse('vscode-agent-host://localhost__4321/file/-/tmp/copilot-worktrees/vscode-feature');
+		const projectUri = URI.parse('vscode-agent-host://localhost__4321/home/user/vscode?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0');
+		const workingDirectory = URI.parse('vscode-agent-host://localhost__4321/tmp/copilot-worktrees/vscode-feature?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0');
 		connection.addSession(createSession('project-1', {
 			summary: 'Project Session',
 			project: { uri: projectUri, displayName: 'vscode' },
@@ -492,7 +492,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 		const workspaces = provider.getSessions().map(session => session.workspace.get());
 		assert.deepStrictEqual(workspaces.map(workspace => workspace?.folders[0]?.root.toString()), [
-			'vscode-agent-host://localhost__4321/file/-/home/user/vscode',
+			'vscode-agent-host://localhost__4321/home/user/vscode?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0',
 			'https://github.com/microsoft/vscode',
 		]);
 	});
@@ -777,9 +777,9 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 		// Trigger refresh via turnComplete action (simulates what happens on reload)
 		connection.fireAction({
-			channel: AgentSession.uri('copilotcli', 'persist-sess').toString(),
+			channel: buildDefaultChatUri(AgentSession.uri('copilotcli', 'persist-sess').toString()),
 			action: {
-				type: 'session/turnComplete',
+				type: ActionType.ChatTurnComplete,
 			},
 			serverSeq: 1,
 			origin: undefined,
@@ -926,7 +926,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	// ---- Session data adapter -------
 
 	test('session adapter has correct workspace from working directory', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		connection.addSession(createSession('ws-sess', { summary: 'WS Test', workingDirectory: URI.parse('vscode-agent-host://localhost__4321/file/-/home/user/myrepo') }));
+		connection.addSession(createSession('ws-sess', { summary: 'WS Test', workingDirectory: URI.parse('vscode-agent-host://localhost__4321/home/user/myrepo?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0') }));
 
 		const provider = createProvider(disposables, connection, { isWebPlatform: true });
 		provider.getSessions();
@@ -983,9 +983,9 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		disposables.add(provider.onDidChangeSessions((e: ISessionChangeEvent) => changes.push(e)));
 
 		connection.fireAction({
-			channel: AgentSession.uri('copilotcli', 'turn-sess').toString(),
+			channel: buildDefaultChatUri(AgentSession.uri('copilotcli', 'turn-sess').toString()),
 			action: {
-				type: 'session/turnComplete',
+				type: ActionType.ChatTurnComplete,
 			},
 			serverSeq: 1,
 			origin: undefined,
@@ -1023,7 +1023,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const fakeState: SessionState = {
 			summary: { resource: AgentSession.uri('copilotcli', 'seed-1').toString(), provider: 'copilotcli', title: 'Seeded Session', status: ProtocolSessionStatus.Idle, createdAt: 0, modifiedAt: 0 },
 			lifecycle: SessionLifecycle.Ready,
-			turns: [],
+			chats: [],
 			config,
 		};
 		connection.setSessionState('seed-1', 'copilotcli', fakeState);
@@ -1098,7 +1098,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	});
 
 	test('non-web: session workspace from project metadata includes [host] suffix', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const projectUri = URI.parse('vscode-agent-host://localhost__4321/file/-/home/user/vscode');
+		const projectUri = URI.parse('vscode-agent-host://localhost__4321/home/user/vscode?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0');
 		connection.addSession(createSession('project-1', {
 			summary: 'Project Session',
 			project: { uri: projectUri, displayName: 'vscode' },
@@ -1114,7 +1114,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	test('non-web: session workspace from working directory includes [host] suffix', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		connection.addSession(createSession('ws-sess', {
 			summary: 'WS Test',
-			workingDirectory: URI.parse('vscode-agent-host://localhost__4321/file/-/home/user/myrepo'),
+			workingDirectory: URI.parse('vscode-agent-host://localhost__4321/home/user/myrepo?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0'),
 		}));
 
 		const provider = createProvider(disposables, connection, { isWebPlatform: false });

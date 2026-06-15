@@ -49,6 +49,7 @@ export const unicodeFilter = Object.freeze<string[]>([
 
 	'!build/win32/**',
 	'!extensions/markdown-language-features/notebook-out/*.js',
+	'!extensions/markdown-language-features/markdown-editor-out/*.js',
 	'!extensions/markdown-math/notebook-out/**',
 	'!extensions/mermaid-markdown-features/chat-webview-out/**',
 	'!extensions/ipynb/notebook-out/**',
@@ -83,6 +84,8 @@ export const indentationFilter = Object.freeze<string[]>([
 	'!**/LICENSE',
 	'!**/*.mp3',
 	'!src/vs/base/browser/dompurify/*',
+	'!src/vs/base/common/lit-html/**',
+	'!src/vs/base/common/signals-core/**',
 	'!src/vs/base/common/marked/marked.js',
 	'!src/vs/base/common/semver/semver.js',
 	'!src/vs/base/node/terminateProcess.sh',
@@ -154,6 +157,7 @@ export const indentationFilter = Object.freeze<string[]>([
 	'!extensions/mermaid-markdown-features/markdown-preview-out/*.js',
 	'!extensions/mermaid-markdown-features/notebook-out/*.js',
 	'!extensions/markdown-language-features/media/*.js',
+	'!extensions/markdown-language-features/markdown-editor-out/*.js',
 	'!extensions/markdown-language-features/notebook-out/*.js',
 	'!extensions/markdown-math/notebook-out/*.js',
 	'!extensions/ipynb/notebook-out/**',
@@ -210,6 +214,10 @@ export const copyrightFilter = Object.freeze<string[]>([
 	'!extensions/mermaid-markdown-features/chat-webview-out/**',
 	'!extensions/mermaid-markdown-features/markdown-preview-out/**',
 	'!extensions/mermaid-markdown-features/notebook-out/**',
+
+	// vendored third-party libraries
+	'!src/vs/base/common/lit-html/**',
+	'!src/vs/base/common/signals-core/**',
 
 	// extensions/copilot has its own code style
 	'!extensions/copilot/**',

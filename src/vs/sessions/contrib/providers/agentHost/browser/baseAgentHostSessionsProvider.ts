@@ -19,13 +19,14 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { AgentSession, IAgentConnection, IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
 import { buildSessionChangesetUri } from '../../../../../platform/agentHost/common/changesetUri.js';
+import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
 import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentCustomization, AgentSelection, Customization, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type ChangesetSummary } from '../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ActionType, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { readSessionGitState, ROOT_STATE_URI, SessionMeta, StateComponents, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { AgentCustomization, AgentSelection, ChangesSummary, Customization, CustomizationType, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ActionType, isChatAction, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import { AgentInfo, readSessionGitState, ROOT_STATE_URI, SessionMeta, StateComponents, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -36,7 +37,7 @@ import { IChatSendRequestOptions, IChatService } from '../../../../../workbench/
 import { IChatSessionFileChange, IChatSessionFileChange2, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
-import { buildMutableConfigSchema, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
+import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../../common/sessionConfig.js';
 import { IChat, IGitHubInfo, ISession, ISessionAgentRef, ISessionChangeset, ISessionChangesSummary, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, sessionFileChangesEqual, SessionStatus, toSessionId } from '../../../../services/sessions/common/session.js';
@@ -45,7 +46,7 @@ import { ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions } 
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computePullRequestIcon } from '../../../github/common/types.js';
 import { changesetFilesToChanges, mapProtocolStatus } from './agentHostDiffs.js';
-import { AgentHostCatalogChangeset, createChangesets } from './agentHostSessionChangesets.js';
+import { createChangesets } from './agentHostSessionChangesets.js';
 
 const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.sessionConfigPicker.selectedValues';
 const UNSAFE_SESSION_CONFIG_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
@@ -138,7 +139,7 @@ export class AgentHostSessionAdapter implements ISession {
 	readonly updatedAt: ISettableObservable<Date>;
 	readonly status: ISettableObservable<SessionStatus>;
 	readonly changes: IObservable<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>;
-	readonly changesets: IObservable<readonly ISessionChangeset[]>;
+	readonly changesets: ISettableObservable<readonly ISessionChangeset[]>;
 	readonly modelId: ISettableObservable<string | undefined>;
 	modelSelection: ModelSelection | undefined;
 	readonly mode: ISettableObservable<{ readonly id: string; readonly kind: string } | undefined>;
@@ -176,19 +177,18 @@ export class AgentHostSessionAdapter implements ISession {
 
 	private readonly _changesSummary = observableValueOpts<ISessionChangesSummary | undefined>({ equalsFn: structuralEquals }, undefined);
 	readonly changesSummary: IObservable<ISessionChangesSummary | undefined>;
-	setChangesSummary(catalogue: readonly ChangesetSummary[] | undefined): boolean {
-		const summary = catalogue?.find(c => !c.uriTemplate.includes('{'));
-		if (!summary) {
+	setChangesSummary(changes: ChangesSummary | undefined): boolean {
+		if (!changes) {
 			return false;
 		}
 
-		const { additions, deletions, files } = summary;
+		const { additions, deletions, files } = changes;
 		const currentChangesSummary = this._changesSummary.get();
 
 		if (
-			(currentChangesSummary?.files ?? 0) === files &&
-			(currentChangesSummary?.additions ?? 0) === additions &&
-			(currentChangesSummary?.deletions ?? 0) === deletions
+			(currentChangesSummary?.files ?? 0) === (files ?? 0) &&
+			(currentChangesSummary?.additions ?? 0) === (additions ?? 0) &&
+			(currentChangesSummary?.deletions ?? 0) === (deletions ?? 0)
 		) {
 			return false;
 		}
@@ -201,6 +201,8 @@ export class AgentHostSessionAdapter implements ISession {
 
 		return true;
 	}
+
+	readonly isActiveSessionObs: IObservable<boolean>;
 
 	constructor(
 		metadata: IAgentSessionMetadata,
@@ -306,26 +308,24 @@ export class AgentHostSessionAdapter implements ISession {
 			this.isArchived.set(true, undefined);
 		}
 
-		const isActiveSessionObs = derived(this, reader => {
+		this.isActiveSessionObs = derived(this, reader => {
 			const activeSession = this._sessionsManagementService.activeSession.read(reader);
 			return isEqual(activeSession?.resource, this.resource);
 		});
 
-		// Set the changes summary from the catalogue. While the session is active,
+		// Set the changes summary from the aggregate. While the session is active,
 		// the changes summary will be updated through the session changeset changes.
 		// As soon as the session is no longer active, the changes summary will be
-		// updated from the catalogue.
-		this.setChangesSummary(metadata.changesets);
+		// updated from `metadata.changes` (mirroring `SessionSummary.changes`).
+		this.setChangesSummary(metadata.changes);
 
 		const sessionUri = AgentSession.uri(this.sessionType, rawId);
-		const { changesSummary, changes } = this._createChangesObs(sessionUri, isActiveSessionObs);
+		const { changesSummary, changes } = this._createChangesObs(sessionUri);
 		this.changesSummary = changesSummary;
 		this.changes = changes;
 
-		// Set the changesets from the catalogue. When the session is active,
-		// the changesets will be updated as some changeset details are being
-		// provided async (ex: description).
-		this.changesets = constObservable(createChangesets(sessionUri, this._options, isActiveSessionObs, metadata.changesets));
+		// Changesets will be resolved asynchronously when the session is active.
+		this.changesets = observableValue<readonly ISessionChangeset[]>(this, []);
 
 		const mainChat: IChat = {
 			resource: this.resource,
@@ -346,7 +346,7 @@ export class AgentHostSessionAdapter implements ISession {
 		this.chats = this.mainChat.map(c => [c]);
 	}
 
-	private _createChangesObs(sessionUri: URI, isActiveSessionObs: IObservable<boolean>): {
+	private _createChangesObs(sessionUri: URI): {
 		changesSummary: IObservable<ISessionChangesSummary | undefined>;
 		changes: IObservable<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>;
 	} {
@@ -356,20 +356,20 @@ export class AgentHostSessionAdapter implements ISession {
 				return constObservable(undefined);
 			}
 
-			const isActiveSession = isActiveSessionObs.read(reader);
+			const isActiveSession = this.isActiveSessionObs.read(reader);
 			if (!isActiveSession) {
 				return constObservable(undefined);
 			}
 
 			const branchChangesUri = URI.parse(buildSessionChangesetUri(sessionUri.toString()));
-			const subscriptionRef = connection.getSubscription(StateComponents.Changeset, branchChangesUri);
+			const subscriptionRef = connection.getSubscription(StateComponents.Changeset, branchChangesUri, 'BaseAgentHostSessionsProvider.changesets');
 			reader.store.add(subscriptionRef);
 
 			return observableFromEvent(subscriptionRef.object.onDidChange, () => subscriptionRef.object.value);
 		});
 
 		const changesetChangesObs = derivedObservableWithCache<readonly (IChatSessionFileChange | IChatSessionFileChange2)[] | undefined>(this, (reader, lastValue) => {
-			const isActiveSession = isActiveSessionObs.read(reader);
+			const isActiveSession = this.isActiveSessionObs.read(reader);
 			if (!isActiveSession) {
 				return lastValue;
 			}
@@ -408,7 +408,7 @@ export class AgentHostSessionAdapter implements ISession {
 		});
 
 		const changesSummaryObs = derivedOpts<ISessionChangesSummary | undefined>({ equalsFn: structuralEquals }, reader => {
-			const isActiveSession = isActiveSessionObs.read(reader);
+			const isActiveSession = this.isActiveSessionObs.read(reader);
 			const changesetSummary = changesetSummaryObs.read(reader);
 			const changesSummary = this._changesSummary.read(reader);
 
@@ -492,9 +492,9 @@ export class AgentHostSessionAdapter implements ISession {
 				didChange = true;
 			}
 
-			// `metadata.changesets` (catalogue) drives the chip aggregate.
+			// `metadata.changes` (aggregate) drives the chip aggregate.
 			// The dropdown content is built separately via `createChangesets`.
-			if (metadata.changesets !== undefined && this.setChangesSummary(metadata.changesets)) {
+			if (metadata.changes !== undefined && this.setChangesSummary(metadata.changes)) {
 				didChange = true;
 			}
 
@@ -539,26 +539,16 @@ export class AgentHostSessionAdapter implements ISession {
 		return workspaceChanged;
 	}
 
-	updateChangesets(changesets: readonly ChangesetSummary[] | undefined) {
-		if (!changesets) {
+	updateChangesets(changesetsMetadata: readonly Changeset[] | undefined) {
+		if (!changesetsMetadata) {
 			return;
 		}
 
-		const existingChangesets = this.changesets.get();
+		const rawId = AgentSession.id(this.resource);
+		const sessionUri = AgentSession.uri(this.sessionType, rawId);
+		const changesets = createChangesets(sessionUri, this._options, this.isActiveSessionObs, changesetsMetadata);
 
-		for (const changeset of changesets) {
-			const existingChangeset = existingChangesets
-				.find(c => c.label === changeset.label);
-
-			if (!(existingChangeset instanceof AgentHostCatalogChangeset)) {
-				continue;
-			}
-
-			// Update the existing changeset with the new descritpion. This
-			// is currently a workaround as the changeset does not have the
-			// correct descritpion in the initial catalog.
-			existingChangeset.update(changeset);
-		}
+		this.changesets.set(changesets, undefined);
 	}
 }
 
@@ -976,7 +966,7 @@ class NewSession extends Disposable {
 			// handler refcounts the same subscription via `getSubscription`
 			// when chat content opens, so when we release this ref on
 			// graduation the wire-level refcount stays positive.
-			const ref = connection.getSubscription(StateComponents.Session, backendUri);
+			const ref = connection.getSubscription(StateComponents.Session, backendUri, 'BaseAgentHostSessionsProvider.session');
 			this._subscription = ref;
 
 			// Forward `SessionState` updates back to the provider so
@@ -1072,10 +1062,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	abstract readonly icon: ThemeIcon;
 	abstract readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 
+	/** The workbench Output channel id carrying this host's agent host logs. */
+	protected abstract getLogOutputChannelId(): string | undefined;
+
 	get order(): number { return 0; }
 
 	get sessionTypes(): readonly ISessionType[] { return this._sessionTypes; }
 	protected _sessionTypes: ISessionType[] = [];
+
+	private _lastAgents: AgentInfo[] | undefined;
 
 	protected readonly _onDidChangeSessionTypes = this._register(new Emitter<void>());
 	readonly onDidChangeSessionTypes: Event<void> = this._onDidChangeSessionTypes.event;
@@ -1272,10 +1267,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * id/label set actually changed.
 	 */
 	protected _syncSessionTypesFromRootState(rootState: RootState): void {
-		this._onDidChangeCustomAgents.fire();
-		this._onDidChangeCustomizations.fire();
+		if (this._lastAgents !== rootState.agents) {
+			this._lastAgents = rootState.agents;
+			this._onDidChangeCustomAgents.fire();
+			this._onDidChangeCustomizations.fire();
+		}
 		const next = rootState.agents.map((agent): ISessionType => ({
 			id: agent.provider,
+			// The chat session contribution and language models for an agent-host
+			// agent are registered under its resource scheme (`agent-host-<provider>`),
+			// not the bare provider id, so carry it for availability lookups.
+			chatSessionType: this.resourceSchemeForProvider(agent.provider),
 			label: this._formatSessionTypeLabel(agent.displayName?.trim() || agent.provider),
 			icon: this.iconForAgentProvider(agent.provider) ?? this.icon,
 		}));
@@ -1806,12 +1808,23 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			.filter((m): m is ILanguageModelChatMetadataAndIdentifier => !!m);
 	}
 
-	getModelPickerOptions(_sessionId: string): ISessionModelPickerOptions {
+	getModelPickerOptions(sessionId: string): ISessionModelPickerOptions {
+		// A session type that requires an explicit model selection cannot fall
+		// back to Auto. When it has no models (e.g. the Claude agent host for a
+		// Copilot Free / Student user), the picker shows a "No models available"
+		// state instead of Auto. Harnesses that support Auto (e.g. the Copilot
+		// CLI agent host) keep the Auto fallback. Derive this from the
+		// contribution's declarative `showAutoModel` flag (keyed by the
+		// session's resource scheme, which is the registered
+		// `agent-host-<provider>` chat session type) rather than hardcoding names.
+		const resourceScheme = this._resolveSessionResourceScheme(sessionId);
+		const showAutoModel = !resourceScheme || this._chatSessionsService.supportsAutoModelForSessionType(resourceScheme);
 		return {
 			useGroupedModelPicker: true,
 			showFeatured: true,
 			showUnavailableFeatured: false,
 			showManageModelsAction: false,
+			showAutoModel,
 		};
 	}
 
@@ -1882,6 +1895,59 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	getWorkingDirectory(sessionId: string): string | undefined {
 		const sessionState = this._lastSessionStates.get(sessionId);
 		return sessionState?.summary.workingDirectory;
+	}
+
+	getMcpServers(sessionId: string): readonly IAgentHostMcpServer[] {
+		const sessionState = this._lastSessionStates.get(sessionId);
+		if (!sessionState) {
+			return [];
+		}
+		const rawId = this._rawIdFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (!cached || !rawId) {
+			return [];
+		}
+		const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+		const logOutputChannelId = this.getLogOutputChannelId();
+		return (sessionState.customizations ?? [])
+			.flatMap(c => c.type === CustomizationType.McpServer
+				? [c]
+				: c.children
+					? c.children.filter(c => c.type === CustomizationType.McpServer)
+					: [])
+			.map((c): IAgentHostMcpServer => ({
+				id: c.id,
+				name: c.name,
+				enabled: c.enabled,
+				status: c.state.kind,
+				logOutputChannelId,
+				setEnabled: (enabled: boolean) => {
+					const connection = this.connection;
+					if (!connection) {
+						return;
+					}
+					connection.dispatch(sessionUri.toString(), {
+						type: ActionType.SessionCustomizationToggled,
+						id: c.id,
+						enabled,
+					});
+				},
+			}));
+	}
+
+	getFeedbackAnnotationsChannel(sessionId: string): { readonly connection: IAgentConnection; readonly annotationsUri: URI } | undefined {
+		const connection = this.connection;
+		if (!connection) {
+			return undefined;
+		}
+		const rawId = this._rawIdFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (!cached || !rawId) {
+			return undefined;
+		}
+		const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+		const annotationsUri = URI.parse(buildAnnotationsUri(sessionUri.toString()));
+		return { connection, annotationsUri };
 	}
 
 	// -- Session actions ------------------------------------------------------
@@ -1994,14 +2060,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					content: '',
 					toolReferences: [],
 				},
-				modeId: 'custom',
+				telemetryModeId: 'custom',
 				applyCodeBlockSuggestionId: undefined,
 				permissionLevel: undefined,
 			} : {
 				kind: ChatModeKind.Agent,
 				isBuiltin: true,
 				modeInstructions: undefined,
-				modeId: 'agent',
+				telemetryModeId: 'agent',
 				applyCodeBlockSuggestionId: undefined,
 				permissionLevel: undefined,
 			},
@@ -2049,7 +2115,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 		newSession.setStatus(SessionStatus.InProgress);
 		newSession.clearSelectedModelId();
-		newSession.clearSelectedAgent();
+
 		// Seed the title from the first line of the query so the new-session
 		// tab shows something meaningful immediately. This skeleton is replaced
 		// by the committed AgentHostSession once it arrives.
@@ -2191,7 +2257,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return;
 		}
 		const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
-		const ref = connection.getSubscription(StateComponents.Session, sessionUri);
+		const ref = connection.getSubscription(StateComponents.Session, sessionUri, 'BaseAgentHostSessionsProvider.summary');
 		const store = new DisposableStore();
 		store.add(ref);
 		store.add(ref.object.onDidChange(state => {
@@ -2482,7 +2548,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}));
 
 		store.add(connection.onDidAction(e => {
-			if (e.action.type === ActionType.SessionTurnComplete && isSessionAction(e.action)) {
+			if (e.action.type === ActionType.ChatTurnComplete && isChatAction(e.action)) {
 				this._refreshSessions();
 			} else if (e.action.type === ActionType.SessionTitleChanged && isSessionAction(e.action)) {
 				this._handleTitleChanged(e.channel, e.action.title);
@@ -2526,7 +2592,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			model: summary.model,
 			agent: summary.agent,
 			workingDirectory: workingDir,
-			changesets: summary.changesets,
+			changes: summary.changes,
 			isArchived: !!(summary.status & ProtocolSessionStatus.IsArchived),
 		};
 		const cached = this.createAdapter(meta);
@@ -2621,14 +2687,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				didChange = true;
 			}
 
-			// `changes.changesets` carries the catalogue (counts + URI
-			// templates). The chip aggregate is recomputed from those counts
-			// here; per-file detail is not part of this notification path.
-			if (changes.changesets !== undefined) {
-				cached.updateChangesets(changes.changesets);
-				if (cached.setChangesSummary(changes.changesets)) {
-					didChange = true;
-				}
+			// `changes.changes` carries the chip aggregate. The catalogue
+			// itself (label / URI template / `changeKind`) arrives via the
+			// `SessionChangesetsChanged` action, handled by
+			// `_handleChangesetsChanged`.
+			if (changes.changes !== undefined && cached.setChangesSummary(changes.changes)) {
+				didChange = true;
 			}
 
 			if (Object.prototype.hasOwnProperty.call(changes, 'activity') && cached.setActivity(changes.activity)) {
@@ -2666,7 +2730,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._onDidChangeSessionConfig.fire(sessionId);
 	}
 
-	private _handleChangesetsChanged(session: string, changesets: readonly ChangesetSummary[] | undefined): void {
+	private _handleChangesetsChanged(session: string, changesets: readonly Changeset[] | undefined): void {
 		const rawId = AgentSession.id(session);
 		const cached = this._sessionCache.get(rawId);
 		if (cached) {

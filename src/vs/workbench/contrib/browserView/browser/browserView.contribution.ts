@@ -12,6 +12,10 @@ import { BrowserEditorInput } from '../common/browserEditorInput.js';
 class WebBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 	declare readonly _serviceBrand: undefined;
 
+	willUseRemoteProxy(): boolean {
+		return false;
+	}
+
 	readonly onDidChangeBrowserViews = Event.None;
 	readonly onDidChangeSharingAvailable = Event.None;
 	readonly isSharingAvailable = false;

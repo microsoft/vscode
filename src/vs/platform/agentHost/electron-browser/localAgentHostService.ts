@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DeferredPromise } from '../../../base/common/async.js';
-import { Emitter } from '../../../base/common/event.js';
+import { Emitter, Relay } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IReference } from '../../../base/common/lifecycle.js';
 import { IObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -15,13 +15,13 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentHostAhpJsonlLoggingSettingId, AgentHostIpcChannels, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostService, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IAgentHostSocketInfo, IConnectionTrackerService, isAgentHostEnabled } from '../common/agentService.js';
+import { AgentHostAhpJsonlLoggingSettingId, AgentHostIpcChannels, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostService, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IAgentHostSocketInfo, IConnectionTrackerService, isAgentHostEnabled, IMcpNotification } from '../common/agentService.js';
 import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
 import { wrapAgentServiceWithAhpLogging } from './localAhpJsonlLogging.js';
-import { AgentSubscriptionManager, type IAgentSubscription } from '../common/state/agentSubscription.js';
+import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
-import { ActionType, type ActionEnvelope, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
+import { ActionType, type ActionEnvelope, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type ClientAnnotationsAction } from '../common/state/sessionActions.js';
 import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult, IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { StateComponents, ROOT_STATE_URI, type RootState } from '../common/state/sessionState.js';
@@ -60,6 +60,9 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	private readonly _onDidNotification = this._register(new Emitter<INotification>());
 	readonly onDidNotification = this._onDidNotification.event;
+
+	private readonly _onMcpNotification = this._register(new Relay<IMcpNotification>());
+	readonly onMcpNotification = this._onMcpNotification.event;
 
 	private readonly _authenticationPending: ISettableObservable<boolean> = observableValue('authenticationPending', true);
 	readonly authenticationPending: IObservable<boolean> = this._authenticationPending;
@@ -164,6 +167,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			}
 			this._onDidNotification.fire(revive(e));
 		}));
+		this._onMcpNotification.input = this._proxy.onMcpNotification;
 		this._logService.info('[AgentHost:renderer] Direct MessagePort connection established');
 		this._onAgentHostStart.fire();
 
@@ -199,7 +203,17 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._proxy.listSessions();
 	}
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
-		return this._proxy.createSession(config);
+		const promise = this._proxy.createSession(config);
+		// When the caller pre-specifies the session URI, a subscribe for
+		// that URI can race the in-flight create. Register the promise so
+		// `AgentSubscriptionManager.getSubscription` gates the wire-level
+		// subscribe on it (avoids transient `AHP_SESSION_NOT_FOUND`).
+		// When the server assigns the URI, no caller can subscribe to it
+		// ahead of `await createSession()`, so there's no race to track.
+		if (config?.session) {
+			this._subscriptionManager.trackSessionCreate(config.session, promise);
+		}
+		return promise;
 	}
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
 		return this._proxy.resolveSessionConfig(params);
@@ -226,6 +240,9 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
 		return this._proxy.invokeChangesetOperation(params);
 	}
+	handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {
+		return this._proxy.handleMcpRequest(channel, method, params);
+	}
 	shutdown(): Promise<void> {
 		return this._proxy.shutdown();
 	}
@@ -235,7 +252,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	private unsubscribe(resource: URI): void {
 		this._proxy.unsubscribe(resource, this.clientId);
 	}
-	dispatchAction(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
+	dispatchAction(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
 		this._proxy.dispatchAction(channel, action, clientId, clientSeq);
 	}
 	private _nextSeq = 1;
@@ -247,15 +264,19 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._subscriptionManager.rootState;
 	}
 
-	getSubscription<T>(kind: StateComponents, resource: URI): IReference<IAgentSubscription<T>> {
-		return this._subscriptionManager.getSubscription<T>(kind, resource);
+	getSubscription<T>(kind: StateComponents, resource: URI, owner: string): IReference<IAgentSubscription<T>> {
+		return this._subscriptionManager.getSubscription<T>(kind, resource, owner);
 	}
 
 	getSubscriptionUnmanaged<T>(_kind: StateComponents, resource: URI): IAgentSubscription<T> | undefined {
 		return this._subscriptionManager.getSubscriptionUnmanaged<T>(resource);
 	}
 
-	dispatch(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
+	getActiveSubscriptions(): readonly IActiveSubscriptionInfo[] {
+		return this._subscriptionManager.getActiveSubscriptions();
+	}
+
+	dispatch(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
 		const seq = this._subscriptionManager.dispatchOptimistic(channel, action);
 		this.dispatchAction(channel, action, this.clientId, seq);
 	}

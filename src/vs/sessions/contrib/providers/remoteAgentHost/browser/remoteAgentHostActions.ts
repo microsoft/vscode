@@ -35,11 +35,11 @@ import { SessionsCategories } from '../../../../common/categories.js';
 import { SessionWorkspacePickerGroupContext } from '../../../../common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsViewService } from '../../../../browser/sessionsViewService.js';
+import { ISessionsViewService } from '../../../../services/sessions/browser/sessionsViewService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
-import { ISessionsPartService } from '../../../../browser/parts/sessionsPartService.js';
+import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 
 /** Action / command IDs registered by this file. */
 export const RemoteAgentHostCommandIds = {
@@ -1088,6 +1088,13 @@ async function promptToConnectViaWSL(
 		progress: { infinite: true },
 	});
 
+	const expectedKey = `wsl:${picked.distro.name}`;
+	const progressListener = wslService.onDidReportConnectProgress?.(progress => {
+		if (progress.connectionKey === expectedKey) {
+			handle.updateMessage(progress.message);
+		}
+	});
+
 	try {
 		await wslService.connect({ distro: picked.distro.name, name: picked.distro.name });
 		handle.close();
@@ -1099,6 +1106,8 @@ async function promptToConnectViaWSL(
 		logService.error(`[WSL] Connect to '${picked.distro.name}' failed`, err);
 		notificationService.error(localize('wslConnectFailed', "Failed to connect to WSL distribution '{0}': {1}", picked.distro.name, toErrorMessage(err)));
 		return;
+	} finally {
+		progressListener?.dispose();
 	}
 
 	await instantiationService.invokeFunction(accessor => promptForWSLFolder(accessor, picked.distro.name));
@@ -1157,7 +1166,10 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: Menus.SessionWorkspaceManage,
 				order: 15,
-				when: SessionWorkspacePickerGroupContext.isEqualTo(SESSION_WORKSPACE_GROUP_REMOTE),
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('isWindows', true),
+					SessionWorkspacePickerGroupContext.isEqualTo(SESSION_WORKSPACE_GROUP_REMOTE),
+				),
 			},
 		});
 	}

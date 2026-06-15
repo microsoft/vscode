@@ -11,10 +11,12 @@ import type { SessionState } from '../channels-session/state.js';
 import type { TerminalState } from '../channels-terminal/state.js';
 import type { ChangesetState } from '../channels-changeset/state.js';
 import type { ResourceWatchState } from '../channels-resource-watch/state.js';
+import type { AnnotationsState } from '../channels-annotations/state.js';
+import type { ChatState } from '../channels-chat/state.js';
 
 // ─── Type Aliases ────────────────────────────────────────────────────────────
 
-/** A URI string (e.g. `ahp-root://` or `ahp-session:/<uuid>`). */
+/** A URI string (e.g. `ahp-root://`, `ahp-session:/<uuid>`, or `ahp-chat:/<uuid>`). */
 export type URI = string;
 
 /**
@@ -311,6 +313,12 @@ export interface ErrorInfo {
 	message: string;
 	/** Stack trace */
 	stack?: string;
+	/**
+	 * Additional provider-specific metadata for this error.
+	 * Clients MAY look for well-known optional keys here to provide enhanced UI
+	 * (e.g. a structured chat fetch error for richer, localized messaging).
+	 */
+	_meta?: Record<string, unknown>;
 }
 
 /**
@@ -320,10 +328,10 @@ export interface ErrorInfo {
  * @category Common Types
  */
 export interface Snapshot {
-	/** The subscribed channel URI (e.g. `ahp-root://` or `ahp-session:/<uuid>`) */
+	/** The subscribed channel URI (e.g. `ahp-root://`, `ahp-session:/<uuid>`, or `ahp-chat:/<uuid>`) */
 	resource: URI;
 	/** The current state of the resource */
-	state: RootState | SessionState | TerminalState | ChangesetState | ResourceWatchState;
+	state: RootState | SessionState | TerminalState | ChangesetState | ResourceWatchState | AnnotationsState | ChatState;
 	/** The `serverSeq` at which this snapshot was taken. Subsequent actions will have `serverSeq > fromSeq`. */
 	fromSeq: number;
 }

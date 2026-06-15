@@ -10,8 +10,7 @@ import { Action2, registerAction2 } from '../../../../platform/actions/common/ac
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsPartService } from '../../../browser/parts/sessionsPartService.js';
-import { ISessionsViewService } from '../../../browser/sessionsViewService.js';
+import { ISessionsViewService } from '../../../services/sessions/browser/sessionsViewService.js';
 import { BranchChatSessionAction } from './branchChatSessionAction.js';
 import { RunScriptContribution } from './runScriptAction.js';
 import './nullInlineChatSessionService.js';
@@ -39,15 +38,17 @@ import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHisto
 import '../../sessions/browser/mobile/mobileOverlayContribution.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorAreaFocusContext } from '../../../../workbench/common/contextkeys.js';
+import { NEW_SESSION_ACTION_ID } from '../common/constants.js';
 
 
 class NewChatInSessionsWindowAction extends Action2 {
 
 	constructor() {
 		super({
-			id: 'workbench.action.sessions.newChat',
+			id: NEW_SESSION_ACTION_ID,
 			title: localize2('chat.newEdits.label', "New Chat"),
 			category: CHAT_CATEGORY,
+			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 2,
 				// Don't shadow Ctrl/Cmd+N (and Ctrl/Cmd+L) when focus is in the
@@ -67,9 +68,14 @@ class NewChatInSessionsWindowAction extends Action2 {
 	override run(accessor: ServicesAccessor): void {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const sessionsViewService = accessor.get(ISessionsViewService);
-		const sessionsPartService = accessor.get(ISessionsPartService);
-		sessionsViewService.openNewSession();
-		sessionsPartService.focusSession(sessionsManagementService.activeSession.get());
+		// Inherit the active session's provider and session type so the new
+		// session defaults to the same kind the user is currently working in.
+		const activeSession = sessionsManagementService.activeSession.get();
+		sessionsViewService.openNewSession({
+			folderUri: activeSession?.workspace.get()?.uri,
+			providerId: activeSession?.providerId,
+			sessionTypeId: activeSession?.sessionType,
+		});
 	}
 }
 

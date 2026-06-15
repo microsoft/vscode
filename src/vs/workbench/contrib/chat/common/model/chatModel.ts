@@ -6,6 +6,7 @@
 import { asArray } from '../../../../../base/common/arrays.js';
 import { softAssertNever } from '../../../../../base/common/assert.js';
 import { VSBuffer, decodeHex, encodeHex } from '../../../../../base/common/buffer.js';
+import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, isMarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -64,6 +65,7 @@ export interface IChatPendingRequest {
 export interface ISerializableSendOptions {
 	modeInfo?: IChatRequestModeInfo;
 	userSelectedModelId?: string;
+	userSelectedModelConfiguration?: IStringDictionary<unknown>;
 	/** Static snapshot of user-selected tools (not an observable) */
 	userSelectedTools?: UserSelectedTools;
 	location?: ChatAgentLocation;
@@ -332,11 +334,11 @@ export type ChatResponseModelChangeReason =
 export const defaultChatResponseModelChangeReason: ChatResponseModelChangeReason = { reason: 'other' };
 
 export interface IChatRequestModeInfo {
-	kind: ChatModeKind | undefined; // is undefined in case of modeId == 'apply'
+	kind: ChatModeKind | undefined; // is undefined in case of telemetryModeId === 'applyCodeBlock'
 	isBuiltin: boolean;
 	modeInstructions: IChatRequestModeInstructions | undefined;
-	modeId: 'ask' | 'agent' | 'edit' | 'custom' | 'applyCodeBlock' | undefined;
-	modeName?: string;
+	telemetryModeId: 'ask' | 'agent' | 'edit' | 'custom' | 'applyCodeBlock' | undefined;
+	telemetryModeName?: string;
 	applyCodeBlockSuggestionId: EditSuggestionId | undefined;
 	permissionLevel?: ChatPermissionLevel;
 }
@@ -3029,6 +3031,7 @@ export function serializeSendOptions(options: IChatSendRequestOptions): ISeriali
 	return {
 		modeInfo: options.modeInfo,
 		userSelectedModelId: options.userSelectedModelId,
+		userSelectedModelConfiguration: options.userSelectedModelConfiguration,
 		userSelectedTools: options.userSelectedTools?.get(),
 		location: options.location,
 		locationData: options.locationData,
@@ -3102,16 +3105,16 @@ export namespace ChatResponseResource {
 }
 
 function _logChangesToStateModel(newState: Partial<IChatModelInputState> | undefined, oldState: Partial<IChatModelInputState> | undefined, logger: ILogService, sessionId: string) {
-	if (!canLog(logger.getLevel(), LogLevel.Info) || newState?.selectedModel?.identifier === oldState?.selectedModel?.identifier) {
+	if (!canLog(logger.getLevel(), LogLevel.Debug) || newState?.selectedModel?.identifier === oldState?.selectedModel?.identifier) {
 		return;
 	}
 	const stack = new Error().stack;
 	const message = `[ChatModelChanged] ChatModel Input State model changed: ${newState?.selectedModel?.identifier} (was: ${oldState?.selectedModel?.identifier}) in session ${sessionId} ${stack}`;
-	logger.info(message);
+	logger.debug(message);
 }
 
 export function logChangesToStateModel(model: IInputModel | undefined, message: string, newState: Partial<IChatModelInputState> | undefined, oldState: Partial<IChatModelInputState> | undefined, logger: ILogService) {
-	if (!canLog(logger.getLevel(), LogLevel.Info)) {
+	if (!canLog(logger.getLevel(), LogLevel.Debug)) {
 		return;
 	}
 	message = [message,
@@ -3121,5 +3124,5 @@ export function logChangesToStateModel(model: IInputModel | undefined, message: 
 		new Error().stack
 	].join(', ');
 
-	logger.info(`[ChatModelChanged] Chat Model Changed,${message}`);
+	logger.debug(`[ChatModelChanged] Chat Model Changed,${message}`);
 }
