@@ -86,6 +86,7 @@ suite('mapSessionEventsToHistoryRecords', () => {
 		const result = await mapSessionEvents(session, undefined, events);
 		assert.deepStrictEqual(result.turns.map(turn => ({
 			message: turn.message,
+			state: turn.state,
 			parts: turn.responseParts.map(part => part.kind === ResponsePartKind.ToolCall ? {
 				kind: part.kind,
 				toolName: part.toolCall.toolName,
@@ -95,6 +96,7 @@ suite('mapSessionEventsToHistoryRecords', () => {
 			}),
 		})), [{
 			message: { text: 'finish this', origin: { kind: MessageKind.User } },
+			state: 'complete',
 			parts: [
 				{ kind: ResponsePartKind.ToolCall, toolName: 'view' },
 				{ kind: ResponsePartKind.Markdown, content: 'Reviewed index.html.' },

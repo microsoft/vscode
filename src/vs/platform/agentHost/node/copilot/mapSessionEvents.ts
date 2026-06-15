@@ -437,13 +437,17 @@ export async function mapSessionEvents(
 				toolInfoByCallId.delete(d.toolCallId);
 				if (isTaskCompleteTool(info.toolName)) {
 					const summary = getTaskCompleteSummary(info.parameters, d.error?.message ?? d.result?.content);
+					const builder = parentBuilder ?? (parentBuilder = newTurnBuilder(generateUuid(), ''));
 					if (summary) {
-						const builder = parentBuilder ?? (parentBuilder = newTurnBuilder(generateUuid(), ''));
 						builder.responseParts.push({
 							kind: ResponsePartKind.Markdown,
 							id: generateUuid(),
 							content: summary,
 						});
+					}
+					if (d.success && builder === parentBuilder) {
+						turns.push(finalizeTurn(parentBuilder, TurnState.Complete));
+						parentBuilder = undefined;
 					}
 					continue;
 				}
