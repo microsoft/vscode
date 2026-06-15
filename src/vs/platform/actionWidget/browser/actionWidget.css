@@ -415,10 +415,10 @@
 	color: var(--vscode-descriptionForeground);
 	font-size: 12px;
 	line-height: 16px;
-	/* Match the row padding so the icon sits in the item icon column and the text aligns with the item labels. */
-	padding: 8px 12px 8px 6px;
+	/* Match the row padding so the icon sits in the item icon column and the text aligns with the item labels. Top padding matches the left so the icon is evenly inset. */
+	padding: 6px 12px 6px 6px;
 	/* No horizontal margin so the rounded box matches the item hover outline. */
-	margin: 2px 0;
+	margin-bottom: 2px;
 	background-color: var(--vscode-banner-background);
 	border-radius: var(--vscode-cornerRadius-medium);
 }
