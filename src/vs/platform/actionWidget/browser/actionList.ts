@@ -38,8 +38,7 @@ export interface IActionListDelegate<T> {
 	onHide(didCancel?: boolean): void;
 	/**
 	 * @param keepOpen Whether the user requested to keep the widget open while
-	 * selecting (e.g. by holding the platform modifier). The delegate may use
-	 * this to avoid dismissing the widget after running the action.
+	 * selecting (e.g. by holding the platform modifier).
 	 */
 	onSelect(action: T, preview?: boolean, keepOpen?: boolean): void;
 	onFilter?(filter: string, cancellationToken: CancellationToken): Promise<readonly IActionListItem<T>[]>;

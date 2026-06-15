@@ -1430,10 +1430,6 @@ export class ModelPickerWidget extends Disposable {
 		}
 
 		const previouslyFocusedElement = dom.getActiveElement();
-		// When the widget is dismissed by selecting an option, return focus to the
-		// config button so it can be reopened, rather than to whatever was focused
-		// before the picker opened.
-		let dismissedBySelection = false;
 		const delegate = {
 			onSelect: (action: IActionWidgetDropdownAction, _preview?: boolean, keepOpen?: boolean) => {
 				action.run();
@@ -1443,15 +1439,12 @@ export class ModelPickerWidget extends Disposable {
 					// item that was just selected.
 					this._actionWidgetService.updateItems(this._buildConfigItems(), action.id);
 				} else {
-					dismissedBySelection = true;
 					this._actionWidgetService.hide();
 				}
 			},
 			onHide: () => {
 				this._configButton?.setAttribute('aria-expanded', 'false');
-				if (dismissedBySelection && this._configButton) {
-					this._configButton.focus();
-				} else if (dom.isHTMLElement(previouslyFocusedElement)) {
+				if (dom.isHTMLElement(previouslyFocusedElement)) {
 					previouslyFocusedElement.focus();
 				}
 			}
