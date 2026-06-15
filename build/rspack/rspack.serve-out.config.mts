@@ -69,7 +69,7 @@ export default {
 				// Tag every CSS module with its repo-relative source path (as a
 				// comment that native CSS preserves) so tooling reading the
 				// bundled stylesheet can map concatenated documents back to files.
-				use: [path.join(__dirname, 'cssSourceMarkerLoader.ts')],
+				use: [path.join(__dirname, 'cssSourceMarkerLoader.mts')],
 			},
 			{
 				test: /\.ttf$/,
