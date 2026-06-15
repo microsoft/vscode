@@ -12,7 +12,7 @@ import { createDecorator } from '../../../instantiation/common/instantiation.js'
 import { ILogService } from '../../../log/common/log.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { AgentSession } from '../../common/agentService.js';
-import { computeWholeFileEditSurvival } from './editSurvivalTracker.js';
+import { computeChunkedEditSurvival, computeWholeFileEditSurvival } from './editSurvivalTracker.js';
 
 /**
  * Parameters describing a single completed tool-driven file edit that the
@@ -40,6 +40,18 @@ export interface IEditSurvivalReporterLaunchParams {
 	readonly afterText: string;
 	/** Whether the tool created a new file (no prior content existed). */
 	readonly isCreate: boolean;
+	/**
+	 * The explicit text chunks the AI wrote, extracted from the tool
+	 * input (e.g. `Edit.new_string`, each `MultiEdit.edits[*].new_string`,
+	 * or `Write.content`). When provided, the reporter computes
+	 * `survivalRateFourGram` with the chunked, search-within math — so
+	 * the score does not decay as the file grows around the chunks.
+	 *
+	 * Omit (or pass an empty array) when the tool input is not
+	 * recognised; the reporter falls back to whole-file scoring and
+	 * tags the telemetry event with `scoringMode='whole-file'`.
+	 */
+	readonly aiChunks?: readonly string[];
 }
 
 export const IEditSurvivalReporterFactory = createDecorator<IEditSurvivalReporterFactory>('editSurvivalReporterFactory');
@@ -74,6 +86,8 @@ interface IEditSurvivalTelemetryEvent {
 	fileExtension: string;
 	survivalRateFourGram: number;
 	survivalRateNoRevert: number;
+	scoringMode: string;
+	aiChunkCount: number;
 	timeDelayMs: number;
 	didFileGetDeleted: number;
 	isCreate: number;
@@ -90,6 +104,8 @@ type IEditSurvivalTelemetryClassification = {
 	fileExtension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The file extension (including the leading dot) of the edited file, or empty if the file has no extension.' };
 	survivalRateFourGram: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'A number between 0 and 1 representing the share of 4-grams the AI wrote that are still present in the file.' };
 	survivalRateNoRevert: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'A number between 0 and 1; 1 means the user kept the AI edit and 0 means the user fully reverted it.' };
+	scoringMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How survivalRateFourGram was computed: "chunked" (asymmetric, denominator bounded by the AI-written text) or "whole-file" (symmetric, denominator includes the whole file).' };
+	aiChunkCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of distinct AI-written text chunks contributing to chunked scoring (0 when scoringMode is "whole-file").' };
 	timeDelayMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds since the edit completed when this sample was taken.' };
 	didFileGetDeleted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: '1 if the file could not be read when the sample was taken (deleted or moved), otherwise 0.' };
 	isCreate: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: '1 if the tool call created a new file, otherwise 0.' };
@@ -147,9 +163,13 @@ class SessionEditSurvivalReporter extends Disposable {
 				didFileGetDeleted = true;
 			}
 
+			const aiChunks = this._params.aiChunks ?? [];
+			const useChunked = aiChunks.length > 0;
 			const scores = currentText === undefined
 				? { fourGram: 0, noRevert: 0 }
-				: computeWholeFileEditSurvival(this._params.beforeText, this._params.afterText, currentText);
+				: useChunked
+					? computeChunkedEditSurvival(this._params.beforeText, this._params.afterText, aiChunks, currentText)
+					: computeWholeFileEditSurvival(this._params.beforeText, this._params.afterText, currentText);
 
 			this._telemetryService.publicLog2<IEditSurvivalTelemetryEvent, IEditSurvivalTelemetryClassification>(
 				'agentHost.trackEditSurvival',
@@ -161,6 +181,8 @@ class SessionEditSurvivalReporter extends Disposable {
 					fileExtension: extname(this._params.filePath),
 					survivalRateFourGram: scores.fourGram,
 					survivalRateNoRevert: scores.noRevert,
+					scoringMode: useChunked ? 'chunked' : 'whole-file',
+					aiChunkCount: aiChunks.length,
 					timeDelayMs,
 					didFileGetDeleted: didFileGetDeleted ? 1 : 0,
 					isCreate: this._params.isCreate ? 1 : 0,

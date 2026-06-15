@@ -9,12 +9,14 @@
  * This is a duplicated, simplified port of the chat extension's
  * `EditSurvivalTracker` (see
  * `extensions/copilot/src/platform/editSurvivalTracking/common/editSurvivalTracker.ts`).
- * The extension version operates on multi-range `StringEdit`s; here we only
- * have whole-file before/after snapshots (the agent host has no access to
- * the per-range structure of the SDK tool input), so the math collapses to
- * a single "edit region" that spans the entire file. Keep the two copies
- * in sync algorithmically — and if you change the scoring here, mirror
- * the change in the extension copy.
+ * The extension version operates on multi-range `StringEdit`s with a
+ * live `TextModel`; here we only have whole-file snapshots and (when
+ * the tool input is recognisable) the explicit text the AI wrote. The
+ * whole-file path is the baseline; the chunked path uses asymmetric
+ * "fraction of AI 4-grams still present in the file" scoring so an
+ * edit's score doesn't decay as the file grows around it. Keep the
+ * two copies in sync algorithmically — and if you change the scoring
+ * here, mirror the change in the extension copy.
  *
  * Extensions cannot import from `src/vs/platform/*`, so we cannot share
  * the implementation; duplication is intentional.
@@ -58,6 +60,72 @@ export function compute4GramTextSimilarity(text1: string, text2: string): number
 }
 
 /**
+ * Computes the share of `chunk`'s 4-grams that appear anywhere in
+ * `currentText`. Unlike {@link compute4GramTextSimilarity}, this is
+ * asymmetric: the denominator is the chunk's n-gram count, not the
+ * combined corpus. That makes the result stable as `currentText` grows
+ * around the chunk — appending unrelated content does not drag the
+ * score down. Returns a number in [0, 1].
+ *
+ * Used to ask "is the text the AI wrote still present in the file?"
+ * when we have an explicit chunk (the `new_string` from `Edit`, each
+ * entry of `MultiEdit.edits[*].new_string`, or `Write.content`) rather
+ * than a whole-file before/after pair.
+ */
+export function computeFractionPresentIn(chunk: string, currentText: string): number {
+	const n = 4;
+	if (chunk.length === 0) {
+		return 1;
+	}
+	if (chunk.length < n) {
+		return currentText.includes(chunk) ? 1 : 0;
+	}
+	if (currentText.length < n) {
+		return 0;
+	}
+
+	const fileNGrams = new Set<string>();
+	for (let i = 0; i <= currentText.length - n; i++) {
+		fileNGrams.add(currentText.substring(i, i + n));
+	}
+
+	const total = chunk.length - n + 1;
+	let present = 0;
+	for (let i = 0; i < total; i++) {
+		if (fileNGrams.has(chunk.substring(i, i + n))) {
+			present++;
+		}
+	}
+	return present / total;
+}
+
+/**
+ * Length-weighted average of {@link computeFractionPresentIn} across
+ * multiple AI-written chunks. The weight is the chunk's n-gram count
+ * (approx its character length), so a 200-char chunk counts ~10x as much
+ * as a 20-char chunk. Returns 0 when there are no chunks (callers
+ * should branch on that and fall back to whole-file scoring).
+ */
+export function computeChunkedFourGramSurvival(aiChunks: readonly string[], currentText: string): number {
+	if (aiChunks.length === 0) {
+		return 0;
+	}
+
+	const n = 4;
+	let totalWeight = 0;
+	let weightedSum = 0;
+	for (const chunk of aiChunks) {
+		// Use n-gram count as the weight, with a floor of 1 for tiny
+		// chunks (so they still contribute their full presence signal
+		// rather than getting zero weight).
+		const weight = Math.max(1, chunk.length - n + 1);
+		weightedSum += computeFractionPresentIn(chunk, currentText) * weight;
+		totalWeight += weight;
+	}
+	return weightedSum / totalWeight;
+}
+
+/**
  * Result of {@link computeWholeFileEditSurvival}.
  */
 export interface IEditSurvivalScore {
@@ -76,6 +144,25 @@ export interface IEditSurvivalScore {
 }
 
 /**
+ * Computes the whole-file revert score. 1 = file did not move back
+ * toward the original, 0 = file is back to the original. Used by both
+ * the whole-file and the chunked code paths, since revert detection is
+ * intrinsically a whole-file question (we want to know whether the
+ * user undid the change, not whether each AI-written region is still
+ * present).
+ */
+export function computeNoRevertScore(beforeText: string, afterText: string, currentText: string): number {
+	const aiSimilarity = compute4GramTextSimilarity(afterText, beforeText);
+	if (aiSimilarity === 1) {
+		// AI's edit produced text identical to the file before — there
+		// is nothing to revert. Guard so we don't divide by zero.
+		return 1;
+	}
+	const userSimilarity = compute4GramTextSimilarity(currentText, beforeText);
+	return 1 - Math.max(userSimilarity - aiSimilarity, 0) / (1 - aiSimilarity);
+}
+
+/**
  * Computes survival scores for a whole-file edit.
  *
  * @param beforeText - File content before the AI edit was applied.
@@ -87,16 +174,34 @@ export function computeWholeFileEditSurvival(
 	afterText: string,
 	currentText: string,
 ): IEditSurvivalScore {
-	const fourGram = compute4GramTextSimilarity(currentText, afterText);
+	return {
+		fourGram: compute4GramTextSimilarity(currentText, afterText),
+		noRevert: computeNoRevertScore(beforeText, afterText, currentText),
+	};
+}
 
-	const aiSimilarity = compute4GramTextSimilarity(afterText, beforeText);
-	let noRevert = 1;
-	if (aiSimilarity !== 1) {
-		// Should not happen unless the AI tool reported an edit that
-		// produced identical text; guard so we don't divide by zero.
-		const userSimilarity = compute4GramTextSimilarity(currentText, beforeText);
-		noRevert = 1 - Math.max(userSimilarity - aiSimilarity, 0) / (1 - aiSimilarity);
-	}
-
-	return { fourGram, noRevert };
+/**
+ * Computes survival scores for an edit when we know the explicit
+ * AI-written chunks. `fourGram` uses the chunked, search-within scoring
+ * so the denominator is bounded by the AI's written text (immune to
+ * file-growth artifacts); `noRevert` continues to use the whole-file
+ * comparison so reverts are still detectable.
+ *
+ * Falls back to whole-file scoring when `aiChunks` is empty (e.g. tool
+ * input was unrecognised or malformed) so callers can pass through
+ * uniformly.
+ */
+export function computeChunkedEditSurvival(
+	beforeText: string,
+	afterText: string,
+	aiChunks: readonly string[],
+	currentText: string,
+): IEditSurvivalScore {
+	const fourGram = aiChunks.length === 0
+		? compute4GramTextSimilarity(currentText, afterText)
+		: computeChunkedFourGramSurvival(aiChunks, currentText);
+	return {
+		fourGram,
+		noRevert: computeNoRevertScore(beforeText, afterText, currentText),
+	};
 }

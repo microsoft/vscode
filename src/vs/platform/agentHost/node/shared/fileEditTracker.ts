@@ -145,8 +145,13 @@ export class FileEditTracker {
 	 * @param turnId - The turn that produced this edit.
 	 * @param toolCallId - The tool call that produced this edit.
 	 * @param filePath - Absolute path of the edited file.
+	 * @param aiChunks - Optional explicit AI-written text chunks
+	 *   extracted from the tool input (see
+	 *   {@link IEditSurvivalReporterLaunchParams.aiChunks}). Omit when
+	 *   the tool input is unrecognised; the survival reporter falls
+	 *   back to whole-file scoring.
 	 */
-	async takeCompletedEdit(turnId: string, toolCallId: string, filePath: string): Promise<ToolResultFileEditContent | undefined> {
+	async takeCompletedEdit(turnId: string, toolCallId: string, filePath: string, aiChunks?: readonly string[]): Promise<ToolResultFileEditContent | undefined> {
 		const edit = this._completedEdits.get(filePath);
 		if (!edit) {
 			return undefined;
@@ -193,6 +198,7 @@ export class FileEditTracker {
 			beforeText,
 			afterText,
 			isCreate,
+			aiChunks,
 		});
 
 		return {

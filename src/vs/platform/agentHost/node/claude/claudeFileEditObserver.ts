@@ -8,6 +8,7 @@ import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
+import { extractAiChunks } from '../shared/editChunkExtractor.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
 import type { ClaudeMapperState } from './claudeMapSessionEvents.js';
 import { getClaudeToolPath, isClaudeFileEditTool } from './claudeToolDisplay.js';
@@ -43,15 +44,18 @@ export class ClaudeFileEditObserver extends Disposable {
 	private readonly _editTracker: FileEditTracker;
 
 	/**
-	 * Maps SDK `tool_use_id` → file path captured when the SDK yields
-	 * the assistant `tool_use` block in {@link observeAssistant}. Consumed
-	 * (and removed) by {@link observeUser} when the matching `tool_result`
-	 * arrives. Avoids re-extracting the path from the tool input on the
-	 * post side and lets us cleanly skip `tool_result`s for tools we
-	 * never started tracking (non-edit tools, or edit tools whose input
-	 * was malformed).
+	 * Maps SDK `tool_use_id` → file path + AI-written text chunks
+	 * captured when the SDK yields the assistant `tool_use` block in
+	 * {@link observeAssistant}. Consumed (and removed) by
+	 * {@link observeUser} when the matching `tool_result` arrives.
+	 * Avoids re-extracting from the tool input on the post side and
+	 * lets us cleanly skip `tool_result`s for tools we never started
+	 * tracking (non-edit tools, or edit tools whose input was
+	 * malformed). The chunks are forwarded to
+	 * {@link FileEditTracker.takeCompletedEdit} so the edit-survival
+	 * reporter can score per chunk (immune to file-growth artifacts).
 	 */
-	private readonly _editToolPaths = new Map<string, string>();
+	private readonly _editToolPaths = new Map<string, { readonly filePath: string; readonly aiChunks: readonly string[] }>();
 
 	constructor(
 		sessionUri: string,
@@ -92,7 +96,8 @@ export class ClaudeFileEditObserver extends Disposable {
 			if (!filePath) {
 				continue;
 			}
-			this._editToolPaths.set(block.id, filePath);
+			const aiChunks = extractAiChunks(block.name, block.input);
+			this._editToolPaths.set(block.id, { filePath, aiChunks });
 			void this._editTracker.trackEditStart(filePath).catch(err =>
 				this._logService.warn(`[ClaudeFileEditObserver] trackEditStart failed for ${filePath}: ${err}`));
 		}
@@ -119,19 +124,19 @@ export class ClaudeFileEditObserver extends Disposable {
 			if (block.type !== 'tool_result') {
 				continue;
 			}
-			const filePath = this._editToolPaths.get(block.tool_use_id);
-			if (!filePath) {
+			const tracked = this._editToolPaths.get(block.tool_use_id);
+			if (!tracked) {
 				continue;
 			}
 			this._editToolPaths.delete(block.tool_use_id);
 			try {
-				await this._editTracker.completeEdit(filePath);
-				const fileEdit = await this._editTracker.takeCompletedEdit(turnId, block.tool_use_id, filePath);
+				await this._editTracker.completeEdit(tracked.filePath);
+				const fileEdit = await this._editTracker.takeCompletedEdit(turnId, block.tool_use_id, tracked.filePath, tracked.aiChunks);
 				if (fileEdit) {
 					mapperState.cacheFileEdit(block.tool_use_id, fileEdit);
 				}
 			} catch (err) {
-				this._logService.warn(`[ClaudeFileEditObserver] file edit tracking failed for ${filePath}: ${err}`);
+				this._logService.warn(`[ClaudeFileEditObserver] file edit tracking failed for ${tracked.filePath}: ${err}`);
 			}
 		}
 	}

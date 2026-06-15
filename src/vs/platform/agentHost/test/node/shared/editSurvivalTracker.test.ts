@@ -5,7 +5,13 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { compute4GramTextSimilarity, computeWholeFileEditSurvival } from '../../../node/shared/editSurvivalTracker.js';
+import {
+	compute4GramTextSimilarity,
+	computeChunkedEditSurvival,
+	computeChunkedFourGramSurvival,
+	computeFractionPresentIn,
+	computeWholeFileEditSurvival,
+} from '../../../node/shared/editSurvivalTracker.js';
 
 suite('agentHost editSurvivalTracker', () => {
 
@@ -70,6 +76,92 @@ suite('agentHost editSurvivalTracker', () => {
 		});
 	});
 
+	suite('computeFractionPresentIn', () => {
+		test('chunk fully present in current → 1', () => {
+			const chunk = 'export function greet() { return "hello"; }\n';
+			const file = '// header\n' + chunk + '// footer\n';
+			assert.strictEqual(computeFractionPresentIn(chunk, file), 1);
+		});
+
+		test('chunk fully absent from current → 0', () => {
+			const chunk = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxx\n';
+			const file = 'completely unrelated content here\n';
+			assert.strictEqual(computeFractionPresentIn(chunk, file), 0);
+		});
+
+		test('partial overlap → fraction between 0 and 1', () => {
+			const chunk = 'function add(a, b) { return a + b; }\n';
+			const file = 'function add(a, b) { return a - b; }\n';
+			const score = computeFractionPresentIn(chunk, file);
+			assert.ok(score > 0.5 && score < 1, `expected fraction in (0.5, 1), got ${score}`);
+		});
+
+		test('empty chunk → 1', () => {
+			assert.strictEqual(computeFractionPresentIn('', 'anything'), 1);
+		});
+
+		test('chunk shorter than 4 chars falls back to substring match', () => {
+			assert.strictEqual(computeFractionPresentIn('ab', 'cabd'), 1);
+			assert.strictEqual(computeFractionPresentIn('ab', 'cxd'), 0);
+		});
+
+		test('immune to file growth: score stays at 1 when content is appended', () => {
+			const chunk = 'export function greet() { return "hello"; }\n';
+			const small = chunk;
+			const big = chunk + 'x'.repeat(10_000);
+			assert.strictEqual(computeFractionPresentIn(chunk, small), 1);
+			assert.strictEqual(computeFractionPresentIn(chunk, big), 1);
+		});
+	});
+
+	suite('computeChunkedFourGramSurvival', () => {
+		test('empty chunks → 0 (caller should branch and fall back)', () => {
+			assert.strictEqual(computeChunkedFourGramSurvival([], 'file'), 0);
+		});
+
+		test('multiple chunks weighted by length', () => {
+			// A long chunk fully present, a short chunk fully absent.
+			// The long chunk should dominate, dragging the average up.
+			const longChunk = 'a'.repeat(200);
+			const shortChunk = 'xyz9'; // 4-gram absent from file
+			const file = longChunk;
+			const score = computeChunkedFourGramSurvival([longChunk, shortChunk], file);
+			// long ≈ 200 ngrams * 1.0 + short ≈ 1 ngram * 0.0,
+			// weighted: 200 / 201 ≈ 0.995
+			assert.ok(score > 0.99, `expected near 1, got ${score}`);
+		});
+
+		test('all chunks fully present → 1', () => {
+			const a = 'export const x = 1;\n';
+			const b = 'export const y = 2;\n';
+			const file = `// header\n${a}// mid\n${b}// footer\n`;
+			assert.strictEqual(computeChunkedFourGramSurvival([a, b], file), 1);
+		});
+	});
+
+	suite('computeChunkedEditSurvival', () => {
+		test('falls back to whole-file scoring when chunks are empty', () => {
+			const before = 'aaaaaaaaaaaaaaaaaaaa\n';
+			const after = 'bbbbbbbbbbbbbbbbbbbb\n';
+			const expected = computeWholeFileEditSurvival(before, after, after);
+			const actual = computeChunkedEditSurvival(before, after, [], after);
+			assert.deepStrictEqual(actual, expected);
+		});
+
+		test('fourGram from chunks, noRevert still from whole-file', () => {
+			// File grows around the chunk — chunked fourGram stays at 1
+			// while noRevert stays at 1 because the file did not move
+			// back toward `before`.
+			const before = '// empty\n';
+			const chunk = 'export function greet() { return "hello"; }\n';
+			const after = before + chunk;
+			const current = after + '\n// later append\n';
+			const scores = computeChunkedEditSurvival(before, after, [chunk], current);
+			assert.strictEqual(scores.fourGram, 1);
+			assert.strictEqual(scores.noRevert, 1);
+		});
+	});
+
 	suite('multi-tracker scenarios', () => {
 		// Each scenario simulates several reporters running concurrently
 		// against the same file, the way the agent host launches one
@@ -86,6 +178,15 @@ suite('agentHost editSurvivalTracker', () => {
 			readonly before: string;
 			/** File content right after this edit landed. */
 			readonly after: string;
+			/**
+			 * Optional explicit AI-written text chunks for this edit
+			 * (the way the Claude observer extracts them from
+			 * `Edit.new_string`, `MultiEdit.edits[*].new_string`, or
+			 * `Write.content`). When provided, the simulation uses the
+			 * chunked scoring path so the snapshot mirrors what the
+			 * reporter would actually emit.
+			 */
+			readonly aiChunks?: readonly string[];
 		}
 
 		function round(n: number): number {
@@ -109,7 +210,9 @@ suite('agentHost editSurvivalTracker', () => {
 				// at each later edit's `after`.
 				const stream = [edit.after, ...edits.slice(i + 1).map(e => e.after)];
 				for (const currentText of stream) {
-					const { fourGram, noRevert } = computeWholeFileEditSurvival(edit.before, edit.after, currentText);
+					const { fourGram, noRevert } = edit.aiChunks
+						? computeChunkedEditSurvival(edit.before, edit.after, edit.aiChunks, currentText)
+						: computeWholeFileEditSurvival(edit.before, edit.after, currentText);
 					samples.push(`${round(fourGram)}/${round(noRevert)}`);
 				}
 				result.set(edit.id, samples);
@@ -117,7 +220,7 @@ suite('agentHost editSurvivalTracker', () => {
 			return result;
 		}
 
-		test('two non-overlapping additions both survive', () => {
+		test('two non-overlapping additions both survive (whole-file scoring)', () => {
 			// Agent adds a line at the bottom, then adds another at the
 			// top. Neither edit disturbs the other's content.
 			const base = 'alpha\nbravo\ncharlie\n';
@@ -133,10 +236,82 @@ suite('agentHost editSurvivalTracker', () => {
 				// e1: t=0 perfect. After e2 lands, e1's added line is
 				// still present (noRevert=1) but the file has *more*
 				// text than e1 wrote, so the fourGram ratio falls.
-				// This is a whole-file scoring artifact — region-aware
-				// scoring would still report 1 here.
+				// This is the whole-file scoring artifact — chunked
+				// scoring fixes it (see the chunked test below).
 				e1: ['1/1', '0.8/1'],
 				e2: ['1/1'],
+			});
+		});
+
+		test('two non-overlapping additions both survive (chunked scoring)', () => {
+			// Same scenario as above, but each edit now carries its
+			// AI-written chunk (mirroring what `Edit.new_string` /
+			// `Write.content` extraction passes through to the reporter).
+			// The chunked path scores each edit against its own
+			// AI-written text, so file growth elsewhere does not drag
+			// the score down.
+			const base = 'alpha\nbravo\ncharlie\n';
+			const e1Chunk = 'delta added by e1\n';
+			const e2Chunk = 'echo added by e2\n';
+			const afterE1 = base + e1Chunk;
+			const afterE2 = e2Chunk + afterE1;
+
+			const samples = simulate([
+				{ id: 'e1', before: base, after: afterE1, aiChunks: [e1Chunk] },
+				{ id: 'e2', before: afterE1, after: afterE2, aiChunks: [e2Chunk] },
+			]);
+
+			assert.deepStrictEqual(Object.fromEntries(samples), {
+				// e1's chunk is still entirely present after e2 lands
+				// (it's just deeper in the file) → fourGram stays at 1.
+				e1: ['1/1', '1/1'],
+				e2: ['1/1'],
+			});
+		});
+
+		test('write then edit that appends — write stays at 1 under chunked scoring', () => {
+			// The motivating case: agent writes a file at T1, then a
+			// later Edit appends new content. Whole-file scoring would
+			// drag the Write's fourGram down because the file is now
+			// bigger than what the Write produced; chunked scoring
+			// keeps the Write at 1 because its content is still fully
+			// present.
+			const original = 'export function a() { return 1; }\n';
+			const appended = 'export function b() { return 2; }\n';
+			const afterWrite = original;
+			const afterEdit = original + appended;
+
+			const samples = simulate([
+				{ id: 'write', before: '', after: afterWrite, aiChunks: [original] },
+				{ id: 'edit', before: afterWrite, after: afterEdit, aiChunks: [appended] },
+			]);
+
+			assert.deepStrictEqual(Object.fromEntries(samples), {
+				write: ['1/1', '1/1'],
+				edit: ['1/1'],
+			});
+		});
+
+		test('MultiEdit with several chunks survives a later unrelated append', () => {
+			// MultiEdit lands three new functions. A subsequent Edit
+			// appends a fourth function. Each MultiEdit chunk is still
+			// fully present, so the length-weighted average stays at 1.
+			const base = '// existing module\n';
+			const chunkA = 'export function alpha() { return 1; }\n';
+			const chunkB = 'export function bravo() { return 2; }\n';
+			const chunkC = 'export function charlie() { return 3; }\n';
+			const chunkD = 'export function delta() { return 4; }\n';
+			const afterMulti = base + chunkA + chunkB + chunkC;
+			const afterEdit = afterMulti + chunkD;
+
+			const samples = simulate([
+				{ id: 'multi', before: base, after: afterMulti, aiChunks: [chunkA, chunkB, chunkC] },
+				{ id: 'edit', before: afterMulti, after: afterEdit, aiChunks: [chunkD] },
+			]);
+
+			assert.deepStrictEqual(Object.fromEntries(samples), {
+				multi: ['1/1', '1/1'],
+				edit: ['1/1'],
 			});
 		});
 

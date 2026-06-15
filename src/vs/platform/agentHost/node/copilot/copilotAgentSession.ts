@@ -44,6 +44,7 @@ import { parseLeadingSlashCommand } from './copilotSlashCommandCompletionProvide
 import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
 import { buildSandboxConfigForSdk } from './sandboxConfigForSdk.js';
 import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, synthesizeSkillToolCall, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
+import { extractAiChunks } from '../shared/editChunkExtractor.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
 import { McpCustomizationController, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
 import { mapSessionEvents } from './mapSessionEvents.js';
@@ -2022,7 +2023,12 @@ export class CopilotAgentSession extends Disposable {
 			const filePaths = isEditTool(tracked.toolName, command) ? this._getEditFilePaths(tracked.parameters) : [];
 			for (const filePath of filePaths) {
 				try {
-					const fileEdit = await this._editTracker.takeCompletedEdit(this._turnId, e.data.toolCallId, filePath);
+					// `apply_patch` / `git_apply_patch` may touch multiple
+					// files in one call, so we scope chunk extraction to
+					// the file we're sampling. Single-file tools ignore
+					// the `forFilePath` argument.
+					const aiChunks = extractAiChunks(tracked.toolName, tracked.parameters, filePath);
+					const fileEdit = await this._editTracker.takeCompletedEdit(this._turnId, e.data.toolCallId, filePath, aiChunks);
 					if (fileEdit) {
 						content.push(fileEdit);
 					}
