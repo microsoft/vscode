@@ -8,18 +8,18 @@
 // This is a facade for the observable implementation. Only import from here!
 
 export { observableValueOpts } from './observables/observableValueOpts';
-export { autorun, autorunDelta, autorunHandleChanges, autorunOpts, autorunWithStore, autorunWithStoreHandleChanges, autorunIterableDelta, autorunSelfDisposable } from './reactions/autorun';
-export { type IObservable, type IObservableWithChange, type IObserver, type IReader, type ISettable, type ISettableObservable, type ITransaction } from './base';
+export { autorun, autorunDelta, autorunHandleChanges, autorunOpts, autorunWithStore, autorunWithStoreHandleChanges, autorunIterableDelta, autorunPerKeyedItem, autorunSelfDisposable, registerAutorunSelfDisposable } from './reactions/autorun';
+export { type IObservable, type IObservableWithChange, type IObserver, type IReader, type ISettable, type IReaderWithStore, type ISettableObservable, type ITransaction } from './base';
 export { disposableObservableValue } from './observables/observableValue';
 export { derived, derivedDisposable, derivedHandleChanges, derivedOpts, derivedWithSetter, derivedWithStore } from './observables/derived';
 export { type IDerivedReader } from './observables/derivedImpl';
-export { ObservableLazy, ObservableLazyPromise, ObservablePromise, PromiseResult, } from './utils/promise';
+export { ObservableLazy, ObservableLazyPromise, ObservablePromise, ObservableResolvedPromise, PromiseResult, } from './utils/promise';
 export { derivedWithCancellationToken, waitForState } from './utils/utilsCancellation';
 export {
 	debouncedObservable, debouncedObservable2, derivedObservableWithCache,
 	derivedObservableWithWritableCache, keepObserved, mapObservableArrayCached, observableFromPromise,
 	recomputeInitiallyAndOnChange,
-	signalFromObservable, wasEventTriggeredRecently,
+	signalFromObservable, throttledObservable, wasEventTriggeredRecently,
 	isObservable,
 } from './utils/utils';
 export { type DebugOwner } from './debugName';

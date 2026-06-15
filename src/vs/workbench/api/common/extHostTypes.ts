@@ -3634,10 +3634,13 @@ export class ChatDebugModelTurnEvent {
 	created: Date;
 	parentEventId?: string;
 	model?: string;
+	requestName?: string;
 	inputTokens?: number;
 	outputTokens?: number;
+	cachedTokens?: number;
 	totalTokens?: number;
 	cost?: number;
+	copilotUsageNanoAiu?: number;
 	durationInMillis?: number;
 
 	constructor(created: Date) {
@@ -3771,12 +3774,14 @@ export class ChatDebugEventModelTurnContent {
 	status?: string;
 	durationInMillis?: number;
 	timeToFirstTokenInMillis?: number;
+	requestId?: string;
 	maxInputTokens?: number;
 	maxOutputTokens?: number;
 	inputTokens?: number;
 	outputTokens?: number;
 	cachedTokens?: number;
 	totalTokens?: number;
+	requestOptions?: string;
 	errorMessage?: string;
 	sections?: ChatDebugMessageSection[];
 
@@ -3836,10 +3841,14 @@ export class ChatReferenceBinaryData implements vscode.ChatReferenceBinaryData {
 	mimeType: string;
 	data: () => Thenable<Uint8Array>;
 	reference?: vscode.Uri;
-	constructor(mimeType: string, data: () => Thenable<Uint8Array>, reference?: vscode.Uri) {
+	isPasted?: boolean;
+	isURL?: boolean;
+	constructor(mimeType: string, data: () => Thenable<Uint8Array>, reference?: vscode.Uri, isPasted?: boolean, isURL?: boolean) {
 		this.mimeType = mimeType;
 		this.data = data;
 		this.reference = reference;
+		this.isPasted = isPasted;
+		this.isURL = isURL;
 	}
 }
 

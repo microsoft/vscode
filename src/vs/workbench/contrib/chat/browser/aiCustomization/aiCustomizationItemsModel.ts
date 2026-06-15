@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -14,18 +16,23 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
-import { ICustomizationHarnessService, ICustomizationItemProvider, IHarnessDescriptor } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, isPluginCustomizationItem } from '../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
-import { AICustomizationItemNormalizer, IAICustomizationItemSource, IAICustomizationListItem, ProviderCustomizationItemSource } from './aiCustomizationItemSource.js';
+import { AICustomizationItemNormalizer, IAICustomizationItemSource, IAICustomizationListItem, ItemProviderItemSource, PureItemProviderItemSource } from './aiCustomizationItemSource.js';
 import { PromptsServiceCustomizationItemProvider } from './promptsServiceCustomizationItemProvider.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
+import { isAgentHostTarget } from '../agentSessions/agentSessions.js';
 
 /**
  * The set of sections whose items are sourced from the customization
  * harness pipeline (extension-contributed providers, sync providers,
- * and the prompts-service fallback). McpServers / Plugins / Models
- * have their own dedicated services and are not modeled here.
+ * and the prompts-service fallback). McpServers / Models have their
+ * own dedicated services and are not modeled here. Plugins keep a
+ * dedicated count observable because remote harnesses can contribute
+ * plugin rows through the same provider pipeline.
  */
 export const ITEMS_MODEL_SECTIONS = [
 	AICustomizationManagementSection.Agents,
@@ -43,7 +50,7 @@ export const IAICustomizationItemsModel = createDecorator<IAICustomizationItemsM
  * Single source of truth for the items rendered by the AI Customizations
  * editor and observed by sidebar surfaces (counts/badges).
  *
- * The model owns the per-active-harness `ProviderCustomizationItemSource`
+ * The model owns the per-active-harness item source
  * cache and exposes the unfiltered, normalized list of items per section.
  * Both the editor and any sidebar surface read from these observables so
  * there is exactly one discovery path for customizations.
@@ -58,7 +65,7 @@ export interface IAICustomizationItemsModel {
 	getItems(section: ItemsModelSection): IObservable<readonly IAICustomizationListItem[]>;
 
 	/**
-	 * Returns the live `ProviderCustomizationItemSource` for the active harness.
+	 * Returns the live item source for the active harness.
 	 * Editor consumers may need this to access provider-level affordances
 	 * (e.g. debug reporting). The returned source is reused across the
 	 * lifetime of the active descriptor.
@@ -71,10 +78,11 @@ export interface IAICustomizationItemsModel {
 	getCount(section: ItemsModelSection): IObservable<number>;
 
 	/**
-	 * The fallback item provider used when the active descriptor has neither
-	 * an `itemProvider` nor a `syncProvider`. Exposed for the debug report.
+	 * Returns an observable of the Plugins section count. This combines
+	 * locally installed plugins with plugin rows supplied by the active
+	 * customization harness provider.
 	 */
-	getPromptsServiceItemProvider(): ICustomizationItemProvider;
+	getPluginCount(): IObservable<number>;
 
 	/**
 	 * Resolves once the most recent fetch for `section` has settled. Useful for
@@ -97,13 +105,35 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 	 * fresh source bound to the new provider. Pruned when its descriptor is no longer
 	 * present in `availableHarnesses`.
 	 */
-	private readonly sourceCache = new Map<IHarnessDescriptor, IAICustomizationItemSource>();
+	private readonly sourceCache = this._register(new MutableDisposable<IAICustomizationItemSource>());
+	private pendingRefetchSource: IAICustomizationItemSource | undefined;
+	private readonly refetchObservedScheduler = this._register(new RunOnceScheduler(() => {
+		const source = this.pendingRefetchSource;
+		if (!source || this._store.isDisposed) {
+			return;
+		}
+		this.refetchObserved(source);
+	}, 0));
 
 	private readonly perSection = new Map<ItemsModelSection, ISettableObservable<readonly IAICustomizationListItem[]>>();
 	private readonly perSectionCount = new Map<ItemsModelSection, IObservable<number>>();
 	private readonly fetchSeq = new Map<ItemsModelSection, number>();
 	/** Promise of the most recent fetch per section (resolves regardless of stale-discard). */
 	private readonly perSectionPending = new Map<ItemsModelSection, Promise<void>>();
+	private readonly remotePluginNames = observableValue<readonly string[]>('aiCustomizationRemotePluginNames', []);
+	private readonly pluginCount = derived(reader => {
+		const installed = this.agentPluginService.plugins.read(reader);
+		// Match PluginListWidget's installed-name derivation
+		// (see installedPluginToItem in pluginListWidget.ts) so the model and
+		// editor widget agree on what counts as a duplicate when a plugin's
+		// `label` is empty/undefined.
+		const installedNames = new Set(installed.map(p => (p.label || basename(p.uri)).toLowerCase()));
+		const remoteNames = this.remotePluginNames.read(reader);
+		const uniqueRemote = remoteNames.filter(name => name && !installedNames.has(name.toLowerCase()));
+		return installed.length + uniqueRemote.length;
+	});
+	private pluginCountObserved = false;
+	private pluginFetchSeq = 0;
 	/**
 	 * Sections that have been observed at least once. The model only fetches on
 	 * demand: first `getItems`/`getCount` for a section triggers an initial fetch,
@@ -118,20 +148,14 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@ILabelService labelService: ILabelService,
-		@IAgentPluginService agentPluginService: IAgentPluginService,
+		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@IProductService productService: IProductService,
 		@IFileService private readonly fileService: IFileService,
 		@IPathService private readonly pathService: IPathService,
 	) {
 		super();
 
-		this.itemNormalizer = new AICustomizationItemNormalizer(
-			workspaceContextService,
-			workspaceService,
-			labelService,
-			agentPluginService,
-			productService,
-		);
+		this.itemNormalizer = new AICustomizationItemNormalizer(labelService, productService);
 		this.promptsServiceItemProvider = new PromptsServiceCustomizationItemProvider(
 			() => this.harnessService.getActiveDescriptor(),
 			this.promptsService,
@@ -151,21 +175,20 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 		// active id), prune the source cache, and refetch any observed sections.
 		const sourceChangeListener = this._register(new MutableDisposable());
 		this._register(autorun(reader => {
-			const available = this.harnessService.availableHarnesses.read(reader);
-			this.harnessService.activeHarness.read(reader);
-			this.pruneSourceCache(available);
-			const descriptor = this.harnessService.getActiveDescriptor();
-			const source = this.getOrCreateSource(descriptor);
-			sourceChangeListener.value = source.onDidChange(() => this.refetchObserved(source));
-			this.refetchObserved(source);
+			const activeSessionResource = this.harnessService.activeSessionResource.read(reader);
+			const source = this.getOrCreateSource(activeSessionResource);
+			sourceChangeListener.value = source.onDidAICustomizationItemsChange(() => {
+				this.scheduleRefetchObserved(source);
+			});
+			this.scheduleRefetchObserved(source);
 		}));
 
 		// Workspace folder changes / active project root changes affect the items the
 		// prompts service surfaces (e.g. workspace vs. user classification).
-		this._register(workspaceContextService.onDidChangeWorkspaceFolders(() => this.refetchObserved(this.getActiveItemSource())));
+		this._register(workspaceContextService.onDidChangeWorkspaceFolders(() => this.scheduleRefetchObserved(this.getActiveItemSource())));
 		this._register(autorun(reader => {
 			this.workspaceService.activeProjectRoot.read(reader);
-			this.refetchObserved(this.getActiveItemSource());
+			this.scheduleRefetchObserved(this.getActiveItemSource());
 		}));
 	}
 
@@ -179,12 +202,13 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 		return this.perSectionCount.get(section)!;
 	}
 
-	getActiveItemSource(): IAICustomizationItemSource {
-		return this.getOrCreateSource(this.harnessService.getActiveDescriptor());
+	getPluginCount(): IObservable<number> {
+		this.markPluginCountObserved();
+		return this.pluginCount;
 	}
 
-	getPromptsServiceItemProvider(): ICustomizationItemProvider {
-		return this.promptsServiceItemProvider;
+	getActiveItemSource(): IAICustomizationItemSource {
+		return this.getOrCreateSource(this.harnessService.activeSessionResource.get());
 	}
 
 	whenSectionLoaded(section: ItemsModelSection): Promise<void> {
@@ -200,37 +224,56 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 		this.refetchSection(section, this.getActiveItemSource());
 	}
 
-	private getOrCreateSource(descriptor: IHarnessDescriptor): IAICustomizationItemSource {
-		const cached = this.sourceCache.get(descriptor);
-		if (cached) {
-			return cached;
+	private markPluginCountObserved(): void {
+		if (this.pluginCountObserved || this._store.isDisposed) {
+			return;
 		}
-		const itemProvider = descriptor.itemProvider ?? (descriptor.syncProvider ? undefined : this.promptsServiceItemProvider);
-		const source = new ProviderCustomizationItemSource(
-			itemProvider,
-			descriptor.syncProvider,
-			this.promptsService,
-			this.workspaceService,
-			this.fileService,
-			this.pathService,
-			this.itemNormalizer,
-		);
-		this.sourceCache.set(descriptor, source);
+		this.pluginCountObserved = true;
+		this.refetchPluginCount(this.getActiveItemSource());
+	}
+
+	private getOrCreateSource(sessionResource: URI): IAICustomizationItemSource {
+		if (this.sourceCache.value && isEqual(sessionResource, this.sourceCache.value.sessionResource)) {
+			return this.sourceCache.value;
+		}
+		const sessionType = getChatSessionType(sessionResource);
+		const descriptor = this.harnessService.findHarnessById(sessionType);
+
+		const getItemSource = () => {
+			if (isAgentHostTarget(sessionType)) {
+				if (!descriptor?.itemProvider) {
+					throw new Error(`Agent host targets must have an item provider`);
+				}
+				return new PureItemProviderItemSource(sessionResource, descriptor.itemProvider, this.itemNormalizer);
+			} else {
+				const itemProvider = descriptor?.itemProvider ?? this.promptsServiceItemProvider;
+				return new ItemProviderItemSource(
+					sessionResource,
+					itemProvider,
+					this.promptsService,
+					this.workspaceService,
+					this.fileService,
+					this.pathService,
+					this.itemNormalizer,
+				);
+			}
+		};
+		const source = getItemSource();
+		this.sourceCache.value = source;
 		return source;
 	}
 
-	private pruneSourceCache(available: readonly IHarnessDescriptor[]): void {
-		const live = new Set(available);
-		for (const descriptor of this.sourceCache.keys()) {
-			if (!live.has(descriptor)) {
-				this.sourceCache.delete(descriptor);
-			}
-		}
+	private scheduleRefetchObserved(source: IAICustomizationItemSource): void {
+		this.pendingRefetchSource = source;
+		this.refetchObservedScheduler.schedule();
 	}
 
 	private refetchObserved(source: IAICustomizationItemSource): void {
 		for (const section of this.observedSections) {
 			this.refetchSection(section, source);
+		}
+		if (this.pluginCountObserved) {
+			this.refetchPluginCount(source);
 		}
 	}
 
@@ -239,7 +282,7 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 		this.fetchSeq.set(section, seq);
 		const promptType = sectionToPromptType(section);
 		const observable = this.perSection.get(section)!;
-		const pending = source.fetchItems(promptType).then(items => {
+		const pending = source.fetchAICustomizationItems(promptType).then(items => {
 			if (this._store.isDisposed) {
 				return;
 			}
@@ -259,6 +302,32 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 			onUnexpectedError(e);
 		});
 		this.perSectionPending.set(section, pending);
+	}
+
+	private refetchPluginCount(source: IAICustomizationItemSource): void {
+		const seq = ++this.pluginFetchSeq;
+		const pending = source.fetchProviderItems().then(items => {
+			return items
+				.filter(item => isPluginCustomizationItem(item) && item.groupKey !== 'remote-client')
+				.map(item => item.name ?? '');
+		});
+
+		pending.then(names => {
+			if (this._store.isDisposed) {
+				return;
+			}
+			if (this.pluginFetchSeq !== seq) {
+				return;
+			}
+			if (this.getActiveItemSource() !== source) {
+				return;
+			}
+			this.remotePluginNames.set(names, undefined);
+		}, e => {
+			if (!this._store.isDisposed) {
+				onUnexpectedError(e);
+			}
+		});
 	}
 }
 

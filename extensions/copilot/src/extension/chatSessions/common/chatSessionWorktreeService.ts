@@ -51,6 +51,7 @@ export interface ChatSessionWorktreePropertiesV2 extends ChatSessionWorktreeBase
 	readonly incomingChanges?: number;
 	readonly outgoingChanges?: number;
 	readonly uncommittedChanges?: number;
+	readonly hasGitOperationInProgress?: boolean;
 }
 
 export type ChatSessionWorktreeProperties = ChatSessionWorktreePropertiesV1 | ChatSessionWorktreePropertiesV2;
@@ -71,6 +72,7 @@ export interface IChatSessionWorktreeService {
 
 	getWorktreeProperties(sessionId: string): Promise<ChatSessionWorktreeProperties | undefined>;
 	setWorktreeProperties(sessionId: string, properties: string | ChatSessionWorktreeProperties): Promise<void>;
+	updateWorktreeProperties(sessionId: string, properties: Partial<ChatSessionWorktreeProperties>): Promise<void>;
 
 	getWorktreeRepository(sessionId: string): Promise<RepoContext | undefined>;
 	getWorktreePath(sessionId: string): Promise<vscode.Uri | undefined>;
@@ -78,6 +80,8 @@ export interface IChatSessionWorktreeService {
 	applyWorktreeChanges(sessionId: string): Promise<void>;
 
 	getWorktreeChanges(sessionId: string): Promise<readonly vscode.ChatSessionChangedFile[] | undefined>;
+
+	refreshWorktreeChanges(sessionId: string): Promise<void>;
 
 	hasCachedChanges(sessionId: string): Promise<boolean>;
 

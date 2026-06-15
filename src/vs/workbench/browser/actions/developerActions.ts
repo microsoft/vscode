@@ -780,6 +780,29 @@ class PolicyDiagnosticsAction extends Action2 {
 			content += `*Error retrieving account policy gate info: ${error}*\n\n`;
 		}
 
+		content += '## Managed Settings\n\n';
+		try {
+			const policyData = defaultAccountService.policyData;
+
+			content += '| Property | Value |\n';
+			content += '|----------|-------|\n';
+			const fetchStatus = defaultAccountService.managedSettingsFetchStatus;
+			const fetchStatusDisplay = fetchStatus === null ? '*not yet fetched*' : `\`${fetchStatus}\``;
+			content += `| Last fetch | ${fetchStatusDisplay} |\n`;
+			const fetchedAt = defaultAccountService.managedSettingsFetchedAt;
+			content += `| Fetched at | ${fetchedAt ? new Date(fetchedAt).toLocaleString() : '*n/a*'} |\n`;
+			content += '\n';
+
+			const managedSettingsData = {
+				managedSettings: policyData?.managedSettings,
+			};
+			content += '```json\n';
+			content += JSON.stringify(managedSettingsData, null, 2);
+			content += '\n```\n\n';
+		} catch (error) {
+			content += `*Error rendering managed settings diagnostics: ${error}*\n\n`;
+		}
+
 		content += '## Policy-Controlled Settings\n\n';
 
 		const policyConfigurations = configurationRegistry.getPolicyConfigurations();
@@ -842,16 +865,17 @@ class PolicyDiagnosticsAction extends Action2 {
 			content += '### Applied Policy\n\n';
 			appliedPolicy.sort((a, b) => getPolicySource(a.name).localeCompare(getPolicySource(b.name)) || a.name.localeCompare(b.name));
 			if (appliedPolicy.length > 0) {
-				content += '| Setting Key | Policy Name | Policy Source | Default Value | Current Value | Policy Value |\n';
-				content += '|-------------|-------------|---------------|---------------|---------------|-------------|\n';
+				content += '| Setting Key | Policy Name | Policy Source | Managed Settings | Default Value | Current Value | Policy Value |\n';
+				content += '|-------------|-------------|---------------|------------------|---------------|---------------|-------------|\n';
 
 				for (const setting of appliedPolicy) {
 					const defaultValue = JSON.stringify(setting.property.default);
 					const currentValue = JSON.stringify(setting.inspection.value);
 					const policyValue = JSON.stringify(setting.inspection.policyValue);
 					const policySource = getPolicySource(setting.name);
+					const managedSettingsKeys = setting.property.policy?.managedSettings ? Object.keys(setting.property.policy.managedSettings).join(', ') : '';
 
-					content += `| ${setting.key} | ${setting.name} | ${policySource} | \`${defaultValue}\` | \`${currentValue}\` | \`${policyValue}\` |\n`;
+					content += `| ${setting.key} | ${setting.name} | ${policySource} | ${managedSettingsKeys || '*n/a*'} | \`${defaultValue}\` | \`${currentValue}\` | \`${policyValue}\` |\n`;
 				}
 				content += '\n';
 			} else {

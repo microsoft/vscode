@@ -32,6 +32,7 @@ interface XAIModelData {
 export class XAIBYOKLMProvider extends AbstractOpenAICompatibleLMProvider {
 
 	public static readonly providerName = 'xAI';
+	public static readonly providerId = this.providerName.toLowerCase();
 
 	constructor(
 		knownModels: BYOKKnownModels,
@@ -43,7 +44,7 @@ export class XAIBYOKLMProvider extends AbstractOpenAICompatibleLMProvider {
 		@IExperimentationService expService: IExperimentationService
 	) {
 		super(
-			XAIBYOKLMProvider.providerName.toLowerCase(),
+			XAIBYOKLMProvider.providerId,
 			XAIBYOKLMProvider.providerName,
 			knownModels,
 			byokStorageService,

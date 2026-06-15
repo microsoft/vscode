@@ -23,13 +23,15 @@ import { IChatRequestModel } from '../../../chat/common/model/chatModel.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
 import { BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
-import { createBrowserPageLink, findExistingPagesByHost, getExistingPagesResult } from './browserToolHelpers.js';
+import { BrowserChatToolReferenceName } from '../../common/browserChatToolReferenceNames.js';
+import { createBrowserPageLink, findExistingPagesByHost, getExistingPagesResult, getSessionId, remoteUrlRewriteNotice, rewriteRemoteLocalhostUrl } from './browserToolHelpers.js';
+import { IRemoteExplorerService } from '../../../../services/remote/common/remoteExplorerService.js';
 
 export const OpenPageToolId = 'open_browser_page';
 
 export const OpenBrowserToolData: IToolData = {
 	id: OpenPageToolId,
-	toolReferenceName: 'openBrowserPage',
+	toolReferenceName: BrowserChatToolReferenceName.OpenBrowserPage,
 	displayName: localize('openBrowserTool.displayName', 'Open Browser Page'),
 	userDescription: localize('openBrowserTool.userDescription', 'Open a URL in the integrated browser'),
 	modelDescription: `Open a new browser page in the integrated browser at the given URL.
@@ -67,6 +69,7 @@ export class OpenBrowserTool implements IToolImpl {
 		@IPlaywrightService private readonly playwrightService: IPlaywrightService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IBrowserViewWorkbenchService private readonly browserViewService: IBrowserViewWorkbenchService,
+		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
 		@IAgentNetworkFilterService private readonly agentNetworkFilterService: IAgentNetworkFilterService,
 		@IChatService private readonly chatService: IChatService,
 		@IConfigurationService private readonly configService: IConfigurationService,
@@ -108,6 +111,7 @@ export class OpenBrowserTool implements IToolImpl {
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
 		const params = invocation.parameters as IOpenBrowserToolParams;
+		const sessionId = getSessionId(invocation);
 
 		// If no URL is specified, prompt the user for a page to share.
 		if (!params.url) {
@@ -124,12 +128,22 @@ export class OpenBrowserTool implements IToolImpl {
 			}
 		}
 
+		// In a remote workspace without the remote proxy, the integrated browser
+		// runs locally and cannot reach the remote's localhost directly. Rewrite to
+		// the forwarded local address (if any) so the page can be reached.
+		const rewrite = rewriteRemoteLocalhostUrl(params.url, this.browserViewService, this.remoteExplorerService);
+		const rewriteNotice = rewrite.rewritten ? remoteUrlRewriteNotice(params.url, rewrite.url) : undefined;
+		params.url = rewrite.url;
+
+		const withNotice = (result: IToolResult): IToolResult =>
+			rewriteNotice ? { ...result, content: [rewriteNotice, ...result.content] } : result;
+
 		if (!params.forceNew) {
 			// If there are already-shared pages, tell the model to reuse them
 			const shared = findExistingPagesByHost(this.browserViewService, params.url, { includeBlank: true, sharingState: BrowserViewSharingState.Shared });
 			const alreadyShared = await getExistingPagesResult(this.editorService, shared, { agentNetworkFilterService: this.agentNetworkFilterService });
 			if (alreadyShared) {
-				return alreadyShared;
+				return withNotice(alreadyShared);
 			}
 
 			// If there are unshared (but shareable) pages on the same host, prompt user to share one
@@ -137,12 +151,12 @@ export class OpenBrowserTool implements IToolImpl {
 			if (unshared.length > 0) {
 				const shareResult = await this._promptForUnsharedPages(invocation, unshared, params, token);
 				if (shareResult) {
-					return shareResult;
+					return withNotice(shareResult);
 				}
 			}
 		}
 
-		return this._openNewPage(params.url);
+		return withNotice(await this._openNewPage(sessionId, params.url));
 	}
 
 	/**
@@ -207,7 +221,7 @@ export class OpenBrowserTool implements IToolImpl {
 			return undefined;
 		}
 
-		return this._shareExistingPage(editor);
+		return this._shareExistingPage(getSessionId(invocation), editor);
 	}
 
 	private _buildShareCarousel(editors: BrowserEditorInput[], url: string | undefined, resolveId: string): ChatQuestionCarouselData {
@@ -268,12 +282,12 @@ export class OpenBrowserTool implements IToolImpl {
 		return undefined;
 	}
 
-	private async _openNewPage(url: string): Promise<IToolResult> {
-		const { pageId, summary } = await this.playwrightService.openPage(url);
+	private async _openNewPage(sessionId: string, url: string): Promise<IToolResult> {
+		const { pageId, summary } = await this.playwrightService.openPage(sessionId, url);
 		return this._pageResult(pageId, summary, localize('browser.open.result', "Opened {0}", createBrowserPageLink(pageId)));
 	}
 
-	private async _shareExistingPage(editor: BrowserEditorInput): Promise<IToolResult> {
+	private async _shareExistingPage(sessionId: string, editor: BrowserEditorInput): Promise<IToolResult> {
 		const model = await editor.resolve();
 		if (model.sharingState !== BrowserViewSharingState.Shared) {
 			if (!(await model.setSharedWithAgent(true))) {
@@ -281,7 +295,7 @@ export class OpenBrowserTool implements IToolImpl {
 			}
 		}
 
-		const summary = await this.playwrightService.getSummary(editor.id);
+		const summary = await this.playwrightService.getSummary(sessionId, editor.id);
 		return this._pageResult(editor.id, summary, localize('browser.open.sharedResult', "User shared {0}", createBrowserPageLink(editor.id)));
 	}
 

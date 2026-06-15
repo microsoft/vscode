@@ -122,7 +122,8 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 			localize('terminal.integrated.defaultLocation.view', "Create terminals in the terminal view")
 		],
 		default: 'view',
-		description: localize('terminal.integrated.defaultLocation', "Controls where newly created terminals will appear.")
+		description: localize('terminal.integrated.defaultLocation', "Controls where newly created terminals will appear."),
+		agentsWindow: { default: 'view', readOnly: true },
 	},
 	[TerminalSettingId.TabsFocusMode]: {
 		type: 'string',
@@ -481,13 +482,9 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	},
 	[TerminalSettingId.WindowsUseConptyDll]: {
 		restricted: true,
-		markdownDescription: localize('terminal.integrated.windowsUseConptyDll', "Whether to use the experimental conpty.dll (v1.25.260303002) shipped with VS Code, instead of the one bundled with Windows."),
+		markdownDescription: localize('terminal.integrated.windowsUseConptyDll', "Whether to use the conpty.dll (v1.25.260303002) shipped with VS Code, instead of the one bundled with Windows."),
 		type: 'boolean',
-		tags: ['preview'],
-		default: false,
-		experiment: {
-			mode: 'auto'
-		},
+		default: true,
 	},
 	[TerminalSettingId.SplitCwd]: {
 		description: localize('terminal.integrated.splitCwd', "Controls the working directory a split terminal starts with."),

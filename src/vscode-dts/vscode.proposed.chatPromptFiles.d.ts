@@ -11,7 +11,7 @@ declare module 'vscode' {
 	/**
 	 * Indicates where a chat resource was loaded from.
 	 */
-	export type ChatResourceSource = 'local' | 'user' | 'extension' | 'plugin';
+	export type ChatResourceSource = 'local' | 'user' | 'extension' | 'plugin' | 'builtin';
 
 	/**
 	 * Represents a chat-related resource, such as a custom agent, instructions, prompt file, skill, or slash command.
@@ -192,6 +192,12 @@ declare module 'vscode' {
 		 * Whether this skill should be shown to users as invocable.
 		 */
 		readonly userInvocable?: boolean;
+
+		/**
+		 * Whether this skill should be excluded from model invocation.
+		 * When true, the skill can only be triggered manually via `/name`.
+		 */
+		readonly disableModelInvocation: boolean;
 	}
 
 	/**

@@ -20,6 +20,7 @@ import { tmpdir } from 'os';
 import { NullLogService } from '../../../log/common/log.js';
 import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
+import { isWindows } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { FileService } from '../../../files/common/fileService.js';
@@ -33,7 +34,14 @@ function createGitService(disposables: Pick<DisposableStore, 'add'>): AgentHostG
 	const fileService = disposables.add(new FileService(logService));
 	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(logService))));
 	const env: Partial<INativeEnvironmentService> = { tmpDir: URI.file(tmpdir()) };
-	return new AgentHostGitService(fileService, env as INativeEnvironmentService);
+	return new AgentHostGitService(fileService, env as INativeEnvironmentService, logService);
+}
+
+function rmDirWithRetry(path: string | undefined): void {
+	if (!path) {
+		return;
+	}
+	try { rmSync(path, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }); } catch { /* best-effort temp cleanup; Windows can briefly hold git handles */ }
 }
 
 suite('AgentHostGitService - getSessionGitState (real git)', () => {
@@ -53,9 +61,7 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 	});
 
 	teardown(() => {
-		if (tmpRoot) {
-			rmSync(tmpRoot, { recursive: true, force: true });
-		}
+		rmDirWithRetry(tmpRoot);
 	});
 
 	function initRepo(opts?: { remote?: string; baseBranch?: string }): string {
@@ -135,7 +141,7 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 			assert.strictEqual(result.outgoingChanges, 2);
 			assert.strictEqual(result.uncommittedChanges, 0);
 		} finally {
-			rmSync(remoteDir, { recursive: true, force: true });
+			rmDirWithRetry(remoteDir);
 		}
 	});
 });
@@ -156,9 +162,7 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 	});
 
 	teardown(() => {
-		if (tmpRoot) {
-			rmSync(tmpRoot, { recursive: true, force: true });
-		}
+		rmDirWithRetry(tmpRoot);
 	});
 
 	function initRepo(): { dir: string; run: (...args: string[]) => Buffer } {
@@ -202,7 +206,7 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 		const kept = findByBasename('kept.txt');
 		assert.ok(kept?.before && kept.after, `modified file should have before+after; result=${JSON.stringify(result.map(d => ({ a: d.after?.uri, b: d.before?.uri })))}`);
 		assert.deepStrictEqual(kept!.diff, { added: 1, removed: 0 });
-		assert.ok(kept!.before!.content.uri.startsWith('git-blob://'), 'before content should be a git-blob: URI');
+		assert.strictEqual(URI.parse(kept!.before!.content.uri).scheme, 'git-blob', 'before content should be a git-blob: URI');
 
 		const fresh = findByBasename('fresh.txt');
 		assert.ok(fresh?.after && !fresh.before, 'untracked file should have only after');
@@ -210,6 +214,44 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 		const gone = findByBasename('gone.txt');
 		assert.ok(gone?.before && !gone.after, 'deleted file should have only before');
 		void byPath;
+	});
+
+	(hasGit ? test : test.skip)('reports staged rename source when untracked files force temp-index staging', async () => {
+		const fs = await import('fs/promises');
+		const { dir, run } = initRepo();
+		await fs.writeFile(join(dir, 'old.txt'), 'one\n');
+		run('add', '.');
+		run('commit', '-q', '-m', 'init');
+
+		run('mv', 'old.txt', 'new.txt');
+		await fs.writeFile(join(dir, 'fresh.txt'), 'fresh\n');
+
+		const result = await svc!.computeSessionFileDiffs(URI.file(dir), { sessionUri: 'copilot:/s' });
+		assert.ok(result, 'expected diffs');
+		const rename = result.find(d => d.before?.uri.endsWith('/old.txt') && d.after?.uri.endsWith('/new.txt'));
+		const fresh = result.find(d => !d.before && d.after?.uri.endsWith('/fresh.txt'));
+
+		assert.deepStrictEqual({
+			rename: rename && { before: URI.parse(rename.before!.uri).path.split('/').pop(), after: URI.parse(rename.after!.uri).path.split('/').pop() },
+			fresh: fresh && URI.parse(fresh.after!.uri).path.split('/').pop(),
+		}, {
+			rename: { before: 'old.txt', after: 'new.txt' },
+			fresh: 'fresh.txt',
+		});
+	});
+
+	(hasGit && !isWindows ? test : test.skip)('returns undefined when temp-index staging fails', async () => {
+		const fs = await import('fs/promises');
+		const { dir } = initRepo();
+		const blockedPath = join(dir, 'blocked.txt');
+		await fs.writeFile(blockedPath, 'blocked\n');
+		await fs.chmod(blockedPath, 0);
+		try {
+			const result = await svc!.computeSessionFileDiffs(URI.file(dir), { sessionUri: 'copilot:/s' });
+			assert.strictEqual(result, undefined);
+		} finally {
+			await fs.chmod(blockedPath, 0o600);
+		}
 	});
 
 	(hasGit ? test : test.skip)('anchors against the merge-base of the requested base branch', async () => {
@@ -233,6 +275,39 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 		assert.ok(paths.some(p => p?.endsWith('b.txt')), `expected b.txt in diff; got ${paths.join(', ')}`);
 	});
 
+	(hasGit ? test : test.skip)('prefers origin base branch when local base branch is stale', async () => {
+		const fs = await import('fs/promises');
+		const { dir, run } = initRepo();
+		await fs.writeFile(join(dir, 'shared.txt'), 'base\n');
+		run('add', '.');
+		run('commit', '-q', '-m', 'base');
+		run('update-ref', 'refs/remotes/origin/main', 'HEAD');
+
+		run('checkout', '-q', '-b', 'feature');
+		run('checkout', '-q', '-b', 'upstream', 'main');
+		await fs.writeFile(join(dir, 'upstream.txt'), 'upstream\n');
+		run('add', '.');
+		run('commit', '-q', '-m', 'upstream');
+		run('update-ref', 'refs/remotes/origin/main', 'HEAD');
+
+		run('checkout', '-q', 'feature');
+		run('merge', '-q', '--no-ff', 'origin/main', '-m', 'merge origin/main');
+		await fs.writeFile(join(dir, 'feature.txt'), 'feature\n');
+		run('add', '.');
+		run('commit', '-q', '-m', 'feature');
+
+		const result = await svc!.computeSessionFileDiffs(URI.file(dir), { sessionUri: 'copilot:/s', baseBranch: 'main' });
+		assert.ok(result, 'expected diffs');
+		const paths = result.map(d => d.after?.uri ?? d.before?.uri);
+		assert.deepStrictEqual({
+			feature: paths.some(p => p?.endsWith('feature.txt')),
+			upstream: paths.some(p => p?.endsWith('upstream.txt')),
+		}, {
+			feature: true,
+			upstream: false,
+		});
+	});
+
 	(hasGit ? test : test.skip)('returns no diffs for a clean repo', async () => {
 		const fs = await import('fs/promises');
 		const { dir, run } = initRepo();
@@ -253,6 +328,41 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 		assert.ok(result, 'expected diffs');
 		assert.strictEqual(result.length, 1);
 		assert.ok(result[0].after && !result[0].before, 'untracked file in empty repo should be an addition');
+	});
+
+	(hasGit ? test : test.skip)('captureWorkingTreeAsTree stages scoped rename source and untracked paths', async () => {
+		const fs = await import('fs/promises');
+		const { dir, run } = initRepo();
+		await fs.writeFile(join(dir, 'old.txt'), 'one\n');
+		run('add', '.');
+		run('commit', '-q', '-m', 'init');
+
+		run('mv', 'old.txt', 'new.txt');
+		await fs.writeFile(join(dir, 'fresh.txt'), 'fresh\n');
+
+		const tree = await svc!.captureWorkingTreeAsTree(URI.file(dir));
+		assert.ok(tree, 'expected tree object');
+		const treePaths = cp.execFileSync('git', ['ls-tree', '-r', '--name-only', tree], { cwd: dir, encoding: 'utf8' })
+			.trim()
+			.split(/\r?\n/g)
+			.filter(Boolean)
+			.sort();
+
+		assert.deepStrictEqual(treePaths, ['fresh.txt', 'new.txt']);
+	});
+
+	(hasGit && !isWindows ? test : test.skip)('captureWorkingTreeAsTree returns undefined when staging fails', async () => {
+		const fs = await import('fs/promises');
+		const { dir } = initRepo();
+		const blockedPath = join(dir, 'blocked.txt');
+		await fs.writeFile(blockedPath, 'blocked\n');
+		await fs.chmod(blockedPath, 0);
+		try {
+			const result = await svc!.captureWorkingTreeAsTree(URI.file(dir));
+			assert.strictEqual(result, undefined);
+		} finally {
+			await fs.chmod(blockedPath, 0o600);
+		}
 	});
 
 	(hasGit ? test : test.skip)('showBlob retrieves committed content', async () => {
@@ -287,15 +397,15 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 	});
 
 	teardown(() => {
-		if (tmpRoot) {
-			rmSync(tmpRoot, { recursive: true, force: true });
-		}
+		rmDirWithRetry(tmpRoot);
 	});
 
 	function initRepo(): string {
 		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-git-wt-'));
 		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: tmpRoot!, env, stdio: 'pipe' });
 		run('init', '-q', '-b', 'main');
+		run('config', 'user.name', 't');
+		run('config', 'user.email', 't@t');
 		run('commit', '-q', '--allow-empty', '-m', 'initial');
 		return tmpRoot!;
 	}
@@ -317,6 +427,31 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		assert.strictEqual(await svc!.hasUncommittedChanges(URI.file(dir)), false);
 	});
 
+	(hasGit ? test : test.skip)('commitAll stages tracked, staged and untracked changes and creates a commit', async () => {
+		const dir = initRepo();
+		const fs = await import('fs/promises');
+		await fs.writeFile(join(dir, 'tracked.txt'), 'before');
+		cp.execFileSync('git', ['add', 'tracked.txt'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['commit', '-q', '-m', 'add tracked'], { cwd: dir, env, stdio: 'pipe' });
+
+		await fs.writeFile(join(dir, 'tracked.txt'), 'after');
+		await fs.writeFile(join(dir, 'staged.txt'), 'staged');
+		cp.execFileSync('git', ['add', 'staged.txt'], { cwd: dir, env, stdio: 'pipe' });
+		await fs.writeFile(join(dir, 'untracked.txt'), 'untracked');
+
+		await svc!.commitAll(URI.file(dir), 'commit all changes');
+
+		const status = cp.execFileSync('git', ['status', '--porcelain'], { cwd: dir, env, encoding: 'utf8' }).trim();
+		const lastMessage = cp.execFileSync('git', ['log', '-1', '--format=%s'], { cwd: dir, env, encoding: 'utf8' }).trim();
+		const committedFiles = cp.execFileSync('git', ['diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD'], { cwd: dir, env, encoding: 'utf8' }).trim().split(/\r?\n/g).sort();
+
+		assert.deepStrictEqual({ status, lastMessage, committedFiles }, {
+			status: '',
+			lastMessage: 'commit all changes',
+			committedFiles: ['staged.txt', 'tracked.txt', 'untracked.txt'],
+		});
+	});
+
 	(hasGit ? test : test.skip)('addExistingWorktree attaches a worktree for an existing branch (no -b)', async () => {
 		const dir = initRepo();
 		cp.execFileSync('git', ['branch', 'feature'], { cwd: dir, env, stdio: 'pipe' });
@@ -327,7 +462,31 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			const stat = await fs.stat(wtPath);
 			assert.ok(stat.isDirectory(), 'worktree directory should exist');
 		} finally {
-			rmSync(wtPath, { recursive: true, force: true });
+			rmDirWithRetry(wtPath);
+		}
+	});
+
+	(hasGit ? test : test.skip)('addWorktree prefers origin start point when local branch is stale', async () => {
+		const dir = initRepo();
+		const fs = await import('fs/promises');
+		cp.execFileSync('git', ['update-ref', 'refs/remotes/origin/main', 'HEAD'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['checkout', '-q', '-b', 'upstream', 'main'], { cwd: dir, env, stdio: 'pipe' });
+		await fs.writeFile(join(dir, 'upstream.txt'), 'upstream');
+		cp.execFileSync('git', ['add', '.'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['commit', '-q', '-m', 'upstream'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['update-ref', 'refs/remotes/origin/main', 'HEAD'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['checkout', '-q', 'main'], { cwd: dir, env, stdio: 'pipe' });
+
+		const wtPath = join(dir, '..', `wt-${Date.now()}`);
+		try {
+			await svc!.addWorktree(URI.file(dir), URI.file(wtPath), 'agents/test-origin-start-point', 'main');
+			const stat = await fs.stat(join(wtPath, 'upstream.txt'));
+			assert.ok(stat.isFile(), 'worktree should start from origin/main, not stale local main');
+			assert.throws(() => cp.execFileSync('git', ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], { cwd: wtPath, env, stdio: 'pipe' }), /fatal:/);
+		} finally {
+			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath)); } catch { /* best-effort cleanup */ }
+			rmDirWithRetry(wtPath);
+			try { cp.execFileSync('git', ['branch', '-D', 'agents/test-origin-start-point'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
 		}
 	});
 });

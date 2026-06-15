@@ -344,7 +344,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		}
 
 		// Use ResizeObserver to trigger layout when wrapper content changes
-		const resizeObserver = this._register(new DisposableResizeObserver(() => this.layoutScheduler.schedule()));
+		const resizeObserver = this._register(new DisposableResizeObserver('ChatSubagentContentPart.layout', () => this.layoutScheduler.schedule()));
 		this._register(resizeObserver.observe(this.wrapper));
 
 		return this.wrapper;
@@ -492,6 +492,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 			this.titleShimmerSpan = undefined;
 
 			this._titleDetailRendered.clear();
+			this._titleFileWidgetStore.clear();
 			this.titleDetailContainer = undefined;
 
 			const prefixSpan = $('span');
@@ -517,6 +518,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 
 		// Dispose previous detail rendering
 		this._titleDetailRendered.clear();
+		this._titleFileWidgetStore.clear();
 
 		if (!toolCallText) {
 			if (this.titleDetailContainer) {
@@ -526,7 +528,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		} else {
 			const result = this.chatContentMarkdownRenderer.render(new MarkdownString(toolCallText));
 			result.element.classList.add('collapsible-title-content', 'chat-thinking-title-detail');
-			renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._store);
+			renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._titleFileWidgetStore);
 			this._titleDetailRendered.value = result;
 
 			if (this.titleDetailContainer) {

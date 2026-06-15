@@ -8,9 +8,9 @@ import { RequestMetadata, RequestType } from '@vscode/copilot-api';
 import { Raw } from '@vscode/prompt-tsx';
 import * as http from 'http';
 import { IChatMLFetcher, Source } from '../../../../platform/chat/common/chatMLFetcher';
-import { ChatLocation, ChatResponse } from '../../../../platform/chat/common/commonTypes';
+import { ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../../platform/chat/common/commonTypes';
 import { CustomModel, EndpointEditToolName } from '../../../../platform/endpoint/common/endpointProvider';
-import { AnthropicMessagesProcessor } from '../../../../platform/endpoint/node/messagesApi';
+import { AnthropicMessagesProcessor, processNonStreamingResponseFromMessagesEndpoint } from '../../../../platform/endpoint/node/messagesApi';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { IOTelService } from '../../../../platform/otel/common/otelService';
 import { FinishedCallback, getRequestId, OptionalChatRequestParams } from '../../../../platform/networking/common/fetch';
@@ -28,6 +28,7 @@ import { SSEParser } from '../../../../util/vs/base/common/sseParser';
 import { generateUuid } from '../../../../util/vs/base/common/uuid';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { IClaudeCodeModels } from './claudeCodeModels';
+import { PROXY_ERROR_PREFIX } from '../common/claudeMessageDispatch';
 import { IClaudeSessionStateService } from '../common/claudeSessionStateService';
 
 /**
@@ -175,11 +176,10 @@ export class ClaudeLanguageModelServer extends Disposable {
 			}
 
 			// Set up streaming response
-			res.writeHead(200, {
-				'Content-Type': 'text/event-stream',
-				'Cache-Control': 'no-cache',
-				'Connection': 'keep-alive',
-			});
+			// Response headers are written by ClaudeStreamingPassThroughEndpoint
+			// once the upstream response arrives, so we can mirror the upstream
+			// Content-Type (text/event-stream for stream: true, application/json
+			// for stream: false — used by `auto` permission mode classifier calls).
 
 			// Handle client disconnect
 			let requestComplete = false;
@@ -228,7 +228,9 @@ export class ClaudeLanguageModelServer extends Disposable {
 				finishedCb: async () => undefined,
 				location: ChatLocation.MessagesProxy,
 				modelCapabilities: { enableThinking: true, reasoningEffort },
-				userInitiatedRequest: isUserInitiatedMessage
+				userInitiatedRequest: isUserInitiatedMessage,
+				turnId: sessionId ? this.sessionStateService.getTurnIdForSession(sessionId) : undefined,
+				requestOptions: { stream: !!requestBody.stream },
 			}, tokenSource.token);
 
 			// Wrap in trace context so chat spans are parented to the invoke_agent span
@@ -237,10 +239,19 @@ export class ClaudeLanguageModelServer extends Disposable {
 				? () => this._otelService.runWithTraceContext(traceContext, doRequest)
 				: doRequest;
 
+			let chatResponse: ChatResponse;
 			if (capturingToken) {
-				await this.requestLogger.captureInvocation(capturingToken, doRequestInContext);
+				chatResponse = await this.requestLogger.captureInvocation(capturingToken, doRequestInContext);
 			} else {
-				await doRequestInContext();
+				chatResponse = await doRequestInContext();
+			}
+
+			// If the upstream returned an error, forward a proper HTTP error to the
+			// SDK subprocess so it can surface it instead of silently hanging.
+			if (chatResponse.type !== ChatFetchResponseType.Success && !res.headersSent) {
+				const { status, errorType, message } = this.mapChatResponseToHttpError(chatResponse);
+				this.sendErrorResponse(res, status, errorType, message);
+				return;
 			}
 
 			requestComplete = true;
@@ -253,12 +264,40 @@ export class ClaudeLanguageModelServer extends Disposable {
 		}
 	}
 
+	/**
+	 * Maps a non-success ChatResponse to an HTTP status, Anthropic error type, and message
+	 * that the SDK subprocess can interpret.
+	 */
+	private mapChatResponseToHttpError(chatResponse: ChatResponse): { status: number; errorType: AnthropicErrorResponse['error']['type']; message: string } {
+		// Base64-encode the full ChatFetchError JSON after the proxy error prefix.
+		// Base64 survives the SDK's JSON re-encoding without double-escaping issues.
+		const proxyMessage = `${PROXY_ERROR_PREFIX}${Buffer.from(JSON.stringify(chatResponse)).toString('base64')}`;
+
+		switch (chatResponse.type) {
+			case ChatFetchResponseType.QuotaExceeded:
+				return { status: 402, errorType: 'invalid_request_error', message: proxyMessage };
+			case ChatFetchResponseType.RateLimited:
+				return { status: 429, errorType: 'rate_limit_error', message: proxyMessage };
+			case ChatFetchResponseType.Canceled:
+				return { status: 499, errorType: 'api_error', message: proxyMessage };
+			case ChatFetchResponseType.Filtered:
+			case ChatFetchResponseType.PromptFiltered:
+				return { status: 400, errorType: 'invalid_request_error', message: proxyMessage };
+			default:
+				return { status: 500, errorType: 'api_error', message: proxyMessage };
+		}
+	}
+
 	private sendErrorResponse(
 		res: http.ServerResponse,
 		statusCode: number,
 		errorType: AnthropicErrorResponse['error']['type'],
 		message: string
 	): void {
+		if (res.headersSent) {
+			res.end();
+			return;
+		}
 		const errorResponse: AnthropicErrorResponse = {
 			type: 'error',
 			error: {
@@ -430,6 +469,90 @@ function messagesApiInputToRawMessagesForLogging(request: AnthropicMessagesReque
 	}
 
 	return messages;
+}
+
+/**
+ * Drains a non-streaming Anthropic Messages API response while
+ * simultaneously:
+ *   1. Forwarding every upstream byte chunk verbatim to `forwardChunk` so the
+ *      Claude SDK client (which made the original `stream: false` request)
+ *      receives a byte-perfect passthrough.
+ *   2. Reconstituting the buffered body and delegating to the shared
+ *      `processNonStreamingResponseFromMessagesEndpoint` parser so the
+ *      caller receives real `ChatCompletion`s (with telemetry, usage, and
+ *      finish-callback wiring). Without this, `chatMLFetcher` would see
+ *      zero completions and fail with "Response contained no choices".
+ *
+ * On cancellation, the for-await `return`s out of the drain loop before
+ * forwarding the in-flight chunk; the `finally` still destroys the upstream
+ * body, and no completions are emitted.
+ */
+export function processNonStreamingPassThroughResponse(
+	response: Response,
+	forwardChunk: (chunk: Uint8Array) => void,
+	onUsage: ((usage: { promptTokens: number; completionTokens: number }) => void) | undefined,
+	telemetryService: ITelemetryService,
+	logService: ILogService,
+	finishCallback: FinishedCallback,
+	telemetryData: TelemetryData,
+	cancellationToken?: CancellationToken,
+): AsyncIterableObject<ChatCompletion> {
+	return new AsyncIterableObject<ChatCompletion>(async feed => {
+		const chunks: Uint8Array[] = [];
+		let totalLength = 0;
+		try {
+			for await (const chunk of response.body) {
+				if (cancellationToken?.isCancellationRequested) {
+					return;
+				}
+				forwardChunk(chunk);
+				chunks.push(chunk);
+				totalLength += chunk.length;
+			}
+		} finally {
+			await response.body.destroy();
+		}
+
+		// Concatenate then decode as UTF-8 once so multi-byte characters that
+		// span chunk boundaries decode correctly.
+		const concatenated = new Uint8Array(totalLength);
+		let offset = 0;
+		for (const chunk of chunks) {
+			concatenated.set(chunk, offset);
+			offset += chunk.length;
+		}
+		const bodyText = new TextDecoder().decode(concatenated);
+
+		const reconstituted = Response.fromText(
+			response.status,
+			response.statusText,
+			response.headers,
+			bodyText,
+			response.fetcher,
+		);
+
+		try {
+			const inner = await processNonStreamingResponseFromMessagesEndpoint(
+				telemetryService,
+				logService,
+				reconstituted,
+				finishCallback,
+				telemetryData,
+			);
+			for await (const completion of inner) {
+				feed.emitOne(completion);
+
+				if (completion.usage && onUsage) {
+					onUsage({
+						promptTokens: completion.usage.prompt_tokens,
+						completionTokens: completion.usage.completion_tokens,
+					});
+				}
+			}
+		} catch (e) {
+			feed.reject(e instanceof Error ? e : new Error(String(e)));
+		}
+	});
 }
 
 class ClaudeStreamingPassThroughEndpoint implements IChatEndpoint {
@@ -611,6 +734,30 @@ class ClaudeStreamingPassThroughEndpoint implements IChatEndpoint {
 		cancellationToken?: CancellationToken
 	): Promise<AsyncIterableObject<ChatCompletion>> {
 		const body = response.body;
+		const upstreamContentType = response.headers.get('content-type') ?? '';
+		const isStreaming = upstreamContentType.includes('text/event-stream');
+
+		// Mirror upstream Content-Type so the SDK client parses correctly.
+		// `auto` permission mode uses non-streaming (application/json); the
+		// regular agent loop uses SSE.
+		if (!this.responseStream.headersSent) {
+			if (isStreaming) {
+				this.responseStream.writeHead(200, {
+					'Content-Type': 'text/event-stream',
+					'Cache-Control': 'no-cache',
+					'Connection': 'keep-alive',
+				});
+			} else {
+				this.responseStream.writeHead(200, {
+					'Content-Type': upstreamContentType || 'application/json',
+				});
+			}
+		}
+
+		if (!isStreaming) {
+			return this._processNonStreamingResponse(response, telemetryService, logService, finishCallback, telemetryData, cancellationToken);
+		}
+
 		return new AsyncIterableObject<ChatCompletion>(async feed => {
 			// We parse the stream just to return a correct ChatCompletion for logging the response and token usage details.
 			const requestId = response.headers.get('X-Request-ID') ?? generateUuid();
@@ -664,6 +811,35 @@ class ClaudeStreamingPassThroughEndpoint implements IChatEndpoint {
 				await body.destroy();
 			}
 		});
+	}
+
+	private _processNonStreamingResponse(
+		response: Response,
+		telemetryService: ITelemetryService,
+		logService: ILogService,
+		finishCallback: FinishedCallback,
+		telemetryData: TelemetryData,
+		cancellationToken?: CancellationToken,
+	): AsyncIterableObject<ChatCompletion> {
+		// The usage handler is looked up per-completion (mirroring the streaming
+		// branch above) in case it gets registered after the request starts.
+		const sessionId = this.sessionId;
+		const onUsage = sessionId
+			? (usage: { promptTokens: number; completionTokens: number }) => {
+				this.sessionStateService.getUsageHandlerForSession(sessionId)?.(usage);
+			}
+			: undefined;
+
+		return processNonStreamingPassThroughResponse(
+			response,
+			chunk => this.responseStream.write(chunk),
+			onUsage,
+			telemetryService,
+			logService,
+			finishCallback,
+			telemetryData,
+			cancellationToken,
+		);
 	}
 
 	public makeChatRequest(

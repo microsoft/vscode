@@ -49,9 +49,9 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	static readonly viewContainersWorkspaceStateKey = 'workbench.agentsession.auxiliarybar.viewContainersWorkspaceState';
 
 	/** Visual margin values for the card-like appearance */
-	static readonly MARGIN_TOP = 10;
-	static readonly MARGIN_BOTTOM = 0;
-	static readonly MARGIN_RIGHT = 10;
+	static readonly MARGIN_TOP = 0;
+	static readonly MARGIN_BOTTOM = 5;
+	static readonly MARGIN_LEFT = 5;
 
 	// Action ID for run script - defined here to avoid layering issues
 	private static readonly RUN_SCRIPT_ACTION_ID = 'workbench.action.agentSessions.runScript';
@@ -143,6 +143,14 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		this._register(this.layoutService.onDidChangePartVisibility(e => {
 			if (e.partId === Parts.AUXILIARYBAR_PART || e.partId === Parts.EDITOR_PART) {
 				this._onDidChange.fire(undefined);
+			}
+
+			// The card's inner area dimensions depend on editor visibility
+			// (see layout()). Re-run layout with the cached grid dimensions
+			// so the inner area is sized correctly without waiting for the
+			// next grid layout pass.
+			if (e.partId === Parts.EDITOR_PART && this.dimension && this.contentPosition) {
+				this.layout(this.dimension.width, this.dimension.height, this.contentPosition.top, this.contentPosition.left);
 			}
 		}));
 	}
@@ -284,11 +292,24 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			return;
 		}
 
-		// Layout content with reduced dimensions to account for visual margins and border
 		const borderTotal = 2; // 1px border on each side
+
+		// The right gutter is provided by the workbench grid (see Workbench.layout).
+		// The bottom margin is 5px when the panel is visible (paired with the panel's
+		// 5px top margin to center the sash) and 0 when the panel is hidden (so the card
+		// fills its cell; the workbench grid's 10px bottom gutter provides the visible gap).
+		// When the editor is visible, padding-left: 5px keeps the inner content position
+		// invariant (matching the editor-hidden state where margin-left: 5px applies instead).
+		const editorVisible = this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow);
+		const marginLeft = editorVisible ? 0 : AuxiliaryBarPart.MARGIN_LEFT;
+		const paddingLeft = editorVisible ? AuxiliaryBarPart.MARGIN_LEFT : 0;
+		const marginBottom = this.layoutService.isVisible(Parts.PANEL_PART)
+			? AuxiliaryBarPart.MARGIN_BOTTOM
+			: 0;
+
 		super.layout(
-			width - AuxiliaryBarPart.MARGIN_RIGHT - borderTotal,
-			height - AuxiliaryBarPart.MARGIN_TOP - AuxiliaryBarPart.MARGIN_BOTTOM - borderTotal,
+			width - marginLeft - borderTotal - paddingLeft,
+			height - AuxiliaryBarPart.MARGIN_TOP - marginBottom - borderTotal,
 			top, left
 		);
 

@@ -37,8 +37,8 @@ function patchGrammar(grammar) {
 	return grammar;
 }
 
-const razorGrammarRepo = 'dotnet/razor';
-const grammarPath = 'src/Razor/src/Microsoft.VisualStudio.RazorExtension/EmbeddedGrammars/aspnetcorerazor.tmLanguage.json';
+const razorGrammarRepo = 'dotnet/roslyn';
+const grammarPath = 'src/Razor/src/Razor/src/Microsoft.VisualStudio.RazorExtension/EmbeddedGrammars/aspnetcorerazor.tmLanguage.json';
 vscodeGrammarUpdater.update(razorGrammarRepo, grammarPath, './syntaxes/cshtml.tmLanguage.json', grammar => patchGrammar(grammar), 'main');
 
 

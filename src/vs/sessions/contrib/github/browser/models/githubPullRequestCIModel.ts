@@ -4,14 +4,37 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
-import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, ReferenceCollection, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { GitHubCIOverallStatus, IGitHubCICheck } from '../../common/types.js';
+import { GitHubApiClient } from '../githubApiClient.js';
 import { computeOverallCIStatus, GitHubPRCIFetcher } from '../fetchers/githubPRCIFetcher.js';
 
 const LOG_PREFIX = '[GitHubPullRequestCIModel]';
 const DEFAULT_POLL_INTERVAL_MS = 60_000;
+
+export class GitHubPullRequestCIModelReferenceCollection extends ReferenceCollection<GitHubPullRequestCIModel> {
+	private readonly _fetcher: GitHubPRCIFetcher;
+
+	constructor(
+		apiClient: GitHubApiClient,
+		@ILogService private readonly _logService: ILogService
+	) {
+		super();
+		this._fetcher = new GitHubPRCIFetcher(apiClient);
+	}
+
+	protected override createReferencedObject(key: string, owner: string, repo: string, prNumber: number, headSha: string): GitHubPullRequestCIModel {
+		this._logService.trace(`[GitHubPullRequestCIModelReferenceCollection][createReferencedObject] Creating CI model for ${key}`);
+		return new GitHubPullRequestCIModel(owner, repo, prNumber, headSha, this._fetcher, this._logService);
+	}
+
+	protected override destroyReferencedObject(key: string, object: GitHubPullRequestCIModel): void {
+		this._logService.trace(`[GitHubPullRequestCIModelReferenceCollection][destroyReferencedObject] Disposing CI model for ${key}`);
+		object.dispose();
+	}
+}
 
 /**
  * Reactive model for CI check status on a pull request head ref.
@@ -34,6 +57,7 @@ export class GitHubPullRequestCIModel extends Disposable {
 	constructor(
 		readonly owner: string,
 		readonly repo: string,
+		readonly prNumber: number,
 		readonly headSha: string,
 		private readonly _fetcher: GitHubPRCIFetcher,
 		private readonly _logService: ILogService,
@@ -74,7 +98,7 @@ export class GitHubPullRequestCIModel extends Disposable {
 				this._overallStatus.set(computeOverallCIStatus(response.data), undefined);
 			}
 		} catch (err) {
-			this._logService.error(`${LOG_PREFIX} Failed to refresh CI checks for ${this.owner}/${this.repo}@${this.headSha}:`, err);
+			this._logService.error(`${LOG_PREFIX} Failed to refresh CI checks for ${this.owner}/${this.repo}#${this.prNumber}@${this.headSha}:`, err);
 		}
 	}
 

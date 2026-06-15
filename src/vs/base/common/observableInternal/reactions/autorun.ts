@@ -232,6 +232,7 @@ export interface IReaderWithDispose extends IReaderWithStore, IDisposable { }
 /**
  * An autorun with a `dispose()` method on its `reader` which cancels the autorun.
  * It it safe to call `dispose()` synchronously.
+ * @deprecated Use autorunSelfDisposable2
  */
 export function autorunSelfDisposable(fn: (reader: IReaderWithDispose) => void, debugLocation = DebugLocation.ofCaller()): IDisposable {
 	let ar: IDisposable | undefined;
@@ -255,4 +256,39 @@ export function autorunSelfDisposable(fn: (reader: IReaderWithDispose) => void, 
 	}
 
 	return ar;
+}
+
+
+/**
+ * An autorun with a `dispose()` method on its `reader` which cancels the autorun.
+ * It it safe to call `dispose()` synchronously.
+ * TODO@hediet/copilot: rename to delete autorunSelfDisposable, and rename autorunSelfDisposable2 to autorunSelfDisposable.
+ */
+export function registerAutorunSelfDisposable(store: DisposableStore, fn: (reader: IReaderWithDispose) => void, debugLocation = DebugLocation.ofCaller()): void {
+	let ar: IDisposable | undefined;
+	let disposeSync = false;
+
+	// eslint-disable-next-line prefer-const
+	ar = autorun(reader => {
+		fn({
+			delayedStore: reader.delayedStore,
+			store: reader.store,
+			readObservable: reader.readObservable.bind(reader),
+			dispose: () => {
+				if (!ar) {
+					// dispose on first run, ar is not initialized yet.
+					disposeSync = true;
+				} else {
+					// dispose on reaction, ar is already registered.
+					store.delete(ar);
+				}
+			}
+		});
+	}, debugLocation);
+
+	if (disposeSync) {
+		ar.dispose();
+	} else {
+		store.add(ar);
+	}
 }

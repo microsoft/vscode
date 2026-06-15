@@ -8,10 +8,10 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
-import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { NullLogService, ILogService } from '../../../../../platform/log/common/log.js';
 import { GitHubPullRequestModel } from '../../browser/models/githubPullRequestModel.js';
 import { GitHubPullRequestReviewThreadsModel } from '../../browser/models/githubPullRequestReviewThreadsModel.js';
-import { GitHubPullRequestCIModel, parseWorkflowRunId } from '../../browser/models/githubPullRequestCIModel.js';
+import { GitHubPullRequestCIModel, GitHubPullRequestCIModelReferenceCollection, parseWorkflowRunId } from '../../browser/models/githubPullRequestCIModel.js';
 import { GitHubRepositoryModel } from '../../browser/models/githubRepositoryModel.js';
 import { GitHubPRFetcher } from '../../browser/fetchers/githubPRFetcher.js';
 import { GitHubPRCIFetcher } from '../../browser/fetchers/githubPRCIFetcher.js';
@@ -499,10 +499,18 @@ suite('GitHubPullRequestCIModel', () => {
 
 	const store = new DisposableStore();
 	let mockFetcher: MockCIFetcher;
+	let collection: TestCIReferenceCollection;
 	const logService = new NullLogService();
+
+	function acquireModel(owner: string = 'owner', repo: string = 'repo', prNumber: number = 1, headSha: string = 'abc'): GitHubPullRequestCIModel {
+		const ref = collection.acquire(`${owner}/${repo}/${prNumber}/${headSha}`, owner, repo, prNumber, headSha);
+		store.add(ref);
+		return ref.object;
+	}
 
 	setup(() => {
 		mockFetcher = new MockCIFetcher();
+		collection = new TestCIReferenceCollection(mockFetcher as unknown as GitHubPRCIFetcher, logService);
 	});
 
 	teardown(() => store.clear());
@@ -510,13 +518,19 @@ suite('GitHubPullRequestCIModel', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('initial state is empty', () => {
-		const model = store.add(new GitHubPullRequestCIModel('owner', 'repo', 'abc', mockFetcher as unknown as GitHubPRCIFetcher, logService));
+		const model = acquireModel();
 		assert.deepStrictEqual(model.checks.get(), []);
 		assert.strictEqual(model.overallStatus.get(), GitHubCIOverallStatus.Neutral);
 	});
 
+	test('acquiring with the same key returns the same model', () => {
+		const first = acquireModel();
+		const second = acquireModel();
+		assert.strictEqual(first, second);
+	});
+
 	test('refresh populates checks and computes overall status', async () => {
-		const model = store.add(new GitHubPullRequestCIModel('owner', 'repo', 'abc', mockFetcher as unknown as GitHubPRCIFetcher, logService));
+		const model = acquireModel();
 		mockFetcher.nextChecks = [
 			{ id: 1, name: 'build', status: GitHubCheckStatus.Completed, conclusion: GitHubCheckConclusion.Success, startedAt: undefined, completedAt: undefined, detailsUrl: undefined },
 			{ id: 2, name: 'test', status: GitHubCheckStatus.Completed, conclusion: GitHubCheckConclusion.Failure, startedAt: undefined, completedAt: undefined, detailsUrl: undefined },
@@ -528,7 +542,7 @@ suite('GitHubPullRequestCIModel', () => {
 	});
 
 	test('refresh shares an in-progress request', async () => {
-		const model = store.add(new GitHubPullRequestCIModel('owner', 'repo', 'abc', mockFetcher as unknown as GitHubPRCIFetcher, logService));
+		const model = acquireModel();
 		mockFetcher.nextChecks = [
 			{ id: 1, name: 'build', status: GitHubCheckStatus.Completed, conclusion: GitHubCheckConclusion.Success, startedAt: undefined, completedAt: undefined, detailsUrl: undefined },
 		];
@@ -560,13 +574,13 @@ suite('GitHubPullRequestCIModel', () => {
 	});
 
 	test('getCheckRunAnnotations delegates to fetcher', async () => {
-		const model = store.add(new GitHubPullRequestCIModel('owner', 'repo', 'abc', mockFetcher as unknown as GitHubPRCIFetcher, logService));
+		const model = acquireModel();
 		const result = await model.getCheckRunAnnotations(1);
 		assert.strictEqual(result, 'mock annotations');
 	});
 
 	test('rerunFailedCheck refreshes after an in-progress refresh completes', async () => {
-		const model = store.add(new GitHubPullRequestCIModel('owner', 'repo', 'abc', mockFetcher as unknown as GitHubPRCIFetcher, logService));
+		const model = acquireModel();
 		mockFetcher.nextChecks = [
 			{ id: 1, name: 'build', status: GitHubCheckStatus.Completed, conclusion: GitHubCheckConclusion.Failure, startedAt: undefined, completedAt: undefined, detailsUrl: 'https://github.com/owner/repo/actions/runs/12345/job/67890' },
 		];
@@ -592,7 +606,7 @@ suite('GitHubPullRequestCIModel', () => {
 	});
 
 	test('polling stops when the last client stops polling', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const model = store.add(new GitHubPullRequestCIModel('owner', 'repo', 'abc', mockFetcher as unknown as GitHubPRCIFetcher, logService));
+		const model = acquireModel();
 		mockFetcher.nextChecks = [
 			{ id: 1, name: 'build', status: GitHubCheckStatus.Completed, conclusion: GitHubCheckConclusion.Success, startedAt: undefined, completedAt: undefined, detailsUrl: undefined },
 		];
@@ -646,6 +660,22 @@ suite('parseWorkflowRunId', () => {
 
 
 //#region Test Helpers
+
+class TestCIReferenceCollection extends GitHubPullRequestCIModelReferenceCollection {
+	constructor(
+		private readonly _testFetcher: GitHubPRCIFetcher,
+		logService: ILogService,
+	) {
+		// The base constructor instantiates a fetcher from the apiClient; pass a
+		// dummy because we override createReferencedObject below to inject the
+		// test fetcher instead.
+		super(undefined as never, logService);
+	}
+
+	protected override createReferencedObject(_key: string, owner: string, repo: string, prNumber: number, headSha: string): GitHubPullRequestCIModel {
+		return new GitHubPullRequestCIModel(owner, repo, prNumber, headSha, this._testFetcher, new NullLogService());
+	}
+}
 
 function makeRepository(): IGitHubRepository {
 	return {

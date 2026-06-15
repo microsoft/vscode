@@ -126,9 +126,15 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 			// command's finished event before our new command has even started —
 			// causing the new command to be reported as having instantly exited
 			// 130 and cascading to every subsequent command on the same terminal.
-			const staleExecutingCommand = this._commandDetection.executingCommandObject;
-			const onCommandFinishedFiltered = staleExecutingCommand
-				? Event.filter(this._commandDetection.onCommandFinished, e => e !== staleExecutingCommand, store)
+			//
+			// Compare by marker identity rather than command object identity
+			// because `executingCommandObject` creates a new wrapper each call
+			// via `promoteToFullCommand()`, while `onCommandFinished` creates
+			// another. Both share the same xterm `IMarker` from
+			// `commandStartMarker`.
+			const staleMarker = this._commandDetection.executingCommandObject?.marker;
+			const onCommandFinishedFiltered = staleMarker
+				? Event.filter(this._commandDetection.onCommandFinished, e => e.marker !== staleMarker, store)
 				: this._commandDetection.onCommandFinished;
 
 			const idlePromptPromise = trackIdleOnPrompt(this._instance, idlePollInterval, store, idlePollInterval, this._logService);

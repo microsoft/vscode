@@ -7,6 +7,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/viewPaneContainer.js';
@@ -23,8 +24,14 @@ class RegisterChatDebugViewContribution extends Disposable implements IWorkbench
 
 	static readonly ID = 'sessions.registerChatDebugView';
 
-	constructor() {
+	constructor(
+		@IProductService productService: IProductService,
+	) {
 		super();
+
+		if (productService.quality === 'stable') {
+			return;
+		}
 
 		const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 		const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);

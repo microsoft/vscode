@@ -27,9 +27,18 @@ class TestAgentHostGitService implements IAgentHostGitService {
 	async removeWorktree(): Promise<void> { }
 	async branchExists(): Promise<boolean> { return false; }
 	async hasUncommittedChanges(): Promise<boolean> { return false; }
+	async commitAll(): Promise<void> { }
+	async hasUpstream(): Promise<boolean> { return false; }
+	async pushBranch(): Promise<void> { }
 	async getSessionGitState(): Promise<undefined> { return undefined; }
 	async computeSessionFileDiffs(): Promise<undefined> { return undefined; }
 	async showBlob(): Promise<undefined> { return undefined; }
+	async captureWorkingTreeAsTree(): Promise<undefined> { return undefined; }
+	async commitTree(): Promise<undefined> { return undefined; }
+	async updateRef(): Promise<void> { }
+	async deleteRefs(): Promise<void> { }
+	async revParse(): Promise<undefined> { return undefined; }
+	async computeFileDiffsBetweenRefs(): Promise<undefined> { return undefined; }
 }
 
 suite('Copilot Git Project', () => {

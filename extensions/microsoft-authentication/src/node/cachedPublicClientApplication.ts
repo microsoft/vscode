@@ -321,7 +321,7 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 	private _verifyIfUsingBroker(result: AuthenticationResult): boolean {
 		// If we're not brokering, we don't need to verify the date
 		// the cache check will be sufficient
-		if (!result.fromNativeBroker) {
+		if (!result.fromPlatformBroker) {
 			return true;
 		}
 		// The nativeAccountId is what the broker uses to differenciate all

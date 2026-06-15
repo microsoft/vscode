@@ -112,15 +112,12 @@ Guidelines for session memory (`/memories/session/`):
 
 </memoryGuidelines>
 
-
 </memoryInstructions>
 
 <instructions>
 This is a test custom instruction file
 </instructions>
 
-
-[copilot_cache_control: { type: 'ephemeral' }]
 ~~~
 
 
@@ -143,8 +140,6 @@ Session memory (/memories/session/) is empty. No session notes have been created
 Repository memory (/memories/repo/) is empty. No workspace-scoped notes have been created yet.
 </repoMemory>
 
-
-[copilot_cache_control: { type: 'ephemeral' }]
 ~~~
 
 
@@ -171,8 +166,6 @@ Do NOT create markdown files to document changes unless requested.
 edit this file
 </userRequest>
 
-
-[copilot_cache_control: { type: 'ephemeral' }]
 ~~~
 
 
@@ -191,6 +184,4 @@ console.log('hi')"
 ~~~md
 🛠️ tooluse_1
 success
-
-[copilot_cache_control: { type: 'ephemeral' }]
 ~~~

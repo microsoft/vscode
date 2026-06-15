@@ -7,20 +7,39 @@ import * as dom from '../../../base/browser/dom.js';
 import { IListAccessibilityProvider } from '../../../base/browser/ui/list/listWidget.js';
 import { Radio } from '../../../base/browser/ui/radio/radio.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
+import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
 import { IContextViewService } from '../../contextview/browser/contextView.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ActionList, IActionListDelegate, IActionListItem, IActionListOptions } from './actionList.js';
 import './tabbedActionListWidget.css';
 
 /**
- * Result of {@link ITabbedActionListShowOptions.buildItems}. The list
+ * Result of {@link ITabbedActionListShowOptions.createActionList}. The list
  * options are recomputed on every tab switch so callers can vary filter
  * visibility, width, etc. by tab.
  */
 export interface ITabbedActionListBuildResult<T> {
 	readonly items: readonly IActionListItem<T>[];
 	readonly listOptions?: IActionListOptions;
+}
+
+/**
+ * Describes one tab in a {@link TabbedActionListWidget}. The {@link id}
+ * is the stable identity used everywhere the widget reasons about a
+ * tab (initial selection, change events, `createActionList` callback);
+ * {@link label}, {@link tooltip}, and {@link icon} are presentation only.
+ */
+export interface ITabDescriptor {
+	/** Stable identifier used for tab identity and selection callbacks. */
+	readonly id: string;
+	/** Visible label. Defaults to {@link id}. Localize at the call site. */
+	readonly label?: string;
+	/** Hover tooltip. Defaults to {@link label} ?? {@link id}. */
+	readonly tooltip?: string;
+	/** Optional leading icon rendered before the label. */
+	readonly icon?: ThemeIcon;
 }
 
 /**
@@ -34,12 +53,12 @@ export interface ITabbedActionListShowOptions<T> {
 	readonly user: string;
 	/** Element the popup is anchored to. */
 	readonly anchor: HTMLElement;
-	/** Tab labels rendered in order. Localize at the call site. */
-	readonly tabs: readonly string[];
-	/** Initially active tab. Must be present in {@link tabs}. */
+	/** Tabs rendered in order. */
+	readonly tabs: readonly ITabDescriptor[];
+	/** Initially active tab id. Must match an entry in {@link tabs}. */
 	readonly initialTab: string;
 	/** Computes the list items and per-tab options shown when the given tab is active. */
-	buildItems(activeTab: string): ITabbedActionListBuildResult<T>;
+	createActionList(activeTab: string): ITabbedActionListBuildResult<T>;
 	/** Item delegate (selection, hide, focus). */
 	readonly delegate: IActionListDelegate<T>;
 	/** Optional accessibility provider passed to the underlying list. */
@@ -48,21 +67,18 @@ export interface ITabbedActionListShowOptions<T> {
 	readonly width?: number;
 	/** Optional class name to add to the tab bar element (in addition to `.tabbed-action-list-tabbar`). Must be a single class. */
 	readonly tabBarClassName?: string;
-	/** Fired with the new tab when the user switches tabs. */
-	onDidChangeTab?(tab: string): void;
-	/** Fired when the popup hides for any reason. */
-	onHide?(): void;
 }
 
 /**
- * Composite popup widget that renders a horizontal tab bar above an
- * {@link ActionList}. Owns its own context-view lifecycle and swap state;
- * consumers describe the data and react to tab changes via callbacks.
- *
- * Bypasses `IActionWidgetService` so this widget can compose with any
- * caller-driven state without extending the platform action widget API.
+ * A widget that shows a tabbed action list in a context view popup
  */
 export class TabbedActionListWidget extends Disposable {
+
+	private readonly _onDidChangeTab = this._register(new Emitter<string>());
+	readonly onDidChangeTab = this._onDidChangeTab.event;
+
+	private readonly _onDidHide = this._register(new Emitter<void>());
+	readonly onDidHide = this._onDidHide.event;
 
 	private readonly _activePopup = this._register(new MutableDisposable());
 	private _swappingTab = false;
@@ -120,7 +136,11 @@ export class TabbedActionListWidget extends Disposable {
 					tabBar.classList.add(options.tabBarClassName);
 				}
 				const radio = renderDisposables.add(new Radio({
-					items: options.tabs.map(t => ({ text: t, tooltip: t, isActive: t === activeTab })),
+					items: options.tabs.map(tab => {
+						const label = tab.label ?? tab.id;
+						const text = tab.icon ? `$(${tab.icon.id}) ${label}` : label;
+						return { text, tooltip: tab.tooltip ?? label, isActive: tab.id === activeTab };
+					}),
 				}));
 				tabBar.appendChild(radio.domNode);
 
@@ -129,18 +149,18 @@ export class TabbedActionListWidget extends Disposable {
 						return;
 					}
 					activeTab = next;
-					options.onDidChangeTab?.(next);
+					this._onDidChangeTab.fire(next);
 					this.show({ ...options, initialTab: next });
 				};
 
 				renderDisposables.add(radio.onDidSelect(index => {
 					const next = options.tabs[index];
 					if (next) {
-						activateTab(next);
+						activateTab(next.id);
 					}
 				}));
 
-				const { items, listOptions } = options.buildItems(activeTab);
+				const { items, listOptions } = options.createActionList(activeTab);
 				const list = renderDisposables.add(this._instantiationService.createInstance(
 					ActionList<T>,
 					options.user,
@@ -195,7 +215,7 @@ export class TabbedActionListWidget extends Disposable {
 					if (onEditable && !onTabBar) {
 						return;
 					}
-					const currentIndex = options.tabs.indexOf(activeTab);
+					const currentIndex = options.tabs.findIndex(t => t.id === activeTab);
 					if (currentIndex < 0) {
 						return;
 					}
@@ -203,7 +223,7 @@ export class TabbedActionListWidget extends Disposable {
 					const nextIndex = (currentIndex + delta + options.tabs.length) % options.tabs.length;
 					e.preventDefault();
 					e.stopPropagation();
-					activateTab(options.tabs[nextIndex]);
+					activateTab(options.tabs[nextIndex].id);
 				}));
 
 				// Dismiss when focus leaves the popup. Suppressed during a
@@ -238,7 +258,7 @@ export class TabbedActionListWidget extends Disposable {
 					this._activePopup.value = undefined;
 				}
 				options.delegate.onHide?.();
-				options.onHide?.();
+				this._onDidHide.fire();
 			},
 			get anchorPosition() { return listRef?.anchorPosition; },
 		}, undefined, false);

@@ -396,7 +396,7 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 		this._register(Gesture.addTarget(parent));
 		this._register(addDisposableListener(parent, TouchEventType.Contextmenu, (e: MouseEvent) => this.showContextMenu(new StandardMouseEvent(getWindow(parent), e))));
 
-		this._menuActions = this._register(this.instantiationService.createInstance(ViewContainerMenuActions, this.paneview.element, this.viewContainer));
+		this._menuActions = this._register(this.instantiationService.createInstance(ViewContainerMenuActions, this.paneview.element, this.viewContainer, undefined));
 		this._register(this._menuActions.onDidChange(() => this.updateTitleArea()));
 
 		let overlay: ViewPaneDropOverlay | undefined;
@@ -704,11 +704,15 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 		// Restore sizes only when the layout has happened
 		if (this.didLayout) {
 			let initialSizes;
-			for (let i = 0; i < this.viewContainerModel.visibleViewDescriptors.length; i++) {
-				const pane = this.panes[i];
-				const viewDescriptor = this.viewContainerModel.visibleViewDescriptors[i];
-				const size = this.viewContainerModel.getSize(viewDescriptor.id);
+			for (const viewDescriptor of this.viewContainerModel.visibleViewDescriptors) {
+				// Look up the pane by id rather than by index since a view descriptor
+				// may be visible without a corresponding pane (e.g. when its pane failed to render)
+				const pane = this.getView(viewDescriptor.id);
+				if (!pane) {
+					continue;
+				}
 
+				const size = this.viewContainerModel.getSize(viewDescriptor.id);
 				if (typeof size === 'number') {
 					this.resizePane(pane, size);
 				} else {

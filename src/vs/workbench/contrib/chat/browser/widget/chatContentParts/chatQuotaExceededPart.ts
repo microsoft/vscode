@@ -68,7 +68,7 @@ export class ChatQuotaExceededPart extends Disposable implements IChatContentPar
 			case ChatEntitlement.Pro:
 			case ChatEntitlement.ProPlus:
 			case ChatEntitlement.Max:
-				primaryButtonLabel = localize('enableAdditionalUsage', "Configure Additional Spend");
+				primaryButtonLabel = localize('manageBudget', "Manage Budget");
 				break;
 			case ChatEntitlement.Free:
 				primaryButtonLabel = localize('upgradeToCopilotPro', "Upgrade to GitHub Copilot Pro");

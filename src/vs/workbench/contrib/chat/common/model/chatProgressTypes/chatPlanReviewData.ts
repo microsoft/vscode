@@ -32,6 +32,17 @@ export class ChatPlanReviewData implements IChatPlanReview {
 		public source?: ToolDataSource,
 	) { }
 
+	/** Dismiss without a user choice (e.g. the response was cancelled). */
+	dismiss(): void {
+		if (this.isUsed) {
+			return;
+		}
+		this.isUsed = true;
+		this.draftFeedback = undefined;
+		this.draftCollapsed = undefined;
+		void this.completion.complete(undefined);
+	}
+
 	toJSON(): IChatPlanReview {
 		return {
 			kind: this.kind,

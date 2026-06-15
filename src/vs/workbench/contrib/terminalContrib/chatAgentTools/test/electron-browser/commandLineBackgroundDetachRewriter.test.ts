@@ -55,7 +55,7 @@ suite('CommandLineBackgroundDetachRewriter', () => {
 	suite('POSIX (bash)', () => {
 		test('should wrap with nohup on Linux', () => {
 			deepStrictEqual(rewriter.rewrite(createOptions('python3 app.py', '/bin/bash', OperatingSystem.Linux, true)), {
-				rewritten: 'nohup python3 app.py &',
+				rewritten: 'nohup python3 app.py & disown',
 				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
 				forDisplay: 'python3 app.py',
 			});
@@ -63,7 +63,7 @@ suite('CommandLineBackgroundDetachRewriter', () => {
 
 		test('should wrap with nohup on macOS', () => {
 			deepStrictEqual(rewriter.rewrite(createOptions('flask run', '/bin/bash', OperatingSystem.Macintosh, true)), {
-				rewritten: 'nohup flask run &',
+				rewritten: 'nohup flask run & disown',
 				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
 				forDisplay: 'flask run',
 			});
@@ -71,15 +71,15 @@ suite('CommandLineBackgroundDetachRewriter', () => {
 
 		test('should not duplicate trailing & when command already backgrounds itself', () => {
 			deepStrictEqual(rewriter.rewrite(createOptions('pypi-server ... &', '/bin/bash', OperatingSystem.Linux, true)), {
-				rewritten: 'nohup pypi-server ... &',
+				rewritten: 'nohup pypi-server ... & disown',
 				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
 				forDisplay: 'pypi-server ... &',
 			});
 		});
 
-		test('should not duplicate trailing & when command ends with chained background command', () => {
+		test('should wrap chained commands in shell -c to preserve shell semantics', () => {
 			deepStrictEqual(rewriter.rewrite(createOptions('cd /app && python3 service.py &', '/bin/bash', OperatingSystem.Linux, true)), {
-				rewritten: 'nohup cd /app && python3 service.py &',
+				rewritten: `nohup /bin/bash -c 'cd /app && python3 service.py' & disown`,
 				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
 				forDisplay: 'cd /app && python3 service.py &',
 			});
@@ -87,7 +87,7 @@ suite('CommandLineBackgroundDetachRewriter', () => {
 
 		test('should trim trailing whitespace before detecting existing &', () => {
 			deepStrictEqual(rewriter.rewrite(createOptions('node server.js &   ', '/bin/bash', OperatingSystem.Linux, true)), {
-				rewritten: 'nohup node server.js &',
+				rewritten: 'nohup node server.js & disown',
 				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
 				forDisplay: 'node server.js &   ',
 			});
@@ -97,7 +97,7 @@ suite('CommandLineBackgroundDetachRewriter', () => {
 	suite('POSIX shell -c wrapping for compound commands and builtins', () => {
 		test('for loop should be wrapped using bash shell path', () => {
 			deepStrictEqual(rewriter.rewrite(createOptions('for i in $(seq 1 90); do echo $i; sleep 1; done', '/bin/bash', OperatingSystem.Linux, true)), {
-				rewritten: `nohup /bin/bash -c 'for i in $(seq 1 90); do echo $i; sleep 1; done' &`,
+				rewritten: `nohup /bin/bash -c 'for i in $(seq 1 90); do echo $i; sleep 1; done' & disown`,
 				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
 				forDisplay: 'for i in $(seq 1 90); do echo $i; sleep 1; done',
 			});
@@ -105,7 +105,7 @@ suite('CommandLineBackgroundDetachRewriter', () => {
 
 		test('while loop should be wrapped in shell -c', () => {
 			deepStrictEqual(rewriter.rewrite(createOptions('while true; do sleep 1; done', '/bin/bash', OperatingSystem.Linux, true)), {
-				rewritten: `nohup /bin/bash -c 'while true; do sleep 1; done' &`,
+				rewritten: `nohup /bin/bash -c 'while true; do sleep 1; done' & disown`,
 				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
 				forDisplay: 'while true; do sleep 1; done',
 			});
@@ -113,7 +113,7 @@ suite('CommandLineBackgroundDetachRewriter', () => {
 
 		test('if statement should be wrapped in shell -c', () => {
 			deepStrictEqual(rewriter.rewrite(createOptions('if [ -f file ]; then cat file; fi', '/bin/bash', OperatingSystem.Linux, true)), {
-				rewritten: `nohup /bin/bash -c 'if [ -f file ]; then cat file; fi' &`,
+				rewritten: `nohup /bin/bash -c 'if [ -f file ]; then cat file; fi' & disown`,
 				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
 				forDisplay: 'if [ -f file ]; then cat file; fi',
 			});
@@ -121,7 +121,7 @@ suite('CommandLineBackgroundDetachRewriter', () => {
 
 		test('eval builtin should be wrapped in shell -c', () => {
 			deepStrictEqual(rewriter.rewrite(createOptions('eval $SETUP_ENV && opam install coq --yes', '/bin/bash', OperatingSystem.Linux, true)), {
-				rewritten: `nohup /bin/bash -c 'eval $SETUP_ENV && opam install coq --yes' &`,
+				rewritten: `nohup /bin/bash -c 'eval $SETUP_ENV && opam install coq --yes' & disown`,
 				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
 				forDisplay: 'eval $SETUP_ENV && opam install coq --yes',
 			});
@@ -129,7 +129,7 @@ suite('CommandLineBackgroundDetachRewriter', () => {
 
 		test('set builtin should be wrapped in shell -c', () => {
 			deepStrictEqual(rewriter.rewrite(createOptions('set -e; cmd1; cmd2', '/bin/bash', OperatingSystem.Linux, true)), {
-				rewritten: `nohup /bin/bash -c 'set -e; cmd1; cmd2' &`,
+				rewritten: `nohup /bin/bash -c 'set -e; cmd1; cmd2' & disown`,
 				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
 				forDisplay: 'set -e; cmd1; cmd2',
 			});
@@ -137,7 +137,7 @@ suite('CommandLineBackgroundDetachRewriter', () => {
 
 		test('export builtin should be wrapped in shell -c', () => {
 			deepStrictEqual(rewriter.rewrite(createOptions('export PATH="/usr/local/bin:$PATH"; myapp', '/bin/bash', OperatingSystem.Linux, true)), {
-				rewritten: `nohup /bin/bash -c 'export PATH="/usr/local/bin:$PATH"; myapp' &`,
+				rewritten: `nohup /bin/bash -c 'export PATH="/usr/local/bin:$PATH"; myapp' & disown`,
 				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
 				forDisplay: 'export PATH="/usr/local/bin:$PATH"; myapp',
 			});
@@ -145,7 +145,7 @@ suite('CommandLineBackgroundDetachRewriter', () => {
 
 		test('dot-source builtin should be wrapped in shell -c', () => {
 			deepStrictEqual(rewriter.rewrite(createOptions('. /etc/profile; myapp', '/bin/bash', OperatingSystem.Linux, true)), {
-				rewritten: `nohup /bin/bash -c '. /etc/profile; myapp' &`,
+				rewritten: `nohup /bin/bash -c '. /etc/profile; myapp' & disown`,
 				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
 				forDisplay: '. /etc/profile; myapp',
 			});
@@ -153,7 +153,7 @@ suite('CommandLineBackgroundDetachRewriter', () => {
 
 		test('relative path ./script should NOT be wrapped in shell -c', () => {
 			deepStrictEqual(rewriter.rewrite(createOptions('./start.sh', '/bin/bash', OperatingSystem.Linux, true)), {
-				rewritten: 'nohup ./start.sh &',
+				rewritten: 'nohup ./start.sh & disown',
 				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
 				forDisplay: './start.sh',
 			});
@@ -161,7 +161,7 @@ suite('CommandLineBackgroundDetachRewriter', () => {
 
 		test('brace group should be wrapped in shell -c', () => {
 			deepStrictEqual(rewriter.rewrite(createOptions('{ cmd1; cmd2; }', '/bin/bash', OperatingSystem.Linux, true)), {
-				rewritten: `nohup /bin/bash -c '{ cmd1; cmd2; }' &`,
+				rewritten: `nohup /bin/bash -c '{ cmd1; cmd2; }' & disown`,
 				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
 				forDisplay: '{ cmd1; cmd2; }',
 			});
@@ -169,7 +169,7 @@ suite('CommandLineBackgroundDetachRewriter', () => {
 
 		test('single quotes in command should be properly escaped', () => {
 			deepStrictEqual(rewriter.rewrite(createOptions(`for f in *.txt; do echo 'file:' $f; done`, '/bin/bash', OperatingSystem.Linux, true)), {
-				rewritten: `nohup /bin/bash -c 'for f in *.txt; do echo '\\''file:'\\'' $f; done' &`,
+				rewritten: `nohup /bin/bash -c 'for f in *.txt; do echo '\\''file:'\\'' $f; done' & disown`,
 				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
 				forDisplay: `for f in *.txt; do echo 'file:' $f; done`,
 			});
@@ -177,9 +177,93 @@ suite('CommandLineBackgroundDetachRewriter', () => {
 
 		test('simple external command should NOT be wrapped in shell -c', () => {
 			deepStrictEqual(rewriter.rewrite(createOptions('python3 app.py', '/bin/bash', OperatingSystem.Linux, true)), {
-				rewritten: 'nohup python3 app.py &',
+				rewritten: 'nohup python3 app.py & disown',
 				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
 				forDisplay: 'python3 app.py',
+			});
+		});
+	});
+
+	suite('POSIX inline env var assignments', () => {
+		test('single env var assignment before command should be wrapped in shell -c', () => {
+			deepStrictEqual(rewriter.rewrite(createOptions('OPAMROOT=/root/.opam opam install menhir', '/bin/bash', OperatingSystem.Linux, true)), {
+				rewritten: `nohup /bin/bash -c 'OPAMROOT=/root/.opam opam install menhir' & disown`,
+				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
+				forDisplay: 'OPAMROOT=/root/.opam opam install menhir',
+			});
+		});
+
+		test('multiple env var assignments before command should be wrapped in shell -c', () => {
+			deepStrictEqual(rewriter.rewrite(createOptions('OPAMROOT=/root/.opam OPAMYES=1 opam install menhir', '/bin/bash', OperatingSystem.Linux, true)), {
+				rewritten: `nohup /bin/bash -c 'OPAMROOT=/root/.opam OPAMYES=1 opam install menhir' & disown`,
+				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
+				forDisplay: 'OPAMROOT=/root/.opam OPAMYES=1 opam install menhir',
+			});
+		});
+
+		test('env var with quoted value should be wrapped in shell -c', () => {
+			deepStrictEqual(rewriter.rewrite(createOptions('FOO="a b" cmd', '/bin/bash', OperatingSystem.Linux, true)), {
+				rewritten: `nohup /bin/bash -c 'FOO="a b" cmd' & disown`,
+				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
+				forDisplay: 'FOO="a b" cmd',
+			});
+		});
+
+		test('env command should NOT trigger env var detection', () => {
+			deepStrictEqual(rewriter.rewrite(createOptions('env FOO=1 cmd', '/bin/bash', OperatingSystem.Linux, true)), {
+				rewritten: 'nohup env FOO=1 cmd & disown',
+				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
+				forDisplay: 'env FOO=1 cmd',
+			});
+		});
+	});
+
+	suite('POSIX shell operator wrapping', () => {
+		test('pipe should be wrapped in shell -c', () => {
+			deepStrictEqual(rewriter.rewrite(createOptions('cat log.txt | grep error', '/bin/bash', OperatingSystem.Linux, true)), {
+				rewritten: `nohup /bin/bash -c 'cat log.txt | grep error' & disown`,
+				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
+				forDisplay: 'cat log.txt | grep error',
+			});
+		});
+
+		test('semicolon chain should be wrapped in shell -c', () => {
+			deepStrictEqual(rewriter.rewrite(createOptions('cmd1; cmd2', '/bin/bash', OperatingSystem.Linux, true)), {
+				rewritten: `nohup /bin/bash -c 'cmd1; cmd2' & disown`,
+				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
+				forDisplay: 'cmd1; cmd2',
+			});
+		});
+
+		test('&& chain should be wrapped in shell -c', () => {
+			deepStrictEqual(rewriter.rewrite(createOptions('mkdir -p /tmp/build && make', '/bin/bash', OperatingSystem.Linux, true)), {
+				rewritten: `nohup /bin/bash -c 'mkdir -p /tmp/build && make' & disown`,
+				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
+				forDisplay: 'mkdir -p /tmp/build && make',
+			});
+		});
+
+		test('|| chain should be wrapped in shell -c', () => {
+			deepStrictEqual(rewriter.rewrite(createOptions('cmd1 || cmd2', '/bin/bash', OperatingSystem.Linux, true)), {
+				rewritten: `nohup /bin/bash -c 'cmd1 || cmd2' & disown`,
+				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
+				forDisplay: 'cmd1 || cmd2',
+			});
+		});
+
+		test('cd builtin should be wrapped in shell -c', () => {
+			deepStrictEqual(rewriter.rewrite(createOptions('cd /app', '/bin/bash', OperatingSystem.Linux, true)), {
+				rewritten: `nohup /bin/bash -c 'cd /app' & disown`,
+				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
+				forDisplay: 'cd /app',
+			});
+		});
+
+		test('mid-command & (background operator) should be wrapped in shell -c', () => {
+			deepStrictEqual(rewriter.rewrite(createOptions('server start & client connect', '/bin/bash', OperatingSystem.Linux, true)), {
+				rewritten: `nohup /bin/bash -c 'server start & client connect' & disown`,
+				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
+				forDisplay: 'server start & client connect',
 			});
 		});
 	});
@@ -187,7 +271,7 @@ suite('CommandLineBackgroundDetachRewriter', () => {
 	suite('POSIX (zsh)', () => {
 		test('should wrap with nohup', () => {
 			deepStrictEqual(rewriter.rewrite(createOptions('node server.js', '/bin/zsh', OperatingSystem.Linux, true)), {
-				rewritten: 'nohup node server.js &',
+				rewritten: 'nohup node server.js & disown',
 				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
 				forDisplay: 'node server.js',
 			});
@@ -195,7 +279,7 @@ suite('CommandLineBackgroundDetachRewriter', () => {
 
 		test('for loop should be wrapped using zsh shell path', () => {
 			deepStrictEqual(rewriter.rewrite(createOptions('for i in $(seq 1 10); do echo $i; done', '/bin/zsh', OperatingSystem.Linux, true)), {
-				rewritten: `nohup /bin/zsh -c 'for i in $(seq 1 10); do echo $i; done' &`,
+				rewritten: `nohup /bin/zsh -c 'for i in $(seq 1 10); do echo $i; done' & disown`,
 				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
 				forDisplay: 'for i in $(seq 1 10); do echo $i; done',
 			});
@@ -283,7 +367,7 @@ suite('CommandLineBackgroundDetachRewriter', () => {
 
 		test('should still wrap psql when -c is passed (non-interactive)', () => {
 			deepStrictEqual(rewriter.rewrite(createOptions('psql -c "select 1"', '/bin/bash', OperatingSystem.Linux, true)), {
-				rewritten: 'nohup psql -c "select 1" &',
+				rewritten: 'nohup psql -c "select 1" & disown',
 				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
 				forDisplay: 'psql -c "select 1"',
 			});
@@ -291,7 +375,7 @@ suite('CommandLineBackgroundDetachRewriter', () => {
 
 		test('should still wrap mysql when -e is passed (non-interactive)', () => {
 			deepStrictEqual(rewriter.rewrite(createOptions('mysql -e "show databases"', '/bin/bash', OperatingSystem.Linux, true)), {
-				rewritten: 'nohup mysql -e "show databases" &',
+				rewritten: 'nohup mysql -e "show databases" & disown',
 				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
 				forDisplay: 'mysql -e "show databases"',
 			});
@@ -299,7 +383,7 @@ suite('CommandLineBackgroundDetachRewriter', () => {
 
 		test('should still wrap ssh when running a remote command (non-interactive)', () => {
 			deepStrictEqual(rewriter.rewrite(createOptions('ssh -T user@host', '/bin/bash', OperatingSystem.Linux, true)), {
-				rewritten: 'nohup ssh -T user@host &',
+				rewritten: 'nohup ssh -T user@host & disown',
 				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
 				forDisplay: 'ssh -T user@host',
 			});
@@ -307,7 +391,7 @@ suite('CommandLineBackgroundDetachRewriter', () => {
 
 		test('should still wrap sudo when -n is passed (non-interactive)', () => {
 			deepStrictEqual(rewriter.rewrite(createOptions('sudo -n systemctl restart nginx', '/bin/bash', OperatingSystem.Linux, true)), {
-				rewritten: 'nohup sudo -n systemctl restart nginx &',
+				rewritten: 'nohup sudo -n systemctl restart nginx & disown',
 				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
 				forDisplay: 'sudo -n systemctl restart nginx',
 			});

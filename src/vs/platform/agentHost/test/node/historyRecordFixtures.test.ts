@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { AgentSession } from '../../common/agentService.js';
 import { FileEditKind, ToolResultContentType } from '../../common/state/sessionState.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
-import { parseSessionDbUri } from '../../node/copilot/fileEditTracker.js';
+import { parseSessionDbUri } from '../../node/shared/fileEditTracker.js';
 import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
 import { type ISessionEvent } from '../../node/copilot/mapSessionEvents.js';
 
