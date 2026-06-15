@@ -104,6 +104,16 @@ suite('mapSessionEventsToHistoryRecords', () => {
 		}]);
 	});
 
+	test('drops orphan task_complete without synthesizing a turn', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-task-complete', toolName: 'task_complete', arguments: { summary: 'Done.' } } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-task-complete', success: true, result: { content: 'Done.' } } },
+		];
+
+		const result = await mapSessionEvents(session, undefined, events);
+		assert.deepStrictEqual(result.turns, []);
+	});
+
 	test('skips tool_complete without matching tool_start', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'tool.execution_complete', data: { toolCallId: 'orphan', success: true } },
