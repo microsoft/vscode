@@ -354,15 +354,17 @@ export function setup(logger: Logger) {
 
 				// Confirm the request flowed through the AgentHost process (not
 				// the renderer-side Copilot Chat extension fallback) by checking
-				// for a `session/turnStarted` frame in the AHP JSONL transcript.
-				// The transcript is written through an async queue (see
-				// AhpJsonlLogger), so the frame may not be on disk yet even
-				// after the assistant reply has rendered — poll briefly.
+				// for a `chat/turnStarted` frame in the AHP JSONL transcript.
+				// In the multi-chat protocol turns are dispatched as chat
+				// actions on the session's default chat channel. The transcript
+				// is written through an async queue (see AhpJsonlLogger), so the
+				// frame may not be on disk yet even after the assistant reply has
+				// rendered — poll briefly.
 				const ahpLogDir = path.join(agentHost.logsPath, 'ahp');
-				const ahpFrames = await waitForLogContent(() => readAhpFrames(ahpLogDir), '"type":"session/turnStarted"');
+				const ahpFrames = await waitForLogContent(() => readAhpFrames(ahpLogDir), '"type":"chat/turnStarted"');
 				assert.ok(
-					ahpFrames.includes('"type":"session/turnStarted"'),
-					`expected the AgentHost process to have received a session/turnStarted dispatchAction (checked ${ahpJsonlFiles(ahpLogDir).length} jsonl files under ${ahpLogDir}); if missing, the renderer-side extension likely served the reply instead`
+					ahpFrames.includes('"type":"chat/turnStarted"'),
+					`expected the AgentHost process to have received a chat/turnStarted dispatchAction (checked ${ahpJsonlFiles(ahpLogDir).length} jsonl files under ${ahpLogDir}); if missing, the renderer-side extension likely served the reply instead`
 				);
 			} catch (error) {
 				logger.log(`Agents Window (AgentHost) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);

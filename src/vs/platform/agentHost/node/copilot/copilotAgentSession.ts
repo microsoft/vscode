@@ -32,8 +32,8 @@ import type { LanguageModelToolInvokedClassification, LanguageModelToolInvokedEv
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment } from '../../common/state/protocol/state.js';
-import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type PendingMessage, type SessionInputAnswer, type SessionInputOption, type SessionInputQuestion, type SessionInputRequest, type ToolCallResult, type ToolResultContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { ActionType, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
+import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import type { IExitPlanModeResponse } from './copilotAgent.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
@@ -44,10 +44,10 @@ import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
 import { parseLeadingSlashCommand } from './copilotSlashCommandCompletionProvider.js';
 import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
 import { buildSandboxConfigForSdk } from './sandboxConfigForSdk.js';
-import { IAgentFeedbackToolHost } from '../../common/agentFeedbackAnnotations.js';
-import { feedbackServerToolDefinitions, feedbackServerToolNames } from '../shared/agentFeedbackServerTools.js';
-import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, synthesizeSkillToolCall, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
+import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
+import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getSubagentMetadata, getTaskCompleteSummary, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, isTaskCompleteTool, synthesizeSkillToolCall, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
+import { stripProxyErrorMarker, tryBuildChatErrorMeta, tryBuildChatErrorMetaFromFields } from '../shared/forwardedChatError.js';
 import { McpCustomizationController, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
 import { mapSessionEvents } from './mapSessionEvents.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
@@ -136,10 +136,10 @@ function getToolCommand(input: ToolUseHookInput): string | undefined {
 
 /**
  * Projects an {@link ElicitationSchema} field into a
- * {@link SessionInputQuestion}. The schema's property key becomes the
+ * {@link ChatInputQuestion}. The schema's property key becomes the
  * question id so we can route the answer back by field name.
  */
-function elicitationFieldToQuestion(fieldName: string, field: ElicitationSchemaField, required: boolean): SessionInputQuestion {
+function elicitationFieldToQuestion(fieldName: string, field: ElicitationSchemaField, required: boolean): ChatInputQuestion {
 	const base = {
 		id: fieldName,
 		title: field.title ?? fieldName,
@@ -149,23 +149,23 @@ function elicitationFieldToQuestion(fieldName: string, field: ElicitationSchemaF
 
 	switch (field.type) {
 		case 'boolean':
-			return { ...base, kind: SessionInputQuestionKind.Boolean, defaultValue: field.default };
+			return { ...base, kind: ChatInputQuestionKind.Boolean, defaultValue: field.default };
 		case 'integer':
 		case 'number':
 			return {
 				...base,
-				kind: field.type === 'integer' ? SessionInputQuestionKind.Integer : SessionInputQuestionKind.Number,
+				kind: field.type === 'integer' ? ChatInputQuestionKind.Integer : ChatInputQuestionKind.Number,
 				min: field.minimum,
 				max: field.maximum,
 				defaultValue: field.default,
 			};
 		case 'array': {
-			const options: SessionInputOption[] = hasKey(field.items, { enum: true })
+			const options: ChatInputOption[] = hasKey(field.items, { enum: true })
 				? field.items.enum.map(value => ({ id: value, label: value }))
 				: field.items.anyOf.map(option => ({ id: option.const, label: option.title }));
 			return {
 				...base,
-				kind: SessionInputQuestionKind.MultiSelect,
+				kind: ChatInputQuestionKind.MultiSelect,
 				options,
 				min: field.minItems,
 				max: field.maxItems,
@@ -174,16 +174,16 @@ function elicitationFieldToQuestion(fieldName: string, field: ElicitationSchemaF
 		case 'string': {
 			if (hasKey(field, { enum: true })) {
 				const enumNames = field.enumNames;
-				const options: SessionInputOption[] = field.enum.map((value, idx) => ({ id: value, label: enumNames?.[idx] ?? value }));
-				return { ...base, kind: SessionInputQuestionKind.SingleSelect, options };
+				const options: ChatInputOption[] = field.enum.map((value, idx) => ({ id: value, label: enumNames?.[idx] ?? value }));
+				return { ...base, kind: ChatInputQuestionKind.SingleSelect, options };
 			}
 			if (hasKey(field, { oneOf: true })) {
-				const options: SessionInputOption[] = field.oneOf.map(option => ({ id: option.const, label: option.title }));
-				return { ...base, kind: SessionInputQuestionKind.SingleSelect, options };
+				const options: ChatInputOption[] = field.oneOf.map(option => ({ id: option.const, label: option.title }));
+				return { ...base, kind: ChatInputQuestionKind.SingleSelect, options };
 			}
 			return {
 				...base,
-				kind: SessionInputQuestionKind.Text,
+				kind: ChatInputQuestionKind.Text,
 				format: field.format,
 				min: field.minLength,
 				max: field.maxLength,
@@ -194,19 +194,19 @@ function elicitationFieldToQuestion(fieldName: string, field: ElicitationSchemaF
 }
 
 /**
- * Projects a {@link SessionInputAnswer} back into the
+ * Projects a {@link ChatInputAnswer} back into the
  * {@link ElicitationFieldValue} shape expected by the SDK for the given
  * schema field. Returns `undefined` when the answer is missing/skipped or
  * cannot be coerced to the field's declared type.
  */
-function elicitationAnswerToFieldValue(field: ElicitationSchemaField, answer: SessionInputAnswer | undefined): ElicitationFieldValue | undefined {
-	if (!answer || answer.state === SessionInputAnswerState.Skipped) {
+function elicitationAnswerToFieldValue(field: ElicitationSchemaField, answer: ChatInputAnswer | undefined): ElicitationFieldValue | undefined {
+	if (!answer || answer.state === ChatInputAnswerState.Skipped) {
 		return undefined;
 	}
 	const value = answer.value;
 	if (field.type === 'boolean') {
-		if (value.kind === SessionInputAnswerValueKind.Boolean) { return value.value; }
-		if (value.kind === SessionInputAnswerValueKind.Text) {
+		if (value.kind === ChatInputAnswerValueKind.Boolean) { return value.value; }
+		if (value.kind === ChatInputAnswerValueKind.Text) {
 			if (value.value === 'true') { return true; }
 			if (value.value === 'false') { return false; }
 			return undefined;
@@ -214,10 +214,10 @@ function elicitationAnswerToFieldValue(field: ElicitationSchemaField, answer: Se
 		return undefined;
 	}
 	if (field.type === 'number' || field.type === 'integer') {
-		if (value.kind === SessionInputAnswerValueKind.Number) {
+		if (value.kind === ChatInputAnswerValueKind.Number) {
 			return field.type === 'integer' ? Math.trunc(value.value) : value.value;
 		}
-		if (value.kind === SessionInputAnswerValueKind.Text) {
+		if (value.kind === ChatInputAnswerValueKind.Text) {
 			if (value.value.trim() === '') { return undefined; }
 			const n = Number(value.value);
 			return Number.isFinite(n) ? (field.type === 'integer' ? Math.trunc(n) : n) : undefined;
@@ -225,20 +225,20 @@ function elicitationAnswerToFieldValue(field: ElicitationSchemaField, answer: Se
 		return undefined;
 	}
 	if (field.type === 'array') {
-		if (value.kind === SessionInputAnswerValueKind.SelectedMany) {
+		if (value.kind === ChatInputAnswerValueKind.SelectedMany) {
 			return [...value.value, ...(value.freeformValues ?? [])];
 		}
-		if (value.kind === SessionInputAnswerValueKind.Selected) {
+		if (value.kind === ChatInputAnswerValueKind.Selected) {
 			return value.value ? [value.value, ...(value.freeformValues ?? [])] : [...(value.freeformValues ?? [])];
 		}
-		if (value.kind === SessionInputAnswerValueKind.Text) {
+		if (value.kind === ChatInputAnswerValueKind.Text) {
 			return value.value ? [value.value] : [];
 		}
 		return undefined;
 	}
 	// field.type === 'string'
-	if (value.kind === SessionInputAnswerValueKind.Text) { return value.value; }
-	if (value.kind === SessionInputAnswerValueKind.Selected) { return value.value; }
+	if (value.kind === ChatInputAnswerValueKind.Text) { return value.value; }
+	if (value.kind === ChatInputAnswerValueKind.Selected) { return value.value; }
 	return undefined;
 }
 
@@ -306,12 +306,11 @@ export interface ICopilotAgentSessionOptions {
 	 */
 	readonly activeClientState?: ActiveClientState;
 	/**
-	 * Server-side host for the feedback ("comments") tools. When provided,
-	 * the session advertises the feedback tools as server tools and exposes
-	 * SDK tool handlers that execute them against this session's annotations
-	 * channel.
+	 * Server-side host for the agent host's server tools. When provided, the
+	 * session advertises the server tools (feedback "comments" today, more in
+	 * the future) and exposes SDK tool handlers that execute them in-process.
 	 */
-	readonly feedbackToolHost?: IAgentFeedbackToolHost;
+	readonly serverToolHost?: IAgentServerToolHost;
 }
 
 /**
@@ -331,15 +330,15 @@ export class CopilotAgentSession extends Disposable {
 	/** Pending permission requests awaiting a renderer-side decision. */
 	private readonly _pendingPermissions = new Map<string, DeferredPromise<boolean>>();
 	/** Pending user input requests awaiting a renderer-side answer. */
-	private readonly _pendingUserInputs = new Map<string, { deferred: DeferredPromise<{ response: SessionInputResponseKind; answers?: Record<string, SessionInputAnswer> }>; questionId: string }>();
+	private readonly _pendingUserInputs = new Map<string, { deferred: DeferredPromise<{ response: ChatInputResponseKind; answers?: Record<string, ChatInputAnswer> }>; questionId: string }>();
 	/**
 	 * Pending elicitation requests awaiting a renderer-side answer. Keyed
 	 * by request id; the schema is retained so the completion handler can
-	 * project the submitted {@link SessionInputAnswer}s back into the
+	 * project the submitted {@link ChatInputAnswer}s back into the
 	 * SDK's {@link ElicitationResult.content} shape.
 	 */
 	private readonly _pendingElicitations = new Map<string, {
-		readonly deferred: DeferredPromise<{ response: SessionInputResponseKind; answers?: Record<string, SessionInputAnswer> }>;
+		readonly deferred: DeferredPromise<{ response: ChatInputResponseKind; answers?: Record<string, ChatInputAnswer> }>;
 		readonly schema: ElicitationSchema | undefined;
 	}>();
 	/**
@@ -376,7 +375,7 @@ export class CopilotAgentSession extends Disposable {
 	 * surfaced to the chat UI as a separate user message. When the SDK
 	 * echoes a steering through a `user.message` event whose `content`
 	 * matches one of these entries, we finalize the in-flight turn and
-	 * dispatch a new {@link ActionType.SessionTurnStarted} whose
+	 * dispatch a new {@link ActionType.ChatTurnStarted} whose
 	 * `userMessage` is the steering content. The reducer also removes
 	 * the pending steering via the action's `queuedMessageId`.
 	 *
@@ -410,7 +409,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _shellManager: ShellManager | undefined;
 	private readonly _workingDirectory: URI | undefined;
 	private readonly _customizationDirectory: URI | undefined;
-	private readonly _feedbackToolHost: IAgentFeedbackToolHost | undefined;
+	private readonly _serverToolHost: IAgentServerToolHost | undefined;
 	/** Bridges SDK-reported MCP server state into AHP customization actions. */
 	private readonly _mcpCustomizations: McpCustomizationController;
 
@@ -463,7 +462,7 @@ export class CopilotAgentSession extends Disposable {
 		this._shellManager = options.shellManager;
 		this._workingDirectory = options.workingDirectory;
 		this._customizationDirectory = options.customizationDirectory;
-		this._feedbackToolHost = options.feedbackToolHost;
+		this._serverToolHost = options.serverToolHost;
 
 		this._appliedSnapshot = options.clientSnapshot ?? { tools: [], plugins: [] };
 		this._clientToolNames = new Set(this._appliedSnapshot.tools.map(t => t.name));
@@ -515,7 +514,7 @@ export class CopilotAgentSession extends Disposable {
 				});
 
 				this._emitAction({
-					type: ActionType.SessionToolCallContentChanged,
+					type: ActionType.ChatToolCallContentChanged,
 					turnId: this._turnId,
 					toolCallId,
 					content: tracked.content,
@@ -528,7 +527,7 @@ export class CopilotAgentSession extends Disposable {
 	// ---- AgentSignal helpers ------------------------------------------------
 
 	/** Wraps a {@link SessionAction} in an {@link AgentSignal} envelope and emits it. */
-	private _emitAction(action: SessionAction, parentToolCallId?: string): void {
+	private _emitAction(action: SessionAction | ChatAction, parentToolCallId?: string): void {
 		this._onDidSessionProgress.fire({
 			kind: 'action',
 			session: this.sessionUri,
@@ -540,7 +539,7 @@ export class CopilotAgentSession extends Disposable {
 	/**
 	 * Promotes a pending steering message into its own protocol turn:
 	 * closes the in-flight turn (so its responseParts settle into history)
-	 * and dispatches {@link ActionType.SessionTurnStarted} for a fresh
+	 * and dispatches {@link ActionType.ChatTurnStarted} for a fresh
 	 * turn whose user message is the steering content. The action's
 	 * `queuedMessageId` atomically clears the corresponding pending
 	 * steering message from the session state.
@@ -558,13 +557,13 @@ export class CopilotAgentSession extends Disposable {
 		const previousTurnId = this._turnId;
 		if (previousTurnId) {
 			this._emitAction({
-				type: ActionType.SessionTurnComplete,
+				type: ActionType.ChatTurnComplete,
 				turnId: previousTurnId,
 			});
 		}
 		const newTurnId = generateUuid();
 		this._emitAction({
-			type: ActionType.SessionTurnStarted,
+			type: ActionType.ChatTurnStarted,
 			turnId: newTurnId,
 			message: steering.message,
 			queuedMessageId: steering.id,
@@ -650,7 +649,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 		const turnId = this._turnId;
 		this._emitAction({
-			type: ActionType.SessionTurnComplete,
+			type: ActionType.ChatTurnComplete,
 			turnId,
 		});
 		this._turnId = '';
@@ -716,14 +715,14 @@ export class CopilotAgentSession extends Disposable {
 			partId = generateUuid();
 			this._currentMarkdownPartIds.set(markdownScope, partId);
 			this._emitAction({
-				type: ActionType.SessionResponsePart,
+				type: ActionType.ChatResponsePart,
 				turnId: this._turnId,
 				part: { kind: ResponsePartKind.Markdown, id: partId, content },
 			}, parentToolCallId);
 			return;
 		}
 		this._emitAction({
-			type: ActionType.SessionDelta,
+			type: ActionType.ChatDelta,
 			turnId: this._turnId,
 			partId,
 			content,
@@ -738,14 +737,14 @@ export class CopilotAgentSession extends Disposable {
 			partId = generateUuid();
 			this._currentReasoningPartIds.set(reasoningScope, partId);
 			this._emitAction({
-				type: ActionType.SessionResponsePart,
+				type: ActionType.ChatResponsePart,
 				turnId: this._turnId,
 				part: { kind: ResponsePartKind.Reasoning, id: partId, content },
 			}, parentToolCallId);
 			return;
 		}
 		this._emitAction({
-			type: ActionType.SessionReasoning,
+			type: ActionType.ChatReasoning,
 			turnId: this._turnId,
 			partId,
 			content,
@@ -795,20 +794,20 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Builds SDK tool handlers for the agent host's feedback ("comments")
-	 * server tools. Each handler executes the tool against this session's
-	 * annotations channel via the {@link IAgentFeedbackToolHost} and returns
-	 * its textual result. Returns an empty list when no feedback tool host is
-	 * wired (e.g. test / standalone construction).
+	 * Builds SDK tool handlers for the agent host's server tools. Each handler
+	 * executes the tool against this session's state via the
+	 * {@link IAgentServerToolHost} and returns its textual result. Returns an
+	 * empty list when no server-tool host is wired (e.g. test / standalone
+	 * construction).
 	 */
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	private _createServerSdkTools(): Tool<any>[] {
-		const host = this._feedbackToolHost;
+		const host = this._serverToolHost;
 		if (!host) {
 			return [];
 		}
 		const sessionUri = this.sessionUri.toString();
-		return feedbackServerToolDefinitions.map(def => ({
+		return host.definitions.map(def => ({
 			name: def.name,
 			description: def.description ?? '',
 			parameters: def.inputSchema ?? { type: 'object' as const, properties: {} },
@@ -818,7 +817,7 @@ export class CopilotAgentSession extends Disposable {
 					return { textResultForLlm: text, resultType: 'success' };
 				} catch (error) {
 					const message = error instanceof Error ? error.message : String(error);
-					this._logService.error(error, `[Copilot:${this.sessionId}] Failed in feedback server tool handler: tool=${def.name}`);
+					this._logService.error(error, `[Copilot:${this.sessionId}] Failed in server tool handler: tool=${def.name}`);
 					return { textResultForLlm: message, resultType: 'failure', error: message };
 				}
 			},
@@ -875,10 +874,10 @@ export class CopilotAgentSession extends Disposable {
 		this._subscribeToEvents();
 		this._subscribeForLogging();
 
-		// Advertise the feedback ("comments") server tools for this session so
-		// clients see them as server-provided. Execution happens in-process via
-		// the SDK tool handlers built in `_createServerSdkTools`.
-		this._feedbackToolHost?.advertise(this.sessionUri.toString());
+		// Advertise the agent host's server tools for this session so clients
+		// see them as server-provided. Execution happens in-process via the SDK
+		// tool handlers built in `_createServerSdkTools`.
+		this._serverToolHost?.advertise(this.sessionUri.toString());
 	}
 
 	private _createRuntimeAdapter(): ICopilotSessionRuntime {
@@ -1273,14 +1272,14 @@ export class CopilotAgentSession extends Disposable {
 				}
 			}
 
-			// Auto-approve the agent host's feedback ("comments") server tools.
-			// They only read or mutate the session's own annotations channel
-			// (server-held feedback state) and never touch the workspace, shell,
-			// or network, so prompting for them is redundant noise.
+			// Auto-approve the agent host's server tools. They only read or
+			// mutate the session's own server-held state and never touch the
+			// workspace, shell, or network, so prompting for them is redundant
+			// noise.
 			if (request.kind === 'custom-tool' && typeof request.toolName === 'string'
-				&& feedbackServerToolNames.includes(request.toolName)
+				&& this._serverToolHost?.toolNames.includes(request.toolName)
 			) {
-				this._logService.info(`[Copilot:${this.sessionId}] Auto-approving feedback server tool ${request.toolName}`);
+				this._logService.info(`[Copilot:${this.sessionId}] Auto-approving server tool ${request.toolName}`);
 				return { kind: 'approve-once' };
 			}
 
@@ -1325,9 +1324,9 @@ export class CopilotAgentSession extends Disposable {
 			// Fire a pending_confirmation signal to transition the tool to PendingConfirmation
 			const toolName = request.toolName ?? request.kind;
 			// Forward the tool's parentToolCallId (if any) so the host can
-			// route the resulting SessionToolCallReady to the correct
+			// route the resulting ChatToolCallReady to the correct
 			// subagent session — without it the action would land on the
-			// parent session, which has no matching SessionToolCallStart.
+			// parent session, which has no matching ChatToolCallStart.
 			const parentToolCallId = this._activeToolCalls.get(toolCallId)?.parentToolCallId;
 			this._onDidSessionProgress.fire({
 				kind: 'pending_confirmation',
@@ -1556,15 +1555,15 @@ export class CopilotAgentSession extends Disposable {
 			const questionId = generateUuid();
 			this._logService.info(`[Copilot:${this.sessionId}] User input request: requestId=${requestId}, question="${questionPreview}"`);
 
-			const deferred = new DeferredPromise<{ response: SessionInputResponseKind; answers?: Record<string, SessionInputAnswer> }>();
+			const deferred = new DeferredPromise<{ response: ChatInputResponseKind; answers?: Record<string, ChatInputAnswer> }>();
 			this._pendingUserInputs.set(requestId, { deferred, questionId });
 
-			// Build the protocol SessionInputRequest from the SDK's simple format
-			const inputRequest: SessionInputRequest = {
+			// Build the protocol ChatInputRequest from the SDK's simple format
+			const inputRequest: ChatInputRequest = {
 				id: requestId,
 				questions: [request.choices && request.choices.length > 0
 					? {
-						kind: SessionInputQuestionKind.SingleSelect,
+						kind: ChatInputQuestionKind.SingleSelect,
 						id: questionId,
 						message: request.question,
 						required: true,
@@ -1572,7 +1571,7 @@ export class CopilotAgentSession extends Disposable {
 						allowFreeformInput: request.allowFreeform ?? true,
 					}
 					: {
-						kind: SessionInputQuestionKind.Text,
+						kind: ChatInputQuestionKind.Text,
 						id: questionId,
 						message: request.question,
 						required: true,
@@ -1581,27 +1580,27 @@ export class CopilotAgentSession extends Disposable {
 			};
 
 			this._emitAction({
-				type: ActionType.SessionInputRequested,
+				type: ActionType.ChatInputRequested,
 				request: inputRequest,
 			});
 
 			const result = await deferred.p;
 			this._logService.info(`[Copilot:${this.sessionId}] User input response: requestId=${requestId}, response=${result.response}`);
 
-			if (result.response !== SessionInputResponseKind.Accept || !result.answers) {
+			if (result.response !== ChatInputResponseKind.Accept || !result.answers) {
 				return { answer: '', wasFreeform: true };
 			}
 
 			// Extract the answer for our single question
 			const answer = result.answers[questionId];
-			if (!answer || answer.state === SessionInputAnswerState.Skipped) {
+			if (!answer || answer.state === ChatInputAnswerState.Skipped) {
 				return { answer: '', wasFreeform: true };
 			}
 
 			const { value: val } = answer;
-			if (val.kind === SessionInputAnswerValueKind.Text) {
+			if (val.kind === ChatInputAnswerValueKind.Text) {
 				return { answer: val.value, wasFreeform: true };
-			} else if (val.kind === SessionInputAnswerValueKind.Selected) {
+			} else if (val.kind === ChatInputAnswerValueKind.Selected) {
 				const wasFreeform = !request.choices?.includes(val.value);
 				return { answer: val.value, wasFreeform };
 			}
@@ -1620,9 +1619,9 @@ export class CopilotAgentSession extends Disposable {
 	 *
 	 * - `form` mode requests are projected from the SDK's
 	 *   {@link ElicitationSchema} into a list of
-	 *   {@link SessionInputQuestion}s.
+	 *   {@link ChatInputQuestion}s.
 	 * - `url` mode requests surface as a question-less input request whose
-	 *   {@link SessionInputRequest.url} drives the renderer's "open URL"
+	 *   {@link ChatInputRequest.url} drives the renderer's "open URL"
 	 *   affordance.
 	 *
 	 * Under autopilot the request is auto-cancelled — there is no user
@@ -1642,14 +1641,14 @@ export class CopilotAgentSession extends Disposable {
 
 			const schema = context.mode === 'url' ? undefined : context.requestedSchema;
 			const requiredSet = new Set(schema?.required ?? []);
-			const questions: SessionInputQuestion[] | undefined = schema
+			const questions: ChatInputQuestion[] | undefined = schema
 				? Object.entries(schema.properties).map(([fieldName, field]) => elicitationFieldToQuestion(fieldName, field, requiredSet.has(fieldName)))
 				: undefined;
 
-			const deferred = new DeferredPromise<{ response: SessionInputResponseKind; answers?: Record<string, SessionInputAnswer> }>();
+			const deferred = new DeferredPromise<{ response: ChatInputResponseKind; answers?: Record<string, ChatInputAnswer> }>();
 			this._pendingElicitations.set(requestId, { deferred, schema });
 
-			const inputRequest: SessionInputRequest = {
+			const inputRequest: ChatInputRequest = {
 				id: requestId,
 				message: context.message,
 				...(context.mode === 'url' && context.url ? { url: context.url } : {}),
@@ -1657,23 +1656,23 @@ export class CopilotAgentSession extends Disposable {
 			};
 
 			this._emitAction({
-				type: ActionType.SessionInputRequested,
+				type: ActionType.ChatInputRequested,
 				request: inputRequest,
 			});
 
 			const result = await deferred.p;
 			this._logService.info(`[Copilot:${this.sessionId}] Elicitation response: requestId=${requestId}, response=${result.response}`);
 
-			if (result.response === SessionInputResponseKind.Decline) {
+			if (result.response === ChatInputResponseKind.Decline) {
 				return { action: 'decline' };
 			}
-			if (result.response !== SessionInputResponseKind.Accept) {
+			if (result.response !== ChatInputResponseKind.Accept) {
 				return { action: 'cancel' };
 			}
 			const answers = result.answers ?? {};
 			if (!schema) {
 				const freeform = answers.answer;
-				if (freeform && freeform.state !== SessionInputAnswerState.Skipped && freeform.value.kind === SessionInputAnswerValueKind.Text) {
+				if (freeform && freeform.state !== ChatInputAnswerState.Skipped && freeform.value.kind === ChatInputAnswerValueKind.Text) {
 					return { action: 'accept', content: { answer: freeform.value.value } };
 				}
 				return { action: 'accept' };
@@ -1692,7 +1691,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	respondToUserInputRequest(requestId: string, response: SessionInputResponseKind, answers?: Record<string, SessionInputAnswer>): boolean {
+	respondToUserInputRequest(requestId: string, response: ChatInputResponseKind, answers?: Record<string, ChatInputAnswer>): boolean {
 		const pendingPlanReview = this._pendingPlanReviews.get(requestId);
 		if (pendingPlanReview) {
 			this._pendingPlanReviews.delete(requestId);
@@ -1735,14 +1734,14 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private _resolveExitPlanMode(
 		pending: { actions: readonly string[]; recommendedAction: string; questionId: string },
-		response: SessionInputResponseKind,
-		answers?: Record<string, SessionInputAnswer>,
+		response: ChatInputResponseKind,
+		answers?: Record<string, ChatInputAnswer>,
 	): IExitPlanModeResponse {
-		if (response !== SessionInputResponseKind.Accept) {
+		if (response !== ChatInputResponseKind.Accept) {
 			return { approved: false };
 		}
 		const answer = answers?.[pending.questionId];
-		if (!answer || answer.state === SessionInputAnswerState.Skipped) {
+		if (!answer || answer.state === ChatInputAnswerState.Skipped) {
 			return { approved: false };
 		}
 		const value = answer.value;
@@ -1753,11 +1752,11 @@ export class CopilotAgentSession extends Disposable {
 		// user types instead of picking). Normalize to one shape.
 		let candidateAction: string | undefined;
 		let feedback: string | undefined;
-		if (value.kind === SessionInputAnswerValueKind.Selected) {
+		if (value.kind === ChatInputAnswerValueKind.Selected) {
 			candidateAction = value.value;
 			const freeform = value.freeformValues?.find(s => s.trim().length > 0)?.trim();
 			feedback = freeform;
-		} else if (value.kind === SessionInputAnswerValueKind.Text) {
+		} else if (value.kind === ChatInputAnswerValueKind.Text) {
 			feedback = value.value.trim() || undefined;
 		} else {
 			return { approved: false };
@@ -1837,7 +1836,7 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.info(`[Copilot:${sessionId}] System notification received: kind=${e.data.kind.type}`);
 			if (this._turnId) {
 				this._emitAction({
-					type: ActionType.SessionResponsePart,
+					type: ActionType.ChatResponsePart,
 					turnId: this._turnId,
 					part: {
 						kind: ResponsePartKind.SystemNotification,
@@ -1850,7 +1849,7 @@ export class CopilotAgentSession extends Disposable {
 			const turnId = generateUuid();
 			this.resetTurnState(turnId);
 			this._emitAction({
-				type: ActionType.SessionTurnStarted,
+				type: ActionType.ChatTurnStarted,
 				turnId,
 				message: {
 					text: notification.messageText,
@@ -1924,7 +1923,7 @@ export class CopilotAgentSession extends Disposable {
 			const partId = generateUuid();
 			this._currentMarkdownPartIds.set(markdownScope, partId);
 			this._emitAction({
-				type: ActionType.SessionResponsePart,
+				type: ActionType.ChatResponsePart,
 				turnId: this._turnId,
 				part: { kind: ResponsePartKind.Markdown, id: partId, content: e.data.content },
 			}, parentToolCallId);
@@ -1967,6 +1966,11 @@ export class CopilotAgentSession extends Disposable {
 			}
 			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
 			this._activeToolCalls.set(e.data.toolCallId, { toolName: e.data.toolName, displayName, parameters, content: [], parentToolCallId, startTimeMs: Date.now(), mcpServerName: e.data.mcpServerName, meta: undefined });
+			if (isTaskCompleteTool(e.data.toolName)) {
+				this._currentMarkdownPartIds.delete('');
+				this._currentReasoningPartIds.delete('');
+				return;
+			}
 			const toolKind = getToolKind(e.data.toolName);
 			const subagentMeta = toolKind === 'subagent' ? getSubagentMetadata(parameters) : undefined;
 
@@ -2022,7 +2026,7 @@ export class CopilotAgentSession extends Disposable {
 			}
 
 			this._emitAction({
-				type: ActionType.SessionToolCallStart,
+				type: ActionType.ChatToolCallStart,
 				turnId: this._turnId,
 				toolCallId: e.data.toolCallId,
 				toolName: e.data.toolName,
@@ -2040,7 +2044,7 @@ export class CopilotAgentSession extends Disposable {
 				this._logService.warn(`[Copilot:${sessionId}] Client tool '${e.data.toolName}' started with no connected client; failing it immediately.`);
 				this._activeToolCalls.delete(e.data.toolCallId);
 				this._emitAction({
-					type: ActionType.SessionToolCallReady,
+					type: ActionType.ChatToolCallReady,
 					turnId: this._turnId,
 					toolCallId: e.data.toolCallId,
 					invocationMessage: getInvocationMessage(e.data.toolName, displayName, parameters),
@@ -2048,7 +2052,7 @@ export class CopilotAgentSession extends Disposable {
 					confirmed: ToolCallConfirmationReason.NotNeeded,
 				}, parentToolCallId);
 				this._emitAction({
-					type: ActionType.SessionToolCallComplete,
+					type: ActionType.ChatToolCallComplete,
 					turnId: this._turnId,
 					toolCallId: e.data.toolCallId,
 					result: {
@@ -2074,7 +2078,7 @@ export class CopilotAgentSession extends Disposable {
 			}
 
 			this._emitAction({
-				type: ActionType.SessionToolCallReady,
+				type: ActionType.ChatToolCallReady,
 				turnId: this._turnId,
 				toolCallId: e.data.toolCallId,
 				invocationMessage: getInvocationMessage(e.data.toolName, displayName, parameters),
@@ -2097,6 +2101,19 @@ export class CopilotAgentSession extends Disposable {
 			this._activeToolCalls.delete(e.data.toolCallId);
 			const displayName = tracked.displayName;
 			const toolOutput = e.data.error?.message ?? e.data.result?.content;
+
+			if (isTaskCompleteTool(tracked.toolName)) {
+				this._sendToolInvokedTelemetry(e.data.success, e.data.error?.code, tracked);
+				const summary = getTaskCompleteSummary(tracked.parameters, toolOutput);
+				if (summary) {
+					this._emitAction({
+						type: ActionType.SessionResponsePart,
+						turnId: this._turnId,
+						part: { kind: ResponsePartKind.Markdown, id: generateUuid(), content: summary },
+					});
+				}
+				return;
+			}
 
 			const content: ToolResultContent[] = [...tracked.content];
 			if (toolOutput !== undefined) {
@@ -2147,7 +2164,7 @@ export class CopilotAgentSession extends Disposable {
 				completeMeta = { ...(tracked.meta ?? {}), ui };
 			}
 			this._emitAction({
-				type: ActionType.SessionToolCallComplete,
+				type: ActionType.ChatToolCallComplete,
 				turnId: this._turnId,
 				toolCallId: e.data.toolCallId,
 				result: {
@@ -2183,21 +2200,21 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.info(`[Copilot:${sessionId}] Skill invoked: ${e.data.name} (${e.data.path})`);
 			const synth = synthesizeSkillToolCall(e.data, e.id);
 			this._emitAction({
-				type: ActionType.SessionToolCallStart,
+				type: ActionType.ChatToolCallStart,
 				turnId: this._turnId,
 				toolCallId: synth.toolCallId,
 				toolName: synth.toolName,
 				displayName: synth.displayName,
 			});
 			this._emitAction({
-				type: ActionType.SessionToolCallReady,
+				type: ActionType.ChatToolCallReady,
 				turnId: this._turnId,
 				toolCallId: synth.toolCallId,
 				invocationMessage: synth.invocationMessage,
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 			});
 			this._emitAction({
-				type: ActionType.SessionToolCallComplete,
+				type: ActionType.ChatToolCallComplete,
 				turnId: this._turnId,
 				toolCallId: synth.toolCallId,
 				result: {
@@ -2224,13 +2241,17 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onSessionError(e => {
 			this._logService.error(`[Copilot:${sessionId}] Session error: ${e.data.errorType} - ${e.data.message}`);
+			// Prefer the structured SDK fields (the Copilot CLI classifies its own
+			// CAPI errors); fall back to decoding a forwarded marker from the message.
+			const meta = tryBuildChatErrorMetaFromFields(e.data) ?? tryBuildChatErrorMeta(e.data.message);
 			this._emitAction({
-				type: ActionType.SessionError,
+				type: ActionType.ChatError,
 				turnId: this._turnId,
 				error: {
 					errorType: e.data.errorType,
-					message: e.data.message,
+					message: stripProxyErrorMarker(e.data.message),
 					stack: e.data.stack,
+					...(meta ? { _meta: meta } : {}),
 				},
 			});
 		}));
@@ -2259,7 +2280,7 @@ export class CopilotAgentSession extends Disposable {
 				...(Object.keys(metadata).length > 0 ? { _meta: metadata } : {}),
 			};
 			this._emitAction({
-				type: ActionType.SessionUsage,
+				type: ActionType.ChatUsage,
 				turnId: this._turnId,
 				usage,
 			});
@@ -2445,7 +2466,7 @@ export class CopilotAgentSession extends Disposable {
 
 	/**
 	 * Handles the CLI's `exitPlanMode.request` RPC by surfacing it as a
-	 * {@link SessionInputRequest} and awaiting the client's response. The
+	 * {@link ChatInputRequest} and awaiting the client's response. The
 	 * resolved {@link IExitPlanModeResponse} flows back to the CLI, which
 	 * calls `session.respondToExitPlanMode` internally — that resumes the
 	 * paused `exit_plan_mode` tool call and (on accept) updates the SDK's
@@ -2495,10 +2516,10 @@ export class CopilotAgentSession extends Disposable {
 			};
 		});
 
-		const inputRequest: SessionInputRequest = {
+		const inputRequest: ChatInputRequest = {
 			id: requestId,
 			questions: [{
-				kind: SessionInputQuestionKind.SingleSelect,
+				kind: ChatInputQuestionKind.SingleSelect,
 				id: questionId,
 				title: localize('agentHost.planReview.title', "Review Plan"),
 				message: localize('agentHost.planReview.questionMessage', "How would you like to proceed?"),
@@ -2520,7 +2541,7 @@ export class CopilotAgentSession extends Disposable {
 			kind: 'action',
 			session: this.sessionUri,
 			action: {
-				type: ActionType.SessionInputRequested,
+				type: ActionType.ChatInputRequested,
 				request: inputRequest,
 			}
 		});
@@ -2759,14 +2780,14 @@ export class CopilotAgentSession extends Disposable {
 
 	private _cancelPendingUserInputs(): void {
 		for (const [, pending] of this._pendingUserInputs) {
-			pending.deferred.complete({ response: SessionInputResponseKind.Cancel });
+			pending.deferred.complete({ response: ChatInputResponseKind.Cancel });
 		}
 		this._pendingUserInputs.clear();
 	}
 
 	private _cancelPendingElicitations(): void {
 		for (const [, pending] of this._pendingElicitations) {
-			pending.deferred.complete({ response: SessionInputResponseKind.Cancel });
+			pending.deferred.complete({ response: ChatInputResponseKind.Cancel });
 		}
 		this._pendingElicitations.clear();
 	}
