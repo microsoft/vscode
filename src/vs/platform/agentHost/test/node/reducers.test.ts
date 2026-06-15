@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { changesetReducer, sessionReducer } from '../../common/state/protocol/reducers.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, CustomizationLoadStatus, MessageKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, type AgentCustomization, type ChangesetState, type Customization, type PluginCustomization, type SessionState } from '../../common/state/sessionState.js';
+import { ChangesetStatus, ChangesetOperationStatus, CustomizationLoadStatus, MessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, type AgentCustomization, type ChangesetState, type Customization, type PluginCustomization, type SessionState } from '../../common/state/sessionState.js';
 import { CustomizationType } from '../../common/state/protocol/state.js';
 
 function makeSession(): SessionState {
@@ -181,6 +181,40 @@ suite('sessionReducer – summaryStatus with tool call confirmations and input r
 
 		assert.strictEqual(state.summary.status, SessionStatus.InputNeeded);
 	});
+
+	test('SessionToolCallReady preserves action metadata on pending and running tool calls', () => {
+		const state = withActiveTurnAndToolCall(makeSession());
+		const pending = sessionReducer(state, {
+			type: ActionType.SessionToolCallReady,
+			turnId: 'turn-1',
+			toolCallId: 'tc-1',
+			invocationMessage: 'Read file?',
+			toolInput: '/foo.ts',
+			_meta: { autoApproveBySetting: true },
+		});
+		const running = sessionReducer(state, {
+			type: ActionType.SessionToolCallReady,
+			turnId: 'turn-1',
+			toolCallId: 'tc-1',
+			invocationMessage: 'Read file',
+			toolInput: '/foo.ts',
+			confirmed: ToolCallConfirmationReason.NotNeeded,
+			_meta: { autoApproveBySetting: true },
+		});
+
+		const getToolCall = (s: SessionState) => {
+			const part = s.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === 'tc-1');
+			assert.ok(part?.kind === ResponsePartKind.ToolCall);
+			return part.toolCall;
+		};
+		assert.deepStrictEqual([
+			{ status: getToolCall(pending).status, meta: getToolCall(pending)._meta },
+			{ status: getToolCall(running).status, meta: getToolCall(running)._meta },
+		], [
+			{ status: ToolCallStatus.PendingConfirmation, meta: { autoApproveBySetting: true } },
+			{ status: ToolCallStatus.Running, meta: { autoApproveBySetting: true } },
+		]);
+	});
 });
 
 suite('changesetReducer', () => {
@@ -227,13 +261,13 @@ suite('changesetReducer', () => {
 	});
 
 	test('ChangesetOperationsChanged with array replaces operations', () => {
-		const ops = [{ id: 'stage', label: 'Stage', scopes: [] }];
+		const ops = [{ id: 'stage', label: 'Stage', scopes: [], status: ChangesetOperationStatus.Idle }];
 		const next = changesetReducer(ready, { type: ActionType.ChangesetOperationsChanged, operations: ops });
 		assert.deepStrictEqual(next.operations, ops);
 	});
 
 	test('ChangesetOperationsChanged with undefined strips operations', () => {
-		const seeded = changesetReducer(ready, { type: ActionType.ChangesetOperationsChanged, operations: [{ id: 'stage', label: 'Stage', scopes: [] }] });
+		const seeded = changesetReducer(ready, { type: ActionType.ChangesetOperationsChanged, operations: [{ id: 'stage', label: 'Stage', scopes: [], status: ChangesetOperationStatus.Idle }] });
 		const next = changesetReducer(seeded, { type: ActionType.ChangesetOperationsChanged, operations: undefined });
 		assert.strictEqual(next.operations, undefined);
 	});

@@ -105,6 +105,8 @@ vi.mock('vscode', async (importOriginal) => {
 	};
 });
 
+const createLocalFeatureFlagServiceCreator = () => () => ({});
+
 class FakeToolsService extends mock<IToolsService>() {
 	nextConfirmationButton: string | undefined = undefined;
 	override getTool(name: string) {
@@ -347,7 +349,7 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 			}
 		});
 		sdk = {
-			getPackage: vi.fn(async () => ({ internal: { LocalSessionManager: MockCliSdkSessionManager, NoopTelemetryService: class { } }, createLocalFeatureFlagService: () => ({}), AutoModeSessionManager: class { }, noopTelemetryBinder: {} })),
+			getPackage: vi.fn(async () => ({ internal: { LocalSessionManager: MockCliSdkSessionManager, NoopTelemetryService: class { } }, createLocalFeatureFlagServiceCreator, AutoModeSessionManager: class { }, noopTelemetryBinder: {} })),
 			getAuthInfo: vi.fn(async () => ({ type: 'token' as const, token: 'valid-token', host: 'https://github.com' })),
 		} as unknown as ICopilotCLISDK;
 		const services = disposables.add(createExtensionUnitTestingServices());
@@ -412,7 +414,7 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 						}
 					}();
 				}
-				const session = new TestCopilotCLISession(workspaceInfo, agentName, sdkSession, [], logService, workspaceService, new MockChatSessionMetadataStore(), instantiationService, new NullRequestLogger(), new NullICopilotCLIImageSupport(), new FakeToolsService(), new FakeUserQuestionHandler(), accessor.get(IConfigurationService), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })), new FakeGitService(), { _serviceBrand: undefined } as any, { _serviceBrand: undefined, resetTurnCredits() { }, getCreditsForTurn() { return undefined; }, setLastCopilotUsage() { } } as any, new NullTelemetryService());
+				const session = new TestCopilotCLISession(workspaceInfo, agentName, sdkSession, [], false, logService, workspaceService, new MockChatSessionMetadataStore(), instantiationService, new NullRequestLogger(), new NullICopilotCLIImageSupport(), new FakeToolsService(), new FakeUserQuestionHandler(), accessor.get(IConfigurationService), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })), new FakeGitService(), { _serviceBrand: undefined } as any, { _serviceBrand: undefined, resetTurnCredits() { }, getCreditsForTurn() { return undefined; }, setLastCopilotUsage() { } } as any, new NullTelemetryService());
 				cliSessions.push(session);
 				return disposables.add(session);
 			}

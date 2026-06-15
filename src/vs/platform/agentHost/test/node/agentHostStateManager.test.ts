@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType, NotificationType, type ActionEnvelope, type INotification } from '../../common/state/sessionActions.js';
-import { MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildSubagentSessionUri, buildSubagentSessionUriPrefix, isSubagentSession, parseSubagentSessionUri, type MarkdownResponsePart, type SessionState } from '../../common/state/sessionState.js';
+import { MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildSubagentSessionUri, buildSubagentSessionUriPrefix, isSubagentSession, parseSubagentSessionUri, readHostBuildInfo, type MarkdownResponsePart, type SessionState } from '../../common/state/sessionState.js';
 import { type SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { buildChangesetUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
@@ -67,6 +67,16 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(root.activeSessions, 0);
 		// Host config is seeded with the platform root schema and defaults.
 		assert.ok(root.config, 'root state should include a seeded config');
+	});
+
+	test('seeds host build info into root state _meta when provided', () => {
+		const buildInfo = { version: '1.96.0', commit: 'abc1234', date: '2024-01-02T03:04:05Z', quality: 'insider' };
+		const localManager = disposables.add(new AgentHostStateManager(new NullLogService(), { hostBuildInfo: buildInfo }));
+		assert.deepStrictEqual(readHostBuildInfo(localManager.rootState._meta), buildInfo);
+	});
+
+	test('omits host build info from root state _meta when not provided', () => {
+		assert.strictEqual(readHostBuildInfo(manager.rootState._meta), undefined);
 	});
 
 	test('getSnapshot returns session snapshot after creation', () => {

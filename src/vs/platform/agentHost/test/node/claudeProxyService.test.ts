@@ -16,7 +16,24 @@ import {
 	type ICopilotApiService,
 	type ICopilotApiServiceRequestOptions,
 } from '../../node/shared/copilotApiService.js';
+import { PROXY_ERROR_PREFIX, tryParseForwardedChatError } from '../../node/shared/forwardedChatError.js';
 import { ClaudeProxyService } from '../../node/claude/claudeProxyService.js';
+
+/**
+ * Asserts a `/v1/messages` error envelope was re-emitted with all fields
+ * unchanged except `error.message`, which carries the original message plus an
+ * appended `VSCODE_PROXY_ERROR` marker that decodes to a forwarded chat error
+ * of the expected fetch type. (The `/v1/models` path stays verbatim.)
+ */
+function assertEnvelopeWithChatErrorMarker(actual: Anthropic.ErrorResponse, original: Anthropic.ErrorResponse, expectedFetchType: string): void {
+	assert.strictEqual(actual.type, 'error');
+	assert.strictEqual(actual.request_id, original.request_id);
+	assert.strictEqual(actual.error.type, original.error.type);
+	assert.ok(actual.error.message.startsWith(`${original.error.message} ${PROXY_ERROR_PREFIX}`), `expected marker-appended message, got: ${actual.error.message}`);
+	const forwarded = tryParseForwardedChatError(actual.error.message);
+	assert.ok(forwarded, 'embedded marker should decode to a forwarded chat error');
+	assert.strictEqual(forwarded.fetchError.type, expectedFetchType);
+}
 
 // #region Test fakes
 
@@ -120,8 +137,12 @@ class FakeCopilotApiService implements ICopilotApiService {
 		return this.modelsResult.value;
 	}
 
+	async responses(): Promise<Response> {
+		throw new Error('responses not used by Claude proxy tests');
+	}
+
 	async utilityChatCompletion(): Promise<never> {
-		throw new Error('utilityChatCompletion not implemented in this test');
+		throw new Error('utilityChatCompletion not used by Claude proxy tests');
 	}
 }
 
@@ -1017,7 +1038,7 @@ suite('ClaudeProxyService', () => {
 				const lastEvent = res.events.at(-1);
 				assert.ok(lastEvent);
 				assert.strictEqual(lastEvent.type, 'error');
-				assert.deepStrictEqual(lastEvent.data, upstreamEnvelope);
+				assertEnvelopeWithChatErrorMarker(lastEvent.data as Anthropic.ErrorResponse, upstreamEnvelope, 'failed');
 				const types = res.events.map(e => e.type);
 				assert.ok(!types.includes('message_stop'), 'no message_stop after error frame');
 			} finally {
@@ -1046,7 +1067,7 @@ suite('ClaudeProxyService', () => {
 					body: JSON.stringify({ model: 'claude-opus-4-6', messages: [], max_tokens: 8, stream: true }),
 				});
 				assert.strictEqual(res.status, 401);
-				assert.deepStrictEqual(res.parsed, envelope);
+				assertEnvelopeWithChatErrorMarker(res.parsed as Anthropic.ErrorResponse, envelope, 'agent_unauthorized');
 			} finally {
 				handle.dispose();
 				service.dispose();
@@ -1076,7 +1097,7 @@ suite('ClaudeProxyService', () => {
 					body: JSON.stringify({ model: 'claude-opus-4-6', messages: [], max_tokens: 8, stream: true }),
 				});
 				assert.strictEqual(res.status, 502);
-				assert.deepStrictEqual(res.parsed, envelope);
+				assertEnvelopeWithChatErrorMarker(res.parsed as Anthropic.ErrorResponse, envelope, 'failed');
 			} finally {
 				handle.dispose();
 				service.dispose();
@@ -1244,6 +1265,7 @@ suite('ClaudeProxyService', () => {
 				}) as ICopilotApiService['messages'],
 				countTokens: () => Promise.reject(new Error('not used')),
 				models: () => Promise.resolve([]),
+				responses: () => Promise.reject(new Error('not used')),
 				utilityChatCompletion: () => Promise.reject(new Error('not used')),
 			};
 			const service = new ClaudeProxyService(new NullLogService(), wrapped);
@@ -1312,6 +1334,7 @@ suite('ClaudeProxyService', () => {
 				}) as ICopilotApiService['messages'],
 				countTokens: fake.countTokens.bind(fake),
 				models: fake.models.bind(fake),
+				responses: fake.responses.bind(fake),
 				utilityChatCompletion: fake.utilityChatCompletion.bind(fake),
 			};
 			const service = new ClaudeProxyService(new NullLogService(), wrapped);

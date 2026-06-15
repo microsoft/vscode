@@ -756,7 +756,7 @@ function createPlainTextRenderer(): marked.Renderer {
 		return text;
 	};
 	renderer.codespan = ({ text }: marked.Tokens.Codespan): string => {
-		return escape(text);
+		return text;
 	};
 	renderer.br = (_: marked.Tokens.Br): string => {
 		return '\n';

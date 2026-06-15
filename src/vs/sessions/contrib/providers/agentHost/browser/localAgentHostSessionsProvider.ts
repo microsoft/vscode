@@ -23,7 +23,8 @@ import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browse
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
-import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID, LocalAgentHostDefaultProviderSettingId } from '../../../../common/agentHostSessionsProvider.js';
+import { AGENT_HOST_LOG_OUTPUT_CHANNEL_ID } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
 import { IGitHubInfo, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -47,6 +48,21 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 	readonly icon: ThemeIcon = Codicon.vm;
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 	readonly supportsLocalWorkspaces = true;
+
+	protected override getLogOutputChannelId(): string | undefined {
+		return AGENT_HOST_LOG_OUTPUT_CHANNEL_ID;
+	}
+
+	/**
+	 * When the experimental {@link LocalAgentHostDefaultProviderSettingId}
+	 * setting is enabled, the local agent host becomes the default sessions
+	 * provider: its session types sort before every other provider (negative
+	 * order). Otherwise it sorts after the default providers so Copilot Chat
+	 * keeps precedence.
+	 */
+	override get order(): number {
+		return this._configurationService.getValue<boolean>(LocalAgentHostDefaultProviderSettingId) ? -1 : 1;
+	}
 
 	constructor(
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
@@ -95,6 +111,16 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 				return;
 			}
 			this._refreshSessions();
+			this._resumeNewSessionAfterAuthenticationSettles();
+		}));
+
+		// When the "default sessions provider" preference changes, the
+		// provider's `order` flips. Re-fire `onDidChangeSessionTypes` so the
+		// management service re-collects and re-sorts the session types.
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(LocalAgentHostDefaultProviderSettingId)) {
+				this._onDidChangeSessionTypes.fire();
+			}
 		}));
 	}
 
@@ -128,9 +154,9 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 
 	protected _formatSessionTypeLabel(agentLabel: string): string {
 		// Use the unadorned agent label (e.g. "Copilot") rather than tagging it
-		// with `[Local]`. The session type id is shared with the extension-host
+		// with `[Agent Host]`. The session type id is shared with the extension-host
 		// Copilot CLI provider, so the filter menu / new-session picker entry
-		// covers both sets of sessions; the `[Local]` tag belongs on the
+		// covers both sets of sessions; the `[Agent Host]` tag belongs on the
 		// per-session workspace label, not the type label.
 		return agentLabel;
 	}

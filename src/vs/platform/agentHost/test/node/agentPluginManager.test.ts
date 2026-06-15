@@ -10,23 +10,43 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
+import { IFileDeleteOptions } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AGENT_CLIENT_SCHEME, toAgentClientUri } from '../../common/agentClientUri.js';
-import { customizationId, type ClientPluginCustomization, type Customization } from '../../common/state/sessionState.js';
+import { customizationId, type ClientPluginCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { CustomizationType } from '../../common/state/protocol/state.js';
 import { AgentPluginManager } from '../../node/agentPluginManager.js';
+
+/**
+ * In-memory provider that can simulate a locked (undeletable) resource, like a
+ * directory still held by a running session, so eviction fails with an error.
+ */
+class LockableInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
+	readonly lockedPaths = new Set<string>();
+
+	override async delete(resource: URI, opts: IFileDeleteOptions): Promise<void> {
+		for (const locked of this.lockedPaths) {
+			if (resource.path.includes(locked)) {
+				throw new Error('EBUSY: resource busy or locked');
+			}
+		}
+		return super.delete(resource, opts);
+	}
+}
 
 suite('AgentPluginManager', () => {
 
 	const disposables = new DisposableStore();
 	let fileService: FileService;
+	let provider: LockableInMemoryFileSystemProvider;
 	let manager: AgentPluginManager;
 	const basePath = URI.from({ scheme: Schemas.inMemory, path: '/userData' });
 
 	setup(() => {
 		fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		provider = disposables.add(new LockableInMemoryFileSystemProvider());
+		disposables.add(fileService.registerProvider(Schemas.inMemory, provider));
 		disposables.add(fileService.registerProvider(AGENT_CLIENT_SCHEME, disposables.add(new InMemoryFileSystemProvider())));
 		manager = new AgentPluginManager(basePath, fileService, new NullLogService());
 	});
@@ -57,6 +77,13 @@ suite('AgentPluginManager', () => {
 		for (const [fileName, content] of Object.entries(files)) {
 			await fileService.writeFile(URI.joinPath(agentClientDir, fileName), VSBuffer.fromString(content));
 		}
+	}
+
+	async function readCacheNonces(): Promise<Set<string>> {
+		const cachePath = URI.joinPath(basePath, 'agentPlugins', 'cache.json');
+		const content = await fileService.readFile(cachePath);
+		const entries: { uri: string; nonce: string }[] = JSON.parse(content.value.toString());
+		return new Set(entries.map(entry => entry.nonce));
 	}
 
 	// ---- syncCustomizations -------------------------------------------------
@@ -100,7 +127,7 @@ suite('AgentPluginManager', () => {
 		test('fires progress callback with changed customization status', async () => {
 			await seedPluginDir('prog', { 'index.js': 'content' });
 
-			const progressCalls: Customization[] = [];
+			const progressCalls: PluginCustomization[] = [];
 			await manager.syncCustomizations('test-client', [makeRef('prog', 'n1')], status => {
 				progressCalls.push(status);
 			});
@@ -119,6 +146,58 @@ suite('AgentPluginManager', () => {
 			const result2 = await manager.syncCustomizations('test-client', [ref]);
 			assert.ok(result2[0].pluginDir);
 			assert.strictEqual(result1[0].pluginDir!.toString(), result2[0].pluginDir!.toString());
+		});
+
+		test('new nonce materializes a fresh subdirectory and evicts the stale one', async () => {
+			await seedPluginDir('rev', { 'index.js': 'v1' });
+
+			const r1 = await manager.syncCustomizations('test-client', [makeRef('rev', 'nonce-1')]);
+			const dir1 = r1[0].pluginDir!;
+
+			// Re-seed with new content and sync with a different nonce.
+			await seedPluginDir('rev', { 'index.js': 'v2' });
+			const r2 = await manager.syncCustomizations('test-client', [makeRef('rev', 'nonce-2')]);
+			const dir2 = r2[0].pluginDir!;
+
+			assert.notStrictEqual(dir1.toString(), dir2.toString(), 'new nonce should use a new subdirectory');
+			assert.strictEqual(await fileService.exists(dir2), true, 'new nonce subdirectory should exist');
+			assert.strictEqual(await fileService.exists(dir1), false, 'stale nonce subdirectory should be evicted');
+			assert.deepStrictEqual(await readCacheNonces(), new Set(['nonce-2']));
+		});
+
+		test('retains a locked older nonce so both revisions coexist', async () => {
+			await seedPluginDir('rev', { 'index.js': 'v1' });
+			const r1 = await manager.syncCustomizations('test-client', [makeRef('rev', 'nonce-1')]);
+			const dir1 = r1[0].pluginDir!;
+
+			// Simulate a session still holding the first revision.
+			provider.lockedPaths.add(dir1.path);
+
+			await seedPluginDir('rev', { 'index.js': 'v2' });
+			const r2 = await manager.syncCustomizations('test-client', [makeRef('rev', 'nonce-2')]);
+			const dir2 = r2[0].pluginDir!;
+
+			assert.strictEqual(await fileService.exists(dir1), true, 'locked older nonce should be retained on disk');
+			assert.strictEqual(await fileService.exists(dir2), true, 'new nonce subdirectory should exist');
+			assert.deepStrictEqual(await readCacheNonces(), new Set(['nonce-1', 'nonce-2']));
+		});
+
+		test('evicts a previously locked older nonce on startup once released', async () => {
+			await seedPluginDir('rev', { 'index.js': 'v1' });
+			const r1 = await manager.syncCustomizations('test-client', [makeRef('rev', 'nonce-1')]);
+			const dir1 = r1[0].pluginDir!;
+			provider.lockedPaths.add(dir1.path);
+
+			await seedPluginDir('rev', { 'index.js': 'v2' });
+			await manager.syncCustomizations('test-client', [makeRef('rev', 'nonce-2')]);
+
+			// Release the lock and start a fresh manager against the same base path.
+			provider.lockedPaths.clear();
+			const manager2 = new AgentPluginManager(basePath, fileService, new NullLogService());
+			await manager2.syncCustomizations('test-client', [makeRef('rev', 'nonce-2')]);
+
+			assert.strictEqual(await fileService.exists(dir1), false, 'released older nonce should be evicted on startup');
+			assert.deepStrictEqual(await readCacheNonces(), new Set(['nonce-2']));
 		});
 
 		test('serializes concurrent syncs of the same URI', async () => {
@@ -156,6 +235,28 @@ suite('AgentPluginManager', () => {
 			const pluginDirs = listing.children.filter(c => c.isDirectory);
 			assert.strictEqual(pluginDirs.length, 3, 'should have exactly 3 plugin dirs after eviction');
 		});
+
+		test('retains a locked LRU candidate and skips ahead to evict an unlocked one', async () => {
+			const smallManager = new AgentPluginManager(basePath, fileService, new NullLogService(), 2);
+
+			await seedPluginDir('plugin-1', { 'index.js': 'p1' });
+			const r1 = await smallManager.syncCustomizations('client-1', [makeRef('plugin-1', 'n1')]);
+			const dir1 = r1[0].pluginDir!;
+
+			await seedPluginDir('plugin-2', { 'index.js': 'p2' });
+			const r2 = await smallManager.syncCustomizations('client-2', [makeRef('plugin-2', 'n2')]);
+			const dir2 = r2[0].pluginDir!;
+
+			// Lock the LRU head so its directory can't be deleted.
+			provider.lockedPaths.add(dir1.path);
+
+			await seedPluginDir('plugin-3', { 'index.js': 'p3' });
+			await smallManager.syncCustomizations('client-3', [makeRef('plugin-3', 'n3')]);
+
+			// plugin-1 should survive (locked) and plugin-2 should be evicted instead.
+			assert.strictEqual(await fileService.exists(dir1), true, 'locked plugin-1 should be retained');
+			assert.strictEqual(await fileService.exists(dir2), false, 'unlocked plugin-2 should be evicted');
+		});
 	});
 
 	// ---- cache persistence --------------------------------------------------
@@ -174,7 +275,7 @@ suite('AgentPluginManager', () => {
 			const result = await manager2.syncCustomizations('test-client', [ref]);
 
 			// Should be loaded from cache (nonce match), not error
-			assert.strictEqual(result[0].customization.load?.kind, 'loaded');
+			assert.strictEqual((result[0].customization as PluginCustomization).load?.kind, 'loaded');
 			assert.ok(result[0].pluginDir);
 		});
 	});

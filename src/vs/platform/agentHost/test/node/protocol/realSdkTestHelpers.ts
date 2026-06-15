@@ -27,7 +27,7 @@ import {
 	MessageKind,
 	ResponsePartKind, ROOT_STATE_URI, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind,
 	SessionInputResponseKind, ToolResultContentType, isSubagentSession,
-	type SessionInputAnswer, type SessionInputRequest, type SessionState, type TerminalState,
+	type MessageAttachment, type SessionInputAnswer, type SessionInputRequest, type SessionState, type TerminalState,
 	type ToolResultContent, type ToolResultSubagentContent,
 } from '../../../common/state/sessionState.js';
 import type { RootState } from '../../../common/state/protocol/state.js';
@@ -102,7 +102,9 @@ export interface IRealSdkProviderConfig {
 	 * package. Forwarded to `startRealServer` so the agent host registers
 	 * the Claude provider.
 	 */
-	readonly claudeSdkPath?: string;
+	readonly claudeSdkRoot?: string;
+	/** Optional path to a locally installed `codex` binary. Forwarded to `startRealServer`. */
+	readonly codexSdkRoot?: string;
 	/**
 	 * Provider implements `config.isolation: 'worktree'` and resolves the
 	 * working directory to a `.worktrees/...` path on materialization.
@@ -173,6 +175,19 @@ export function dispatchTurn(c: TestProtocolClient, session: string, turnId: str
 			type: 'session/turnStarted',
 			turnId,
 			message: { text, origin: { kind: MessageKind.User } },
+		},
+	});
+}
+
+/** Dispatch a turn with the given user message text and attachments. */
+export function dispatchTurnWithAttachments(c: TestProtocolClient, session: string, turnId: string, text: string, attachments: readonly MessageAttachment[], clientSeq: number): void {
+	c.notify('dispatchAction', {
+		channel: session,
+		clientSeq,
+		action: {
+			type: 'session/turnStarted',
+			turnId,
+			message: { text, origin: { kind: MessageKind.User }, attachments: [...attachments] },
 		},
 	});
 }
@@ -253,8 +268,16 @@ export interface IDrivenTurnResult {
 }
 
 export async function driveTurnToCompletion(c: TestProtocolClient, session: string, turnId: string, text: string, clientSeq: number): Promise<IDrivenTurnResult> {
+	return driveTurn(c, session, turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq));
+}
+
+export async function driveTurnWithAttachmentsToCompletion(c: TestProtocolClient, session: string, turnId: string, text: string, attachments: readonly MessageAttachment[], clientSeq: number): Promise<IDrivenTurnResult> {
+	return driveTurn(c, session, turnId, clientSeq, () => dispatchTurnWithAttachments(c, session, turnId, text, attachments, clientSeq));
+}
+
+async function driveTurn(c: TestProtocolClient, session: string, turnId: string, clientSeq: number, dispatch: () => void): Promise<IDrivenTurnResult> {
 	c.clearReceived();
-	dispatchTurn(c, session, turnId, text, clientSeq);
+	dispatch();
 
 	const seenNotifications = new Set<object>();
 	let nextClientSeq = clientSeq + 1;
@@ -307,6 +330,9 @@ export async function driveTurnToCompletion(c: TestProtocolClient, session: stri
 			continue;
 		}
 
+
+		const action = getActionEnvelope(notification).action as { turnId: string };
+		assert.strictEqual(action.turnId, turnId);
 		break;
 	}
 
@@ -469,7 +495,7 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 
 		setup(async function () {
 			this.timeout(60_000);
-			server = await startRealServer({ claudeSdkPath: config.claudeSdkPath });
+			server = await startRealServer({ claudeSdkRoot: config.claudeSdkRoot, codexSdkRoot: config.codexSdkRoot });
 			client = new TestProtocolClient(server.port);
 			await client.connect();
 		});
@@ -510,7 +536,9 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			const sessionUri = await createRealSession(client, config, `real-sdk-simple-${config.provider}`, createdSessions, URI.file(tmpdir()).toString());
 			dispatchTurn(client, sessionUri, 'turn-1', 'Say exactly "hello" and nothing else', 1);
 
-			await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'), 90_000);
+			const complete = await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'), 90_000);
+			const completeAction = getActionEnvelope(complete).action as { turnId: string };
+			assert.strictEqual(completeAction.turnId, 'turn-1');
 
 			const responseParts = client.receivedNotifications(n => isActionNotification(n, 'session/responsePart'));
 			assert.ok(responseParts.length > 0, 'should have received at least one response part');

@@ -45,6 +45,7 @@ describe('expandRangeToPageRange', () => {
 			PAGE_SIZE,
 			2 * PAGE_SIZE, // budget for 2 pages
 			computeTokens, // pay 1 token per line (1 token for newline)
+			false,
 			false
 		);
 
@@ -67,6 +68,7 @@ describe('expandRangeToPageRange', () => {
 			PAGE_SIZE,
 			UNLIM_BUDGET,
 			computeTokens,
+			false,
 			false
 		);
 
@@ -75,6 +77,57 @@ describe('expandRangeToPageRange', () => {
 			  "budgetLeft": 4973,
 			  "firstPageIdx": 0,
 			  "lastPageIdxIncl": 4,
+			}
+		`);
+	});
+
+	it('does not donate leftover above-cursor budget to below-cursor by default', () => {
+
+		// Focal page is page 0, so there are no pages above the cursor to spend the
+		// upper half of the budget on. With an even split that upper half is
+		// discarded, so the lower half (15 tokens) only reaches one more page.
+		const nDocLines = 47;
+		const docLines = nLines(nDocLines).getLines();
+		const r = expandRangeToPageRange(
+			docLines,
+			new OffsetRange(0, 1),
+			PAGE_SIZE,
+			40, // page 0 costs 10 => availableTokenBudget 30 => 15 per half
+			computeTokens,
+			false,
+			false /* useLeftoverBudgetFromAbove */
+		);
+
+		expect(r).toMatchInlineSnapshot(`
+			{
+			  "budgetLeft": 5,
+			  "firstPageIdx": 0,
+			  "lastPageIdxIncl": 1,
+			}
+		`);
+	});
+
+	it('donates leftover above-cursor budget to below-cursor when enabled', () => {
+
+		// Same setup, but with donation enabled the unused upper half is given to
+		// the below-cursor expansion, so it reaches three more pages instead of one.
+		const nDocLines = 47;
+		const docLines = nLines(nDocLines).getLines();
+		const r = expandRangeToPageRange(
+			docLines,
+			new OffsetRange(0, 1),
+			PAGE_SIZE,
+			40,
+			computeTokens,
+			false,
+			true /* useLeftoverBudgetFromAbove */
+		);
+
+		expect(r).toMatchInlineSnapshot(`
+			{
+			  "budgetLeft": 0,
+			  "firstPageIdx": 0,
+			  "lastPageIdxIncl": 3,
 			}
 		`);
 	});

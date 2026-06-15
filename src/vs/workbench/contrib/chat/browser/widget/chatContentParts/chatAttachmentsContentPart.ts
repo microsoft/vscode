@@ -11,7 +11,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ResourceLabels } from '../../../../../browser/labels.js';
-import { getImageAttachmentLimit, IChatRequestVariableEntry, isBrowserViewVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isTerminalVariableEntry, isWorkspaceVariableEntry, OmittedState } from '../../../common/attachments/chatVariableEntries.js';
+import { getImageAttachmentLimit, IChatRequestVariableEntry, isAgentHostCompletionVariableEntry, isBrowserViewVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isTerminalVariableEntry, isWorkspaceVariableEntry, OmittedState } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatResponseReferencePartStatusKind, IChatContentReference } from '../../../common/chatService/chatService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, BrowserViewAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, PromptFileAttachmentWidget, PromptTextAttachmentWidget, SCMHistoryItemAttachmentWidget, SCMHistoryItemChangeAttachmentWidget, SCMHistoryItemChangeRangeAttachmentWidget, TerminalCommandAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from '../../attachments/chatAttachmentWidgets.js';
@@ -75,8 +75,10 @@ export class ChatAttachmentsContentPart extends Disposable {
 		dom.clearNode(container);
 		this.attachedContextDisposables.clear();
 
-		const visibleAttachments = this.getVisibleAttachments();
-		const hasMoreAttachments = this.limit && this._variables.length > this.limit && !this._showingAll;
+		const renderableAttachments = this.getRenderableAttachments();
+		const visibleAttachments = this.getVisibleAttachments(renderableAttachments);
+		const remainingCount = renderableAttachments.length - visibleAttachments.length;
+		const hasMoreAttachments = remainingCount > 0 && !this._showingAll;
 
 		this.markImageLimitExceeded(this._variables);
 
@@ -85,15 +87,19 @@ export class ChatAttachmentsContentPart extends Disposable {
 		}
 
 		if (hasMoreAttachments) {
-			this.renderShowMoreButton(container);
+			this.renderShowMoreButton(container, remainingCount);
 		}
 	}
 
-	private getVisibleAttachments(): readonly IChatRequestVariableEntry[] {
+	private getRenderableAttachments(): readonly IChatRequestVariableEntry[] {
+		return this._variables.filter(attachment => !isAgentHostCompletionVariableEntry(attachment));
+	}
+
+	private getVisibleAttachments(visibleAttachments: readonly IChatRequestVariableEntry[]): readonly IChatRequestVariableEntry[] {
 		if (!this.limit || this._showingAll) {
-			return this._variables;
+			return visibleAttachments;
 		}
-		return this._variables.slice(0, this.limit);
+		return visibleAttachments.slice(0, this.limit);
 	}
 
 	/**
@@ -145,9 +151,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 		return getImageAttachmentLimit(this.languageModelsService.lookupLanguageModel(this.modelId));
 	}
 
-	private renderShowMoreButton(container: HTMLElement) {
-		const remainingCount = this._variables.length - (this.limit ?? 0);
-
+	private renderShowMoreButton(container: HTMLElement, remainingCount: number) {
 		// Create a button that looks like the attachment pills
 		const showMoreButton = dom.$('div.chat-attached-context-attachment.chat-attachments-show-more-button');
 		showMoreButton.setAttribute('role', 'button');

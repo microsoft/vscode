@@ -10,7 +10,7 @@ import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/a
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { localize } from '../../../../nls.js';
 import { FOCUS_AI_CUSTOMIZATION_VIEW_ID } from '../../aiCustomizationTreeView/browser/aiCustomizationTreeView.js';
-import { ISessionsPartService } from '../../../browser/parts/sessionsPartService.js';
+import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
 export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementation {
@@ -30,6 +30,8 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		content.push(localize('sessionsChat.workspace', "Shift+Tab to navigate to the workspace picker and choose a workspace for your session."));
 		content.push(localize('sessionsChat.mobileConfig', "On mobile, the mode and model pickers appear as tappable chips below the input. Tap a chip to open a bottom sheet where you can change the selection."));
 		content.push(localize('sessionsChat.history', "Use up and down arrows to navigate your request history in the input box."));
+		content.push(localize('sessionsChat.navigatePreviousSession', "Navigate to the previous session in the list{0}.", '<keybinding:sessionsViewPane.navigatePreviousSession>'));
+		content.push(localize('sessionsChat.navigateNextSession', "Navigate to the next session in the list{0}.", '<keybinding:sessionsViewPane.navigateNextSession>'));
 		content.push(localize('sessionsChat.changes', "Focus the Changes view{0}.", '<keybinding:workbench.action.agentSessions.focusChangesView>'));
 		content.push(localize('sessionsChat.filesView', "Focus the Files Explorer view{0}.", '<keybinding:workbench.action.agentSessions.focusChangesFileView>'));
 		content.push(localize('sessionsChat.sessionsView', "Focus the Chat Sessions view{0}.", '<keybinding:workbench.action.chat.focusAgentSessionsViewer>'));
