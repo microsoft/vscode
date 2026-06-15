@@ -13,6 +13,7 @@ import { fromAgentHostUri, toAgentHostUri } from './agentHostUri.js';
 import { ContentEncoding, type CreateResourceWatchParams, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWriteParams, type ResourceWriteResult } from './state/protocol/commands.js';
 import { AhpErrorCodes } from './state/protocol/errors.js';
 import { ProtocolError } from './state/sessionProtocol.js';
+import { ActionType, type ActionEnvelope } from './state/sessionActions.js';
 import { ROOT_STATE_URI } from './state/sessionState.js';
 
 /**
@@ -77,7 +78,7 @@ export async function createRemoteWatchHandle(
 		createResourceWatch(params: CreateResourceWatchParams): Promise<{ channel: string }>;
 		subscribe(channel: URI): Promise<unknown>;
 		unsubscribe(channel: URI): void;
-		onDidAction: Event<{ channel: string; action: { type: string; changes?: { items: readonly { uri: string; type: string }[] } } }>;
+		onDidAction: Event<ActionEnvelope>;
 	},
 	params: CreateResourceWatchParams,
 ): Promise<IRemoteWatchHandle> {
@@ -86,7 +87,7 @@ export async function createRemoteWatchHandle(
 	await primitives.subscribe(channelUri);
 	const onDidChangeEmitter = new Emitter<readonly IFileChange[]>();
 	const listener = primitives.onDidAction(envelope => {
-		if (envelope.channel !== channel || envelope.action.type !== 'resourceWatch/changed') {
+		if (envelope.channel !== channel || envelope.action.type !== ActionType.ResourceWatchChanged) {
 			return;
 		}
 		const items = envelope.action.changes?.items ?? [];
