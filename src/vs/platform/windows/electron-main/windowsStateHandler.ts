@@ -162,8 +162,8 @@ export class WindowsStateHandler extends Disposable {
 		// 1.) Find a last active window (pick any other first window otherwise)
 		if (!currentWindowsState.lastActiveWindow) {
 			let activeWindow = this.windowsMainService.getLastActiveWindow();
-			if (!activeWindow || activeWindow.isExtensionDevelopmentHost) {
-				activeWindow = this.windowsMainService.getWindows().find(window => !window.isExtensionDevelopmentHost);
+			if (!activeWindow || activeWindow.isExtensionDevelopmentHost || activeWindow.config?.isSessionsWindow) {
+				activeWindow = this.windowsMainService.getWindows().find(window => !window.isExtensionDevelopmentHost && !window.config?.isSessionsWindow);
 			}
 
 			if (activeWindow) {
@@ -251,7 +251,12 @@ export class WindowsStateHandler extends Disposable {
 		// before quitting, we need to remember the UI state of this window to be able to persist it.
 		// On macOS we keep the last closed window state ready in case the user wants to quit right after or
 		// wants to open another window, in which case we use this state over the persisted one.
-		if (this.windowsMainService.getWindowCount() === 1) {
+		// Note: never remember the sessions (agents) window as the last closed state. Otherwise,
+		// closing the agents window while a regular window is still open (window count === 1 here)
+		// would record the agents window as `lastActiveWindow` and wrongly reopen it on next start.
+		// The agents window should only be restored when it was actually open at shutdown, which is
+		// covered by the regular `openedWindows` persistence above.
+		if (this.windowsMainService.getWindowCount() === 1 && !window.config?.isSessionsWindow) {
 			this.lastClosedState = state;
 		}
 	}
