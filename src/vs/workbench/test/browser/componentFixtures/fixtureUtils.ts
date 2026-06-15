@@ -101,6 +101,8 @@ import { IChatEditingService } from '../../../contrib/chat/common/editing/chatEd
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsManagementService } from '../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
+import { ISessionsService } from '../../../../sessions/services/sessions/browser/sessionsService.js';
+// eslint-disable-next-line local/code-import-patterns
 import { ICodeReviewService, PRReviewStateKind } from '../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
 import { constObservable } from '../../../../base/common/observable.js';
 
@@ -658,9 +660,13 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 
 	definePartialInstance(ISessionsManagementService, {
 		_serviceBrand: undefined,
-		activeSession: constObservable(undefined),
 		getSession: () => undefined,
 		getSessions: () => [],
+	});
+
+	definePartialInstance(ISessionsService, {
+		_serviceBrand: undefined,
+		activeSession: constObservable(undefined),
 	});
 
 	definePartialInstance(ICodeReviewService, {

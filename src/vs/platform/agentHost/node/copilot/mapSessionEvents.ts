@@ -436,8 +436,11 @@ export async function mapSessionEvents(
 				}
 				toolInfoByCallId.delete(d.toolCallId);
 				if (isTaskCompleteTool(info.toolName)) {
+					const builder = targetBuilderFor(d.parentToolCallId);
+					if (!builder) {
+						continue;
+					}
 					const summary = getTaskCompleteSummary(info.parameters, d.error?.message ?? d.result?.content);
-					const builder = parentBuilder ?? (parentBuilder = newTurnBuilder(generateUuid(), ''));
 					if (summary) {
 						builder.responseParts.push({
 							kind: ResponsePartKind.Markdown,
@@ -445,7 +448,7 @@ export async function mapSessionEvents(
 							content: summary,
 						});
 					}
-					if (d.success && builder === parentBuilder) {
+					if (!d.parentToolCallId && d.success && builder === parentBuilder) {
 						turns.push(finalizeTurn(parentBuilder, TurnState.Complete));
 						parentBuilder = undefined;
 					}
