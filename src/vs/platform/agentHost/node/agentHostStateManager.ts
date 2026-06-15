@@ -127,8 +127,28 @@ export class AgentHostStateManager extends Disposable {
 		return [...this._sessionStates.keys()];
 	}
 
-	getAllSessionSummaries(): SessionSummary[] {
-		return [...this._sessionStates.values()].map(state => state.summary);
+	/**
+	 * Summaries eligible to be overlaid onto a provider's `listSessions`
+	 * snapshot when that snapshot is missing them. A session qualifies if it
+	 * has materialized (lifecycle !== {@link SessionLifecycle.Creating}) — this
+	 * covers the transient-drop case where a provider briefly omits a
+	 * just-materialized session — or if it is still provisional but has had any
+	 * turn activity (an in-flight turn, or a completed turn whose materialize
+	 * event has not landed yet; the first turn can start before materialization
+	 * completes). Idle provisional sessions (created but not yet materialized
+	 * and with no turn activity, e.g. the new-session composer's eagerly-created
+	 * session before its first message) are excluded so they don't leak into
+	 * the session list (#321269).
+	 */
+	getOverlaySessionSummaries(): SessionSummary[] {
+		const summaries: SessionSummary[] = [];
+		for (const state of this._sessionStates.values()) {
+			if (state.lifecycle === SessionLifecycle.Creating && !state.activeTurn && state.turns.length === 0) {
+				continue;
+			}
+			summaries.push(state.summary);
+		}
+		return summaries;
 	}
 
 	/**
