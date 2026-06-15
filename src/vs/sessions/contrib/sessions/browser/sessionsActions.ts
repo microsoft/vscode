@@ -20,8 +20,8 @@ import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { CanGoBackContext, CanGoForwardContext, ChatSessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
-import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsViewService } from '../../../services/sessions/browser/sessionsViewService.js';
+import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
@@ -47,17 +47,16 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor) {
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const sessionsViewService = accessor.get(ISessionsViewService);
+		const sessionsService = accessor.get(ISessionsService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
 		const sessionsListModelService = accessor.get(ISessionsListModelService);
 
-		const { recent, other } = sessionsViewService.getRecentlyOpenedSessions();
+		const { recent, other } = sessionsService.getRecentlyOpenedSessions();
 		const recentSessions = recent.filter(s => !s.isArchived.get());
 		const otherSessions = other.filter(s => !s.isArchived.get());
 
-		const activeSessionId = sessionsManagementService.activeSession.get()?.sessionId;
+		const activeSessionId = sessionsService.activeSession.get()?.sessionId;
 
 		interface ISessionPickItem extends IQuickPickItem {
 			session?: ISession;
@@ -145,8 +144,8 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 
 		const openSelected = (selected: ISessionPickItem, inBackground: boolean, toSide: boolean): void => {
 			if (!selected.session) {
-				sessionsViewService.openNewSession();
-				sessionsPartService.focusSession(sessionsManagementService.activeSession.get());
+				sessionsService.openNewSession();
+				sessionsPartService.focusSession(sessionsService.activeSession.get());
 				return;
 			}
 
@@ -155,9 +154,9 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 			// normal open when there is no active session to anchor against or the
 			// session is already the active one.
 			if (toSide && activeSessionId !== undefined && selected.session.sessionId !== activeSessionId) {
-				sessionsViewService.insertAt(selected.session, activeSessionId, 'right', !inBackground);
+				sessionsService.insertAt(selected.session, activeSessionId, 'right', !inBackground);
 			} else {
-				sessionsViewService.openSession(selected.session.resource, { preserveFocus: inBackground });
+				sessionsService.openSession(selected.session.resource, { preserveFocus: inBackground });
 			}
 		};
 
@@ -217,7 +216,7 @@ registerAction2(class GoBackAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		await accessor.get(ISessionsViewService).openPreviousSession();
+		await accessor.get(ISessionsService).openPreviousSession();
 	}
 });
 
@@ -259,7 +258,7 @@ registerAction2(class GoForwardAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		await accessor.get(ISessionsViewService).openNextSession();
+		await accessor.get(ISessionsService).openNextSession();
 	}
 });
 
@@ -284,9 +283,9 @@ registerAction2(class FocusActiveSessionAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
-		sessionsPartService.focusSession(sessionsManagementService.activeSession.get());
+		const sessionsService = accessor.get(ISessionsService);
+		sessionsPartService.focusSession(sessionsService.activeSession.get());
 	}
 });
 
@@ -315,17 +314,17 @@ for (let index = 0; index < 9; index++) {
 		}
 
 		override async run(accessor: ServicesAccessor): Promise<void> {
-			const sessionsViewService = accessor.get(ISessionsViewService);
+			const sessionsService = accessor.get(ISessionsService);
 			const sessionsPartService = accessor.get(ISessionsPartService);
 
-			const visible = sessionsViewService.visibleSessions.get();
+			const visible = sessionsService.visibleSessions.get();
 			const targetIndex = isLast ? visible.length - 1 : index;
 			if (targetIndex < 0 || targetIndex >= visible.length) {
 				return;
 			}
 
 			const session = visible[targetIndex];
-			sessionsViewService.setActive(session);
+			sessionsService.setActive(session);
 			sessionsPartService.focusSession(session);
 		}
 	});
@@ -351,7 +350,7 @@ registerAction2(class CloseAllSessionsAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		accessor.get(ISessionsViewService).closeAllSessions();
+		accessor.get(ISessionsService).closeAllSessions();
 	}
 });
 
@@ -374,11 +373,10 @@ registerAction2(class AddChatToSessionBarAction extends Action2 {
 		if (!session) {
 			return;
 		}
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const sessionsViewService = accessor.get(ISessionsViewService);
+		const sessionsService = accessor.get(ISessionsService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
-		await sessionsViewService.openNewChatInSession(session);
-		sessionsPartService.focusSession(sessionsManagementService.activeSession.get());
+		await sessionsService.openNewChatInSession(session);
+		sessionsPartService.focusSession(sessionsService.activeSession.get());
 	}
 });
 
@@ -406,7 +404,7 @@ registerAction2(class TogglePinSessionAction extends Action2 {
 		if (!session) {
 			return;
 		}
-		accessor.get(ISessionsViewService).toggleSessionStickiness(session);
+		accessor.get(ISessionsService).toggleSessionStickiness(session);
 	}
 });
 
@@ -467,12 +465,11 @@ registerAction2(class CloseSessionAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const sessionsViewService = accessor.get(ISessionsViewService);
+		const sessionsService = accessor.get(ISessionsService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
 
-		sessionsViewService.closeSession(session);
-		sessionsPartService.focusSession(sessionsManagementService.activeSession.get());
+		sessionsService.closeSession(session);
+		sessionsPartService.focusSession(sessionsService.activeSession.get());
 	}
 });
 
@@ -498,7 +495,7 @@ registerAction2(class ToggleMaximizeSessionViewAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
 		accessor.get(ISessionsPartService).toggleMaximizeSession(session);
-		accessor.get(ISessionsViewService).setActive(session);
+		accessor.get(ISessionsService).setActive(session);
 	}
 });
 
