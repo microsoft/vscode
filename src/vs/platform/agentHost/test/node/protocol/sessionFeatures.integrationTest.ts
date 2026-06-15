@@ -14,6 +14,7 @@ import { MOCK_AUTO_TITLE } from '../mockAgent.js';
 import {
 	createAndSubscribeSession,
 	dispatchTurnStarted,
+	fetchSessionWithChat,
 	getActionEnvelope,
 	isActionNotification,
 	IServerHandle,
@@ -262,8 +263,7 @@ suite('Protocol WebSocket — Session Features', function () {
 		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
 
 		// Verify the turn was created from the queued message
-		const snapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-		const state = snapshot.snapshot!.state as ISessionWithDefaultChat;
+		const state = await fetchSessionWithChat(client, sessionUri);
 		assert.ok(state.turns.length >= 1);
 		assert.strictEqual(state.turns[state.turns.length - 1].message.text, 'hello');
 		// Queue should be empty after consumption
@@ -313,8 +313,7 @@ suite('Protocol WebSocket — Session Features', function () {
 		});
 		assert.ok(secondComplete, 'should receive a second turnComplete from the queued message');
 
-		const snapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-		const state = snapshot.snapshot!.state as ISessionWithDefaultChat;
+		const state = await fetchSessionWithChat(client, sessionUri);
 		assert.ok(state.turns.length >= 2, `expected >= 2 turns but got ${state.turns.length}`);
 	});
 
@@ -352,8 +351,7 @@ suite('Protocol WebSocket — Session Features', function () {
 		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
 
 		// Steering should be cleared from state
-		const snapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-		const state = snapshot.snapshot!.state as ISessionWithDefaultChat;
+		const state = await fetchSessionWithChat(client, sessionUri);
 		assert.ok(!state.steeringMessage, 'steering message should be cleared after consumption');
 	});
 
@@ -373,8 +371,7 @@ suite('Protocol WebSocket — Session Features', function () {
 		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete') && (getActionEnvelope(n).action as { turnId: string }).turnId === 'turn-t2');
 
 		// Verify 2 turns exist
-		let snapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-		let state = snapshot.snapshot!.state as ISessionWithDefaultChat;
+		let state = await fetchSessionWithChat(client, sessionUri);
 		assert.strictEqual(state.turns.length, 2);
 
 		client.clearReceived();
@@ -388,8 +385,7 @@ suite('Protocol WebSocket — Session Features', function () {
 
 		await client.waitForNotification(n => isActionNotification(n, 'chat/truncated'));
 
-		snapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-		state = snapshot.snapshot!.state as ISessionWithDefaultChat;
+		state = await fetchSessionWithChat(client, sessionUri);
 		assert.strictEqual(state.turns.length, 1);
 		assert.strictEqual(state.turns[0].id, 'turn-t1');
 	});
@@ -413,8 +409,7 @@ suite('Protocol WebSocket — Session Features', function () {
 
 		await client.waitForNotification(n => isActionNotification(n, 'chat/truncated'));
 
-		const snapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-		const state = snapshot.snapshot!.state as ISessionWithDefaultChat;
+		const state = await fetchSessionWithChat(client, sessionUri);
 		assert.strictEqual(state.turns.length, 0);
 	});
 
@@ -445,8 +440,7 @@ suite('Protocol WebSocket — Session Features', function () {
 		dispatchTurnStarted(client, sessionUri, 'turn-tr3', 'hello', 4);
 		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
 
-		const snapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-		const state = snapshot.snapshot!.state as ISessionWithDefaultChat;
+		const state = await fetchSessionWithChat(client, sessionUri);
 		assert.strictEqual(state.turns.length, 2);
 		assert.strictEqual(state.turns[0].id, 'turn-tr1');
 		assert.strictEqual(state.turns[1].id, 'turn-tr3');
@@ -483,14 +477,12 @@ suite('Protocol WebSocket — Session Features', function () {
 		const addedSession = addedNotif.params as SessionAddedParams;
 
 		// Subscribe — forked session should have 1 turn
-		const snapshot = await client.call<SubscribeResult>('subscribe', { channel: addedSession.summary.resource });
-		const state = snapshot.snapshot!.state as ISessionWithDefaultChat;
+		const state = await fetchSessionWithChat(client, addedSession.summary.resource);
 		assert.strictEqual(state.lifecycle, 'ready');
 		assert.strictEqual(state.turns.length, 1, 'forked session should have 1 turn');
 
 		// Source session should be unaffected
-		const sourceSnapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-		const sourceState = sourceSnapshot.snapshot!.state as ISessionWithDefaultChat;
+		const sourceState = await fetchSessionWithChat(client, sessionUri);
 		assert.strictEqual(sourceState.turns.length, 2);
 	});
 

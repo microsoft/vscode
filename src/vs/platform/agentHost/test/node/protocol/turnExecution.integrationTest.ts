@@ -11,6 +11,7 @@ import { ResponsePartKind, ROOT_STATE_URI, buildSubagentSessionUri, isSubagentSe
 import {
 	createAndSubscribeSession,
 	dispatchTurnStarted,
+	fetchSessionWithChat,
 	getActionEnvelope,
 	IServerHandle,
 	isActionNotification,
@@ -100,8 +101,7 @@ suite('Protocol WebSocket — Turn Execution', function () {
 
 		await client.waitForNotification(n => isActionNotification(n, 'chat/turnCancelled'));
 
-		const snapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-		const state = snapshot.snapshot!.state as ISessionWithDefaultChat;
+		const state = await fetchSessionWithChat(client, sessionUri);
 		assert.ok(state.turns.length >= 1);
 		assert.strictEqual(state.turns[state.turns.length - 1].state, 'cancelled');
 	});
@@ -118,8 +118,7 @@ suite('Protocol WebSocket — Turn Execution', function () {
 		await new Promise(resolve => setTimeout(resolve, 200));
 		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
 
-		const snapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-		const state = snapshot.snapshot!.state as ISessionWithDefaultChat;
+		const state = await fetchSessionWithChat(client, sessionUri);
 		assert.ok(state.turns.length >= 2, `expected >= 2 turns but got ${state.turns.length}`);
 		assert.strictEqual(state.turns[0].id, 'turn-m1');
 		assert.strictEqual(state.turns[1].id, 'turn-m2');
@@ -156,8 +155,7 @@ suite('Protocol WebSocket — Turn Execution', function () {
 
 		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
 
-		const snapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-		const state = snapshot.snapshot!.state as ISessionWithDefaultChat;
+		const state = await fetchSessionWithChat(client, sessionUri);
 		assert.ok(state.turns.length >= 1);
 		const turn = state.turns[state.turns.length - 1];
 		assert.ok(turn.usage);
@@ -197,10 +195,8 @@ suite('Protocol WebSocket — Turn Execution', function () {
 		// the parent session URI + parent toolCallId.
 		const childUri = buildSubagentSessionUri(sessionUri, 'tc-task-1');
 
-		const parentSnapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-		const parentState = parentSnapshot.snapshot!.state as ISessionWithDefaultChat;
-		const childSnapshot = await client.call<SubscribeResult>('subscribe', { channel: childUri });
-		const childState = childSnapshot.snapshot!.state as ISessionWithDefaultChat;
+		const parentState = await fetchSessionWithChat(client, sessionUri);
+		const childState = await fetchSessionWithChat(client, childUri);
 
 		// Parent turn should contain the `task` tool call but NOT the inner one.
 		const parentTurn = parentState.turns[parentState.turns.length - 1];
@@ -224,7 +220,7 @@ suite('Protocol WebSocket — Turn Execution', function () {
 
 		// Wait for the parent turn to complete so the subagent child session
 		// has been created in the state manager.
-		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
 
 		// Sanity: the subagent child session is live (subscribing succeeds).
 		const childUri = buildSubagentSessionUri(sessionUri, 'tc-task-1');

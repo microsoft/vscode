@@ -27,14 +27,13 @@ import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { MessageAttachmentKind, type ISessionWithDefaultChat, type MessageAttachment } from '../../../common/state/sessionState.js';
-import { SubscribeResult } from '../../../common/state/protocol/commands.js';
+import { MessageAttachmentKind, type MessageAttachment } from '../../../common/state/sessionState.js';
 import type { ChatUsageAction } from '../../../common/state/sessionActions.js';
 import {
 	createRealSession, defineSharedRealSdkTests, dispatchTurn, driveTurnWithAttachmentsToCompletion,
 	type IRealSdkProviderConfig,
 } from './realSdkTestHelpers.js';
-import { getActionEnvelope, isActionNotification, IServerHandle, startRealServer, TestProtocolClient } from './testHelpers.js';
+import { fetchSessionWithChat, getActionEnvelope, isActionNotification, IServerHandle, startRealServer, TestProtocolClient } from './testHelpers.js';
 
 const REAL_SDK_ENABLED = process.env['AGENT_HOST_REAL_SDK'] === '1';
 
@@ -115,8 +114,7 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 		assert.ok(cost > 0, `expected usage._meta.cost to be positive: ${JSON.stringify(usageAction.usage)}`);
 
 		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'), 90_000);
-		const snapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-		const state = snapshot.snapshot!.state as ISessionWithDefaultChat;
+		const state = await fetchSessionWithChat(client, sessionUri);
 		const turn = state.turns.find(t => t.id === 'turn-usage');
 		assert.strictEqual(turn?.usage?._meta?.cost, cost);
 	});

@@ -26,7 +26,7 @@ import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registr
 import {
 	MessageKind,
 	ResponsePartKind, ROOT_STATE_URI, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind,
-	ChatInputResponseKind, ToolResultContentType, isSubagentSession,
+	ChatInputResponseKind, ToolResultContentType, buildDefaultChatUri, isSubagentSession,
 	type MessageAttachment, type ChatInputAnswer, type ChatInputRequest, type SessionState, type TerminalState,
 	type ToolResultContent, type ToolResultSubagentContent,
 } from '../../../common/state/sessionState.js';
@@ -161,6 +161,10 @@ export async function createRealSession(
 
 	const subscribeResult = await c.call<SubscribeResult>('subscribe', { channel: sessionUri });
 	void (subscribeResult.snapshot!.state as SessionState);
+	// Conversation contents (turns, etc.) live on the session's default chat
+	// channel in the multi-chat protocol; subscribe to it as well so `chat/*`
+	// action notifications are delivered to this client.
+	await c.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
 	c.clearReceived();
 
 	return sessionUri;
@@ -185,7 +189,7 @@ export function dispatchTurnWithAttachments(c: TestProtocolClient, session: stri
 		channel: session,
 		clientSeq,
 		action: {
-			type: 'session/turnStarted',
+			type: 'chat/turnStarted',
 			turnId,
 			message: { text, origin: { kind: MessageKind.User }, attachments: [...attachments] },
 		},

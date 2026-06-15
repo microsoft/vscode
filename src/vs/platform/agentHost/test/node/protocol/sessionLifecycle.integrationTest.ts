@@ -14,6 +14,7 @@ import { ResponsePartKind, ROOT_STATE_URI, SessionStatus, type MarkdownResponseP
 import { PRE_EXISTING_SESSION_URI } from '../mockAgent.js';
 import {
 	createAndSubscribeSession,
+	fetchSessionWithChat,
 	isActionNotification,
 	IServerHandle,
 	nextSessionUri,
@@ -106,8 +107,7 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 
 		// Subscribing to this session should trigger the restore path: the
 		// server fetches message history from the agent and reconstructs turns.
-		const result = await client.call<SubscribeResult>('subscribe', { channel: preExistingUri });
-		const state = result.snapshot!.state as ISessionWithDefaultChat;
+		const state = await fetchSessionWithChat(client, preExistingUri);
 
 		assert.strictEqual(state.lifecycle, 'ready', 'restored session should be in ready state');
 		assert.ok(state.turns.length >= 1, `expected at least 1 restored turn but got ${state.turns.length}`);

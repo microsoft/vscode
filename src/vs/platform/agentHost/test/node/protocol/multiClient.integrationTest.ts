@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { SubscribeResult } from '../../../common/state/protocol/commands.js';
 import type { SessionAddedParams, SessionRemovedParams } from '../../../common/state/protocol/notifications.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import type { ReconnectResult } from '../../../common/state/sessionProtocol.js';
-import { ROOT_STATE_URI, type ISessionWithDefaultChat } from '../../../common/state/sessionState.js';
+import { ROOT_STATE_URI, buildDefaultChatUri } from '../../../common/state/sessionState.js';
 import {
 	createAndSubscribeSession,
 	dispatchTurnStarted,
+	fetchSessionWithChat,
 	getActionEnvelope,
 	IServerHandle,
 	isActionNotification,
@@ -112,6 +112,7 @@ suite('Protocol WebSocket — Multi-Client', function () {
 		await client2.connect();
 		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-multi-client-2' });
 		await client2.call('subscribe', { channel: sessionUri });
+		await client2.call('subscribe', { channel: buildDefaultChatUri(sessionUri) });
 		client2.clearReceived();
 
 		dispatchTurnStarted(client, sessionUri, 'turn-mc', 'hello', 1);
@@ -136,6 +137,7 @@ suite('Protocol WebSocket — Multi-Client', function () {
 		await client2.connect();
 		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-cross-msg-2' });
 		await client2.call('subscribe', { channel: sessionUri });
+		await client2.call('subscribe', { channel: buildDefaultChatUri(sessionUri) });
 		client.clearReceived();
 		client2.clearReceived();
 
@@ -162,6 +164,7 @@ suite('Protocol WebSocket — Multi-Client', function () {
 		await client2.connect();
 		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-tool-progress-2' });
 		await client2.call('subscribe', { channel: sessionUri });
+		await client2.call('subscribe', { channel: buildDefaultChatUri(sessionUri) });
 		client.clearReceived();
 		client2.clearReceived();
 
@@ -191,6 +194,7 @@ suite('Protocol WebSocket — Multi-Client', function () {
 		await client2.connect();
 		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-unsub-helper' });
 		await client2.call('subscribe', { channel: sessionUri });
+		await client2.call('subscribe', { channel: buildDefaultChatUri(sessionUri) });
 
 		dispatchTurnStarted(client2, sessionUri, 'turn-unsub', 'hello', 1);
 		await client2.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
@@ -245,8 +249,7 @@ suite('Protocol WebSocket — Multi-Client', function () {
 		await client2.connect();
 		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-late-sub-2' });
 
-		const result = await client2.call<SubscribeResult>('subscribe', { channel: sessionUri });
-		const state = result.snapshot!.state as ISessionWithDefaultChat;
+		const state = await fetchSessionWithChat(client2, sessionUri);
 		assert.ok(state.turns.length >= 1, `late subscriber should see completed turn, got ${state.turns.length}`);
 		assert.strictEqual(state.turns[0].id, 'turn-late');
 		assert.strictEqual(state.turns[0].state, 'complete');
@@ -263,6 +266,7 @@ suite('Protocol WebSocket — Multi-Client', function () {
 		await client2.connect();
 		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-cross-perm-2' });
 		await client2.call('subscribe', { channel: sessionUri });
+		await client2.call('subscribe', { channel: buildDefaultChatUri(sessionUri) });
 		client.clearReceived();
 		client2.clearReceived();
 
