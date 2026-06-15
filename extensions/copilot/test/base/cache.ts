@@ -17,6 +17,22 @@ import { CurrentTestRunInfo } from './simulationContext';
 const compress = promisify(zlib.brotliCompress);
 const decompress = promisify(zlib.brotliDecompress);
 
+/**
+ * Yield to the libuv event loop.
+ *
+ * The previous `@keyv/sqlite` store was backed by the asynchronous `sqlite3`
+ * driver, so every individual store operation resolved on a later loop tick.
+ * Some consumers rely on that boundary: e.g. the panel multi-file edit flow
+ * applies one code block's edits while the next code block's code-mapper request
+ * is awaiting its cached response, so the next request is built against the
+ * already-edited document. `node:sqlite`'s `DatabaseSync` is synchronous, so we
+ * reintroduce the async boundary on every store operation to preserve that
+ * interleaving (and thus compatibility with the recorded cache).
+ */
+function yieldEventLoop(): Promise<void> {
+	return new Promise<void>(resolve => setImmediate(resolve));
+}
+
 const DefaultCachePath = process.env.VITEST ? path.resolve(__dirname, '..', 'simulation', 'cache') : path.resolve(__dirname, '..', 'test', 'simulation', 'cache');
 
 async function getGitRoot(cwd: string): Promise<string> {
@@ -48,19 +64,32 @@ class SqliteKeyValueStore {
 		return `${SqliteKeyValueStore.NAMESPACE}:${key}`;
 	}
 
+	private static _decodeJsonBufferValue(value: string): string {
+		if (value.startsWith(':base64:')) {
+			return value.slice(':base64:'.length);
+		}
+		if (value.startsWith(':')) {
+			return value.slice(1);
+		}
+		return value;
+	}
+
 	async get(key: string): Promise<string | undefined> {
+		await yieldEventLoop();
 		const row = this.db.prepare('SELECT value FROM keyv WHERE key = ?').get(this._namespacedKey(key)) as { value: string } | undefined;
 		if (!row) {
 			return undefined;
 		}
-		return JSON.parse(row.value).value as string;
+		return SqliteKeyValueStore._decodeJsonBufferValue(JSON.parse(row.value).value as string);
 	}
 
 	async set(key: string, value: string): Promise<void> {
+		await yieldEventLoop();
 		this.db.prepare('INSERT OR REPLACE INTO keyv (key, value) VALUES (?, ?)').run(this._namespacedKey(key), JSON.stringify({ value }));
 	}
 
 	async has(key: string): Promise<boolean> {
+		await yieldEventLoop();
 		const row = this.db.prepare('SELECT 1 FROM keyv WHERE key = ?').get(this._namespacedKey(key));
 		return row !== undefined;
 	}
