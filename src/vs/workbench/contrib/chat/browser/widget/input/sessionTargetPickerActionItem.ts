@@ -24,7 +24,7 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { AgentSessionProviders, AgentSessionTarget, getAgentSessionProvider, getAgentSessionProviderDescription, getAgentSessionProviderIcon, getAgentSessionProviderName, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
-import { ChatConfiguration, getDefaultNewChatSessionType } from '../../../common/constants.js';
+import { ChatConfiguration, getDefaultNewChatSessionType, isVisibleEditorChatSessionType } from '../../../common/constants.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ISessionTypePickerDelegate } from '../../chat.js';
 import { IActionProvider } from '../../../../../../base/browser/ui/dropdown/dropdown.js';
@@ -112,6 +112,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatConfiguration.EditorDefaultProvider) ||
+				e.affectsConfiguration(ChatConfiguration.EditorLocalAgentEnabled) ||
 				e.affectsConfiguration(ChatConfiguration.CopilotCliHideExtensionHostEditor)) {
 				this._updateAgentSessionItems();
 				if (this.element) {
@@ -224,13 +225,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 	}
 
 	protected _isVisible(type: AgentSessionTarget): boolean {
-		// Hide the Extension Host Copilot CLI in the editor picker when configured.
-		const hideEhCopilotCli = this.configurationService.getValue<boolean>(ChatConfiguration.CopilotCliHideExtensionHostEditor) ?? false;
-		if (hideEhCopilotCli && type === AgentSessionProviders.Background) {
-			return false;
-		}
-
-		return true;
+		return isVisibleEditorChatSessionType(type, this.configurationService, this.chatSessionsService);
 	}
 
 	protected _isSessionTypeEnabled(type: AgentSessionTarget): boolean {
