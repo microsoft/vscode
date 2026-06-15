@@ -12,7 +12,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentSession, ClaudePreferAgentHostEditorSettingId, IAgentHostService, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentSession, IAgentHostService, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { CustomizationLoadStatus, CustomizationType, SessionLifecycle, type AgentInfo, type Customization, type ModelSelection, type RootState, type SessionConfigState, type SessionState, type SessionSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -28,7 +28,6 @@ import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/con
 import { IChatService, type ChatSendResult, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService, isIChatSessionFileChange2 } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
-import { IWorkbenchEnvironmentService } from '../../../../../../workbench/services/environment/common/environmentService.js';
 import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
@@ -313,7 +312,6 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	instantiationService.stub(IAgentHostActiveClientService, new class extends mock<IAgentHostActiveClientService>() {
 		override getActiveClient = (_sessionType: string, clientId: string) => ({ clientId, tools: [], customizations: [] });
 	}());
-	instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: false });
 
 	return disposables.add(instantiationService.createInstance(LocalAgentHostSessionsProvider));
 }
@@ -436,32 +434,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, agentHost);
 
 		assert.deepStrictEqual(provider.sessionTypes, []);
-	});
-
-	test('hides agent-host Claude session type when editor window prefers extension-host Claude', () => {
-		agentHost.setAgents([
-			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
-			{ provider: 'claude', displayName: 'Claude', description: '', models: [] } as AgentInfo,
-			{ provider: 'openai', displayName: 'OpenAI', description: '', models: [] } as AgentInfo,
-		]);
-
-		const provider = createProvider(disposables, agentHost);
-
-		assert.deepStrictEqual(provider.sessionTypes.map(t => t.id), ['copilotcli', 'openai']);
-	});
-
-	test('shows agent-host Claude session type when editor window prefers agent-host Claude', async () => {
-		const config = new TestConfigurationService();
-		await config.setUserConfiguration(ClaudePreferAgentHostEditorSettingId, true);
-		agentHost.setAgents([
-			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
-			{ provider: 'claude', displayName: 'Claude', description: '', models: [] } as AgentInfo,
-			{ provider: 'openai', displayName: 'OpenAI', description: '', models: [] } as AgentInfo,
-		]);
-
-		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config });
-
-		assert.deepStrictEqual(provider.sessionTypes.map(t => t.id), ['copilotcli', 'claude', 'openai']);
 	});
 
 	test('reports no session types after rootState resolves to an error', () => {

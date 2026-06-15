@@ -1272,7 +1272,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._onDidChangeCustomAgents.fire();
 			this._onDidChangeCustomizations.fire();
 		}
-		const next = rootState.agents.filter(agent => this._shouldSurfaceAgentProvider(agent.provider)).map((agent): ISessionType => ({
+		const next = rootState.agents.map((agent): ISessionType => ({
 			id: agent.provider,
 			// The chat session contribution and language models for an agent-host
 			// agent are registered under its resource scheme (`agent-host-<provider>`),
@@ -1288,10 +1288,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		this._sessionTypes = next;
 		this._onDidChangeSessionTypes.fire();
-	}
-
-	protected _shouldSurfaceAgentProvider(_provider: string): boolean {
-		return true;
 	}
 
 	/**
