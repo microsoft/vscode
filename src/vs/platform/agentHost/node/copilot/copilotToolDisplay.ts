@@ -192,6 +192,11 @@ interface ICopilotWebFetchToolArgs {
 	url: string;
 }
 
+/** Parameters for the `task_complete` tool. */
+interface ICopilotTaskCompleteToolArgs {
+	summary?: string;
+}
+
 /**
  * Parameters for the `apply_patch` / `git_apply_patch` tools. The patch text
  * itself lives in `input` using the V4A diff format (file headers like
@@ -580,6 +585,13 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 		}
 		case CopilotToolName.ExitPlanMode:
 			return localize('toolInvoke.exitPlanMode', "Presenting plan");
+		case CopilotToolName.TaskComplete: {
+			const args = parameters as ICopilotTaskCompleteToolArgs | undefined;
+			if (typeof args?.summary === 'string' && args.summary.length > 0) {
+				return md(args.summary);
+			}
+			return localize('toolInvoke.taskComplete', "Marking task as complete");
+		}
 		default:
 			return localize('toolInvoke.generic', "Using \"{0}\"", displayName);
 	}
@@ -690,6 +702,13 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 		}
 		case CopilotToolName.ExitPlanMode:
 			return localize('toolComplete.exitPlanMode', "Exited plan mode");
+		case CopilotToolName.TaskComplete: {
+			const args = parameters as ICopilotTaskCompleteToolArgs | undefined;
+			if (typeof args?.summary === 'string' && args.summary.length > 0) {
+				return md(args.summary);
+			}
+			return localize('toolComplete.taskComplete', "Task completed");
+		}
 		default:
 			return localize('toolComplete.generic', "Used \"{0}\"", displayName);
 	}

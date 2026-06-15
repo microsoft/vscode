@@ -497,6 +497,40 @@ suite('web_fetch tool display', () => {
 	});
 });
 
+suite('task_complete tool display', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function text(msg: ReturnType<typeof getInvocationMessage> | ReturnType<typeof getPastTenseMessage>): string {
+		return typeof msg === 'string' ? msg : msg.markdown;
+	}
+
+	test('uses the summary as invocation and completion messages so the user sees what the agent did', () => {
+		const parameters = { summary: 'Fixed the failing test by updating the assertion message.' };
+		assert.deepStrictEqual({
+			invocation: text(getInvocationMessage('task_complete', 'Task Complete', parameters)),
+			pastTense: text(getPastTenseMessage('task_complete', 'Task Complete', parameters, true)),
+		}, {
+			invocation: 'Fixed the failing test by updating the assertion message.',
+			pastTense: 'Fixed the failing test by updating the assertion message.',
+		});
+	});
+
+	test('falls back to generic wording when the summary is absent or empty', () => {
+		assert.deepStrictEqual({
+			invocationUndefined: text(getInvocationMessage('task_complete', 'Task Complete', undefined)),
+			pastTenseUndefined: text(getPastTenseMessage('task_complete', 'Task Complete', undefined, true)),
+			invocationEmpty: text(getInvocationMessage('task_complete', 'Task Complete', { summary: '' })),
+			pastTenseEmpty: text(getPastTenseMessage('task_complete', 'Task Complete', { summary: '' }, true)),
+		}, {
+			invocationUndefined: 'Marking task as complete',
+			pastTenseUndefined: 'Task completed',
+			invocationEmpty: 'Marking task as complete',
+			pastTenseEmpty: 'Task completed',
+		});
+	});
+});
+
 suite('sql tool display', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();

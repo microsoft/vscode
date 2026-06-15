@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress, CountTokensCallback } from '../languageModelToolsService.js';
 
 export const TaskCompleteToolId = 'task_complete';
@@ -58,9 +59,23 @@ export const TaskCompleteToolData: IToolData = {
 };
 
 export class TaskCompleteTool implements IToolImpl {
-	async prepareToolInvocation(_context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+		const params = context.parameters as { summary?: string } | undefined;
+		const summary = typeof params?.summary === 'string' ? params.summary.trim() : '';
+		if (!summary) {
+			// No summary to show — keep the tool invocation hidden from the UI.
+			return {
+				presentation: ToolInvocationPresentation.Hidden,
+			};
+		}
+		// Surface the agent's summary so the user can see what was accomplished.
+		// The tool description tells the model to put the summary here (instead of
+		// in its assistant message text) — so if we hide it the user is left
+		// without any indication of what the agent did. See microsoft/vscode#321390.
+		const message = new MarkdownString(summary);
 		return {
-			presentation: ToolInvocationPresentation.Hidden,
+			invocationMessage: message,
+			pastTenseMessage: message,
 		};
 	}
 
