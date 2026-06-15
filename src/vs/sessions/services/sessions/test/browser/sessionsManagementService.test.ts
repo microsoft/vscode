@@ -119,7 +119,7 @@ class TestSessionsProvidersService extends mock<ISessionsProvidersService>() {
 	}
 
 	override getProviders(): ISessionsProvider[] {
-		return [...this._providers];
+		return [...this._providers].sort((a, b) => a.order - b.order);
 	}
 
 	override getProvider<T extends ISessionsProvider>(providerId: string): T | undefined {

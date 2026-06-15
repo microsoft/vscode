@@ -256,7 +256,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	getSessionTypesForFolder(folderUri: URI): IProviderSessionType[] {
 		const result: IProviderSessionType[] = [];
-		for (const provider of this._getOrderedProviders()) {
+		for (const provider of this.sessionsProvidersService.getProviders()) {
 			if (!provider.resolveWorkspace(folderUri)) {
 				continue;
 			}
@@ -280,7 +280,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private _collectSessionTypes(): ISessionType[] {
 		const types: ISessionType[] = [];
 		const seen = new Set<string>();
-		for (const provider of this._getOrderedProviders()) {
+		for (const provider of this.sessionsProvidersService.getProviders()) {
 			for (const type of provider.sessionTypes) {
 				if (!seen.has(type.id)) {
 					seen.add(type.id);
@@ -289,16 +289,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			}
 		}
 		return types;
-	}
-
-	/**
-	 * Returns the registered providers in the order their session types should
-	 * be surfaced, sorted by each provider's {@link ISessionsProvider.order}
-	 * (lower first). The sort is stable, so providers with equal order keep
-	 * their registration order.
-	 */
-	private _getOrderedProviders(): ISessionsProvider[] {
-		return [...this.sessionsProvidersService.getProviders()].sort((a, b) => a.order - b.order);
 	}
 
 	private _updateSessionTypes(): void {
