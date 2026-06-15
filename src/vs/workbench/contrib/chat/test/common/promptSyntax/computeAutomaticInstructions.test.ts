@@ -2821,6 +2821,8 @@ suite('getFilePath', () => {
 	test('should not convert vscode-remote:// URIs when connected to a remote', () => {
 		const uri = URI.from({ scheme: Schemas.vscodeRemote, authority: 'wsl+ubuntu', path: '/home/user/project/file.ts' });
 		const result = getFilePath(uri, OperatingSystem.Linux, /* isRemote */ true);
-		assert.strictEqual(result, uri.fsPath);
+		// Do not use uri.fsPath here — it is host-OS-dependent and returns
+		// backslashes on Windows CI, but the function normalizes to the remote OS.
+		assert.strictEqual(result, '/home/user/project/file.ts');
 	});
 });
