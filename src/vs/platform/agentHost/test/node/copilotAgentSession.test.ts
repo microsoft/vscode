@@ -1505,6 +1505,35 @@ suite('CopilotAgentSession', () => {
 					invocationTimeMs: true,
 				},
 			});
+
+		});
+
+		test('live task_complete emits root markdown instead of a tool call', async () => {
+			const { mockSession, signals } = await createAgentSession(disposables);
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-task-complete',
+				toolName: 'task_complete',
+				arguments: { summary: 'Completed the requested work.' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-task-complete',
+				success: true,
+				result: { content: 'Completed the requested work.' },
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+
+			const actions = getActions(signals);
+			assert.deepStrictEqual(actions.map(a => a.type), [ActionType.SessionResponsePart]);
+			const responsePart = actions[0] as SessionResponsePartAction;
+			assert.strictEqual(responsePart.part.kind, ResponsePartKind.Markdown);
+			if (responsePart.part.kind !== ResponsePartKind.Markdown) {
+				return;
+			}
+			assert.deepStrictEqual(responsePart.part, {
+				kind: ResponsePartKind.Markdown,
+				id: responsePart.part.id,
+				content: 'Completed the requested work.',
+			});
 		});
 
 		test('live tool_start does not rewrite when cd target differs from workingDirectory', async () => {
