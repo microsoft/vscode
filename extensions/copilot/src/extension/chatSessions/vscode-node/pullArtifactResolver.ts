@@ -37,7 +37,7 @@ export async function resolvePullArtifact(
 	// often — and via which path — resolution degrades past the direct global-id lookup.
 	const reportResolved = (resolvedVia: 'preResolved' | 'globalId' | 'sessionGlobalId' | 'openPrDatabaseId' | 'openPrHeadRef' | 'unresolved') => {
 		/* __GDPR__
-			"cca.pullArtifactResolve" : {
+			"copilotcloud.pullArtifactResolve" : {
 				"owner": "osortega",
 				"comment": "Tracks which strategy resolved a cloud task's pull request artifact, to monitor how often resolution falls back past the direct global-id lookup.",
 				"resolvedVia": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Strategy that produced the pull request: preResolved, globalId, sessionGlobalId, openPrDatabaseId, openPrHeadRef, or unresolved." },
@@ -47,7 +47,7 @@ export async function resolvePullArtifact(
 				"sessionCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of task sessions available for the session global-id fallback." }
 			}
 		*/
-		telemetry?.sendMSFTTelemetryEvent('cca.pullArtifactResolve', {
+		telemetry?.sendMSFTTelemetryEvent('copilotcloud.pullArtifactResolve', {
 			resolvedVia,
 			hadGlobalId: String(!!ref.globalId),
 			hadDatabaseId: String(ref.databaseId !== undefined),

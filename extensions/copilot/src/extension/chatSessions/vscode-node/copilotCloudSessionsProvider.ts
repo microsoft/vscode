@@ -2120,8 +2120,8 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	 * as the first argument, from which we resolve the task id. Shows a "Creating pull request"
 	 * progress notification while the Task API's `create-pr` endpoint runs and the PR is reflected
 	 * on the task; on success it shows no further message and instead flips the toolbar action to
-	 * "Open pull request" (browser) via the context keys, then refreshes so the session renders a
-	 * proper PR card (resolved via `pullArtifact`) with its file-change diff.
+	 * "Open pull request" (which opens the PR in the browser) by updating the context keys in place.
+	 * The session list reconciles to a PR-keyed item on the next background refresh.
 	 */
 	private async handleCreatePullRequestForTaskCommand(sessionItemOrResource?: vscode.ChatSessionItem | vscode.Uri): Promise<void> {
 		const backend = this._backend;
@@ -2223,7 +2223,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				return;
 			}
 		}
-		this.logService.warn(`[handleCreatePullRequestForTaskCommand] Pull request for task ${taskId} not reflected after ${maxAttempts} attempts; refreshing without it.`);
+		this.logService.warn(`[handleCreatePullRequestForTaskCommand] Pull request for task ${taskId} not reflected after ${maxAttempts} attempts; continuing without it.`);
 	}
 
 	/**
@@ -2236,7 +2236,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 
 	/**
 	 * Toggle the {@link CAN_OPEN_PULL_REQUEST_CONTEXT_KEY} context key that gates the chat-input
-	 * "Open pull request" toolbar action (the browser-open icon shown once the task has a PR).
+	 * "Open pull request" toolbar action (shown once the task has a PR; opens it in the browser).
 	 */
 	private setCanOpenPullRequestContext(canOpen: boolean): void {
 		void vscode.commands.executeCommand('setContext', CAN_OPEN_PULL_REQUEST_CONTEXT_KEY, canOpen);

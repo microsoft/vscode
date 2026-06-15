@@ -334,9 +334,7 @@ class FakeTaskApiClient implements ITaskApiClient {
 			created_at: '2026-03-27T00:00:00Z',
 			html_url: 'https://github.com/octocat/hello-world/agents/tasks/task-created',
 		} as unknown as AgentTask);
-		this._createPRResult = opts?.createPRResult ?? ({
-			pull_request: { number: 42 },
-		} as unknown as AgentTaskCreatePullRequestResponse);
+		this._createPRResult = opts?.createPRResult ?? { id: 1, number: 42, repository_id: 1 };
 	}
 
 	async createTask(_owner: string, _repo: string, request: AgentTaskCreateRequest): Promise<AgentTask> {
@@ -396,7 +394,7 @@ describe('TaskApiBackend', () => {
 		const result = await backend.createPullRequestForTask({ id: 'task-1', html_url: 'https://github.com/octocat/hello-world/agents/tasks/task-1' } as AgentTaskGetResponse);
 
 		expect(client.createPRCalls).toEqual([{ owner: 'octocat', repo: 'hello-world', taskId: 'task-1' }]);
-		expect(result).toEqual({ pull_request: { number: 42 } });
+		expect(result).toEqual({ id: 1, number: 42, repository_id: 1 });
 	});
 
 	it('createPullRequestForTask resolves the repo by id when the task has no html_url', async () => {

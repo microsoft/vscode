@@ -3706,8 +3706,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					if (action.id === ChatEditingShowChangesAction.ID || action.id === ViewPreviousEditsAction.Id) {
 						return { showIcon: true, showLabel: false, isSecondary: true };
 					}
-					// The cloud-agent "Open pull request" action renders icon-only (the browser-open
-					// glyph); its sibling "Create pull request" action keeps its text label.
+					// The cloud-agent "Open pull request" action renders icon-only; its sibling
+					// "Create pull request" action keeps its text label.
 					if (action.id === 'github.copilot.chat.cloudSessions.openPullRequestForTask') {
 						return { showIcon: true, showLabel: false };
 					}
