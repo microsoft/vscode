@@ -79,8 +79,8 @@
 			word-break: break-word;
 			overflow-wrap: anywhere;
 			white-space: normal;
-			font-weight: 500;
-			font-size: var(--vscode-chat-font-size-body-s);
+			font-weight: var(--vscode-agents-fontWeight-semiBold);
+			font-size: var(--vscode-agents-fontSize-heading3);
 			margin: 0;
 
 			.rendered-markdown {
@@ -179,7 +179,7 @@
 .interactive-session .chat-question-carousel-container .chat-question-input-container {
 	display: flex;
 	flex-direction: column;
-	padding: 8px;
+	padding: 8px 16px;
 	min-width: 0;
 
 	&::after {
@@ -204,7 +204,7 @@
 		.chat-question-list-item {
 			display: flex;
 			align-items: center;
-			gap: 12px;
+			gap: 8px;
 			padding: 6px 8px;
 			cursor: pointer;
 			border-radius: var(--vscode-cornerRadius-medium);
@@ -228,7 +228,8 @@
 
 			/* Label in list item */
 			.chat-question-list-label {
-				font-size: var(--vscode-chat-font-size-body-s);
+				font-size: var(--vscode-agents-fontSize-body2);
+				font-weight: var(--vscode-agents-fontWeight-semiBold);
 				flex: 1;
 				word-wrap: break-word;
 				overflow-wrap: break-word;
@@ -237,12 +238,12 @@
 			}
 
 			.chat-question-list-label-title {
-				font-weight: 500;
+				font-weight: var(--vscode-agents-fontWeight-semiBold);
 				line-height: 1.4;
 			}
 
 			.chat-question-list-label-desc {
-				font-weight: normal;
+				font-weight: var(--vscode-agents-fontWeight-regular);
 				color: var(--vscode-descriptionForeground);
 			}
 		}
@@ -252,8 +253,8 @@
 
 			.chat-question-list-number {
 				line-height: 1.4;
-				font-size: var(--vscode-chat-font-size-body-s);
-				font-weight: 500;
+				font-size: var(--vscode-agents-fontSize-body2);
+				font-weight: var(--vscode-agents-fontWeight-semiBold);
 			}
 
 			.chat-question-list-checkbox {
@@ -330,7 +331,7 @@
 		flex-direction: row;
 		align-items: center;
 		padding: 4px 8px;
-		gap: 12px;
+		gap: 8px;
 
 		.chat-question-freeform-number {
 			height: fit-content;
@@ -373,7 +374,8 @@
 	/* todo: change to use keybinding service so we don't have to recreate this */
 	.chat-question-list-number,
 	.chat-question-freeform-number {
-		font-size: var(--vscode-chat-font-size-body-s);
+		font-size: var(--vscode-agents-fontSize-body2);
+		font-weight: var(--vscode-agents-fontWeight-semiBold);
 		color: var(--vscode-descriptionForeground);
 		flex-shrink: 0;
 		min-width: 1ch;
@@ -443,7 +445,7 @@
 	}
 
 	.chat-question-submit-hint {
-		font-size: 11px;
+		font-size: var(--vscode-agents-fontSize-body2);
 		color: var(--vscode-descriptionForeground);
 	}
 

@@ -13,11 +13,12 @@ import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentSignal, IAgent, IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
-import { IAgentHostChangesetService } from './agentHostChangesetService.js';
+import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 
 import { ISessionDataService } from '../common/sessionDataService.js';
-import type { AgentInfo } from '../common/state/protocol/state.js';
+import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+import { ToolCallContributorKind, type AgentInfo } from '../common/state/protocol/state.js';
 import { ActionType, StateAction, type SessionToolCallCompleteAction } from '../common/state/sessionActions.js';
 import {
 	buildSubagentSessionUri,
@@ -30,15 +31,20 @@ import {
 	ToolCallStatus,
 	ToolResultContentType,
 	type URI as ProtocolURI,
+	type ErrorInfo,
 	type SessionState,
 	type ToolResultContent
 } from '../common/state/sessionState.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { parseRenameCommand } from './agentHostRenameCommand.js';
 import { SessionPermissionManager } from './sessionPermissions.js';
+import { stripProxyErrorMarker, toChatErrorMeta, tryParseForwardedChatError } from './shared/forwardedChatError.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
+import { AgentHostTurnTracker } from './agentHostTurnTracker.js';
+import { AgentHostSessionTitleController } from './agentHostSessionTitleController.js';
+import type { ICopilotApiService } from './shared/copilotApiService.js';
 
 /**
  * Options for constructing an {@link AgentSideEffects} instance.
@@ -50,6 +56,10 @@ export interface IAgentSideEffectsOptions {
 	readonly agents: IObservable<readonly IAgent[]>;
 	/** Session data service for cleaning up per-session data on disposal. */
 	readonly sessionDataService: ISessionDataService;
+	/** Get the GitHub token used for Copilot utility title generation. */
+	readonly getGitHubCopilotToken?: () => string | undefined;
+	/** CAPI service used for Copilot utility title generation. */
+	readonly copilotApiService?: ICopilotApiService;
 	/**
 	 * Called after each top-level session turn completes so git state can be
 	 * refreshed and published via `SessionMetaChanged`. Subagent turns are
@@ -101,6 +111,8 @@ export class AgentSideEffects extends Disposable {
 	 */
 	private readonly _pendingSubagentSignals = new Map<string, IPendingSubagentSignal[]>();
 	private readonly _telemetryReporter: AgentHostTelemetryReporter;
+	private readonly _turnTracker: AgentHostTurnTracker;
+	private readonly _titleController: AgentHostSessionTitleController;
 
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
@@ -113,7 +125,13 @@ export class AgentSideEffects extends Disposable {
 	) {
 		super();
 		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
+		this._turnTracker = new AgentHostTurnTracker(this._telemetryReporter);
 		this._permissionManager = this._register(instantiationService.createInstance(SessionPermissionManager, this._stateManager));
+		this._titleController = this._register(instantiationService.createInstance(AgentHostSessionTitleController, this._stateManager, {
+			sessionDataService: this._options.sessionDataService,
+			getGitHubCopilotToken: this._options.getGitHubCopilotToken,
+			copilotApiService: this._options.copilotApiService,
+		}));
 
 		// Whenever the agents observable changes, publish to root state.
 		this._register(autorun(reader => {
@@ -397,6 +415,14 @@ export class AgentSideEffects extends Disposable {
 
 		this._stateManager.dispatchServerAction(sessionKey, action);
 
+		// Mark first visible progress for TTFT telemetry
+		if (action.type === ActionType.SessionDelta
+			|| action.type === ActionType.SessionResponsePart
+			|| action.type === ActionType.SessionToolCallStart
+			|| action.type === ActionType.SessionReasoning) {
+			this._turnTracker.markFirstProgress(sessionKey, turnId);
+		}
+
 		if (action.type === ActionType.SessionToolCallComplete) {
 			// Drop any events that were buffered for a subagent whose
 			// `subagent_started` never arrived (e.g. the parent tool failed
@@ -411,7 +437,16 @@ export class AgentSideEffects extends Disposable {
 		}
 
 		if (action.type === ActionType.SessionTurnComplete) {
+			this._turnTracker.turnCompleted(sessionKey, turnId, 'success');
 			this._runTurnCompleteSideEffects(sessionKey, turnId);
+		}
+
+		if (action.type === ActionType.SessionTurnCancelled) {
+			this._turnTracker.turnCompleted(sessionKey, turnId, 'cancelled');
+		}
+
+		if (action.type === ActionType.SessionError) {
+			this._turnTracker.turnCompleted(sessionKey, turnId, 'error');
 		}
 	}
 
@@ -571,6 +606,7 @@ export class AgentSideEffects extends Disposable {
 						type: ActionType.SessionTurnCancelled,
 						turnId,
 					});
+					this._turnTracker.turnCompleted(subagentUri, turnId, 'cancelled');
 				}
 				this._subagentSessions.delete(key);
 			}
@@ -680,8 +716,17 @@ export class AgentSideEffects extends Disposable {
 			toolInput: e.state.toolInput,
 		};
 		const autoApproval = this._permissionManager.getAutoApproval(approvalEvent, sessionKey);
+		const part = this._stateManager.getSessionState(sessionKey)?.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === e.state.toolCallId);
+		const toolCall = part?.kind === ResponsePartKind.ToolCall ? part.toolCall : undefined;
+		const contributor = e.state.contributor ?? toolCall?.contributor;
 		let effective = e;
-		if (autoApproval !== undefined) {
+		const clientShouldAutoApprove = autoApproval !== undefined
+			&& contributor?.kind === ToolCallContributorKind.Client
+			&& !!e.state.confirmationTitle;
+		if (clientShouldAutoApprove) {
+			this._toolCallAgents.set(`${sessionKey}:${e.state.toolCallId}`, agent.id);
+			effective = { ...e, state: { ...e.state, _meta: { ...toolCall?._meta, ...e.state._meta, autoApproveBySetting: true } } };
+		} else if (autoApproval !== undefined) {
 			this._toolCallAgents.delete(`${sessionKey}:${e.state.toolCallId}`);
 			agent.respondToPermissionRequest(e.state.toolCallId, true);
 			// Strip confirmationTitle so createToolReadyAction emits the
@@ -712,19 +757,8 @@ export class AgentSideEffects extends Disposable {
 					break;
 				}
 
-				// On the very first turn, immediately set the session title to the
-				// user's message so the UI shows a meaningful title right away
-				// while waiting for the AI-generated title. Only apply when the
-				// title is still the default placeholder to avoid clobbering a
-				// title set by the user or provider before the first turn.
 				const state = this._stateManager.getSessionState(channel);
-				const fallbackTitle = action.message.text.trim().replace(/\s+/g, ' ').slice(0, 200);
-				if (state && state.turns.length === 0 && !state.summary.title && fallbackTitle.length > 0) {
-					this._stateManager.dispatchServerAction(channel, {
-						type: ActionType.SessionTitleChanged,
-						title: fallbackTitle,
-					});
-				}
+				this._titleController.seedTitleFromFirstMessage(channel, action.message.text);
 
 				const agent = this._options.getAgent(channel);
 				if (!agent) {
@@ -737,14 +771,17 @@ export class AgentSideEffects extends Disposable {
 				}
 				const attachments = action.message.attachments;
 				this._telemetryReporter.userMessageSent(agent.id, channel, state, 'direct', attachments);
+				const { model, permissionLevel } = this._getTurnTelemetryContext(state);
+				this._turnTracker.turnStarted(agent.id, channel, action.turnId, model, permissionLevel);
 				agent.sendMessage(URI.parse(channel), action.message.text, attachments, action.turnId).catch(err => {
 					const errCode = (err as { code?: number })?.code;
 					this._logService.error(`[AgentSideEffects] sendMessage failed for session=${channel}: code=${errCode}, message=${err instanceof Error ? err.message : String(err)}, type=${err?.constructor?.name}`, err);
 					this._stateManager.dispatchServerAction(channel, {
 						type: ActionType.SessionError,
 						turnId: action.turnId,
-						error: { errorType: 'sendFailed', message: String(err) },
+						error: buildSendFailedError(err),
 					});
+					this._turnTracker.turnCompleted(channel, action.turnId, 'error');
 				});
 				break;
 			}
@@ -772,6 +809,7 @@ export class AgentSideEffects extends Disposable {
 				break;
 			}
 			case ActionType.SessionTurnCancelled: {
+				this._turnTracker.turnCompleted(channel, action.turnId, 'cancelled');
 				// Cancel all subagent sessions for this parent
 				this.cancelSubagentSessions(channel);
 				const agent = this._options.getAgent(channel);
@@ -818,11 +856,11 @@ export class AgentSideEffects extends Disposable {
 					break;
 				}
 				// Always forward client tools, even if empty, to clear previous client's tools
-				const clientId = action.activeClient?.clientId ?? '';
+				const clientId = action.activeClient?.clientId;
 				agent.setClientTools(URI.parse(channel), clientId, action.activeClient?.tools ?? []);
 
 				const refs = action.activeClient?.customizations ?? [];
-				agent.setClientCustomizations(URI.parse(channel), clientId, refs).catch(err => {
+				agent.setClientCustomizations(URI.parse(channel), clientId ?? '', refs).catch(err => {
 					this._logService.error('[AgentSideEffects] setClientCustomizations failed', err);
 				});
 				break;
@@ -881,6 +919,10 @@ export class AgentSideEffects extends Disposable {
 				break;
 			}
 		}
+	}
+
+	cancelSessionTitleGeneration(session: ProtocolURI): void {
+		this._titleController.cancelTitleGeneration(session);
 	}
 
 	/**
@@ -1025,15 +1067,27 @@ export class AgentSideEffects extends Disposable {
 			return;
 		}
 		const attachments = msg.message.attachments;
-		this._telemetryReporter.userMessageSent(agent.id, session, this._stateManager.getSessionState(session), 'queued', attachments);
+		const queuedState = this._stateManager.getSessionState(session);
+		this._telemetryReporter.userMessageSent(agent.id, session, queuedState, 'queued', attachments);
+		const { model, permissionLevel } = this._getTurnTelemetryContext(queuedState);
+		this._turnTracker.turnStarted(agent.id, session, turnId, model, permissionLevel);
 		agent.sendMessage(URI.parse(session), msg.message.text, attachments, turnId).catch(err => {
 			this._logService.error('[AgentSideEffects] sendMessage failed (queued)', err);
 			this._stateManager.dispatchServerAction(session, {
 				type: ActionType.SessionError,
 				turnId,
-				error: { errorType: 'sendFailed', message: String(err) },
+				error: buildSendFailedError(err),
 			});
+			this._turnTracker.turnCompleted(session, turnId, 'error');
 		});
+	}
+
+
+	private _getTurnTelemetryContext(state: SessionState | undefined): { model: string | undefined; permissionLevel: string | undefined } {
+		const model = state?.summary.model?.id;
+		const permissionValue = state?.config?.values[SessionConfigKey.AutoApprove];
+		const permissionLevel = typeof permissionValue === 'string' ? permissionValue : undefined;
+		return { model, permissionLevel };
 	}
 
 
@@ -1041,4 +1095,20 @@ export class AgentSideEffects extends Disposable {
 		this._toolCallAgents.clear();
 		super.dispose();
 	}
+}
+
+/**
+ * Builds the {@link ErrorInfo} for a failed `sendMessage` rejection. When the
+ * rejection text carries a `VSCODE_PROXY_ERROR` marker (embedded by a model
+ * proxy and echoed back through the agent SDK), the decoded structured chat
+ * error is attached to `_meta.chatError` so core can render a rich, localized
+ * message. Otherwise the raw error message is used as-is.
+ */
+function buildSendFailedError(err: unknown): ErrorInfo {
+	const message = String(err);
+	const forwarded = tryParseForwardedChatError(err instanceof Error ? err.message : message);
+	if (forwarded) {
+		return { errorType: 'sendFailed', message: stripProxyErrorMarker(message), _meta: toChatErrorMeta(forwarded) };
+	}
+	return { errorType: 'sendFailed', message };
 }

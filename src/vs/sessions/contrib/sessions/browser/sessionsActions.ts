@@ -9,20 +9,21 @@ import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuRegistry, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { EditorAreaFocusContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, ChatSessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, ChatSessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsViewService } from '../../../browser/sessionsViewService.js';
+import { ISessionsViewService } from '../../../services/sessions/browser/sessionsViewService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
-import { ISessionsPartService } from '../../../browser/parts/sessionsPartService.js';
+import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
 
 // -- Show Sessions Picker --
@@ -131,10 +132,6 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		picker.items = items;
 		picker.placeholder = localize('searchSessions', "Search sessions by name or folder");
 		picker.canAcceptInBackground = true;
-		// Keep the picker open when a background accept moves focus to the opened
-		// session, so the user can continue navigating. It is still dismissed
-		// explicitly on a foreground accept (Enter) or Escape.
-		picker.ignoreFocusOut = true;
 		// Match on the detail row too so sessions can be found by their folder.
 		picker.matchOnDetail = true;
 
@@ -194,6 +191,7 @@ registerAction2(class GoBackAction extends Action2 {
 			},
 			f1: true,
 			icon: Codicon.arrowLeft,
+			tooltip: localize('sessionsGoBackTooltip', "Go Back One Session"),
 			category: SessionsCategories.Sessions,
 			precondition: CanGoBackContext,
 			keybinding: {
@@ -235,6 +233,7 @@ registerAction2(class GoForwardAction extends Action2 {
 			},
 			f1: true,
 			icon: Codicon.arrowRight,
+			tooltip: localize('sessionsGoForwardTooltip', "Go Forward One Session"),
 			category: SessionsCategories.Sessions,
 			precondition: CanGoForwardContext,
 			keybinding: {
@@ -292,14 +291,19 @@ registerAction2(class FocusActiveSessionAction extends Action2 {
 });
 
 // -- Focus Nth Session in the Grid (Cmd/Ctrl+1..9) --
+// Mirrors VS Code's "Focus Editor Group N": Ctrl/Cmd+1..8 focus that grid slot
+// and Ctrl/Cmd+9 focuses the LAST slot. Does nothing when the slot doesn't exist.
 
 for (let index = 0; index < 9; index++) {
 	const position = index + 1;
+	const isLast = position === 9;
 	registerAction2(class FocusSessionByPositionAction extends Action2 {
 		constructor() {
 			super({
 				id: `sessions.focusSessionInGrid${position}`,
-				title: localize2('focusSessionInGrid', "Focus Session {0} in Grid", position),
+				title: isLast
+					? localize2('focusLastSessionInGrid', "Focus Last Session in Grid")
+					: localize2('focusSessionInGrid', "Focus Session {0} in Grid", position),
 				f1: true,
 				category: SessionsCategories.Sessions,
 				keybinding: {
@@ -315,11 +319,12 @@ for (let index = 0; index < 9; index++) {
 			const sessionsPartService = accessor.get(ISessionsPartService);
 
 			const visible = sessionsViewService.visibleSessions.get();
-			if (index >= visible.length) {
+			const targetIndex = isLast ? visible.length - 1 : index;
+			if (targetIndex < 0 || targetIndex >= visible.length) {
 				return;
 			}
 
-			const session = visible[index];
+			const session = visible[targetIndex];
 			sessionsViewService.setActive(session);
 			sessionsPartService.focusSession(session);
 		}
@@ -358,7 +363,7 @@ registerAction2(class AddChatToSessionBarAction extends Action2 {
 			icon: Codicon.add,
 			menu: {
 				id: Menus.SessionBarToolbar,
-				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext),
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate()),
 				group: 'navigation',
 				order: 10,
 			},
@@ -392,7 +397,7 @@ registerAction2(class TogglePinSessionAction extends Action2 {
 				id: Menus.SessionBarToolbar,
 				group: '1_session',
 				order: 10,
-				when: SessionIsCreatedContext,
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionIsArchivedContext.negate()),
 			},
 		});
 	}
@@ -494,5 +499,29 @@ registerAction2(class ToggleMaximizeSessionViewAction extends Action2 {
 	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
 		accessor.get(ISessionsPartService).toggleMaximizeSession(session);
 		accessor.get(ISessionsViewService).setActive(session);
+	}
+});
+
+// -- Close Editor Area (Watermark Toolbar) --
+
+registerAction2(class CloseEditorAreaAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.closeEditorArea',
+			title: localize2('closeEditorArea', "Close Editor Area"),
+			icon: Codicon.close,
+			category: SessionsCategories.Sessions,
+			menu: {
+				id: MenuId.EditorGroupWatermarkToolbar,
+				group: 'navigation',
+				order: 10,
+				when: IsSessionsWindowContext,
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+		layoutService.setPartHidden(true, Parts.EDITOR_PART);
 	}
 });

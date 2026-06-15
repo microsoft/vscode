@@ -1,0 +1,25 @@
+{
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"rootDir": ".",
+		"outDir": "./dist/",
+		"module": "esnext",
+		"moduleResolution": "bundler",
+		"lib": [
+			"es2024",
+			"DOM",
+			"DOM.Iterable"
+		],
+		"types": [
+			"vscode-webview"
+		],
+		"typeRoots": [
+			"../node_modules/@types"
+		],
+		"skipLibCheck": true,
+		"noEmit": true
+	},
+	"include": [
+		"./**/*.ts"
+	]
+}

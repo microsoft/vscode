@@ -34,13 +34,13 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 import { TestContextService } from '../../../../../test/common/workbenchTestServices.js';
 import { TestIPCFileSystemProvider } from '../../../../../test/electron-browser/workbenchTestServices.js';
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
-import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
+import { IChatService, type IChatSendRequestOptions, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { ChatAgentLocation, ChatPermissionLevel } from '../../../../chat/common/constants.js';
 import { ChatModel, type IChatRequestModeInfo } from '../../../../chat/common/model/chatModel.js';
 import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import { ChatRequestTextPart } from '../../../../chat/common/requestParser/chatParserTypes.js';
-import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, type ITerminalSandboxCommand, type ITerminalSandboxPrecheckInputs, type ITerminalSandboxPrerequisiteCheckResult } from '../../common/terminalSandboxService.js';
+import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, TerminalSandboxPreCheckRemediation, type ITerminalSandboxCommand, type ITerminalSandboxPrecheckInputs, type ITerminalSandboxPrerequisiteCheckResult } from '../../common/terminalSandboxService.js';
 import { ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, ToolSet, type ToolConfirmationAction } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { IToolResultCompressor } from '../../../../chat/common/tools/toolResultCompressor.js';
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
@@ -60,6 +60,7 @@ import { ChatAgentToolsContribution } from '../../browser/terminal.chatAgentTool
 import { TerminalToolId } from '../../browser/tools/toolIds.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
 
 class TestRunInTerminalTool extends RunInTerminalTool {
 	protected override _osBackend: Promise<OperatingSystem> = Promise.resolve(OperatingSystem.Windows);
@@ -85,7 +86,7 @@ suite('RunInTerminalTool', () => {
 	let terminalServiceDisposeEmitter: Emitter<ITerminalInstance>;
 	let chatServiceDisposeEmitter: Emitter<{ sessionResources: URI[]; reason: 'cleared' }>;
 	let chatSessionArchivedEmitter: Emitter<IAgentSession>;
-	let capturedSteeringRequests: { sessionResource: URI; message: string }[];
+	let capturedSteeringRequests: { sessionResource: URI; message: string; options?: IChatSendRequestOptions }[];
 	let sandboxEnabled: boolean;
 	let sandboxPrereqResult: ITerminalSandboxPrerequisiteCheckResult;
 	let terminalSandboxService: ITerminalSandboxService;
@@ -160,8 +161,8 @@ suite('RunInTerminalTool', () => {
 		const chatServiceStub = {
 			onDidDisposeSession: chatServiceDisposeEmitter.event,
 			getSession: (sessionResource: URI) => chatSessions.get(sessionResource.toString()),
-			sendRequest: async (sessionResource: URI, message: string) => {
-				capturedSteeringRequests.push({ sessionResource, message });
+			sendRequest: async (sessionResource: URI, message: string, options?: IChatSendRequestOptions) => {
+				capturedSteeringRequests.push({ sessionResource, message, options });
 				return { kind: 'rejected', reason: 'test' };
 			},
 			acquireExistingSession: () => ({
@@ -220,6 +221,7 @@ suite('RunInTerminalTool', () => {
 				await terminal.sendText(`sudo apt install -y ${missingDependencies.join(' ')}`, true);
 				return { exitCode: 0 };
 			},
+			runSandboxRemediation: async () => ({ exitCode: 0 }),
 		};
 		instantiationService.stub(ITerminalSandboxService, terminalSandboxService);
 
@@ -232,6 +234,9 @@ suite('RunInTerminalTool', () => {
 				return [];
 			},
 		});
+		instantiationService.stub(ILanguageModelsService, {
+			selectLanguageModels: async () => ['copilot/copilot-utility-small'],
+		} as unknown as ILanguageModelsService);
 		instantiationService.stub(ITerminalProfileResolverService, {
 			getDefaultProfile: async () => ({ path: 'bash' } as ITerminalProfile)
 		});
@@ -280,7 +285,8 @@ suite('RunInTerminalTool', () => {
 	}
 
 	async function invokeToolTest(
-		params: Partial<IRunInTerminalInputParams>
+		params: Partial<IRunInTerminalInputParams>,
+		selectedCustomButton?: string,
 	): Promise<IToolResult> {
 		const parameters = {
 			command: 'echo hello',
@@ -299,6 +305,7 @@ suite('RunInTerminalTool', () => {
 			parameters,
 			context: { sessionResource: LocalChatSessionUri.forSession('run-in-terminal-test') },
 			toolSpecificData: preparedInvocation.toolSpecificData,
+			selectedCustomButton,
 		} as IToolInvocation, countTokens, noProgress, CancellationToken.None);
 	}
 
@@ -330,7 +337,7 @@ suite('RunInTerminalTool', () => {
 			kind: undefined,
 			isBuiltin: true,
 			modeInstructions: undefined,
-			modeId: 'agent',
+			telemetryModeId: 'agent',
 			applyCodeBlockSuggestionId: undefined,
 			permissionLevel,
 		};
@@ -528,6 +535,63 @@ suite('RunInTerminalTool', () => {
 			ok(result?.confirmationMessages?.customOptions?.length === 2, 'Expected two custom options');
 			// missingDependencies should be in toolSpecificData so invoke can handle it
 			strictEqual((result?.toolSpecificData as IChatTerminalToolInvocationData | undefined)?.missingSandboxDependencies?.length, 1);
+		});
+
+		test('should show repair choices when bubblewrap is installed but unusable on Linux', async () => {
+			sandboxPrereqResult = {
+				enabled: true,
+				sandboxConfigPath: '/tmp/sandbox.json',
+				failedCheck: TerminalSandboxPrerequisiteCheck.Bubblewrap,
+				remediations: [TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespaceRestriction],
+			};
+
+			const result = await executeToolTest({ command: 'echo hello' });
+			const terminalData = result?.toolSpecificData as IChatTerminalToolInvocationData | undefined;
+
+			ok(result?.confirmationMessages, 'Expected confirmation messages for bubblewrap repair');
+			strictEqual(result?.confirmationMessages?.customOptions?.length, 2, 'Expected repair and cancel choices');
+			strictEqual(terminalData?.sandboxRemediations?.length, 1, 'Expected one repair option in terminal invocation data');
+			strictEqual(terminalData?.missingSandboxDependencies, undefined, 'Should not classify unusable bubblewrap as missing');
+		});
+
+		test('should recheck bubblewrap after dependency installation and not execute when it remains unavailable', async () => {
+			let forceRefreshCalled = false;
+			terminalSandboxService.checkForSandboxingPrereqs = async forceRefresh => {
+				if (forceRefresh) {
+					forceRefreshCalled = true;
+					return {
+						enabled: true,
+						sandboxConfigPath: '/tmp/sandbox.json',
+						failedCheck: TerminalSandboxPrerequisiteCheck.Bubblewrap,
+						remediations: [TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespaceRestriction],
+					};
+				}
+				return {
+					enabled: true,
+					sandboxConfigPath: '/tmp/sandbox.json',
+					failedCheck: TerminalSandboxPrerequisiteCheck.Dependencies,
+					missingDependencies: ['bubblewrap'],
+				};
+			};
+
+			const result = await invokeToolTest({ command: 'echo hello' }, 'install');
+
+			strictEqual(forceRefreshCalled, true, 'Expected dependency installation to force a new prerequisite check');
+			strictEqual(createTerminalCallCount, 1, 'Expected only the installation terminal, not original command execution');
+			ok((result.content[0] as { value?: string }).value?.includes('bubblewrap'), 'Expected result to identify the failed bubblewrap verification');
+		});
+
+		test('should not execute when bubblewrap is unusable and no supported remediation is available', async () => {
+			sandboxPrereqResult = {
+				enabled: true,
+				sandboxConfigPath: '/tmp/sandbox.json',
+				failedCheck: TerminalSandboxPrerequisiteCheck.Bubblewrap,
+			};
+
+			const result = await invokeToolTest({ command: 'echo hello' });
+
+			strictEqual(createTerminalCallCount, 0, 'Expected no terminal execution for unusable bubblewrap');
+			ok((result.content[0] as { value?: string }).value?.includes('Bubblewrap'), 'Expected a bubblewrap capability failure message');
 		});
 
 		test('should include allowed and denied network domains in model description', async () => {
@@ -2524,6 +2588,56 @@ suite('RunInTerminalTool', () => {
 		});
 	});
 
+	test('should use the conversation model and preserve previous agent for background completion notifications', async () => {
+		const termId = 'test-completion-model-term';
+		const sessionResource = LocalChatSessionUri.forSession('test-completion-model-session');
+		const commandFinishedEmitter = new Emitter<{ exitCode: number | undefined }>();
+		const terminalDisposedEmitter = new Emitter<void>();
+		const inputDataEmitter = new Emitter<string>();
+
+		const terminalInstance = {
+			capabilities: {
+				get: (cap: TerminalCapability) => cap === TerminalCapability.CommandDetection ? { onCommandFinished: commandFinishedEmitter.event } : undefined,
+			},
+			dispose: () => { },
+			onDisposed: terminalDisposedEmitter.event,
+			onDidInputData: inputDataEmitter.event,
+		} as unknown as ITerminalInstance;
+
+		const previousModelId = 'claude-opus-4-8';
+		const previousAgentId = 'local-agent';
+		const previousRequest = { modelId: previousModelId, response: { agent: { id: previousAgentId }, isCanceled: false, onDidChange: Event.None } };
+		const chatService = instantiationService.get(IChatService) as unknown as {
+			acquireExistingSession: () => NonNullable<ReturnType<IChatService['acquireExistingSession']>>;
+		};
+		chatService.acquireExistingSession = () => ({
+			object: {
+				lastRequest: previousRequest,
+				lastRequestObs: constObservable(previousRequest),
+				onDidChange: Event.None,
+			},
+			dispose: () => { },
+		}) as unknown as NonNullable<ReturnType<IChatService['acquireExistingSession']>>;
+
+		(runInTerminalTool.constructor as unknown as { _activeExecutions: Map<string, { getOutput(): string; dispose(): void; instance: ITerminalInstance }> })._activeExecutions.set(termId, {
+			getOutput: () => 'done',
+			dispose: () => { },
+			instance: terminalInstance,
+		});
+
+		const toolSpecificData = { kind: 'terminal', commandLine: { original: 'npm test' }, language: 'bash' } as IChatTerminalToolInvocationData;
+		// eslint-disable-next-line @typescript-eslint/naming-convention
+		(runInTerminalTool as unknown as { _registerCompletionNotification: (terminal: ITerminalInstance, termId: string, session: URI, commandName: string, toolSpecificData: IChatTerminalToolInvocationData) => void })
+			._registerCompletionNotification(terminalInstance, termId, sessionResource, 'npm test', toolSpecificData);
+		await new Promise<void>(resolve => setTimeout(resolve, 0));
+
+		commandFinishedEmitter.fire({ exitCode: 0 });
+
+		strictEqual(capturedSteeringRequests.length, 1, 'Expected a completion steering notification');
+		strictEqual(capturedSteeringRequests[0].options?.userSelectedModelId, previousModelId, 'Completion notification should use the conversation model');
+		strictEqual(capturedSteeringRequests[0].options?.agentIdSilent, previousAgentId, 'Completion notification should continue with the previous request agent');
+	});
+
 	test('should dedupe rapid repeated background input-needed notifications', () => {
 		const termId = 'test-input-needed-term';
 		const sessionResource = LocalChatSessionUri.forSession('test-input-needed-session');
@@ -2568,7 +2682,7 @@ suite('RunInTerminalTool', () => {
 		strictEqual(capturedSteeringRequests.length, 2, 'Expected a changed prompt to trigger a new notification');
 	});
 
-	test('should suppress background input-needed notification when the terminal is disposed', () => {
+	test('should suppress input-needed after disposal and omit successful exit code from terminal-exited notice', () => {
 		const termId = 'test-input-needed-disposed-term';
 		const sessionResource = LocalChatSessionUri.forSession('test-input-needed-disposed-session');
 		const output = 'Press ENTER or type command to continue';
@@ -2585,6 +2699,7 @@ suite('RunInTerminalTool', () => {
 			},
 			onDisposed: terminalDisposedEmitter.event,
 			onDidInputData: inputDataEmitter.event,
+			exitCode: 0,
 			get isDisposed() { return isDisposed; },
 		} as unknown as ITerminalInstance;
 
@@ -2612,6 +2727,11 @@ suite('RunInTerminalTool', () => {
 		isDisposed = true;
 		inputNeededEmitter.fire();
 		strictEqual(capturedSteeringRequests.length, 0, 'Closing the terminal should not produce a spurious input-needed chat turn');
+
+		terminalDisposedEmitter.fire();
+		strictEqual(capturedSteeringRequests.length, 1, 'Closing the terminal should send one terminal-exited notification');
+		ok(capturedSteeringRequests[0].message.includes('terminal exited.'), 'Successful terminal exit should be reported without qualification');
+		ok(!capturedSteeringRequests[0].message.includes('exit code 0'), 'Successful terminal exit should not print exit code 0 to chat');
 	});
 
 	test('should suppress redundant input-needed notification for output already returned via foreground inputNeeded', () => {
@@ -2719,6 +2839,9 @@ suite('RunInTerminalTool', () => {
 
 		// After command finishes, the fg association still persists
 		commandFinishedEmitter.fire({ exitCode: 0 });
+		strictEqual(capturedSteeringRequests.length, 2, 'Should send a completion steering request');
+		ok(capturedSteeringRequests[1].message.includes('command completed.'), 'Successful completion should be reported without qualification');
+		ok(!capturedSteeringRequests[1].message.includes('exit code 0'), 'Successful completion should not print exit code 0 to chat');
 		ok(runInTerminalTool.sessionTerminalAssociations.has(sessionResource), 'Session terminal association should still be preserved after command finishes');
 		strictEqual(runInTerminalTool.sessionTerminalAssociations.get(sessionResource)!.isBackground, false, 'Terminal should still be foreground after command finishes');
 	});
@@ -3134,6 +3257,7 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 			getResolvedNetworkDomains: () => ({ allowedDomains: [], deniedDomains: [] }),
 			getMissingSandboxDependencies: async () => [],
 			installMissingSandboxDependencies: async () => ({ exitCode: 0 }),
+			runSandboxRemediation: async () => ({ exitCode: 0 }),
 		};
 		instantiationService.stub(ITerminalSandboxService, terminalSandboxService);
 

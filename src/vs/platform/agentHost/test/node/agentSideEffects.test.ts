@@ -21,7 +21,7 @@ import { AgentSession, IAgent } from '../../common/agentService.js';
 import { buildDefaultChangesetCatalogue } from '../../common/changesetUri.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
-import { CustomizationType } from '../../common/state/protocol/state.js';
+import { ChangesSummary, CustomizationType } from '../../common/state/protocol/state.js';
 import { ActionType, ActionEnvelope, SessionAction } from '../../common/state/sessionActions.js';
 import { buildSubagentSessionUri, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, customizationId, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
@@ -31,7 +31,7 @@ import { AgentHostTelemetryLevelConfigKey, telemetryLevelToAgentHostConfigValue 
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
-import { IAgentHostChangesetService, StaticChangesetKind } from '../../node/agentHostChangesetService.js';
+import { IAgentHostChangesetService, StaticChangesetKind } from '../../common/agentHostChangesetService.js';
 import { IAgentHostGitService } from '../../node/agentHostGitService.js';
 import { AgentService } from '../../node/agentService.js';
 import { AgentSideEffects, IAgentSideEffectsOptions } from '../../node/agentSideEffects.js';
@@ -52,13 +52,16 @@ class FakeChangesetService implements IAgentHostChangesetService {
 
 	registerStaticChangesets(): void { /* no-op for routing tests */ }
 	restoreStaticChangeset(_session: string, _kind: StaticChangesetKind, _diffs: readonly unknown[]): void { /* no-op */ }
-	parsePersistedStaticChangesets(): { uncommitted?: undefined; session?: undefined } { return {}; }
+	parsePersistedStaticChangesets(): { session?: undefined } { return {}; }
 	applyPersistedStaticChangesets(): void { /* no-op */ }
-	restorePersistedStaticChangesets(): { uncommitted?: undefined; session?: undefined } { return {}; }
+	restorePersistedStaticChangesets(): { session?: undefined } { return {}; }
+	persistChangesSummary(session: string, changesSummary: ChangesSummary): void { /* no-op */ }
 	isStaticChangesetComputeActive(): boolean { return false; }
-	refreshUncommittedChangeset(): void { /* no-op */ }
+	refreshBranchChangeset(): void { /* no-op */ }
 	refreshSessionChangeset(): void { /* no-op */ }
 	setTurnSubscriberProbe(): void { /* no-op */ }
+	setUncommittedSubscriberProbe(): void { /* no-op */ }
+	async computeUncommittedChangeset(session: string): Promise<string> { return `${session}/changeset/uncommitted`; }
 	async computeTurnChangeset(session: string): Promise<string> { return `${session}/changeset/turn/x`; }
 	async computeCompareTurnsChangeset(session: string, originalTurnId: string, modifiedTurnId: string): Promise<string> {
 		return `${session}/changeset/compare/${originalTurnId}/${modifiedTurnId}`;
@@ -147,8 +150,8 @@ suite('AgentSideEffects', () => {
 			modifiedAt: Date.now(),
 			project: { uri: 'file:///test-project', displayName: 'Test Project' },
 			workingDirectory,
-			changesets: buildDefaultChangesetCatalogue(sessionUri.toString()),
 		});
+		stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalogue(sessionUri.toString()));
 		stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady, });
 	}
 
@@ -1600,6 +1603,57 @@ suite('AgentSideEffects', () => {
 			// Dangerous command would normally be blocked, but session-level auto-approve overrides
 			assert.deepStrictEqual(agent.respondToPermissionCalls, [
 				{ requestId: 'tc-ap-shell-1', approved: true },
+			]);
+		});
+
+		test('marks pending client tool approval for client-side auto-approval in bypass mode', () => {
+			setupSessionWithConfig('autoApprove');
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({
+				kind: 'action', session: sessionUri,
+				action: {
+					type: ActionType.SessionToolCallStart, turnId: 'turn-1',
+					toolCallId: 'tc-client-approve-1', toolName: 'runTask', displayName: 'Run Task', contributor: { kind: ToolCallContributorKind.Client, clientId: 'test-client' },
+					_meta: { toolKind: 'terminal' },
+				},
+			});
+
+			agent.fireProgress({
+				kind: 'pending_confirmation', session: sessionUri,
+				state: {
+					status: ToolCallStatus.PendingConfirmation,
+					toolCallId: 'tc-client-approve-1', toolName: 'runTask', displayName: 'Run Task',
+					invocationMessage: 'Run task', toolInput: '{"task":"build"}',
+					confirmationTitle: 'Run task', edits: undefined,
+				},
+				permissionKind: 'custom-tool', permissionPath: undefined,
+			});
+
+			const state = stateManager.getSessionState(sessionUri.toString());
+			const part = state?.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === 'tc-client-approve-1');
+			assert.ok(part?.kind === ResponsePartKind.ToolCall);
+			assert.deepStrictEqual({
+				status: part.toolCall.status,
+				meta: part.toolCall._meta,
+				permissionCalls: agent.respondToPermissionCalls,
+			}, {
+				status: ToolCallStatus.PendingConfirmation,
+				meta: { toolKind: 'terminal', autoApproveBySetting: true },
+				permissionCalls: [],
+			});
+
+			sideEffects.handleAction(sessionUri.toString(), {
+				type: ActionType.SessionToolCallConfirmed,
+				turnId: 'turn-1',
+				toolCallId: 'tc-client-approve-1',
+				approved: true,
+				confirmed: ToolCallConfirmationReason.Setting,
+			});
+
+			assert.deepStrictEqual(agent.respondToPermissionCalls, [
+				{ requestId: 'tc-client-approve-1', approved: true },
 			]);
 		});
 
