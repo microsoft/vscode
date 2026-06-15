@@ -322,6 +322,10 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			onDidApplyAction: entry.onDidApply.event,
 		} satisfies IAgentSubscription<T>;
 	}
+	override getInflightSessionCreate(_resource: URI): Promise<unknown> | undefined {
+		return undefined;
+	}
+
 	override dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
 		this.dispatchedActions.push({ channel, action, clientId: this.clientId, clientSeq: this._nextSeq++ });
 		// Apply state-management actions optimistically so state-dependent
