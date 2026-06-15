@@ -179,7 +179,6 @@ function createGitHubTelemetryReporter(
 	};
 
 	const appInsightsOptions: AppInsightsClientOptions = {
-		endpointUrl: capiClientService.copilotTelemetryURL,
 		commonProperties: commonProps,
 		// Static tag overrides (set once, applied to all events)
 		tagOverrides: {
@@ -187,6 +186,14 @@ function createGitHubTelemetryReporter(
 			'ai.session.id': envService.sessionId // Map session ID to Application Insights tag
 		}
 	};
+
+	// Only override the default endpoint when the telemetry URL is a valid URL. The
+	// applicationinsights Sender calls `new URL(endpointUrl)` and throws "Invalid URL"
+	// for malformed values; mirror AzureInsightReporter's guard and keep the default.
+	const telemetryURL = capiClientService.copilotTelemetryURL;
+	if (telemetryURL && URL.canParse(telemetryURL)) {
+		appInsightsOptions.endpointUrl = telemetryURL;
+	}
 
 	// Pass customFetcher to use the extension's fetcher service (handles proxy/cert/fallbacks)
 	const newReporter = new TelemetryReporter(

@@ -469,13 +469,15 @@ export class AgentService extends Disposable implements IAgentService {
 		// live/active session (which would close the chat view holding the
 		// in-flight response bubble). Two cases need this: a provider can
 		// transiently drop a session (e.g. `CopilotAgent.listSessions` returns
-		// an empty array right after `session/turnComplete`), and a
-		// provisional session (created but not yet materialized — see
-		// `createSession`) is absent for its entire provisional window. We use
-		// *all* tracked summaries (not just announced ones) to cover the latter.
+		// an empty array right after `session/turnComplete`), and a provisional
+		// session (created but not yet materialized — see `createSession`) that
+		// has had any turn activity must stay visible until it materializes.
+		// Idle provisional sessions are deliberately *not* overlaid so the
+		// new-session composer's eagerly-created session doesn't leak into the
+		// list before its first message (#321269).
 		const known = new Set(withStatus.map(s => s.session.toString()));
 		const additions: IAgentSessionMetadata[] = [];
-		for (const summary of this._stateManager.getAllSessionSummaries()) {
+		for (const summary of this._stateManager.getOverlaySessionSummaries()) {
 			if (known.has(summary.resource)) {
 				continue;
 			}
