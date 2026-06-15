@@ -196,12 +196,12 @@
 
 .agents-aquarium-toggle {
 	position: absolute;
-	top: 8px;
-	left: 8px;
+	top: 7px;
+	left: 7px;
 	z-index: 100;
-	width: 22px;
-	height: 22px;
-	border-radius: 50%;
+	width: 24px;
+	height: 24px;
+	border-radius: var(--vscode-cornerRadius-circle);
 	border: var(--vscode-strokeThickness) solid transparent;
 	background: transparent;
 	color: var(--vscode-foreground, #cccccc);
