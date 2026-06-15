@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IObservable, IReader, ITransaction, ISettableObservable, IObservableWithChange } from '../base.js';
+import { IObservable, IReader, IReaderWithStore, ITransaction, ISettableObservable, IObservableWithChange } from '../base.js';
 import { IChangeTracker } from '../changeTracker.js';
 import { DisposableStore, EqualityComparer, IDisposable, strictEquals } from '../commonFacade/deps.js';
 import { DebugLocation } from '../debugLocation.js';
@@ -63,7 +63,7 @@ export function derivedOpts<T>(
 		equalsFn?: EqualityComparer<T>;
 		onLastObserverRemoved?: (() => void);
 	},
-	computeFn: (reader: IReader) => T,
+	computeFn: (reader: IReaderWithStore) => T,
 	debugLocation = DebugLocation.ofCaller()
 ): IObservable<T> {
 	return new Derived(
