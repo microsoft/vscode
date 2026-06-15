@@ -58,7 +58,12 @@ class SqliteKeyValueStore {
 		return value;
 	}
 
+	private static _yield(): Promise<void> {
+		return new Promise<void>(resolve => setImmediate(resolve));
+	}
+
 	async get(key: string): Promise<string | undefined> {
+		await SqliteKeyValueStore._yield();
 		const row = this.db.prepare('SELECT value FROM keyv WHERE key = ?').get(this._namespacedKey(key)) as { value: string } | undefined;
 		if (!row) {
 			return undefined;
@@ -67,10 +72,12 @@ class SqliteKeyValueStore {
 	}
 
 	async set(key: string, value: string): Promise<void> {
+		await SqliteKeyValueStore._yield();
 		this.db.prepare('INSERT OR REPLACE INTO keyv (key, value) VALUES (?, ?)').run(this._namespacedKey(key), JSON.stringify({ value }));
 	}
 
 	async has(key: string): Promise<boolean> {
+		await SqliteKeyValueStore._yield();
 		const row = this.db.prepare('SELECT 1 FROM keyv WHERE key = ?').get(this._namespacedKey(key));
 		return row !== undefined;
 	}
