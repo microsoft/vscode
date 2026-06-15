@@ -31,7 +31,7 @@ import { AgentHostTelemetryLevelConfigKey, telemetryLevelToAgentHostConfigValue 
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
-import { IAgentHostChangesetService, StaticChangesetKind } from '../../node/agentHostChangesetService.js';
+import { IAgentHostChangesetService, StaticChangesetKind } from '../../common/agentHostChangesetService.js';
 import { IAgentHostGitService } from '../../node/agentHostGitService.js';
 import { AgentService } from '../../node/agentService.js';
 import { AgentSideEffects, IAgentSideEffectsOptions } from '../../node/agentSideEffects.js';

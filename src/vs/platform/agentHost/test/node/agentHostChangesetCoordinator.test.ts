@@ -15,7 +15,7 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import { buildSubagentSessionUri, SessionStatus, type ISessionFileDiff } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { ChangesetSessionCoordinator, IChangesetSessionMetadata } from '../../node/agentHostChangesetCoordinator.js';
-import { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs, StaticChangesetKind } from '../../node/agentHostChangesetService.js';
+import { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs, StaticChangesetKind } from '../../common/agentHostChangesetService.js';
 import { IAgentHostFileMonitorOptions, IAgentHostFileMonitorService } from '../../node/agentHostFileMonitorService.js';
 import { IAgentHostGitService } from '../../node/agentHostGitService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';

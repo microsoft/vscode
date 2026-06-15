@@ -17,7 +17,7 @@ import { MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus } from
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
-import { IAgentHostChangesetService } from '../../node/agentHostChangesetService.js';
+import { IAgentHostChangesetService } from '../../common/agentHostChangesetService.js';
 import { AgentSideEffects } from '../../node/agentSideEffects.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { createNullSessionDataService } from '../common/sessionTestHelpers.js';

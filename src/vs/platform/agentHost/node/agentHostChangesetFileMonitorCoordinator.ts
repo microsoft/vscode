@@ -9,7 +9,7 @@ import { URI } from '../../../base/common/uri.js';
 import { buildBranchChangesetUri, buildSessionChangesetUri, buildUncommittedChangesetUri } from '../common/changesetUri.js';
 import { parseSubagentSessionUri } from '../common/state/sessionState.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
-import { IAgentHostChangesetService } from './agentHostChangesetService.js';
+import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
 import { DEFAULT_AGENT_HOST_WATCH_EXCLUDES, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { IAgentHostGitService } from './agentHostGitService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
