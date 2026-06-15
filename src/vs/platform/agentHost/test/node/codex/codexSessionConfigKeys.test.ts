@@ -6,7 +6,7 @@
 import assert from 'assert';
 import type { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { CodexSessionConfigKey, isCodexSupportedModel, narrowAdditionalDirectories, narrowApprovalPolicy, narrowBoolean, narrowReasoningEffort, narrowSandboxMode, narrowWebSearchMode, normalizeCodexModelId } from '../../../node/codex/codexSessionConfigKeys.js';
+import { CodexSessionConfigKey, getCodexModelCatalogId, isCodexSupportedModel, narrowAdditionalDirectories, narrowApprovalPolicy, narrowBoolean, narrowReasoningEffort, narrowSandboxMode, narrowWebSearchMode, normalizeCodexModelId } from '../../../node/codex/codexSessionConfigKeys.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
@@ -70,6 +70,18 @@ suite('codexSessionConfigKeys', () => {
 			prefixed: 'gpt-5.2',
 			unsupportedRaw: undefined,
 			unsupportedPrefixed: undefined,
+		});
+	});
+
+	test('normalizes provider-prefixed Codex catalog ids for model list matching', () => {
+		assert.deepStrictEqual({
+			raw: getCodexModelCatalogId('gpt-5.2'),
+			prefixed: getCodexModelCatalogId('copilot/gpt-5.2'),
+			unsupportedPrefixed: getCodexModelCatalogId('copilot/claude-sonnet-4.5'),
+		}, {
+			raw: 'gpt-5.2',
+			prefixed: 'gpt-5.2',
+			unsupportedPrefixed: 'copilot/claude-sonnet-4.5',
 		});
 	});
 

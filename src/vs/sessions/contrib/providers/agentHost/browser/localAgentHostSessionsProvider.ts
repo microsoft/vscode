@@ -11,7 +11,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
-import { IAgentConnection, IAgentHostService, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
+import { ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHostEditorSettingId, IAgentConnection, IAgentHostService, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
 import type { ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -23,6 +23,7 @@ import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browse
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID, LocalAgentHostDefaultProviderSettingId } from '../../../../common/agentHostSessionsProvider.js';
 import { AGENT_HOST_LOG_OUTPUT_CHANNEL_ID } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
@@ -78,6 +79,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@IAgentHostActiveClientService activeClientService: IAgentHostActiveClientService,
 		@IStorageService storageService: IStorageService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
 		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsManagementService, activeClientService, storageService);
 
@@ -121,6 +123,15 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 			if (e.affectsConfiguration(LocalAgentHostDefaultProviderSettingId)) {
 				this._onDidChangeSessionTypes.fire();
 			}
+			const claudePreference = this._environmentService.isSessionsWindow
+				? ClaudePreferAgentHostAgentsSettingId
+				: ClaudePreferAgentHostEditorSettingId;
+			if (e.affectsConfiguration(claudePreference)) {
+				const current = this._agentHostService.rootState.value;
+				if (current && !(current instanceof Error)) {
+					this._syncSessionTypesFromRootState(current);
+				}
+			}
 		}));
 	}
 
@@ -129,6 +140,16 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 	protected get connection(): IAgentConnection { return this._agentHostService; }
 
 	protected get authenticationPending(): IObservable<boolean> { return this._agentHostService.authenticationPending; }
+
+	protected override _shouldSurfaceAgentProvider(provider: string): boolean {
+		if (provider !== 'claude') {
+			return true;
+		}
+		const settingId = this._environmentService.isSessionsWindow
+			? ClaudePreferAgentHostAgentsSettingId
+			: ClaudePreferAgentHostEditorSettingId;
+		return this._configurationService.getValue<boolean>(settingId) === true;
+	}
 
 	/**
 	 * Local resource scheme: `agent-host-${provider}`. Must match the type
