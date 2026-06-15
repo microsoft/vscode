@@ -1176,7 +1176,7 @@ suite('SessionsTerminalContribution', () => {
 		// Ensure a terminal for the session
 		await contribution.ensureTerminal(worktreeUri, false, session);
 		assert.strictEqual(createdTerminals.length, 1);
-		const instance = [...terminalInstances.values()][0];
+		const instance = [...terminalInstances.values()][0] as TestTerminalInstance;
 
 		// Externally dispose the terminal (user closes the tab)
 		instance._testSetDisposed(true);
