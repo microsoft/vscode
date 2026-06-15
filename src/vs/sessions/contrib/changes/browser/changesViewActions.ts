@@ -10,7 +10,7 @@ import { Action2, IAction2Options, MenuId, registerAction2 } from '../../../../p
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { ActiveSessionContextKeys, CHANGES_VIEW_ID, ChangesContextKeys, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
@@ -50,13 +50,13 @@ class ChangesViewActionsContribution extends Disposable implements IWorkbenchCon
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ISessionsManagementService sessionManagementService: ISessionsManagementService,
+		@ISessionsService sessionsService: ISessionsService,
 	) {
 		super();
 
 		// Bind context key: true when the active session has changes
 		this._register(bindContextKey(ActiveSessionContextKeys.HasChanges, contextKeyService, reader => {
-			const activeSession = sessionManagementService.activeSession.read(reader);
+			const activeSession = sessionsService.activeSession.read(reader);
 			if (!activeSession) {
 				return false;
 			}
@@ -90,8 +90,8 @@ class OpenPullRequestAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const openerService = accessor.get(IOpenerService);
-		const sessionManagementService = accessor.get(ISessionsManagementService);
-		const activeSession = sessionManagementService.activeSession.get();
+		const sessionsService = accessor.get(ISessionsService);
+		const activeSession = sessionsService.activeSession.get();
 		if (!activeSession) {
 			return;
 		}

@@ -41,7 +41,7 @@ import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvid
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../../common/sessionConfig.js';
 import { IChat, IGitHubInfo, ISession, ISessionAgentRef, ISessionChangeset, ISessionChangesSummary, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, sessionFileChangesEqual, SessionStatus, toSessionId } from '../../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computePullRequestIcon } from '../../../github/common/types.js';
@@ -210,7 +210,7 @@ export class AgentHostSessionAdapter implements ISession {
 		resourceScheme: string,
 		logicalSessionType: string,
 		private readonly _options: IAgentHostAdapterOptions,
-		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService
+		@ISessionsService private readonly _sessionsService: ISessionsService
 	) {
 		const rawId = AgentSession.id(metadata.session);
 		const agentProvider = AgentSession.provider(metadata.session);
@@ -309,7 +309,7 @@ export class AgentHostSessionAdapter implements ISession {
 		}
 
 		this.isActiveSessionObs = derived(this, reader => {
-			const activeSession = this._sessionsManagementService.activeSession.read(reader);
+			const activeSession = this._sessionsService.activeSession.read(reader);
 			return isEqual(activeSession?.resource, this.resource);
 		});
 
@@ -1204,7 +1204,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		@ILogService protected readonly _logService: ILogService,
 		@IGitHubService protected readonly _gitHubService: IGitHubService,
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
-		@ISessionsManagementService protected readonly _sessionsManagementService: ISessionsManagementService,
+		@ISessionsService protected readonly _sessionsService: ISessionsService,
 		@IAgentHostActiveClientService protected readonly _activeClientService: IAgentHostActiveClientService,
 		@IStorageService protected readonly _storageService: IStorageService,
 	) {

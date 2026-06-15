@@ -12,6 +12,7 @@ import { IAgentHostCustomizationService } from '../../../../workbench/contrib/ch
 import { IAgentHostMcpServer, IAgentHostSessionsProvider, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../sessions/browser/sessionsService.js';
 import { ISessionsProvider } from '../../sessions/common/sessionsProvider.js';
 import { AgentCustomization, Customization, CustomizationType } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { ISession } from '../../sessions/common/session.js';
@@ -26,6 +27,7 @@ export class AgentHostCustomizationService extends Disposable implements IAgentH
 
 	constructor(
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
@@ -36,7 +38,7 @@ export class AgentHostCustomizationService extends Disposable implements IAgentH
 	}
 
 	private _getSession(sessionResource: URI): ISession | undefined {
-		const activeSession = this._sessionsManagementService.activeSession.get();
+		const activeSession = this._sessionsService.activeSession.get();
 		if (activeSession && activeSession.resource.toString() === sessionResource.toString()) {
 			return activeSession;
 		}

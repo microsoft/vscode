@@ -22,6 +22,7 @@ import { Menus } from '../../../browser/menus.js';
 import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
 import { SessionsWelcomeVisibleContext, IsPhoneLayoutContext } from '../../../common/contextkeys.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
@@ -92,6 +93,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 
 	constructor(
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IAgentHostTerminalService private readonly _agentHostTerminalService: IAgentHostTerminalService,
@@ -113,7 +115,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		}
 
 		const profileOverride = derived(reader => {
-			const session = this._sessionsManagementService.activeSession.read(reader);
+			const session = this._sessionsService.activeSession.read(reader);
 			if (!session || session.providerId === LOCAL_AGENT_HOST_PROVIDER_ID) {
 				return; // no need to override local default profiles with the local AH
 			}
@@ -140,7 +142,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		// so that "New Terminal" uses it automatically.
 		// This is a little hacky but I don't see any better approach.
 		this._register(autorun(reader => {
-			const session = this._sessionsManagementService.activeSession.read(reader);
+			const session = this._sessionsService.activeSession.read(reader);
 			if (session?.loading.read(reader)) {
 				this._agentHostTerminalService.setDefaultCwd(undefined);
 				return;
@@ -161,7 +163,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 
 		// React to active session changes — use worktree/repo for background sessions, home dir otherwise
 		this._register(autorun(reader => {
-			const session = this._sessionsManagementService.activeSession.read(reader);
+			const session = this._sessionsService.activeSession.read(reader);
 			if (session?.loading.read(reader)) {
 				this._activeKey = undefined;
 				return;
@@ -632,10 +634,10 @@ class OpenSessionInTerminalAction extends Action2 {
 		}
 
 		const contribution = getWorkbenchContribution<SessionsTerminalContribution>(SessionsTerminalContribution.ID);
-		const sessionsManagementService = _accessor.get(ISessionsManagementService);
+		const sessionsService = _accessor.get(ISessionsService);
 		const pathService = _accessor.get(IPathService);
 
-		const activeSession = sessionsManagementService.activeSession.get();
+		const activeSession = sessionsService.activeSession.get();
 		const info = getSessionTerminalInfo(activeSession);
 		const cwd = info?.cwd ?? await pathService.userHome();
 		await contribution.ensureTerminal(cwd, true, info?.agentHostCwd ? activeSession : undefined);
