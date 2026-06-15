@@ -349,16 +349,16 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 
 		const instances = await this.ensureTerminal(targetPath, false, session);
 
-		// If the active key changed while we were awaiting, a newer call has
-		// taken over — skip the visibility update to avoid flicker.
-		if (this._activeKey !== targetKey) {
+		// If the active session or key changed while we were awaiting, a newer
+		// call has taken over — skip the visibility update to avoid flicker.
+		if (this._activeKey !== targetKey || this._activeSessionId !== session.sessionId) {
 			return;
 		}
 		await this._updateTerminalVisibility(session, targetKey, instances.map(instance => instance.instanceId));
 	}
 
 	/**
-	 * Finds the first terminal instance whose initial cwd (lower-cased) matches
+	 * Finds all terminal instances whose initial cwd (lower-cased) matches
 	 * the given key.
 	 */
 	private async _findTerminalsForKey(key: string, options?: { excludeTracked?: boolean }): Promise<ITerminalInstance[]> {
