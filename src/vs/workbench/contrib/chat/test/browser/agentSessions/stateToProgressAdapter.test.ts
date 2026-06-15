@@ -585,7 +585,7 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(value, 'See ![diagram](vscode-agent-host://my-host/a/b.png?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0).');
 		});
 
-		test('error turn produces error message in history', () => {
+		test('error turn produces error details in history', () => {
 			const turn = createTurn({
 				state: TurnState.Error,
 				error: { errorType: 'test', message: 'boom' },
@@ -595,8 +595,25 @@ suite('stateToProgressAdapter', () => {
 			const response = history[1];
 			assert.strictEqual(response.type, 'response');
 			if (response.type !== 'response') { return; }
-			const errorPart = response.parts.find(p => p.kind === 'markdownContent' && (p as IChatMarkdownContent).content.value.includes('boom'));
-			assert.ok(errorPart, 'Should have a markdownContent part containing the error message');
+			assert.strictEqual(response.errorDetails?.message, 'Error: (test) boom');
+			assert.ok(!response.parts.some(p => p.kind === 'markdownContent' && (p as IChatMarkdownContent).content.value.includes('boom')), 'Error should not be duplicated as a markdown part');
+		});
+
+		test('forwarded quota error turn produces quota-exceeded error details', () => {
+			const turn = createTurn({
+				state: TurnState.Error,
+				error: {
+					errorType: 'quota',
+					message: 'raw',
+					_meta: { chatError: { fetchError: { type: 'quotaExceeded', capiError: { code: 'quota_exceeded' } } } },
+				},
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			assert.strictEqual(response.errorDetails?.isQuotaExceeded, true);
 		});
 
 		test('failed tool in history has exitCode 1', () => {

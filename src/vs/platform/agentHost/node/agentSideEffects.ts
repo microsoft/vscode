@@ -31,12 +31,14 @@ import {
 	ToolCallStatus,
 	ToolResultContentType,
 	type URI as ProtocolURI,
+	type ErrorInfo,
 	type SessionState,
 	type ToolResultContent
 } from '../common/state/sessionState.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { parseRenameCommand } from './agentHostRenameCommand.js';
 import { SessionPermissionManager } from './sessionPermissions.js';
+import { stripProxyErrorMarker, toChatErrorMeta, tryParseForwardedChatError } from './shared/forwardedChatError.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
@@ -777,7 +779,7 @@ export class AgentSideEffects extends Disposable {
 					this._stateManager.dispatchServerAction(channel, {
 						type: ActionType.SessionError,
 						turnId: action.turnId,
-						error: { errorType: 'sendFailed', message: String(err) },
+						error: buildSendFailedError(err),
 					});
 					this._turnTracker.turnCompleted(channel, action.turnId, 'error');
 				});
@@ -1074,7 +1076,7 @@ export class AgentSideEffects extends Disposable {
 			this._stateManager.dispatchServerAction(session, {
 				type: ActionType.SessionError,
 				turnId,
-				error: { errorType: 'sendFailed', message: String(err) },
+				error: buildSendFailedError(err),
 			});
 			this._turnTracker.turnCompleted(session, turnId, 'error');
 		});
@@ -1093,4 +1095,20 @@ export class AgentSideEffects extends Disposable {
 		this._toolCallAgents.clear();
 		super.dispose();
 	}
+}
+
+/**
+ * Builds the {@link ErrorInfo} for a failed `sendMessage` rejection. When the
+ * rejection text carries a `VSCODE_PROXY_ERROR` marker (embedded by a model
+ * proxy and echoed back through the agent SDK), the decoded structured chat
+ * error is attached to `_meta.chatError` so core can render a rich, localized
+ * message. Otherwise the raw error message is used as-is.
+ */
+function buildSendFailedError(err: unknown): ErrorInfo {
+	const message = String(err);
+	const forwarded = tryParseForwardedChatError(err instanceof Error ? err.message : message);
+	if (forwarded) {
+		return { errorType: 'sendFailed', message: stripProxyErrorMarker(message), _meta: toChatErrorMeta(forwarded) };
+	}
+	return { errorType: 'sendFailed', message };
 }

@@ -47,6 +47,7 @@ import { buildSandboxConfigForSdk } from './sandboxConfigForSdk.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, synthesizeSkillToolCall, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
+import { stripProxyErrorMarker, tryBuildChatErrorMeta, tryBuildChatErrorMetaFromFields } from '../shared/forwardedChatError.js';
 import { McpCustomizationController, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
 import { mapSessionEvents } from './mapSessionEvents.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
@@ -2222,13 +2223,17 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onSessionError(e => {
 			this._logService.error(`[Copilot:${sessionId}] Session error: ${e.data.errorType} - ${e.data.message}`);
+			// Prefer the structured SDK fields (the Copilot CLI classifies its own
+			// CAPI errors); fall back to decoding a forwarded marker from the message.
+			const meta = tryBuildChatErrorMetaFromFields(e.data) ?? tryBuildChatErrorMeta(e.data.message);
 			this._emitAction({
 				type: ActionType.SessionError,
 				turnId: this._turnId,
 				error: {
 					errorType: e.data.errorType,
-					message: e.data.message,
+					message: stripProxyErrorMarker(e.data.message),
 					stack: e.data.stack,
+					...(meta ? { _meta: meta } : {}),
 				},
 			});
 		}));

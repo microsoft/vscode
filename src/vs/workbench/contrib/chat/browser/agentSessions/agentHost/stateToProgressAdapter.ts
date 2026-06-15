@@ -10,10 +10,11 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { MessageKind, ToolCallContributorKind, ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, getToolSubagentContent, type ActiveTurn, type ICompletedToolCall, type Message, type ToolCallState, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
+import { getChatErrorDetailsFromMeta, IChatErrorContext } from '../../../common/chatErrorMessages.js';
 import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAttachment } from '../../../../../../platform/agentHost/common/agentFeedbackAttachments.js';
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { type ChatExternalEditKind, type ChatMcpAppData, type IChatExternalEdit, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatSearchToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { type ChatExternalEditKind, type ChatMcpAppData, type IChatExternalEdit, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { type IChatRequestVariableData } from '../../../common/model/chatModel.js';
@@ -184,7 +185,7 @@ export function usageInfoToChatUsage(usage: UsageInfo | undefined): IChatUsage |
  * The `lookup` callback is responsible for any session-level fallback (e.g.
  * `summary.model?.id` when usage hasn't reported a model yet).
  */
-export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string, lookup?: TurnModelLookup): IChatSessionHistoryItem[] {
+export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string, lookup?: TurnModelLookup, errorContext?: IChatErrorContext): IChatSessionHistoryItem[] {
 	const history: IChatSessionHistoryItem[] = [];
 	for (const turn of turns) {
 		const rawModelId = turn.usage?.model;
@@ -251,12 +252,17 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 			}
 		}
 
-		// Error message for failed turns
+		// Error details for failed turns. Surfaced as the response's
+		// `errorDetails` (rather than inline markdown) so the chat renders a
+		// proper error — including the quota-exceeded upgrade affordance —
+		// consistently with the live agent result.
+		let errorDetails: IChatResponseErrorDetails | undefined;
 		if (turn.state === TurnState.Error && turn.error) {
-			parts.push({ kind: 'markdownContent', content: new MarkdownString(`\n\nError: (${turn.error.errorType}) ${turn.error.message}`) });
+			errorDetails = getChatErrorDetailsFromMeta(turn.error._meta, errorContext)
+				?? { message: `Error: (${turn.error.errorType}) ${turn.error.message}` };
 		}
 
-		history.push({ type: 'response', parts, participant: participantId, details });
+		history.push({ type: 'response', parts, participant: participantId, details, ...(errorDetails ? { errorDetails } : {}) });
 	}
 	return history;
 }
