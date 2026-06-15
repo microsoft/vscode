@@ -23,14 +23,15 @@
  */
 
 import assert from 'assert';
-import { mkdtempSync, rmSync } from 'fs';
+import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
+import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { type ISessionWithDefaultChat } from '../../../common/state/sessionState.js';
+import { MessageAttachmentKind, type ISessionWithDefaultChat, type MessageAttachment } from '../../../common/state/sessionState.js';
 import { SubscribeResult } from '../../../common/state/protocol/commands.js';
 import type { ChatUsageAction } from '../../../common/state/sessionActions.js';
 import {
-	createRealSession, defineSharedRealSdkTests, dispatchTurn,
+	createRealSession, defineSharedRealSdkTests, dispatchTurn, driveTurnWithAttachmentsToCompletion,
 	type IRealSdkProviderConfig,
 } from './realSdkTestHelpers.js';
 import { getActionEnvelope, isActionNotification, IServerHandle, startRealServer, TestProtocolClient } from './testHelpers.js';
@@ -85,7 +86,7 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 
 		for (const dir of tempDirs) {
 			try {
-				rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+				await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
 			} catch { /* best-effort */ }
 		}
 		tempDirs.length = 0;
@@ -120,10 +121,55 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 		assert.strictEqual(turn?.usage?._meta?.cost, cost);
 	});
 
+	test('attaches a Python file and reads its function names', async function () {
+		this.timeout(120_000);
+
+		const tempDir = await mkdtemp(`${tmpdir()}/ahp-attachment-test-`);
+		tempDirs.push(tempDir);
+		const filePath = join(tempDir, 'calculator.py');
+		await writeFile(filePath, [
+			'def add(a, b):',
+			'\treturn a + b',
+		].join('\n'));
+
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-attachment', createdSessions, URI.file(tempDir).toString());
+		const prompt = 'Read the attached Python file. What function names are defined in it? Reply with only the function names.';
+		const attachments: MessageAttachment[] = [{
+			type: MessageAttachmentKind.Resource,
+			uri: URI.file(filePath).toString(),
+			label: 'calculator.py',
+			displayKind: 'document',
+		}];
+
+		const result = await driveTurnWithAttachmentsToCompletion(client, sessionUri, 'turn-attachment', prompt, attachments, 1);
+
+		assert.match(result.responseText, /\badd\b/i, `expected the model to identify the attached file function; got: ${JSON.stringify(result.responseText)}`);
+	});
+
+	test.skip('attaches a text blob and reads its function names', async function () {
+		this.timeout(120_000);
+
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-blob-attachment', createdSessions, URI.file(tmpdir()).toString());
+		const prompt = 'Read the attached Python text blob. What function names are defined in it? Reply with only the function names.';
+		const attachments: MessageAttachment[] = [{
+			type: MessageAttachmentKind.Simple,
+			label: 'calculator.py',
+			displayKind: 'document',
+			modelRepresentation: [
+				'def subtract(a, b):',
+				'\treturn a - b',
+			].join('\n'),
+		}];
+
+		const result = await driveTurnWithAttachmentsToCompletion(client, sessionUri, 'turn-blob-attachment', prompt, attachments, 1);
+
+		assert.match(result.responseText, /\bsubtract\b/i, `expected the model to identify the attached blob function; got: ${JSON.stringify(result.responseText)}`);
+	});
+
 	test('strips redundant `cd <workingDirectory> &&` prefix from shell tool calls', async function () {
 		this.timeout(180_000);
 
-		const tempDir = mkdtempSync(`${tmpdir()}/ahp-cd-strip-test-`);
+		const tempDir = await mkdtemp(`${tmpdir()}/ahp-cd-strip-test-`);
 		tempDirs.push(tempDir);
 		const expectedWorkingDirPath = tempDir;
 		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-cd-strip', createdSessions, URI.file(tempDir).toString());

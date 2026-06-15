@@ -9,6 +9,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { getChatErrorDetailsFromMeta, getCopilotPlanFromEntitlement, IChatErrorContext } from '../../../common/chatErrorMessages.js';
 import { Disposable, DisposableResourceMap, DisposableStore, IReference, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { equals } from '../../../../../../base/common/objects.js';
@@ -19,7 +20,6 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { IPosition } from '../../../../../../editor/common/core/position.js';
 import { isLocation, type Location } from '../../../../../../editor/common/languages.js';
 import { localize } from '../../../../../../nls.js';
-import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/agentFeedbackAttachments.js';
 import { AgentProvider, AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -39,15 +39,14 @@ import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import {
 	AgentHostCompletionReferenceKind,
 	getAgentHostCompletionReferenceKind,
-	isAgentFeedbackVariableEntry,
 	isImageVariableEntry,
-	type IAgentFeedbackVariableEntry,
 	type IChatRequestVariableEntry,
 	type IImageVariableEntry
 } from '../../../common/attachments/chatVariableEntries.js';
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
-import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestion, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind, type IChatMultiSelectAnswer, type IChatQuestionAnswerValue, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestion, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind, type IChatMultiSelectAnswer, type IChatQuestionAnswerValue, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
+import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
@@ -102,6 +101,12 @@ interface IObserveTurnOptions {
 	readonly seedEmittedLengths?: ReadonlyMap<string, number>;
 	readonly onTurnEnded?: (lastTurn: Turn | undefined) => void;
 	readonly onFileEdits?: (tc: ToolCallState, fileEdits: IToolCallFileEdit[]) => void;
+	/**
+	 * When set, a failed turn does NOT emit its error as a markdown progress
+	 * part. The caller surfaces it instead as the agent result's
+	 * `errorDetails` (e.g. so quota errors render the upgrade affordance).
+	 */
+	readonly suppressErrorMarkdown?: boolean;
 	/**
 	 * When set, this turn is being observed as part of a subagent session.
 	 * Tool calls emitted into {@link sink} are tagged with this id so the
@@ -445,6 +450,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
+		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
 		this._config = config;
@@ -509,6 +515,20 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}));
 
 		this._registerAgent();
+	}
+
+	/**
+	 * Resolves the signed-in user's plan context for chat error formatting.
+	 * The agent host does not know the user's plan, so quota/rate-limit
+	 * messages are personalized here from `IChatEntitlementService`.
+	 */
+	private _chatErrorContext(): IChatErrorContext {
+		const quotas = this._chatEntitlementService.quotas;
+		return {
+			copilotPlan: getCopilotPlanFromEntitlement(this._chatEntitlementService.entitlement),
+			isUsageBasedBilling: quotas.usageBasedBilling,
+			quotaResetDate: quotas.resetDate,
+		};
 	}
 
 	async provideChatInputCompletions(sessionResource: URI, params: IChatInputCompletionsParams, token: CancellationToken): Promise<IChatInputCompletionsResult | undefined> {
@@ -629,7 +649,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					sessionTitle = sessionState.summary.title;
 					const fallbackRawModelId = sessionState.summary.model?.id;
 					const lookup = this._createTurnModelLookup(sessionResource, fallbackRawModelId);
-					history.push(...turnsToHistory(resolvedSession, sessionState.turns, this._config.agentId, this._config.connectionAuthority, lookup));
+					history.push(...turnsToHistory(resolvedSession, sessionState.turns, this._config.agentId, this._config.connectionAuthority, lookup, this._chatErrorContext()));
 
 					// Enrich history with inner tool calls from subagent
 					// child sessions. Subscribes to each child session so
@@ -849,8 +869,27 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		const completedTurn = await this._handleTurn(resolvedSession, request, progress, cancellationToken);
 		const details = this._getTurnResponseDetails(request.sessionResource, resolvedSession, completedTurn);
+		const errorDetails = this._getTurnErrorDetails(completedTurn);
 
-		return details ? { details } : {};
+		return {
+			...(details ? { details } : {}),
+			...(errorDetails ? { errorDetails } : {}),
+		};
+	}
+
+	/**
+	 * Builds the {@link IChatResponseErrorDetails} for a failed turn so the
+	 * chat response renders a proper error (and, for quota errors, the upgrade
+	 * affordance via `ChatQuotaExceededPart`). Returns `undefined` for
+	 * non-error turns. Falls back to the raw error when no structured chat
+	 * error was forwarded in `_meta`.
+	 */
+	private _getTurnErrorDetails(turn: Turn | undefined): IChatResponseErrorDetails | undefined {
+		if (turn?.state !== TurnState.Error || !turn.error) {
+			return undefined;
+		}
+		return getChatErrorDetailsFromMeta(turn.error._meta, this._chatErrorContext())
+			?? { message: localize('agentHost.turnError', "Error: ({0}) {1}", turn.error.errorType, turn.error.message) };
 	}
 
 	/**
@@ -1276,6 +1315,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				turnId,
 				sink: progress,
 				cancellationToken,
+				suppressErrorMarkdown: true,
 				onTurnEnded: (lastTurn) => {
 					store.dispose();
 					this._clientDispatchedTurnIds.delete(turnId);
@@ -1521,8 +1561,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (!seenActive) {
 				return;
 			}
-			if (lastTurn?.state === TurnState.Error && lastTurn.error) {
-				opts.sink([{ kind: 'markdownContent', content: new MarkdownString(`\n\nError: (${lastTurn.error.errorType}) ${lastTurn.error.message}`) }]);
+			if (!opts.suppressErrorMarkdown && lastTurn?.state === TurnState.Error && lastTurn.error) {
+				const forwarded = getChatErrorDetailsFromMeta(lastTurn.error._meta, this._chatErrorContext());
+				const content = forwarded
+					? new MarkdownString(`\n\n${forwarded.message}`)
+					: new MarkdownString(`\n\nError: (${lastTurn.error.errorType}) ${lastTurn.error.message}`);
+				opts.sink([{ kind: 'markdownContent', content }]);
 			}
 			finish(lastTurn);
 		}));
@@ -2880,9 +2924,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (isImageVariableEntry(v)) {
 			return this._toImageAttachment(v, sessionResource, referenceRange);
 		}
-		if (isAgentFeedbackVariableEntry(v)) {
-			return this._toAgentFeedbackAttachment(v, sessionResource);
-		}
 		// Pasted code, prompt text, and free-form string entries: surface their
 		// textual representation as an opaque attachment.
 		if (v.kind === 'paste') {
@@ -2959,28 +3000,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return this._toResourceAttachment(refUri, v.name, 'image', sessionResource, v._meta, range);
 		}
 		return undefined;
-	}
-
-	private _toAgentFeedbackAttachment(v: IAgentFeedbackVariableEntry, sessionResource: URI): MessageAttachment {
-		const feedbackItems = v.feedbackItems.map(item => ({
-			id: item.id,
-			text: item.text,
-			resourceUri: item.resourceUri.toString(),
-			range: this._toTextRange(item.range),
-			...(item.replies?.length ? { replies: [...item.replies] } : {}),
-		}));
-		return this._toSimpleAttachment(
-			v.name,
-			typeof v.value === 'string' ? v.value : undefined,
-			{
-				...(v._meta ?? {}),
-				[AgentFeedbackAttachmentMetadataKey]: {
-					sessionResource: v.sessionResource.toString(),
-					feedbackItems,
-				},
-			},
-			AgentFeedbackAttachmentDisplayKind,
-		);
 	}
 
 	private _toSimpleAttachment(label: string, modelRepresentation: string | undefined, _meta: Record<string, unknown> | undefined, displayKind?: string, range?: MessageAttachment['range']): MessageAttachment {

@@ -27,6 +27,7 @@ import {
 	type ChatInputRequest,
 	type PendingMessage,
 	type Turn,
+	type AnnotationsState,
 	type URI as ProtocolURI,
 	type RootState,
 	type SessionState,
@@ -57,7 +58,7 @@ export {
 	SessionLifecycle,
 	SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus,
 	ToolResultContentType,
-	TurnState, type ActiveTurn, type AgentCustomization, type AgentInfo, type AgentSelection, type Changeset, type ChangesetFile,
+	TurnState, type ActiveTurn, type AgentCustomization, type AgentInfo, type AgentSelection, type Annotation, type AnnotationEntry, type AnnotationsState, type AnnotationsSummary, type Changeset, type ChangesetFile,
 	type ChangesetOperation, type ChangesetState, type ChatState, type ChatSummary, type ChatInteractivity, type ChatOrigin, type ChildCustomization, type ClientPluginCustomization, type ConfigPropertySchema,
 	type ConfigSchema,
 	type ContentRef, type Customization, type CustomizationDegradedState,
@@ -68,7 +69,7 @@ export {
 	type SessionConfigState, type ChatInputAnswer as SessionInputAnswer,
 	type ChatInputOption as SessionInputOption, type ChatInputQuestion as SessionInputQuestion, type ChatInputRequest as SessionInputRequest, type SessionModelInfo,
 	type SessionState,
-	type SessionSummary, type SkillCustomization, type Snapshot, type StringOrMarkdown, type TerminalState,
+	type SessionSummary, type SkillCustomization, type Snapshot, type StringOrMarkdown, type TerminalState, type TextRange,
 	type ToolAnnotations,
 	type ToolCallCancelledState,
 	type ToolCallCompletedState,
@@ -475,6 +476,7 @@ export const enum StateComponents {
 	Chat,
 	Terminal,
 	Changeset,
+	Annotations,
 }
 
 export type ComponentToState = {
@@ -483,6 +485,7 @@ export type ComponentToState = {
 	[StateComponents.Chat]: ChatState;
 	[StateComponents.Terminal]: TerminalState;
 	[StateComponents.Changeset]: ChangesetState;
+	[StateComponents.Annotations]: AnnotationsState;
 };
 
 // ---- Default chat URI helpers ----------------------------------------------

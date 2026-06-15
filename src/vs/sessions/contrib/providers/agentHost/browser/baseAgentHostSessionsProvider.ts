@@ -19,12 +19,13 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { AgentSession, IAgentConnection, IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
 import { buildSessionChangesetUri } from '../../../../../platform/agentHost/common/changesetUri.js';
+import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
 import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, AgentSelection, ChangesSummary, Customization, CustomizationType, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ActionType, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ActionType, isChatAction, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AgentInfo, readSessionGitState, ROOT_STATE_URI, SessionMeta, StateComponents, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -1061,6 +1062,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	abstract readonly icon: ThemeIcon;
 	abstract readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 
+	/** The workbench Output channel id carrying this host's agent host logs. */
+	protected abstract getLogOutputChannelId(): string | undefined;
+
 	get order(): number { return 0; }
 
 	get sessionTypes(): readonly ISessionType[] { return this._sessionTypes; }
@@ -1270,6 +1274,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		const next = rootState.agents.map((agent): ISessionType => ({
 			id: agent.provider,
+			// The chat session contribution and language models for an agent-host
+			// agent are registered under its resource scheme (`agent-host-<provider>`),
+			// not the bare provider id, so carry it for availability lookups.
+			chatSessionType: this.resourceSchemeForProvider(agent.provider),
 			label: this._formatSessionTypeLabel(agent.displayName?.trim() || agent.provider),
 			icon: this.iconForAgentProvider(agent.provider) ?? this.icon,
 		}));
@@ -1900,6 +1908,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return [];
 		}
 		const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+		const logOutputChannelId = this.getLogOutputChannelId();
 		return (sessionState.customizations ?? [])
 			.flatMap(c => c.type === CustomizationType.McpServer
 				? [c]
@@ -1911,6 +1920,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				name: c.name,
 				enabled: c.enabled,
 				status: c.state.kind,
+				logOutputChannelId,
 				setEnabled: (enabled: boolean) => {
 					const connection = this.connection;
 					if (!connection) {
@@ -1923,6 +1933,21 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					});
 				},
 			}));
+	}
+
+	getFeedbackAnnotationsChannel(sessionId: string): { readonly connection: IAgentConnection; readonly annotationsUri: URI } | undefined {
+		const connection = this.connection;
+		if (!connection) {
+			return undefined;
+		}
+		const rawId = this._rawIdFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (!cached || !rawId) {
+			return undefined;
+		}
+		const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+		const annotationsUri = URI.parse(buildAnnotationsUri(sessionUri.toString()));
+		return { connection, annotationsUri };
 	}
 
 	// -- Session actions ------------------------------------------------------
@@ -2523,7 +2548,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}));
 
 		store.add(connection.onDidAction(e => {
-			if (e.action.type === ActionType.ChatTurnComplete && isSessionAction(e.action)) {
+			if (e.action.type === ActionType.ChatTurnComplete && isChatAction(e.action)) {
 				this._refreshSessions();
 			} else if (e.action.type === ActionType.SessionTitleChanged && isSessionAction(e.action)) {
 				this._handleTitleChanged(e.channel, e.action.title);

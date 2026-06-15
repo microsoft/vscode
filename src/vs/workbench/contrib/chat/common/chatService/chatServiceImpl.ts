@@ -756,8 +756,11 @@ export class ChatService extends Disposable implements IChatService {
 					for (const part of message.parts) {
 						model.acceptResponseProgress(lastRequest, part);
 					}
-					if (message.details && lastRequest.response) {
-						lastRequest.response.setResult({ details: message.details });
+					if (lastRequest.response && (message.details || message.errorDetails)) {
+						lastRequest.response.setResult({
+							...(message.details ? { details: message.details } : {}),
+							...(message.errorDetails ? { errorDetails: message.errorDetails } : {}),
+						});
 					}
 				}
 			}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Options, PermissionMode, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { McpSdkServerConfigWithInstance, Options, PermissionMode, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -16,6 +16,7 @@ import { ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { ClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { ClaudeRuntimeEffortLevel, clampEffortForRuntime, resolveClaudeEffort } from '../../common/claudeModelConfig.js';
 import { AgentSignal, IAgentSessionProjectInfo } from '../../common/agentService.js';
+import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
@@ -23,6 +24,7 @@ import { PendingMessage, ChatInputAnswer, ChatInputRequest, ChatInputResponseKin
 import type { Customization, ToolCallResult } from '../../common/state/sessionState.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
 import { buildClientMcpServers, buildOptions } from './claudeSdkOptions.js';
+import { buildServerToolMcpServer, CLAUDE_SERVER_TOOL_MCP_SERVER_NAME, serverToolAllowList } from './claudeServerToolMcpServer.js';
 import { ClaudeSessionMetadataStore } from './claudeSessionMetadataStore.js';
 import { convertToolCallResult } from './clientTools/claudeClientToolResult.js';
 import { readClaudePermissionMode } from './claudeSessionPermissionMode.js';
@@ -49,6 +51,13 @@ export interface IMaterializeContext {
 	readonly proxyHandle: IClaudeProxyHandle;
 	readonly canUseTool: NonNullable<Options['canUseTool']>;
 	readonly isResume: boolean;
+	/**
+	 * Agent host's server-tool host. When present, the session exposes the
+	 * agent host's server tools (feedback "comments" today, more in the future)
+	 * as an in-process MCP server and advertises them as server tools. Omitted
+	 * by providers that don't support server-side tools.
+	 */
+	readonly serverToolHost?: IAgentServerToolHost;
 }
 
 function resolveCurrentPermissionMode(
@@ -232,7 +241,7 @@ export class ClaudeAgentSession extends Disposable {
 		}
 
 		const permissionMode = readClaudePermissionMode(this._configurationService, this.sessionUri) ?? this._permissionModeFallback;
-		const mcpServers = await buildClientMcpServers(this.toolDiff, this._pendingClientToolCalls, this._sdkService);
+		const { mcpServers, allowedTools } = await this._buildStartupToolWiring(ctx.serverToolHost);
 
 		const options = await buildOptions(
 			{
@@ -244,6 +253,7 @@ export class ClaudeAgentSession extends Disposable {
 				canUseTool: ctx.canUseTool,
 				isResume: ctx.isResume,
 				mcpServers,
+				allowedTools,
 				plugins: this.clientCustomizationsDiff.consume(),
 				agent: this._resolveAgentName(this._provisionalAgent),
 			},
@@ -329,7 +339,7 @@ export class ClaudeAgentSession extends Disposable {
 		pipeline.attachRematerializer(async (_reason) => {
 			const liveMode = readClaudePermissionMode(this._configurationService, this.sessionUri) ?? this._permissionModeFallback;
 			try {
-				const rebuildMcp = await buildClientMcpServers(this.toolDiff, this._pendingClientToolCalls, this._sdkService);
+				const { mcpServers: rebuildMcp, allowedTools: rebuildAllowedTools } = await this._buildStartupToolWiring(ctx.serverToolHost);
 				const rebuildAbort = new AbortController();
 				const rebuildOptions = await buildOptions(
 					{
@@ -341,6 +351,7 @@ export class ClaudeAgentSession extends Disposable {
 						canUseTool: ctx.canUseTool,
 						isResume: true,
 						mcpServers: rebuildMcp,
+						allowedTools: rebuildAllowedTools,
 						plugins: this.clientCustomizationsDiff.consume(),
 						agent: this._resolveAgentName(this._provisionalAgent),
 					},
@@ -358,11 +369,48 @@ export class ClaudeAgentSession extends Disposable {
 			}
 		});
 
+		// Advertise the agent host's server tools on this session so the client
+		// sees them as server-provided. Execution happens in-process via the
+		// server-tool MCP server built in `_buildStartupToolWiring`.
+		ctx.serverToolHost?.advertise(this.sessionUri.toString());
+
 		// Surface the SDK-resolved customization tier to the workbench.
 		// Pre-materialize, getSessionCustomizations returns only the
 		// client-pushed slice; firing here prompts the workbench to refetch
 		// and pick up the bundled `Discovered in Claude` entry.
 		this._onDidCustomizationsChange.fire();
+	}
+
+	/**
+	 * Build the SDK tool wiring shared by the initial materialize and every
+	 * yield-restart rematerialize: the in-process MCP servers plus the
+	 * auto-approve allow-list.
+	 *
+	 * The MCP servers are the workbench client tools (which round-trip to the
+	 * workbench) plus, when a server-tool host is wired, the agent host's own
+	 * server tools (executed in-process). `mcpServers` is `undefined` when
+	 * neither is present so `Options.mcpServers` is omitted entirely and the
+	 * SDK keeps its default; `allowedTools` carries the SDK-prefixed server tool
+	 * names (so they auto-approve without prompting) and is `undefined` when no
+	 * server-tool host is wired.
+	 *
+	 * Keeping both in one place ensures the two startup paths can never drift,
+	 * and that a newly registered server tool is wired everywhere at once.
+	 */
+	private async _buildStartupToolWiring(
+		serverToolHost: IAgentServerToolHost | undefined,
+	): Promise<{ mcpServers: Record<string, McpSdkServerConfigWithInstance> | undefined; allowedTools: readonly string[] | undefined }> {
+		const clientServers = await buildClientMcpServers(this.toolDiff, this._pendingClientToolCalls, this._sdkService);
+		const serverToolServer = serverToolHost
+			? await buildServerToolMcpServer(serverToolHost, this.sessionUri.toString(), this._sdkService)
+			: undefined;
+		const mcpServers = (!clientServers && !serverToolServer)
+			? undefined
+			: {
+				...(clientServers ?? {}),
+				...(serverToolServer ? { [CLAUDE_SERVER_TOOL_MCP_SERVER_NAME]: serverToolServer } : {}),
+			};
+		return { mcpServers, allowedTools: serverToolHost ? serverToolAllowList(serverToolHost.toolNames) : undefined };
 	}
 
 	/** True once {@link materialize} has installed the SDK pipeline. */

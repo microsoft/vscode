@@ -6,6 +6,8 @@
 import { Event } from '../../base/common/event.js';
 import { IObservable } from '../../base/common/observable.js';
 import { equals } from '../../base/common/objects.js';
+import { URI } from '../../base/common/uri.js';
+import { IAgentConnection } from '../../platform/agentHost/common/agentService.js';
 import { RemoteAgentHostConnectionStatus } from '../../platform/agentHost/common/remoteAgentHostService.js';
 import { ResolveSessionConfigResult, SessionConfigValueItem } from '../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, Customization, McpServerStatus, RootConfigState } from '../../platform/agentHost/common/state/protocol/state.js';
@@ -30,6 +32,7 @@ export interface IAgentHostMcpServer {
 	readonly name: string;
 	readonly enabled: boolean;
 	readonly status: McpServerStatus;
+	readonly logOutputChannelId?: string;
 	setEnabled(enabled: boolean): void;
 }
 
@@ -172,6 +175,15 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 *              and use the provider's default behavior.
 	 */
 	setAgent?(sessionId: string, agent: ISessionAgentRef | undefined): void;
+
+	/**
+	 * Returns the agent-host annotations channel for a session so that
+	 * sessions-layer features (e.g. agent feedback) can subscribe to and
+	 * dispatch annotation actions against the session's
+	 * `<sessionUri>/annotations` channel. Returns `undefined` when the
+	 * session is unknown or the host connection is unavailable.
+	 */
+	getFeedbackAnnotationsChannel(sessionId: string): { readonly connection: IAgentConnection; readonly annotationsUri: URI } | undefined;
 
 }
 

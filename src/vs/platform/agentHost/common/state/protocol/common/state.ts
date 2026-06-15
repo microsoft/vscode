@@ -312,6 +312,12 @@ export interface ErrorInfo {
 	message: string;
 	/** Stack trace */
 	stack?: string;
+	/**
+	 * Additional provider-specific metadata for this error.
+	 * Clients MAY look for well-known optional keys here to provide enhanced UI
+	 * (e.g. a structured chat fetch error for richer, localized messaging).
+	 */
+	_meta?: Record<string, unknown>;
 }
 
 /**

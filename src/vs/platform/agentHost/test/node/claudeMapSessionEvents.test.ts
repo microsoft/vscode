@@ -10,8 +10,9 @@ import { NullLogService } from '../../../log/common/log.js';
 import type { AgentSignal } from '../../common/agentService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { ResponsePartKind, ToolResultContentType } from '../../common/state/sessionState.js';
-import { ToolCallConfirmationReason } from '../../common/state/protocol/state.js';
+import { ToolCallConfirmationReason, ToolCallContributorKind } from '../../common/state/protocol/state.js';
 import { ClaudeMapperState, mapSDKMessageToAgentSignals } from '../../node/claude/claudeMapSessionEvents.js';
+import { encodeForwardedChatError, PROXY_ERROR_PREFIX } from '../../node/shared/forwardedChatError.js';
 import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
 import {
 	makeAssistantMessage,
@@ -22,6 +23,7 @@ import {
 	makeInputJsonDelta,
 	makeMessageStart,
 	makeMessageStop,
+	makeResultError,
 	makeResultSuccess,
 	makeStreamEvent,
 	makeTextDelta,
@@ -79,6 +81,43 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		);
 
 		assert.deepStrictEqual(signals, []);
+	});
+
+	test('error_during_execution result with a proxy marker emits a ChatError carrying _meta', () => {
+		const marker = encodeForwardedChatError({ fetchError: { type: 'quotaExceeded', capiError: { code: 'quota_exceeded', message: 'You have exceeded your monthly quota' } } });
+		const signals = mapSDKMessageToAgentSignals(
+			makeResultError(SESSION_ID, [`CAPI request failed: 402 Payment Required \u2014 quota ${marker}`]),
+			SESSION,
+			TURN_ID,
+			new ClaudeMapperState(),
+			new NullLogService(),
+			r(),
+		);
+
+		const errorSignal = signals.find(s => s.kind === 'action' && s.action.type === ActionType.ChatError);
+		assert.ok(errorSignal && errorSignal.kind === 'action' && errorSignal.action.type === ActionType.ChatError);
+		const error = errorSignal.action.error;
+		const meta = error._meta as { chatError?: { fetchError?: { type?: string } } } | undefined;
+		assert.strictEqual(meta?.chatError?.fetchError?.type, 'quotaExceeded');
+		assert.ok(!error.message.includes(PROXY_ERROR_PREFIX), 'proxy marker should be stripped from the human-readable message');
+	});
+
+	test('successful result is_error with a proxy marker emits a ChatError carrying _meta', () => {
+		const marker = encodeForwardedChatError({ fetchError: { type: 'quotaExceeded', capiError: { code: 'quota_exceeded' } } });
+		const result = makeResultSuccess(SESSION_ID);
+		const signals = mapSDKMessageToAgentSignals(
+			{ ...result, is_error: true, result: `quota ${marker}` },
+			SESSION,
+			TURN_ID,
+			new ClaudeMapperState(),
+			new NullLogService(),
+			r(),
+		);
+
+		const errorSignal = signals.find(s => s.kind === 'action' && s.action.type === ActionType.ChatError);
+		assert.ok(errorSignal && errorSignal.kind === 'action' && errorSignal.action.type === ActionType.ChatError);
+		const meta = errorSignal.action.error._meta as { chatError?: { fetchError?: { type?: string } } } | undefined;
+		assert.strictEqual(meta?.chatError?.fetchError?.type, 'quotaExceeded');
 	});
 
 	test('text content block: start emits ChatResponsePart, deltas emit ChatDelta', () => {
@@ -191,6 +230,42 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 				toolCallId: 'tu_1',
 				toolName: 'Read',
 				displayName: 'Read file',
+			},
+		}]);
+		assert.deepStrictEqual(log.warns, []);
+	});
+
+	test('Test 8b — content_block_start for an mcp__client__* tool sets the Client contributor', () => {
+		// Regression: the mapper used to emit an invalid `toolClientId` field
+		// on the ChatToolCallStart action. Because the spread bypassed
+		// TypeScript's excess-property check and the reducer reads
+		// `action.contributor`, the contributor came through as `undefined`,
+		// so the workbench routed client tools to the server-tool path and
+		// never executed them — the in-process MCP handler hung forever.
+		const log = new CapturingLogService();
+		const state = new ClaudeMapperState();
+		const CLIENT_ID = 'client-abc';
+
+		const signals = mapSDKMessageToAgentSignals(
+			makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, 'tu_c', 'mcp__client__problems')),
+			SESSION,
+			TURN_ID,
+			state,
+			log,
+			r(),
+			CLIENT_ID,
+		);
+
+		assert.deepStrictEqual(signals, [{
+			kind: 'action',
+			session: SESSION,
+			action: {
+				type: ActionType.ChatToolCallStart,
+				turnId: TURN_ID,
+				toolCallId: 'tu_c',
+				toolName: 'problems',
+				displayName: 'problems',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: CLIENT_ID },
 			},
 		}]);
 		assert.deepStrictEqual(log.warns, []);

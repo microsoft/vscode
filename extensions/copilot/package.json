@@ -4026,6 +4026,15 @@
             ],
             "description": "%github.copilot.config.alternateGeminiModelFPrompt.enabled%"
           },
+          "github.copilot.chat.gemini35FlashReducedToolUsePrompt.enabled": {
+            "type": "boolean",
+            "default": false,
+            "tags": [
+              "experimental",
+              "onExp"
+            ],
+            "description": "%github.copilot.config.gemini35FlashReducedToolUsePrompt.enabled%"
+          },
           "github.copilot.chat.anthropic.contextEditing.mode": {
             "type": "string",
             "default": "off",
@@ -6800,6 +6809,7 @@
         "canDelegate": true,
         "description": "%github.copilot.session.providerDescription.cloud%",
         "when": "config.github.copilot.chat.cloudAgent.enabled",
+        "supportsAutoModel": false,
         "capabilities": {
           "supportsFileAttachments": true
         },
