@@ -275,10 +275,8 @@ export class ChatCompositeBar extends Disposable {
 		const chatTab: IChatTab = { chat, element: tab, inputContainer };
 
 		this._tabDisposables.add(addDisposableListener(tab, EventType.CLICK, () => {
-			// Tab switching while editing is handled by the input's blur handler.
-			if (this._editingTab) {
-				return;
-			}
+			// Cancel any in-progress rename before switching to the clicked tab.
+			this._cancelTabEditing();
 			this._onTabClicked(chat);
 		}));
 
@@ -387,19 +385,7 @@ export class ChatCompositeBar extends Disposable {
 			}
 		}));
 
-		store.add(addDisposableListener(inputBox.inputElement, EventType.BLUR, (e: FocusEvent) => {
-			finish(false);
-			// If focus moved to another tab, switch to it (the trailing click
-			// would mistarget while this tab is still in its wide editing layout).
-			const related = e.relatedTarget as HTMLElement | null;
-			const targetTab = related?.closest('.chat-composite-bar-tab') ?? undefined;
-			if (targetTab && targetTab !== tab) {
-				const targetChat = this._tabs.find(t => t.element === targetTab)?.chat;
-				if (targetChat) {
-					this._onTabClicked(targetChat);
-				}
-			}
-		}));
+		store.add(addDisposableListener(inputBox.inputElement, EventType.BLUR, () => finish(false)));
 
 		store.add(addDisposableListener(inputBox.element, EventType.CLICK, e => e.stopPropagation()));
 		store.add(addDisposableListener(inputBox.element, EventType.DBLCLICK, e => e.stopPropagation()));
