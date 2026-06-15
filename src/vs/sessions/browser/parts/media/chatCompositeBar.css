@@ -24,6 +24,10 @@
 	padding: 0 10px;
 	box-sizing: border-box;
 	container-type: inline-size;
+
+	/* Tab width cap: 200px, but never more than 40% of the tab strip width
+		(cqi = container-query inline-size unit, enabled by container-type). */
+	--chat-tab-max-width: min(200px, 40cqi);
 }
 
 /* Header: a status icon column next to a main column (title row + meta row).
@@ -268,7 +272,7 @@
 	border-radius: var(--vscode-cornerRadius-small);
 	user-select: none;
 	flex-shrink: 0;
-	max-width: min(200px, 40cqi);
+	max-width: var(--chat-tab-max-width);
 }
 
 .chat-composite-bar-tab-label {
@@ -276,6 +280,44 @@
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	min-width: 0;
+}
+
+/* While editing, the tab expands to its max width. */
+.chat-composite-bar-tab.editing {
+	cursor: default;
+	padding: 0 2px;
+	width: var(--chat-tab-max-width);
+	max-width: var(--chat-tab-max-width);
+}
+
+/* Hide the label and adornments so the input fills the tab while editing. */
+.session-chat-tabs-bar .chat-composite-bar-tab.editing .chat-composite-bar-tab-label,
+.session-chat-tabs-bar .chat-composite-bar-tab.editing .chat-composite-bar-tab-indicator,
+.session-chat-tabs-bar .chat-composite-bar-tab.editing .chat-composite-bar-tab-actions {
+	display: none;
+}
+
+.chat-composite-bar-tab-input-container {
+	display: none;
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.chat-composite-bar-tab.editing .chat-composite-bar-tab-input-container {
+	display: flex;
+}
+
+.chat-composite-bar-tab-input.monaco-inputbox {
+	flex: 1 1 auto;
+	min-width: 0;
+	height: 22px;
+}
+
+.chat-composite-bar-tab-input.monaco-inputbox .input {
+	font-family: inherit;
+	font-weight: inherit;
+	font-size: inherit;
+	padding: 0 4px;
 }
 
 .chat-composite-bar-tab:hover {

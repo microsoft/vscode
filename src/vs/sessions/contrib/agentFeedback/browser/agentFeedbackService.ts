@@ -14,6 +14,7 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { editingEntriesContainResource } from '../../../../workbench/contrib/chat/browser/sessionResourceMatching.js';
 import { changeMatchesResource, getActiveResourceCandidates, IAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
@@ -243,6 +244,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	constructor(
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@ILogService private readonly _logService: ILogService,
@@ -293,7 +295,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	}
 
 	private _trackVisibleEditorResources(): void {
-		const activeSession = this._sessionsManagementService.activeSession.get();
+		const activeSession = this._sessionsService.activeSession.get();
 		if (!activeSession) {
 			return;
 		}
@@ -306,7 +308,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	}
 
 	getSessionForFile(resourceUri: URI): ISession | undefined {
-		const sessionResource = this._fileToSession.get(resourceUri) ?? this._sessionsManagementService.activeSession.get()?.resource;
+		const sessionResource = this._fileToSession.get(resourceUri) ?? this._sessionsService.activeSession.get()?.resource;
 		if (!sessionResource) {
 			return undefined;
 		}

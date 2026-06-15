@@ -18,16 +18,9 @@ import { IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { IAgentHostGitService } from './agentHostGitService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { ILogService } from '../../log/common/log.js';
-import {
-	computeChangesSummaryFromLiveState,
-	computeChangesSummaryFromPersistedDiffs,
-	IAgentHostChangesetService,
-	META_CHANGES_SUMMARY,
-	META_CHANGESET_BRANCH,
-	META_CHANGESET_SESSION,
-	META_LEGACY_DIFFS,
-} from './agentHostChangesetService.js';
+import { computeChangesSummaryFromLiveState, computeChangesSummaryFromPersistedDiffs } from './agentHostChangesetService.js';
 import { ChangesSummary } from '../common/state/protocol/state.js';
+import { IAgentHostChangesetService, META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS } from '../common/agentHostChangesetService.js';
 
 /**
  * Raw metadata blob values for the session DB, batch-read by the caller.
