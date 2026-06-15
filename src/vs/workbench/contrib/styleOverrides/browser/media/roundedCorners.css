@@ -123,19 +123,6 @@
  * Inner (6px) — non-control containers that live within the UI.
  * ========================================================================== */
 
-/*
- * View pane headers (sidebar / panel section headers). Round the top corners so
- * the header caps its pane body, and all corners when the pane is collapsed and
- * the header stands alone. The header already clips with `overflow: hidden`.
- */
-.style-override-roundedCorners .monaco-pane-view .pane > .pane-header {
-	border-radius: var(--vscode-cornerRadius-medium) var(--vscode-cornerRadius-medium) 0 0;
-}
-
-.style-override-roundedCorners .monaco-pane-view .pane:not(.expanded) > .pane-header {
-	border-radius: var(--vscode-cornerRadius-medium);
-}
-
 /* Editor sticky scroll container */
 .style-override-roundedCorners .monaco-editor .sticky-widget {
 	border-radius: var(--vscode-cornerRadius-medium) !important;
