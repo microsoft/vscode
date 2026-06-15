@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from '../../../base/common/arrays.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
@@ -124,6 +123,14 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 		return this._configurationModel;
 	}
 
+	private updateToPolicyDefinitionType(configType: unknown, policyName: PolicyName): 'string' | 'number' | 'boolean' | undefined {
+		if (configType !== 'string' && configType !== 'number' && configType !== 'array' && configType !== 'object' && configType !== 'boolean') {
+			this.logService.warn(`PolicyConfiguration#updatePolicyDefinitions - policy '${policyName}' has unsupported type '${configType}'`);
+			return undefined;
+		}
+		return configType === 'number' ? 'number' : configType === 'boolean' ? 'boolean' : 'string';
+	}
+
 	private async updatePolicyDefinitions(properties: string[]): Promise<string[]> {
 		this.logService.trace('PolicyConfiguration#updatePolicyDefinitions', properties);
 		const policyDefinitions: IStringDictionary<PolicyDefinition> = {};
@@ -131,27 +138,48 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 		const configurationProperties = this.configurationRegistry.getConfigurationProperties();
 		const excludedConfigurationProperties = this.configurationRegistry.getExcludedConfigurationProperties();
 
+		// Pass 1: owners (settings that declare a full `policy`). An owner is authoritative for
+		// its policy name, so it is registered unconditionally.
 		for (const key of properties) {
 			const config = configurationProperties[key] ?? excludedConfigurationProperties[key];
 			if (!config) {
-				// Config is removed. So add it to the list if in case it was registered as policy before
+				// Config is removed. So add it to the list in case it was registered as a policy before
 				keys.push(key);
 				continue;
 			}
 			if (config.policy) {
-				if (config.type !== 'string' && config.type !== 'number' && config.type !== 'array' && config.type !== 'object' && config.type !== 'boolean') {
-					this.logService.warn(`Policy ${config.policy.name} has unsupported type ${config.type}`);
+				const type = this.updateToPolicyDefinitionType(config.type, config.policy.name);
+				if (!type) {
 					continue;
 				}
 				const { value, managedSettings, restrictedValue } = config.policy;
 				keys.push(key);
-				policyDefinitions[config.policy.name] = {
-					type: config.type === 'number' ? 'number' : config.type === 'boolean' ? 'boolean' : 'string',
-					value,
-					managedSettings,
-					restrictedValue,
-				};
+				policyDefinitions[config.policy.name] = { type, value, managedSettings, restrictedValue };
+				this.logService.trace(`PolicyConfiguration#updatePolicyDefinitions - registered owner '${config.policy.name}' from setting '${key}'`);
 			}
+		}
+
+		// Pass 2: references (settings that declare a `policyReference`). The referencing setting is
+		// still gated, so it is always added to `keys`. A definition is only synthesized when no owner
+		// in this batch already provided one — owners always win. This also lets the policy resolve in
+		// processes where the owner is not loaded (the synthesized definition makes the OS policy
+		// watcher observe the name locally).
+		for (const key of properties) {
+			const config = configurationProperties[key] ?? excludedConfigurationProperties[key];
+			if (!config?.policyReference) {
+				continue;
+			}
+			const reference = config.policyReference;
+			keys.push(key);
+			if (policyDefinitions[reference.name]) {
+				continue;
+			}
+			const type = this.updateToPolicyDefinitionType(config.type, reference.name);
+			if (!type) {
+				continue;
+			}
+			policyDefinitions[reference.name] = { type, value: reference.value, managedSettings: reference.managedSettings };
+			this.logService.trace(`PolicyConfiguration#updatePolicyDefinitions - synthesized definition for referenced policy '${reference.name}' from setting '${key}'`);
 		}
 
 		if (!isEmptyObject(policyDefinitions)) {
@@ -164,7 +192,21 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 	private onDidChangePolicies(policyNames: readonly PolicyName[]): void {
 		this.logService.trace('PolicyConfiguration#onDidChangePolicies', policyNames);
 		const policyConfigurations = this.configurationRegistry.getPolicyConfigurations();
-		const keys = coalesce(policyNames.map(policyName => policyConfigurations.get(policyName)));
+		const policyReferenceConfigurations = this.configurationRegistry.getPolicyReferenceConfigurations();
+		const keys: string[] = [];
+		for (const policyName of policyNames) {
+			const owner = policyConfigurations.get(policyName);
+			if (owner) {
+				keys.push(owner);
+			}
+			const references = policyReferenceConfigurations.get(policyName);
+			if (references) {
+				keys.push(...references);
+			}
+		}
+		if (keys.length) {
+			this.logService.trace('PolicyConfiguration#onDidChangePolicies - applying to settings', keys);
+		}
 		this.update(keys, true);
 	}
 
@@ -177,7 +219,7 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 
 		for (const key of keys) {
 			const proprety = configurationProperties[key] ?? excludedConfigurationProperties[key];
-			const policyName = proprety?.policy?.name;
+			const policyName = proprety?.policy?.name ?? proprety?.policyReference?.name;
 			if (policyName) {
 				let policyValue: PolicyValue | ParsedType | undefined = this.policyService.getPolicyValue(policyName);
 				if (isString(policyValue) && proprety.type !== 'string') {

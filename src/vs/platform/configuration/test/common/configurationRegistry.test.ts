@@ -111,6 +111,163 @@ suite('ConfigurationRegistry', () => {
 		assert.ok(actual['policy2'] === undefined);
 	});
 
+	test('a policyReference attaches a subordinate setting to an owning policy', async () => {
+		configurationRegistry.registerConfiguration({
+			'id': '_test_default',
+			'type': 'object',
+			'properties': {
+				'policy.owner': {
+					'type': 'boolean',
+					policy: {
+						name: 'sharedPolicy',
+						category: PolicyCategory.Extensions,
+						minimumVersion: '1.0.0',
+						localization: { description: { key: 'owner', value: '' }, }
+					}
+				},
+				'policy.subordinate': {
+					'type': 'boolean',
+					policyReference: {
+						name: 'sharedPolicy',
+					}
+				}
+			}
+		});
+		const actual = configurationRegistry.getConfigurationProperties();
+		assert.ok(actual['policy.owner'] !== undefined);
+		assert.ok(actual['policy.subordinate'] !== undefined);
+		assert.strictEqual(configurationRegistry.getPolicyConfigurations().get('sharedPolicy'), 'policy.owner');
+		assert.deepStrictEqual([...(configurationRegistry.getPolicyReferenceConfigurations().get('sharedPolicy') ?? [])], ['policy.subordinate']);
+	});
+
+	test('a policyReference does not require its owner to be registered', async () => {
+		configurationRegistry.registerConfiguration({
+			'id': '_test_default',
+			'type': 'object',
+			'properties': {
+				'policy.orphanReference': {
+					'type': 'boolean',
+					policyReference: {
+						name: 'externallyOwnedPolicy',
+					}
+				}
+			}
+		});
+		const actual = configurationRegistry.getConfigurationProperties();
+		assert.ok(actual['policy.orphanReference'] !== undefined);
+		assert.strictEqual(configurationRegistry.getPolicyConfigurations().get('externallyOwnedPolicy'), undefined);
+		assert.deepStrictEqual([...(configurationRegistry.getPolicyReferenceConfigurations().get('externallyOwnedPolicy') ?? [])], ['policy.orphanReference']);
+	});
+
+	test('a setting declaring both policy and policyReference is rejected', async () => {
+		configurationRegistry.registerConfiguration({
+			'id': '_test_default',
+			'type': 'object',
+			'properties': {
+				'policy.both': {
+					'type': 'boolean',
+					policy: {
+						name: 'policyBoth',
+						category: PolicyCategory.Extensions,
+						minimumVersion: '1.0.0',
+						localization: { description: { key: 'both', value: '' }, }
+					},
+					policyReference: {
+						name: 'policyBothReference',
+					}
+				}
+			}
+		});
+		const actual = configurationRegistry.getConfigurationProperties();
+		assert.ok(actual['policy.both'] === undefined);
+		assert.strictEqual(configurationRegistry.getPolicyConfigurations().get('policyBoth'), undefined);
+		assert.strictEqual(configurationRegistry.getPolicyReferenceConfigurations().get('policyBothReference'), undefined);
+	});
+
+	test('a policyReference whose type differs from its owner is rejected', async () => {
+		configurationRegistry.registerConfiguration({
+			'id': '_test_default',
+			'type': 'object',
+			'properties': {
+				'policy.typedOwner': {
+					'type': 'boolean',
+					policy: {
+						name: 'typedPolicy',
+						category: PolicyCategory.Extensions,
+						minimumVersion: '1.0.0',
+						localization: { description: { key: 'typed', value: '' }, }
+					}
+				},
+				'policy.mistypedReference': {
+					'type': 'string',
+					policyReference: {
+						name: 'typedPolicy',
+					}
+				}
+			}
+		});
+		const actual = configurationRegistry.getConfigurationProperties();
+		assert.ok(actual['policy.typedOwner'] !== undefined);
+		assert.ok(actual['policy.mistypedReference'] === undefined, 'reference with mismatched type must be rejected');
+		assert.deepStrictEqual([...(configurationRegistry.getPolicyReferenceConfigurations().get('typedPolicy') ?? [])], []);
+	});
+
+	test('an owner whose type differs from an already-registered reference is rejected', async () => {
+		// Register the reference first (owner may live in another process and arrive later or never).
+		configurationRegistry.registerConfiguration({
+			'id': '_test_default',
+			'type': 'object',
+			'properties': {
+				'policy.earlyReference': {
+					'type': 'string',
+					policyReference: {
+						name: 'lateOwnerPolicy',
+					}
+				}
+			}
+		});
+		configurationRegistry.registerConfiguration({
+			'id': '_test_default_2',
+			'type': 'object',
+			'properties': {
+				'policy.lateOwner': {
+					'type': 'boolean',
+					policy: {
+						name: 'lateOwnerPolicy',
+						category: PolicyCategory.Extensions,
+						minimumVersion: '1.0.0',
+						localization: { description: { key: 'late', value: '' }, }
+					}
+				}
+			}
+		});
+		const actual = configurationRegistry.getConfigurationProperties();
+		assert.ok(actual['policy.earlyReference'] !== undefined);
+		assert.ok(actual['policy.lateOwner'] === undefined, 'owner with mismatched type must be rejected');
+		assert.strictEqual(configurationRegistry.getPolicyConfigurations().get('lateOwnerPolicy'), undefined);
+	});
+
+	test('two references sharing a policy must use the same type', async () => {
+		configurationRegistry.registerConfiguration({
+			'id': '_test_default',
+			'type': 'object',
+			'properties': {
+				'policy.refA': {
+					'type': 'boolean',
+					policyReference: { name: 'twoRefPolicy' }
+				},
+				'policy.refB': {
+					'type': 'string',
+					policyReference: { name: 'twoRefPolicy' }
+				}
+			}
+		});
+		const actual = configurationRegistry.getConfigurationProperties();
+		assert.ok(actual['policy.refA'] !== undefined);
+		assert.ok(actual['policy.refB'] === undefined, 'second reference with mismatched type must be rejected');
+		assert.deepStrictEqual([...(configurationRegistry.getPolicyReferenceConfigurations().get('twoRefPolicy') ?? [])], ['policy.refA']);
+	});
+
 	test('configuration defaults - deregister merged object default override', async () => {
 		configurationRegistry.registerConfiguration({
 			'id': '_test_default',

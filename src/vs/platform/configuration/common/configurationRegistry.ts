@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { distinct } from '../../../base/common/arrays.js';
+import { equals } from '../../../base/common/objects.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IJSONSchema } from '../../../base/common/jsonSchema.js';
@@ -12,7 +13,7 @@ import * as nls from '../../../nls.js';
 import { getLanguageTagSettingPlainKey } from './configuration.js';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../jsonschemas/common/jsonContributionRegistry.js';
 import { Registry } from '../../registry/common/platform.js';
-import { IPolicy, PolicyName } from '../../../base/common/policy.js';
+import { IPolicy, IPolicyReference, PolicyName } from '../../../base/common/policy.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import product from '../../product/common/product.js';
 
@@ -111,9 +112,16 @@ export interface IConfigurationRegistry {
 	getConfigurationProperties(): IStringDictionary<IRegisteredConfigurationPropertySchema>;
 
 	/**
-	 * Return all configurations by policy name
+	 * Returns the *owning* setting key for each policy name (the setting that declares the
+	 * full `policy`). At most one owner exists per policy name.
 	 */
 	getPolicyConfigurations(): Map<PolicyName, string>;
+
+	/**
+	 * Returns the *subordinate* setting keys for each policy name (settings that declare a
+	 * `policyReference` to that policy). A policy may govern any number of referencing settings.
+	 */
+	getPolicyReferenceConfigurations(): Map<PolicyName, Set<string>>;
 
 	/**
 	 * Returns all excluded configurations settings of all configuration nodes contributed to this registry.
@@ -219,9 +227,16 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 
 	/**
 	 * When specified, this setting's value can always be overwritten by
-	 * a system-wide policy.
+	 * a system-wide policy. Exactly one setting may *own* a given policy name.
 	 */
 	policy?: IPolicy;
+
+	/**
+	 * When specified, this setting is governed by a policy *owned* by another setting
+	 * (see {@link policy}). Use this to let a single enterprise policy lock more than one
+	 * setting. A setting must not declare both `policy` and `policyReference`.
+	 */
+	policyReference?: IPolicyReference;
 
 	/**
 	 * When specified, this setting's default value can always be overwritten by
@@ -343,6 +358,7 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 	private readonly configurationContributors: IConfigurationNode[];
 	private readonly configurationProperties: IStringDictionary<IRegisteredConfigurationPropertySchema>;
 	private readonly policyConfigurations: Map<PolicyName, string>;
+	private readonly policyReferenceConfigurations: Map<PolicyName, Set<string>>;
 	private readonly excludedConfigurationProperties: IStringDictionary<IRegisteredConfigurationPropertySchema>;
 	private readonly resourceLanguageSettingsSchema: IJSONSchema;
 	private readonly overrideIdentifiers = new Set<string>();
@@ -371,6 +387,7 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 		};
 		this.configurationProperties = {};
 		this.policyConfigurations = new Map<PolicyName, string>();
+		this.policyReferenceConfigurations = new Map<PolicyName, Set<string>>();
 		this.excludedConfigurationProperties = {};
 
 		contributionRegistry.registerSchema(resourceLanguageSettingsSchemaId, this.resourceLanguageSettingsSchema);
@@ -685,6 +702,15 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 					if (property?.policy?.name) {
 						this.policyConfigurations.delete(property.policy.name);
 					}
+					if (property?.policyReference?.name) {
+						const refs = this.policyReferenceConfigurations.get(property.policyReference.name);
+						if (refs) {
+							refs.delete(key);
+							if (refs.size === 0) {
+								this.policyReferenceConfigurations.delete(property.policyReference.name);
+							}
+						}
+					}
 					delete this.configurationProperties[key];
 					this.removeFromSchema(key, configuration.properties[key]);
 				}
@@ -743,6 +769,7 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 
 				const excluded = properties[key].hasOwnProperty('included') && !properties[key].included;
 				const policyName = properties[key].policy?.name;
+				const policyReferenceName = properties[key].policyReference?.name;
 
 				if (excluded) {
 					this.excludedConfigurationProperties[key] = properties[key];
@@ -750,11 +777,18 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 						this.policyConfigurations.set(policyName, key);
 						bucket.add(key);
 					}
+					if (policyReferenceName) {
+						this.addPolicyReferenceConfiguration(policyReferenceName, key);
+						bucket.add(key);
+					}
 					delete properties[key];
 				} else {
 					bucket.add(key);
 					if (policyName) {
 						this.policyConfigurations.set(policyName, key);
+					}
+					if (policyReferenceName) {
+						this.addPolicyReferenceConfiguration(policyReferenceName, key);
 					}
 					this.configurationProperties[key] = properties[key];
 					if (!properties[key].deprecationMessage && properties[key].markdownDeprecationMessage) {
@@ -774,6 +808,15 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 		}
 	}
 
+	private addPolicyReferenceConfiguration(policyName: PolicyName, key: string): void {
+		let keys = this.policyReferenceConfigurations.get(policyName);
+		if (!keys) {
+			keys = new Set<string>();
+			this.policyReferenceConfigurations.set(policyName, keys);
+		}
+		keys.add(key);
+	}
+
 	// Only for tests
 	getConfigurations(): IConfigurationNode[] {
 		return this.configurationContributors;
@@ -785,6 +828,10 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 
 	getPolicyConfigurations(): Map<PolicyName, string> {
 		return this.policyConfigurations;
+	}
+
+	getPolicyReferenceConfigurations(): Map<PolicyName, Set<string>> {
+		return this.policyReferenceConfigurations;
 	}
 
 	getExcludedConfigurationProperties(): IStringDictionary<IRegisteredConfigurationPropertySchema> {
@@ -988,8 +1035,50 @@ export function validateProperty(property: string, schema: IRegisteredConfigurat
 	if (configurationRegistry.getConfigurationProperties()[property] !== undefined && (!extensionId || !EXTENSION_UNIFICATION_EXTENSION_IDS.has(extensionId.toLowerCase()))) {
 		return nls.localize('config.property.duplicate', "Cannot register '{0}'. This property is already registered.", property);
 	}
+	if (schema.policy && schema.policyReference) {
+		return nls.localize('config.policy.bothPolicyAndReference', "Cannot register '{0}'. A setting must not declare both 'policy' and 'policyReference'.", property);
+	}
 	if (schema.policy?.name && configurationRegistry.getPolicyConfigurations().get(schema.policy?.name) !== undefined) {
-		return nls.localize('config.policy.duplicate', "Cannot register '{0}'. The associated policy {1} is already registered with {2}.", property, schema.policy?.name, configurationRegistry.getPolicyConfigurations().get(schema.policy?.name));
+		return nls.localize('config.policy.duplicate', "Cannot register '{0}'. The associated policy {1} is already registered with {2}. To attach another setting to the same policy, use 'policyReference'.", property, schema.policy?.name, configurationRegistry.getPolicyConfigurations().get(schema.policy?.name));
+	}
+	// All settings sharing a policy name (the owner plus every reference) must use the exact same
+	// value type, otherwise a single enterprise policy value cannot apply consistently to all of
+	// them. Validate against whatever sibling settings are already registered in this process.
+	const policyName = schema.policy?.name ?? schema.policyReference?.name;
+	if (policyName) {
+		const typeMismatch = findPolicyTypeMismatch(policyName, schema.type, property);
+		if (typeMismatch) {
+			return typeMismatch;
+		}
+	}
+	return null;
+}
+
+/**
+ * Returns an error string if any setting already registered against `policyName` (the owner or an
+ * existing reference) has a different `type` than `incomingType`; otherwise `null`. The comparison
+ * is by exact configuration `type` so a single policy value applies identically to every setting.
+ */
+function findPolicyTypeMismatch(policyName: PolicyName, incomingType: IRegisteredConfigurationPropertySchema['type'], property: string): string | null {
+	const configurationProperties = configurationRegistry.getConfigurationProperties();
+	const excludedProperties = configurationRegistry.getExcludedConfigurationProperties();
+	const siblingKeys: string[] = [];
+	const ownerKey = configurationRegistry.getPolicyConfigurations().get(policyName);
+	if (ownerKey !== undefined) {
+		siblingKeys.push(ownerKey);
+	}
+	const referenceKeys = configurationRegistry.getPolicyReferenceConfigurations().get(policyName);
+	if (referenceKeys) {
+		siblingKeys.push(...referenceKeys);
+	}
+	for (const siblingKey of siblingKeys) {
+		if (siblingKey === property) {
+			continue;
+		}
+		const sibling = configurationProperties[siblingKey] ?? excludedProperties[siblingKey];
+		if (sibling && !equals(sibling.type, incomingType)) {
+			return nls.localize('config.policy.typeMismatch', "Cannot register '{0}'. Its type '{1}' does not match the type '{2}' of setting '{3}' which shares policy {4}. All settings sharing a policy must use the same type.", property, JSON.stringify(incomingType), JSON.stringify(sibling.type), siblingKey, policyName);
+		}
 	}
 	return null;
 }

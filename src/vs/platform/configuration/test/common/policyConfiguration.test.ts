@@ -96,6 +96,30 @@ suite('PolicyConfiguration', () => {
 					localization: { description: { key: '', value: '' }, }
 				}
 			},
+			'policy.ownerSetting': {
+				'type': 'boolean',
+				'default': true,
+				policy: {
+					name: 'PolicyShared',
+					category: PolicyCategory.Extensions,
+					minimumVersion: '1.0.0',
+					localization: { description: { key: 'shared.owner', value: '' }, }
+				}
+			},
+			'policy.referenceSetting': {
+				'type': 'boolean',
+				'default': true,
+				policyReference: {
+					name: 'PolicyShared',
+				}
+			},
+			'policy.orphanReferenceSetting': {
+				'type': 'boolean',
+				'default': true,
+				policyReference: {
+					name: 'PolicyOrphanReference',
+				}
+			},
 			'nonPolicy.setting': {
 				'type': 'boolean',
 				'default': true
@@ -268,6 +292,42 @@ suite('PolicyConfiguration', () => {
 		assert.strictEqual(acutal.getValue('nonPolicy.setting'), undefined);
 		assert.deepStrictEqual(acutal.keys, []);
 		assert.deepStrictEqual(acutal.overrides, []);
+	});
+
+	test('initialize: an owning policy applies to both the owner and its references', async () => {
+		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicyShared': false })));
+
+		await testObject.initialize();
+		const acutal = testObject.configurationModel;
+
+		assert.strictEqual(acutal.getValue('policy.ownerSetting'), false);
+		assert.strictEqual(acutal.getValue('policy.referenceSetting'), false);
+		assert.deepStrictEqual([...acutal.keys].sort(), ['policy.ownerSetting', 'policy.referenceSetting']);
+	});
+
+	test('initialize: a reference resolves even when its owner is not registered', async () => {
+		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicyOrphanReference': false })));
+
+		await testObject.initialize();
+		const acutal = testObject.configurationModel;
+
+		assert.strictEqual(acutal.getValue('policy.orphanReferenceSetting'), false);
+		assert.deepStrictEqual(acutal.keys, ['policy.orphanReferenceSetting']);
+	});
+
+	test('change: an owning policy update propagates to both the owner and its references', async () => {
+		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicyShared': false })));
+		await testObject.initialize();
+
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const promise = Event.toPromise(testObject.onDidChangeConfiguration);
+			await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({})));
+			await promise;
+		});
+
+		const acutal = testObject.configurationModel;
+		assert.strictEqual(acutal.getValue('policy.ownerSetting'), undefined);
+		assert.strictEqual(acutal.getValue('policy.referenceSetting'), undefined);
 	});
 
 	test('change: when policy setting is registered', async () => {

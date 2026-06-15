@@ -806,21 +806,35 @@ class PolicyDiagnosticsAction extends Action2 {
 		content += '## Policy-Controlled Settings\n\n';
 
 		const policyConfigurations = configurationRegistry.getPolicyConfigurations();
+		const policyReferenceConfigurations = configurationRegistry.getPolicyReferenceConfigurations();
 		const configurationProperties = configurationRegistry.getConfigurationProperties();
 		const excludedProperties = configurationRegistry.getExcludedConfigurationProperties();
 
-		if (policyConfigurations.size > 0) {
+		if (policyConfigurations.size > 0 || policyReferenceConfigurations.size > 0) {
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			const appliedPolicy: Array<{ name: string; key: string; property: any; inspection: any }> = [];
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			const notAppliedPolicy: Array<{ name: string; key: string; property: any; inspection: any }> = [];
 
+			// Owners (settings that declare the full policy) and references (subordinate settings
+			// governed by an owner) are both policy-controlled, so report both. References are tagged
+			// so it is clear they inherit the policy rather than declaring it.
+			const policySettings: Array<{ policyName: string; settingKey: string; isReference: boolean }> = [];
 			for (const [policyName, settingKey] of policyConfigurations) {
+				policySettings.push({ policyName, settingKey, isReference: false });
+			}
+			for (const [policyName, settingKeys] of policyReferenceConfigurations) {
+				for (const settingKey of settingKeys) {
+					policySettings.push({ policyName, settingKey, isReference: true });
+				}
+			}
+
+			for (const { policyName, settingKey, isReference } of policySettings) {
 				const property = configurationProperties[settingKey] ?? excludedProperties[settingKey];
 				if (property) {
 					const inspectValue = configurationService.inspect(settingKey);
 					const settingInfo = {
-						name: policyName,
+						name: isReference ? `${policyName} (reference)` : policyName,
 						key: settingKey,
 						property,
 						inspection: inspectValue
@@ -837,6 +851,8 @@ class PolicyDiagnosticsAction extends Action2 {
 			// Try to detect where the policy came from
 			const policySourceMemo = new Map<string, string>();
 			const getPolicySource = (policyName: string): string => {
+				// Strip the "(reference)" suffix used for display when resolving the source.
+				policyName = policyName.replace(/ \(reference\)$/, '');
 				if (policySourceMemo.has(policyName)) {
 					return policySourceMemo.get(policyName)!;
 				}
