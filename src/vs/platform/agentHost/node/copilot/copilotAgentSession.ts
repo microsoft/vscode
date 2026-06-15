@@ -5,7 +5,7 @@
 
 import type { ExitPlanModeRequest, MessageOptions, PermissionRequestResult, SessionConfig, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
 import { DeferredPromise } from '../../../../base/common/async.js';
-import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -938,8 +938,26 @@ export class CopilotAgentSession extends Disposable {
 			}
 		}
 
-		const sdkAttachments = attachments?.length
-			? (await Promise.all(attachments.map(a => this._toSdkAttachment(a)))).filter(isDefined)
+		// Simple attachments carrying a model representation (pasted code,
+		// feedback text, free-form strings, …) are inline prompt content, not
+		// file references. Append them to the prompt — mirroring the Claude and
+		// Codex resolvers — so the model sees them directly instead of as
+		// opaque blobs it would have to open with a tool first (#320612).
+		const inlineBlocks: string[] = [];
+		const referencedAttachments: MessageAttachment[] = [];
+		for (const a of attachments ?? []) {
+			if (a.type === MessageAttachmentKind.Simple && a.modelRepresentation) {
+				inlineBlocks.push(a.modelRepresentation);
+			} else {
+				referencedAttachments.push(a);
+			}
+		}
+		if (inlineBlocks.length > 0) {
+			prompt = [prompt, ...inlineBlocks].filter(s => s.length > 0).join('\n\n');
+		}
+
+		const sdkAttachments = referencedAttachments.length
+			? (await Promise.all(referencedAttachments.map(a => this._toSdkAttachment(a)))).filter(isDefined)
 			: undefined;
 		if (sdkAttachments?.length) {
 			this._logService.trace(`[Copilot:${this.sessionId}] Attachments: ${JSON.stringify(sdkAttachments.map(a => ({ type: a.type })))}`);
@@ -957,8 +975,8 @@ export class CopilotAgentSession extends Disposable {
 	 * {@link MessageAttachmentBase.displayKind} advisory hint controls
 	 * which one). Embedded resources (e.g. inline image bytes) map to the
 	 * SDK's `blob` variant.
-	 * Simple attachments with a model representation map to `text/plain`
-	 * blob attachments.
+	 * Simple attachments are inlined into the prompt by {@link send} before
+	 * we get here, so they never produce an SDK attachment.
 	 *
 	 * Any Resource attachment carrying a {@link TextSelection} (e.g. `displayKind === 'selection'` or `'symbol'`) is
 	 * mapped to the SDK's `selection` variant so the range survives the round-trip — keying off the `selection` field
@@ -971,14 +989,9 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private async _toSdkAttachment(attachment: MessageAttachment): Promise<CopilotSdkAttachment | undefined> {
 		if (attachment.type === MessageAttachmentKind.Simple) {
-			if (attachment.modelRepresentation) {
-				return {
-					type: 'blob' as const,
-					data: encodeBase64(VSBuffer.fromString(attachment.modelRepresentation)),
-					mimeType: 'text/plain',
-					displayName: attachment.label,
-				};
-			}
+			// Simple attachments are handled inline in `send`; anything that
+			// reaches here (e.g. a command/skill reference without inline text)
+			// has no SDK representation.
 			return undefined;
 		}
 		if (attachment.type === MessageAttachmentKind.EmbeddedResource) {

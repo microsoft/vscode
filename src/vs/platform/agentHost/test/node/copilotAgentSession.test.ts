@@ -475,7 +475,7 @@ suite('CopilotAgentSession', () => {
 		}]);
 	});
 
-	test('sends simple attachments as text blobs and restores them from SDK blobs', async () => {
+	test('inlines simple attachments into the prompt and restores them from SDK blobs', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
 
 		await session.send('/act-on-feedback', [{
@@ -489,14 +489,12 @@ suite('CopilotAgentSession', () => {
 			label: 'Feedback',
 			modelRepresentation: 'Feedback text for the model',
 		};
+		// Simple attachments carrying model text are appended to the prompt
+		// rather than sent as opaque blobs, so the model sees them inline
+		// without having to open a file (#320612).
 		assert.deepStrictEqual(mockSession.sendRequests, [{
-			prompt: '/act-on-feedback',
-			attachments: [{
-				type: 'blob',
-				data: encodeBase64(VSBuffer.fromString('Feedback text for the model')),
-				mimeType: 'text/plain',
-				displayName: 'Feedback',
-			}],
+			prompt: '/act-on-feedback\n\nFeedback text for the model',
+			attachments: undefined,
 		}]);
 
 		mockSession.messages = [{
