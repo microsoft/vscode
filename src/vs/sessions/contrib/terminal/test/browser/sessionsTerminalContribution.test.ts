@@ -214,7 +214,9 @@ suite('SessionsTerminalContribution', () => {
 	let contribution: SessionsTerminalContribution;
 	let activeSessionObs: ReturnType<typeof observableValue<IActiveSession | undefined>>;
 	let onDidChangeSessions: Emitter<ISessionsChangeEvent>;
+	let onDidReplaceSession: Emitter<{ readonly from: ISession; readonly to: ISession }>;
 	let onDidCreateInstance: Emitter<ITerminalInstance>;
+	let onDidDisposeInstance: Emitter<ITerminalInstance>;
 
 	let createdTerminals: { cwd: URI }[];
 	let activeInstanceSet: number[];
@@ -252,12 +254,15 @@ suite('SessionsTerminalContribution', () => {
 
 		activeSessionObs = observableValue<IActiveSession | undefined>('activeSession', undefined);
 		onDidChangeSessions = store.add(new Emitter<ISessionsChangeEvent>());
+		onDidReplaceSession = store.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 		onDidCreateInstance = store.add(new Emitter<ITerminalInstance>());
+		onDidDisposeInstance = store.add(new Emitter<ITerminalInstance>());
 
 		instantiationService.stub(ILogService, logService);
 
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override readonly onDidChangeSessions = onDidChangeSessions.event;
+			override readonly onDidReplaceSession = onDidReplaceSession.event;
 			override getSessions(): ISession[] { return [...allSessions]; }
 		});
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
@@ -266,6 +271,7 @@ suite('SessionsTerminalContribution', () => {
 
 		instantiationService.stub(ITerminalService, new class extends mock<ITerminalService>() {
 			override onDidCreateInstance = onDidCreateInstance.event;
+			override onDidDisposeInstance = onDidDisposeInstance.event;
 			override get instances(): readonly ITerminalInstance[] {
 				return [...terminalInstances.values()];
 			}
@@ -1133,6 +1139,72 @@ suite('SessionsTerminalContribution', () => {
 		await tick();
 
 		assert.ok(!moveToBackgroundCalls.includes(toolTerminal.instanceId), 'hidden tool terminal should not be moved to background on restore');
+	});
+
+	test('transfers tracked terminals when a session is replaced (graduation)', async () => {
+		const worktreeUri = URI.file('/worktree');
+		const untitledSession = makeAgentSession({ sessionId: 'test:untitled', worktree: worktreeUri, providerType: AgentSessionProviders.Background });
+		const committedSession = makeAgentSession({ sessionId: 'test:committed', worktree: worktreeUri, providerType: AgentSessionProviders.Background });
+
+		// Ensure a terminal for the untitled session
+		await contribution.ensureTerminal(worktreeUri, false, untitledSession);
+		assert.strictEqual(createdTerminals.length, 1);
+		const terminalId = [...terminalInstances.keys()][0];
+
+		// Fire onDidReplaceSession to transfer tracking
+		onDidReplaceSession.fire({ from: untitledSession, to: committedSession });
+
+		// Now removing the old session should not kill the terminal since
+		// tracking was transferred to the committed session
+		activeInstanceId = undefined; // terminal is not focused
+		onDidChangeSessions.fire({ added: [], removed: [untitledSession], changed: [] });
+		await tick();
+
+		assert.strictEqual(disposedInstances.length, 0, 'terminal should survive graduation because tracking was transferred');
+		assert.ok(terminalInstances.has(terminalId), 'terminal should still exist');
+
+		// And ensureTerminal for the committed session should reuse, not create
+		const result = await contribution.ensureTerminal(worktreeUri, false, committedSession);
+		assert.strictEqual(createdTerminals.length, 1, 'should reuse the transferred terminal');
+		assert.strictEqual(result[0].instanceId, terminalId);
+	});
+
+	test('cleans up tracked terminal ids when terminals are externally disposed', async () => {
+		const worktreeUri = URI.file('/worktree');
+		const session = makeAgentSession({ sessionId: 'test:session', worktree: worktreeUri, providerType: AgentSessionProviders.Background });
+
+		// Ensure a terminal for the session
+		await contribution.ensureTerminal(worktreeUri, false, session);
+		assert.strictEqual(createdTerminals.length, 1);
+		const instance = [...terminalInstances.values()][0];
+
+		// Externally dispose the terminal (user closes the tab)
+		instance._testSetDisposed(true);
+		terminalInstances.delete(instance.instanceId);
+		onDidDisposeInstance.fire(instance);
+
+		// Now ensureTerminal should create a new terminal since the tracked one was disposed
+		const result = await contribution.ensureTerminal(worktreeUri, false, session);
+		assert.strictEqual(createdTerminals.length, 2, 'should create a new terminal since the tracked one was disposed');
+		assert.notStrictEqual(result[0].instanceId, instance.instanceId, 'should be a different terminal');
+	});
+
+	test('untracked restored terminals are visible alongside tracked terminals for the same session', async () => {
+		const cwd = URI.file('/worktree');
+		const session = makeAgentSession({ sessionId: 'test:session', worktree: cwd, providerType: AgentSessionProviders.Background });
+
+		// Simulate a restored terminal at the same cwd (not tracked)
+		const restoredTerminal = makeTerminalInstance(nextInstanceId++, cwd.fsPath);
+		terminalInstances.set(restoredTerminal.instanceId, restoredTerminal);
+		backgroundedInstances.add(restoredTerminal.instanceId);
+
+		// Activate the session — this creates a tracked terminal
+		activeSessionObs.set(session, undefined);
+		await tick();
+
+		// The restored terminal should have been shown (via cwd fallback)
+		// rather than left in the background
+		assert.ok(showBackgroundCalls.includes(restoredTerminal.instanceId), 'untracked restored terminal at matching cwd should be shown');
 	});
 });
 

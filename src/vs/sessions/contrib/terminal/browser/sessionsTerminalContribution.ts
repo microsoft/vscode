@@ -175,6 +175,31 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			this._onActiveSessionChanged(session);
 		}));
 
+		// When a session is replaced (untitled → committed graduation), transfer
+		// tracked terminals from the old session id to the new one so they are
+		// not orphaned and closed by the removal cleanup.
+		this._register(this._sessionsManagementService.onDidReplaceSession(({ from, to }) => {
+			const terminalIds = this._sessionTerminals.get(from.sessionId);
+			if (terminalIds && terminalIds.size > 0) {
+				let targetIds = this._sessionTerminals.get(to.sessionId);
+				if (!targetIds) {
+					targetIds = new Set<number>();
+					this._sessionTerminals.set(to.sessionId, targetIds);
+				}
+				for (const id of terminalIds) {
+					targetIds.add(id);
+				}
+				this._logService.trace(`[SessionsTerminal] Transferred ${terminalIds.size} terminal(s) from session ${from.sessionId} to ${to.sessionId}`);
+			}
+			this._sessionTerminals.delete(from.sessionId);
+		}));
+
+		// Clean up tracked terminal ids when terminals are externally disposed
+		// (e.g. user closes a terminal tab) so the map doesn't hold stale entries.
+		this._register(this._terminalService.onDidDisposeInstance(instance => {
+			this._removeTerminalFromTrackedSessions(instance.instanceId);
+		}));
+
 		// Hide restored terminals from a previous window session that don't
 		// belong to the current active session. These arrive asynchronously
 		// during reconnection and would otherwise flash in the foreground.
@@ -421,8 +446,16 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	}
 
 	private _isTerminalTracked(instanceId: number): boolean {
-		for (const terminalIds of this._sessionTerminals.values()) {
+		for (const [sessionId, terminalIds] of this._sessionTerminals) {
 			if (terminalIds.has(instanceId)) {
+				const instance = this._terminalService.getInstanceFromId(instanceId);
+				if (!instance || instance.isDisposed) {
+					terminalIds.delete(instanceId);
+					if (terminalIds.size === 0) {
+						this._sessionTerminals.delete(sessionId);
+					}
+					continue;
+				}
 				return true;
 			}
 		}
@@ -457,7 +490,6 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		const toShow: ITerminalInstance[] = [];
 		const toHide: ITerminalInstance[] = [];
 		const trackedTerminalIds = new Set(this._getTrackedTerminalsForSession(activeSession.sessionId).map(instance => instance.instanceId));
-		const useCwdFallback = trackedTerminalIds.size === 0;
 
 		for (const instance of [...this._terminalService.instances]) {
 			// Skip hidden tool terminals — managed by the chat tool lifecycle
@@ -473,7 +505,10 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			const isForeground = this._terminalService.foregroundInstances.includes(currentInstance);
 			const isForceVisible = forceForegroundTerminalIds.includes(currentInstance.instanceId);
 			let belongsToActiveSession = trackedTerminalIds.has(currentInstance.instanceId);
-			if (!belongsToActiveSession && useCwdFallback) {
+			if (!belongsToActiveSession && !this._isTerminalTracked(currentInstance.instanceId)) {
+				// Untracked terminal (e.g. restored from a previous window) — fall
+				// back to cwd matching so it is shown alongside the session's tracked
+				// terminals rather than incorrectly hidden.
 				try {
 					cwd = (await currentInstance.getInitialCwd()).toLowerCase();
 				} catch {
