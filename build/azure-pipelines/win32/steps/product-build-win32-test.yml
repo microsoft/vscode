@@ -21,11 +21,7 @@ steps:
         VSCODE_SKIP_PRELAUNCH: '1'
       displayName: 🧪 Run unit tests (Electron)
       timeoutInMinutes: 15
-    - powershell: |
-        New-Item -ItemType Directory -Force -Path .build\crashes | Out-Null
-        npm run test-node -- --build
-      env:
-        NODE_OPTIONS: "--report-on-fatalerror --report-uncaught-exception --report-directory=.build/crashes"
+    - powershell: npm run test-node -- --build
       displayName: 🧪 Run unit tests (node.js)
       timeoutInMinutes: 15
 

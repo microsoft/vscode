@@ -15,43 +15,13 @@ import { retry } from './retry.ts';
 const ARTIFACT_NAME = 'copilot_vsix';
 const COPILOT_JOB_NAME = 'Copilot';
 
-interface TimelineRecord {
-	readonly name: string;
-	readonly type: string;
-	readonly state: string;
-	readonly result: string;
-}
-
 interface Timeline {
-	readonly records: TimelineRecord[];
-}
-
-function log(message: string): void {
-	console.log(`[${new Date().toISOString()}] ${message}`);
-}
-
-/**
- * Installs process-level diagnostic handlers so that, when this script runs detached
- * via `deemon`, an abnormal termination still leaves a trace in the captured output.
- * Without these, a crash or a received signal can surface only as an opaque daemon
- * exit code (e.g. `0xDEAD`) with no indication of the cause.
- */
-function installDiagnostics(): void {
-	process.on('uncaughtException', err => {
-		console.error('[downloadCopilotVsix] Uncaught exception:', err);
-		process.exit(1);
-	});
-	process.on('unhandledRejection', reason => {
-		console.error('[downloadCopilotVsix] Unhandled rejection:', reason);
-		process.exit(1);
-	});
-	for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP', 'SIGBREAK'] as const) {
-		process.on(signal, () => {
-			console.error(`[downloadCopilotVsix] Received ${signal}, exiting.`);
-			process.exit(1);
-		});
-	}
-	process.on('exit', code => log(`Process exiting with code ${code}.`));
+	readonly records: {
+		readonly name: string;
+		readonly type: string;
+		readonly state: string;
+		readonly result: string;
+	}[];
 }
 
 function getAzdoFetchOptions() {
@@ -75,9 +45,21 @@ async function getPipelineTimeline(): Promise<Timeline> {
 	return await requestAZDOAPI<Timeline>('timeline');
 }
 
-async function getCopilotJob(): Promise<TimelineRecord | undefined> {
-	const timeline = await retry(() => getPipelineTimeline());
-	return timeline.records.find(r => r.type === 'Job' && r.name === COPILOT_JOB_NAME);
+async function checkCopilotJobFailed(): Promise<boolean> {
+	try {
+		const timeline = await retry(() => getPipelineTimeline());
+		const copilotJob = timeline.records.find(
+			r => r.type === 'Job' && r.name === COPILOT_JOB_NAME
+		);
+
+		if (copilotJob && copilotJob.state === 'completed' && copilotJob.result !== 'succeeded' && copilotJob.result !== 'succeededWithIssues') {
+			return true;
+		}
+	} catch (err) {
+		console.error(`WARNING: Failed to check Copilot job status: ${err}`);
+	}
+
+	return false;
 }
 
 async function downloadArtifact(artifact: Artifact, downloadPath: string): Promise<void> {
@@ -138,37 +120,25 @@ async function unzip(zipPath: string, outputPath: string): Promise<string[]> {
 }
 
 async function waitForArtifact(): Promise<Artifact> {
-	const startTime = Date.now();
-
 	for (let index = 0; index < 60; index++) {
-		const elapsed = Math.round((Date.now() - startTime) / 1000);
-
 		try {
-			log(`Waiting for Copilot VSIX artifact to be uploaded (attempt ${index + 1}/60, ${elapsed}s elapsed)...`);
+			console.log(`Waiting for Copilot VSIX artifact to be uploaded (${index + 1}/60)...`);
 
-			// Check the Copilot job status so we can abort early if it failed
-			log('  * Checking Copilot job status...');
-			const copilotJob = await getCopilotJob();
-			if (copilotJob) {
-				log(`  * Copilot job status: state=${copilotJob.state}, result=${copilotJob.result ?? 'n/a'}`);
-				if (copilotJob.state === 'completed' && copilotJob.result !== 'succeeded' && copilotJob.result !== 'succeededWithIssues') {
-					throw new Error(`Copilot job failed (result=${copilotJob.result}). Aborting.`);
-				}
-			} else {
-				log('  * Copilot job not found in timeline yet');
+			// Check if the Copilot job failed
+			const failed = await checkCopilotJobFailed();
+			if (failed) {
+				throw new Error('Copilot job failed. Aborting.');
 			}
 
-			log('  * Fetching pipeline artifacts...');
 			const allArtifacts = await retry(() => getPipelineArtifacts());
-			log(`  * Found ${allArtifacts.length} artifact(s): ${allArtifacts.map(a => a.name).join(', ') || '(none)'}`);
-
 			const artifact = allArtifacts.find(a => a.name === ARTIFACT_NAME);
+
 			if (artifact) {
-				log('  * Copilot VSIX artifact found');
+				console.log('  * Copilot VSIX artifact found');
 				return artifact;
 			}
 
-			log('  * Not found yet, waiting 30s...');
+			console.log('  * Not found yet, waiting...');
 		} catch (err) {
 			if (err instanceof Error && err.message.includes('Copilot job failed')) {
 				throw err;
@@ -183,11 +153,9 @@ async function waitForArtifact(): Promise<Artifact> {
 }
 
 async function main(): Promise<void> {
-	installDiagnostics();
-
 	const outputDir = path.resolve('.build/extensions/copilot');
 
-	log('Waiting for Copilot VSIX artifact...');
+	console.log('Waiting for Copilot VSIX artifact...');
 	const artifact = await waitForArtifact();
 
 	// Download the artifact (a zip containing the VSIX)
@@ -250,6 +218,6 @@ function copyDirSync(src: string, dest: string): void {
 }
 
 main().catch(err => {
-	console.error('[downloadCopilotVsix] Fatal error:', err);
+	console.error(err);
 	process.exitCode = 1;
 });

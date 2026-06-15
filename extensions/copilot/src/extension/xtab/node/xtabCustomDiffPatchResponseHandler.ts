@@ -264,15 +264,19 @@ export class XtabCustomDiffPatchResponseHandler {
 
 		try {
 			let dropAllRemaining = false;
+
 			for await (const edit of XtabCustomDiffPatchResponseHandler.extractEdits(linesStream)) {
+
 				if (dropAllRemaining) {
 					continue;
 				}
 
 				const isActiveDoc = edit.filePath === activeDocRelativePath;
+
 				const targetDocument = isActiveDoc
 					? activeDocumentId
 					: XtabCustomDiffPatchResponseHandler.resolveTargetDocument(edit.filePath, workspaceRoot);
+
 				if (!targetDocument) {
 					tracer.error(`Could not resolve target document for edit: ${edit.toString()}`);
 					continue;

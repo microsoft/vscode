@@ -19,12 +19,7 @@ steps:
         VSCODE_SKIP_PRELAUNCH: '1'
       displayName: 🧪 Run unit tests (Electron)
       timeoutInMinutes: 15
-    - script: |
-        set -e
-        mkdir -p .build/crashes
-        npm run test-node -- --build
-      env:
-        NODE_OPTIONS: "--report-on-fatalerror --report-uncaught-exception --report-directory=.build/crashes"
+    - script: npm run test-node -- --build
       displayName: 🧪 Run unit tests (node.js)
       timeoutInMinutes: 15
 

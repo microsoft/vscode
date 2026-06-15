@@ -67,7 +67,6 @@ export abstract class AbstractLanguageModelChatProvider<C extends LanguageModelC
 		const models = await this.getAllModels(silent, apiKey, configuration as C);
 		return models.map(model => ({
 			...model,
-			isBYOK: true,
 			apiKey,
 			configuration
 		}));
