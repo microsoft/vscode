@@ -1252,7 +1252,7 @@ export class ModelPickerWidget extends Disposable {
 		const effortConfig = isUBB ? this._getConfigProperty('navigation') : undefined;
 		const tokensConfig = isUBB ? this._getConfigProperty('tokens') : undefined;
 		if (this._configButton) {
-			if (this._selectedModel && (effortConfig || tokensConfig)) {
+			if (this._selectedModel && !noModelsAvailable && (effortConfig || tokensConfig)) {
 				const labelParts: string[] = [];
 				const ariaParts: string[] = [];
 				if (effortConfig) {
@@ -1469,7 +1469,7 @@ export class ModelPickerWidget extends Disposable {
 				isChecked(element: IActionListItem<IActionWidgetDropdownAction>) {
 					return element.kind === ActionListItemKind.Action ? !!element?.item?.checked : undefined;
 				},
-				getRole: () => 'menuitemradio' as const,
+				getRole: (element: IActionListItem<IActionWidgetDropdownAction>) => element.kind === ActionListItemKind.Action ? 'menuitemradio' as const : 'separator' as const,
 				getWidgetRole: () => 'menu' as const,
 			},
 			{
