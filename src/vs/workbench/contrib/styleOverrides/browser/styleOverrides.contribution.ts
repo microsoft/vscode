@@ -17,6 +17,7 @@ import { workbenchConfigurationNodeBase } from '../../../common/configuration.js
 // rules behind a `.style-override-<id>` ancestor class, so the styles are inert
 // until the matching class is toggled onto the workbench container(s) below.
 import './media/roundedButtons.css';
+import './media/roundedCorners.css';
 import './media/tabs.css';
 
 const SETTING_ID = 'workbench.experimental.styleOverrides';
@@ -38,6 +39,11 @@ const STYLE_OVERRIDE_MODULES: readonly IStyleOverrideModule[] = [
 		id: 'roundedButtons',
 		label: localize('styleOverrides.roundedButtons', "Rounded Buttons"),
 		description: localize('styleOverrides.roundedButtons.description', "Renders workbench buttons as fully rounded pills.")
+	},
+	{
+		id: 'roundedCorners',
+		label: localize('styleOverrides.roundedCorners', "Rounded Corners"),
+		description: localize('styleOverrides.roundedCorners.description', "Applies a three-tier corner radius system: 8px for overlays (quick input, hovers, menus, dialogs), 6px for non-control containers and 4px for interactible controls (inputs, lists).")
 	},
 	{
 		id: 'tabs',
