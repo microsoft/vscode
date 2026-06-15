@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import type { ChangesSummary } from '../common/state/protocol/state.js';
-import { type ISessionFileDiff, type URI as ProtocolURI, } from '../common/state/sessionState.js';
+import type { ChangesSummary } from './state/protocol/state.js';
+import type { ISessionFileDiff, URI as ProtocolURI } from './state/sessionState.js';
 
 /** Metadata key under which the branch changeset's diff list is persisted. */
 export const META_CHANGESET_BRANCH = 'agentHost.changeset.branch';
