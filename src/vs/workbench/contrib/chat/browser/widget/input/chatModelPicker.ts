@@ -953,7 +953,6 @@ export class ModelPickerWidget extends Disposable {
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 	) {
 		super();
-
 		this._register(this._languageModelsService.onDidChangeLanguageModels(() => {
 			this._renderLabel();
 		}));
@@ -1365,7 +1364,9 @@ export class ModelPickerWidget extends Disposable {
 							logChange(value, previousValue);
 							// Write through the same (possibly per-editor) access used for
 							// reading so the change is reflected back in the UI. See #320393.
-							this._modelConfiguration.setModelConfiguration(modelIdentifier, { [config.key]: value });
+							// Return the promise so callers can await the write before
+							// refreshing the checked state.
+							return this._modelConfiguration.setModelConfiguration(modelIdentifier, { [config.key]: value });
 						}
 					},
 					kind: ActionListItemKind.Action,
@@ -1431,14 +1432,18 @@ export class ModelPickerWidget extends Disposable {
 
 		const previouslyFocusedElement = dom.getActiveElement();
 		const delegate = {
-			onSelect: (action: IActionWidgetDropdownAction, _preview?: boolean, keepOpen?: boolean) => {
-				action.run();
+			onSelect: async (action: IActionWidgetDropdownAction, _preview?: boolean, keepOpen?: boolean) => {
 				if (keepOpen) {
-					// Keep the widget open and refresh the checked state in place,
-					// without closing or repositioning it, keeping focus on the
-					// item that was just selected.
+					// Focus the clicked item immediately so the focus highlight
+					// doesn't flicker while waiting for the async config write.
+					this._actionWidgetService.focusItemById(action.id);
+					// Wait for the (async) config write to resolve so the rebuilt
+					// items read back the new value, then refresh in place keeping
+					// focus on the item that was just selected.
+					await action.run();
 					this._actionWidgetService.updateItems(this._buildConfigItems(), action.id);
 				} else {
+					action.run();
 					this._actionWidgetService.hide();
 				}
 			},

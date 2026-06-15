@@ -46,6 +46,12 @@ export interface IActionWidgetService {
 	 */
 	updateItems<T>(items: readonly IActionListItem<T>[], focusItemId?: string): void;
 
+	/**
+	 * Focuses the item with the given id in the currently shown widget, without
+	 * rebuilding the list.
+	 */
+	focusItemById(itemId: string): void;
+
 	hide(didCancel?: boolean): void;
 
 	readonly isVisible: boolean;
@@ -92,6 +98,10 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 
 	updateItems<T>(items: readonly IActionListItem<T>[], focusItemId?: string): void {
 		(this._list.value as ActionList<T> | undefined)?.updateItems(items, focusItemId);
+	}
+
+	focusItemById(itemId: string): void {
+		this._list.value?.focusItemById(itemId);
 	}
 
 	focusPrevious() {

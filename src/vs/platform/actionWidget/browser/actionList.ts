@@ -1075,27 +1075,36 @@ export class ActionListWidget<T> extends Disposable {
 		// anchor element was re-rendered by the action that triggered this update.
 		this._applyFilter(false, false);
 		if (focusItemId !== undefined) {
-			const focusItem = () => {
-				for (let i = 0; i < this._list.length; i++) {
-					const el = this._list.element(i);
-					if ((el.item as { id?: string })?.id === focusItemId) {
-						this._list.setFocus([i]);
-						this._list.reveal(i);
-						this._list.domFocus();
-						break;
-					}
-				}
-			};
-			focusItem();
-			// Re-apply after the current event finishes: when triggered by a mouse
-			// click, the list's own pointer handling can reset focus after our
-			// callback returns, which would otherwise drop the focus highlight.
-			queueMicrotask(() => {
-				if (this.domNode.isConnected) {
-					focusItem();
-				}
-			});
+			this.focusItemById(focusItemId);
 		}
+	}
+
+	/**
+	 * Focuses the item whose {@link IActionListItem.item}'s `id` matches
+	 * {@link itemId}, without rebuilding the list. Re-applies the focus after the
+	 * current event so a mouse click's own pointer handling cannot reset it.
+	 */
+	focusItemById(itemId: string): void {
+		const focusItem = () => {
+			for (let i = 0; i < this._list.length; i++) {
+				const el = this._list.element(i);
+				if ((el.item as { id?: string })?.id === itemId) {
+					this._list.setFocus([i]);
+					this._list.reveal(i);
+					this._list.domFocus();
+					break;
+				}
+			}
+		};
+		focusItem();
+		// Re-apply after the current event finishes: when triggered by a mouse
+		// click, the list's own pointer handling can reset focus after our
+		// callback returns, which would otherwise drop the focus highlight.
+		queueMicrotask(() => {
+			if (this.domNode.isConnected) {
+				focusItem();
+			}
+		});
 	}
 
 	private _focusCheckedOrFirst(): void {
@@ -1950,6 +1959,10 @@ export class ActionList<T> extends Disposable {
 
 	updateItems(items: readonly IActionListItem<T>[], focusItemId?: string): void {
 		this._widget.updateItems(items, focusItemId);
+	}
+
+	focusItemById(itemId: string): void {
+		this._widget.focusItemById(itemId);
 	}
 
 	private hasDynamicHeight(): boolean {
