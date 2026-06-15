@@ -241,7 +241,10 @@ export class AquariumService extends Disposable implements IAquariumService {
 				iconSpan.classList.add(cls);
 			}
 		} else {
-			iconSpan.classList.add('agents-aquarium-toggle-logo');
+			const iconClasses = ThemeIcon.asClassName(Codicon.smiley).split(/\s+/).filter(Boolean);
+			for (const cls of iconClasses) {
+				iconSpan.classList.add(cls);
+			}
 		}
 		button.appendChild(iconSpan);
 		const label = this.getToggleLabel(active);
