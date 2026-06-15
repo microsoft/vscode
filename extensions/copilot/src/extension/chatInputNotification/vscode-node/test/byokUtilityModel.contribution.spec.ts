@@ -49,6 +49,7 @@ function createAuthService(opts?: { anyGitHubSession?: unknown }) {
 		_serviceBrand: undefined,
 		anyGitHubSession: hasSession ? opts!.anyGitHubSession : undefined,
 		onDidAuthenticationChange: emitter.event,
+		onDidCopilotTokenChange: new Emitter().event,
 	} as unknown as IAuthenticationService;
 	return { authService, emitter };
 }

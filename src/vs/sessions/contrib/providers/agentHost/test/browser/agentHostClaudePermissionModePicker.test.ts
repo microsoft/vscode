@@ -19,7 +19,8 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { AgentHostClaudePermissionModePicker } from '../../browser/agentHostClaudePermissionModePicker.js';
 import { IAgentHostSessionEnumPickerItem } from '../../browser/agentHostModePicker.js';
@@ -82,7 +83,7 @@ suite('AgentHostClaudePermissionModePicker', () => {
 			},
 		});
 		const sessionObs = observableValue<IActiveSession | undefined>('activeSession', { providerId: PROVIDER_ID, sessionId: SESSION_ID } as IActiveSession);
-		instantiationService.set(ISessionsManagementService, new (class extends mock<ISessionsManagementService>() {
+		instantiationService.set(ISessionsService, new (class extends mock<ISessionsService>() {
 			override readonly activeSession = sessionObs;
 		})());
 		instantiationService.set(ISessionsProvidersService, new (class extends mock<ISessionsProvidersService>() {

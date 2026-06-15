@@ -11,6 +11,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { getPullRequestKey } from '../common/utils.js';
 import { GitHubService, IGitHubService } from './githubService.js';
 
@@ -23,11 +24,12 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 	constructor(
 		@IGitHubService private readonly _gitHubService: IGitHubService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
 	) {
 		super();
 
 		const activeSessionResourceObs = derivedOpts<URI | undefined>({ equalsFn: isEqual }, reader => {
-			const activeSession = this._sessionsManagementService.activeSession.read(reader);
+			const activeSession = this._sessionsService.activeSession.read(reader);
 			if (!activeSession || !activeSession.resource || activeSession.isArchived.read(reader)) {
 				return undefined;
 			}

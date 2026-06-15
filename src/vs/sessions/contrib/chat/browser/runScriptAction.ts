@@ -30,6 +30,7 @@ import { logSessionsInteraction } from '../../../common/sessionsTelemetry.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ActiveSessionWorkspaceIsVirtualContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
@@ -130,6 +131,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 
 	constructor(
 		@ISessionsManagementService private readonly _sessionManagementService: ISessionsManagementService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IKeybindingService _keybindingService: IKeybindingService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@ISessionsTasksService private readonly _sessionsConfigService: ISessionsTasksService,
@@ -157,7 +159,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 						&& t1.task.runOptions?.runOn === t2.task.runOptions?.runOn);
 			}
 		}, reader => {
-			const activeSession = this._sessionManagementService.activeSession.read(reader);
+			const activeSession = this._sessionsService.activeSession.read(reader);
 			if (!activeSession) {
 				return undefined;
 			}

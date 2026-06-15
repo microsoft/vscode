@@ -74,8 +74,7 @@ import { MobileNavigationStack } from './mobileNavigationStack.js';
 import { MobileTitlebarPart } from './parts/mobile/mobileTitlebarPart.js';
 import { IMobileVisualViewport } from './parts/mobile/mobileVisualViewport.js';
 import { autorun } from '../../base/common/observable.js';
-import { ISessionsManagementService } from '../services/sessions/common/sessionsManagement.js';
-import { ISessionsViewService } from '../services/sessions/browser/sessionsViewService.js';
+import { ISessionsService } from '../services/sessions/browser/sessionsService.js';
 import { ISessionsPartService } from '../services/sessions/browser/sessionsPartService.js';
 import { ISessionsSetUpService } from './sessionsSetUpService.js';
 
@@ -329,8 +328,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	private editorService!: IEditorService;
 	private paneCompositeService!: IPaneCompositePartService;
 	private viewDescriptorService!: IViewDescriptorService;
-	private sessionsManagementService!: ISessionsManagementService;
-	private sessionsViewService!: ISessionsViewService;
+	private sessionsService!: ISessionsService;
 	private sessionsPartService!: ISessionsPartService;
 	private instantiationService!: IInstantiationService;
 	private storageService!: IStorageService;
@@ -799,9 +797,9 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		// so the new session view becomes visible. createMobileTitlebar() is
 		// only invoked in phone layout, so closing the drawer here is safe.
 		this.mobileTopBarDisposables.add(mobileTitlebar.onDidClickNewSession(() => {
-			this.sessionsViewService.openNewSession();
+			this.sessionsService.openNewSession();
 			this.closeMobileSidebarDrawer();
-			this.sessionsPartService.focusSession(this.sessionsManagementService.activeSession.get());
+			this.sessionsPartService.focusSession(this.sessionsService.activeSession.get());
 		}));
 	}
 
@@ -962,7 +960,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.restoreParts();
 
 		// Restore the sessions that were visible in the grid.
-		void this.sessionsViewService.restoreVisibleSessions().catch(e => {
+		void this.sessionsService.restoreVisibleSessions().catch(e => {
 			this.logService.error('[Workbench] restoreVisibleSessions failed', e);
 		});
 
@@ -1008,8 +1006,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.editorService = accessor.get(IEditorService);
 		this.paneCompositeService = accessor.get(IPaneCompositePartService);
 		this.viewDescriptorService = accessor.get(IViewDescriptorService);
-		this.sessionsManagementService = accessor.get(ISessionsManagementService);
-		this.sessionsViewService = accessor.get(ISessionsViewService);
+		this.sessionsService = accessor.get(ISessionsService);
 		// Forces eager creation of the sessions part so it registers itself with the
 		// layout service before renderWorkbench() looks it up via getPart().
 		this.sessionsPartService = accessor.get(ISessionsPartService);

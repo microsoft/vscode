@@ -15,7 +15,7 @@ import { AHP_AUTH_REQUIRED, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolEr
 import { readSessionGitState, type ISessionFileDiff, type SessionState } from '../common/state/sessionState.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostGitService } from './agentHostGitService.js';
-import { IAgentHostChangesetService } from './agentHostChangesetService.js';
+import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
 import { CopilotApiError, ICopilotApiService } from './shared/copilotApiService.js';
 
 const MAX_CHANGE_SUMMARY_PROMPT_CHARS = 20_000;

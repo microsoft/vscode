@@ -10,7 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { SubscribeResult } from '../../../common/state/protocol/commands.js';
 import type { ActionEnvelope } from '../../../common/state/sessionActions.js';
 import type { SessionAddedParams } from '../../../common/state/protocol/notifications.js';
-import { MessageKind } from '../../../common/state/sessionState.js';
+import { MessageKind, buildDefaultChatUri, mergeSessionWithDefaultChat, type ChatState, type ISessionWithDefaultChat, type SessionState } from '../../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import {
 	isJsonRpcNotification,
@@ -305,6 +305,11 @@ export async function createAndSubscribeSession(c: TestProtocolClient, clientId:
 	const realSessionUri = (notif.params as SessionAddedParams).summary.resource;
 
 	await c.call<SubscribeResult>('subscribe', { channel: realSessionUri });
+	// Turns and other conversation contents live on the session's default
+	// chat channel in the multi-chat protocol; subscribe to it as well so
+	// `chat/*` action notifications (responsePart, turnComplete, …) are
+	// delivered to this client.
+	await c.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(realSessionUri) });
 	c.clearReceived();
 
 	return realSessionUri;
@@ -315,9 +320,25 @@ export function dispatchTurnStarted(c: TestProtocolClient, session: string, turn
 		channel: session,
 		clientSeq,
 		action: {
-			type: 'session/turnStarted',
+			type: 'chat/turnStarted',
 			turnId,
 			message: { text, origin: { kind: MessageKind.User } },
 		},
 	});
+}
+
+/**
+ * Subscribes to a session channel and its default chat channel and returns the
+ * merged {@link ISessionWithDefaultChat} view. In the multi-chat protocol the
+ * conversation contents (turns, activeTurn, queued/steering messages, input
+ * requests) live on the session's default chat channel, so reading them
+ * requires merging the session snapshot with its default chat snapshot.
+ */
+export async function fetchSessionWithChat(c: TestProtocolClient, sessionUri: string): Promise<ISessionWithDefaultChat> {
+	const sessionSnap = await c.call<SubscribeResult>('subscribe', { channel: sessionUri });
+	const chatSnap = await c.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+	return mergeSessionWithDefaultChat(
+		sessionSnap.snapshot!.state as SessionState,
+		chatSnap.snapshot?.state as ChatState | undefined,
+	);
 }
