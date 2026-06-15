@@ -104,12 +104,6 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 				}));
 				parent.appendChild(result.element);
 				result.element.classList.add(...(markdownDetail.classes || []));
-
-				// Ensure links are distinguishable by more than just color (WCAG 1.4.1)
-				// eslint-disable-next-line no-restricted-syntax
-				for (const el of result.element.querySelectorAll('a')) {
-					el.style.textDecoration = 'underline';
-				}
 			});
 		} : undefined;
 
