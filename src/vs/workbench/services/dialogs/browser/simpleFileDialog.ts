@@ -939,10 +939,9 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 			}
 		} else { // open
 			if (!stat) {
-				// For a folder-only picker, offer to create the folder if the parent exists.
+				// For a folder-only picker, offer to create the folder if a writable ancestor exists.
 				if (this.allowFolderSelection && !this.allowFileSelection
-					&& statDirname?.isDirectory && !statDirname.readonly
-					&& isValidBasename(resources.basename(uri), this.isWindows)) {
+					&& await this.canCreateFolder(uri)) {
 					const message = nls.localize('remoteFileDialog.validateCreateDirectoryOpen', 'The folder {0} does not exist. Would you like to create it?', resources.basename(uri));
 					const shouldCreate = await this.yesNoPrompt(uri, message);
 					if (!shouldCreate) {
@@ -973,6 +972,27 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 			}
 		}
 		return true;
+	}
+
+	private async canCreateFolder(uri: URI): Promise<boolean> {
+		while (true) {
+			const name = resources.basename(uri);
+			if (!name || !isValidBasename(name, this.isWindows)) {
+				return false;
+			}
+
+			const parent = resources.dirname(uri);
+			if (parent.toString() === uri.toString()) {
+				return false;
+			}
+
+			try {
+				const stat = await this.fileService.stat(parent);
+				return stat.isDirectory && !stat.readonly;
+			} catch (e) {
+				uri = parent;
+			}
+		}
 	}
 
 	// Returns true if there is a file at the end of the URI.
