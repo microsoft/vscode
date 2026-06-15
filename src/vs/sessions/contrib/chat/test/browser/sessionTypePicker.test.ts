@@ -15,6 +15,9 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -86,6 +89,16 @@ function createPicker(
 	instantiationService.stub(ISessionsProvidersService, { getProvider: () => undefined });
 	instantiationService.stub(IStorageService, storage);
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
+	instantiationService.stub(IChatSessionsService, {
+		supportsAutoModelForSessionType: () => false,
+		requiresCustomModelsForSessionType: () => false,
+		getChatSessionContribution: () => undefined,
+	});
+	instantiationService.stub(IChatEntitlementService, { entitlement: ChatEntitlement.Pro });
+	instantiationService.stub(ILanguageModelsService, {
+		getLanguageModelIds: () => [],
+		lookupLanguageModel: () => undefined,
+	});
 	return disposables.add(instantiationService.createInstance(TestSessionTypePicker, session));
 }
 

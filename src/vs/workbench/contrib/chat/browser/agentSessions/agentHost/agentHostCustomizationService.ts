@@ -8,6 +8,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableMap, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { AgentSession, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { isRemoteAgentHostSessionType, remoteAgentHostSessionTypeId } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { AGENT_HOST_LOG_OUTPUT_CHANNEL_ID, IRemoteAgentHostService, remoteAgentHostLogOutputChannelId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { getEffectiveAgents } from '../../../../../../platform/agentHost/common/customAgents.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -19,7 +20,7 @@ import { createDecorator } from '../../../../../../platform/instantiation/common
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
-import { IAgentHostMcpServer, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../../../../../../sessions/common/agentHostSessionsProvider.js';
+import { IAgentHostMcpServer } from '../../../../../../sessions/common/agentHostSessionsProvider.js';
 
 const AGENT_HOST_SESSION_SCHEME_PREFIX = 'agent-host-';
 
@@ -135,7 +136,7 @@ class WorkbenchAgentHostCustomizationService extends Disposable implements IAgen
 		}
 		const customizations = this._readSessionState(sessionResource)?.customizations ?? [];
 		const channel = backendSession.toString();
-		const logOutputChannelId = this._resolveLogOutputChannelId(backendSession);
+		const logOutputChannelId = this._resolveLogOutputChannelId(sessionResource, backendSession);
 		return customizations
 			.filter((c): c is McpServerCustomization => c.type === CustomizationType.McpServer)
 			.map((c): IAgentHostMcpServer => ({
@@ -154,16 +155,19 @@ class WorkbenchAgentHostCustomizationService extends Disposable implements IAgen
 			}));
 	}
 
-	private _resolveLogOutputChannelId(backendSession: URI): string | undefined {
-		const providerId = AgentSession.provider(backendSession);
-		if (providerId === LOCAL_AGENT_HOST_PROVIDER_ID) {
+	private _resolveLogOutputChannelId(sessionResource: URI, backendSession: URI): string | undefined {
+		if (sessionResource.scheme.startsWith(AGENT_HOST_SESSION_SCHEME_PREFIX)) {
 			return AGENT_HOST_LOG_OUTPUT_CHANNEL_ID;
 		}
-		if (providerId?.startsWith(REMOTE_AGENT_HOST_PROVIDER_PREFIX)) {
-			const authority = providerId.substring(REMOTE_AGENT_HOST_PROVIDER_PREFIX.length);
-			const connection = this._remoteAgentHostService.connections.find(c => agentHostAuthority(c.address) === authority);
+
+		if (isRemoteAgentHostSessionType(sessionResource.scheme)) {
+			const backendProvider = AgentSession.provider(backendSession);
+			const connection = backendProvider
+				? this._remoteAgentHostService.connections.find(c => sessionResource.scheme === remoteAgentHostSessionTypeId(agentHostAuthority(c.address), backendProvider))
+				: undefined;
 			return connection ? remoteAgentHostLogOutputChannelId(connection.address) : undefined;
 		}
+
 		return undefined;
 	}
 

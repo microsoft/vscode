@@ -33,7 +33,7 @@ import { AgentHostSessionSyncEnabledConfigKey, AutoApproveLevel, ISchemaProperty
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IMcpNotification } from '../../common/agentService.js';
 import { getEffectiveAgents } from '../../common/customAgents.js';
-import { IAgentFeedbackToolHost } from '../../common/agentFeedbackAnnotations.js';
+import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDataService.js';
@@ -278,10 +278,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _client: CopilotClient | undefined;
 	private _clientStarting: Promise<CopilotClient> | undefined;
 	private _githubToken: string | undefined;
-	private _feedbackToolHost: IAgentFeedbackToolHost | undefined;
+	private _serverToolHost: IAgentServerToolHost | undefined;
 
-	setFeedbackToolHost(host: IAgentFeedbackToolHost): void {
-		this._feedbackToolHost = host;
+	setServerToolHost(host: IAgentServerToolHost): void {
+		this._serverToolHost = host;
 	}
 
 	/** Reflects the `rt=1` field on the GitHub Copilot bearer token; gates enhanced GH telemetry. */
@@ -1654,7 +1654,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				clientSnapshot: launchPlan.snapshot,
 				activeClientState: launchPlan.activeClientState,
 				resolveMcpChildId: name => findMcpChildId(activeClient.pluginController.getCustomizations(), name),
-				feedbackToolHost: this._feedbackToolHost,
+				serverToolHost: this._serverToolHost,
 			},
 		);
 
