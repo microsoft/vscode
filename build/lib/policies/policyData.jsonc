@@ -676,7 +676,11 @@
             },
             "type": "boolean",
             "default": true,
-            "included": true
+            "included": true,
+            "referencedSettings": [
+                "chat.agentHost.claudeAgent.enabled",
+                "sessions.chat.claudeAgent.enabled"
+            ]
         }
     ]
 }
