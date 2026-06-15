@@ -125,18 +125,15 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			if (this._pendingSendChatResources.has(chatSessionResource.toString())) {
 				return;
 			}
-			for (const session of this.getSessions()) {
-				const chat = session.chats.get().find(c => this.uriIdentityService.extUri.isEqual(c.resource, chatSessionResource));
-				if (chat) {
-					this._onDidSendRequest.fire({
-						session,
-						chat,
-						isNewSession: false,
-						isNewChat: false,
-						options: { query: message?.text ?? '' },
-					});
-					return;
-				}
+			const ownedChat = this.getSessionForChatResource(chatSessionResource);
+			if (ownedChat) {
+				this._onDidSendRequest.fire({
+					session: ownedChat.session,
+					chat: ownedChat.chat,
+					isNewSession: false,
+					isNewChat: false,
+					options: { query: message?.text ?? '' },
+				});
 			}
 		}));
 	}
@@ -238,6 +235,21 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		);
 	}
 
+	getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined {
+		for (const session of this.getSessions()) {
+			const chat = session.chats.get().find(c => this.uriIdentityService.extUri.isEqual(c.resource, resource));
+			if (chat) {
+				return { session, chat };
+			}
+
+			const mainChat = session.mainChat.get();
+			if (this.uriIdentityService.extUri.isEqual(mainChat.resource, resource)) {
+				return { session, chat: mainChat };
+			}
+		}
+		return undefined;
+	}
+
 	getAllSessionTypes(): ISessionType[] {
 		return [...this._sessionTypes];
 	}
@@ -300,9 +312,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._onDidChangeSessionTypes.fire();
 	}
 
-	setActiveSession(session: IActiveSession | undefined): void {
+	setActiveSession(session: IActiveSession | undefined, force = false): void {
 		const previousSession = this._activeSession.get();
-		if (previousSession?.sessionId === session?.sessionId) {
+		if (!force && previousSession?.sessionId === session?.sessionId) {
 			return;
 		}
 
@@ -313,6 +325,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 
 		this._activeSession.set(session, undefined);
+	}
+
+	replaceActiveSession(from: IActiveSession, to: IActiveSession): void {
+		if (this._activeSession.get()?.sessionId === from.sessionId) {
+			this.setActiveSession(to, true);
+		}
 	}
 
 	discardNewSession(session?: ISession): void {

@@ -5,7 +5,7 @@
 
 import type { CopilotSession, SessionEvent, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
 import assert from 'assert';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -24,7 +24,7 @@ import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToo
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, type SessionDeltaAction, type SessionErrorAction, type SessionInputRequestedAction, type SessionResponsePartAction, type SessionToolCallCompleteAction, type SessionToolCallReadyAction, type SessionToolCallStartAction, type SessionTurnCompleteAction } from '../../common/state/sessionActions.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, MessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
 import { ActiveClientState } from '../../node/activeClientState.js';
 import { type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
@@ -33,6 +33,7 @@ import { buildCopilotSystemNotification } from '../../node/copilot/copilotSystem
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { createSessionDataService, createZeroDiffComputeService } from '../common/sessionTestHelpers.js';
+import { IAgentServerToolHost } from '../../common/agentServerTools.js';
 
 // ---- Mock CopilotSession (SDK level) ----------------------------------------
 
@@ -101,7 +102,20 @@ class MockCopilotSession {
 				return this.compactResult;
 			},
 		},
+		mcp: {
+			list: async () => {
+				if (this.mcpListError !== undefined) {
+					throw this.mcpListError;
+				}
+				return this.mcpListResult;
+			},
+			executeSampling: async () => ({ status: 'completed' as const, result: undefined }),
+			cancelSamplingExecution: async () => { /* no-op */ },
+		},
 	};
+
+	mcpListResult: { servers: ReadonlyArray<{ name: string; status: 'connected' | 'failed' | 'pending'; error?: string }> } = { servers: [] };
+	mcpListError: unknown = undefined;
 }
 
 class CapturingLogService extends NullLogService {
@@ -204,6 +218,10 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	configValues?: Record<string, unknown>;
 	fileContents?: Record<string, string>;
 	fileReadErrors?: readonly string[];
+	/** Configure the mock session before {@link CopilotAgentSession.initializeSession} runs. */
+	configureMockSession?: (session: MockCopilotSession) => void;
+	/** Optional server-tool host wired into the session. */
+	serverToolHost?: IAgentServerToolHost;
 }): Promise<{
 	session: CopilotAgentSession;
 	runtime: ICopilotSessionRuntime;
@@ -239,6 +257,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 
 	const sessionUri = AgentSession.uri('copilot', 'test-session-1');
 	const mockSession = new MockCopilotSession();
+	options?.configureMockSession?.(mockSession);
 
 	const launchPlan: CopilotSessionLaunchPlan = {
 		kind: 'create',
@@ -296,6 +315,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		getRootValue: () => undefined,
 		updateRootConfig: () => { /* no-op */ },
 		persistRootConfig: () => { /* no-op */ },
+		whenIdle: async () => { /* no-op */ },
 	};
 	services.set(IAgentConfigurationService, fakeConfigurationService);
 	const environmentService = {
@@ -319,7 +339,9 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			shellManager: undefined,
 			clientSnapshot: options?.clientSnapshot,
 			activeClientState: options?.activeClientState,
+			resolveMcpChildId: () => undefined,
 			workingDirectory: options?.workingDirectory,
+			serverToolHost: options?.serverToolHost,
 		},
 	));
 
@@ -377,6 +399,78 @@ suite('CopilotAgentSession', () => {
 						end: { line: 2, character: 16 },
 					},
 				},
+			],
+		}]);
+	});
+
+	test('maps symbol Resource attachments to SDK selection so the range survives (#315193)', async () => {
+		// Symbols arrive as a Resource with displayKind 'symbol' AND a populated selection.range. Keying the selection
+		// branch off the `selection` field (not displayKind === 'selection') keeps the range instead of degrading the
+		// symbol to a plain file reference.
+		const symbolUri = URI.file('/workspace/sym.ts');
+		const { session, mockSession } = await createAgentSession(disposables, {
+			fileContents: {
+				[symbolUri.toString()]: 'line0\nline1\nfunction foo() {}\nline3',
+			},
+		});
+
+		await session.send('explain this', [
+			{
+				type: MessageAttachmentKind.Resource,
+				uri: symbolUri.toString(),
+				label: 'foo',
+				displayKind: 'symbol',
+				selection: {
+					range: {
+						start: { line: 2, character: 9 },
+						end: { line: 2, character: 12 },
+					},
+				},
+			},
+		]);
+
+		assert.deepStrictEqual(mockSession.sendRequests, [{
+			prompt: 'explain this',
+			attachments: [
+				{
+					type: 'selection',
+					filePath: symbolUri.fsPath,
+					displayName: 'foo',
+					text: 'foo',
+					selection: {
+						start: { line: 2, character: 9 },
+						end: { line: 2, character: 12 },
+					},
+				},
+			],
+		}]);
+	});
+
+	test('falls back to file reference when reading a symbol Resource attachment fails', async () => {
+		const symbolUri = URI.file('/workspace/missing.ts');
+		const { session, mockSession } = await createAgentSession(disposables, {
+			fileReadErrors: [symbolUri.toString()],
+		});
+
+		await session.send('explain this', [
+			{
+				type: MessageAttachmentKind.Resource,
+				uri: symbolUri.toString(),
+				label: 'foo',
+				displayKind: 'symbol',
+				selection: {
+					range: {
+						start: { line: 2, character: 9 },
+						end: { line: 2, character: 12 },
+					},
+				},
+			},
+		]);
+
+		assert.deepStrictEqual(mockSession.sendRequests, [{
+			prompt: 'explain this',
+			attachments: [
+				{ type: 'file', path: symbolUri.fsPath, displayName: 'foo' },
 			],
 		}]);
 	});
@@ -476,13 +570,16 @@ suite('CopilotAgentSession', () => {
 			outputTokens: 20,
 			cacheReadTokens: 5,
 			cost: 2,
-		});
+			// `copilotUsage` is marked `asInternal` in the SDK schema so it is not on the public type, but is present at runtime.
+			copilotUsage: { totalNanoAiu: 500_000_000, tokenDetails: [] },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
 		mockSession.fire('assistant.usage', {
 			model: 'claude-sonnet-4.6',
 			inputTokens: 30,
 			outputTokens: 40,
 			cost: 2,
-		});
+			copilotUsage: { totalNanoAiu: 750_000_000, tokenDetails: [] },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
 
 		const usageActions = signals
 			.filter((s): s is IAgentActionSignal => s.kind === 'action')
@@ -497,6 +594,7 @@ suite('CopilotAgentSession', () => {
 				cacheReadTokens: 5,
 				_meta: {
 					cost: 2,
+					copilotUsage: { totalNanoAiu: 500_000_000, tokenDetails: [] },
 				},
 			},
 			{
@@ -506,6 +604,7 @@ suite('CopilotAgentSession', () => {
 				cacheReadTokens: undefined,
 				_meta: {
 					cost: 2,
+					copilotUsage: { totalNanoAiu: 1_250_000_000, tokenDetails: [] },
 				},
 			},
 		]);
@@ -2806,6 +2905,63 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(result.textResultForLlm, 'text part');
 		});
 
+		test('handleClientToolCallComplete describes embedded-resource-only content', async () => {
+			const testCases = [
+				{
+					toolCallId: 'tc-image-only',
+					contentType: 'image/png',
+					expectedText: 'Tool produced the attached image',
+					expectedType: 'image',
+				},
+				{
+					toolCallId: 'tc-file-only',
+					contentType: 'application/pdf',
+					expectedText: 'Tool produced the attached file',
+					expectedType: 'resource',
+				},
+				{
+					toolCallId: 'tc-image-and-file',
+					contentType: 'image/png',
+					additionalContentType: 'application/pdf',
+					expectedText: 'Tool produced the attached image and file',
+					expectedType: 'image',
+				},
+			] satisfies ReadonlyArray<{
+				readonly toolCallId: string;
+				readonly contentType: string;
+				readonly additionalContentType?: string;
+				readonly expectedText: string;
+				readonly expectedType: 'image' | 'resource';
+			}>;
+			const embeddedResource = (data: string, contentType: string): ToolResultContent => ({ type: ToolResultContentType.EmbeddedResource, data, contentType });
+
+			for (const testCase of testCases) {
+				const { session, runtime } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+				const tools = runtime.createClientSdkTools();
+				const handlerPromise = invokeClientToolHandler(tools[0], testCase.toolCallId);
+				const content: ToolResultContent[] = [
+					embeddedResource('base64data', testCase.contentType),
+					...(testCase.additionalContentType ? [embeddedResource('base64data2', testCase.additionalContentType)] : []),
+				];
+
+				session.handleClientToolCallComplete(testCase.toolCallId, {
+					success: true,
+					pastTenseMessage: 'done',
+					content,
+				});
+
+				assert.deepStrictEqual(await handlerPromise, {
+					textResultForLlm: testCase.expectedText,
+					resultType: 'success',
+					binaryResultsForLlm: [
+						{ data: 'base64data', mimeType: testCase.contentType, type: testCase.expectedType },
+						...(testCase.additionalContentType ? [{ data: 'base64data2', mimeType: testCase.additionalContentType, type: 'resource' }] : []),
+					],
+				});
+				disposables.clear();
+			}
+		});
+
 		test('client tool start stamps the LIVE clientId from the shared ActiveClientState', async () => {
 			const activeClientState = new ActiveClientState();
 			activeClientState.update('client-A', snapshot.tools);
@@ -2847,25 +3003,96 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(result.resultType, 'success');
 			assert.strictEqual(result.textResultForLlm, 'buffered result');
 		});
+	});
 
-		test('handleClientToolCallComplete with embedded-resource-only content uses empty placeholder text', async () => {
-			const { session, runtime } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+	// ---- Server tools -------------------------------------------------------
 
-			const tools = runtime.createClientSdkTools();
-			const handlerPromise = invokeClientToolHandler(tools[0], 'tc-embedded-only');
+	suite('server tools', () => {
 
-			session.handleClientToolCallComplete('tc-embedded-only', {
-				success: true,
-				pastTenseMessage: 'done',
-				content: [
-					{ type: ToolResultContentType.EmbeddedResource, data: 'base64data', contentType: 'image/png' },
-				],
-			});
+		const fakeToolDefinitions: readonly ToolDefinition[] = [
+			{ name: 'serverToolA', description: 'A', inputSchema: { type: 'object', properties: {} } },
+			{ name: 'serverToolB', description: 'B', inputSchema: { type: 'object', properties: {} } },
+		];
 
-			assert.deepStrictEqual(await handlerPromise, {
-				textResultForLlm: '<empty />',
-				resultType: 'success',
-				binaryResultsForLlm: [{ data: 'base64data', mimeType: 'image/png', type: 'image' }],
+		class FakeServerToolHost implements IAgentServerToolHost {
+			readonly definitions: readonly ToolDefinition[] = fakeToolDefinitions;
+			readonly toolNames: readonly string[] = fakeToolDefinitions.map(def => def.name);
+			readonly advertised: string[] = [];
+			readonly executions: Array<{ sessionUri: string; toolName: string; rawArgs: unknown }> = [];
+			result = 'ok';
+			error: Error | undefined;
+
+			advertise(sessionUri: string): void {
+				this.advertised.push(sessionUri);
+			}
+
+			executeTool(sessionUri: string, toolName: string, rawArgs: unknown): string {
+				this.executions.push({ sessionUri, toolName, rawArgs });
+				if (this.error) {
+					throw this.error;
+				}
+				return this.result;
+			}
+		}
+
+		test('advertises the server tools on initialize and exposes them as server SDK tools', async () => {
+			const serverToolHost = new FakeServerToolHost();
+			const { runtime } = await createAgentSession(disposables, { serverToolHost });
+
+			const sessionUri = AgentSession.uri('copilot', 'test-session-1').toString();
+			assert.deepStrictEqual(serverToolHost.advertised, [sessionUri]);
+
+			const tools = runtime.createServerSdkTools();
+			assert.deepStrictEqual(tools.map(t => t.name).sort(), [...serverToolHost.toolNames].sort());
+		});
+
+		test('server tool handler routes to the host and returns a success result', async () => {
+			const serverToolHost = new FakeServerToolHost();
+			serverToolHost.result = 'listed 2 comments';
+			const { runtime } = await createAgentSession(disposables, { serverToolHost });
+
+			const tools = runtime.createServerSdkTools();
+			const result = await invokeClientToolHandler(tools[0], 'tc-server-tool', { foo: 'bar' });
+
+			const sessionUri = AgentSession.uri('copilot', 'test-session-1').toString();
+			assert.deepStrictEqual(serverToolHost.executions, [{ sessionUri, toolName: tools[0].name, rawArgs: { foo: 'bar' } }]);
+			assert.strictEqual(result.resultType, 'success');
+			assert.strictEqual(result.textResultForLlm, 'listed 2 comments');
+		});
+
+		test('server tool handler surfaces host failures as a failure result', async () => {
+			const serverToolHost = new FakeServerToolHost();
+			serverToolHost.error = new Error('boom');
+			const { runtime } = await createAgentSession(disposables, { serverToolHost });
+
+			const tools = runtime.createServerSdkTools();
+			const result = await invokeClientToolHandler(tools[0], 'tc-server-tool');
+
+			assert.strictEqual(result.resultType, 'failure');
+			assert.strictEqual(result.textResultForLlm, 'boom');
+			assert.strictEqual(result.error, 'boom');
+		});
+
+		test('exposes no server SDK tools and advertises nothing when no host is wired', async () => {
+			const { runtime } = await createAgentSession(disposables);
+			assert.deepStrictEqual(runtime.createServerSdkTools(), []);
+		});
+
+		test('auto-approves every server tool without prompting for confirmation', async () => {
+			const serverToolHost = new FakeServerToolHost();
+			const { runtime, signals } = await createAgentSession(disposables, { serverToolHost });
+
+			const results = [];
+			for (const toolName of serverToolHost.toolNames) {
+				results.push(await runtime.handlePermissionRequest({ kind: 'custom-tool', toolCallId: `tc-${toolName}`, toolName }));
+			}
+
+			assert.deepStrictEqual({
+				results,
+				pendingConfirmations: signals.filter(s => s.kind === 'pending_confirmation').length,
+			}, {
+				results: serverToolHost.toolNames.map(() => ({ kind: 'approve-once' })),
+				pendingConfirmations: 0,
 			});
 		});
 	});
@@ -3222,6 +3449,52 @@ suite('CopilotAgentSession', () => {
 			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
 			session.respondToUserInputRequest(getInputRequest(signal).id, SessionInputResponseKind.Decline);
 			await responsePromise;
+		});
+	});
+
+	suite('MCP server inventory', () => {
+
+		test('seeds inventory from rpc.mcp.list at subscription time', async () => {
+			const { signals, waitForSignal } = await createAgentSession(disposables, {
+				configureMockSession: m => {
+					m.mcpListResult = {
+						servers: [
+							{ name: 'alpha', status: 'connected' },
+							{ name: 'beta', status: 'pending' },
+						],
+					};
+				},
+			});
+
+			await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated));
+			// Give the seed's microtask chain time to apply both servers.
+			await timeout(0);
+
+			const updates = getActions(signals).filter(a => a.type === ActionType.SessionCustomizationUpdated);
+			const names = updates.map(a => (a as { customization: { name: string } }).customization.name).sort();
+			assert.deepStrictEqual(names, ['alpha', 'beta']);
+		});
+
+		test('logs a warning and continues when rpc.mcp.list rejects', async () => {
+			const logService = new CapturingLogService();
+			const { mockSession, waitForSignal } = await createAgentSession(disposables, {
+				logService,
+				configureMockSession: m => { m.mcpListError = new Error('boom'); },
+			});
+			// Allow the rejected promise to surface.
+			await timeout(0);
+			await timeout(0);
+
+			assert.ok(
+				logService.warnings.some(w => w.message.includes('Failed to seed MCP server inventory')),
+				`expected seed-failure warning, got: ${JSON.stringify(logService.warnings)}`,
+			);
+
+			// Subsequent live events still flow through the normal pipeline.
+			mockSession.fire('session.mcp_servers_loaded', {
+				servers: [{ name: 'late', status: 'connected' }],
+			} as SessionEventPayload<'session.mcp_servers_loaded'>['data']);
+			await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated));
 		});
 	});
 });

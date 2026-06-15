@@ -388,6 +388,11 @@ suite('MarkdownRenderer', () => {
 			const result: string = renderAsPlaintext(markdown, { includeCodeBlocksFences: true });
 			assert.strictEqual(result, expected);
 		});
+
+		test('does not double-escape entities inside code spans', () => {
+			assert.strictEqual(renderAsPlaintext({ value: 'Run `tests & build`' }), 'Run tests & build');
+			assert.strictEqual(renderAsPlaintext({ value: 'Use `<form>` tag' }), 'Use <form> tag');
+		});
 	});
 
 	suite('supportHtml', () => {

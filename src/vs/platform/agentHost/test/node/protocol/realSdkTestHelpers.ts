@@ -102,9 +102,9 @@ export interface IRealSdkProviderConfig {
 	 * package. Forwarded to `startRealServer` so the agent host registers
 	 * the Claude provider.
 	 */
-	readonly claudeSdkPath?: string;
+	readonly claudeSdkRoot?: string;
 	/** Optional path to a locally installed `codex` binary. Forwarded to `startRealServer`. */
-	readonly codexBinaryPath?: string;
+	readonly codexSdkRoot?: string;
 	/**
 	 * Provider implements `config.isolation: 'worktree'` and resolves the
 	 * working directory to a `.worktrees/...` path on materialization.
@@ -474,7 +474,7 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 
 		setup(async function () {
 			this.timeout(60_000);
-			server = await startRealServer({ claudeSdkPath: config.claudeSdkPath, codexBinaryPath: config.codexBinaryPath });
+			server = await startRealServer({ claudeSdkRoot: config.claudeSdkRoot, codexSdkRoot: config.codexSdkRoot });
 			client = new TestProtocolClient(server.port);
 			await client.connect();
 		});

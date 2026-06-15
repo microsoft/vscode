@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
@@ -12,11 +13,10 @@ import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { ChangesSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { ChatSessionStatus, IChatNewSessionRequest, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../../common/chatSessionsService.js';
-import { getAgentHostIcon } from '../agentSessions.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
+import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 
 function mapSessionStatus(status: SessionStatus | undefined): ChatSessionStatus {
 	if (status !== undefined && (status & SessionStatus.InputNeeded) === SessionStatus.InputNeeded) {
@@ -76,9 +76,9 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		private readonly _connection: IAgentConnection,
 		private readonly _description: string | undefined,
 		_connectionAuthority: string,
-		@IProductService private readonly _productService: IProductService,
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisional: IAgentHostUntitledProvisionalSessionService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
 	) {
 		super();
 		void _connectionAuthority;
@@ -103,15 +103,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 				}
 				this._onDidChangeChatSessionItems.fire({ addedOrUpdated: [item] });
 			} else if (n.type === 'root/sessionRemoved' && AgentSession.provider(n.session) === this._provider) {
-				const removedId = AgentSession.id(n.session);
-				this._pendingNewSessions.delete(removedId);
-				const idx = this._items.findIndex(item => item.resource.path === `/${removedId}`);
-				if (idx >= 0) {
-					this._mutationGeneration++;
-					const [removed] = this._items.splice(idx, 1);
-					this._cachedSummaries.delete(removedId);
-					this._onDidChangeChatSessionItems.fire({ removed: [removed.resource] });
-				}
+				this._removeItemByRawId(AgentSession.id(n.session));
 			} else if (n.type === 'root/sessionSummaryChanged' && AgentSession.provider(n.session) === this._provider) {
 				const rawId = AgentSession.id(n.session);
 				const cached = this._cachedSummaries.get(rawId);
@@ -179,11 +171,49 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		// fails, the handler falls through to its standard
 		// `_createAndSubscribe` path with no user selections.
 		if (request.untitledResource) {
-			const workingDirectory = this._workspaceContextService.getWorkspace().folders[0]?.uri;
+			const workingDirectory = this._newSessionFolderService.getFolder(request.untitledResource)
+				?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
+			// Carry the chosen folder forward onto the real resource so the
+			// handler's working-directory resolution stays consistent after the
+			// untitled-to-real rebind. The untitled entry is left in place and
+			// cleaned up when its compose model disposes; clearing it here would
+			// briefly fire a change while the widget still points at the untitled
+			// resource, flickering the chip back to the first folder.
+			if (workingDirectory) {
+				this._newSessionFolderService.setFolder(item.resource, workingDirectory);
+			}
 			await this._provisional.tryRebind(request.untitledResource, item.resource, this._provider, workingDirectory);
 		}
 
 		return item;
+	}
+
+	async deleteChatSessionItem(resource: URI, _token: CancellationToken): Promise<void> {
+		if (resource.scheme !== this._sessionType) {
+			return;
+		}
+
+		// Map the chat-session-item resource (scheme = sessionType) to the backend session URI (scheme = provider) and
+		// ask the agent host to dispose it.
+		const rawId = AgentSession.id(resource);
+		const backendSession = AgentSession.uri(this._provider, rawId);
+		await this._connection.disposeSession(backendSession);
+
+		// `root/sessionRemoved` only fires for sessions the backend had previously announced, so remove the item from
+		// our cache directly. If the notification does fire as well, the second call is a no-op.
+		this._removeItemByRawId(rawId);
+	}
+
+	private _removeItemByRawId(rawId: string): void {
+		this._pendingNewSessions.delete(rawId);
+		const idx = this._items.findIndex(item => item.resource.path === `/${rawId}`);
+		if (idx < 0) {
+			return;
+		}
+		this._mutationGeneration++;
+		const [removed] = this._items.splice(idx, 1);
+		this._cachedSummaries.delete(rawId);
+		this._onDidChangeChatSessionItems.fire({ removed: [removed.resource] });
 	}
 
 	async refresh(token: CancellationToken): Promise<void> {
@@ -319,7 +349,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			resource: URI.from({ scheme: this._sessionType, path: `/${rawId}` }),
 			label: opts.title || `Session ${rawId.substring(0, 8)}`,
 			description,
-			iconPath: getAgentHostIcon(this._productService),
+			iconPath: Codicon.copilot,
 			status: mapSessionStatus(opts.status),
 			archived: opts.status !== undefined && (opts.status & SessionStatus.IsArchived) === SessionStatus.IsArchived,
 			metadata: this._buildMetadata(opts.workingDirectory),

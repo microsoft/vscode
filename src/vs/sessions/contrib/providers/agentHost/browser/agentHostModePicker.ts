@@ -233,7 +233,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		const actionItems: IActionListItem<IAgentHostSessionEnumPickerItem>[] = ctx.items.map(item => ({
 			kind: ActionListItemKind.Action,
 			label: item.label,
-			description: item.description,
+			detail: item.description,
 			group: { title: '', icon: this._getActionItemIcon(item, ctx.currentValue) },
 			item,
 		}));
@@ -297,8 +297,8 @@ export class AgentHostModePicker extends AgentHostSessionEnumPicker {
 		return getModeIcon(value);
 	}
 
-	protected _getActionItemIcon(item: IAgentHostSessionEnumPickerItem, currentValue: string): ThemeIcon {
-		return item.value === currentValue ? Codicon.check : Codicon.blank;
+	protected _getActionItemIcon(item: IAgentHostSessionEnumPickerItem): ThemeIcon | undefined {
+		return getModeIcon(item.value);
 	}
 
 	protected _getTriggerAriaLabel(label: string): string {

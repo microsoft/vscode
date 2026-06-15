@@ -23,7 +23,7 @@ import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatModel } from '../../common/model/chatModel.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../common/tools/languageModelToolsService.js';
 import { createToolSimpleTextResult } from '../../common/tools/builtinTools/toolHelpers.js';
-import { errorResult, findLineNumber, findSymbolColumn, ISymbolToolInput, resolveToolUri } from './toolHelpers.js';
+import { errorResult, findLineNumber, findSymbolColumn, ISymbolToolInput, resolveSymbolToolFileUri } from './toolHelpers.js';
 
 export const RenameToolId = 'vscode_renameSymbol';
 
@@ -122,7 +122,7 @@ export class RenameTool extends Disposable implements IToolImpl {
 		const input = invocation.parameters as IRenameToolInput;
 
 		// --- resolve URI ---
-		const uri = resolveToolUri(input, this._workspaceContextService, invocation.context?.workingDirectory);
+		const uri = resolveSymbolToolFileUri(input, this._workspaceContextService, invocation.context?.workingDirectory);
 		if (!uri) {
 			return errorResult('Provide either "uri" (a full URI) or "filePath" (a workspace-relative path) to identify the file.');
 		}
