@@ -40,6 +40,7 @@ class SqliteKeyValueStore {
 
 	constructor(filePath: string) {
 		this.db = new DatabaseSync(filePath);
+		this.db.exec('PRAGMA busy_timeout = 5000');
 		this.db.exec('CREATE TABLE IF NOT EXISTS keyv(key VARCHAR(255) PRIMARY KEY, value TEXT )');
 	}
 
