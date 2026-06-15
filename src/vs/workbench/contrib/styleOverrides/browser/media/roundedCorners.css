@@ -64,6 +64,25 @@
 	border-radius: var(--vscode-cornerRadius-small) !important;
 }
 
+/* Action bar labels / keybindings (toolbar icon buttons) */
+.style-override-roundedCorners .monaco-action-bar .action-label,
+.style-override-roundedCorners .monaco-action-bar .action-item .keybinding {
+	border-radius: var(--vscode-cornerRadius-small) !important;
+}
+
+/* Scrollbar sliders */
+.style-override-roundedCorners .monaco-scrollable-element > .scrollbar > .slider {
+	border-radius: var(--vscode-cornerRadius-small) !important;
+}
+
+/*
+ * The editor's own scrollbars sit flush against the viewport edge (next to the
+ * minimap); rounding their sliders looks odd, so keep those square.
+ */
+.style-override-roundedCorners .monaco-editor .monaco-scrollable-element > .scrollbar > .slider {
+	border-radius: 0 !important;
+}
+
 /* =============================================================================
  * Inner (6px) — non-control containers that live within the UI.
  * ========================================================================== */
