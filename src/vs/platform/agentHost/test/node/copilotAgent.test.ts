@@ -510,18 +510,26 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('createSession falls back to user home when workingDirectory is omitted', async () => {
+	test('createSession falls back to an empty temp directory when workingDirectory is omitted', async () => {
 		const agent = createTestAgent(disposables);
+		let createdWorkingDirectory: URI | undefined;
 		try {
 			await agent.authenticate('https://api.github.com', 'token');
 
 			const result = await agent.createSession({
-				session: AgentSession.uri('copilotcli', 'home-fallback'),
+				session: AgentSession.uri('copilotcli', 'temp-fallback'),
 			});
 
 			assert.strictEqual(result.provisional, true);
-			assert.strictEqual(result.workingDirectory?.toString(), URI.file(os.homedir()).toString());
+			assert.ok(result.workingDirectory);
+			createdWorkingDirectory = result.workingDirectory;
+			assert.strictEqual(createdWorkingDirectory.scheme, Schemas.file);
+			assert.strictEqual(createdWorkingDirectory.fsPath.toLowerCase().startsWith(os.tmpdir().toLowerCase()), true);
+			assert.deepStrictEqual(await fs.readdir(createdWorkingDirectory.fsPath), []);
 		} finally {
+			if (createdWorkingDirectory) {
+				await fs.rm(createdWorkingDirectory.fsPath, { recursive: true, force: true });
+			}
 			await disposeAgent(agent);
 		}
 	});

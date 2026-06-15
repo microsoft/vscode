@@ -17,7 +17,7 @@ import { FileAccess } from '../../../../base/common/network.js';
 import { formatTokenCount } from '../../../../base/common/numbers.js';
 import { equals } from '../../../../base/common/objects.js';
 import { observableValue } from '../../../../base/common/observable.js';
-import { basename, delimiter, dirname } from '../../../../base/common/path.js';
+import { basename, delimiter, dirname, join } from '../../../../base/common/path.js';
 import { basename as resourceBasename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -900,14 +900,28 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return result;
 	}
 
+	/**
+	 * Resolves the working directory for a {@link createSession} call: the caller-supplied folder, else a
+	 * still-provisional session's folder for an idempotent re-create, else a freshly created empty directory under the
+	 * OS temp dir (used when the editor has no workspace open).
+	 */
+	private async _resolveCreateWorkingDirectory(sessionConfig: IAgentCreateSessionConfig, sessionId: string): Promise<URI> {
+		const existing = sessionConfig.workingDirectory ?? this._provisionalSessions.get(sessionId)?.workingDirectory;
+		if (existing) {
+			return existing;
+		}
+		const tmpPath = await fs.mkdtemp(join(os.tmpdir(), 'agent-host-session-'));
+		const workingDirectory = URI.file(tmpPath);
+		this._logService.trace(`[Copilot] No workingDirectory provided, defaulting to temp directory: ${workingDirectory.fsPath}`);
+		return workingDirectory;
+	}
+
 	async createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
 		const sessionConfig = config ?? {};
-		const workingDirectory = sessionConfig.workingDirectory ?? URI.file(os.homedir());
-		if (!sessionConfig.workingDirectory) {
-			this._logService.trace(`[Copilot] No workingDirectory provided, defaulting to user home: ${workingDirectory.fsPath}`);
-		}
 
 		this._logService.info(`[Copilot] Creating session... ${sessionConfig.model ? `model=${sessionConfig.model.id}` : ''}`);
+		const sessionId = sessionConfig.session ? AgentSession.id(sessionConfig.session) : generateUuid();
+		const workingDirectory = await this._resolveCreateWorkingDirectory(sessionConfig, sessionId);
 		const client = await this._ensureClient();
 
 		// When forking, use the SDK's sessions.fork RPC. Forking from a source
@@ -979,7 +993,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// {@link _materializeProvisional}. Until then this session occupies
 		// only an in-memory slot plus a state-manager entry, so a workspace
 		// switch (or quick close) costs nothing on disk.
-		const sessionId = sessionConfig.session ? AgentSession.id(sessionConfig.session) : generateUuid();
 		const sessionUri = AgentSession.uri(this.id, sessionId);
 
 		// Idempotency for already-materialized sessions: a duplicate
