@@ -4,18 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mainWindow } from '../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Event as CommonEvent } from '../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
+import { IContextViewService } from '../../../contextview/browser/contextView.js';
 import { IHoverService } from '../../../hover/browser/hover.js';
 import { NullHoverService } from '../../../hover/test/browser/nullHoverService.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { MockKeybindingService } from '../../../keybinding/test/common/mockKeybindingService.js';
 import { IKeybindingService } from '../../../keybinding/common/keybinding.js';
+import { ILayoutService } from '../../../layout/browser/layoutService.js';
 import { IOpenerService } from '../../../opener/common/opener.js';
 import { NullOpenerService } from '../../../opener/test/common/nullOpenerService.js';
-import { ActionListItemKind, ActionListWidget, IActionListItem } from '../../browser/actionList.js';
+import { ActionList, ActionListItemKind, ActionListWidget, IActionListItem } from '../../browser/actionList.js';
 
 interface ITestActionItem {
 	readonly id: string;
@@ -79,6 +83,67 @@ function getVisibleRowText(widget: ActionListWidget<ITestActionItem>): string[] 
 	return Array.from(widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row'))
 		.map(row => row.textContent ?? '')
 		.filter(text => text.length > 0);
+}
+
+function withWindowInnerHeight<T>(height: number, callback: () => T): T {
+	const originalDescriptor = Object.getOwnPropertyDescriptor(mainWindow, 'innerHeight');
+	Object.defineProperty(mainWindow, 'innerHeight', { configurable: true, value: height });
+	try {
+		return callback();
+	} finally {
+		if (originalDescriptor) {
+			Object.defineProperty(mainWindow, 'innerHeight', originalDescriptor);
+		} else {
+			Reflect.deleteProperty(mainWindow, 'innerHeight');
+		}
+	}
+}
+
+function createActionList(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, items: readonly IActionListItem<ITestActionItem>[]): ActionList<ITestActionItem> {
+	const instantiationService = disposables.add(new TestInstantiationService());
+	instantiationService.set(IKeybindingService, new MockKeybindingService());
+	instantiationService.set(IHoverService, NullHoverService);
+	instantiationService.set(IOpenerService, NullOpenerService);
+	instantiationService.stub(IContextViewService, {
+		layout: () => { },
+		hideContextView: () => { },
+		getContextViewElement: () => document.body,
+	} as Partial<IContextViewService> as IContextViewService);
+	instantiationService.stub(ILayoutService, {
+		getContainer: () => document.body,
+		mainContainer: document.body,
+		activeContainer: document.body,
+		onDidLayoutMainContainer: CommonEvent.None,
+		onDidLayoutContainer: CommonEvent.None,
+		onDidLayoutActiveContainer: CommonEvent.None,
+		onDidAddContainer: CommonEvent.None,
+		onDidChangeActiveContainer: CommonEvent.None,
+	} as Partial<ILayoutService> as ILayoutService);
+
+	const list = disposables.add(instantiationService.createInstance(
+		ActionList<ITestActionItem>,
+		'testActionList',
+		false,
+		items,
+		{
+			onHide: () => { },
+			onSelect: () => { },
+		},
+		undefined,
+		{ showFilter: true },
+		{ x: 10, y: 150, width: 20, height: 20 },
+	));
+
+	const widget = document.createElement('div');
+	widget.classList.add('action-widget');
+	document.body.appendChild(widget);
+	disposables.add({ dispose: () => widget.remove() });
+	if (list.filterContainer) {
+		widget.appendChild(list.filterContainer);
+	}
+	widget.appendChild(list.domNode);
+
+	return list;
 }
 
 suite('ActionListWidget', () => {
@@ -155,4 +220,19 @@ suite('ActionListWidget', () => {
 
 		assert.deepStrictEqual(getVisibleRowText(widget), ['Provider B', 'beta']);
 	});
+
+	test('leaves room for action widget chrome when clamping dynamic height', () => withWindowInnerHeight(300, () => {
+		const list = createActionList(disposables, Array.from({ length: 50 }, (_, i) => action(`item-${i}`)));
+
+		list.layout(200);
+
+		const filterHeight = 36;
+		const widget = list.domNode.parentElement!;
+		const style = mainWindow.getComputedStyle(widget);
+		const toPixels = (value: string): number => Number.parseFloat(value) || 0;
+		const actionWidgetVerticalChromeHeight = toPixels(style.paddingTop) + toPixels(style.paddingBottom) + toPixels(style.borderTopWidth) + toPixels(style.borderBottomWidth);
+		const availableSpaceAboveAnchor = 150;
+		const listHeight = parseFloat(list.domNode.style.height);
+		assert.ok(listHeight + filterHeight + actionWidgetVerticalChromeHeight <= availableSpaceAboveAnchor);
+	}));
 });

@@ -19,7 +19,15 @@ export default new class NoUnlayeredFiles implements eslint.Rule.RuleModule {
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 
-		const filenameParts = context.filename.split(path.sep);
+		// Use only the path relative to extensions/copilot/ to avoid false positives
+		// from the repo directory name (e.g., "vscode" is both a layer name and the
+		// checkout directory, so absolute paths always contain it).
+		const copilotPrefix = `extensions${path.sep}copilot${path.sep}`;
+		const idx = context.filename.indexOf(copilotPrefix);
+		const relativePath = idx >= 0
+			? context.filename.slice(idx + copilotPrefix.length)
+			: context.filename;
+		const filenameParts = relativePath.split(path.sep);
 
 		if (!filenameParts.find(part => layers.has(part))) {
 			context.report({

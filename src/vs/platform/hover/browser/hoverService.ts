@@ -140,8 +140,8 @@ export class HoverService extends Disposable implements IHoverService {
 		}
 
 		if (!this._currentDelayedHover || this._currentDelayedHoverWasShown) {
-			// Current hover is locked, reject
-			if (this._currentHover?.isLocked) {
+			// Current hover is locked, reject — unless this is a nesting scenario
+			if (this._currentHover?.isLocked && this._getContainingHoverIndex(options.target) < 0) {
 				return undefined;
 			}
 
@@ -421,6 +421,14 @@ export class HoverService extends Disposable implements IHoverService {
 
 		// Set up layout handling
 		store.add(hover.onRequestLayout(() => contextView.layout()));
+
+		// Re-layout when the window resizes so the hover tracks its anchor.
+		// Only for focused/sticky hovers that persist long enough for a resize
+		// to matter; transient hovers dismiss on mouse movement anyway.
+		if (focus || options.persistence?.sticky) {
+			const targetWindow = getWindow(container);
+			store.add(addDisposableListener(targetWindow, EventType.RESIZE, () => contextView.layout()));
+		}
 
 		options.onDidShow?.();
 	}

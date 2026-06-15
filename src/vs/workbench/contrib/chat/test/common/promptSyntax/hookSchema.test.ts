@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { resolveHookCommand, resolveEffectiveCommand, formatHookCommandLabel, IHookCommand, parseSubagentHooksFromYaml } from '../../../common/promptSyntax/hookSchema.js';
+import { resolveHookCommand, resolveEffectiveCommand, formatHookCommandLabel, IHookCommand, parseSubagentHooksFromYaml, ChatRequestHooks } from '../../../common/promptSyntax/hookSchema.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { HookType } from '../../../common/promptSyntax/hookTypes.js';
@@ -643,6 +643,30 @@ suite('HookSchema', () => {
 			const result = parseSubagentHooksFromYaml(hooksMap, workspaceRoot, userHome);
 
 			assert.strictEqual(result[HookType.PreToolUse], undefined);
+		});
+	});
+
+	suite('ChatRequestHooks.isEquals', () => {
+		test('returns true for equivalent hook arrays', () => {
+			const left: ChatRequestHooks = {
+				[HookType.PreToolUse]: [{ command: './scripts/pre.sh', cwd: URI.file('/workspace') }],
+			};
+			const right: ChatRequestHooks = {
+				[HookType.PreToolUse]: [{ command: './scripts/pre.sh', cwd: URI.file('/workspace') }],
+			};
+
+			assert.strictEqual(ChatRequestHooks.isEquals(left, right), true);
+		});
+
+		test('returns false for different hook commands', () => {
+			const left: ChatRequestHooks = {
+				[HookType.PreToolUse]: [{ command: './scripts/pre.sh' }],
+			};
+			const right: ChatRequestHooks = {
+				[HookType.PreToolUse]: [{ command: './scripts/other.sh' }],
+			};
+
+			assert.strictEqual(ChatRequestHooks.isEquals(left, right), false);
 		});
 	});
 });

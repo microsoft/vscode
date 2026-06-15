@@ -19,7 +19,6 @@ import { IsAuxiliaryWindowContext } from '../../../workbench/common/contextkeys.
 import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../common/contextkeys.js';
 import { logSessionsInteraction } from '../../common/sessionsTelemetry.js';
 import { Menus } from '../../browser/menus.js';
-import { isWorkspaceAgentSessionType } from '../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
@@ -39,7 +38,7 @@ export class OpenInVSCodeAction extends Action2 {
 			icon: Codicon.vscodeInsiders,
 			precondition: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated()),
 			menu: [{
-				id: Menus.TitleBarSessionMenu,
+				id: Menus.TitleBarCenterRight,
 				group: 'navigation',
 				order: 7,
 				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsPhoneLayoutContext.negate()),
@@ -75,8 +74,8 @@ export class OpenInVSCodeAction extends Action2 {
 		}
 
 		const workspace = activeSession.workspace.get();
-		const repo = workspace?.repositories[0];
-		const rawFolderUri = isWorkspaceAgentSessionType(activeSession.sessionType) ? repo?.workingDirectory ?? repo?.uri : undefined;
+		const folder = workspace?.folders[0];
+		const rawFolderUri = workspace?.isVirtualWorkspace ? undefined : folder?.workingDirectory;
 
 		if (!rawFolderUri) {
 			await openerService.open(URI.from({ scheme, query: params.toString() }), { openExternal: true });
@@ -117,8 +116,8 @@ export class OpenInVSCodeWidgetContribution extends Disposable implements IWorkb
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-		this._register(actionViewItemService.register(Menus.TitleBarSessionMenu, OpenInVSCodeAction.ID, (action, options) => {
-			return instantiationService.createInstance(OpenInVSCodeTitleBarWidget, action, options);
+		this._register(actionViewItemService.register(Menus.TitleBarCenterRight, OpenInVSCodeAction.ID, (action, options) => {
+			return instantiationService.createInstance(OpenInVSCodeTitleBarWidget, action, options, OpenInVSCodeAction.ID);
 		}, undefined));
 	}
 }

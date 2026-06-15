@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { SweCustomAgent } from '@github/copilot/sdk';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { IVSCodeExtensionContext } from '../../../../../platform/extContext/common/extensionContext';
 import { ILogService } from '../../../../../platform/log/common/logService';
 import { PromptFileParser } from '../../../../../platform/promptFiles/common/promptsService';
@@ -13,7 +13,7 @@ import { Event } from '../../../../../util/vs/base/common/event';
 import { DisposableStore } from '../../../../../util/vs/base/common/lifecycle';
 import { URI } from '../../../../../util/vs/base/common/uri';
 import { createExtensionUnitTestingServices } from '../../../../test/node/services';
-import { CopilotCLIAgents, type ICopilotCLISDK } from '../copilotCli';
+import { CopilotCLIAgents } from '../copilotCli';
 import { MockPromptsService } from '../../../../../platform/promptFiles/test/common/mockPromptsService';
 import type { ChatCustomAgent } from 'vscode';
 
@@ -43,23 +43,6 @@ interface PromptFileInfo {
 
 function mockPromptFile(fileName: string, content: string): PromptFileInfo {
 	return { uri: URI.file(`/workspace/.github/agents/${fileName}`), content };
-}
-
-function createMockSDK(agentsByCall: ReadonlyArray<ReadonlyArray<SweCustomAgent>>): ICopilotCLISDK {
-	let index = 0;
-	const getCustomAgents = vi.fn(async () => {
-		const result = agentsByCall[Math.min(index, agentsByCall.length - 1)] ?? [];
-		index += 1;
-		return result;
-	});
-
-	return {
-		_serviceBrand: undefined,
-		getPackage: vi.fn(async () => ({ getCustomAgents })),
-		getAuthInfo: vi.fn(async () => ({ type: 'token' as const, token: 'test-token', host: 'https://github.com' })),
-		getRequestId: vi.fn(() => undefined),
-		setRequestId: vi.fn(),
-	} as unknown as ICopilotCLISDK;
 }
 
 function createWorkspaceService(): IWorkspaceService {
@@ -98,7 +81,7 @@ describe('CopilotCLIAgents', () => {
 		};
 	}
 
-	function createAgents(options: { sdkAgentsByCall: ReadonlyArray<ReadonlyArray<SweCustomAgent>>; customAgents?: PromptFileInfo[] }): { agents: CopilotCLIAgents; promptsService: MockPromptsService; sdk: ICopilotCLISDK } {
+	function createAgents(options: { sdkAgentsByCall: ReadonlyArray<ReadonlyArray<SweCustomAgent>>; customAgents?: PromptFileInfo[] }): { agents: CopilotCLIAgents; promptsService: MockPromptsService } {
 		const promptsService = disposables.add(new MockPromptsService());
 		if (options.customAgents) {
 			const customAgents = [];
@@ -108,16 +91,14 @@ describe('CopilotCLIAgents', () => {
 			}
 			promptsService.setCustomAgents(customAgents);
 		}
-		const sdk = createMockSDK(options.sdkAgentsByCall);
 		const agents = new CopilotCLIAgents(
 			promptsService,
-			sdk,
 			createMockExtensionContext(),
 			logService,
 			createWorkspaceService(),
 		);
 		disposables.add(agents);
-		return { agents, promptsService, sdk };
+		return { agents, promptsService };
 	}
 
 	it('prefers prompt-derived agents over SDK agents with the same name', async () => {
@@ -173,7 +154,7 @@ Body`)]
 	});
 
 	it('refreshes cached agents when custom agents change', async () => {
-		const { agents, promptsService, sdk } = createAgents({
+		const { agents, promptsService } = createAgents({
 			sdkAgentsByCall: [[], []],
 			customAgents: [mockPromptFile('first.agent.md', `---
 name: First
@@ -192,7 +173,6 @@ Second body`))]);
 
 		expect(first.map(a => a.agent.name)).toEqual(['First']);
 		expect(second.map(a => a.agent.name)).toEqual(['Second']);
-		expect(sdk.getPackage).toHaveBeenCalled();
 	});
 
 	it('filters out legacy .chatmode.md files', async () => {

@@ -5,9 +5,10 @@
 
 import assert from 'assert';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { isMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { IChatRequestVariableEntry, IImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IChatProgressResponseContent } from '../../common/model/chatModel.js';
 import { IChatRequestViewModel, IChatResponseViewModel } from '../../common/model/chatViewModel.js';
 import { IChatContentInlineReference, IChatToolInvocationSerialized, IToolResultOutputDetailsSerialized } from '../../common/chatService/chatService.js';
@@ -44,6 +45,7 @@ function makeResponse(items: ReadonlyArray<IChatProgressResponseContent>, opts: 
 	requestId?: string;
 	id?: string;
 	requestMessageText?: string;
+	requestVariables?: readonly IChatRequestVariableEntry[];
 	noMatchingRequest?: boolean;
 } = {}): IChatResponseViewModel {
 	const sessionResource = opts.sessionResource ?? URI.parse('chat-session://test/session');
@@ -61,6 +63,7 @@ function makeResponse(items: ReadonlyArray<IChatProgressResponseContent>, opts: 
 				id: requestId,
 				messageText: requestMessageText,
 				message: { parts: [], text: requestMessageText },
+				variables: opts.requestVariables ?? [],
 			}],
 		},
 	} as unknown as IChatResponseViewModel;
@@ -118,6 +121,13 @@ suite('extractImagesFromChatResponse', () => {
 		const response = makeResponse([], { noMatchingRequest: true });
 		const result = await extractImagesFromChatResponse(response, fakeReadFile);
 		assert.strictEqual(result.title, 'Images');
+	});
+
+	test('uses attachment summary title when matching request has no message text', async () => {
+		const image = makeImageVariableEntry({ value: VSBuffer.fromString('image').buffer });
+		const response = makeResponse([], { requestMessageText: '', requestVariables: [image] });
+		const result = await extractImagesFromChatResponse(response, fakeReadFile);
+		assert.strictEqual(result.title, 'Attached 1 image');
 	});
 
 	test('extracts image from tool invocation with IToolResultOutputDetails', async () => {
@@ -286,7 +296,9 @@ suite('extractImagesFromChatResponse', () => {
 		assert.strictEqual(result.images[0].uri.toString(), imageUri.toString());
 		assert.strictEqual(result.images[0].name, 'result.png');
 		assert.strictEqual(result.images[0].mimeType, 'image/png');
-		assert.strictEqual(result.images[0].caption, 'Took a screenshot');
+		const caption = result.images[0].caption;
+		assert.ok(isMarkdownString(caption), 'caption should be an IMarkdownString');
+		assert.strictEqual(caption.value, 'Took a screenshot');
 	});
 
 	test('combines output details images and message URI images', async () => {
@@ -368,7 +380,9 @@ suite('extractImagesFromToolInvocationMessages', () => {
 		assert.strictEqual(result[0].uri.toString(), imageUri.toString());
 		assert.strictEqual(result[0].name, 'capture.png');
 		assert.strictEqual(result[0].mimeType, 'image/png');
-		assert.strictEqual(result[0].caption, 'Captured screenshot');
+		const caption = result[0].caption;
+		assert.ok(isMarkdownString(caption), 'caption should be an IMarkdownString');
+		assert.strictEqual(caption.value, 'Captured screenshot');
 		assert.ok(result[0].source.includes('screenshot-tool'));
 	});
 
@@ -423,7 +437,9 @@ suite('extractImagesFromToolInvocationMessages', () => {
 		const result = await extractImagesFromToolInvocationMessages(toolInvocation, fakeReadFile);
 
 		assert.strictEqual(result.length, 1);
-		assert.strictEqual(result[0].caption, 'Running tool');
+		const caption = result[0].caption;
+		assert.ok(isMarkdownString(caption), 'caption should be an IMarkdownString');
+		assert.strictEqual(caption.value, 'Running tool');
 	});
 });
 

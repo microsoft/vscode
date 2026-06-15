@@ -5,7 +5,7 @@
 
 import type { ConfigurationScope } from 'vscode';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
-import { AbstractConfigurationService, BaseConfig, Config, ExperimentBasedConfig, ExperimentBasedConfigType, globalConfigRegistry, InspectConfigResult } from './configurationService';
+import { AbstractConfigurationService, BaseConfig, Config, ConfigTarget, ExperimentBasedConfig, ExperimentBasedConfigType, globalConfigRegistry, InspectConfigResult } from './configurationService';
 
 /** Provides only the default values, ignoring the user's settings or exp. */
 
@@ -21,7 +21,7 @@ export class DefaultsOnlyConfigurationService extends AbstractConfigurationServi
 		};
 	}
 
-	override setConfig<T>(key: BaseConfig<T>, value: T): Promise<void> {
+	override setConfig<T>(key: BaseConfig<T>, value: T, _target?: ConfigTarget): Promise<void> {
 		return Promise.resolve();
 	}
 

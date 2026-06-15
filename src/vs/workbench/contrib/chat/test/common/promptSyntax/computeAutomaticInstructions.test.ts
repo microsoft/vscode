@@ -42,6 +42,7 @@ import { IPathService } from '../../../../../services/path/common/pathService.js
 import { IFileQuery, ISearchService } from '../../../../../services/search/common/search.js';
 import { IExtensionService } from '../../../../../services/extensions/common/extensions.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
+import { TerminalToolId } from '../../../common/tools/terminalToolIds.js';
 import { IRemoteAgentService } from '../../../../../../workbench/services/remote/common/remoteAgentService.js';
 import { basename } from '../../../../../../base/common/resources.js';
 import { match } from '../../../../../../base/common/glob.js';
@@ -174,6 +175,9 @@ suite('ComputeAutomaticInstructions', () => {
 			getToolByName: (name: string) => {
 				if (name === 'readFile') {
 					return { id: 'vscode_readFile', name: 'readFile' };
+				}
+				if (name === 'runInTerminal') {
+					return { id: TerminalToolId.RunInTerminal, name: 'runInTerminal' };
 				}
 				if (name === 'runSubagent') {
 					return { id: 'vscode_runSubagent', name: 'runSubagent' };
@@ -1486,6 +1490,52 @@ suite('ComputeAutomaticInstructions', () => {
 			assert.equal(xmlContents(instructions[0], 'applyTo')[0], '**/*.ts');
 		});
 
+		test('should generate instructions list when readFile tool unavailable and runInTerminal tool available', async () => {
+			const rootFolderName = 'instructions-list-terminal-fallback-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/instructions/test.instructions.md`,
+					contents: [
+						'---',
+						'description: \'Test instructions\'',
+						'applyTo: "**/*.ts"',
+						'---',
+						'Test content',
+					]
+				},
+			]);
+
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions,
+				ChatModeKind.Agent,
+				{ [TerminalToolId.RunInTerminal]: true }, // Enable runInTerminal tool only
+				undefined,
+				localSessionType
+			);
+			const variables = new ChatRequestVariableSet();
+
+			await contextComputer.collect(variables, CancellationToken.None);
+
+			const textVariables = variables.asArray().filter(v => isPromptTextVariableEntry(v));
+			assert.equal(textVariables.length, 1, 'There should be one text variable for instructions list');
+			assert.ok(textVariables[0].value.includes('#tool:runInTerminal'), 'Instructions list should reference the runInTerminal tool');
+			assert.ok(!textVariables[0].value.includes('#tool:readFile'), 'Instructions list should not reference the readFile tool');
+
+			const instructionsList = xmlContents(textVariables[0].value, 'instructions');
+			assert.equal(instructionsList.length, 1, 'There should be one instructions list');
+
+			const instructions = xmlContents(instructionsList[0], 'instruction');
+			assert.equal(instructions.length, 1, 'There should be one instruction');
+
+			assert.equal(xmlContents(instructions[0], 'description')[0], 'Test instructions');
+			assert.equal(xmlContents(instructions[0], 'file')[0], getFilePath(`${rootFolder}/.github/instructions/test.instructions.md`));
+			assert.equal(xmlContents(instructions[0], 'applyTo')[0], '**/*.ts');
+		});
+
 		test('should include agents list when runSubagent tool available', async () => {
 			const rootFolderName = 'agents-list-test';
 			const rootFolder = `/${rootFolderName}`;
@@ -1688,6 +1738,55 @@ suite('ComputeAutomaticInstructions', () => {
 			assert.equal(xmlContents(skills[1], 'description')[0], 'TypeScript best practices');
 			assert.equal(xmlContents(skills[1], 'file')[0], getFilePath(`${rootFolder}/.claude/skills/typescript/SKILL.md`));
 			assert.equal(xmlContents(skills[1], 'name')[0], 'typescript');
+		});
+
+		test('should include skills list when readFile tool unavailable and runInTerminal tool available', async () => {
+			const rootFolderName = 'skills-list-terminal-fallback-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			// Enable the config for agent skills
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.claude/skills/javascript/SKILL.md`,
+					contents: [
+						'---',
+						'name: \'javascript\'',
+						'description: \'JavaScript best practices\'',
+						'---',
+						'JavaScript skill content',
+					]
+				},
+			]);
+
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions,
+				ChatModeKind.Agent,
+				{ [TerminalToolId.RunInTerminal]: true }, // Enable runInTerminal tool only
+				undefined,
+				localSessionType
+			);
+			const variables = new ChatRequestVariableSet();
+
+			await contextComputer.collect(variables, CancellationToken.None);
+
+			const textVariables = variables.asArray().filter(v => isPromptTextVariableEntry(v));
+			assert.equal(textVariables.length, 1, 'There should be one text variable for skills list');
+			assert.ok(textVariables[0].value.includes('#tool:runInTerminal'), 'Skills list should reference the runInTerminal tool');
+			assert.ok(!textVariables[0].value.includes('#tool:readFile'), 'Skills list should not reference the readFile tool');
+
+			const skillsList = xmlContents(textVariables[0].value, 'skills');
+			assert.equal(skillsList.length, 1, 'There should be one skills list');
+
+			const skills = xmlContents(skillsList[0], 'skill');
+			assert.equal(skills.length, 1, 'There should be one skill');
+
+			assert.equal(xmlContents(skills[0], 'description')[0], 'JavaScript best practices');
+			assert.equal(xmlContents(skills[0], 'file')[0], getFilePath(`${rootFolder}/.claude/skills/javascript/SKILL.md`));
+			assert.equal(xmlContents(skills[0], 'name')[0], 'javascript');
 		});
 
 		test('should not include skills list when readFile tool unavailable', async () => {
@@ -2240,6 +2339,51 @@ suite('ComputeAutomaticInstructions', () => {
 		instructionFiles = variables2.asArray().filter(v => isPromptFileVariableEntry(v));
 		paths = instructionFiles.map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined);
 		assert.ok(!paths.includes(`/home/user/.claude/CLAUDE.md`), 'Should not include ~/.claude/CLAUDE.md when disabled');
+	});
+
+	test('should collect ~/.copilot/copilot-instructions.md when enabled', async () => {
+		const rootFolderName = 'collect-copilot-home-test';
+		const rootFolder = `/${rootFolderName}`;
+		const rootFolderUri = URI.file(rootFolder);
+
+		workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+		await mockFiles(fileService, [
+			{
+				path: `/home/user/.copilot/copilot-instructions.md`,
+				contents: [
+					'Copilot guidelines from home',
+				]
+			},
+			{
+				path: `${rootFolder}/src/file.ts`,
+				contents: [
+					'console.log("test");',
+				]
+			},
+		]);
+
+		testConfigService.setUserConfiguration(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES, true);
+		const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined, localSessionType);
+		const variables = new ChatRequestVariableSet();
+		variables.add(toFileVariableEntry(URI.joinPath(rootFolderUri, 'src/file.ts')));
+
+		await contextComputer.collect(variables, CancellationToken.None);
+
+		let instructionFiles = variables.asArray().filter(v => isPromptFileVariableEntry(v));
+		let paths = instructionFiles.map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined);
+		assert.ok(paths.includes(`/home/user/.copilot/copilot-instructions.md`), 'Should include ~/.copilot/copilot-instructions.md when enabled');
+
+		testConfigService.setUserConfiguration(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES, false);
+		const contextComputer2 = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined, localSessionType);
+		const variables2 = new ChatRequestVariableSet();
+		variables2.add(toFileVariableEntry(URI.joinPath(rootFolderUri, 'src/file.ts')));
+
+		await contextComputer2.collect(variables2, CancellationToken.None);
+
+		instructionFiles = variables2.asArray().filter(v => isPromptFileVariableEntry(v));
+		paths = instructionFiles.map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined);
+		assert.ok(!paths.includes(`/home/user/.copilot/copilot-instructions.md`), 'Should not include ~/.copilot/copilot-instructions.md when disabled');
 	});
 
 	test('should collect instructions from multi-root workspace', async () => {

@@ -234,7 +234,7 @@ async function isExternalInstructionsFile(normalizedUri: URI, customInstructions
 				}
 			}
 		}
-		const attachedPromptFile = buildPromptContext.chatVariables.find(v => isPromptFile(v) && isEqual(normalizedUri, v.value));
+		const attachedPromptFile = buildPromptContext.chatVariables.find(v => isPromptFile(v.reference) && isEqual(normalizedUri, v.reference.value));
 		if (attachedPromptFile) {
 			return true;
 		}

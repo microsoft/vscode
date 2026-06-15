@@ -65,7 +65,7 @@ export function createAgentsBanner(
 	telemetryService: ITelemetryService,
 ): IAgentsBannerResult {
 	const disposables = new DisposableStore();
-	const label = options.label ?? localize('agentsBanner.tryAgentsAppLabel', "Try out the new Agents");
+	const label = options.label ?? localize('agentsBanner.tryAgentsAppLabel', "Try out the new Agents window");
 
 	const button = $('button.agents-banner-button', {
 		title: label,

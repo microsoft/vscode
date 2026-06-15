@@ -9,7 +9,7 @@ import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { KeybindingLabel } from '../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { Event } from '../../../../../base/common/event.js';
 import { autorun } from '../../../../../base/common/observable.js';
-import { isMobile, isWeb, OS } from '../../../../../base/common/platform.js';
+import { isWeb, OS } from '../../../../../base/common/platform.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -24,7 +24,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { localize } from '../../../../../nls.js';
 import { SessionsList, SessionsGrouping, SessionsSorting } from './sessionsList.js';
-import { SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { AICustomizationShortcutsWidget } from '../aiCustomizationShortcutsWidget.js';
 import { AgentHostShortcutsWidget } from '../agentHostShortcutsWidget.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -32,25 +32,42 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorRegistry.js';
-import { agentsNewSessionButtonBackground, agentsNewSessionButtonBorder, agentsNewSessionButtonForeground, agentsNewSessionButtonHoverBackground } from '../../../../common/theme.js';
+import { agentsBackground, agentsNewSessionButtonBackground, agentsNewSessionButtonBorder, agentsNewSessionButtonForeground, agentsNewSessionButtonHoverBackground } from '../../../../common/theme.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { logSessionsInteraction } from '../../../../common/sessionsTelemetry.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsViewService } from '../../../../services/sessions/browser/sessionsViewService.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { Menus } from '../../../../browser/menus.js';
 import { MobileSessionFilterChips } from '../../../../browser/parts/mobile/mobileSessionFilterChips.js';
 import { IMobileSortGroupSheetItem, showMobileSortGroupSheet } from '../../../../browser/parts/mobile/mobileSortGroupSheet.js';
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
 import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';
-const ACTION_ID_NEW_SESSION = 'workbench.action.sessions.newChat';
 const GROUPING_STORAGE_KEY = 'sessionsViewPane.grouping';
 const SORTING_STORAGE_KEY = 'sessionsViewPane.sorting';
+
+/**
+ * Place the given session in the sessions grid to the right of the last
+ * currently-visible session (as a non-sticky entry) and make it active. If
+ * the session is already the last visible one, this is a no-op aside from
+ * activation.
+ */
+export async function openSessionToTheSide(sessionsViewService: ISessionsViewService, session: ISession, options?: { preserveFocus?: boolean }): Promise<void> {
+	const visible = sessionsViewService.visibleSessions.get();
+	const lastVisible = visible[visible.length - 1];
+	if (lastVisible && lastVisible.sessionId !== session.sessionId) {
+		sessionsViewService.insertAt(session, lastVisible.sessionId, 'right');
+	}
+	await sessionsViewService.openSession(session.resource, options);
+}
 
 export const SessionsViewFilterSubMenu = new MenuId('SessionsViewPaneFilterSubMenu');
 export const SessionsViewFilterOptionsSubMenu = new MenuId('SessionsViewPaneFilterOptionsSubMenu');
@@ -88,10 +105,12 @@ export class SessionsView extends ViewPane {
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsViewService private readonly sessionsViewService: ISessionsViewService,
 		@IHostService private readonly hostService: IHostService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -134,6 +153,7 @@ export class SessionsView extends ViewPane {
 			listOverrideStyles: {
 				...colors.listOverrideStyles,
 				listBackground: undefined!,
+				treeStickyScrollBackground: agentsBackground,
 			}
 		};
 	}
@@ -191,12 +211,21 @@ export class SessionsView extends ViewPane {
 			grouping: () => this.currentGrouping,
 			sorting: () => this.currentSorting,
 			findWidgetContainer,
-			onSessionOpen: (resource, preserveFocus) => {
-				this.sessionsManagementService.openSession(resource, { preserveFocus }).then(() => {
-					if (isWeb && isMobile) {
+			onSessionOpen: (resource, preserveFocus, sideBySide) => {
+				const onOpened = () => {
+					if (isWeb && isPhoneLayout(this.layoutService)) {
 						this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
 					}
-				}).catch(onUnexpectedError);
+				};
+				if (sideBySide) {
+					// Alt-click: open the session to the right of the last visible session in the grid.
+					const session = this.sessionsManagementService.getSession(resource);
+					if (session) {
+						openSessionToTheSide(this.sessionsViewService, session, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
+						return;
+					}
+				}
+				this.sessionsViewService.openSession(resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
 			},
 		}));
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
@@ -277,12 +306,12 @@ export class SessionsView extends ViewPane {
 		}));
 
 		// Agent Host toolbar (bottom, below customizations). Only rendered
-		// in the sessions window on desktop layouts: electron has no host
-		// picker today (gated out at the menu level), phone layout uses
-		// the mobile titlebar pill instead, and auxiliary windows do not
-		// contribute any host actions — without this gate they would show
-		// an empty toolbar shell.
-		if (this.scopedContextKeyService.contextMatchesRules(ContextKeyExpr.and(
+		// in the sessions window on web desktop layouts: electron has no
+		// host picker today (gated out at the menu level), phone layout
+		// uses the mobile titlebar pill instead, and auxiliary windows do
+		// not contribute any host actions — without this gate they would
+		// show an empty toolbar shell.
+		if (isWeb && this.scopedContextKeyService.contextMatchesRules(ContextKeyExpr.and(
 			IsSessionsWindowContext,
 			IsAuxiliaryWindowContext.toNegated(),
 			IsPhoneLayoutContext.negate(),
@@ -311,7 +340,7 @@ export class SessionsView extends ViewPane {
 		newSessionButton.element.classList.add('agent-sessions-compact-new-button');
 		this._register(newSessionButton.onDidClick(() => {
 			logSessionsInteraction(this.telemetryService, 'newSession');
-			this.sessionsManagementService.openNewSessionView();
+			this.commandService.executeCommand(NEW_SESSION_ACTION_ID);
 		}));
 
 		const newSessionLabel = localize('newCompact', "New");
@@ -328,8 +357,8 @@ export class SessionsView extends ViewPane {
 		DOM.reset(newSessionButton.element, buttonLabel);
 
 		const getNewSessionKeybinding = () => {
-			const primaryKeybinding = this.keybindingService.lookupKeybinding(ACTION_ID_NEW_SESSION, this.scopedContextKeyService, true);
-			const resolvedKeybindings = this.keybindingService.lookupKeybindings(ACTION_ID_NEW_SESSION);
+			const primaryKeybinding = this.keybindingService.lookupKeybinding(NEW_SESSION_ACTION_ID, this.scopedContextKeyService, true);
+			const resolvedKeybindings = this.keybindingService.lookupKeybindings(NEW_SESSION_ACTION_ID);
 			return primaryKeybinding ?? resolvedKeybindings[0];
 		};
 

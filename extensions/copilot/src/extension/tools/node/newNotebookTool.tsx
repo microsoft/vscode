@@ -48,7 +48,7 @@ export class NewNotebookTool implements ICopilotTool<IBuildPromptContext> {
 		let outcome: 'failedToCreatePlanningEndpoint' | 'failedToRenderPlanningPrompt' | 'failedToMakePlanningRequest' | 'failedToRenderNewNotebookPrompt' = 'failedToCreatePlanningEndpoint';
 		try {
 			// Get the endpoint
-			const planningEndpoint = await this.endpointProvider.getChatEndpoint(options.model || 'copilot-base');
+			const planningEndpoint = await this.endpointProvider.getChatEndpoint(options.model || 'copilot-utility');
 			const originalCreateNotebookQuery = `Create notebook: ${this._input?.query ?? options.input.query}`;
 			const mockContext: IBuildPromptContext = {
 				query: originalCreateNotebookQuery,

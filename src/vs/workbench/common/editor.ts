@@ -859,7 +859,8 @@ export const enum EditorInputCapabilities {
 
 	/**
 	 * Signals that the editor must be opened in a modal editor
-	 * part, overriding the `workbench.editor.useModal` setting.
+	 * part. This is honored unless the user has explicitly opted
+	 * out of modal editors via `workbench.editor.useModal: 'off'`.
 	 */
 	RequiresModal = 1 << 11
 }

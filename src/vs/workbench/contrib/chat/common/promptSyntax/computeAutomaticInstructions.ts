@@ -341,6 +341,8 @@ export class ComputeAutomaticInstructions {
 
 	private async _getCustomizationsIndex(instructionFiles: readonly IInstructionFile[], _existingVariables: ChatRequestVariableSet, telemetryEvent: InstructionsCollectionEvent, debugInfo: InstructionsCollectionDebugInfo, token: CancellationToken): Promise<IPromptTextVariableEntry | undefined> {
 		const readTool = this._getTool('readFile');
+		const runInTerminalTool = this._getTool('runInTerminal');
+		const fileReadTool = readTool ?? runInTerminalTool;
 		const runSubagentTool = this._getTool(VSCodeToolReference.runSubagent);
 		const skillTool = this._getTool('skill');
 		const currentSessionType = this._currentSessionType;
@@ -350,7 +352,7 @@ export class ComputeAutomaticInstructions {
 		const filePath = (uri: URI) => getFilePath(uri, remoteOS);
 
 		const entries: string[] = [];
-		if (readTool) {
+		if (fileReadTool) {
 
 			const searchNestedAgentMd = this._configurationService.getValue(PromptsConfig.USE_NESTED_AGENT_MD);
 			const agentsMdPromise = searchNestedAgentMd ? this._promptsService.listNestedAgentMDs(token) : Promise.resolve([]);
@@ -359,7 +361,7 @@ export class ComputeAutomaticInstructions {
 			entries.push('Here is a list of instruction files that contain rules for working with this codebase.');
 			entries.push('These files are important for understanding the codebase structure, conventions, and best practices.');
 			entries.push('When an instruction file applies to your task (based on its description or applyTo pattern), follow the rules specified in it.');
-			entries.push(`If the file content is not already included in the context, use the ${readTool.variable} tool to read it before proceeding. Use the exact value from the <file> element as-is with the tool; do not add or remove prefixes or otherwise modify it.`);
+			entries.push(`If the file content is not already included in the context, use the ${fileReadTool.variable} tool to read it before proceeding. Use the exact value from the <file> element as-is with the tool; do not add or remove prefixes or otherwise modify it.`);
 			entries.push('Only load instruction files when they are relevant to the current task. Do not eagerly load all instructions upfront.');
 			entries.push('When modifying or creating files, check for instructions whose applyTo pattern matches the file path and follow them.');
 			let hasContent = false;
@@ -432,7 +434,7 @@ export class ComputeAutomaticInstructions {
 				// When the skill tool is available, direct the model to use it by name
 				// instead of reading SKILL.md files directly. This keeps file paths out of
 				// the listing and routes through the proper skill loading pipeline.
-				const skillLoadTool = skillTool ?? readTool;
+				const skillLoadTool = skillTool ?? fileReadTool;
 				entries.push('<skills>');
 				if (useSkillAdherencePrompt) {
 					// Stronger skill adherence prompt for experimental feature
@@ -440,7 +442,7 @@ export class ComputeAutomaticInstructions {
 					if (skillTool) {
 						entries.push(`BLOCKING REQUIREMENT: When a skill applies to the user's request, you MUST invoke it IMMEDIATELY as your first action, BEFORE generating any other response or taking action on the task. Use ${skillTool.variable} with the skill name to load the relevant skill(s).`);
 					} else {
-						entries.push(`BLOCKING REQUIREMENT: When a skill applies to the user's request, you MUST load and read the SKILL.md file IMMEDIATELY as your first action, BEFORE generating any other response or taking action on the task. Use ${readTool.variable} to load the relevant skill(s).`);
+						entries.push(`BLOCKING REQUIREMENT: When a skill applies to the user's request, you MUST load and read the SKILL.md file IMMEDIATELY as your first action, BEFORE generating any other response or taking action on the task. Use ${fileReadTool.variable} to load the relevant skill(s).`);
 					}
 					entries.push('NEVER just mention or reference a skill in your response without actually loading it first. If a skill is relevant, load it before proceeding.');
 					entries.push('How to determine if a skill applies:');
@@ -459,7 +461,7 @@ export class ComputeAutomaticInstructions {
 					} else {
 						entries.push('Here is a list of skills that contain domain specific knowledge on a variety of topics.');
 						entries.push('Each skill comes with a description of the topic and a file path that contains the detailed instructions.');
-						entries.push(`When a user asks you to perform a task that falls within the domain of a skill, use the ${readTool.variable} tool to acquire the full instructions from the file URI.`);
+						entries.push(`When a user asks you to perform a task that falls within the domain of a skill, use the ${fileReadTool.variable} tool to acquire the full instructions from the file URI.`);
 					}
 				}
 				const SKILL_DESCRIPTION_CHAR_BUDGET = 15000;
@@ -569,7 +571,7 @@ export class ComputeAutomaticInstructions {
 				}
 			}
 		};
-		collectToolReference(readTool);
+		collectToolReference(fileReadTool);
 		collectToolReference(runSubagentTool);
 		collectToolReference(skillTool);
 		return toPromptTextVariableEntry(content, true, toolReferences);

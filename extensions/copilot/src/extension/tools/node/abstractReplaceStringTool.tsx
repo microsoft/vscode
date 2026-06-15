@@ -459,7 +459,7 @@ export abstract class AbstractReplaceStringTool<T extends { explanation: string 
 						newString,
 					},
 					eol,
-					await this.endpointProvider.getChatEndpoint('copilot-fast'),
+					await this.endpointProvider.getChatEndpoint('copilot-utility-small'),
 					token
 				);
 				if (healed.params.oldString === healed.params.newString) {

@@ -5,11 +5,18 @@
 
 import { localize } from '../../../../../nls.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { getSessionTypeAvailability, getSessionTypeUnavailableLabel, SessionTypeAvailability } from '../../../../../workbench/contrib/chat/browser/agentSessions/sessionTypeAvailability.js';
+import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { SessionTypePicker, STORAGE_KEY_LAST_SESSION_TYPE } from '../sessionTypePicker.js';
+import { ISession } from '../../../../services/sessions/common/session.js';
+import { IObservable } from '../../../../../base/common/observable.js';
+import { SessionTypePicker } from '../sessionTypePicker.js';
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
 import { IMobilePickerSheetItem, showMobilePickerSheet } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
 
@@ -27,13 +34,18 @@ import { IMobilePickerSheetItem, showMobilePickerSheet } from '../../../../brows
 export class MobileSessionTypePicker extends SessionTypePicker {
 
 	constructor(
+		session: IObservable<ISession | undefined>,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
-		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
+		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IStorageService storageService: IStorageService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IChatSessionsService chatSessionsService: IChatSessionsService,
+		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
+		@ILanguageModelsService languageModelsService: ILanguageModelsService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
-		super(actionWidgetService, sessionsManagementService, sessionsProvidersService, storageService);
+		super(session, actionWidgetService, sessionsManagementService, _sessionsProvidersService, storageService, telemetryService, chatSessionsService, chatEntitlementService, languageModelsService);
 	}
 
 	override render(container: HTMLElement, options?: { className?: string }): void {
@@ -55,18 +67,40 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 			super._showPicker();
 			return;
 		}
-		if (this._allProviderSessionTypes.length <= 1) {
+		if (this._folderSessionTypes.length <= 1) {
 			return;
 		}
 
-		const supportedTypeIds = new Set(this._supportedSessionTypes.map(t => t.id));
-		const sheetItems: IMobilePickerSheetItem[] = this._allProviderSessionTypes.map(type => ({
-			id: type.id,
-			label: type.label,
-			icon: type.icon,
-			disabled: !supportedTypeIds.has(type.id),
-			checked: type.id === this._sessionType,
-		}));
+		// Build sheet items — composite id is `providerId\u0000sessionTypeId`
+		// so we can map back to the right provider on selection. Show the
+		// provider's label as a section title only for provider groups
+		// that contain at least one duplicated session type label.
+		const labelCounts = new Map<string, number>();
+		for (const { sessionType } of this._folderSessionTypes) {
+			labelCounts.set(sessionType.label, (labelCounts.get(sessionType.label) ?? 0) + 1);
+		}
+		const providersWithDuplicates = new Set<string>();
+		for (const { providerId, sessionType } of this._folderSessionTypes) {
+			if ((labelCounts.get(sessionType.label) ?? 0) > 1) {
+				providersWithDuplicates.add(providerId);
+			}
+		}
+		const sheetItems: IMobilePickerSheetItem[] = [];
+		let lastProviderId: string | undefined;
+		for (const { providerId, sessionType } of this._folderSessionTypes) {
+			const isFirstInGroup = providerId !== lastProviderId;
+			lastProviderId = providerId;
+			const availability = getSessionTypeAvailability(this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, sessionType.chatSessionType ?? sessionType.id);
+			sheetItems.push({
+				id: `${providerId}\u0000${sessionType.id}`,
+				label: sessionType.label,
+				icon: sessionType.icon,
+				checked: providerId === this._picked?.providerId && sessionType.id === this._picked?.sessionTypeId,
+				disabled: availability !== SessionTypeAvailability.Available,
+				description: getSessionTypeUnavailableLabel(availability),
+				sectionTitle: providersWithDuplicates.has(providerId) && isFirstInGroup ? (this._sessionsProvidersService.getProvider(providerId)?.label ?? providerId) : undefined,
+			});
+		}
 
 		const trigger = this._triggerElement;
 		trigger.setAttribute('aria-expanded', 'true');
@@ -77,9 +111,11 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 		).then(id => {
 			trigger.setAttribute('aria-expanded', 'false');
 			trigger.focus();
-			if (id !== undefined && id !== this._sessionType) {
-				this.storageService.store(STORAGE_KEY_LAST_SESSION_TYPE, id, StorageScope.PROFILE, StorageTarget.MACHINE);
-				this._onDidSelectSessionType.fire(id);
+			if (id !== undefined) {
+				const [providerId, sessionTypeId] = id.split('\u0000');
+				if (providerId && sessionTypeId) {
+					this._handleSelectedSessionType({ providerId, sessionTypeId });
+				}
 			}
 		});
 	}

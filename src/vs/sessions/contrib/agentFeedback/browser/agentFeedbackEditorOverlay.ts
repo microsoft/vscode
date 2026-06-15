@@ -18,15 +18,13 @@ import { IWorkbenchContribution } from '../../../../workbench/common/contributio
 import { EditorGroupView } from '../../../../workbench/browser/parts/editor/editorGroupView.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IAgentFeedbackService } from './agentFeedbackService.js';
-import { hasSessionAgentFeedback, hasSessionEditorComments, navigateNextFeedbackActionId, navigatePreviousFeedbackActionId, navigationBearingFakeActionId, submitFeedbackActionId } from './agentFeedbackEditorActions.js';
+import { hasUnsubmittedAgentFeedback, hasSessionEditorComments, navigateNextFeedbackActionId, navigatePreviousFeedbackActionId, navigationBearingFakeActionId, submitFeedbackActionId } from './agentFeedbackEditorActions.js';
 import { assertType } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
-import { getActiveResourceCandidates, getSessionForResource } from './agentFeedbackEditorUtils.js';
+import { getActiveResourceCandidates } from './agentFeedbackEditorUtils.js';
 import { Menus } from '../../../browser/menus.js';
-import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
-import { getSessionEditorComments, hasAgentFeedbackComments } from './sessionEditorComments.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { getSessionEditorComments, hasAcceptedAgentFeedbackComments } from './sessionEditorComments.js';
 
 class AgentFeedbackActionViewItem extends ActionViewItem {
 
@@ -144,9 +142,7 @@ class AgentFeedbackOverlayController {
 		container: HTMLElement,
 		group: IEditorGroup,
 		@IAgentFeedbackService agentFeedbackService: IAgentFeedbackService,
-		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@IInstantiationService instaService: IInstantiationService,
-		@IChatEditingService chatEditingService: IChatEditingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICodeReviewService codeReviewService: ICodeReviewService,
 	) {
@@ -160,7 +156,7 @@ class AgentFeedbackOverlayController {
 		this._domNode.appendChild(widget.getDomNode());
 		this._store.add(toDisposable(() => this._domNode.remove()));
 		const hasCommentsContext = hasSessionEditorComments.bindTo(contextKeyService);
-		const hasAgentFeedbackContext = hasSessionAgentFeedback.bindTo(contextKeyService);
+		const hasAgentFeedbackContext = hasUnsubmittedAgentFeedback.bindTo(contextKeyService);
 
 		const show = () => {
 			if (!container.contains(this._domNode)) {
@@ -189,7 +185,7 @@ class AgentFeedbackOverlayController {
 			let navigationBearings = undefined;
 			let hasAgentFeedback = false;
 			for (const candidate of candidates) {
-				const sessionResource = getSessionForResource(candidate, chatEditingService, sessionsManagementService);
+				const sessionResource = agentFeedbackService.getSessionForFile(candidate)?.resource;
 				if (!sessionResource) {
 					continue;
 				}
@@ -197,12 +193,11 @@ class AgentFeedbackOverlayController {
 				const comments = getSessionEditorComments(
 					sessionResource,
 					agentFeedbackService.getFeedback(sessionResource),
-					codeReviewService.getReviewState(sessionResource).read(r),
 					codeReviewService.getPRReviewState(sessionResource).read(r),
 				);
 				if (comments.length > 0) {
 					navigationBearings = agentFeedbackService.getNavigationBearing(sessionResource, comments);
-					hasAgentFeedback = hasAgentFeedbackComments(comments);
+					hasAgentFeedback = hasAcceptedAgentFeedbackComments(comments);
 					break;
 				}
 			}

@@ -25,7 +25,7 @@ import { IChatAttachmentResolveService } from '../../chat/browser/attachments/ch
 import { IChatRequestVariableEntry } from '../../chat/common/attachments/chatVariableEntries.js';
 import { IMcpResource, IMcpResourceTemplate, IMcpServer, IMcpService, isMcpResourceTemplate, McpCapability, McpConnectionState, McpResourceURI } from '../common/mcpTypes.js';
 import { McpIcons } from '../common/mcpIcons.js';
-import { IUriTemplateVariable } from '../common/uriTemplate.js';
+import { IUriTemplateVariable } from '../../../../base/common/uriTemplate.js';
 import { openPanelChatAndGetWidget } from './openPanelChatAndGetWidget.js';
 import { LinkedList } from '../../../../base/common/linkedList.js';
 import { ChatContextPickAttachment } from '../../chat/browser/attachments/chatContextPickService.js';

@@ -8,17 +8,17 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 export const CHANGES_VIEW_ID = 'workbench.view.agentSessions.changes';
 export const CHANGES_VIEW_CONTAINER_ID = 'workbench.view.agentSessions.changesContainer';
 
+/**
+ * Setting key that controls whether clicking a file in the Changes view opens a
+ * single file diff editor instead of the multi file diff editor.
+ *
+ * This setting is registered (and only meaningful) in the Agents app.
+ */
+export const SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING = 'sessions.changes.openSingleFileDiff';
+
 export const enum ChangesViewMode {
 	List = 'list',
 	Tree = 'tree'
-}
-
-export const enum ChangesVersionMode {
-	BranchChanges = 'branchChanges',
-	UncommittedChanges = 'uncommittedChanges',
-	OutgoingChanges = 'outgoingChanges',
-	AllChanges = 'allChanges',
-	LastTurn = 'lastTurn'
 }
 
 export const enum IsolationMode {
@@ -28,7 +28,7 @@ export const enum IsolationMode {
 
 export const ChangesContextKeys = {
 	ChangeKind: new RawContextKey<'root' | 'folder' | 'file'>('sessions.changeKind', 'file'),
-	VersionMode: new RawContextKey<ChangesVersionMode>('sessions.changesVersionMode', ChangesVersionMode.BranchChanges),
+	VersionMode: new RawContextKey<string>('sessions.changesVersionMode', ''),
 	ViewMode: new RawContextKey<ChangesViewMode>('sessions.changesViewMode', ChangesViewMode.List)
 };
 

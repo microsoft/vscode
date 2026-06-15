@@ -676,7 +676,7 @@ suite('EditorResolverService', () => {
 		customEditor.dispose();
 	});
 
-	test('Diff editor Resolve - diffEditorPriority overrides priority for diffs', async () => {
+	test('Diff editor Resolve - priority.diff overrides priority.editor for diffs', async () => {
 		const CUSTOM_EDITOR_INPUT_ID = 'testCustomEditorForDiffPriority';
 		const [part, service, accessor] = await createEditorResolverService();
 		const registeredEditor = service.registerEditor('*.test-diff-priority',
@@ -684,8 +684,11 @@ suite('EditorResolverService', () => {
 				id: 'TEST_EDITOR',
 				label: 'Test Editor Label',
 				detail: 'Test Editor Details',
-				priority: RegisteredEditorPriority.default,
-				diffEditorPriority: RegisteredEditorPriority.option,
+				priority: {
+					editor: RegisteredEditorPriority.default,
+					diff: RegisteredEditorPriority.option,
+					merge: RegisteredEditorPriority.default,
+				},
 			},
 			{},
 			{
@@ -702,7 +705,7 @@ suite('EditorResolverService', () => {
 			}
 		);
 
-		// Regular editor should use custom editor (priority: default)
+		// Regular editor should use custom editor (priority.editor: default)
 		const editorResolution = await service.resolveEditor({ resource: URI.file('my://resource.test-diff-priority') }, part.activeGroup);
 		assert.ok(editorResolution);
 		assert.notStrictEqual(typeof editorResolution, 'number');
@@ -713,23 +716,23 @@ suite('EditorResolverService', () => {
 			assert.fail('Expected editor to resolve successfully');
 		}
 
-		// Diff editor should NOT use custom editor (diffEditorPriority: option)
+		// Diff editor should NOT use custom editor (priority.diff: option)
 		const diffResolution = await service.resolveEditor({
 			original: { resource: URI.file('my://resource.test-diff-priority') },
 			modified: { resource: URI.file('my://resource.test-diff-priority') }
 		}, part.activeGroup);
 		assert.ok(diffResolution);
-		// With diffEditorPriority: option, the custom editor should not be selected as default
+		// With priority.diff: option, the custom editor should not be selected as default
 		if (diffResolution !== ResolvedStatus.ABORT && diffResolution !== ResolvedStatus.NONE) {
 			assert.notStrictEqual(diffResolution.editor.typeId, CUSTOM_EDITOR_INPUT_ID,
-				'Custom editor with diffEditorPriority:option should not be used for diffs');
+				'Custom editor with priority.diff:option should not be used for diffs');
 			diffResolution.editor.dispose();
 		}
 
 		registeredEditor.dispose();
 	});
 
-	test('Diff editor Resolve - diffEditorPriority defaults to priority when not set', async () => {
+	test('Diff editor Resolve - string priority expands to diff priority', async () => {
 		const CUSTOM_EDITOR_INPUT_ID = 'testCustomEditorNoDiffPriority';
 		const [part, service, accessor] = await createEditorResolverService();
 		const registeredEditor = service.registerEditor('*.test-no-diff-priority',
@@ -738,7 +741,6 @@ suite('EditorResolverService', () => {
 				label: 'Test Editor Label',
 				detail: 'Test Editor Details',
 				priority: RegisteredEditorPriority.default,
-				// diffEditorPriority not set - should fall back to priority
 			},
 			{},
 			{
@@ -755,7 +757,7 @@ suite('EditorResolverService', () => {
 			}
 		);
 
-		// Diff editor should use custom editor since diffEditorPriority falls back to priority: default
+		// Diff editor should use custom editor since string priority expands to priority.diff: default
 		const diffResolution = await service.resolveEditor({
 			original: { resource: URI.file('my://resource.test-no-diff-priority') },
 			modified: { resource: URI.file('my://resource.test-no-diff-priority') }

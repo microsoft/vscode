@@ -4,15 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MessageOptions } from '@github/copilot-sdk';
+import { decodeBase64 } from '../../../../base/common/buffer.js';
 import { basename } from '../../../../base/common/path.js';
+import { isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
-import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type ResponsePart, type StringOrMarkdown, type ToolCallCompletedState, type ToolResultContent, type Turn, type UserMessage } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type Message, type ResponsePart, type StringOrMarkdown, type ToolCallCompletedState, type ToolResultContent, type Turn } from '../../common/state/sessionState.js';
 import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, synthesizeSkillToolCall } from './copilotToolDisplay.js';
-import { buildSessionDbUri } from './fileEditTracker.js';
+import { buildSessionDbUri } from '../shared/fileEditTracker.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 
 function tryStringify(value: unknown): string | undefined {
@@ -53,6 +55,13 @@ export interface ISessionEventToolComplete {
 
 export interface ISessionEventMessage {
 	type: 'assistant.message' | 'user.message';
+	/**
+	 * SDK envelope-level event id. This is the same id `setTurnEventId`
+	 * persists into `turns.event_id`, so using it as the protocol turn id
+	 * keeps the live and restored ids aligned with what the SDK fork /
+	 * truncate RPCs need.
+	 */
+	id?: string;
 	data?: {
 		messageId?: string;
 		interactionId?: string;
@@ -160,15 +169,17 @@ interface ISubagentInfo {
  */
 interface ITurnBuilder {
 	id: string;
-	userMessage: UserMessage;
+	message: Message;
 	readonly responseParts: ResponsePart[];
 	/** Tool starts seen but not yet completed in this turn, keyed by toolCallId. */
 	readonly pendingTools: Map<string, IToolStartInfo>;
 }
 
 function newTurnBuilder(id: string, text: string, attachments?: MessageAttachment[]): ITurnBuilder {
-	const userMessage: UserMessage = attachments?.length ? { text, attachments } : { text };
-	return { id, userMessage, responseParts: [], pendingTools: new Map() };
+	const message: Message = attachments?.length
+		? { text, origin: { kind: MessageKind.User }, attachments }
+		: { text, origin: { kind: MessageKind.User } };
+	return { id, message, responseParts: [], pendingTools: new Map() };
 }
 
 function makeToolStartInfo(toolName: string, rawArguments: unknown, parentToolCallId: string | undefined, workingDirectory: URI | undefined): IToolStartInfo | undefined {
@@ -205,7 +216,7 @@ function makeToolStartInfo(toolName: string, rawArguments: unknown, parentToolCa
 function finalizeTurn(builder: ITurnBuilder, state: TurnState): Turn {
 	return {
 		id: builder.id,
-		userMessage: builder.userMessage,
+		message: builder.message,
 		responseParts: builder.responseParts,
 		usage: undefined,
 		state,
@@ -251,7 +262,8 @@ export async function mapSessionEvents(
 				continue;
 			}
 			toolInfoByCallId.set(d.toolCallId, info);
-			if (isEditTool(d.toolName)) {
+			const command = isString(info.parameters?.command) ? info.parameters.command : undefined;
+			if (isEditTool(d.toolName, command)) {
 				editToolCallIds.push(d.toolCallId);
 			}
 		}
@@ -344,14 +356,19 @@ export async function mapSessionEvents(
 						});
 					}
 					if (attachments?.length) {
-						builder.userMessage = { ...builder.userMessage, attachments };
+						builder.message = { ...builder.message, attachments };
 					}
 				} else {
 					// A new top-level user message starts a new parent turn.
+					// Use the SDK envelope id (the same value
+					// `setTurnEventId` records as `event_id`) so the restored
+					// turn id round-trips back to the SDK boundary id that
+					// fork / truncate RPCs operate on.
 					if (parentBuilder) {
 						turns.push(finalizeTurn(parentBuilder, TurnState.Cancelled));
 					}
-					parentBuilder = newTurnBuilder(messageId, content, attachments);
+					const turnId = (e as ISessionEventMessage).id ?? messageId;
+					parentBuilder = newTurnBuilder(turnId, content, attachments);
 				}
 				break;
 			}
@@ -361,8 +378,14 @@ export async function mapSessionEvents(
 				const content = d?.content ?? '';
 				const reasoningText = d?.reasoningText;
 				const hasToolRequests = !!d?.toolRequests && d.toolRequests.length > 0;
+				// When this is the first event in a turn (no parent builder
+				// yet), seed the builder with the SDK envelope id so the
+				// turn id matches `turns.event_id` for fork/truncate
+				// lookups. See the matching note in the `user.message`
+				// branch above.
+				const fallbackTurnId = (e as ISessionEventMessage).id ?? messageId;
 				const builder = targetBuilderFor(d?.parentToolCallId)
-					?? (parentBuilder = newTurnBuilder(messageId, ''));
+					?? (parentBuilder = newTurnBuilder(fallbackTurnId, ''));
 				if (reasoningText) {
 					builder.responseParts.push({
 						kind: ResponsePartKind.Reasoning,
@@ -485,13 +508,14 @@ export async function mapSessionEvents(
 
 /**
  * Translates the SDK's `UserMessageAttachment[]` payload back into the
- * agent-protocol {@link MessageAttachment} shape. Blob attachments are
- * surfaced as inline {@link MessageAttachmentKind.EmbeddedResource}
- * payloads; file/directory/selection variants reconstruct local
- * `Resource` attachments. We don't try to re-link these to the on-disk
- * snapshots produced by the agent host's attachment rewriter — the SDK
- * keeps a copy of the bytes / paths it actually saw on send, which is
- * the authoritative record for replay.
+ * agent-protocol {@link MessageAttachment} shape. Text blob attachments
+ * surface as {@link MessageAttachmentKind.Simple}; other blobs surface as
+ * inline {@link MessageAttachmentKind.EmbeddedResource} payloads.
+ * File/directory/selection variants reconstruct local `Resource`
+ * attachments. We don't try to re-link these to the on-disk snapshots
+ * produced by the agent host's attachment rewriter — the SDK keeps a
+ * copy of the bytes / paths it actually saw on send, which is the
+ * authoritative record for replay.
  */
 function sdkAttachmentsToProtocol(
 	attachments: readonly ISdkUserMessageAttachment[] | undefined,
@@ -539,6 +563,13 @@ function sdkAttachmentToProtocol(
 			};
 		}
 		case 'blob': {
+			if (attachment.mimeType.startsWith('text/plain')) {
+				return {
+					type: MessageAttachmentKind.Simple,
+					label: attachment.displayName ?? 'attachment',
+					modelRepresentation: decodeBase64(attachment.data).toString(),
+				};
+			}
 			const displayKind = attachment.mimeType.startsWith('image/') ? 'image' : undefined;
 			return {
 				type: MessageAttachmentKind.EmbeddedResource,
