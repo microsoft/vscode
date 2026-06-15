@@ -11,7 +11,7 @@ import { IChat, SessionStatus } from '../../../../../sessions/services/sessions/
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession, ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
-import { ISessionsViewService } from '../../../../../sessions/services/sessions/browser/sessionsViewService.js';
+import { ISessionsService } from '../../../../../sessions/services/sessions/browser/sessionsService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ChatCompositeBar } from '../../../../../sessions/browser/parts/chatCompositeBar.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
@@ -63,7 +63,7 @@ function renderBar(ctx: ComponentFixtureContext, chats: readonly IChat[], active
 				override async renameChat() { }
 				override async deleteChat() { }
 			}());
-			reg.defineInstance(ISessionsViewService, new class extends mock<ISessionsViewService>() {
+			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
 				override async openChat() { }
 			}());
 		},

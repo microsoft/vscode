@@ -25,7 +25,7 @@ import { ActiveSessionProviderIdContext, IsPhoneLayoutContext } from '../../../.
 import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISession, ISessionAgentRef, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ModePicker, ModePickerModel } from '../../copilotChatSessions/browser/modePicker.js';
 import { ISessionInputContext } from '../../../chat/browser/sessionInputContext.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -88,7 +88,7 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+		@ISessionsService sessionsService: ISessionsService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@IChatService private readonly chatService: IChatService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
@@ -100,17 +100,17 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 		let settingAgentInternally = false;
 
 		const initAgentFromActiveSession = () => {
-			const session = sessionsManagementService.activeSession.get();
+			const session = sessionsService.activeSession.get();
 			this._initAgent(session, session?.mode.get()?.id, session?.status.get() === SessionStatus.Untitled, sessionsProvidersService, () => settingAgentInternally = true, () => settingAgentInternally = false);
 		};
 		const syncChatInputModeFromActiveSession = () => {
-			const session = sessionsManagementService.activeSession.get();
+			const session = sessionsService.activeSession.get();
 			const selectedAgentUri = session?.mode.get()?.id;
 			this._syncChatInputMode(session, selectedAgentUri, sessionsProvidersService);
 		};
 
 		this._register(autorun(reader => {
-			const session = sessionsManagementService.activeSession.read(reader);
+			const session = sessionsService.activeSession.read(reader);
 			const provider = this._getProvider(session, sessionsProvidersService);
 			const selectedAgentUri = session?.mode.read(reader)?.id;
 
@@ -129,7 +129,7 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 
 		const customAgentsListener = this._register(new MutableDisposable());
 		this._register(autorun(reader => {
-			const session = sessionsManagementService.activeSession.read(reader);
+			const session = sessionsService.activeSession.read(reader);
 			const provider = this._getProvider(session, sessionsProvidersService);
 			customAgentsListener.value = provider?.onDidChangeCustomAgents(() => {
 				if (!settingAgentInternally) {
