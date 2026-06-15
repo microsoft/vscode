@@ -39,6 +39,13 @@ export interface IActionWidgetService {
 
 	show<T>(user: string, supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>, anchor: HTMLElement | StandardMouseEvent | IAnchor, container: HTMLElement | undefined, actionBarActions?: readonly IAction[], accessibilityProvider?: Partial<IListAccessibilityProvider<IActionListItem<T>>>, listOptions?: IActionListOptions): void;
 
+	/**
+	 * Replaces the items of the currently shown widget in place, without closing
+	 * or repositioning it. Preserves the current filter. When `focusItemId` is
+	 * provided, focuses that item; otherwise preserves the focused item.
+	 */
+	updateItems<T>(items: readonly IActionListItem<T>[], focusItemId?: string): void;
+
 	hide(didCancel?: boolean): void;
 
 	readonly isVisible: boolean;
@@ -81,6 +88,10 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 
 	acceptSelected(preview?: boolean) {
 		this._list.value?.acceptSelected(preview);
+	}
+
+	updateItems<T>(items: readonly IActionListItem<T>[], focusItemId?: string): void {
+		(this._list.value as ActionList<T> | undefined)?.updateItems(items, focusItemId);
 	}
 
 	focusPrevious() {
@@ -137,6 +148,13 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 			throw new Error('List has no value');
 		}
 		const renderDisposables = new DisposableStore();
+
+		// Clicking the header banner must not move focus out of the list, which
+		// would blur the widget and dismiss it.
+		const headerContainer = this._list.value.headerContainer;
+		if (headerContainer) {
+			renderDisposables.add(dom.addDisposableGenericMouseDownListener(headerContainer, e => e.preventDefault()));
+		}
 
 		// Invisible div to block mouse interaction in the rest of the UI
 		const menuBlock = document.createElement('div');

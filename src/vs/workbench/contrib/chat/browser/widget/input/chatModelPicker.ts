@@ -18,6 +18,7 @@ import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 import { formatTokenCount } from '../../../../../../base/common/numbers.js';
+import { isMacintosh } from '../../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
@@ -1002,6 +1003,9 @@ export class ModelPickerWidget extends Disposable {
 	render(container: HTMLElement): void {
 		this._domNode = dom.append(container, dom.$('div.action-label.model-picker-split'));
 		this._domNode.setAttribute('role', 'group');
+		// The container groups the individual buttons; only the buttons should be
+		// tab stops, not the container itself.
+		this._domNode.tabIndex = -1;
 
 		// Apply initial collapsed state now that _domNode exists
 		if (this._compact?.get()) {
@@ -1298,13 +1302,12 @@ export class ModelPickerWidget extends Disposable {
 	}
 
 	/**
-	 * Opens the combined configuration dropdown containing the model's Thinking
-	 * Effort and Context Size options (when available), in a single popup anchored
-	 * to the config button.
+	 * Builds the combined configuration items containing the model's Thinking
+	 * Effort and Context Size options (when available).
 	 */
-	private _showConfigPicker(): void {
-		if (this._domNode?.classList.contains('disabled') || !this._configButton || !this._selectedModel) {
-			return;
+	private _buildConfigItems(): IActionListItem<IActionWidgetDropdownAction>[] {
+		if (!this._selectedModel) {
+			return [];
 		}
 
 		const modelIdentifier = this._selectedModel.identifier;
@@ -1360,7 +1363,9 @@ export class ModelPickerWidget extends Disposable {
 						label: displayLabel,
 						run: () => {
 							logChange(value, previousValue);
-							this._languageModelsService.setModelConfiguration(modelIdentifier, { [config.key]: value });
+							// Write through the same (possibly per-editor) access used for
+							// reading so the change is reflected back in the UI. See #320393.
+							this._modelConfiguration.setModelConfiguration(modelIdentifier, { [config.key]: value });
 						}
 					},
 					kind: ActionListItemKind.Action,
@@ -1402,20 +1407,51 @@ export class ModelPickerWidget extends Disposable {
 			},
 		);
 
+		// Nothing configurable for this model returns an empty list; callers
+		// decide whether to show the popup.
+		return items;
+	}
+
+	/**
+	 * Opens the combined configuration dropdown containing the model's Thinking
+	 * Effort and Context Size options (when available), in a single popup anchored
+	 * to the config button.
+	 */
+	private _showConfigPicker(): void {
+		if (this._domNode?.classList.contains('disabled') || !this._configButton || !this._selectedModel) {
+			return;
+		}
+
+		const items = this._buildConfigItems();
+
 		// Nothing configurable for this model: don't show an empty popup.
 		if (!items.length) {
 			return;
 		}
 
 		const previouslyFocusedElement = dom.getActiveElement();
+		// When the widget is dismissed by selecting an option, return focus to the
+		// config button so it can be reopened, rather than to whatever was focused
+		// before the picker opened.
+		let dismissedBySelection = false;
 		const delegate = {
-			onSelect: (action: IActionWidgetDropdownAction) => {
-				this._actionWidgetService.hide();
+			onSelect: (action: IActionWidgetDropdownAction, _preview?: boolean, keepOpen?: boolean) => {
 				action.run();
+				if (keepOpen) {
+					// Keep the widget open and refresh the checked state in place,
+					// without closing or repositioning it, keeping focus on the
+					// item that was just selected.
+					this._actionWidgetService.updateItems(this._buildConfigItems(), action.id);
+				} else {
+					dismissedBySelection = true;
+					this._actionWidgetService.hide();
+				}
 			},
 			onHide: () => {
 				this._configButton?.setAttribute('aria-expanded', 'false');
-				if (dom.isHTMLElement(previouslyFocusedElement)) {
+				if (dismissedBySelection && this._configButton) {
+					this._configButton.focus();
+				} else if (dom.isHTMLElement(previouslyFocusedElement)) {
 					previouslyFocusedElement.focus();
 				}
 			}
@@ -1441,6 +1477,7 @@ export class ModelPickerWidget extends Disposable {
 			{
 				headerText: localize('chat.config.costHint', "Non-default options may increase cost"),
 				headerIcon: Codicon.info,
+				footerText: localize('chat.config.keepOpenTip', "Tip: Hold {0} to keep open", isMacintosh ? '\u2318' : localize('chat.config.ctrlKey', "Ctrl")),
 			}
 		);
 	}
