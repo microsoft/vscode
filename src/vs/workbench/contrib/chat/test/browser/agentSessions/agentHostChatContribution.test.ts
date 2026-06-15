@@ -27,6 +27,7 @@ import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, ty
 import { sessionReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
 import { ChatRequestQueueKind, ElicitationState, IChatService, IChatMarkdownContent, IChatProgress, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
@@ -414,6 +415,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	instantiationService.stub(IAgentHostService, agentHostService);
 	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(IProductService, { quality: 'insider' });
+	instantiationService.stub(IChatEntitlementService, { entitlement: ChatEntitlement.Free, quotas: {} } as Partial<IChatEntitlementService> as IChatEntitlementService);
 	instantiationService.stub(IChatAgentService, chatAgentService);
 	instantiationService.stub(IChatWidgetService, chatWidgetService);
 	instantiationService.stub(IFileService, TestFileService);
@@ -2149,12 +2151,13 @@ suite('AgentHostChatContribution', () => {
 				origin: undefined,
 			});
 
-			await turnPromise;
+			const result = await turnPromise;
 
-			// Should have received the error message and the request should have finished
-			assert.ok(collected.length >= 1);
-			const errorPart = collected.flat().find(p => p.kind === 'markdownContent' && (p as IChatMarkdownContent).content.value.includes('Something went wrong'));
-			assert.ok(errorPart, 'Should have found a markdownContent part containing the error message');
+			// The error is surfaced as the agent result's errorDetails (so the
+			// chat renders a proper error / quota upgrade affordance) rather
+			// than an inline markdown progress part.
+			assert.strictEqual(result.errorDetails?.message, 'Error: (test_error) Something went wrong');
+			assert.ok(!collected.flat().some(p => p.kind === 'markdownContent' && (p as IChatMarkdownContent).content.value.includes('Something went wrong')), 'Error should not be duplicated as a markdown progress part');
 		}));
 	});
 

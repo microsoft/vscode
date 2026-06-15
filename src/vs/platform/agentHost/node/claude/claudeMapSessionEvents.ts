@@ -9,6 +9,7 @@ import { LogLevel, type ILogService } from '../../../log/common/log.js';
 import type { AgentSignal } from '../../common/agentService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { ResponsePartKind, ToolResultContentType, type ToolResultContent, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
+import { extractForwardedErrorInfo } from '../shared/forwardedChatError.js';
 import { buildTopLevelSubagentReadyAction, emitInnerAssistantSignals, mapSubagentSystemMessage, SUBAGENT_SPAWNING_TOOL_NAMES, tagWithParent } from './claudeSubagentSignals.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
 import { stripClientToolNamePrefix, hasClientToolNamePrefix } from './clientTools/claudeClientToolMcpServer.js';
@@ -437,6 +438,28 @@ function mapResult(
 			},
 		});
 	}
+
+	// Surface execution errors (e.g. an upstream CAPI failure relayed by the
+	// proxy) as a SessionError so the turn renders an error instead of
+	// completing empty. Mirrors the Copilot Chat extension's
+	// `handleResultMessage`. The proxy embeds a `VSCODE_PROXY_ERROR` marker in
+	// the error text, which we decode into `_meta` for rich, localized
+	// messaging (rate limit, quota + upgrade affordance, etc.).
+	const errorText = getResultErrorText(message);
+	if (errorText !== undefined) {
+		signals.push({
+			kind: 'action',
+			session,
+			action: {
+				type: ActionType.SessionError,
+				turnId,
+				error: {
+					errorType: message.subtype,
+					...extractForwardedErrorInfo(errorText),
+				},
+			},
+		});
+	}
 	// `SessionTurnComplete` is emitted by the session via
 	// `ClaudeSdkPipeline.onTurnComplete`, NOT here. The pipeline knows
 	// when the protocol Turn is truly done (queue fully drained vs an
@@ -450,6 +473,21 @@ function mapResult(
 		logService.warn(`[claudeMapSessionEvents] turn ended with pending subagent-spawning tool_use ${orphan.toolUseId} (agentId=${orphan.agentId ?? '<unresolved>'}); dropping cross-message state`);
 	}
 	return signals;
+}
+
+/**
+ * Extracts the error text from an SDK result message for the error subtypes
+ * the proxy can relay. Mirrors the Copilot Chat extension's
+ * `getResultErrorText`.
+ */
+function getResultErrorText(message: Extract<SDKMessage, { type: 'result' }>): string | undefined {
+	if (message.subtype === 'success') {
+		return message.is_error ? message.result : undefined;
+	}
+	if (message.subtype === 'error_during_execution') {
+		return message.errors?.join('\n');
+	}
+	return undefined;
 }
 
 function mapStreamEvent(

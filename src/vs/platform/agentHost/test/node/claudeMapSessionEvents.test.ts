@@ -12,6 +12,7 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import { ResponsePartKind, ToolResultContentType } from '../../common/state/sessionState.js';
 import { ToolCallConfirmationReason, ToolCallContributorKind } from '../../common/state/protocol/state.js';
 import { ClaudeMapperState, mapSDKMessageToAgentSignals } from '../../node/claude/claudeMapSessionEvents.js';
+import { encodeForwardedChatError, PROXY_ERROR_PREFIX } from '../../node/shared/forwardedChatError.js';
 import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
 import {
 	makeAssistantMessage,
@@ -22,6 +23,7 @@ import {
 	makeInputJsonDelta,
 	makeMessageStart,
 	makeMessageStop,
+	makeResultError,
 	makeResultSuccess,
 	makeStreamEvent,
 	makeTextDelta,
@@ -79,6 +81,43 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		);
 
 		assert.deepStrictEqual(signals, []);
+	});
+
+	test('error_during_execution result with a proxy marker emits a SessionError carrying _meta', () => {
+		const marker = encodeForwardedChatError({ fetchError: { type: 'quotaExceeded', capiError: { code: 'quota_exceeded', message: 'You have exceeded your monthly quota' } } });
+		const signals = mapSDKMessageToAgentSignals(
+			makeResultError(SESSION_ID, [`CAPI request failed: 402 Payment Required \u2014 quota ${marker}`]),
+			SESSION,
+			TURN_ID,
+			new ClaudeMapperState(),
+			new NullLogService(),
+			r(),
+		);
+
+		const errorSignal = signals.find(s => s.kind === 'action' && s.action.type === ActionType.SessionError);
+		assert.ok(errorSignal && errorSignal.kind === 'action' && errorSignal.action.type === ActionType.SessionError);
+		const error = errorSignal.action.error;
+		const meta = error._meta as { chatError?: { fetchError?: { type?: string } } } | undefined;
+		assert.strictEqual(meta?.chatError?.fetchError?.type, 'quotaExceeded');
+		assert.ok(!error.message.includes(PROXY_ERROR_PREFIX), 'proxy marker should be stripped from the human-readable message');
+	});
+
+	test('successful result is_error with a proxy marker emits a SessionError carrying _meta', () => {
+		const marker = encodeForwardedChatError({ fetchError: { type: 'quotaExceeded', capiError: { code: 'quota_exceeded' } } });
+		const result = makeResultSuccess(SESSION_ID);
+		const signals = mapSDKMessageToAgentSignals(
+			{ ...result, is_error: true, result: `quota ${marker}` },
+			SESSION,
+			TURN_ID,
+			new ClaudeMapperState(),
+			new NullLogService(),
+			r(),
+		);
+
+		const errorSignal = signals.find(s => s.kind === 'action' && s.action.type === ActionType.SessionError);
+		assert.ok(errorSignal && errorSignal.kind === 'action' && errorSignal.action.type === ActionType.SessionError);
+		const meta = errorSignal.action.error._meta as { chatError?: { fetchError?: { type?: string } } } | undefined;
+		assert.strictEqual(meta?.chatError?.fetchError?.type, 'quotaExceeded');
 	});
 
 	test('text content block: start emits SessionResponsePart, deltas emit SessionDelta', () => {
