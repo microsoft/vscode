@@ -132,6 +132,7 @@ export class ImageCarouselEditor extends EditorPane {
 			this._appendThumbnails(previousImageIds.length);
 			this._refreshThumbnailLabels();
 			this._syncNavigationChrome();
+			this._announceCurrentImage();
 			return;
 		}
 
@@ -475,6 +476,30 @@ export class ImageCarouselEditor extends EditorPane {
 	}
 
 	/**
+	 * Announces the current item (position + total + caption/name) on the `aria-live`
+	 * status region. Shared by image updates (`updateCurrentImage`) and in-place refresh
+	 * appends (`refreshFromInput`) so the announced total tracks the thumbnail count.
+	 */
+	private _announceCurrentImage(): void {
+		if (!this._elements) {
+			return;
+		}
+
+		const entry = this._flatImages[this._currentIndex];
+		if (!entry) {
+			return;
+		}
+
+		const image = entry.image;
+		const itemKind = isVideoMimeType(image.mimeType)
+			? localize('imageCarousel.kindVideo', "Video")
+			: localize('imageCarousel.kindImage', "Image");
+		this._elements.ariaStatus.textContent = image.caption
+			? localize('imageCarousel.statusWithCaption', "{0} {1} of {2}: {3}", itemKind, this._currentIndex + 1, this._flatImages.length, image.caption)
+			: localize('imageCarousel.statusWithName', "{0} {1} of {2}: {3}", itemKind, this._currentIndex + 1, this._flatImages.length, image.name);
+	}
+
+	/**
 	 * Update only the changing parts: main image src, caption, button states, thumbnail selection.
 	 * No DOM teardown/rebuild — eliminates the blank flash.
 	 */
@@ -585,14 +610,7 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 			this._elements.captionSeparator.style.display = 'none';
 		}
 		this._syncNavigationChrome();
-
-		// Announce to screen readers with full context (position + caption/name)
-		const itemKind = isVideo
-			? localize('imageCarousel.kindVideo', "Video")
-			: localize('imageCarousel.kindImage', "Image");
-		this._elements.ariaStatus.textContent = currentImage.caption
-			? localize('imageCarousel.statusWithCaption', "{0} {1} of {2}: {3}", itemKind, navigationIndex + 1, this._flatImages.length, currentImage.caption)
-			: localize('imageCarousel.statusWithName', "{0} {1} of {2}: {3}", itemKind, navigationIndex + 1, this._flatImages.length, currentImage.name);
+		this._announceCurrentImage();
 
 		// Scroll the active thumbnail into view without blocking the main thread.
 		// Using scrollIntoView with 'nearest' avoids forced layout from
