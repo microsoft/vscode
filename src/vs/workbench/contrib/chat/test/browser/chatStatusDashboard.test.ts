@@ -518,6 +518,28 @@ suite('ChatStatusDashboard', () => {
 		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot is paused until the limit resets.');
 	});
 
+	test('Callout: Free — no paused message when only inline suggestions limit is reached', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			chat: { percentRemaining: 90, unlimited: false },
+			completions: { percentRemaining: 0, unlimited: false },
+			additionalUsageEnabled: false,
+			entitlement: ChatEntitlement.Free,
+		}));
+
+		assert.strictEqual(getCalloutText(dashboard.element), null);
+	});
+
+	test('Callout: Free — shows paused when chat limit is reached', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			chat: { percentRemaining: 0, unlimited: false },
+			completions: { percentRemaining: 90, unlimited: false },
+			additionalUsageEnabled: false,
+			entitlement: ChatEntitlement.Free,
+		}));
+
+		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot is paused until the limit resets.');
+	});
+
 	test('Callout: shows budget active when quota exhausted and overage permitted but no overage used yet', () => {
 		const dashboard = createDashboard(createEntitlementService({
 			premiumChat: { percentRemaining: 0, unlimited: false },
@@ -605,7 +627,7 @@ suite('ChatStatusDashboard', () => {
 			entitlement: ChatEntitlement.Enterprise,
 		}));
 
-		assert.strictEqual(getCalloutText(dashboard.element), 'You\'re approaching your included credits. Your organization covers additional usage, so there\'s no interruption.');
+		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot will pause when your limits are reached. Please contact your admin to increase your limits.');
 	});
 
 	test('Callout: Business — shows org-specific wording when approaching limit with additional usage', () => {
@@ -616,7 +638,7 @@ suite('ChatStatusDashboard', () => {
 			entitlement: ChatEntitlement.Business,
 		}));
 
-		assert.strictEqual(getCalloutText(dashboard.element), 'You\'re approaching your included credits. Your organization covers additional usage, so there\'s no interruption.');
+		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot will pause when your limits are reached. Please contact your admin to increase your limits.');
 	});
 
 	test('Callout: Enterprise — shows org-specific wording when quota exhausted with additional usage', () => {
@@ -628,7 +650,19 @@ suite('ChatStatusDashboard', () => {
 			entitlement: ChatEntitlement.Enterprise,
 		}));
 
-		assert.strictEqual(getCalloutText(dashboard.element), 'You\'ve used your included credits. Your organization covers additional usage, so you can keep working.');
+		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot has paused because your limits are reached. Please contact your admin to increase your limits.');
+	});
+
+	test('Callout: Business — shows org-specific wording when quota exhausted with additional usage', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			premiumChat: { percentRemaining: 0, unlimited: false, usageBasedBilling: true },
+			completions: { percentRemaining: 90, unlimited: false },
+			additionalUsageEnabled: true,
+			additionalUsageCount: 5,
+			entitlement: ChatEntitlement.Business,
+		}));
+
+		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot has paused because your limits are reached. Please contact your admin to increase your limits.');
 	});
 
 	// --- LIVE UPDATES ---

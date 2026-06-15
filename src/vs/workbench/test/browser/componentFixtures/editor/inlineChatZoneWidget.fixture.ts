@@ -146,7 +146,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatInput, {
 });
 MenuRegistry.appendMenuItem(MenuId.ChatExecute, {
 	group: 'navigation', order: 4,
-	command: { id: 'workbench.action.chat.submit', title: 'Send', icon: Codicon.arrowUp },
+	command: { id: 'workbench.action.chat.submit', title: 'Send', icon: Codicon.newLine },
 });
 
 function renderInlineChatZoneWidget({ container, disposableStore, theme }: ComponentFixtureContext, showTerminationCard: boolean): void {

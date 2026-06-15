@@ -51,7 +51,7 @@ import { SlashCommandHandler } from './slashCommands.js';
 import { VariableCompletionHandler } from './variableCompletions.js';
 import { AgentHostInputCompletionHandler } from './agentHostInputCompletions.js';
 import { IChatModelInputState } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
-import { IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, toFileVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ChatHistoryNavigator } from '../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
@@ -128,6 +128,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	private readonly _onDidBlur = this._register(new Emitter<void>());
 	readonly onDidBlur = this._onDidBlur.event;
 	get element(): HTMLElement { return this._editorContainer; }
+
+	/** The underlying input editor. Exposed for component fixtures. */
+	get inputEditor(): CodeEditorWidget | undefined { return this._editor; }
 
 	// Input
 	private _editor!: CodeEditorWidget;
@@ -522,7 +525,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				: localize('send', "Send"),
 			ariaLabel: localize('send', "Send"),
 		}));
-		sendButton.icon = Codicon.arrowUp;
+		sendButton.icon = Codicon.newLine;
 		// Hold Alt while clicking Send to start the session in the background.
 		this._register(sendButton.onDidClick(e => this._send(!!this.options.supportsBackground && !!(e as MouseEvent | KeyboardEvent | undefined)?.altKey)));
 	}
@@ -594,6 +597,13 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		const queryOffset = rawQuery.length - rawQuery.trimStart().length;
 		const hasSendableAttachment = this._contextAttachments.attachments.some(isExplicitFileOrImageVariableEntry);
 		if ((!query && !hasSendableAttachment) || this._sending) {
+			return;
+		}
+
+		// Respect the same gate as the send button (e.g. a session with no
+		// usable model). The Enter keybinding and slash-command paths reach
+		// here directly, bypassing the button's disabled state.
+		if (!this.options.canSendRequest.get()) {
 			return;
 		}
 
@@ -705,6 +715,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			model.setValue(text);
 			this._send();
 		}
+	}
+
+	attach(uris: URI[]): void {
+		this._contextAttachments.addAttachments(...uris.map(uri => toFileVariableEntry(uri)));
 	}
 }
 

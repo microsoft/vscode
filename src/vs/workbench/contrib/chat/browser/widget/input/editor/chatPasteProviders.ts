@@ -6,7 +6,7 @@ import { alert } from '../../../../../../../base/browser/ui/aria/aria.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { createStringDataTransferItem, IDataTransferItem, IReadonlyVSDataTransfer, VSDataTransfer } from '../../../../../../../base/common/dataTransfer.js';
-import { convertHtmlToMarkdown } from '../../../../../../../base/common/htmlToMarkdown.js';
+import { convertHtmlToMarkdown } from '../../../../../../../base/browser/htmlToMarkdown.js';
 import { HierarchicalKind } from '../../../../../../../base/common/hierarchicalKind.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { revive } from '../../../../../../../base/common/marshalling.js';
