@@ -12,6 +12,22 @@ export interface RunConfig {
 	readonly additionalOptions?: Partial<esbuild.BuildOptions>;
 }
 
+// `esbuild.stop()` shuts down the single esbuild service shared by all concurrent builds, so we
+// must only call it once no builds are in flight. Otherwise a finishing build would tear down the
+// service while a sibling build (e.g. running in the same `Promise.all`) is still using it.
+let pendingBuilds = 0;
+
+async function buildOnce(options: esbuild.BuildOptions): Promise<esbuild.BuildResult> {
+	pendingBuilds++;
+	try {
+		return await esbuild.build(options);
+	} finally {
+		if (--pendingBuilds === 0) {
+			esbuild.stop();
+		}
+	}
+}
+
 /**
  * Shared build/watch runner for extension esbuild scripts.
  */
@@ -41,12 +57,10 @@ export async function runBuild(
 		await watchWithParcel(resolvedOptions, config.srcDir, () => didBuild?.(outdir));
 	} else {
 		try {
-			await esbuild.build(resolvedOptions);
+			await buildOnce(resolvedOptions);
 			await didBuild?.(outdir);
 		} catch {
 			process.exit(1);
-		} finally {
-			esbuild.stop();
 		}
 	}
 }
@@ -62,14 +76,12 @@ async function watchWithParcel(options: esbuild.BuildOptions, srcDir: string, di
 			try {
 				// Also instead of retaining the esbuild context, we are re-running the entire build on each change.
 				// This reduces memory usage since most projects don't need to be re-built often.
-				const result = await esbuild.build(options);
+				const result = await buildOnce(options);
 				if (result.errors.length === 0) {
 					await didBuild?.();
 				}
 			} catch (error) {
 				console.error('[watch] build error:', error);
-			} finally {
-				esbuild.stop();
 			}
 		}, 100);
 	};
