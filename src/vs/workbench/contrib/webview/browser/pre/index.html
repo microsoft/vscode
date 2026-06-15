@@ -957,6 +957,19 @@
 				}
 
 				activeFrame.contentWindow.focus();
+
+				// Try to focus the first focusable element inside the webview content
+				// so that keyboard users land directly on interactive content.
+				try {
+					const focusable = activeFrame.contentDocument?.querySelector(
+						'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+					);
+					if (focusable) {
+						/** @type {HTMLElement} */ (focusable).focus();
+					}
+				} catch {
+					// Cross-origin frame, ignore
+				}
 			});
 
 			// update iframe-contents
