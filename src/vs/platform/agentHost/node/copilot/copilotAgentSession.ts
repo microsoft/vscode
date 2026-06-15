@@ -1967,8 +1967,14 @@ export class CopilotAgentSession extends Disposable {
 			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
 			this._activeToolCalls.set(e.data.toolCallId, { toolName: e.data.toolName, displayName, parameters, content: [], parentToolCallId, startTimeMs: Date.now(), mcpServerName: e.data.mcpServerName, meta: undefined });
 			if (isTaskCompleteTool(e.data.toolName)) {
+<<<<<<< HEAD
 				this._currentMarkdownPartIds.delete('');
 				this._currentReasoningPartIds.delete('');
+=======
+				const scope = parentToolCallId ?? '';
+				this._currentMarkdownPartIds.delete(scope);
+				this._currentReasoningPartIds.delete(scope);
+>>>>>>> 1483a116d08 (agentHost: render task_complete summaries as markdown (#321422) (#321430))
 				return;
 			}
 			const toolKind = getToolKind(e.data.toolName);

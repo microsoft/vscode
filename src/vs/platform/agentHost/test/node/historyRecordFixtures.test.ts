@@ -104,6 +104,19 @@ suite('mapSessionEventsToHistoryRecords', () => {
 		}]);
 	});
 
+<<<<<<< HEAD
+=======
+	test('drops orphan task_complete without synthesizing a turn', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-task-complete', toolName: 'task_complete', arguments: { summary: 'Done.' } } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-task-complete', success: true, result: { content: 'Done.' } } },
+		];
+
+		const result = await mapSessionEvents(session, undefined, events);
+		assert.deepStrictEqual(result.turns, []);
+	});
+
+>>>>>>> 1483a116d08 (agentHost: render task_complete summaries as markdown (#321422) (#321430))
 	test('skips tool_complete without matching tool_start', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'tool.execution_complete', data: { toolCallId: 'orphan', success: true } },

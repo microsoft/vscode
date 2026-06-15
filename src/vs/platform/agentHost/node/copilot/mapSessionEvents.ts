@@ -436,8 +436,16 @@ export async function mapSessionEvents(
 				}
 				toolInfoByCallId.delete(d.toolCallId);
 				if (isTaskCompleteTool(info.toolName)) {
+<<<<<<< HEAD
 					const summary = getTaskCompleteSummary(info.parameters, d.error?.message ?? d.result?.content);
 					const builder = parentBuilder ?? (parentBuilder = newTurnBuilder(generateUuid(), ''));
+=======
+					const builder = targetBuilderFor(d.parentToolCallId);
+					if (!builder) {
+						continue;
+					}
+					const summary = getTaskCompleteSummary(info.parameters, d.error?.message ?? d.result?.content);
+>>>>>>> 1483a116d08 (agentHost: render task_complete summaries as markdown (#321422) (#321430))
 					if (summary) {
 						builder.responseParts.push({
 							kind: ResponsePartKind.Markdown,
@@ -445,7 +453,11 @@ export async function mapSessionEvents(
 							content: summary,
 						});
 					}
+<<<<<<< HEAD
 					if (d.success && builder === parentBuilder) {
+=======
+					if (!d.parentToolCallId && d.success && builder === parentBuilder) {
+>>>>>>> 1483a116d08 (agentHost: render task_complete summaries as markdown (#321422) (#321430))
 						turns.push(finalizeTurn(parentBuilder, TurnState.Complete));
 						parentBuilder = undefined;
 					}
