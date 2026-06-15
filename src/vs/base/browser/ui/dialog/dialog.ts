@@ -182,6 +182,8 @@ export class Dialog extends Disposable {
 			// eslint-disable-next-line no-restricted-syntax
 			for (const el of this.messageContainer.querySelectorAll('a')) {
 				el.tabIndex = 0;
+				// Ensure links are distinguishable by more than just color (WCAG 1.4.1)
+				el.style.textDecoration = 'underline';
 			}
 		}
 
@@ -579,6 +581,8 @@ export class Dialog extends Disposable {
 			// eslint-disable-next-line no-restricted-syntax
 			for (const el of [...this.messageContainer.getElementsByTagName('a'), ...this.footerContainer?.getElementsByTagName('a') ?? []]) {
 				el.style.color = linkFgColor;
+				// Ensure links are distinguishable by more than just color (WCAG 1.4.1)
+				el.style.textDecoration = 'underline';
 			}
 		}
 
