@@ -6,7 +6,7 @@
 import { URI } from '../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { combinedDisposable, Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
-import { basename } from '../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../base/common/resources.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IAgentHostCustomizationService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IAgentHostMcpServer, IAgentHostSessionsProvider, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
@@ -39,7 +39,7 @@ export class AgentHostCustomizationService extends Disposable implements IAgentH
 
 	private _getSession(sessionResource: URI): ISession | undefined {
 		const activeSession = this._sessionsService.activeSession.get();
-		if (activeSession && activeSession.resource.toString() === sessionResource.toString()) {
+		if (activeSession && isEqual(activeSession.resource, sessionResource)) {
 			return activeSession;
 		}
 		return this._sessionsManagementService.getSession(sessionResource);
