@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// DOM-free unit test for the model's merge/de-dupe/sectioning logic. Runs WITHOUT
-// a full VS Code build via Node's native TS type stripping:
-//   node --test src/vs/workbench/contrib/terminal/browser/agentTabs/test/agentTerminalSelectorModel.test.ts
+// DOM-free unit test for the model's merge/de-dupe/sectioning logic. Imports use
+// the VS Code `.js` extension convention (so the file compiles with the rest of
+// `src/` under gulp); run it against the compiled output:
+//   node --test out/vs/workbench/contrib/terminal/browser/agentTabs/test/agentTerminalSelectorModel.test.js
 // The unit under test (mergeSelectorRows) is the pure core of
 // AgentTerminalSelectorModel; the stateful model is a thin event-fan-in over it.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mergeSelectorRows } from '../agentTerminalSelectorRows.ts';
-import type { SelectorRow, IAgentEntry, ISelectorInstanceRef } from '../agentTerminalSelectorRows.ts';
+import { mergeSelectorRows } from '../agentTerminalSelectorRows.js';
+import type { SelectorRow, IAgentEntry, ISelectorInstanceRef } from '../agentTerminalSelectorRows.js';
 
 interface FakeInstance extends ISelectorInstanceRef {
 	readonly instanceId: number;

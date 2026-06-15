@@ -60,11 +60,14 @@ Supporting (repo root / tooling), also new files:
 
 ---
 
-## Verification (no full build required)
+## Verification
 
 ```bash
-scripts/verify-seam.sh                                   # seam guard — exits 0
-node --test src/vs/workbench/contrib/terminal/browser/agentTabs/test/agentTerminalSelectorModel.test.ts
+scripts/verify-seam.sh                                   # seam guard — exits 0 (no build needed)
+# Unit test (merge/de-dupe/sectioning logic). The test file follows the VS Code
+# `.js`-import convention so it builds with the rest of src/; run it from out/:
+npm run compile   # or the watch task; produces out/
+node --test out/vs/workbench/contrib/terminal/browser/agentTabs/test/agentTerminalSelectorModel.test.js
 ```
 
 The remaining risk is **interface drift** in `ITerminalGroupService` /
