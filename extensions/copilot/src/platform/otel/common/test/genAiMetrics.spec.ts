@@ -72,6 +72,40 @@ describe('GenAiMetrics', () => {
 		});
 	});
 
+	it('recordTimeToFirstChunk records the GenAI streaming histogram with response model', () => {
+		const otel = createMockOTelService();
+
+		GenAiMetrics.recordTimeToFirstChunk(otel, 0.45, {
+			operationName: GenAiOperationName.CHAT,
+			providerName: GenAiProviderName.GITHUB,
+			requestModel: 'gpt-4o',
+			responseModel: 'gpt-4o-2024-08-06',
+		});
+
+		expect(otel.recordMetric).toHaveBeenCalledWith('gen_ai.client.operation.time_to_first_chunk', 0.45, {
+			[GenAiAttr.OPERATION_NAME]: 'chat',
+			[GenAiAttr.PROVIDER_NAME]: 'github',
+			[GenAiAttr.REQUEST_MODEL]: 'gpt-4o',
+			[GenAiAttr.RESPONSE_MODEL]: 'gpt-4o-2024-08-06',
+		});
+	});
+
+	it('recordTimePerOutputChunk records the GenAI inter-chunk histogram', () => {
+		const otel = createMockOTelService();
+
+		GenAiMetrics.recordTimePerOutputChunk(otel, 0.02, {
+			operationName: GenAiOperationName.CHAT,
+			providerName: GenAiProviderName.GITHUB,
+			requestModel: 'gpt-4o',
+		});
+
+		expect(otel.recordMetric).toHaveBeenCalledWith('gen_ai.client.operation.time_per_output_chunk', 0.02, {
+			[GenAiAttr.OPERATION_NAME]: 'chat',
+			[GenAiAttr.PROVIDER_NAME]: 'github',
+			[GenAiAttr.REQUEST_MODEL]: 'gpt-4o',
+		});
+	});
+
 	it('recordToolCallCount increments counter', () => {
 		const otel = createMockOTelService();
 

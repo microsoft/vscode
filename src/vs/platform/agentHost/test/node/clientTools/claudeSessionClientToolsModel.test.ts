@@ -111,12 +111,16 @@ suite('SessionClientToolsDiff', () => {
 		assert.strictEqual(diff.model.state.get().clientId, 'c2');
 	});
 
-	test('clientId change alone flips dirty', () => {
+	test('clientId change alone does NOT flip dirty (same tools, new window)', () => {
 		const diff = disposables.add(new SessionClientToolsDiff());
 		diff.model.setTools([tool()], 'c1');
 		diff.consume();
 		assert.strictEqual(diff.hasDifference, false);
+		// A window reload re-pushes identical tools under a new clientId. The
+		// observable still updates clientId, but no SDK yield-restart is
+		// required — only structural tool changes flip the dirty bit.
 		diff.model.setTools([tool()], 'c2');
-		assert.strictEqual(diff.hasDifference, true);
+		assert.strictEqual(diff.hasDifference, false);
+		assert.strictEqual(diff.model.state.get().clientId, 'c2');
 	});
 });

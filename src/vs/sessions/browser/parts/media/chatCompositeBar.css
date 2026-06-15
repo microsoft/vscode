@@ -15,15 +15,19 @@
 /* Header host: title row + meta row, with the top padding for the whole bar area */
 .chat-composite-bar.session-header-bar {
 	padding: 6px 10px 0;
-	max-width: 950px;
-	margin: 0 auto;
 	box-sizing: border-box;
 }
 
-/* Tabs host: the chat tab strip, shown only when the session has multiple chats */
+/* Tabs host: the chat tab strip, shown only when the session has multiple chats.
+	It lives in the same centered session-view content host as the header. */
 .chat-composite-bar.session-chat-tabs-bar {
 	padding: 0 10px;
+	box-sizing: border-box;
 	container-type: inline-size;
+
+	/* Tab width cap: 200px, but never more than 40% of the tab strip width
+		(cqi = container-query inline-size unit, enabled by container-type). */
+	--chat-tab-max-width: min(200px, 40cqi);
 }
 
 /* Header: a status icon column next to a main column (title row + meta row).
@@ -63,7 +67,7 @@
 	justify-content: center;
 	flex-shrink: 0;
 	height: 26px;
-	font-size: 16px;
+	font-size: var(--vscode-codiconFontSize, 16px);
 	color: var(--session-view-foreground);
 }
 
@@ -73,10 +77,10 @@
 	overflow: hidden;
 	display: flex;
 	align-items: center;
-	font-weight: 600;
-	font-size: 13px;
+	font-weight: var(--vscode-agents-fontWeight-semiBold, 600);
+	font-size: var(--vscode-agents-fontSize-heading3, 13px);
 	color: var(--chat-tab-active-foreground, var(--session-view-foreground));
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	min-height: 22px;
 	/* Match the input's inner padding so the rendered text and the rename
 		input's text occupy the same horizontal position. */
@@ -125,8 +129,8 @@
 	color: var(--vscode-input-foreground, inherit);
 	background-color: var(--vscode-input-background, transparent);
 	border: 1px solid var(--vscode-focusBorder, var(--vscode-input-border, transparent));
-	border-radius: 4px;
-	padding: 0 3px;
+	border-radius: var(--vscode-cornerRadius-small);
+	padding: 0 4px;
 	margin: 0;
 	outline: none;
 	min-height: 22px;
@@ -150,7 +154,8 @@
 	align-items: center;
 	gap: 6px;
 	height: 22px;
-	font-size: 12px;
+	font-size: var(--vscode-agents-fontSize-label1, 12px);
+	font-weight: var(--vscode-agents-fontWeight-regular, 400);
 	line-height: 18px;
 	color: var(--chat-tab-inactive-foreground, var(--session-view-foreground));
 	overflow: hidden;
@@ -169,16 +174,16 @@
 .chat-composite-bar-meta-branch {
 	display: inline-flex;
 	align-items: center;
-	gap: 3px;
+	gap: 4px;
 	min-width: 0;
 	overflow: hidden;
 }
 
-.chat-composite-bar-meta-workspace-icon,
-.chat-composite-bar-meta-branch-icon {
+.monaco-workbench .chat-composite-bar-meta-workspace-icon.codicon[class*='codicon-'],
+.monaco-workbench .chat-composite-bar-meta-branch-icon.codicon[class*='codicon-'] {
 	display: inline-flex;
 	align-items: center;
-	font-size: 14px;
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
 	flex-shrink: 0;
 }
 
@@ -243,6 +248,7 @@
 	position: absolute;
 	top: 0px;
 	right: 0px;
+	height: 35px;
 	flex-direction: row;
 	align-items: center;
 	padding: 0 4px;
@@ -259,14 +265,14 @@
 	padding: 0 8px;
 	cursor: pointer;
 	color: var(--chat-tab-inactive-foreground);
-	font-weight: 500;
-	font-size: 12px;
+	font-weight: var(--vscode-agents-fontWeight-semiBold, 600);
+	font-size: var(--vscode-agents-fontSize-label1, 12px);
 	line-height: 22px;
 	height: 26px;
 	border-radius: var(--vscode-cornerRadius-small);
 	user-select: none;
 	flex-shrink: 0;
-	max-width: min(200px, 40cqi);
+	max-width: var(--chat-tab-max-width);
 }
 
 .chat-composite-bar-tab-label {
@@ -274,6 +280,44 @@
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	min-width: 0;
+}
+
+/* While editing, the tab expands to its max width. */
+.chat-composite-bar-tab.editing {
+	cursor: default;
+	padding: 0 2px;
+	width: var(--chat-tab-max-width);
+	max-width: var(--chat-tab-max-width);
+}
+
+/* Hide the label and adornments so the input fills the tab while editing. */
+.session-chat-tabs-bar .chat-composite-bar-tab.editing .chat-composite-bar-tab-label,
+.session-chat-tabs-bar .chat-composite-bar-tab.editing .chat-composite-bar-tab-indicator,
+.session-chat-tabs-bar .chat-composite-bar-tab.editing .chat-composite-bar-tab-actions {
+	display: none;
+}
+
+.chat-composite-bar-tab-input-container {
+	display: none;
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.chat-composite-bar-tab.editing .chat-composite-bar-tab-input-container {
+	display: flex;
+}
+
+.chat-composite-bar-tab-input.monaco-inputbox {
+	flex: 1 1 auto;
+	min-width: 0;
+	height: 22px;
+}
+
+.chat-composite-bar-tab-input.monaco-inputbox .input {
+	font-family: inherit;
+	font-weight: inherit;
+	font-size: inherit;
+	padding: 0 4px;
 }
 
 .chat-composite-bar-tab:hover {
@@ -338,7 +382,7 @@
 }
 
 .chat-composite-bar-tab.in-progress .chat-composite-bar-tab-indicator-icon {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
 }
 
 .chat-composite-bar-tab:focus-visible {

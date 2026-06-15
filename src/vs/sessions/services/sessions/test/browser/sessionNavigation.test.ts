@@ -126,6 +126,10 @@ class MockSessionStore implements ISessionsManagementService {
 		}
 	}
 
+	replaceActiveSession(from: IActiveSession, to: IActiveSession): void {
+		this.setActiveSession(to);
+	}
+
 	setActiveChat(chat: IChat): void {
 		const active = this.activeSession.get();
 		if (active) {
@@ -143,6 +147,16 @@ class MockSessionStore implements ISessionsManagementService {
 
 	getSession(resource: URI): ISession | undefined {
 		return this._sessions.get(resource.toString());
+	}
+
+	getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined {
+		for (const session of this._sessions.values()) {
+			const chat = session.chats.get().find(c => c.resource.toString() === resource.toString());
+			if (chat) {
+				return { session, chat };
+			}
+		}
+		return undefined;
 	}
 
 	getAllSessionTypes(): ISessionType[] { return []; }
@@ -217,6 +231,7 @@ suite('SessionsNavigation', () => {
 
 		nav = disposables.add(new SessionsNavigation(
 			store,
+			store.activeSession,
 			store,
 			recency,
 			contextKeyService,

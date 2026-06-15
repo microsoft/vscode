@@ -12,7 +12,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ISession, SessionStatus } from '../common/session.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
-
+import { ISessionsService } from './sessionsService.js';
 export const enum SessionListModelChangeKind {
 	Pinned = 'pinned',
 	Read = 'read',
@@ -91,6 +91,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsService private readonly sessionsService: ISessionsService,
 	) {
 		super();
 
@@ -105,7 +106,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			// When a session completes a turn in the background (transitions
 			// from InProgress to a terminal status) mark it as unread so the
 			// sessions list shows the indicator.
-			const activeSessionId = this.sessionsManagementService.activeSession.get()?.sessionId;
+			const activeSessionId = this.sessionsService.activeSession.get()?.sessionId;
 			for (const session of e.changed) {
 				const previous = this._lastKnownStatus.get(session.sessionId);
 				const current = session.status.get();
@@ -208,10 +209,13 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			case SessionStatus.Error:
 				return { ...Codicon.error, color: themeColorFromId('errorForeground') };
 			default:
+				if (isArchived) {
+					return { ...Codicon.passFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
+				}
 				if (pullRequestIcon) {
 					return pullRequestIcon;
 				}
-				if (!isRead && !isArchived) {
+				if (!isRead) {
 					return { ...Codicon.circleFilled, color: themeColorFromId('textLink.foreground') };
 				}
 				return { ...Codicon.circleSmallFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };

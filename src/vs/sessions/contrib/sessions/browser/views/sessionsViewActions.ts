@@ -17,10 +17,10 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../../browser/workbench.js';
-import { EditorsVisibleContext, EditorAreaFocusContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
+import { EditorsVisibleContext, EditorAreaFocusContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
 import { SessionsCategories } from '../../../../common/categories.js';
-import { ChatSessionProviderIdContext, IsActiveSessionArchivedContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsReadContext, SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
+import { ChatSessionProviderIdContext, IsActiveSessionArchivedContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
 import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection } from './sessionsList.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IsWorkspaceGroupCappedContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext, openSessionToTheSide } from './sessionsView.js';
@@ -30,8 +30,8 @@ import { ISessionsListModelService } from '../../../../services/sessions/browser
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ActiveSessionContextKeys } from '../../../changes/common/changes.js';
 import { hasActiveSessionFailedCIChecks } from '../../../changes/browser/checksActions.js';
-import { ISessionsPartService } from '../../../../browser/parts/sessionsPartService.js';
-import { ISessionsViewService } from '../../../../browser/sessionsViewService.js';
+import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 
 //  Constants
 
@@ -59,8 +59,8 @@ registerAction2(class CloseSessionAction extends Action2 {
 		});
 	}
 	override async run(accessor: ServicesAccessor) {
-		const sessionsViewService = accessor.get(ISessionsViewService);
-		sessionsViewService.openNewSession();
+		const sessionsService = accessor.get(ISessionsService);
+		sessionsService.openNewSession();
 	}
 });
 
@@ -96,7 +96,7 @@ const openSessionAtIndex = (accessor: ServicesAccessor, sessionIndex: unknown): 
 		return;
 	}
 	const viewsService = accessor.get(IViewsService);
-	const sessionsViewService = accessor.get(ISessionsViewService);
+	const sessionsService = accessor.get(ISessionsService);
 	const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
 	const visible = view?.sessionsControl?.getVisibleSessions() ?? [];
 	if (visible.length === 0) {
@@ -109,7 +109,7 @@ const openSessionAtIndex = (accessor: ServicesAccessor, sessionIndex: unknown): 
 	if (!target) {
 		return;
 	}
-	sessionsViewService.openSession(target.resource);
+	sessionsService.openSession(target.resource);
 };
 
 CommandsRegistry.registerCommand({
@@ -117,20 +117,130 @@ CommandsRegistry.registerCommand({
 	handler: openSessionAtIndex
 });
 
-// Ctrl/Cmd+1..8 open the Nth session, Ctrl/Cmd+9 opens the last session
+// Open Nth session from the list. Windows/Linux: Alt+1..9 (Ctrl+1..9 is reserved
+// for focusing sessions in the grid). macOS: Ctrl+1..9 (WinCtrl) — the grid uses
+// Cmd+1..9 there, so Ctrl is free and avoids Option+digit typing symbols.
+// 1..8 open that session; 9 opens the last session.
 for (let visibleIndex = 1; visibleIndex <= 9; visibleIndex++) {
 	const sessionIndex = visibleIndex === 9 ? -1 : visibleIndex - 1;
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: OPEN_SESSION_AT_INDEX_COMMAND_ID + visibleIndex,
-		// Higher than WorkbenchContrib to override `workbench.action.openEditorAtIndexN` (Ctrl+N on macOS)
 		weight: KeybindingWeight.WorkbenchContrib + 1,
 		when: IsSessionsWindowContext,
-		// Always use Ctrl (not Cmd on macOS) to avoid conflicting with Cmd+N view focus shortcuts
-		primary: KeyMod.CtrlCmd | digitToKeyCode(visibleIndex),
+		primary: KeyMod.Alt | digitToKeyCode(visibleIndex),
 		mac: { primary: KeyMod.WinCtrl | digitToKeyCode(visibleIndex) },
 		handler: accessor => openSessionAtIndex(accessor, sessionIndex)
 	});
 }
+
+//  Navigate Previous / Next Session (list order)
+
+const navigateSessionInList = async (accessor: ServicesAccessor, direction: 'previous' | 'next'): Promise<void> => {
+	const viewsService = accessor.get(IViewsService);
+	const sessionsService = accessor.get(ISessionsService);
+	const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
+	const visible = view?.sessionsControl?.getVisibleSessions() ?? [];
+	if (visible.length === 0) {
+		return;
+	}
+
+	// Locate the active session within the visible list so navigation follows
+	// what the user sees (respecting grouping, filtering, and collapsed sections).
+	const activeResource = sessionsService.activeSession.get()?.resource.toString();
+	const currentIndex = activeResource === undefined
+		? -1
+		: visible.findIndex(session => session.resource.toString() === activeResource);
+
+	let targetIndex: number;
+	if (currentIndex === -1) {
+		// No active session in the visible list: start from the nearest edge.
+		targetIndex = direction === 'next' ? 0 : visible.length - 1;
+	} else {
+		targetIndex = direction === 'next'
+			? Math.min(currentIndex + 1, visible.length - 1)
+			: Math.max(currentIndex - 1, 0);
+	}
+
+	// At the list edges the target clamps to the active session; don't re-open it.
+	if (targetIndex === currentIndex) {
+		return;
+	}
+
+	const target = visible[targetIndex];
+	if (target) {
+		await sessionsService.openSession(target.resource);
+	}
+};
+
+registerAction2(class NavigatePreviousSessionAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsViewPane.navigatePreviousSession',
+			title: {
+				value: localize('navigatePreviousSession', "Go to Previous Session"),
+				original: 'Go to Previous Session',
+				mnemonicTitle: localize('navigatePreviousSession.mnemonic', "&&Previous Session"),
+			},
+			f1: true,
+			category: SessionsCategories.Sessions,
+			keybinding: {
+				// Mirror core "Previous Editor" and browser "Previous Tab". On macOS use
+				// Cmd+Alt+Left (Mac keyboards lack Page keys), matching core editor nav.
+				// Alt+Up is a secondary (alternate) binding; the `!editorAreaFocus` gate
+				// keeps the editor's "Move Line Up" intact while still navigating from
+				// the chat input.
+				weight: KeybindingWeight.WorkbenchContrib + 1,
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
+				primary: KeyMod.CtrlCmd | KeyCode.PageUp,
+				secondary: [KeyMod.Alt | KeyCode.UpArrow],
+				mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.LeftArrow, secondary: [KeyMod.Alt | KeyCode.UpArrow] },
+			},
+			menu: [{
+				id: Menus.GoMenu,
+				group: '2_list_nav',
+				order: 1,
+			}]
+		});
+	}
+	override run(accessor: ServicesAccessor): Promise<void> {
+		return navigateSessionInList(accessor, 'previous');
+	}
+});
+
+registerAction2(class NavigateNextSessionAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsViewPane.navigateNextSession',
+			title: {
+				value: localize('navigateNextSession', "Go to Next Session"),
+				original: 'Go to Next Session',
+				mnemonicTitle: localize('navigateNextSession.mnemonic', "&&Next Session"),
+			},
+			f1: true,
+			category: SessionsCategories.Sessions,
+			keybinding: {
+				// Mirror core "Next Editor" and browser "Next Tab". On macOS use
+				// Cmd+Alt+Right (Mac keyboards lack Page keys), matching core editor nav.
+				// Alt+Down is a secondary (alternate) binding; the `!editorAreaFocus` gate
+				// keeps the editor's "Move Line Down" intact while still navigating from
+				// the chat input.
+				weight: KeybindingWeight.WorkbenchContrib + 1,
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
+				primary: KeyMod.CtrlCmd | KeyCode.PageDown,
+				secondary: [KeyMod.Alt | KeyCode.DownArrow],
+				mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.RightArrow, secondary: [KeyMod.Alt | KeyCode.DownArrow] },
+			},
+			menu: [{
+				id: Menus.GoMenu,
+				group: '2_list_nav',
+				order: 2,
+			}]
+		});
+	}
+	override run(accessor: ServicesAccessor): Promise<void> {
+		return navigateSessionInList(accessor, 'next');
+	}
+});
 
 //  View Title Menu
 
@@ -350,19 +460,18 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 		if (!context || !context.sessions || context.sessions.length === 0) {
 			return;
 		}
-		const sessionsViewService = accessor.get(ISessionsViewService);
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const sessionsService = accessor.get(ISessionsService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
 		const commandService = accessor.get(ICommandService);
 
-		sessionsViewService.openNewSession();
+		sessionsService.openNewSession();
 
 		const session = context.sessions[0];
 		const workspace = session.workspace.get();
 		const folderUri = workspace?.folders[0]?.root;
 		const providerId = session.providerId;
 
-		const newSession = sessionsManagementService.activeSession.get();
+		const newSession = sessionsService.activeSession.get();
 		if (folderUri) {
 			sessionsPartService.getSessionView(newSession?.sessionId)?.selectWorkspace(folderUri, providerId);
 		}
@@ -589,6 +698,11 @@ registerAction2(class ArchiveSessionAction extends Action2 {
 				group: '1_edit',
 				order: 2,
 				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
+			}, {
+				id: Menus.SessionBarToolbar,
+				group: 'navigation',
+				order: 15,
+				when: ContextKeyExpr.and(SessionIsCreatedContext, ContextKeyExpr.equals(SessionIsArchivedContext.key, false)),
 			}]
 		});
 	}
@@ -621,21 +735,18 @@ registerAction2(class UnarchiveSessionAction extends Action2 {
 				order: 2,
 				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, true),
 			}, {
-				id: Menus.CommandCenter,
-				order: 103,
-				when: ContextKeyExpr.and(
-					IsAuxiliaryWindowContext.negate(),
-					SessionsWelcomeVisibleContext.negate(),
-					IsNewChatSessionContext.negate(),
-					IsActiveSessionArchivedContext
-				)
+				id: Menus.SessionBarToolbar,
+				group: 'navigation',
+				order: 5,
+				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, true),
 			}]
 		});
 	}
 	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const sessionsService = accessor.get(ISessionsService);
 		if (!context) {
-			const activeSession = sessionsManagementService.activeSession.get();
+			const activeSession = sessionsService.activeSession.get();
 			if (activeSession) {
 				await sessionsManagementService.unarchiveSession(activeSession);
 			}
@@ -656,11 +767,6 @@ registerAction2(class RenameSessionAction extends Action2 {
 			menu: [{
 				id: SessionItemContextMenuId,
 				group: '1_edit',
-				order: 1,
-				when: ContextKeyExpr.regex(ChatSessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
-			}, {
-				id: Menus.SessionHeaderContext,
-				group: '2_edit',
 				order: 1,
 				when: ContextKeyExpr.regex(ChatSessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
 			}]
@@ -782,22 +888,22 @@ registerAction2(class OpenSessionToTheSideAction extends Action2 {
 			return;
 		}
 		const sessions = Array.isArray(context) ? context : [context];
-		const sessionsViewService = accessor.get(ISessionsViewService);
+		const sessionsService = accessor.get(ISessionsService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
 
 		for (let i = 0; i < sessions.length - 1; i++) {
 			const session = sessions[i];
-			const visible = sessionsViewService.visibleSessions.get();
+			const visible = sessionsService.visibleSessions.get();
 			const lastVisible = visible[visible.length - 1];
 			if (lastVisible && lastVisible.sessionId !== session.sessionId) {
-				sessionsViewService.insertAt(session, lastVisible.sessionId, 'right');
+				sessionsService.insertAt(session, lastVisible.sessionId, 'right');
 			}
 		}
 
 		const lastRequested = sessions[sessions.length - 1];
-		await openSessionToTheSide(sessionsViewService, lastRequested);
+		await openSessionToTheSide(sessionsService, lastRequested);
 
-		const visibleAfterOpen = sessionsViewService.visibleSessions.get();
+		const visibleAfterOpen = sessionsService.visibleSessions.get();
 		const opened = visibleAfterOpen.find(s => s?.sessionId === lastRequested.sessionId);
 		if (opened) {
 			sessionsPartService.focusSession(opened);
@@ -870,7 +976,8 @@ registerAction2(class MarkSessionAsDoneAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const activeSession = sessionsManagementService.activeSession.get();
+		const sessionsService = accessor.get(ISessionsService);
+		const activeSession = sessionsService.activeSession.get();
 		if (!activeSession || activeSession.status.get() === SessionStatus.Untitled) {
 			return;
 		}
@@ -899,7 +1006,8 @@ registerAction2(class RestoreSessionAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const activeSession = sessionsManagementService.activeSession.get();
+		const sessionsService = accessor.get(ISessionsService);
+		const activeSession = sessionsService.activeSession.get();
 		if (!activeSession || activeSession.status.get() === SessionStatus.Untitled) {
 			return;
 		}

@@ -5,16 +5,14 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, autorun, observableValue } from '../../../../base/common/observable.js';
+import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IChatWidgetHistoryService } from '../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { ActiveSessionProviderIdContext, ActiveSessionTypeContext, IsActiveSessionArchivedContext, ActiveSessionWorkspaceIsVirtualContext, IsNewChatSessionContext } from '../../../common/contextkeys.js';
-import { ActiveSessionSupportsMultiChatContext, IActiveSession, ICreateNewSessionOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
+import { ICreateNewSessionOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
 import { ISessionChangeEvent, ISessionsProvider } from '../common/sessionsProvider.js';
 import { IChat, ISession, ISessionWorkspace, SessionStatus, ISessionType } from '../common/session.js';
@@ -53,20 +51,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	private _sessionTypes: readonly ISessionType[] = [];
 
-	/** The canonical active session, mirrored from the visible active slot by the view service. */
-	private readonly _activeSession = observableValue<IActiveSession | undefined>(this, undefined);
-	readonly activeSession: IObservable<IActiveSession | undefined> = this._activeSession;
-
 	/** Tracks the in-progress new session (composed but not yet sent). */
 	private readonly _newSession = observableValue<ISession | undefined>(this, undefined);
 	readonly newSession: IObservable<ISession | undefined> = this._newSession;
 
-	private readonly _isNewChatSessionContext: IContextKey<boolean>;
-	private readonly _activeSessionProviderId: IContextKey<string>;
-	private readonly _activeSessionType: IContextKey<string>;
-	private readonly _activeSessionWorkspaceIsVirtual: IContextKey<boolean>;
-	private readonly _isActiveSessionArchived: IContextKey<boolean>;
-	private readonly _supportsMultiChat: IContextKey<boolean>;
 	private readonly _providerListeners = this._register(new DisposableMap<string, IDisposable>());
 
 	/**
@@ -80,22 +68,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IChatService private readonly chatService: IChatService,
 		@IChatWidgetHistoryService private readonly chatWidgetHistoryService: IChatWidgetHistoryService,
 	) {
 		super();
-
-		// Bind context key to active session state.
-		// isNewSession is false when there are any established sessions in the model.
-		this._isNewChatSessionContext = IsNewChatSessionContext.bindTo(contextKeyService);
-		this._activeSessionProviderId = ActiveSessionProviderIdContext.bindTo(contextKeyService);
-		this._activeSessionType = ActiveSessionTypeContext.bindTo(contextKeyService);
-		this._activeSessionWorkspaceIsVirtual = ActiveSessionWorkspaceIsVirtualContext.bindTo(contextKeyService);
-		this._isActiveSessionArchived = IsActiveSessionArchivedContext.bindTo(contextKeyService);
-		this._supportsMultiChat = ActiveSessionSupportsMultiChatContext.bindTo(contextKeyService);
 
 		// Subscribe to provider changes for session type updates
 		this._register(this.sessionsProvidersService.onDidChangeProviders(e => {
@@ -104,15 +82,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}));
 		this._subscribeToProviders(this.sessionsProvidersService.getProviders());
 		this._sessionTypes = this._collectSessionTypes();
-
-		this._register(autorun(reader => {
-			const activeSession = this._activeSession.read(reader);
-			const newSession = this._newSession.read(reader);
-			this._handleActiveSessionContextKeys(activeSession, newSession);
-			if (activeSession) {
-				reader.store.add(this._activeSessionListeners(activeSession));
-			}
-		}));
 
 		// Mirror follow-up chat requests (sent from within an existing chat
 		// widget, not through our own send paths) onto `_onDidSendRequest` so
@@ -125,51 +94,17 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			if (this._pendingSendChatResources.has(chatSessionResource.toString())) {
 				return;
 			}
-			for (const session of this.getSessions()) {
-				const chat = session.chats.get().find(c => this.uriIdentityService.extUri.isEqual(c.resource, chatSessionResource));
-				if (chat) {
-					this._onDidSendRequest.fire({
-						session,
-						chat,
-						isNewSession: false,
-						isNewChat: false,
-						options: { query: message?.text ?? '' },
-					});
-					return;
-				}
+			const ownedChat = this.getSessionForChatResource(chatSessionResource);
+			if (ownedChat) {
+				this._onDidSendRequest.fire({
+					session: ownedChat.session,
+					chat: ownedChat.chat,
+					isNewSession: false,
+					isNewChat: false,
+					options: { query: message?.text ?? '' },
+				});
 			}
 		}));
-	}
-
-	private _handleActiveSessionContextKeys(session: IActiveSession | undefined, newSession: ISession | undefined): void {
-		// Update context keys from session data
-		// IsNewChatSessionContext is true when no active session exists, OR when the
-		// active session is still the in-progress new session (created but not yet
-		// sent for the first time). Scoping to the active session avoids flipping
-		// into "new chat" mode while viewing a different established session.
-		this._isNewChatSessionContext.set(session === undefined || session.sessionId === newSession?.sessionId);
-		this._activeSessionProviderId.set(session?.providerId ?? '');
-		this._activeSessionType.set(session?.sessionType ?? '');
-		this._activeSessionWorkspaceIsVirtual.set(session?.workspace.get()?.isVirtualWorkspace ?? true);
-		this._isActiveSessionArchived.set(session?.isArchived.get() ?? false);
-		this._supportsMultiChat.set(session?.capabilities.supportsMultipleChats ?? false);
-	}
-
-	private _activeSessionListeners(activeSession: IActiveSession): IDisposable {
-		const disposables = new DisposableStore();
-
-		// Track archived state changes for the active session
-		disposables.add(autorun(reader => {
-			this._isActiveSessionArchived.set(activeSession.isArchived.read(reader));
-		}));
-
-		// Track workspace changes so the virtual-workspace context key stays in sync
-		disposables.add(autorun(reader => {
-			const workspace = activeSession.workspace.read(reader);
-			this._activeSessionWorkspaceIsVirtual.set(workspace?.isVirtualWorkspace ?? true);
-		}));
-
-		return disposables;
 	}
 
 	private _onProvidersChanged(e: ISessionsProvidersChangeEvent): void {
@@ -238,13 +173,28 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		);
 	}
 
+	getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined {
+		for (const session of this.getSessions()) {
+			const chat = session.chats.get().find(c => this.uriIdentityService.extUri.isEqual(c.resource, resource));
+			if (chat) {
+				return { session, chat };
+			}
+
+			const mainChat = session.mainChat.get();
+			if (this.uriIdentityService.extUri.isEqual(mainChat.resource, resource)) {
+				return { session, chat: mainChat };
+			}
+		}
+		return undefined;
+	}
+
 	getAllSessionTypes(): ISessionType[] {
 		return [...this._sessionTypes];
 	}
 
 	getSessionTypesForFolder(folderUri: URI): IProviderSessionType[] {
 		const result: IProviderSessionType[] = [];
-		for (const provider of this._getOrderedProviders()) {
+		for (const provider of this.sessionsProvidersService.getProviders()) {
 			if (!provider.resolveWorkspace(folderUri)) {
 				continue;
 			}
@@ -268,7 +218,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private _collectSessionTypes(): ISessionType[] {
 		const types: ISessionType[] = [];
 		const seen = new Set<string>();
-		for (const provider of this._getOrderedProviders()) {
+		for (const provider of this.sessionsProvidersService.getProviders()) {
 			for (const type of provider.sessionTypes) {
 				if (!seen.has(type.id)) {
 					seen.add(type.id);
@@ -277,16 +227,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			}
 		}
 		return types;
-	}
-
-	/**
-	 * Returns the registered providers in the order their session types should
-	 * be surfaced, sorted by each provider's {@link ISessionsProvider.order}
-	 * (lower first). The sort is stable, so providers with equal order keep
-	 * their registration order.
-	 */
-	private _getOrderedProviders(): ISessionsProvider[] {
-		return [...this.sessionsProvidersService.getProviders()].sort((a, b) => a.order - b.order);
 	}
 
 	private _updateSessionTypes(): void {
@@ -298,21 +238,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// id alone.
 		this._sessionTypes = this._collectSessionTypes();
 		this._onDidChangeSessionTypes.fire();
-	}
-
-	setActiveSession(session: IActiveSession | undefined): void {
-		const previousSession = this._activeSession.get();
-		if (previousSession?.sessionId === session?.sessionId) {
-			return;
-		}
-
-		if (session) {
-			this.logService.info(`[SessionsManagement] Active session changed: ${session.resource.toString()}`);
-		} else {
-			this.logService.trace('[SessionsManagement] Active session cleared');
-		}
-
-		this._activeSession.set(session, undefined);
 	}
 
 	discardNewSession(session?: ISession): void {
@@ -406,7 +331,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// The session is graduating into the list (being sent),
 		// so the provider keeps owning it — just drop the pointer, do not delete.
 		// Clearing the new session recomputes the isNewChatSession context key
-		// via the active-session autorun.
+		// via the view service's active-session autorun.
 		this._newSession.set(undefined, undefined);
 
 		const provider = this._getProvider(session);
