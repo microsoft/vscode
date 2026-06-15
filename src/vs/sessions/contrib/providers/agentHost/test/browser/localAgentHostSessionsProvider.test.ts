@@ -30,7 +30,8 @@ import { IChatSessionsService, isIChatSessionFileChange2 } from '../../../../../
 import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { LocalAgentHostSessionsProvider } from '../../browser/localAgentHostSessionsProvider.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
@@ -305,7 +306,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 		override findPullRequestNumberByHeadBranch = async () => undefined;
 	}());
 	const activeSessionObs = options?.activeSession ?? constObservable<IActiveSession | undefined>(undefined);
-	instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 		override readonly activeSession: IObservable<IActiveSession | undefined> = activeSessionObs;
 	}());
 	instantiationService.stub(IAgentHostActiveClientService, new class extends mock<IAgentHostActiveClientService>() {
