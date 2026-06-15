@@ -1274,6 +1274,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		const next = rootState.agents.map((agent): ISessionType => ({
 			id: agent.provider,
+			// The chat session contribution and language models for an agent-host
+			// agent are registered under its resource scheme (`agent-host-<provider>`),
+			// not the bare provider id, so carry it for availability lookups.
+			chatSessionType: this.resourceSchemeForProvider(agent.provider),
 			label: this._formatSessionTypeLabel(agent.displayName?.trim() || agent.provider),
 			icon: this.iconForAgentProvider(agent.provider) ?? this.icon,
 		}));

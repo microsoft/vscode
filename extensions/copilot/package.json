@@ -6809,6 +6809,7 @@
         "canDelegate": true,
         "description": "%github.copilot.session.providerDescription.cloud%",
         "when": "config.github.copilot.chat.cloudAgent.enabled",
+        "supportsAutoModel": false,
         "capabilities": {
           "supportsFileAttachments": true
         },
