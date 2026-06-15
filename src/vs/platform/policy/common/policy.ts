@@ -57,10 +57,20 @@ export abstract class AbstractPolicyService extends Disposable implements IPolic
 	readonly onDidChange = this._onDidChange.event;
 
 	async updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<IStringDictionary<PolicyValue>> {
-		const size = Object.keys(this.policyDefinitions).length;
-		this.policyDefinitions = { ...policyDefinitions, ...this.policyDefinitions };
+		// Apply incoming definitions, replacing any existing definition for the same policy name.
+		// This lets an authoritative definition (e.g. a policy owner that registers after a
+		// subordinate `policyReference`) supersede a previously registered one. Callers are
+		// expected to submit a stable definition object per policy name and only when it actually
+		// changes, so the identity comparison below avoids redundant watcher churn.
+		let changed = false;
+		for (const name of Object.keys(policyDefinitions)) {
+			if (this.policyDefinitions[name] !== policyDefinitions[name]) {
+				this.policyDefinitions[name] = policyDefinitions[name];
+				changed = true;
+			}
+		}
 
-		if (size !== Object.keys(this.policyDefinitions).length) {
+		if (changed) {
 			await this._updatePolicyDefinitions(this.policyDefinitions);
 		}
 

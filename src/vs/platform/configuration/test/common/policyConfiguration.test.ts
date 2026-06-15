@@ -103,6 +103,7 @@ suite('PolicyConfiguration', () => {
 					name: 'PolicyShared',
 					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
+					restrictedValue: true,
 					localization: { description: { key: 'shared.owner', value: '' }, }
 				}
 			},
@@ -313,6 +314,59 @@ suite('PolicyConfiguration', () => {
 
 		assert.strictEqual(acutal.getValue('policy.orphanReferenceSetting'), false);
 		assert.deepStrictEqual(acutal.keys, ['policy.orphanReferenceSetting']);
+	});
+
+	test('initialize: the owner definition (not the reference) is registered when both are present', async () => {
+		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicyShared': false })));
+
+		await testObject.initialize();
+
+		// The owner declares restrictedValue: true; the reference does not. The registered
+		// definition must be the owner's, proving owners win over references in the same batch.
+		assert.strictEqual(policyService.policyDefinitions['PolicyShared']?.restrictedValue, true);
+	});
+
+	test('change: a late-registering owner supersedes an earlier reference definition', async () => {
+		// Only the reference for `PolicyOrphanReference` is registered initially (models the editor
+		// window: the agent-host reference loads eagerly while the extension policy owner loads later).
+		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicyOrphanReference': false })));
+		await testObject.initialize();
+
+		// The synthesized reference definition carries no restrictedValue.
+		assert.strictEqual(testObject.configurationModel.getValue('policy.orphanReferenceSetting'), false);
+		assert.strictEqual(policyService.policyDefinitions['PolicyOrphanReference']?.restrictedValue, undefined);
+
+		const ownerNode: IConfigurationNode = {
+			'id': '_test_late_owner',
+			'type': 'object',
+			'properties': {
+				'policy.lateOwner': {
+					'type': 'boolean',
+					'default': true,
+					policy: {
+						name: 'PolicyOrphanReference',
+						category: PolicyCategory.Extensions,
+						minimumVersion: '1.0.0',
+						restrictedValue: true,
+						localization: { description: { key: 'late.owner', value: '' }, }
+					}
+				}
+			}
+		};
+
+		try {
+			const promise = Event.toPromise(testObject.onDidChangeConfiguration);
+			Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration(ownerNode);
+			await promise;
+
+			// The owner's definition (with restrictedValue) must now supersede the reference's, and
+			// both settings remain gated by the same policy value.
+			assert.strictEqual(policyService.policyDefinitions['PolicyOrphanReference']?.restrictedValue, true);
+			assert.strictEqual(testObject.configurationModel.getValue('policy.lateOwner'), false);
+			assert.strictEqual(testObject.configurationModel.getValue('policy.orphanReferenceSetting'), false);
+		} finally {
+			Registry.as<IConfigurationRegistry>(Extensions.Configuration).deregisterConfigurations([ownerNode]);
+		}
 	});
 
 	test('change: an owning policy update propagates to both the owner and its references', async () => {
