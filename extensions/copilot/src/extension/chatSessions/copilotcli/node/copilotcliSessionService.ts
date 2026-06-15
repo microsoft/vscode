@@ -895,6 +895,18 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 
 			// Navigate: ProxyTracerProvider._delegate → BasicTracerProvider._activeSpanProcessor → MultiSpanProcessor._spanProcessors
 			const delegate = (globalProvider as unknown as Record<string, unknown>)._delegate ?? globalProvider;
+
+			// The in-process Copilot CLI SDK does not register its own JS OTel
+			// provider — its tracing is emitted by a native runtime. As a result the global provider
+			// resolves to the extension's own provider. Attaching the bridge there would re-forward
+			// the extension's own spans and produce duplicate entries in the chat debug logs view.
+			// In this case we skip the bridge entirely: native CLI tool calls and agent responses are
+			// synthesized directly from the SDK event stream in `copilotcliSession.ts`.
+			if ((delegate as Record<string, unknown>).__copilotChatOwnProvider) {
+				this.logService.info('[CopilotCLISession] Global OTel provider is the extension provider; skipping bridge install (debug entries are synthesized from SDK events)');
+				return;
+			}
+
 			const activeProcessor = (delegate as unknown as Record<string, unknown>)._activeSpanProcessor as Record<string, unknown> | undefined;
 			const processorArray = activeProcessor?._spanProcessors;
 

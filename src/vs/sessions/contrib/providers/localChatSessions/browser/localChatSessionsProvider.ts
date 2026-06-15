@@ -1011,7 +1011,6 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 		// Resolve mode
 		const modeKind = session.chatMode?.kind ?? ChatModeKind.Agent;
 		const modeIsBuiltin = session.chatMode ? isBuiltinChatMode(session.chatMode) : true;
-		const modeId: 'ask' | 'agent' | 'edit' | 'custom' | undefined = modeIsBuiltin ? modeKind : 'custom';
 
 		const rawModeInstructions = session.chatMode?.modeInstructions?.get();
 		const modeInstructions = rawModeInstructions ? {
@@ -1030,7 +1029,7 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 				kind: modeKind,
 				isBuiltin: modeIsBuiltin,
 				modeInstructions,
-				modeId,
+				telemetryModeId: modeIsBuiltin ? modeKind : 'custom',
 				applyCodeBlockSuggestionId: undefined,
 				permissionLevel,
 			},

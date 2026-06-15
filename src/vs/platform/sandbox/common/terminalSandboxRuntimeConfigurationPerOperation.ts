@@ -73,7 +73,7 @@ export function getTerminalSandboxRuntimeConfigurationForCommands(os: OperatingS
 	const operations = new Set<TerminalSandboxRuntimeConfigurationOperation>();
 	for (const command of commandDetails) {
 		for (const rule of terminalSandboxRuntimeConfigurationCommandRules) {
-			if (matchesTerminalSandboxCommandRule(command, rule, { os })) {
+			if (matchesTerminalSandboxCommandRule(command, rule, { os }) && shouldApplyRuntimeConfigurationOperation(rule.value, commandDetails)) {
 				operations.add(rule.value);
 			}
 		}
@@ -84,6 +84,17 @@ export function getTerminalSandboxRuntimeConfigurationForCommands(os: OperatingS
 		mergeAdditionalSandboxConfigProperties(configuration, getTerminalSandboxRuntimeConfigurationForOperation(operation, os));
 	}
 	return configuration;
+}
+
+function shouldApplyRuntimeConfigurationOperation(operation: TerminalSandboxRuntimeConfigurationOperation, commandDetails: readonly ITerminalSandboxCommand[]): boolean {
+	switch (operation) {
+		case TerminalSandboxRuntimeConfigurationOperation.GnuPG:
+			// allowAllUnixSockets applies to the whole sandbox invocation, so only add it when the
+			// signed commit is the only parsed command. Chained commands cannot receive it safely.
+			return commandDetails.length === 1;
+		case TerminalSandboxRuntimeConfigurationOperation.Node:
+			return true;
+	}
 }
 
 function isGpgSignedGitCommit(command: ITerminalSandboxCommand): boolean {

@@ -22,11 +22,10 @@ import { IPluginMarketplaceService } from '../common/plugins/pluginMarketplaceSe
  * Without this contribution, that signal was never consumed and plugins
  * were never auto-updated (see microsoft/vscode#308563).
  *
- * When the signal becomes `true` and `extensions.autoUpdate === true`, we
- * silently update all installed plugins. Other auto-update modes
- * (`'onlyEnabledExtensions'`, `'onlySelectedExtensions'`) gate updates on a
- * per-extension opt-in that has no plugin equivalent, so they are treated
- * the same as `false` for plugins.
+ * When the signal becomes `true` and `extensions.autoUpdate` is `on`, we
+ * silently update all installed plugins. When auto-update is `off`, plugins
+ * are not auto-updated. (`getAutoUpdateValue()` normalizes the setting to
+ * `'on' | 'off'`, migrating any legacy stored values such as `false`.)
  *
  * The flag is cleared after every attempt — including failures — so the
  * next periodic check's `false → true` transition can always re-trigger the
@@ -61,7 +60,7 @@ export class PluginAutoUpdate extends Disposable implements IWorkbenchContributi
 		}
 
 		const autoUpdate = this._extensionsWorkbenchService.getAutoUpdateValue();
-		if (autoUpdate !== true) {
+		if (autoUpdate === 'off') {
 			return;
 		}
 

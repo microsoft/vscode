@@ -103,15 +103,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 				}
 				this._onDidChangeChatSessionItems.fire({ addedOrUpdated: [item] });
 			} else if (n.type === 'root/sessionRemoved' && AgentSession.provider(n.session) === this._provider) {
-				const removedId = AgentSession.id(n.session);
-				this._pendingNewSessions.delete(removedId);
-				const idx = this._items.findIndex(item => item.resource.path === `/${removedId}`);
-				if (idx >= 0) {
-					this._mutationGeneration++;
-					const [removed] = this._items.splice(idx, 1);
-					this._cachedSummaries.delete(removedId);
-					this._onDidChangeChatSessionItems.fire({ removed: [removed.resource] });
-				}
+				this._removeItemByRawId(AgentSession.id(n.session));
 			} else if (n.type === 'root/sessionSummaryChanged' && AgentSession.provider(n.session) === this._provider) {
 				const rawId = AgentSession.id(n.session);
 				const cached = this._cachedSummaries.get(rawId);
@@ -194,6 +186,34 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		}
 
 		return item;
+	}
+
+	async deleteChatSessionItem(resource: URI, _token: CancellationToken): Promise<void> {
+		if (resource.scheme !== this._sessionType) {
+			return;
+		}
+
+		// Map the chat-session-item resource (scheme = sessionType) to the backend session URI (scheme = provider) and
+		// ask the agent host to dispose it.
+		const rawId = AgentSession.id(resource);
+		const backendSession = AgentSession.uri(this._provider, rawId);
+		await this._connection.disposeSession(backendSession);
+
+		// `root/sessionRemoved` only fires for sessions the backend had previously announced, so remove the item from
+		// our cache directly. If the notification does fire as well, the second call is a no-op.
+		this._removeItemByRawId(rawId);
+	}
+
+	private _removeItemByRawId(rawId: string): void {
+		this._pendingNewSessions.delete(rawId);
+		const idx = this._items.findIndex(item => item.resource.path === `/${rawId}`);
+		if (idx < 0) {
+			return;
+		}
+		this._mutationGeneration++;
+		const [removed] = this._items.splice(idx, 1);
+		this._cachedSummaries.delete(rawId);
+		this._onDidChangeChatSessionItems.fire({ removed: [removed.resource] });
 	}
 
 	async refresh(token: CancellationToken): Promise<void> {

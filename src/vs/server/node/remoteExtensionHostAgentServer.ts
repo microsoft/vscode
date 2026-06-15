@@ -30,7 +30,7 @@ import { IConfigurationService } from '../../platform/configuration/common/confi
 import { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../platform/log/common/log.js';
 import { IProductService } from '../../platform/product/common/productService.js';
-import { ConnectionType, ConnectionTypeRequest, ErrorMessage, HandshakeMessage, IRemoteExtensionHostStartParams, ITunnelConnectionStartParams, SignRequest } from '../../platform/remote/common/remoteAgentConnection.js';
+import { ConnectionType, ConnectionTypeRequest, ErrorMessage, HandshakeMessage, IRemoteExtensionHostStartParams, ITunnelConnectionStartParams, OKMessage, SignRequest } from '../../platform/remote/common/remoteAgentConnection.js';
 import { RemoteAgentConnectionContext } from '../../platform/remote/common/remoteAgentEnvironment.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
 import { ExtensionHostConnection } from './extensionHostConnection.js';
@@ -481,7 +481,9 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 					delete this._extHostConnections[reconnectionToken];
 					this._extHostLifetimeTokens.deleteAndDispose(reconnectionToken);
 				});
-				con.start(startParams);
+				con.start(startParams).catch(error => {
+					this._logService.error(`${logPrefix} Failed to start extension host connection:`, error);
+				});
 			}
 
 		} else if (msg.desiredConnectionType === ConnectionType.Tunnel) {
@@ -500,12 +502,29 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 	}
 
 	private async _createTunnel(protocol: PersistentProtocol, tunnelStartParams: ITunnelConnectionStartParams): Promise<void> {
-		const remoteSocket = (<NodeSocket>protocol.getSocket()).socket;
+		let localSocket: net.Socket;
+		try {
+			localSocket = await this._connectTunnelSocket(tunnelStartParams.host, tunnelStartParams.port);
+		} catch (err) {
+			this._logService.error(`[remote-connection] Failed to connect tunnel to ${tunnelStartParams.host}:${tunnelStartParams.port}:`, err);
+			const reason = (err instanceof Error ? err.message : String(err));
+			const errorMessage: ErrorMessage = { type: 'error', reason };
+			protocol.sendControl(VSBuffer.fromString(JSON.stringify(errorMessage)));
+			const socket = protocol.getSocket();
+			protocol.dispose();
+			await socket.drain();
+			socket.dispose();
+			return;
+		}
+
+		const okMessage: OKMessage = { type: 'ok' };
+		protocol.sendControl(VSBuffer.fromString(JSON.stringify(okMessage)));
+
+		const remoteNodeSocket = <NodeSocket>protocol.getSocket();
+		const remoteSocket = remoteNodeSocket.socket;
 		const dataChunk = protocol.readEntireBuffer();
 		protocol.dispose();
-
-		remoteSocket.pause();
-		const localSocket = await this._connectTunnelSocket(tunnelStartParams.host, tunnelStartParams.port);
+		remoteNodeSocket.dispose(false); // `false` prevents the underlying socket from being closed
 
 		if (dataChunk.byteLength > 0) {
 			localSocket.write(dataChunk.buffer);

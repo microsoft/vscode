@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { decodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { getExtensionForMimeType, getMediaMime } from '../../../../base/common/mime.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -21,7 +22,7 @@ export interface IChatExtractedImage {
 	readonly mimeType: string;
 	readonly data: VSBuffer;
 	readonly source: string;
-	readonly caption: string | undefined;
+	readonly caption: string | IMarkdownString | undefined;
 }
 
 export interface IChatExtractedImageCollection {
@@ -71,8 +72,7 @@ export function extractImagesFromToolInvocationOutputDetails(toolInvocation: ICh
 
 	const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
 
-	const msg = toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage;
-	const caption = msg ? (typeof msg === 'string' ? msg : msg.value) : undefined;
+	const caption = toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage;
 	const pushImage = (mimeType: string, data: VSBuffer, outputIndex: number) => {
 		const ext = getExtensionForMimeType(mimeType);
 		const permalinkBasename = ext ? `file${ext}` : 'file.bin';
@@ -140,7 +140,7 @@ export async function extractImagesFromToolInvocationMessages(
 				mimeType,
 				data,
 				source: localize('chatImageExtraction.toolSource', "Tool: {0}", toolInvocation.toolId),
-				caption: message.value,
+				caption: message,
 			});
 		}
 	}

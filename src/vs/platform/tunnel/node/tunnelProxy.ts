@@ -4,19 +4,38 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as net from 'net';
+import type * as http from 'http';
+import type * as https from 'https';
+
 import { findFreePortFaster } from '../../../base/node/ports.js';
 import { NodeSocket } from '../../../base/parts/ipc/node/ipc.net.js';
 import { ISocket } from '../../../base/parts/ipc/common/ipc.net.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
+import { Limiter } from '../../../base/common/async.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { ILogService } from '../../log/common/log.js';
 import { ITunnelProxyInfo } from '../common/sharedProcessTunnelProxyService.js';
 import { generateSelfSignedCert } from './selfSignedCert.js';
 
 /**
+ * Maximum number of tunnel connections we establish through the remote
+ * agent at the same time. Each new tunnel dials the loopback forwarder,
+ * which opens a fresh multiplexed channel to the remote (crypto +
+ * round-trips) on a single event loop. An ad-heavy page fans out dozens
+ * of simultaneous CONNECTs to distinct hosts; left unbounded, that
+ * stampede overflows the forwarder's accept backlog and it starts
+ * refusing (ECONNREFUSED) and resetting (ECONNRESET) connections. This
+ * cap smooths the burst to a rate the forwarder can absorb; excess
+ * requests queue rather than fail.
+ */
+const MAX_CONCURRENT_TUNNEL_CONNECTS = 6;
+
+/**
  * A function that opens a TCP tunnel to a given host:port through the
- * remote agent. Returns an object with `getSocket()`, `readEntireBuffer()`,
- * and `dispose()` — a subset of {@link import('../../base/parts/ipc/common/ipc.net.js').PersistentProtocol}.
+ * remote agent. Resolves only once the remote has confirmed the target is
+ * reachable (via the tunnel handshake) and rejects otherwise. Returns an
+ * object with `getSocket()`, `readEntireBuffer()`, and `dispose()` — a
+ * subset of {@link import('../../base/parts/ipc/common/ipc.net.js').PersistentProtocol}.
  */
 export interface ITunnelConnectFn {
 	(host: string, port: number): Promise<{ getSocket(): ISocket; readEntireBuffer(): VSBuffer; dispose(): void }>;
@@ -49,8 +68,9 @@ export interface ITunnelConnectFn {
  */
 export class TunnelProxy extends Disposable {
 
-	private _server: import('https').Server | undefined;
-	private _tunnelAgent: import('http').Agent | undefined;
+	private _server: https.Server | undefined;
+	private _http: typeof http | undefined;
+	private _tunnelAgent: http.Agent | undefined;
 	private _localPort: number = 0;
 	private _credentials: { username: string; password: string } | undefined;
 	private _expectedAuthHeader: string | undefined;
@@ -64,6 +84,23 @@ export class TunnelProxy extends Disposable {
 	 * listening port promptly.
 	 */
 	private readonly _connectSockets = new Set<net.Socket>();
+
+	/**
+	 * The remote (tunnel) side of every active bridge — both CONNECT
+	 * tunnels and pooled plain-HTTP sockets. We destroy these explicitly
+	 * and synchronously on dispose rather than relying on the local
+	 * socket's async `'close'` to propagate `end()`; during shared-process
+	 * teardown the event loop may not get another turn to fire that
+	 * listener, which would leave the upstream tunnel socket dangling.
+	 */
+	private readonly _remoteSockets = new Set<net.Socket>();
+
+	/**
+	 * Bounds how many tunnels we create concurrently through the remote
+	 * agent. Gates the setup (connect + handshake) only; once a tunnel is
+	 * established the slot is released and data piping proceeds unthrottled.
+	 */
+	private readonly _connectLimiter = this._register(new Limiter<Awaited<ReturnType<ITunnelConnectFn>>>(MAX_CONCURRENT_TUNNEL_CONNECTS));
 
 	get localPort(): number {
 		return this._localPort;
@@ -92,19 +129,8 @@ export class TunnelProxy extends Disposable {
 		this._certFingerprint = fingerprint;
 
 		// Create an agent that pools tunnel sockets by host:port.
-		// Node calls createConnection only when no pooled socket is
-		// available for the target; otherwise it reuses an existing one.
-		this._tunnelAgent = new http.Agent({ keepAlive: true });
-		(this._tunnelAgent.createConnection as unknown) = (
-			options: { hostname?: string; host?: string; port?: number },
-			oncreate: (err: Error | null, socket?: net.Socket) => void,
-		) => {
-			const host = options.hostname || options.host || '';
-			const port = Number(options.port) || 80;
-			this._createTunnelSocket(host, port)
-				.then(socket => oncreate(null, socket))
-				.catch(err => oncreate(err));
-		};
+		this._http = http;
+		this._tunnelAgent = this._createTunnelAgent();
 
 		// HTTPS server: handles plain HTTP requests (absolute-form URLs from
 		// Chromium when configured as a proxy) and CONNECT tunnels for HTTPS.
@@ -135,10 +161,20 @@ export class TunnelProxy extends Disposable {
 	}
 
 	override dispose(): void {
+		// Any tunnels still queued behind the limiter are abandoned here:
+		// disposing the limiter drops the outstanding queue without settling
+		// those promises, so their awaiting `_onConnect`/`_createTunnelSocket`
+		// never resumes. That's fine — we destroy every socket below, and the
+		// local sockets those handlers would have served are torn down too, so
+		// nothing is left waiting on a tunnel that will never arrive.
 		for (const socket of this._connectSockets) {
 			socket.destroy();
 		}
 		this._connectSockets.clear();
+		for (const socket of this._remoteSockets) {
+			socket.destroy();
+		}
+		this._remoteSockets.clear();
 		this._tunnelAgent?.destroy();
 		this._server?.closeAllConnections();
 		this._server?.close();
@@ -154,11 +190,48 @@ export class TunnelProxy extends Disposable {
 	}
 
 	/**
+	 * Create an `http.Agent` that pools tunnel sockets by target
+	 * host:port. Node calls `createConnection` only when no pooled socket
+	 * is available for the target; otherwise it reuses an existing one.
+	 */
+	private _createTunnelAgent(): http.Agent {
+		if (!this._http) {
+			throw new Error('HTTP module not initialized');
+		}
+		const agent = new this._http.Agent({ keepAlive: true });
+		agent.createConnection = (options, oncreate) => {
+			const host = options.hostname || options.host || '';
+			const port = Number(options.port) || 80;
+			this._createTunnelSocket(host, port)
+				.then(socket => oncreate?.(null, socket))
+				.catch(err => oncreate?.(err, null!));
+		};
+		return agent;
+	}
+
+	/**
+	 * Drop every pooled keep-alive tunnel socket by recreating the
+	 * agent. Called when the upstream tunnel endpoint changes: the pooled
+	 * sockets all dial the now-stale endpoint, so they would be reset en
+	 * masse once it goes away. Recreating the agent closes the idle ones
+	 * gracefully and forces subsequent requests to dial the new endpoint.
+	 */
+	drainConnectionPool(): void {
+		if (!this._tunnelAgent) {
+			return; // not started yet; nothing pooled
+		}
+		const oldAgent = this._tunnelAgent;
+		this._tunnelAgent = this._createTunnelAgent();
+		oldAgent?.destroy();
+		this._logService.trace('[TunnelProxy] Upstream endpoint changed; drained pooled tunnel sockets');
+	}
+
+	/**
 	 * Handle HTTP CONNECT requests (used for HTTPS tunneling).
 	 * Parses `host:port` from the request URL, establishes a tunnel
 	 * through the remote agent, and pipes the sockets together.
 	 */
-	private async _onConnect(req: import('http').IncomingMessage, socket: net.Socket, head: Buffer): Promise<void> {
+	private async _onConnect(req: http.IncomingMessage, socket: net.Socket, head: Buffer): Promise<void> {
 		// Track the socket from the moment the CONNECT event fires so
 		// dispose can tear it down even before the upstream tunnel
 		// returns (or if auth/host validation fails). The close listener
@@ -188,8 +261,8 @@ export class TunnelProxy extends Disposable {
 		try {
 			socket.pause();
 
-			const protocol = await this._connectTunnel(host, port);
-			const remoteSocket = protocol.getSocket();
+			const protocol = await this._connectLimiter.queue(() => this._connectTunnel(host, port));
+			const remoteSocket = this._getRemoteNetSocket(protocol);
 			const dataChunk = protocol.readEntireBuffer();
 			protocol.dispose();
 
@@ -200,18 +273,10 @@ export class TunnelProxy extends Disposable {
 			}
 
 			if (head.length > 0) {
-				if (remoteSocket instanceof NodeSocket) {
-					remoteSocket.socket.write(head);
-				} else {
-					remoteSocket.write(VSBuffer.wrap(head));
-				}
+				remoteSocket.write(head);
 			}
 
-			if (remoteSocket instanceof NodeSocket) {
-				this._mirrorNodeSocket(socket, remoteSocket);
-			} else {
-				this._mirrorGenericSocket(socket, remoteSocket);
-			}
+			this._mirrorNodeSocket(socket, remoteSocket);
 		} catch (err) {
 			this._logService.error(`[TunnelProxy] Failed to tunnel to ${host}:${port}:`, err);
 			socket.write('HTTP/1.1 502 Bad Gateway\r\n\r\n');
@@ -231,7 +296,7 @@ export class TunnelProxy extends Disposable {
 	 * calls `_createTunnelSocket` only when no pooled socket is available;
 	 * otherwise it reuses an existing tunnel connection.
 	 */
-	private async _onRequest(req: import('http').IncomingMessage, res: import('http').ServerResponse): Promise<void> {
+	private async _onRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
 		if (!this._checkAuth(req.headers['proxy-authorization'])) {
 			res.writeHead(407, { 'Proxy-Authenticate': 'Basic realm="TunnelProxy"' });
 			res.end();
@@ -311,21 +376,20 @@ export class TunnelProxy extends Disposable {
 
 			proxyReq.on('error', err => {
 				this._logService.error(`[TunnelProxy] Proxy request error for ${host}:${port}:`, err);
-				if (!res.headersSent) {
-					res.writeHead(502);
-					res.end();
-				} else {
-					res.destroy();
-				}
+				// Reset the client connection instead of returning a 502 body.
+				// Chromium renders a 502 body as a page, whereas a transport
+				// reset triggers `did-fail-load`, so the browser shows its
+				// native "failed to load" error page (consistent with the
+				// HTTPS/CONNECT path).
+				res.destroy();
 			});
 
 			req.pipe(proxyReq);
 		} catch (err) {
 			this._logService.error(`[TunnelProxy] Failed to tunnel to ${host}:${port}:`, err);
-			if (!res.headersSent) {
-				res.writeHead(502);
-			}
-			res.end();
+			// Reset the client connection so the browser shows its native
+			// "failed to load" page rather than rendering an HTTP error.
+			res.destroy();
 		}
 	}
 
@@ -335,38 +399,57 @@ export class TunnelProxy extends Disposable {
 	 * to a given host:port (i.e. no pooled socket is available).
 	 */
 	private async _createTunnelSocket(host: string, port: number): Promise<net.Socket> {
-		const protocol = await this._connectTunnel(host, port);
-		const remoteSocket = protocol.getSocket();
+		// The connect function resolves only once the remote has confirmed the
+		// target is reachable (via the tunnel handshake) and rejects otherwise.
+		// A rejection here lets the http.Agent fail the request (the client
+		// connection is reset) rather than hanging or silently returning
+		// nothing.
+		const protocol = await this._connectLimiter.queue(() => this._connectTunnel(host, port));
+		const tunnelStream = this._getRemoteNetSocket(protocol);
 		const dataChunk = protocol.readEntireBuffer();
 		protocol.dispose();
 
-		let tunnelStream: net.Socket;
-		if (remoteSocket instanceof NodeSocket) {
-			tunnelStream = remoteSocket.socket;
-		} else {
-			const { Duplex } = await import('stream');
-			const duplex = new Duplex({
-				read() { /* data is pushed via onData below */ },
-				write(chunk: Buffer, _encoding: BufferEncoding, callback: (error?: Error | null) => void) {
-					remoteSocket.write(VSBuffer.wrap(chunk));
-					callback();
-				},
-				final(callback: (error?: Error | null) => void) {
-					remoteSocket.end();
-					callback();
-				}
-			});
-			remoteSocket.onData(d => duplex.push(d.buffer));
-			remoteSocket.onEnd(() => duplex.push(null));
-			remoteSocket.onClose(() => duplex.destroy());
-			tunnelStream = duplex as unknown as net.Socket;
-		}
+		this._trackRemoteSocket(tunnelStream);
 
 		if (dataChunk.byteLength > 0) {
-			tunnelStream.unshift(Buffer.from(dataChunk.buffer));
+			tunnelStream.unshift(dataChunk.buffer);
 		}
 
 		return tunnelStream;
+	}
+
+	/**
+	 * Extract the underlying `net.Socket` from a freshly-connected tunnel
+	 * protocol.
+	 *
+	 * In the shared process the remote socket factory is always
+	 * {@link nodeSocketFactory}, which yields a {@link NodeSocket} (a thin
+	 * wrapper over a real `net.Socket`). Working directly with that raw
+	 * socket lets us rely on Node's native stream backpressure (via
+	 * `pipe()` and the keep-alive `http.Agent`) instead of re-implementing
+	 * it around the generic {@link ISocket} interface. Generic transports
+	 * (e.g. `WebSocketNodeSocket`) are not produced here and are therefore
+	 * not supported — reject them loudly rather than silently mishandle
+	 * backpressure or teardown.
+	 */
+	private _getRemoteNetSocket(protocol: { getSocket(): ISocket; dispose(): void }): net.Socket {
+		const remoteSocket = protocol.getSocket();
+		if (!(remoteSocket instanceof NodeSocket)) {
+			protocol.dispose();
+			throw new Error('[TunnelProxy] Unsupported remote socket type; only NodeSocket tunnels are supported');
+		}
+		// Take ownership of the raw socket, detaching NodeSocket's own
+		// listeners. NodeSocket installs an 'error' listener that routes
+		// every non-EPIPE error through onUnexpectedError, which the shared
+		// process logs as an "uncaught exception". When the upstream tunnel
+		// endpoint dies, every pooled/active tunnel socket is reset at once
+		// - that ECONNRESET is expected teardown here, not an unexpected
+		// error. We bridge the raw socket ourselves (attaching our own
+		// 'error' handlers), so NodeSocket's routing must be removed.
+		const socket = remoteSocket.socket;
+		remoteSocket.dispose(false);
+
+		return socket;
 	}
 
 	/**
@@ -417,8 +500,8 @@ export class TunnelProxy extends Disposable {
 		return { host, port };
 	}
 
-	private _mirrorNodeSocket(localSocket: net.Socket, remoteNodeSocket: NodeSocket): void {
-		const remoteSocket = remoteNodeSocket.socket;
+	private _mirrorNodeSocket(localSocket: net.Socket, remoteSocket: net.Socket): void {
+		this._trackRemoteSocket(remoteSocket);
 		remoteSocket.on('end', () => localSocket.end());
 		remoteSocket.on('close', () => localSocket.end());
 		remoteSocket.on('error', () => localSocket.destroy());
@@ -430,14 +513,22 @@ export class TunnelProxy extends Disposable {
 		localSocket.pipe(remoteSocket);
 	}
 
-	private _mirrorGenericSocket(localSocket: net.Socket, remoteSocket: ISocket): void {
-		remoteSocket.onClose(() => localSocket.destroy());
-		remoteSocket.onEnd(() => localSocket.end());
-		remoteSocket.onData(d => localSocket.write(d.buffer));
-		localSocket.on('data', d => remoteSocket.write(VSBuffer.wrap(d)));
-		localSocket.on('end', () => remoteSocket.end());
-		localSocket.on('close', () => remoteSocket.end());
-		localSocket.on('error', () => remoteSocket.end());
-		localSocket.resume();
+	/**
+	 * Track a remote tunnel socket so {@link dispose} can tear it down
+	 * synchronously. The socket auto-removes itself once closed.
+	 */
+	private _trackRemoteSocket(socket: net.Socket): void {
+		this._remoteSockets.add(socket);
+
+		// Once we detach NodeSocket's listeners (see _getRemoteNetSocket)
+		// the raw socket has no 'error' handler of its own. A net.Socket
+		// that emits 'error' without a listener throws as a genuine
+		// uncaught exception, so every socket we own must have one.
+		// Destroying on error tears the socket down quietly and lets the
+		// agent evict it from the pool. (CONNECT bridges attach an
+		// additional handler in _mirrorNodeSocket; a second listener is
+		// harmless.)
+		socket.on('error', () => socket.destroy());
+		socket.on('close', () => this._remoteSockets.delete(socket));
 	}
 }

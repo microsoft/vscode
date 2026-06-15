@@ -566,7 +566,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 		//#region Editor Context Menu
 
-		function registerGenerateCodeCommand(coreCommand: 'chat.internal.explain' | 'chat.internal.fix' | 'chat.internal.review' | 'chat.internal.codeReview.run', actualCommand: string): void {
+		function registerGenerateCodeCommand(coreCommand: 'chat.internal.explain' | 'chat.internal.fix' | 'chat.internal.review', actualCommand: string): void {
 
 			CommandsRegistry.registerCommand(coreCommand, async (accessor, ...args) => {
 				const commandService = accessor.get(ICommandService);
@@ -600,16 +600,12 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						}
 						break;
 					}
-					case 'chat.internal.codeReview.run': {
-						return commandService.executeCommand(actualCommand, ...args);
-					}
 				}
 			});
 		}
 		registerGenerateCodeCommand('chat.internal.explain', 'github.copilot.chat.explain');
 		registerGenerateCodeCommand('chat.internal.fix', 'github.copilot.chat.fix');
 		registerGenerateCodeCommand('chat.internal.review', 'github.copilot.chat.review');
-		registerGenerateCodeCommand('chat.internal.codeReview.run', 'github.copilot.chat.codeReview.run');
 
 		const internalGenerateCodeContext = ContextKeyExpr.and(
 			ChatContextKeys.Setup.hidden.negate(),

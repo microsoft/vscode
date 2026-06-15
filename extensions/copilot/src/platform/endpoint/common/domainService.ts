@@ -13,9 +13,6 @@ export interface IDomainChangeEvent {
 	proxyUrlChanged: boolean;
 }
 
-// This doesn't really have a great home, but this file talks about domains so seemed best
-export const FEEDBACK_URL = 'https://aka.ms/microsoft/vscode-copilot-release';
-
 /**
  * Very simple service used for dynamically setting the domains we use for API calls
  * This allows better testing, SKU isolation, and Proxima

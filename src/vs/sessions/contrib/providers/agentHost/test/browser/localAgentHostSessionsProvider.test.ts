@@ -17,7 +17,7 @@ import type { IAgentSubscription } from '../../../../../../platform/agentHost/co
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { CustomizationLoadStatus, CustomizationType, SessionLifecycle, type AgentInfo, type Customization, type ModelSelection, type RootState, type SessionConfigState, type SessionState, type SessionSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChangesetStatus, SessionStatus as ProtocolSessionStatus, StateComponents, type ChangesetState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -57,7 +57,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	override readonly clientId = 'test-local-client';
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
 	public disposedSessions: URI[] = [];
-	public dispatchedActions: { channel: string; action: SessionAction | TerminalAction | IRootConfigChangedAction; clientId: string; clientSeq: number }[] = [];
+	public dispatchedActions: { channel: string; action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction; clientId: string; clientSeq: number }[] = [];
 	public failResolveSessionConfig = false;
 	public resolveSessionConfigResult: ResolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } };
 	public resolveSessionConfigRequests: { config?: Record<string, unknown> }[] = [];
@@ -145,11 +145,11 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		return this.resolveSessionConfigResult;
 	}
 
-	dispatchAction(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
+	dispatchAction(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
 		this.dispatchedActions.push({ channel, action, clientId, clientSeq });
 	}
 
-	override dispatch(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
+	override dispatch(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
 		this.dispatchedActions.push({ channel, action, clientId: this.clientId, clientSeq: this._nextSeq++ });
 	}
 

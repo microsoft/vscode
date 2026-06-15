@@ -13,7 +13,7 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { GroupsOrder, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
-import { IAgentFeedbackService } from './agentFeedbackService.js';
+import { AgentFeedbackState, IAgentFeedbackService } from './agentFeedbackService.js';
 import { getActiveResourceCandidates } from './agentFeedbackEditorUtils.js';
 import { Menus } from '../../../browser/menus.js';
 import { ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
@@ -26,7 +26,7 @@ export const navigateNextFeedbackActionId = 'agentFeedbackEditor.action.navigate
 export const clearAllFeedbackActionId = 'agentFeedbackEditor.action.clearAll';
 export const navigationBearingFakeActionId = 'agentFeedbackEditor.navigation.bearings';
 export const hasSessionEditorComments = new RawContextKey<boolean>('agentFeedbackEditor.hasSessionComments', false);
-export const hasSessionAgentFeedback = new RawContextKey<boolean>('agentFeedbackEditor.hasAgentFeedback', false);
+export const hasUnsubmittedAgentFeedback = new RawContextKey<boolean>('agentFeedbackEditor.hasUnsubmittedAgentFeedback', false);
 export const hasActiveSessionAgentFeedback = new RawContextKey<boolean>('agentFeedbackEditor.hasActiveSessionAgentFeedback', false);
 export const submitActiveSessionFeedbackActionId = 'agentFeedbackEditor.action.submitActiveSession';
 
@@ -60,7 +60,6 @@ abstract class AgentFeedbackEditorAction extends Action2 {
 			const comments = getSessionEditorComments(
 				sessionResource,
 				agentFeedbackService.getFeedback(sessionResource),
-				codeReviewService.getReviewState(sessionResource).get(),
 				codeReviewService.getPRReviewState(sessionResource).get(),
 			);
 			if (comments.length > 0) {
@@ -85,7 +84,7 @@ class SubmitFeedbackAction extends AgentFeedbackEditorAction {
 				id: Menus.AgentFeedbackEditorContent,
 				group: 'a_submit',
 				order: 0,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, hasSessionAgentFeedback),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, hasUnsubmittedAgentFeedback),
 			},
 		});
 	}
@@ -122,7 +121,6 @@ class NavigateFeedbackAction extends AgentFeedbackEditorAction {
 		const comments = getSessionEditorComments(
 			sessionResource,
 			agentFeedbackService.getFeedback(sessionResource),
-			codeReviewService.getReviewState(sessionResource).get(),
 			codeReviewService.getPRReviewState(sessionResource).get(),
 		);
 
@@ -149,7 +147,7 @@ class ClearAllFeedbackAction extends AgentFeedbackEditorAction {
 				id: Menus.AgentFeedbackEditorContent,
 				group: 'a_submit',
 				order: 1,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, hasSessionAgentFeedback),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, hasUnsubmittedAgentFeedback),
 			},
 		});
 	}
@@ -184,8 +182,8 @@ class SubmitActiveSessionFeedbackAction extends Action2 {
 		}
 
 		const sessionResource = activeSession.resource;
-		const feedbackItems = agentFeedbackService.getFeedback(sessionResource);
-		if (feedbackItems.length === 0) {
+		const hasAcceptedFeedback = agentFeedbackService.getFeedback(sessionResource).some(item => item.state === AgentFeedbackState.Accepted);
+		if (!hasAcceptedFeedback) {
 			return;
 		}
 

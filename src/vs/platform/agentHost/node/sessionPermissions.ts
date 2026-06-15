@@ -119,12 +119,10 @@ export class SessionPermissionManager extends Disposable {
 	 * 5. Shell command rules (tree-sitter parsed, default allow/deny)
 	 */
 	getAutoApproval(e: IToolApprovalEvent, sessionKey: ProtocolURI): ToolCallConfirmationReason | undefined {
-		const autoApproveLevel = this._configService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.AutoApprove);
 		const workDir = this._configService.getEffectiveWorkingDirectory(sessionKey);
 
 		// 1. Session-level auto-approve
-		if (autoApproveLevel === 'autoApprove' || autoApproveLevel === 'autopilot') {
-			this._logService.trace(`[SessionPermissionManager] Auto-approving tool call (session autoApprove=${autoApproveLevel})`);
+		if (this.isSessionAutoApproveEnabled(sessionKey)) {
 			return ToolCallConfirmationReason.Setting;
 		}
 
@@ -169,6 +167,11 @@ export class SessionPermissionManager extends Disposable {
 		return undefined;
 	}
 
+	isSessionAutoApproveEnabled(sessionKey: ProtocolURI): boolean {
+		const autoApproveLevel = this._configService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.AutoApprove);
+		return autoApproveLevel === 'autoApprove' || autoApproveLevel === 'autopilot';
+	}
+
 	// ---- Action construction (analogous to getPreConfirmActions) -------------
 
 	/**
@@ -189,6 +192,7 @@ export class SessionPermissionManager extends Disposable {
 				confirmationTitle: state.confirmationTitle,
 				edits: state.edits,
 				editable: state.editable,
+				...(state._meta ? { _meta: state._meta } : {}),
 				// Agents can supply tool-specific buttons (e.g. ExitPlanMode's
 				// `Approve`/`Deny`) by populating `state.options`. The standard
 				// `Allow Once / Allow in this Session / Skip` set is the default.
@@ -202,6 +206,7 @@ export class SessionPermissionManager extends Disposable {
 			invocationMessage: state.invocationMessage,
 			toolInput: state.toolInput,
 			confirmed: ToolCallConfirmationReason.NotNeeded,
+			...(state._meta ? { _meta: state._meta } : {}),
 		};
 	}
 

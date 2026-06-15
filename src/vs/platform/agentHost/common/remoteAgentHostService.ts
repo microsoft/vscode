@@ -190,6 +190,13 @@ export function remoteAgentHostLogOutputChannelId(address: string): string {
 	return `agentHost.otlp.${address}`;
 }
 
+/**
+ * Output channel id for the local agent host process logger (forwarded
+ * from the utility process via `RemoteLoggerChannelClient`). Matches the
+ * logger id registered in `agentHostMain.ts`.
+ */
+export const AGENT_HOST_LOG_OUTPUT_CHANNEL_ID = 'agenthost';
+
 export const enum RemoteAgentHostInputValidationError {
 	Empty = 'empty',
 	Invalid = 'invalid',

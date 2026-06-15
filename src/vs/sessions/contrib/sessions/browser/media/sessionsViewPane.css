@@ -14,8 +14,8 @@
 
 	/* Section headers - more prominent than time-based groupings */
 	.agent-sessions-header {
-		font-size: 11px;
-		font-weight: 500;
+		font-size: var(--vscode-agents-fontSize-body2);
+		font-weight: var(--vscode-agents-fontWeight-semiBold);
 		text-transform: uppercase;
 		color: var(--vscode-sideBarSectionHeader-foreground, var(--vscode-foreground));
 		padding: 6px 20px 6px 12px;
@@ -194,8 +194,8 @@
 		font-family: var(--monaco-monospace-font);
 		font-size: var(--vscode-agents-fontSize-label3, 10px);
 		line-height: 1;
-		padding: 1px 3px;
-		border: 1px solid transparent;
+		padding: 2px 4px;
+		border: var(--vscode-strokeThickness) solid transparent;
 		border-radius: var(--vscode-cornerRadius-xSmall);
 		background-color: var(--vscode-keybindingLabel-background);
 		color: var(--vscode-keybindingLabel-foreground);
@@ -255,7 +255,7 @@
 		justify-content: center;
 		align-items: center;
 		padding: 0 6px;
-		font-size: 11px;
+		font-size: var(--vscode-agents-fontSize-label2, 11px);
 		color: var(--vscode-descriptionForeground);
 		min-height: 26px;
 

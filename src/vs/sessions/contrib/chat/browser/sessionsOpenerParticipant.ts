@@ -9,7 +9,7 @@ import { IWorkbenchContribution } from '../../../../workbench/common/contributio
 import { IAgentSession } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { ISessionOpenerParticipant, ISessionOpenOptions, sessionOpenerRegistry } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsOpener.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsViewService } from '../../../browser/sessionsViewService.js';
+import { ISessionsViewService } from '../../../services/sessions/browser/sessionsViewService.js';
 
 /**
  * Routes session open requests in the Agents window through the

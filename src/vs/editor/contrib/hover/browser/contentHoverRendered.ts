@@ -25,7 +25,6 @@ import { HoverAction } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IOffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
-import { MarkerHover } from './markerHoverParticipant.js';
 
 export class RenderedContentHover extends Disposable {
 
@@ -334,7 +333,7 @@ class RenderedContentHoverParts extends Disposable {
 				this._focusedHoverPartIndex = -1;
 			}));
 			// Add copy button for marker hovers
-			if (renderedPart.type === 'hoverPart' && renderedPart.hoverPart instanceof MarkerHover) {
+			if (renderedPart.type === 'hoverPart' && !renderedPart.participant.hideCopyButton) {
 				disposables.add(new HoverCopyButton(
 					element,
 					() => renderedPart.participant.getAccessibleContent(renderedPart.hoverPart),

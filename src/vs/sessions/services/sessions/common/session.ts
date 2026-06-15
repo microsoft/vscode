@@ -19,6 +19,15 @@ export interface ISessionType {
 	readonly label: string;
 	/** Icon for this session type. */
 	readonly icon: ThemeIcon;
+	/**
+	 * The workbench chat session type (contribution id) this session type maps
+	 * to, when it differs from {@link id}. Agent-host providers use a bare agent
+	 * provider name as {@link id} (e.g. `claude`) but register their chat session
+	 * contribution and models under `agent-host-<provider>`, so they set this to
+	 * bridge the two (e.g. for entitlement/model availability lookups). Defaults
+	 * to {@link id} when omitted.
+	 */
+	readonly chatSessionType?: string;
 }
 
 export const GITHUB_REMOTE_FILE_SCHEME = 'github-remote-file';

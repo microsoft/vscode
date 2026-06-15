@@ -280,6 +280,7 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly onDidPickArea: Event<IBrowserViewRect | undefined>;
 	readonly onDidChangeAreaSelectionActive: Event<boolean>;
 	readonly onDidChangeDevice: Event<IBrowserDeviceProfile | undefined>;
+	readonly onDidChangeRemoteStatus: Event<boolean>;
 
 	layout(bounds: IBrowserViewBounds): Promise<void>;
 	setVisible(visible: boolean): Promise<void>;
@@ -494,6 +495,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._register(this.browserViewWorkbenchService.onDidChangeSharingAvailable(() => {
 			this._onDidChangeSharingState.fire(this.sharingState);
 		}));
+
+		this._register(this.onDidChangeRemoteStatus(isRemoteSession => {
+			this._isRemoteSession = isRemoteSession;
+		}));
 	}
 
 	get url(): string { return this._url; }
@@ -561,6 +566,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	get onDidClose(): Event<void> {
 		return this.browserViewService.onDynamicDidClose(this.id);
+	}
+
+	get onDidChangeRemoteStatus(): Event<boolean> {
+		return this.browserViewService.onDynamicDidChangeRemoteStatus(this.id);
 	}
 
 	async layout(bounds: IBrowserViewBounds): Promise<void> {

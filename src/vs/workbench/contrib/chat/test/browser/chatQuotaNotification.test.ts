@@ -145,6 +145,7 @@ suite('ChatQuotaNotificationContribution', () => {
 		const contextKeyService = store.add(new MockContextKeyService());
 		const storageService = store.add(new InMemoryStorageService());
 		const vendor = modelOpts?.vendor ?? 'copilot';
+		const isBYOK = vendor !== 'copilot';
 		// Persist model selection in storage (used by getSelectedModelVendor)
 		storageService.store('chat.currentLanguageModel.panel', `${vendor}/test-model`, StorageScope.APPLICATION, StorageTarget.USER);
 		const languageModelsService = {
@@ -153,7 +154,7 @@ suite('ChatQuotaNotificationContribution', () => {
 			onDidChangeLanguageModels: Event.None,
 			getLanguageModelIds: () => ['test-model'],
 			getVendors: () => [],
-			lookupLanguageModel: (_id: string): ILanguageModelChatMetadata | undefined => ({ vendor } as ILanguageModelChatMetadata),
+			lookupLanguageModel: (_id: string): ILanguageModelChatMetadata | undefined => ({ vendor, isBYOK } as ILanguageModelChatMetadata),
 			lookupLanguageModelByQualifiedName: () => undefined,
 		} as unknown as ILanguageModelsService;
 

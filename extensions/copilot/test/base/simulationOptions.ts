@@ -9,11 +9,23 @@ import { CacheMode } from './simulationContext';
 /** Number of runs that are stored in baseline.json */
 export const BASELINE_RUN_COUNT = 10;
 
+export enum NesDatagenSampleTask {
+	Xtab = 'xtab',
+	CursorSameFile = 'cursor-same-file',
+	CursorCrossFile = 'cursor-cross-file',
+	CursorBoth = 'cursor-both',
+}
+
 export type NesDatagen = {
 	readonly input: string;
 	readonly output: string | undefined;
 	readonly rowOffset: number;
 	readonly workerMode: boolean;
+	readonly sampleTask: NesDatagenSampleTask;
+	/** Minimum same-file lines above the request cursor for a move to count as a jump. */
+	readonly sameFileJumpMinAbove: number;
+	/** Minimum same-file lines below the request cursor for a move to count as a jump. */
+	readonly sameFileJumpMinBelow: number;
 };
 
 export class SimulationOptions {
@@ -175,6 +187,9 @@ export class SimulationOptions {
 				output: argv['out'],
 				rowOffset: typeof argv['row-offset'] === 'number' ? argv['row-offset'] : 0,
 				workerMode: boolean(argv['worker'], false),
+				sampleTask: SimulationOptions.validateSampleTask(argv['sample-task']),
+				sameFileJumpMinAbove: typeof argv['same-file-jump-min-above'] === 'number' ? argv['same-file-jump-min-above'] : 2,
+				sameFileJumpMinBelow: typeof argv['same-file-jump-min-below'] === 'number' ? argv['same-file-jump-min-below'] : 5,
 			}
 			: undefined;
 
@@ -252,6 +267,14 @@ export class SimulationOptions {
 			`  --input                            Path to a JSON or JSON Lines file with training data recordings (required)`,
 			`                                     Format is inferred from the extension: .jsonl/.ndjson → JSON Lines, otherwise JSON array`,
 			`  --out                              Output path for the JSON Lines file. Default: <input-path>_output.jsonl`,
+			`  --sample-task                      Which target to generate (default: xtab)`,
+			`                                     Values: xtab, cursor-same-file, cursor-cross-file, cursor-both`,
+			`                                       xtab               → edit-prediction sample (assistant = an edit)`,
+			`                                       cursor-same-file   → next-cursor-line sample restricted to the active file`,
+			`                                       cursor-cross-file  → next-cursor-line sample for a jump to another file`,
+			`                                       cursor-both        → tries same-file first, falls back to cross-file (one sample per row)`,
+			`  --same-file-jump-min-above         Minimum lines above request cursor for a same-file move to count as a jump (default: 2)`,
+			`  --same-file-jump-min-below         Minimum lines below request cursor for a same-file move to count as a jump (default: 5)`,
 			``,
 			`Global options (placed before 'nes-datagen'):`,
 			`  --config-file                      Path to a JSON config file (required for nes-datagen)`,
@@ -264,6 +287,9 @@ export class SimulationOptions {
 			`Examples:`,
 			`  npm run simulate -- --config-file=config.json nes-datagen --input=data.json`,
 			`  npm run simulate -- --config-file=config.json --parallelism=10 --verbose nes-datagen --input=data.json`,
+			`  npm run simulate -- --config-file=config.json nes-datagen --input=data.json --sample-task=cursor-same-file`,
+			`  npm run simulate -- --config-file=config.json nes-datagen --input=data.json --sample-task=cursor-cross-file`,
+			`  npm run simulate -- --config-file=config.json nes-datagen --input=data.json --sample-task=cursor-both --same-file-jump-min-above=8 --same-file-jump-min-below=8`,
 			``,
 		].join('\n'));
 	}
@@ -300,6 +326,20 @@ export class SimulationOptions {
 		if (nesUrl === undefined && nesApiKey !== undefined) {
 			throw new Error(`--nesUrl must be provided when --nesApiKey is set`);
 		}
+	}
+
+	private static validateSampleTask(value: unknown): NesDatagenSampleTask {
+		if (value === undefined || value === null) {
+			return NesDatagenSampleTask.Xtab;
+		}
+		if (typeof value !== 'string') {
+			throw new Error(`--sample-task must be a string, but got: ${typeof value}`);
+		}
+		const allowed = Object.values(NesDatagenSampleTask) as string[];
+		if (!allowed.includes(value)) {
+			throw new Error(`--sample-task must be one of [${allowed.join(', ')}], but got: ${value}`);
+		}
+		return value as NesDatagenSampleTask;
 	}
 }
 

@@ -731,7 +731,7 @@ export class ChatService extends Disposable implements IChatService {
 					kind: ChatModeKind.Agent,
 					isBuiltin: message.modeInstructions.isBuiltin ?? false,
 					modeInstructions: message.modeInstructions,
-					modeId: 'custom',
+					telemetryModeId: 'custom',
 					applyCodeBlockSuggestionId: undefined,
 				} satisfies IChatRequestModeInfo : undefined;
 				lastRequest = model.addRequest(parsedRequest,
@@ -756,8 +756,11 @@ export class ChatService extends Disposable implements IChatService {
 					for (const part of message.parts) {
 						model.acceptResponseProgress(lastRequest, part);
 					}
-					if (message.details && lastRequest.response) {
-						lastRequest.response.setResult({ details: message.details });
+					if (lastRequest.response && (message.details || message.errorDetails)) {
+						lastRequest.response.setResult({
+							...(message.details ? { details: message.details } : {}),
+							...(message.errorDetails ? { errorDetails: message.errorDetails } : {}),
+						});
 					}
 				}
 			}
@@ -1315,7 +1318,7 @@ export class ChatService extends Disposable implements IChatService {
 							rejectedConfirmationData: options?.rejectedConfirmationData,
 							agentHostSessionConfig: options?.agentHostSessionConfig,
 							userSelectedModelId: options?.userSelectedModelId,
-							modelConfiguration: options?.userSelectedModelId ? this.languageModelsService.getModelConfiguration(options.userSelectedModelId) : undefined,
+							modelConfiguration: options?.userSelectedModelConfiguration ?? (options?.userSelectedModelId ? this.languageModelsService.getModelConfiguration(options.userSelectedModelId) : undefined),
 							userSelectedTools: options?.userSelectedTools?.get(),
 							modeInstructions: options?.modeInfo?.modeInstructions,
 							permissionLevel: options?.modeInfo?.permissionLevel,

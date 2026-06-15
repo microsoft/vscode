@@ -21,6 +21,7 @@ import { IInstantiationService } from '../../../util/vs/platform/instantiation/c
 import { renderPromptElement } from '../../prompts/node/base/promptRenderer';
 import { PromptCategorizationPrompt } from '../../prompts/node/panel/promptCategorization';
 import { CATEGORIZE_PROMPT_TOOL_NAME, CATEGORIZE_PROMPT_TOOL_SCHEMA, isValidDomain, isValidIntent, isValidScope, PromptClassification } from '../common/promptCategorizationTaxonomy';
+import { getModeNameForTelemetry } from './telemetry';
 
 /** Experiment flag to enable prompt categorization */
 const EXP_FLAG_PROMPT_CATEGORIZATION = 'copilotchat.promptCategorization';
@@ -326,7 +327,7 @@ export class PromptCategorizerService implements IPromptCategorizerService {
 				sessionId: request.sessionId ?? '',
 				requestId: telemetryMessageId,
 				vscodeRequestId: request.id ?? '',
-				modeName: request.modeInstructions2?.isBuiltin ? request.modeInstructions2?.name.toLowerCase() : 'custom',
+				modeName: getModeNameForTelemetry(request.modeInstructions2) ?? 'custom',
 				currentLanguage: currentLanguage ?? '',
 				outcome,
 				intent: classification?.intent ?? '',
@@ -358,7 +359,7 @@ export class PromptCategorizerService implements IPromptCategorizerService {
 				sessionId: request.sessionId ?? '',
 				requestId: telemetryMessageId,
 				vscodeRequestId: request.id ?? '',
-				modeName: request.modeInstructions2?.isBuiltin ? request.modeInstructions2?.name.toLowerCase() : 'custom',
+				modeName: getModeNameForTelemetry(request.modeInstructions2) ?? 'custom',
 				currentLanguage: currentLanguage ?? '',
 				outcome,
 				errorDetail: truncatedErrorDetail,

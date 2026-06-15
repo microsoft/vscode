@@ -68,6 +68,11 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onSessionInfo ??= this._sdkEvent('session.info');
 	}
 
+	private _onSessionWarning: Event<SessionEventPayload<'session.warning'>> | undefined;
+	get onSessionWarning(): Event<SessionEventPayload<'session.warning'>> {
+		return this._onSessionWarning ??= this._sdkEvent('session.warning');
+	}
+
 	private _onSessionModelChange: Event<SessionEventPayload<'session.model_change'>> | undefined;
 	get onSessionModelChange(): Event<SessionEventPayload<'session.model_change'>> {
 		return this._onSessionModelChange ??= this._sdkEvent('session.model_change');
@@ -216,6 +221,21 @@ export class CopilotSessionWrapper extends Disposable {
 	private _onSessionModeChanged: Event<SessionEventPayload<'session.mode_changed'>> | undefined;
 	get onSessionModeChanged(): Event<SessionEventPayload<'session.mode_changed'>> {
 		return this._onSessionModeChanged ??= this._sdkEvent('session.mode_changed');
+	}
+
+	private _onMcpServersLoaded: Event<SessionEventPayload<'session.mcp_servers_loaded'>> | undefined;
+	get onMcpServersLoaded(): Event<SessionEventPayload<'session.mcp_servers_loaded'>> {
+		return this._onMcpServersLoaded ??= this._sdkEvent('session.mcp_servers_loaded');
+	}
+
+	private _onMcpServerStatusChanged: Event<SessionEventPayload<'session.mcp_server_status_changed'>> | undefined;
+	get onMcpServerStatusChanged(): Event<SessionEventPayload<'session.mcp_server_status_changed'>> {
+		return this._onMcpServerStatusChanged ??= this._sdkEvent('session.mcp_server_status_changed');
+	}
+
+	private _onToolsUpdated: Event<SessionEventPayload<'session.tools_updated'>> | undefined;
+	get onToolsUpdated(): Event<SessionEventPayload<'session.tools_updated'>> {
+		return this._onToolsUpdated ??= this._sdkEvent('session.tools_updated');
 	}
 
 	private _sdkEvent<K extends SessionEventType>(eventType: K): Event<SessionEventPayload<K>> {

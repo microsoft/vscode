@@ -149,7 +149,7 @@ suite('ChatQuotaExceededPart', () => {
 			assert.strictEqual(button.textContent, 'Upgrade to GitHub Copilot Pro');
 		});
 
-		test('shows "Upgrade" for Pro user with additional_spend_limit_reached', () => {
+		test('shows "Manage Budget" for Pro user with additional_spend_limit_reached', () => {
 			const widget = createWidget(ChatEntitlement.Pro, {
 				message: 'Spend limit reached',
 				isQuotaExceeded: true,
@@ -158,10 +158,10 @@ suite('ChatQuotaExceededPart', () => {
 
 			const button = getPrimaryButton(widget);
 			assert.ok(button);
-			assert.strictEqual(button.textContent, 'Upgrade');
+			assert.strictEqual(button.textContent, 'Manage Budget');
 		});
 
-		test('shows "Upgrade" for ProPlus user with additional_spend_limit_reached', () => {
+		test('shows "Manage Budget" for ProPlus user with additional_spend_limit_reached', () => {
 			const widget = createWidget(ChatEntitlement.ProPlus, {
 				message: 'Spend limit reached',
 				isQuotaExceeded: true,
@@ -170,7 +170,7 @@ suite('ChatQuotaExceededPart', () => {
 
 			const button = getPrimaryButton(widget);
 			assert.ok(button);
-			assert.strictEqual(button.textContent, 'Upgrade');
+			assert.strictEqual(button.textContent, 'Manage Budget');
 		});
 
 		test('shows "Manage Budget" for EDU user without additional_spend_limit_reached', () => {
@@ -214,7 +214,7 @@ suite('ChatQuotaExceededPart', () => {
 			assert.strictEqual(executedCommands[0], 'workbench.action.chat.upgradePlan');
 		});
 
-		test('Pro user with additional_spend_limit_reached clicks "Upgrade" -> upgradePlan', async () => {
+		test('Pro user with additional_spend_limit_reached clicks "Manage Budget" -> manageAdditionalSpend', async () => {
 			const widget = createWidget(ChatEntitlement.Pro, {
 				message: 'Spend limit reached',
 				isQuotaExceeded: true,
@@ -226,7 +226,7 @@ suite('ChatQuotaExceededPart', () => {
 			button.click();
 			await new Promise(r => setTimeout(r, 0));
 
-			assert.strictEqual(executedCommands[0], 'workbench.action.chat.upgradePlan');
+			assert.strictEqual(executedCommands[0], 'workbench.action.chat.manageAdditionalSpend');
 		});
 	});
 });

@@ -265,7 +265,7 @@ function buildAutoModel(defaultModel?: CopilotCLIModelInfo): vscode.LanguageMode
 	return {
 		id: 'auto',
 		name: 'Auto',
-		tooltip: l10n.t('Auto selects the best model based on your request complexity and model performance. Model use through Auto is billed at a 10% discount.'),
+		tooltip: l10n.t('Auto selects the best model based on your request complexity and model performance.'),
 		family: defaultModel?.id ?? '',
 		version: '',
 		maxInputTokens: defaultModel?.maxInputTokens ?? defaultModel?.maxContextWindowTokens ?? 0,

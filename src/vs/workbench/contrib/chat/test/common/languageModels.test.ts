@@ -9,8 +9,9 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../base/
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { SubmenuAction } from '../../../../../base/common/actions.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { ChatMessageRole, LanguageModelsService, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata } from '../../common/languageModels.js';
+import { ChatMessageRole, LanguageModelsService, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, createModelConfigurationActions, ILanguageModelConfigurationSchema } from '../../common/languageModels.js';
 import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
@@ -1506,3 +1507,74 @@ suite('LanguageModels - Provider Group Detail Fallback', function () {
 		);
 	});
 });
+
+suite('createModelConfigurationActions', function () {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const schema: ILanguageModelConfigurationSchema = {
+		properties: {
+			thinkingEffort: {
+				title: 'Thinking Effort',
+				enum: ['low', 'medium', 'high'],
+				enumItemLabels: ['Low', 'Medium', 'High'],
+				enumDescriptions: ['Fast', 'Balanced', 'Thorough'],
+				default: 'medium',
+			},
+			// Skipped: fewer than two enum values.
+			singleChoice: { enum: ['only'], default: 'only' },
+			// Skipped: not an enum.
+			contextSize: { type: 'number', default: 1000 },
+		}
+	};
+
+	test('returns no actions when schema is missing or has no properties', () => {
+		assert.deepStrictEqual(createModelConfigurationActions(undefined, {}, () => { }), []);
+		assert.deepStrictEqual(createModelConfigurationActions({}, {}, () => { }), []);
+	});
+
+	test('builds one submenu per enum property with >= 2 values', () => {
+		const actions = createModelConfigurationActions(schema, {}, () => { });
+		assert.strictEqual(actions.length, 1);
+		const submenu = actions[0] as SubmenuAction;
+		assert.ok(submenu instanceof SubmenuAction);
+		assert.strictEqual(submenu.id, 'configureModel.thinkingEffort');
+		assert.strictEqual(submenu.label, 'Thinking Effort');
+		assert.strictEqual(submenu.actions.length, 3);
+	});
+
+	test('uses enum item labels, marks the default, and checks the current value', () => {
+		// Current value differs from the default, so 'high' is checked.
+		const submenu = createModelConfigurationActions(schema, { thinkingEffort: 'high' }, () => { })[0] as SubmenuAction;
+		const [low, medium, high] = submenu.actions;
+
+		assert.deepStrictEqual(
+			submenu.actions.map(a => ({ label: a.label, checked: a.checked })),
+			[
+				{ label: 'Low', checked: false },
+				{ label: 'Medium (default)', checked: false },
+				{ label: 'High', checked: true },
+			]
+		);
+		assert.strictEqual(low.tooltip, 'Fast');
+		assert.strictEqual(medium.tooltip, 'Balanced');
+		assert.strictEqual(high.tooltip, 'Thorough');
+	});
+
+	test('falls back to the schema default for the checked value when no current value is set', () => {
+		const submenu = createModelConfigurationActions(schema, {}, () => { })[0] as SubmenuAction;
+		assert.deepStrictEqual(
+			submenu.actions.map(a => a.checked),
+			[false, true, false], // 'medium' (default) is checked
+		);
+	});
+
+	test('routes a selection through setValue with the property key and chosen value', () => {
+		const calls: { key: string; value: unknown }[] = [];
+		const submenu = createModelConfigurationActions(schema, {}, (key, value) => calls.push({ key, value }))[0] as SubmenuAction;
+
+		submenu.actions[2].run();
+		assert.deepStrictEqual(calls, [{ key: 'thinkingEffort', value: 'high' }]);
+	});
+});
+

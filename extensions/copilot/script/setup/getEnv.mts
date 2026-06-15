@@ -89,6 +89,8 @@ async function main() {
 }
 
 main().catch(error => {
-	console.error(red(`Error when setting up .env file:\n${error}`));
+	const msg = `Error when setting up .env file:\n${error}`;
+	console.log(msg);
+	console.error(red(msg));
 	process.exit(1);
 });

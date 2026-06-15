@@ -22,8 +22,20 @@ import { IAgentPrompt, PromptRegistry, ReminderInstructionsConstructor, SystemPr
  * Base system prompt for agent mode
  */
 export class DefaultGeminiAgentPrompt extends PromptElement<DefaultAgentPromptProps> {
+	constructor(
+		props: DefaultAgentPromptProps,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IExperimentationService private readonly experimentationService: IExperimentationService
+	) {
+		super(props);
+	}
+
 	async render(state: void, sizing: PromptSizing) {
 		const tools = detectToolCapabilities(this.props.availableTools);
+
+		// Experiment to reduce Gemini 3.5 Flash's proactive tool usage by instructing it to minimize tool calls.
+		const reduceToolUse = this.props.modelFamily?.toLowerCase().includes('gemini-3.5-flash')
+			&& this.configurationService.getExperimentBasedConfig(ConfigKey.EnableGemini35FlashReducedToolUsePrompt, this.experimentationService);
 
 		return <InstructionMessage>
 			<Tag name='instructions'>
@@ -32,7 +44,9 @@ export class DefaultGeminiAgentPrompt extends PromptElement<DefaultAgentPromptPr
 				You will be given some context and attachments along with the user prompt. You can use them if they are relevant to the task, and ignore them if not.{tools[ToolName.ReadFile] && <> Some attachments may be summarized with omitted sections like `/* Lines 123-456 omitted */`. You can use the {ToolName.ReadFile} tool to read more context if needed. Never pass this omitted line marker to an edit tool.</>}<br />
 				If you can infer the project type (languages, frameworks, and libraries) from the user's query or the context that you have, make sure to keep them in mind when making changes.<br />
 				{!this.props.codesearchMode && <>If the user wants you to implement a feature and they have not specified the files to edit, first break down the user's request into smaller concepts and think about the kinds of files you need to grasp each concept.<br /></>}
-				If you aren't sure which tool is relevant, you can call multiple tools. You can call tools repeatedly to take actions or gather as much context as needed until you have completed the task fully. Don't give up unless you are sure the request cannot be fulfilled with the tools you have. It's YOUR RESPONSIBILITY to make sure that you have done all you can to collect necessary context.<br />
+				{reduceToolUse
+					? <>Tool calls to read files or search are expensive. Minimize their use by solving tasks in the fewest steps and tool calls possible.<br /></>
+					: <>If you aren't sure which tool is relevant, you can call multiple tools. You can call tools repeatedly to take actions or gather as much context as needed until you have completed the task fully. Don't give up unless you are sure the request cannot be fulfilled with the tools you have. It's YOUR RESPONSIBILITY to make sure that you have done all you can to collect necessary context.<br /></>}
 				When reading files, prefer reading large meaningful chunks rather than consecutive small sections to minimize tool calls and gain better context.<br />
 				Don't make assumptions about the situation- gather context first, then perform the task or answer the question.<br />
 				{!this.props.codesearchMode && <>Think creatively and explore the workspace in order to make a complete fix.<br /></>}

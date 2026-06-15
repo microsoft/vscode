@@ -16,7 +16,24 @@ import {
 	type ICopilotApiService,
 	type ICopilotApiServiceRequestOptions,
 } from '../../node/shared/copilotApiService.js';
+import { PROXY_ERROR_PREFIX, tryParseForwardedChatError } from '../../node/shared/forwardedChatError.js';
 import { ClaudeProxyService } from '../../node/claude/claudeProxyService.js';
+
+/**
+ * Asserts a `/v1/messages` error envelope was re-emitted with all fields
+ * unchanged except `error.message`, which carries the original message plus an
+ * appended `VSCODE_PROXY_ERROR` marker that decodes to a forwarded chat error
+ * of the expected fetch type. (The `/v1/models` path stays verbatim.)
+ */
+function assertEnvelopeWithChatErrorMarker(actual: Anthropic.ErrorResponse, original: Anthropic.ErrorResponse, expectedFetchType: string): void {
+	assert.strictEqual(actual.type, 'error');
+	assert.strictEqual(actual.request_id, original.request_id);
+	assert.strictEqual(actual.error.type, original.error.type);
+	assert.ok(actual.error.message.startsWith(`${original.error.message} ${PROXY_ERROR_PREFIX}`), `expected marker-appended message, got: ${actual.error.message}`);
+	const forwarded = tryParseForwardedChatError(actual.error.message);
+	assert.ok(forwarded, 'embedded marker should decode to a forwarded chat error');
+	assert.strictEqual(forwarded.fetchError.type, expectedFetchType);
+}
 
 // #region Test fakes
 
@@ -1021,7 +1038,7 @@ suite('ClaudeProxyService', () => {
 				const lastEvent = res.events.at(-1);
 				assert.ok(lastEvent);
 				assert.strictEqual(lastEvent.type, 'error');
-				assert.deepStrictEqual(lastEvent.data, upstreamEnvelope);
+				assertEnvelopeWithChatErrorMarker(lastEvent.data as Anthropic.ErrorResponse, upstreamEnvelope, 'failed');
 				const types = res.events.map(e => e.type);
 				assert.ok(!types.includes('message_stop'), 'no message_stop after error frame');
 			} finally {
@@ -1050,7 +1067,7 @@ suite('ClaudeProxyService', () => {
 					body: JSON.stringify({ model: 'claude-opus-4-6', messages: [], max_tokens: 8, stream: true }),
 				});
 				assert.strictEqual(res.status, 401);
-				assert.deepStrictEqual(res.parsed, envelope);
+				assertEnvelopeWithChatErrorMarker(res.parsed as Anthropic.ErrorResponse, envelope, 'agent_unauthorized');
 			} finally {
 				handle.dispose();
 				service.dispose();
@@ -1080,7 +1097,7 @@ suite('ClaudeProxyService', () => {
 					body: JSON.stringify({ model: 'claude-opus-4-6', messages: [], max_tokens: 8, stream: true }),
 				});
 				assert.strictEqual(res.status, 502);
-				assert.deepStrictEqual(res.parsed, envelope);
+				assertEnvelopeWithChatErrorMarker(res.parsed as Anthropic.ErrorResponse, envelope, 'failed');
 			} finally {
 				handle.dispose();
 				service.dispose();

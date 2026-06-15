@@ -50,6 +50,13 @@ export class BrowserViewEmulator extends Disposable {
 		return this._device;
 	}
 
+	get emulatedScaleFactor(): number {
+		if (!this._lastLayout) {
+			return 1;
+		}
+		return this._lastLayout.scale * this._lastLayout.hostZoom;
+	}
+
 	async setDevice(device: IBrowserDeviceProfile | undefined): Promise<void> {
 		const prev = this._device;
 		this._device = device;
@@ -194,8 +201,60 @@ export class BrowserViewEmulator extends Disposable {
 				const ua = p.userAgent || undefined;
 				return this.setDevice({ ...this._device, userAgent: ua }).then(() => ({}));
 			}
+			case 'Input.dispatchMouseEvent':
+			case 'Input.dispatchDragEvent':
+			case 'Input.synthesizeScrollGesture':
+			case 'Input.synthesizePinchGesture':
+			case 'Input.synthesizeTapGesture':
+			case 'Input.dispatchTouchEvent':
+				this._scaleInputCoordinates(params);
+				return undefined; // let the event pass through with the modified parameters
 			default:
 				return undefined;
+		}
+	}
+
+	/**
+	 * Scale any coordinate-bearing fields on a CDP `Input.*` params object in
+	 * place so screen-space coordinates map onto the emulated viewport. Handles
+	 * point coordinates (`x` / `y`), mouse wheel deltas (`deltaX` / `deltaY`),
+	 * scroll distances (`xDistance` / `yDistance`) and touch points.
+	 */
+	private _scaleInputCoordinates(params: unknown): void {
+		const scale = this.emulatedScaleFactor;
+		const p = (params ?? {}) as {
+			x?: number;
+			y?: number;
+			deltaX?: number;
+			deltaY?: number;
+			xDistance?: number;
+			yDistance?: number;
+			touchPoints?: { x: number; y: number }[];
+		};
+		if (p.x) {
+			p.x *= scale;
+		}
+		if (p.y) {
+			p.y *= scale;
+		}
+		if (p.deltaX) {
+			p.deltaX *= scale;
+		}
+		if (p.deltaY) {
+			p.deltaY *= scale;
+		}
+		if (p.xDistance) {
+			p.xDistance *= scale;
+		}
+		if (p.yDistance) {
+			p.yDistance *= scale;
+		}
+		if (Array.isArray(p.touchPoints)) {
+			p.touchPoints = p.touchPoints.map((t) => ({
+				...t,
+				x: t.x * scale,
+				y: t.y * scale,
+			}));
 		}
 	}
 }

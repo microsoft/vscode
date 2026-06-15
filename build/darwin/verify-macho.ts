@@ -44,7 +44,13 @@ const FILES_TO_SKIP = [
 	// includes both arm64 and x64 trees regardless of host arch.
 	'**/node_modules/@microsoft/mxc-sdk/bin/**',
 	'**/node_modules.asar.unpacked/@microsoft/mxc-sdk/bin/**',
+	// Copilot SDK tgrep prebuilds: single-arch binaries in per-platform directories
+	'**/node_modules/@github/copilot/tgrep/bin/darwin-*/**',
+	'**/node_modules.asar.unpacked/@github/copilot/tgrep/bin/darwin-*/**',
+	'**/node_modules/@github/copilot/sdk/tgrep/bin/darwin-*/**',
+	'**/node_modules.asar.unpacked/@github/copilot/sdk/tgrep/bin/darwin-*/**',
 ];
+
 
 function isFileSkipped(file: string): boolean {
 	return FILES_TO_SKIP.some(pattern => minimatch(file, pattern));

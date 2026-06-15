@@ -11,6 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileChangeType, FileSystemProviderErrorCode, FileType, IFileChange, toFileSystemProviderErrorCode } from '../../../files/common/files.js';
 import { AgentHostFileSystemProvider, agentHostRemotePath, agentHostUri, type IRemoteFilesystemConnection } from '../../common/agentHostFileSystemProvider.js';
+import { remoteAgentHostSessionTypeId } from '../../common/agentHostSessionType.js';
 import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../../common/agentHostUri.js';
 import { ContentEncoding, ResourceType, type CreateResourceWatchParams, type ResourceCopyParams, type ResourceListResult, type ResourceMkdirParams, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult } from '../../common/state/protocol/commands.js';
 import { AhpErrorCodes } from '../../common/state/protocol/errors.js';
@@ -92,7 +93,7 @@ suite('AgentHostAuthority - encoding', () => {
 		const addresses = ['localhost', 'localhost:8081', 'user@host:8080', 'host with spaces'];
 		for (const address of addresses) {
 			const authority = agentHostAuthority(address);
-			const scheme = `remote-${authority}-copilot`;
+			const scheme = remoteAgentHostSessionTypeId(authority, 'copilot');
 			const uri = URI.from({ scheme, path: '/test' });
 			assert.strictEqual(uri.scheme, scheme, `scheme for '${address}' must round-trip through URI`);
 		}
@@ -675,6 +676,32 @@ suite('AgentHostFileSystemProvider - resolve / mkdir / copy / watch', () => {
 		assert.strictEqual(stat.type, FileType.Directory);
 		assert.strictEqual(stat.mtime, Date.parse('2026-01-15T00:00:00.000Z'));
 		assert.strictEqual(connection.resolveCalls.length, 1, 'resourceResolve was called');
+	});
+
+	test('stat does not mark resolved files readonly so they remain editable', async () => {
+		const { provider, connection } = setup();
+		connection.nextResolveResult = { uri: '', type: ResourceType.File, size: 10, mtime: '2026-01-15T00:00:00.000Z' };
+		const wrapped = agentHostUri('remote', '/some/file.ts');
+
+		const stat = await provider.stat(wrapped);
+
+		assert.strictEqual(stat.permissions ?? 0, 0, 'resolved files must not carry the Readonly permission');
+	});
+
+	test('realpath re-encodes the connection canonical URI back into provider space', async () => {
+		const { provider, connection } = setup();
+		// Simulate a symlink: the resolve reports a canonical target that
+		// differs from the requested path.
+		connection.resourceResolve = async (params: ResourceResolveParams): Promise<ResourceResolveResult> => {
+			connection.resolveCalls.push(params);
+			return { uri: 'file:///real/target.ts', type: ResourceType.File };
+		};
+		const wrapped = agentHostUri('remote', '/link/source.ts');
+
+		const real = await provider.realpath(wrapped);
+
+		assert.strictEqual(real, agentHostUri('remote', '/real/target.ts').path);
+		assert.strictEqual(connection.resolveCalls.length, 1);
 	});
 
 	test('mkdir delegates to resourceMkdir', async () => {

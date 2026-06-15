@@ -18,7 +18,7 @@ import { createMarkdownCommandLink, MarkdownString } from '../../../../base/comm
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedObservableWithCache, observableValue } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { isDefined } from '../../../../base/common/types.js';
+import { hasKey, isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
@@ -46,11 +46,14 @@ import { IAuthenticationService } from '../../../services/authentication/common/
 import { IAccountQuery, IAuthenticationQueryService } from '../../../services/authentication/common/authenticationQuery.js';
 import { MCP_CONFIGURATION_KEY, WORKSPACE_STANDALONE_CONFIGURATIONS } from '../../../services/configuration/common/configuration.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IOutputService } from '../../../services/output/common/output.js';
 import { IRemoteUserDataProfilesService } from '../../../services/userDataProfile/common/remoteUserDataProfiles.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { McpServerStatus } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { CHAT_CONFIG_MENU_ID } from '../../chat/browser/actions/chatActions.js';
 import { ChatViewId, IChatWidgetService } from '../../chat/browser/chat.js';
+import { IAgentHostCustomizationService } from '../../chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { IChatElicitationRequest, IChatToolInvocation } from '../../chat/common/chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../chat/common/constants.js';
@@ -102,9 +105,37 @@ export class ListMcpServerCommand extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor) {
-		const mcpService = accessor.get(IMcpService);
-		const commandService = accessor.get(ICommandService);
-		const quickInput = accessor.get(IQuickInputService);
+		const services: IListMcpServerServices = {
+			chatWidgetService: accessor.get(IChatWidgetService),
+			agentHostCustomizations: accessor.get(IAgentHostCustomizationService),
+			mcpService: accessor.get(IMcpService),
+			commandService: accessor.get(ICommandService),
+			quickInput: accessor.get(IQuickInputService),
+		};
+		return this._runWithMode(services, undefined);
+	}
+
+	private async _runWithMode(services: IListMcpServerServices, initialMode: 'local' | { agentHostSession: URI } | undefined): Promise<void> {
+		let mode = initialMode;
+		if (mode === undefined) {
+			const sessionResource = services.chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
+			const hasAgentHostMcp = sessionResource && services.agentHostCustomizations.getMcpServers(sessionResource).length > 0;
+			mode = hasAgentHostMcp ? { agentHostSession: sessionResource! } : 'local';
+		}
+
+		if (mode === 'local') {
+			await this._runLocal(services);
+			return;
+		}
+
+		const nextMode = await this._runAgentHost(services, mode.agentHostSession);
+		if (nextMode === 'local') {
+			await this._runWithMode(services, 'local');
+		}
+	}
+
+	private async _runLocal(services: IListMcpServerServices): Promise<void> {
+		const { mcpService, commandService, quickInput } = services;
 
 		type ItemType = { id: string } & IQuickPickItem;
 
@@ -160,6 +191,166 @@ export class ListMcpServerCommand extends Action2 {
 			commandService.executeCommand(McpCommandIds.AddConfiguration);
 		} else {
 			commandService.executeCommand(McpCommandIds.ServerOptions, picked.id);
+		}
+	}
+
+	private async _runAgentHost(services: IListMcpServerServices, agentHostSession: URI): Promise<'local' | undefined> {
+		const { agentHostCustomizations, commandService, quickInput } = services;
+
+		const BACK_ID = '$back';
+		type ItemType = { id: string } & IQuickPickItem;
+
+		const store = new DisposableStore();
+		const pick = quickInput.createQuickPick<ItemType>({ useSeparators: true });
+		pick.placeholder = localize('mcp.selectAgentHostServer', 'Select an MCP Server for this session');
+
+		store.add(pick);
+
+		const refresh = () => {
+			const firstRun = pick.items.length === 0;
+			const servers = agentHostCustomizations.getMcpServers(agentHostSession);
+
+			pick.items = [
+				...(servers.length === 0 ? [{
+					id: '$empty',
+					label: localize('mcp.agentHost.noServers', 'No MCP servers'),
+					description: localize('mcp.agentHost.noServers.description', 'This session does not expose any MCP servers'),
+					alwaysShow: true,
+				} satisfies ItemType] : servers.map((server): ItemType => ({
+					id: server.id,
+					label: server.name,
+					description: server.enabled
+						? mcpServerStatusToLabel(server.status)
+						: localize('mcp.disabled', 'Disabled'),
+				}))),
+				{ type: 'separator' } satisfies IQuickPickSeparator,
+				{
+					id: BACK_ID,
+					label: localize('mcp.agentHost.showLocal', 'Show locally configured servers...'),
+					iconClass: ThemeIcon.asClassName(Codicon.arrowLeft),
+					alwaysShow: true,
+				} satisfies ItemType,
+			];
+
+			if (firstRun && servers.length > 0) {
+				pick.activeItems = [pick.items[0] as ItemType];
+			}
+		};
+
+		refresh();
+		store.add(agentHostCustomizations.onDidChangeCustomizations(() => refresh()));
+
+		const picked = await new Promise<ItemType | undefined>(resolve => {
+			store.add(pick.onDidAccept(() => {
+				resolve(pick.activeItems[0]);
+			}));
+			store.add(pick.onDidHide(() => {
+				resolve(undefined);
+			}));
+			pick.show();
+		});
+
+		store.dispose();
+
+		if (!picked || picked.id === '$empty') {
+			return undefined;
+		}
+
+		if (picked.id === BACK_ID) {
+			return 'local';
+		}
+
+		await commandService.executeCommand(McpCommandIds.AgentHostServerOptions, agentHostSession, picked.id);
+		return undefined;
+	}
+}
+
+interface IListMcpServerServices {
+	readonly chatWidgetService: IChatWidgetService;
+	readonly agentHostCustomizations: IAgentHostCustomizationService;
+	readonly mcpService: IMcpService;
+	readonly commandService: ICommandService;
+	readonly quickInput: IQuickInputService;
+}
+
+function mcpServerStatusToLabel(status: McpServerStatus): string {
+	switch (status) {
+		case McpServerStatus.Starting:
+			return localize('mcp.agentHost.status.starting', 'Starting');
+		case McpServerStatus.Ready:
+			return localize('mcp.agentHost.status.ready', 'Running');
+		case McpServerStatus.AuthRequired:
+			return localize('mcp.agentHost.status.authRequired', 'Authentication required');
+		case McpServerStatus.Error:
+			return localize('mcp.agentHost.status.error', 'Error');
+		case McpServerStatus.Stopped:
+			return localize('mcp.agentHost.status.stopped', 'Stopped');
+		default:
+			return '';
+	}
+}
+
+export class McpAgentHostServerOptionsCommand extends Action2 {
+	constructor() {
+		super({
+			id: McpCommandIds.AgentHostServerOptions,
+			title: localize2('mcp.agentHostOptions', 'Agent Host Server Options'),
+			category,
+			f1: false,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, agentHostSession: URI, customizationId: string): Promise<void> {
+		const agentHostCustomizations = accessor.get(IAgentHostCustomizationService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const outputService = accessor.get(IOutputService);
+
+		const server = agentHostCustomizations.getMcpServers(agentHostSession).find(s => s.id === customizationId);
+		if (!server) {
+			return;
+		}
+
+		const logOutputChannelId = server.logOutputChannelId;
+
+		type ItemType = { action: 'toggle' | 'showOutput' } & IQuickPickItem;
+
+		const items: (ItemType | IQuickPickSeparator)[] = [
+			{ type: 'separator', label: localize('mcp.actions.status', 'Status') },
+			{
+				label: server.enabled
+					? localize('mcp.agentHost.disable', 'Disable Server')
+					: localize('mcp.agentHost.enable', 'Enable Server'),
+				description: server.enabled
+					? mcpServerStatusToLabel(server.status)
+					: localize('mcp.disabled', 'Disabled'),
+				action: 'toggle',
+			},
+		];
+
+		if (logOutputChannelId) {
+			items.push({
+				label: localize('mcp.showOutput', 'Show Output'),
+				action: 'showOutput',
+			});
+		}
+
+		const picked = await quickInputService.pick(items, {
+			placeHolder: server.name,
+		});
+
+		if (!picked || !hasKey(picked, { action: true })) {
+			return;
+		}
+
+		if (picked.action === 'showOutput') {
+			if (logOutputChannelId) {
+				await outputService.showChannel(logOutputChannelId);
+			}
+			return;
+		}
+
+		if (picked.action === 'toggle') {
+			server.setEnabled(!server.enabled);
 		}
 	}
 }

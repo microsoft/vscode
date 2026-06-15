@@ -39,12 +39,6 @@ import { CommandsRegistry, ICommandService } from '../../../../../platform/comma
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
-// Provider id for the local agent host. Duplicated from
-// `vs/sessions/common/agentHostSessionsProvider.LOCAL_AGENT_HOST_PROVIDER_ID`
-// because the workbench layer cannot import from `vs/sessions`. The string is
-// part of the handoff IPC wire protocol so both sides must keep it in sync.
-const LOCAL_AGENT_HOST_PROVIDER_ID = 'local-agent-host';
-
 export class OpenWorkspaceInAgentsWindowAction extends Action2 {
 	constructor() {
 		super({
@@ -112,7 +106,7 @@ export class OpenAgentsWindowAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, args?: { folderUri?: UriComponents; initialQuery?: string; sessionResource?: UriComponents }) {
+	async run(accessor: ServicesAccessor, args?: { folderUri?: UriComponents; sessionResource?: UriComponents }) {
 		const nativeHostService = accessor.get(INativeHostService);
 		await nativeHostService.openAgentsWindow(args);
 	}
@@ -168,20 +162,15 @@ export class OpenChatSessionInAgentsWindowAction extends Action2 {
 			sessionResource = chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
 		}
 
-		// No real session URI to hand off (empty-workspace path triggered
-		// from the input tip): pre-seed the agents window's session-type
-		// picker so it lands on Copilot CLI.
-		let preferredSessionType: { providerId?: string; sessionTypeId: string } | undefined;
+		// Hand off a real (persisted, non-untitled) session so the agents window
+		// opens that same session (it carries its own workspace). Otherwise fall
+		// back to forwarding the workspace folder so the agents window scopes its
+		// new-session composer to it.
 		const hasRealSession = sessionResource && !isUntitledChatSession(sessionResource);
-		if (!hasRealSession) {
-			preferredSessionType = { providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionTypeId: SessionType.CopilotCLI };
-		}
-
 		const folderUri = workspaceContextService.getWorkspace().folders[0]?.uri;
 		await nativeHostService.openAgentsWindow({
-			folderUri: folderUri?.scheme === Schemas.file ? folderUri.toJSON() : undefined,
+			folderUri: !hasRealSession && folderUri?.scheme === Schemas.file ? folderUri.toJSON() : undefined,
 			sessionResource: hasRealSession ? sessionResource?.toJSON() : undefined,
-			preferredSessionType,
 		});
 	}
 }

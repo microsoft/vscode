@@ -175,6 +175,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/agentsVoice",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/chat",
 			"project": "vscode-workbench"
 		},

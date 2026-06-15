@@ -353,6 +353,35 @@ suite('ChatImageCarouselService helpers', () => {
 			assert.strictEqual(result.length, 1);
 			assert.strictEqual(result[0].images.length, 1);
 			assert.strictEqual(result[0].images[0].id, expectedUri);
+			assert.strictEqual(result[0].images[0].caption, 'Took screenshot');
+		});
+
+		test('strips markdown from tool invocation message captions', async () => {
+			const imageUri = URI.file('/screenshots/homepage.png');
+			const request = makeRequest('req-1', [], 'Take a screenshot');
+			const response = makeResponse('req-1', 'resp-1', [
+				{
+					kind: 'toolInvocationSerialized',
+					toolId: 'view_image',
+					toolCallId: 'tool-call-1',
+					invocationMessage: 'Viewing image',
+					originMessage: undefined,
+					pastTenseMessage: { value: 'Viewed image [](file:///screenshots/homepage.png)', isTrusted: false, uris: { '0': imageUri.toJSON() } },
+					presentation: undefined,
+					resultDetails: undefined,
+					isConfirmed: { type: 0 },
+					isComplete: true,
+					source: ToolDataSource.Internal,
+					generatedTitle: undefined,
+					isAttachedToThinking: false,
+				} as unknown as IChatToolInvocationSerialized,
+			]);
+
+			const result = await collectCarouselSections([request, response], async () => new Uint8Array([1, 2, 3]));
+
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0].images.length, 1);
+			assert.strictEqual(result[0].images[0].caption, 'Viewed image homepage.png');
 		});
 
 		test('image data is a plain Uint8Array usable by Blob constructor', async () => {

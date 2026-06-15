@@ -387,7 +387,14 @@ function getQuotaHitMessage(fetchResult: ChatFetchError, copilotPlan: string | u
 			comment: [`{Locked=']({'}`]
 		});
 	} else if (fetchResult.capiError?.code === 'additional_spend_limit_reached') {
-		return l10n.t(`You've reached your additional usage limit for your plan. Upgrade your plan to keep going.`);
+		if (copilotPlan === 'business' || copilotPlan === 'enterprise') {
+			return l10n.t(`You've reached your additional usage limit for your plan. Please contact your admin.`);
+		}
+		return l10n.t({
+			message: `You've reached your additional usage limit for your plan. [Manage Budget]({0})`,
+			args: ['https://github.com/settings/copilot/features'],
+			comment: [`{Locked=']({'}`]
+		});
 	} else if (fetchResult.capiError?.code === 'billing_not_configured' && fetchResult.capiError?.message) {
 		return fetchResult.capiError.message;
 	} else if (fetchResult.capiError?.code && fetchResult.capiError?.message) {

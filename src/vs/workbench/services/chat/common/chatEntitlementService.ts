@@ -782,6 +782,7 @@ interface IQuotas {
 	readonly premiumChat?: IQuotaSnapshot;
 	readonly additionalUsageEnabled?: boolean;
 	readonly additionalUsageCount?: number;
+	readonly additionalUsageEntitlement?: number;
 
 	readonly sessionRateLimit?: IRateLimitSnapshot;
 	readonly weeklyRateLimit?: IRateLimitSnapshot;
@@ -854,6 +855,7 @@ export function parseQuotas(entitlementsData: IEntitlementsData): IQuotas {
 		const overageSource = entitlementsData.quota_snapshots['premium_interactions'];
 		quotas.additionalUsageEnabled = overageSource?.overage_permitted ?? false;
 		quotas.additionalUsageCount = overageSource?.overage_count ?? 0;
+		quotas.additionalUsageEntitlement = overageSource?.overage_entitlement ?? 0;
 	}
 	return quotas;
 }

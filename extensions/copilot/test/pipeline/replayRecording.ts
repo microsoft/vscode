@@ -6,9 +6,12 @@
 import { IRecordingInformation, ObservableWorkspaceRecordingReplayer } from '../../src/extension/inlineEdits/common/observableWorkspaceRecordingReplayer';
 import { DocumentId } from '../../src/platform/inlineEdits/common/dataTypes/documentId';
 import { IObservableDocument, MutableObservableWorkspace } from '../../src/platform/inlineEdits/common/observableWorkspace';
+import { LogEntry } from '../../src/platform/workspaceRecorder/common/workspaceLog';
 import { coalesce } from '../../src/util/vs/base/common/arrays';
+import { StringText } from '../../src/util/vs/editor/common/core/text/abstractText';
 import { Processor } from './alternativeAction/processor';
 import { IInputRow } from './parseInput';
+import { applyEditsToContent } from './responseStep';
 
 /**
  * Result of processing a single input row: replayed workspace + oracle edit.
@@ -28,6 +31,37 @@ export interface IProcessedRow {
 		readonly originalOpIdx: number;
 	};
 	readonly recordingInfo: IRecordingInformation;
+	/**
+	 * Log entries that occurred *after* the NES request bookmark, in original
+	 * order. Used by cursor-jump detectors to spot the user's next cursor move/jump.
+	 */
+	readonly recordingAfterRequest: readonly LogEntry[];
+	/**
+	 * Recording-log document id of the active doc at request time. Use this
+	 * to filter events in {@link recordingAfterRequest} that happened on the
+	 * "current" file vs. some other file the recorder also tracked.
+	 */
+	readonly activeDocLogId: number;
+	/**
+	 * Map from recording-log document id to workspace-relative path. Includes
+	 * docs encountered both before and after the request bookmark so cross-file
+	 * jump targets are resolvable.
+	 */
+	readonly idToRelativePath: ReadonlyMap<number, string>;
+	/**
+	 * State of the user's primary cursor at request-bookmark time. `undefined`
+	 * if no selection on the active doc was ever recorded prior to the
+	 * bookmark, in which case cursor-jump same-file detection cannot run.
+	 */
+	readonly cursorAtRequest: { readonly offset: number; readonly lineNumber: number } | undefined;
+	/**
+	 * Snapshot of every observed doc's content at request-bookmark time, keyed
+	 * by recording-log document id. Computed by walking `recordingPriorToRequest`
+	 * and applying all `setContent`/`changed` events. Cursor-jump cross-file detection
+	 * uses this as the base content for the jump target so we can resolve the
+	 * target line even when the target was opened before the request.
+	 */
+	readonly idToContentAtRequest: ReadonlyMap<number, string>;
 }
 
 /**
@@ -83,6 +117,12 @@ function _processRow(row: IInputRow): IProcessedRow | { error: string } {
 	const proposedEdits = coalesce([parseSuggestedEdit(row.postProcessingOutcome.suggestedEdit)]);
 	const isAccepted = row.suggestionStatus === 'accepted';
 
+	const split = Processor.splitRecording(row.alternativeAction);
+	if (!split) {
+		const entryCount = row.alternativeAction?.recording?.entries?.length ?? 0;
+		return { error: `Could not split recording at request time (${entryCount} entries, lang: ${row.activeDocumentLanguageId})` };
+	}
+
 	const scoring = Processor.createScoringForAlternativeAction(
 		row.alternativeAction,
 		proposedEdits,
@@ -124,6 +164,49 @@ function _processRow(row: IInputRow): IProcessedRow | { error: string } {
 	// Prefer scoring edit URI, fall back to oracle path
 	const activeFilePath = scoring.edits[0]?.documentUri ?? recording.nextUserEdit?.relativePath ?? 'unknown';
 
+	// Compute cursor-at-request from the *last* `selectionChanged` on the
+	// active doc within the pre-request portion. Multi-cursor selections use
+	// the primary (first) range — matches `IObservableDocument._primarySelectionLine`
+	// semantics. If no selection event exists for the active doc, leave as
+	// undefined so cursor-jump detectors can skip the row.
+	const cursorAtRequest = (() => {
+		for (let i = split.recordingPriorToRequest.length - 1; i >= 0; i--) {
+			const entry = split.recordingPriorToRequest[i];
+			if (entry.kind === 'selectionChanged' && entry.id === split.currentFile.id && entry.selection.length > 0) {
+				const offset = entry.selection[0][0];
+				const content = activeDocument.value.get().value;
+				const transformer = new StringText(content).getTransformer();
+				const lineNumber = transformer.getPosition(Math.min(offset, content.length)).lineNumber - 1;
+				return { offset, lineNumber };
+			}
+		}
+		return undefined;
+	})();
+
+	// Snapshot every observed doc's content at request time. Walks the
+	// pre-request portion once applying setContent + changed events, so
+	// cross-file jump detection can resolve the target line even when the
+	// target was opened before the bookmark.
+	const idToContentAtRequest = (() => {
+		const map = new Map<number, string>();
+		for (const entry of split.recordingPriorToRequest) {
+			if (entry.kind === 'setContent') {
+				map.set(entry.id, entry.content);
+			} else if (entry.kind === 'changed') {
+				const c = map.get(entry.id);
+				if (c === undefined) {
+					continue;
+				}
+				// Replacements within a single `changed` event are all relative
+				// to the same base content, so they must be applied
+				// offset-descending (as `applyEditsToContent` does) — applying
+				// ascending in-place would shift later original offsets.
+				map.set(entry.id, applyEditsToContent(c, entry.edit));
+			}
+		}
+		return map;
+	})();
+
 	return {
 		originalRowIndex: row.originalRowIndex,
 		row,
@@ -134,6 +217,11 @@ function _processRow(row: IInputRow): IProcessedRow | { error: string } {
 		activeFilePath,
 		nextUserEdit: recording.nextUserEdit,
 		recordingInfo,
+		recordingAfterRequest: split.recordingAfterRequest,
+		activeDocLogId: split.currentFile.id,
+		idToRelativePath: split.idToFileMap,
+		cursorAtRequest,
+		idToContentAtRequest,
 	};
 }
 

@@ -24,6 +24,7 @@ import { IChatService } from '../../../../../workbench/contrib/chat/common/chatS
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID, LocalAgentHostDefaultProviderSettingId } from '../../../../common/agentHostSessionsProvider.js';
+import { AGENT_HOST_LOG_OUTPUT_CHANNEL_ID } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
 import { IGitHubInfo, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -47,6 +48,10 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 	readonly icon: ThemeIcon = Codicon.vm;
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 	readonly supportsLocalWorkspaces = true;
+
+	protected override getLogOutputChannelId(): string | undefined {
+		return AGENT_HOST_LOG_OUTPUT_CHANNEL_ID;
+	}
 
 	/**
 	 * When the experimental {@link LocalAgentHostDefaultProviderSettingId}

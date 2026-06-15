@@ -132,6 +132,11 @@ export interface ISessionsManagementService {
 	getSession(resource: URI): ISession | undefined;
 
 	/**
+	 * Get the session and chat that own the given chat resource URI.
+	 */
+	getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined;
+
+	/**
 	 * Get all session types from all registered providers.
 	 */
 	getAllSessionTypes(): ISessionType[];

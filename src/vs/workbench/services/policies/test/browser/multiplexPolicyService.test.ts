@@ -22,7 +22,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { TestProductService } from '../../../../test/common/workbenchTestServices.js';
 import { DefaultAccountService } from '../../../accounts/browser/defaultAccount.js';
 import { AccountPolicyService } from '../../common/accountPolicyService.js';
-import { MultiplexPolicyService } from '../../common/multiplexPolicyService.js';
+import { MultiplexPolicyService } from '../../../../../platform/policy/common/multiplexPolicyService.js';
 
 const BASE_DEFAULT_ACCOUNT: IDefaultAccount = {
 	authenticationProvider: {

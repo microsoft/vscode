@@ -28,7 +28,8 @@ import minimist from 'minimist';
 import { compileBuildWithoutManglingTask, compileBuildWithManglingTask } from './gulpfile.compile.ts';
 import { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileAllExtensionsBuildTask, compileExtensionMediaBuildTask, cleanExtensionsBuildTask, compileCopilotExtensionBuildTask } from './gulpfile.extensions.ts';
 import { copyCodiconsTask } from './lib/compilation.ts';
-import { getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getRipgrepExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';
+import { getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotTgrepExcludeFilter, getRipgrepExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';
+import { readAgentSdkResults } from './agent-sdk/common.ts';
 import { useEsbuildTranspile } from './buildConfig.ts';
 import { promisify } from 'util';
 import globCallback from 'glob';
@@ -304,6 +305,13 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				json.date = readISODate(out);
 				json.checksums = checksums;
 				json.version = version;
+				// Stamp agentSdks from the per-platform results file produced
+				// by `build/agent-sdk/produce.ts` (an earlier pipeline step).
+				// Local dev: file absent → empty → not stamped.
+				const agentSdks = readAgentSdkResults();
+				if (Object.keys(agentSdks).length > 0) {
+					json.agentSdks = agentSdks;
+				}
 				return json;
 			}))
 			.pipe(es.through(function (file) {
@@ -335,6 +343,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 		const copilotRuntimePrebuilds = gulp.src(getCopilotRuntimePrebuildFiles(platform, arch), { base: '.', dot: true, allowEmpty: true });
 		const deps = es.merge(cleanedDeps, copilotRuntimePrebuilds)
 			.pipe(filter(getCopilotExcludeFilter(platform, arch)))
+			.pipe(filter(getCopilotTgrepExcludeFilter(platform, arch)))
 			.pipe(filter(getRipgrepExcludeFilter(platform, arch)))
 			.pipe(jsFilter)
 			.pipe(util.rewriteSourceMappingURL(sourceMappingURLBase))
@@ -561,6 +570,7 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 		const deps = (await Promise.all([
 			glob('**/*.node', { cwd, ignore: 'extensions/node_modules/@parcel/watcher/**' }),
 			glob('**/rg.exe', { cwd }),
+			glob('**/tgrep.exe', { cwd }),
 			glob('**/*explorer_command*.dll', { cwd }),
 		])).flatMap(o => o);
 		const packageJson = JSON.parse(await fs.promises.readFile(path.join(cwd, versionedResourcesFolder, 'resources', 'app', 'package.json'), 'utf8'));

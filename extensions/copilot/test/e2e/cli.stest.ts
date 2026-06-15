@@ -105,7 +105,7 @@ if (!process.env.COPILOT_API_URL) {
 function sessionOptionsFor(workingDirectory: Uri | undefined): ICreateSessionOptions {
 	return {
 		// workingDirectory,
-		model: 'claude-opus-4.7',
+		model: 'gpt-5-mini',
 		workspace: {
 			folder: workingDirectory,
 			repository: undefined,

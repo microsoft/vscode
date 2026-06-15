@@ -106,6 +106,11 @@ export interface IAgentConfigurationService {
 	 * Persists the current host-level value bag without mutating it.
 	 */
 	persistRootConfig(): void;
+
+	/**
+	 * Resolves once any in-flight root-config write has settled.
+	 */
+	whenIdle(): Promise<void>;
 }
 
 export class AgentConfigurationService extends Disposable implements IAgentConfigurationService {
@@ -234,6 +239,10 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 			.catch(err => {
 				this._logService.error(`[AgentConfigurationService] Failed to persist host config to ${resource.fsPath}`, err);
 			});
+	}
+
+	async whenIdle(): Promise<void> {
+		await this._rootConfigWrite;
 	}
 
 	/**

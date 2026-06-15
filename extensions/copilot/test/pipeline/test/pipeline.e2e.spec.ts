@@ -6,6 +6,7 @@ import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
+import { NesDatagenSampleTask } from '../../base/simulationOptions';
 import { runInputPipeline, RunPipelineOptions } from '../pipeline';
 import { allRecords, fixtures } from './fixtures/fixtureData';
 
@@ -84,7 +85,7 @@ async function runPipeline(opts?: Partial<RunPipelineOptions>): Promise<{
 			input: inputPath,
 			output: outputPath,
 			rowOffset: 0,
-			workerMode: false,
+			workerMode: false, sampleTask: NesDatagenSampleTask.Xtab, sameFileJumpMinAbove: 5, sameFileJumpMinBelow: 5,
 		},
 		configFile: configPath,
 		verbose: true,
@@ -262,7 +263,7 @@ describe('nes-datagen pipeline e2e', () => {
 						input: invalidInputPath,
 						output: invalidOutputPath,
 						rowOffset: 0,
-						workerMode: false,
+						workerMode: false, sampleTask: NesDatagenSampleTask.Xtab, sameFileJumpMinAbove: 5, sameFileJumpMinBelow: 5,
 					},
 					configFile: configPath,
 					verbose: false,
@@ -289,7 +290,7 @@ describe('nes-datagen pipeline e2e', () => {
 						input: inputPath,
 						output: outputPath,
 						rowOffset: 0,
-						workerMode: false,
+						workerMode: false, sampleTask: NesDatagenSampleTask.Xtab, sameFileJumpMinAbove: 5, sameFileJumpMinBelow: 5,
 					},
 					configFile: undefined,
 					verbose: false,
@@ -308,7 +309,7 @@ describe('nes-datagen pipeline e2e', () => {
 						input: inputPath,
 						output: offsetOutputPath,
 						rowOffset: 100,
-						workerMode: false,
+						workerMode: false, sampleTask: NesDatagenSampleTask.Xtab, sameFileJumpMinAbove: 5, sameFileJumpMinBelow: 5,
 					},
 					configFile: configPath,
 					verbose: false,

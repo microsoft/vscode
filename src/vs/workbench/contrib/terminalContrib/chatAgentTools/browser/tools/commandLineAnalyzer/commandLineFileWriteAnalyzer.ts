@@ -153,7 +153,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 							// as inside the workspace while expanding at runtime to a location outside it.
 							if (fileUri.fsPath.match(/[$\(\){}`~%]/)) {
 								isAutoApproveAllowed = false;
-								this._log('File write blocked due to likely containing a variable, sub-command, or tilde expansion', fileUri.toString());
+								this._log('File write blocked due to likely containing a variable, sub-command, or tilde/environment-variable expansion', fileUri.toString());
 								break;
 							}
 

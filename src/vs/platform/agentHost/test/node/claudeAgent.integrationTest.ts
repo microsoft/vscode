@@ -462,6 +462,7 @@ class RoundTripQuery implements AsyncGenerator<SDKMessage, void> {
 	supportedAgents(): never { throw new Error('not modeled'); }
 	mcpServerStatus(): never { throw new Error('not modeled'); }
 	getContextUsage(): never { throw new Error('not modeled'); }
+	usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET(): never { throw new Error('not modeled'); }
 	reloadPlugins(): never { throw new Error('not modeled'); }
 	accountInfo(): never { throw new Error('not modeled'); }
 	rewindFiles(): never { throw new Error('not modeled'); }
@@ -472,6 +473,8 @@ class RoundTripQuery implements AsyncGenerator<SDKMessage, void> {
 	setMcpServers(): never { throw new Error('not modeled'); }
 	streamInput(): never { throw new Error('not modeled'); }
 	stopTask(): never { throw new Error('not modeled'); }
+	reloadSkills(): never { throw new Error('not modeled'); }
+	backgroundTasks(): never { throw new Error('not modeled'); }
 	close(): void { /* no-op */ }
 	[Symbol.asyncDispose](): Promise<void> { return Promise.resolve(); }
 }

@@ -43,6 +43,43 @@ export function checkCopilotEnginesVersion(repoRoot: string): string | undefined
 }
 
 /**
+ * Checks that every tracked .js/.cjs/.mjs file in the repo is listed in
+ * `.eslint-allowed-javascript-files`. This complements the
+ * `local/code-no-new-javascript-files` ESLint rule by also covering files
+ * that are excluded via `.eslint-ignore`.
+ *
+ * Returns an error message if there are unknown JS files, or undefined if OK.
+ */
+export function checkNoNewJavaScriptFiles(repoRoot: string): string | undefined {
+	const allowlistPath = path.join(repoRoot, '.eslint-allowed-javascript-files');
+	const allowed = new Set(
+		fs.readFileSync(allowlistPath, 'utf8')
+			.split(/\r\n|\n/)
+			.map(line => line.trim())
+			.filter(line => line && !line.startsWith('#'))
+	);
+
+	// `git ls-files` lists tracked files relative to repo root using forward slashes.
+	const out = cp.execSync('git ls-files "*.js" "*.cjs" "*.mjs"', {
+		cwd: repoRoot,
+		encoding: 'utf8',
+		maxBuffer: 10 * 1024 * 1024,
+	});
+	const tracked = out.split(/\r?\n/).filter(line => !!line);
+
+	const unknown = tracked.filter(file => !allowed.has(file));
+	if (unknown.length > 0) {
+		return [
+			'New JavaScript files are not allowed. Use TypeScript (.ts) instead.',
+			'If a file genuinely must be JavaScript, add it to .eslint-allowed-javascript-files',
+			'(this requires CODEOWNERS review). Offending files:',
+			...unknown.map(f => `  ${f}`),
+		].join('\n');
+	}
+	return undefined;
+}
+
+/**
  * Main hygiene function that runs checks on files
  */
 export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, runEslint = true): NodeJS.ReadWriteStream {
@@ -306,6 +343,15 @@ if (import.meta.main) {
 						const copilotError = checkCopilotEnginesVersion(process.cwd());
 						if (copilotError) {
 							console.error(copilotError);
+							process.exit(1);
+						}
+					}
+
+					// Check that no new .js/.cjs/.mjs files are being added outside of the allowlist
+					if (some.some(f => /\.(js|cjs|mjs)$/.test(f) || f === '.eslint-allowed-javascript-files')) {
+						const jsAllowlistError = checkNoNewJavaScriptFiles(process.cwd());
+						if (jsAllowlistError) {
+							console.error(jsAllowlistError);
 							process.exit(1);
 						}
 					}

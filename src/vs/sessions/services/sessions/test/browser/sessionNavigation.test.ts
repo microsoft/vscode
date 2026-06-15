@@ -149,6 +149,16 @@ class MockSessionStore implements ISessionsManagementService {
 		return this._sessions.get(resource.toString());
 	}
 
+	getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined {
+		for (const session of this._sessions.values()) {
+			const chat = session.chats.get().find(c => c.resource.toString() === resource.toString());
+			if (chat) {
+				return { session, chat };
+			}
+		}
+		return undefined;
+	}
+
 	getAllSessionTypes(): ISessionType[] { return []; }
 	getSessionTypesForFolder(_folderUri: URI): IProviderSessionType[] { return []; }
 	resolveWorkspace(_folderUri: URI): { providerId: string; workspace: ISessionWorkspace } | undefined { return undefined; }

@@ -11,7 +11,6 @@ import { IConversationOptions } from '../../../platform/chat/common/conversation
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { DevContainerConfigGeneratorArguments, IDevContainerConfigurationService } from '../../../platform/devcontainer/common/devContainerConfigurationService';
 import { ICombinedEmbeddingIndex } from '../../../platform/embeddings/common/vscodeIndex';
-import { FEEDBACK_URL } from '../../../platform/endpoint/common/domainService';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { IGitCommitMessageService } from '../../../platform/git/common/gitCommitMessageService';
 import { ILogService } from '../../../platform/log/common/logService';
@@ -268,9 +267,7 @@ export class ConversationFeature implements IExtensionContribution {
 		const disposables = new DisposableStore();
 
 		[
-			vscode.commands.registerCommand('github.copilot.interactiveSession.feedback', async () => {
-				return vscode.env.openExternal(vscode.Uri.parse(FEEDBACK_URL));
-			}),
+			vscode.commands.registerCommand('github.copilot.interactiveSession.feedback', () => vscode.commands.executeCommand('github.copilot.report', 'Copilot chat feedback')),
 			vscode.commands.registerCommand('github.copilot.chat.compact', () => vscode.commands.executeCommand('workbench.action.chat.open', { query: '/compact' })),
 			vscode.commands.registerCommand('github.copilot.terminal.explainTerminalLastCommand', async () => this.triggerTerminalChat({ query: `/${TerminalExplainIntent.intentName} #terminalLastCommand` })),
 			vscode.commands.registerCommand('github.copilot.terminal.fixTerminalLastCommand', async () => generateTerminalFixes(this.instantiationService)),

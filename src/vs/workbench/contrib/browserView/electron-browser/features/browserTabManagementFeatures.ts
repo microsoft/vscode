@@ -523,6 +523,19 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 // Register as "Close All Browser Tabs" action in editor title menu to align with the regular "Close All" action
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: BrowserViewCommandId.CloseAllInGroup, title: localize('browser.closeAllInGroupShort', "Close All Browser Tabs") }, group: '1_close', order: 55, when: BROWSER_EDITOR_ACTIVE });
 
+// Agents window: surface New Tab as a primary editor title toolbar icon so the
+// browser editor title bar isn't left showing only the overflow (...) menu.
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	command: {
+		id: BrowserViewCommandId.NewTab,
+		title: localize2('browser.newTabAction', "New Tab"),
+		icon: Codicon.add
+	},
+	group: 'navigation',
+	order: 1,
+	when: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, IsSessionsWindowContext)
+});
+
 registerAction2(QuickOpenBrowserAction);
 registerAction2(OpenIntegratedBrowserAction);
 registerAction2(OpenFileInIntegratedBrowserAction);

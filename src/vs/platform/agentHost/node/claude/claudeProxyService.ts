@@ -17,6 +17,7 @@ import {
 	ICopilotApiService,
 	type ICopilotApiServiceRequestOptions,
 } from '../shared/copilotApiService.js';
+import { buildForwardedChatError, encodeForwardedChatError } from '../shared/forwardedChatError.js';
 import { filterSupportedBetas } from './anthropicBetas.js';
 import {
 	buildErrorEnvelope,
@@ -508,7 +509,7 @@ export class ClaudeProxyService implements IClaudeProxyService {
 				}
 				return;
 			}
-			this._writeUpstreamErrorResponse(res, err);
+			this._writeUpstreamErrorResponse(res, err, true);
 			return;
 		}
 
@@ -543,7 +544,7 @@ export class ClaudeProxyService implements IClaudeProxyService {
 				}
 				return;
 			}
-			this._writeUpstreamErrorResponse(res, err);
+			this._writeUpstreamErrorResponse(res, err, true);
 			return;
 		}
 
@@ -559,7 +560,7 @@ export class ClaudeProxyService implements IClaudeProxyService {
 				}
 				return;
 			}
-			this._writeUpstreamErrorResponse(res, err);
+			this._writeUpstreamErrorResponse(res, err, true);
 			return;
 		}
 
@@ -607,7 +608,7 @@ export class ClaudeProxyService implements IClaudeProxyService {
 					}
 					// Mid-stream error: emit Anthropic SSE error frame, then end.
 					const envelope = err instanceof CopilotApiError
-						? err.envelope
+						? embedForwardedChatError(err)
 						: buildErrorEnvelope('api_error', stringifyError(err));
 					if (!res.writableEnded) {
 						try {
@@ -643,7 +644,15 @@ export class ClaudeProxyService implements IClaudeProxyService {
 
 	// #region Error helpers
 
-	private _writeUpstreamErrorResponse(res: http.ServerResponse, err: unknown): void {
+	/**
+	 * Writes an upstream error as a JSON response. When `embedChatError` is set
+	 * (the `/v1/messages` paths), a `VSCODE_PROXY_ERROR` marker is appended to
+	 * the envelope message so the structured CAPI error round-trips back through
+	 * the SDK subprocess to the agent host (which decodes it into `_meta` and
+	 * strips the marker). The `/v1/models` path does not round-trip, so it
+	 * re-emits the envelope verbatim.
+	 */
+	private _writeUpstreamErrorResponse(res: http.ServerResponse, err: unknown, embedChatError = false): void {
 		if (res.headersSent) {
 			// Headers are already sent — caller should have routed to
 			// the SSE error path. This is a defensive log.
@@ -659,7 +668,7 @@ export class ClaudeProxyService implements IClaudeProxyService {
 			// don't ship a 520 with a JSON body that violates HTTP
 			// semantics for the consumer.
 			const status = err.status === COPILOT_API_ERROR_STATUS_STREAMING ? 502 : err.status;
-			writeUpstreamJsonError(res, status, err.envelope);
+			writeUpstreamJsonError(res, status, embedChatError ? embedForwardedChatError(err) : err.envelope);
 			return;
 		}
 		writeJsonError(res, 502, 'api_error', err instanceof Error ? err.message : String(err));
@@ -782,6 +791,25 @@ function stringifyError(err: unknown): string {
 		return err.message;
 	}
 	return String(err);
+}
+
+/**
+ * Returns a copy of a {@link CopilotApiError}'s Anthropic envelope with a
+ * `VSCODE_PROXY_ERROR:<base64>` marker appended to the error message. The
+ * marker carries the structured chat fetch error so the agent host can
+ * forward rich, localized error messaging to core once the SDK subprocess
+ * echoes the text back. The original message is preserved (the decoder stops
+ * at the first whitespace), so non-core consumers still read it verbatim.
+ */
+function embedForwardedChatError(err: CopilotApiError): Anthropic.ErrorResponse {
+	const marker = encodeForwardedChatError(buildForwardedChatError(err));
+	return {
+		...err.envelope,
+		error: {
+			...err.envelope.error,
+			message: `${err.envelope.error.message} ${marker}`,
+		},
+	};
 }
 
 // #endregion

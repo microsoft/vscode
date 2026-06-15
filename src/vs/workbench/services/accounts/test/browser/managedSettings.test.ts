@@ -11,102 +11,115 @@ suite('adaptManagedSettings', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('empty response yields all-undefined partial (no enterprise policy file present)', () => {
+	test('empty response yields an empty managed settings bag', () => {
 		assert.deepStrictEqual(adaptManagedSettings({}), {
-			enabledPlugins: undefined,
-			extraKnownMarketplaces: undefined,
-			strictKnownMarketplaces: undefined,
+			managedSettings: {},
 		});
 	});
 
-	test('passes enabledPlugins through untouched (plugin-ID keys, boolean values)', () => {
+	test('normalizes permissions into a dot-path managed setting', () => {
+		assert.deepStrictEqual(adaptManagedSettings({
+			permissions: { disableBypassPermissionsMode: 'disable' },
+		}), {
+			managedSettings: {
+				'permissions.disableBypassPermissionsMode': 'disable',
+			},
+		});
+	});
+
+	test('carries enabledPlugins as a canonical JSON string under a single key', () => {
 		const response: IManagedSettingsResponse = {
 			enabledPlugins: {
 				'assign-issue-to-copilot@agent-skills': true,
 				'my-plugin@acme': false,
 			},
 		};
-		assert.deepStrictEqual(adaptManagedSettings(response).enabledPlugins, {
-			'assign-issue-to-copilot@agent-skills': true,
-			'my-plugin@acme': false,
+		assert.deepStrictEqual(adaptManagedSettings(response), {
+			managedSettings: {
+				enabledPlugins: '{"assign-issue-to-copilot@agent-skills":true,"my-plugin@acme":false}',
+			},
 		});
 	});
 
-	test('passes strictKnownMarketplaces boolean through untouched', () => {
-		assert.strictEqual(adaptManagedSettings({ strictKnownMarketplaces: true }).strictKnownMarketplaces, true);
-		assert.strictEqual(adaptManagedSettings({ strictKnownMarketplaces: false }).strictKnownMarketplaces, false);
+	test('carries strictKnownMarketplaces as a boolean managed setting', () => {
+		assert.deepStrictEqual(adaptManagedSettings({ strictKnownMarketplaces: true }), {
+			managedSettings: { strictKnownMarketplaces: true },
+		});
+		assert.deepStrictEqual(adaptManagedSettings({ strictKnownMarketplaces: false }), {
+			managedSettings: { strictKnownMarketplaces: false },
+		});
 	});
 
-	test('preserves marketplace name + github source shape', () => {
-		const result = adaptManagedSettings({
+	test('encodes github marketplaces as a { name: shorthand } JSON dict', () => {
+		assert.deepStrictEqual(adaptManagedSettings({
 			extraKnownMarketplaces: {
 				'a': { source: { source: 'github', repo: 'github/agent-skills' } },
 				'b': { source: { source: 'github', repo: 'acme/things', ref: 'main' } },
 			},
+		}), {
+			managedSettings: {
+				extraKnownMarketplaces: '{"a":"github/agent-skills","b":"acme/things#main"}',
+			},
 		});
-		assert.deepStrictEqual(result.extraKnownMarketplaces, [
-			{ name: 'a', source: { source: 'github', repo: 'github/agent-skills' } },
-			{ name: 'b', source: { source: 'github', repo: 'acme/things', ref: 'main' } },
-		]);
 	});
 
-	test('preserves marketplace name + git source shape', () => {
-		const result = adaptManagedSettings({
+	test('encodes git marketplaces as a { name: url } JSON dict', () => {
+		assert.deepStrictEqual(adaptManagedSettings({
 			extraKnownMarketplaces: {
 				'a': { source: { source: 'git', url: 'https://example.com/repo.git' } },
 				'b': { source: { source: 'git', url: 'ssh://git@host/path.git', ref: 'v1' } },
 			},
+		}), {
+			managedSettings: {
+				extraKnownMarketplaces: '{"a":"https://example.com/repo.git","b":"ssh://git@host/path.git#v1"}',
+			},
 		});
-		assert.deepStrictEqual(result.extraKnownMarketplaces, [
-			{ name: 'a', source: { source: 'git', url: 'https://example.com/repo.git' } },
-			{ name: 'b', source: { source: 'git', url: 'ssh://git@host/path.git', ref: 'v1' } },
-		]);
 	});
 
-	test('handles mixed github + git sources, dedups by marketplace name', () => {
-		const result = adaptManagedSettings({
+	test('encodes mixed github + git marketplaces, dedups by name', () => {
+		assert.deepStrictEqual(adaptManagedSettings({
 			extraKnownMarketplaces: {
 				'a': { source: { source: 'github', repo: 'a/b' } },
 				'b': { source: { source: 'git', url: 'https://example.com/r.git' } },
 			},
+		}), {
+			managedSettings: {
+				extraKnownMarketplaces: '{"a":"a/b","b":"https://example.com/r.git"}',
+			},
 		});
-		assert.deepStrictEqual(result.extraKnownMarketplaces, [
-			{ name: 'a', source: { source: 'github', repo: 'a/b' } },
-			{ name: 'b', source: { source: 'git', url: 'https://example.com/r.git' } },
-		]);
 	});
 
-	test('handles full populated response (all three fields together)', () => {
-		const result = adaptManagedSettings({
+	test('handles a full populated response (all three structured settings together)', () => {
+		assert.deepStrictEqual(adaptManagedSettings({
 			enabledPlugins: { 'p@m': true },
 			extraKnownMarketplaces: {
 				'a': { source: { source: 'github', repo: 'a/b', ref: 'r' } },
 			},
 			strictKnownMarketplaces: true,
-		});
-		assert.deepStrictEqual(result, {
-			enabledPlugins: { 'p@m': true },
-			extraKnownMarketplaces: [
-				{ name: 'a', source: { source: 'github', repo: 'a/b', ref: 'r' } },
-			],
-			strictKnownMarketplaces: true,
+		}), {
+			managedSettings: {
+				strictKnownMarketplaces: true,
+				enabledPlugins: '{"p@m":true}',
+				extraKnownMarketplaces: '{"a":"a/b#r"}',
+			},
 		});
 	});
 
-	test('resilience: unknown top-level keys are silently ignored', () => {
-		const result = adaptManagedSettings({
+	test('resilience: unknown scalar keys flatten into the bag alongside structured keys', () => {
+		assert.deepStrictEqual(adaptManagedSettings({
 			enabledPlugins: { 'p@m': true },
 			strictKnownMarketplaces: false,
 			joshsFakeSetting: true,
-		} as IManagedSettingsResponse);
-		assert.deepStrictEqual(result, {
-			enabledPlugins: { 'p@m': true },
-			extraKnownMarketplaces: undefined,
-			strictKnownMarketplaces: false,
+		} as IManagedSettingsResponse), {
+			managedSettings: {
+				strictKnownMarketplaces: false,
+				joshsFakeSetting: true,
+				enabledPlugins: '{"p@m":true}',
+			},
 		});
 	});
 
-	test('resilience: malformed extraKnownMarketplaces entry is skipped, valid entries still processed', () => {
+	test('resilience: malformed marketplace entries are skipped, valid entries still processed', () => {
 		const warnings: string[] = [];
 		const result = adaptManagedSettings({
 			extraKnownMarketplaces: {
@@ -115,17 +128,19 @@ suite('adaptManagedSettings', () => {
 				'bad-unknown-type': { source: { source: 'ftp', url: 'ftp://x' } } as IManagedSettingsResponse['extraKnownMarketplaces'] extends Record<string, infer V> ? V : never,
 			},
 		} as IManagedSettingsResponse, msg => warnings.push(msg));
-		assert.deepStrictEqual(result.extraKnownMarketplaces, [
-			{ name: 'good', source: { source: 'github', repo: 'a/b' } },
-		]);
+		assert.deepStrictEqual(result, {
+			managedSettings: {
+				extraKnownMarketplaces: '{"good":"a/b"}',
+			},
+		});
 		assert.strictEqual(warnings.length, 2);
 	});
 
-	test('resilience: extraKnownMarketplaces as a string array (wrong format) yields empty array, no throw', () => {
-		const result = adaptManagedSettings({
+	test('resilience: a marketplace string array (wrong format) is treated as missing, no throw', () => {
+		assert.deepStrictEqual(adaptManagedSettings({
 			extraKnownMarketplaces: ['https://plugins.acme.com'] as unknown as IManagedSettingsResponse['extraKnownMarketplaces'],
-		} as IManagedSettingsResponse);
-		// Array is not an object-record — treated as missing, so yields undefined
-		assert.strictEqual(result.extraKnownMarketplaces, undefined);
+		} as IManagedSettingsResponse), {
+			managedSettings: {},
+		});
 	});
 });

@@ -21,6 +21,7 @@ import {
 	ToolResultFileEditContent,
 	type ActiveTurn,
 	type ChangesetState,
+	type AnnotationsState,
 	type URI as ProtocolURI,
 	type RootState,
 	type SessionState,
@@ -50,7 +51,7 @@ export {
 	SessionLifecycle,
 	SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus,
 	ToolResultContentType,
-	TurnState, type ActiveTurn, type AgentCustomization, type AgentInfo, type AgentSelection, type Changeset, type ChangesetFile,
+	TurnState, type ActiveTurn, type AgentCustomization, type AgentInfo, type AgentSelection, type Annotation, type AnnotationEntry, type AnnotationsState, type AnnotationsSummary, type Changeset, type ChangesetFile,
 	type ChangesetOperation, type ChangesetState, type ChildCustomization, type ClientPluginCustomization, type ConfigPropertySchema,
 	type ConfigSchema,
 	type ContentRef, type Customization, type CustomizationDegradedState,
@@ -61,7 +62,7 @@ export {
 	type SessionConfigState, type SessionInputAnswer,
 	type SessionInputOption, type SessionInputQuestion, type SessionInputRequest, type SessionModelInfo,
 	type SessionState,
-	type SessionSummary, type SkillCustomization, type Snapshot, type StringOrMarkdown, type TerminalState,
+	type SessionSummary, type SkillCustomization, type Snapshot, type StringOrMarkdown, type TerminalState, type TextRange,
 	type ToolAnnotations,
 	type ToolCallCancelledState,
 	type ToolCallCompletedState,
@@ -386,6 +387,7 @@ export const enum StateComponents {
 	Session,
 	Terminal,
 	Changeset,
+	Annotations,
 }
 
 export type ComponentToState = {
@@ -393,6 +395,7 @@ export type ComponentToState = {
 	[StateComponents.Session]: SessionState;
 	[StateComponents.Terminal]: TerminalState;
 	[StateComponents.Changeset]: ChangesetState;
+	[StateComponents.Annotations]: AnnotationsState;
 };
 
 // ---- SessionMeta accessors -------------------------------------------------

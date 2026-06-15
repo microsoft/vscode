@@ -8,7 +8,7 @@ import './media/newChatInSession.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { constObservable, derived, IObservable } from '../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -18,6 +18,8 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { NewChatInputWidget } from './newChatInput.js';
+import { sessionHasNoSelectableModel } from './modelPicker.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IChatViewOptions } from '../../../browser/parts/chatView.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 
@@ -42,6 +44,7 @@ export class NewChatInSessionWidget extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
 
@@ -52,7 +55,19 @@ export class NewChatInSessionWidget extends Disposable {
 
 		const canSendRequest = derived(reader => {
 			const session = this._session.read(reader);
-			return !!session;
+			if (!session) {
+				return false;
+			}
+			// Re-evaluate the no-available-model gate whenever the active
+			// session's provider reports a model-list change. The provider
+			// aggregates both language-model registry changes and (for cloud
+			// sessions) option-group changes, matching the model picker's own
+			// reactivity so the gate never goes stale.
+			const provider = this.sessionsProvidersService.getProvider(session.providerId);
+			if (provider) {
+				observableSignalFromEvent(this, provider.onDidChangeModels).read(reader);
+			}
+			return !sessionHasNoSelectableModel(session, this.sessionsProvidersService);
 		});
 
 		const loading = derived(_reader => false);
@@ -157,6 +172,10 @@ export class NewChatInSessionWidget extends Disposable {
 
 	focusInput(): void {
 		this._newChatInput.focus();
+	}
+
+	attach(uris: URI[]): void {
+		this._newChatInput.attach(uris);
 	}
 }
 

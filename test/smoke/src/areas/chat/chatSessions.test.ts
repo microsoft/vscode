@@ -131,6 +131,9 @@ export function setup(logger: Logger) {
 				logger.log(`[Chat Sessions/Copilot CLI] mock server requestCount at failure: ${mockServer.requestCount()} (before=${requestsBefore})`);
 				await dumpFailureDiagnostics(app, logger, 'Chat Sessions/Copilot CLI');
 				throw error;
+			} finally {
+				// Close the editor to avoid focus interference with the next test
+				await app.workbench.quickaccess.runCommand('workbench.action.closeAllEditors');
 			}
 		});
 
@@ -167,6 +170,9 @@ export function setup(logger: Logger) {
 				logger.log(`[Chat Sessions/Claude] mock server requestCount at failure: ${mockServer.requestCount()} (before=${requestsBefore})`);
 				await dumpFailureDiagnostics(app, logger, 'Chat Sessions/Claude');
 				throw error;
+			} finally {
+				// Close the editor to avoid focus interference with the next test
+				await app.workbench.quickaccess.runCommand('workbench.action.closeAllEditors');
 			}
 		});
 
@@ -204,6 +210,9 @@ export function setup(logger: Logger) {
 				logger.log(`[Chat Sessions/Local] mock server requestCount at failure: ${mockServer.requestCount()} (before=${requestsBefore})`);
 				await dumpFailureDiagnostics(app, logger, 'Chat Sessions/Local');
 				throw error;
+			} finally {
+				// Close the chat view to leave a clean state
+				await app.workbench.quickaccess.runCommand('workbench.action.closeAllEditors');
 			}
 		});
 	});

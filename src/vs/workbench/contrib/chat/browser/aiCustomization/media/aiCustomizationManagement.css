@@ -315,12 +315,6 @@
 	flex: 1;
 }
 
-.ai-customization-list-widget .list-empty-state .empty-state-icon {
-	font-size: 48px;
-	opacity: 0.4;
-	margin-bottom: 8px;
-}
-
 .ai-customization-list-widget .list-empty-state .empty-state-text {
 	font-size: 16px;
 	font-weight: 500;
@@ -589,8 +583,7 @@
 .ai-customization-list-widget .section-title-header,
 .mcp-list-widget .section-title-header {
 	flex-shrink: 0;
-	padding: 0 0 32px;
-	border-bottom: 1px solid var(--vscode-panel-border);
+	padding: 0;
 }
 
 .ai-customization-list-widget .section-title-header .section-title-row,
@@ -969,12 +962,6 @@
 	gap: 8px;
 	text-align: center;
 	flex: 1;
-}
-
-.mcp-list-widget .mcp-empty-state .empty-icon {
-	font-size: 48px;
-	opacity: 0.4;
-	margin-bottom: 8px;
 }
 
 .mcp-list-widget .mcp-empty-state .empty-text {

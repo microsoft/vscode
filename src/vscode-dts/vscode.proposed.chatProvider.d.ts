@@ -48,6 +48,14 @@ declare module 'vscode' {
 		readonly multiplierNumeric?: number;
 
 		/**
+		 * Whether this model is a "bring your own key" (BYOK) model, i.e. it is
+		 * served using credentials the user supplied rather than through the
+		 * built-in Copilot (CAPI) service. When unset, the model is treated as
+		 * a non-BYOK / CAPI-served model.
+		 */
+		readonly isBYOK?: boolean;
+
+		/**
 		 * Whether or not this will be selected by default in the model picker
 		 * NOT BEING FINALIZED
 		 */

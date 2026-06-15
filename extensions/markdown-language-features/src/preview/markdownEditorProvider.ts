@@ -22,7 +22,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 	constructor(extensionUri: vscode.Uri) {
 		super();
 		this.#extensionUri = extensionUri;
-		this.#mediaRoot = vscode.Uri.joinPath(this.#extensionUri, 'media', 'markdownEditor');
+		this.#mediaRoot = vscode.Uri.joinPath(this.#extensionUri, 'markdown-editor-out');
 	}
 
 	public async resolveCustomTextEditor(

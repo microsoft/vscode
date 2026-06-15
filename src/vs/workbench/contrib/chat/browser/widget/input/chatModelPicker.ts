@@ -17,6 +17,7 @@ import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
+import { formatTokenCount } from '../../../../../../base/common/numbers.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
@@ -32,7 +33,7 @@ import { MANAGE_CHAT_COMMAND_ID } from '../../../common/constants.js';
 import { IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelsControlManifest } from '../../../common/languageModels.js';
 import { ChatEntitlement, IChatEntitlementService, isProUser } from '../../../../../services/chat/common/chatEntitlementService.js';
 import * as semver from '../../../../../../base/common/semver/semver.js';
-import { IModelPickerDelegate } from './modelPickerActionItem.js';
+import { IModelConfigurationAccess, IModelPickerDelegate } from './modelPickerActionItem.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { GitHubPaths, IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IUpdateService, StateType } from '../../../../../../platform/update/common/update.js';
@@ -260,13 +261,13 @@ function createPinAction(
 function resolveConfigProperty(
 	model: ILanguageModelChatMetadataAndIdentifier,
 	group: string,
-	languageModelsService: ILanguageModelsService,
+	configAccess: IModelConfigurationAccess,
 ): { key: string; value: unknown; schema: { enum?: unknown[]; enumItemLabels?: string[]; enumDescriptions?: string[]; default?: unknown } } | undefined {
 	const schema = model.metadata.configurationSchema;
 	if (!schema?.properties) {
 		return undefined;
 	}
-	const currentConfig = languageModelsService.getModelConfiguration(model.identifier) ?? {};
+	const currentConfig = configAccess.getModelConfiguration(model.identifier) ?? {};
 	for (const [key, propSchema] of Object.entries(schema.properties)) {
 		if (propSchema.group !== group) {
 			continue;
@@ -305,13 +306,13 @@ function getPriceCategoryLabel(priceCategory: string | undefined): string | unde
  * Returns a short description summarizing the model's current configuration values
  * for properties marked with group 'navigation' (e.g., "High", "Medium").
  */
-function getModelConfigurationDescription(model: ILanguageModelChatMetadataAndIdentifier, languageModelsService: ILanguageModelsService): string | undefined {
+function getModelConfigurationDescription(model: ILanguageModelChatMetadataAndIdentifier, configAccess: IModelConfigurationAccess): string | undefined {
 	const schema = model.metadata.configurationSchema;
 	if (!schema?.properties) {
 		return undefined;
 	}
 
-	const currentConfig = languageModelsService.getModelConfiguration(model.identifier) ?? {};
+	const currentConfig = configAccess.getModelConfiguration(model.identifier) ?? {};
 	const parts: string[] = [];
 
 	for (const [key, propSchema] of Object.entries(schema.properties)) {
@@ -337,7 +338,7 @@ function createModelAction(
 	model: ILanguageModelChatMetadataAndIdentifier,
 	selectedModelId: string | undefined,
 	onSelect: (model: ILanguageModelChatMetadataAndIdentifier) => void,
-	languageModelsService: ILanguageModelsService,
+	configAccess: IModelConfigurationAccess,
 	section?: string,
 	suppressVendorInDetail?: boolean,
 	isUBB?: boolean,
@@ -347,7 +348,7 @@ function createModelAction(
 	const pricingForDescription = isMultiplierPricing(model) ? model.metadata.pricing : undefined;
 	const priceCategoryLabel = isUBB ? getPriceCategoryLabel(model.metadata.priceCategory) : undefined;
 	// In PRU mode, show the current configuration value (e.g. thinking effort "High") in the description
-	const configDescription = !isUBB ? getModelConfigurationDescription(model, languageModelsService) : undefined;
+	const configDescription = !isUBB ? getModelConfigurationDescription(model, configAccess) : undefined;
 	// Strip the detail when suppressVendorInDetail is set — the vendor is
 	// shown either inline (promoted) or in a section header (Other Models).
 	const detail = suppressVendorInDetail ? undefined : model.metadata.detail;
@@ -355,7 +356,7 @@ function createModelAction(
 	const textDescription = textParts.length > 0 ? textParts.join(' · ') : undefined;
 
 	// In PRU mode, restore per-model configuration toolbar actions (e.g. thinking effort gear)
-	const toolbarActions = !isUBB ? languageModelsService.getModelConfigurationActions(model.identifier) : undefined;
+	const toolbarActions = !isUBB ? configAccess.getModelConfigurationActions(model.identifier) : undefined;
 
 	const action: IActionWidgetDropdownAction & { section?: string } = {
 		id: model.identifier,
@@ -436,21 +437,64 @@ export function buildModelPickerItems(
 	chatEntitlementService: IChatEntitlementService,
 	showUnavailableFeatured: boolean,
 	showFeatured: boolean,
+	configAccess: IModelConfigurationAccess,
 	languageModelsService?: ILanguageModelsService,
 	openerService?: IOpenerService,
 	isUBB?: boolean,
+	showAutoModel: boolean = false,
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
 	if (models.length === 0) {
-		items.push(createModelItem({
-			id: 'auto',
-			enabled: true,
-			checked: true,
-			class: undefined,
-			tooltip: localize('chat.modelPicker.auto', "Auto"),
-			label: localize('chat.modelPicker.auto', "Auto"),
-			run: () => { }
-		}));
+		if (!showAutoModel) {
+			// Auto is not available for this session type (e.g. the Claude agent
+			// host), so the empty list cannot fall back to Auto. Surface a single
+			// disabled "No models available" entry. For Copilot Free / Student
+			// users, attach an inline upgrade link on the right (matching the
+			// unavailable-model upgrade affordance elsewhere in the picker).
+			const entitlement = chatEntitlementService.entitlement;
+			const canUpgrade = entitlement === ChatEntitlement.Free || entitlement === ChatEntitlement.EDU;
+			const description = canUpgrade
+				? new MarkdownString(localize('chat.modelPicker.upgradeLink', "[Upgrade](command:workbench.action.chat.upgradePlan \" \")"), { isTrusted: true })
+				: undefined;
+			let hover: MarkdownString | undefined;
+			if (canUpgrade) {
+				hover = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
+				hover.appendMarkdown(localize('chat.modelPicker.upgradeHover', "[Upgrade to GitHub Copilot Pro](command:workbench.action.chat.upgradePlan \" \") to use the best models."));
+			}
+			items.push({
+				item: {
+					id: 'noModels',
+					enabled: false,
+					checked: false,
+					class: undefined,
+					tooltip: localize('chat.modelPicker.noModels', "No models available"),
+					label: localize('chat.modelPicker.noModels', "No models available"),
+					run: () => { }
+				},
+				kind: ActionListItemKind.Action,
+				label: localize('chat.modelPicker.noModels', "No models available"),
+				description,
+				group: { title: '', icon: ThemeIcon.fromId(Codicon.blank.id) },
+				disabled: true,
+				hideIcon: false,
+				hover: hover ? { content: hover } : undefined,
+			});
+			// Nothing else is selectable in this state, so surface only the
+			// single disabled entry. Returning here prevents the grouped-picker
+			// logic below from appending an Auto entry, model groups, or a
+			// standalone "Manage Models" action.
+			return items;
+		} else {
+			items.push(createModelItem({
+				id: 'auto',
+				enabled: true,
+				checked: true,
+				class: undefined,
+				tooltip: localize('chat.modelPicker.auto', "Auto"),
+				label: localize('chat.modelPicker.auto', "Auto"),
+				run: () => { }
+			}));
+		}
 	}
 
 	if (useGroupedModelPicker) {
@@ -497,7 +541,7 @@ export function buildModelPickerItems(
 			const autoModel = models.find(m => isAutoModel(m));
 			if (autoModel) {
 				markPlaced(autoModel.identifier, autoModel.metadata.id);
-				const { action: autoAction, ariaDescription: autoAriaDesc } = createModelAction(autoModel, selectedModelId, onSelect, languageModelsService!, undefined, undefined, isUBB);
+				const { action: autoAction, ariaDescription: autoAriaDesc } = createModelAction(autoModel, selectedModelId, onSelect, configAccess, undefined, undefined, isUBB);
 				items.push(createModelItem(autoAction, autoModel, openerService, undefined, isUBB, autoAriaDesc));
 			}
 
@@ -533,7 +577,7 @@ export function buildModelPickerItems(
 					const groupLabel = showGroupLabel
 						? getProviderGroupForModel(model, modelToGroup, languageModelsService!).groupName
 						: undefined;
-					const { action: pinnedAction, ariaDescription: pinnedAriaDesc } = createModelAction(model, selectedModelId, onSelect, languageModelsService!, undefined, showGroupLabel, isUBB);
+					const { action: pinnedAction, ariaDescription: pinnedAriaDesc } = createModelAction(model, selectedModelId, onSelect, configAccess, undefined, showGroupLabel, isUBB);
 					items.push(createModelItem(pinnedAction, model, openerService, groupLabel, isUBB, pinnedAriaDesc, makePinAction(model)));
 				}
 			}
@@ -634,7 +678,7 @@ export function buildModelPickerItems(
 						const groupLabel = showGroupLabel
 							? getProviderGroupForModel(item.model, modelToGroup, languageModelsService!).groupName
 							: undefined;
-						const { action: promotedAction, ariaDescription: promotedAriaDesc } = createModelAction(item.model, selectedModelId, onSelect, languageModelsService!, undefined, showGroupLabel, isUBB);
+						const { action: promotedAction, ariaDescription: promotedAriaDesc } = createModelAction(item.model, selectedModelId, onSelect, configAccess, undefined, showGroupLabel, isUBB);
 						items.push(createModelItem(promotedAction, item.model, openerService, groupLabel, isUBB, promotedAriaDesc, makePinAction(item.model)));
 					} else {
 						items.push(createUnavailableModelItem(item.id, item.entry, item.reason, manageSettingsUrl, updateStateType, chatEntitlementService));
@@ -726,7 +770,7 @@ export function buildModelPickerItems(
 						if (entry?.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
 							items.push(createUnavailableModelItem(model.metadata.id, entry, 'update', manageSettingsUrl, updateStateType, chatEntitlementService, ModelPickerSection.Other));
 						} else {
-							const { action: bucketAction, ariaDescription: bucketAriaDesc } = createModelAction(model, selectedModelId, onSelect, languageModelsService!, ModelPickerSection.Other, showGroupHeaders, isUBB);
+							const { action: bucketAction, ariaDescription: bucketAriaDesc } = createModelAction(model, selectedModelId, onSelect, configAccess, ModelPickerSection.Other, showGroupHeaders, isUBB);
 							items.push(createModelItem(bucketAction, model, openerService, undefined, isUBB, bucketAriaDesc, makePinAction(model)));
 						}
 					}
@@ -750,7 +794,7 @@ export function buildModelPickerItems(
 		// Flat list: auto first, then all models sorted alphabetically
 		const autoModel = models.find(m => isAutoModel(m));
 		if (autoModel) {
-			const { action: flatAutoAction, ariaDescription: flatAutoAriaDesc } = createModelAction(autoModel, selectedModelId, onSelect, languageModelsService!, undefined, undefined, isUBB);
+			const { action: flatAutoAction, ariaDescription: flatAutoAriaDesc } = createModelAction(autoModel, selectedModelId, onSelect, configAccess, undefined, undefined, isUBB);
 			items.push(createModelItem(flatAutoAction, autoModel, openerService, undefined, isUBB, flatAutoAriaDesc));
 		}
 		const sortedModels = models
@@ -760,7 +804,7 @@ export function buildModelPickerItems(
 				return vendorCmp !== 0 ? vendorCmp : a.metadata.name.localeCompare(b.metadata.name);
 			});
 		for (const model of sortedModels) {
-			const { action: flatAction, ariaDescription: flatAriaDesc } = createModelAction(model, selectedModelId, onSelect, languageModelsService!, undefined, undefined, isUBB);
+			const { action: flatAction, ariaDescription: flatAriaDesc } = createModelAction(model, selectedModelId, onSelect, configAccess, undefined, undefined, isUBB);
 			items.push(createModelItem(flatAction, model, openerService, undefined, isUBB, flatAriaDesc));
 		}
 	}
@@ -917,6 +961,15 @@ export class ModelPickerWidget extends Disposable {
 		this._register(this._entitlementService.onDidChangeUsageBasedBilling(() => {
 			this._renderLabel();
 		}));
+
+		// Also refresh the label when the per-editor config layer (if any) reports
+		// a change. The global service path is already covered above via
+		// `onDidChangeLanguageModels` which fires from `setModelConfiguration`.
+		if (this._delegate.modelConfiguration?.onDidChange) {
+			this._register(this._delegate.modelConfiguration.onDidChange(() => {
+				this._renderLabel();
+			}));
+		}
 	}
 
 	setCompact(compact: IObservable<boolean>): void {
@@ -1078,9 +1131,11 @@ export class ModelPickerWidget extends Disposable {
 			this._entitlementService,
 			this._delegate.showUnavailableFeatured(),
 			this._delegate.showFeatured(),
+			this._modelConfiguration,
 			this._languageModelsService,
 			this._openerService,
 			isUBB,
+			this._delegate.showAutoModel?.() ?? false,
 		);
 
 		// Collect all hover disposables so they are properly cleaned up when the
@@ -1172,16 +1227,25 @@ export class ModelPickerWidget extends Disposable {
 
 		const { name, statusIcon } = this._selectedModel?.metadata || {};
 
+		// When Auto is unavailable for this session and there are no models to
+		// pick, surface the empty state on the button itself — overriding any
+		// stale/carried-over selection (e.g. an "Auto" model from another
+		// session type) so the label matches the dropdown's "No models
+		// available" entry.
+		const noModelsAvailable = !(this._delegate.showAutoModel?.() ?? false) && this._delegate.getModels().length === 0;
+
 		// --- Name section ---
 		const nameChildren: (HTMLElement | string)[] = [];
-		if (statusIcon) {
+		if (statusIcon && !noModelsAvailable) {
 			nameChildren.push(renderIcon(statusIcon));
 		}
-		const modelLabel = name ?? localize('chat.modelPicker.auto', "Auto");
+		const modelLabel = noModelsAvailable
+			? localize('chat.modelPicker.noModels', "No models available")
+			: (name ?? localize('chat.modelPicker.auto', "Auto"));
 		// In PRU mode, append the config description (e.g. thinking effort) to the button label
 		const isUBB = !!this._entitlementService.quotas.usageBasedBilling;
-		const configDescription = !isUBB && this._selectedModel
-			? getModelConfigurationDescription(this._selectedModel, this._languageModelsService)
+		const configDescription = !isUBB && this._selectedModel && !noModelsAvailable
+			? getModelConfigurationDescription(this._selectedModel, this._modelConfiguration)
 			: undefined;
 		const fullLabel = configDescription
 			? `${modelLabel} · ${configDescription}`
@@ -1228,11 +1292,21 @@ export class ModelPickerWidget extends Disposable {
 		this._domNode.ariaLabel = localize('chat.modelPicker.ariaLabel', "Pick Model, {0}", fullLabel);
 	}
 
+	/**
+	 * Per-editor model configuration access when the delegate provides it,
+	 * otherwise the global service. Routing through this keeps configuration
+	 * (e.g. context size) scoped to this editor so changes do not sync to other
+	 * already-open editors. See issue #320393.
+	 */
+	private get _modelConfiguration(): IModelConfigurationAccess {
+		return this._delegate.modelConfiguration ?? this._languageModelsService;
+	}
+
 	private _getConfigProperty(group: string) {
 		if (!this._selectedModel) {
 			return undefined;
 		}
-		return resolveConfigProperty(this._selectedModel, group, this._languageModelsService);
+		return resolveConfigProperty(this._selectedModel, group, this._modelConfiguration);
 	}
 
 	private _showEffortPicker(): void {
@@ -1277,7 +1351,7 @@ export class ModelPickerWidget extends Disposable {
 							fromValue: previousEffortValue,
 							toValue: String(value),
 						});
-						this._languageModelsService.setModelConfiguration(
+						this._modelConfiguration.setModelConfiguration(
 							modelIdentifier,
 							{ [config.key]: value }
 						);
@@ -1368,7 +1442,7 @@ export class ModelPickerWidget extends Disposable {
 							fromValue: previousTokensValue,
 							toValue: String(value),
 						});
-						this._languageModelsService.setModelConfiguration(
+						this._modelConfiguration.setModelConfiguration(
 							modelIdentifier,
 							{ [config.key]: value }
 						);
@@ -1543,19 +1617,6 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 	return container.children.length > 0 ? { element: container, disposable: disposables } : undefined;
 }
 
-
-export function formatTokenCount(count: number): string {
-	if (count >= 1_000_000) {
-		const value = count / 1_000_000;
-		const floored = Math.floor(value * 10) / 10;
-		return floored % 1 === 0 ? `${floored.toFixed(0)}M` : `${floored.toFixed(1)}M`;
-	} else if (count > 900_000) {
-		return '1M';
-	} else if (count >= 1000) {
-		return `${Math.round(count / 1000)}K`;
-	}
-	return count.toString();
-}
 
 function isAutoModel(model: ILanguageModelChatMetadataAndIdentifier): boolean {
 	return model.metadata.id === 'auto' && (model.metadata.vendor === 'copilot' || model.metadata.vendor === 'copilotcli');

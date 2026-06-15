@@ -1304,8 +1304,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const modes = this.input.currentChatModesObs.get();
 		if (modeInfo?.modeInstructions?.name) {
 			responseMode = modes.findModeByName(modeInfo.modeInstructions.name);
-		} else if (modeInfo?.modeId) {
-			responseMode = modes.findModeById(modeInfo.modeId);
 		} else {
 			responseMode = this.input.currentModeObs.get();
 		}
@@ -2379,6 +2377,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			attempt: lastRequest.attempt + 1,
 			location: this.location,
 			userSelectedModelId: this.input.currentLanguageModel,
+			userSelectedModelConfiguration: this.input.currentLanguageModel ? this.input.getModelConfiguration(this.input.currentLanguageModel) : undefined,
 			modeInfo: this.input.currentModeInfo,
 		};
 		const result = await this.chatService.resendRequest(lastRequest, options);
@@ -2642,10 +2641,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			this.viewModel.model.setCheckpoint(undefined);
 		}
-		// Capture instruction-collection parameters synchronously — the service
-		// will collect instructions asynchronously after showing the request in the UI.
-		const enabledTools = this.input.currentModeKind === ChatModeKind.Agent ? this.input.selectedToolsModel.userSelectedTools.get() : undefined;
-		const enabledSubAgents = this.input.currentModeKind === ChatModeKind.Agent ? this.input.currentModeObs.get().agents?.get() : undefined;
 
 		// Expand directory attachments: extract images as binary entries
 		const resolvedImageVariables = await this._resolveDirectoryImageAttachments(requestInputs.attachedContext.asArray());
@@ -2656,22 +2651,26 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const contribution = this._lockedAgent ? this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id) : undefined;
 		const autoAttachEnabled = contribution ? contribution.autoAttachReferences === true : true;
 
+		const modeKind = this.input.currentModeKind;
+		const modeInfo = this.input.currentModeInfo;
+
 		const result = await this.chatService.sendRequest(this.viewModel.sessionResource, requestInputs.input, {
 			userSelectedModelId: this.input.currentLanguageModel,
+			userSelectedModelConfiguration: this.input.currentLanguageModel ? this.input.getModelConfiguration(this.input.currentLanguageModel) : undefined,
 			location: this.location,
 			locationData: this._location.resolveData?.(),
-			parserContext: { selectedAgent: this._lastSelectedAgent, mode: this.input.currentModeKind, attachmentCapabilities: this._lastSelectedAgent?.capabilities ?? this.attachmentCapabilities },
+			parserContext: { selectedAgent: this._lastSelectedAgent, mode: modeKind, attachmentCapabilities: this._lastSelectedAgent?.capabilities ?? this.attachmentCapabilities },
 			attachedContext: requestInputs.attachedContext.asArray(),
 			resolvedVariables: resolvedImageVariables,
 			noCommandDetection: options?.noCommandDetection,
 			...this.getModeRequestOptions(),
-			modeInfo: this.input.currentModeInfo,
+			modeInfo,
 			agentIdSilent: this._lockedAgent?.id,
 			queue: options?.queue,
 			instructionContext: autoAttachEnabled ? {
-				modeKind: this.input.currentModeKind,
-				enabledTools,
-				enabledSubAgents,
+				modeKind,
+				enabledTools: modeKind === ChatModeKind.Agent ? this.input.selectedToolsModel.userSelectedTools.get() : undefined,
+				enabledSubAgents: modeKind === ChatModeKind.Agent ? this.input.currentModeObs.get().agents?.get() : undefined
 			} : undefined,
 		});
 
@@ -2683,7 +2682,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// visibility sync before firing events to hide the welcome view
 		this.updateChatViewVisibility();
-		this.input.acceptInput(options?.storeToHistory ?? isUserQuery);
+		this.input.acceptInput(options?.storeToHistory ?? isUserQuery, options?.preserveFocus);
 
 		this._maybeStartGoalSummary(requestInputs.input);
 

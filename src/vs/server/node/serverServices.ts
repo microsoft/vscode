@@ -206,7 +206,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 		services.set(IServerTelemetryService, ServerNullTelemetryService);
 	}
 
-	services.set(IExtensionGalleryManifestService, new ExtensionGalleryManifestIPCService(socketServer, productService));
+	services.set(IExtensionGalleryManifestService, new ExtensionGalleryManifestIPCService(socketServer, logService, productService));
 	services.set(IMcpGalleryManifestService, new McpGalleryManifestIPCService(socketServer));
 	services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryServiceWithNoStorageService));
 
