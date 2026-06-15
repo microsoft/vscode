@@ -26,7 +26,7 @@ import { INotebookService } from '../../../platform/notebook/common/notebookServ
 import { GenAiMetrics } from '../../../platform/otel/common/genAiMetrics';
 import { IOTelService } from '../../../platform/otel/common/otelService';
 import { IPromptPathRepresentationService } from '../../../platform/prompts/common/promptPathRepresentationService';
-import { IAutomaticInstructionsCollector } from '../../../platform/promptFiles/node/automaticInstructionsCollector';
+import { CustomInstructionsReferenceLogger, IAutomaticInstructionsCollector } from '../../../platform/promptFiles/node/automaticInstructionsCollector';
 import { PromptConfig } from '../../../platform/promptFiles/common/promptsService';
 import { ITasksService } from '../../../platform/tasks/common/tasksService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
@@ -634,6 +634,9 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 				promptContext = { ...promptContext, chatVariables: ChatVariablesCollection.merge(promptContext.chatVariables, new ChatVariablesCollection(addedInstructionsAndIndex)) };
 			}
 		}
+		this.instantiationService.createInstance(CustomInstructionsReferenceLogger).logReferences(promptContext.conversation?.sessionId, promptContext.chatVariables.references);
+
+
 		// Add any references from the codebase invocation to the request
 		const codebase = await this._getCodebaseReferences(promptContext, token);
 

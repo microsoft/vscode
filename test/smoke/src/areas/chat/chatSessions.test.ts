@@ -176,7 +176,7 @@ export function setup(logger: Logger) {
 			}
 		});
 
-		it('Test Local session', async function () {
+		it.only('Test Local session', async function () {
 			const app = this.app as Application;
 			const requestsBefore = mockServer.requestCount();
 			logger.log(`[Chat Sessions/Local] starting test; requestCount=${requestsBefore}`);

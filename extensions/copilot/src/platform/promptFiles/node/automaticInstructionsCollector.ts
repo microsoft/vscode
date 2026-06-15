@@ -24,10 +24,12 @@ import { URI } from '../../../util/vs/base/common/uri';
 import { ParsedPromptFile } from '../../../util/vs/workbench/contrib/chat/common/promptSyntax/promptFileParser';
 import { isLocation } from '../../../util/common/types';
 import { ToolName } from '../../../extension/tools/common/toolNames';
-import { isInstructionFile, toCustomizationsIndexReference, toInstructionFileReference } from '../../../extension/prompt/common/chatVariablesCollection';
+import { isCustomizationsIndex, isInstructionFile, isPromptFile, toCustomizationsIndexReference, toInstructionFileReference } from '../../../extension/prompt/common/chatVariablesCollection';
 import { getToolReferencePromptContent } from '../../../extension/prompt/vscode-node/promptVariablesService';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { getChatSessionType, matchesSessionType } from '../../chat/common/sessionUtils';
+import { CopilotChatAttr, GenAiAttr, IOTelService } from '../../otel/common';
+import { ICustomInstructionsService } from '../../customInstructions/common/customInstructionsService';
 
 /**
  * Telemetry payload (parity with core's `instructionsCollected` event).
@@ -702,5 +704,47 @@ function matchesAttachedFiles(attachedFiles: ResourceSet, applyToPattern: string
 	}
 	return undefined;
 }
+
+export class CustomInstructionsReferenceLogger {
+	constructor(
+		@IOTelService private readonly _otelService: IOTelService,
+		@ICustomInstructionsService private readonly _customInstructionsService: ICustomInstructionsService,
+	) { }
+
+	logReferences(sessionId: string | undefined, references: readonly vscode.ChatPromptReference[]): void {
+		const customInstructionsDebugString = this.toCustomInstructionsDebugString(references);
+		const span = this._otelService.startSpan('collect_automatic_instructions', {
+			attributes: {
+				[GenAiAttr.OPERATION_NAME]: 'core_event',
+				[CopilotChatAttr.CHAT_SESSION_ID]: sessionId || 'unknown',
+			},
+		});
+		span.setAttributes({
+			[CopilotChatAttr.DEBUG_NAME]: 'automatic_instructions',
+			'copilot_chat.event_category': 'discovery',
+			'copilot_chat.event_details': customInstructionsDebugString,
+		});
+		span.end();
+	}
+
+	private toIndextDebug(content: string): string {
+		const indexFile = this._customInstructionsService.parseInstructionIndexFile(content);
+		return `CustomizationsIndex(\n   agents ${indexFile.agents.size},\n   instructions ${indexFile.instructions.size},\n   skills ${indexFile.skills.size})`;
+	}
+
+	private toCustomInstructionsDebugString(references: readonly vscode.ChatPromptReference[]): string {
+
+		const result = [];
+		const instructions = references.filter(isInstructionFile).map(ref => basename(ref.value));
+		result.push(`Instructions(${instructions.length}): ${instructions.join(', ')}`);
+		const promptFiles = references.filter(isPromptFile).map(ref => basename(ref.value));
+		result.push(`PromptFile(${promptFiles.length}): ${promptFiles.join(', ')}`);
+		const indexFiles = references.filter(isCustomizationsIndex).map(ref => this.toIndextDebug(ref.value));
+		result.push(`CustomizationsIndex(${indexFiles.length}): ${indexFiles.join(', ')}`);
+		return result.join('\n');
+	}
+}
+
+
 
 
