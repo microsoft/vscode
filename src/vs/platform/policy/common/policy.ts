@@ -20,6 +20,19 @@ export type PolicyDefinition = {
 };
 
 /**
+ * Returns a structured-clone-safe copy of `definition` for transport over IPC (for example as
+ * part of the window configuration's `policiesData`). The `value` callback is a function and is
+ * therefore dropped: it is only evaluated by account-based policy services in the process that
+ * owns the policy, never by the {@link PolicyChannelClient} consumers that receive serialized
+ * definitions. Leaving the function in place throws "An object could not be cloned" when the
+ * configuration is sent to the renderer — which happens for any policy registered in the main
+ * process (e.g. the agent host settings contribution).
+ */
+export function toSerializablePolicyDefinition(definition: PolicyDefinition): PolicyDefinition {
+	return { type: definition.type, managedSettings: definition.managedSettings, restrictedValue: definition.restrictedValue };
+}
+
+/**
  * Returns the value to apply for `definition` when the account-policy gate is active
  * but not satisfied. Uses `definition.restrictedValue` when specified, otherwise falls
  * back to a type-driven safe default.
@@ -82,7 +95,7 @@ export abstract class AbstractPolicyService extends Disposable implements IPolic
 	}
 
 	serialize(): IStringDictionary<{ definition: PolicyDefinition; value: PolicyValue }> {
-		return Iterable.reduce<[PolicyName, PolicyDefinition], IStringDictionary<{ definition: PolicyDefinition; value: PolicyValue }>>(Object.entries(this.policyDefinitions), (r, [name, definition]) => ({ ...r, [name]: { definition, value: this.policies.get(name)! } }), {});
+		return Iterable.reduce<[PolicyName, PolicyDefinition], IStringDictionary<{ definition: PolicyDefinition; value: PolicyValue }>>(Object.entries(this.policyDefinitions), (r, [name, definition]) => ({ ...r, [name]: { definition: toSerializablePolicyDefinition(definition), value: this.policies.get(name)! } }), {});
 	}
 
 	protected abstract _updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<void>;
