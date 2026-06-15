@@ -10,6 +10,7 @@ import { BrowserEditorInput } from '../../../../workbench/contrib/browserView/co
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { runOnChange } from '../../../../base/common/observable.js';
 
@@ -25,6 +26,7 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 
 	constructor(
 		@ISessionsManagementService private readonly _sessionManagementService: ISessionsManagementService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IBrowserViewWorkbenchService private readonly _browserViewService: IBrowserViewWorkbenchService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
@@ -73,7 +75,7 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 			return;
 		}
 
-		const session = this._sessionManagementService.activeSession.read(undefined);
+		const session = this._sessionsService.activeSession.read(undefined);
 		if (!session) {
 			return; // no session, no lifecycle management needed
 		}
@@ -89,7 +91,7 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 		}));
 
 		store.add(input.onBeforeDispose(e => {
-			const activeSession = this._sessionManagementService.activeSession.read(undefined);
+			const activeSession = this._sessionsService.activeSession.read(undefined);
 
 			// If the input is being disposed, but we are not currently in the owning session,
 			// assume a session swap is happening and do not actually dispose the browser yet.

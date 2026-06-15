@@ -15,13 +15,15 @@ import { AgentHostClaudeSdkRootEnvVar } from '../../common/agentService.js';
 
 /**
  * `@anthropic-ai/claude-agent-sdk` distribution descriptor. Lives in this
- * file because it encodes Claude-specific knowledge — the env-var name.
- * The downloader consumes this through `IAgentSdkPackage` and never names
- * Claude directly.
+ * file because it encodes Claude-specific knowledge — the env-var name
+ * and the fact that Claude ships separate `linux-{x64,arm64}-musl` SKUs
+ * alongside the default glibc ones. The downloader consumes this through
+ * `IAgentSdkPackage` and never names Claude directly.
  */
 export const ClaudeSdkPackage: IAgentSdkPackage = {
 	id: 'claude',
 	devOverrideEnvVar: AgentHostClaudeSdkRootEnvVar,
+	hasSeparateMuslLinuxPackage: true,
 };
 
 export const IClaudeAgentSdkService = createDecorator<IClaudeAgentSdkService>('claudeAgentSdkService');
@@ -183,13 +185,38 @@ export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 	}
 
 	protected async _loadSdk(): Promise<IClaudeSdkBindings> {
-		// Resolve the SDK root via the downloader: dev override → cache →
-		// download from `product.agentSdks.claude`. The known internal
-		// `sdk.mjs` entrypoint is hard-coded here because this file is the
-		// one place that owns knowledge of the Claude SDK's import surface.
-		const root = await this._downloader.loadSdkRoot(ClaudeSdkPackage, CancellationToken.None);
-		const entry = join(root, 'node_modules', '@anthropic-ai', 'claude-agent-sdk', 'sdk.mjs');
-		return import(pathToFileURL(entry).href);
+		// 1. Env-var override wins — both for the air-gapped server case
+		//    (`--claude-sdk-root` flag) and for developers who want to point
+		//    at an out-of-tree SDK build without touching `node_modules`.
+		const override = process.env[AgentHostClaudeSdkRootEnvVar];
+		if (override) {
+			const entry = join(override, 'node_modules', '@anthropic-ai', 'claude-agent-sdk', 'sdk.mjs');
+			return import(pathToFileURL(entry).href);
+		}
+
+		// 2. Built products: load via the downloader (cache → fetch the
+		//    per-host tarball described by `product.agentSdks.claude`). Errors
+		//    from this path propagate as-is so users see actionable diagnostics
+		//    on a CDN outage / corrupt cache / etc., not a misleading
+		//    "cannot find module" from a fallback that would never succeed in
+		//    a shipped build anyway.
+		//
+		//    We use `isAvailable` (env var || product config) — already false
+		//    in dev — to discriminate without injecting `INativeEnvironmentService`
+		//    here. The env-var branch above already returned, so reaching this
+		//    point with `isAvailable === true` means product config is present
+		//    and the downloader is the correct path.
+		if (this._downloader.isAvailable(ClaudeSdkPackage)) {
+			const root = await this._downloader.loadSdkRoot(ClaudeSdkPackage, CancellationToken.None);
+			const entry = join(root, 'node_modules', '@anthropic-ai', 'claude-agent-sdk', 'sdk.mjs');
+			return import(pathToFileURL(entry).href);
+		}
+
+		// 3. Dev: bare import resolves via this repo's `node_modules` where
+		//    `@anthropic-ai/claude-agent-sdk` is a devDependency. Only reached
+		//    when neither the env var nor product config supplied a path —
+		//    i.e. exclusively in dev launches.
+		return import('@anthropic-ai/claude-agent-sdk');
 	}
 }
 

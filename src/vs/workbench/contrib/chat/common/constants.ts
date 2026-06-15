@@ -68,6 +68,7 @@ export enum ChatConfiguration {
 	ExitAfterDelegation = 'chat.exitAfterDelegation',
 	ExplainChangesEnabled = 'chat.editing.explainChanges.enabled',
 	RevealNextChangeOnResolve = 'chat.editing.revealNextChangeOnResolve',
+	OpenChangedFileInDiffEditor = 'chat.editing.openChangedFileInDiffEditor',
 	GrowthNotificationEnabled = 'chat.growthNotification.enabled',
 	TitleBarSignInEnabled = 'chat.titleBar.signIn.enabled',
 	TitleBarOpenInAgentsWindowEnabled = 'chat.titleBar.openInAgentsWindow.enabled',
@@ -87,7 +88,9 @@ export enum ChatConfiguration {
 	ToolRiskAssessmentModel = 'chat.tools.riskAssessment.model',
 	DefaultNewSessionMode = 'chat.newSession.defaultMode',
 	AgentHostClientTools = 'chat.agentHost.clientTools',
-	AgentHostDefaultChatProvider = 'chat.agentHost.defaultChatProvider',
+	CopilotCliHideExtensionHostAgents = 'chat.agents.copilotCli.hideExtensionHost',
+	EditorDefaultProvider = 'chat.editor.defaultProvider',
+	CopilotCliHideExtensionHostEditor = 'chat.editor.copilotCli.hideExtensionHost',
 	AgentsHandoffTipMode = 'chat.agentsHandoffTip.mode',
 
 	IncrementalRendering = 'chat.experimental.incrementalRendering.enabled',
@@ -220,18 +223,32 @@ export function isSupportedChatFileScheme(accessor: ServicesAccessor, scheme: st
 
 /**
  * Returns the effective default session type for a new chat in the VS Code
- * window, honoring the experimental
- * {@link ChatConfiguration.AgentHostDefaultChatProvider} setting. Falls back to
- * {@link localChatSessionType} when the setting is disabled or the agent host
- * contribution is not registered.
+ * editor window, honoring the experimental
+ * {@link ChatConfiguration.EditorDefaultProvider} setting:
+ * - `'copilotAh'` selects the Agent Host Copilot CLI when its contribution is registered.
+ * - `'copilotEh'` selects the Extension Host Copilot CLI when its contribution is
+ *   registered and it is not hidden by {@link ChatConfiguration.CopilotCliHideExtensionHostEditor}.
+ *
+ * Falls back to {@link localChatSessionType} when the setting is `'local'`, the
+ * selected provider is unavailable, or the selected provider is hidden.
  */
 export function getDefaultNewChatSessionType(
 	configurationService: IConfigurationService,
 	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution'>
 ): string {
-	if (configurationService.getValue<boolean>(ChatConfiguration.AgentHostDefaultChatProvider) &&
+	const defaultProvider = configurationService.getValue<string>(ChatConfiguration.EditorDefaultProvider);
+
+	// Map the setting value to the corresponding session type.
+	if (defaultProvider === 'copilotAh' &&
 		chatSessionsService.getChatSessionContribution(SessionType.AgentHostCopilot)) {
 		return SessionType.AgentHostCopilot;
+	}
+	// Don't default to the Extension Host Copilot CLI when it is hidden from the
+	// picker, otherwise the default would point at an entry the user can't see.
+	if (defaultProvider === 'copilotEh' &&
+		!configurationService.getValue<boolean>(ChatConfiguration.CopilotCliHideExtensionHostEditor) &&
+		chatSessionsService.getChatSessionContribution(SessionType.CopilotCLI)) {
+		return SessionType.CopilotCLI;
 	}
 	return localChatSessionType;
 }

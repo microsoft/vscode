@@ -28,6 +28,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 
 const HOME_DIR = URI.file('/home/user');
 
@@ -256,9 +257,11 @@ suite('SessionsTerminalContribution', () => {
 		instantiationService.stub(ILogService, logService);
 
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
-			override activeSession = activeSessionObs;
 			override readonly onDidChangeSessions = onDidChangeSessions.event;
 			override getSessions(): ISession[] { return [...allSessions]; }
+		});
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = activeSessionObs;
 		});
 
 		instantiationService.stub(ITerminalService, new class extends mock<ITerminalService>() {

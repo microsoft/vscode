@@ -32,6 +32,7 @@ import { AgentHostSessionSyncEnabledConfigKey, AutoApproveLevel, ISchemaProperty
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IMcpNotification } from '../../common/agentService.js';
 import { getEffectiveAgents } from '../../common/customAgents.js';
+import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDataService.js';
@@ -39,7 +40,7 @@ import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from 
 import { ProtectedResourceMetadata, type AgentSelection, type ChildCustomizationType, type ConfigPropertySchema, type ConfigSchema, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { AgentCustomization, CustomizationLoadStatus, CustomizationType, ResponsePartKind, RuleCustomization, SessionInputResponseKind, SkillCustomization, customizationId, parseSubagentSessionUri, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ResponsePart, type SessionInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { AgentCustomization, CustomizationLoadStatus, CustomizationType, ResponsePartKind, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, parseSubagentSessionUri, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ResponsePart, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { ActiveClientState } from '../activeClientState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
@@ -276,6 +277,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _client: CopilotClient | undefined;
 	private _clientStarting: Promise<CopilotClient> | undefined;
 	private _githubToken: string | undefined;
+	private _serverToolHost: IAgentServerToolHost | undefined;
+
+	setServerToolHost(host: IAgentServerToolHost): void {
+		this._serverToolHost = host;
+	}
 
 	/** Reflects the `rt=1` field on the GitHub Copilot bearer token; gates enhanced GH telemetry. */
 	private _restrictedTelemetryEnabled = false;
@@ -1109,7 +1115,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 
 		// Capture the per-session baseline (turn/0) git checkpoint so
-		// per-turn diffs computed on `SessionTurnComplete` can reflect the
+		// per-turn diffs computed on `ChatTurnComplete` can reflect the
 		// full working-tree delta — including terminal-tool edits that are
 		// invisible to the FileEditTracker pipeline. Best-effort: a
 		// non-git folder or capture failure leaves the session running
@@ -1336,7 +1342,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 
 		// Queued messages are consumed by the server (AgentSideEffects)
-		// which dispatches SessionTurnStarted and calls sendMessage directly.
+		// which dispatches ChatTurnStarted and calls sendMessage directly.
 		// No SDK-level enqueue is needed.
 	}
 
@@ -1589,7 +1595,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	respondToUserInputRequest(requestId: string, response: SessionInputResponseKind, answers?: Record<string, SessionInputAnswer>): void {
+	respondToUserInputRequest(requestId: string, response: ChatInputResponseKind, answers?: Record<string, ChatInputAnswer>): void {
 		for (const [, session] of this._sessions) {
 			if (session.respondToUserInputRequest(requestId, response, answers)) {
 				return;
@@ -1645,6 +1651,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				clientSnapshot: launchPlan.snapshot,
 				activeClientState: launchPlan.activeClientState,
 				resolveMcpChildId: name => findMcpChildId(activeClient.pluginController.getCustomizations(), name),
+				serverToolHost: this._serverToolHost,
 			},
 		);
 
