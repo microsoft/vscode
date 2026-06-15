@@ -13,14 +13,15 @@ import { URI } from '../../../base/common/uri.js';
 import type { IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { ISyncedCustomization } from './agentPluginManager.js';
+import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentSubscription.js';
 import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
 import { ProtectedResourceMetadata, type Changeset, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
-import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from './state/sessionActions.js';
+import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction } from './state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
-import { ComponentToState, SessionInputResponseKind, SessionStatus, StateComponents, type ClientPluginCustomization, type Customization, type PendingMessage, type RootState, type SessionInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
+import { ComponentToState, ChatInputResponseKind, SessionStatus, StateComponents, type ClientPluginCustomization, type Customization, type PendingMessage, type RootState, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
 
 // IPC contract between the renderer and the agent host utility process.
 // Defines all serializable event types, the IAgent provider interface,
@@ -56,18 +57,6 @@ export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLogging
 export const AgentHostCustomTerminalToolEnabledSettingId = 'chat.agentHost.customTerminalTool.enabled';
 
 /**
- * Configuration key that holds the absolute path to the **SDK root directory**
- * — the directory that contains a `node_modules/@anthropic-ai/claude-agent-sdk`
- * subtree. When non-empty, the agent host treats it as a dev override and skips
- * the on-demand download from `product.agentSdks.claude` for the Claude SDK.
- *
- * Empty (the default) means: load the SDK from `product.agentSdks.claude` if
- * the build supplies one; otherwise the Claude provider is not registered.
- * The agent host process must be restarted for changes to take effect.
- */
-export const AgentHostClaudeAgentSdkRootSettingId = 'chat.agentHost.claudeAgent.sdkRoot';
-
-/**
  * Configuration key controlling whether the Claude provider is registered in
  * the agent host process. When `false`, the agent host skips registering the
  * Claude provider regardless of SDK availability. Defaults to `true`.
@@ -90,9 +79,13 @@ export const AgentHostClaudeAgentEnabledSettingId = 'chat.agentHost.claudeAgent.
 export const AgentHostCodexAgentEnabledSettingId = 'chat.agentHost.codexAgent.enabled';
 
 /**
- * Environment variable form of {@link AgentHostClaudeAgentSdkRootSettingId}.
- * Set by the agent host starters from the setting, and may also be set
- * directly by developers as an override.
+ * Optional override that points at an **SDK root directory** containing a
+ * `node_modules/@anthropic-ai/claude-agent-sdk` subtree. When set, the agent
+ * host loads the Claude SDK from that path instead of the bare import (which
+ * resolves via this repo's `node_modules` in dev) or the on-demand download
+ * from `product.agentSdks.claude` (built products). Mainly exists for the
+ * remote server's `--claude-sdk-root` CLI flag and for one-off developer
+ * overrides pointing at an out-of-tree SDK build.
  */
 export const AgentHostClaudeSdkRootEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_SDK_ROOT';
 
@@ -337,7 +330,6 @@ export function buildAgentHostOTelEnv(
  * the caller spreads into the spawned child's environment.
  */
 export interface IAgentSdkStarterSettings {
-	readonly claudeSdkRoot?: string;
 	readonly codexSdkRoot?: string;
 	readonly codexHome?: string;
 	readonly codexBinaryArgs?: readonly string[];
@@ -356,7 +348,6 @@ export function buildAgentSdkEnv(
 		}
 		out[key] = value;
 	};
-	setIfMissing(AgentHostClaudeSdkRootEnvVar, settings.claudeSdkRoot);
 	setIfMissing(AgentHostCodexAgentSdkRootEnvVar, settings.codexSdkRoot);
 	setIfMissing(AgentHostCodexAgentCodexHomeEnvVar, settings.codexHome);
 	if (Array.isArray(settings.codexBinaryArgs) && settings.codexBinaryArgs.length > 0) {
@@ -661,7 +652,7 @@ export interface IAgentActionSignal {
 	/** Top-level session URI. For inner subagent events this is the parent session — see {@link parentToolCallId}. */
 	readonly session: URI;
 	/** Protocol action to dispatch. */
-	readonly action: SessionAction;
+	readonly action: SessionAction | ChatAction;
 	/** If set, route the action to the subagent session belonging to this tool call. */
 	readonly parentToolCallId?: string;
 }
@@ -671,7 +662,7 @@ export interface IAgentActionSignal {
  * whether it should run (or, mid-execution, re-confirm). The host applies
  * auto-approval logic over {@link permissionKind} / {@link permissionPath}
  * (see `SessionPermissionManager.getAutoApproval`) and then dispatches the
- * appropriate `SessionToolCallReady` action — with confirmation options
+ * appropriate `ChatToolCallReady` action — with confirmation options
  * baked in when the user must approve, or with `confirmed: NotNeeded` when
  * the host auto-approved.
  *
@@ -683,7 +674,7 @@ export interface IAgentActionSignal {
 export interface IAgentToolPendingConfirmationSignal {
 	readonly kind: 'pending_confirmation';
 	readonly session: URI;
-	/** Protocol-shaped pending-confirmation state, dispatched verbatim into `SessionToolCallReady`. */
+	/** Protocol-shaped pending-confirmation state, dispatched verbatim into `ChatToolCallReady`. */
 	readonly state: ToolCallPendingConfirmationState;
 	/** Host-only auto-approval kind (not part of the dispatched action). */
 	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'custom-tool' | 'hook' | 'memory' | 'extension-management' | 'extension-permission-access';
@@ -692,9 +683,9 @@ export interface IAgentToolPendingConfirmationSignal {
 	/**
 	 * If set, the tool call belongs to the subagent rooted at this
 	 * parent tool call. Used by the host to route the resulting
-	 * `SessionToolCallReady` to the subagent session — otherwise the
+	 * `ChatToolCallReady` to the subagent session — otherwise the
 	 * action would land on the parent session, where there is no
-	 * matching `SessionToolCallStart`.
+	 * matching `ChatToolCallStart`.
 	 */
 	readonly parentToolCallId?: string;
 }
@@ -805,6 +796,15 @@ export interface IAgent {
 	 */
 	readonly onDidMaterializeSession?: Event<IAgentMaterializeSessionEvent>;
 
+	/**
+	 * Provides the agent host's server-tool host so the provider can advertise
+	 * and execute the agent host's server tools (feedback "comments" today, more
+	 * in the future) against a session's state. Optional: providers that do not
+	 * support server-side tools simply omit it. Called once during registration
+	 * with the {@link IAgentService}.
+	 */
+	setServerToolHost?(host: IAgentServerToolHost): void;
+
 	/** Create a new session. Returns server-owned session metadata. */
 	createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult>;
 
@@ -857,7 +857,7 @@ export interface IAgent {
 	respondToPermissionRequest(requestId: string, approved: boolean): void;
 
 	/** Respond to a pending user input request from the SDK's ask_user tool. */
-	respondToUserInputRequest(requestId: string, response: SessionInputResponseKind, answers?: Record<string, SessionInputAnswer>): void;
+	respondToUserInputRequest(requestId: string, response: ChatInputResponseKind, answers?: Record<string, ChatInputAnswer>): void;
 
 	/** Return the descriptor for this agent. */
 	getDescriptor(): IAgentDescriptor;
@@ -1147,7 +1147,7 @@ export interface IAgentService {
 	 * rather than {@link URI} objects so that authority-less scheme URIs
 	 * like `ahp-root://` survive the wire format without normalization.
 	 */
-	dispatchAction(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void;
+	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void;
 
 	/**
 	 * List the contents of a directory on the agent host's filesystem.
@@ -1259,7 +1259,7 @@ export interface IAgentConnection {
 	 * than {@link URI} objects so authority-less scheme URIs like
 	 * `ahp-root://` survive the wire format without normalization.
 	 */
-	dispatch(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): void;
+	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void;
 
 	// ---- Events (connection-level) ------------------------------------------
 	readonly onDidNotification: Event<INotification>;

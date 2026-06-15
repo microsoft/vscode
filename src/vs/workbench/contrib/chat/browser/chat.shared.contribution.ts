@@ -14,7 +14,7 @@ import '../../../../platform/agentHost/common/agentHostStarter.config.contributi
 import { AgentHostAhpJsonlLoggingSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostSdkSandboxEnabledSettingId, ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
-import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_STRICT_MARKETPLACES_KEY } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../platform/sandbox/common/settings.js';
 import { registerEditorFeature } from '../../../../editor/common/editorFeatures.js';
 import * as nls from '../../../../nls.js';
@@ -173,7 +173,7 @@ import { ToolResultCompressorService } from './tools/toolResultCompressorService
 import { AgentPluginService, ConfiguredAgentPluginDiscovery, CopilotCliAgentPluginDiscovery, ExtensionAgentPluginDiscovery, MarketplaceAgentPluginDiscovery } from '../common/plugins/agentPluginServiceImpl.js';
 import { IAgentPluginRepositoryService } from '../common/plugins/agentPluginRepositoryService.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
-import { extraKnownMarketplacesToConfigDict, IPluginMarketplaceService, PluginMarketplaceService } from '../common/plugins/pluginMarketplaceService.js';
+import { IPluginMarketplaceService, PluginMarketplaceService } from '../common/plugins/pluginMarketplaceService.js';
 import { WorkspacePluginSettingsService, IWorkspacePluginSettingsService } from '../common/plugins/workspacePluginSettingsService.js';
 import { AgentPluginRecommendations } from './claudePluginRecommendations.js';
 import { AgentPluginEditor } from './agentPluginEditor/agentPluginEditor.js';
@@ -185,6 +185,7 @@ import { PluginInstallService } from './pluginInstallService.js';
 import { PluginAutoUpdate } from './pluginAutoUpdate.js';
 import './promptSyntax/promptCodingAgentActionContribution.js';
 import './promptSyntax/promptToolsCodeLensProvider.js';
+import './promptSyntax/promptToolSetsCodeLensProvider.js';
 import { ChatSessionOptionSlashCommandsContribution, ChatSlashCommandsContribution } from './chatSlashCommands.js';
 import './planReviewFeedback/planReviewFeedbackEditorContribution.js';
 import { registerPlanReviewFeedbackEditorActions } from './planReviewFeedback/planReviewFeedbackEditorActions.js';
@@ -962,7 +963,10 @@ configurationRegistry.registerConfiguration({
 				name: 'ChatEnabledPlugins',
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.122',
-				value: (policyData) => policyData.enabledPlugins ? JSON.stringify(policyData.enabledPlugins) : undefined,
+				value: (policyData) => policyData.managedSettings?.[COPILOT_ENABLED_PLUGINS_KEY],
+				managedSettings: {
+					[COPILOT_ENABLED_PLUGINS_KEY]: { type: 'string' },
+				},
 				localization: {
 					description: {
 						key: 'chat.plugins.enabledPlugins.policy',
@@ -1005,9 +1009,9 @@ configurationRegistry.registerConfiguration({
 				name: 'ChatExtraMarketplaces',
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.122',
-				value: (policyData) => {
-					const obj = extraKnownMarketplacesToConfigDict(policyData.extraKnownMarketplaces);
-					return obj ? JSON.stringify(obj) : undefined;
+				value: (policyData) => policyData.managedSettings?.[COPILOT_EXTRA_MARKETPLACES_KEY],
+				managedSettings: {
+					[COPILOT_EXTRA_MARKETPLACES_KEY]: { type: 'string' },
 				},
 				localization: {
 					description: {
@@ -1028,7 +1032,10 @@ configurationRegistry.registerConfiguration({
 				name: 'ChatStrictMarketplaces',
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.122',
-				value: (policyData) => policyData.strictKnownMarketplaces,
+				value: (policyData) => policyData.managedSettings?.[COPILOT_STRICT_MARKETPLACES_KEY],
+				managedSettings: {
+					[COPILOT_STRICT_MARKETPLACES_KEY]: { type: 'boolean' },
+				},
 				localization: {
 					description: {
 						key: 'chat.plugins.strictMarketplaces.policy',

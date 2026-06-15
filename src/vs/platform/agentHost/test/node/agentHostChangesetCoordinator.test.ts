@@ -15,7 +15,7 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import { buildSubagentSessionUri, SessionStatus, type ISessionFileDiff } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { ChangesetSessionCoordinator, IChangesetSessionMetadata } from '../../node/agentHostChangesetCoordinator.js';
-import { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs, StaticChangesetKind } from '../../node/agentHostChangesetService.js';
+import { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs, StaticChangesetKind } from '../../common/agentHostChangesetService.js';
 import { IAgentHostFileMonitorOptions, IAgentHostFileMonitorService } from '../../node/agentHostFileMonitorService.js';
 import { IAgentHostGitService } from '../../node/agentHostGitService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -419,14 +419,14 @@ class TestChangesetService implements IAgentHostChangesetService {
 	refreshBranchChangeset(session: string): void {
 		this.branchRefreshes.push(session);
 	}
-	refreshUncommittedChangeset(session: string): void {
-		if (!this._hasUncommittedSubscribers(session)) {
-			return;
-		}
-		this.uncommittedRefreshes.push(session);
-	}
 	refreshSessionChangeset(session: string): void {
 		this.sessionRefreshes.push(session);
+	}
+	async computeUncommittedChangeset(session: string): Promise<string> {
+		if (this._hasUncommittedSubscribers(session)) {
+			this.uncommittedRefreshes.push(session);
+		}
+		return `${session}/changeset/uncommitted`;
 	}
 	async computeTurnChangeset(session: string, turnId: string): Promise<string> { return `${session}/changeset/turn/${turnId}`; }
 	async computeCompareTurnsChangeset(session: string, originalTurnId: string, modifiedTurnId: string): Promise<string> { return `${session}/changeset/compare/${originalTurnId}/${modifiedTurnId}`; }

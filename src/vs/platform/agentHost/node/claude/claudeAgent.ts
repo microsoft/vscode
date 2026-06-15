@@ -28,7 +28,7 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { PolicyState, ProtectedResourceMetadata, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
-import { isSubagentSession, parseSubagentSessionUri, SessionInputResponseKind, type ClientPluginCustomization, type Customization, type MessageAttachment, type PendingMessage, type SessionInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { isSubagentSession, parseSubagentSessionUri, ChatInputResponseKind, type ClientPluginCustomization, type Customization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostGitService } from '../agentHostGitService.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
@@ -39,6 +39,7 @@ import { mapSessionMessagesToTurns } from './claudeReplayMapper.js';
 import { getSubagentTranscript } from './claudeSubagentResolver.js';
 import { ClaudeAgentSession } from './claudeAgentSession.js';
 import { handleCanUseTool } from './claudeCanUseTool.js';
+import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { tryParseClaudeModelId } from './claudeModelId.js';
 import { resolvePromptToContentBlocks } from './claudePromptResolver.js';
 import { IClaudeProxyHandle, IClaudeProxyService } from './claudeProxyService.js';
@@ -153,6 +154,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 	private _githubToken: string | undefined;
 	private _proxyHandle: IClaudeProxyHandle | undefined;
+	private _serverToolHost: IAgentServerToolHost | undefined;
 
 	/**
 	 * Memoized teardown promise. Set on the first call to {@link shutdown},
@@ -420,7 +422,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			);
 
 		try {
-			await session.materialize({ proxyHandle, canUseTool, isResume: false });
+			await session.materialize({ proxyHandle, canUseTool, isResume: false, serverToolHost: this._serverToolHost });
 		} catch (err) {
 			this._sessions.deleteAndDispose(sessionId);
 			throw err;
@@ -501,7 +503,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			);
 
 		try {
-			await session.materialize({ proxyHandle, canUseTool, isResume: true });
+			await session.materialize({ proxyHandle, canUseTool, isResume: true, serverToolHost: this._serverToolHost });
 		} catch (err) {
 			this._sessions.deleteAndDispose(sessionId);
 			throw err;
@@ -833,9 +835,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		}
 	}
 
-	respondToUserInputRequest(requestId: string, response: SessionInputResponseKind, answers?: Record<string, SessionInputAnswer>): void {
+	respondToUserInputRequest(requestId: string, response: ChatInputResponseKind, answers?: Record<string, ChatInputAnswer>): void {
 		// `requestId` is the SDK's `tool_use_id` (interactive tools
-		// reuse it as the {@link SessionInputRequest.id}); globally
+		// reuse it as the {@link ChatInputRequest.id}); globally
 		// unique, so a single matching session is all we need. Silent
 		// on miss for the same reasons as `respondToPermissionRequest`.
 		for (const entry of this._sessions.values()) {
@@ -918,6 +920,10 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		});
 	}
 
+	setServerToolHost(host: IAgentServerToolHost): void {
+		this._serverToolHost = host;
+	}
+
 	setClientTools(session: URI, clientId: string | undefined, tools: ToolDefinition[]): void {
 		const sessionId = AgentSession.id(session);
 		this._logService.info(`[Claude:${sessionId}] setClientTools clientId=${clientId} tools=[${tools.map(t => t.name).join(', ') || '(none)'}]`);
@@ -939,7 +945,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		}
 		const sessionId = AgentSession.id(target);
 		const entry = this._sessions.get(sessionId);
-		// `AgentSideEffects` forwards every `SessionToolCallComplete` envelope
+		// `AgentSideEffects` forwards every `ChatToolCallComplete` envelope
 		// (including SDK-owned tools); silent on miss is the expected path.
 		entry?.session.completeClientToolCall(toolCallId, result);
 	}

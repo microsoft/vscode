@@ -16,13 +16,14 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IChat, ISession, SessionStatus } from '../common/session.js';
-import { IActiveSession, ICreateNewSessionOptions, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
+import { IActiveSession, ICreateNewSessionOptions, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent, ActiveSessionSupportsMultiChatContext } from '../common/sessionsManagement.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { SessionsNavigation } from './sessionNavigation.js';
 import { SessionsRecencyHistory } from './sessionsRecencyHistory.js';
 import { VisibleSessions } from './visibleSessions.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ISessionsPartService } from './sessionsPartService.js';
+import { ActiveSessionProviderIdContext, ActiveSessionTypeContext, IsActiveSessionArchivedContext, ActiveSessionWorkspaceIsVirtualContext, IsNewChatSessionContext } from '../../../common/contextkeys.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
 
@@ -34,11 +35,11 @@ const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
  */
 const RESTORE_SESSION_WAIT_TIMEOUT = 30_000;
 
-/** Maximum number of recently opened sessions reported by {@link SessionsViewService.getRecentlyOpenedSessions}. */
+/** Maximum number of recently opened sessions reported by {@link SessionsService.getRecentlyOpenedSessions}. */
 const MAX_RECENTLY_OPENED_SESSIONS = 10;
 
 /**
- * Options for {@link ISessionsViewService.openNewSession}.
+ * Options for {@link ISessionsService.openNewSession}.
  */
 export interface IOpenNewSessionOptions extends ICreateNewSessionOptions {
 	/**
@@ -78,13 +79,23 @@ interface ISessionState {
  *
  * This is the *view* counterpart to the *model*
  * {@link ISessionsManagementService}: it reflects model changes reactively and
- * pushes the visible active slot back into the model via
- * {@link ISessionsManagementService.setActiveSession}. It never performs model
- * lifecycle operations (creating sessions, sending requests, CRUD) itself —
- * those stay in the management service.
+ * owns the {@link activeSession} (the visible active slot). It never performs
+ * model lifecycle operations (creating sessions, sending requests, CRUD)
+ * itself — those stay in the management service.
  */
-export interface ISessionsViewService {
+export interface ISessionsService {
 	readonly _serviceBrand: undefined;
+
+	/**
+	 * Observable for the currently active session as {@link IActiveSession},
+	 * or `undefined` for the new-session (empty) slot.
+	 *
+	 * This is the canonical active session: it reflects the visible active slot
+	 * in the grid. The split mirrors `IEditorService.activeEditor` (view owns
+	 * the active editor) vs the session model in
+	 * {@link ISessionsManagementService}.
+	 */
+	readonly activeSession: IObservable<IActiveSession | undefined>;
 
 	/**
 	 * Observable list of slots currently displayed in the sessions part's
@@ -194,9 +205,9 @@ export interface ISessionsViewService {
 	openNextSession(): Promise<void>;
 }
 
-export const ISessionsViewService = createDecorator<ISessionsViewService>('sessionsViewService');
+export const ISessionsService = createDecorator<ISessionsService>('sessionsService');
 
-export class SessionsViewService extends Disposable implements ISessionsViewService {
+export class SessionsService extends Disposable implements ISessionsService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -206,6 +217,16 @@ export class SessionsViewService extends Disposable implements ISessionsViewServ
 	/** Owns the active/sticky/transient visibility model and the {@link IActiveSession} wrappers. */
 	private readonly _visibility: VisibleSessions;
 	readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>;
+
+	/** The canonical active session — the visible active slot. */
+	readonly activeSession: IObservable<IActiveSession | undefined>;
+
+	private readonly _isNewChatSessionContext: IContextKey<boolean>;
+	private readonly _activeSessionProviderId: IContextKey<string>;
+	private readonly _activeSessionType: IContextKey<string>;
+	private readonly _activeSessionWorkspaceIsVirtual: IContextKey<boolean>;
+	private readonly _isActiveSessionArchived: IContextKey<boolean>;
+	private readonly _supportsMultiChat: IContextKey<boolean>;
 
 	/** Cancelled on every navigation action so in-flight async opens bail out. */
 	private readonly _openSessionCts = this._register(new MutableDisposable<CancellationTokenSource>());
@@ -260,6 +281,17 @@ export class SessionsViewService extends Disposable implements ISessionsViewServ
 			session => this._restoreInitialChat(session),
 		));
 		this.visibleSessions = this._visibility.visibleSessions;
+		this.activeSession = this._visibility.activeSession;
+
+		// Bind active-session context keys. These reflect the visible active
+		// slot (the view's `activeSession`); `isNewChatSession` also consults
+		// the model's in-progress draft (`newSession`).
+		this._isNewChatSessionContext = IsNewChatSessionContext.bindTo(this.contextKeyService);
+		this._activeSessionProviderId = ActiveSessionProviderIdContext.bindTo(this.contextKeyService);
+		this._activeSessionType = ActiveSessionTypeContext.bindTo(this.contextKeyService);
+		this._activeSessionWorkspaceIsVirtual = ActiveSessionWorkspaceIsVirtualContext.bindTo(this.contextKeyService);
+		this._isActiveSessionArchived = IsActiveSessionArchivedContext.bindTo(this.contextKeyService);
+		this._supportsMultiChat = ActiveSessionSupportsMultiChatContext.bindTo(this.contextKeyService);
 
 		// Save on shutdown
 		this._register(this.storageService.onWillSaveState(() => this._saveSessionStates()));
@@ -274,6 +306,7 @@ export class SessionsViewService extends Disposable implements ISessionsViewServ
 		// Session navigation history (Back/Forward) builds on the recency history.
 		this._navigation = this._register(new SessionsNavigation(
 			this,
+			this.activeSession,
 			this.sessionsManagementService,
 			this._recencyHistory,
 			this.contextKeyService,
@@ -282,17 +315,21 @@ export class SessionsViewService extends Disposable implements ISessionsViewServ
 		this._register(this.sessionsManagementService.onDidChangeSessions(e => this._navigation.onDidRemoveSessions(e)));
 		this._register(this.sessionsManagementService.onDidDeleteSession(session => this._recencyHistory.remove(entry => entry.sessionResource.toString() === session.resource.toString())));
 
-		// Mirror the visible active slot into the model so the model's
-		// canonical `activeSession` always reflects what the user sees.
+		// Keep the active-session context keys in sync with the visible active
+		// slot and the model's in-progress draft.
 		this._register(autorun(reader => {
-			const active = this._visibility.activeSession.read(reader);
-			this.sessionsManagementService.setActiveSession(active);
+			const activeSession = this.activeSession.read(reader);
+			const newSession = this.sessionsManagementService.newSession.read(reader);
+			this._handleActiveSessionContextKeys(activeSession, newSession);
+			if (activeSession) {
+				reader.store.add(this._activeSessionContextKeyListeners(activeSession));
+			}
 		}));
 
 		// Per-active-session view reactions (archived → new-session view,
 		// active-chat removed → fallback chat, persist the active chat).
 		this._register(autorun(reader => {
-			const activeSession = this.sessionsManagementService.activeSession.read(reader);
+			const activeSession = this.activeSession.read(reader);
 			if (activeSession) {
 				reader.store.add(this._activeSessionViewListeners(activeSession));
 			}
@@ -349,12 +386,37 @@ export class SessionsViewService extends Disposable implements ISessionsViewServ
 
 	private _onDidReplaceSession(from: ISession, to: ISession): void {
 		this._visibility.updateSession(from, to);
-		// call session management service to set to session as active session if from is active
-		const activeSession = this.sessionsManagementService.activeSession.get();
-		const visibleActiveSession = this._visibility.activeSession.get();
-		if (activeSession?.sessionId === from.sessionId && to.sessionId === visibleActiveSession?.sessionId) {
-			this.sessionsManagementService.replaceActiveSession(activeSession, visibleActiveSession);
-		}
+	}
+
+	private _handleActiveSessionContextKeys(session: IActiveSession | undefined, newSession: ISession | undefined): void {
+		// Update context keys from session data.
+		// IsNewChatSessionContext is true when no active session exists, OR when the
+		// active session is still the in-progress new session (created but not yet
+		// sent for the first time). Scoping to the active session avoids flipping
+		// into "new chat" mode while viewing a different established session.
+		this._isNewChatSessionContext.set(session === undefined || session.sessionId === newSession?.sessionId);
+		this._activeSessionProviderId.set(session?.providerId ?? '');
+		this._activeSessionType.set(session?.sessionType ?? '');
+		this._activeSessionWorkspaceIsVirtual.set(session?.workspace.get()?.isVirtualWorkspace ?? true);
+		this._isActiveSessionArchived.set(session?.isArchived.get() ?? false);
+		this._supportsMultiChat.set(session?.capabilities.supportsMultipleChats ?? false);
+	}
+
+	private _activeSessionContextKeyListeners(activeSession: IActiveSession): IDisposable {
+		const disposables = new DisposableStore();
+
+		// Track archived state changes for the active session
+		disposables.add(autorun(reader => {
+			this._isActiveSessionArchived.set(activeSession.isArchived.read(reader));
+		}));
+
+		// Track workspace changes so the virtual-workspace context key stays in sync
+		disposables.add(autorun(reader => {
+			const workspace = activeSession.workspace.read(reader);
+			this._activeSessionWorkspaceIsVirtual.set(workspace?.isVirtualWorkspace ?? true);
+		}));
+
+		return disposables;
 	}
 
 	private _activeSessionViewListeners(activeSession: IActiveSession): IDisposable {
@@ -577,17 +639,27 @@ export class SessionsViewService extends Disposable implements ISessionsViewServ
 		const folderUri = options?.folderUri;
 		if (folderUri) {
 			this._startOpenSession();
-			const session = this.sessionsManagementService.createNewSession(folderUri, options);
-			this._activate(session);
-			return session;
+			try {
+				const session = this.sessionsManagementService.createNewSession(folderUri, options);
+				this._activate(session);
+				return session;
+			} catch (e) {
+				// When the folder cannot be resolved (e.g. the active session's
+				// workspace uses an unsupported scheme like 'unknown:/'), fall
+				// through to the folder-less composer view.
+				this.logService.trace(`[SessionsView] openNewSession: createNewSession failed for folder ${folderUri.toString()}, falling back to composer view`);
+			}
 		}
 
-		// Without a folder: switch to the new-session composer view.
+		// Without a folder (or when folder resolution failed above): switch to
+		// the new-session composer view.
 		// No-op when no session is active (empty new-session placeholder showing).
 		if (this._visibility.activeSession.get() === undefined) {
 			return undefined;
 		}
-		this._startOpenSession();
+		if (!folderUri) {
+			this._startOpenSession();
+		}
 
 		// Restore the in-progress new session if one exists, so pickers re-derive
 		// their state from the still-alive session object. Otherwise clear the
@@ -995,4 +1067,4 @@ export class SessionsViewService extends Disposable implements ISessionsViewServ
 	}
 }
 
-registerSingleton(ISessionsViewService, SessionsViewService, InstantiationType.Eager);
+registerSingleton(ISessionsService, SessionsService, InstantiationType.Eager);

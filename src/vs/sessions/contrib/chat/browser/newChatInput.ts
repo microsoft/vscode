@@ -129,6 +129,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	readonly onDidBlur = this._onDidBlur.event;
 	get element(): HTMLElement { return this._editorContainer; }
 
+	/** The underlying input editor. Exposed for component fixtures. */
+	get inputEditor(): CodeEditorWidget | undefined { return this._editor; }
+
 	// Input
 	private _editor!: CodeEditorWidget;
 	private _editorContainer!: HTMLElement;
