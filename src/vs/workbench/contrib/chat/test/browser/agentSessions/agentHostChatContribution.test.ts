@@ -19,7 +19,7 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/agentFeedbackAttachments.js';
-import { ActionType, isSessionAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ActionType, isSessionAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { CustomizationType, type ClientPluginCustomization, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, createSessionState, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, StateComponents, buildSubagentSessionUri, ToolResultContentType, MessageAttachmentKind, MessageKind, type SessionState, type SessionSummary, RootState, type ToolCallState, type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -27,6 +27,7 @@ import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, ty
 import { sessionReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
 import { ChatRequestQueueKind, ElicitationState, IChatService, IChatMarkdownContent, IChatProgress, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
@@ -153,7 +154,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 	// Protocol methods
 	public override readonly clientId = 'test-window-1';
-	public dispatchedActions: { channel: string; action: SessionAction | TerminalAction | IRootConfigChangedAction; clientId: string; clientSeq: number }[] = [];
+	public dispatchedActions: { channel: string; action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction; clientId: string; clientSeq: number }[] = [];
 
 	/** Returns dispatched actions filtered to turn-related types only
 	 *  (excludes lifecycle actions like activeClientChanged). */
@@ -193,7 +194,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		};
 	}
 	unsubscribe(_resource: URI): void { }
-	dispatchAction(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
+	dispatchAction(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
 		this.dispatchedActions.push({ channel, action, clientId, clientSeq });
 	}
 	private _nextSeq = 1;
@@ -304,7 +305,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			onDidApplyAction: entry.onDidApply.event,
 		} satisfies IAgentSubscription<T>;
 	}
-	override dispatch(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
+	override dispatch(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
 		this.dispatchedActions.push({ channel, action, clientId: this.clientId, clientSeq: this._nextSeq++ });
 		// Apply state-management actions optimistically so state-dependent
 		// logic (e.g. customization re-dispatch) sees the correct activeClient.
@@ -414,6 +415,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	instantiationService.stub(IAgentHostService, agentHostService);
 	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(IProductService, { quality: 'insider' });
+	instantiationService.stub(IChatEntitlementService, { entitlement: ChatEntitlement.Free, quotas: {} } as Partial<IChatEntitlementService> as IChatEntitlementService);
 	instantiationService.stub(IChatAgentService, chatAgentService);
 	instantiationService.stub(IChatWidgetService, chatWidgetService);
 	instantiationService.stub(IFileService, TestFileService);
@@ -1074,6 +1076,27 @@ suite('AgentHostChatContribution', () => {
 
 			assert.deepStrictEqual(listController.items.map(item => item.label), ['Local session']);
 		});
+
+		test('deleteChatSessionItem disposes the corresponding backend session and removes it from the cached items', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { listController, agentHostService } = createContribution(disposables);
+
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'session-to-delete'), startTime: 1000, modifiedTime: 2000, summary: 'Doomed' });
+			await listController.refresh(CancellationToken.None);
+			assert.strictEqual(listController.items.length, 1);
+
+			const itemResource = listController.items[0].resource;
+			const removalEvents: URI[] = [];
+			disposables.add(listController.onDidChangeChatSessionItems(delta => {
+				if (delta.removed) {
+					removalEvents.push(...delta.removed);
+				}
+			}));
+			await listController.deleteChatSessionItem(itemResource, CancellationToken.None);
+
+			assert.deepStrictEqual(agentHostService.disposedSessions.map(s => s.toString()), [AgentSession.uri('copilot', 'session-to-delete').toString()]);
+			assert.strictEqual(listController.items.length, 0);
+			assert.deepStrictEqual(removalEvents.map(r => r.toString()), [itemResource.toString()]);
+		}));
 
 		test('newChatSessionItem creates final-looking resource used for requested backend session', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { listController, sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
@@ -2128,12 +2151,13 @@ suite('AgentHostChatContribution', () => {
 				origin: undefined,
 			});
 
-			await turnPromise;
+			const result = await turnPromise;
 
-			// Should have received the error message and the request should have finished
-			assert.ok(collected.length >= 1);
-			const errorPart = collected.flat().find(p => p.kind === 'markdownContent' && (p as IChatMarkdownContent).content.value.includes('Something went wrong'));
-			assert.ok(errorPart, 'Should have found a markdownContent part containing the error message');
+			// The error is surfaced as the agent result's errorDetails (so the
+			// chat renders a proper error / quota upgrade affordance) rather
+			// than an inline markdown progress part.
+			assert.strictEqual(result.errorDetails?.message, 'Error: (test_error) Something went wrong');
+			assert.ok(!collected.flat().some(p => p.kind === 'markdownContent' && (p as IChatMarkdownContent).content.value.includes('Something went wrong')), 'Error should not be duplicated as a markdown progress part');
 		}));
 	});
 
@@ -3169,7 +3193,7 @@ suite('AgentHostChatContribution', () => {
 			]);
 		}));
 
-		test('agent feedback variable becomes simple attachment with structured metadata', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		test('agent feedback variable is dropped (feedback lives in the annotations channel)', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/feedback-test' });
 
@@ -3203,27 +3227,7 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
 			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
-			assert.deepStrictEqual(turnAction.message.attachments, [{
-				type: MessageAttachmentKind.Simple,
-				label: 'Feedback',
-				modelRepresentation: 'Feedback text for the model',
-				displayKind: AgentFeedbackAttachmentDisplayKind,
-				_meta: {
-					source: 'test',
-					[AgentFeedbackAttachmentMetadataKey]: {
-						sessionResource: sessionResource.toString(),
-						feedbackItems: [{
-							id: 'feedback-1',
-							text: 'Please simplify this.',
-							resourceUri: URI.file('/workspace/foo.ts').toString(),
-							range: {
-								start: { line: 1, character: 2 },
-								end: { line: 3, character: 4 },
-							},
-						}],
-					},
-				},
-			}]);
+			assert.strictEqual(turnAction.message.attachments, undefined);
 		}));
 
 		test('directory variable with file:// URI becomes directory attachment', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -3492,26 +3496,6 @@ suite('AgentHostChatContribution', () => {
 						range: {
 							start: { line: 1, character: 2 },
 							end: { line: 3, character: 4 },
-						},
-					},
-				},
-				{
-					type: MessageAttachmentKind.Simple,
-					label: 'Feedback',
-					modelRepresentation: 'Feedback text for the model',
-					displayKind: AgentFeedbackAttachmentDisplayKind,
-					_meta: {
-						[AgentFeedbackAttachmentMetadataKey]: {
-							sessionResource: URI.from({ scheme: 'agent-host-copilot', path: '/new-turntest' }).toString(),
-							feedbackItems: [{
-								id: 'feedback-1',
-								text: 'Please simplify this.',
-								resourceUri: feedbackUri.toString(),
-								range: {
-									start: { line: 5, character: 0 },
-									end: { line: 5, character: 7 },
-								},
-							}],
 						},
 					},
 				},

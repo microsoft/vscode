@@ -56,11 +56,11 @@ function message(text: string, kind = MessageKind.User): Message {
 }
 
 function toolCallStateToInvocation(tc: Parameters<typeof rawToolCallStateToInvocation>[0], subAgentInvocationId?: string) {
-	return rawToolCallStateToInvocation(tc, subAgentInvocationId, URI.file('/'), undefined);
+	return rawToolCallStateToInvocation(tc, subAgentInvocationId, URI.file('/'), 'local');
 }
 
 function finalizeToolInvocation(invocation: Parameters<typeof rawFinalizeToolInvocation>[0], tc: Parameters<typeof rawFinalizeToolInvocation>[1]) {
-	return rawFinalizeToolInvocation(invocation, tc, URI.file('/'), undefined);
+	return rawFinalizeToolInvocation(invocation, tc, URI.file('/'), 'local');
 }
 
 function turnsToHistory(backendSession: Parameters<typeof rawTurnsToHistory>[0], turns: Parameters<typeof rawTurnsToHistory>[1], participantId: Parameters<typeof rawTurnsToHistory>[2], lookup?: Parameters<typeof rawTurnsToHistory>[4]) {
@@ -88,11 +88,11 @@ function makeLookup(prefix: string, displayNames: Record<string, string>, fallba
 }
 
 function activeTurnToProgress(sessionResource: Parameters<typeof rawActiveTurnToProgress>[0], activeTurn: Parameters<typeof rawActiveTurnToProgress>[1], connectionAuthority?: Parameters<typeof rawActiveTurnToProgress>[2]) {
-	return rawActiveTurnToProgress(sessionResource, activeTurn, connectionAuthority);
+	return rawActiveTurnToProgress(sessionResource, activeTurn, connectionAuthority || 'local');
 }
 
 function updateRunningToolSpecificData(existing: Parameters<typeof rawUpdateRunningToolSpecificData>[0], tc: Parameters<typeof rawUpdateRunningToolSpecificData>[1]) {
-	return rawUpdateRunningToolSpecificData(existing, tc, URI.file('/'), undefined);
+	return rawUpdateRunningToolSpecificData(existing, tc, URI.file('/'), 'local');
 }
 
 function assertInputOutputDetails(details: unknown): asserts details is IToolResultInputOutputDetails {
@@ -236,7 +236,12 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(details.output.length, 2);
 			assert.deepStrictEqual(details.output[0], { type: 'embed', value: 'aW1hZ2U=', mimeType: 'image/png' });
 			assert.strictEqual(details.output[1].type, 'ref');
-			assert.strictEqual(details.output[1].uri.toString(), 'agenthost-content:/session/result.txt');
+			// Resource URI is wrapped via toAgentHostUri so it resolves through the
+			// agent host filesystem provider on the client when the session is backed
+			// by a remote agent host.
+			assert.strictEqual(details.output[1].uri.scheme, 'vscode-agent-host');
+			assert.strictEqual(details.output[1].uri.authority, 'local');
+			assert.strictEqual(details.output[1].uri.path, '/session/result.txt');
 			assert.strictEqual(details.output[1].mimeType, 'text/plain');
 		});
 
@@ -580,7 +585,7 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(value, 'See ![diagram](vscode-agent-host://my-host/a/b.png?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0).');
 		});
 
-		test('error turn produces error message in history', () => {
+		test('error turn produces error details in history', () => {
 			const turn = createTurn({
 				state: TurnState.Error,
 				error: { errorType: 'test', message: 'boom' },
@@ -590,8 +595,25 @@ suite('stateToProgressAdapter', () => {
 			const response = history[1];
 			assert.strictEqual(response.type, 'response');
 			if (response.type !== 'response') { return; }
-			const errorPart = response.parts.find(p => p.kind === 'markdownContent' && (p as IChatMarkdownContent).content.value.includes('boom'));
-			assert.ok(errorPart, 'Should have a markdownContent part containing the error message');
+			assert.strictEqual(response.errorDetails?.message, 'Error: (test) boom');
+			assert.ok(!response.parts.some(p => p.kind === 'markdownContent' && (p as IChatMarkdownContent).content.value.includes('boom')), 'Error should not be duplicated as a markdown part');
+		});
+
+		test('forwarded quota error turn produces quota-exceeded error details', () => {
+			const turn = createTurn({
+				state: TurnState.Error,
+				error: {
+					errorType: 'quota',
+					message: 'raw',
+					_meta: { chatError: { fetchError: { type: 'quotaExceeded', capiError: { code: 'quota_exceeded' } } } },
+				},
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			assert.strictEqual(response.errorDetails?.isQuotaExceeded, true);
 		});
 
 		test('failed tool in history has exitCode 1', () => {

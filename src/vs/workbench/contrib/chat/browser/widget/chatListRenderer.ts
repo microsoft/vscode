@@ -2871,7 +2871,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		const widget = isResponseVM(context.element) ? this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource) : undefined;
-		const shouldAutoFocus = widget ? widget.getInput() === '' : true;
+		// Only auto-focus if the chat input is empty AND focus is already within the chat widget
+		// This prevents stealing focus from other VS Code UI (editor, terminal, etc.)
+		const shouldAutoFocus = !!widget && dom.isAncestorOfActiveElement(widget.domNode) && widget.getInput() === '';
 		const responseId = isResponseVM(context.element) ? context.element.requestId : undefined;
 		const carouselKey = carousel.resolveId ?? `${responseId ?? ''}_${context.contentIndex}`;
 

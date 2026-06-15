@@ -315,6 +315,38 @@ suite('RenameTool', () => {
 			assert.ok(getTextContent(result).includes('Renamed'));
 		});
 
+		test('rejects filePath that escapes the session working directory', async () => {
+			const outsideUri = URI.parse('file:///outside.ts');
+			const outsideModel = disposables.add(createTextModel('const OutsideSecretMarker = 1;', 'typescript', undefined, outsideUri));
+			const requestedUris: URI[] = [];
+			const textModelService = {
+				_serviceBrand: undefined,
+				createModelReference: async (uri: URI) => {
+					requestedUris.push(uri);
+					return { object: { textEditorModel: outsideModel }, dispose: () => { } };
+				},
+				registerTextModelContentProvider: () => ({ dispose: () => { } }),
+				canHandleResource: () => false,
+			} as unknown as ITextModelService;
+			disposables.add(langFeatures.renameProvider.register('typescript', {
+				provideRenameEdits: (): WorkspaceEdit & Rejection => ({ edits: [makeEdit(outsideUri, new Range(1, 7, 1, 26), 'RenamedSecretMarker')] }),
+			}));
+
+			const bulkEditService = createMockBulkEditService();
+			const tool = disposables.add(createTool(textModelService, { bulkEditService }));
+			const result = await tool.invoke(
+				{
+					parameters: { symbol: 'OutsideSecretMarker', newName: 'RenamedSecretMarker', filePath: '../outside.ts', lineContent: 'const OutsideSecretMarker = 1;' },
+					context: { workingDirectory: URI.parse('file:///session-dir') },
+				} as unknown as IToolInvocation,
+				noopCountTokens, noopProgress, CancellationToken.None
+			);
+
+			assert.ok(getTextContent(result).includes('Provide either'));
+			assert.strictEqual(requestedUris.length, 0);
+			assert.strictEqual(bulkEditService.appliedEdits.length, 0);
+		});
+
 		test('result includes toolResultMessage', async () => {
 			const model = disposables.add(createTextModel(testContent, 'typescript', undefined, testUri));
 			const edits = [

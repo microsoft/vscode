@@ -24,7 +24,7 @@ import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToo
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, type SessionDeltaAction, type SessionErrorAction, type SessionInputRequestedAction, type SessionResponsePartAction, type SessionToolCallCompleteAction, type SessionToolCallReadyAction, type SessionToolCallStartAction, type SessionTurnCompleteAction } from '../../common/state/sessionActions.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type ToolResultContent, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, MessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
 import { ActiveClientState } from '../../node/activeClientState.js';
 import { type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
@@ -33,6 +33,7 @@ import { buildCopilotSystemNotification } from '../../node/copilot/copilotSystem
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { createSessionDataService, createZeroDiffComputeService } from '../common/sessionTestHelpers.js';
+import { IAgentServerToolHost } from '../../common/agentServerTools.js';
 
 // ---- Mock CopilotSession (SDK level) ----------------------------------------
 
@@ -219,6 +220,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	fileReadErrors?: readonly string[];
 	/** Configure the mock session before {@link CopilotAgentSession.initializeSession} runs. */
 	configureMockSession?: (session: MockCopilotSession) => void;
+	/** Optional server-tool host wired into the session. */
+	serverToolHost?: IAgentServerToolHost;
 }): Promise<{
 	session: CopilotAgentSession;
 	runtime: ICopilotSessionRuntime;
@@ -338,6 +341,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			activeClientState: options?.activeClientState,
 			resolveMcpChildId: () => undefined,
 			workingDirectory: options?.workingDirectory,
+			serverToolHost: options?.serverToolHost,
 		},
 	));
 
@@ -395,6 +399,78 @@ suite('CopilotAgentSession', () => {
 						end: { line: 2, character: 16 },
 					},
 				},
+			],
+		}]);
+	});
+
+	test('maps symbol Resource attachments to SDK selection so the range survives (#315193)', async () => {
+		// Symbols arrive as a Resource with displayKind 'symbol' AND a populated selection.range. Keying the selection
+		// branch off the `selection` field (not displayKind === 'selection') keeps the range instead of degrading the
+		// symbol to a plain file reference.
+		const symbolUri = URI.file('/workspace/sym.ts');
+		const { session, mockSession } = await createAgentSession(disposables, {
+			fileContents: {
+				[symbolUri.toString()]: 'line0\nline1\nfunction foo() {}\nline3',
+			},
+		});
+
+		await session.send('explain this', [
+			{
+				type: MessageAttachmentKind.Resource,
+				uri: symbolUri.toString(),
+				label: 'foo',
+				displayKind: 'symbol',
+				selection: {
+					range: {
+						start: { line: 2, character: 9 },
+						end: { line: 2, character: 12 },
+					},
+				},
+			},
+		]);
+
+		assert.deepStrictEqual(mockSession.sendRequests, [{
+			prompt: 'explain this',
+			attachments: [
+				{
+					type: 'selection',
+					filePath: symbolUri.fsPath,
+					displayName: 'foo',
+					text: 'foo',
+					selection: {
+						start: { line: 2, character: 9 },
+						end: { line: 2, character: 12 },
+					},
+				},
+			],
+		}]);
+	});
+
+	test('falls back to file reference when reading a symbol Resource attachment fails', async () => {
+		const symbolUri = URI.file('/workspace/missing.ts');
+		const { session, mockSession } = await createAgentSession(disposables, {
+			fileReadErrors: [symbolUri.toString()],
+		});
+
+		await session.send('explain this', [
+			{
+				type: MessageAttachmentKind.Resource,
+				uri: symbolUri.toString(),
+				label: 'foo',
+				displayKind: 'symbol',
+				selection: {
+					range: {
+						start: { line: 2, character: 9 },
+						end: { line: 2, character: 12 },
+					},
+				},
+			},
+		]);
+
+		assert.deepStrictEqual(mockSession.sendRequests, [{
+			prompt: 'explain this',
+			attachments: [
+				{ type: 'file', path: symbolUri.fsPath, displayName: 'foo' },
 			],
 		}]);
 	});
@@ -494,13 +570,16 @@ suite('CopilotAgentSession', () => {
 			outputTokens: 20,
 			cacheReadTokens: 5,
 			cost: 2,
-		});
+			// `copilotUsage` is marked `asInternal` in the SDK schema so it is not on the public type, but is present at runtime.
+			copilotUsage: { totalNanoAiu: 500_000_000, tokenDetails: [] },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
 		mockSession.fire('assistant.usage', {
 			model: 'claude-sonnet-4.6',
 			inputTokens: 30,
 			outputTokens: 40,
 			cost: 2,
-		});
+			copilotUsage: { totalNanoAiu: 750_000_000, tokenDetails: [] },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
 
 		const usageActions = signals
 			.filter((s): s is IAgentActionSignal => s.kind === 'action')
@@ -515,6 +594,7 @@ suite('CopilotAgentSession', () => {
 				cacheReadTokens: 5,
 				_meta: {
 					cost: 2,
+					copilotUsage: { totalNanoAiu: 500_000_000, tokenDetails: [] },
 				},
 			},
 			{
@@ -524,6 +604,7 @@ suite('CopilotAgentSession', () => {
 				cacheReadTokens: undefined,
 				_meta: {
 					cost: 2,
+					copilotUsage: { totalNanoAiu: 1_250_000_000, tokenDetails: [] },
 				},
 			},
 		]);
@@ -2921,6 +3002,98 @@ suite('CopilotAgentSession', () => {
 			const result = await invokeClientToolHandler(tools[0], 'tc-early');
 			assert.strictEqual(result.resultType, 'success');
 			assert.strictEqual(result.textResultForLlm, 'buffered result');
+		});
+	});
+
+	// ---- Server tools -------------------------------------------------------
+
+	suite('server tools', () => {
+
+		const fakeToolDefinitions: readonly ToolDefinition[] = [
+			{ name: 'serverToolA', description: 'A', inputSchema: { type: 'object', properties: {} } },
+			{ name: 'serverToolB', description: 'B', inputSchema: { type: 'object', properties: {} } },
+		];
+
+		class FakeServerToolHost implements IAgentServerToolHost {
+			readonly definitions: readonly ToolDefinition[] = fakeToolDefinitions;
+			readonly toolNames: readonly string[] = fakeToolDefinitions.map(def => def.name);
+			readonly advertised: string[] = [];
+			readonly executions: Array<{ sessionUri: string; toolName: string; rawArgs: unknown }> = [];
+			result = 'ok';
+			error: Error | undefined;
+
+			advertise(sessionUri: string): void {
+				this.advertised.push(sessionUri);
+			}
+
+			executeTool(sessionUri: string, toolName: string, rawArgs: unknown): string {
+				this.executions.push({ sessionUri, toolName, rawArgs });
+				if (this.error) {
+					throw this.error;
+				}
+				return this.result;
+			}
+		}
+
+		test('advertises the server tools on initialize and exposes them as server SDK tools', async () => {
+			const serverToolHost = new FakeServerToolHost();
+			const { runtime } = await createAgentSession(disposables, { serverToolHost });
+
+			const sessionUri = AgentSession.uri('copilot', 'test-session-1').toString();
+			assert.deepStrictEqual(serverToolHost.advertised, [sessionUri]);
+
+			const tools = runtime.createServerSdkTools();
+			assert.deepStrictEqual(tools.map(t => t.name).sort(), [...serverToolHost.toolNames].sort());
+		});
+
+		test('server tool handler routes to the host and returns a success result', async () => {
+			const serverToolHost = new FakeServerToolHost();
+			serverToolHost.result = 'listed 2 comments';
+			const { runtime } = await createAgentSession(disposables, { serverToolHost });
+
+			const tools = runtime.createServerSdkTools();
+			const result = await invokeClientToolHandler(tools[0], 'tc-server-tool', { foo: 'bar' });
+
+			const sessionUri = AgentSession.uri('copilot', 'test-session-1').toString();
+			assert.deepStrictEqual(serverToolHost.executions, [{ sessionUri, toolName: tools[0].name, rawArgs: { foo: 'bar' } }]);
+			assert.strictEqual(result.resultType, 'success');
+			assert.strictEqual(result.textResultForLlm, 'listed 2 comments');
+		});
+
+		test('server tool handler surfaces host failures as a failure result', async () => {
+			const serverToolHost = new FakeServerToolHost();
+			serverToolHost.error = new Error('boom');
+			const { runtime } = await createAgentSession(disposables, { serverToolHost });
+
+			const tools = runtime.createServerSdkTools();
+			const result = await invokeClientToolHandler(tools[0], 'tc-server-tool');
+
+			assert.strictEqual(result.resultType, 'failure');
+			assert.strictEqual(result.textResultForLlm, 'boom');
+			assert.strictEqual(result.error, 'boom');
+		});
+
+		test('exposes no server SDK tools and advertises nothing when no host is wired', async () => {
+			const { runtime } = await createAgentSession(disposables);
+			assert.deepStrictEqual(runtime.createServerSdkTools(), []);
+		});
+
+		test('auto-approves every server tool without prompting for confirmation', async () => {
+			const serverToolHost = new FakeServerToolHost();
+			const { runtime, signals } = await createAgentSession(disposables, { serverToolHost });
+
+			const results = [];
+			for (const toolName of serverToolHost.toolNames) {
+				results.push(await runtime.handlePermissionRequest({ kind: 'custom-tool', toolCallId: `tc-${toolName}`, toolName }));
+			}
+
+			assert.deepStrictEqual({
+				results,
+				pendingConfirmations: signals.filter(s => s.kind === 'pending_confirmation').length,
+			}, {
+				results: serverToolHost.toolNames.map(() => ({ kind: 'approve-once' })),
+				pendingConfirmations: 0,
+			});
 		});
 	});
 
