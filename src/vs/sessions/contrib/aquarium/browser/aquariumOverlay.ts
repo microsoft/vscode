@@ -14,11 +14,14 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { SessionsAquariumActiveContext } from '../../../common/contextkeys.js';
+import { ISessionsViewService } from '../../../services/sessions/browser/sessionsViewService.js';
 import { disposeSharedFishDefs, Fish, pickRandomSpecies } from './fish.js';
+import { FishFeedingStreak } from './fishFeedingStreak.js';
 
 export const SESSIONS_DEVELOPER_JOY_ENABLED_SETTING = 'sessions.developerJoy.enabled';
 
@@ -108,6 +111,9 @@ export class AquariumService extends Disposable implements IAquariumService {
 	private readonly activeRef = this._register(new MutableDisposable<IActiveAquarium>());
 	private readonly pendingExit = this._register(new MutableDisposable<IDisposable>());
 	private readonly activeContextKey: IContextKey<boolean>;
+	private readonly streak: FishFeedingStreak;
+	/** Revivable count we've already prompted for, to avoid re-nagging on every re-activate. */
+	private lastOfferedRevivable = 0;
 
 	constructor(
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
@@ -117,11 +123,14 @@ export class AquariumService extends Disposable implements IAquariumService {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@ISessionsViewService private readonly sessionsViewService: ISessionsViewService,
 	) {
 		super();
 
 		this.mainContainer = layoutService.mainContainer;
 		this.activeContextKey = SessionsAquariumActiveContext.bindTo(contextKeyService);
+		this.streak = new FishFeedingStreak(storageService);
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(SESSIONS_DEVELOPER_JOY_ENABLED_SETTING)) {
@@ -252,7 +261,14 @@ export class AquariumService extends Disposable implements IAquariumService {
 	}
 
 	private getToggleLabel(active: boolean): string {
-		return active ? localize('aquarium.hide', "Hide Aquarium") : localize('aquarium.show', "Show Aquarium");
+		const base = active ? localize('aquarium.hide', "Hide Aquarium") : localize('aquarium.show', "Show Aquarium");
+		const streak = this.streak.count;
+		if (streak > 0) {
+			// The 24h feeding window is playfully announced as a "day" streak.
+			// allow-any-unicode-next-line
+			return localize('aquarium.streakLabel', "{0} — 🔥 {1} day feeding streak", base, streak);
+		}
+		return base;
 	}
 
 	private toggle(): void {
@@ -291,7 +307,7 @@ export class AquariumService extends Disposable implements IAquariumService {
 		this.pendingExit.clear();
 		let active: IActiveAquarium | undefined;
 		try {
-			active = createActiveAquarium(this.mainContainer, this.layoutService, this.accessibilityService);
+			active = createActiveAquarium(this.mainContainer, this.layoutService, this.accessibilityService, () => this.handleFishFed());
 		} catch (e) {
 			console.error('[aquarium] failed to activate', e);
 			return;
@@ -307,6 +323,49 @@ export class AquariumService extends Disposable implements IAquariumService {
 		if (persist) {
 			this.setStoredEnabled(true);
 		}
+		// A streak that aged out while the aquarium was closed: offer a fun revival.
+		this.maybeOfferStreakRevival();
+	}
+
+	/** Called whenever a fish eats a pellet — extends the persisted feeding streak. */
+	private handleFishFed(): void {
+		const before = this.streak.count;
+		const result = this.streak.recordFeed();
+		// Refresh the toggle tooltip so the live streak count stays in sync.
+		if (result.count !== before) {
+			this.updateAllToggleButtonsVisual(!!this.activeRef.value);
+		}
+	}
+
+	/**
+	 * If a previous feeding streak has died, prompt the user with a playful way
+	 * to bring it back: starting a brand new chat session revives the streak.
+	 */
+	private maybeOfferStreakRevival(): void {
+		this.streak.collectExpired();
+		const revivable = this.streak.revivableCount;
+		if (revivable <= 0 || revivable === this.lastOfferedRevivable) {
+			return;
+		}
+		this.lastOfferedRevivable = revivable;
+		this.notificationService.prompt(
+			Severity.Info,
+			// allow-any-unicode-next-line
+			localize('aquarium.streakDied', "💔 Your {0} day fish feeding streak has gone belly-up! Start a fresh chat session to revive it.", revivable),
+			[{
+				label: localize('aquarium.reviveStreak', "Revive Streak"),
+				run: () => {
+					const revived = this.streak.revive();
+					this.lastOfferedRevivable = 0;
+					this.sessionsViewService.openNewSession();
+					this.updateAllToggleButtonsVisual(!!this.activeRef.value);
+					if (revived > 0) {
+						// allow-any-unicode-next-line
+						this.notificationService.info(localize('aquarium.streakRevived', "🔥 Welcome back — your {0} day feeding streak lives again!", revived));
+					}
+				}
+			}]
+		);
 	}
 
 	/**
@@ -361,7 +420,7 @@ interface IActiveAquarium extends IDisposable {
  * Returns `undefined` if the chat bar isn't available so callers can bail
  * without leaving the toggle button stuck in an "active but invisible" state.
  */
-function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbenchLayoutService, accessibilityService: IAccessibilityService): IActiveAquarium | undefined {
+function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbenchLayoutService, accessibilityService: IAccessibilityService, onFishFed?: () => void): IActiveAquarium | undefined {
 	const targetWindow = getWindow(mainContainer);
 
 	// Host inside the chat bar so chat input UI naturally paints on top —
@@ -674,6 +733,7 @@ function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbe
 				if (nearestDist < EAT_RADIUS) {
 					removeFood(nearestPellet);
 					f.grow(FISH_GROWTH_FACTOR);
+					onFishFed?.();
 				} else {
 					accelX += (nearestPellet.positionX - centerX) / nearestDist * 200;
 					accelY += (nearestPellet.positionY - centerY) / nearestDist * 200;
