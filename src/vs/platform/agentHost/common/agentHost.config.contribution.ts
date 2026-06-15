@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isWeb } from '../../../base/common/platform.js';
+import { PolicyCategory } from '../../../base/common/policy.js';
 import * as nls from '../../../nls.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
 import product from '../../product/common/product.js';
@@ -34,6 +35,18 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.agentHost.enabled', "When enabled, some agents run in a separate agent host process."),
 			default: !isWeb && product.quality !== 'stable',
 			tags: ['experimental', 'advanced'],
+			policy: {
+				name: 'ChatAgentHostEnabled',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.109',
+				value: (policyData) => policyData.chat_preview_features_enabled === false ? false : undefined,
+				localization: {
+					description: {
+						key: 'chat.agentHost.enabled.description',
+						value: nls.localize('chat.agentHost.enabled.description', "When enabled, some agents run in a separate agent host process.")
+					}
+				},
+			}
 		},
 		'chat.agents.copilotCli.hideExtensionHost': {
 			type: 'boolean',
