@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
-import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { ThrottledDelayer } from '../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { stripIcons } from '../../../../base/common/iconLabels.js';
@@ -374,24 +374,21 @@ export class ChatImageCarouselService extends Disposable implements IChatImageCa
 		const store = new DisposableStore();
 		let lastSignature = sectionsSignature(initialSections);
 
-		const scheduler = store.add(new RunOnceScheduler(async () => {
-			try {
-				const sections = await this.collectSections(viewModel, fileCache);
-				if (input.isDisposed()) {
-					return;
-				}
-				const signature = sectionsSignature(sections);
-				if (signature === lastSignature) {
-					return;
-				}
-				lastSignature = signature;
-				input.updateCollection(toCarouselCollection(buildCollectionArgs(sections, 0, viewModel.sessionResource).collection));
-			} catch (error) {
-				onUnexpectedError(error);
+		const delayer = store.add(new ThrottledDelayer<void>(CAROUSEL_REFRESH_DELAY));
+		const refresh = () => delayer.trigger(async () => {
+			const sections = await this.collectSections(viewModel, fileCache);
+			if (input.isDisposed()) {
+				return;
 			}
-		}, CAROUSEL_REFRESH_DELAY));
+			const signature = sectionsSignature(sections);
+			if (signature === lastSignature) {
+				return;
+			}
+			lastSignature = signature;
+			input.updateCollection(toCarouselCollection(buildCollectionArgs(sections, 0, viewModel.sessionResource).collection));
+		}).catch(onUnexpectedError);
 
-		store.add(viewModel.onDidChange(() => scheduler.schedule()));
+		store.add(viewModel.onDidChange(() => refresh()));
 		store.add(input.onWillDispose(() => this._liveRefresh.clear()));
 
 		this._liveRefresh.value = store;
