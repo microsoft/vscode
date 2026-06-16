@@ -6,20 +6,16 @@
 /*
  * Edit-survival math for agent-host file edits.
  *
- * This is a duplicated, simplified port of the chat extension's
- * `EditSurvivalTracker` (see
- * `extensions/copilot/src/platform/editSurvivalTracking/common/editSurvivalTracker.ts`).
+ * Sister implementation of the chat extension's `EditSurvivalTracker`
+ * (`extensions/copilot/src/platform/editSurvivalTracking/common/editSurvivalTracker.ts`).
  * The extension version operates on multi-range `StringEdit`s with a
  * live `TextModel`; here we only have whole-file snapshots and (when
  * the tool input is recognisable) the explicit text the AI wrote. The
  * whole-file path is the baseline; the chunked path uses asymmetric
  * "fraction of AI 4-grams still present in the file" scoring so an
- * edit's score doesn't decay as the file grows around it. Keep the
- * two copies in sync algorithmically — and if you change the scoring
- * here, mirror the change in the extension copy.
+ * edit's score doesn't decay as the file grows around it.
  *
- * Extensions cannot import from `src/vs/platform/*`, so we cannot share
- * the implementation; duplication is intentional.
+ * Mostly carried over from the chat extension's version.
  */
 
 /**

@@ -18,14 +18,13 @@ import { computeChunkedEditSurvival, computeWholeFileEditSurvival } from './edit
  * Parameters describing a single completed tool-driven file edit that the
  * agent host wants to follow over time.
  *
- * Note: the agent host does not see file edits originating from `Bash`
- * (or other shell-style tools) — only first-party edit tools that go
- * through `FileEditTracker`. We deliberately keep this consistent with
- * the existing tracker and do not attempt to widen the surface here.
+ * Only first-party edit tools that go through `FileEditTracker` produce
+ * these — file modifications from shell tools like `Bash` are not
+ * observable here.
  *
- * Notebook tools (`NotebookEdit`) are also intentionally excluded by
- * the launcher because survival math on notebook JSON is dominated by
- * unrelated output-cell churn.
+ * Notebook tools (`NotebookEdit`) are skipped by the launcher for now
+ * to avoid the complexity of scoring against notebook JSON. We may
+ * revisit when we have a notebook-aware tracker.
  */
 export interface IEditSurvivalReporterLaunchParams {
 	/** Full session URI string (e.g. `claude:/abc123`). */
@@ -47,9 +46,11 @@ export interface IEditSurvivalReporterLaunchParams {
 	 * `survivalRateFourGram` with the chunked, search-within math — so
 	 * the score does not decay as the file grows around the chunks.
 	 *
-	 * Omit (or pass an empty array) when the tool input is not
-	 * recognised; the reporter falls back to whole-file scoring and
-	 * tags the telemetry event with `scoringMode='whole-file'`.
+	 * In practice every known file-edit tool produces chunks (see the
+	 * coverage invariant in `editChunkExtractor.ts`). Omitting or
+	 * passing an empty array is a safety-net path for unknown / drifted
+	 * tool shapes; the reporter then falls back to whole-file scoring
+	 * and tags the telemetry event with `scoringMode='whole-file'`.
 	 */
 	readonly aiChunks?: readonly string[];
 }
@@ -229,9 +230,9 @@ export class EditSurvivalReporterFactory implements IEditSurvivalReporterFactory
 	) { }
 
 	launch(params: IEditSurvivalReporterLaunchParams): IDisposable {
-		// Notebook edits are intentionally skipped atm: the on-disk
-		// representation includes output JSON that churns independently
-		// of the user's intent and produces noisy survival scores.
+		// Skip notebooks for now: scoring against the on-disk JSON
+		// (including output cells) doesn't reflect user intent. We may
+		// revisit with a notebook-aware tracker.
 		if (extname(params.filePath).toLowerCase() === '.ipynb') {
 			return { dispose() { } };
 		}

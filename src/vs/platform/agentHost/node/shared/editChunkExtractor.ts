@@ -16,6 +16,15 @@
  * Returning an empty array means "we couldn't read this — fall back to
  * whole-file scoring." Defensive against malformed SDK input: every
  * branch checks the value shape before reading.
+ *
+ * Coverage invariant: every tool the agent host currently treats as a
+ * file-edit tool (`isClaudeFileEditTool`, `isEditTool` in Copilot) has
+ * a matching case below — so in practice every edit gets chunked
+ * scoring. The whole-file fallback is a safety net for SDK shape drift
+ * (a tool input changes shape) and for newly added tools (a new edit
+ * tool added to one of those gates without a matching case here). If
+ * you add a new file-edit tool to either gate, add a case here too so
+ * the survival reporter keeps producing chunked scores.
  */
 
 /**
@@ -38,9 +47,10 @@
  *    (the patch may touch multiple files; we only want chunks for
  *    the file we're sampling).
  *
- * `NotebookEdit` is intentionally unsupported here — the reporter
- * skips `.ipynb` files at launch time, so the tool input never reaches
- * the survival math for notebooks.
+ * `NotebookEdit` is not handled here: the reporter currently skips
+ * `.ipynb` files at launch time, so notebook tool inputs never reach
+ * the survival math. Add a branch here if we extend tracking to
+ * notebooks.
  *
  * @param toolName  Tool identifier (Claude PascalCase or Copilot
  *   snake_case; tools we don't recognise just return `[]`).

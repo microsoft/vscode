@@ -107,18 +107,14 @@ suite('FileEditTracker', () => {
 	});
 
 	test('Write to non-existent file records kind=create with removed=0', async () => {
-		// Phase 8 live-E2E finding: a `Write` to a brand-new file was reporting
-		// `diff.removed=1` because the differ saw an empty before-content
-		// against a one-line after-content. The tracker now overrides
-		// `removed` to 0 when the file did not exist before the edit, and
-		// records `kind=create` instead of `edit`. Other counts (`added`)
-		// are still passed through from the diff service unchanged.
+		// When a file did not exist before the edit, the tracker clamps
+		// `removed` to 0 (the differ otherwise reports 1 for an empty
+		// before-content vs. a one-line after-content) and records
+		// `kind=create` instead of `edit`. `added` is passed through
+		// from the diff service unchanged.
 		const services = new ServiceCollection();
 		services.set(ILogService, new NullLogService());
 		services.set(IFileService, fileService);
-		// Fixed `{ added: 1, removed: 1 }` matches the production diff
-		// output observed in the live-E2E run; the tracker should clamp
-		// `removed` to 0 for create.
 		services.set(IDiffComputeService, new TestDiffComputeService({ added: 1, removed: 1 }));
 		services.set(IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory());
 		const inst: IInstantiationService = disposables.add(new InstantiationService(services));
