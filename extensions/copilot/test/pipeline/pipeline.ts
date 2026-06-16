@@ -11,13 +11,18 @@ import { createExtensionUnitTestingServices } from '../../src/extension/test/nod
 import { ConfigKey, IConfigurationService } from '../../src/platform/configuration/common/configurationService';
 import { ResponseFormat } from '../../src/platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { Limiter } from '../../src/util/vs/base/common/async';
+import { OffsetRange } from '../../src/util/vs/editor/common/core/ranges/offsetRange';
+import { StringText } from '../../src/util/vs/editor/common/core/text/abstractText';
 import { applyConfigFile, loadConfigFile } from '../base/simulationContext';
-import { NesDatagen, SimulationOptions } from '../base/simulationOptions';
-import { assembleSample, ISample, resolveOutputPath, writeSamples } from './output';
+import { NesDatagen, NesDatagenSampleTask, SimulationOptions } from '../base/simulationOptions';
+import { detectCrossFileJump, detectSameFileJump } from './cursorJump/detectJump';
+import { generateCursorPromptFromRecording, installCursorJumpCapturingFetcher } from './cursorJump/cursorJumpPromptStep';
+import { generateCrossFileResponse, generateSameFileResponse } from './cursorJump/cursorJumpResponseStep';
+import { assembleSample, ISample, SampleClassification, resolveOutputPath, writeSamples } from './output';
 import { loadAndParseInput } from './parseInput';
 import { generatePromptFromRecording, IGeneratedPrompt } from './promptStep';
-import { parseSuggestedEdit, processAllRows } from './replayRecording';
-import { generateAllResponses, generateResponse, IResponseGenerationInput } from './responseStep';
+import { IProcessedRow, parseSuggestedEdit, processAllRows } from './replayRecording';
+import { generateAllResponses, generateResponse, IResponseGenerationInput, applyEditsToContent } from './responseStep';
 import { streamJsonRecords } from './streamJsonRecords';
 import { openWriteStream } from './writeStream';
 
@@ -34,6 +39,20 @@ function formatElapsed(startTime: number): string {
 	return `${elapsed}s`;
 }
 
+/**
+ * Apply the user-supplied config file and force-disable all interactive
+ * debounces / cache delays that don't make sense in batch mode. Both
+ * pipelines (xtab and cursor-jump) need this exact setup before invoking
+ * the production NES code path.
+ */
+async function applyBatchModeConfig(configService: IConfigurationService, configs: ReturnType<typeof loadConfigFile>): Promise<void> {
+	await applyConfigFile(configService, configs);
+	await configService.setConfig(ConfigKey.TeamInternal.InlineEditsDebounce, 0);
+	await configService.setConfig(ConfigKey.TeamInternal.InlineEditsCacheDelay, 0);
+	await configService.setConfig(ConfigKey.TeamInternal.InlineEditsExtraDebounceEndOfLine, 0);
+	await configService.setConfig(ConfigKey.TeamInternal.InlineEditsExtraDebounceInlineSuggestion, 0);
+}
+
 export type RunPipelineOptions = {
 	readonly nesDatagen: NesDatagen | undefined;
 	/**
@@ -44,7 +63,29 @@ export type RunPipelineOptions = {
 	readonly parallelism: number;
 };
 
+/**
+ * Single-process pipeline entry point. Dispatches to the xtab or cursor-jump
+ * pipeline based on the configured sample task.
+ *
+ * For multi-process parallelism (large inputs, multi-core boxes), the caller
+ * should invoke `runInputPipelineParallel` instead — it forks N children,
+ * each running this function on a chunk, and works for cursor-jump tasks too
+ * (`--sample-task` is propagated to every worker).
+ *
+ * Memory: this function calls `loadAndParseInput`, which reads the entire
+ * input chunk into memory. That is intentional within a worker (chunks are
+ * sized by `runInputPipelineParallel`), but means single-process runs on
+ * unsharded multi-GB inputs can OOM — use `--parallelism > 1` to shard.
+ */
 export async function runInputPipeline(opts: RunPipelineOptions, log = console.log.bind(console)): Promise<void> {
+	const nesDatagenOpts = opts.nesDatagen!;
+	if (nesDatagenOpts.sampleTask !== NesDatagenSampleTask.Xtab) {
+		return runCursorPipeline(opts, log);
+	}
+	return runXtabPipeline(opts, log);
+}
+
+async function runXtabPipeline(opts: RunPipelineOptions, log: (...ps: any[]) => void): Promise<void> {
 	const nesDatagenOpts = opts.nesDatagen!;
 	const inputPath = nesDatagenOpts.input;
 	if (!opts.configFile) {
@@ -78,13 +119,7 @@ export async function runInputPipeline(opts: RunPipelineOptions, log = console.l
 	try {
 		const configService = testAccessor.get(IConfigurationService);
 
-		await applyConfigFile(configService, configs);
-
-		// Disable interactive debounce for batch mode
-		await configService.setConfig(ConfigKey.TeamInternal.InlineEditsDebounce, 0);
-		await configService.setConfig(ConfigKey.TeamInternal.InlineEditsCacheDelay, 0);
-		await configService.setConfig(ConfigKey.TeamInternal.InlineEditsExtraDebounceEndOfLine, 0);
-		await configService.setConfig(ConfigKey.TeamInternal.InlineEditsExtraDebounceInlineSuggestion, 0);
+		await applyBatchModeConfig(configService, configs);
 
 		const modelConfig = configService.getConfig(ConfigKey.Advanced.InlineEditsXtabProviderModelConfiguration);
 		const responseFormat = ResponseFormat.fromPromptingStrategy(modelConfig?.promptingStrategy);
@@ -161,7 +196,7 @@ export async function runInputPipeline(opts: RunPipelineOptions, log = console.l
 			const modelEdits = suggestedEdit ? [suggestedEdit] as const : undefined;
 			const modelResult = generateResponse(responseFormat, modelEdits, p.activeDocument.value.get().value, p.activeFilePath, prompt.user);
 			const formattedModelResponse = 'error' in modelResult ? '' : modelResult.assistant;
-			samples.push(assembleSample(index + rowOffset, prompt, response, p, responseFormat, formattedModelResponse));
+			samples.push(assembleSample(index + rowOffset, prompt, response, p, responseFormat, formattedModelResponse, { task: NesDatagenSampleTask.Xtab }));
 		}
 
 		const writeResult = await writeSamples(outputPath, samples);
@@ -187,6 +222,244 @@ export async function runInputPipeline(opts: RunPipelineOptions, log = console.l
 		}
 		testAccessor.dispose();
 	}
+}
+
+async function runCursorPipeline(opts: RunPipelineOptions, log: (...ps: any[]) => void): Promise<void> {
+	const nesDatagenOpts = opts.nesDatagen!;
+	const inputPath = nesDatagenOpts.input;
+	if (!opts.configFile) {
+		throw new Error('nes-datagen requires --config-file');
+	}
+	const configs = loadConfigFile(opts.configFile);
+	const verbose = !!opts.verbose;
+	const concurrency = opts.parallelism;
+	const rowOffset = nesDatagenOpts.rowOffset;
+	const task = nesDatagenOpts.sampleTask;
+
+	log(`\n=== Pipeline ===`);
+	log(`  Input: ${inputPath}`);
+	log(`  Sample task: ${task}`);
+	log(`  Concurrency: ${concurrency}`);
+	log(`  Same-file jump thresholds: above=${nesDatagenOpts.sameFileJumpMinAbove}, below=${nesDatagenOpts.sameFileJumpMinBelow}`);
+
+	const { rows, errors } = await loadAndParseInput(inputPath, verbose);
+	log(`  [1/5] Input parsed: ${rows.length} rows, ${errors.length} errors`);
+	logErrors(errors, verbose, log);
+
+	const { processed, errors: replayErrors } = processAllRows(rows);
+	log(`  [2/5] Recordings replayed: ${processed.length} ok, ${replayErrors.length} errors`);
+	logErrors(replayErrors.map(e => ({
+		error: `[sample ${e.rowIndex + rowOffset}, ${rows[e.rowIndex]?.activeDocumentLanguageId ?? '?'}] ${e.error}`,
+	})), verbose, log);
+
+	// Detect jumps first — many rows will be skipped here, no point capturing
+	// a prompt for them.
+	type DetectedJump =
+		| { readonly kind: 'sameFile'; readonly sameFile: ReturnType<typeof detectSameFileJump> }
+		| { readonly kind: 'crossFile'; readonly crossFile: ReturnType<typeof detectCrossFileJump> };
+
+	const jumps = new Map<number, DetectedJump>();
+	const skipReasons = new Map<string, number>();
+	for (const p of processed) {
+		if (!p.cursorAtRequest) {
+			skipReasons.set('noCursorAtRequest', (skipReasons.get('noCursorAtRequest') ?? 0) + 1);
+			continue;
+		}
+
+		if (task === NesDatagenSampleTask.CursorSameFile || task === NesDatagenSampleTask.CursorBoth) {
+			const sf = detectSameFileJump(p.recordingAfterRequest, {
+				activeDocLogId: p.activeDocLogId,
+				cursorAtRequest: p.cursorAtRequest,
+				minLinesAbove: nesDatagenOpts.sameFileJumpMinAbove,
+				minLinesBelow: nesDatagenOpts.sameFileJumpMinBelow,
+				resolveActiveDocLineAt: buildLineResolver(p),
+			});
+			if (sf.isOk()) {
+				jumps.set(p.originalRowIndex, { kind: 'sameFile', sameFile: sf });
+				continue;
+			}
+			if (task === NesDatagenSampleTask.CursorSameFile) {
+				skipReasons.set(sf.err, (skipReasons.get(sf.err) ?? 0) + 1);
+				continue;
+			}
+			// cursor-both: fall through to cross-file detection
+		}
+
+		if (task === NesDatagenSampleTask.CursorCrossFile || task === NesDatagenSampleTask.CursorBoth) {
+			const cf = detectCrossFileJump(p.recordingAfterRequest, {
+				activeDocLogId: p.activeDocLogId,
+				idToRelativePath: p.idToRelativePath,
+				getDocContentAtRequest: (docId) => p.idToContentAtRequest.get(docId),
+			});
+			if (cf.isOk()) {
+				jumps.set(p.originalRowIndex, { kind: 'crossFile', crossFile: cf });
+				continue;
+			}
+			skipReasons.set(cf.err, (skipReasons.get(cf.err) ?? 0) + 1);
+		}
+	}
+
+	log(`  [2.5/5] Jumps detected: ${jumps.size} qualifying rows, ${processed.length - jumps.size} skipped`);
+	if (verbose) {
+		for (const [reason, count] of skipReasons) {
+			log(`    ${reason} (×${count})`);
+		}
+	}
+
+	const serviceCollection = createExtensionUnitTestingServices();
+	installCursorJumpCapturingFetcher(serviceCollection);
+	const testAccessor = serviceCollection.createTestingAccessor();
+
+	try {
+		const configService = testAccessor.get(IConfigurationService);
+		await applyBatchModeConfig(configService, configs);
+
+		type PromptOut = { originalRowIndex: number; system: string; user: string; keptRange: OffsetRange };
+		const prompts: PromptOut[] = [];
+		const promptErrors: { originalRowIndex: number; error: string }[] = [];
+		let completed = 0;
+		const start = Date.now();
+
+		const limiter = new Limiter<void>(concurrency);
+		const qualifying = processed.filter(p => jumps.has(p.originalRowIndex));
+
+		await Promise.all(qualifying.map(p =>
+			limiter.queue(async () => {
+				const globalIdx = p.originalRowIndex + rowOffset;
+				try {
+					const result = await generateCursorPromptFromRecording(testAccessor, p.recordingInfo);
+					if ('error' in result) {
+						promptErrors.push({ originalRowIndex: p.originalRowIndex, error: `[sample ${globalIdx}, ${p.row.activeDocumentLanguageId}, ${p.activeFilePath}] ${result.error}` });
+					} else {
+						prompts.push({ originalRowIndex: p.originalRowIndex, ...result });
+					}
+				} catch (err) {
+					// Catch per-row so one unexpected throw doesn't abort the whole
+					// batch via Promise.all's first-rejection semantics. The row
+					// fails, every other row still gets a chance to produce a
+					// sample.
+					const msg = err instanceof Error ? err.stack ?? err.message : String(err);
+					promptErrors.push({ originalRowIndex: p.originalRowIndex, error: `[sample ${globalIdx}, ${p.row.activeDocumentLanguageId}, ${p.activeFilePath}] unexpected: ${msg}` });
+				}
+				completed++;
+				if (verbose && (completed % 50 === 0 || completed === qualifying.length)) {
+					console.log(`    Progress: ${completed}/${qualifying.length} (${formatElapsed(start)})`);
+				}
+			})
+		));
+
+		log(`  [3/5] Cursor prompts captured: ${prompts.length} ok, ${promptErrors.length} errors (${formatElapsed(start)})`);
+		logErrors(promptErrors, verbose, log);
+
+		// Fail loud if we detected jumps but the cursor-prediction path was
+		// never actually invoked for any of them. The no-capture path returns
+		// `Cursor-jump prompt was not captured ...` per row, which lands in
+		// `promptErrors`. If *every* qualifying row failed that exact way, the
+		// configured `promptingStrategy` likely doesn't emit `NoSuggestions`
+		// for an empty stream (only `UnifiedWithXml` / `CustomDiffPatch` do
+		// reliably), so the cursor-jump fallback in `XtabProvider` is never
+		// reached. Surfacing that as a crash is far better than emitting zero
+		// samples that look like "input had no qualifying rows".
+		if (jumps.size > 0 && prompts.length === 0) {
+			const notCaptured = promptErrors.filter(e => e.error.includes('prompt was not captured')).length;
+			if (notCaptured === jumps.size) {
+				throw new Error(
+					`Detected ${jumps.size} cursor jump(s) but the cursor-prediction path was never invoked for any of them. ` +
+					`Check that the configured promptingStrategy yields NoSuggestions for an empty stream ` +
+					`(UnifiedWithXml / CustomDiffPatch do; EditWindowOnly and friends may not).`
+				);
+			}
+		}
+
+		const processedByIndex = new Map(processed.map(p => [p.originalRowIndex, p]));
+		const samples: ISample[] = [];
+		const responseSkips = new Map<string, number>();
+
+		for (const promptOut of prompts) {
+			const p = processedByIndex.get(promptOut.originalRowIndex);
+			const detected = jumps.get(promptOut.originalRowIndex);
+			if (!p || !detected || !p.cursorAtRequest) {
+				continue;
+			}
+
+			let classification: SampleClassification | undefined;
+			let assistant: string;
+			if (detected.kind === 'sameFile' && detected.sameFile.isOk()) {
+				const r = generateSameFileResponse(detected.sameFile.val, promptOut.keptRange);
+				if ('error' in r) {
+					responseSkips.set(r.error, (responseSkips.get(r.error) ?? 0) + 1);
+					continue;
+				}
+				assistant = r.assistant;
+				classification = { task: NesDatagenSampleTask.CursorSameFile, jump: r.jump };
+			} else if (detected.kind === 'crossFile' && detected.crossFile.isOk()) {
+				const r = generateCrossFileResponse(detected.crossFile.val, p.cursorAtRequest.lineNumber);
+				if ('error' in r) {
+					responseSkips.set(r.error, (responseSkips.get(r.error) ?? 0) + 1);
+					continue;
+				}
+				assistant = r.assistant;
+				classification = { task: NesDatagenSampleTask.CursorCrossFile, jump: r.jump };
+			} else {
+				continue;
+			}
+
+			const prompt: IGeneratedPrompt = { system: promptOut.system, user: promptOut.user };
+			const responseAdapter = { assistant };
+			samples.push(assembleSample(
+				promptOut.originalRowIndex + rowOffset,
+				prompt,
+				responseAdapter,
+				p,
+				'next-cursor-line-prediction',
+				/* modelResponse: expected output mirrors assistant content */ assistant,
+				classification,
+			));
+		}
+
+		log(`  [4/5] Cursor responses formatted: ${samples.length} ok, ${prompts.length - samples.length} dropped`);
+		if (verbose && responseSkips.size > 0) {
+			for (const [reason, count] of responseSkips) {
+				log(`    ${reason} (×${count})`);
+			}
+		}
+
+		const outputPath = resolveOutputPath(inputPath, nesDatagenOpts.output);
+		const writeResult = await writeSamples(outputPath, samples);
+		log(`  [5/5] Output written: ${writeResult.written} samples → ${writeResult.outputPath}`);
+
+		log(`\n  Pipeline: Input(${rows.length}) → Replay(${processed.length}) → Jumps(${jumps.size}) → Prompt(${prompts.length}) → Output(${writeResult.written})`);
+	} finally {
+		for (const p of processed) {
+			p.replayer.dispose();
+		}
+		testAccessor.dispose();
+	}
+}
+
+/**
+ * Build a per-row line-offset resolver for the same-file detector. For a
+ * candidate event at `entryIndex`, the resolver replays the `changed`
+ * events strictly before it against a copy of the active doc content and
+ * returns the 0-based line number for the requested offset against that
+ * snapshot. The strict-less-than bound matters when `entryIndex` itself is
+ * a `changed` event — its own edit offsets are pre-edit and must not be
+ * applied first.
+ */
+function buildLineResolver(p: IProcessedRow): (entryIndex: number, offset: number) => number {
+	return (entryIndex: number, offset: number): number => {
+		let c = p.activeDocument.value.get().value;
+		for (let i = 0; i < entryIndex; i++) {
+			const e = p.recordingAfterRequest[i];
+			if (e?.kind === 'changed' && e.id === p.activeDocLogId) {
+				// Apply offset-descending so multi-replacement events don't
+				// shift later original offsets within the same event.
+				c = applyEditsToContent(c, e.edit);
+			}
+		}
+		const transformer = new StringText(c).getTransformer();
+		return transformer.getPosition(Math.min(offset, c.length)).lineNumber - 1;
+	};
 }
 
 /**
@@ -299,6 +572,9 @@ export async function runInputPipelineParallel(opts: SimulationOptions): Promise
 				'--out', resultPath,
 				'--row-offset', String(start),
 				'--parallelism', String(opts.parallelism),
+				'--sample-task', nesDatagenOpts.sampleTask,
+				'--same-file-jump-min-above', String(nesDatagenOpts.sameFileJumpMinAbove),
+				'--same-file-jump-min-below', String(nesDatagenOpts.sameFileJumpMinBelow),
 				'--worker',
 			];
 			if (verbose) {

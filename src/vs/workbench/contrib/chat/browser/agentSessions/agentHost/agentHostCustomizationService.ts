@@ -7,6 +7,9 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableMap, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { AgentSession, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { isRemoteAgentHostSessionType, remoteAgentHostSessionTypeId } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
+import { AGENT_HOST_LOG_OUTPUT_CHANNEL_ID, IRemoteAgentHostService, remoteAgentHostLogOutputChannelId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { getEffectiveAgents } from '../../../../../../platform/agentHost/common/customAgents.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
@@ -36,10 +39,11 @@ export interface IAgentHostCustomizationService {
 
 	/**
 	 * Returns the MCP servers exposed by an agent-host session. Each entry
-	 * carries the current status and a {@link IAgentHostMcpServer.setEnabled}
+	 * carries the current status, a {@link IAgentHostMcpServer.setEnabled}
 	 * method that dispatches the protocol-level toggle on behalf of the
-	 * caller. Returns an empty array for sessions not backed by an agent
-	 * host, or that don't expose any MCP servers.
+	 * caller, and the {@link IAgentHostMcpServer.logOutputChannelId} of the
+	 * host backing the session. Returns an empty array for sessions not
+	 * backed by an agent host, or that don't expose any MCP servers.
 	 */
 	getMcpServers(sessionResource: URI): readonly IAgentHostMcpServer[];
 }
@@ -75,6 +79,7 @@ class WorkbenchAgentHostCustomizationService extends Disposable implements IAgen
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisionalSessionService: IAgentHostUntitledProvisionalSessionService,
 		@IChatService chatService: IChatService,
+		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 	) {
 		super();
 
@@ -131,6 +136,7 @@ class WorkbenchAgentHostCustomizationService extends Disposable implements IAgen
 		}
 		const customizations = this._readSessionState(sessionResource)?.customizations ?? [];
 		const channel = backendSession.toString();
+		const logOutputChannelId = this._resolveLogOutputChannelId(sessionResource, backendSession);
 		return customizations
 			.filter((c): c is McpServerCustomization => c.type === CustomizationType.McpServer)
 			.map((c): IAgentHostMcpServer => ({
@@ -138,6 +144,7 @@ class WorkbenchAgentHostCustomizationService extends Disposable implements IAgen
 				name: c.name,
 				enabled: c.enabled,
 				status: c.state.kind,
+				logOutputChannelId,
 				setEnabled: (enabled: boolean) => {
 					this._agentHostService.dispatch(channel, {
 						type: ActionType.SessionCustomizationToggled,
@@ -146,6 +153,22 @@ class WorkbenchAgentHostCustomizationService extends Disposable implements IAgen
 					});
 				},
 			}));
+	}
+
+	private _resolveLogOutputChannelId(sessionResource: URI, backendSession: URI): string | undefined {
+		if (sessionResource.scheme.startsWith(AGENT_HOST_SESSION_SCHEME_PREFIX)) {
+			return AGENT_HOST_LOG_OUTPUT_CHANNEL_ID;
+		}
+
+		if (isRemoteAgentHostSessionType(sessionResource.scheme)) {
+			const backendProvider = AgentSession.provider(backendSession);
+			const connection = backendProvider
+				? this._remoteAgentHostService.connections.find(c => sessionResource.scheme === remoteAgentHostSessionTypeId(agentHostAuthority(c.address), backendProvider))
+				: undefined;
+			return connection ? remoteAgentHostLogOutputChannelId(connection.address) : undefined;
+		}
+
+		return undefined;
 	}
 
 	private _readSessionState(sessionResource: URI): SessionState | undefined {

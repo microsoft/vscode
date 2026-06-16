@@ -30,6 +30,7 @@ import log from 'fancy-log';
 import buildfile from './buildfile.ts';
 import { fetchUrls, fetchGithub } from './lib/fetch.ts';
 import { getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotTgrepExcludeFilter, getRipgrepExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';
+import { readAgentSdkResults } from './agent-sdk/common.ts';
 
 
 const rcedit = promisify(rceditCallback);
@@ -362,7 +363,22 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 
 		let productJsonContents = '';
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
-			.pipe(jsonEditor({ commit, date: readISODate(sourceFolderName), version }))
+			.pipe(jsonEditor((json: Record<string, unknown>) => {
+				json.commit = commit;
+				json.date = readISODate(sourceFolderName);
+				json.version = version;
+				// Stamp agentSdks from the per-platform results file produced
+				// by `build/agent-sdk/produce.ts`. REH-only: REH-web is
+				// browser-served and the agent host is node-only, so the
+				// SDK config has no consumer there.
+				if (type === 'reh') {
+					const agentSdks = readAgentSdkResults();
+					if (Object.keys(agentSdks).length > 0) {
+						json.agentSdks = agentSdks;
+					}
+				}
+				return json;
+			}))
 			.pipe(es.through(function (file) {
 				productJsonContents = file.contents.toString();
 				this.emit('data', file);
@@ -507,6 +523,7 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 		const deps = (await Promise.all([
 			promisify(glob)('**/*.node', { cwd }),
 			promisify(glob)('**/rg.exe', { cwd }),
+			promisify(glob)('**/tgrep.exe', { cwd }),
 		])).flatMap(o => o);
 		const packageJsonContents = JSON.parse(await fs.promises.readFile(path.join(cwd, 'package.json'), 'utf8'));
 		const productContents = JSON.parse(await fs.promises.readFile(path.join(cwd, 'product.json'), 'utf8'));

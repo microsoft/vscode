@@ -65,22 +65,22 @@ export type ExtensionVirtualWorkspaceSupport = {
 };
 
 /**
- * Per-platform configuration for downloading an agent SDK on demand. When
- * `IProductConfiguration.agentSdks?.[pkg]` is set, the agent host GETs
- * `url`, verifies sha256 against `sha256`, and caches the extracted root
- * under `userDataPath/agent-host/sdk-cache/`.
+ * Per-SDK configuration for downloading an agent SDK on demand. The
+ * runtime substitutes `{sdkTarget}` in `urlTemplate` against the host's
+ * `(platform, arch, libc)` triple via `resolveSdkTarget()` in the agent
+ * SDK downloader.
  *
- * The build pipeline patches `agentSdks` per-platform during packaging, so
- * each shipped product.json carries only the entry appropriate for the
- * platform it targets — there is no per-target sha lookup at runtime.
+ * `urlTemplate` uses `format2()`-style named placeholders. Today only
+ * `{sdkTarget}` is recognised; the build emits e.g.
+ * `https://main.vscode-cdn.net/agent-sdk/claude/0.3.168/{sdkTarget}.tgz`
+ * and the runtime substitutes `darwin-arm64`, `linux-x64-musl`, etc.
  *
- * The trust anchor for `sha256` is product.json's own integrity coverage
- * via `product.checksums` (computed in the same packaging step).
+ * See `src/vs/platform/agentHost/node/claude/roadmap.md` Phase 15 for
+ * the rationale (macOS Universal compatibility, trust model).
  */
 export interface IAgentSdkProductConfig {
 	readonly version: string;
-	readonly url: string;
-	readonly sha256: string;
+	readonly urlTemplate: string;
 }
 
 export interface IProductConfiguration {
@@ -223,7 +223,6 @@ export interface IProductConfiguration {
 	readonly extensionPointExtensionKind?: { readonly [extensionPointId: string]: ('ui' | 'workspace' | 'web')[] };
 	readonly extensionSyncedKeys?: { readonly [extensionId: string]: string[] };
 
-	readonly extensionsEnabledWithApiProposalVersion?: string[];
 	readonly extensionEnabledApiProposals?: { readonly [extensionId: string]: string[] };
 	readonly extensionUntrustedWorkspaceSupport?: { readonly [extensionId: string]: ExtensionUntrustedWorkspaceSupport };
 	readonly extensionVirtualWorkspacesSupport?: { readonly [extensionId: string]: ExtensionVirtualWorkspaceSupport };
@@ -254,6 +253,7 @@ export interface IProductConfiguration {
 	readonly chatParticipantRegistry?: string;
 	readonly chatSessionRecommendations?: IChatSessionRecommendation[];
 	readonly emergencyAlertUrl?: string;
+	readonly voiceWsUrl?: string;
 
 	readonly remoteDefaultExtensionsIfInstalledLocally?: string[];
 

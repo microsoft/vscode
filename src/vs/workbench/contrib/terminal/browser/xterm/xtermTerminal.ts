@@ -139,7 +139,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	private _serializeAddon?: SerializeAddonType;
 	private _imageAddon?: ImageAddonType;
 	private readonly _ligaturesAddon: MutableDisposable<LigaturesAddonType> = this._register(new MutableDisposable());
-	private readonly _ligaturesAddonConfig?: ILigatureOptions;
+	private _ligaturesAddonConfig?: ILigatureOptions;
 
 	private readonly _attachedDisposables = this._register(new DisposableStore());
 	private readonly _anyTerminalFocusContextKey: IContextKey<boolean>;
@@ -895,18 +895,21 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		const ligaturesConfig = this._terminalConfigurationService.config.fontLigatures;
 		let shouldRecreateWebglRenderer = false;
 		if (ligaturesConfig?.enabled) {
-			if (this._ligaturesAddon.value && !equals(ligaturesConfig, this._ligaturesAddonConfig)) {
+			const ligatureOptions: ILigatureOptions = {
+				fontFeatureSettings: ligaturesConfig.featureSettings,
+				fallbackLigatures: ligaturesConfig.fallbackLigatures,
+			};
+			if (this._ligaturesAddon.value && !equals(ligatureOptions, this._ligaturesAddonConfig)) {
 				this._ligaturesAddon.clear();
+				this._ligaturesAddonConfig = undefined;
 			}
 			if (!this._ligaturesAddon.value) {
 				const LigaturesAddon = await this._xtermAddonLoader.importAddon('ligatures');
 				if (this._store.isDisposed) {
 					return;
 				}
-				this._ligaturesAddon.value = this._instantiationService.createInstance(LigaturesAddon, {
-					fontFeatureSettings: ligaturesConfig.featureSettings,
-					fallbackLigatures: ligaturesConfig.fallbackLigatures,
-				});
+				this._ligaturesAddon.value = this._instantiationService.createInstance(LigaturesAddon, ligatureOptions);
+				this._ligaturesAddonConfig = ligatureOptions;
 				this.raw.loadAddon(this._ligaturesAddon.value);
 				shouldRecreateWebglRenderer = true;
 			}
@@ -915,6 +918,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 				return;
 			}
 			this._ligaturesAddon.clear();
+			this._ligaturesAddonConfig = undefined;
 			shouldRecreateWebglRenderer = true;
 		}
 

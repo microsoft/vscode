@@ -17,15 +17,20 @@ import { GitHubPullRequestPollingContribution } from '../../browser/github.contr
 import { IGitHubService } from '../../browser/githubService.js';
 import { IChat, IGitHubInfo, ISession, ISessionCapabilities, ISessionChangeset, IChatCheckpoints, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 
 suite('GitHubPullRequestPollingContribution', () => {
 
 	const store = new DisposableStore();
 	let sessionsManagementService: TestSessionsManagementService;
+	let sessionsService: ISessionsService;
 	let gitHubService: TestGitHubService;
 
 	setup(() => {
 		sessionsManagementService = new TestSessionsManagementService(store);
+		sessionsService = new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
+		};
 		gitHubService = new TestGitHubService();
 	});
 
@@ -36,7 +41,7 @@ suite('GitHubPullRequestPollingContribution', () => {
 	test('starts polling existing and added pull request sessions', () => {
 		const existingSession = sessionsManagementService.addSession('existing', makeGitHubInfo(1));
 
-		store.add(new GitHubPullRequestPollingContribution(gitHubService, sessionsManagementService));
+		store.add(new GitHubPullRequestPollingContribution(gitHubService, sessionsManagementService, sessionsService));
 
 		const addedSession = sessionsManagementService.addSession('added', makeGitHubInfo(2));
 		sessionsManagementService.fireSessionsChanged({ added: [addedSession] });
@@ -50,7 +55,7 @@ suite('GitHubPullRequestPollingContribution', () => {
 
 	test('stops polling when a session is archived, then resumes when unarchived', () => {
 		const session = sessionsManagementService.addSession('session', makeGitHubInfo(1));
-		store.add(new GitHubPullRequestPollingContribution(gitHubService, sessionsManagementService));
+		store.add(new GitHubPullRequestPollingContribution(gitHubService, sessionsManagementService, sessionsService));
 
 		sessionsManagementService.setArchived(session, true);
 		sessionsManagementService.fireSessionsChanged({ changed: [session] });
@@ -69,7 +74,7 @@ suite('GitHubPullRequestPollingContribution', () => {
 
 	test('does not poll archived sessions until they are unarchived', () => {
 		const session = sessionsManagementService.addSession('session', makeGitHubInfo(1), true);
-		store.add(new GitHubPullRequestPollingContribution(gitHubService, sessionsManagementService));
+		store.add(new GitHubPullRequestPollingContribution(gitHubService, sessionsManagementService, sessionsService));
 
 		assert.deepStrictEqual(gitHubService.snapshot(), {});
 
@@ -83,7 +88,7 @@ suite('GitHubPullRequestPollingContribution', () => {
 
 	test('stops polling tracked pull requests when disposed', () => {
 		const session = sessionsManagementService.addSession('session', makeGitHubInfo(1));
-		const contribution = store.add(new GitHubPullRequestPollingContribution(gitHubService, sessionsManagementService));
+		const contribution = store.add(new GitHubPullRequestPollingContribution(gitHubService, sessionsManagementService, sessionsService));
 
 		contribution.dispose();
 
@@ -97,11 +102,9 @@ suite('GitHubPullRequestPollingContribution', () => {
 class TestSessionsManagementService extends mock<ISessionsManagementService>() {
 
 	private readonly _onDidChangeSessions: Emitter<ISessionsChangeEvent>;
-	private readonly _activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
 	private readonly _sessions = new Map<string, ISession>();
 
 	override readonly onDidChangeSessions: Event<ISessionsChangeEvent>;
-	override readonly activeSession: IObservable<IActiveSession | undefined> = this._activeSession;
 
 	constructor(disposables: DisposableStore) {
 		super();

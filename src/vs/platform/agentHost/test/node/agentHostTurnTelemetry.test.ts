@@ -12,12 +12,12 @@ import { ServiceCollection } from '../../../instantiation/common/serviceCollecti
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { AgentSession, IAgent } from '../../common/agentService.js';
-import { ActionType, SessionAction } from '../../common/state/sessionActions.js';
+import { ActionType, type ChatAction } from '../../common/state/sessionActions.js';
 import { MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus } from '../../common/state/sessionState.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
-import { IAgentHostChangesetService } from '../../node/agentHostChangesetService.js';
+import { IAgentHostChangesetService } from '../../common/agentHostChangesetService.js';
 import { AgentSideEffects } from '../../node/agentSideEffects.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
@@ -27,15 +27,16 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	declare readonly _serviceBrand: undefined;
 	registerStaticChangesets(): void { }
 	restoreStaticChangeset(): void { }
-	parsePersistedStaticChangesets(): { uncommitted?: undefined; session?: undefined } { return {}; }
+	parsePersistedStaticChangesets(): { session?: undefined } { return {}; }
 	applyPersistedStaticChangesets(): void { }
-	restorePersistedStaticChangesets(): { uncommitted?: undefined; session?: undefined } { return {}; }
+	restorePersistedStaticChangesets(): { session?: undefined } { return {}; }
 	persistChangesSummary(): void { }
 	isStaticChangesetComputeActive(): boolean { return false; }
 	refreshBranchChangeset(): void { }
-	refreshUncommittedChangeset(): void { }
 	refreshSessionChangeset(): void { }
 	setTurnSubscriberProbe(): void { }
+	setUncommittedSubscriberProbe(): void { }
+	async computeUncommittedChangeset(session: string): Promise<string> { return `${session}/changeset/uncommitted`; }
 	async computeTurnChangeset(session: string): Promise<string> { return `${session}/x`; }
 	async computeCompareTurnsChangeset(session: string): Promise<string> { return `${session}/y`; }
 	onToolCallEditsApplied(): void { }
@@ -102,26 +103,25 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 	}
 
 	function setAutoApprove(level: string): void {
-		// Set config on the session state directly — the SessionConfigChanged
-		// reducer only merges into an existing config schema, which agentService
-		// normally registers at session creation time. Tests bypass that wiring.
-		const state = stateManager.getSessionState(sessionKey);
-		if (state) {
-			state.config = {
-				schema: {
-					type: 'object',
-					properties: {
-						autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'autoApprove', 'autopilot'], default: 'default' },
-					},
+		// Establish config on the authoritative session state via the state
+		// manager API. Mutating the object returned by `getSessionState` would
+		// strand the change on a detached composite copy (session merged with
+		// its default chat). `agentService` registers the schema at session
+		// creation time; tests bypass that wiring with this direct set.
+		stateManager.setSessionConfig(sessionKey, {
+			schema: {
+				type: 'object',
+				properties: {
+					autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'autoApprove', 'autopilot'], default: 'default' },
 				},
-				values: { autoApprove: level },
-			};
-		}
+			},
+			values: { autoApprove: level },
+		});
 	}
 
 	function startTurn(turnId: string, text = 'hello'): void {
-		const action: SessionAction = {
-			type: ActionType.SessionTurnStarted,
+		const action: ChatAction = {
+			type: ActionType.ChatTurnStarted,
 			turnId,
 			message: { text, origin: { kind: MessageKind.User } },
 		};
@@ -133,7 +133,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		sideEffects.handleAction(sessionKey, action);
 	}
 
-	function fire(action: SessionAction): void {
+	function fire(action: ChatAction): void {
 		agent.fireProgress({ kind: 'action', session: sessionUri, action });
 	}
 
@@ -180,8 +180,8 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		setAutoApprove('autopilot');
 		startTurn('turn-1');
 
-		fire({ type: ActionType.SessionResponsePart, turnId: 'turn-1', part: { kind: ResponsePartKind.Markdown, id: 'p1', content: 'hi' } });
-		fire({ type: ActionType.SessionTurnComplete, turnId: 'turn-1' });
+		fire({ type: ActionType.ChatResponsePart, turnId: 'turn-1', part: { kind: ResponsePartKind.Markdown, id: 'p1', content: 'hi' } });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1' });
 
 		const events = completedEvents();
 		assert.strictEqual(events.length, 1);
@@ -200,27 +200,27 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		startTurn('turn-1');
 
 		// Usage is not a "visible progress" action — it should not mark first progress.
-		fire({ type: ActionType.SessionUsage, turnId: 'turn-1', usage: { inputTokens: 1, outputTokens: 1 } });
-		fire({ type: ActionType.SessionTurnComplete, turnId: 'turn-1' });
+		fire({ type: ActionType.ChatUsage, turnId: 'turn-1', usage: { inputTokens: 1, outputTokens: 1 } });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1' });
 
 		const data = completedEvents()[0].data as Record<string, unknown>;
 		assert.strictEqual(data.timeToFirstProgress, undefined);
 	});
 
-	test('emits result=cancelled on SessionTurnCancelled', () => {
+	test('emits result=cancelled on ChatTurnCancelled', () => {
 		setupSession();
 		startTurn('turn-1');
-		fire({ type: ActionType.SessionTurnCancelled, turnId: 'turn-1' });
+		fire({ type: ActionType.ChatTurnCancelled, turnId: 'turn-1' });
 
 		const events = completedEvents();
 		assert.strictEqual(events.length, 1);
 		assert.strictEqual((events[0].data as Record<string, unknown>).result, 'cancelled');
 	});
 
-	test('emits result=error on SessionError', () => {
+	test('emits result=error on ChatError', () => {
 		setupSession();
 		startTurn('turn-1');
-		fire({ type: ActionType.SessionError, turnId: 'turn-1', error: { errorType: 'oops', message: 'fail' } });
+		fire({ type: ActionType.ChatError, turnId: 'turn-1', error: { errorType: 'oops', message: 'fail' } });
 
 		const events = completedEvents();
 		assert.strictEqual(events.length, 1);
@@ -230,10 +230,10 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 	test('emits a single turnCompleted per turn even when followed by duplicate completions', () => {
 		setupSession();
 		startTurn('turn-1');
-		fire({ type: ActionType.SessionTurnComplete, turnId: 'turn-1' });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1' });
 		// A duplicate turn-complete should not produce a second telemetry event because the tracker
 		// drops its per-turn state on the first completion.
-		fire({ type: ActionType.SessionTurnComplete, turnId: 'turn-1' });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1' });
 
 		assert.strictEqual(completedEvents().length, 1);
 	});
@@ -246,7 +246,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		// Change config mid-turn — should not affect the recorded event.
 		setAutoApprove('autopilot');
 
-		fire({ type: ActionType.SessionTurnComplete, turnId: 'turn-1' });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1' });
 
 		const data = completedEvents()[0].data as Record<string, unknown>;
 		assert.strictEqual(data.permissionLevel, 'default');
@@ -255,7 +255,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 	test('model and permissionLevel are undefined when never set', () => {
 		setupSession();
 		startTurn('turn-1');
-		fire({ type: ActionType.SessionTurnComplete, turnId: 'turn-1' });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1' });
 
 		const data = completedEvents()[0].data as Record<string, unknown>;
 		assert.strictEqual(data.model, undefined);
@@ -272,7 +272,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		startTurn('turn-1');
 
 		sideEffects.handleAction(sessionKey, {
-			type: ActionType.SessionTurnCancelled,
+			type: ActionType.ChatTurnCancelled,
 			turnId: 'turn-1',
 		});
 
@@ -300,8 +300,8 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		setupSession();
 		agent.sendMessage = async () => { throw new Error('boom'); };
 
-		const setAction: SessionAction = {
-			type: ActionType.SessionPendingMessageSet,
+		const setAction: ChatAction = {
+			type: ActionType.ChatPendingMessageSet,
 			kind: PendingMessageKind.Queued,
 			id: 'q-err',
 			message: { text: 'queued message', origin: { kind: MessageKind.User } },
@@ -317,17 +317,17 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 	});
 
 	test('emits a single turnCompleted when both the client cancel and a follow-up agent signal arrive', () => {
-		// Some agents emit a `SessionTurnCancelled` signal in response to
+		// Some agents emit a `ChatTurnCancelled` signal in response to
 		// `abortSession`; the tracker must dedup across the client-cancel
 		// path and the agent-progress signal path.
 		setupSession();
 		startTurn('turn-1');
 
 		sideEffects.handleAction(sessionKey, {
-			type: ActionType.SessionTurnCancelled,
+			type: ActionType.ChatTurnCancelled,
 			turnId: 'turn-1',
 		});
-		fire({ type: ActionType.SessionTurnCancelled, turnId: 'turn-1' });
+		fire({ type: ActionType.ChatTurnCancelled, turnId: 'turn-1' });
 
 		assert.strictEqual(completedEvents().length, 1);
 	});
