@@ -892,7 +892,7 @@ function registerCloseEditorCommands() {
 		id: CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID,
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: undefined,
-		primary: undefined,
+		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.Alt | KeyCode.KeyW),
 		mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyT },
 		handler: (accessor, ...args: unknown[]) => {
 			const resolvedContext = resolveCommandsContext(args, accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IListService));
