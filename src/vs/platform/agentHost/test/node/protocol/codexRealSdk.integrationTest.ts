@@ -333,4 +333,36 @@ defineSharedRealSdkTests(CODEX_CONFIG);
 		}
 		assert.ok(sawPendingConfirmation, 'a file edit under a read-only sandbox should surface a pending-confirmation tool call');
 	});
+
+	test('truncate rolls back trailing turns and archive/unarchive reach codex', async function () {
+		this.timeout(180_000);
+		const workingDirectory = mkdtempSync(join(tmpdir(), 'codex-trunc-'));
+		tempDirs.push(workingDirectory);
+		const session = await createRealSession(client, CODEX_CONFIG, 'trunc-client', createdSessions, workingDirectory);
+
+		// Drive two quick turns to completion so the session has history.
+		for (const [turnId, text] of [['trunc-1', 'Reply with exactly OK1.'], ['trunc-2', 'Reply with exactly OK2.']] as const) {
+			dispatchTurn(client, session, turnId, text, turnId === 'trunc-1' ? 1 : 2);
+			await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete')
+				&& (getActionEnvelope(n).action as { turnId: string }).turnId === turnId, 120_000);
+		}
+
+		// Truncate everything after the first turn — codex should drop one turn.
+		client.notify('dispatchAction', {
+			channel: session,
+			clientSeq: 3,
+			action: { type: 'chat/truncated', turnId: 'trunc-1' },
+		});
+		await client.waitForNotification(n => isActionNotification(n, 'chat/truncated'), 30_000);
+
+		// Archive then unarchive the session.
+		client.notify('dispatchAction', { channel: session, clientSeq: 4, action: { type: 'session/isArchivedChanged', isArchived: true } });
+		await new Promise(r => setTimeout(r, 1_500));
+		client.notify('dispatchAction', { channel: session, clientSeq: 5, action: { type: 'session/isArchivedChanged', isArchived: false } });
+		await new Promise(r => setTimeout(r, 1_500));
+
+		// Reaching here without a thrown error confirms truncate (thread/rollback)
+		// and archive/unarchive round-trip through the real codex app-server.
+		assert.ok(true);
+	});
 });

@@ -281,6 +281,12 @@ interface ICodexSession {
 	currentAppTurnId: string | undefined;
 	/** Codex app-server turn id -> workbench-facing turn id. */
 	readonly hostTurnIdByAppTurnId: Map<string, string>;
+	/**
+	 * Workbench-facing turn id -> codex app-server turn id, retained across
+	 * turn completion so {@link CodexAgent.truncateSession} can translate a
+	 * live host turn id to a `thread/rollback` target.
+	 */
+	readonly codexTurnIdByHostTurnId: Map<string, string>;
 	/** Set when this session was restored (Phase 3) and needs `thread/resume` before the first `turn/start`. */
 	needsResume: boolean;
 	/** Most recent user prompt sent on this session — used as fallback userMessage text in `turn/started`. */
@@ -899,10 +905,15 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	private _handleTurnCompletedNotification(session: ICodexSession, params: TurnCompletedNotification): (SessionAction | ChatAction)[] {
 		const appTurnId = params.turn.id;
+		const hostTurnId = this._hostTurnId(session, appTurnId);
 		const out = mapTurnCompleted(session.mapState, this._withHostTurn(session, params));
+		// Remember which codex (app-server) turn each workbench turn maps to so
+		// truncateSession can translate a host turn id to a thread rollback even
+		// after the live correlation below is cleared.
+		session.codexTurnIdByHostTurnId.set(hostTurnId, appTurnId);
 		// Codex reports app-server turn ids, while the workbench owns host turn ids.
 		// Clear the correlation after completion so later turns cannot reuse stale ids.
-		if (session.currentAppTurnId === appTurnId || session.currentTurnId === this._hostTurnId(session, appTurnId)) {
+		if (session.currentAppTurnId === appTurnId || session.currentTurnId === hostTurnId) {
 			session.currentTurnId = undefined;
 			session.currentAppTurnId = undefined;
 		}
@@ -1278,6 +1289,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			currentTurnId: undefined,
 			currentAppTurnId: undefined,
 			hostTurnIdByAppTurnId: new Map<string, string>(),
+			codexTurnIdByHostTurnId: new Map<string, string>(),
 			needsResume: false,
 			lastPromptText: '',
 			disposed: false,
@@ -1690,6 +1702,76 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
+	async truncateSession(sessionUri: URI, turnId?: string): Promise<void> {
+		// Codex rolls back by a count of trailing turns. Resolve how many turns
+		// follow `turnId` (or all of them when omitted) from the persisted
+		// thread, whose turn ids match the workbench's restored turn ids
+		// (see {@link replayThreadToTurns}). Unknown ids no-op to avoid data loss.
+		const read = await this._readSession(sessionUri);
+		if (!read) {
+			return;
+		}
+		const turns = read.thread.turns ?? [];
+		if (turns.length === 0) {
+			return;
+		}
+		let numTurns: number;
+		if (turnId === undefined) {
+			numTurns = turns.length;
+		} else {
+			// A live session's workbench turn id maps to a codex turn id; a
+			// restored session already uses codex turn ids, so fall back to the
+			// id as-is on a miss.
+			const session = this._sessions.get(AgentSession.id(sessionUri));
+			const codexTurnId = session?.codexTurnIdByHostTurnId.get(turnId) ?? turnId;
+			const index = turns.findIndex(t => t.id === codexTurnId);
+			if (index === -1) {
+				this._logService.warn(`[Codex] truncateSession: turnId ${turnId} not found in thread ${read.thread.id}; skipping`);
+				return;
+			}
+			numTurns = turns.length - (index + 1);
+		}
+		if (numTurns <= 0) {
+			return;
+		}
+		try {
+			const conn = await this._ensureConnection();
+			await conn.client.request<'thread/rollback'>('thread/rollback', { threadId: read.thread.id, numTurns });
+		} catch (err) {
+			this._logService.warn(`[Codex:${read.thread.id}] thread/rollback failed: ${err instanceof Error ? err.message : String(err)}`);
+		}
+	}
+
+	async onArchivedChanged(sessionUri: URI, isArchived: boolean): Promise<void> {
+		const threadId = await this._resolveThreadId(sessionUri);
+		if (threadId === undefined) {
+			return;
+		}
+		const conn = this._connection;
+		if (conn.kind !== 'ready') {
+			return;
+		}
+		try {
+			if (isArchived) {
+				await conn.client.request<'thread/archive'>('thread/archive', { threadId });
+			} else {
+				await conn.client.request<'thread/unarchive'>('thread/unarchive', { threadId });
+			}
+		} catch (err) {
+			this._logService.warn(`[Codex:${threadId}] thread/${isArchived ? 'archive' : 'unarchive'} failed: ${err instanceof Error ? err.message : String(err)}`);
+		}
+	}
+
+	/** Resolve the codex thread id for a session: in-memory → persisted overlay. */
+	private async _resolveThreadId(sessionUri: URI): Promise<string | undefined> {
+		const existing = this._sessions.get(AgentSession.id(sessionUri));
+		if (existing?.threadId !== undefined) {
+			return existing.threadId;
+		}
+		const overlay = await this._metadataStore.read(sessionUri);
+		return overlay.threadId;
+	}
+
 	respondToPermissionRequest(requestId: string, approved: boolean): void {
 		// `requestId` is the host-side toolCallId; iterate sessions and
 		// resolve the first match. Mirrors the Claude/Copilot agents.
@@ -1748,6 +1830,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				currentTurnId: undefined,
 				currentAppTurnId: undefined,
 				hostTurnIdByAppTurnId: new Map<string, string>(),
+				codexTurnIdByHostTurnId: new Map<string, string>(),
 				needsResume: true,
 				lastPromptText: '',
 				disposed: false,
