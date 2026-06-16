@@ -529,7 +529,7 @@ suite('CopilotAgentSession', () => {
 		}]);
 	});
 
-	test('`/compact` runs the history compact RPC and completes the turn without emitting output', async () => {
+	test('`/compact` runs the history compact RPC and completes the turn with output', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 
 		await session.send('/compact', undefined, 'turn-compact');
@@ -540,9 +540,24 @@ suite('CopilotAgentSession', () => {
 		assert.deepStrictEqual(mockSession.sendRequests, []);
 
 		// The turn opened by the server is closed inline (the SDK never fires
-		// `onIdle` for the compact path) without emitting any response content.
+		// `onIdle` for the compact path) after emitting the completion message.
 		const actions = getActions(signals);
-		assert.deepStrictEqual(actions.filter(a => a.type === ActionType.ChatResponsePart), []);
+		const responseParts = actions.filter((a): a is ChatResponsePartAction => a.type === ActionType.ChatResponsePart);
+		assert.strictEqual(responseParts.length, 1);
+		const responsePart = responseParts[0];
+		assert.strictEqual(responsePart.part.kind, ResponsePartKind.Markdown);
+		if (responsePart.part.kind !== ResponsePartKind.Markdown) {
+			throw new Error('unreachable');
+		}
+		assert.deepStrictEqual({
+			turnId: responsePart.turnId,
+			kind: responsePart.part.kind,
+			content: responsePart.part.content,
+		}, {
+			turnId: 'turn-compact',
+			kind: ResponsePartKind.Markdown,
+			content: 'Compaction completed',
+		});
 		const turnComplete = actions.find(a => a.type === ActionType.ChatTurnComplete);
 		assert.ok(turnComplete, 'expected the turn to complete');
 		assert.strictEqual((turnComplete as ChatTurnCompleteAction).turnId, 'turn-compact');

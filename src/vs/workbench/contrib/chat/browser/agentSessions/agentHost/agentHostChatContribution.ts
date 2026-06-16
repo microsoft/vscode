@@ -259,6 +259,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			canDelegate: true,
 			requiresCustomModels: true,
 			supportsAutoModel: agentHostProviderSupportsAutoModel(agent.provider),
+			agentHostProviderId: agent.provider,
 			supportsDelegation: !this._isSessionsWindow,
 			capabilities: {
 				supportsCheckpoints: true,
