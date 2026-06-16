@@ -74,8 +74,8 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 		} catch (err) {
 			this._throwIfCancelled(token);
 			throw new ProtocolError(
-				JsonRpcErrorCodes.InternalError, `
-				Failed to discard changes: ${err instanceof Error ? err.message : String(err)}`);
+				JsonRpcErrorCodes.InternalError,
+				`Failed to discard changes: ${err instanceof Error ? err.message : String(err)}`);
 		}
 
 		// Re-compute the uncommitted changeset for the session
