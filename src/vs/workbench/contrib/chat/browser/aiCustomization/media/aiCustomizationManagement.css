@@ -1672,7 +1672,14 @@ pane is first mounted. View switches inside the modal are not animated. */
 	flex-direction: row;
 	align-items: center;
 	gap: 8px;
-	word-break: break-word;
+	min-width: 0;
+}
+
+.automations-list-widget .automations-row-name-text {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
 }
 
 .automations-list-widget .automations-row-disabled-badge {
@@ -1682,20 +1689,48 @@ pane is first mounted. View switches inside the modal are not animated. */
 	border-radius: 3px;
 	background-color: var(--vscode-badge-background);
 	color: var(--vscode-badge-foreground);
+	flex: 0 0 auto;
 }
 
-.automations-list-widget .automations-row-meta {
+.automations-list-widget .automations-row-status {
 	display: flex;
 	flex-direction: row;
 	align-items: center;
-	gap: 6px;
-	font-size: 12px;
-	color: var(--vscode-descriptionForeground);
 	flex-wrap: wrap;
+	gap: 6px;
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	margin-top: 2px;
 }
 
-.automations-list-widget .automations-row-meta-sep {
+.automations-list-widget .automations-row-status-folder {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	max-width: 240px;
+	min-width: 0;
+}
+
+.automations-list-widget .automations-row-status-folder > .codicon {
+	font-size: 12px;
+	flex: 0 0 auto;
+}
+
+.automations-list-widget .automations-row-status-folder-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
+}
+
+.automations-list-widget .automations-row-status-sep {
 	opacity: 0.6;
+}
+
+.automations-list-widget .automations-row-last-run {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	margin-top: 2px;
 }
 
 .automations-list-widget .automations-row-prompt {
@@ -1704,7 +1739,7 @@ pane is first mounted. View switches inside the modal are not animated. */
 	margin-top: 2px;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	word-break: break-word;
+	white-space: nowrap;
 }
 
 .automations-list-widget .automations-row-actions {
@@ -2480,6 +2515,26 @@ body:has(.automation-dialog) .monaco-menu-container {
 	cursor: default;
 }
 
+.automation-form-prompt-host a.automation-form-isolation-chip-clickable {
+	cursor: pointer;
+	border-radius: 3px;
+	text-decoration: none;
+}
+
+.automation-form-prompt-host a.automation-form-isolation-chip-clickable:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.automation-form-prompt-host a.automation-form-isolation-chip-clickable:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.automation-form-prompt-host a.automation-form-isolation-chip-clickable > .codicon-chevron-down {
+	font-size: 10px;
+	opacity: 0.7;
+}
+
 .automation-form-prompt-host .automation-form-isolation-label,
 .automation-form-prompt-host .automation-form-branch-name {
 	font-size: 11px;
@@ -2511,10 +2566,4 @@ body:has(.automation-dialog) .monaco-menu-container {
 	font-style: italic;
 }
 
-.automations-list-widget .automations-row-folder {
-	color: var(--vscode-descriptionForeground);
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	max-width: 240px;
-}
+/* (.automations-row-folder removed — folder is now shown via .automations-row-chip) */

@@ -20,6 +20,8 @@ import { ICodeEditorService } from '../../../../../editor/browser/services/codeE
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { localize } from '../../../../../nls.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
+import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -593,17 +595,17 @@ function renderForm(
 		sessionTypeBinder.setFolder(state.folderUri);
 	}
 
-	// --- Isolation + branch (read-only preview) ---
+	// --- Isolation + branch (Folder picker + read-only branch preview) ---
 	// Visual mirror of the new-session view's bottom-right indicator: a
-	// disabled `folder` chip + `branch` text. Tells the user
-	// *where* the automation will run (folder, on whatever branch is
-	// checked out at run time) without claiming to be configurable.
+	// `folder` chip + `branch` text. Tells the user *where* the
+	// automation will run.
 	//
-	// Worktree isolation isn't supported for scheduled automations today
-	// — the shared {@link IsolationPicker} / {@link BranchPicker} from
-	// the sessions layer bind to a *live* {@link ICopilotChatSession},
-	// which doesn't exist for an unstarted schedule. Persisting the
-	// choice + teaching the runner to honor it is a separate slice.
+	// The folder chip is clickable like the new-session-page isolation
+	// picker. The picker shows Folder (selected) and Worktree (disabled)
+	// — Worktree is a placeholder so users know it's coming, but it
+	// isn't wired up: scheduled automations always run in the workspace
+	// folder for now. Persisting a Worktree choice + teaching the
+	// runner to honor it is a separate slice.
 	//
 	// Built here as detached DOM and parented into the chat input's
 	// `.chat-secondary-toolbar` after `chatInput.render()` runs, so the
@@ -614,12 +616,69 @@ function renderForm(
 	// Branch is read live from {@link IGitService}; the label updates if
 	// HEAD moves while the dialog is open. Neither value is persisted.
 	const isolationGroup = $('span.automation-form-isolation-group');
-	const folderChip = DOM.append(isolationGroup, $('span.automation-form-isolation-chip.automation-form-isolation-chip-disabled')) as HTMLSpanElement;
-	folderChip.setAttribute('role', 'img');
-	folderChip.setAttribute('aria-label', localize('automation.form.isolation.folderAria', "Isolation: Folder (Worktree not supported for scheduled automations)"));
-	folderChip.title = localize('automation.form.isolation.folderTitle', "Scheduled automations run in the workspace folder. Worktree isolation is not yet supported.");
+	const folderChip = DOM.append(isolationGroup, $('a.automation-form-isolation-chip.automation-form-isolation-chip-clickable')) as HTMLAnchorElement;
+	folderChip.tabIndex = 0;
+	folderChip.role = 'button';
+	folderChip.setAttribute('aria-haspopup', 'menu');
+	folderChip.setAttribute('aria-label', localize('automation.form.isolation.folderAria', "Isolation mode: Folder. Click to change."));
+	folderChip.title = localize('automation.form.isolation.folderTitle', "Scheduled automations run in the workspace folder. Worktree isolation is coming soon.");
 	DOM.append(folderChip, renderIcon(Codicon.folder));
 	DOM.append(folderChip, $('span.automation-form-isolation-label', undefined, localize('automation.form.isolation.folder', "Folder")));
+	DOM.append(folderChip, renderIcon(Codicon.chevronDown));
+
+	const actionWidgetService = instantiationService.invokeFunction(accessor => accessor.get(IActionWidgetService));
+	const showIsolationPicker = () => {
+		if (actionWidgetService.isVisible) {
+			return;
+		}
+		interface IIsolationPickerItem { readonly mode: 'workspace' | 'worktree'; readonly checked?: boolean }
+		const items: IActionListItem<IIsolationPickerItem>[] = [
+			{
+				kind: ActionListItemKind.Action,
+				label: localize('automation.form.isolation.picker.worktree', "Worktree"),
+				group: { title: '', icon: Codicon.worktree },
+				disabled: true,
+				item: { mode: 'worktree' },
+			},
+			{
+				kind: ActionListItemKind.Action,
+				label: localize('automation.form.isolation.picker.folder', "Folder"),
+				group: { title: '', icon: Codicon.folder },
+				item: { mode: 'workspace', checked: true },
+			},
+		];
+		const delegate: IActionListDelegate<IIsolationPickerItem> = {
+			// Folder is the only enabled choice and already selected, so
+			// there's nothing to do on select beyond closing the widget.
+			// Keeping the callback present (rather than no-op throwing)
+			// preserves the widget's standard keyboard semantics.
+			onSelect: () => { actionWidgetService.hide(); },
+			onHide: () => { folderChip.focus(); },
+		};
+		actionWidgetService.show<IIsolationPickerItem>(
+			'automationIsolationPicker',
+			false,
+			items,
+			delegate,
+			folderChip,
+			undefined,
+			[],
+			{
+				getAriaLabel: (item) => item.label ?? '',
+				getWidgetAriaLabel: () => localize('automation.form.isolation.picker.ariaLabel', "Pick isolation mode"),
+			},
+		);
+	};
+	disposables.add(DOM.addDisposableListener(folderChip, DOM.EventType.CLICK, e => {
+		DOM.EventHelper.stop(e, true);
+		showIsolationPicker();
+	}));
+	disposables.add(DOM.addDisposableListener(folderChip, DOM.EventType.KEY_DOWN, e => {
+		if (e.key === 'Enter' || e.key === ' ') {
+			DOM.EventHelper.stop(e, true);
+			showIsolationPicker();
+		}
+	}));
 
 	const branchSlot = DOM.append(isolationGroup, $('span.automation-form-branch-slot')) as HTMLSpanElement;
 	branchSlot.setAttribute('aria-live', 'polite');

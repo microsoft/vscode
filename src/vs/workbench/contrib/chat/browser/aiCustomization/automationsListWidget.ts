@@ -161,41 +161,26 @@ export class AutomationsListWidget extends Disposable {
 		const rowWrapper = DOM.append(this.listEl, $('.automations-row-wrapper', { 'data-automation-id': automation.id }));
 		const row = DOM.append(rowWrapper, $('.automations-row', { role: 'listitem' }));
 
-		// Left: name + meta
+		// Left: name → prompt → chips → status
 		const main = DOM.append(row, $('.automations-row-main'));
 		const nameEl = DOM.append(main, $('.automations-row-name'));
-		nameEl.textContent = automation.name;
+		const nameTextEl = DOM.append(nameEl, $('span.automations-row-name-text'));
+		nameTextEl.textContent = automation.name;
+		nameTextEl.title = automation.name;
 		if (!automation.enabled) {
 			row.classList.add('automations-row-disabled');
 			const disabledBadge = DOM.append(nameEl, $('span.automations-row-disabled-badge'));
 			disabledBadge.textContent = localize('automationDisabled', "Disabled");
 		}
 
-		const metaEl = DOM.append(main, $('.automations-row-meta'));
-		const scheduleEl = DOM.append(metaEl, $('span.automations-row-schedule'));
-		scheduleEl.textContent = formatSchedule(automation);
-		const sep1 = DOM.append(metaEl, $('span.automations-row-meta-sep'));
-		sep1.textContent = '·';
-		const nextEl = DOM.append(metaEl, $('span.automations-row-next'));
-		nextEl.textContent = formatNextRun(automation);
-
-		const folderLabel = this.formatFolderLabel(automation.folderUri);
-		const sepFolder = DOM.append(metaEl, $('span.automations-row-meta-sep'));
-		sepFolder.textContent = '·';
-		const folderEl = DOM.append(metaEl, $('span.automations-row-folder'));
-		folderEl.textContent = localize('automationFolderLabel', "in {0}", folderLabel);
-		folderEl.title = automation.folderUri.toString();
-
-		if (automation.lastRunAt) {
-			const sep2 = DOM.append(metaEl, $('span.automations-row-meta-sep'));
-			sep2.textContent = '·';
-			const lastEl = DOM.append(metaEl, $('span.automations-row-last'));
-			lastEl.textContent = localize('lastRun', "Last run {0}", formatRelativeTimeOrIso(automation.lastRunAt));
-		}
-
 		const promptEl = DOM.append(main, $('.automations-row-prompt'));
 		promptEl.textContent = truncate(automation.prompt, 160);
 		promptEl.title = automation.prompt;
+
+		// Status: folder + schedule + last run. Dim, secondary.
+		// Folder sits on the left so the eye lands on "where" before
+		// schedule cadence and most-recent run.
+		this.renderStatusLine(main, automation);
 
 		// Right: action buttons
 		const actions = DOM.append(row, $('.automations-row-actions'));
@@ -207,6 +192,38 @@ export class AutomationsListWidget extends Disposable {
 
 		if (this.expandedRows.has(automation.id)) {
 			this.renderHistoryPanel(rowWrapper, automation);
+		}
+	}
+
+	/**
+	 * Renders the dim status area under the prompt:
+	 *
+	 *   Line 1: [folder icon] workspace · {schedule descriptor}
+	 *   Line 2: Last run …                       (only if a run exists)
+	 *
+	 * Folder + schedule live on the same line — they're the "what this
+	 * automation IS". Last-run is its own line because it's the "what
+	 * happened recently" and the eye should be able to dismiss the row
+	 * without it.
+	 */
+	private renderStatusLine(parent: HTMLElement, automation: IAutomation): void {
+		const statusEl = DOM.append(parent, $('.automations-row-status'));
+
+		const folderName = this.formatFolderLabel(automation.folderUri);
+		const folderEl = DOM.append(statusEl, $('span.automations-row-status-folder'));
+		folderEl.title = automation.folderUri.toString();
+		folderEl.setAttribute('aria-label', localize('automationStatusFolderAria', "Workspace: {0}", folderName));
+		const folderIcon = DOM.append(folderEl, $('span.codicon.codicon-folder'));
+		folderIcon.setAttribute('aria-hidden', 'true');
+		DOM.append(folderEl, $('span.automations-row-status-folder-name', undefined, folderName));
+
+		const sep = DOM.append(statusEl, $('span.automations-row-status-sep'));
+		sep.textContent = '·';
+		DOM.append(statusEl, $('span', undefined, formatSchedule(automation)));
+
+		if (automation.lastRunAt) {
+			const lastRunEl = DOM.append(parent, $('.automations-row-last-run'));
+			lastRunEl.textContent = localize('lastRun', "Last run {0}", formatRelativeTime(automation.lastRunAt));
 		}
 	}
 
@@ -543,9 +560,12 @@ function formatSchedule(a: IAutomation): string {
 }
 
 function formatHourMinute(hour: number, minute: number): string {
-	const h = String(Math.max(0, Math.min(23, hour | 0))).padStart(2, '0');
+	const h24 = Math.max(0, Math.min(23, hour | 0));
 	const m = String(Math.max(0, Math.min(59, minute | 0))).padStart(2, '0');
-	return `${h}:${m}`;
+	// 12-hour clock, no leading zero on the hour. 0 → 12 AM, 12 → 12 PM.
+	const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+	const meridiem = h24 < 12 ? localize('automation.time.am', "AM") : localize('automation.time.pm', "PM");
+	return `${h12}:${m} ${meridiem}`;
 }
 
 function dayName(day: number): string {
@@ -562,11 +582,33 @@ function dayName(day: number): string {
 	return names[idx];
 }
 
-function formatNextRun(a: IAutomation): string {
-	if (a.schedule.interval === 'manual' || !a.nextRunAt) {
-		return localize('nextRunNever', "No scheduled run");
+/**
+ * Rounded, relative-only formatter ("2 hr ago", "in 3 hr", "just now").
+ * Used in the dim status line where the absolute timestamp would be noise.
+ */
+function formatRelativeTime(iso: string): string {
+	const t = Date.parse(iso);
+	if (Number.isNaN(t)) {
+		return iso;
 	}
-	return localize('nextRun', "Next run {0}", formatRelativeTimeOrIso(a.nextRunAt));
+	const diffMs = t - Date.now();
+	const absMs = Math.abs(diffMs);
+	const minute = 60_000;
+	const hour = 60 * minute;
+	const day = 24 * hour;
+	if (absMs < minute) {
+		return diffMs >= 0 ? localize('inMomentaryFuture', "in a moment") : localize('justNow', "just now");
+	}
+	if (absMs < hour) {
+		const mins = Math.round(absMs / minute);
+		return diffMs >= 0 ? localize('inMinutes', "in {0} min", mins) : localize('agoMinutes', "{0} min ago", mins);
+	}
+	if (absMs < day) {
+		const hrs = Math.round(absMs / hour);
+		return diffMs >= 0 ? localize('inHours', "in {0} hr", hrs) : localize('agoHours', "{0} hr ago", hrs);
+	}
+	const days = Math.round(absMs / day);
+	return diffMs >= 0 ? localize('inDays', "in {0} day(s)", days) : localize('agoDays', "{0} day(s) ago", days);
 }
 
 function formatRelativeTimeOrIso(iso: string): string {
@@ -601,7 +643,10 @@ function formatRelativeTimeOrIso(iso: string): string {
 			: localize('agoDays', "{0} day(s) ago", days);
 	}
 
-	const absolute = date.toLocaleString();
+	// Absolute timestamp included for tooltip-like clarity. Use locale
+	// short date + short time so seconds don't bleed in (the relative
+	// half is already rounded to the minute/hour/day).
+	const absolute = date.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
 	return `${rel} (${absolute})`;
 }
 
