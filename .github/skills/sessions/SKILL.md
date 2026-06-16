@@ -46,6 +46,6 @@ Whenever the user flags a wrong pattern, rejects an approach, or gives design/ru
 
 You **must** run these checks before declaring work complete:
 
-1. `npm run compile-check-ts-native` — TypeScript compilation check. **Do not run `tsc` directly.**
+1. `npm run typecheck-client` — TypeScript compilation check. **Do not run `tsc` directly.**
 2. `npm run valid-layers-check` — **MANDATORY.** Catches layering violations. If this fails, fix the imports before proceeding.
 3. `scripts/test.sh --grep <pattern>` — unit tests for affected areas
