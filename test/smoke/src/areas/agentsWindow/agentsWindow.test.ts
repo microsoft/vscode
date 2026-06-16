@@ -38,10 +38,8 @@ const SESSIONS: readonly SessionConfig[] = [
 const COPILOT_SANDBOX_SCENARIO_ID = 'smoke-hello-copilot-sandbox';
 const COPILOT_SANDBOX_REPLY = 'MOCKED_COPILOT_SANDBOX_RESPONSE';
 
-// Lightweight throwaway scenario used by {@link warmUpClaudeModel} to
-// pre-pay the Claude session cold-start cost (bundled SDK import, language
-// model server startup, SDK subprocess spawn, plugin loading) before the
-// real assertion runs.
+// Lightweight throwaway scenario kept registered so it can be referenced
+// for cold-start warm-up flows if reintroduced.
 const CLAUDE_WARMUP_SCENARIO_ID = 'smoke-hello-claude-warmup';
 const CLAUDE_WARMUP_REPLY = 'MOCKED_CLAUDE_WARMUP_RESPONSE';
 
@@ -62,7 +60,13 @@ const AGENT_HOST_WARMUP_REPLY = 'MOCKED_AGENT_HOST_WARMUP_RESPONSE';
 
 export function setup(logger: Logger) {
 
-	describe('Agents Window', () => {
+	describe('Agents Window', function () {
+		// Cold start of the Copilot CLI SDK (first turn) routinely takes ~60-90s
+		// on Windows CI. The default 120s mocha timeout fires while msg1 is
+		// still in flight, which then leaks the deferred msg2 send into the
+		// next test's window and corrupts that test's session view. Match the
+		// 5-minute budget that the other Agents Window describes already use.
+		this.timeout(5 * 60 * 1000);
 
 		let mockServer: MockLlmServer;
 
@@ -212,7 +216,8 @@ export function setup(logger: Logger) {
 					// active-session input path (not the new-session homepage).
 					await app.workbench.agentsWindow.sendFollowUpMessage(`hello again [scenario:${session.scenarioId2}]`);
 
-					const text2 = await app.workbench.agentsWindow.waitForAssistantText(session.reply2);
+					const secondTurnTimeout = session.name === 'Copilot CLI' ? 180_000 : 60_000;
+					const text2 = await app.workbench.agentsWindow.waitForAssistantText(session.reply2, secondTurnTimeout);
 					logger.log(`Agents Window (${session.name}) response 2: ${text2}`);
 
 					assert.ok(
@@ -593,40 +598,6 @@ async function warmUpAgentHostModel(app: Application, logger: Logger, label: str
 	await app.workbench.agentsWindow.startNewSession();
 	await app.workbench.agentsWindow.waitForNewSessionView();
 	await app.workbench.agentsWindow.selectSessionType('Local Agent Host');
-}
-
-/**
- * Pre-pays the Claude session cold-start cost (#321072): the first Claude
- * session in a fresh Agents Window extension host has to first-import the
- * bundled `@anthropic-ai/claude-agent-sdk`, start a localhost
- * `ClaudeLanguageModelServer`, spawn the SDK subprocess and load plugins
- * (8 from skill locations) before the first /messages request can complete.
- * On a busy macOS arm64 CI runner this can collectively exceed the default
- * 60s {@link AgentsWindow.waitForAssistantText} timeout, surfacing as a
- * `:not(.chat-response-loading)` selector timeout.
- *
- * Assumes the Agents Window is showing a new-session view. Sends a throwaway
- * prompt to a 'Claude' session, ignores its outcome (the warm-up itself may
- * hit the cold start), then leaves a fresh new-session view with 'Claude'
- * selected so the caller can submit the real prompt against a warm pipeline.
- */
-async function warmUpClaudeModel(app: Application, logger: Logger, label: string): Promise<void> {
-	await app.workbench.agentsWindow.waitForNewSessionView();
-	await app.workbench.agentsWindow.selectSessionType('Claude');
-	await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${CLAUDE_WARMUP_SCENARIO_ID}]`);
-	try {
-		// 60s mirrors the default response wait — long enough to absorb the
-		// cold-start observed at ~60s in #321072, but not so long that a hung
-		// pipeline blocks the test from making forward progress.
-		await app.workbench.agentsWindow.waitForAssistantText(CLAUDE_WARMUP_REPLY, 60_000);
-	} catch (error) {
-		// Ignore — the warm-up itself may hit the cold-start race; the
-		// caller's real attempt runs against an already-warmed pipeline.
-		logger.log(`${label} warm-up attempt did not produce the expected reply (likely the cold-start race); proceeding with the real attempt. Reason: ${error instanceof Error ? error.message : String(error)}`);
-	}
-	await app.workbench.agentsWindow.startNewSession();
-	await app.workbench.agentsWindow.waitForNewSessionView();
-	await app.workbench.agentsWindow.selectSessionType('Claude');
 }
 
 /**

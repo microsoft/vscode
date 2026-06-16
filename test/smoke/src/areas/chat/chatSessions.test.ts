@@ -162,60 +162,24 @@ export function setup(logger: Logger) {
 					const responseText2 = await sendAndWaitForReply(app.workbench.chat, session, `hello again [scenario:${session.scenarioId2}]`, session.reply2);
 					logger.log(`Chat Sessions (${session.name}) response 2: ${responseText2}`);
 
-				assert.ok(
-					responseText.includes(CLAUDE_REPLY),
-					`Expected Claude response to include mocked scenario response "${CLAUDE_REPLY}".\n\nResponse:\n${responseText}`
-				);
-				assert.ok(
-					mockServer.requestCount() > requestsBefore,
-					`expected the mock LLM server to have received a new request from the Claude session (before=${requestsBefore}, after=${mockServer.requestCount()})`
-				);
-			} catch (error) {
-				logger.log(`[Chat Sessions/Claude] FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
-				logger.log(`[Chat Sessions/Claude] mock server requestCount at failure: ${mockServer.requestCount()} (before=${requestsBefore})`);
-				await dumpFailureDiagnostics(app, logger, 'Chat Sessions/Claude');
-				throw error;
-			} finally {
-				// Close the editor to avoid focus interference with the next test
-				await app.workbench.quickaccess.runCommand('workbench.action.closeAllEditors');
-			}
-		});
-
-		it('Test Local session', async function () {
-			const app = this.app as Application;
-			const requestsBefore = mockServer.requestCount();
-			logger.log(`[Chat Sessions/Local] starting test; requestCount=${requestsBefore}`);
-
-			try {
-				// "Local" in the regular VS Code window is the default chat
-				// experience in the chat view (sidebar / aux bar).
-				logger.log(`[Chat Sessions/Local] running command workbench.action.chat.open`);
-				await app.workbench.quickaccess.runCommand('workbench.action.chat.open');
-				logger.log(`[Chat Sessions/Local] waiting for chat view; requestCount=${mockServer.requestCount()}`);
-				await app.workbench.chat.waitForChatView();
-				logger.log(`[Chat Sessions/Local] sending message; requestCount=${mockServer.requestCount()}`);
-				await app.workbench.chat.sendMessage(`hello world [scenario:${LOCAL_SCENARIO_ID}]`);
-				logger.log(`[Chat Sessions/Local] waiting for response (timeout=1500); requestCount=${mockServer.requestCount()}`);
-				await app.workbench.chat.waitForResponse(1500);
-				logger.log(`[Chat Sessions/Local] response received; requestCount=${mockServer.requestCount()}`);
-
-				const responseText = (await app.workbench.chat.getLatestResponseText()).trim();
-				logger.log(`[Chat Sessions/Local] response (length=${responseText.length}): ${responseText}`);
-
-				assert.ok(
-					responseText.includes(LOCAL_REPLY),
-					`Expected Local response to include mocked scenario response "${LOCAL_REPLY}".\n\nResponse:\n${responseText}`
-				);
-				assert.ok(
-					mockServer.requestCount() > requestsBefore,
-					`expected the mock LLM server to have received a new request from the Local session (before=${requestsBefore}, after=${mockServer.requestCount()})`
-				);
-			} catch (error) {
-				logger.log(`[Chat Sessions/Local] FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
-				logger.log(`[Chat Sessions/Local] mock server requestCount at failure: ${mockServer.requestCount()} (before=${requestsBefore})`);
-				await dumpFailureDiagnostics(app, logger, 'Chat Sessions/Local');
-				throw error;
-			}
-		});
+					assert.ok(
+						responseText2.includes(session.reply2),
+						`Expected ${session.name} response 2 to include mocked scenario response "${session.reply2}".\n\nResponse:\n${responseText2}`
+					);
+					assert.ok(
+						mockServer.requestCount() > requestsBefore,
+						`expected the mock LLM server to have received a new request from the ${session.name} session (before=${requestsBefore}, after=${mockServer.requestCount()})`
+					);
+				} catch (error) {
+					logger.log(`[Chat Sessions/${session.name}] FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+					logger.log(`[Chat Sessions/${session.name}] mock server requestCount at failure: ${mockServer.requestCount()} (before=${requestsBefore})`);
+					await dumpFailureDiagnostics(app, logger, `Chat Sessions/${session.name}`);
+					throw error;
+				} finally {
+					// Close the editor to avoid focus interference with the next test
+					await app.workbench.quickaccess.runCommand('workbench.action.closeAllEditors');
+				}
+			});
+		}
 	});
 }
