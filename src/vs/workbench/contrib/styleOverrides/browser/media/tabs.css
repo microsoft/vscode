@@ -74,7 +74,7 @@
  * Panel tabs (TERMINAL, PROBLEMS, OUTPUT, DEBUG CONSOLE ...). These are
  * composite-bar action items rather than editor `.tab` elements, with an
  * underline `.active-item-indicator`. Give them the same rounded-pill look as
- * the editor tabs: normal case, 12px/500 type, a subtle background on the
+ * the editor tabs: normal case, 12px/600 type, a subtle background on the
  * active tab and no underline.
  */
 .style-override-tabs .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item {
