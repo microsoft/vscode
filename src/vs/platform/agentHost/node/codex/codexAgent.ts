@@ -34,6 +34,7 @@ import { CodexAppServerClient, JsonRpcError, transportFromChildProcess, type ICo
 import { ICodexProxyService, type ICodexProxyHandle } from './codexProxyService.js';
 import { createCodexSessionMapState, extractUserInputText, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangeOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, resetCodexTurnMapState, type ICodexSessionMapState } from './codexMapAppServerEvents.js';
 import { resolveCodexInput } from './codexPromptResolver.js';
+import { buildUserInputRequest, emptyUserInputResponse, userInputResponseFromAnswers } from './codexUserInputMapper.js';
 import { replayThreadToTurns } from './codexReplayMapper.js';
 import { CodexSessionMetadataStore } from './codexSessionMetadataStore.js';
 import { CodexSessionConfigKey, isCodexSupportedModel, narrowAdditionalDirectories, narrowApprovalPolicy, narrowBoolean, narrowReasoningEffort, narrowSandboxMode, narrowWebSearchMode, normalizeCodexModelId, type CodexApprovalPolicy } from './codexSessionConfigKeys.js';
@@ -48,6 +49,8 @@ import type { DynamicToolSpec } from './protocol/generated/v2/DynamicToolSpec.js
 import type { DynamicToolCallParams } from './protocol/generated/v2/DynamicToolCallParams.js';
 import type { DynamicToolCallResponse } from './protocol/generated/v2/DynamicToolCallResponse.js';
 import type { DynamicToolCallOutputContentItem } from './protocol/generated/v2/DynamicToolCallOutputContentItem.js';
+import type { ToolRequestUserInputParams } from './protocol/generated/v2/ToolRequestUserInputParams.js';
+import type { ToolRequestUserInputResponse } from './protocol/generated/v2/ToolRequestUserInputResponse.js';
 import type { JsonValue } from './protocol/generated/serde_json/JsonValue.js';
 import type { GetAccountResponse } from './protocol/generated/v2/GetAccountResponse.js';
 import type { ModelListResponse } from './protocol/generated/v2/ModelListResponse.js';
@@ -194,6 +197,12 @@ const CodexPrewarmTtlMs = 60_000;
  * connection in {@link CodexAgent}; this struct only tracks what the
  * `IAgent` surface needs.
  */
+/** Resolved user-input answer captured from the client's `chat/inputCompleted`. */
+interface ICodexUserInputResult {
+	readonly response: ChatInputResponseKind;
+	readonly answers?: Record<string, ChatInputAnswer>;
+}
+
 interface ICodexSession {
 	/** Caller-facing session id used in the `codex:/<id>` URI; may differ from the codex thread id. */
 	readonly sessionId: string;
@@ -243,6 +252,13 @@ interface ICodexSession {
 	 * {@link CodexAgent.onClientToolCallComplete}.
 	 */
 	readonly pendingClientToolCalls: PendingRequestRegistry<ToolCallResult>;
+	/**
+	 * Parked deferreds for in-flight user-input requests (codex
+	 * `item/tool/requestUserInput`, i.e. the model's `ask_user`), keyed by a
+	 * host-generated requestId. Resolved by
+	 * {@link CodexAgent.respondToUserInputRequest}.
+	 */
+	readonly pendingUserInputs: PendingRequestRegistry<ICodexUserInputResult>;
 	/**
 	 * Signature of the {@link clientTools} the codex thread was started
 	 * with. Codex only accepts `dynamicTools` at `thread/start`, so if the
@@ -749,6 +765,13 @@ export class CodexAgent extends Disposable implements IAgent {
 			params => this._handleDynamicToolCallRpc(params),
 		));
 
+		// User-input requests (the model's `ask_user`). Surface the questions
+		// as a chat input request and answer codex with the user's response.
+		this._register(client.onRequest<'item/tool/requestUserInput'>(
+			'item/tool/requestUserInput',
+			params => this._handleUserInputRequestRpc(params),
+		));
+
 		return { client, proxyHandle, child };
 	}
 
@@ -799,6 +822,26 @@ export class CodexAgent extends Disposable implements IAgent {
 	private _toolFailure(message: string): DynamicToolCallResponse {
 		this._logService.warn(`[Codex] dynamic tool call failed: ${message}`);
 		return { contentItems: [{ type: 'inputText', text: message }], success: false };
+	}
+
+	private async _handleUserInputRequestRpc(params: ToolRequestUserInputParams): Promise<ServerRequestHandlerResult<ToolRequestUserInputResponse>> {
+		const sessionId = this._sessionIdByThreadId.get(params.threadId);
+		const session = sessionId ? this._sessions.get(sessionId) : undefined;
+		if (!session) {
+			return { result: emptyUserInputResponse(params.questions) };
+		}
+		const requestId = generateUuid();
+		const request = buildUserInputRequest(requestId, params.questions);
+		try {
+			const result = await session.pendingUserInputs.registerAndFire(requestId, () => {
+				this._fire(session.sessionUri, { type: ActionType.ChatInputRequested, request });
+			});
+			return { result: userInputResponseFromAnswers(params.questions, result.response, result.answers) };
+		} catch (err) {
+			// Session disposed / connection lost while awaiting; answer codex
+			// with empty answers so the turn unwinds instead of hanging.
+			return { result: emptyUserInputResponse(params.questions) };
+		}
 	}
 
 	private _hostTurnId(session: ICodexSession, appTurnId: string): string {
@@ -1052,6 +1095,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			session.pendingCommandApprovals.denyAll('decline');
 			// Reject in-flight client tool calls so their handlers unwind.
 			session.pendingClientToolCalls.rejectAll(new CancellationError());
+			session.pendingUserInputs.rejectAll(new CancellationError());
 			// Clear any buffered steering so its pending bubble doesn't leak.
 			this._drainPendingSteering(session);
 			const turnId = session.currentTurnId;
@@ -1148,6 +1192,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			clientTools: undefined,
 			toolsClientId: undefined,
 			pendingClientToolCalls: new PendingRequestRegistry<ToolCallResult>(),
+			pendingUserInputs: new PendingRequestRegistry<ICodexUserInputResult>(),
 			materializedToolsSig: undefined,
 			firstTurnSent: false,
 			model: effectiveModel,
@@ -1540,6 +1585,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		// Reject any in-flight client tool calls so their `item/tool/call`
 		// handlers unwind instead of awaiting a response that won't arrive.
 		session.pendingClientToolCalls.rejectAll(new CancellationError());
+		session.pendingUserInputs.rejectAll(new CancellationError());
 		// Clear any buffered steering so its pending bubble doesn't leak.
 		this._drainPendingSteering(session);
 		const conn = this._connection;
@@ -1576,9 +1622,15 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._logService.info(`[Codex] respondToPermissionRequest: unknown requestId=${requestId}`);
 	}
 
-	respondToUserInputRequest(_requestId: string, _response: ChatInputResponseKind, _answers?: Record<string, ChatInputAnswer>): void {
-		// Phase 4 wires this.
-		this._logService.info('[Codex] respondToUserInputRequest called (Phase 4 stub)');
+	respondToUserInputRequest(requestId: string, response: ChatInputResponseKind, answers?: Record<string, ChatInputAnswer>): void {
+		// `requestId` was minted per request; find the owning session and
+		// resolve its parked deferred. Mirrors respondToPermissionRequest.
+		for (const session of this._sessions.values()) {
+			if (session.pendingUserInputs.respond(requestId, { response, answers })) {
+				return;
+			}
+		}
+		this._logService.info(`[Codex] respondToUserInputRequest: unknown requestId=${requestId}`);
 	}
 
 	getSessionMessages(session: URI): Promise<readonly Turn[]> {
@@ -1610,6 +1662,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				clientTools: undefined,
 				toolsClientId: undefined,
 				pendingClientToolCalls: new PendingRequestRegistry<ToolCallResult>(),
+				pendingUserInputs: new PendingRequestRegistry<ICodexUserInputResult>(),
 				materializedToolsSig: undefined,
 				firstTurnSent: true,
 				model: undefined,
@@ -1743,6 +1796,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		for (const s of this._sessions.values()) {
 			s.pendingCommandApprovals.denyAll('decline');
 			s.pendingClientToolCalls.rejectAll(new CancellationError());
+			s.pendingUserInputs.rejectAll(new CancellationError());
 		}
 		this._sessions.clear();
 		this._sessionIdByThreadId.clear();
@@ -1810,6 +1864,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		for (const s of this._sessions.values()) {
 			s.pendingCommandApprovals.denyAll('decline');
 			s.pendingClientToolCalls.rejectAll(new CancellationError());
+			s.pendingUserInputs.rejectAll(new CancellationError());
 		}
 		this._sessions.clear();
 		this._sessionIdByThreadId.clear();
