@@ -38,12 +38,12 @@ configurationRegistry.registerConfiguration({
 			policy: {
 				name: 'ChatAgentHostEnabled',
 				category: PolicyCategory.InteractiveSession,
-				minimumVersion: '1.109',
+				minimumVersion: '1.126',
 				value: (policyData) => policyData.chat_preview_features_enabled === false ? false : undefined,
 				localization: {
 					description: {
-						key: 'chat.agentHost.enabled.description',
-						value: nls.localize('chat.agentHost.enabled.description', "When enabled, some agents run in a separate agent host process.")
+						key: 'chat.agentHost.enabled',
+						value: nls.localize('chat.agentHost.enabled', "When enabled, some agents run in a separate agent host process.")
 					}
 				},
 			}
