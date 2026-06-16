@@ -7,11 +7,11 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: css-order-scan-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: 
 
 jobs:
   scan:
