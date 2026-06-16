@@ -12,7 +12,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IReference } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
-import { constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
@@ -46,7 +46,8 @@ import { IPluginMarketplaceService, IMarketplacePlugin, MarketplaceType, PluginS
 import { MarketplaceReferenceKind } from '../../../../contrib/chat/common/plugins/marketplaceReference.js';
 import { IPluginInstallService } from '../../../../contrib/chat/common/plugins/pluginInstallService.js';
 import { AICustomizationManagementEditor } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
-import { AICustomizationItemsModel, IAICustomizationItemsModel } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
+import { IAICustomizationItemSource, IAICustomizationListItem } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationItemSource.js';
+import { AICustomizationItemsModel, IAICustomizationItemsModel, ItemsModelSection } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { EmbeddedMcpServerDetail } from '../../../../contrib/chat/browser/aiCustomization/embeddedMcpServerDetail.js';
 import { EmbeddedAgentPluginDetail } from '../../../../contrib/chat/browser/aiCustomization/embeddedAgentPluginDetail.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../../../../contrib/chat/browser/agentPluginEditor/agentPluginItems.js';
@@ -98,6 +99,23 @@ interface IFixtureFile {
 function createMockEditorGroup(): IEditorGroup {
 	return new class extends mock<IEditorGroup>() {
 		override windowId = mainWindow.vscodeWindowId;
+	}();
+}
+
+function createMockAICustomizationItemsModel(): IAICustomizationItemsModel {
+	const itemSource = new class extends mock<IAICustomizationItemSource>() {
+		override readonly sessionResource = LocalChatSessionUri.getNewSessionUri();
+		override readonly onDidAICustomizationItemsChange = Event.None;
+		override async fetchProviderItems() { return []; }
+		override async fetchAICustomizationItems(_promptType: PromptsType) { return []; }
+	}();
+
+	return new class extends mock<IAICustomizationItemsModel>() {
+		override getItems(_section: ItemsModelSection): IObservable<readonly IAICustomizationListItem[]> { return constObservable([]); }
+		override getActiveItemSource() { return itemSource; }
+		override getCount(_section: ItemsModelSection): IObservable<number> { return constObservable(0); }
+		override getPluginCount(): IObservable<number> { return constObservable(0); }
+		override async whenSectionLoaded(_section: ItemsModelSection): Promise<void> { }
 	}();
 }
 
@@ -285,6 +303,10 @@ function createMockAgentFeedbackService(): IAgentFeedbackService {
 	return new class extends mock<IAgentFeedbackService>() {
 		override readonly onDidChangeFeedback = Event.None;
 		override readonly onDidChangeNavigation = Event.None;
+		override readonly onDidAddFeedback = Event.None;
+		override readonly onDidConvertFeedback = Event.None;
+		override readonly onDidAddReply = Event.None;
+		override readonly onDidSubmitFeedback = Event.None;
 		override getFeedback() { return []; }
 		override getMostRecentSessionForResource() { return undefined; }
 		override async revealFeedback(): Promise<void> { }
@@ -962,6 +984,7 @@ async function renderPluginBrowseMode(ctx: ComponentFixtureContext): Promise<voi
 					return repo ? (pluginInstallUris.get(repo) ?? URI.file('/dev/null')) : URI.file('/dev/null');
 				}
 			}());
+			reg.defineInstance(IAICustomizationItemsModel, createMockAICustomizationItemsModel());
 		},
 	});
 
@@ -1092,6 +1115,7 @@ function renderPluginDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): 
 				override async fetchMarketplacePlugins() { return []; }
 			}());
 			reg.defineInstance(IPluginInstallService, new class extends mock<IPluginInstallService>() { }());
+			reg.defineInstance(IAICustomizationItemsModel, createMockAICustomizationItemsModel());
 		},
 	});
 

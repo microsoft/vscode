@@ -32,6 +32,8 @@ import { ClaudeCodeFolderMruService } from '../claude/node/claudeCodeFolderMru';
 import { ClaudeAgentManager } from '../claude/node/claudeCodeAgent';
 import { ClaudeCodeModels, IClaudeCodeModels } from '../claude/node/claudeCodeModels';
 import { ClaudeCodeSdkService, IClaudeCodeSdkService } from '../claude/node/claudeCodeSdkService';
+import { RoutingClaudeAgentSdkLoaderService } from '../claude/vscode-node/routingClaudeAgentSdkLoaderService';
+import { IClaudeAgentSdkLoaderService } from '../claude/common/claudeAgentSdkLoaderService';
 import { ClaudeRuntimeDataService } from '../claude/node/claudeRuntimeDataService';
 import { ClaudePluginService, IClaudePluginService } from '../claude/node/claudeSkills';
 import { IClaudeSessionStateService } from '../claude/common/claudeSessionStateService';
@@ -138,6 +140,7 @@ export class ChatSessionsContrib extends Disposable implements IExtensionContrib
 		const claudeAgentInstaService = instantiationService.createChild(
 			new ServiceCollection(
 				[IAgentSessionsWorkspace, new SyncDescriptor(AgentSessionsWorkspace)],
+				[IClaudeAgentSdkLoaderService, new SyncDescriptor(RoutingClaudeAgentSdkLoaderService)],
 				[IClaudeCodeSessionService, new SyncDescriptor(ClaudeCodeSessionService)],
 				[IClaudeCodeSdkService, new SyncDescriptor(ClaudeCodeSdkService)],
 				[IClaudeCodeModels, new SyncDescriptor(ClaudeCodeModels)],

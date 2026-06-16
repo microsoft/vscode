@@ -22,30 +22,44 @@ export class AgentHostAuthTokenCache {
 	private readonly _lastTokens = new Map<string, string>();
 
 	/**
-	 * Record that we just sent `token` for `resource`, and return whether
-	 * this is a change from the last token sent. When `false`, callers
+	 * Record that we just sent `token` for `resource` and `scopes`, and return
+	 * whether this is a change from the last token sent. When `false`, callers
 	 * should skip the `authenticate` RPC.
 	 */
-	updateAndIsChanged(resource: string, token: string): boolean {
-		const previous = this._lastTokens.get(resource);
+	updateAndIsChanged(resource: string, scopes: readonly string[] | undefined, token: string): boolean {
+		const key = this._key(resource, scopes);
+		const previous = this._lastTokens.get(key);
 		if (previous === token) {
 			return false;
 		}
-		this._lastTokens.set(resource, token);
+		this._lastTokens.set(key, token);
 		return true;
 	}
 
 	/**
-	 * Clear the cached token for a specific resource, or all resources if
-	 * no argument is given. Call after a failed `authenticate` RPC (per-resource)
-	 * or when the agent host process restarts (all resources).
+	 * Clear the cached token for a specific resource/scope pair, a whole resource,
+	 * or all resources if no argument is given. Call after a failed `authenticate`
+	 * RPC or when the agent host process restarts.
 	 */
-	clear(resource?: string): void {
+	clear(resource?: string, scopes?: readonly string[]): void {
 		if (resource !== undefined) {
-			this._lastTokens.delete(resource);
+			if (scopes !== undefined) {
+				this._lastTokens.delete(this._key(resource, scopes));
+				return;
+			}
+			const prefix = `${resource}\x00`;
+			for (const key of [...this._lastTokens.keys()]) {
+				if (key.startsWith(prefix)) {
+					this._lastTokens.delete(key);
+				}
+			}
 		} else {
 			this._lastTokens.clear();
 		}
+	}
+
+	private _key(resource: string, scopes: readonly string[] | undefined): string {
+		return `${resource}\x00${scopes ? [...new Set(scopes)].sort().join('\x00') : ''}`;
 	}
 }
 
@@ -109,6 +123,7 @@ export async function resolveTokenForResource(
 
 export interface IAgentHostAuthenticateRequest {
 	readonly resource: string;
+	readonly scopes?: readonly string[];
 	readonly token: string;
 }
 
@@ -131,10 +146,11 @@ export async function authenticateProtectedResources(
 	for (const agent of agents) {
 		for (const resource of agent.protectedResources ?? []) {
 			const resourceUri = URI.parse(resource.resource);
+			const scopes = resource.scopes_supported ?? [];
 			const token = await resolveTokenForResource(
 				resourceUri,
 				resource.authorization_servers ?? [],
-				resource.scopes_supported ?? [],
+				scopes,
 				options.authenticationService,
 				options.logService,
 				options.logPrefix,
@@ -144,16 +160,16 @@ export async function authenticateProtectedResources(
 				continue;
 			}
 
-			if (options.authTokenCache && !options.authTokenCache.updateAndIsChanged(resource.resource, token)) {
+			if (options.authTokenCache && !options.authTokenCache.updateAndIsChanged(resource.resource, scopes, token)) {
 				options.logService.trace(`${options.logPrefix} Auth token for ${resource.resource} unchanged; skipping authenticate RPC`);
 				continue;
 			}
 
 			options.logService.info(`${options.logPrefix} Authenticating for resource: ${resource.resource}`);
 			try {
-				await options.authenticate({ resource: resource.resource, token });
+				await options.authenticate({ resource: resource.resource, scopes, token });
 			} catch (err) {
-				options.authTokenCache?.clear(resource.resource);
+				options.authTokenCache?.clear(resource.resource, scopes);
 				throw err;
 			}
 		}
@@ -170,17 +186,18 @@ export async function resolveAuthenticationInteractively(
 ): Promise<boolean> {
 	for (const resource of protectedResources) {
 		const resourceUri = URI.parse(resource.resource);
+		const scopes = resource.scopes_supported ?? [];
 		const token = await resolveTokenForResource(
 			resourceUri,
 			resource.authorization_servers ?? [],
-			resource.scopes_supported ?? [],
+			scopes,
 			options.authenticationService,
 			options.logService,
 			options.logPrefix,
 		);
 		if (token) {
-			await options.authenticate({ resource: resource.resource, token });
-			options.authTokenCache?.updateAndIsChanged(resource.resource, token);
+			await options.authenticate({ resource: resource.resource, scopes, token });
+			options.authTokenCache?.updateAndIsChanged(resource.resource, scopes, token);
 			options.logService.info(`${options.logPrefix} Interactive authentication succeeded for ${resource.resource}`);
 			return true;
 		}
@@ -192,14 +209,13 @@ export async function resolveAuthenticationInteractively(
 				continue;
 			}
 
-			const scopes = [...(resource.scopes_supported ?? [])];
-			const session = await options.authenticationService.createSession(providerId, scopes, {
+			const session = await options.authenticationService.createSession(providerId, [...scopes], {
 				activateImmediate: true,
 				authorizationServer: serverUri,
 			});
 
-			await options.authenticate({ resource: resource.resource, token: session.accessToken });
-			options.authTokenCache?.updateAndIsChanged(resource.resource, session.accessToken);
+			await options.authenticate({ resource: resource.resource, scopes, token: session.accessToken });
+			options.authTokenCache?.updateAndIsChanged(resource.resource, scopes, session.accessToken);
 			options.logService.info(`${options.logPrefix} Interactive authentication succeeded for ${resource.resource}`);
 			return true;
 		}

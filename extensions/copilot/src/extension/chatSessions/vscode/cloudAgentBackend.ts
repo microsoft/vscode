@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { AgentTaskGetResponse, AgentTaskSessionEvent } from '@vscode/copilot-api';
+import { AgentTaskCreatePullRequestResponse, AgentTaskGetResponse, AgentTaskSessionEvent } from '@vscode/copilot-api';
 import { GithubRepoId } from '../../../platform/git/common/gitService';
 import { PullRequestSearchItem, SessionInfo } from '../../../platform/github/common/githubAPI';
 
@@ -83,6 +83,13 @@ export interface CloudSessionData {
 	readonly latestSession: SessionInfo;
 	readonly pullRequest?: PullRequestSearchItem;
 	readonly pullArtifact?: PullArtifactRef;
+	/**
+	 * Branch comparison refs for a settled, PR-less task that pushed a branch. When present,
+	 * the provider fetches the changed files (`base...head`) so the session's changed-files
+	 * toolbar (and the "Create pull request" action) can render. Absent for PR-backed tasks
+	 * (changes come from the PR) and for tasks with no branch.
+	 */
+	readonly diffRefs?: { readonly owner: string; readonly repo: string; readonly baseRef: string; readonly headRef: string };
 }
 
 /**
@@ -207,6 +214,30 @@ export interface TaskCloudAgentBackend extends CloudAgentBackendCommon {
 		taskId: string,
 		prompt: string,
 	): Promise<FollowUpResult | undefined>;
+
+	/**
+	 * Reverse lookup: find the most recent task associated with the given pull request.
+	 * Used by the PR-URI compatibility shim so the provider can keep emitting `/<prNumber>`
+	 * URIs on v2 (preserving archive state across the v1→v2 flip) while still routing
+	 * content/follow-up/openInBrowser through the task endpoints.
+	 * TODO: remove this when the PR-URI shim is removed and the provider emits explicit `task/<taskId>` URIs.
+	 */
+	findTaskIdForPullRequest(
+		owner: string,
+		repo: string,
+		prNumber: number,
+	): Promise<string | undefined>;
+
+	/**
+	 * Materialise a pull request for a task that finished without one. The v2 backend
+	 * no longer auto-creates a PR on `createTask`, so the provider offers a "Create pull
+	 * request" toolbar action in the chat input for a settled, PR-less task that calls this
+	 * method when invoked. Accepts the full task; the backend resolves `{owner, repo}` itself
+	 * (from the task's `html_url`, falling back to a GitHub lookup by `repository.id`).
+	 */
+	createPullRequestForTask(
+		task: AgentTaskGetResponse,
+	): Promise<AgentTaskCreatePullRequestResponse>;
 }
 
 /** Discriminated union of all backends. Narrow via `backend.kind`. */

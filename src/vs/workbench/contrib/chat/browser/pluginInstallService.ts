@@ -20,7 +20,7 @@ import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickin
 import { IAgentPluginRepositoryService } from '../common/plugins/agentPluginRepositoryService.js';
 import { ChatConfiguration } from '../common/constants.js';
 import { IPluginInstallService, IInstallPluginFromSourceOptions, IInstallPluginFromSourceResult, IUpdateAllPluginsOptions, IUpdateAllPluginsResult } from '../common/plugins/pluginInstallService.js';
-import { IMarketplacePlugin, IMarketplaceReference, IPluginMarketplaceService, MarketplaceReferenceKind, MarketplaceType, hasSourceChanged, parseMarketplaceReference, parseMarketplaceReferences, PluginSourceKind } from '../common/plugins/pluginMarketplaceService.js';
+import { IMarketplacePlugin, IMarketplaceReference, IPluginMarketplaceService, MarketplaceReferenceKind, MarketplaceType, hasSourceChanged, parseMarketplaceReference, parseMarketplaceReferences, PluginSourceKind, readConfiguredMarketplaces } from '../common/plugins/pluginMarketplaceService.js';
 
 export class PluginInstallService implements IPluginInstallService {
 	declare readonly _serviceBrand: undefined;
@@ -233,12 +233,12 @@ export class PluginInstallService implements IPluginInstallService {
 	}
 
 	private _addMarketplaceToConfig(reference: IMarketplaceReference) {
-		const currentValues = this._configurationService.getValue<unknown[]>(ChatConfiguration.PluginMarketplaces) ?? [];
-		const existingRefs = parseMarketplaceReferences(currentValues);
+		const { userValues, effectiveValues } = readConfiguredMarketplaces(this._configurationService);
+		const existingRefs = parseMarketplaceReferences(effectiveValues);
 		if (existingRefs.some(r => r.canonicalId === reference.canonicalId)) {
 			return;
 		}
-		return this._configurationService.updateValue(ChatConfiguration.PluginMarketplaces, [...currentValues, reference.rawValue]);
+		return this._configurationService.updateValue(ChatConfiguration.PluginMarketplaces, [...userValues, reference.rawValue]);
 	}
 
 	async updatePlugin(plugin: IMarketplacePlugin, silent?: boolean): Promise<boolean> {

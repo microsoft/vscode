@@ -207,6 +207,7 @@ export class UITest {
 
 		await extensionItem.waitFor();
 
+		let lastFailure: string | undefined;
 		for (let attempt = 0; attempt < 3; attempt++) {
 			try {
 				this.context.log(`Clicking Install on the first extension in the list (attempt ${attempt + 1}/3)`);
@@ -219,14 +220,28 @@ export class UITest {
 				if (installed) {
 					return;
 				}
+				lastFailure = 'Uninstall button did not appear within 5 minutes';
 			} catch (error) {
-				this.context.log(`Extension install attempt ${attempt + 1}/3 failed: ${error instanceof Error ? error.message : String(error)}`);
+				lastFailure = error instanceof Error ? error.message : String(error);
 			}
 
-			this.context.log('Extension install may have failed, retrying');
+			this.context.log(`Extension install attempt ${attempt + 1}/3 failed: ${lastFailure}`);
+
+			const messageVisible = await messageContainer.isVisible().catch(() => false);
+			if (messageVisible) {
+				const message = await messageContainer.locator('.message').innerText().catch(() => '<unavailable>');
+				this.context.log(`Marketplace message visible during failed install: ${message}`);
+			}
+
+			await this.context.captureScreenshot(page);
+
+			if (attempt < 2) {
+				this.context.log('Waiting 5s before retrying install');
+				await page.waitForTimeout(5_000);
+			}
 		}
 
-		throw new Error('Failed to install extension after 3 attempts');
+		throw new Error(`Failed to install extension after 3 attempts; last failure: ${lastFailure ?? '<none captured>'}`);
 	}
 
 	/**

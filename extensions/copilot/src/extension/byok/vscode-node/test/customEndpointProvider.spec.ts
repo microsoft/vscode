@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Raw } from '@vscode/prompt-tsx';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { BlockedExtensionService, IBlockedExtensionService } from '../../../../platform/chat/common/blockedExtensionService';
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../../platform/endpoint/common/endpointProvider';
@@ -175,6 +176,232 @@ describe('CustomEndpointBYOKModelProvider', () => {
 				authApiKey: 'test-api-key',
 				authorization: undefined,
 			});
+		});
+
+		it('uses user-supplied api-key header instead of default Bearer for Chat Completions endpoints behind APIM', () => {
+			const metadata = makeMetadata(undefined);
+			metadata.requestHeaders = { 'api-key': 'apim-secret' };
+			const endpoint = instaService.createInstance(CustomEndpointOAIEndpoint,
+				metadata,
+				'test-api-key',
+				'https://my-apim.azure-api.net/openai/v1/chat/completions');
+			const headers = endpoint.getExtraHeaders();
+
+			expect({
+				authApiKey: headers['api-key'],
+				authorization: headers['Authorization'],
+			}).toEqual({
+				authApiKey: 'apim-secret',
+				authorization: undefined,
+			});
+		});
+
+		it('uses user-supplied api-key header for bare base URLs without an explicit API path', () => {
+			// URL contains neither /messages, /responses, nor /chat/completions, and is not an
+			// openai.azure host — exercises the path where neither the api-type inference nor the
+			// azure heuristic apply, and verifies the user-supplied auth header still wins.
+			const metadata = makeMetadata(undefined);
+			metadata.requestHeaders = { 'api-key': 'apim-secret' };
+			const endpoint = instaService.createInstance(CustomEndpointOAIEndpoint,
+				metadata,
+				'test-api-key',
+				'https://my-apim.azure-api.net/openai/v1');
+			const headers = endpoint.getExtraHeaders();
+
+			expect({
+				authApiKey: headers['api-key'],
+				authorization: headers['Authorization'],
+			}).toEqual({
+				authApiKey: 'apim-secret',
+				authorization: undefined,
+			});
+		});
+
+		it('suppresses default x-api-key on Messages API when user supplies Authorization header', () => {
+			const metadata = makeMetadata([ModelSupportedEndpoint.Messages]);
+			metadata.requestHeaders = { 'Authorization': 'Bearer override' };
+			const endpoint = instaService.createInstance(CustomEndpointOAIEndpoint,
+				metadata,
+				'test-api-key',
+				'https://anthropic.example.com/v1/messages');
+			const headers = endpoint.getExtraHeaders();
+
+			expect({
+				xApiKey: headers['x-api-key'],
+				authorization: headers['Authorization'],
+				anthropicVersion: headers['anthropic-version'],
+			}).toEqual({
+				xApiKey: undefined,
+				authorization: 'Bearer override',
+				anthropicVersion: '2023-06-01',
+			});
+		});
+
+		it('interpolates ${apiKey} token in user-supplied header values', () => {
+			const metadata = makeMetadata(undefined);
+			metadata.requestHeaders = { 'X-Custom-Auth': 'ApiKey ${apiKey}' };
+			const endpoint = instaService.createInstance(CustomEndpointOAIEndpoint,
+				metadata,
+				'secret-123',
+				'https://api.example.com/v1/chat/completions');
+			const headers = endpoint.getExtraHeaders();
+
+			expect(headers['X-Custom-Auth']).toBe('ApiKey secret-123');
+		});
+
+		it('suppresses default Bearer when user supplies a well-known non-reserved auth header (x-goog-api-key)', () => {
+			const metadata = makeMetadata(undefined);
+			metadata.requestHeaders = { 'x-goog-api-key': '${apiKey}' };
+			const endpoint = instaService.createInstance(CustomEndpointOAIEndpoint,
+				metadata,
+				'gemini-secret',
+				'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions');
+			const headers = endpoint.getExtraHeaders();
+
+			expect({
+				googKey: headers['x-goog-api-key'],
+				authorization: headers['Authorization'],
+				apiKey: headers['api-key'],
+			}).toEqual({
+				googKey: 'gemini-secret',
+				authorization: undefined,
+				apiKey: undefined,
+			});
+		});
+
+		it('declares ownsAuthorization=true so the chat fetcher will not fall back to the CAPI Copilot token', () => {
+			const endpoint = instaService.createInstance(CustomEndpointOAIEndpoint,
+				makeMetadata(undefined),
+				'test-api-key',
+				'https://api.example.com/v1/chat/completions');
+
+			expect(endpoint.ownsAuthorization).toBe(true);
+		});
+
+		it('replaces default Bearer with user-supplied Authorization header on Chat Completions endpoints', () => {
+			const metadata = makeMetadata(undefined);
+			metadata.requestHeaders = { 'Authorization': 'Bearer user-token' };
+			const endpoint = instaService.createInstance(CustomEndpointOAIEndpoint,
+				metadata,
+				'test-api-key',
+				'https://api.example.com/v1/chat/completions');
+			const headers = endpoint.getExtraHeaders();
+
+			expect({
+				authorization: headers['Authorization'],
+				apiKey: headers['api-key'],
+			}).toEqual({
+				authorization: 'Bearer user-token',
+				apiKey: undefined,
+			});
+		});
+
+		it('detects user-supplied auth headers case-insensitively', () => {
+			const metadata = makeMetadata(undefined);
+			metadata.requestHeaders = { 'API-KEY': 'apim-secret' };
+			const endpoint = instaService.createInstance(CustomEndpointOAIEndpoint,
+				metadata,
+				'test-api-key',
+				'https://api.example.com/v1/chat/completions');
+			const headers = endpoint.getExtraHeaders();
+
+			expect({
+				authApiKey: headers['API-KEY'],
+				lowercaseApiKey: headers['api-key'],
+				authorization: headers['Authorization'],
+			}).toEqual({
+				authApiKey: 'apim-secret',
+				lowercaseApiKey: undefined,
+				authorization: undefined,
+			});
+		});
+
+		it('still sends default Bearer alongside complementary headers (e.g. Ocp-Apim-Subscription-Key)', () => {
+			// Complementary credentials such as APIM subscription keys or Azure Functions keys
+			// are intentionally excluded from the suppression set — they sit in front of the
+			// backend auth header, not in place of it.
+			const metadata = makeMetadata(undefined);
+			metadata.requestHeaders = { 'Ocp-Apim-Subscription-Key': 'apim-sub-key' };
+			const endpoint = instaService.createInstance(CustomEndpointOAIEndpoint,
+				metadata,
+				'test-api-key',
+				'https://api.example.com/v1/chat/completions');
+			const headers = endpoint.getExtraHeaders();
+
+			expect({
+				subKey: headers['Ocp-Apim-Subscription-Key'],
+				authorization: headers['Authorization'],
+			}).toEqual({
+				subKey: 'apim-sub-key',
+				authorization: 'Bearer test-api-key',
+			});
+		});
+
+		it('suppresses default Bearer when user supplies an `apikey` (no dash) header', () => {
+			const metadata = makeMetadata(undefined);
+			metadata.requestHeaders = { 'apikey': 'supabase-style-key' };
+			const endpoint = instaService.createInstance(CustomEndpointOAIEndpoint,
+				metadata,
+				'test-api-key',
+				'https://api.example.com/v1/chat/completions');
+			const headers = endpoint.getExtraHeaders();
+
+			expect({
+				apikey: headers['apikey'],
+				authorization: headers['Authorization'],
+				dashedApiKey: headers['api-key'],
+			}).toEqual({
+				apikey: 'supabase-style-key',
+				authorization: undefined,
+				dashedApiKey: undefined,
+			});
+		});
+
+		// Regression for https://github.com/microsoft/vscode/issues/312746
+		// Custom endpoints pointed at DeepSeek / Kimi / Moonshot / Minimax must emit
+		// `reasoning_content` on assistant tool-call messages so the next request after
+		// a tool call is not rejected with HTTP 400.
+		it('issue #312746: emits reasoning_content on assistant tool-call message for custom Chat Completions endpoints (DeepSeek/Kimi/Moonshot)', () => {
+			const thinkingMetadata: IChatModelInformation = {
+				...makeMetadata(undefined),
+				capabilities: {
+					...makeMetadata(undefined).capabilities,
+					supports: {
+						...makeMetadata(undefined).capabilities.supports,
+						thinking: true,
+					},
+				},
+			};
+			const endpoint = instaService.createInstance(CustomEndpointOAIEndpoint,
+				thinkingMetadata,
+				'test-api-key',
+				'https://api.deepseek.com/v1/chat/completions');
+
+			const thinkingMessage: Raw.ChatMessage = {
+				role: Raw.ChatRole.Assistant,
+				content: [{
+					type: Raw.ChatCompletionContentPartKind.Opaque,
+					value: {
+						type: 'thinking',
+						thinking: {
+							id: 'reasoning-custom-1',
+							text: 'I should read the README before answering.'
+						}
+					}
+				}]
+			};
+			const body = endpoint.createRequestBody({
+				debugName: 'test',
+				messages: [thinkingMessage],
+				requestId: 'test-req-custom-deepseek',
+				postOptions: {},
+				finishedCb: undefined,
+				location: undefined as any,
+			});
+			const messages = body.messages as any[];
+			expect(messages[0].reasoning_content).toBe('I should read the README before answering.');
+			expect(messages[0].reasoning).toBe('I should read the README before answering.');
+			expect(messages[0].cot_summary).toBe('I should read the README before answering.');
 		});
 	});
 });

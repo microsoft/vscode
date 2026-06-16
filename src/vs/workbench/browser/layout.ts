@@ -2961,11 +2961,12 @@ class LayoutStateModel extends Disposable {
 				return true;
 			}
 
-			// New users: Show auxiliary bar even in empty workspaces
-			// but not if the user explicitly hides it
+			// New users: Show auxiliary bar even in empty workspaces,
+			// but not if the user explicitly hides it or AI features are disabled.
 			if (
 				this.isNew[StorageScope.APPLICATION] &&
-				configuration.value !== 'hidden'
+				configuration.value !== 'hidden' &&
+				!this.configurationService.getValue<boolean>('chat.disableAIFeatures')
 			) {
 				return false;
 			}

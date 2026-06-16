@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
@@ -17,7 +16,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
-import { ICustomizationHarnessService, ICustomizationItemProvider, isPluginCustomizationItem } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, isPluginCustomizationItem } from '../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
@@ -84,12 +83,6 @@ export interface IAICustomizationItemsModel {
 	 * customization harness provider.
 	 */
 	getPluginCount(): IObservable<number>;
-
-	/**
-	 * The fallback item provider used when the active descriptor has neither
-	 * an `itemProvider` nor a `syncProvider`. Exposed for the debug report.
-	 */
-	getPromptsServiceItemProvider(): ICustomizationItemProvider;
 
 	/**
 	 * Resolves once the most recent fetch for `section` has settled. Useful for
@@ -184,7 +177,7 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 		this._register(autorun(reader => {
 			const activeSessionResource = this.harnessService.activeSessionResource.read(reader);
 			const source = this.getOrCreateSource(activeSessionResource);
-			sourceChangeListener.value = source.onDidChange(() => {
+			sourceChangeListener.value = source.onDidAICustomizationItemsChange(() => {
 				this.scheduleRefetchObserved(source);
 			});
 			this.scheduleRefetchObserved(source);
@@ -216,10 +209,6 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 
 	getActiveItemSource(): IAICustomizationItemSource {
 		return this.getOrCreateSource(this.harnessService.activeSessionResource.get());
-	}
-
-	getPromptsServiceItemProvider(): ICustomizationItemProvider {
-		return this.promptsServiceItemProvider;
 	}
 
 	whenSectionLoaded(section: ItemsModelSection): Promise<void> {
@@ -293,7 +282,7 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 		this.fetchSeq.set(section, seq);
 		const promptType = sectionToPromptType(section);
 		const observable = this.perSection.get(section)!;
-		const pending = source.fetchItems(promptType).then(items => {
+		const pending = source.fetchAICustomizationItems(promptType).then(items => {
 			if (this._store.isDisposed) {
 				return;
 			}
@@ -317,16 +306,11 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 
 	private refetchPluginCount(source: IAICustomizationItemSource): void {
 		const seq = ++this.pluginFetchSeq;
-		const sessionRessource = this.harnessService.activeSessionResource.get();
-		const descriptor = this.harnessService.getActiveDescriptor();
-		const provider = descriptor.itemProvider;
-		const pending: Promise<readonly string[]> = provider
-			? provider.provideChatSessionCustomizations(sessionRessource, CancellationToken.None).then(items => {
-				return (items ?? [])
-					.filter(item => isPluginCustomizationItem(item) && item.groupKey !== 'remote-client')
-					.map(item => item.name ?? '');
-			})
-			: Promise.resolve<readonly string[]>([]);
+		const pending = source.fetchProviderItems().then(items => {
+			return items
+				.filter(item => isPluginCustomizationItem(item) && item.groupKey !== 'remote-client')
+				.map(item => item.name ?? '');
+		});
 
 		pending.then(names => {
 			if (this._store.isDisposed) {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { McpServerConfig } from '@anthropic-ai/claude-agent-sdk';
+import type { McpServerConfig } from '@anthropic-ai/claude-agent-sdk';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 
 /**

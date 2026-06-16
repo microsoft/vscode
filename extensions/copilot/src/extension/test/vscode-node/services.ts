@@ -101,7 +101,6 @@ import { ICopilotInlineCompletionItemProviderService, NullCopilotInlineCompletio
 import { IPromptWorkspaceLabels, PromptWorkspaceLabels } from '../../context/node/resolvers/promptWorkspaceLabels';
 import { IUserFeedbackService, UserFeedbackService } from '../../conversation/vscode-node/userActions';
 import { ConversationStore, IConversationStore } from '../../conversationStore/node/conversationStore';
-import { ITestGenInfoStorage, TestGenInfoStorage } from '../../intents/node/testIntent/testInfoStorage';
 import { ILinkifyService, LinkifyService } from '../../linkify/common/linkifyService';
 import { ILaunchConfigService } from '../../onboardDebug/common/launchConfigService';
 import { DebugCommandToConfigConverter, IDebugCommandToConfigConverter } from '../../onboardDebug/node/commandToConfigConverter';
@@ -176,7 +175,6 @@ export function createExtensionTestingServices(): TestingServiceCollection {
 	testingServiceCollection.define(ITestProvider, new SyncDescriptor(TestProvider));
 	testingServiceCollection.define(INaiveChunkingService, new SyncDescriptor(NaiveChunkingService));
 	testingServiceCollection.define(ILinkifyService, new SyncDescriptor(LinkifyService));
-	testingServiceCollection.define(ITestGenInfoStorage, new SyncDescriptor(TestGenInfoStorage));
 	testingServiceCollection.define(IEditToolLearningService, new SyncDescriptor(EditToolLearningService));
 	testingServiceCollection.define(IDebugCommandToConfigConverter, new SyncDescriptor(DebugCommandToConfigConverter));
 	testingServiceCollection.define(ILaunchConfigService, new SyncDescriptor(LaunchConfigService));
