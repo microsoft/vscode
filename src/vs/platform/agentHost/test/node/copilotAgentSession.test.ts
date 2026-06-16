@@ -632,6 +632,44 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	test('caches runtime slash command availability across checks', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [
+				{
+					name: 'env',
+					kind: 'builtin',
+					description: 'Show loaded environment details',
+					allowDuringAgentExecution: true,
+				},
+				{
+					name: 'review',
+					kind: 'builtin',
+					description: 'Run code review agent to analyze changes',
+					allowDuringAgentExecution: false,
+				},
+				{
+					name: 'not-a-builtin',
+					kind: 'skill',
+					description: 'Skill command',
+					allowDuringAgentExecution: false,
+				},
+			],
+		};
+
+		assert.deepStrictEqual({
+			env: await session.hasRuntimeSlashCommand('env'),
+			review: await session.hasRuntimeSlashCommand('review'),
+			skill: await session.hasRuntimeSlashCommand('not-a-builtin'),
+			commandListCalls: mockSession.commandListCalls,
+		}, {
+			env: true,
+			review: true,
+			skill: false,
+			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: false }],
+		});
+	});
+
 	test('`/review` invokes the runtime command and forwards the returned agent prompt', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 		mockSession.commandListResult = {

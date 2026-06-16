@@ -64,10 +64,12 @@ import { McpServerStatus, type McpServerState } from '../../common/state/protoco
 export type CopilotSdkMode = 'interactive' | 'plan' | 'autopilot';
 type CopilotSdkAttachment = Required<MessageOptions>['attachments'][number];
 type CopilotCommandInvocationResult = Awaited<ReturnType<CopilotSession['rpc']['commands']['invoke']>>;
+type RuntimeSlashCommandCache = { readonly expiresAt: number; readonly promise: Promise<ReadonlySet<string>> };
 
 const COPILOT_HOME_DIRECTORY = '.copilot';
 const SESSION_STATE_DIRECTORY = join(COPILOT_HOME_DIRECTORY, 'session-state');
 const EMPTY_TOOL_RESULT_TEXT = '<empty />';
+const RUNTIME_SLASH_COMMAND_CACHE_TTL_MS = 10_000;
 
 function getEmptyToolResultText(binaryResults: readonly { readonly type: 'image' | 'resource' }[] | undefined): string {
 	if (!binaryResults?.length) {
@@ -379,6 +381,7 @@ export class CopilotAgentSession extends Disposable {
 	private _turnCopilotUsageTotalNanoAiu = 0;
 	/** SDK session wrapper, set by {@link initializeSession}. */
 	private _wrapper!: CopilotSessionWrapper;
+	private _runtimeSlashCommandCache: RuntimeSlashCommandCache | undefined;
 	/** Last agent mode pushed to the SDK via {@link applyMode}, to elide redundant `rpc.mode.set` calls. */
 	private _lastAppliedMode: CopilotSdkMode | undefined;
 	private readonly _steeringMessagesInFlight = new Set<string>();
@@ -1002,12 +1005,27 @@ export class CopilotAgentSession extends Disposable {
 
 	async hasRuntimeSlashCommand(command: string): Promise<boolean> {
 		try {
-			const result = await this._wrapper.session.rpc.commands.list({ includeBuiltins: true, includeSkills: false, includeClientCommands: false });
-			return result.commands.some(candidate => candidate.kind === 'builtin' && candidate.name === command);
+			return (await this._getRuntimeSlashCommands()).has(command);
 		} catch (err) {
 			this._logService.warn(`[Copilot:${this.sessionId}] rpc.commands.list failed`, err);
 			return false;
 		}
+	}
+
+	private _getRuntimeSlashCommands(): Promise<ReadonlySet<string>> {
+		const now = Date.now();
+		if (this._runtimeSlashCommandCache && this._runtimeSlashCommandCache.expiresAt > now) {
+			return this._runtimeSlashCommandCache.promise;
+		}
+		const promise = this._wrapper.session.rpc.commands.list({ includeBuiltins: true, includeSkills: false, includeClientCommands: false })
+			.then(result => new Set(result.commands.filter(command => command.kind === 'builtin').map(command => command.name)));
+		this._runtimeSlashCommandCache = { expiresAt: now + RUNTIME_SLASH_COMMAND_CACHE_TTL_MS, promise };
+		promise.catch(() => {
+			if (this._runtimeSlashCommandCache?.promise === promise) {
+				this._runtimeSlashCommandCache = undefined;
+			}
+		});
+		return promise;
 	}
 
 	/**
