@@ -322,6 +322,16 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			onDidApplyAction: entry.onDidApply.event,
 		} satisfies IAgentSubscription<T>;
 	}
+	/**
+	 * Test helper: inflight `createSession` promises keyed by resource. Tests use this to model the eager-create race
+	 * (sessions provider's `eagerCreate` IIFE has fired `createSession` but its continuation hasn't yet opened the
+	 * state subscription).
+	 */
+	public readonly inflightCreates = new Map<string, Promise<unknown>>();
+	override getInflightSessionCreate(resource: URI): Promise<unknown> | undefined {
+		return this.inflightCreates.get(resource.toString());
+	}
+
 	override dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
 		this.dispatchedActions.push({ channel, action, clientId: this.clientId, clientSeq: this._nextSeq++ });
 		// Apply state-management actions optimistically so state-dependent
@@ -1283,13 +1293,16 @@ suite('AgentHostChatContribution', () => {
 			assert.ok(when, 'folder picker menu item has a when clause');
 
 			const evalWhen = (values: Record<string, ContextKeyValue>) => when.evaluate({ getValue: <T extends ContextKeyValue = ContextKeyValue>(key: string) => values[key] as T });
-			const agentHost = { [ChatContextKeys.lockedCodingAgentId.key]: 'agent-host-copilot' };
+			const agentHost = {
+				[ChatContextKeys.lockedCodingAgentId.key]: 'agent-host-copilot',
+				[ChatContextKeys.chatIsAgentHostSession.key]: true,
+			};
 
 			assert.deepStrictEqual({
 				multiRootEditor: evalWhen({ ...agentHost, workspaceFolderCount: 2, isSessionsWindow: false }),
 				singleFolder: evalWhen({ ...agentHost, workspaceFolderCount: 1, isSessionsWindow: false }),
 				sessionsWindow: evalWhen({ ...agentHost, workspaceFolderCount: 2, isSessionsWindow: true }),
-				nonAgentHost: evalWhen({ [ChatContextKeys.lockedCodingAgentId.key]: 'copilot', workspaceFolderCount: 2, isSessionsWindow: false }),
+				nonAgentHost: evalWhen({ [ChatContextKeys.lockedCodingAgentId.key]: 'copilot', [ChatContextKeys.chatIsAgentHostSession.key]: false, workspaceFolderCount: 2, isSessionsWindow: false }),
 			}, {
 				multiRootEditor: true,
 				singleFolder: false,
@@ -3107,6 +3120,45 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(models[0].metadata.targetChatSessionType, 'agent-host-copilot');
 		});
 
+		test('maps cost metadata from _meta onto model metadata', async () => {
+			const provider = disposables.add(new AgentHostLanguageModelProvider('agent-host-copilot', 'agent-host-copilot'));
+			provider.updateModels([
+				{
+					provider: 'copilot', id: 'claude-sonnet', name: 'Claude Sonnet', maxContextWindow: 200000, supportsVision: false,
+					_meta: {
+						multiplierNumeric: 1,
+						inputCost: 3,
+						cacheCost: 1,
+						outputCost: 15,
+						longContextInputCost: 6,
+						longContextOutputCost: 22.5,
+						priceCategory: 'medium',
+					},
+				},
+			]);
+
+			const models = await provider.provideLanguageModelChatInfo({}, CancellationToken.None);
+
+			const metadata = models[0].metadata;
+			assert.deepStrictEqual({
+				inputCost: metadata.inputCost,
+				cacheCost: metadata.cacheCost,
+				outputCost: metadata.outputCost,
+				longContextInputCost: metadata.longContextInputCost,
+				longContextCacheCost: metadata.longContextCacheCost,
+				longContextOutputCost: metadata.longContextOutputCost,
+				priceCategory: metadata.priceCategory,
+			}, {
+				inputCost: 3,
+				cacheCost: 1,
+				outputCost: 15,
+				longContextInputCost: 6,
+				longContextCacheCost: undefined,
+				longContextOutputCost: 22.5,
+				priceCategory: 'medium',
+			});
+		});
+
 		test('filters out disabled models', async () => {
 			const provider = disposables.add(new AgentHostLanguageModelProvider('agent-host-copilot', 'agent-host-copilot'));
 			provider.updateModels([
@@ -3815,6 +3867,59 @@ suite('AgentHostChatContribution', () => {
 				assert.strictEqual(configChanged.action.replace, undefined, 'must not use replace-semantics for picker-set state');
 				assert.ok(!Object.prototype.hasOwnProperty.call(configChanged.action.config, 'isolation'), `picker-set isolation must not be overwritten, got ${JSON.stringify(configChanged.action.config)}`);
 			}
+		}));
+
+		test('handler awaits in-flight eager createSession before falling through to a duplicate create (issue #319764)', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			// Repro for the worktree-vs-folder race: the sessions provider's `eagerCreate` IIFE has fired
+			// `createSession` (~0.5-1s, reads git state) but its continuation hasn't yet opened the state
+			// subscription. If `_invokeAgent` peeks at the unmanaged subscription right now it would find nothing
+			// and fall through to `_createAndSubscribe`, racing a second `createSession` that ends up clobbering
+			// the user's `folder` pick with the host default `worktree`. The fix gates the peek on
+			// `getInflightSessionCreate` so the IIFE's continuation runs first and opens the subscription.
+			const { agentHostService, chatAgentService } = createContribution(disposables);
+
+			const sessionUri = AgentSession.uri('copilot', 'new-race');
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-race' });
+
+			// Seed the state the eager-created session will hydrate to once its subscription opens. This is what
+			// the IIFE will surface via `getSubscription` in step (3) below.
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
+				lifecycle: SessionLifecycle.Ready,
+				turns: [],
+			});
+
+			// (1) Model the in-flight eager createSession.
+			let resolveInflight!: () => void;
+			const inflight = new Promise<void>(r => { resolveInflight = r; });
+			agentHostService.inflightCreates.set(sessionUri.toString(), inflight);
+
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const turnPromise = registered.impl.invoke(
+				makeRequest({ message: 'go', sessionResource, agentHostSessionConfig: { isolation: 'folder' } }),
+				() => { }, [], CancellationToken.None,
+			);
+
+			// (2) Yield microtasks. The handler should be parked on `await inflight` — no createSession fired yet.
+			await timeout(0);
+			assert.strictEqual(agentHostService.createSessionCalls.length, 0, 'handler must not fall through to createSession while eager create is in flight');
+
+			// (3) Mimic the eagerCreate IIFE's continuation: open the subscription, then resolve the inflight.
+			disposables.add(agentHostService.getSubscription(StateComponents.Session, sessionUri));
+			resolveInflight();
+
+			// (4) Drive the turn to completion. Handler should take the eager-create branch and NOT call createSession.
+			await timeout(10);
+			const turnDispatch = agentHostService.turnActions[0];
+			const turnAction = turnDispatch.action as ITurnStartedAction;
+			agentHostService.fireAction({ channel: turnDispatch.channel.toString(), action: turnDispatch.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: turnDispatch.clientSeq } });
+			agentHostService.fireAction({ channel: turnDispatch.channel.toString(), action: { type: 'chat/turnComplete', turnId: turnAction.turnId } as ChatAction, serverSeq: 2, origin: undefined });
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.createSessionCalls.length, 0, 'no duplicate createSession should have been issued; eager-create branch should have been taken');
+			const configChanged = agentHostService.dispatchedActions.find(d => d.action.type === ActionType.SessionConfigChanged);
+			assert.ok(configChanged, 'eager-create branch should have dispatched SessionConfigChanged with the user pick');
+			assert.deepStrictEqual((configChanged!.action as { config: Record<string, unknown> }).config, { isolation: 'folder' });
 		}));
 
 		test('handler uses registered working directory resolver', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 3
-
 declare module 'vscode' {
 	/**
 	 * Represents the status of a chat session.

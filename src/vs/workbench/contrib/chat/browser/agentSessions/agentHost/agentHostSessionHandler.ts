@@ -906,6 +906,22 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * `createSession` resolving and the snapshot landing.
 	 */
 	private async _readEagerlyCreatedSessionState(resolvedSession: URI, token: CancellationToken): Promise<SessionState | undefined> {
+		// If the sessions provider's eager `createSession` is still in flight, wait for it so its IIFE has a chance to
+		// open the state subscription before we fall through to a duplicate `_createAndSubscribe` below. Both we and
+		// the IIFE await the same promise object, so microtask FIFO runs the IIFE's continuation first (it registered
+		// back in `_startNewSessionBackend`) — it opens the subscription, then we observe it (issue #319764).
+		const inflight = this._config.connection.getInflightSessionCreate?.(resolvedSession);
+		if (inflight) {
+			try {
+				await inflight;
+			} catch {
+				// Swallow — `getSubscriptionUnmanaged` returns undefined for a failed create, matching fall-through.
+			}
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
+		}
+
 		const sub = this._config.connection.getSubscriptionUnmanaged(StateComponents.Session, resolvedSession);
 		if (!sub) {
 			return undefined;

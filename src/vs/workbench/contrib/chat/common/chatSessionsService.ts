@@ -177,6 +177,12 @@ export interface IChatSessionsExtensionPoint {
 	 */
 	readonly supportsAutoModel?: boolean;
 	/**
+	 * Logical Agent Host provider ID for Agent Host-backed chat sessions.
+	 * For example, both local `agent-host-copilotcli` and remote
+	 * `remote-{authority}-copilotcli` sessions use `copilotcli`.
+	 */
+	readonly agentHostProviderId?: string;
+	/**
 	 * When false, the delegation picker is hidden for this session type.
 	 * Defaults to true.
 	 */
@@ -296,6 +302,8 @@ export namespace SessionType {
 	export const Codex = 'openai-codex';
 	export const Growth = 'copilot-growth';
 	export const AgentHostCopilot = 'agent-host-copilotcli';
+	export const AgentHostClaude = 'agent-host-claude';
+	export const AgentHostCodex = 'agent-host-codex';
 }
 
 /**

@@ -21,6 +21,9 @@ import { GitHubCheckConclusion, GitHubCheckStatus, IGitHubCICheck } from '../../
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 export const hasActiveSessionFailedCIChecks = new RawContextKey<boolean>('sessions.hasActiveSessionFailedCIChecks', false);
 
+/** Slash command that invokes the built-in `fix-ci` skill. */
+const FIX_CI_QUERY = '/fix-ci';
+
 // --- Shared CI check utilities ------------------------------------------------
 
 export const enum CICheckGroup {
@@ -64,7 +67,12 @@ export function getFailedChecks(checks: readonly IGitHubCICheck[]): readonly IGi
 	return checks.filter(check => getCheckGroup(check) === CICheckGroup.Failed);
 }
 
-export function buildFixChecksPrompt(failedChecks: ReadonlyArray<{ check: IGitHubCICheck; annotations: string }>): string {
+/** Builds the GitHub pull request URL for a CI model's coordinates. */
+export function getPullRequestUrl(coords: { owner: string; repo: string; prNumber: number }): string {
+	return `https://github.com/${coords.owner}/${coords.repo}/pull/${coords.prNumber}`;
+}
+
+export function buildFixChecksPrompt(failedChecks: ReadonlyArray<{ check: IGitHubCICheck; annotations: string }>, prUrl?: string): string {
 	const sections = failedChecks.map(({ check, annotations }) => {
 		const parts = [
 			`Check: ${check.name}`,
@@ -80,15 +88,17 @@ export function buildFixChecksPrompt(failedChecks: ReadonlyArray<{ check: IGitHu
 		return parts.join('\n');
 	});
 
-	return [
-		'Please fix the failed CI checks for this session immediately.',
-		'Use the failed check information below, including annotations and check output, to identify the root causes and make the necessary code changes.',
-		'Focus on resolving these CI failures. Avoid unrelated changes unless they are required to fix the checks.',
-		'',
+	const lines = [FIX_CI_QUERY];
+	if (prUrl) {
+		lines.push(`Pull request: ${prUrl}`);
+	}
+	lines.push(
 		'Failed CI checks:',
 		'',
 		sections.join('\n\n---\n\n'),
-	].join('\n');
+	);
+
+	return lines.join('\n');
 }
 
 /**
@@ -163,7 +173,7 @@ class FixCIChecksAction extends Action2 {
 			return { check, annotations };
 		}));
 
-		const prompt = buildFixChecksPrompt(failedCheckDetails);
+		const prompt = buildFixChecksPrompt(failedCheckDetails, getPullRequestUrl(ciModel));
 		const sessionResource = activeSession.resource;
 		const chatWidget = chatWidgetService.getWidgetBySessionResource(sessionResource);
 		if (!chatWidget) {
@@ -171,7 +181,7 @@ class FixCIChecksAction extends Action2 {
 			return;
 		}
 
-		await chatWidget.acceptInput(prompt, { noCommandDetection: true });
+		await chatWidget.acceptInput(prompt);
 	}
 }
 

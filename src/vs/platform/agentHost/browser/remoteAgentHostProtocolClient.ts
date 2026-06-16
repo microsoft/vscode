@@ -677,6 +677,10 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		return this._subscriptionManager.getSubscriptionUnmanaged<T>(resource);
 	}
 
+	getInflightSessionCreate(resource: URI): Promise<unknown> | undefined {
+		return this._subscriptionManager.getInflightSessionCreate(resource);
+	}
+
 	getActiveSubscriptions(): readonly IActiveSubscriptionInfo[] {
 		return this._subscriptionManager.getActiveSubscriptions();
 	}
@@ -734,7 +738,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	/**
 	 * Create a new session on the remote agent host.
 	 */
-	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
+	createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
 		const provider = config?.provider;
 		if (!provider) {
 			throw new Error('Cannot create remote agent host session without a provider.');
@@ -743,17 +747,18 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		if (config?.activeClient?.customizations) {
 			this._grantImplicitReadsForCustomizations(config.activeClient.customizations);
 		}
-		const inflight = this._sendRequest('createSession', {
+		// Use `.then` (not `async`) so the tracked promise and the returned promise are the same object — callers
+		// awaiting via `getInflightSessionCreate` resume on the same microtask queue as direct `createSession()` awaiters.
+		const promise = this._sendRequest('createSession', {
 			channel: session.toString(),
 			provider,
 			model: config?.model,
 			workingDirectory: config?.workingDirectory ? fromAgentHostUri(config.workingDirectory).toString() : undefined,
 			config: config?.config,
 			activeClient: config?.activeClient,
-		});
-		this._subscriptionManager.trackSessionCreate(session, inflight);
-		await inflight;
-		return session;
+		}).then(() => session);
+		this._subscriptionManager.trackSessionCreate(session, promise);
+		return promise;
 	}
 
 	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {

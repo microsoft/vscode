@@ -2011,8 +2011,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	text-overflow: ellipsis;
 }
 
-.chat-input-picker-item .action-label.model-picker-split .model-picker-effort,
-.chat-input-picker-item .action-label.model-picker-split .model-picker-tokens {
+.chat-input-picker-item .action-label.model-picker-split .model-picker-config {
 	flex-shrink: 0;
 }
 
@@ -3541,21 +3540,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.chat-rate-limited-button {
 		margin-top: 6px;
 		margin-bottom: 2px;
-	}
-
-	.chat-quota-error-secondary-button {
-		margin-top: 6px;
-		padding: 0px;
-		border: none;
-	}
-
-	.chat-quota-error-secondary-button,
-	.chat-quota-wait-warning {
-		font-size: 12px;
-	}
-
-	.chat-quota-wait-warning {
-		margin-top: 2px;
 	}
 
 	.chat-quota-error-message,
