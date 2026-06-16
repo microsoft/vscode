@@ -352,6 +352,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._register(completions.registerProvider(new CopilotSlashCommandCompletionProvider(this.id, {
 			hasHistory: (sessionId) => !this._provisionalSessions.has(sessionId) && this._sessions.has(sessionId),
 			isRubberDuckEnabled: () => this._isRubberDuckEnabled(),
+			hasRuntimeSlashCommand: async (sessionId, command) => this._sessions.get(sessionId)?.hasRuntimeSlashCommand(command) ?? false,
 		})));
 
 		// Restart the CLI client when a setting baked into the client/subprocess at
