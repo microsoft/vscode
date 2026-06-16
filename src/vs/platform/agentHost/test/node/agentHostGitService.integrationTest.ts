@@ -526,44 +526,44 @@ suite('AgentHostGitService - restore (real git)', () => {
 
 	(hasGit ? test : test.skip)('reverts a modified working-tree file to the committed content', async () => {
 		const fs = await import('fs/promises');
-		const dir = await initRepoWithFiles({ 'a.txt': 'original\n' });
-		await fs.writeFile(join(dir, 'a.txt'), 'changed\n');
+		const dir = await initRepoWithFiles({ 'a.txt': 'original' });
+		await fs.writeFile(join(dir, 'a.txt'), 'changed');
 
 		await svc!.restore(URI.file(dir), ['a.txt']);
 
-		assert.strictEqual(await fs.readFile(join(dir, 'a.txt'), 'utf8'), 'original\n');
+		assert.strictEqual(await fs.readFile(join(dir, 'a.txt'), 'utf8'), 'original');
 	});
 
 	(hasGit ? test : test.skip)('with `staged: true` un-stages a file without touching the working tree', async () => {
 		const fs = await import('fs/promises');
-		const dir = await initRepoWithFiles({ 'a.txt': 'original\n' });
-		await fs.writeFile(join(dir, 'a.txt'), 'changed\n');
+		const dir = await initRepoWithFiles({ 'a.txt': 'original' });
+		await fs.writeFile(join(dir, 'a.txt'), 'changed');
 		cp.execFileSync('git', ['add', 'a.txt'], { cwd: dir, env, stdio: 'pipe' });
 
 		await svc!.restore(URI.file(dir), ['a.txt'], { staged: true });
 
 		const stagedDiff = cp.execFileSync('git', ['diff', '--cached', '--name-only'], { cwd: dir, env, encoding: 'utf8' }).trim();
 		const workingTree = await fs.readFile(join(dir, 'a.txt'), 'utf8');
-		assert.deepStrictEqual({ stagedDiff, workingTree }, { stagedDiff: '', workingTree: 'changed\n' });
+		assert.deepStrictEqual({ stagedDiff, workingTree }, { stagedDiff: '', workingTree: 'changed' });
 	});
 
 	(hasGit ? test : test.skip)('with `ref` restores content from a specific commit', async () => {
 		const fs = await import('fs/promises');
-		const dir = await initRepoWithFiles({ 'a.txt': 'v1\n' });
+		const dir = await initRepoWithFiles({ 'a.txt': 'v1' });
 		const v1Sha = cp.execFileSync('git', ['rev-parse', 'HEAD'], { cwd: dir, env, encoding: 'utf8' }).trim();
-		await fs.writeFile(join(dir, 'a.txt'), 'v2\n');
+		await fs.writeFile(join(dir, 'a.txt'), 'v2');
 		cp.execFileSync('git', ['commit', '-q', '-am', 'v2'], { cwd: dir, env, stdio: 'pipe' });
 
 		await svc!.restore(URI.file(dir), ['a.txt'], { ref: v1Sha });
 
-		assert.strictEqual(await fs.readFile(join(dir, 'a.txt'), 'utf8'), 'v1\n');
+		assert.strictEqual(await fs.readFile(join(dir, 'a.txt'), 'utf8'), 'v1');
 	});
 
 	(hasGit ? test : test.skip)('with no paths restores every modified file in the working tree', async () => {
 		const fs = await import('fs/promises');
-		const dir = await initRepoWithFiles({ 'a.txt': 'one\n', 'b.txt': 'two\n' });
-		await fs.writeFile(join(dir, 'a.txt'), 'mutated-a\n');
-		await fs.writeFile(join(dir, 'b.txt'), 'mutated-b\n');
+		const dir = await initRepoWithFiles({ 'a.txt': 'one', 'b.txt': 'two' });
+		await fs.writeFile(join(dir, 'a.txt'), 'mutated-a');
+		await fs.writeFile(join(dir, 'b.txt'), 'mutated-b');
 
 		await svc!.restore(URI.file(dir), []);
 
@@ -571,7 +571,7 @@ suite('AgentHostGitService - restore (real git)', () => {
 			fs.readFile(join(dir, 'a.txt'), 'utf8'),
 			fs.readFile(join(dir, 'b.txt'), 'utf8'),
 		]);
-		assert.deepStrictEqual({ a, b }, { a: 'one\n', b: 'two\n' });
+		assert.deepStrictEqual({ a, b }, { a: 'one', b: 'two' });
 	});
 
 	(hasGit ? test : test.skip)('rejects when run against a non-git directory', async () => {
