@@ -498,7 +498,7 @@ export class ClaudeProxyService implements IClaudeProxyService {
 		runtime: IProxyRuntime,
 		originalSdkModelId: string,
 	): Promise<void> {
-		const options: ICopilotApiServiceRequestOptions = { headers, signal: entry.ac.signal, suppressIntegrationId: true };
+		const options: ICopilotApiServiceRequestOptions = { headers, signal: entry.ac.signal };
 		let message: Anthropic.Message;
 		try {
 			message = await this._copilotApiService.messages(runtime.githubToken, body, options);
@@ -531,7 +531,7 @@ export class ClaudeProxyService implements IClaudeProxyService {
 		runtime: IProxyRuntime,
 		_originalSdkModelId: string,
 	): Promise<void> {
-		const options: ICopilotApiServiceRequestOptions = { headers, signal: entry.ac.signal, suppressIntegrationId: true };
+		const options: ICopilotApiServiceRequestOptions = { headers, signal: entry.ac.signal };
 		let stream: AsyncGenerator<Anthropic.MessageStreamEvent>;
 		try {
 			stream = this._copilotApiService.messages(runtime.githubToken, body, options);

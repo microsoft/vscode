@@ -539,23 +539,21 @@ suite('CopilotApiService', () => {
 			assert.strictEqual(headers['OpenAI-Intent'], 'messages-proxy');
 		});
 
-		test('suppressIntegrationId opt-in controls the Copilot-Integration-Id header', async () => {
+		test('asserts the vscode-chat Copilot-Integration-Id header', async () => {
 			const { fetch: fetchFn, captured } = routingFetch(
 				() => anthropicResponse([{ type: 'text', text: 'ok' }]),
 			);
 			const service = createService(fetchFn);
 
-			// Default (no opt-in): @vscode/copilot-api derives and sends the header.
+			// The agent host always asserts an explicit `vscode-chat` integration
+			// id (see `AGENT_HOST_INTEGRATION_ID`) so the CAPI backend resolves
+			// deterministically against the token's real entitlement instead of
+			// the nondeterministic application-id fallback (which can resolve to
+			// the limited `vscode-nl`).
 			await service.messages('gh-tok', baseRequest);
-			const withHeader = captured().init?.headers as Record<string, string>;
+			const headers = captured().init?.headers as Record<string, string>;
 
-			// Opt-in: the header is omitted entirely so CAPI authorizes against
-			// the token's real entitlement instead of the derived integration id.
-			await service.messages('gh-tok', baseRequest, { suppressIntegrationId: true });
-			const suppressed = captured().init?.headers as Record<string, string>;
-
-			assert.ok(withHeader['Copilot-Integration-Id'], 'integration id should be present by default');
-			assert.strictEqual(suppressed['Copilot-Integration-Id'], undefined, 'integration id should be suppressed when opted in');
+			assert.strictEqual(headers['Copilot-Integration-Id'], 'vscode-chat');
 		});
 	});
 

@@ -11,6 +11,27 @@ import { createDecorator } from '../../../instantiation/common/instantiation.js'
 import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 
+/**
+ * Integration id asserted on every agent-host CAPI proxy request
+ * (`/responses`, `/v1/messages`).
+ *
+ * The agent host authenticates with a raw GitHub OAuth **user** token whose
+ * application id (`797352`) is shared by the `vscode-chat` and the limited
+ * `vscode-nl` integrations. When no `Copilot-Integration-Id` header is sent,
+ * the CAPI backend resolves the integration from that application id alone — a
+ * lookup that is **not** deterministic and can resolve to `vscode-nl`, which
+ * refuses premium models (e.g. `gpt-5.5`, `claude-opus-4.x`) and fails the
+ * request with a 400 (`The requested model is not available for integrator
+ * "vscode-nl"`).
+ *
+ * Asserting `vscode-chat` explicitly forces the backend's deterministic
+ * `(applicationId, integrationId)` resolution path. `vscode-chat` is
+ * HMAC-exempt, so no request signature is required. `@vscode/copilot-api` is
+ * told to suppress its own SKU-derived header (which would otherwise overwrite
+ * this value) so the explicit id below is the one actually sent.
+ */
+const AGENT_HOST_INTEGRATION_ID = 'vscode-chat';
+
 // #region Types
 
 /**
@@ -18,7 +39,8 @@ import { IProductService } from '../../../product/common/productService.js';
  *
  * `headers` are merged into the outgoing CAPI request before security-
  * sensitive headers (`Authorization`, `Content-Type`, `X-Request-Id`,
- * `OpenAI-Intent`), so callers cannot override those.
+ * `OpenAI-Intent`, `Copilot-Integration-Id`), so callers cannot override
+ * those.
  *
  * `signal` propagates to the outgoing API request but **not** to the
  * shared token mint. The mint is deduped across concurrent callers, so
@@ -27,19 +49,6 @@ import { IProductService } from '../../../product/common/productService.js';
 export interface ICopilotApiServiceRequestOptions {
 	readonly headers?: Readonly<Record<string, string>>;
 	readonly signal?: AbortSignal;
-
-	/**
-	 * Suppress the `Copilot-Integration-Id` header on this request.
-	 *
-	 * When unset, `@vscode/copilot-api` derives the integration id from the
-	 * discovered Copilot SKU: a `no_auth_limited_copilot` SKU maps to
-	 * `vscode-nl`, which the CAPI backend treats as the limited/no-auth
-	 * integration and refuses premium models such as `claude-opus-4.7`.
-	 * Setting this to `true` omits the header so CAPI authorizes against the
-	 * token's real entitlement. Mirrors the Copilot Chat extension's
-	 * `ClaudeStreamingPassThroughEndpoint.getEndpointFetchOptions()`.
-	 */
-	readonly suppressIntegrationId?: boolean;
 }
 
 /**
@@ -547,10 +556,12 @@ export class CopilotApiService implements ICopilotApiService {
 					'Authorization': `Bearer ${githubToken}`,
 					'X-Request-Id': requestId,
 					'OpenAI-Intent': 'conversation',
+					'Copilot-Integration-Id': AGENT_HOST_INTEGRATION_ID,
 				},
-				// Opt-in per request — see
-				// `ICopilotApiServiceRequestOptions.suppressIntegrationId`.
-				suppressIntegrationId: options?.suppressIntegrationId,
+				// Assert our own integration id (see AGENT_HOST_INTEGRATION_ID)
+				// and suppress the library's SKU-derived header so the explicit
+				// value above is the one actually sent.
+				suppressIntegrationId: true,
 				body,
 				signal: options?.signal,
 			},
@@ -727,6 +738,7 @@ export class CopilotApiService implements ICopilotApiService {
 					// Should these be parameterized?
 					'OpenAI-Intent': 'messages-proxy',
 					'X-Interaction-Type': 'messages-proxy',
+					'Copilot-Integration-Id': AGENT_HOST_INTEGRATION_ID,
 					// `X-Initiator` (user|agent) is intentionally omitted: the
 					// user-vs-agent turn origin known to `ClaudeAgentSession` is not
 					// plumbed across the SDK subprocess to this proxy, so a hardcoded
@@ -735,7 +747,10 @@ export class CopilotApiService implements ICopilotApiService {
 					// paths already omit it). Thread a real per-turn initiator here if
 					// that signal ever becomes available at the proxy boundary.
 				},
-				suppressIntegrationId: options?.suppressIntegrationId,
+				// Assert our own integration id (see AGENT_HOST_INTEGRATION_ID)
+				// and suppress the library's SKU-derived header so the explicit
+				// value above is the one actually sent.
+				suppressIntegrationId: true,
 				body,
 				signal: options?.signal,
 			},
