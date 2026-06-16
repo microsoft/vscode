@@ -22,7 +22,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { SessionItemContextMenuId } from '../../../sessions/browser/views/sessionsList.js';
 import { BranchPicker } from './branchPicker.js';
 import { ClaudePermissionModePicker } from './claudePermissionModePicker.js';
-import { ClaudeCodeSessionType, COPILOT_PROVIDER_ID, CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
+import { ClaudeCodeSessionType, COPILOT_PROVIDER_ID, CopilotChatSessionsProvider, CopilotCloudSessionType } from './copilotChatSessionsProvider.js';
 import { LocalSessionType } from '../../localChatSessions/browser/localChatSessionsProvider.js';
 import { IsolationPicker } from './isolationPicker.js';
 import { ModePicker, ModePickerModel } from './modePicker.js';
@@ -295,6 +295,7 @@ registerAction2(class DeleteSessionAction extends Action2 {
 					ContextKeyExpr.equals(ChatSessionProviderIdContext.key, COPILOT_PROVIDER_ID),
 					ContextKeyExpr.notEquals('chatSessionType', ClaudeCodeSessionType.id),
 					ContextKeyExpr.notEquals('chatSessionType', LocalSessionType.id),
+					ContextKeyExpr.notEquals('chatSessionType', CopilotCloudSessionType.id),
 				),
 			}]
 		});
