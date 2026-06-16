@@ -736,7 +736,7 @@ export class SettingsEditor2 extends EditorPane {
 	 */
 	private updateSearchPlaceholder(): void {
 		const hasHistory = this.searchWidget.getHistory().length > 0;
-		this.searchWidget.setPlaceHolder(hasHistory ? searchBoxLabel + searchBoxHistoryHint : searchBoxLabel);
+		this.searchWidget.setPlaceHolder(hasHistory ? localize('SearchSettings.PlaceholderWithHistoryHint', "Search settings{0}", searchBoxHistoryHint) : searchBoxLabel);
 	}
 
 	private updateInputAriaLabel() {
