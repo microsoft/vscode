@@ -200,9 +200,6 @@ registerSingleton(IAllowedMcpServersService, AllowedMcpServersService, Instantia
 // Default Account
 import './services/accounts/browser/defaultAccount.js';
 
-// Account Policy Gate
-import './services/policies/browser/accountPolicyGate.contribution.js';
-
 // Telemetry
 import './contrib/telemetry/browser/telemetry.contribution.js';
 
@@ -223,16 +220,15 @@ import './contrib/speech/browser/speech.contribution.js';
 // Chat
 import './contrib/chat/browser/chat.shared.contribution.js';
 import './contrib/chat/browser/chat.contribution.js';
-import './contrib/chat/browser/chat.view.contribution.js';
 import './contrib/inlineChat/browser/inlineChat.contribution.js';
 
 // Copilot Voice
 import './contrib/agentsVoice/browser/agentsVoice.contribution.js';
 import './contrib/mcp/browser/mcp.contribution.js';
-import './contrib/mcp/browser/mcp.view.contribution.js';
 import './contrib/chat/browser/chatSessions/chatSessions.contribution.js';
 import './contrib/chat/browser/contextContrib/chatContext.contribution.js';
 import './contrib/imageCarousel/browser/imageCarousel.contribution.js';
+import './browser/workbench.contribution.lazy.js';
 
 // Interactive
 import './contrib/interactive/browser/interactive.contribution.js';
@@ -267,9 +263,6 @@ import './contrib/search/browser/searchView.js';
 
 // Search Editor
 import './contrib/searchEditor/browser/searchEditor.contribution.js';
-
-// Sash
-import './contrib/sash/browser/sash.contribution.js';
 
 // Git
 import './contrib/git/browser/git.contributions.js';
@@ -331,9 +324,6 @@ import './contrib/terminal/terminal.all.js';
 // External terminal
 import './contrib/externalTerminal/browser/externalTerminal.contribution.js';
 
-// Relauncher
-import './contrib/relauncher/browser/relauncher.contribution.js';
-
 // Tasks
 import './contrib/tasks/browser/task.contribution.js';
 
@@ -371,22 +361,12 @@ import './contrib/inlayHints/browser/inlayHintsAccessibilty.js';
 // Themes
 import './contrib/themes/browser/themes.contribution.js';
 
-// Update
-import './contrib/update/browser/update.contribution.js';
-
-// Surveys
-import './contrib/surveys/browser/nps.contribution.js';
-import './contrib/surveys/browser/languageSurveys.contribution.js';
-
 // Welcome
 import './contrib/welcomeGettingStarted/browser/gettingStarted.contribution.js';
 import './contrib/welcomeAgentSessions/browser/agentSessionsWelcome.contribution.js';
 import './contrib/welcomeWalkthrough/browser/walkThrough.contribution.js';
 import './contrib/welcomeViews/common/viewsWelcome.contribution.js';
 import './contrib/welcomeViews/common/newFile.contribution.js';
-
-// Welcome Onboarding
-import './contrib/welcomeOnboarding/browser/welcomeOnboarding.contribution.js';
 
 // Call Hierarchy
 import './contrib/callHierarchy/browser/callHierarchy.contribution.js';
@@ -397,9 +377,6 @@ import './contrib/typeHierarchy/browser/typeHierarchy.contribution.js';
 // Outline
 import './contrib/codeEditor/browser/outline/documentSymbolsOutline.js';
 import './contrib/outline/browser/outline.contribution.js';
-
-// Language Detection
-import './contrib/languageDetection/browser/languageDetection.contribution.js';
 
 // Language Status
 import './contrib/languageStatus/browser/languageStatus.contribution.js';
@@ -441,31 +418,16 @@ import './contrib/list/browser/list.contribution.js';
 // Accessibility Signals
 import './contrib/accessibilitySignals/browser/accessibilitySignal.contribution.js';
 
-// Bracket Pair Colorizer 2 Telemetry
-import './contrib/bracketPairColorizer2Telemetry/browser/bracketPairColorizer2Telemetry.contribution.js';
-
 // Accessibility
 import './contrib/accessibility/browser/accessibility.contribution.js';
-
-// Metered Connection
-import './contrib/meteredConnection/browser/meteredConnection.contribution.js';
 
 // Share
 import './contrib/share/browser/share.contribution.js';
 
-// Synchronized Scrolling
-import './contrib/scrollLocking/browser/scrollLocking.contribution.js';
-
 // Inline Completions
 import './contrib/inlineCompletions/browser/inlineCompletions.contribution.js';
 
-// Drop or paste into
-import './contrib/dropOrPasteInto/browser/dropOrPasteInto.contribution.js';
-
 // Edit Telemetry
 import './contrib/editTelemetry/browser/editTelemetry.contribution.js';
-
-// Opener
-import './contrib/opener/browser/opener.contribution.js';
 
 //#endregion
