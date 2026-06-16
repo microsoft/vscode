@@ -51,7 +51,7 @@ const STYLE_OVERRIDE_MODULES: readonly IStyleOverrideModule[] = [
 	{
 		id: 'paneHeaders',
 		label: localize('styleOverrides.paneHeaders', "Pane Headers"),
-		description: localize('styleOverrides.paneHeaders.description', "Removes view pane header separators, rounds their corners and adds a background tint on hover.")
+		description: localize('styleOverrides.paneHeaders.description', "Insets the view pane header separators, rounds their corners and adds a background tint on hover.")
 	},
 	{
 		id: 'roundedButtons',

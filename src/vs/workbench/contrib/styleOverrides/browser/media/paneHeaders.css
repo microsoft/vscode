@@ -7,7 +7,7 @@
  * Style-override module: "Pane Headers".
  *
  * Restyles view pane (sidebar / panel section) headers:
- *   - removes the separator lines / borders between sections,
+ *   - replaces the full-width separator lines with shorter, inset ones,
  *   - rounds the header corners, and
  *   - adds a background tint on hover.
  *
@@ -21,10 +21,35 @@
  * Without that class these rules never apply.
  */
 
-/* Remove the section separator lines / borders (set inline by the PaneView). */
+/*
+ * Remove the full-width separator lines / borders (set inline by the PaneView)
+ * so we can redraw them inset below.
+ */
 .style-override-paneHeaders .monaco-pane-view .pane > .pane-header,
 .style-override-paneHeaders .monaco-pane-view .pane {
 	border: none !important;
+}
+
+/*
+ * Redraw the section separator as a shorter, inset line at the top of each
+ * header (the header is already `position: relative`). It uses the same section
+ * header border color the PaneView would, falling back across sidebar / panel
+ * tokens so it is visible in both locations.
+ */
+.style-override-paneHeaders .monaco-pane-view .pane > .pane-header::before {
+	content: "";
+	position: absolute;
+	top: 0;
+	left: 8px;
+	right: 8px;
+	height: 1px;
+	pointer-events: none;
+	background-color: var(--vscode-sideBarSectionHeader-border, var(--vscode-panelSectionHeader-border, var(--vscode-panel-border)));
+}
+
+/* The first section in a pane has no separator above it. */
+.style-override-paneHeaders .monaco-pane-view .split-view-view:first-of-type > .pane > .pane-header::before {
+	display: none;
 }
 
 /* Round the header corners. */
