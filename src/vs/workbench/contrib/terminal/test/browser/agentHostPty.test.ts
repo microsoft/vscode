@@ -113,6 +113,9 @@ class MockAgentConnection implements IAgentConnection {
 	getSubscriptionUnmanaged<T>(_kind: StateComponents, _resource: URI): IAgentSubscription<T> | undefined {
 		return undefined;
 	}
+	getInflightSessionCreate(_resource: URI): Promise<unknown> | undefined {
+		return undefined;
+	}
 	getActiveSubscriptions(): readonly IActiveSubscriptionInfo[] {
 		return [];
 	}
