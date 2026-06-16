@@ -18,6 +18,7 @@ import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 import { formatTokenCount } from '../../../../../../base/common/numbers.js';
+import { isMacintosh } from '../../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
@@ -924,8 +925,7 @@ export class ModelPickerWidget extends Disposable {
 	private _domNode: HTMLElement | undefined;
 	private _badgeIcon: HTMLElement | undefined;
 	private _nameButton: HTMLElement | undefined;
-	private _effortButton: HTMLElement | undefined;
-	private _tokensButton: HTMLElement | undefined;
+	private _configButton: HTMLElement | undefined;
 
 	get selectedModel(): ILanguageModelChatMetadataAndIdentifier | undefined {
 		return this._selectedModel;
@@ -953,7 +953,6 @@ export class ModelPickerWidget extends Disposable {
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 	) {
 		super();
-
 		this._register(this._languageModelsService.onDidChangeLanguageModels(() => {
 			this._renderLabel();
 		}));
@@ -1003,6 +1002,9 @@ export class ModelPickerWidget extends Disposable {
 	render(container: HTMLElement): void {
 		this._domNode = dom.append(container, dom.$('div.action-label.model-picker-split'));
 		this._domNode.setAttribute('role', 'group');
+		// The container groups the individual buttons; only the buttons should be
+		// tab stops, not the container itself.
+		this._domNode.tabIndex = -1;
 
 		// Apply initial collapsed state now that _domNode exists
 		if (this._compact?.get()) {
@@ -1016,21 +1018,14 @@ export class ModelPickerWidget extends Disposable {
 		this._nameButton.setAttribute('aria-haspopup', 'true');
 		this._nameButton.setAttribute('aria-expanded', 'false');
 
-		// Thinking effort button (conditionally visible)
-		this._effortButton = dom.append(this._domNode, dom.$('a.model-picker-section.model-picker-effort'));
-		this._effortButton.tabIndex = 0;
-		this._effortButton.setAttribute('role', 'button');
-		this._effortButton.setAttribute('aria-haspopup', 'true');
-		this._effortButton.setAttribute('aria-expanded', 'false');
-		this._effortButton.style.display = 'none';
-
-		// Context size button (conditionally visible)
-		this._tokensButton = dom.append(this._domNode, dom.$('a.model-picker-section.model-picker-tokens'));
-		this._tokensButton.tabIndex = 0;
-		this._tokensButton.setAttribute('role', 'button');
-		this._tokensButton.setAttribute('aria-haspopup', 'true');
-		this._tokensButton.setAttribute('aria-expanded', 'false');
-		this._tokensButton.style.display = 'none';
+		// Combined configuration button (conditionally visible): opens a single
+		// dropdown with Thinking Effort and Context Size sections.
+		this._configButton = dom.append(this._domNode, dom.$('a.model-picker-section.model-picker-config'));
+		this._configButton.tabIndex = 0;
+		this._configButton.setAttribute('role', 'button');
+		this._configButton.setAttribute('aria-haspopup', 'true');
+		this._configButton.setAttribute('aria-expanded', 'false');
+		this._configButton.style.display = 'none';
 
 		this._badgeIcon = dom.$('span.model-picker-badge');
 		this._updateBadge();
@@ -1038,19 +1033,13 @@ export class ModelPickerWidget extends Disposable {
 		this._renderLabel();
 
 		this._registerButtonAction(this._nameButton, () => this.show());
-		this._registerButtonAction(this._effortButton, () => this._showEffortPicker());
-		this._registerButtonAction(this._tokensButton, () => this._showTokensPicker());
+		this._registerButtonAction(this._configButton, () => this._showConfigPicker());
 
-		// Managed hovers for effort and tokens buttons
+		// Managed hover for the combined configuration button
 		this._register(getBaseLayerHoverDelegate().setupManagedHover(
 			getDefaultHoverDelegate('mouse'),
-			this._effortButton,
-			localize('chat.modelPicker.effortTooltip', "Set Thinking Effort")
-		));
-		this._register(getBaseLayerHoverDelegate().setupManagedHover(
-			getDefaultHoverDelegate('mouse'),
-			this._tokensButton,
-			localize('chat.modelPicker.tokensTooltip', "Set Context Size")
+			this._configButton,
+			localize('chat.modelPicker.configTooltip', "Configure Model")
 		));
 	}
 
@@ -1256,36 +1245,38 @@ export class ModelPickerWidget extends Disposable {
 		}
 		dom.reset(this._nameButton, ...nameChildren);
 
-		// Effort and tokens buttons are only shown in UBB mode.
+		// The combined configuration button is only shown in UBB mode.
 		// In PRU mode, configuration is accessed via per-model toolbar actions in the picker dropdown.
 
-		// --- Effort section (from configurationSchema group 'navigation') ---
+		// --- Combined config section (Thinking Effort + Context Size) ---
 		const effortConfig = isUBB ? this._getConfigProperty('navigation') : undefined;
-		if (effortConfig && this._effortButton) {
-			// Use the localized enumItemLabel from the schema, falling back to the raw value
-			const enumIndex = effortConfig.schema.enum?.indexOf(effortConfig.value) ?? -1;
-			const effortLabel = enumIndex >= 0 && effortConfig.schema.enumItemLabels?.[enumIndex]
-				? effortConfig.schema.enumItemLabels[enumIndex]
-				: String(effortConfig.value);
-			dom.reset(this._effortButton, dom.$('span.chat-input-picker-label', undefined, effortLabel));
-			this._effortButton.style.display = '';
-			this._effortButton.ariaLabel = localize('chat.modelPicker.effortAriaLabel', "Thinking Effort: {0}", effortLabel);
-		} else if (this._effortButton) {
-			this._effortButton.style.display = 'none';
-		}
-
-		// --- Tokens section (from configurationSchema group 'tokens') ---
 		const tokensConfig = isUBB ? this._getConfigProperty('tokens') : undefined;
-		if (tokensConfig && this._tokensButton) {
-			const idx = tokensConfig.schema.enum?.indexOf(tokensConfig.value) ?? -1;
-			const tokensLabel = idx >= 0 && tokensConfig.schema.enumItemLabels?.[idx]
-				? tokensConfig.schema.enumItemLabels[idx]
-				: formatTokenCount(Number(tokensConfig.value));
-			dom.reset(this._tokensButton, dom.$('span.chat-input-picker-label', undefined, tokensLabel));
-			this._tokensButton.style.display = '';
-			this._tokensButton.ariaLabel = localize('chat.modelPicker.tokensAriaLabel', "Context Size: {0}", tokensLabel);
-		} else if (this._tokensButton) {
-			this._tokensButton.style.display = 'none';
+		if (this._configButton) {
+			if (this._selectedModel && !noModelsAvailable && (effortConfig || tokensConfig)) {
+				const labelParts: string[] = [];
+				const ariaParts: string[] = [];
+				if (effortConfig) {
+					const enumIndex = effortConfig.schema.enum?.indexOf(effortConfig.value) ?? -1;
+					const effortLabel = enumIndex >= 0 && effortConfig.schema.enumItemLabels?.[enumIndex]
+						? effortConfig.schema.enumItemLabels[enumIndex]
+						: String(effortConfig.value);
+					labelParts.push(effortLabel);
+					ariaParts.push(localize('chat.modelPicker.effortAriaLabel', "Thinking Effort: {0}", effortLabel));
+				}
+				if (tokensConfig) {
+					const idx = tokensConfig.schema.enum?.indexOf(tokensConfig.value) ?? -1;
+					const tokensLabel = idx >= 0 && tokensConfig.schema.enumItemLabels?.[idx]
+						? tokensConfig.schema.enumItemLabels[idx]
+						: formatTokenCount(Number(tokensConfig.value));
+					labelParts.push(tokensLabel);
+					ariaParts.push(localize('chat.modelPicker.tokensAriaLabel', "Context Size: {0}", tokensLabel));
+				}
+				dom.reset(this._configButton, dom.$('span.chat-input-picker-label', undefined, labelParts.join(' ')));
+				this._configButton.style.display = '';
+				this._configButton.ariaLabel = ariaParts.join(', ');
+			} else {
+				this._configButton.style.display = 'none';
+			}
 		}
 
 		// Aria
@@ -1309,186 +1300,182 @@ export class ModelPickerWidget extends Disposable {
 		return resolveConfigProperty(this._selectedModel, group, this._modelConfiguration);
 	}
 
-	private _showEffortPicker(): void {
-		if (this._domNode?.classList.contains('disabled')) {
-			return;
-		}
-		const config = this._getConfigProperty('navigation');
-		if (!config || !this._effortButton || !this._selectedModel) {
-			return;
+	/**
+	 * Builds the combined configuration items containing the model's Thinking
+	 * Effort and Context Size options (when available).
+	 */
+	private _buildConfigItems(): IActionListItem<IActionWidgetDropdownAction>[] {
+		if (!this._selectedModel) {
+			return [];
 		}
 
 		const modelIdentifier = this._selectedModel.identifier;
-		const previousEffortValue = String(config.value ?? '');
-		const enumValues = config.schema.enum ?? [];
-		const enumItemLabels = config.schema.enumItemLabels;
+		const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
+		const defaultLabel = localize('models.configDefault', "Default");
 
-		const items: IActionListItem<IActionWidgetDropdownAction>[] = [
-			{
-				kind: ActionListItemKind.Header,
-				label: localize('chat.effort.header', "Thinking Effort"),
+		// Builds a header + radio options for one configurable group (effort or context size).
+		const appendConfigSection = (
+			group: string,
+			headerLabel: string,
+			formatValueLabel: (value: unknown, enumLabel: string | undefined) => string,
+			logChange: (value: unknown, previousValue: string) => void,
+		): void => {
+			const config = this._getConfigProperty(group);
+			if (!config) {
+				return;
 			}
-		];
-
-		for (let index = 0; index < enumValues.length; index++) {
-			const value = enumValues[index];
-			const label = enumItemLabels?.[index] ?? String(value);
-			const isDefault = value === config.schema.default;
-			const displayLabel = isDefault
-				? localize('models.effortDefault', "{0} (default)", label)
-				: label;
-			items.push({
-				item: {
-					id: `effort.${value}`,
-					enabled: true,
-					checked: config.value === value,
-					class: undefined,
-					tooltip: config.schema.enumDescriptions?.[index] ?? '',
-					label: displayLabel,
-					run: () => {
-						this._telemetryService.publicLog2<ChatThinkingEffortChangeEvent, ChatThinkingEffortChangeClassification>('chat.thinkingEffortChange', {
-							model: this._selectedModel?.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(modelIdentifier) : 'unknown',
-							fromValue: previousEffortValue,
-							toValue: String(value),
-						});
-						this._modelConfiguration.setModelConfiguration(
-							modelIdentifier,
-							{ [config.key]: value }
-						);
-					}
-				},
-				kind: ActionListItemKind.Action,
-				label: displayLabel,
-				description: config.schema.enumDescriptions?.[index],
-				group: { title: '', icon: ThemeIcon.fromId(config.value === value ? Codicon.check.id : Codicon.blank.id) },
-				hideIcon: false,
-			});
-		}
-
-		const previouslyFocusedElement = dom.getActiveElement();
-		const delegate = {
-			onSelect: (action: IActionWidgetDropdownAction) => {
-				this._actionWidgetService.hide();
-				action.run();
-			},
-			onHide: () => {
-				this._effortButton?.setAttribute('aria-expanded', 'false');
-				if (dom.isHTMLElement(previouslyFocusedElement)) {
-					previouslyFocusedElement.focus();
+			const previousValue = String(config.value ?? '');
+			const enumValues = config.schema.enum ?? [];
+			const enumItemLabels = config.schema.enumItemLabels;
+			if (items.length) {
+				items.push({ kind: ActionListItemKind.Separator });
+			}
+			items.push({ kind: ActionListItemKind.Header, label: headerLabel });
+			for (let index = 0; index < enumValues.length; index++) {
+				const value = enumValues[index];
+				const isDefault = value === config.schema.default;
+				const displayLabel = formatValueLabel(value, enumItemLabels?.[index]);
+				const enumDescription = config.schema.enumDescriptions?.[index];
+				// Only the default value shows a right-aligned "Default" label. The
+				// per-option descriptions are surfaced on hover (tooltip) instead of
+				// being shown inline in the picker.
+				const description = isDefault ? defaultLabel : undefined;
+				// The visual description is hover-only, so build a separate accessible
+				// description so screen reader users still hear the default marker and
+				// the per-option explanation.
+				const ariaDescriptionParts: string[] = [];
+				if (isDefault) {
+					ariaDescriptionParts.push(defaultLabel);
 				}
+				if (enumDescription) {
+					ariaDescriptionParts.push(enumDescription);
+				}
+				const ariaDescription = ariaDescriptionParts.length ? ariaDescriptionParts.join(', ') : undefined;
+				const checked = config.value === value;
+				items.push({
+					item: {
+						id: `${group}.${value}`,
+						enabled: true,
+						checked,
+						class: undefined,
+						tooltip: enumDescription ?? '',
+						label: displayLabel,
+						run: () => {
+							logChange(value, previousValue);
+							// Write through the same (possibly per-editor) access used for
+							// reading so the change is reflected back in the UI. See #320393.
+							// Return the promise so callers can await the write before
+							// refreshing the checked state.
+							return this._modelConfiguration.setModelConfiguration(modelIdentifier, { [config.key]: value });
+						}
+					},
+					kind: ActionListItemKind.Action,
+					label: displayLabel,
+					description,
+					ariaDescription,
+					hover: enumDescription ? { content: enumDescription } : undefined,
+					group: { title: '', icon: ThemeIcon.fromId(checked ? Codicon.check.id : Codicon.blank.id) },
+					hideIcon: false,
+				});
 			}
 		};
 
-		this._effortButton.setAttribute('aria-expanded', 'true');
-
-		this._actionWidgetService.show(
-			'ChatModelEffortPicker',
-			false,
-			items,
-			delegate,
-			this._effortButton,
-			undefined,
-			[],
-			{
-				isChecked(element: IActionListItem<IActionWidgetDropdownAction>) {
-					return element.kind === ActionListItemKind.Action ? !!element?.item?.checked : undefined;
-				},
-				getRole: () => 'menuitemradio' as const,
-				getWidgetRole: () => 'menu' as const,
+		// --- Thinking Effort ---
+		appendConfigSection(
+			'navigation',
+			localize('chat.effort.header', "Thinking Effort"),
+			(value, enumLabel) => enumLabel ?? String(value),
+			(value, previousValue) => {
+				this._telemetryService.publicLog2<ChatThinkingEffortChangeEvent, ChatThinkingEffortChangeClassification>('chat.thinkingEffortChange', {
+					model: this._selectedModel?.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(modelIdentifier) : 'unknown',
+					fromValue: previousValue,
+					toValue: String(value),
+				});
 			},
-			{
-				footerText: localize('chat.effort.costHint', "Higher levels of thinking may increase costs"),
-			}
 		);
+
+		// --- Context Size ---
+		appendConfigSection(
+			'tokens',
+			localize('chat.tokens.header', "Context Size"),
+			(value, enumLabel) => enumLabel ?? formatTokenCount(Number(value)),
+			(value, previousValue) => {
+				this._telemetryService.publicLog2<ChatContextSizeChangeEvent, ChatContextSizeChangeClassification>('chat.contextSizeChange', {
+					model: this._selectedModel?.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(modelIdentifier) : 'unknown',
+					fromValue: previousValue,
+					toValue: String(value),
+				});
+			},
+		);
+
+		// Nothing configurable for this model returns an empty list; callers
+		// decide whether to show the popup.
+		return items;
 	}
 
-	private _showTokensPicker(): void {
-		if (this._domNode?.classList.contains('disabled')) {
+	/**
+	 * Opens the combined configuration dropdown containing the model's Thinking
+	 * Effort and Context Size options (when available), in a single popup anchored
+	 * to the config button.
+	 */
+	private _showConfigPicker(): void {
+		if (this._domNode?.classList.contains('disabled') || !this._configButton || !this._selectedModel) {
 			return;
 		}
-		const config = this._getConfigProperty('tokens');
-		if (!config || !this._tokensButton || !this._selectedModel) {
+
+		const items = this._buildConfigItems();
+
+		// Nothing configurable for this model: don't show an empty popup.
+		if (!items.length) {
 			return;
-		}
-
-		const modelIdentifier = this._selectedModel.identifier;
-		const previousTokensValue = String(config.value ?? '');
-		const enumValues = config.schema.enum ?? [];
-		const enumItemLabels = config.schema.enumItemLabels;
-
-		const items: IActionListItem<IActionWidgetDropdownAction>[] = [
-			{
-				kind: ActionListItemKind.Header,
-				label: localize('chat.tokens.header', "Context Size"),
-			}
-		];
-
-		for (let index = 0; index < enumValues.length; index++) {
-			const value = enumValues[index];
-			const label = enumItemLabels?.[index] ?? formatTokenCount(Number(value));
-			const displayLabel = label;
-			const description = config.schema.enumDescriptions?.[index];
-			items.push({
-				item: {
-					id: `tokens.${value}`,
-					enabled: true,
-					checked: config.value === value,
-					class: undefined,
-					tooltip: description ?? '',
-					label: displayLabel,
-					run: () => {
-						this._telemetryService.publicLog2<ChatContextSizeChangeEvent, ChatContextSizeChangeClassification>('chat.contextSizeChange', {
-							model: this._selectedModel?.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(modelIdentifier) : 'unknown',
-							fromValue: previousTokensValue,
-							toValue: String(value),
-						});
-						this._modelConfiguration.setModelConfiguration(
-							modelIdentifier,
-							{ [config.key]: value }
-						);
-					}
-				},
-				kind: ActionListItemKind.Action,
-				label: displayLabel,
-				description,
-				group: { title: '', icon: ThemeIcon.fromId(config.value === value ? Codicon.check.id : Codicon.blank.id) },
-				hideIcon: false,
-			});
 		}
 
 		const previouslyFocusedElement = dom.getActiveElement();
 		const delegate = {
-			onSelect: (action: IActionWidgetDropdownAction) => {
-				this._actionWidgetService.hide();
-				action.run();
+			onSelect: async (action: IActionWidgetDropdownAction, _preview?: boolean, keepOpen?: boolean) => {
+				if (keepOpen) {
+					// Focus the clicked item immediately so the focus highlight
+					// doesn't flicker while waiting for the async config write.
+					this._actionWidgetService.focusItemById(action.id);
+					// Wait for the (async) config write to resolve so the rebuilt
+					// items read back the new value, then refresh in place keeping
+					// focus on the item that was just selected.
+					await action.run();
+					this._actionWidgetService.updateItems(this._buildConfigItems(), action.id);
+				} else {
+					action.run();
+					this._actionWidgetService.hide();
+				}
 			},
 			onHide: () => {
-				this._tokensButton?.setAttribute('aria-expanded', 'false');
+				this._configButton?.setAttribute('aria-expanded', 'false');
 				if (dom.isHTMLElement(previouslyFocusedElement)) {
 					previouslyFocusedElement.focus();
 				}
 			}
 		};
 
-		this._tokensButton.setAttribute('aria-expanded', 'true');
+		this._configButton.setAttribute('aria-expanded', 'true');
 
 		this._actionWidgetService.show(
-			'ChatModelTokensPicker',
+			'ChatModelConfigPicker',
 			false,
 			items,
 			delegate,
-			this._tokensButton,
+			this._configButton,
 			undefined,
 			[],
 			{
 				isChecked(element: IActionListItem<IActionWidgetDropdownAction>) {
 					return element.kind === ActionListItemKind.Action ? !!element?.item?.checked : undefined;
 				},
-				getRole: () => 'menuitemradio' as const,
+				getRole: (element: IActionListItem<IActionWidgetDropdownAction>) => element.kind === ActionListItemKind.Action ? 'menuitemradio' as const : 'separator' as const,
 				getWidgetRole: () => 'menu' as const,
 			},
 			{
-				footerText: localize('chat.tokens.costHint', "Larger context may increase cost"),
+				headerText: localize('chat.config.costHint', "Non-default options may increase cost"),
+				headerIcon: Codicon.info,
+				footerText: localize('chat.config.keepOpenTip', "Tip: Hold {0} to keep open", isMacintosh ? '\u2318' : localize('chat.config.ctrlKey', "Ctrl")),
 			}
 		);
 	}

@@ -25,7 +25,7 @@ import { IPaneCompositePartService } from '../../../../../workbench/services/pan
 import { IPaneComposite } from '../../../../../workbench/common/panecomposite.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsViewService } from '../../../../services/sessions/browser/sessionsViewService.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { LayoutController } from '../../browser/sessionLayoutController.js';
 import { CHANGES_VIEW_ID } from '../../../changes/common/changes.js';
@@ -137,11 +137,11 @@ suite('LayoutController', () => {
 		onDidChangeSessions = store.add(new Emitter<ISessionsChangeEvent>());
 
 		instaService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
-			override activeSession = activeSessionObs;
 			override readonly onDidChangeSessions = onDidChangeSessions.event;
 			override getSessions() { return []; }
 		});
-		instaService.stub(ISessionsViewService, new class extends mock<ISessionsViewService>() {
+		instaService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = activeSessionObs;
 			override readonly visibleSessions = constObservable([]);
 		});
 
@@ -466,11 +466,11 @@ suite('LayoutController', () => {
 
 		const activeSession = observableValue<IActiveSession | undefined>('active', undefined);
 		instaService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
-			override activeSession = activeSession;
 			override readonly onDidChangeSessions = Event.None;
 			override getSessions() { return []; }
 		});
-		instaService.stub(ISessionsViewService, new class extends mock<ISessionsViewService>() {
+		instaService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = activeSession;
 			override readonly visibleSessions = constObservable([]);
 		});
 		instaService.stub(IChatService, new class extends mock<IChatService>() {
