@@ -23,10 +23,10 @@
  */
 .style-override-activityBar .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator {
 	z-index: 0;
-	top: 2px;
-	left: calc((var(--activity-bar-width, 48px) - var(--activity-bar-action-height, 48px) + 12px) / 2);
-	width: calc(var(--activity-bar-action-height, 48px) - 12px);
-	height: calc(var(--activity-bar-action-height, 48px) - 12px);
+	top: 0;
+	left: calc((var(--activity-bar-width, 48px) - var(--activity-bar-action-height, 48px) + 8px) / 2);
+	width: calc(var(--activity-bar-action-height, 48px) - 8px);
+	height: calc(var(--activity-bar-action-height, 48px) - 8px);
 	border-radius: var(--vscode-cornerRadius-medium);
 	background-color: var(--vscode-activityBar-activeBackground, var(--vscode-list-inactiveSelectionBackground));
 }
