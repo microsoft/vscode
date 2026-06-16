@@ -113,8 +113,24 @@
 	margin: 6px;
 	border: 1px solid var(--vscode-agentsPanel-border, var(--vscode-widget-border, transparent)) !important;
 	border-radius: var(--vscode-cornerRadius-large);
-	background-color: var(--vscode-agentsPanel-background) !important;
 	color: var(--vscode-agentsPanel-foreground);
+}
+
+/*
+ * Card fill must match the background the inner content paints, otherwise the
+ * card frame and its content diverge. `agentsPanel.background` only equals the
+ * side bar / panel background in dark themes; in light themes it resolves to the
+ * (white) editor background while the content stays side-bar grey, leaving a
+ * mismatched frame. Use each part's native content background so the card and
+ * its content always agree, in every theme.
+ */
+.monaco-workbench.floating-panels .part.sidebar,
+.monaco-workbench.floating-panels .part.auxiliarybar {
+	background-color: var(--vscode-sideBar-background) !important;
+}
+
+.monaco-workbench.floating-panels .part.panel {
+	background-color: var(--vscode-panel-background) !important;
 }
 
 /* Side bars sit directly under the title bar — keep them flush (no top margin). */
@@ -175,5 +191,31 @@
 	padding-left: 6px;
 	padding-right: 6px;
 	padding-bottom: 6px;
+}
+
+/*
+ * Round the status bar items so their hover / active backgrounds read as pills
+ * that match the rounded floating cards.
+ */
+.monaco-workbench.floating-panels .part.statusbar > .items-container > .statusbar-item > a {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+/*
+ * Compact items are segments of a single joined pill that sit flush against a
+ * neighbour. Keep the seam edges square so two adjacent segments don't each
+ * round where they meet (which leaves a dip in the middle): `compact-left`
+ * attaches to the item on its left, so flatten its left corners; `compact-right`
+ * attaches to the item on its right, so flatten its right corners. An item with
+ * both classes (a middle segment) ends up square on both seams.
+ */
+.monaco-workbench.floating-panels .part.statusbar > .items-container > .statusbar-item.compact-left > a {
+	border-top-left-radius: 0;
+	border-bottom-left-radius: 0;
+}
+
+.monaco-workbench.floating-panels .part.statusbar > .items-container > .statusbar-item.compact-right > a {
+	border-top-right-radius: 0;
+	border-bottom-right-radius: 0;
 }
 
