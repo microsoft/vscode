@@ -15,7 +15,7 @@ import { IPolicyService, PolicyDefinition, PolicyValue } from '../../policy/comm
 import { Registry } from '../../registry/common/platform.js';
 import { getErrorMessage } from '../../../base/common/errors.js';
 import * as json from '../../../base/common/json.js';
-import { IPolicy, IPolicyReference, PolicyName } from '../../../base/common/policy.js';
+import { PolicyName } from '../../../base/common/policy.js';
 
 export class DefaultConfiguration extends Disposable {
 
@@ -104,11 +104,14 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 	get configurationModel() { return this._configurationModel; }
 
 	/**
-	 * The registry schema object (`IPolicy` owner or `IPolicyReference`) last used to build the
-	 * definition submitted per policy name. Tracked so a definition is only re-submitted when its
-	 * source changes (e.g. a reference upgraded to its owner), avoiding redundant re-registration.
+	 * The policy definition last submitted to the policy service per policy name. A definition is
+	 * only re-submitted when its fields actually change (e.g. an owner registering, or a reference
+	 * supplying a callback the owner lacks), avoiding redundant policy-service re-registration.
 	 */
-	private readonly _policyDefinitionSources = new Map<PolicyName, IPolicy | IPolicyReference>();
+	private readonly _submittedPolicyDefinitions = new Map<PolicyName, PolicyDefinition>();
+
+	/** Maps each policy-controlled setting key to its policy name, so removed keys can be re-resolved. */
+	private readonly _policyNameByKey = new Map<string, PolicyName>();
 
 	constructor(
 		private readonly defaultConfiguration: DefaultConfiguration,
@@ -151,24 +154,31 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 			const config = configurationProperties[key] ?? excludedConfigurationProperties[key];
 			if (!config) {
 				keys.push(key); // removed: let `update()` clear any previously applied policy value
+				// If this key contributed to a policy, re-resolve so the definition can fall back to a
+				// surviving owner/reference (e.g. owner deregistered but references remain).
+				const removedPolicyName = this._policyNameByKey.get(key);
+				if (removedPolicyName !== undefined) {
+					this._policyNameByKey.delete(key);
+					policyNames.add(removedPolicyName);
+				}
 				continue;
 			}
 			const policyName = config.policy?.name ?? config.policyReference?.name;
 			if (policyName) {
 				keys.push(key);
 				policyNames.add(policyName);
+				this._policyNameByKey.set(key, policyName);
 			}
 		}
 
-		// Resolve the authoritative (owner-first) definition for each policy name and submit only
-		// those whose source changed, so an owner always wins over a reference regardless of
-		// registration order while avoiding redundant policy-service churn.
+		// Resolve the authoritative definition for each policy name and submit only those whose
+		// definition actually changed, avoiding redundant policy-service churn.
 		const changedDefinitions: IStringDictionary<PolicyDefinition> = {};
 		for (const policyName of policyNames) {
-			const resolved = this.resolvePolicyDefinition(policyName);
-			if (resolved && this._policyDefinitionSources.get(policyName) !== resolved.source) {
-				this._policyDefinitionSources.set(policyName, resolved.source);
-				changedDefinitions[policyName] = resolved.definition;
+			const definition = this.resolvePolicyDefinition(policyName);
+			if (definition && !this.isSamePolicyDefinition(this._submittedPolicyDefinitions.get(policyName), definition)) {
+				this._submittedPolicyDefinitions.set(policyName, definition);
+				changedDefinitions[policyName] = definition;
 			}
 		}
 
@@ -179,37 +189,58 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 		return keys;
 	}
 
+	private isSamePolicyDefinition(a: PolicyDefinition | undefined, b: PolicyDefinition): boolean {
+		// The callback / managed-settings come from stable registry schema objects, so identity
+		// comparison detects a genuine change without re-submitting equal definitions.
+		return !!a && a.type === b.type && a.value === b.value && a.managedSettings === b.managedSettings && a.restrictedValue === b.restrictedValue;
+	}
+
 	/**
-	 * Resolve the authoritative policy definition for `policyName`. An owner (a setting declaring
-	 * the full `policy`) takes precedence; only when no owner is registered in this process does a
-	 * subordinate `policyReference` provide the definition, so the policy still resolves where the
-	 * owner is not loaded.
+	 * Resolve the authoritative policy definition for `policyName`. The owner (a setting declaring
+	 * the full `policy`) provides the authoritative type plus any runtime bits it carries; any
+	 * subordinate `policyReference` then fills in `value` / `managedSettings` the owner does not
+	 * provide — and supplies the whole definition when no owner is loaded in this process. This lets
+	 * a reference contribute the account-policy callback for an owner (e.g. a distro/extension owner)
+	 * that cannot declare one.
 	 */
-	private resolvePolicyDefinition(policyName: PolicyName): { source: IPolicy | IPolicyReference; definition: PolicyDefinition } | undefined {
+	private resolvePolicyDefinition(policyName: PolicyName): PolicyDefinition | undefined {
 		const configurationProperties = this.configurationRegistry.getConfigurationProperties();
 		const excludedConfigurationProperties = this.configurationRegistry.getExcludedConfigurationProperties();
+
+		let type: 'string' | 'number' | 'boolean' | undefined;
+		let value: PolicyDefinition['value'];
+		let managedSettings: PolicyDefinition['managedSettings'];
+		let restrictedValue: PolicyDefinition['restrictedValue'];
 
 		const ownerKey = this.configurationRegistry.getPolicyConfigurations().get(policyName);
 		if (ownerKey !== undefined) {
 			const config = configurationProperties[ownerKey] ?? excludedConfigurationProperties[ownerKey];
 			if (config?.policy) {
-				const type = this.updateToPolicyDefinitionType(config.type, policyName);
-				const { value, managedSettings, restrictedValue } = config.policy;
-				return type ? { source: config.policy, definition: { type, value, managedSettings, restrictedValue } } : undefined;
+				type = this.updateToPolicyDefinitionType(config.type, policyName);
+				if (!type) {
+					return undefined;
+				}
+				({ value, managedSettings, restrictedValue } = config.policy);
 			}
 		}
 
 		const referenceKeys = this.configurationRegistry.getPolicyReferenceConfigurations().get(policyName);
 		for (const referenceKey of referenceKeys ?? []) {
 			const config = configurationProperties[referenceKey] ?? excludedConfigurationProperties[referenceKey];
-			if (config?.policyReference) {
-				const type = this.updateToPolicyDefinitionType(config.type, policyName);
-				const { value, managedSettings } = config.policyReference;
-				return type ? { source: config.policyReference, definition: { type, value, managedSettings } } : undefined;
+			if (!config?.policyReference) {
+				continue;
 			}
+			if (!type) {
+				type = this.updateToPolicyDefinitionType(config.type, policyName);
+				if (!type) {
+					return undefined;
+				}
+			}
+			value ??= config.policyReference.value;
+			managedSettings ??= config.policyReference.managedSettings;
 		}
 
-		return undefined;
+		return type ? { type, value, managedSettings, restrictedValue } : undefined;
 	}
 
 	private onDidChangePolicies(policyNames: readonly PolicyName[]): void {
