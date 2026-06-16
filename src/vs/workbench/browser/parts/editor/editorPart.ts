@@ -94,10 +94,11 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	private static readonly EDITOR_PART_CENTERED_VIEW_STORAGE_KEY = 'editorpart.centeredview';
 
 	/**
-	 * Top margin reserved for the main editor under the floating panels experiment.
-	 * Must match the `margin-top` applied in `part.css` under `.floating-panels`.
+	 * Margin reserved around the main editor under the floating panels experiment
+	 * so it floats like the side bar and panel cards. Must match the `margin`
+	 * applied in `part.css` under `.floating-panels`.
 	 */
-	private static readonly FLOATING_MARGIN_TOP = 6;
+	private static readonly FLOATING_MARGIN = 6;
 
 	//#region Events
 
@@ -1370,11 +1371,12 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		this.top = top;
 		this.left = left;
 
-		// When the floating panels experiment is enabled, reserve a top margin on the
-		// main editor so it aligns with the floating side bar and panel cards. The
-		// matching `margin-top` is applied in CSS (`.floating-panels .part.editor`).
+		// When the floating panels experiment is enabled, reserve a margin around the
+		// main editor so it floats like the side bar and panel cards. The matching
+		// `margin` is applied in CSS (`.floating-panels .part.editor`).
 		if (this.windowId === mainWindow.vscodeWindowId && this.configurationService.getValue<boolean>(LayoutSettings.FLOATING_PANELS) === true) {
-			height = Math.max(0, height - EditorPart.FLOATING_MARGIN_TOP);
+			width = Math.max(0, width - EditorPart.FLOATING_MARGIN * 2);
+			height = Math.max(0, height - EditorPart.FLOATING_MARGIN * 2);
 		}
 
 		// Layout contents

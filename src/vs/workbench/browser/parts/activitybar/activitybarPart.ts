@@ -51,6 +51,13 @@ export class ActivitybarPart extends Part {
 	static readonly ICON_SIZE = 24;
 	static readonly COMPACT_ICON_SIZE = 16;
 
+	/**
+	 * Top/bottom margin reserved under the floating panels experiment so the
+	 * activity bar aligns with the floating cards. Must match the margins applied
+	 * in `part.css` under `.floating-panels`.
+	 */
+	static readonly FLOATING_MARGIN = 6;
+
 	static readonly pinnedViewContainersKey = 'workbench.activity.pinnedViewlets2';
 	static readonly placeholderViewContainersKey = 'workbench.activity.placeholderViewlets';
 	static readonly viewContainersWorkspaceStateKey = 'workbench.activity.viewletsWorkspaceState';
@@ -221,6 +228,13 @@ export class ActivitybarPart extends Part {
 	}
 
 	override layout(width: number, height: number): void {
+		// When the floating panels experiment is enabled, reserve top and bottom
+		// margins so the activity bar lines up with the floating cards. The matching
+		// margins are applied in CSS (`.floating-panels .part.activitybar`).
+		if (this.configurationService.getValue<boolean>(LayoutSettings.FLOATING_PANELS) === true) {
+			height = Math.max(0, height - ActivitybarPart.FLOATING_MARGIN * 2);
+		}
+
 		super.layout(width, height, 0, 0);
 
 		if (!this.compositeBar.value) {

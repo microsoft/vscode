@@ -122,9 +122,9 @@
 	margin-right: 10px;
 }
 
-/* Main editor: add a top margin so it aligns with the floating cards. */
+/* Main editor: add a margin on all sides so it floats like the other cards. */
 .monaco-workbench.floating-panels > .monaco-grid-view .part.editor {
-	margin-top: 6px;
+	margin: 6px;
 }
 
 /* The shell backdrop behind the floating cards matches the editor background. */
@@ -141,6 +141,12 @@
 .monaco-workbench.floating-panels .part.titlebar {
 	background-color: transparent !important;
 	border-color: transparent !important;
+}
+
+/* Activity bar (default position) gets top/bottom margins to match the cards. */
+.monaco-workbench.floating-panels .part.activitybar {
+	margin-top: 6px;
+	margin-bottom: 6px;
 }
 
 /* The status bar draws its top border via a pseudo-element — hide it too. */
