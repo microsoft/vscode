@@ -293,6 +293,7 @@ export class SessionTypePicker extends Disposable {
 				getAriaLabel: (item) => item.label ?? '',
 				getWidgetAriaLabel: () => localize('sessionTypePicker.ariaLabel', "Session Type"),
 			},
+			{ minWidth: 220 },
 		);
 	}
 
