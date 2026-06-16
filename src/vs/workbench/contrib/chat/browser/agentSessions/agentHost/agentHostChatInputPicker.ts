@@ -43,6 +43,14 @@ const FILTER_THRESHOLD = 10;
 const LEARN_MORE_VALUE = '__agentHostChatInputPicker.learnMore__';
 const PERMISSION_MODE_LEARN_MORE_URL = 'https://aka.ms/vscode/docs/permissions';
 
+const claudePermissionModeIcons: Record<string, ThemeIcon> = {
+	default: Codicon.shield,
+	acceptEdits: Codicon.edit,
+	plan: Codicon.lightbulb,
+	auto: Codicon.sparkle,
+	bypassPermissions: Codicon.warning,
+};
+
 interface IConfigPickerItem {
 	readonly value: string;
 	readonly label: string;
@@ -65,6 +73,9 @@ function getConfigIcon(property: string, value: unknown | undefined): ThemeIcon 
 			return Codicon.warning;
 		}
 		return Codicon.shield;
+	}
+	if (property === ClaudeSessionConfigKey.PermissionMode && typeof value === 'string') {
+		return claudePermissionModeIcons[value];
 	}
 	return undefined;
 }

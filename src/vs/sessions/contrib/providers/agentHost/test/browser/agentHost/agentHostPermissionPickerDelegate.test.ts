@@ -255,7 +255,7 @@ suite('isWellKnownClaudePermissionModeSchema', () => {
 			title: 'Approvals',
 			description: 'desc',
 			type: 'string',
-			enum: ['default', 'acceptEdits', 'bypassPermissions', 'plan', 'dontAsk', 'auto'],
+			enum: ['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions'],
 			...overrides,
 		} as SessionConfigPropertySchema;
 	}
@@ -266,6 +266,10 @@ suite('isWellKnownClaudePermissionModeSchema', () => {
 
 	test('matches a subset that still contains "default"', () => {
 		assert.strictEqual(isWellKnownClaudePermissionModeSchema(schema({ enum: ['default', 'acceptEdits'] })), true);
+	});
+
+	test('keeps accepting SDK-compatible schemas that include dontAsk', () => {
+		assert.strictEqual(isWellKnownClaudePermissionModeSchema(schema({ enum: ['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions', 'dontAsk'] })), true);
 	});
 
 	test('rejects schemas missing "default" or containing custom values', () => {
