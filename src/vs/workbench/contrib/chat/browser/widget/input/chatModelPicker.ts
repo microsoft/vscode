@@ -1578,12 +1578,6 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 	// --- Cost info (UBB only) ---
 	let costTableRendered = false;
 	if (!isAuto && isUBB) {
-		const formatCostValue = (cost: number): string => {
-			return cost === 1
-				? localize('models.costValueSingular', "{0} credit", cost)
-				: localize('models.costValuePlural', "{0} credits", cost);
-		};
-
 		const metrics: { label: string; def: number | undefined; long: number | undefined }[] = [
 			{ label: localize('models.inputCostLabel', "Input"), def: model.metadata.inputCost, long: model.metadata.longContextInputCost },
 			{ label: localize('models.cacheCostLabel', "Cached input"), def: model.metadata.cacheCost, long: model.metadata.longContextCacheCost },
@@ -1598,9 +1592,28 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 			container.appendChild(dom.$('.chat-model-hover-separator'));
 
 			const table = dom.$('.chat-model-hover-cost-table');
+			if (hasLongContext) {
+				container.classList.add('has-long-context');
+				table.classList.add('has-long-context');
+			}
 
 			const appendCell = (text: string, ...classNames: string[]): void => {
 				table.appendChild(dom.$(`.chat-model-hover-cost-cell${classNames.map(c => '.' + c).join('')}`, undefined, text));
+			};
+
+			// Renders a "<count> credits" value cell with the count visually emphasized.
+			const appendCostCell = (cost: number | undefined): void => {
+				if (cost === undefined) {
+					table.appendChild(dom.$('.chat-model-hover-cost-cell.value'));
+					return;
+				}
+				const unit = cost === 1
+					? localize('models.creditUnitSingular', "credit")
+					: localize('models.creditUnitPlural', "credits");
+				table.appendChild(dom.$('.chat-model-hover-cost-cell.value', undefined,
+					dom.$('span.chat-model-hover-cost-count', undefined, String(cost)),
+					dom.$('span.chat-model-hover-cost-unit', undefined, ` ${unit}`),
+				));
 			};
 
 			// Header row: "Cost" + context-size value(s) — context columns only shown with long context
@@ -1614,20 +1627,19 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 				appendCell(localize('models.defaultContext', "Default Context"), 'subheader', 'value');
 				appendCell(localize('models.longContext', "Long Context"), 'subheader', 'value');
 			} else {
-				// Single price: "per 1M tokens" sits right-aligned above the cost values.
-				// An empty trailing column reserves space so values don't stretch to the far edge.
-				appendCell(localize('models.perMillionTokens', "per 1M tokens"), 'subheader', 'value');
-				appendCell('', 'spacer');
+				// Single price: still surface the (max) context size in the header,
+				// and keep "per 1M tokens" beneath the "Cost" label.
+				appendCell(contextLabels.defaultLabel ?? '', 'header', 'value');
+				appendCell(localize('models.perMillionTokens', "per 1M tokens"), 'subheader', 'label');
+				appendCell(localize('models.defaultContext', "Default Context"), 'subheader', 'value');
 			}
 
 			// Cost rows
 			for (const metric of metrics) {
 				appendCell(metric.label, 'label');
-				appendCell(metric.def !== undefined ? formatCostValue(metric.def) : '', 'value');
+				appendCostCell(metric.def);
 				if (hasLongContext) {
-					appendCell(metric.long !== undefined ? formatCostValue(metric.long) : '', 'value');
-				} else {
-					appendCell('', 'spacer');
+					appendCostCell(metric.long);
 				}
 			}
 

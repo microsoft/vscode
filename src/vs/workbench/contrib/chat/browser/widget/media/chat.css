@@ -4272,6 +4272,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
+	max-width: 250px;
+}
+
+.chat-model-hover.has-long-context {
+	max-width: 300px;
 }
 
 .chat-model-hover-name {
@@ -4322,15 +4327,29 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .chat-model-hover-cost-table {
 	display: grid;
-	grid-template-columns: auto 1fr 1fr;
+	grid-template-columns: auto auto;
 	column-gap: 16px;
 	row-gap: 2px;
 	font-size: 12px;
 	color: var(--vscode-descriptionForeground);
 }
 
+.chat-model-hover-cost-table.has-long-context {
+	grid-template-columns: auto auto auto;
+}
+
 .chat-model-hover-cost-cell.value {
 	text-align: right;
+}
+
+.chat-model-hover-cost-count {
+	font-weight: 450;
+	color: var(--vscode-foreground);
+}
+
+.chat-model-hover-cost-unit {
+	font-weight: normal;
+	color: var(--vscode-descriptionForeground);
 }
 
 .chat-model-hover-cost-cell.header {
@@ -4340,7 +4359,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .chat-model-hover-cost-cell.subheader {
 	font-size: 11px;
-	opacity: 0.8;
 	padding-bottom: 4px;
 }
 
