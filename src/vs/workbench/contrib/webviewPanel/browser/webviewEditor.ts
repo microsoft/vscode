@@ -80,17 +80,6 @@ export class WebviewEditor extends EditorPane {
 		this._element.id = `webview-editor-element-${generateUuid()}`;
 		parent.appendChild(element);
 
-		// The webview iframe lives in an overlay at the document root (iframes
-		// can't be reparented without losing state). Make this placeholder
-		// tabbable so keyboard users can Tab into the webview content.
-		element.tabIndex = 0;
-		element.setAttribute('role', 'document');
-		this._register(DOM.addDisposableListener(element, 'focus', (e) => {
-			if (e.target === element) {
-				this.webview?.focus();
-			}
-		}));
-
 		this._scopedContextKeyService.value = this._register(this._contextKeyService.createScoped(element));
 	}
 
