@@ -182,7 +182,7 @@ jobs:
           definition: $(System.DefinitionId)
           buildVersionToDownload: latestFromBranch
           branchName: $(Build.SourceBranch)
-          allowPartiallySucceededBuilds: false
+          allowPartiallySucceededBuilds: true
           artifactName: notice_output
           itemPattern: "**/{ThirdPartyNotices.generated.txt,notice-meta.txt}"
           targetPath: $(Pipeline.Workspace)/cached-notice-branch
@@ -196,7 +196,7 @@ jobs:
           definition: $(System.DefinitionId)
           buildVersionToDownload: latestFromBranch
           branchName: refs/heads/main
-          allowPartiallySucceededBuilds: false
+          allowPartiallySucceededBuilds: true
           artifactName: notice_output
           itemPattern: "**/{ThirdPartyNotices.generated.txt,notice-meta.txt}"
           targetPath: $(Pipeline.Workspace)/cached-notice-main
