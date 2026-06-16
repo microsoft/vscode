@@ -47,6 +47,8 @@ export function getAgentSessionProvider(sessionResource: URI | string): AgentSes
 		case AgentSessionProviders.Claude:
 		case AgentSessionProviders.Codex:
 		case AgentSessionProviders.AgentHostCopilot:
+		case AgentSessionProviders.AgentHostClaude:
+		case AgentSessionProviders.AgentHostCodex:
 			return type;
 		default:
 			return undefined;
