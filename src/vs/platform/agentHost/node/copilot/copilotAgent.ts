@@ -34,6 +34,7 @@ import { AgentHostSessionSyncEnabledConfigKey, AutoApproveLevel, ISchemaProperty
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IMcpNotification } from '../../common/agentService.js';
 import { getEffectiveAgents } from '../../common/customAgents.js';
+import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../common/reasoningEffort.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -674,23 +675,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return undefined;
 		}
 
-		const enumLabels = supportedReasoningEfforts.map(value => {
-			switch (value) {
-				case 'low': return localize('copilot.modelThinkingLevel.low', "Low");
-				case 'medium': return localize('copilot.modelThinkingLevel.medium', "Medium");
-				case 'high': return localize('copilot.modelThinkingLevel.high', "High");
-				case 'xhigh': return localize('copilot.modelThinkingLevel.xhigh', "Extra High");
-				default: return value;
-			}
-		});
-
 		return {
 			type: 'string',
 			title: localize('copilot.modelThinkingLevel.title', "Thinking Level"),
 			description: localize('copilot.modelThinkingLevel.description', "Controls how much reasoning effort the model uses."),
 			default: defaultReasoningEffort,
 			enum: [...supportedReasoningEfforts],
-			enumLabels,
+			enumLabels: supportedReasoningEfforts.map(getReasoningEffortLabel),
+			enumDescriptions: supportedReasoningEfforts.map(value => getReasoningEffortDescription(value) ?? ''),
 		};
 	}
 
