@@ -105,8 +105,9 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 
 	/**
 	 * The policy definition last submitted to the policy service per policy name. A definition is
-	 * only re-submitted when its fields actually change (e.g. an owner registering, or a reference
-	 * supplying a callback the owner lacks), avoiding redundant policy-service re-registration.
+	 * only re-submitted when its fields actually change (e.g. an owner registering after a reference,
+	 * or an owner deregistering so a reference's bare definition takes over), avoiding redundant
+	 * policy-service re-registration.
 	 */
 	private readonly _submittedPolicyDefinitions = new Map<PolicyName, PolicyDefinition>();
 
@@ -133,7 +134,7 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 		return this._configurationModel;
 	}
 
-	private updateToPolicyDefinitionType(configType: unknown, policyName: PolicyName): 'string' | 'number' | 'boolean' | undefined {
+	private toPolicyDefinitionType(configType: unknown, policyName: PolicyName): 'string' | 'number' | 'boolean' | undefined {
 		if (configType !== 'string' && configType !== 'number' && configType !== 'array' && configType !== 'object' && configType !== 'boolean') {
 			this.logService.warn(`PolicyConfiguration#updatePolicyDefinitions - policy '${policyName}' has unsupported type '${configType}'`);
 			return undefined;
@@ -209,7 +210,7 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 		if (ownerKey !== undefined) {
 			const config = configurationProperties[ownerKey] ?? excludedConfigurationProperties[ownerKey];
 			if (config?.policy) {
-				const type = this.updateToPolicyDefinitionType(config.type, policyName);
+				const type = this.toPolicyDefinitionType(config.type, policyName);
 				const { value, managedSettings, restrictedValue } = config.policy;
 				return type ? { type, value, managedSettings, restrictedValue } : undefined;
 			}
@@ -220,7 +221,7 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 		for (const referenceKey of referenceKeys ?? []) {
 			const config = configurationProperties[referenceKey] ?? excludedConfigurationProperties[referenceKey];
 			if (config?.policyReference) {
-				const type = this.updateToPolicyDefinitionType(config.type, policyName);
+				const type = this.toPolicyDefinitionType(config.type, policyName);
 				return type ? { type } : undefined;
 			}
 		}
@@ -254,11 +255,11 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 		const wasEmpty = this._configurationModel.isEmpty();
 
 		for (const key of keys) {
-			const proprety = configurationProperties[key] ?? excludedConfigurationProperties[key];
-			const policyName = proprety?.policy?.name ?? proprety?.policyReference?.name;
+			const property = configurationProperties[key] ?? excludedConfigurationProperties[key];
+			const policyName = property?.policy?.name ?? property?.policyReference?.name;
 			if (policyName) {
 				let policyValue: PolicyValue | ParsedType | undefined = this.policyService.getPolicyValue(policyName);
-				if (isString(policyValue) && proprety.type !== 'string') {
+				if (isString(policyValue) && property.type !== 'string') {
 					try {
 						policyValue = this.parse(policyValue);
 					} catch (e) {

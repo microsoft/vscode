@@ -28,23 +28,6 @@ interface ExtensionConfigurationPolicyEntry {
 	readonly description: string;
 }
 
-/**
- * Settings that a policy governs (via `policyReference`) in app surfaces that are NOT loaded
- * in the workbench process where `--export-policy-data` runs — today, the Agents window
- * (`src/vs/sessions`), which is a separate layer the workbench cannot import. Their references
- * are therefore invisible to the registry-driven discovery below, so they are declared here to
- * keep the exported catalog (and the docs generated from it) complete.
- *
- * Keep this in sync with the cross-surface `policyReference` declarations. Settings registered
- * in the workbench process (for example the agent-host gates) are discovered automatically and
- * must NOT be listed here.
- */
-const CROSS_SURFACE_POLICY_REFERENCES: Readonly<Record<string, readonly string[]>> = {
-	// `sessions.chat.claudeAgent.enabled` is declared in src/vs/sessions/contrib/providers/
-	// copilotChatSessions/browser/copilotChatSessions.contribution.ts.
-	'Claude3PIntegration': ['sessions.chat.claudeAgent.enabled'],
-};
-
 export class PolicyExportContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.policyExport';
 	static readonly DEFAULT_POLICY_EXPORT_PATH = 'build/lib/policies/policyData.jsonc';
@@ -156,17 +139,21 @@ export class PolicyExportContribution extends Disposable implements IWorkbenchCo
 
 				// Attach the settings each policy governs via `policyReference` so the catalog
 				// (and the docs generated from it) can list every setting an enterprise policy
-				// controls — not just the owning setting. References registered in this process
-				// are discovered from the registry; references that live in app surfaces not
-				// loaded here are supplemented from CROSS_SURFACE_POLICY_REFERENCES.
+				// controls — not just the owning setting. A reference MUST match the owning
+				// policy's type: the same policy value is applied verbatim to every governed
+				// setting, so a type mismatch is a registration bug. Fail the export rather than
+				// emit a catalog that mis-describes the setting.
 				const policyReferenceConfigurations = configurationRegistry.getPolicyReferenceConfigurations();
 				let linkedReferences = 0;
 				for (const policy of policyData.policies) {
-					const references = new Set<string>(policyReferenceConfigurations.get(policy.name));
-					for (const key of CROSS_SURFACE_POLICY_REFERENCES[policy.name] ?? []) {
-						references.add(key);
-					}
-					if (references.size > 0) {
+					const references = policyReferenceConfigurations.get(policy.name);
+					if (references && references.size > 0) {
+						for (const referenceKey of references) {
+							const referenceType = configurationProperties[referenceKey]?.type;
+							if (referenceType !== policy.type) {
+								throw new Error(`Policy '${policy.name}': setting '${referenceKey}' (type '${referenceType}') declares a 'policyReference' to a policy of type '${policy.type}'. A 'policyReference' must match the owning setting's type.`);
+							}
+						}
 						policy.referencedSettings = [...references].sort();
 						linkedReferences += references.size;
 					}

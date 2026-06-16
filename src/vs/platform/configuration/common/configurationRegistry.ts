@@ -234,6 +234,8 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	 * When specified, this setting is governed by a policy *owned* by another setting
 	 * (see {@link policy}). Use this to let a single enterprise policy lock more than one
 	 * setting. A setting must not declare both `policy` and `policyReference`.
+	 * The subordinate setting must be of the same type as the owning setting (enforced when
+	 * exporting the policy catalog), and its effective value is locked by the owning setting's policy.
 	 */
 	policyReference?: IPolicyReference;
 
