@@ -94,14 +94,14 @@ const LEGACY_TOOL_REFERENCE_FULL_NAMES = ['runCommands/runInTerminal'];
 const INPUT_NEEDED_NOTIFICATION_THROTTLE_MS = 5000;
 
 export interface ISandboxingEnabledOptions {
-	isSandboxEnabled: true;
+	sandboxMode: 'on' | 'onAllowNetwork';
 	allowToRunUnsandboxedCommands: boolean;
 	retryWithAllowNetworkRequests: boolean;
 	networkDomains?: ITerminalSandboxResolvedNetworkDomains;
 }
 
 export interface ISandboxingDisabledOptions {
-	isSandboxEnabled: false;
+	sandboxMode: 'off';
 }
 
 export type ISandboxingOptions = ISandboxingEnabledOptions | ISandboxingDisabledOptions;
@@ -139,7 +139,7 @@ function createPowerShellModelDescription(shell: string, sandboxingOptions: ISan
 		`Use ${TerminalToolId.SendToTerminal} to send commands or input to a terminal session.`,
 	];
 
-	if (sandboxingOptions.isSandboxEnabled) {
+	if (sandboxingOptions.sandboxMode !== 'off') {
 		parts.push(...createSandboxLines(sandboxingOptions));
 	}
 
@@ -240,7 +240,7 @@ Execution Mode:
 
 Use ${TerminalToolId.SendToTerminal} to send commands or input to a terminal session.`];
 
-	if (sandboxingOptions.isSandboxEnabled) {
+	if (sandboxingOptions.sandboxMode !== 'off') {
 		parts.push(createSandboxLines(sandboxingOptions).join('\n'));
 	}
 
@@ -328,12 +328,17 @@ export async function createRunInTerminalToolData(
 
 	const networkDomains = isSandboxEnabled && !isSandboxAllowNetworkEnabled ? terminalSandboxService.getResolvedNetworkDomains() : undefined;
 
-	const sandboxingOptions: ISandboxingOptions = isSandboxEnabled ? {
-		isSandboxEnabled: true,
-		allowToRunUnsandboxedCommands,
-		retryWithAllowNetworkRequests,
-		networkDomains
-	} : { isSandboxEnabled: false };
+	const sandboxingOptions: ISandboxingOptions = (
+		isSandboxEnabled
+			? {
+				sandboxMode: isSandboxAllowNetworkEnabled ? 'onAllowNetwork' : 'on',
+				allowToRunUnsandboxedCommands,
+				retryWithAllowNetworkRequests,
+				networkDomains
+			} : {
+				sandboxMode: 'off'
+			}
+	);
 
 	let modelDescription: string;
 	if (shell && os && isPowerShell(shell, os)) {
