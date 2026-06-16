@@ -37,7 +37,8 @@ https://experimentation.visualstudio.com/Analysis%20and%20Experimentation/_git/A
 "X-VSCode-TargetPopulation": "targetpopulation",
 "X-VSCode-Language": "language",
 "X-VSCode-Platform": "platform",
-"X-VSCode-ReleaseDate": "releasedate"
+"X-VSCode-ReleaseDate": "releasedate",
+"X-VSCode-WindowKind": "windowkind"
 */
 export enum Filters {
 	/**
