@@ -44,14 +44,15 @@ suite('ChatConfiguration defaults', () => {
 		assert.strictEqual(isVisibleEditorChatSessionType(localChatSessionType, configurationService, chatSessionsService), false);
 	});
 
-	test('editor default falls back to visible non-local provider when configured provider is unavailable', () => {
+	test('editor default keeps configured agent host Copilot before contribution registers', () => {
 		const configurationService = new TestConfigurationService({
 			[ChatConfiguration.EditorLocalAgentEnabled]: false,
 			[ChatConfiguration.EditorDefaultProvider]: 'copilotAh',
 		});
 		const chatSessionsService = createChatSessionsService(SessionType.CopilotCLI);
 
-		assert.strictEqual(getDefaultNewChatSessionType(configurationService, chatSessionsService), SessionType.CopilotCLI);
+		assert.strictEqual(getDefaultNewChatSessionType(configurationService, chatSessionsService), SessionType.AgentHostCopilot);
+		assert.strictEqual(isVisibleEditorChatSessionType(localChatSessionType, configurationService, chatSessionsService), false);
 	});
 
 	test('editor default skips hidden extension host Copilot CLI', () => {
@@ -66,10 +67,9 @@ suite('ChatConfiguration defaults', () => {
 		assert.strictEqual(isVisibleEditorChatSessionType(SessionType.CopilotCLI, configurationService, chatSessionsService), false);
 	});
 
-	test('editor default keeps local as last resort when local is disabled', () => {
+	test('editor default keeps local as last resort when local is disabled without configured provider', () => {
 		const configurationService = new TestConfigurationService({
 			[ChatConfiguration.EditorLocalAgentEnabled]: false,
-			[ChatConfiguration.EditorDefaultProvider]: 'copilotAh',
 		});
 		const chatSessionsService = createChatSessionsService();
 
