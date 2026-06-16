@@ -11,7 +11,7 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ISessionChangeset, ISessionChangesetOperation, ISessionFileChange } from '../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { AgentFeedbackState, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { ChangesViewMode, IsolationMode } from '../common/changes.js';
@@ -64,25 +64,25 @@ export class ChangesViewModel extends Disposable {
 	constructor(
 		@IAgentFeedbackService private readonly agentFeedbackService: IAgentFeedbackService,
 		@ICodeReviewService private readonly codeReviewService: ICodeReviewService,
-		@ISessionsManagementService private readonly sessionManagementService: ISessionsManagementService,
+		@ISessionsService private readonly sessionsService: ISessionsService,
 		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 
 		// Active session resource
 		this.activeSessionResourceObs = derivedOpts({ equalsFn: isEqual }, reader => {
-			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			const activeSession = this.sessionsService.activeSession.read(reader);
 			return activeSession?.resource;
 		});
 
 		// Active session type
 		this.activeSessionTypeObs = derived(reader => {
-			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			const activeSession = this.sessionsService.activeSession.read(reader);
 			return activeSession?.sessionType;
 		});
 
 		this.activeSessionIsVirtualWorkspaceObs = derived(reader => {
-			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			const activeSession = this.sessionsService.activeSession.read(reader);
 			return activeSession?.workspace.read(reader)?.isVirtualWorkspace ?? false;
 		});
 
@@ -93,7 +93,7 @@ export class ChangesViewModel extends Disposable {
 				return true;
 			}
 
-			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			const activeSession = this.sessionsService.activeSession.read(reader);
 			const workspace = activeSession?.workspace.read(reader);
 			return workspace?.folders[0].gitRepository !== undefined;
 		});
@@ -111,7 +111,7 @@ export class ChangesViewModel extends Disposable {
 
 		// Changeset
 		this.activeSessionChangesetsObs = derived(reader => {
-			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			const activeSession = this.sessionsService.activeSession.read(reader);
 			return activeSession?.changesets.read(reader);
 		});
 
@@ -164,7 +164,7 @@ export class ChangesViewModel extends Disposable {
 				return lastValue;
 			}
 
-			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			const activeSession = this.sessionsService.activeSession.read(reader);
 			const activeSessionChanges = activeSession?.changes.read(reader) ?? [];
 			const workspace = activeSession?.workspace.read(reader);
 

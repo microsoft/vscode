@@ -85,7 +85,7 @@ function getContextSizeOptions(endpoint: IChatEndpoint): { value: number; descri
 	const hasLongContextSurcharge = !!pricing.longContext;
 
 	return [
-		{ value: defaultMax, description: vscode.l10n.t('Default'), isDefault: true },
+		{ value: defaultMax, description: vscode.l10n.t('Default recommended context size'), isDefault: true },
 		{
 			value: fullMax,
 			description: hasLongContextSurcharge

@@ -10,12 +10,12 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { openCopilotCliStateFile } from '../../../../../workbench/contrib/chat/browser/actions/openCopilotCliStateFileAction.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IsAgentHostSession } from './agentHostSkillButtons.js';
 
 /**
  * Sessions-app variant of "Open Copilot CLI State File". Uses the Agents
- * window's `ISessionsManagementService.activeSession` to find the active
+ * window's `ISessionsService.activeSession` to find the active
  * Copilot CLI session, then defers to the shared workbench helper for
  * the actual resolution and editor opening.
  *
@@ -39,8 +39,8 @@ export class OpenSessionEventsFileAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const sessionResource = sessionsManagementService.activeSession.get()?.resource;
+		const sessionsService = accessor.get(ISessionsService);
+		const sessionResource = sessionsService.activeSession.get()?.resource;
 		await openCopilotCliStateFile(accessor, sessionResource);
 	}
 }

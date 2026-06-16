@@ -27,7 +27,7 @@ import { IResourceLabel, ResourceLabels } from '../../../../workbench/browser/la
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ModifiedFileEntryState } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, SessionChangesetOperationScope } from '../../../services/sessions/common/session.js';
 import { ActiveSessionContextKeys, ChangesContextKeys, ChangesViewMode } from '../common/changes.js';
 import { ChangesViewModel } from './changesViewModel.js';
@@ -186,7 +186,7 @@ export class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTre
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IMenuService private readonly menuService: IMenuService,
-		@ISessionsManagementService private readonly sessionManagementService: ISessionsManagementService,
+		@ISessionsService private readonly sessionsService: ISessionsService,
 	) {
 		this._changeset = derived(reader => {
 			return viewModel.activeSessionChangesetObs.read(reader);
@@ -229,7 +229,7 @@ export class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTre
 		templateDisposables.add(toolbarMenu);
 
 		templateDisposables.add(bindContextKey(ChatContextKeys.agentSessionType, contextKeyService, reader => {
-			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			const activeSession = this.sessionsService.activeSession.read(reader);
 			return activeSession?.sessionType ?? '';
 		}));
 
