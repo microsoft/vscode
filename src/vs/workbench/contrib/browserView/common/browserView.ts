@@ -172,7 +172,12 @@ export interface IBrowserViewContextualFilter {
 }
 
 export interface IBrowserViewFilterContext {
-	/** The ID of the relevant chat session, if any. */
+	/**
+	 * The session *resource* URI string (`session.resource.toString()`) of the
+	 * relevant session, if any. This is the same value stored in
+	 * {@link IBrowserViewOwner.sessionId} — not the composite
+	 * `ISession.sessionId` (`providerId:resource`).
+	 */
 	activeSessionId?: string;
 }
 

@@ -112,10 +112,11 @@ export class OpenBrowserTool implements IToolImpl {
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
 		const params = invocation.parameters as IOpenBrowserToolParams;
 		const sessionId = getSessionId(invocation);
+		const activeSessionId = invocation.context?.sessionResource.toString();
 
 		// If no URL is specified, prompt the user for a page to share.
 		if (!params.url) {
-			const allPages = [...this.browserViewService.getKnownBrowserViews().values()];
+			const allPages = [...this.browserViewService.getContextualBrowserViews({ activeSessionId }).values()];
 			if (allPages.length === 0) {
 				return { content: [{ kind: 'text', value: 'No browser pages are currently open.' }] };
 			}
@@ -139,8 +140,6 @@ export class OpenBrowserTool implements IToolImpl {
 			rewriteNotice ? { ...result, content: [rewriteNotice, ...result.content] } : result;
 
 		if (!params.forceNew) {
-			const activeSessionId = invocation.context?.sessionResource.toString();
-
 			// If there are already-shared pages, tell the model to reuse them
 			const shared = findExistingPagesByHost(this.browserViewService, params.url, { includeBlank: true, sharingState: BrowserViewSharingState.Shared, activeSessionId });
 			const alreadyShared = await getExistingPagesResult(this.editorService, shared, { agentNetworkFilterService: this.agentNetworkFilterService });
@@ -217,7 +216,7 @@ export class OpenBrowserTool implements IToolImpl {
 		}
 
 		// User selected an existing tab
-		const editor = this.browserViewService.getKnownBrowserViews().get(selectedOptionId);
+		const editor = candidateEditors.find(e => e.id === selectedOptionId);
 		if (!editor) {
 			this.logService.warn(`[OpenBrowserTool] Selected option '${selectedOptionId}' not found.`);
 			return undefined;
