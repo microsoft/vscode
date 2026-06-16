@@ -1967,8 +1967,9 @@ export class CopilotAgentSession extends Disposable {
 			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
 			this._activeToolCalls.set(e.data.toolCallId, { toolName: e.data.toolName, displayName, parameters, content: [], parentToolCallId, startTimeMs: Date.now(), mcpServerName: e.data.mcpServerName, meta: undefined });
 			if (isTaskCompleteTool(e.data.toolName)) {
-				this._currentMarkdownPartIds.delete('');
-				this._currentReasoningPartIds.delete('');
+				const scope = parentToolCallId ?? '';
+				this._currentMarkdownPartIds.delete(scope);
+				this._currentReasoningPartIds.delete(scope);
 				return;
 			}
 			const toolKind = getToolKind(e.data.toolName);
@@ -2107,7 +2108,7 @@ export class CopilotAgentSession extends Disposable {
 				const summary = getTaskCompleteSummary(tracked.parameters, toolOutput);
 				if (summary) {
 					this._emitAction({
-						type: ActionType.SessionResponsePart,
+						type: ActionType.ChatResponsePart,
 						turnId: this._turnId,
 						part: { kind: ResponsePartKind.Markdown, id: generateUuid(), content: summary },
 					});
