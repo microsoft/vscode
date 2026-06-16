@@ -3120,6 +3120,45 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(models[0].metadata.targetChatSessionType, 'agent-host-copilot');
 		});
 
+		test('maps cost metadata from _meta onto model metadata', async () => {
+			const provider = disposables.add(new AgentHostLanguageModelProvider('agent-host-copilot', 'agent-host-copilot'));
+			provider.updateModels([
+				{
+					provider: 'copilot', id: 'claude-sonnet', name: 'Claude Sonnet', maxContextWindow: 200000, supportsVision: false,
+					_meta: {
+						multiplierNumeric: 1,
+						inputCost: 3,
+						cacheCost: 1,
+						outputCost: 15,
+						longContextInputCost: 6,
+						longContextOutputCost: 22.5,
+						priceCategory: 'medium',
+					},
+				},
+			]);
+
+			const models = await provider.provideLanguageModelChatInfo({}, CancellationToken.None);
+
+			const metadata = models[0].metadata;
+			assert.deepStrictEqual({
+				inputCost: metadata.inputCost,
+				cacheCost: metadata.cacheCost,
+				outputCost: metadata.outputCost,
+				longContextInputCost: metadata.longContextInputCost,
+				longContextCacheCost: metadata.longContextCacheCost,
+				longContextOutputCost: metadata.longContextOutputCost,
+				priceCategory: metadata.priceCategory,
+			}, {
+				inputCost: 3,
+				cacheCost: 1,
+				outputCost: 15,
+				longContextInputCost: 6,
+				longContextCacheCost: undefined,
+				longContextOutputCost: 22.5,
+				priceCategory: 'medium',
+			});
+		});
+
 		test('filters out disabled models', async () => {
 			const provider = disposables.add(new AgentHostLanguageModelProvider('agent-host-copilot', 'agent-host-copilot'));
 			provider.updateModels([

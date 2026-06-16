@@ -361,7 +361,7 @@ test/node/
 Phase 2 is "done" when all of the following pass:
 
 **Hygiene (must run frequently during development, not as a final step):**
-- [ ] `compile-check-ts-native` clean
+- [ ] `typecheck-client` clean
 - [ ] `eslint` clean
 - [ ] `valid-layers-check` clean
 - [ ] Hygiene check (gulp `hygiene`) clean — copyright headers, tabs,

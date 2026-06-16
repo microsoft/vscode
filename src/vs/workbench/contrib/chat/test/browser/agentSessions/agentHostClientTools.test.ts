@@ -298,6 +298,7 @@ suite('AgentHostClientTools', () => {
 				createToolSet: () => { throw new Error('not impl'); },
 				getFullReferenceNames: () => [],
 				getFullReferenceName: () => '',
+				getFullReferenceNameMap: () => new Map(),
 				getToolByFullReferenceName: () => undefined,
 				getDeprecatedFullReferenceNames: () => new Map(),
 				toToolAndToolSetEnablementMap: () => new Map(),

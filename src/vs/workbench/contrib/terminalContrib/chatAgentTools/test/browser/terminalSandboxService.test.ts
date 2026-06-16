@@ -737,6 +737,8 @@ suite('TerminalSandboxService - network domains', () => {
 			ok(config.filesystem.allowRead.includes('/home/user/.gnupg'), `${command} should include GPG read allow-list paths`);
 			ok(config.filesystem.allowWrite.includes('/home/user/.gnupg'), `${command} should include GPG write allow-list paths`);
 			ok(config.filesystem.allowRead.includes('/home/user/.gitconfig'), `${command} should still include generic Git read allow-list paths`);
+			ok(config.filesystem.allowRead.includes('/home/user/.config/gh/config.yml'), `${command} should include the GitHub CLI config`);
+			ok(!config.filesystem.allowWrite.includes('/home/user/.config/gh/config.yml'), `${command} should not make the GitHub CLI config writable`);
 		}
 
 		const gpgConfig = await getConfigAfterWrap('gpg --list-keys', [{ keyword: 'gpg', args: ['--list-keys'] }]);
@@ -747,18 +749,6 @@ suite('TerminalSandboxService - network domains', () => {
 		const chainedGitConfig = await getConfigAfterWrap('git rebase main && npm install', [{ keyword: 'git', args: ['rebase', 'main'] }, { keyword: 'npm', args: ['install'] }]);
 		ok(chainedGitConfig.filesystem.allowRead.includes('/home/user/.gnupg'), 'Chained Git commands should include GPG read allow-list paths');
 		ok(!chainedGitConfig.filesystem.allowWrite.includes('/home/user/.gnupg'), 'Chained Git commands should not include GPG write allow-list paths');
-		for (const [command, args] of [
-			['git status', ['status']],
-			['git fetch', ['fetch']],
-			['git push', ['push']],
-		] as const) {
-			const config = await getConfigAfterWrap(command, [{ keyword: 'git', args }]);
-			ok(!config.filesystem.allowRead.includes('/home/user/.gnupg'), `${command} should not include GPG read allow-list paths`);
-			ok(!config.filesystem.allowWrite.includes('/home/user/.gnupg'), `${command} should not include GPG write allow-list paths`);
-			ok(config.filesystem.allowRead.includes('/home/user/.gitconfig'), `${command} should still include generic git read allow-list paths`);
-			ok(config.filesystem.allowRead.includes('/home/user/.config/gh/config.yml'), `${command} should include the GitHub CLI config`);
-			ok(!config.filesystem.allowWrite.includes('/home/user/.config/gh/config.yml'), `${command} should not make the GitHub CLI config writable`);
-		}
 
 		const npmConfig = await getConfigAfterWrap('npm install', [{ keyword: 'npm', args: ['install'] }]);
 		ok(!npmConfig.filesystem.allowRead.includes('/home/user/.gnupg'), 'Commands without a matching GPG rule should not include GPG read allow-list paths');

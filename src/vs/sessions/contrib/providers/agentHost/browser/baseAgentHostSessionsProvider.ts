@@ -275,10 +275,15 @@ export class AgentHostSessionAdapter implements ISession {
 			const uri = URI.parse(`https://github.com/${coords.owner}/${coords.repo}/pull/${prNumber}`);
 			let icon: ThemeIcon | undefined;
 			if (gitHubService) {
-				const ref = reader.store.add(gitHubService.createPullRequestModelReference(coords.owner, coords.repo, prNumber));
-				const livePR = ref.object.pullRequest.read(reader);
-				if (livePR) {
-					icon = computePullRequestIcon(livePR.isDraft ? 'draft' : livePR.state);
+				// Read the last-seen PR state from the shared cache rather than
+				// holding a live model reference here. This keeps the icon
+				// rendering even when the session is inactive/invisible (the cache
+				// retains the last value and is seeded from storage on reload),
+				// while polling is driven centrally for only a limited set of
+				// sessions (see GitHubPullRequestPollingContribution).
+				const cached = gitHubService.getCachedPullRequestState(coords.owner, coords.repo, prNumber).read(reader);
+				if (cached) {
+					icon = computePullRequestIcon(cached.iconState);
 				}
 			}
 			return {
@@ -1262,6 +1267,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	protected abstract _formatSessionTypeLabel(agentLabel: string): string;
 
 	/**
+	 * Whether `provider` should be advertised as a session type by this host.
+	 * Defaults to `true` (advertise everything the host reports). The local
+	 * provider overrides this to suppress the agent host's Claude when the
+	 * window prefers the extension-host Claude, mirroring the gate
+	 * {@link AgentHostContribution} applies to the chat session contribution so
+	 * the welcome picker doesn't list Claude twice.
+	 */
+	protected _shouldAdvertiseAgent(_provider: string): boolean {
+		return true;
+	}
+
+	/**
 	 * Reconcile {@link _sessionTypes} against the agents advertised by the
 	 * host's root state, firing {@link onDidChangeSessionTypes} only if the
 	 * id/label set actually changed.
@@ -1272,15 +1289,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._onDidChangeCustomAgents.fire();
 			this._onDidChangeCustomizations.fire();
 		}
-		const next = rootState.agents.map((agent): ISessionType => ({
-			id: agent.provider,
-			// The chat session contribution and language models for an agent-host
-			// agent are registered under its resource scheme (`agent-host-<provider>`),
-			// not the bare provider id, so carry it for availability lookups.
-			chatSessionType: this.resourceSchemeForProvider(agent.provider),
-			label: this._formatSessionTypeLabel(agent.displayName?.trim() || agent.provider),
-			icon: this.iconForAgentProvider(agent.provider) ?? this.icon,
-		}));
+		const next = rootState.agents
+			.filter(agent => this._shouldAdvertiseAgent(agent.provider))
+			.map((agent): ISessionType => ({
+				id: agent.provider,
+				// The chat session contribution and language models for an agent-host
+				// agent are registered under its resource scheme (`agent-host-<provider>`),
+				// not the bare provider id, so carry it for availability lookups.
+				chatSessionType: this.resourceSchemeForProvider(agent.provider),
+				label: this._formatSessionTypeLabel(agent.displayName?.trim() || agent.provider),
+				icon: this.iconForAgentProvider(agent.provider) ?? this.icon,
+			}));
 
 		const prev = this._sessionTypes;
 		if (prev.length === next.length && prev.every((t, i) => t.id === next[i].id && t.label === next[i].label)) {
