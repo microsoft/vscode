@@ -55,7 +55,7 @@ const STYLE_OVERRIDE_MODULES: readonly IStyleOverrideModule[] = [
 	{
 		id: 'roundedCorners',
 		label: localize('styleOverrides.roundedCorners', "Rounded Corners"),
-		description: localize('styleOverrides.roundedCorners.description', "Applies a three-tier corner radius system: 8px for overlays (quick input, hovers, menus, dialogs), 6px for non-control containers and 4px for interactible controls (inputs, lists).")
+		description: localize('styleOverrides.roundedCorners.description', "Applies a three-tier corner radius system: 8px for overlays (quick input, hovers, menus, dialogs), 6px for non-control containers and 4px for interactable controls (inputs, lists).")
 	},
 	{
 		id: 'tabs',
