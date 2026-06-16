@@ -299,21 +299,21 @@ suite('PolicyConfiguration', () => {
 		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicyShared': false })));
 
 		await testObject.initialize();
-		const acutal = testObject.configurationModel;
+		const actual = testObject.configurationModel;
 
-		assert.strictEqual(acutal.getValue('policy.ownerSetting'), false);
-		assert.strictEqual(acutal.getValue('policy.referenceSetting'), false);
-		assert.deepStrictEqual([...acutal.keys].sort(), ['policy.ownerSetting', 'policy.referenceSetting']);
+		assert.strictEqual(actual.getValue('policy.ownerSetting'), false);
+		assert.strictEqual(actual.getValue('policy.referenceSetting'), false);
+		assert.deepStrictEqual([...actual.keys].sort(), ['policy.ownerSetting', 'policy.referenceSetting']);
 	});
 
 	test('initialize: a reference resolves even when its owner is not registered', async () => {
 		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicyOrphanReference': false })));
 
 		await testObject.initialize();
-		const acutal = testObject.configurationModel;
+		const actual = testObject.configurationModel;
 
-		assert.strictEqual(acutal.getValue('policy.orphanReferenceSetting'), false);
-		assert.deepStrictEqual(acutal.keys, ['policy.orphanReferenceSetting']);
+		assert.strictEqual(actual.getValue('policy.orphanReferenceSetting'), false);
+		assert.deepStrictEqual(actual.keys, ['policy.orphanReferenceSetting']);
 	});
 
 	test('initialize: the owner definition is authoritative; a reference only contributes the policy name', async () => {
