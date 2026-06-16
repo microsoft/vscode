@@ -8,10 +8,11 @@
  * provider in its `resolveSessionConfig` schema.
  *
  * Claude collapses the platform's two-axis approval model
- * (`autoApprove` × `mode`) onto a single `permissionMode` axis using
- * five of the Claude SDK's six `PermissionMode` values
- * (`sdk.d.ts:1560`). VS Code intentionally excludes the SDK-only
- * `dontAsk` mode from Agent Host.
+ * (`autoApprove` × `mode`) onto a single `permissionMode` axis matching
+ * the Claude SDK's native `PermissionMode` (see
+ * `@anthropic-ai/claude-agent-sdk` typings, `sdk.d.ts:1560`). VS Code
+ * exposes five of the SDK's six values, intentionally excluding the
+ * SDK-only `dontAsk` mode.
  *
  * The platform `Permissions` key (allow/deny tool lists) is reused
  * unchanged from `platformSessionSchema` because the Claude SDK accepts
