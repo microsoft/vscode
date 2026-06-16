@@ -137,6 +137,21 @@ suite('agentHost editSurvivalTracker', () => {
 			const file = `// header\n${a}// mid\n${b}// footer\n`;
 			assert.strictEqual(computeChunkedFourGramSurvival([a, b], file), 1);
 		});
+
+		test('scales linearly with chunks: file n-gram set is built once', () => {
+			// Regression guard: a previous implementation rebuilt the
+			// file n-gram set inside the per-chunk loop, making cost
+			// O(|chunks| × |file|). With the set built once, scoring
+			// 50 chunks against a 500 KB file should finish well
+			// under a second on any developer machine.
+			const file = 'x'.repeat(500_000);
+			const chunks = Array.from({ length: 50 }, (_, i) => `chunk${i}-${'x'.repeat(40)}`);
+			const start = Date.now();
+			const score = computeChunkedFourGramSurvival(chunks, file);
+			const elapsedMs = Date.now() - start;
+			assert.ok(score >= 0 && score <= 1, `score out of range: ${score}`);
+			assert.ok(elapsedMs < 1000, `expected < 1000ms, took ${elapsedMs}ms`);
+		});
 	});
 
 	suite('computeChunkedEditSurvival', () => {

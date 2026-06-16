@@ -71,6 +71,11 @@ export function compute4GramTextSimilarity(text1: string, text2: string): number
  * when we have an explicit chunk (the `new_string` from `Edit`, each
  * entry of `MultiEdit.edits[*].new_string`, or `Write.content`) rather
  * than a whole-file before/after pair.
+ *
+ * For multi-chunk scoring against the same file, prefer building the
+ * file n-gram set once via {@link buildNGramSet} and passing it to
+ * {@link computeFractionPresentInSet} to avoid rebuilding the set per
+ * chunk — see {@link computeChunkedFourGramSurvival}.
  */
 export function computeFractionPresentIn(chunk: string, currentText: string): number {
 	const n = 4;
@@ -83,12 +88,24 @@ export function computeFractionPresentIn(chunk: string, currentText: string): nu
 	if (currentText.length < n) {
 		return 0;
 	}
+	return computeFractionPresentInSet(chunk, buildNGramSet(currentText, n), n);
+}
 
-	const fileNGrams = new Set<string>();
-	for (let i = 0; i <= currentText.length - n; i++) {
-		fileNGrams.add(currentText.substring(i, i + n));
+/** Builds the set of length-`n` substrings of `text`. */
+function buildNGramSet(text: string, n: number): Set<string> {
+	const set = new Set<string>();
+	for (let i = 0; i <= text.length - n; i++) {
+		set.add(text.substring(i, i + n));
 	}
+	return set;
+}
 
+/**
+ * {@link computeFractionPresentIn} with a precomputed file n-gram set.
+ * `chunk.length >= n` is the caller's responsibility; short/empty
+ * chunks are handled by {@link computeFractionPresentIn}.
+ */
+function computeFractionPresentInSet(chunk: string, fileNGrams: ReadonlySet<string>, n: number): number {
 	const total = chunk.length - n + 1;
 	let present = 0;
 	for (let i = 0; i < total; i++) {
@@ -105,6 +122,10 @@ export function computeFractionPresentIn(chunk: string, currentText: string): nu
  * (approx its character length), so a 200-char chunk counts ~10x as much
  * as a 20-char chunk. Returns 0 when there are no chunks (callers
  * should branch on that and fall back to whole-file scoring).
+ *
+ * Builds the file n-gram set exactly once and reuses it for every
+ * chunk, so cost is O(|currentText| + sum(|chunk|)) rather than
+ * O(|chunks| × |currentText|).
  */
 export function computeChunkedFourGramSurvival(aiChunks: readonly string[], currentText: string): number {
 	if (aiChunks.length === 0) {
@@ -112,6 +133,8 @@ export function computeChunkedFourGramSurvival(aiChunks: readonly string[], curr
 	}
 
 	const n = 4;
+	const fileNGrams = currentText.length >= n ? buildNGramSet(currentText, n) : undefined;
+
 	let totalWeight = 0;
 	let weightedSum = 0;
 	for (const chunk of aiChunks) {
@@ -119,7 +142,17 @@ export function computeChunkedFourGramSurvival(aiChunks: readonly string[], curr
 		// chunks (so they still contribute their full presence signal
 		// rather than getting zero weight).
 		const weight = Math.max(1, chunk.length - n + 1);
-		weightedSum += computeFractionPresentIn(chunk, currentText) * weight;
+		let fraction: number;
+		if (chunk.length === 0) {
+			fraction = 1;
+		} else if (chunk.length < n) {
+			fraction = currentText.includes(chunk) ? 1 : 0;
+		} else if (!fileNGrams) {
+			fraction = 0;
+		} else {
+			fraction = computeFractionPresentInSet(chunk, fileNGrams, n);
+		}
+		weightedSum += fraction * weight;
 		totalWeight += weight;
 	}
 	return weightedSum / totalWeight;
