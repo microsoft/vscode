@@ -150,8 +150,9 @@
 	border-color: transparent !important;
 }
 
-/* Activity bar (default position) gets a bottom margin to match the cards. */
+/* Activity bar (default position) gets a left and bottom gutter to match the cards. */
 .monaco-workbench.floating-panels .part.activitybar {
+	margin-left: 6px;
 	margin-bottom: 6px;
 }
 

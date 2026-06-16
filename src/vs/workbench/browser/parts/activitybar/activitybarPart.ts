@@ -52,9 +52,10 @@ export class ActivitybarPart extends Part {
 	static readonly COMPACT_ICON_SIZE = 16;
 
 	/**
-	 * Bottom margin reserved under the floating panels experiment so the activity
-	 * bar aligns with the floating cards. Must match the margin applied in
-	 * `part.css` under `.floating-panels`.
+	 * Gutter reserved on the left and bottom edges under the floating panels
+	 * experiment so the activity bar aligns with the floating cards (it stays
+	 * flush with the title bar, so no top gutter). Must match the margins applied
+	 * in `part.css` under `.floating-panels`.
 	 */
 	static readonly FLOATING_MARGIN = 6;
 
@@ -64,12 +65,18 @@ export class ActivitybarPart extends Part {
 
 	//#region IView
 
-	get minimumWidth(): number { return this._isCompact ? ActivitybarPart.COMPACT_ACTIVITYBAR_WIDTH : ActivitybarPart.ACTIVITYBAR_WIDTH; }
-	get maximumWidth(): number { return this._isCompact ? ActivitybarPart.COMPACT_ACTIVITYBAR_WIDTH : ActivitybarPart.ACTIVITYBAR_WIDTH; }
+	get minimumWidth(): number { return this.baseWidth + this.floatingGutter; }
+	get maximumWidth(): number { return this.baseWidth + this.floatingGutter; }
 	readonly minimumHeight: number = 0;
 	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
 
 	//#endregion
+
+	/** The intrinsic activity bar width (excludes any floating gutter). */
+	private get baseWidth(): number { return this._isCompact ? ActivitybarPart.COMPACT_ACTIVITYBAR_WIDTH : ActivitybarPart.ACTIVITYBAR_WIDTH; }
+
+	/** Extra space reserved around the part when the floating panels experiment is enabled. */
+	private get floatingGutter(): number { return this.configurationService.getValue<boolean>(LayoutSettings.FLOATING_PANELS) === true ? ActivitybarPart.FLOATING_MARGIN : 0; }
 
 	private readonly compositeBar = this._register(new MutableDisposable<PaneCompositeBar>());
 	private content: HTMLElement | undefined;
@@ -101,7 +108,7 @@ export class ActivitybarPart extends Part {
 	private updateCompactStyle(): void {
 		if (this.element) {
 			this.element.classList.toggle('compact', this._isCompact);
-			this.element.style.setProperty('--activity-bar-width', `${this.minimumWidth}px`);
+			this.element.style.setProperty('--activity-bar-width', `${this.baseWidth}px`);
 			this.element.style.setProperty('--activity-bar-action-height', `${this._isCompact ? ActivitybarPart.COMPACT_ACTION_HEIGHT : ActivitybarPart.ACTION_HEIGHT}px`);
 			this.element.style.setProperty('--activity-bar-icon-size', `${this._isCompact ? ActivitybarPart.COMPACT_ICON_SIZE : ActivitybarPart.ICON_SIZE}px`);
 		}
@@ -234,20 +241,20 @@ export class ActivitybarPart extends Part {
 			return;
 		}
 
-		// When the floating panels experiment is enabled, reserve a bottom margin so
-		// the activity bar lines up with the floating cards (it stays flush with the
-		// title bar, so no top margin). The matching margin is applied in CSS
-		// (`.floating-panels .part.activitybar`).
-		let contentHeight = height;
-		if (this.configurationService.getValue<boolean>(LayoutSettings.FLOATING_PANELS) === true) {
-			contentHeight = Math.max(0, height - ActivitybarPart.FLOATING_MARGIN);
-		}
+		// When the floating panels experiment is enabled, reserve a gutter on the
+		// left and bottom so the activity bar lines up with the floating cards (it
+		// stays flush with the title bar, so no top gutter). The grid column is grown
+		// by the same amount (see minimum/maximumWidth) and the matching margins are
+		// applied in CSS (`.floating-panels .part.activitybar`).
+		const gutter = this.floatingGutter;
+		const contentWidth = Math.max(0, width - gutter);
+		const contentHeight = Math.max(0, height - gutter);
 
 		// Layout contents
-		const contentAreaSize = super.layoutContents(width, contentHeight).contentSize;
+		const contentAreaSize = super.layoutContents(contentWidth, contentHeight).contentSize;
 
 		// Layout composite bar
-		this.compositeBar.value.layout(width, contentAreaSize.height);
+		this.compositeBar.value.layout(contentAreaSize.width, contentAreaSize.height);
 	}
 
 	toJSON(): object {
