@@ -16,6 +16,7 @@ import { workbenchConfigurationNodeBase } from '../../../common/configuration.js
 // Bundle the CSS for every style-override module. Each file gates all of its
 // rules behind a `.style-override-<id>` ancestor class, so the styles are inert
 // until the matching class is toggled onto the workbench container(s) below.
+import './media/activityBar.css';
 import './media/fontRamp.css';
 import './media/paneHeaders.css';
 import './media/roundedButtons.css';
@@ -37,6 +38,11 @@ interface IStyleOverrideModule {
  * arbitrary CSS cannot be injected.
  */
 const STYLE_OVERRIDE_MODULES: readonly IStyleOverrideModule[] = [
+	{
+		id: 'activityBar',
+		label: localize('styleOverrides.activityBar', "Activity Bar"),
+		description: localize('styleOverrides.activityBar.description', "Replaces the active activity bar item's left highlight border with a rounded background behind the icon.")
+	},
 	{
 		id: 'fontRamp',
 		label: localize('styleOverrides.fontRamp', "Font Ramp"),

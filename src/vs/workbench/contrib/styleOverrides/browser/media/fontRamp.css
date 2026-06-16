@@ -117,4 +117,5 @@
 /* Agent sessions list header ("SESSIONS"). */
 .style-override-fontRamp .chat-viewpane.has-sessions-control .agent-sessions-container .agent-sessions-title-container {
 	text-transform: capitalize;
+	font-size: var(--vscode-bodyFontSize-small);
 }
