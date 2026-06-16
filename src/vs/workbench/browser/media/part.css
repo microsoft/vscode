@@ -132,3 +132,19 @@
 	background-color: var(--vscode-editor-background);
 }
 
+/*
+ * Activity bar, status bar and title bar blend into the shell: drop their own
+ * background and borders so the editor-colored backdrop shows through.
+ */
+.monaco-workbench.floating-panels .part.activitybar,
+.monaco-workbench.floating-panels .part.statusbar,
+.monaco-workbench.floating-panels .part.titlebar {
+	background-color: transparent !important;
+	border-color: transparent !important;
+}
+
+/* The status bar draws its top border via a pseudo-element — hide it too. */
+.monaco-workbench.floating-panels .part.statusbar::after {
+	display: none !important;
+}
+
