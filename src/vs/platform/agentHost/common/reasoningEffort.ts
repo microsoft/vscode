@@ -15,7 +15,7 @@ import { localize } from '../../../nls.js';
  * the localized picker strings so every provider renders the same value
  * consistently.
  */
-export type ReasoningEffortLevel = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+export type ReasoningEffortLevel = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
 /**
  * Localized, title-cased picker label for a reasoning-effort value.
@@ -24,6 +24,7 @@ export type ReasoningEffortLevel = 'minimal' | 'low' | 'medium' | 'high' | 'xhig
  */
 export function getReasoningEffortLabel(level: string): string {
 	switch (level) {
+		case 'none': return localize('reasoningEffort.none', "None");
 		case 'minimal': return localize('reasoningEffort.minimal', "Minimal");
 		case 'low': return localize('reasoningEffort.low', "Low");
 		case 'medium': return localize('reasoningEffort.medium', "Medium");
@@ -38,15 +39,20 @@ export function getReasoningEffortLabel(level: string): string {
  * Localized description for a reasoning-effort value, shown beneath the
  * label in the picker. Returns `undefined` for an unrecognized value so
  * callers can omit the description rather than show an empty string.
+ *
+ * Wording mirrors the canonical extension helper `getReasoningEffortDescription`
+ * in `extensions/copilot/src/extension/conversation/common/languageModelAccess.ts`
+ * so every provider surfaces the same descriptions.
  */
 export function getReasoningEffortDescription(level: string): string | undefined {
 	switch (level) {
-		case 'minimal': return localize('reasoningEffort.minimalDescription', "Little to no reasoning for the fastest responses.");
-		case 'low': return localize('reasoningEffort.lowDescription', "Minimal reasoning for fast responses.");
-		case 'medium': return localize('reasoningEffort.mediumDescription', "Balanced reasoning for everyday tasks.");
-		case 'high': return localize('reasoningEffort.highDescription', "Deeper reasoning for complex tasks.");
-		case 'xhigh': return localize('reasoningEffort.xhighDescription', "Extensive reasoning for the most challenging tasks.");
-		case 'max': return localize('reasoningEffort.maxDescription', "Maximum reasoning effort for the most thorough responses.");
+		case 'none': return localize('reasoningEffort.noneDescription', "No reasoning applied");
+		case 'minimal': return localize('reasoningEffort.minimalDescription', "Minimal reasoning for fastest responses");
+		case 'low': return localize('reasoningEffort.lowDescription', "Faster responses with less reasoning");
+		case 'medium': return localize('reasoningEffort.mediumDescription', "Balanced reasoning and speed");
+		case 'high': return localize('reasoningEffort.highDescription', "Greater reasoning depth but slower");
+		case 'xhigh': return localize('reasoningEffort.xhighDescription', "Highest reasoning depth but slowest");
+		case 'max': return localize('reasoningEffort.maxDescription', "Absolute maximum capability with no constraints");
 		default: return undefined;
 	}
 }
