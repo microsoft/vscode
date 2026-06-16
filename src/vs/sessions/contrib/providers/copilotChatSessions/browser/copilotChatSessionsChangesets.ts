@@ -155,7 +155,7 @@ abstract class AbstractChangeset implements ISessionChangeset {
 
 	constructor(protected readonly _chats: IObservable<readonly IChat[]>) { }
 
-	async invokeOperation(): Promise<void> {
+	async invokeOperation(_operationId: string, _target?: ISessionChangesetOperationTarget): Promise<void> {
 		// No-op: copilot chat changesets do not advertise server-driven operations.
 	}
 }
