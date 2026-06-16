@@ -118,6 +118,10 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		}
 
 		const baseUrl = this._getWsUrl();
+		if (!baseUrl) {
+			this._logService.error('[voice] No voice WebSocket URL configured (set voiceWsUrl in product.json or agents.voice.backendUrl in settings)');
+			return;
+		}
 		const url = this._authToken
 			? `${baseUrl}?token=${encodeURIComponent(this._authToken)}`
 			: baseUrl;

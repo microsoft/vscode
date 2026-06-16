@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableMap, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { buildSessionChangesetUri, buildUncommittedChangesetUri, ChangesetKind } from '../common/changesetUri.js';
+import { buildBranchChangesetUri, buildSessionChangesetUri, buildUncommittedChangesetUri, ChangesetKind } from '../common/changesetUri.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType } from '../common/state/sessionActions.js';
@@ -64,8 +64,9 @@ export class AgentHostChangesetOperationContributionService extends Disposable i
 	}
 
 	updateOperations(sessionKey: string, gitState: ISessionGitState): void {
-		this._updateOperationsForChangeset(sessionKey, buildSessionChangesetUri(sessionKey), ChangesetKind.Session, gitState);
+		this._updateOperationsForChangeset(sessionKey, buildBranchChangesetUri(sessionKey), ChangesetKind.Branch, gitState);
 		this._updateOperationsForChangeset(sessionKey, buildUncommittedChangesetUri(sessionKey), ChangesetKind.Uncommitted, gitState);
+		this._updateOperationsForChangeset(sessionKey, buildSessionChangesetUri(sessionKey), ChangesetKind.Session, gitState);
 	}
 
 	private _updateOperationsForChangeset(sessionKey: string, changesetUri: string, changesetKind: ChangesetKind, gitState: ISessionGitState): void {

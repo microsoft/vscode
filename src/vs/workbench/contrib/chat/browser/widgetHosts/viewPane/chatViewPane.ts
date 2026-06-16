@@ -9,7 +9,6 @@ import { StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { Orientation, Sash } from '../../../../../../base/browser/ui/sash/sash.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
-import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MutableDisposable, toDisposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
@@ -49,7 +48,7 @@ import { CHAT_PROVIDER_ID } from '../../../common/participants/chatParticipantCo
 import { IChatModelReference, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { LocalChatSessionUri, getChatSessionType } from '../../../common/model/chatUri.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getDefaultNewChatSessionType } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getDefaultNewChatSessionResource, getDefaultNewChatSessionType } from '../../../common/constants.js';
 import { AgentSessionsControl } from '../../agentSessions/agentSessionsControl.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
 import { ChatWidget } from '../../widget/chatWidget.js';
@@ -282,9 +281,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private onDidChangeAgents(): void {
 		if (this.chatAgentService.getDefaultAgent(ChatAgentLocation.Chat)) {
 			if (!this._widget?.viewModel && !this.restoringSession) {
-				const sessionResource = this.getTransferredOrPersistedSessionInfo();
 				this.restoringSession =
-					(sessionResource ? this.chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None, 'ChatViewPane#onDidChangeAgents') : Promise.resolve(undefined)).then(async modelRef => {
+					this.acquireTransferredOrPersistedSession(CancellationToken.None, 'ChatViewPane#onDidChangeAgents').then(async modelRef => {
 						if (!this._widget) {
 							return; // renderBody has not been called yet
 						}
@@ -296,7 +294,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 						try {
 							this._widget.setVisible(false);
 
-							await this.showModel(CancellationToken.None, modelRef);
+							await this.showModel(CancellationToken.None, modelRef, true, !modelRef);
 						} finally {
 							this._widget.setVisible(wasVisible);
 						}
@@ -917,9 +915,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	private async _applyModel(): Promise<void> {
-		const sessionResource = this.getTransferredOrPersistedSessionInfo();
-		const modelRef = sessionResource ? await this.chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None, 'ChatViewPane#applyModel') : undefined;
-		await this.showModel(CancellationToken.None, modelRef);
+		const modelRef = await this.acquireTransferredOrPersistedSession(CancellationToken.None, 'ChatViewPane#applyModel');
+		await this.showModel(CancellationToken.None, modelRef, true, !modelRef);
 	}
 
 	/**
@@ -933,17 +930,17 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	/**
-	 * When the experimental `chat.agentHost.defaultChatProvider` setting is
-	 * enabled and an agent-host contribution is registered, return a new
-	 * session reference for the agent host instead of the built-in local
-	 * provider. Returns `undefined` to fall back to `startNewLocalSession`.
+	 * When the experimental `chat.editor.defaultProvider` setting selects a
+	 * provider other than local and that contribution is registered, return a
+	 * new session reference for it instead of the built-in local provider.
+	 * Returns `undefined` to fall back to `startNewLocalSession`.
 	 */
 	private async acquireDefaultNewSession(token: CancellationToken): Promise<IChatModelReference | undefined> {
 		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService);
 		if (defaultType === localChatSessionType) {
 			return undefined;
 		}
-		const resource = URI.from({ scheme: defaultType, path: `/untitled-${generateUuid()}` });
+		const resource = getDefaultNewChatSessionResource(this.configurationService, this.chatSessionsService);
 		try {
 			return await this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatViewPane#acquireDefaultNewSession');
 		} catch (error) {
@@ -952,7 +949,35 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 	}
 
-	private async showModel(token: CancellationToken, modelRef?: IChatModelReference | undefined, startNewSession = true): Promise<IChatModel | undefined> {
+	private async acquireTransferredOrPersistedSession(token: CancellationToken, debugOwner: string): Promise<IChatModelReference | undefined> {
+		const sessionResource = this.getTransferredOrPersistedSessionInfo();
+		if (!sessionResource) {
+			return undefined;
+		}
+
+		const modelRef = await this.chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, token, debugOwner);
+		if (!modelRef) {
+			return undefined;
+		}
+
+		if (this.shouldSkipRestoredLocalSession(sessionResource, modelRef.object)) {
+			modelRef.dispose();
+			return undefined;
+		}
+
+		return modelRef;
+	}
+
+	private shouldSkipRestoredLocalSession(sessionResource: URI, model: IChatModel): boolean {
+		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService);
+		const prefersAgentHostCopilot = this.configurationService.getValue<boolean>(ChatConfiguration.EditorLocalAgentEnabled) === false
+			&& this.configurationService.getValue<string>(ChatConfiguration.EditorDefaultProvider) === 'copilotAh';
+		return (defaultType !== localChatSessionType || prefersAgentHostCopilot)
+			&& getChatSessionType(sessionResource) === localChatSessionType
+			&& !model.hasRequests;
+	}
+
+	private async showModel(token: CancellationToken, modelRef?: IChatModelReference | undefined, startNewSession = true, ignoreTransferredSession = false): Promise<IChatModel | undefined> {
 		const oldModelResource = this.modelRef.value?.object.sessionResource;
 		this.modelRef.value = undefined;
 
@@ -960,7 +985,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		if (startNewSession) {
 			if (modelRef) {
 				ref = modelRef;
-			} else if (this.chatService.transferredSessionResource) {
+			} else if (!ignoreTransferredSession && this.chatService.transferredSessionResource) {
 				ref = await this.chatService.acquireOrLoadSession(this.chatService.transferredSessionResource, ChatAgentLocation.Chat, token, 'ChatViewPane#showModel');
 			} else {
 				ref = await this.acquireDefaultNewSession(token) ?? this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { debugOwner: 'ChatViewPane#showModel' });
@@ -1035,7 +1060,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		const contribution = this.chatSessionsService.getChatSessionContribution(sessionType);
 		if (contribution) {
-			this._widget.lockToCodingAgent(contribution.name, contribution.displayName, sessionType);
+			this._widget.lockToCodingAgent(contribution.name, contribution.displayName, sessionType, contribution.agentHostProviderId);
 		} else {
 			this._widget.unlockFromCodingAgent();
 		}

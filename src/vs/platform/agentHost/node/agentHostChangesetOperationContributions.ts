@@ -7,6 +7,7 @@ import { DisposableStore, type IDisposable } from '../../../base/common/lifecycl
 import type { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import type { IChangesetOperationContributionService } from '../common/changesetOperation.js';
 import { AgentHostCommitOperationContribution } from './agentHostCommitOperationProvider.js';
+import { AgentHostDiscardChangesOperationContribution } from './agentHostDiscardChangesOperationProvider.js';
 import { AgentHostPullRequestOperationContribution } from './agentHostPullRequestOperationProvider.js';
 import type { AgentHostStateManager } from './agentHostStateManager.js';
 
@@ -21,6 +22,9 @@ export function registerDefaultChangesetOperationContributions(
 	));
 	store.add(service.registerContribution(
 		instantiationService.createInstance(AgentHostCommitOperationContribution, stateManager)
+	));
+	store.add(service.registerContribution(
+		instantiationService.createInstance(AgentHostDiscardChangesOperationContribution, stateManager)
 	));
 	return store;
 }
