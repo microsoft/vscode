@@ -611,7 +611,7 @@ function markLastCacheableBlock(msg: MessageParam, cacheTtl?: '1h'): void {
  * For now this only observes the stall so we can measure how often it happens
  * in the wild; it does not abort the request.
  */
-const ANTHROPIC_STREAM_IDLE_TIMEOUT_MS = 120_000;
+const ANTHROPIC_STREAM_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 
 export async function processResponseFromMessagesEndpoint(
 	instantiationService: IInstantiationService,
