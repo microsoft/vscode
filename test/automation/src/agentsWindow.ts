@@ -121,11 +121,26 @@ export class AgentsWindow {
 		}
 
 		const items = await this.code.waitForElements(itemSel, /* recursive */ true);
-		const matchIndex = items.findIndex(el => (el.textContent ?? '').trim().toLowerCase().includes(needle));
+		const isActionRow = (el: { className: string }) => el.className.includes('action');
+		const rowText = (el: { textContent: string }) => (el.textContent ?? '').trim().toLowerCase();
+
+		// Prefer an actionable row whose label matches directly (e.g. a
+		// session type label like "Claude" or "Copilot CLI").
+		let matchIndex = items.findIndex(el => isActionRow(el) && rowText(el).includes(needle));
+		// Otherwise treat the label as a provider section header (e.g. "Local
+		// Agent Host"): headers are non-clickable rows rendered above their
+		// session types, so select the first actionable row beneath the header.
+		if (matchIndex < 0) {
+			const headerIndex = items.findIndex(el => !isActionRow(el) && rowText(el).includes(needle));
+			if (headerIndex >= 0) {
+				matchIndex = items.findIndex((el, index) => index > headerIndex && isActionRow(el));
+			}
+		}
 		if (matchIndex < 0) {
 			throw new Error(`Session type "${label}" not found in picker. Available: ${items.map(i => (i.textContent ?? '').trim()).join(', ')}`);
 		}
-		await this.code.waitAndClick(`.action-widget .monaco-list-row[data-index="${matchIndex}"]`);
+		const dataIndex = items[matchIndex].attributes['data-index'] ?? String(matchIndex);
+		await this.code.waitAndClick(`.action-widget .monaco-list-row[data-index="${dataIndex}"]`);
 	}
 
 	/**

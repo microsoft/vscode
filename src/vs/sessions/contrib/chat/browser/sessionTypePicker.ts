@@ -65,6 +65,13 @@ interface ISessionTypePickerItem {
 	readonly sessionTypeId: string;
 	readonly label: string;
 	readonly checked?: boolean;
+	/**
+	 * Provider display label, set when the picker shows section headers so the
+	 * accessibility label can disambiguate same-named types (e.g. "Claude")
+	 * across providers — headers are skipped by list navigation and aren't
+	 * announced on their own.
+	 */
+	readonly groupLabel?: string;
 }
 
 export class SessionTypePicker extends Disposable {
@@ -252,9 +259,13 @@ export class SessionTypePicker extends Disposable {
 				const isCurrent = this._picked?.providerId === providerId && this._picked?.sessionTypeId === sessionType.id;
 				const availability = getSessionTypeAvailability(this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, sessionType.chatSessionType ?? sessionType.id);
 				const unavailable = availability !== SessionTypeAvailability.Available;
-				const item: ISessionTypePickerItem = isCurrent
-					? { providerId, sessionTypeId: sessionType.id, label: sessionType.label, checked: true }
-					: { providerId, sessionTypeId: sessionType.id, label: sessionType.label };
+				const item: ISessionTypePickerItem = {
+					providerId,
+					sessionTypeId: sessionType.id,
+					label: sessionType.label,
+					...(isCurrent ? { checked: true } : {}),
+					...(showSectionHeaders ? { groupLabel: groupTitle } : {}),
+				};
 				groupedItems.push({
 					kind: ActionListItemKind.Action,
 					label: sessionType.label,
@@ -290,7 +301,7 @@ export class SessionTypePicker extends Disposable {
 			undefined,
 			[],
 			{
-				getAriaLabel: (item) => item.label ?? '',
+				getAriaLabel: (element) => element.item?.groupLabel ? localize('sessionTypePicker.itemAriaLabel', "{0}, {1}", element.label ?? '', element.item.groupLabel) : (element.label ?? ''),
 				getWidgetAriaLabel: () => localize('sessionTypePicker.ariaLabel', "Session Type"),
 			},
 			{ minWidth: 200 },
