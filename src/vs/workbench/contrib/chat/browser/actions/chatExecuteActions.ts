@@ -612,7 +612,7 @@ export class OpenDelegationPickerAction extends Action2 {
 						ChatContextKeys.inQuickChat.negate(),
 						ChatContextKeys.chatSessionSupportsDelegation,
 						ChatContextKeys.chatSessionIsEmpty.negate(),
-						// In the agents window, hide the session target chip while a
+						// In the agents window, hide the delegation chip while a
 						// request (or the input) is being edited. The editor window
 						// keeps showing it during edits.
 						ContextKeyExpr.or(
