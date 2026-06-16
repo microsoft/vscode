@@ -2255,6 +2255,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ToolResultAudience: extHostTypes.LanguageModelPartAudience, // back compat
 			LanguageModelToolCallPart: extHostTypes.LanguageModelToolCallPart,
 			LanguageModelThinkingPart: extHostTypes.LanguageModelThinkingPart,
+			LanguageModelResponseUsagePart: extHostTypes.LanguageModelResponseUsagePart,
 			LanguageModelError: extHostTypes.LanguageModelError,
 			LanguageModelToolResult: extHostTypes.LanguageModelToolResult,
 			LanguageModelToolResult2: extHostTypes.LanguageModelToolResult2,
