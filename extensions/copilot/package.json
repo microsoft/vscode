@@ -3108,6 +3108,12 @@
         "category": "GitHub Pull Request"
       },
       {
+        "command": "github.copilot.chat.cloudSessions.openPullRequestForTask",
+        "title": "%github.copilot.command.cloudSessions.openPullRequestForTask.title%",
+        "icon": "$(git-pull-request)",
+        "category": "GitHub Pull Request"
+      },
+      {
         "command": "github.copilot.chat.cloudSessions.openRepository",
         "title": "%github.copilot.command.cloudSessions.openRepository.title%",
         "icon": "$(repo)",
@@ -5486,6 +5492,11 @@
           "command": "github.copilot.chat.cloudSessions.createPullRequestForTask",
           "when": "chatSessionType == copilot-cloud-agent && github.copilot.chat.cloudTaskCanCreatePullRequest && !isSessionsWindow",
           "group": "navigation@0"
+        },
+        {
+          "command": "github.copilot.chat.cloudSessions.openPullRequestForTask",
+          "when": "chatSessionType == copilot-cloud-agent && github.copilot.chat.cloudTaskCanOpenPullRequest && !isSessionsWindow",
+          "group": "navigation@0"
         }
       ],
       "agents/changes/actions/primary": [
@@ -5889,6 +5900,14 @@
         },
         {
           "command": "github.copilot.chat.cloudSessions.openRepository",
+          "when": "false"
+        },
+        {
+          "command": "github.copilot.chat.cloudSessions.createPullRequestForTask",
+          "when": "false"
+        },
+        {
+          "command": "github.copilot.chat.cloudSessions.openPullRequestForTask",
           "when": "false"
         },
         {
@@ -7082,7 +7101,7 @@
     "shiki": "~1.15.0",
     "sinon": "^21.0.0",
     "source-map-support": "^0.5.21",
-    "tar": "^7.5.11",
+    "tar": "^7.5.16",
     "ts-dedent": "^2.2.0",
     "tsx": "^4.20.3",
     "typescript": "^5.8.3",
