@@ -35,7 +35,7 @@ export function isRuntimeCopilotSlashCommand(command: CopilotSlashCommandName): 
 	return RUNTIME_COMMANDS.has(command);
 }
 
-function commandExpectsInput(command: CopilotSlashCommandName): boolean {
+export function commandExpectsInput(command: CopilotSlashCommandName): boolean {
 	return command !== 'compact' && command !== 'env';
 }
 /**

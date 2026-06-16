@@ -41,7 +41,7 @@ import type { CopilotSessionLaunchPlan, IActiveClientSnapshot, ICopilotSessionLa
 import { ActiveClientState } from '../activeClientState.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
-import { isRuntimeCopilotSlashCommand, parseLeadingSlashCommand } from './copilotSlashCommandCompletionProvider.js';
+import { commandExpectsInput, isRuntimeCopilotSlashCommand, parseLeadingSlashCommand } from './copilotSlashCommandCompletionProvider.js';
 import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
 import { buildSandboxConfigForSdk } from './sandboxConfigForSdk.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
@@ -938,7 +938,7 @@ export class CopilotAgentSession extends Disposable {
 			try {
 				result = await this._wrapper.session.rpc.commands.invoke({
 					name: slashCommand.command,
-					...(slashCommand.command !== 'env' && slashCommand.rest ? { input: slashCommand.rest } : {}),
+					...(commandExpectsInput(slashCommand.command) && slashCommand.rest ? { input: slashCommand.rest } : {}),
 				});
 			} catch (err) {
 				this._logService.error(err, `[Copilot:${this.sessionId}] rpc.commands.invoke(${slashCommand.command}) failed`);
