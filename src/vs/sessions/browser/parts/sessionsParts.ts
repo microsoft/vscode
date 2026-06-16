@@ -76,6 +76,10 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 	getProgressIndicator(): IProgressIndicator {
 		return this._mainPart.getProgressIndicator();
 	}
+
+	getBottomArea(): HTMLElement | undefined {
+		return this._mainPart.getBottomArea();
+	}
 }
 
 registerSingleton(ISessionsPartService, SessionsParts, InstantiationType.Eager);

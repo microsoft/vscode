@@ -15,6 +15,7 @@ export interface StatusRowsProps {
 	readonly needsInputCount: number;
 	readonly doneCount: number;
 	readonly speakingSessionLabel: string | undefined;
+	readonly speakingSessionResource: URI | undefined;
 	readonly pendingToolConfirmations: readonly IPendingToolConfirmation[];
 	readonly onOpenSession: (resource: URI) => void;
 	/** When false, hide the counter rows and the "No active sessions" placeholder. */
@@ -60,12 +61,13 @@ export function createStatusRows(): StatusRowsComponent {
 	inner.style.cssText = 'display:flex;flex-direction:column;';
 
 	const speakingRow = dom.$('div');
-	speakingRow.style.cssText = 'display:flex;align-items:center;gap:6px;height:20px;flex-shrink:0;padding-left:2px;';
+	speakingRow.style.cssText = 'display:flex;align-items:center;gap:6px;height:20px;flex-shrink:0;padding-left:2px;cursor:pointer;';
 	const speakingDot = dom.$('span');
 	speakingDot.style.cssText = 'width:7px;height:7px;border-radius:50%;background:var(--vscode-agentsVoice-speakingForeground);flex-shrink:0;animation:agents-voice-pulse 1.4s ease-in-out infinite;';
 	const speakingLabel = dom.$('span');
 	speakingLabel.style.cssText = `font-size:${FONT_SIZE.body};color:var(--vscode-agentsVoice-speakingForeground);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
 	speakingRow.append(speakingDot, speakingLabel);
+	let speakingClickHandler: (() => void) | undefined;
 
 	const workingRow = createStatusRow();
 	const needsInputRow = createStatusRow();
@@ -96,6 +98,18 @@ export function createStatusRows(): StatusRowsComponent {
 			if (props.speakingSessionLabel) {
 				speakingRow.style.display = 'flex';
 				speakingLabel.textContent = props.speakingSessionLabel;
+				if (speakingClickHandler) {
+					speakingRow.removeEventListener('click', speakingClickHandler);
+				}
+				if (props.speakingSessionResource) {
+					const resource = props.speakingSessionResource;
+					speakingClickHandler = () => props.onOpenSession(resource);
+					speakingRow.addEventListener('click', speakingClickHandler);
+					speakingRow.title = localize('agentsVoice.jumpToSession', "Jump to session");
+				} else {
+					speakingClickHandler = undefined;
+					speakingRow.title = '';
+				}
 			} else {
 				speakingRow.style.display = 'none';
 			}

@@ -70,4 +70,10 @@ export interface ISessionsPartService {
 	 * progress bar shown at the top of the part's content area.
 	 */
 	getProgressIndicator(): IProgressIndicator;
+
+	/**
+	 * Returns the bottom area container element below the grid for external
+	 * contributions (e.g. voice bar). Available after the part has been created.
+	 */
+	getBottomArea(): HTMLElement | undefined;
 }

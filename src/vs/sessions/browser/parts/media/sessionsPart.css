@@ -29,6 +29,29 @@
 	top: 0;
 }
 
+.monaco-workbench .part.sessionspart > .content {
+	display: flex;
+	flex-direction: column;
+}
+
+.monaco-workbench .part.sessionspart > .content > .monaco-grid-view {
+	flex: 1;
+	min-height: 0;
+}
+
+.monaco-workbench .part.sessionspart > .content > .sessions-bottom-area {
+	flex-shrink: 0;
+}
+
+.monaco-workbench .part.sessionspart > .content > .sessions-bottom-area > .voice-agent-bar {
+	display: flex;
+	flex-direction: column;
+	flex-shrink: 0;
+	border-top: 1px solid var(--vscode-panel-border);
+	position: relative;
+	overflow: hidden;
+}
+
 /* Each grid leaf surfaces its own load progress on a bar pinned to its top, mirroring how each editor group owns its own ProgressBar.
  * The chat view spans the full leaf width (so the transcript scrollbar stays at the right edge), so the progress bar is centered and
  * capped to the centered-content width (set as a CSS variable in `SessionView`) to align with the header/content band rather than
