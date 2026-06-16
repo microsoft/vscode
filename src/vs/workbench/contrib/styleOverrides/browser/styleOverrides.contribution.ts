@@ -19,7 +19,6 @@ import { workbenchConfigurationNodeBase } from '../../../common/configuration.js
 import './media/activityBar.css';
 import './media/fontRamp.css';
 import './media/paneHeaders.css';
-import './media/roundedButtons.css';
 import './media/roundedCorners.css';
 import './media/tabs.css';
 
@@ -52,11 +51,6 @@ const STYLE_OVERRIDE_MODULES: readonly IStyleOverrideModule[] = [
 		id: 'paneHeaders',
 		label: localize('styleOverrides.paneHeaders', "Pane Headers"),
 		description: localize('styleOverrides.paneHeaders.description', "Insets the view pane header separators, rounds their corners and adds a background tint on hover.")
-	},
-	{
-		id: 'roundedButtons',
-		label: localize('styleOverrides.roundedButtons', "Rounded Buttons"),
-		description: localize('styleOverrides.roundedButtons.description', "Renders workbench buttons as fully rounded pills.")
 	},
 	{
 		id: 'roundedCorners',
