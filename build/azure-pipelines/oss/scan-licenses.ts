@@ -128,10 +128,7 @@ function collectPackagesInNodeModules(nmDir: string): string[] {
 function findCgManifestFiles(repoRoot: string): string[] {
 	const results: string[] = [];
 
-	function walk(dir: string, depth: number): void {
-		if (depth > 5) {
-			return;
-		}
+	function walk(dir: string): void {
 		try {
 			for (const entry of fs.readdirSync(dir)) {
 				if (entry === 'node_modules' || entry === '.git' || entry === 'out' || entry === 'test') {
@@ -140,14 +137,14 @@ function findCgManifestFiles(repoRoot: string): string[] {
 				const full = path.join(dir, entry);
 				if (entry === 'cgmanifest.json') {
 					results.push(full);
-				} else if (fs.statSync(full).isDirectory()) {
-					walk(full, depth + 1);
+				} else if (fs.statSync(full).isDirectory() && !fs.lstatSync(full).isSymbolicLink()) {
+					walk(full);
 				}
 			}
 		} catch { /* skip */ }
 	}
 
-	walk(repoRoot, 0);
+	walk(repoRoot);
 	return results;
 }
 
