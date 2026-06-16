@@ -116,6 +116,28 @@ suite('agentHost editSurvivalReporter', () => {
 		assert.strictEqual(telemetry.events.length, 0);
 	});
 
+	test('skips files larger than the size cap (no events ever)', async () => {
+		// 6 MB exceeds the 5 MB cap; the factory should return a
+		// no-op disposable and never emit telemetry.
+		const huge = 'x'.repeat(6 * 1024 * 1024);
+		await fileService.writeFile(URI.file('/workspace/huge.ts'), VSBuffer.fromString(huge));
+
+		const reporter = factory.launch({
+			sessionUri: 'claude:/session-huge',
+			turnId: 'turn-1',
+			toolCallId: 'tc-huge',
+			filePath: '/workspace/huge.ts',
+			beforeText: '',
+			afterText: huge,
+			isCreate: true,
+		});
+		disposables.add(reporter);
+
+		await timeout(50);
+
+		assert.strictEqual(telemetry.events.length, 0);
+	});
+
 	test('does not contain any code-text fields in the payload', async () => {
 		await fileService.writeFile(URI.file('/workspace/secret.ts'), VSBuffer.fromString('SECRET_AFTER'));
 

@@ -206,6 +206,8 @@ class SessionEditSurvivalReporter extends Disposable {
 	}
 }
 
+const MAX_TRACKED_FILE_SIZE_CHARS = 5 * 1024 * 1024;
+
 export class EditSurvivalReporterFactory implements IEditSurvivalReporterFactory {
 	readonly _serviceBrand: undefined;
 
@@ -220,6 +222,10 @@ export class EditSurvivalReporterFactory implements IEditSurvivalReporterFactory
 		// representation includes output JSON that churns independently
 		// of the user's intent and produces noisy survival scores.
 		if (extname(params.filePath).toLowerCase() === '.ipynb') {
+			return { dispose() { } };
+		}
+		// Skip very large files to avoid putting pressure on memory and perf.
+		if (Math.max(params.beforeText.length, params.afterText.length) > MAX_TRACKED_FILE_SIZE_CHARS) {
 			return { dispose() { } };
 		}
 		return new SessionEditSurvivalReporter(params, this._fileService, this._logService, this._telemetryService);
