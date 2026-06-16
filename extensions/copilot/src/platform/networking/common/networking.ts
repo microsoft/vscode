@@ -22,7 +22,7 @@ import { AnthropicMessagesTool, ContextManagement } from './anthropic';
 import { FinishedCallback, OpenAiFunctionTool, OpenAiResponsesFunctionTool, OpenAiToolSearchTool, OptionalChatRequestParams, Prediction } from './fetch';
 import { FetcherId, FetchOptions, IAbortController, IFetcherService, PaginationOptions, Response } from './fetcherService';
 import { ChatCompletion, OpenAIContextManagement, RawMessageConversionCallback, rawMessageToCAPI } from './openai';
-import { getConfiguredProxyUrl, maybeInterceptUrlThroughProxy } from './proxyUtils';
+import { getConfiguredProxyUrl, isLLMEndpoint, maybeInterceptUrlThroughProxy } from './proxyUtils';
 
 /**
  * Encapsulates all the functionality related to making GET/POST requests using
@@ -530,7 +530,7 @@ function networkRequest(
 		// Apply proxy interception if configured
 		let fetchUrl: string = endpoint.urlOrRequestMetadata;
 		const proxyUrl = getConfiguredProxyUrl();
-		if (proxyUrl && typeof fetchUrl === 'string') {
+		if (proxyUrl && typeof fetchUrl === 'string' && isLLMEndpoint(fetchUrl)) {
 			fetchUrl = maybeInterceptUrlThroughProxy(fetchUrl, proxyUrl, headers);
 		}
 
