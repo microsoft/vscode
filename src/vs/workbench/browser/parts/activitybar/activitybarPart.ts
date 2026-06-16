@@ -8,7 +8,7 @@ import './media/activityaction.css';
 import { localize, localize2 } from '../../../../nls.js';
 import { ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Part } from '../../part.js';
-import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts, Position } from '../../../services/layout/browser/layoutService.js';
+import { ActivityBarPosition, FLOATING_PANEL_MARGIN, IWorkbenchLayoutService, LayoutSettings, Parts, Position } from '../../../services/layout/browser/layoutService.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ToggleSidebarPositionAction, ToggleSidebarVisibilityAction } from '../../actions/layoutActions.js';
@@ -51,14 +51,6 @@ export class ActivitybarPart extends Part {
 	static readonly ICON_SIZE = 24;
 	static readonly COMPACT_ICON_SIZE = 16;
 
-	/**
-	 * Gutter reserved on the left and bottom edges under the floating panels
-	 * experiment so the activity bar aligns with the floating cards (it stays
-	 * flush with the title bar, so no top gutter). Must match the margins applied
-	 * in `part.css` under `.floating-panels`.
-	 */
-	static readonly FLOATING_MARGIN = 6;
-
 	static readonly pinnedViewContainersKey = 'workbench.activity.pinnedViewlets2';
 	static readonly placeholderViewContainersKey = 'workbench.activity.placeholderViewlets';
 	static readonly viewContainersWorkspaceStateKey = 'workbench.activity.viewletsWorkspaceState';
@@ -76,7 +68,7 @@ export class ActivitybarPart extends Part {
 	private get baseWidth(): number { return this._isCompact ? ActivitybarPart.COMPACT_ACTIVITYBAR_WIDTH : ActivitybarPart.ACTIVITYBAR_WIDTH; }
 
 	/** Extra space reserved around the part when the floating panels experiment is enabled. */
-	private get floatingGutter(): number { return this.configurationService.getValue<boolean>(LayoutSettings.FLOATING_PANELS) === true ? ActivitybarPart.FLOATING_MARGIN : 0; }
+	private get floatingGutter(): number { return this.configurationService.getValue<boolean>(LayoutSettings.FLOATING_PANELS) === true ? FLOATING_PANEL_MARGIN : 0; }
 
 	private readonly compositeBar = this._register(new MutableDisposable<PaneCompositeBar>());
 	private content: HTMLElement | undefined;
@@ -101,6 +93,10 @@ export class ActivitybarPart extends Part {
 				this.updateCompactStyle();
 				this.recreateCompositeBar();
 				this._onDidChange.fire(undefined); // Signal grid that size constraints changed
+			}
+
+			if (e.affectsConfiguration(LayoutSettings.FLOATING_PANELS)) {
+				this._onDidChange.fire(undefined); // Floating gutter changes the part width: signal grid that size constraints changed
 			}
 		}));
 	}

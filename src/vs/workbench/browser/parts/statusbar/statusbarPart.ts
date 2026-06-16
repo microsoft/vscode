@@ -19,7 +19,7 @@ import { contrastBorder, activeContrastBorder } from '../../../../platform/theme
 import { EventHelper, addDisposableListener, EventType, clearNode, getWindow, isHTMLElement, $ } from '../../../../base/browser/dom.js';
 import { createStyleSheet } from '../../../../base/browser/domStylesheets.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { Parts, IWorkbenchLayoutService, LayoutSettings } from '../../../services/layout/browser/layoutService.js';
+import { Parts, IWorkbenchLayoutService, LayoutSettings, FLOATING_PANEL_MARGIN } from '../../../services/layout/browser/layoutService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { equals } from '../../../../base/common/arrays.js';
@@ -126,7 +126,7 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 	 * experiment so it floats off the window's bottom edge. The part grows by this
 	 * amount and the matching `padding-bottom` is applied in `part.css`.
 	 */
-	static readonly FLOATING_BOTTOM_PADDING = 6;
+	static readonly FLOATING_BOTTOM_PADDING = FLOATING_PANEL_MARGIN;
 
 	//#region IView
 
@@ -218,6 +218,14 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 
 		// Workbench state changes
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateStyles()));
+
+		// Floating panels changes the reserved bottom padding (and therefore the
+		// part height): signal the grid that the size constraint changed.
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(LayoutSettings.FLOATING_PANELS)) {
+				this._onDidChange.fire(undefined);
+			}
+		}));
 	}
 
 	overrideEntry(id: string, override: Partial<IStatusbarEntry>): IDisposable {

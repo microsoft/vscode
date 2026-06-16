@@ -24,7 +24,7 @@ import { EditorDropTarget } from './editorDropTarget.js';
 import { Color } from '../../../../base/common/color.js';
 import { CenteredViewLayout, CenteredViewState } from '../../../../base/browser/ui/centered/centeredViewLayout.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { Parts, IWorkbenchLayoutService, Position, LayoutSettings } from '../../../services/layout/browser/layoutService.js';
+import { Parts, IWorkbenchLayoutService, Position, LayoutSettings, FLOATING_PANEL_MARGIN } from '../../../services/layout/browser/layoutService.js';
 import { DeepPartial, assertType } from '../../../../base/common/types.js';
 import { CompositeDragAndDropObserver } from '../../dnd.js';
 import { DeferredPromise, Promises } from '../../../../base/common/async.js';
@@ -92,13 +92,6 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 
 	private static readonly EDITOR_PART_UI_STATE_STORAGE_KEY = 'editorpart.state';
 	private static readonly EDITOR_PART_CENTERED_VIEW_STORAGE_KEY = 'editorpart.centeredview';
-
-	/**
-	 * Margin reserved around the main editor under the floating panels experiment
-	 * so it floats like the side bar and panel cards. Must match the `margin`
-	 * applied in `part.css` under `.floating-panels`.
-	 */
-	private static readonly FLOATING_MARGIN = 6;
 
 	//#region Events
 
@@ -1376,8 +1369,8 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		// no top margin (it stays flush with the title bar). The matching `margin` is
 		// applied in CSS (`.floating-panels .part.editor`).
 		if (this.windowId === mainWindow.vscodeWindowId && this.configurationService.getValue<boolean>(LayoutSettings.FLOATING_PANELS) === true) {
-			width = Math.max(0, width - EditorPart.FLOATING_MARGIN * 2);
-			height = Math.max(0, height - EditorPart.FLOATING_MARGIN);
+			width = Math.max(0, width - FLOATING_PANEL_MARGIN * 2);
+			height = Math.max(0, height - FLOATING_PANEL_MARGIN);
 		}
 
 		// Layout contents

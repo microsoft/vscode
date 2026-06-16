@@ -53,6 +53,15 @@ export const enum LayoutSettings {
 	FLOATING_PANELS = 'workbench.experimental.floatingPanels.enabled'
 }
 
+/**
+ * The margin (in pixels) reserved on each side of a part when the floating
+ * panels experiment (`LayoutSettings.FLOATING_PANELS`) is enabled. Parts grow
+ * or shrink their content by this amount to leave room for the card margin and
+ * border applied in CSS (`part.css`, `.floating-panels`). The same value must
+ * be kept in sync with the literal margins used there.
+ */
+export const FLOATING_PANEL_MARGIN = 6;
+
 export const enum ActivityBarPosition {
 	DEFAULT = 'default',
 	TOP = 'top',

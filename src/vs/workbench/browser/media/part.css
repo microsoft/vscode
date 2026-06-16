@@ -104,8 +104,10 @@
  * margin, border and rounded corners — echoing the agents window design. The
  * matching content dimensions are reduced in code (AbstractPaneCompositePart) so
  * the inner layout stays in sync with this CSS. The margins and the 1px border
- * must match `FLOATING_MARGIN`, `FLOATING_AUXBAR_EXTRA_RIGHT` and the border inset
- * used there. Colors mirror the agents window (`agentsPanel.*` tokens).
+ * must match `FLOATING_PANEL_MARGIN`, `FLOATING_AUXBAR_EXTRA_RIGHT` and the border
+ * inset used there. The border / foreground colors mirror the agents window
+ * (`agentsPanel.*` tokens); the card fill uses each part's native content
+ * background (see the per-part rules below).
  */
 .monaco-workbench.floating-panels .part.sidebar,
 .monaco-workbench.floating-panels .part.auxiliarybar,
@@ -139,7 +141,10 @@
 	margin-top: 0;
 }
 
-/* Secondary side bar sits at the window edge — give it a doubled right gutter. */
+/*
+ * Secondary side bar sits at the window edge — give it a doubled right gutter
+ * (2 × the 6px base margin, matching `FLOATING_AUXBAR_EXTRA_RIGHT` in code).
+ */
 .monaco-workbench.floating-panels .part.auxiliarybar {
 	margin-right: 12px;
 }

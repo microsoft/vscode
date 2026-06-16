@@ -623,11 +623,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private updateFloatingPanels(): void {
-		const floatingPanels = this.isFloatingPanelsEnabled();
-
-		for (const container of Array.from(this.containers)) {
-			container.classList.toggle(LayoutClasses.FLOATING_PANELS, floatingPanels);
-		}
+		// Floating panels is a main-window concept: only the main container hosts
+		// the side bars and bottom panel. Scope the class (and therefore the CSS
+		// card margins) to the main container so auxiliary windows — whose parts do
+		// not apply the matching content insets in code — are left untouched.
+		this.mainContainer.classList.toggle(LayoutClasses.FLOATING_PANELS, this.isFloatingPanelsEnabled());
 	}
 
 	private setSideBarPosition(position: Position): void {
