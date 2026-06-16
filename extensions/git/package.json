@@ -79,7 +79,7 @@
         "title": "%command.continueInLocalClone%",
         "category": "Git",
         "icon": "$(repo-clone)",
-        "enablement": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && remoteName"
+        "enablement": "false && config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && remoteName"
       },
       {
         "command": "git.clone",
@@ -1195,7 +1195,7 @@
       {
         "command": "git.continueInLocalClone",
         "qualifiedName": "%command.continueInLocalClone.qualifiedName%",
-        "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && remoteName",
+        "when": "false && config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && remoteName",
         "remoteGroup": "remote_42_git_0_local@0"
       }
     ],

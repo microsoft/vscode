@@ -145,7 +145,7 @@ export function cleanGoalSummary(raw: string): string | undefined {
 	}
 	// Strip surrounding quotes and any leading "Goal:" the model may have added.
 	s = s.replace(/^["'`]+|["'`]+$/g, '');
-	s = s.replace(/^\s*goal\s*[:\-—]\s*/i, '');
+	s = s.replace(/^\s*goal\s*[:\-\u2014]\s*/i, '');
 	s = s.replace(/\s+/g, ' ').trim();
 	// The summary model occasionally declines to summarize (e.g. content
 	// filtering) and replies with a refusal like "Sorry, I can't assist with

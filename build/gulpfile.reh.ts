@@ -22,7 +22,7 @@ import * as fs from 'fs';
 import glob from 'glob';
 import { promisify } from 'util';
 import rceditCallback from 'rcedit';
-import { compileBuildWithManglingTask } from './gulpfile.compile.ts';
+import { compileBuildWithManglingTask, compileBuildWithoutManglingTask } from './gulpfile.compile.ts';
 import { cleanExtensionsBuildTask, compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileExtensionMediaBuildTask, compileCopilotExtensionBuildTask } from './gulpfile.extensions.ts';
 import { vscodeWebResourceIncludes, createVSCodeWebFileContentMapper } from './gulpfile.vscode.web.ts';
 import * as cp from 'child_process';
@@ -623,7 +623,12 @@ function tweakProductForServerWeb(product: typeof import('../product.json')) {
 			task.task(serverTaskCI);
 
 			const serverTask = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
-				compileBuildWithManglingTask,
+				// The TS-to-TS mangler currently emits type-incorrect output for some newer source
+				// files (dynamic-import destructuring of mangled exports, string-indexed private
+				// fields in tests, and the generic mixin base in extHostXaaAuthProvider), which fails
+				// the build's type-check. Default to the no-mangle compile so the server build passes;
+				// set VSCODE_BUILD_MANGLE=1 to opt back into mangling once those are resolved.
+				process.env['VSCODE_BUILD_MANGLE'] ? compileBuildWithManglingTask : compileBuildWithoutManglingTask,
 				cleanExtensionsBuildTask,
 				compileNonNativeExtensionsBuildTask,
 				compileCopilotExtensionBuildTask,

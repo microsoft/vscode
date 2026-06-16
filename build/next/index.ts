@@ -631,6 +631,27 @@ function cssExternalPlugin(): esbuild.Plugin {
 }
 
 /**
+ * Builds the product configuration that replaces the product-configuration placeholder in
+ * product.ts. The outer braces are stripped because the placeholder sits inside an object
+ * literal. Shared by the bundle plugin and the single-file transpile path so that dev builds
+ * also get the injected product.json.
+ */
+function buildProductConfigReplacement(outDir: string, target: BuildTarget): string {
+	// For server-web, remove webEndpointUrlTemplate
+	const productForTarget = target === 'server-web'
+		? { ...product, webEndpointUrlTemplate: undefined }
+		: product;
+	const productConfiguration = JSON.stringify({
+		...productForTarget,
+		version,
+		commit,
+		date: readISODate(outDir)
+	});
+	// Remove the outer braces since the placeholder is inside an object literal
+	return productConfiguration.substring(1, productConfiguration.length - 1);
+}
+
+/**
  * esbuild plugin that transforms source files to inject build-time configuration.
  * This runs during onLoad so the transformation happens before esbuild processes the content,
  * ensuring placeholders like `/*BUILD->INSERT_PRODUCT_CONFIGURATION* /` are replaced
@@ -656,18 +677,7 @@ function fileContentMapperPlugin(outDir: string, target: BuildTarget): esbuild.P
 				// Inject product configuration
 				if (contents.includes('/*BUILD->INSERT_PRODUCT_CONFIGURATION*/')) {
 					if (productConfigReplacement === undefined) {
-						// For server-web, remove webEndpointUrlTemplate
-						const productForTarget = target === 'server-web'
-							? { ...product, webEndpointUrlTemplate: undefined }
-							: product;
-						const productConfiguration = JSON.stringify({
-							...productForTarget,
-							version,
-							commit,
-							date: readISODate(outDir)
-						});
-						// Remove the outer braces since the placeholder is inside an object literal
-						productConfigReplacement = productConfiguration.substring(1, productConfiguration.length - 1);
+						productConfigReplacement = buildProductConfigReplacement(outDir, target);
 					}
 					contents = contents.replace('/*BUILD->INSERT_PRODUCT_CONFIGURATION*/', () => productConfigReplacement!);
 					modified = true;
@@ -717,8 +727,19 @@ const transformOptions: esbuild.TransformOptions = {
 	}),
 };
 
+// Cached product-configuration replacement for the single-file transpile path. The dev
+// `transpile`/`watch` build (build/next transpile --watch) is what populates out/, but unlike
+// bundle() it does not run fileContentMapperPlugin, so without this product.ts would keep its
+// placeholder and the web workbench would fall back to gallery-less OSS defaults (no Open VSX
+// marketplace, no extensions loading).
+let transpileProductConfigReplacement: string | undefined;
+
 async function transpileFile(srcPath: string, destPath: string): Promise<void> {
-	const source = await fs.promises.readFile(srcPath, 'utf-8');
+	let source = await fs.promises.readFile(srcPath, 'utf-8');
+	if (source.includes('/*BUILD->INSERT_PRODUCT_CONFIGURATION*/')) {
+		transpileProductConfigReplacement ??= buildProductConfigReplacement(OUT_DIR, options.target as BuildTarget);
+		source = source.replace('/*BUILD->INSERT_PRODUCT_CONFIGURATION*/', () => transpileProductConfigReplacement!);
+	}
 	const result = await esbuild.transform(source, {
 		...transformOptions,
 		sourcefile: srcPath,

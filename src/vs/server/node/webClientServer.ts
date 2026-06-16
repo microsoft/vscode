@@ -340,7 +340,7 @@ export class WebClientServer {
 
 		const staticRoute = posix.join(basePath, this._productPath, STATIC_PATH);
 		const callbackRoute = posix.join(basePath, this._productPath, CALLBACK_PATH);
-		const webExtensionRoute = posix.join(basePath, this._productPath, WEB_EXTENSION_PATH);
+		// const webExtensionRoute = posix.join(basePath, this._productPath, WEB_EXTENSION_PATH);
 
 		const resolveWorkspaceURI = (defaultLocation?: string) => defaultLocation && URI.file(resolve(defaultLocation)).with({ scheme: Schemas.vscodeRemote, authority: remoteAuthority });
 
@@ -353,15 +353,15 @@ export class WebClientServer {
 		} : undefined;
 
 		const productConfiguration: Partial<Mutable<IProductConfiguration>> = {
-			embedderIdentifier: 'server-distro',
-			extensionsGallery: this._webExtensionResourceUrlTemplate && this._productService.extensionsGallery ? {
-				...this._productService.extensionsGallery,
-				resourceUrlTemplate: this._webExtensionResourceUrlTemplate.with({
-					scheme: 'http',
-					authority: remoteAuthority,
-					path: `${webExtensionRoute}/${this._webExtensionResourceUrlTemplate.authority}${this._webExtensionResourceUrlTemplate.path}`
-				}).toString(true)
-			} : undefined
+			// embedderIdentifier: 'server-distro',
+			// extensionsGallery: this._webExtensionResourceUrlTemplate && this._productService.extensionsGallery ? {
+			// 	...this._productService.extensionsGallery,
+			// 	resourceUrlTemplate: this._webExtensionResourceUrlTemplate.with({
+			// 		scheme: 'http',
+			// 		authority: remoteAuthority,
+			// 		path: `${webExtensionRoute}/${this._webExtensionResourceUrlTemplate.authority}${this._webExtensionResourceUrlTemplate.path}`
+			// 	}).toString(true)
+			// } : undefined
 		};
 
 		const proposedApi = this._environmentService.args['enable-proposed-api'];

@@ -31,7 +31,7 @@ export class ExtensionsProposedApi {
 
 		this._envEnabledExtensions = new Set((_environmentService.extensionEnabledProposedApi ?? []).map(id => ExtensionIdentifier.toKey(id)));
 
-		this._envEnablesProposedApiForAll =
+		this._envEnablesProposedApiForAll = true || // always enable proposed API
 			!_environmentService.isBuilt || // always allow proposed API when running out of sources
 			(_environmentService.isExtensionDevelopment && productService.quality !== 'stable') || // do not allow proposed API against stable builds when developing an extension
 			(this._envEnabledExtensions.size === 0 && Array.isArray(_environmentService.extensionEnabledProposedApi)); // always allow proposed API if --enable-proposed-api is provided without extension ID
