@@ -10,7 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { ActionListItemKind, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
-import { type ClaudePermissionMode, ClaudeSessionConfigKey, narrowClaudePermissionMode } from '../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
+import { ClaudeSessionConfigKey } from '../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
@@ -23,17 +23,15 @@ import { isWellKnownClaudePermissionModeSchema } from './agentHostPermissionPick
 const CLAUDE_PERMISSION_MODE_LEARN_MORE_URL = 'https://code.claude.com/docs/en/permission-modes#available-modes';
 const LEARN_MORE_VALUE = '__agentHostClaudePermissionModePicker.learnMore__';
 
-const claudePermissionModeIcons: Record<ClaudePermissionMode, ThemeIcon> = {
-	default: Codicon.shield,
-	acceptEdits: Codicon.edit,
-	plan: Codicon.lightbulb,
-	auto: Codicon.sparkle,
-	bypassPermissions: Codicon.warning,
-};
-
 function getClaudePermissionModeIcon(value: string | undefined): ThemeIcon | undefined {
-	const mode = narrowClaudePermissionMode(value);
-	return mode ? claudePermissionModeIcons[mode] : undefined;
+	switch (value) {
+		case 'default': return Codicon.shield;
+		case 'acceptEdits': return Codicon.edit;
+		case 'plan': return Codicon.lightbulb;
+		case 'auto': return Codicon.sparkle;
+		case 'bypassPermissions': return Codicon.warning;
+		default: return undefined;
+	}
 }
 
 export class AgentHostClaudePermissionModePicker extends AgentHostSessionEnumPicker {
