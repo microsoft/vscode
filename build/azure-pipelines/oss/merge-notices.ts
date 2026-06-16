@@ -250,9 +250,16 @@ async function mainAsync(): Promise<void> {
 					console.error(`    ! ${err}`);
 				}
 				if (result.staleNames.length > 0) {
-					console.warn(`  ${result.staleNames.length} override(s) reference a package not present in the build (stale — consider deleting from cglicenses.json):`);
+					console.warn(`  ${result.staleNames.length} override(s) reference a package not present in THIS build. A package can be absent because it is platform-specific (it only ships on other OS/arch builds) OR because the override is genuinely stale. Verify across platforms before removing anything from cglicenses.json:`);
+					// Heuristic: flag names that contain a platform/arch token so a
+					// single-platform build doesn't lead someone to delete an override
+					// that other-platform builds still rely on.
+					const platformToken = /(darwin|win32|linux|linuxmusl|alpine|freebsd|android|arm64|x64|ia32|armhf|ppc64|s390x|musl)/i;
 					for (const name of result.staleNames.sort()) {
-						console.warn(`    ? stale: ${name}`);
+						const hint = platformToken.test(name)
+							? ' (likely platform-specific — do NOT delete based on a single-platform build)'
+							: '';
+						console.warn(`    ? stale: ${name}${hint}`);
 					}
 				}
 				if (result.unmatchedNames.length > 0) {

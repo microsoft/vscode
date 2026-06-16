@@ -48,6 +48,12 @@ export interface CglicenseEntry {
 	 */
 	version?: string;
 	fullLicenseText?: string[];
+	/**
+	 * Some legacy cglicenses.json entries supply the full license text under
+	 * `licenseDetail` (an array of lines) instead of `fullLicenseText`. Treated
+	 * as an alias for `fullLicenseText`.
+	 */
+	licenseDetail?: string[];
 	fullLicenseTextUri?: string;
 	prependLicenseText?: string[];
 }
@@ -226,6 +232,9 @@ export async function applyOverrides(
 		let bodyOverride: string | undefined;
 		if (override.fullLicenseText && override.fullLicenseText.length > 0) {
 			bodyOverride = override.fullLicenseText.join('\n');
+		} else if (override.licenseDetail && override.licenseDetail.length > 0) {
+			// `licenseDetail` is an older alias for the full license text.
+			bodyOverride = override.licenseDetail.join('\n');
 		} else if (override.fullLicenseTextUri) {
 			if (options.fetchUris) {
 				const fetched = await fetchUriText(override.fullLicenseTextUri);
