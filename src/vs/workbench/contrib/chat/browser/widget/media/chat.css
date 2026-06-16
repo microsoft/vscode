@@ -4280,6 +4280,28 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: 13px;
 }
 
+.chat-model-hover-title-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.chat-model-hover-price-badge {
+	flex: 0 0 auto;
+	padding: 1px 8px;
+	border-radius: 10px;
+	border: 1px solid var(--vscode-contrastBorder, var(--vscode-editorWidget-border));
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+}
+
+.chat-model-hover-price-badge.high-cost {
+	color: var(--vscode-notificationsWarningIcon-foreground, var(--vscode-editorWarning-foreground));
+	border-color: var(--vscode-notificationsWarningIcon-foreground, var(--vscode-editorWarning-foreground));
+}
+
 .chat-model-hover-separator {
 	border-top: 1px solid var(--vscode-menu-separatorBackground, var(--vscode-editorWidget-border));
 	margin: 2px 0;
@@ -4299,36 +4321,36 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin: 0;
 }
 
+.chat-model-hover-cost-table {
+	display: grid;
+	grid-template-columns: auto 1fr 1fr;
+	column-gap: 16px;
+	row-gap: 2px;
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-model-hover-cost-cell.value {
+	text-align: right;
+}
+
+.chat-model-hover-cost-cell.header {
+	color: var(--vscode-foreground);
+	font-weight: 600;
+}
+
+.chat-model-hover-cost-cell.subheader {
+	font-size: 11px;
+	opacity: 0.8;
+	padding-bottom: 4px;
+}
+
 .chat-model-hover-cost {
 	display: flex;
 	flex-direction: column;
 	gap: 2px;
 	font-size: 12px;
 	color: var(--vscode-descriptionForeground);
-}
-
-.chat-model-hover-cost-title-row {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	margin-bottom: 2px;
-}
-
-.chat-model-hover-cost-title {
-	font-weight: 600;
-}
-
-.chat-model-hover-cost-tag {
-	padding: 2px 8px;
-	border-radius: 10px;
-	border: 1px solid var(--vscode-contrastBorder, var(--vscode-editorWidget-border));
-	background: transparent;
-	font-size: 11px;
-}
-
-.chat-model-hover-cost-line-label {
-	color: var(--vscode-foreground);
-	opacity: 0.85;
 }
 
 .chat-model-hover-context {

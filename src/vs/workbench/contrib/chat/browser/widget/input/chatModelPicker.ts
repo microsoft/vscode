@@ -303,6 +303,36 @@ function getPriceCategoryLabel(priceCategory: string | undefined): string | unde
 }
 
 /**
+ * Returns true for price categories that should be highlighted with a warning color.
+ */
+function isHighCostCategory(priceCategory: string | undefined): boolean {
+	return priceCategory === 'high' || priceCategory === 'very_high';
+}
+
+/**
+ * Resolves the context-size column headers (e.g. "200K" / "1M") from the model's
+ * context-size configuration. The smallest window is treated as the default context
+ * and the largest as the long context. Falls back to the model's max input tokens.
+ */
+function getContextSizeLabels(model: ILanguageModelChatMetadataAndIdentifier): { defaultLabel?: string; longLabel?: string } {
+	const properties = model.metadata.configurationSchema?.properties;
+	if (properties) {
+		for (const propSchema of Object.values(properties)) {
+			if (propSchema.group !== 'tokens' || !propSchema.enum || propSchema.enum.length < 2) {
+				continue;
+			}
+			const entries = propSchema.enum.map((value, index) => ({
+				value: Number(value),
+				label: propSchema.enumItemLabels?.[index] ?? formatTokenCount(Number(value)),
+			}));
+			entries.sort((a, b) => a.value - b.value);
+			return { defaultLabel: entries[0].label, longLabel: entries[entries.length - 1].label };
+		}
+	}
+	return { defaultLabel: model.metadata.maxInputTokens ? formatTokenCount(model.metadata.maxInputTokens) : undefined };
+}
+
+/**
  * Returns a short description summarizing the model's current configuration values
  * for properties marked with group 'navigation' (e.g., "High", "Medium").
  */
@@ -1500,12 +1530,21 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 	const container = dom.$('.chat-model-hover');
 	const disposables = new DisposableStore();
 
-	// --- Model name header ---
-	container.appendChild(dom.$('.chat-model-hover-name', undefined, model.metadata.name));
+	// --- Title row: model name + price category badge (top-right) ---
+	const titleRow = dom.$('.chat-model-hover-title-row');
+	titleRow.appendChild(dom.$('.chat-model-hover-name', undefined, model.metadata.name));
+	const priceCategoryLabel = (!isAuto && isUBB) ? getPriceCategoryLabel(model.metadata.priceCategory) : undefined;
+	if (priceCategoryLabel) {
+		const badge = dom.$('span.chat-model-hover-price-badge', undefined, priceCategoryLabel);
+		if (isHighCostCategory(model.metadata.priceCategory)) {
+			badge.classList.add('high-cost');
+		}
+		titleRow.appendChild(badge);
+	}
+	container.appendChild(titleRow);
 
 	// --- Description (tooltip as markdown) ---
 	if (model.metadata.tooltip) {
-		container.appendChild(dom.$('.chat-model-hover-separator'));
 		const descriptionContainer = dom.$('.chat-model-hover-description');
 		const md = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 		if (model.metadata.statusIcon) {
@@ -1523,68 +1562,72 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 	}
 
 	// --- Cost info (UBB only) ---
+	let costTableRendered = false;
 	if (!isAuto && isUBB) {
 		const formatCostValue = (cost: number): string => {
 			return cost === 1
 				? localize('models.costValueSingular', "{0} credit", cost)
 				: localize('models.costValuePlural', "{0} credits", cost);
 		};
-		const buildCostLines = (input: number | undefined, cache: number | undefined, output: number | undefined): { label: string; value: string }[] => {
-			const lines: { label: string; value: string }[] = [];
-			if (input !== undefined) {
-				lines.push({ label: localize('models.inputCostLabel', "Input"), value: formatCostValue(input) });
-			}
-			if (cache !== undefined) {
-				lines.push({ label: localize('models.cacheCostLabel', "Cached input"), value: formatCostValue(cache) });
-			}
-			if (output !== undefined) {
-				lines.push({ label: localize('models.outputCostLabel', "Output"), value: formatCostValue(output) });
-			}
-			return lines;
-		};
-		const appendCostSection = (parent: HTMLElement, title: string, lines: { label: string; value: string }[], categoryLabel?: string): void => {
-			const section = dom.$('.chat-model-hover-cost');
-			const titleRow = dom.$('.chat-model-hover-cost-title-row');
-			titleRow.appendChild(dom.$('.chat-model-hover-cost-title', undefined, title));
-			if (categoryLabel) {
-				titleRow.appendChild(dom.$('span.chat-model-hover-cost-tag', undefined, categoryLabel));
-			}
-			section.appendChild(titleRow);
-			for (const line of lines) {
-				section.appendChild(dom.$('.chat-model-hover-cost-line', undefined,
-					dom.$('span.chat-model-hover-cost-line-label', undefined, `${line.label}: `),
-					dom.$('span', undefined, line.value),
-				));
-			}
-			parent.appendChild(section);
-		};
 
-		const costLines = buildCostLines(model.metadata.inputCost, model.metadata.cacheCost, model.metadata.outputCost);
-		const priceCategoryLabel = getPriceCategoryLabel(model.metadata.priceCategory);
-		if (costLines.length > 0) {
-			appendCostSection(container, localize('models.priceTitle', "Cost (per 1M tokens)"), costLines, priceCategoryLabel);
+		const metrics: { label: string; def: number | undefined; long: number | undefined }[] = [
+			{ label: localize('models.inputCostLabel', "Input"), def: model.metadata.inputCost, long: model.metadata.longContextInputCost },
+			{ label: localize('models.cacheCostLabel', "Cached input"), def: model.metadata.cacheCost, long: model.metadata.longContextCacheCost },
+			{ label: localize('models.outputCostLabel', "Output"), def: model.metadata.outputCost, long: model.metadata.longContextOutputCost },
+		].filter(m => m.def !== undefined || m.long !== undefined);
 
-			// Long-context pricing — only when it differs from default
-			const longContextCostLines = buildCostLines(model.metadata.longContextInputCost, model.metadata.longContextCacheCost, model.metadata.longContextOutputCost);
-			if (longContextCostLines.length > 0) {
-				appendCostSection(container, localize('models.longContextPriceTitle', "Long context cost (per 1M tokens)"), longContextCostLines);
+		if (metrics.length > 0) {
+			const contextLabels = getContextSizeLabels(model);
+			// Only show the long-context column when its prices actually differ from the default.
+			const hasLongContext = metrics.some(m => m.long !== undefined);
+
+			container.appendChild(dom.$('.chat-model-hover-separator'));
+
+			const table = dom.$('.chat-model-hover-cost-table');
+
+			const appendCell = (text: string, ...classNames: string[]): void => {
+				table.appendChild(dom.$(`.chat-model-hover-cost-cell${classNames.map(c => '.' + c).join('')}`, undefined, text));
+			};
+
+			// Header row: "Cost" + context-size value(s) — context columns only shown with long context
+			appendCell(localize('models.priceTitle', "Cost"), 'header', 'title');
+			if (hasLongContext) {
+				appendCell(contextLabels.defaultLabel ?? '', 'header', 'value');
+				appendCell(contextLabels.longLabel ?? '', 'header', 'value');
+
+				// Subheader row: "per 1M tokens" + context column labels
+				appendCell(localize('models.perMillionTokens', "per 1M tokens"), 'subheader', 'label');
+				appendCell(localize('models.defaultContext', "Default Context"), 'subheader', 'value');
+				appendCell(localize('models.longContext', "Long Context"), 'subheader', 'value');
+			} else {
+				// Single price: "per 1M tokens" sits right-aligned above the cost values.
+				// An empty trailing column reserves space so values don't stretch to the far edge.
+				appendCell(localize('models.perMillionTokens', "per 1M tokens"), 'subheader', 'value');
+				appendCell('', 'spacer');
 			}
-		} else if (priceCategoryLabel) {
-			const costSection = dom.$('.chat-model-hover-cost');
-			const titleRow = dom.$('.chat-model-hover-cost-title-row');
-			titleRow.appendChild(dom.$('.chat-model-hover-cost-title', undefined, localize('models.priceCategoryTitle', "Cost")));
-			titleRow.appendChild(dom.$('span.chat-model-hover-cost-tag', undefined, priceCategoryLabel));
-			costSection.appendChild(titleRow);
-			container.appendChild(costSection);
-		} else if (model.metadata.pricing && !isMultiplierPricing(model)) {
+
+			// Cost rows
+			for (const metric of metrics) {
+				appendCell(metric.label, 'label');
+				appendCell(metric.def !== undefined ? formatCostValue(metric.def) : '', 'value');
+				if (hasLongContext) {
+					appendCell(metric.long !== undefined ? formatCostValue(metric.long) : '', 'value');
+				} else {
+					appendCell('', 'spacer');
+				}
+			}
+
+			container.appendChild(table);
+			costTableRendered = true;
+		} else if (!priceCategoryLabel && model.metadata.pricing && !isMultiplierPricing(model)) {
 			const costSection = dom.$('.chat-model-hover-cost');
 			costSection.appendChild(dom.$('span', undefined, localize('models.cost', 'Cost: {0}', model.metadata.pricing)));
 			container.appendChild(costSection);
 		}
 	}
 
-	// --- Context size ---
-	if (!isAuto && (model.metadata.maxInputTokens || model.metadata.maxOutputTokens)) {
+	// --- Context size (only when not already shown in the cost table) ---
+	if (!isAuto && !costTableRendered && (model.metadata.maxInputTokens || model.metadata.maxOutputTokens)) {
 		const totalTokens = (model.metadata.maxInputTokens ?? 0) + (model.metadata.maxOutputTokens ?? 0);
 		const contextSection = dom.$('.chat-model-hover-context');
 		contextSection.appendChild(dom.$('.chat-model-hover-context-label', undefined, localize('models.contextSize', "Max context")));
