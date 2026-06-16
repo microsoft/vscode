@@ -47,7 +47,11 @@ class MockCopilotSession {
 	readonly sendRequests: unknown[] = [];
 	readonly modeSetCalls: Array<{ mode: 'interactive' | 'plan' | 'autopilot' }> = [];
 	readonly compactCalls: unknown[] = [];
+	readonly commandListCalls: unknown[] = [];
+	readonly commandInvokeCalls: Array<{ name: string; input?: string }> = [];
 	compactResult: { success: boolean; tokensRemoved: number; messagesRemoved: number } = { success: true, tokensRemoved: 0, messagesRemoved: 0 };
+	commandListResult: { commands: Array<{ name: string; kind: 'builtin' | 'skill' | 'client'; description: string; allowDuringAgentExecution: boolean }> } = { commands: [] };
+	commandInvokeResult: { kind: 'text'; text: string; markdown?: boolean } | { kind: 'completed'; message?: string } | { kind: 'agent-prompt'; prompt: string; displayPrompt: string; mode?: 'interactive' | 'plan' | 'autopilot' } = { kind: 'text', text: '' };
 	messages: SessionEvent[] = [];
 
 	private readonly _handlers = new Map<string, Set<(event: SessionEvent) => void>>();
@@ -100,6 +104,16 @@ class MockCopilotSession {
 			compact: async (params?: unknown) => {
 				this.compactCalls.push(params ?? null);
 				return this.compactResult;
+			},
+		},
+		commands: {
+			list: async (params?: unknown) => {
+				this.commandListCalls.push(params ?? null);
+				return this.commandListResult;
+			},
+			invoke: async (params: { name: string; input?: string }) => {
+				this.commandInvokeCalls.push(params);
+				return this.commandInvokeResult;
 			},
 		},
 		mcp: {
@@ -558,6 +572,147 @@ suite('CopilotAgentSession', () => {
 		assert.deepStrictEqual(mockSession.sendRequests, []);
 		const turnComplete = getActions(signals).find(a => a.type === ActionType.ChatTurnComplete);
 		assert.ok(turnComplete, 'expected the turn to complete on a failed compaction');
+	});
+
+	test('`/env` runs the runtime command when listed and emits markdown output', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [{
+				name: 'env',
+				kind: 'builtin',
+				description: 'Show loaded environment details',
+				allowDuringAgentExecution: true,
+			}],
+		};
+		mockSession.commandInvokeResult = { kind: 'text', text: '## Environment\n\nLoaded.', markdown: true };
+
+		await session.send('/env', undefined, 'turn-env');
+
+		const actions = getActions(signals);
+		assert.deepStrictEqual({
+			commandListCalls: mockSession.commandListCalls,
+			commandInvokeCalls: mockSession.commandInvokeCalls,
+			sendRequests: mockSession.sendRequests,
+			responseParts: actions
+				.filter(a => a.type === ActionType.ChatResponsePart)
+				.map(a => {
+					const part = (a as ChatResponsePartAction).part;
+					return part.kind === ResponsePartKind.Markdown ? { kind: part.kind, content: part.content } : { kind: part.kind };
+				}),
+			turnComplete: actions
+				.filter(a => a.type === ActionType.ChatTurnComplete)
+				.map(a => (a as ChatTurnCompleteAction).turnId),
+		}, {
+			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: false }],
+			commandInvokeCalls: [{ name: 'env' }],
+			sendRequests: [],
+			responseParts: [{ kind: ResponsePartKind.Markdown, content: '## Environment\n\nLoaded.' }],
+			turnComplete: ['turn-env'],
+		});
+	});
+
+	test('`/env` falls through to a normal SDK send when not listed', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.commandListResult = { commands: [] };
+
+		await session.send('/env', undefined, 'turn-env');
+
+		assert.deepStrictEqual({
+			commandListCalls: mockSession.commandListCalls,
+			commandInvokeCalls: mockSession.commandInvokeCalls,
+			sendRequests: mockSession.sendRequests,
+			responseParts: getActions(signals).filter(a => a.type === ActionType.ChatResponsePart),
+			turnComplete: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete),
+		}, {
+			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: false }],
+			commandInvokeCalls: [],
+			sendRequests: [{ prompt: '/env', attachments: undefined }],
+			responseParts: [],
+			turnComplete: [],
+		});
+	});
+
+	test('`/review` invokes the runtime command and forwards the returned agent prompt', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [{
+				name: 'review',
+				kind: 'builtin',
+				description: 'Run code review agent to analyze changes',
+				allowDuringAgentExecution: false,
+			}],
+		};
+		mockSession.commandInvokeResult = {
+			kind: 'agent-prompt',
+			prompt: 'Use the code-review agent. Additional instructions: focus on tests',
+			displayPrompt: 'Review: focus on tests',
+		};
+
+		await session.send('/review focus on tests', undefined, 'turn-review');
+
+		assert.deepStrictEqual({
+			commandListCalls: mockSession.commandListCalls,
+			commandInvokeCalls: mockSession.commandInvokeCalls,
+			sendRequests: mockSession.sendRequests,
+			responseParts: getActions(signals).filter(a => a.type === ActionType.ChatResponsePart),
+			turnComplete: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete),
+		}, {
+			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: false }],
+			commandInvokeCalls: [{ name: 'review', input: 'focus on tests' }],
+			sendRequests: [{ prompt: 'Use the code-review agent. Additional instructions: focus on tests', attachments: undefined }],
+			responseParts: [],
+			turnComplete: [],
+		});
+	});
+
+	test('`/security-review` invokes the runtime command and forwards the returned agent prompt', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [{
+				name: 'security-review',
+				kind: 'builtin',
+				description: 'Analyze staged and unstaged changes for security vulnerabilities.',
+				allowDuringAgentExecution: false,
+			}],
+		};
+		mockSession.commandInvokeResult = {
+			kind: 'agent-prompt',
+			prompt: 'Use the security-review agent.',
+			displayPrompt: 'Security Review: analyzing for vulnerabilities',
+		};
+
+		await session.send('/security-review', undefined, 'turn-security-review');
+
+		assert.deepStrictEqual({
+			commandListCalls: mockSession.commandListCalls,
+			commandInvokeCalls: mockSession.commandInvokeCalls,
+			sendRequests: mockSession.sendRequests,
+			responseParts: getActions(signals).filter(a => a.type === ActionType.ChatResponsePart),
+			turnComplete: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete),
+		}, {
+			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: false }],
+			commandInvokeCalls: [{ name: 'security-review' }],
+			sendRequests: [{ prompt: 'Use the security-review agent.', attachments: undefined }],
+			responseParts: [],
+			turnComplete: [],
+		});
+	});
+
+	test('`/review` falls through to a normal SDK send when not listed', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		mockSession.commandListResult = { commands: [] };
+
+		await session.send('/review focus on tests', undefined, 'turn-review');
+
+		assert.deepStrictEqual({
+			commandListCalls: mockSession.commandListCalls,
+			commandInvokeCalls: mockSession.commandInvokeCalls,
+			sendRequests: mockSession.sendRequests,
+		}, {
+			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: false }],
+			commandInvokeCalls: [],
+			sendRequests: [{ prompt: '/review focus on tests', attachments: undefined }],
+		});
 	});
 
 	test('emits accumulated Copilot usage metadata', async () => {
