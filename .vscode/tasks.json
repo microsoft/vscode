@@ -268,15 +268,6 @@
 			}
 		},
 		{
-			"label": "Run Dev",
-			"type": "shell",
-			"command": "./scripts/code.sh",
-			"windows": {
-				"command": ".\\scripts\\code.bat"
-			},
-			"problemMatcher": []
-		},
-		{
 			"label": "Run Dev Agents",
 			"type": "shell",
 			"command": "./scripts/code.sh",
@@ -446,6 +437,48 @@
 			"problemMatcher": [
 				"$tsc"
 			]
+		},
+		{
+			"label": "Run Dev",
+			"type": "shell",
+			"command": "./scripts/code.sh",
+			"windows": {
+				"command": ".\\scripts\\code.bat"
+			},
+			"problemMatcher": [],
+			"inAgents": true
+		},
+		{
+			"type": "npm",
+			"script": "watch-client",
+			"label": "Watch Client",
+			"isBackground": true,
+			"presentation": {
+				"reveal": "never",
+				"group": "buildWatchers",
+				"close": false
+			},
+			"problemMatcher": {
+				"owner": "typescript",
+				"applyTo": "closedDocuments",
+				"fileLocation": [
+					"relative",
+					"${workspaceFolder}"
+				],
+				"source": "ts",
+				"pattern": {
+					"regexp": "\\] (.+)\\(([\\d,]+)\\): error TS(\\d+): (.*)$",
+					"file": 1,
+					"location": 2,
+					"code": 3,
+					"message": 4
+				},
+				"background": {
+					"beginsPattern": "Starting compilation\\.\\.\\.",
+					"endsPattern": "Finished compilation with"
+				}
+			},
+			"inAgents": true
 		},
 		{
 			"label": "Component Explorer Server",

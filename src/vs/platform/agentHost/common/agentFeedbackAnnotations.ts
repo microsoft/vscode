@@ -51,21 +51,3 @@ export interface IFeedbackAnnotationMeta {
 	readonly diffHunks?: string;
 	readonly sourcePRReviewCommentId?: string;
 }
-
-/**
- * Server-side host for the agent feedback ("comments") tools. The agent host
- * implements this to advertise the feedback tools as server tools for a
- * session and to execute them against that session's annotations channel.
- *
- * `sessionUri` is the session's protocol URI (string).
- */
-export interface IAgentFeedbackToolHost {
-	/** Advertises the feedback tools on the session's `serverTools`. */
-	advertise(sessionUri: string): void;
-	/**
-	 * Executes a feedback server tool against the session's annotation state,
-	 * dispatching any resulting annotation actions, and returns the textual
-	 * tool result for the agent.
-	 */
-	executeTool(sessionUri: string, toolName: string, rawArgs: unknown): string;
-}

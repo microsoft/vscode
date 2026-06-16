@@ -333,7 +333,7 @@ class RenderedContentHoverParts extends Disposable {
 				this._focusedHoverPartIndex = -1;
 			}));
 			// Add copy button for marker hovers
-			if (renderedPart.type === 'hoverPart') {
+			if (renderedPart.type === 'hoverPart' && !renderedPart.participant.hideCopyButton) {
 				disposables.add(new HoverCopyButton(
 					element,
 					() => renderedPart.participant.getAccessibleContent(renderedPart.hoverPart),
