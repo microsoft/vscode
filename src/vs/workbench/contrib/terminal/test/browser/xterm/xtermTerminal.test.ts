@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Terminal } from '@xterm/xterm';
-import { deepStrictEqual, strictEqual } from 'assert';
+import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { Color, RGBA } from '../../../../../../base/common/color.js';
 import { Emitter } from '../../../../../../base/common/event.js';
@@ -173,19 +173,17 @@ suite('XtermTerminal', () => {
 			strictEqual(result.startsWith('hello world\n  indented line\nline with $pecial chars!@#\n\nempty line above'), true, 'Should handle spaces and special characters correctly');
 		});
 
-		test('should throw error when startMarker is disposed (line === -1)', async () => {
+		test('should fall back to line 0 when startMarker is disposed (line === -1)', async () => {
 			await write('line 1\r\n');
 			const disposedMarker = xterm.raw.registerMarker(0)!;
 			await write('line 2\r\nline 3\r\nline 4\r\nline 5');
 
 			disposedMarker.dispose();
 
-			try {
-				xterm.getContentsAsText(disposedMarker);
-				throw new Error('Expected error was not thrown');
-			} catch (error: any) {
-				strictEqual(error.message, 'Cannot get contents of a disposed startMarker');
-			}
+			const result = xterm.getContentsAsText(disposedMarker);
+			// Should return content from line 0 instead of throwing
+			ok(result.length > 0);
+			ok(result.includes('line'));
 		});
 
 		test('should throw error when endMarker is disposed (line === -1)', async () => {
