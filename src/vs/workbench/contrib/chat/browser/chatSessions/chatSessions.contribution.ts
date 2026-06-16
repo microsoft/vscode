@@ -498,8 +498,13 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	 * are treated as available, since there is no `when` clause gating them.
 	 */
 	private _isContributionAvailableForType(sessionType: string): boolean {
-		const resolvedType = this._resolveToPrimaryType(sessionType) ?? sessionType;
-		const contribution = this._contributions.get(resolvedType)?.contribution;
+		// Resolve the owning contribution by primary type, falling back to the
+		// alternative-id map. We must NOT use `_resolveToPrimaryType` here: it
+		// returns `undefined` once the primary contribution is unavailable, which
+		// would make a gated contribution reached via an alternative id read as
+		// "no contribution" and therefore available.
+		const primaryType = this._contributions.has(sessionType) ? sessionType : this._alternativeIdMap.get(sessionType);
+		const contribution = primaryType ? this._contributions.get(primaryType)?.contribution : undefined;
 		return !contribution || this._isContributionAvailable(contribution);
 	}
 
