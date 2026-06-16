@@ -89,6 +89,19 @@ suite('ChatModelConfigurationStore', () => {
 		assert.deepStrictEqual(fired, [MODEL]);
 	});
 
+	test('restoreModelConfiguration seeds the snapshot and persists to the scoped bucket', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const editor = createStore(storage, createStubService());
+
+		// Restoring a captured non-default value (e.g. from a reopened session)
+		// applies it to this editor and persists it for newly opened editors.
+		editor.restoreModelConfiguration(MODEL, { thinkingEffort: 'high' });
+		assert.deepStrictEqual(editor.getModelConfiguration(MODEL), { thinkingEffort: 'high' });
+
+		const editorB = createStore(storage, createStubService());
+		assert.deepStrictEqual(editorB.getModelConfiguration(MODEL), { thinkingEffort: 'high' });
+	});
+
 	test('clear() drops in-memory snapshots so the next read re-seeds from storage', () => {
 		const storage = store.add(new InMemoryStorageService());
 		const editor = createStore(storage, createStubService());

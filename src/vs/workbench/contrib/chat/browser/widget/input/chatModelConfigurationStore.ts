@@ -91,6 +91,17 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	}
 
 	/**
+	 * Restores a previously captured configuration for a model (e.g. when
+	 * reopening a chat session). Seeds this editor's in-memory snapshot and
+	 * persists it as the scoped default so the restored value participates in
+	 * the same resolution hierarchy as a user-made change — mirroring how the
+	 * restored model selection is persisted to its scoped storage key.
+	 */
+	restoreModelConfiguration(modelId: string, values: IStringDictionary<unknown>): void {
+		this.setModelConfiguration(modelId, values);
+	}
+
+	/**
 	 * Drops all in-memory snapshots so the next read re-seeds from the (now
 	 * different) scoped storage bucket. Call when the owning editor's scope
 	 * (e.g. session type) changes.
