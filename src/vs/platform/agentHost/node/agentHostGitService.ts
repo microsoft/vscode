@@ -462,7 +462,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 		// its argument as a revision, so an attacker-controlled sha that starts
 		// with `-` could inject options, and a non-hex value could resolve to
 		// commit could resolve to surprising refs. Object names are 4-64 lowercase hex chars.
-		if (!/^ [0 - 9a - f]{ 4, 64 } $ /.test(sha)) {
+		if (!/^[0-9a-f]{4,64}$/.test(sha)) {
 			return undefined;
 		}
 		const inside = await this._runGit(workingDirectory, ['rev-parse', '--is-inside-work-tree']);
@@ -734,6 +734,7 @@ export function summarizeStderrForError(stderr: string): string {
  * repository has no commits (no `HEAD` to read into the temp index).
  */
 export const EMPTY_TREE_OBJECT = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
+
 /**
  * Parses NUL-separated `git status --porcelain=v1 -z --untracked-files=all`
  * output and returns the repo-relative paths of untracked entries (status

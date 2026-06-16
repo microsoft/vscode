@@ -417,9 +417,7 @@ export class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTre
 			templateData.toolbar.setActions([...menuActions.primary, ...operationActions], menuActions.secondary);
 		}));
 
-		if (templateData.toolbar) {
-			templateData.toolbar.context = data;
-		}
+		templateData.toolbar.context = data;
 
 		templateData.changeKindContextKey.set('file');
 	}
@@ -438,9 +436,8 @@ export class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTre
 		templateData.decorationBadge.style.display = 'none';
 		templateData.lineCountsContainer.style.display = 'none';
 
-		if (templateData.toolbar) {
-			templateData.toolbar.context = data.uri;
-		}
+		templateData.toolbar.setActions([], []);
+		templateData.toolbar.context = data.uri;
 
 		templateData.changeKindContextKey.set('root');
 	}
@@ -457,9 +454,8 @@ export class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTre
 		templateData.decorationBadge.style.display = 'none';
 		templateData.lineCountsContainer.style.display = 'none';
 
-		if (templateData.toolbar) {
-			templateData.toolbar.context = node;
-		}
+		templateData.toolbar.setActions([], []);
+		templateData.toolbar.context = node;
 
 		templateData.changeKindContextKey.set('folder');
 	}
