@@ -128,9 +128,9 @@ export function compileTask(src: string, out: string, build: boolean, options: {
 			throw new Error('compilation requires 4GB of RAM');
 		}
 
-		// The actual build step now emits with esbuild (transpile-only) and type-checks
-		// with tsgo (no emit). Everything else - monaco.d.ts, mangling, nls - is unchanged.
-		const compile = createCompile(src, { build, emitError: true, transpileOnly: { esbuild: true }, preserveEnglish: !!options.preserveEnglish });
+		// For dev builds we can transpile with esbuild for speed and type-check with tsgo (no emit).
+		// For `build`, keep the full tsb pipeline because the NLS step requires `file.sourceMap`.
+		const compile = createCompile(src, { build, emitError: true, transpileOnly: build ? false : { esbuild: true }, preserveEnglish: !!options.preserveEnglish });
 		const srcPipe = gulp.src(`${src}/**`, { base: `${src}` });
 		const generator = new MonacoGenerator(false);
 		if (src === 'src') {
