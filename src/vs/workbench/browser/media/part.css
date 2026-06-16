@@ -117,14 +117,21 @@
 	color: var(--vscode-agentsPanel-foreground);
 }
 
-/* Secondary side bar sits at the window edge — give it a larger right gutter. */
+/* Side bars sit directly under the title bar — keep them flush (no top margin). */
+.monaco-workbench.floating-panels .part.sidebar,
 .monaco-workbench.floating-panels .part.auxiliarybar {
-	margin-right: 10px;
+	margin-top: 0;
 }
 
-/* Main editor: add a margin on all sides so it floats like the other cards. */
+/* Secondary side bar sits at the window edge — give it a doubled right gutter. */
+.monaco-workbench.floating-panels .part.auxiliarybar {
+	margin-right: 12px;
+}
+
+/* Main editor: float like the other cards, but stay flush with the title bar. */
 .monaco-workbench.floating-panels > .monaco-grid-view .part.editor {
 	margin: 6px;
+	margin-top: 0;
 }
 
 /* The shell backdrop behind the floating cards matches the editor background. */
@@ -143,14 +150,20 @@
 	border-color: transparent !important;
 }
 
-/* Activity bar (default position) gets top/bottom margins to match the cards. */
+/* Activity bar (default position) gets a bottom margin to match the cards. */
 .monaco-workbench.floating-panels .part.activitybar {
-	margin-top: 6px;
 	margin-bottom: 6px;
 }
 
 /* The status bar draws its top border via a pseudo-element — hide it too. */
 .monaco-workbench.floating-panels .part.statusbar::after {
 	display: none !important;
+}
+
+/* Inset the status bar items so they respect the same gutter as the cards. */
+.monaco-workbench.floating-panels .part.statusbar {
+	padding-left: 6px;
+	padding-right: 6px;
+	padding-bottom: 6px;
 }
 

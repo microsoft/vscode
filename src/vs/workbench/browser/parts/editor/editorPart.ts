@@ -1372,11 +1372,12 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		this.left = left;
 
 		// When the floating panels experiment is enabled, reserve a margin around the
-		// main editor so it floats like the side bar and panel cards. The matching
-		// `margin` is applied in CSS (`.floating-panels .part.editor`).
+		// main editor so it floats like the side bar and panel cards. The editor has
+		// no top margin (it stays flush with the title bar). The matching `margin` is
+		// applied in CSS (`.floating-panels .part.editor`).
 		if (this.windowId === mainWindow.vscodeWindowId && this.configurationService.getValue<boolean>(LayoutSettings.FLOATING_PANELS) === true) {
 			width = Math.max(0, width - EditorPart.FLOATING_MARGIN * 2);
-			height = Math.max(0, height - EditorPart.FLOATING_MARGIN * 2);
+			height = Math.max(0, height - EditorPart.FLOATING_MARGIN);
 		}
 
 		// Layout contents

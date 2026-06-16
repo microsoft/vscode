@@ -52,9 +52,9 @@ export class ActivitybarPart extends Part {
 	static readonly COMPACT_ICON_SIZE = 16;
 
 	/**
-	 * Top/bottom margin reserved under the floating panels experiment so the
-	 * activity bar aligns with the floating cards. Must match the margins applied
-	 * in `part.css` under `.floating-panels`.
+	 * Bottom margin reserved under the floating panels experiment so the activity
+	 * bar aligns with the floating cards. Must match the margin applied in
+	 * `part.css` under `.floating-panels`.
 	 */
 	static readonly FLOATING_MARGIN = 6;
 
@@ -228,21 +228,23 @@ export class ActivitybarPart extends Part {
 	}
 
 	override layout(width: number, height: number): void {
-		// When the floating panels experiment is enabled, reserve top and bottom
-		// margins so the activity bar lines up with the floating cards. The matching
-		// margins are applied in CSS (`.floating-panels .part.activitybar`).
-		if (this.configurationService.getValue<boolean>(LayoutSettings.FLOATING_PANELS) === true) {
-			height = Math.max(0, height - ActivitybarPart.FLOATING_MARGIN * 2);
-		}
-
 		super.layout(width, height, 0, 0);
 
 		if (!this.compositeBar.value) {
 			return;
 		}
 
+		// When the floating panels experiment is enabled, reserve a bottom margin so
+		// the activity bar lines up with the floating cards (it stays flush with the
+		// title bar, so no top margin). The matching margin is applied in CSS
+		// (`.floating-panels .part.activitybar`).
+		let contentHeight = height;
+		if (this.configurationService.getValue<boolean>(LayoutSettings.FLOATING_PANELS) === true) {
+			contentHeight = Math.max(0, height - ActivitybarPart.FLOATING_MARGIN);
+		}
+
 		// Layout contents
-		const contentAreaSize = super.layoutContents(width, height).contentSize;
+		const contentAreaSize = super.layoutContents(width, contentHeight).contentSize;
 
 		// Layout composite bar
 		this.compositeBar.value.layout(width, contentAreaSize.height);

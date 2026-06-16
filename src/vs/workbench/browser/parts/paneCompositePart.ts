@@ -118,9 +118,10 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 	/**
 	 * Additional right margin for the secondary side bar (it sits at the window
-	 * edge). Must match the `margin-right` override in `part.css`.
+	 * edge), doubling the standard margin. Must match the `margin-right` override
+	 * in `part.css`.
 	 */
-	private static readonly FLOATING_AUXBAR_EXTRA_RIGHT = 4;
+	private static readonly FLOATING_AUXBAR_EXTRA_RIGHT = 6;
 
 	get snap(): boolean {
 		// Always allow snapping closed
@@ -627,7 +628,8 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	/**
 	 * Amount (in pixels) to subtract from each axis when the floating panels
 	 * experiment is enabled: a margin on each side plus a 1px border on each side
-	 * (the border is drawn inside the box via `box-sizing: border-box`). The
+	 * (the border is drawn inside the box via `box-sizing: border-box`). The side
+	 * bars sit directly under the title bar, so they have no top margin; the
 	 * secondary side bar gets an extra right margin, so its width inset is larger.
 	 */
 	private getFloatingInset(): { width: number; height: number } {
@@ -636,9 +638,13 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		}
 
 		const borderTotal = 2; // 1px border on each side
-		const margins = AbstractPaneCompositePart.FLOATING_MARGIN * 2 + borderTotal;
-		const extraWidth = this.partId === Parts.AUXILIARYBAR_PART ? AbstractPaneCompositePart.FLOATING_AUXBAR_EXTRA_RIGHT : 0;
-		return { width: margins + extraWidth, height: margins };
+		const margin = AbstractPaneCompositePart.FLOATING_MARGIN;
+		const topMargin = this.partId === Parts.PANEL_PART ? margin : 0; // side bars are flush with the title bar
+		const rightMargin = this.partId === Parts.AUXILIARYBAR_PART ? margin + AbstractPaneCompositePart.FLOATING_AUXBAR_EXTRA_RIGHT : margin;
+		return {
+			width: margin + rightMargin + borderTotal,
+			height: topMargin + margin + borderTotal
+		};
 	}
 
 	private layoutCompositeBar(): void {
