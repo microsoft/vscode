@@ -24,7 +24,7 @@ import { EditorDropTarget } from './editorDropTarget.js';
 import { Color } from '../../../../base/common/color.js';
 import { CenteredViewLayout, CenteredViewState } from '../../../../base/browser/ui/centered/centeredViewLayout.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { Parts, IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
+import { Parts, IWorkbenchLayoutService, Position, LayoutSettings } from '../../../services/layout/browser/layoutService.js';
 import { DeepPartial, assertType } from '../../../../base/common/types.js';
 import { CompositeDragAndDropObserver } from '../../dnd.js';
 import { DeferredPromise, Promises } from '../../../../base/common/async.js';
@@ -92,6 +92,12 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 
 	private static readonly EDITOR_PART_UI_STATE_STORAGE_KEY = 'editorpart.state';
 	private static readonly EDITOR_PART_CENTERED_VIEW_STORAGE_KEY = 'editorpart.centeredview';
+
+	/**
+	 * Top margin reserved for the main editor under the floating panels experiment.
+	 * Must match the `margin-top` applied in `part.css` under `.floating-panels`.
+	 */
+	private static readonly FLOATING_MARGIN_TOP = 6;
 
 	//#region Events
 
@@ -1363,6 +1369,13 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	override layout(width: number, height: number, top: number, left: number): void {
 		this.top = top;
 		this.left = left;
+
+		// When the floating panels experiment is enabled, reserve a top margin on the
+		// main editor so it aligns with the floating side bar and panel cards. The
+		// matching `margin-top` is applied in CSS (`.floating-panels .part.editor`).
+		if (this.windowId === mainWindow.vscodeWindowId && this.configurationService.getValue<boolean>(LayoutSettings.FLOATING_PANELS) === true) {
+			height = Math.max(0, height - EditorPart.FLOATING_MARGIN_TOP);
+		}
 
 		// Layout contents
 		const contentAreaSize = super.layoutContents(width, height).contentSize;

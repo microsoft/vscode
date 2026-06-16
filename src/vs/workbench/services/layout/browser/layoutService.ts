@@ -49,7 +49,8 @@ export const enum LayoutSettings {
 	EDITOR_ACTIONS_LOCATION = 'workbench.editor.editorActionsLocation',
 	COMMAND_CENTER = 'window.commandCenter',
 	LAYOUT_ACTIONS = 'workbench.layoutControl.enabled',
-	SHADOWS = 'workbench.shadows'
+	SHADOWS = 'workbench.shadows',
+	FLOATING_PANELS = 'workbench.experimental.floatingPanels.enabled'
 }
 
 export const enum ActivityBarPosition {

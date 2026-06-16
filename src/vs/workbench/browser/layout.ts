@@ -101,7 +101,8 @@ enum LayoutClasses {
 	FULLSCREEN = 'fullscreen',
 	MAXIMIZED = 'maximized',
 	WINDOW_BORDER = 'border',
-	NO_SHADOWS = 'no-shadows'
+	NO_SHADOWS = 'no-shadows',
+	FLOATING_PANELS = 'floating-panels'
 }
 
 interface IPathToOpen extends IPath {
@@ -437,6 +438,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.updateShadows();
 			}
 
+			// Floating Panels
+			if (e.affectsConfiguration(LayoutSettings.FLOATING_PANELS)) {
+				this.updateFloatingPanels();
+				this.layout(); // re-layout so parts pick up the new floating margins
+			}
+
 			// Auxiliary Sidebar
 			if (e.affectsConfiguration(WorkbenchLayoutSettings.AUXILIARYBAR_FORCE_MAXIMIZED)) {
 				const forceMaximized = this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_FORCE_MAXIMIZED);
@@ -608,6 +615,18 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		for (const container of Array.from(this.containers)) {
 			container.classList.toggle(LayoutClasses.NO_SHADOWS, noShadows);
+		}
+	}
+
+	private isFloatingPanelsEnabled(): boolean {
+		return this.configurationService.getValue<boolean>(LayoutSettings.FLOATING_PANELS) === true;
+	}
+
+	private updateFloatingPanels(): void {
+		const floatingPanels = this.isFloatingPanelsEnabled();
+
+		for (const container of Array.from(this.containers)) {
+			container.classList.toggle(LayoutClasses.FLOATING_PANELS, floatingPanels);
 		}
 	}
 
@@ -1882,7 +1901,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			!this.isVisible(Parts.AUXILIARYBAR_PART) ? LayoutClasses.AUXILIARYBAR_HIDDEN : undefined,
 			!this.isVisible(Parts.STATUSBAR_PART) ? LayoutClasses.STATUSBAR_HIDDEN : undefined,
 			this.state.runtime.mainWindowFullscreen ? LayoutClasses.FULLSCREEN : undefined,
-			this.isShadowsDisabled() ? LayoutClasses.NO_SHADOWS : undefined
+			this.isShadowsDisabled() ? LayoutClasses.NO_SHADOWS : undefined,
+			this.isFloatingPanelsEnabled() ? LayoutClasses.FLOATING_PANELS : undefined
 		]);
 	}
 
