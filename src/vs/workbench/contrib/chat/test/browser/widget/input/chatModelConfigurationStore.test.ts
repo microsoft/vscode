@@ -102,6 +102,22 @@ suite('ChatModelConfigurationStore', () => {
 		assert.deepStrictEqual(editorB.getModelConfiguration(MODEL), { thinkingEffort: 'high' });
 	});
 
+	test('restoreModelConfiguration ignores values that the current schema rejects', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const editor = createStore(storage, createStubService());
+
+		// A config captured against an older schema: an unknown key plus a
+		// now-invalid enum value. Both are dropped so the model falls back to its
+		// live default ('medium'), leaving no stale override behind.
+		editor.restoreModelConfiguration(MODEL, { thinkingEffort: 'extreme', removedProp: 42 });
+		assert.deepStrictEqual(editor.getModelConfiguration(MODEL), { thinkingEffort: 'medium' });
+
+		// The persisted bucket holds no stale entry, so a newly opened editor also
+		// resolves to the live default.
+		const editorB = createStore(storage, createStubService());
+		assert.deepStrictEqual(editorB.getModelConfiguration(MODEL), { thinkingEffort: 'medium' });
+	});
+
 	test('clear() drops in-memory snapshots so the next read re-seeds from storage', () => {
 		const storage = store.add(new InMemoryStorageService());
 		const editor = createStore(storage, createStubService());

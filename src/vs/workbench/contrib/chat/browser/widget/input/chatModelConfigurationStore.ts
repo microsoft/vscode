@@ -9,7 +9,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { createModelConfigurationActions, ILanguageModelsService } from '../../../common/languageModels.js';
-import { computeStoredConfiguration, extractSchemaDefaults, resolveModelConfiguration } from './chatModelConfigurationLogic.js';
+import { computeStoredConfiguration, extractSchemaDefaults, filterConfigurationToSchema, resolveModelConfiguration } from './chatModelConfigurationLogic.js';
 import { IModelConfigurationAccess } from './modelPickerActionItem.js';
 
 /**
@@ -96,9 +96,16 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	 * persists it as the scoped default so the restored value participates in
 	 * the same resolution hierarchy as a user-made change — mirroring how the
 	 * restored model selection is persisted to its scoped storage key.
+	 *
+	 * The captured values are first filtered against the model's *current*
+	 * configuration schema so that a config saved against an older schema does
+	 * not re-pin removed properties or invalid values: unknown keys and values
+	 * that violate the schema's `enum` constraint are dropped and fall back to
+	 * the live default.
 	 */
 	restoreModelConfiguration(modelId: string, values: IStringDictionary<unknown>): void {
-		this.setModelConfiguration(modelId, values);
+		const filtered = filterConfigurationToSchema(values, this.languageModelsService.lookupLanguageModel(modelId)?.configurationSchema);
+		this.setModelConfiguration(modelId, filtered);
 	}
 
 	/**
