@@ -43,6 +43,7 @@ import type { ITerminalExecuteStrategy, ITerminalExecuteStrategyResult } from '.
 import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
 import { RichExecuteStrategy } from '../executeStrategy/richExecuteStrategy.js';
 import { getOutput } from '../outputHelpers.js';
+import { LargeOutputFileWriter } from '../largeOutputFileWriter.js';
 import { buildCommandDisplayText, extractCdPrefix, isFish, isPowerShell, isWindowsPowerShell, isZsh, normalizeTerminalCommandForDisplay } from '../runInTerminalHelpers.js';
 import type { ICommandLinePresenter } from './commandLinePresenter/commandLinePresenter.js';
 import { NodeCommandLinePresenter } from './commandLinePresenter/nodeCommandLinePresenter.js';
@@ -133,7 +134,7 @@ function createPowerShellModelDescription(shell: string, isSandboxEnabled: boole
 	parts.push(
 		'',
 		'Output Management:',
-		'- Output is automatically truncated if longer than 60KB to prevent context overflow',
+		'- Output exceeding 20KB is saved to a temp file; the result includes the file path so you can read the full output with readFile or search it with grep',
 		'- Use Select-Object, Where-Object, Format-Table to filter output',
 		'- Use -First/-Last parameters to limit results',
 		'- For pager commands, add | Out-String or | Format-List',
@@ -232,7 +233,7 @@ Use ${TerminalToolId.SendToTerminal} to send commands or input to a terminal ses
 	parts.push(`
 
 Output Management:
-- Output is automatically truncated if longer than 60KB to prevent context overflow
+- Output exceeding 20KB is saved to a temp file; the result includes the file path so you can read the full output with readFile or search it with grep
 - Use head, tail, grep, awk to filter and limit output size
 - For pager commands, disable paging: git --no-pager or add | cat
 - Use wc -l to count lines before displaying large outputs
@@ -581,6 +582,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	private readonly _telemetry: RunInTerminalToolTelemetry;
 	private readonly _commandArtifactCollector: TerminalCommandArtifactCollector;
 	protected readonly _profileFetcher: TerminalProfileFetcher;
+	private readonly _largeOutputFileWriter: LargeOutputFileWriter;
 
 	private readonly _commandLineRewriters: ICommandLineRewriter[];
 	private readonly _commandLineAnalyzers: ICommandLineAnalyzer[];
@@ -775,6 +777,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._telemetry = this._instantiationService.createInstance(RunInTerminalToolTelemetry);
 		this._commandArtifactCollector = this._instantiationService.createInstance(TerminalCommandArtifactCollector);
 		this._profileFetcher = this._instantiationService.createInstance(TerminalProfileFetcher);
+		this._largeOutputFileWriter = this._register(this._instantiationService.createInstance(LargeOutputFileWriter));
 
 		this._commandLineRewriters = [
 			this._register(this._instantiationService.createInstance(CommandLineCdPrefixRewriter)),
@@ -822,11 +825,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._removeTerminalAssociations(e);
 		}));
 
-		// Listen for chat session disposal to clean up associated terminals
+		// Listen for chat session disposal to clean up associated terminals and temp files
 		this._register(this._chatService.onDidDisposeSession(e => {
 			for (const resource of e.sessionResources) {
 				this._cleanupSessionTerminals(resource);
 			}
+			this._largeOutputFileWriter.cleanup();
 		}));
 
 	}
@@ -2398,7 +2402,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		if (outputAnalyzerMessage) {
 			resultText.push(`${outputAnalyzerMessage}\n`);
 		}
-		resultText.push(terminalResult);
+		// Process large output: write to file if needed, then truncate with file path
+		const processedOutput = await this._largeOutputFileWriter.processOutput(terminalResult);
+		resultText.push(processedOutput);
 
 		const isError = exitCode !== undefined && exitCode !== 0;
 		const endCwd = await toolTerminal.instance.getCwdResource();
