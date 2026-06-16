@@ -164,21 +164,23 @@ function createSandboxLines(allowToRunUnsandboxedCommands: boolean, retryWithAll
 	const lines = [
 		'',
 		'Sandboxing:',
-		'- ATTENTION: Terminal sandboxing is enabled, commands run in a sandbox by default',
-		'- When executing commands within the sandboxed environment, all operations requiring a temporary directory must utilize the $TMPDIR environment variable. The /tmp directory is not guaranteed to be accessible or writable and must be avoided',
-		'- Tools and scripts should respect the TMPDIR environment variable, which is automatically set to an appropriate path within the sandbox',
+		'- ATTENTION: Terminal sandboxing is enabled, commands run in a sandbox BY DEFAULT. This means that commands do not have network access and the file system is mounted as read-only and certain paths are not fully accessible (like the $HOME directory). Just the workspace directory and $TMPDIR are mounted as read-write.',
+		'- When executing commands, all operations requiring a temporary directory must utilize the $TMPDIR environment variable. The /tmp directory is not guaranteed to be accessible or writable and must be avoided. Tools and scripts should respect the TMPDIR environment variable, which is always defined and set to an appropriate read-write path',
 	];
 	if (retryWithAllowNetworkRequests) {
 		lines.push(
+			'- Proactively set requestAllowNetwork=true on the FIRST attempt when the command clearly requires network access, instead of waiting for it to fail. This includes git operations that contact a remote (git fetch, git pull, git push, git clone, git ls-remote, git remote update), package manager operations that download (npm install/ci, yarn, pnpm, pip install, cargo fetch/build, go mod download, brew install), and downloaders (curl, wget). Provide requestAllowNetworkReason.',
 			'- When a command fails due to network access being blocked by the sandbox, immediately re-run it with requestAllowNetwork=true and provide requestAllowNetworkReason. This keeps the command in the sandbox with unrestricted network access and automatically shows a confirmation prompt to the user',
-			'- Only set requestAllowNetwork=true when there is evidence of network failures caused by the sandbox, e.g. \'Network request failed\' errors, API call failures, or other indications of blocked network access in the command output',
+			'- Set requestAllowNetwork=true either proactively (the command clearly needs the network, see above) or reactively when there is evidence of network failures caused by the sandbox, e.g. \'Network request failed\' errors, API call failures, or other indications of blocked network access in the command output',
 			'- When setting requestAllowNetwork=true, also provide requestAllowNetworkReason explaining why the command needs network access',
 		);
 	}
 	if (allowToRunUnsandboxedCommands) {
 		lines.push(
+			'- Proactively set requestUnsandboxedExecution=true on the FIRST attempt when the command clearly needs access that the sandbox does not grant, instead of waiting for it to fail. This includes writing or deleting files outside the workspace and $TMPDIR (e.g. modifying $HOME, /usr, /etc, or other system paths), installing software to system locations, or commands that require elevated/system privileges. Provide requestUnsandboxedExecutionReason.',
+			'- For commands that only need NETWORK access, prefer requestAllowNetwork=true (which keeps the command in the sandbox) over requestUnsandboxedExecution=true. Only leave the sandbox entirely when the command also needs non-network access that the sandbox blocks.',
 			'- When a command fails due to sandbox restrictions, immediately re-run it with requestUnsandboxedExecution=true. Do NOT ask the user for permission — setting this flag automatically shows a confirmation prompt to the user',
-			'- Only set requestUnsandboxedExecution=true when there is evidence of failures caused by the sandbox, e.g. \'Operation not permitted\' errors, network failures, or file access errors, etc',
+			'- Set requestUnsandboxedExecution=true either proactively (the command clearly needs non-network access the sandbox blocks, see above) or reactively when there is evidence of failures caused by the sandbox, e.g. \'Operation not permitted\' errors or file access errors',
 			'- When setting requestUnsandboxedExecution=true, also provide requestUnsandboxedExecutionReason explaining why the command needs unsandboxed access',
 		);
 	} else {
