@@ -14,13 +14,12 @@ import { createFileSystemProviderError, FileSystemProviderErrorCode } from '../.
 import { InMemoryFileSystemProvider } from '../../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../log/common/log.js';
 import { NullTelemetryServiceShape } from '../../../../telemetry/common/telemetryUtils.js';
-import type { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from '../../../../telemetry/common/gdprTypings.js';
 import { EditSurvivalReporterFactory } from '../../../node/shared/editSurvivalReporter.js';
 
 class RecordingTelemetryService extends NullTelemetryServiceShape {
 	readonly events: Array<{ name: string; data: unknown }> = [];
-	override publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): void {
-		this.events.push({ name: eventName, data });
+	override publicLog2(eventName?: string, data?: unknown): void {
+		this.events.push({ name: eventName ?? '', data });
 	}
 }
 
