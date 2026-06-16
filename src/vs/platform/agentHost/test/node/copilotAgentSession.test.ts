@@ -691,21 +691,8 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
-	test('`/review` invokes the runtime command and forwards the returned agent prompt', async () => {
+	test('`/review` forwards as a prompt-invoked command', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
-		mockSession.commandListResult = {
-			commands: [{
-				name: 'review',
-				kind: 'builtin',
-				description: 'Run code review agent to analyze changes',
-				allowDuringAgentExecution: false,
-			}],
-		};
-		mockSession.commandInvokeResult = {
-			kind: 'agent-prompt',
-			prompt: 'Use the code-review agent. Additional instructions: focus on tests',
-			displayPrompt: 'Review: focus on tests',
-		};
 
 		await session.send('/review focus on tests', undefined, 'turn-review');
 
@@ -716,29 +703,16 @@ suite('CopilotAgentSession', () => {
 			responseParts: getActions(signals).filter(a => a.type === ActionType.ChatResponsePart),
 			turnComplete: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete),
 		}, {
-			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: false }],
-			commandInvokeCalls: [{ name: 'review', input: 'focus on tests' }],
-			sendRequests: [{ prompt: 'Use the code-review agent. Additional instructions: focus on tests', attachments: undefined }],
+			commandListCalls: [],
+			commandInvokeCalls: [],
+			sendRequests: [{ prompt: '/review focus on tests', attachments: undefined }],
 			responseParts: [],
 			turnComplete: [],
 		});
 	});
 
-	test('`/security-review` invokes the runtime command and forwards the returned agent prompt', async () => {
+	test('`/security-review` forwards as a prompt-invoked command', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
-		mockSession.commandListResult = {
-			commands: [{
-				name: 'security-review',
-				kind: 'builtin',
-				description: 'Analyze staged and unstaged changes for security vulnerabilities.',
-				allowDuringAgentExecution: false,
-			}],
-		};
-		mockSession.commandInvokeResult = {
-			kind: 'agent-prompt',
-			prompt: 'Use the security-review agent.',
-			displayPrompt: 'Security Review: analyzing for vulnerabilities',
-		};
 
 		await session.send('/security-review', undefined, 'turn-security-review');
 
@@ -749,28 +723,11 @@ suite('CopilotAgentSession', () => {
 			responseParts: getActions(signals).filter(a => a.type === ActionType.ChatResponsePart),
 			turnComplete: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete),
 		}, {
-			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: false }],
-			commandInvokeCalls: [{ name: 'security-review' }],
-			sendRequests: [{ prompt: 'Use the security-review agent.', attachments: undefined }],
+			commandListCalls: [],
+			commandInvokeCalls: [],
+			sendRequests: [{ prompt: '/security-review', attachments: undefined }],
 			responseParts: [],
 			turnComplete: [],
-		});
-	});
-
-	test('`/review` falls through to a normal SDK send when not listed', async () => {
-		const { session, mockSession } = await createAgentSession(disposables);
-		mockSession.commandListResult = { commands: [] };
-
-		await session.send('/review focus on tests', undefined, 'turn-review');
-
-		assert.deepStrictEqual({
-			commandListCalls: mockSession.commandListCalls,
-			commandInvokeCalls: mockSession.commandInvokeCalls,
-			sendRequests: mockSession.sendRequests,
-		}, {
-			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: false }],
-			commandInvokeCalls: [],
-			sendRequests: [{ prompt: '/review focus on tests', attachments: undefined }],
 		});
 	});
 

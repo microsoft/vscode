@@ -151,7 +151,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			assert.deepStrictEqual(items.map(i => i.insertText), ['/research ', '/rubber-duck ', '/review ']);
 		});
 
-		test('filters to /security-review when "/s" typed and runtime command exists', async () => {
+		test('filters to /security-review when "/s" typed', async () => {
 			const items = await run('/s');
 			assert.deepStrictEqual(items.map(i => i.insertText), ['/security-review ']);
 		});
@@ -258,12 +258,12 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/compact', '/research ', '/rubber-duck ', '/review ', '/security-review ']);
 		});
 
-		test('omits /review and /security-review when runtime commands are unavailable', async () => {
+		test('keeps prompt-invoked commands when runtime commands are unavailable', async () => {
 			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', { hasHistory: () => true, isRubberDuckEnabled: () => true, hasRuntimeSlashCommand: async (_id, command) => command === 'env' });
 			const items = await gated.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage, channel: session, text: '/', offset: 1,
 			}, CancellationToken.None);
-			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/compact', '/research ', '/rubber-duck ', '/env']);
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/compact', '/research ', '/rubber-duck ', '/env', '/review ', '/security-review ']);
 		});
 
 		test('passes raw session id (no scheme/slash) to hasHistory', async () => {

@@ -18,7 +18,8 @@ import { extractLeadingSlashToken } from '../agentHostSlashCompletion.js';
 export type CopilotSlashCommandName = 'plan' | 'compact' | 'research' | 'rubber-duck' | 'env' | 'review' | 'security-review';
 
 const COMMANDS: readonly CopilotSlashCommandName[] = ['plan', 'compact', 'research', 'rubber-duck', 'env', 'review', 'security-review'];
-const RUNTIME_COMMANDS = new Set<CopilotSlashCommandName>(['env', 'review', 'security-review']);
+const RUNTIME_RPC_INVOKED_COMMANDS = new Set<CopilotSlashCommandName>(['env']);
+const PROMPT_INVOKED_COMMANDS = new Set<CopilotSlashCommandName>(['research', 'review', 'security-review']);
 function getCommandDescription(command: CopilotSlashCommandName): string {
 	switch (command) {
 		case 'plan': return localize('copilotSlashCommand.plan.description', "Create an implementation plan before coding");
@@ -32,10 +33,14 @@ function getCommandDescription(command: CopilotSlashCommandName): string {
 }
 
 export function isRuntimeCopilotSlashCommand(command: CopilotSlashCommandName): boolean {
-	return RUNTIME_COMMANDS.has(command);
+	return RUNTIME_RPC_INVOKED_COMMANDS.has(command);
 }
 
-export function commandExpectsInput(command: CopilotSlashCommandName): boolean {
+export function isPromptInvokedCopilotSlashCommand(command: CopilotSlashCommandName): boolean {
+	return PROMPT_INVOKED_COMMANDS.has(command);
+}
+
+function commandExpectsInput(command: CopilotSlashCommandName): boolean {
 	return command !== 'compact' && command !== 'env';
 }
 /**
