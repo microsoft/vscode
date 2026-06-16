@@ -22,7 +22,7 @@ import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProt
 import { ActionType, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
 import type { ConfigSchema, ModelSelection, ProtectedResourceMetadata, ToolDefinition } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
-import { type ClientPluginCustomization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, ChatInputResponseKind, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { type ClientPluginCustomization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, ChatInputResponseKind, type ToolCallResult, ToolResultContentType, type Turn } from '../../common/state/sessionState.js';
 import type { ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
@@ -30,7 +30,7 @@ import { extractForwardedErrorInfo } from '../shared/forwardedChatError.js';
 import { IAgentSdkDownloader, IAgentSdkPackage } from '../agentSdkDownloader.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
-import { CodexAppServerClient, JsonRpcError, transportFromChildProcess, type ICodexAppServerClient } from './codexAppServerClient.js';
+import { CodexAppServerClient, JsonRpcError, transportFromChildProcess, type ICodexAppServerClient, type ServerRequestHandlerResult } from './codexAppServerClient.js';
 import { ICodexProxyService, type ICodexProxyHandle } from './codexProxyService.js';
 import { createCodexSessionMapState, extractUserInputText, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangeOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, resetCodexTurnMapState, type ICodexSessionMapState } from './codexMapAppServerEvents.js';
 import { resolveCodexInput } from './codexPromptResolver.js';
@@ -44,6 +44,11 @@ import type { SandboxPolicy } from './protocol/generated/v2/SandboxPolicy.js';
 import type { CommandExecutionApprovalDecision } from './protocol/generated/v2/CommandExecutionApprovalDecision.js';
 import type { CommandExecutionRequestApprovalParams } from './protocol/generated/v2/CommandExecutionRequestApprovalParams.js';
 import type { CommandExecutionRequestApprovalResponse } from './protocol/generated/v2/CommandExecutionRequestApprovalResponse.js';
+import type { DynamicToolSpec } from './protocol/generated/v2/DynamicToolSpec.js';
+import type { DynamicToolCallParams } from './protocol/generated/v2/DynamicToolCallParams.js';
+import type { DynamicToolCallResponse } from './protocol/generated/v2/DynamicToolCallResponse.js';
+import type { DynamicToolCallOutputContentItem } from './protocol/generated/v2/DynamicToolCallOutputContentItem.js';
+import type { JsonValue } from './protocol/generated/serde_json/JsonValue.js';
 import type { GetAccountResponse } from './protocol/generated/v2/GetAccountResponse.js';
 import type { ModelListResponse } from './protocol/generated/v2/ModelListResponse.js';
 import type { Thread } from './protocol/generated/v2/Thread.js';
@@ -224,6 +229,30 @@ interface ICodexSession {
 	 * `turn/steer` rejection so the chat UI's pending bubble never sticks.
 	 */
 	readonly pendingSteeringFlips: Map<string, PendingMessage>;
+	/**
+	 * Client-provided tool definitions for this session (the active
+	 * workbench client's tools), registered with codex as `dynamicTools`
+	 * at `thread/start`. `undefined` until the first {@link setClientTools}.
+	 */
+	clientTools: readonly ToolDefinition[] | undefined;
+	/** Workbench client id that owns {@link clientTools}. */
+	toolsClientId: string | undefined;
+	/**
+	 * Parked deferreds for in-flight client-tool calls (codex
+	 * `item/tool/call`), keyed by the host-side toolCallId. Resolved by
+	 * {@link CodexAgent.onClientToolCallComplete}.
+	 */
+	readonly pendingClientToolCalls: PendingRequestRegistry<ToolCallResult>;
+	/**
+	 * Signature of the {@link clientTools} the codex thread was started
+	 * with. Codex only accepts `dynamicTools` at `thread/start`, so if the
+	 * tools change before the first turn (e.g. the prewarmed thread started
+	 * before {@link setClientTools} arrived) the thread is restarted to pick
+	 * them up. `undefined` until materialized.
+	 */
+	materializedToolsSig: string | undefined;
+	/** True once a turn has been started on the (materialized) thread. */
+	firstTurnSent: boolean;
 	model: ModelSelection | undefined;
 	/** Workbench-facing turn id for the active turn. */
 	currentTurnId: string | undefined;
@@ -286,6 +315,41 @@ export const CodexSdkPackage: IAgentSdkPackage = {
 	devOverrideEnvVar: AgentHostCodexAgentSdkRootEnvVar,
 	hasSeparateMuslLinuxPackage: false,
 };
+
+/**
+ * Convert a workbench {@link ToolCallResult} into the codex
+ * {@link DynamicToolCallResponse} returned for an `item/tool/call` request.
+ * Text content maps to `inputText`; when there is no text content the
+ * tool's past-tense summary is used so codex never receives an empty body.
+ */
+function dynamicToolResponseFromResult(result: ToolCallResult): DynamicToolCallResponse {
+	const contentItems: DynamicToolCallOutputContentItem[] = [];
+	for (const c of result.content ?? []) {
+		if (c.type === ToolResultContentType.Text) {
+			contentItems.push({ type: 'inputText', text: c.text });
+		}
+	}
+	if (contentItems.length === 0) {
+		const summary = typeof result.pastTenseMessage === 'string' ? result.pastTenseMessage : '';
+		contentItems.push({ type: 'inputText', text: summary });
+	}
+	return { contentItems, success: result.success };
+}
+
+/**
+ * Stable, order-insensitive signature of a client tool set, used to detect
+ * whether the tools registered with a codex thread (at `thread/start`) still
+ * match the session's current tools.
+ */
+function toolsSignature(tools: readonly ToolDefinition[] | undefined): string {
+	if (!tools || tools.length === 0) {
+		return '';
+	}
+	return tools
+		.map(t => `${t.name}\u0000${t.description ?? ''}\u0000${JSON.stringify(t.inputSchema ?? null)}`)
+		.sort()
+		.join('\u0001');
+}
 
 export class CodexAgent extends Disposable implements IAgent {
 
@@ -676,7 +740,65 @@ export class CodexAgent extends Disposable implements IAgent {
 			params => this._handleCommandApprovalRequestRpc(params),
 		));
 
+		// Client-provided (dynamic) tool execution requests. Codex asks the
+		// host to run a tool registered via `thread/start.dynamicTools`; we
+		// route the call to the owning workbench client and answer with its
+		// result.
+		this._register(client.onRequest<'item/tool/call'>(
+			'item/tool/call',
+			params => this._handleDynamicToolCallRpc(params),
+		));
+
 		return { client, proxyHandle, child };
+	}
+
+	/** Map the session's client tools into codex `dynamicTools` specs. */
+	private _buildDynamicTools(session: ICodexSession): DynamicToolSpec[] | undefined {
+		const tools = session.clientTools;
+		if (!tools || tools.length === 0) {
+			return undefined;
+		}
+		return tools.map(t => ({
+			name: t.name,
+			description: t.description ?? '',
+			inputSchema: (t.inputSchema ?? { type: 'object' }) as JsonValue,
+		}));
+	}
+
+	private async _handleDynamicToolCallRpc(params: DynamicToolCallParams): Promise<ServerRequestHandlerResult<DynamicToolCallResponse>> {
+		const sessionId = this._sessionIdByThreadId.get(params.threadId);
+		const session = sessionId ? this._sessions.get(sessionId) : undefined;
+		if (!session) {
+			return { result: this._toolFailure(`Codex tool call for unknown thread ${params.threadId}`) };
+		}
+		// `item/started` for the `dynamicToolCall` (id === callId) is delivered
+		// before this request and seeds the host toolCallId + ChatToolCallReady
+		// the owning client reacts to. Look it up so the client's completion
+		// (keyed by that toolCallId) resolves this request.
+		const toolCallId = session.mapState.itemToToolCall.get(params.callId)?.toolCallId;
+		if (toolCallId === undefined) {
+			return { result: this._toolFailure(`No pending client tool call for ${params.tool} (callId ${params.callId})`) };
+		}
+		if (!session.clientTools || session.toolsClientId === undefined) {
+			return { result: this._toolFailure(`No client available to run ${params.tool}`) };
+		}
+		try {
+			// `register` consumes any result the client already delivered (the
+			// display path emits ChatToolCallReady before this request, so the
+			// completion can race ahead — PendingRequestRegistry buffers it).
+			const result = await session.pendingClientToolCalls.register(toolCallId);
+			return { result: dynamicToolResponseFromResult(result) };
+		} catch (err) {
+			if (err instanceof CancellationError) {
+				return { result: this._toolFailure(`Client tool ${params.tool} was cancelled`) };
+			}
+			return { result: this._toolFailure(`Client tool ${params.tool} failed: ${err instanceof Error ? err.message : String(err)}`) };
+		}
+	}
+
+	private _toolFailure(message: string): DynamicToolCallResponse {
+		this._logService.warn(`[Codex] dynamic tool call failed: ${message}`);
+		return { contentItems: [{ type: 'inputText', text: message }], success: false };
 	}
 
 	private _hostTurnId(session: ICodexSession, appTurnId: string): string {
@@ -928,6 +1050,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		for (const session of this._sessions.values()) {
 			// Unpark any pending approvals so awaiters unwind.
 			session.pendingCommandApprovals.denyAll('decline');
+			// Reject in-flight client tool calls so their handlers unwind.
+			session.pendingClientToolCalls.rejectAll(new CancellationError());
 			// Clear any buffered steering so its pending bubble doesn't leak.
 			this._drainPendingSteering(session);
 			const turnId = session.currentTurnId;
@@ -1021,6 +1145,11 @@ export class CodexAgent extends Disposable implements IAgent {
 			pendingCommandApprovals: new PendingRequestRegistry<CommandExecutionApprovalDecision>(),
 			acceptedForSession: new Set<string>(),
 			pendingSteeringFlips: new Map<string, PendingMessage>(),
+			clientTools: undefined,
+			toolsClientId: undefined,
+			pendingClientToolCalls: new PendingRequestRegistry<ToolCallResult>(),
+			materializedToolsSig: undefined,
+			firstTurnSent: false,
 			model: effectiveModel,
 			currentTurnId: undefined,
 			currentAppTurnId: undefined,
@@ -1091,6 +1220,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			config: {
 				web_search: narrowWebSearchMode(config[CodexSessionConfigKey.WebSearchMode]) ?? codexSessionConfigDefaults[CodexSessionConfigKey.WebSearchMode],
 			},
+			dynamicTools: this._buildDynamicTools(session),
 		});
 		const threadId = startResult.thread.id;
 		if (session.disposed) {
@@ -1102,8 +1232,31 @@ export class CodexAgent extends Disposable implements IAgent {
 			return;
 		}
 		session.threadId = threadId;
+		session.materializedToolsSig = toolsSignature(session.clientTools);
 		this._logService.info(`[Codex DEBUG] materialized session=${session.sessionUri.toString()} threadId=${session.threadId}`);
 		this._sessionIdByThreadId.set(session.threadId, session.sessionId);
+	}
+
+	/**
+	 * Tear down the current codex thread and start a fresh one so the
+	 * session's current client tools are registered as `dynamicTools`.
+	 * Only safe before any turn has committed history on the thread.
+	 */
+	private async _restartThreadWithCurrentTools(session: ICodexSession): Promise<void> {
+		const conn = this._connection;
+		const oldThreadId = session.threadId;
+		this._logService.info(`[Codex:${session.sessionId}] restarting thread ${oldThreadId} to apply client tools [${(session.clientTools ?? []).map(t => t.name).join(', ') || '(none)'}]`);
+		if (conn.kind === 'ready' && oldThreadId !== undefined) {
+			this._sessionIdByThreadId.delete(oldThreadId);
+			try {
+				await conn.client.request<'thread/unsubscribe'>('thread/unsubscribe', { threadId: oldThreadId });
+			} catch (err) {
+				this._logService.info(`[Codex:${oldThreadId}] thread/unsubscribe during tool restart failed: ${err instanceof Error ? err.message : String(err)}`);
+			}
+		}
+		session.threadId = undefined;
+		session.materializePromise = undefined;
+		await this._materializeIfNeeded(session);
 	}
 
 	private _fireMaterialized(session: ICodexSession): void {
@@ -1203,10 +1356,27 @@ export class CodexAgent extends Disposable implements IAgent {
 			this._fire(sessionUri, { type: ActionType.ChatTurnComplete, turnId: effectiveTurnId });
 			return;
 		}
+		// Codex registers client tools only at `thread/start`. If the thread
+		// was prewarmed (or otherwise started) before the current client tools
+		// were known, restart it now — before any turn commits history, so
+		// nothing is lost — so the tools land in `dynamicTools`.
+		if (!session.firstTurnSent && !session.needsResume && toolsSignature(session.clientTools) !== session.materializedToolsSig) {
+			try {
+				await this._restartThreadWithCurrentTools(session);
+				this._persistMaterializedSession(session);
+			} catch (err) {
+				const message = err instanceof Error ? err.message : String(err);
+				this._logService.error(`[Codex:${sessionId}] tool re-materialize failed: ${message}`);
+				this._fire(sessionUri, {
+					type: ActionType.ChatError,
+					turnId: effectiveTurnId,
+					error: { errorType: 'CodexMaterializeFailed', message },
+				});
+				this._fire(sessionUri, { type: ActionType.ChatTurnComplete, turnId: effectiveTurnId });
+				return;
+			}
+		}
 		const threadId = session.threadId!;
-
-		// Phase 3 resume path: defer to first sendMessage. If this session
-		// was restored, we haven't yet told codex about it.
 		if (session.needsResume) {
 			try {
 				await conn.client.request<'thread/resume'>('thread/resume', {
@@ -1240,6 +1410,9 @@ export class CodexAgent extends Disposable implements IAgent {
 				model: model.id,
 				...turnOptions,
 			});
+			// The thread now has committed history; client tools are locked to
+			// what was registered at `thread/start` and won't be re-applied.
+			session.firstTurnSent = true;
 			// We don't await turn completion here — the notification
 			// stream emits ChatTurnComplete asynchronously.
 		} catch (err) {
@@ -1364,6 +1537,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		// Unpark any pending approvals so codex doesn't deadlock waiting
 		// on a response we will never deliver.
 		session.pendingCommandApprovals.denyAll('decline');
+		// Reject any in-flight client tool calls so their `item/tool/call`
+		// handlers unwind instead of awaiting a response that won't arrive.
+		session.pendingClientToolCalls.rejectAll(new CancellationError());
 		// Clear any buffered steering so its pending bubble doesn't leak.
 		this._drainPendingSteering(session);
 		const conn = this._connection;
@@ -1431,6 +1607,11 @@ export class CodexAgent extends Disposable implements IAgent {
 				pendingCommandApprovals: new PendingRequestRegistry<CommandExecutionApprovalDecision>(),
 				acceptedForSession: new Set<string>(),
 				pendingSteeringFlips: new Map<string, PendingMessage>(),
+				clientTools: undefined,
+				toolsClientId: undefined,
+				pendingClientToolCalls: new PendingRequestRegistry<ToolCallResult>(),
+				materializedToolsSig: undefined,
+				firstTurnSent: true,
 				model: undefined,
 				currentTurnId: undefined,
 				currentAppTurnId: undefined,
@@ -1525,12 +1706,24 @@ export class CodexAgent extends Disposable implements IAgent {
 		};
 	}
 
-	setClientTools(_session: URI, _clientId: string | undefined, _tools: ToolDefinition[]): void {
-		// Phase 6+: in-process MCP client tools. Not implemented in Phase 2.
+	setClientTools(session: URI, clientId: string | undefined, tools: ToolDefinition[]): void {
+		const sessionId = AgentSession.id(session);
+		const sess = this._sessions.get(sessionId);
+		if (!sess) {
+			return;
+		}
+		sess.clientTools = tools.length > 0 ? tools : undefined;
+		sess.toolsClientId = clientId;
+		sess.mapState.toolsClientId = sess.clientTools ? clientId : undefined;
+		this._logService.info(`[Codex:${sessionId}] setClientTools clientId=${clientId ?? '(none)'} tools=[${tools.map(t => t.name).join(', ') || '(none)'}]`);
 	}
 
-	onClientToolCallComplete(_session: URI, _toolCallId: string, _result: ToolCallResult): void {
-		// Phase 4+.
+	onClientToolCallComplete(session: URI, toolCallId: string, result: ToolCallResult): void {
+		const sessionId = AgentSession.id(session);
+		const sess = this._sessions.get(sessionId);
+		// `AgentSideEffects` forwards every `ChatToolCallComplete` envelope
+		// (including codex-owned tools like shell); a miss is the expected path.
+		sess?.pendingClientToolCalls.respondOrBuffer(toolCallId, result);
 	}
 
 	setClientCustomizations(_session: URI, _clientId: string, _customizations: ClientPluginCustomization[]): Promise<ISyncedCustomization[]> {
@@ -1549,6 +1742,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._connection = { kind: 'idle' };
 		for (const s of this._sessions.values()) {
 			s.pendingCommandApprovals.denyAll('decline');
+			s.pendingClientToolCalls.rejectAll(new CancellationError());
 		}
 		this._sessions.clear();
 		this._sessionIdByThreadId.clear();
@@ -1615,6 +1809,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._connection = { kind: 'idle' };
 		for (const s of this._sessions.values()) {
 			s.pendingCommandApprovals.denyAll('decline');
+			s.pendingClientToolCalls.rejectAll(new CancellationError());
 		}
 		this._sessions.clear();
 		this._sessionIdByThreadId.clear();

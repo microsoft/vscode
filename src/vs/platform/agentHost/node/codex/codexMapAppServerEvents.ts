@@ -5,7 +5,7 @@
 
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ActionType, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolResultContentType, TurnState } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState } from '../../common/state/sessionState.js';
 import { extractForwardedErrorInfo } from '../shared/forwardedChatError.js';
 import type { AgentMessageDeltaNotification } from './protocol/generated/v2/AgentMessageDeltaNotification.js';
 import type { CommandExecutionOutputDeltaNotification } from './protocol/generated/v2/CommandExecutionOutputDeltaNotification.js';
@@ -48,6 +48,13 @@ export interface ICodexSessionMapState {
 	readonly itemToReasoningPartId: Map<string, string>;
 	/** Current turn id (per `turn/started`). */
 	currentTurnId: string | undefined;
+	/**
+	 * Workbench client id that owns the session's client-provided
+	 * (`dynamicTools`) tools. Set so `dynamicToolCall` tool-call starts
+	 * carry a `Client` contributor and the workbench routes execution back
+	 * to that client. `undefined` when no client tools are registered.
+	 */
+	toolsClientId: string | undefined;
 }
 
 export interface ICodexToolCallEntry {
@@ -63,6 +70,7 @@ export function createCodexSessionMapState(): ICodexSessionMapState {
 		itemToToolCall: new Map(),
 		itemToReasoningPartId: new Map(),
 		currentTurnId: undefined,
+		toolsClientId: undefined,
 	};
 }
 
@@ -446,6 +454,7 @@ export function mapItemStarted(
 				toolCallId,
 				toolName,
 				displayName: params.item.tool,
+				...(state.toolsClientId ? { contributor: { kind: ToolCallContributorKind.Client, clientId: state.toolsClientId } } : {}),
 			},
 			{
 				type: ActionType.ChatToolCallDelta,

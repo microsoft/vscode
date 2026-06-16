@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { createCodexSessionMapState, extractUserInputText, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, resetCodexTurnMapState, turnStateFromStatus } from '../../../node/codex/codexMapAppServerEvents.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolResultContentType, TurnState } from '../../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState } from '../../../common/state/sessionState.js';
 
 suite('codexMapAppServerEvents', () => {
 
@@ -390,6 +390,25 @@ suite('codexMapAppServerEvents', () => {
 			progressActions: [{ type: ActionType.ChatToolCallContentChanged, turnId: 'turn_a', toolCallId, content: [{ type: ToolResultContentType.Text, text: 'Searching' }] }],
 			completeActions: [{ type: ActionType.ChatToolCallComplete, turnId: 'turn_a', toolCallId, result: { success: true, pastTenseMessage: 'Called github.search', content: [{ type: ToolResultContentType.Text, text: 'done\n{\n  "count": 1\n}' }] } }],
 			remainingToolCalls: 0,
+		});
+	});
+
+	test('dynamicToolCall item carries a Client contributor when toolsClientId is set', () => {
+		const state = createCodexSessionMapState();
+		state.toolsClientId = 'win-7';
+		const startActions = mapItemStarted(state, {
+			item: { type: 'dynamicToolCall', id: 'dyn_2', namespace: null, tool: 'get_magic_word', arguments: {}, status: 'inProgress', contentItems: null, success: null, durationMs: null } as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const start = startActions[0] as { type: ActionType; toolName: string; contributor?: { kind: ToolCallContributorKind; clientId: string } };
+		assert.deepStrictEqual({
+			type: start.type,
+			toolName: start.toolName,
+			contributor: start.contributor,
+		}, {
+			type: ActionType.ChatToolCallStart,
+			toolName: 'get_magic_word',
+			contributor: { kind: ToolCallContributorKind.Client, clientId: 'win-7' },
 		});
 	});
 

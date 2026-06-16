@@ -137,4 +137,152 @@ defineSharedRealSdkTests(CODEX_CONFIG);
 		const snapshot = await client.call<{ snapshot?: { state?: { steeringMessage?: unknown } } }>('subscribe', { channel: session });
 		assert.ok(!snapshot.snapshot?.state?.steeringMessage, `steering message must not remain pending (promotedAsTurn=${promotedAsTurn})`);
 	});
+
+	test('client tool is registered and invoked end-to-end', async function () {
+		this.timeout(180_000);
+		const workingDirectory = mkdtempSync(join(tmpdir(), 'codex-tool-'));
+		tempDirs.push(workingDirectory);
+		const session = await createRealSession(client, CODEX_CONFIG, 'tool-client', createdSessions, workingDirectory);
+
+		// Register a client-provided tool BEFORE the first turn so it lands in
+		// `thread/start.dynamicTools`.
+		client.notify('dispatchAction', {
+			channel: session,
+			clientSeq: 1,
+			action: {
+				type: 'session/activeClientChanged',
+				activeClient: {
+					clientId: 'tool-client',
+					tools: [{
+						name: 'get_magic_word',
+						description: 'Returns the secret magic word. Call this when asked for the magic word.',
+						inputSchema: { type: 'object', properties: {}, required: [] },
+					}],
+				},
+			},
+		});
+
+		const turnId = generateUuid();
+		dispatchTurn(client, session, turnId, 'Call the get_magic_word tool and then tell me the exact magic word it returned.', 2);
+
+		// Surface and complete the client tool call, then wait for the turn to
+		// finish. `chat/toolCallStart` carries the tool name; `chat/toolCallReady`
+		// (keyed only by toolCallId) is when the client may run it.
+		const seen = new Set<object>();
+		let toolCallId: string | undefined;
+		let sawToolCall = false;
+		let completed = false;
+		let nextSeq = 3;
+		while (true) {
+			const n = await client.waitForNotification(x => !seen.has(x as object) && (
+				isActionNotification(x, 'chat/toolCallStart')
+				|| isActionNotification(x, 'chat/toolCallReady')
+				|| isActionNotification(x, 'chat/turnComplete')
+				|| isActionNotification(x, 'chat/error')), 120_000);
+			seen.add(n as object);
+			if (isActionNotification(n, 'chat/toolCallStart')) {
+				const a = getActionEnvelope(n).action as { toolCallId: string; toolName?: string };
+				if (a.toolName === 'get_magic_word') {
+					toolCallId = a.toolCallId;
+					sawToolCall = true;
+				}
+				continue;
+			}
+			if (isActionNotification(n, 'chat/toolCallReady')) {
+				const a = getActionEnvelope(n).action as { toolCallId: string };
+				if (a.toolCallId === toolCallId && !completed) {
+					completed = true;
+					client.notify('dispatchAction', {
+						channel: session,
+						clientSeq: nextSeq++,
+						action: {
+							type: 'chat/toolCallComplete',
+							turnId,
+							toolCallId: a.toolCallId,
+							result: { success: true, pastTenseMessage: 'Got the magic word', content: [{ type: 'text', text: 'XYLOPHONE' }] },
+						},
+					});
+				}
+				continue;
+			}
+			if (isActionNotification(n, 'chat/error')) {
+				throw new Error('codex reported a turn error during client-tool test');
+			}
+			break;
+		}
+		assert.ok(sawToolCall, 'workbench client should have been asked to run get_magic_word');
+		assert.ok(completed, 'the client tool call should have reached the ready state to be completed');
+	});
+
+	test('client tool registered after the thread prewarms restarts the thread and still works', async function () {
+		this.timeout(180_000);
+		const workingDirectory = mkdtempSync(join(tmpdir(), 'codex-tool2-'));
+		tempDirs.push(workingDirectory);
+		const session = await createRealSession(client, CODEX_CONFIG, 'tool-client-2', createdSessions, workingDirectory);
+
+		// Let the background prewarm materialize a thread BEFORE any tools are
+		// registered, so the tools must be applied via a thread restart.
+		await new Promise(r => setTimeout(r, 4_000));
+
+		client.notify('dispatchAction', {
+			channel: session,
+			clientSeq: 1,
+			action: {
+				type: 'session/activeClientChanged',
+				activeClient: {
+					clientId: 'tool-client-2',
+					tools: [{
+						name: 'get_magic_word',
+						description: 'Returns the secret magic word. Call this when asked for the magic word.',
+						inputSchema: { type: 'object', properties: {}, required: [] },
+					}],
+				},
+			},
+		});
+
+		const turnId = generateUuid();
+		dispatchTurn(client, session, turnId, 'Call the get_magic_word tool and then tell me the exact magic word it returned.', 2);
+
+		const seen = new Set<object>();
+		let toolCallId: string | undefined;
+		let completed = false;
+		let nextSeq = 3;
+		while (true) {
+			const n = await client.waitForNotification(x => !seen.has(x as object) && (
+				isActionNotification(x, 'chat/toolCallStart')
+				|| isActionNotification(x, 'chat/toolCallReady')
+				|| isActionNotification(x, 'chat/turnComplete')
+				|| isActionNotification(x, 'chat/error')), 120_000);
+			seen.add(n as object);
+			if (isActionNotification(n, 'chat/toolCallStart')) {
+				const a = getActionEnvelope(n).action as { toolCallId: string; toolName?: string };
+				if (a.toolName === 'get_magic_word') {
+					toolCallId = a.toolCallId;
+				}
+				continue;
+			}
+			if (isActionNotification(n, 'chat/toolCallReady')) {
+				const a = getActionEnvelope(n).action as { toolCallId: string };
+				if (a.toolCallId === toolCallId && !completed) {
+					completed = true;
+					client.notify('dispatchAction', {
+						channel: session,
+						clientSeq: nextSeq++,
+						action: {
+							type: 'chat/toolCallComplete',
+							turnId,
+							toolCallId: a.toolCallId,
+							result: { success: true, pastTenseMessage: 'Got the magic word', content: [{ type: 'text', text: 'XYLOPHONE' }] },
+						},
+					});
+				}
+				continue;
+			}
+			if (isActionNotification(n, 'chat/error')) {
+				throw new Error('codex reported a turn error during delayed client-tool test');
+			}
+			break;
+		}
+		assert.ok(completed, 'a tool registered after prewarm should still reach the client via a thread restart');
+	});
 });
