@@ -219,51 +219,57 @@ export class SessionTypePicker extends Disposable {
 			return;
 		}
 
-		// Determine which providers contain at least one duplicated label.
-		// Only those providers need a group title for disambiguation.
-		const labelCounts = new Map<string, number>();
-		for (const { sessionType } of folderTypes) {
-			labelCounts.set(sessionType.label, (labelCounts.get(sessionType.label) ?? 0) + 1);
-		}
-		const providersWithDuplicates = new Set<string>();
-		for (const { providerId, sessionType } of folderTypes) {
-			if ((labelCounts.get(sessionType.label) ?? 0) > 1) {
-				providersWithDuplicates.add(providerId);
+		// Group session types by their provider's display label, preserving
+		// first-seen order. Providers can be interleaved in the folder list and
+		// distinct providers can share a label, so collecting by label avoids
+		// rendering the same section header more than once.
+		const groups = new Map<string, IProviderSessionType[]>();
+		for (const folderType of folderTypes) {
+			const provider = this.sessionsProvidersService.getProvider(folderType.providerId);
+			const groupTitle = provider?.label ?? folderType.providerId;
+			const existing = groups.get(groupTitle);
+			if (existing) {
+				existing.push(folderType);
+			} else {
+				groups.set(groupTitle, [folderType]);
 			}
 		}
-		const hasDuplicateLabels = providersWithDuplicates.size > 0;
+		const showSectionHeaders = groups.size > 1;
 
-		const providersService = this.sessionsProvidersService;
 		const groupedItems: IActionListItem<ISessionTypePickerItem>[] = [];
-		let lastProviderId: string | undefined;
-		for (const { providerId, sessionType } of folderTypes) {
-			const provider = providersService.getProvider(providerId);
-			const groupTitle = provider?.label ?? providerId;
-			const isFirstInGroup = providerId !== lastProviderId;
-			lastProviderId = providerId;
-			const isCurrent = this._picked?.providerId === providerId && this._picked?.sessionTypeId === sessionType.id;
-			const availability = getSessionTypeAvailability(this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, sessionType.chatSessionType ?? sessionType.id);
-			const unavailable = availability !== SessionTypeAvailability.Available;
-			const item: ISessionTypePickerItem = isCurrent
-				? { providerId, sessionTypeId: sessionType.id, label: sessionType.label, checked: true }
-				: { providerId, sessionTypeId: sessionType.id, label: sessionType.label };
-			groupedItems.push({
-				kind: ActionListItemKind.Action,
-				label: sessionType.label,
-				disabled: unavailable,
-				...(unavailable ? {
-					description: getSessionTypeUnavailableDescription(availability),
-					hover: { content: getSessionTypeUnavailableHover(availability) },
-				} : {}),
-				group: providersWithDuplicates.has(providerId) ? {
-					title: isFirstInGroup ? groupTitle : '',
-					icon: sessionType.icon,
-				} : {
-					title: '',
-					icon: sessionType.icon,
-				},
-				item,
-			});
+		for (const [groupTitle, types] of groups) {
+			if (showSectionHeaders) {
+				if (groupedItems.length > 0) {
+					groupedItems.push({ kind: ActionListItemKind.Separator, label: '' });
+				}
+				groupedItems.push({
+					kind: ActionListItemKind.Header,
+					group: { title: groupTitle },
+					label: groupTitle,
+				});
+			}
+			for (const { providerId, sessionType } of types) {
+				const isCurrent = this._picked?.providerId === providerId && this._picked?.sessionTypeId === sessionType.id;
+				const availability = getSessionTypeAvailability(this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, sessionType.chatSessionType ?? sessionType.id);
+				const unavailable = availability !== SessionTypeAvailability.Available;
+				const item: ISessionTypePickerItem = isCurrent
+					? { providerId, sessionTypeId: sessionType.id, label: sessionType.label, checked: true }
+					: { providerId, sessionTypeId: sessionType.id, label: sessionType.label };
+				groupedItems.push({
+					kind: ActionListItemKind.Action,
+					label: sessionType.label,
+					disabled: unavailable,
+					...(unavailable ? {
+						description: getSessionTypeUnavailableDescription(availability),
+						hover: { content: getSessionTypeUnavailableHover(availability) },
+					} : {}),
+					group: {
+						title: '',
+						icon: sessionType.icon,
+					},
+					item,
+				});
+			}
 		}
 
 		const triggerElement = this._triggerElement;
@@ -287,7 +293,6 @@ export class SessionTypePicker extends Disposable {
 				getAriaLabel: (item) => item.label ?? '',
 				getWidgetAriaLabel: () => localize('sessionTypePicker.ariaLabel', "Session Type"),
 			},
-			{ showGroupTitleOnFirstItem: hasDuplicateLabels },
 		);
 	}
 
