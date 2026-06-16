@@ -10,11 +10,12 @@ import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
-import { ISessionsPartService } from '../../../../sessions/services/sessions/browser/sessionsPartService.js';
+import { ISessionsPartService } from '../../../../sessions/browser/sessionsPartService.js';
 import { IAgentSessionsService } from '../../chat/browser/agentSessions/agentSessionsService.js';
 import { IAgentTitleBarStatusService } from '../../chat/browser/agentSessions/experiments/agentTitleBarStatusService.js';
 import { IMicCaptureService } from '../../chat/browser/voiceClient/micCaptureService.js';
@@ -42,6 +43,7 @@ class SessionsVoiceBarContribution extends Disposable implements IWorkbenchContr
 	constructor(
 		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IOpenerService private readonly openerService: IOpenerService,
 		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IAgentTitleBarStatusService private readonly agentTitleBarStatusService: IAgentTitleBarStatusService,
@@ -114,9 +116,8 @@ class SessionsVoiceBarContribution extends Disposable implements IWorkbenchContr
 			pttUp: () => this.voiceSessionController.pttUp(),
 			closeWindow: () => { /* no-op: sessions part has no close button */ },
 			stopPlayback: () => this.ttsPlaybackService.stopPlayback(),
-			openSession: (_resource) => {
-				// Session navigation in the sessions window is handled via the
-				// session list in the widget and the sessions service directly.
+			openSession: (resource) => {
+				this.openerService.open(resource);
 			},
 			stopSession: (_resource) => {
 				const model = this.chatService.getSession(_resource);

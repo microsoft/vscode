@@ -200,6 +200,16 @@ export class SessionsPart extends Part {
 		this._bottomArea = $('.sessions-bottom-area');
 		contentArea.appendChild(this._bottomArea);
 
+		// Re-layout when the bottom area changes size (e.g. voice bar shown/hidden).
+		const bottomAreaObserver = new ResizeObserver(() => {
+			if (this._lastLayout) {
+				const { width, height, top, left } = this._lastLayout;
+				this.layout(width, height, top, left);
+			}
+		});
+		bottomAreaObserver.observe(this._bottomArea);
+		this._register({ dispose: () => bottomAreaObserver.disconnect() });
+
 		return contentArea;
 	}
 
@@ -444,7 +454,7 @@ export class SessionsPart extends Part {
 		// Layout the internal grid widget within the content area,
 		// accounting for the bottom area height (e.g. voice bar).
 		const bottomAreaHeight = this._bottomArea?.offsetHeight ?? 0;
-		this._gridWidget?.layout(contentSize.width, contentSize.height - bottomAreaHeight, top, left);
+		this._gridWidget?.layout(contentSize.width, Math.max(0, contentSize.height - bottomAreaHeight), top, left);
 
 		// Store the full grid-allocated dimensions so that Part.relayout() works correctly.
 		super.layout(width, height, top, left);
