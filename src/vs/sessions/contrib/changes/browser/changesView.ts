@@ -10,7 +10,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IObjectTreeElement, ITreeSorter } from '../../../../base/browser/ui/tree/tree.js';
-import { ActionRunner, IAction } from '../../../../base/common/actions.js';
+import { ActionRunner, IAction, SubmenuAction, toAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
@@ -20,7 +20,8 @@ import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { MenuWorkbenchButtonBar } from '../../../../platform/actions/browser/buttonbar.js';
+import { MenuWorkbenchButtonBar, WorkbenchButtonBar } from '../../../../platform/actions/browser/buttonbar.js';
+import { getActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { MenuId, Action2, MenuItemAction, registerAction2, IMenuService } from '../../../../platform/actions/common/actions.js';
@@ -58,7 +59,8 @@ import { getChangesEditorLabels } from './changesEditorLabels.js';
 import { ChangesMultiDiffSourceResolver, getChangesMultiDiffSourceUri } from './changesMultiDiffSourceResolver.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { CIStatusWidget } from './checksWidget.js';
-import { GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, SessionChangesetOperationScope, SessionStatus } from '../../../services/sessions/common/session.js';
+import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
 import { IView, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
 import { Color } from '../../../../base/common/color.js';
@@ -86,7 +88,7 @@ const RUN_SESSION_CODE_REVIEW_ACTION_ID = 'sessions.codeReview.run';
 
 // --- ButtonBar widget
 
-class ChangesButtonBarWidget extends Disposable {
+class ChangesMenuWorkbenchButtonBarWidget extends Disposable {
 	constructor(
 		container: HTMLElement,
 		viewModel: ChangesViewModel,
@@ -217,6 +219,75 @@ class ChangesButtonBarWidget extends Disposable {
 
 		// Fall back to default button behavior for actions without an icon.
 		return undefined;
+	}
+}
+
+// --- ButtonBar widget (Agent Host)
+
+class ChangesWorkbenchButtonBarWidget extends Disposable {
+	constructor(
+		container: HTMLElement,
+		viewModel: ChangesViewModel,
+		@IMenuService menuService: IMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super();
+
+		const menu = this._register(menuService.createMenu(MenuId.AgentsChangesToolbar, contextKeyService));
+
+		const buttonBar = this._register(instantiationService.createInstance(
+			WorkbenchButtonBar,
+			container,
+			{
+				telemetrySource: 'changesView',
+				buttonConfigProvider: (_action, index) => {
+					return { showIcon: true, showLabel: index === 0 };
+				}
+			}
+		));
+
+		const menuActionsObs = observableFromEvent(menu.onDidChange, () => {
+			return getActionBarActions(menu.getActions({ shouldForwardArgs: true }));
+		});
+
+		const operationActionsObs = derived(reader => {
+			const changeset = viewModel.activeSessionChangesetObs.read(reader);
+			if (!changeset) {
+				return [];
+			}
+
+			const operations = viewModel.activeSessionChangesetOperationsObs.read(reader);
+			return operations.filter(op => op.scopes.includes(SessionChangesetOperationScope.Changeset))
+				.map(op => toAction({
+					id: op.id,
+					label: op.icon
+						? `$(${op.icon.id}) ${op.label}`
+						: op.label,
+					tooltip: op.description,
+					enabled: true,
+					run: () => changeset.invokeOperation(op.id),
+				}));
+		});
+
+		this._register(autorun(reader => {
+			const operationActions = operationActionsObs.read(reader);
+			const menuActions = menuActionsObs.read(reader);
+
+			const primaryActions: IAction[] = [];
+
+			if (operationActions.length > 1) {
+				// Create a dropdown
+				const primaryAction = operationActions[0];
+				const secondaryActions = operationActions.slice(1);
+				primaryActions.push(new SubmenuAction('changesView.operations.primary.dropdown', primaryAction.label, [primaryAction, ...secondaryActions]));
+			} else {
+				primaryActions.push(...operationActions);
+			}
+
+			primaryActions.push(...menuActions.primary);
+			buttonBar.update(primaryActions, menuActions.secondary);
+		}));
 	}
 }
 
@@ -566,13 +637,24 @@ export class ChangesViewPane extends ViewPane {
 
 		// Setup context keys and actions toolbar
 		if (this.actionsContainer) {
-			dom.clearNode(this.actionsContainer);
-
 			// Bind context keys
 			this._bindContextKeys(topLevelStats);
 
-			this.renderDisposables.add(this.scopedInstantiationService.createInstance(
-				ChangesButtonBarWidget, this.actionsContainer, this.viewModel, this.hasGitOperationInProgressObs));
+			const isAgentHostSessionObs = derived(reader => {
+				const activeSession = this.sessionsService.activeSession.read(reader);
+				return activeSession ? isAgentHostProviderId(activeSession.providerId) : false;
+			});
+
+			this.renderDisposables.add(autorun(reader => {
+				dom.clearNode(this.actionsContainer!);
+
+				const isAgentHostSession = isAgentHostSessionObs.read(reader);
+
+				const widget = isAgentHostSession
+					? this.scopedInstantiationService.createInstance(ChangesWorkbenchButtonBarWidget, this.actionsContainer!, this.viewModel)
+					: this.scopedInstantiationService.createInstance(ChangesMenuWorkbenchButtonBarWidget, this.actionsContainer!, this.viewModel, this.hasGitOperationInProgressObs);
+				reader.store.add(widget);
+			}));
 		}
 
 		const activeSessionStatusObs = derived(reader => {
