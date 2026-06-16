@@ -20,16 +20,18 @@ import { match as globMatch, splitGlobAware } from '../../../util/vs/base/common
 import { hash } from '../../../util/vs/base/common/hash';
 import { ResourceMap, ResourceSet } from '../../../util/vs/base/common/map';
 import { basename, dirname } from '../../../util/vs/base/common/resources';
+import { stringDiff } from '../../../util/vs/base/common/diff/diff';
 import { URI } from '../../../util/vs/base/common/uri';
 import { ParsedPromptFile } from '../../../util/vs/workbench/contrib/chat/common/promptSyntax/promptFileParser';
 import { isLocation } from '../../../util/common/types';
-import { ToolName } from '../../../extension/tools/common/toolNames';
+import { getToolName, ToolName } from '../../../extension/tools/common/toolNames';
 import { isCustomizationsIndex, isInstructionFile, isPromptFile, toCustomizationsIndexReference, toInstructionFileReference } from '../../../extension/prompt/common/chatVariablesCollection';
 import { getToolReferencePromptContent } from '../../../extension/prompt/vscode-node/promptVariablesService';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { getChatSessionType, matchesSessionType } from '../../chat/common/sessionUtils';
 import { CopilotChatAttr, GenAiAttr, IOTelService } from '../../otel/common';
 import { ICustomInstructionsService } from '../../customInstructions/common/customInstructionsService';
+import { IPromptVariablesService } from '../../../extension/prompt/node/promptVariablesService';
 
 /**
  * Telemetry payload (parity with core's `instructionsCollected` event).
@@ -136,6 +138,9 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 		@ILogService private readonly _logService: ILogService,
 		@IExperimentationService private readonly _experimentationService: IExperimentationService,
 	) { }
+
+
+
 
 	async collect({ sessionResource, references, tools, modeInstructions2 }: IAutomaticInstructionsCollectorContext, token: CancellationToken): Promise<readonly vscode.ChatPromptReference[]> {
 
@@ -370,11 +375,12 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 		let readTool, skillTool, runSubagentTool;
 		for (const [tool, enabled] of tools) {
 			if (enabled) {
-				if (tool.name === ToolName.ReadFile) {
+				const toolName = getToolName(tool.name);
+				if (toolName === ToolName.ReadFile) {
 					readTool = tool;
-				} else if (tool.name === ToolName.CoreRunSubagent) {
+				} else if (toolName === ToolName.CoreRunSubagent) {
 					runSubagentTool = tool;
-				} else if (tool.name === ToolName.Skill) {
+				} else if (toolName === ToolName.Skill) {
 					skillTool = tool;
 				}
 			}
@@ -705,14 +711,146 @@ function matchesAttachedFiles(attachedFiles: ResourceSet, applyToPattern: string
 	return undefined;
 }
 
+function formatDiffLine(line: string): string {
+	const MAX_LINE_LENGTH = 200;
+	const normalized = line.replace(/\r/g, '\\r').replace(/\t/g, '\\t');
+	if (normalized.length <= MAX_LINE_LENGTH) {
+		return normalized;
+	}
+	return `${normalized.slice(0, MAX_LINE_LENGTH)}...`;
+}
+
+function toLineStarts(text: string): number[] {
+	const starts = [0];
+	for (let i = 0; i < text.length; i++) {
+		if (text.charCodeAt(i) === 10) {
+			starts.push(i + 1);
+		}
+	}
+	return starts;
+}
+
+function charIndexToLine(index: number, lineStarts: readonly number[]): number {
+	if (lineStarts.length === 0) {
+		return 0;
+	}
+	let low = 0;
+	let high = lineStarts.length - 1;
+	while (low <= high) {
+		const mid = Math.floor((low + high) / 2);
+		if (lineStarts[mid] <= index) {
+			low = mid + 1;
+		} else {
+			high = mid - 1;
+		}
+	}
+	return Math.max(0, Math.min(high, lineStarts.length - 1));
+}
+
+function formatStringDiff(original: string, modified: string): string {
+	const CONTEXT_LINES = 2;
+	const MAX_HUNKS = 8;
+	const rawChanges = stringDiff(original, modified, true);
+	if (rawChanges.length === 0) {
+		return 'no textual difference';
+	}
+
+	const originalLines = original.split('\n');
+	const modifiedLines = modified.split('\n');
+	const originalStarts = toLineStarts(original);
+	const modifiedStarts = toLineStarts(modified);
+
+	// Convert character-level changes into line-level ranges so logs can show
+	// compact unified-style hunks with surrounding unchanged context lines.
+	const changes = rawChanges.map(change => {
+		const originalStart = charIndexToLine(change.originalStart, originalStarts);
+		const modifiedStart = charIndexToLine(change.modifiedStart, modifiedStarts);
+		const originalEnd = change.originalLength === 0
+			? originalStart
+			: charIndexToLine(change.originalStart + change.originalLength - 1, originalStarts) + 1;
+		const modifiedEnd = change.modifiedLength === 0
+			? modifiedStart
+			: charIndexToLine(change.modifiedStart + change.modifiedLength - 1, modifiedStarts) + 1;
+		return { originalStart, originalEnd, modifiedStart, modifiedEnd };
+	});
+
+	const hunks: Array<{ originalStart: number; originalEnd: number; modifiedStart: number; modifiedEnd: number; firstChange: number; lastChange: number }> = [];
+	for (let i = 0; i < changes.length; i++) {
+		const change = changes[i];
+		const prev = hunks[hunks.length - 1];
+		if (!prev) {
+			hunks.push({ ...change, firstChange: i, lastChange: i });
+			continue;
+		}
+
+		const originalGap = change.originalStart - prev.originalEnd;
+		const modifiedGap = change.modifiedStart - prev.modifiedEnd;
+		if (originalGap <= CONTEXT_LINES * 2 && modifiedGap <= CONTEXT_LINES * 2) {
+			prev.originalEnd = Math.max(prev.originalEnd, change.originalEnd);
+			prev.modifiedEnd = Math.max(prev.modifiedEnd, change.modifiedEnd);
+			prev.lastChange = i;
+		} else {
+			hunks.push({ ...change, firstChange: i, lastChange: i });
+		}
+	}
+
+	const lines: string[] = [];
+	const shownHunks = Math.min(hunks.length, MAX_HUNKS);
+	for (let i = 0; i < shownHunks; i++) {
+		const hunk = hunks[i];
+		const hunkChanges = changes.slice(hunk.firstChange, hunk.lastChange + 1);
+
+		const originalWindowStart = Math.max(0, hunk.originalStart - CONTEXT_LINES);
+		const originalWindowEnd = Math.min(originalLines.length, hunk.originalEnd + CONTEXT_LINES);
+		const modifiedWindowStart = Math.max(0, hunk.modifiedStart - CONTEXT_LINES);
+		const modifiedWindowEnd = Math.min(modifiedLines.length, hunk.modifiedEnd + CONTEXT_LINES);
+
+		lines.push(`@@ -${originalWindowStart + 1},${Math.max(0, originalWindowEnd - originalWindowStart)} +${modifiedWindowStart + 1},${Math.max(0, modifiedWindowEnd - modifiedWindowStart)} @@`);
+
+		let originalCursor = originalWindowStart;
+		let modifiedCursor = modifiedWindowStart;
+		for (const change of hunkChanges) {
+			while (originalCursor < change.originalStart && modifiedCursor < change.modifiedStart) {
+				lines.push(` ${formatDiffLine(originalLines[originalCursor])}`);
+				originalCursor++;
+				modifiedCursor++;
+			}
+
+			for (let o = change.originalStart; o < change.originalEnd; o++) {
+				lines.push(`-${formatDiffLine(originalLines[o])}`);
+			}
+			for (let m = change.modifiedStart; m < change.modifiedEnd; m++) {
+				lines.push(`+${formatDiffLine(modifiedLines[m])}`);
+			}
+
+			originalCursor = Math.max(originalCursor, change.originalEnd);
+			modifiedCursor = Math.max(modifiedCursor, change.modifiedEnd);
+		}
+
+		while (originalCursor < originalWindowEnd && modifiedCursor < modifiedWindowEnd) {
+			lines.push(` ${formatDiffLine(originalLines[originalCursor])}`);
+			originalCursor++;
+			modifiedCursor++;
+		}
+	}
+
+	if (hunks.length > shownHunks) {
+		lines.push(`... ${hunks.length - shownHunks} additional hunks omitted`);
+	}
+
+	return lines.join('\n');
+}
+
 export class CustomInstructionsReferenceLogger {
 	constructor(
 		@IOTelService private readonly _otelService: IOTelService,
-		@ICustomInstructionsService private readonly _customInstructionsService: ICustomInstructionsService,
+		@ILogService private readonly _logService: ILogService,
+		@IPromptVariablesService private readonly _promptVariablesService: IPromptVariablesService,
+		@ICustomInstructionsService private readonly _customInstructionsService: ICustomInstructionsService
 	) { }
 
-	logReferences(sessionId: string | undefined, references: readonly vscode.ChatPromptReference[]): void {
-		const customInstructionsDebugString = this.toCustomInstructionsDebugString(references);
+	async logReferences(sessionId: string | undefined, references: readonly vscode.ChatPromptReference[], collectInstructionsInExtension: boolean): Promise<void> {
+		const customInstructionsDebugString = await this.toCustomInstructionsDebugString(references, false);
 		const span = this._otelService.startSpan('collect_automatic_instructions', {
 			attributes: {
 				[GenAiAttr.OPERATION_NAME]: 'core_event',
@@ -720,27 +858,55 @@ export class CustomInstructionsReferenceLogger {
 			},
 		});
 		span.setAttributes({
-			[CopilotChatAttr.DEBUG_NAME]: 'automatic_instructions',
+			[CopilotChatAttr.DEBUG_NAME]: `Collected Automatic Instructions ${collectInstructionsInExtension ? 'extension' : 'core'}`,
 			'copilot_chat.event_category': 'discovery',
 			'copilot_chat.event_details': customInstructionsDebugString,
 		});
 		span.end();
 	}
 
-	private toIndextDebug(content: string): string {
-		const indexFile = this._customInstructionsService.parseInstructionIndexFile(content);
-		return `CustomizationsIndex(\n   agents ${indexFile.agents.size},\n   instructions ${indexFile.instructions.size},\n   skills ${indexFile.skills.size})`;
+	async compare({ sessionResource, references, tools, modeInstructions2 }: IAutomaticInstructionsCollectorContext, collector: IAutomaticInstructionsCollector, token: CancellationToken): Promise<void> {
+		const core = references.filter(r => isInstructionFile(r) || isCustomizationsIndex(r));
+		const without = references.filter(r => !isInstructionFile(r) && !isCustomizationsIndex(r));
+
+		const result = await collector.collect({ sessionResource, references: without, tools, modeInstructions2 }, token);
+
+		const coreStr = await this.toCustomInstructionsDebugString(core, true);
+		const extStr = await this.toCustomInstructionsDebugString(result, true);
+		if (coreStr !== extStr) {
+			const diff = formatStringDiff(coreStr, extStr);
+			this._logService.info(`[AutomaticInstructionsCollector] Core vs extension instructions mismatch:\n--- diff ---\n${diff}`);
+		} else {
+			this._logService.info(`[AutomaticInstructionsCollector] Core vs extension instructions match (${core.length} entries)`);
+		}
 	}
 
-	private toCustomInstructionsDebugString(references: readonly vscode.ChatPromptReference[]): string {
+	private async toIndexDebug(content: string, toolReferences: readonly vscode.ChatLanguageModelToolReference[] | undefined, verbose: boolean, result: string[]): Promise<void> {
+		if (toolReferences?.length) {
+			content = await this._promptVariablesService.resolveToolReferencesInPrompt(content, toolReferences);
+		}
+		const indexFile = this._customInstructionsService.parseInstructionIndexFile(content);
+		result.push(`   agents ${indexFile.agents.size}: ${Array.from(indexFile.agents.keys()).join(', ')}`);
+		result.push(`   instructions ${indexFile.instructions.size} : ${Array.from(indexFile.instructions.values()).map(instr => basename(instr)).join(', ')}`);
+		result.push(`   skills ${indexFile.skills.size}: ${Array.from(indexFile.skills).map(skill => basename(dirname(skill))).join(', ')}`);
+		if (verbose) {
+			result.push(content);
+		}
+	}
+
+	private async toCustomInstructionsDebugString(references: readonly vscode.ChatPromptReference[], verbose: boolean = false): Promise<string> {
+		const sorted = [...references].sort((a, b) => a.name.localeCompare(b.name));
 
 		const result = [];
-		const instructions = references.filter(isInstructionFile).map(ref => basename(ref.value));
+		const instructions = sorted.filter(isInstructionFile).map(ref => basename(ref.value));
 		result.push(`Instructions(${instructions.length}): ${instructions.join(', ')}`);
-		const promptFiles = references.filter(isPromptFile).map(ref => basename(ref.value));
+		const promptFiles = sorted.filter(isPromptFile).map(ref => basename(ref.value));
 		result.push(`PromptFile(${promptFiles.length}): ${promptFiles.join(', ')}`);
-		const indexFiles = references.filter(isCustomizationsIndex).map(ref => this.toIndextDebug(ref.value));
-		result.push(`CustomizationsIndex(${indexFiles.length}): ${indexFiles.join(', ')}`);
+		const indexFiles = sorted.filter(isCustomizationsIndex);
+		result.push(`CustomizationsIndex(${indexFiles.length}`);
+		for (const ref of indexFiles) {
+			await this.toIndexDebug(ref.value, ref.toolReferences, verbose, result);
+		}
 		return result.join('\n');
 	}
 }

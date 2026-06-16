@@ -628,13 +628,16 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 
 		// Only collect automatic instructions in the extension when the corresponding core setting opts in.
 		// Otherwise the core workbench performs the collection before the request reaches the extension.
-		if (this.configurationService.getNonExtensionConfig<boolean>(PromptConfig.COLLECT_INSTRUCTIONS_IN_EXTENSION) === true) {
+		const collectInstructionsInExtension = this.configurationService.getNonExtensionConfig<boolean>(PromptConfig.COLLECT_INSTRUCTIONS_IN_EXTENSION) === true;
+		if (collectInstructionsInExtension) {
 			const addedInstructionsAndIndex = await this._automaticInstructionsCollector.collect(this.request, token);
 			if (addedInstructionsAndIndex.length > 0) {
 				promptContext = { ...promptContext, chatVariables: ChatVariablesCollection.merge(promptContext.chatVariables, new ChatVariablesCollection(addedInstructionsAndIndex)) };
 			}
+		} else {
+			await this.instantiationService.createInstance(CustomInstructionsReferenceLogger).compare(this.request, this._automaticInstructionsCollector, token);
 		}
-		this.instantiationService.createInstance(CustomInstructionsReferenceLogger).logReferences(promptContext.conversation?.sessionId, promptContext.chatVariables.references);
+		await this.instantiationService.createInstance(CustomInstructionsReferenceLogger).logReferences(promptContext.conversation?.sessionId, promptContext.chatVariables.references, collectInstructionsInExtension);
 
 
 		// Add any references from the codebase invocation to the request
