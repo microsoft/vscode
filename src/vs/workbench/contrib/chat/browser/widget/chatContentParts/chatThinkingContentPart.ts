@@ -1650,6 +1650,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			// Use the tracked displayed label (which may differ from invocationMessage
 			// for streaming edit tools that show "Editing files")
 			const toolCallId = removedItem.toolInvocationOrMarkdown.toolCallId;
+			this._pendingExternalResources.delete(toolCallId);
 			this._externalResourceWidget.removeToolInvocation(toolCallId);
 			const label = this.toolLabelsByCallId.get(toolCallId);
 			if (label) {
@@ -1746,6 +1747,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			this.extractedTitles.splice(titleIndex, 1);
 		}
 		this.toolLabelsByCallId.delete(toolCallId);
+		this._pendingExternalResources.delete(toolCallId);
 		this._externalResourceWidget.removeToolInvocation(toolCallId);
 		this.updateWorkingSpinnerVisibility();
 		this.updateDropdownClickability();
