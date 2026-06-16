@@ -877,15 +877,22 @@ export class CollapsedCodeBlock extends ChatEditPillElement {
 		}));
 	}
 
-	private showDiff({ editorOptions: options, openToSide }: IOpenEditorOptions): void {
+	private showDiff({ editorOptions: options, openToSide, altKey = false }: IOpenEditorOptions): void {
+		const group = openToSide ? SIDE_GROUP : undefined;
 		if (this.currentDiff) {
+			const openInDiffEditorByDefault = this.configurationService.getValue<boolean>(ChatConfiguration.OpenChangedFileInDiffEditor);
+			const openInDiffEditor = altKey ? !openInDiffEditorByDefault : openInDiffEditorByDefault;
+			if (!openInDiffEditor && this.uri) {
+				this.editorService.openEditor({ resource: this.uri, options }, group);
+				return;
+			}
 			this.editorService.openEditor({
 				original: { resource: this.currentDiff.originalURI },
 				modified: { resource: this.currentDiff.modifiedURI },
 				options
-			}, openToSide ? SIDE_GROUP : undefined);
+			}, group);
 		} else if (this.uri) {
-			this.editorService.openEditor({ resource: this.uri, options }, openToSide ? SIDE_GROUP : undefined);
+			this.editorService.openEditor({ resource: this.uri, options }, group);
 		}
 	}
 

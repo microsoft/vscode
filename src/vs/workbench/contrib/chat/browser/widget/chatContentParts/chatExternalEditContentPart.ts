@@ -10,6 +10,7 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { localize } from '../../../../../../nls.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IOpenEditorOptions } from '../../../../../../platform/editor/browser/editor.js';
@@ -17,6 +18,7 @@ import { IEditorService, SIDE_GROUP } from '../../../../../services/editor/commo
 import { IChatExternalEdit } from '../../../common/chatService/chatService.js';
 import { IEditSessionDiffStats } from '../../../common/editing/chatEditingService.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { ChatTreeItem } from '../../chat.js';
 import { ChatEditPillElement } from './chatEditPillElement.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
@@ -59,6 +61,7 @@ export class ChatExternalEditContentPart extends ChatEditPillElement implements 
 		@ILanguageService languageService: ILanguageService,
 		@IHoverService hoverService: IHoverService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(labelService, modelService, languageService, hoverService);
 
@@ -103,9 +106,15 @@ export class ChatExternalEditContentPart extends ChatEditPillElement implements 
 		}
 	}
 
-	private openEdit({ editorOptions: options, openToSide }: IOpenEditorOptions): void {
+	private openEdit({ editorOptions: options, openToSide, altKey = false }: IOpenEditorOptions): void {
 		const group = openToSide ? SIDE_GROUP : undefined;
 		if (this.edit.beforeContentUri && this.edit.afterContentUri) {
+			const openInDiffEditorByDefault = this.configurationService.getValue<boolean>(ChatConfiguration.OpenChangedFileInDiffEditor);
+			const openInDiffEditor = altKey ? !openInDiffEditorByDefault : openInDiffEditorByDefault;
+			if (!openInDiffEditor && this.edit.editKind !== 'delete') {
+				this.editorService.openEditor({ resource: this.edit.uri, options }, group);
+				return;
+			}
 			this.editorService.openEditor({
 				original: { resource: this.edit.beforeContentUri },
 				modified: { resource: this.edit.afterContentUri },
