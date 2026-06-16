@@ -24,7 +24,7 @@ import { OverviewRulerLane } from '../../../../editor/common/model.js';
 import { themeColorFromId } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import * as nls from '../../../../nls.js';
-import { IAgentFeedbackService, AgentFeedbackState } from './agentFeedbackService.js';
+import { AgentFeedbackKind, IAgentFeedbackService, AgentFeedbackState } from './agentFeedbackService.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { createAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
@@ -63,6 +63,15 @@ interface IReplyDraftState {
 export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWidget {
 
 	private static _idPool = 0;
+
+	/**
+	 * Estimated widget width in px used while the widget DOM node has not been
+	 * laid out yet. Matches the `max-width` of `.agent-feedback-widget` so we
+	 * reserve enough scroll space up front; the real width replaces it once the
+	 * node is rendered.
+	 */
+	private static readonly _estimatedWidgetWidth = 280;
+
 	private readonly _id: string = `agent-feedback-widget-${AgentFeedbackEditorWidget._idPool++}`;
 
 	private readonly _domNode: HTMLElement;
@@ -77,6 +86,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 	private _isExpanded: boolean = false;
 	private _disposed: boolean = false;
 	private _startLineNumber: number = 1;
+	private _cachedMinContentWidth: number | undefined;
 	private readonly _rangeHighlightDecoration: IEditorDecorationsCollection;
 
 	private readonly _eventStore = this._register(new DisposableStore());
@@ -215,13 +225,10 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			}
 			itemMeta.appendChild(lineInfo);
 
-			if (comment.source !== SessionEditorCommentSource.AgentFeedback) {
+			const typeLabel = this._getTypeLabel(comment);
+			if (typeLabel) {
 				const typeBadge = $('span.agent-feedback-widget-item-type');
-				typeBadge.textContent = this._getTypeLabel(comment);
-				itemMeta.appendChild(typeBadge);
-			} else if (comment.state === AgentFeedbackState.Created) {
-				const typeBadge = $('span.agent-feedback-widget-item-type');
-				typeBadge.textContent = nls.localize('suggestedComment', "Suggested");
+				typeBadge.textContent = typeLabel;
 				itemMeta.appendChild(typeBadge);
 			}
 
@@ -349,14 +356,15 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		}
 	}
 
-	private _getTypeLabel(comment: ISessionEditorComment): string {
-		if (comment.source === SessionEditorCommentSource.PRReview) {
-			return nls.localize('prReviewComment', "PR Review");
+	private _getTypeLabel(comment: ISessionEditorComment): string | undefined {
+		switch (comment.kind) {
+			case AgentFeedbackKind.PRReview:
+				return nls.localize('prReviewComment', "PR Review");
+			case AgentFeedbackKind.AgentReview:
+				return nls.localize('agentReviewComment', "Agent Review");
+			default:
+				return undefined;
 		}
-
-		return comment.suggestion
-			? nls.localize('feedbackSuggestion', "Feedback Suggestion")
-			: nls.localize('feedbackComment', "Feedback");
 	}
 
 	private _renderSuggestion(comment: ISessionEditorComment): HTMLElement {
@@ -601,7 +609,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			comment.suggestion,
 			createAgentFeedbackContext(this._editor, this._codeEditorService, comment.resourceUri, comment.range),
 			comment.sourceId,
-			'prReview',
+			AgentFeedbackKind.PRReview,
 		);
 		this._agentFeedbackService.addReply(this._sessionResource, feedback.id, replyText);
 		this._agentFeedbackService.setNavigationAnchor(this._sessionResource, toSessionEditorCommentId(SessionEditorCommentSource.AgentFeedback, feedback.id));
@@ -667,7 +675,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			comment.suggestion,
 			createAgentFeedbackContext(this._editor, this._codeEditorService, comment.resourceUri, comment.range),
 			comment.sourceId,
-			'prReview',
+			AgentFeedbackKind.PRReview,
 		);
 		this._agentFeedbackService.setNavigationAnchor(this._sessionResource, toSessionEditorCommentId(SessionEditorCommentSource.AgentFeedback, feedback.id));
 		this._codeReviewService.markPRReviewCommentConverted(this._sessionResource, comment.sourceId);
@@ -804,6 +812,12 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			return;
 		}
 
+		// Invalidate the reserved-width cache when the anchor line changes so it
+		// is recomputed for the new line during `layoutOverlayWidget` below.
+		if (startLineNumber !== this._startLineNumber) {
+			this._cachedMinContentWidth = undefined;
+		}
+
 		this._startLineNumber = startLineNumber;
 
 		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
@@ -861,6 +875,72 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 
 	getPosition(): IOverlayWidgetPosition | null {
 		return this._position;
+	}
+
+	/**
+	 * Reserve enough horizontal scroll width so the user can always scroll the
+	 * editor content out from underneath the widget. The widget is anchored to
+	 * the right edge of the editor content area, so without this reservation any
+	 * line that extends under the widget cannot be revealed because the editor
+	 * cannot scroll past its longest line.
+	 *
+	 * The reserved width is the widget width plus the widest content among the
+	 * anchored line and the lines immediately above and below it. The result is
+	 * computed once using the real rendered widget width and cached afterwards.
+	 * Until the widget DOM node has a real width we fall back to an estimate and
+	 * skip caching so the value is recomputed once it is actually rendered. The
+	 * cache is also invalidated by `layout` whenever the anchor line changes.
+	 */
+	getMinContentWidthInPx(): number {
+		if (this._disposed) {
+			return 0;
+		}
+
+		if (this._cachedMinContentWidth !== undefined) {
+			return this._cachedMinContentWidth;
+		}
+
+		const model = this._editor.getModel();
+		if (!model) {
+			return 0;
+		}
+
+		// Use the real rendered width when available, otherwise fall back to an
+		// estimate. When estimating we avoid caching so the value is recomputed
+		// once the widget has actually been rendered.
+		const renderedWidth = getTotalWidth(this._domNode);
+		const hasRenderedWidth = renderedWidth > 0;
+		const widgetWidth = hasRenderedWidth ? renderedWidth : AgentFeedbackEditorWidget._estimatedWidgetWidth;
+
+		const lineCount = model.getLineCount();
+		let maxLineWidth = 0;
+		let measuredAnyLine = false;
+		for (let lineNumber = this._startLineNumber - 1; lineNumber <= this._startLineNumber + 1; lineNumber++) {
+			if (lineNumber < 1 || lineNumber > lineCount) {
+				continue;
+			}
+			// Returns -1 when the line is not currently rendered; ignore those.
+			const lineWidth = this._editor.getWidthOfLine(lineNumber);
+			if (lineWidth < 0) {
+				continue;
+			}
+			measuredAnyLine = true;
+			if (lineWidth > maxLineWidth) {
+				maxLineWidth = lineWidth;
+			}
+		}
+
+		const { verticalScrollbarWidth } = this._editor.getLayoutInfo();
+		const result = maxLineWidth + widgetWidth + 2 * verticalScrollbarWidth;
+
+		// Only cache once the computation is based on the real widget width and
+		// at least one anchored line has actually been measured; otherwise keep
+		// recomputing so the value settles once everything is rendered.
+		if (hasRenderedWidth && measuredAnyLine) {
+			this._cachedMinContentWidth = result;
+		}
+
+		return result;
 	}
 
 	override dispose(): void {

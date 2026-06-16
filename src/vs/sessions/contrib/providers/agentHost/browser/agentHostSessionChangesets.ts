@@ -3,12 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
-import { isEqual } from '../../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../../base/common/resources.js';
+import { format } from '../../../../../base/common/strings.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { ChangesetOperationTargetKind } from '../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
+import { ChangesetOperation, ChangesetOperationScope } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChangesetStatus, Changeset, StateComponents, type ChangesetState, type Turn } from '../../../../../platform/agentHost/common/state/sessionState.js';
-import { ISessionChangeset, ISessionFileChange, sessionFileChangesEqual } from '../../../../services/sessions/common/session.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { ISessionChangeset, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, SessionChangesetOperationScope, sessionFileChangesEqual } from '../../../../services/sessions/common/session.js';
 import { changesetFilesToChanges } from './agentHostDiffs.js';
 import { IAgentHostAdapterOptions } from './baseAgentHostSessionsProvider.js';
 
@@ -63,21 +69,21 @@ function createActiveSessionSubscriptionObs<T>(
 	isActiveSessionObs: IObservable<boolean>,
 	component: StateComponents,
 	resourceObs: IObservable<URI | undefined>,
-): IObservable<IObservable<T | Error | undefined>> {
+): IObservable<IObservable<T | Error | undefined | null>> {
 	return derived(reader => {
 		const connection = options.getConnection();
 		if (!connection) {
-			return constObservable(undefined);
+			return constObservable(null);
 		}
 
 		const resource = resourceObs.read(reader);
 		if (!resource) {
-			return constObservable(undefined);
+			return constObservable(null);
 		}
 
 		const isActiveSession = isActiveSessionObs.read(reader);
 		if (!isActiveSession) {
-			return constObservable(undefined);
+			return constObservable(null);
 		}
 
 		const subscriptionRef = connection.getSubscription(component, resource, 'AgentHostSessionChangesets');
@@ -86,6 +92,34 @@ function createActiveSessionSubscriptionObs<T>(
 		return observableFromEvent(subscriptionRef.object.onDidChange,
 			() => subscriptionRef.object.value as T | Error | undefined);
 	});
+}
+
+function toSessionChangesetOperationScope(scope: ChangesetOperationScope): SessionChangesetOperationScope {
+	switch (scope) {
+		case ChangesetOperationScope.Changeset: return SessionChangesetOperationScope.Changeset;
+		case ChangesetOperationScope.Resource: return SessionChangesetOperationScope.Resource;
+		case ChangesetOperationScope.Range: return SessionChangesetOperationScope.Range;
+		default: throw new Error(`Unknown ChangesetOperationScope: ${scope}`);
+	}
+}
+
+function toSessionChangesetOperation(operation: ChangesetOperation): ISessionChangesetOperation {
+	return {
+		id: operation.id,
+		label: operation.label,
+		description: operation.description,
+		icon: operation.icon
+			? ThemeIcon.fromId(operation.icon)
+			: undefined,
+		scopes: operation.scopes.map(toSessionChangesetOperationScope),
+		confirmation: operation.confirmation
+			? typeof operation.confirmation === 'string'
+				? operation.confirmation
+				: new MarkdownString(operation.confirmation.markdown, {
+					isTrusted: false, supportThemeIcons: true
+				})
+			: undefined,
+	};
 }
 
 abstract class AbstractAgentHostChangeset implements ISessionChangeset {
@@ -101,39 +135,119 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 
 	readonly isLoadingChanges: IObservable<boolean>;
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
-	protected abstract readonly changesetStateObs: IObservable<IObservable<ChangesetState | Error | undefined>>;
+	readonly operations: IObservable<readonly ISessionChangesetOperation[]>;
 
-	constructor(options: IAgentHostAdapterOptions) {
+	protected abstract readonly channelUriObs: IObservable<URI | undefined>;
+	protected abstract readonly changesetStateObs: IObservable<IObservable<ChangesetState | Error | undefined | null>>;
+
+	constructor(
+		private readonly _options: IAgentHostAdapterOptions,
+		private readonly _dialogService: IDialogService,
+	) {
 		this.isLoadingChanges = derived(reader => {
 			const changesetState = this.changesetStateObs.read(reader).read(reader);
-			if (!changesetState || changesetState instanceof Error) {
+
+			// If the changeset state is `undefined`, it means that the first snapshot
+			// has not yet arrived, so in order to avoid any flickering in the Changes
+			// view, we consider this temporary state as if the changes are still being
+			// computed.
+			if (changesetState === undefined) {
+				return true;
+			}
+
+			if (changesetState === null || changesetState instanceof Error) {
 				return false;
 			}
-			return changesetState.status === ChangesetStatus.Computing;
+
+			// For static changesets, that are persisted to the database, the
+			// cached state will be sent over the wire while the changeset is
+			// being computed.
+			return changesetState.status === ChangesetStatus.Computing && changesetState.files.length === 0;
 		});
 
 		const changesObs = derivedObservableWithCache<readonly ISessionFileChange[] | undefined>(this, (reader, lastValue) => {
 			const changesetState = this.changesetStateObs.read(reader).read(reader);
-			if (!changesetState || changesetState instanceof Error) {
+			if (changesetState === null || changesetState instanceof Error) {
 				return [];
 			}
-			if (changesetState.status !== ChangesetStatus.Ready) {
+
+			if (changesetState === undefined) {
+				return lastValue;
+			}
+
+			// Render `state.files` when the changeset is `Ready`, or on the very
+			// first arrival (the initial snapshot contains the file list persisted
+			// from the previous session).
+			if (changesetState.status !== ChangesetStatus.Ready && lastValue !== undefined) {
 				return lastValue;
 			}
 
 			const files = changesetFilesToChanges(changesetState.files);
-			return options.mapDiffUri
+			return this._options.mapDiffUri
 				? files.map(f => ({
 					...f,
-					uri: options.mapDiffUri!(f.uri),
-					originalUri: f.originalUri ? options.mapDiffUri!(f.originalUri) : undefined,
-					modifiedUri: f.modifiedUri ? options.mapDiffUri!(f.modifiedUri) : undefined,
+					uri: this._options.mapDiffUri!(f.uri),
+					originalUri: f.originalUri ? this._options.mapDiffUri!(f.originalUri) : undefined,
+					modifiedUri: f.modifiedUri ? this._options.mapDiffUri!(f.modifiedUri) : undefined,
 				}))
 				: files;
 		});
 
 		this.changes = derivedOpts({ equalsFn: sessionFileChangesEqual }, reader => {
 			return changesObs.read(reader) ?? [];
+		});
+
+		this.operations = derivedObservableWithCache<readonly ISessionChangesetOperation[]>(this, (reader, lastValue) => {
+			const changesetState = this.changesetStateObs.read(reader).read(reader);
+			if (changesetState === null || changesetState instanceof Error) {
+				return [];
+			}
+
+			if (changesetState === undefined) {
+				return lastValue ?? [];
+			}
+
+			return changesetState.operations?.map(toSessionChangesetOperation) ?? [];
+		});
+	}
+
+	async invokeOperation(operationId: string, target?: ISessionChangesetOperationTarget): Promise<void> {
+		const connection = this._options.getConnection();
+		if (!connection) {
+			return;
+		}
+
+		const channel = this.channelUriObs.get();
+		if (!channel) {
+			return;
+		}
+
+		const operation = this.operations.get().find(o => o.id === operationId);
+		if (operation?.confirmation) {
+			const message = typeof operation.confirmation === 'string'
+				? operation.confirmation
+				: operation.confirmation.value;
+			const { confirmed } = await this._dialogService.confirm({
+				type: 'warning',
+				message: target?.kind === 'resource'
+					? format(message, basename(target.resource))
+					: message,
+				primaryButton: operation.label,
+			});
+			if (!confirmed) {
+				return;
+			}
+		}
+
+		await connection.invokeChangesetOperation({
+			operationId,
+			channel: channel.toString(),
+			target: target?.kind === 'resource'
+				? {
+					kind: ChangesetOperationTargetKind.Resource,
+					resource: target.resource.toString()
+				}
+				: undefined,
 		});
 	}
 }
@@ -150,20 +264,24 @@ class AgentHostChangeset extends AbstractAgentHostChangeset {
 	readonly isEnabled = constObservable(true);
 	readonly isDefault: IObservable<boolean>;
 
-	protected override readonly changesetStateObs: IObservable<IObservable<ChangesetState | Error | undefined>>;
+	protected override readonly channelUriObs: IObservable<URI | undefined>;
+	protected override readonly changesetStateObs: IObservable<IObservable<ChangesetState | Error | undefined | null>>;
 
 	constructor(
 		options: IAgentHostAdapterOptions,
 		isActiveSessionObs: IObservable<boolean>,
 		changesetSummary: Changeset & { isDefault: boolean },
+		@IDialogService dialogService: IDialogService,
 	) {
-		super(options);
+		super(options, dialogService);
+
+		this.channelUriObs = constObservable(URI.parse(changesetSummary.uriTemplate));
 
 		this.changesetStateObs = createActiveSessionSubscriptionObs<ChangesetState>(
 			options,
 			isActiveSessionObs,
 			StateComponents.Changeset,
-			constObservable(URI.parse(changesetSummary.uriTemplate)),
+			this.channelUriObs,
 		);
 
 		this.id = changesetSummary.changeKind;
@@ -186,20 +304,23 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 
 	readonly isDefault = observableValue(this, false);
 	readonly isEnabled: IObservable<boolean>;
-	protected readonly changesetStateObs: IObservable<IObservable<ChangesetState | Error | undefined>>;
+
+	protected override readonly channelUriObs: IObservable<URI | undefined>;
+	protected readonly changesetStateObs: IObservable<IObservable<ChangesetState | Error | undefined | null>>;
 
 	constructor(
 		sessionUri: URI,
 		options: IAgentHostAdapterOptions,
 		isActiveSessionObs: IObservable<boolean>,
 		changesetSummary: Changeset & { isDefault: boolean },
+		@IDialogService dialogService: IDialogService,
 	) {
-		super(options);
+		super(options, dialogService);
 
 		this.id = changesetSummary.changeKind;
 
 		// Subscribe to session changes
-		const sessionStateObs = createActiveSessionSubscriptionObs<{ turns: readonly Turn[] }>(
+		const sessionStateObs = createActiveSessionSubscriptionObs<{ turns: readonly Turn[] | undefined }>(
 			options,
 			isActiveSessionObs,
 			StateComponents.Session,
@@ -211,11 +332,11 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 			if (!sessionState || sessionState instanceof Error) {
 				return undefined;
 			}
-			return sessionState.turns.map(turn => turn.id);
+			return sessionState.turns?.map(turn => turn.id);
 		});
 
 		// Last turn changes
-		const changesetUriObs = derivedOpts({ equalsFn: isEqual }, reader => {
+		this.channelUriObs = derivedOpts({ equalsFn: isEqual }, reader => {
 			const lastTurnId = turnIdsObs.read(reader)?.at(-1);
 			if (!lastTurnId) {
 				return undefined;
@@ -230,9 +351,9 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 			options,
 			isActiveSessionObs,
 			StateComponents.Changeset,
-			changesetUriObs,
+			this.channelUriObs,
 		);
 
-		this.isEnabled = derived(reader => changesetUriObs.read(reader) !== undefined);
+		this.isEnabled = derived(reader => this.channelUriObs.read(reader) !== undefined);
 	}
 }

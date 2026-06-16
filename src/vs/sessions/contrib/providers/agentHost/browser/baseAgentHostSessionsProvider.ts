@@ -19,12 +19,13 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { AgentSession, IAgentConnection, IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
 import { buildSessionChangesetUri } from '../../../../../platform/agentHost/common/changesetUri.js';
+import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
 import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentCustomization, AgentSelection, ChangesSummary, Customization, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ActionType, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import { AgentCustomization, AgentSelection, ChangesSummary, Customization, CustomizationType, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ActionType, isChatAction, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AgentInfo, readSessionGitState, ROOT_STATE_URI, SessionMeta, StateComponents, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -36,11 +37,11 @@ import { IChatSendRequestOptions, IChatService } from '../../../../../workbench/
 import { IChatSessionFileChange, IChatSessionFileChange2, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
-import { buildMutableConfigSchema, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
+import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../../common/sessionConfig.js';
 import { IChat, IGitHubInfo, ISession, ISessionAgentRef, ISessionChangeset, ISessionChangesSummary, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, sessionFileChangesEqual, SessionStatus, toSessionId } from '../../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computePullRequestIcon } from '../../../github/common/types.js';
@@ -209,7 +210,7 @@ export class AgentHostSessionAdapter implements ISession {
 		resourceScheme: string,
 		logicalSessionType: string,
 		private readonly _options: IAgentHostAdapterOptions,
-		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService
+		@ISessionsService private readonly _sessionsService: ISessionsService
 	) {
 		const rawId = AgentSession.id(metadata.session);
 		const agentProvider = AgentSession.provider(metadata.session);
@@ -308,7 +309,7 @@ export class AgentHostSessionAdapter implements ISession {
 		}
 
 		this.isActiveSessionObs = derived(this, reader => {
-			const activeSession = this._sessionsManagementService.activeSession.read(reader);
+			const activeSession = this._sessionsService.activeSession.read(reader);
 			return isEqual(activeSession?.resource, this.resource);
 		});
 
@@ -1061,6 +1062,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	abstract readonly icon: ThemeIcon;
 	abstract readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 
+	/** The workbench Output channel id carrying this host's agent host logs. */
+	protected abstract getLogOutputChannelId(): string | undefined;
+
 	get order(): number { return 0; }
 
 	get sessionTypes(): readonly ISessionType[] { return this._sessionTypes; }
@@ -1200,7 +1204,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		@ILogService protected readonly _logService: ILogService,
 		@IGitHubService protected readonly _gitHubService: IGitHubService,
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
-		@ISessionsManagementService protected readonly _sessionsManagementService: ISessionsManagementService,
+		@ISessionsService protected readonly _sessionsService: ISessionsService,
 		@IAgentHostActiveClientService protected readonly _activeClientService: IAgentHostActiveClientService,
 		@IStorageService protected readonly _storageService: IStorageService,
 	) {
@@ -1270,6 +1274,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		const next = rootState.agents.map((agent): ISessionType => ({
 			id: agent.provider,
+			// The chat session contribution and language models for an agent-host
+			// agent are registered under its resource scheme (`agent-host-<provider>`),
+			// not the bare provider id, so carry it for availability lookups.
+			chatSessionType: this.resourceSchemeForProvider(agent.provider),
 			label: this._formatSessionTypeLabel(agent.displayName?.trim() || agent.provider),
 			icon: this.iconForAgentProvider(agent.provider) ?? this.icon,
 		}));
@@ -1800,12 +1808,23 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			.filter((m): m is ILanguageModelChatMetadataAndIdentifier => !!m);
 	}
 
-	getModelPickerOptions(_sessionId: string): ISessionModelPickerOptions {
+	getModelPickerOptions(sessionId: string): ISessionModelPickerOptions {
+		// A session type that requires an explicit model selection cannot fall
+		// back to Auto. When it has no models (e.g. the Claude agent host for a
+		// Copilot Free / Student user), the picker shows a "No models available"
+		// state instead of Auto. Harnesses that support Auto (e.g. the Copilot
+		// CLI agent host) keep the Auto fallback. Derive this from the
+		// contribution's declarative `showAutoModel` flag (keyed by the
+		// session's resource scheme, which is the registered
+		// `agent-host-<provider>` chat session type) rather than hardcoding names.
+		const resourceScheme = this._resolveSessionResourceScheme(sessionId);
+		const showAutoModel = !resourceScheme || this._chatSessionsService.supportsAutoModelForSessionType(resourceScheme);
 		return {
 			useGroupedModelPicker: true,
 			showFeatured: true,
 			showUnavailableFeatured: false,
 			showManageModelsAction: false,
+			showAutoModel,
 		};
 	}
 
@@ -1876,6 +1895,59 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	getWorkingDirectory(sessionId: string): string | undefined {
 		const sessionState = this._lastSessionStates.get(sessionId);
 		return sessionState?.summary.workingDirectory;
+	}
+
+	getMcpServers(sessionId: string): readonly IAgentHostMcpServer[] {
+		const sessionState = this._lastSessionStates.get(sessionId);
+		if (!sessionState) {
+			return [];
+		}
+		const rawId = this._rawIdFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (!cached || !rawId) {
+			return [];
+		}
+		const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+		const logOutputChannelId = this.getLogOutputChannelId();
+		return (sessionState.customizations ?? [])
+			.flatMap(c => c.type === CustomizationType.McpServer
+				? [c]
+				: c.children
+					? c.children.filter(c => c.type === CustomizationType.McpServer)
+					: [])
+			.map((c): IAgentHostMcpServer => ({
+				id: c.id,
+				name: c.name,
+				enabled: c.enabled,
+				status: c.state.kind,
+				logOutputChannelId,
+				setEnabled: (enabled: boolean) => {
+					const connection = this.connection;
+					if (!connection) {
+						return;
+					}
+					connection.dispatch(sessionUri.toString(), {
+						type: ActionType.SessionCustomizationToggled,
+						id: c.id,
+						enabled,
+					});
+				},
+			}));
+	}
+
+	getFeedbackAnnotationsChannel(sessionId: string): { readonly connection: IAgentConnection; readonly annotationsUri: URI } | undefined {
+		const connection = this.connection;
+		if (!connection) {
+			return undefined;
+		}
+		const rawId = this._rawIdFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (!cached || !rawId) {
+			return undefined;
+		}
+		const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+		const annotationsUri = URI.parse(buildAnnotationsUri(sessionUri.toString()));
+		return { connection, annotationsUri };
 	}
 
 	// -- Session actions ------------------------------------------------------
@@ -1988,14 +2060,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					content: '',
 					toolReferences: [],
 				},
-				modeId: 'custom',
+				telemetryModeId: 'custom',
 				applyCodeBlockSuggestionId: undefined,
 				permissionLevel: undefined,
 			} : {
 				kind: ChatModeKind.Agent,
 				isBuiltin: true,
 				modeInstructions: undefined,
-				modeId: 'agent',
+				telemetryModeId: 'agent',
 				applyCodeBlockSuggestionId: undefined,
 				permissionLevel: undefined,
 			},
@@ -2476,7 +2548,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}));
 
 		store.add(connection.onDidAction(e => {
-			if (e.action.type === ActionType.SessionTurnComplete && isSessionAction(e.action)) {
+			if (e.action.type === ActionType.ChatTurnComplete && isChatAction(e.action)) {
 				this._refreshSessions();
 			} else if (e.action.type === ActionType.SessionTitleChanged && isSessionAction(e.action)) {
 				this._handleTitleChanged(e.channel, e.action.title);

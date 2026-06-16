@@ -10,9 +10,8 @@ import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/a
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { localize } from '../../../../nls.js';
 import { FOCUS_AI_CUSTOMIZATION_VIEW_ID } from '../../aiCustomizationTreeView/browser/aiCustomizationTreeView.js';
-import { ISessionsPartService } from '../../../browser/parts/sessionsPartService.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-
+import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 120;
 	readonly name = 'sessionsChat';
@@ -21,7 +20,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 
 	getProvider(accessor: ServicesAccessor) {
 		const sessionsPartService = accessor.get(ISessionsPartService);
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const sessionsService = accessor.get(ISessionsService);
 
 		const content: string[] = [];
 		content.push(localize('sessionsChat.overview', "You are in the Agents window. The Agents window is a dedicated workspace for working with AI agents. It provides a chat interface, a changes view for reviewing agent-generated changes, a file explorer, and customization options."));
@@ -42,7 +41,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 			{ type: AccessibleViewType.Help },
 			() => content.join('\n'),
 			() => {
-				const view = sessionsPartService.getSessionView(sessionsManagementService.activeSession.get()?.sessionId);
+				const view = sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId);
 				view?.focus();
 			},
 			AccessibilityVerbositySettingId.SessionsChat,

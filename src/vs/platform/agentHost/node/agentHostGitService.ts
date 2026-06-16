@@ -55,6 +55,15 @@ export interface IAgentHostGitService {
 	commitAll(workingDirectory: URI, message: string): Promise<void>;
 
 	/**
+	 * Restores files in the working tree via `git restore`. When
+	 * {@link options.staged} is true, restores the index instead of the
+	 * working tree. When {@link options.ref} is provided, the contents are
+	 * taken from that ref (`--source`). An empty {@link paths} array
+	 * restores everything (`.`).
+	 */
+	restore(workingDirectory: URI, paths: readonly string[], options?: { readonly staged?: boolean; readonly ref?: string }): Promise<void>;
+
+	/**
 	 * Returns true when the named branch has an upstream tracking ref
 	 * (i.e. `<branch>@{upstream}` resolves). Used before {@link pushBranch}
 	 * to decide whether `--set-upstream` is needed.
@@ -301,6 +310,24 @@ export class AgentHostGitService implements IAgentHostGitService {
 		await this._runGit(workingDirectory, ['commit', '--no-verify', '--no-gpg-sign', '-m', message], { timeout: 60_000, throwOnError: true });
 	}
 
+	async restore(workingDirectory: URI, paths: readonly string[], options?: { readonly staged?: boolean; readonly ref?: string }): Promise<void> {
+		const args = ['restore'];
+
+		if (options?.staged) {
+			args.push('--staged');
+		}
+
+		if (options?.ref) {
+			args.push('--source', options.ref);
+		}
+
+		if (paths.length === 0) {
+			paths = ['.'];
+		}
+
+		await this._runGit(workingDirectory, [...args, '--', ...paths], { throwOnError: true });
+	}
+
 	async hasUpstream(workingDirectory: URI, branchName: string): Promise<boolean> {
 		const output = await this._runGit(workingDirectory, ['rev-parse', '--abbrev-ref', `${branchName}@{upstream}`]);
 		return output !== undefined && output.trim().length > 0;
@@ -536,7 +563,9 @@ export class AgentHostGitService implements IAgentHostGitService {
 		if (!repoRoot) {
 			return undefined;
 		}
+
 		const repositoryRoot = URI.file(repoRoot);
+
 		// Validate both refs resolve before invoking `git diff` so a missing
 		// ref returns undefined rather than producing a confusing error.
 		const fromOid = (await this._runGit(repositoryRoot, ['rev-parse', '--verify', '--quiet', options.fromRef]))?.trim();
@@ -544,10 +573,12 @@ export class AgentHostGitService implements IAgentHostGitService {
 		if (!fromOid || !toOid) {
 			return undefined;
 		}
+
 		const raw = await this._runGit(repositoryRoot, ['diff', '--raw', '--numstat', '--diff-filter=ADMR', '-z', fromOid, toOid, '--']);
 		if (raw === undefined) {
 			return undefined;
 		}
+
 		return parseGitDiffRawNumstat(raw, repositoryRoot, options.sessionUri, fromOid, toOid);
 	}
 
@@ -608,6 +639,8 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	private _runGit(workingDirectory: URI, args: readonly string[], options?: { readonly timeout?: number; readonly throwOnError?: boolean; readonly env?: Record<string, string>; readonly maxBuffer?: number }): Promise<string | undefined> {
+		this._logService.trace(`[agentHostGitService] > git ${args.join(' ')}`);
+
 		return new Promise((resolve, reject) => {
 			const env = options?.env ? { ...process.env, ...options.env } : undefined;
 			const timeoutMs = options?.timeout ?? 5000;
@@ -625,7 +658,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 					// it readable; log the full unmodified output here so the
 					// raw progress/diagnostic text is still available.
 					if (stderr) {
-						this._logService.warn(`[agentHostGitService] git ${args.join(' ')} failed; full stderr:\n${stderr}`);
+						this._logService.warn(`[agentHostGitService] > git ${args.join(' ')} failed; full stderr:\n${stderr}`);
 					}
 					if (options?.throwOnError) {
 						reject(new Error(formatGitError(args, timeoutMs, didTimeOut, error, stderr), { cause: error }));

@@ -5,7 +5,7 @@
 
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { URI } from '../../../../base/common/uri.js';
-import { AgentFeedbackState, IAgentFeedback } from './agentFeedbackService.js';
+import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback } from './agentFeedbackService.js';
 import { ICodeReviewSuggestion, IPRReviewComment, IPRReviewState, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 
 export const enum SessionEditorCommentSource {
@@ -17,6 +17,8 @@ export interface ISessionEditorComment {
 	readonly id: string;
 	readonly sourceId: string;
 	readonly source: SessionEditorCommentSource;
+	/** Origin of this comment, used to render its type label. */
+	readonly kind: AgentFeedbackKind;
 	readonly sessionResource: URI;
 	readonly resourceUri: URI;
 	readonly range: IRange;
@@ -55,6 +57,7 @@ export function getSessionEditorComments(
 			id: toSessionEditorCommentId(SessionEditorCommentSource.AgentFeedback, item.id),
 			sourceId: item.id,
 			source: SessionEditorCommentSource.AgentFeedback,
+			kind: item.kind,
 			sessionResource,
 			resourceUri: item.resourceUri,
 			range: item.range,
@@ -71,6 +74,7 @@ export function getSessionEditorComments(
 			id: toSessionEditorCommentId(SessionEditorCommentSource.PRReview, item.id),
 			sourceId: item.id,
 			source: SessionEditorCommentSource.PRReview,
+			kind: AgentFeedbackKind.PRReview,
 			sessionResource,
 			resourceUri: item.uri,
 			range: item.range,
