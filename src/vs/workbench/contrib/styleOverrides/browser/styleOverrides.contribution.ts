@@ -86,6 +86,7 @@ export class StyleOverridesContribution extends Disposable implements IWorkbench
 
 	static readonly ID = 'workbench.contrib.styleOverrides';
 
+	private readonly knownModuleIds = new Set(STYLE_OVERRIDE_MODULES.map(m => m.id));
 	private readonly knownClassNames = STYLE_OVERRIDE_MODULES.map(m => classNameFor(m.id));
 
 	constructor(
@@ -94,20 +95,18 @@ export class StyleOverridesContribution extends Disposable implements IWorkbench
 	) {
 		super();
 
+		// A config change re-applies to every container (the global `update()`
+		// covers all windows, including auxiliary ones).
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(SETTING_ID)) {
 				this.update();
 			}
 		}));
 
-		// Apply to windows that are opened after startup (e.g. auxiliary windows).
-		this._register(this.layoutService.onDidAddContainer(({ container, disposables }) => {
+		// Apply the current selection to windows opened after startup (e.g.
+		// auxiliary windows). Subsequent config changes are handled by `update()`.
+		this._register(this.layoutService.onDidAddContainer(({ container }) => {
 			this.applyTo(container, this.activeClassNames());
-			disposables.add(this.configurationService.onDidChangeConfiguration(e => {
-				if (e.affectsConfiguration(SETTING_ID)) {
-					this.applyTo(container, this.activeClassNames());
-				}
-			}));
 		}));
 
 		this.update();
@@ -118,7 +117,7 @@ export class StyleOverridesContribution extends Disposable implements IWorkbench
 		const active = new Set<string>();
 		if (Array.isArray(selection)) {
 			for (const id of selection) {
-				if (STYLE_OVERRIDE_MODULES.some(m => m.id === id)) {
+				if (this.knownModuleIds.has(id)) {
 					active.add(classNameFor(id));
 				}
 			}
@@ -137,6 +136,16 @@ export class StyleOverridesContribution extends Disposable implements IWorkbench
 		for (const className of this.knownClassNames) {
 			container.classList.toggle(className, active.has(className));
 		}
+	}
+
+	override dispose(): void {
+		// Remove any classes this contribution added so it leaves no DOM state behind.
+		for (const container of this.layoutService.containers) {
+			for (const className of this.knownClassNames) {
+				container.classList.remove(className);
+			}
+		}
+		super.dispose();
 	}
 }
 
