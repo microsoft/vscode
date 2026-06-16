@@ -799,10 +799,8 @@ class ChatLibExtractor {
 			changes.forEach(change => console.log(change));
 		}
 
-		// Update package-lock.json for changed dependencies and their transitive dependencies
-		if (updatedPackages.size > 0 && fs.existsSync(rootPackageLockPath) && fs.existsSync(chatLibPackageLockPath)) {
-			console.log('Updating chat-lib package-lock.json for changed dependencies...');
-
+		// Update package-lock.json to keep shared packages in sync with the copilot extension lock
+		if (fs.existsSync(rootPackageLockPath) && fs.existsSync(chatLibPackageLockPath)) {
 			const rootPackageLock = JSON.parse(await fs.promises.readFile(rootPackageLockPath, 'utf-8'));
 			const chatLibPackageLock = JSON.parse(await fs.promises.readFile(chatLibPackageLockPath, 'utf-8'));
 
@@ -812,67 +810,119 @@ class ChatLibExtractor {
 				chatLibPackageLock.packages[''].devDependencies = chatLibPackageJson.devDependencies || {};
 			}
 
-			// Collect all packages to update (direct dependencies + their transitive dependencies)
-			const packagesToUpdate = new Set<string>();
-			const queue: string[] = [];
+			// Sync shared packages from the copilot extension lock to prevent version drift.
+			// When chat-lib's lock file is regenerated from scratch, npm may resolve packages
+			// to newer versions than the copilot extension uses, which can cause TypeScript
+			// compilation errors (e.g. when a package switches to an exports map that requires
+			// a newer moduleResolution setting) or type incompatibilities.
+			//
+			// We only sync a package when the copilot extension's top-level version is the
+			// effective (highest) version of that package in the copilot extension — i.e. there
+			// is no nested install of the same package at a higher version. When a higher nested
+			// version exists, the top-level entry is an older pin created by a conflicting direct
+			// dependency, and chat-lib (which does not share that direct dependency) should keep
+			// whatever version was resolved for it.
+			let sharedSyncCount = 0;
+			for (const pkgPath of Object.keys(chatLibPackageLock.packages)) {
+				if (pkgPath === '') {
+					continue; // root entry already updated above
+				}
+				const chatEntry = chatLibPackageLock.packages[pkgPath];
+				const rootEntry = rootPackageLock.packages?.[pkgPath];
+				if (!rootEntry || chatEntry.version === rootEntry.version) {
+					continue;
+				}
 
-			// Start with updated packages
-			for (const pkgName of updatedPackages) {
-				const pkgPath = `node_modules/${pkgName}`;
-				queue.push(pkgPath);
-				packagesToUpdate.add(pkgPath);
+				// Extract the bare package name from the path (e.g. "node_modules/foo" → "foo",
+				// "node_modules/foo/node_modules/bar" → "bar").
+				const pkgName = pkgPath.split('/node_modules/').at(-1)!;
+
+				// Check whether the copilot extension has a nested install of this package at a
+				// version higher than the top-level one. If so, the top-level entry is a legacy pin
+				// for a different reason, and we must not override the chat-lib's version.
+				const rootTopVersion = rootEntry.version;
+				const hasNestedHigher = Object.entries(rootPackageLock.packages as Record<string, { version: string }>)
+					.some(([p, v]) =>
+						p !== pkgPath &&
+						(p.endsWith('/node_modules/' + pkgName) || p === 'node_modules/' + pkgName) &&
+						p.includes('/node_modules/') &&
+						v.version > rootTopVersion
+					);
+				if (hasNestedHigher) {
+					continue;
+				}
+
+				chatLibPackageLock.packages[pkgPath] = rootEntry;
+				sharedSyncCount++;
 			}
 
-			// Traverse dependency tree from root package-lock to find all transitive dependencies
-			while (queue.length > 0) {
-				const pkgPath = queue.shift()!;
-				const pkgInfo = rootPackageLock.packages?.[pkgPath];
+			// When packages were actually updated in package.json, also pull in any brand-new
+			// transitive dependencies that the chat-lib lock doesn't yet have.
+			let lockUpdatedCount = 0;
+			if (updatedPackages.size > 0) {
+				console.log('Updating chat-lib package-lock.json for changed dependencies...');
 
-				if (pkgInfo) {
-					// Collect all dependency types
-					const deps = {
-						...pkgInfo.dependencies,
-						...pkgInfo.optionalDependencies,
-						...pkgInfo.devDependencies
-					};
+				// Collect all packages to update (direct dependencies + their transitive dependencies)
+				const packagesToUpdate = new Set<string>();
+				const queue: string[] = [];
 
-					for (const depName of Object.keys(deps)) {
-						// Handle nested dependencies
-						const nestedDepPath = `${pkgPath}/node_modules/${depName}`;
-						const topLevelDepPath = `node_modules/${depName}`;
+				// Start with updated packages
+				for (const pkgName of updatedPackages) {
+					const pkgPath = `node_modules/${pkgName}`;
+					queue.push(pkgPath);
+					packagesToUpdate.add(pkgPath);
+				}
 
-						let actualDepPath: string | null = null;
-						if (rootPackageLock.packages[nestedDepPath]) {
-							actualDepPath = nestedDepPath;
-						} else if (rootPackageLock.packages[topLevelDepPath]) {
-							actualDepPath = topLevelDepPath;
-						} else {
-							// Walk up the parent chain
-							const pathParts = pkgPath.split('/node_modules/');
-							for (let i = pathParts.length - 1; i >= 0; i--) {
-								const parentPath = pathParts.slice(0, i).join('/node_modules/');
-								const candidatePath = parentPath ? `${parentPath}/node_modules/${depName}` : `node_modules/${depName}`;
-								if (rootPackageLock.packages[candidatePath]) {
-									actualDepPath = candidatePath;
-									break;
+				// Traverse dependency tree from root package-lock to find all transitive dependencies
+				while (queue.length > 0) {
+					const pkgPath = queue.shift()!;
+					const pkgInfo = rootPackageLock.packages?.[pkgPath];
+
+					if (pkgInfo) {
+						// Collect all dependency types
+						const deps = {
+							...pkgInfo.dependencies,
+							...pkgInfo.optionalDependencies,
+							...pkgInfo.devDependencies
+						};
+
+						for (const depName of Object.keys(deps)) {
+							// Handle nested dependencies
+							const nestedDepPath = `${pkgPath}/node_modules/${depName}`;
+							const topLevelDepPath = `node_modules/${depName}`;
+
+							let actualDepPath: string | null = null;
+							if (rootPackageLock.packages[nestedDepPath]) {
+								actualDepPath = nestedDepPath;
+							} else if (rootPackageLock.packages[topLevelDepPath]) {
+								actualDepPath = topLevelDepPath;
+							} else {
+								// Walk up the parent chain
+								const pathParts = pkgPath.split('/node_modules/');
+								for (let i = pathParts.length - 1; i >= 0; i--) {
+									const parentPath = pathParts.slice(0, i).join('/node_modules/');
+									const candidatePath = parentPath ? `${parentPath}/node_modules/${depName}` : `node_modules/${depName}`;
+									if (rootPackageLock.packages[candidatePath]) {
+										actualDepPath = candidatePath;
+										break;
+									}
 								}
 							}
-						}
 
-						if (actualDepPath && !packagesToUpdate.has(actualDepPath)) {
-							packagesToUpdate.add(actualDepPath);
-							queue.push(actualDepPath);
+							if (actualDepPath && !packagesToUpdate.has(actualDepPath)) {
+								packagesToUpdate.add(actualDepPath);
+								queue.push(actualDepPath);
+							}
 						}
 					}
 				}
-			}
 
-			// Update package entries in chat-lib lock file (add new entries if not present)
-			let lockUpdatedCount = 0;
-			for (const pkgPath of packagesToUpdate) {
-				if (rootPackageLock.packages[pkgPath]) {
-					chatLibPackageLock.packages[pkgPath] = rootPackageLock.packages[pkgPath];
-					lockUpdatedCount++;
+				// Add new entries not yet present in the chat-lib lock file
+				for (const pkgPath of packagesToUpdate) {
+					if (rootPackageLock.packages[pkgPath] && !chatLibPackageLock.packages[pkgPath]) {
+						chatLibPackageLock.packages[pkgPath] = rootPackageLock.packages[pkgPath];
+						lockUpdatedCount++;
+					}
 				}
 			}
 
@@ -882,7 +932,9 @@ class ChatLibExtractor {
 				JSON.stringify(chatLibPackageLock, null, '\t') + '\n'
 			);
 
-			console.log(`Chat-lib package-lock.json updated: ${lockUpdatedCount} package entries updated`);
+			if (sharedSyncCount > 0 || lockUpdatedCount > 0) {
+				console.log(`Chat-lib package-lock.json updated: ${sharedSyncCount} shared packages synced, ${lockUpdatedCount} new packages added`);
+			}
 		}
 	}
 
