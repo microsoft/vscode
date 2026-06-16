@@ -7,6 +7,11 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { CancellationToken, ChatRequest } from 'vscode';
 import { IChatHookService } from '../../../../platform/chat/common/chatHookService';
 import { ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../../platform/chat/common/commonTypes';
+import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
+import { IChatModelInformation } from '../../../../platform/endpoint/common/endpointProvider';
+import { ChatEndpoint } from '../../../../platform/endpoint/node/chatEndpoint';
+import { SEARCH_AGENT_FAMILY, SearchAgentChatEndpoint } from '../../../../platform/endpoint/node/searchAgentChatEndpoint';
+import { IChatEndpoint } from '../../../../platform/networking/common/networking';
 import { CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { generateUuid } from '../../../../util/vs/base/common/uuid';
@@ -307,5 +312,131 @@ describe('SearchSubagentToolCallingLoop.shouldAutoRetry', () => {
 	it('still auto-retries on unrelated BadRequest in autopilot mode', () => {
 		const loop = createAutopilotLoop();
 		expect((loop as any).shouldAutoRetry(badRequest('invalid_tool_schema'))).toBe(true);
+	});
+});
+
+describe('SearchSubagentToolCallingLoop.getEndpoint (agentic proxy)', () => {
+	let disposables: DisposableStore;
+	let instantiationService: IInstantiationService;
+	let configurationService: IConfigurationService;
+
+	beforeEach(() => {
+		disposables = new DisposableStore();
+		const serviceCollection = disposables.add(createExtensionUnitTestingServices());
+		serviceCollection.define(IChatHookService, new MockChatHookService());
+		const accessor = serviceCollection.createTestingAccessor();
+		instantiationService = accessor.get(IInstantiationService);
+		configurationService = accessor.get(IConfigurationService);
+	});
+
+	afterEach(() => {
+		disposables.dispose();
+	});
+
+	function createEndpointMetadata(id: string, family: string): IChatModelInformation {
+		return {
+			id,
+			vendor: 'test-vendor',
+			name: id,
+			version: '1.0',
+			model_picker_enabled: true,
+			is_chat_default: false,
+			is_chat_fallback: false,
+			capabilities: {
+				type: 'chat',
+				family,
+				tokenizer: 'o200k_base' as any,
+				supports: {
+					streaming: true,
+					tool_calls: true,
+					vision: false,
+					prediction: false,
+				},
+				limits: {
+					max_prompt_tokens: 8192,
+					max_output_tokens: 4096,
+				},
+			},
+		} as IChatModelInformation;
+	}
+
+	function createChatEndpoint(id: string, family: string): ChatEndpoint {
+		return instantiationService.createInstance(ChatEndpoint, createEndpointMetadata(id, family));
+	}
+
+	function createLoop(allEndpoints: IChatEndpoint[], mainEndpoint: IChatEndpoint): SearchSubagentToolCallingLoop {
+		const options: ISearchSubagentToolCallingLoopOptions = {
+			conversation: createTestConversation(),
+			toolCallLimit: 10,
+			request: createMockChatRequest(),
+			location: ChatLocation.Panel,
+			promptText: 'find things',
+		};
+		const loop = instantiationService.createInstance(SearchSubagentToolCallingLoop, options);
+		disposables.add(loop);
+		(loop as any).endpointProvider = {
+			getAllChatEndpoints: async () => allEndpoints,
+			getChatEndpoint: async () => mainEndpoint,
+		};
+		return loop;
+	}
+
+	it('selects the search-agent endpoint matching the configured model', async () => {
+		await configurationService.setConfig(ConfigKey.Advanced.SearchSubagentUseAgenticProxy, true);
+		await configurationService.setConfig(ConfigKey.Advanced.SearchSubagentModel, 'search-model-b');
+		const mainEndpoint = { model: 'main-agent' } as IChatEndpoint;
+		const loop = createLoop([
+			createChatEndpoint('main-agent', 'gpt-4o'),
+			createChatEndpoint('search-model-a', SEARCH_AGENT_FAMILY),
+			createChatEndpoint('search-model-b', SEARCH_AGENT_FAMILY),
+		], mainEndpoint);
+
+		const endpoint = await (loop as any).getEndpoint();
+
+		expect(endpoint).toBeInstanceOf(SearchAgentChatEndpoint);
+		expect(endpoint.model).toBe('search-model-b');
+	});
+
+	it('falls back to the first search-agent endpoint when the configured model is missing', async () => {
+		await configurationService.setConfig(ConfigKey.Advanced.SearchSubagentUseAgenticProxy, true);
+		await configurationService.setConfig(ConfigKey.Advanced.SearchSubagentModel, 'does-not-exist');
+		const mainEndpoint = { model: 'main-agent' } as IChatEndpoint;
+		const loop = createLoop([
+			createChatEndpoint('search-model-a', SEARCH_AGENT_FAMILY),
+			createChatEndpoint('search-model-b', SEARCH_AGENT_FAMILY),
+		], mainEndpoint);
+
+		const endpoint = await (loop as any).getEndpoint();
+
+		expect(endpoint).toBeInstanceOf(SearchAgentChatEndpoint);
+		expect(endpoint.model).toBe('search-model-a');
+	});
+
+	it('falls back to the main agent endpoint when no search-agent endpoint is available', async () => {
+		await configurationService.setConfig(ConfigKey.Advanced.SearchSubagentUseAgenticProxy, true);
+		await configurationService.setConfig(ConfigKey.Advanced.SearchSubagentModel, 'does-not-exist');
+		const mainEndpoint = { model: 'main-agent' } as IChatEndpoint;
+		const loop = createLoop([
+			createChatEndpoint('main-agent', 'gpt-4o'),
+		], mainEndpoint);
+
+		const endpoint = await (loop as any).getEndpoint();
+
+		expect(endpoint).toBe(mainEndpoint);
+	});
+
+	it('selects the first search-agent endpoint when no model is configured', async () => {
+		await configurationService.setConfig(ConfigKey.Advanced.SearchSubagentUseAgenticProxy, true);
+		await configurationService.setConfig(ConfigKey.Advanced.SearchSubagentModel, '');
+		const mainEndpoint = { model: 'main-agent' } as IChatEndpoint;
+		const loop = createLoop([
+			createChatEndpoint('search-model-a', SEARCH_AGENT_FAMILY),
+			createChatEndpoint('search-model-b', SEARCH_AGENT_FAMILY),
+		], mainEndpoint);
+
+		const endpoint = await (loop as any).getEndpoint();
+
+		expect(endpoint).toBeInstanceOf(SearchAgentChatEndpoint);
+		expect(endpoint.model).toBe('search-model-a');
 	});
 });

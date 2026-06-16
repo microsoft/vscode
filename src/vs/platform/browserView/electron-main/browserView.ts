@@ -94,6 +94,9 @@ export class BrowserView extends Disposable {
 	private readonly _onDidClose = this._register(new Emitter<void>());
 	readonly onDidClose: Event<void> = this._onDidClose.event;
 
+	private readonly _onDidChangeRemoteStatus = this._register(new Emitter<boolean>());
+	readonly onDidChangeRemoteStatus: Event<boolean> = this._onDidChangeRemoteStatus.event;
+
 	constructor(
 		public readonly id: string,
 		public readonly owner: IBrowserViewOwner,
@@ -206,6 +209,10 @@ export class BrowserView extends Disposable {
 		this.debugger = new BrowserViewDebugger(this, this.logService);
 		this.emulator = this._register(new BrowserViewEmulator(this, this.logService));
 		this.inspector = this._register(new BrowserViewInspector(this));
+
+		const fireRemoteStatus = () => this._onDidChangeRemoteStatus.fire(!!this.session.remote.proxyId);
+		this._register(this.session.remote.onDidStart(fireRemoteStatus));
+		this._register(this.session.remote.onDidStop(fireRemoteStatus));
 
 		this.setupEventListeners();
 	}
@@ -609,6 +616,9 @@ export class BrowserView extends Disposable {
 	 */
 	async loadURL(url: string): Promise<void> {
 		this._explicitNavigationPending = true;
+		// Wait for the tunnel proxy (if any) to be applied so the navigation
+		// and the requests it triggers flow through the proxy.
+		await this.session.remote.whenReady;
 		await this._view.webContents.loadURL(url);
 	}
 
@@ -683,11 +693,12 @@ export class BrowserView extends Disposable {
 			const zoomFactor = this._view.webContents.getZoomFactor();
 			// The visual viewport scale accounts for pinch-to-zoom magnification, which is separate from the regular zoom factor.
 			const visualViewportScale = await this.inspector.getVisualViewportScale();
+			const emulationScale = this.emulator.emulatedScaleFactor;
 			options.screenRect = {
-				x: options.pageRect.x * visualViewportScale * zoomFactor,
-				y: options.pageRect.y * visualViewportScale * zoomFactor,
-				width: options.pageRect.width * visualViewportScale * zoomFactor,
-				height: options.pageRect.height * visualViewportScale * zoomFactor
+				x: options.pageRect.x * visualViewportScale * zoomFactor * emulationScale,
+				y: options.pageRect.y * visualViewportScale * zoomFactor * emulationScale,
+				width: options.pageRect.width * visualViewportScale * zoomFactor * emulationScale,
+				height: options.pageRect.height * visualViewportScale * zoomFactor * emulationScale
 			};
 		}
 		if (options?.awaitNextPaint) {

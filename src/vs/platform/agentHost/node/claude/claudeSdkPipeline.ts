@@ -53,7 +53,7 @@ export interface IRematerializer {
  *     Re-applied to a fresh Query on rebind.
  *   • Drain the SDK message stream, dispatch each message to the
  *     {@link ClaudeSdkMessageRouter}, settle the matching entry's
- *     deferred on `result`, and emit `SessionTurnComplete` only when
+ *     deferred on `result`, and emit `ChatTurnComplete` only when
  *     the queue fully drains (intermediate results during steering
  *     preemption do NOT fire turn-complete — CONTEXT.md M10).
  *
@@ -148,7 +148,7 @@ export class ClaudeSdkPipeline extends Disposable {
 	 * Single fan-out for every {@link AgentSignal} this session produces:
 	 *   • Router-mapped per-message signals (response parts, tool calls,
 	 *     pending confirmations, etc.).
-	 *   • `SessionTurnComplete` action, fired when the LAST entry in the
+	 *   • `ChatTurnComplete` action, fired when the LAST entry in the
 	 *     queue drains via `result` (intermediate results during steering
 	 *     preempt do NOT fire — CONTEXT.md M10).
 	 *   • `steering_consumed` signal, fired the moment the iterable yields
@@ -212,7 +212,7 @@ export class ClaudeSdkPipeline extends Disposable {
 
 	/**
 	 * Phase 10 — update the workbench `clientId` that the stream mapper
-	 * stamps onto subsequent `SessionToolCallStart` events. Called by the
+	 * stamps onto subsequent `ChatToolCallStart` events. Called by the
 	 * session whenever {@link SessionClientToolsModel} receives a new
 	 * clientId via `setClientTools`.
 	 */
@@ -477,7 +477,7 @@ export class ClaudeSdkPipeline extends Disposable {
 	 * Consumer loop. Drains the SDK iterator, dispatches each message
 	 * to the {@link ClaudeSdkMessageRouter} (awaited so async file-edit
 	 * observation completes before the next message), settles the head
-	 * entry's deferred on `result`, and fires `SessionTurnComplete` only
+	 * entry's deferred on `result`, and fires `ChatTurnComplete` only
 	 * when the queue fully drains.
 	 *
 	 * On any uncaught error (cancellation, transport failure, or the
@@ -511,13 +511,13 @@ export class ClaudeSdkPipeline extends Disposable {
 					this._logService.info(`[Claude:${this.sessionId}] result for sdkUuid=${completed?.sdkUuid}`);
 					// Final result: queue fully drained → protocol turn done.
 					// Intermediate result (still pending entries from a
-					// steering preempt) does NOT fire SessionTurnComplete.
+					// steering preempt) does NOT fire ChatTurnComplete.
 					if (completed && this._queue.isEmpty) {
 						this._onDidProduceSignal.fire({
 							kind: 'action',
 							session: this.sessionUri,
 							action: {
-								type: ActionType.SessionTurnComplete,
+								type: ActionType.ChatTurnComplete,
 								turnId: completed.turnId,
 							},
 						});

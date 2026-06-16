@@ -66,6 +66,14 @@ export namespace ChatContextKeys {
 	export const lockedToCodingAgent = new RawContextKey<boolean>('lockedToCodingAgent', false, { type: 'boolean', description: localize('lockedToCodingAgent', "True when the chat widget is locked to the coding agent session.") });
 	export const lockedCodingAgentId = new RawContextKey<string>('lockedCodingAgentId', '', { type: 'string', description: localize('lockedCodingAgentId', "The agent ID when the chat widget is locked to a coding agent session.") });
 	/**
+	 * Widget-scoped: true when this chat widget is locked to an Agent Host-backed chat session.
+	 */
+	export const chatIsAgentHostSession = new RawContextKey<boolean>('chatIsAgentHostSession', false, { type: 'boolean', description: localize('chatIsAgentHostSession', "True when the chat widget is locked to an Agent Host session.") });
+	/**
+	 * Widget-scoped: logical Agent Host provider ID for this chat widget, e.g. `copilotcli`, `claude`, or `codex`.
+	 */
+	export const chatAgentHostProviderId = new RawContextKey<string>('chatAgentHostProviderId', '', { type: 'string', description: localize('chatAgentHostProviderId', "The Agent Host provider ID when the chat widget is locked to an Agent Host session.") });
+	/**
 	 * True when the chat session has a customAgentTarget defined in its contribution,
 	 * which means the mode picker should be shown with filtered custom agents.
 	 */
@@ -168,13 +176,10 @@ export namespace ChatContextKeyExprs {
 	);
 
 	/**
-	 * True when the locked coding agent is an agent host session (agent-host-* or remote-*).
+	 * True when the locked coding agent is an Agent Host session.
 	 * These sessions use {@link AgentHostSnapshotController} which supports checkpoint-based restore.
 	 */
-	export const isAgentHostSession = ContextKeyExpr.or(
-		ContextKeyExpr.regex(ChatContextKeys.lockedCodingAgentId.key, /^agent-host-/),
-		ContextKeyExpr.regex(ChatContextKeys.lockedCodingAgentId.key, /^remote-/),
-	);
+	export const isAgentHostSession = ChatContextKeys.chatIsAgentHostSession.isEqualTo(true);
 
 	/**
 	 * True when an agent session item (e.g. in the sessions viewer) is an agent

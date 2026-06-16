@@ -13,10 +13,10 @@
 /* Base label: lowercase text + heavier weight + pill padding */
 .agent-sessions-workbench .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon) .action-label {
 	text-transform: capitalize;
-	font-weight: 500;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	border-radius: var(--vscode-cornerRadius-small);
 	padding: 0px 8px;
-	font-size: 12px;
+	font-size: var(--vscode-agents-fontSize-label1);
 	line-height: 22px;
 }
 

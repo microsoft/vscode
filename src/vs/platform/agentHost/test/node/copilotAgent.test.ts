@@ -33,7 +33,7 @@ import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { buildSubagentSessionUri, CustomizationLoadStatus, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, customizationId, type ClientPluginCustomization, type MarkdownResponsePart, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
 import { CustomizationType, type ToolDefinition } from '../../common/state/protocol/state.js';
-import { ActionType, type IDeltaAction, type SessionAction } from '../../common/state/sessionActions.js';
+import { ActionType, type ChatAction, type IDeltaAction, type SessionAction } from '../../common/state/sessionActions.js';
 
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -93,6 +93,7 @@ class TestAgentHostGitService implements IAgentHostGitService {
 		return this.dirtyWorkingDirectories.has(workingDirectory.fsPath);
 	}
 	async commitAll(): Promise<void> { }
+	async restore(): Promise<void> { }
 	async hasUpstream(): Promise<boolean> { return false; }
 	async pushBranch(): Promise<void> { }
 	async getSessionGitState(): Promise<undefined> { return undefined; }
@@ -167,12 +168,17 @@ interface ITestCopilotModelInfo {
 		readonly limits?: { readonly max_context_window_tokens?: number };
 	};
 	readonly policy?: { readonly state?: NonNullable<ModelInfo['policy']>['state'] };
-	readonly billing?: ModelInfo['billing'];
+	readonly billing?: ModelInfo['billing'] & {
+		readonly tokenPrices?: {
+			readonly contextMax?: number;
+			readonly longContext?: { readonly contextMax?: number; readonly inputPrice?: number; readonly outputPrice?: number };
+		};
+	};
 	readonly supportedReasoningEfforts?: ModelInfo['supportedReasoningEfforts'];
 	readonly defaultReasoningEffort?: ModelInfo['defaultReasoningEffort'];
 }
 
-interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'listSessions' | 'listModels' | 'createSession' | 'resumeSession' | 'getSessionMetadata'> {
+interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'listSessions' | 'listModels' | 'createSession' | 'resumeSession' | 'getSessionMetadata' | 'deleteSession'> {
 	readonly rpc: { readonly sessions: { readonly fork: CopilotClient['rpc']['sessions']['fork'] } };
 }
 
@@ -200,6 +206,7 @@ class TestCopilotClient implements ITestCopilotClient {
 	readonly rpc: ITestCopilotClient['rpc'] = { sessions: { fork: async () => ({ sessionId: 'forked-session' }) } };
 	listSessionCallCount = 0;
 	readonly getSessionMetadataCalls: string[] = [];
+	readonly deletedSessionIds: string[] = [];
 
 	constructor(
 		private readonly _sessions: Awaited<ReturnType<ITestCopilotClient['listSessions']>>,
@@ -216,6 +223,9 @@ class TestCopilotClient implements ITestCopilotClient {
 	async getSessionMetadata(sessionId: string): ReturnType<ITestCopilotClient['getSessionMetadata']> {
 		this.getSessionMetadataCalls.push(sessionId);
 		return this._sessions.find(s => s.sessionId === sessionId);
+	}
+	async deleteSession(sessionId: string): Promise<void> {
+		this.deletedSessionIds.push(sessionId);
 	}
 	createSession: ITestCopilotClient['createSession'] = async () => { throw new Error('not implemented'); };
 	resumeSession: ITestCopilotClient['resumeSession'] = async () => { throw new Error('not implemented'); };
@@ -328,7 +338,7 @@ class TestableCopilotAgent extends CopilotAgent {
 					kind: 'action',
 					session: sessionUri,
 					action: {
-						type: ActionType.SessionResponsePart,
+						type: ActionType.ChatResponsePart,
 						turnId,
 						part: { kind: ResponsePartKind.Markdown, id: `synth-${Date.now()}`, content },
 					},
@@ -501,6 +511,30 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('createSession falls back to an empty temp directory when workingDirectory is omitted', async () => {
+		const agent = createTestAgent(disposables);
+		let createdWorkingDirectory: URI | undefined;
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+
+			const result = await agent.createSession({
+				session: AgentSession.uri('copilotcli', 'temp-fallback'),
+			});
+
+			assert.strictEqual(result.provisional, true);
+			assert.ok(result.workingDirectory);
+			createdWorkingDirectory = result.workingDirectory;
+			assert.strictEqual(createdWorkingDirectory.scheme, Schemas.file);
+			assert.strictEqual(createdWorkingDirectory.fsPath.toLowerCase().startsWith(os.tmpdir().toLowerCase()), true);
+			assert.deepStrictEqual(await fs.readdir(createdWorkingDirectory.fsPath), []);
+		} finally {
+			if (createdWorkingDirectory) {
+				await fs.rm(createdWorkingDirectory.fsPath, { recursive: true, force: true });
+			}
+			await disposeAgent(agent);
+		}
+	});
+
 	suite('restart on startup config change', () => {
 
 		class StopCountingClient extends TestCopilotClient {
@@ -589,6 +623,86 @@ suite('CopilotAgent', () => {
 				policyState: undefined,
 				_meta: { multiplierNumeric: 1.5 },
 			}]);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('configSchema emits a thinkingLevel property when the model advertises reasoning efforts', async () => {
+		const agent = createTestAgent(disposables, {
+			copilotClient: new TestCopilotClient([], [{
+				id: 'o3',
+				name: 'o3',
+				capabilities: { limits: { max_context_window_tokens: 128000 } },
+				supportedReasoningEfforts: ['low', 'medium', 'high'],
+				defaultReasoningEffort: 'medium',
+			}]),
+		});
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			const models = await waitForState(agent.models, models => models.length > 0);
+
+			const schema = models[0].configSchema;
+			assert.deepStrictEqual(schema?.properties.thinkingLevel?.enum, ['low', 'medium', 'high']);
+			assert.strictEqual(schema?.properties.thinkingLevel?.default, 'medium');
+			assert.strictEqual(schema?.properties.contextTier, undefined);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('configSchema emits a contextTier property when long_context tier exceeds default', async () => {
+		const agent = createTestAgent(disposables, {
+			copilotClient: new TestCopilotClient([], [{
+				id: 'claude-sonnet',
+				name: 'Claude Sonnet',
+				capabilities: { limits: { max_context_window_tokens: 200_000 } },
+				billing: {
+					multiplier: 1,
+					tokenPrices: {
+						contextMax: 200_000,
+						longContext: { contextMax: 1_000_000, inputPrice: 2 },
+					},
+				},
+			}]),
+		});
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			const models = await waitForState(agent.models, models => models.length > 0);
+
+			const contextTier = models[0].configSchema?.properties.contextTier;
+			assert.deepStrictEqual(contextTier?.enum, ['default', 'long_context']);
+			assert.strictEqual(contextTier?.default, 'default');
+			assert.deepStrictEqual(contextTier?.enumLabels, ['200K', '1M']);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('configSchema omits contextTier when long_context tier is missing or not larger', async () => {
+		const agent = createTestAgent(disposables, {
+			copilotClient: new TestCopilotClient([], [
+				{
+					id: 'no-long-context',
+					name: 'No Long Context',
+					billing: { multiplier: 1, tokenPrices: { contextMax: 200_000 } },
+				},
+				{
+					id: 'equal-long-context',
+					name: 'Equal Long Context',
+					billing: {
+						multiplier: 1,
+						tokenPrices: { contextMax: 200_000, longContext: { contextMax: 200_000 } },
+					},
+				},
+			]),
+		});
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			const models = await waitForState(agent.models, models => models.length > 0);
+
+			assert.strictEqual(models[0].configSchema, undefined);
+			assert.strictEqual(models[1].configSchema, undefined);
 		} finally {
 			await disposeAgent(agent);
 		}
@@ -814,7 +928,7 @@ suite('CopilotAgent', () => {
 			const pluginManager = new PluginDirSpyManager();
 			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, pluginManager, fileService });
 
-			const actions: SessionAction[] = [];
+			const actions: (SessionAction | ChatAction)[] = [];
 			disposables.add(agent.onDidSessionProgress(s => {
 				if (s.kind === 'action') {
 					actions.push(s.action);
@@ -993,7 +1107,7 @@ suite('CopilotAgent', () => {
 			const client = new TestCopilotClient([]);
 			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, fileService });
 
-			const actions: SessionAction[] = [];
+			const actions: (SessionAction | ChatAction)[] = [];
 			disposables.add(agent.onDidSessionProgress(progress => {
 				if (progress.kind === 'action') {
 					actions.push(progress.action);
@@ -1056,7 +1170,7 @@ suite('CopilotAgent', () => {
 			const client = new TestCopilotClient([]);
 			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, fileService });
 
-			const actions: SessionAction[] = [];
+			const actions: (SessionAction | ChatAction)[] = [];
 			disposables.add(agent.onDidSessionProgress(progress => {
 				if (progress.kind === 'action') {
 					actions.push(progress.action);
@@ -1168,6 +1282,58 @@ suite('CopilotAgent', () => {
 
 				assert.strictEqual(removeWorktreeCalls, 0, 'no worktree to remove for provisional');
 				assert.strictEqual(agent.hasSession(result.session), false);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('disposeSession removes the session from the SDK on-disk store', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+
+				const session = AgentSession.uri('copilotcli', 'persisted-session-1');
+				await agent.disposeSession(session);
+
+				assert.deepStrictEqual(client.deletedSessionIds, ['persisted-session-1']);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('disposeSession on provisional session does not call client.deleteSession', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+
+				const result = await agent.createSession({
+					session: AgentSession.uri('copilotcli', 'prov-3'),
+					workingDirectory: URI.file('/workspace'),
+				});
+
+				await agent.disposeSession(result.session);
+
+				assert.deepStrictEqual(client.deletedSessionIds, []);
+				assert.strictEqual(agent.hasSession(result.session), false);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('disposeSession propagates SDK delete errors and preserves in-memory state', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			client.deleteSession = async () => { throw new Error('boom'); };
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+
+				const session = AgentSession.uri('copilotcli', 'persisted-session-2');
+				await assert.rejects(() => agent.disposeSession(session), /boom/);
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -1720,13 +1886,13 @@ suite('CopilotAgent', () => {
 
 				const markdownSignals = signals.filter((s): s is IAgentActionSignal =>
 					s.kind === 'action' && (
-						(s.action.type === ActionType.SessionResponsePart && s.action.part.kind === ResponsePartKind.Markdown) ||
-						s.action.type === ActionType.SessionDelta
+						(s.action.type === ActionType.ChatResponsePart && s.action.part.kind === ResponsePartKind.Markdown) ||
+						s.action.type === ActionType.ChatDelta
 					)
 				);
 				assert.strictEqual(markdownSignals.length, 1, 'exactly one markdown announcement signal should be emitted for the worktree announcement');
 				const announcement = markdownSignals[0];
-				const announcementContent = announcement.action.type === ActionType.SessionResponsePart
+				const announcementContent = announcement.action.type === ActionType.ChatResponsePart
 					? (announcement.action.part as MarkdownResponsePart).content
 					: (announcement.action as IDeltaAction).content;
 				assert.ok(announcementContent.includes(expectedBranchName), `announcement should contain branch name '${expectedBranchName}', got '${announcementContent}'`);
@@ -1736,8 +1902,8 @@ suite('CopilotAgent', () => {
 				await agent.sendMessage(session, 'follow-up');
 				const reemittedMarkdown = signals.filter(s =>
 					s.kind === 'action' && (
-						(s.action.type === ActionType.SessionResponsePart && s.action.part.kind === ResponsePartKind.Markdown) ||
-						s.action.type === ActionType.SessionDelta
+						(s.action.type === ActionType.ChatResponsePart && s.action.part.kind === ResponsePartKind.Markdown) ||
+						s.action.type === ActionType.ChatDelta
 					)
 				);
 				assert.strictEqual(reemittedMarkdown.length, 0, 'announcement must not be re-emitted on subsequent sends');
@@ -1794,8 +1960,8 @@ suite('CopilotAgent', () => {
 				await agent.sendMessage(session, 'hello');
 				const markdownSignals = signals.filter(s =>
 					s.kind === 'action' && (
-						(s.action.type === ActionType.SessionResponsePart && s.action.part.kind === ResponsePartKind.Markdown) ||
-						s.action.type === ActionType.SessionDelta
+						(s.action.type === ActionType.ChatResponsePart && s.action.part.kind === ResponsePartKind.Markdown) ||
+						s.action.type === ActionType.ChatDelta
 					)
 				);
 				assert.deepStrictEqual(markdownSignals, [], 'no announcement should be emitted live');

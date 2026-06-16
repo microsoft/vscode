@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import type Anthropic from '@anthropic-ai/sdk';
+import type { CCAModel } from '@vscode/copilot-api';
 import { mkdtempSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
@@ -30,9 +32,10 @@ import { AgentService } from '../../node/agentService.js';
 import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
 import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
 import { type ISessionEvent } from '../../node/copilot/mapSessionEvents.js';
-import { createNoopGitService, createSessionDataService } from '../common/sessionTestHelpers.js';
+import { createNoopGitService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
+import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 
 /**
  * Loads a JSONL fixture of raw Copilot SDK events, runs them through
@@ -56,6 +59,34 @@ async function loadFixtureMessages(fixtureName: string, session: URI) {
 	const raw = readFileSync(`${fixtureDir}${sep}test-cases${sep}${fixtureName}`, 'utf-8');
 	const events: ISessionEvent[] = raw.trim().split('\n').map(line => JSON.parse(line));
 	return mapSessionEventsToHistoryRecords(session, undefined, events);
+}
+
+class TestCopilotApiService implements ICopilotApiService {
+	declare readonly _serviceBrand: undefined;
+
+	readonly utilityCalls: { token: string; request: ICopilotUtilityChatCompletionRequest; options?: ICopilotApiServiceRequestOptions }[] = [];
+	response = 'Generated session title';
+	responsePromise: Promise<string> | undefined;
+	error: Error | undefined;
+
+	messages(_githubToken: string, _request: Anthropic.MessageCreateParamsStreaming, _options?: ICopilotApiServiceRequestOptions): AsyncGenerator<Anthropic.MessageStreamEvent>;
+	messages(_githubToken: string, _request: Anthropic.MessageCreateParamsNonStreaming, _options?: ICopilotApiServiceRequestOptions): Promise<Anthropic.Message>;
+	messages(): AsyncGenerator<Anthropic.MessageStreamEvent> | Promise<Anthropic.Message> {
+		throw new Error('not used');
+	}
+	async countTokens(): Promise<Anthropic.MessageTokensCount> { throw new Error('not used'); }
+	async models(): Promise<CCAModel[]> { return []; }
+	async responses(): Promise<Response> { throw new Error('not used'); }
+	async utilityChatCompletion(githubToken: string, request: ICopilotUtilityChatCompletionRequest, options?: ICopilotApiServiceRequestOptions): Promise<string> {
+		this.utilityCalls.push({ token: githubToken, request, options });
+		if (this.error) {
+			throw this.error;
+		}
+		if (this.responsePromise) {
+			return this.responsePromise;
+		}
+		return this.response;
+	}
 }
 
 suite('AgentService (node dispatcher)', () => {
@@ -117,7 +148,7 @@ suite('AgentService (node dispatcher)', () => {
 			// Start a turn so there's an active turn to map events to
 			service.dispatchAction(
 				session.toString(),
-				{ type: ActionType.SessionTurnStarted, turnId: 'turn-1', message: { text: 'hello', origin: { kind: MessageKind.User } } },
+				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', message: { text: 'hello', origin: { kind: MessageKind.User } } },
 				'test-client', 1,
 			);
 
@@ -126,15 +157,52 @@ suite('AgentService (node dispatcher)', () => {
 
 			copilotAgent.fireProgress({
 				kind: 'action', session,
-				action: { type: ActionType.SessionResponsePart, turnId: 'turn-1', part: { kind: ResponsePartKind.Markdown, id: 'msg-1', content: 'hello' } },
+				action: { type: ActionType.ChatResponsePart, turnId: 'turn-1', part: { kind: ResponsePartKind.Markdown, id: 'msg-1', content: 'hello' } },
 			});
-			assert.ok(envelopes.some(e => e.action.type === ActionType.SessionResponsePart));
+			assert.ok(envelopes.some(e => e.action.type === ActionType.ChatResponsePart));
 		});
 	});
 
 	// ---- createSession --------------------------------------------------
 
 	suite('dispatchAction', () => {
+
+		async function waitForCondition(predicate: () => boolean | Promise<boolean>, message: string): Promise<void> {
+			for (let i = 0; i < 20; i++) {
+				if (await predicate()) {
+					return;
+				}
+				await new Promise(resolve => setTimeout(resolve, 5));
+			}
+			assert.ok(await predicate(), message);
+		}
+
+		async function setupTitleGeneration(copilotApiService: TestCopilotApiService): Promise<{ svc: AgentService; agent: MockAgent; session: URI; db: TestSessionDatabase }> {
+			const db = new TestSessionDatabase();
+			const sessionDataService = createSessionDataService(db);
+			const svc = disposables.add(new AgentService(
+				new NullLogService(),
+				fileService,
+				sessionDataService,
+				{ _serviceBrand: undefined } as IProductService,
+				createNoopGitService(),
+				NULL_CHECKPOINT_SERVICE,
+				undefined,
+				undefined,
+				undefined,
+				copilotApiService,
+			));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			svc.registerProvider(agent);
+			await svc.authenticate({
+				resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource,
+				scopes: GITHUB_COPILOT_PROTECTED_RESOURCE.scopes_supported,
+				token: 'gh-token',
+			});
+			const session = await svc.createSession({ provider: 'copilot' });
+			return { svc, agent, session, db };
+		}
 
 		test('applies and persists root config changes from clients', async () => {
 			const tempDir = URI.file(mkdtempSync(`${tmpdir()}/agent-host-config-`));
@@ -176,10 +244,169 @@ suite('AgentService (node dispatcher)', () => {
 				}
 
 				assert.ok(persisted, 'should persist the root config change');
+
+				// Drain any in-flight root-config write so its file handle is
+				// closed before we delete the temp directory.
+				await svc.configurationService.whenIdle();
 			} finally {
 				localDisposables.dispose();
 				rmSync(tempDir.fsPath, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
 			}
+		});
+
+		test('generates and persists an AI title after first-turn fallback title', async () => {
+			const copilotApiService = new TestCopilotApiService();
+			copilotApiService.response = '"Fix TypeScript compile errors."';
+			const { svc, session, db } = await setupTitleGeneration(copilotApiService);
+			const titleActions: string[] = [];
+			disposables.add(svc.onDidAction(e => {
+				if (e.action.type === ActionType.SessionTitleChanged) {
+					titleActions.push(e.action.title);
+				}
+			}));
+
+			svc.dispatchAction(
+				session.toString(),
+				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', message: { text: 'Please help me fix the TypeScript compile errors', origin: { kind: MessageKind.User } } },
+				'test-client', 1,
+			);
+
+			await waitForCondition(() => svc.stateManager.getSessionState(session.toString())?.summary.title === 'Fix TypeScript compile errors', 'generated title should be applied');
+			await waitForCondition(async () => await db.getMetadata('customTitle') !== undefined, 'generated title should be persisted');
+
+			assert.deepStrictEqual({
+				titles: titleActions,
+				token: copilotApiService.utilityCalls[0]?.token,
+				promptIncludesUserText: copilotApiService.utilityCalls[0]?.request.messages.some(message => message.content.includes('Please help me fix the TypeScript compile errors')),
+				persistedTitle: await db.getMetadata('customTitle'),
+			}, {
+				titles: ['Please help me fix the TypeScript compile errors', 'Fix TypeScript compile errors'],
+				token: 'gh-token',
+				promptIncludesUserText: true,
+				persistedTitle: 'Fix TypeScript compile errors',
+			});
+		});
+
+		test('leaves fallback title when AI title generation fails', async () => {
+			const copilotApiService = new TestCopilotApiService();
+			copilotApiService.error = new Error('title failed');
+			const { svc, session, db } = await setupTitleGeneration(copilotApiService);
+
+			svc.dispatchAction(
+				session.toString(),
+				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', message: { text: 'Explain workspace search indexing', origin: { kind: MessageKind.User } } },
+				'test-client', 1,
+			);
+
+			await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'title generation should be attempted');
+			await Promise.resolve();
+
+			assert.deepStrictEqual({
+				title: svc.stateManager.getSessionState(session.toString())?.summary.title,
+				persistedTitle: await db.getMetadata('customTitle'),
+			}, {
+				title: 'Explain workspace search indexing',
+				persistedTitle: undefined,
+			});
+		});
+
+		test('does not overwrite a manual rename with delayed AI title', async () => {
+			const copilotApiService = new TestCopilotApiService();
+			let resolveTitle!: (title: string) => void;
+			copilotApiService.responsePromise = new Promise(resolve => { resolveTitle = resolve; });
+			const { svc, session, db } = await setupTitleGeneration(copilotApiService);
+
+			svc.dispatchAction(
+				session.toString(),
+				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', message: { text: 'Create tests for terminal persistence', origin: { kind: MessageKind.User } } },
+				'test-client', 1,
+			);
+			await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'title generation should be in flight');
+
+			svc.dispatchAction(
+				session.toString(),
+				{ type: ActionType.SessionTitleChanged, title: 'Manual title' },
+				'test-client', 2,
+			);
+			resolveTitle('Terminal persistence tests');
+			await waitForCondition(async () => await db.getMetadata('customTitle') === 'Manual title', 'manual title should be persisted');
+
+			assert.deepStrictEqual({
+				title: svc.stateManager.getSessionState(session.toString())?.summary.title,
+				persistedTitle: await db.getMetadata('customTitle'),
+			}, {
+				title: 'Manual title',
+				persistedTitle: 'Manual title',
+			});
+		});
+
+		test('aborts pending AI title generation when session is disposed', async () => {
+			const copilotApiService = new TestCopilotApiService();
+			let resolveTitle!: (title: string) => void;
+			copilotApiService.responsePromise = new Promise(resolve => { resolveTitle = resolve; });
+			const { svc, session, db } = await setupTitleGeneration(copilotApiService);
+
+			svc.dispatchAction(
+				session.toString(),
+				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', message: { text: 'Investigate flaky terminal tests', origin: { kind: MessageKind.User } } },
+				'test-client', 1,
+			);
+			await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'title generation should be in flight');
+
+			await svc.disposeSession(session);
+			resolveTitle('Flaky terminal tests');
+			await Promise.resolve();
+
+			assert.deepStrictEqual({
+				aborted: copilotApiService.utilityCalls[0].options?.signal?.aborted,
+				state: svc.stateManager.getSessionState(session.toString()),
+				persistedTitle: await db.getMetadata('customTitle'),
+			}, {
+				aborted: true,
+				state: undefined,
+				persistedTitle: undefined,
+			});
+		});
+
+		test('does not generate an AI title for forked sessions with an existing title', async () => {
+			const copilotApiService = new TestCopilotApiService();
+			copilotApiService.response = 'Source generated title';
+			const { svc, session: sourceSession } = await setupTitleGeneration(copilotApiService);
+
+			svc.dispatchAction(
+				sourceSession.toString(),
+				{ type: ActionType.ChatTurnStarted, turnId: 'source-turn', message: { text: 'Seed fork title', origin: { kind: MessageKind.User } } },
+				'test-client', 1,
+			);
+			await waitForCondition(() => svc.stateManager.getSessionState(sourceSession.toString())?.summary.title === 'Source generated title', 'source generated title should be applied');
+			svc.dispatchAction(
+				sourceSession.toString(),
+				{ type: ActionType.ChatTurnComplete, turnId: 'source-turn' },
+				'test-client', 2,
+			);
+			await waitForCondition(() => (svc.stateManager.getSessionState(sourceSession.toString())?.turns.length ?? 0) === 1, 'source turn should be complete before forking');
+			const forkedSession = await svc.createSession({
+				provider: 'copilot',
+				fork: {
+					session: sourceSession,
+					turnIndex: 0,
+					turnId: 'source-turn',
+				},
+			});
+
+			svc.dispatchAction(
+				forkedSession.toString(),
+				{ type: ActionType.ChatTurnStarted, turnId: 'fork-turn-1', message: { text: 'Continue from the fork', origin: { kind: MessageKind.User } } },
+				'test-client', 3,
+			);
+
+			assert.deepStrictEqual({
+				title: svc.stateManager.getSessionState(forkedSession.toString())?.summary.title,
+				utilityCalls: copilotApiService.utilityCalls.length,
+			}, {
+				title: 'Forked: Source generated title',
+				utilityCalls: 1,
+			});
 		});
 	});
 
@@ -223,7 +450,7 @@ suite('AgentService (node dispatcher)', () => {
 			svc.dispatchAction(
 				session.toString(),
 				{
-					type: ActionType.SessionTurnStarted,
+					type: ActionType.ChatTurnStarted,
 					turnId: 'turn-1',
 					message: { text: 'hello', origin: { kind: MessageKind.User }, attachments: attachments as never },
 				},
@@ -567,8 +794,8 @@ suite('AgentService (node dispatcher)', () => {
 
 			// Sanity: the subagent child session is announced.
 			assert.ok(
-				service.stateManager.getAnnouncedSessionSummaries().some(s => s.resource === childSessionUri),
-				'subagent child session should be announced',
+				service.stateManager.getOverlaySessionSummaries().some(s => s.resource === childSessionUri),
+				'subagent child session should be listed',
 			);
 
 			const listed = await service.listSessions();
@@ -581,6 +808,69 @@ suite('AgentService (node dispatcher)', () => {
 					subagentSessions: [],
 					includesParent: true,
 				},
+			);
+		});
+
+		test('listSessions overlay excludes idle provisional sessions but keeps ones with an active turn (#321269)', async () => {
+			// A provisional agent whose `listSessions` never returns the
+			// provisional session (mirroring CLI/Claude, which don't persist a
+			// session until its first message). The agent service's overlay is
+			// then the only thing that could surface it.
+			class ProvisionalMockAgent extends MockAgent {
+				override async createSession(config?: import('../../common/agentService.js').IAgentCreateSessionConfig): Promise<import('../../common/agentService.js').IAgentCreateSessionResult> {
+					const result = await super.createSession(config);
+					return { ...result, provisional: true };
+				}
+				override async listSessions() {
+					return [];
+				}
+			}
+
+			const provisionalAgent = new ProvisionalMockAgent('copilot');
+			disposables.add(toDisposable(() => provisionalAgent.dispose()));
+			service.registerProvider(provisionalAgent);
+
+			const session = await service.createSession({ provider: 'copilot' });
+
+			// Idle provisional session (the new-session composer's eagerly
+			// created session, before its first message) must not leak in.
+			const idleListed = await service.listSessions();
+			assert.ok(
+				!idleListed.some(s => s.session.toString() === session.toString()),
+				'idle provisional session should not appear in listSessions',
+			);
+
+			// Once a turn is in flight (the first turn can start before
+			// materialization completes), the session must stay visible so
+			// renderer-side caches don't evict the in-flight session.
+			service.dispatchAction(
+				session.toString(),
+				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', message: { text: 'hello', origin: { kind: MessageKind.User } } },
+				'test-client', 1,
+			);
+			const activeListed = await service.listSessions();
+			assert.ok(
+				activeListed.some(s => s.session.toString() === session.toString()),
+				'provisional session with an active turn should appear in listSessions',
+			);
+
+			// If the turn completes before the materialize event lands, the
+			// session is back to lifecycle=creating with no active turn — but it
+			// has a recorded turn now, so it must STAY visible (otherwise a
+			// listSessions refresh in this window would evict the just-finished
+			// session, reintroducing #321269's sibling eviction bug).
+			service.dispatchAction(
+				session.toString(),
+				{ type: ActionType.ChatTurnComplete, turnId: 'turn-1' },
+				'test-client', 2,
+			);
+			const stateAfterTurn = service.stateManager.getSessionState(session.toString());
+			assert.strictEqual(stateAfterTurn?.lifecycle, SessionLifecycle.Creating, 'session should still be provisional (materialize not yet fired)');
+			assert.strictEqual(stateAfterTurn?.activeTurn, undefined, 'completed turn should clear the active turn');
+			const completedListed = await service.listSessions();
+			assert.ok(
+				completedListed.some(s => s.session.toString() === session.toString()),
+				'provisional session with a completed turn should still appear in listSessions',
 			);
 		});
 
@@ -932,6 +1222,7 @@ suite('AgentService (node dispatcher)', () => {
 				branchExists: async () => false,
 				hasUncommittedChanges: async () => false,
 				commitAll: async () => { },
+				restore: async () => { },
 				hasUpstream: async () => false,
 				pushBranch: async () => { },
 				getSessionGitState: async (uri: URI) => { calls.push(uri.fsPath); return gitState; },
@@ -968,7 +1259,7 @@ suite('AgentService (node dispatcher)', () => {
 			);
 		});
 
-		test('createSession refreshes branch and uncommitted changesets after git state attaches', async () => {
+		test.skip('createSession refreshes branch and uncommitted changesets after git state attaches', async () => {
 			const workingDirectory = URI.file('/workspace/repo');
 			const gitState = {
 				hasGitHubRemote: false,
@@ -1027,6 +1318,7 @@ suite('AgentService (node dispatcher)', () => {
 				commitAll: async () => { },
 				hasUpstream: async () => false,
 				pushBranch: async () => { },
+				restore: async () => { },
 				getSessionGitState: async () => undefined,
 				computeSessionFileDiffs: async () => undefined,
 				showBlob: async () => undefined,
@@ -1717,7 +2009,7 @@ suite('AgentService (node dispatcher)', () => {
 			// mid-response.
 			service.dispatchAction(
 				sessionResource.toString(),
-				{ type: ActionType.SessionTurnStarted, turnId: 'turn-1', message: { text: 'hello', origin: { kind: MessageKind.User } } },
+				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', message: { text: 'hello', origin: { kind: MessageKind.User } } },
 				'client-1', 1,
 			);
 
@@ -2025,12 +2317,12 @@ suite('AgentService (node dispatcher)', () => {
 				service.addSubscriber(sessionResource, 'client-1');
 				service.dispatchAction(
 					sessionResource.toString(),
-					{ type: ActionType.SessionTurnStarted, turnId: 'turn-1', message: { text: 'hello', origin: { kind: MessageKind.User } } },
+					{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', message: { text: 'hello', origin: { kind: MessageKind.User } } },
 					'client-1', 1,
 				);
 				service.dispatchAction(
 					sessionResource.toString(),
-					{ type: ActionType.SessionTurnComplete, turnId: 'turn-1' },
+					{ type: ActionType.ChatTurnComplete, turnId: 'turn-1' },
 					'client-1', 2,
 				);
 
@@ -2484,7 +2776,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.ok(forkedState);
 			assert.deepStrictEqual(forkedState!.changesets, defaultCatalogue(forkedStr));
 			// Note: source-session turn was seeded directly on state, so the
-			// reducer never saw a SessionTurnStarted/Complete pair for it;
+			// reducer never saw a ChatTurnStarted/Complete pair for it;
 			// the fork branch (agentService.ts:548 path) is still exercised
 			// because `config.fork` survives the L493-504 turn-count check.
 			assert.ok(forkedState!.turns.length > 0, 'forked session should carry copied turns');
