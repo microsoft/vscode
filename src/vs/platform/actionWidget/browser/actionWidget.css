@@ -412,7 +412,7 @@
 	align-items: flex-start;
 	/* Match the row gap so the text aligns with the item labels. */
 	gap: 6px;
-	color: var(--vscode-descriptionForeground);
+	color: var(--vscode-banner-foreground);
 	font-size: 12px;
 	line-height: 16px;
 	/* Match the row padding so the icon sits in the item icon column and the text aligns with the item labels. Top padding matches the left so the icon is evenly inset. */
@@ -435,7 +435,7 @@
 	text-align: center;
 	font-size: 12px !important;
 	line-height: 16px;
-	color: var(--vscode-notificationsInfoIcon-foreground);
+	color: var(--vscode-banner-iconForeground);
 }
 
 .action-widget .action-list-header .action-list-header-text {
