@@ -43,7 +43,7 @@ export const LocalSessionType: ISessionType = {
 /** Setting key controlling whether Local VS Code chat sessions are available in the Agents app. */
 export const LOCAL_SESSION_ENABLED_SETTING = 'sessions.chat.localAgent.enabled';
 
-const LOCAL_PROVIDER_ID = 'local-chat';
+export const LOCAL_PROVIDER_ID = 'local-chat';
 const STORAGE_KEY_SESSIONS = 'sessions.localChat.sessions';
 const STORAGE_KEY_MIGRATED = 'sessions.localChat.migrated';
 
@@ -1011,7 +1011,6 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 		// Resolve mode
 		const modeKind = session.chatMode?.kind ?? ChatModeKind.Agent;
 		const modeIsBuiltin = session.chatMode ? isBuiltinChatMode(session.chatMode) : true;
-		const modeId: 'ask' | 'agent' | 'edit' | 'custom' | undefined = modeIsBuiltin ? modeKind : 'custom';
 
 		const rawModeInstructions = session.chatMode?.modeInstructions?.get();
 		const modeInstructions = rawModeInstructions ? {
@@ -1030,7 +1029,7 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 				kind: modeKind,
 				isBuiltin: modeIsBuiltin,
 				modeInstructions,
-				modeId,
+				telemetryModeId: modeIsBuiltin ? modeKind : 'custom',
 				applyCodeBlockSuggestionId: undefined,
 				permissionLevel,
 			},

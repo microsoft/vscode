@@ -34,12 +34,11 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { SessionsCategories } from '../../../../common/categories.js';
 import { SessionWorkspacePickerGroupContext } from '../../../../common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsViewService } from '../../../../browser/sessionsViewService.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
-import { ISessionsPartService } from '../../../../browser/parts/sessionsPartService.js';
+import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 
 /** Action / command IDs registered by this file. */
 export const RemoteAgentHostCommandIds = {
@@ -578,8 +577,7 @@ async function promptForRemoteFolder(
 	connection: ISSHAgentHostConnection,
 ): Promise<void> {
 	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
-	const sessionsManagementService = accessor.get(ISessionsManagementService);
-	const sessionsViewService = accessor.get(ISessionsViewService);
+	const sessionsService = accessor.get(ISessionsService);
 	const sessionsPartService = accessor.get(ISessionsPartService);
 
 	// The provider is created synchronously during addManagedConnection's
@@ -604,8 +602,8 @@ async function promptForRemoteFolder(
 		return;
 	}
 
-	sessionsViewService.openNewSession();
-	sessionsPartService.getSessionView(sessionsManagementService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri);
+	sessionsService.openNewSession();
+	sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri);
 }
 
 registerAction2(class extends Action2 {
@@ -926,8 +924,7 @@ async function promptForTunnelFolder(
 	tunnel: ITunnelInfo,
 ): Promise<void> {
 	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
-	const sessionsManagementService = accessor.get(ISessionsManagementService);
-	const sessionsViewService = accessor.get(ISessionsViewService);
+	const sessionsService = accessor.get(ISessionsService);
 	const sessionsPartService = accessor.get(ISessionsPartService);
 
 	const tunnelAddress = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
@@ -954,8 +951,8 @@ async function promptForTunnelFolder(
 		return;
 	}
 
-	sessionsViewService.openNewSession();
-	sessionsPartService.getSessionView(sessionsManagementService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, provider.id);
+	sessionsService.openNewSession();
+	sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, provider.id);
 }
 
 registerAction2(class extends Action2 {
@@ -1122,8 +1119,7 @@ async function promptForWSLFolder(
 	distro: string,
 ): Promise<void> {
 	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
-	const sessionsManagementService = accessor.get(ISessionsManagementService);
-	const sessionsViewService = accessor.get(ISessionsViewService);
+	const sessionsService = accessor.get(ISessionsService);
 	const sessionsPartService = accessor.get(ISessionsPartService);
 
 	const wslAddress = `wsl:${distro}`;
@@ -1146,8 +1142,8 @@ async function promptForWSLFolder(
 		return;
 	}
 
-	sessionsViewService.openNewSession();
-	sessionsPartService.getSessionView(sessionsManagementService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, provider.id);
+	sessionsService.openNewSession();
+	sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, provider.id);
 }
 
 registerAction2(class extends Action2 {

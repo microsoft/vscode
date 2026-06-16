@@ -2,7 +2,7 @@
   "name": "copilot-chat",
   "displayName": "GitHub Copilot Chat",
   "description": "AI chat features powered by Copilot",
-  "version": "0.53.0",
+  "version": "0.54.0",
   "build": "1",
   "completionsCoreVersion": "1.378.1799",
   "internalLargeStorageAriaKey": "ec712b3202c5462fb6877acae7f1f9d7-c19ad55e-3e3c-4f99-984b-827f6d95bd9e-6917",
@@ -22,7 +22,7 @@
   "icon": "assets/copilot.png",
   "pricing": "Trial",
   "engines": {
-    "vscode": "^1.125.0",
+    "vscode": "^1.126.0",
     "npm": ">=9.0.0",
     "node": ">=22.14.0"
   },
@@ -3108,6 +3108,12 @@
         "category": "GitHub Pull Request"
       },
       {
+        "command": "github.copilot.chat.cloudSessions.openPullRequestForTask",
+        "title": "%github.copilot.command.cloudSessions.openPullRequestForTask.title%",
+        "icon": "$(git-pull-request)",
+        "category": "GitHub Pull Request"
+      },
+      {
         "command": "github.copilot.chat.cloudSessions.openRepository",
         "title": "%github.copilot.command.cloudSessions.openRepository.title%",
         "icon": "$(repo)",
@@ -4025,6 +4031,15 @@
               "onExp"
             ],
             "description": "%github.copilot.config.alternateGeminiModelFPrompt.enabled%"
+          },
+          "github.copilot.chat.gemini35FlashReducedToolUsePrompt.enabled": {
+            "type": "boolean",
+            "default": false,
+            "tags": [
+              "experimental",
+              "onExp"
+            ],
+            "description": "%github.copilot.config.gemini35FlashReducedToolUsePrompt.enabled%"
           },
           "github.copilot.chat.anthropic.contextEditing.mode": {
             "type": "string",
@@ -5477,6 +5492,11 @@
           "command": "github.copilot.chat.cloudSessions.createPullRequestForTask",
           "when": "chatSessionType == copilot-cloud-agent && github.copilot.chat.cloudTaskCanCreatePullRequest && !isSessionsWindow",
           "group": "navigation@0"
+        },
+        {
+          "command": "github.copilot.chat.cloudSessions.openPullRequestForTask",
+          "when": "chatSessionType == copilot-cloud-agent && github.copilot.chat.cloudTaskCanOpenPullRequest && !isSessionsWindow",
+          "group": "navigation@0"
         }
       ],
       "agents/changes/actions/primary": [
@@ -5880,6 +5900,14 @@
         },
         {
           "command": "github.copilot.chat.cloudSessions.openRepository",
+          "when": "false"
+        },
+        {
+          "command": "github.copilot.chat.cloudSessions.createPullRequestForTask",
+          "when": "false"
+        },
+        {
+          "command": "github.copilot.chat.cloudSessions.openPullRequestForTask",
           "when": "false"
         },
         {
@@ -6679,9 +6707,10 @@
         "inputPlaceholder": "Run local tasks with Claude, type `#` for adding context",
         "order": 3,
         "description": "%github.copilot.session.providerDescription.claude%",
-        "when": "config.github.copilot.chat.claudeAgent.enabled",
+        "when": "config.github.copilot.chat.claudeAgent.enabled && ((isSessionsWindow && !config.chat.agents.claude.preferAgentHost) || (!isSessionsWindow && !config.chat.editor.claude.preferAgentHost))",
         "canDelegate": true,
         "requiresCustomModels": true,
+        "supportsAutoModel": false,
         "capabilities": {
           "supportsFileAttachments": true,
           "supportsImageAttachments": true
@@ -6741,6 +6770,7 @@
         "canDelegate": true,
         "description": "%github.copilot.session.providerDescription.background%",
         "when": "config.github.copilot.chat.backgroundAgent.enabled",
+        "supportsAutoModel": true,
         "capabilities": {
           "supportsFileAttachments": true,
           "supportsProblemAttachments": true,
@@ -6798,6 +6828,7 @@
         "canDelegate": true,
         "description": "%github.copilot.session.providerDescription.cloud%",
         "when": "config.github.copilot.chat.cloudAgent.enabled",
+        "supportsAutoModel": false,
         "capabilities": {
           "supportsFileAttachments": true
         },
@@ -7070,7 +7101,7 @@
     "shiki": "~1.15.0",
     "sinon": "^21.0.0",
     "source-map-support": "^0.5.21",
-    "tar": "^7.5.11",
+    "tar": "^7.5.16",
     "ts-dedent": "^2.2.0",
     "tsx": "^4.20.3",
     "typescript": "^5.8.3",
@@ -7088,7 +7119,7 @@
     "@anthropic-ai/claude-agent-sdk": "0.2.112",
     "@anthropic-ai/sdk": "^0.82.0",
     "@github/blackbird-external-ingest-utils": "^0.3.0",
-    "@github/copilot": "^1.0.60",
+    "@github/copilot": "^1.0.61",
     "@google/genai": "^1.22.0",
     "@humanwhocodes/gitignore-to-minimatch": "1.0.2",
     "@microsoft/tiktokenizer": "^1.0.10",

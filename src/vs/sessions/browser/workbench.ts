@@ -74,9 +74,8 @@ import { MobileNavigationStack } from './mobileNavigationStack.js';
 import { MobileTitlebarPart } from './parts/mobile/mobileTitlebarPart.js';
 import { IMobileVisualViewport } from './parts/mobile/mobileVisualViewport.js';
 import { autorun } from '../../base/common/observable.js';
-import { ISessionsManagementService } from '../services/sessions/common/sessionsManagement.js';
-import { ISessionsViewService } from './sessionsViewService.js';
-import { ISessionsPartService } from './parts/sessionsPartService.js';
+import { ISessionsService } from '../services/sessions/browser/sessionsService.js';
+import { ISessionsPartService } from '../services/sessions/browser/sessionsPartService.js';
 import { ISessionsSetUpService } from './sessionsSetUpService.js';
 
 //#region Workbench Options
@@ -132,6 +131,17 @@ export interface IAgentWorkbenchLayoutService extends IWorkbenchLayoutService {
 	setEditorMaximized(maximized: boolean): void;
 
 	readonly onDidChangeEditorMaximized: Event<void>;
+
+	/**
+	 * Suppresses the automatic editor part show/hide that normally fires from
+	 * `editorService.onWillOpenEditor` / `onDidCloseEditor`. Use this around
+	 * programmatic editor operations (e.g. applying a working set) so that the
+	 * editor part visibility is not changed as a side-effect. Dispose the
+	 * returned handle to release the suppression. Calls nest via a counter.
+	 *
+	 * Comment: We should consider movin mximization logic into layoutController
+	 */
+	suppressEditorPartAutoVisibility(): IDisposable;
 }
 
 export const IAgentWorkbenchLayoutService = refineServiceDecorator<IWorkbenchLayoutService, IAgentWorkbenchLayoutService>(IWorkbenchLayoutService);
@@ -295,6 +305,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	private _editorMaximized = false;
 	private _editorLastNonMaximizedVisibility: IPartVisibilityState | undefined;
 	private _restoreAttachedEditorMaximizedOnShow = false;
+	private _editorPartAutoVisibilitySuppressionCount = 0;
 
 	private readonly restoredPromise = new DeferredPromise<void>();
 	readonly whenRestored = this.restoredPromise.p;
@@ -317,8 +328,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	private editorService!: IEditorService;
 	private paneCompositeService!: IPaneCompositePartService;
 	private viewDescriptorService!: IViewDescriptorService;
-	private sessionsManagementService!: ISessionsManagementService;
-	private sessionsViewService!: ISessionsViewService;
+	private sessionsService!: ISessionsService;
 	private sessionsPartService!: ISessionsPartService;
 	private instantiationService!: IInstantiationService;
 	private storageService!: IStorageService;
@@ -787,9 +797,9 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		// so the new session view becomes visible. createMobileTitlebar() is
 		// only invoked in phone layout, so closing the drawer here is safe.
 		this.mobileTopBarDisposables.add(mobileTitlebar.onDidClickNewSession(() => {
-			this.sessionsViewService.openNewSession();
+			this.sessionsService.openNewSession();
 			this.closeMobileSidebarDrawer();
-			this.sessionsPartService.focusSession(this.sessionsManagementService.activeSession.get());
+			this.sessionsPartService.focusSession(this.sessionsService.activeSession.get());
 		}));
 	}
 
@@ -950,7 +960,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.restoreParts();
 
 		// Restore the sessions that were visible in the grid.
-		void this.sessionsViewService.restoreVisibleSessions().catch(e => {
+		void this.sessionsService.restoreVisibleSessions().catch(e => {
 			this.logService.error('[Workbench] restoreVisibleSessions failed', e);
 		});
 
@@ -996,8 +1006,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.editorService = accessor.get(IEditorService);
 		this.paneCompositeService = accessor.get(IPaneCompositePartService);
 		this.viewDescriptorService = accessor.get(IViewDescriptorService);
-		this.sessionsManagementService = accessor.get(ISessionsManagementService);
-		this.sessionsViewService = accessor.get(ISessionsViewService);
+		this.sessionsService = accessor.get(ISessionsService);
 		// Forces eager creation of the sessions part so it registers itself with the
 		// layout service before renderWorkbench() looks it up via getPart().
 		this.sessionsPartService = accessor.get(ISessionsPartService);
@@ -1010,8 +1019,13 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 		// Editor opens should only affect the main editor part when
 		// they actually target one of the main editor groups. Modal
-		// opens stay neutral.
+		// opens stay neutral. Programmatic opens that suppress auto
+		// visibility (e.g. working set application) are ignored.
 		this._register(this.editorService.onWillOpenEditor(e => {
+			if (this._editorPartAutoVisibilitySuppressionCount > 0) {
+				return;
+			}
+
 			const targetsMainEditorPart = this.editorGroupService.mainPart.groups.some(group => group.id === e.groupId);
 			if (!targetsMainEditorPart) {
 				return;
@@ -1025,6 +1039,9 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 		// Hide editor part when last editor closes
 		this._register(this.editorService.onDidCloseEditor(() => {
+			if (this._editorPartAutoVisibilitySuppressionCount > 0) {
+				return;
+			}
 			if (this.partVisibility.editor && this.areAllGroupsInMainPartEmpty()) {
 				this.rememberAttachedEditorMaximizedState();
 				this.setEditorHidden(true);
@@ -1051,6 +1068,18 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			}
 		}
 		return true;
+	}
+
+	suppressEditorPartAutoVisibility(): IDisposable {
+		this._editorPartAutoVisibilitySuppressionCount++;
+		let disposed = false;
+		return toDisposable(() => {
+			if (disposed) {
+				return;
+			}
+			disposed = true;
+			this._editorPartAutoVisibilitySuppressionCount--;
+		});
 	}
 
 	private rememberAttachedEditorMaximizedState(): void {

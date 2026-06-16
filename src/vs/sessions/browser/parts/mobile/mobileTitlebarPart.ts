@@ -22,6 +22,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ACCOUNTS_AVATAR_SETTING, IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionFileChange } from '../../../services/sessions/common/session.js';
 import { IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { SideBarVisibleContext } from '../../../../workbench/common/contextkeys.js';
@@ -45,7 +46,7 @@ import { URI } from '../../../../base/common/uri.js';
  * (home/empty) screen is visible:
  *
  *  - **Welcome hidden** → shows the active session title (live, from
- *    {@link ISessionsManagementService.activeSession}).
+ *    {@link ISessionsService.activeSession}).
  *  - **Welcome visible** → shows whatever is contributed to the
  *    {@link Menus.MobileTitleBarCenter} menu. On web, the host filter
  *    contribution appends its host dropdown + connection button there.
@@ -104,7 +105,7 @@ export class MobileTitlebarPart extends Disposable {
 	constructor(
 		parent: HTMLElement,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsService private readonly sessionsService: ISessionsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
@@ -208,7 +209,7 @@ export class MobileTitlebarPart extends Disposable {
 
 		// Keep the title in sync with the active session
 		this._register(autorun(reader => {
-			const session = this.sessionsManagementService.activeSession.read(reader);
+			const session = this.sessionsService.activeSession.read(reader);
 			const title = session?.title.read(reader);
 			this.sessionTitleElement.textContent = title || localize('mobileTopBar.newSession', "New Session");
 		}));
@@ -245,7 +246,7 @@ export class MobileTitlebarPart extends Disposable {
 			}
 		};
 		this._register(autorun(reader => {
-			const session = this.sessionsManagementService.activeSession.read(reader);
+			const session = this.sessionsService.activeSession.read(reader);
 			this.latestChanges = session?.changes.read(reader) ?? [];
 			renderChangesPill();
 		}));

@@ -15,6 +15,23 @@ import { NodeSocket } from '../../../../base/parts/ipc/node/ipc.net.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 
 /**
+ * Wrap a raw `net.Socket` in the protocol-like shape that `TunnelProxy`
+ * expects, emulating the remote agent. The tunnel handshake (the remote
+ * confirming the target is reachable) happens inside the real connect
+ * function, which the proxy tests replace; reaching this helper therefore
+ * always represents a successfully established tunnel, so no status is
+ * delivered here. A failed tunnel is simulated by a connect function that
+ * rejects instead.
+ */
+function mockTunnelProtocol(socket: import('net').Socket) {
+	return {
+		getSocket: () => new NodeSocket(socket),
+		readEntireBuffer: () => VSBuffer.alloc(0),
+		dispose: () => { /* NodeSocket owns the underlying socket */ },
+	};
+}
+
+/**
  * Create a mock {@link ITunnelConnectFn} that connects to a local TCP
  * server instead of going through the remote agent. Returns a
  * `NodeSocket` wrapped in the protocol-like shape that `TunnelProxy`
@@ -28,11 +45,7 @@ function createMockConnectFn(targetPort: number): ITunnelConnectFn {
 			socket.once('connect', resolve);
 			socket.once('error', reject);
 		});
-		return {
-			getSocket: () => new NodeSocket(socket),
-			readEntireBuffer: () => VSBuffer.alloc(0),
-			dispose: () => { /* NodeSocket owns the underlying socket */ },
-		};
+		return mockTunnelProtocol(socket);
 	};
 }
 
@@ -297,11 +310,7 @@ suite('TunnelProxy', () => {
 				socket.once('connect', resolve);
 				socket.once('error', reject);
 			});
-			return {
-				getSocket: () => new NodeSocket(socket),
-				readEntireBuffer: () => VSBuffer.alloc(0),
-				dispose: () => { },
-			};
+			return mockTunnelProtocol(socket);
 		};
 		const poolProxy = ds.add(new TunnelProxy(countingConnect, new NullLogService()));
 		const poolInfo = await poolProxy.start();
@@ -319,6 +328,73 @@ suite('TunnelProxy', () => {
 		// The agent should have opened only one tunnel connection
 		assert.strictEqual(connectCount, 1, `Expected 1 tunnel connection, got ${connectCount}`);
 		poolProxy.dispose();
+	});
+
+	test('drainConnectionPool destroys pooled tunnel sockets', async () => {
+		const net = await import('net');
+
+		// Capture the upstream net.Socket the agent pools so we can
+		// assert it is dropped when the upstream endpoint changes.
+		const remoteSockets: import('net').Socket[] = [];
+		const connectFn: ITunnelConnectFn = async () => {
+			const socket = net.createConnection({ host: '127.0.0.1', port: targetPort });
+			await new Promise<void>((resolve, reject) => {
+				socket.once('connect', resolve);
+				socket.once('error', reject);
+			});
+			remoteSockets.push(socket);
+			return mockTunnelProtocol(socket);
+		};
+		const p = ds.add(new TunnelProxy(connectFn, new NullLogService()));
+		const info = await p.start();
+
+		// One request pools one keep-alive tunnel socket.
+		const res = await proxyRequest(info, { path: `http://127.0.0.1:${targetPort}/`, auth: true });
+		assert.strictEqual(res.statusCode, 200);
+		assert.strictEqual(remoteSockets.length, 1);
+		assert.strictEqual(remoteSockets[0].destroyed, false);
+
+		// Simulating an upstream endpoint change must drop the now-stale
+		// pooled socket so it isn't reset later by the dead endpoint.
+		const closed = new Promise<void>(resolve => remoteSockets[0].once('close', () => resolve()));
+		p.drainConnectionPool();
+		await closed;
+		assert.strictEqual(remoteSockets[0].destroyed, true);
+
+		p.dispose();
+	});
+
+	test('a reset on a pooled tunnel socket does not escalate to an uncaught exception', async () => {
+		const net = await import('net');
+
+		// Capture the pooled upstream net.Socket so we can simulate the
+		// upstream endpoint resetting it.
+		const remoteSockets: import('net').Socket[] = [];
+		const connectFn: ITunnelConnectFn = async () => {
+			const socket = net.createConnection({ host: '127.0.0.1', port: targetPort });
+			await new Promise<void>((resolve, reject) => {
+				socket.once('connect', resolve);
+				socket.once('error', reject);
+			});
+			remoteSockets.push(socket);
+			return mockTunnelProtocol(socket);
+		};
+		const p = ds.add(new TunnelProxy(connectFn, new NullLogService()));
+		const info = await p.start();
+
+		const res = await proxyRequest(info, { path: `http://127.0.0.1:${targetPort}/`, auth: true });
+		assert.strictEqual(res.statusCode, 200);
+		assert.strictEqual(remoteSockets.length, 1);
+
+		// When the upstream endpoint dies, the pooled socket is reset.
+		// The proxy takes ownership of the raw socket (detaching
+		// NodeSocket's listeners, which would otherwise route the error
+		// through onUnexpectedError) and attaches its own 'error'
+		// handler, so the reset is contained rather than thrown or
+		// reported as an unexpected error.
+		assert.doesNotThrow(() => remoteSockets[0].emit('error', new Error('simulated upstream reset')));
+
+		p.dispose();
 	});
 
 	// --- CONNECT tunneling ---
@@ -356,21 +432,25 @@ suite('TunnelProxy', () => {
 
 	// --- Error handling ---
 
-	test('returns 502 when upstream tunnel connection fails', async () => {
+	test('fails the request when the tunnel connection fails', async () => {
+		// A failed tunnel - whether the remote agent itself is unreachable or
+		// the remote reports (via the handshake) that the target host:port is
+		// unreachable - surfaces here as a rejected connect function.
 		const failingConnect: ITunnelConnectFn = async () => {
-			throw new Error('simulated upstream failure');
+			throw new Error('connect ECONNREFUSED 127.0.0.1:9999');
 		};
 		const failProxy = ds.add(new TunnelProxy(failingConnect, new NullLogService()));
 		const failInfo = await failProxy.start();
 
-		// Plain HTTP request should get 502
-		const res = await proxyRequest(failInfo, {
+		// Plain HTTP request: the client connection is reset (no HTTP
+		// response) so the browser shows its native error page.
+		await assert.rejects(() => proxyRequest(failInfo, {
 			path: 'http://unreachable.example.com/path',
 			auth: true,
-		});
-		assert.strictEqual(res.statusCode, 502);
+		}));
 
-		// CONNECT should also get 502
+		// CONNECT should fail with a 502 (which the browser surfaces as a
+		// native tunnel error page).
 		const { statusCode, socket } = await proxyConnect(failInfo, 'unreachable.example.com:443', true);
 		assert.strictEqual(statusCode, 502);
 		socket.end();
@@ -410,6 +490,37 @@ suite('TunnelProxy', () => {
 		// dispose; without explicit teardown of these sockets,
 		// `server.close()` alone would leave the port bound indefinitely.
 		await closed;
+	});
+
+	test('dispose synchronously destroys the remote tunnel socket', async () => {
+		const net = await import('net');
+
+		// Capture the remote (upstream) net.Socket handed out by the
+		// tunnel so we can assert dispose tears it down directly, rather
+		// than relying on the local socket's async 'close' to propagate.
+		const remoteSockets: import('net').Socket[] = [];
+		const connectFn: ITunnelConnectFn = async () => {
+			const socket = net.createConnection({ host: '127.0.0.1', port: targetPort });
+			await new Promise<void>((resolve, reject) => {
+				socket.once('connect', resolve);
+				socket.once('error', reject);
+			});
+			remoteSockets.push(socket);
+			return mockTunnelProtocol(socket);
+		};
+		const p = ds.add(new TunnelProxy(connectFn, new NullLogService()));
+		const info = await p.start();
+
+		const { statusCode, socket } = await proxyConnect(info, `127.0.0.1:${targetPort}`, true);
+		assert.strictEqual(statusCode, 200);
+		assert.strictEqual(remoteSockets.length, 1);
+
+		p.dispose();
+
+		// The remote socket must be destroyed by the time dispose returns —
+		// no extra event-loop turn required.
+		assert.strictEqual(remoteSockets[0].destroyed, true);
+		socket.end();
 	});
 
 	test('dispose terminates CONNECT sockets stuck waiting for the upstream tunnel', async () => {

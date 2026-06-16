@@ -11,9 +11,9 @@ import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js';
-import { AgentSession, type IAgentService } from '../common/agentService.js';
+import { AgentSession, type IAgentService, type IMcpNotification } from '../common/agentService.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
-import { ActionEnvelope, ActionType, INotification, isSessionAction, isTerminalAction, type SessionAction, type TerminalAction, type IRootConfigChangedAction } from '../common/state/sessionActions.js';
+import { ActionEnvelope, ActionType, INotification, isChatAction, isSessionAction, isTerminalAction, type ChatAction, type SessionAction, type TerminalAction, type IRootConfigChangedAction } from '../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import { negotiateProtocolVersion } from '../common/state/protocol/version/negotiation.js';
 import { VSCODE_UPGRADE_METHOD, type UnsupportedProtocolVersionErrorDataEx } from '../common/state/protocolUpgrade.js';
@@ -34,8 +34,9 @@ import {
 	type JsonRpcResponse,
 	type ReconnectParams,
 	type IStateSnapshot,
+	type SubscribeResult,
 } from '../common/state/sessionProtocol.js';
-import { isAhpResourceWatchChannel, isAhpRootChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type SessionState } from '../common/state/sessionState.js';
+import { isAhpResourceWatchChannel, isAhpRootChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, isAhpChatChannel, parseDefaultChatUri, type ISessionWithDefaultChat, type SessionState } from '../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import {
@@ -79,6 +80,28 @@ function jsonRpcErrorFrom(id: number, err: unknown): JsonRpcResponse {
 	}
 	const message = err instanceof Error ? (err.stack ?? err.message) : String(err);
 	return jsonRpcError(id, JSON_RPC_INTERNAL_ERROR, message);
+}
+
+/** True when `value` is a non-null params object (as opposed to an array or primitive). */
+function isParamsObject(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Returns the `channel` URI carried on a request's params when it is an
+ * `mcp://` channel — the AHP routing envelope for raw MCP requests
+ * tunnelled over the JSON-RPC connection. Returns `undefined` for any
+ * other params shape.
+ */
+function readMcpChannel(params: unknown): string | undefined {
+	if (!isParamsObject(params)) {
+		return undefined;
+	}
+	const channel = params['channel'];
+	if (typeof channel !== 'string' || !channel.startsWith('mcp://')) {
+		return undefined;
+	}
+	return channel;
 }
 
 /**
@@ -286,13 +309,21 @@ export class ProtocolServerHandler extends Disposable {
 			// grace-period timeout so the call cannot hang forever. Calls
 			// stamped while no client is connected are failed immediately by
 			// the provider, so they never reach this path.
-			if (envelope.action.type === ActionType.SessionToolCallStart || envelope.action.type === ActionType.SessionToolCallReady) {
-				this._checkOrphanedClientToolCalls(envelope.channel);
+			if (envelope.action.type === ActionType.ChatToolCallStart || envelope.action.type === ActionType.ChatToolCallReady) {
+				// Chat-action envelopes are emitted on the chat channel URI;
+				// the disconnect-grace machinery keys by session URI, so
+				// resolve back to the owning session before checking.
+				const session = isAhpChatChannel(envelope.channel) ? (parseDefaultChatUri(envelope.channel) ?? envelope.channel) : envelope.channel;
+				this._checkOrphanedClientToolCalls(session);
 			}
 		}));
 
 		this._register(this._stateManager.onDidEmitNotification(notification => {
 			this._broadcastNotification(notification);
+		}));
+
+		this._register(this._agentService.onMcpNotification(notification => {
+			this._broadcastMcpNotification(notification);
 		}));
 
 		if (this._config.otlpLogEmitter) {
@@ -371,9 +402,9 @@ export class ProtocolServerHandler extends Disposable {
 					case 'dispatchAction':
 						if (client) {
 							this._logService.trace(`[ProtocolServer] dispatchAction: ${JSON.stringify(msg.params.action.type)}`);
-							const action = msg.params.action as SessionAction | TerminalAction | IRootConfigChangedAction;
+							const action = msg.params.action as SessionAction | ChatAction | TerminalAction | IRootConfigChangedAction;
 							const channel = msg.params.channel;
-							if (isSessionAction(action) || isTerminalAction(action) || action.type === ActionType.RootConfigChanged) {
+							if (isSessionAction(action) || isChatAction(action) || isTerminalAction(action) || action.type === ActionType.RootConfigChanged) {
 								this._agentService.dispatchAction(channel, action, client.clientId, msg.params.clientSeq);
 							}
 						}
@@ -714,7 +745,7 @@ export class ProtocolServerHandler extends Disposable {
 	 * ({@link _checkOrphanedClientToolCalls}), and fail orphaned calls
 	 * ({@link _completeDisconnectedClientToolCalls}).
 	 */
-	private *_pendingClientToolCalls(state: SessionState | undefined) {
+	private *_pendingClientToolCalls(state: ISessionWithDefaultChat | undefined) {
 		const activeTurn = state?.activeTurn;
 		if (!activeTurn) {
 			return;
@@ -731,7 +762,7 @@ export class ProtocolServerHandler extends Disposable {
 		}
 	}
 
-	private _hasPendingClientToolCall(state: SessionState | undefined, clientId: string): boolean {
+	private _hasPendingClientToolCall(state: ISessionWithDefaultChat | undefined, clientId: string): boolean {
 		for (const pending of this._pendingClientToolCalls(state)) {
 			if (pending.clientId === clientId) {
 				return true;
@@ -775,7 +806,7 @@ export class ProtocolServerHandler extends Disposable {
 	/**
 	 * Scan a session for pending client tool calls whose owning client is not
 	 * currently connected, and arm the disconnect timeout for each such owner.
-	 * Called when a `SessionToolCallStart` / `SessionToolCallReady` envelope is
+	 * Called when a `ChatToolCallStart` / `ChatToolCallReady` envelope is
 	 * observed — covering calls issued for an already-gone client, which the
 	 * live disconnect path never sees. Ownerless client tool calls (no client
 	 * connected at stamp time) are failed immediately by the provider, so they
@@ -855,7 +886,7 @@ export class ProtocolServerHandler extends Disposable {
 			const mayRetryWithReplacementClient = this._hasReplacementActiveClientTool(state, clientId, toolCall.toolName);
 			if (toolCall.status === ToolCallStatus.Streaming) {
 				this._stateManager.dispatchServerAction(session, {
-					type: ActionType.SessionToolCallReady,
+					type: ActionType.ChatToolCallReady,
 					turnId: activeTurn.id,
 					toolCallId: toolCall.toolCallId,
 					invocationMessage: toolCall.invocationMessage ?? toolCall.displayName,
@@ -863,7 +894,7 @@ export class ProtocolServerHandler extends Disposable {
 				});
 			}
 			this._stateManager.dispatchServerAction(session, {
-				type: ActionType.SessionToolCallComplete,
+				type: ActionType.ChatToolCallComplete,
 				turnId: activeTurn.id,
 				toolCallId: toolCall.toolCallId,
 				result: {
@@ -917,7 +948,10 @@ export class ProtocolServerHandler extends Disposable {
 				const snapshot = await this._agentService.subscribe(URI.parse(params.channel), client.clientId);
 				client.subscriptions.set(classified.uri, classified);
 				this._clearClientToolCallDisconnectTimeout(client.clientId, classified.uri);
-				return { snapshot };
+				// `IStateSnapshot` is widened with `ChatState` (see sessionProtocol.ts);
+				// the generated wire `Snapshot` union does not list it yet. The value
+				// is JSON over the wire, so narrowing at this boundary is safe.
+				return { snapshot: snapshot as SubscribeResult['snapshot'] };
 			} catch (err) {
 				if (err instanceof ProtocolError) {
 					throw err;
@@ -971,6 +1005,28 @@ export class ProtocolServerHandler extends Disposable {
 		},
 		disposeSession: async (_client, params) => {
 			await this._agentService.disposeSession(URI.parse(params.channel));
+			return null;
+		},
+		// Multi-chat is not yet surfaced: every session is served by a single
+		// implicit default chat created alongside it. Accept createChat for
+		// that default chat as a no-op and reject additional chats until the
+		// multi-chat surface lands.
+		createChat: async (_client, params) => {
+			const state = this._stateManager.getSessionState(params.channel);
+			if (!state) {
+				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${params.channel}`);
+			}
+			const defaultChat = state.defaultChat ?? buildDefaultChatUri(params.channel);
+			if (URI.parse(params.chat).toString() !== URI.parse(defaultChat).toString()) {
+				throw new ProtocolError(
+					JsonRpcErrorCodes.InvalidParams,
+					`createChat: additional chats are not yet supported (session ${params.channel}, chat ${params.chat})`,
+				);
+			}
+			return null;
+		},
+		disposeChat: async (_client, _params) => {
+			// The default chat lives and dies with its session; nothing to do.
 			return null;
 		},
 		resourceWrite: async (_client, params) => {
@@ -1159,6 +1215,27 @@ export class ProtocolServerHandler extends Disposable {
 			return;
 		}
 
+		// MCP side-channel: requests targeting an `mcp://` channel carry the
+		// channel URI in `params.channel`. We forward them through the
+		// agent service, which routes by `<providerId>/<sessionId>/<serverName>`
+		// to the owning agent's MCP App implementation. Unknown channels and
+		// unknown methods are rejected with `-32601`.
+		const mcpChannel = readMcpChannel(params);
+		if (mcpChannel !== undefined) {
+			const paramsObj = isParamsObject(params) ? params : undefined;
+			this._agentService.handleMcpRequest(mcpChannel, method, paramsObj).then(result => {
+				client.transport.send(jsonRpcSuccess(id, result ?? null));
+			}).catch(err => {
+				if (err instanceof Error && err.message.startsWith('Method not found')) {
+					client.transport.send(jsonRpcError(id, JsonRpcErrorCodes.MethodNotFound, err.message));
+					return;
+				}
+				this._logService.error(`[ProtocolServer] mcp:// request '${method}' on ${mcpChannel} failed`, err);
+				client.transport.send(jsonRpcErrorFrom(id, err));
+			});
+			return;
+		}
+
 		client.transport.send(jsonRpcError(id, JSON_RPC_INTERNAL_ERROR, `Unknown method: ${method}`));
 	}
 
@@ -1196,6 +1273,27 @@ export class ProtocolServerHandler extends Disposable {
 		const { type, ...params } = notification;
 		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		const msg = { jsonrpc: '2.0', method: type, params } as AhpServerNotification;
+		for (const record of this._clients.values()) {
+			record.connection?.transport.send(msg);
+		}
+	}
+
+	/**
+	 * Forward an MCP server-originated notification (e.g.
+	 * `notifications/tools/list_changed`) over the AHP transport. The
+	 * `channel` field on `params` is the AHP routing envelope; the
+	 * receiving client demultiplexes by it. Notifications are broadcast
+	 * to every connected client — per-channel subscription filtering is
+	 * left to the client, since MCP notifications are cheap and the
+	 * client already knows which channels it cares about.
+	 */
+	private _broadcastMcpNotification(notification: IMcpNotification): void {
+		const params: Record<string, unknown> = { ...(notification.params ?? {}), channel: notification.channel };
+		// MCP notifications don't share a discriminated `method` literal
+		// with the known {@link AhpServerNotification} union, so cast
+		// through `unknown` to satisfy the transport contract.
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
+		const msg = { jsonrpc: '2.0' as const, method: notification.method, params } as unknown as AhpServerNotification;
 		for (const record of this._clients.values()) {
 			record.connection?.transport.send(msg);
 		}
