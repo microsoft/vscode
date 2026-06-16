@@ -900,10 +900,8 @@ export class CustomInstructionsReferenceLogger {
 		const result = [];
 		const instructions = sorted.filter(isInstructionFile).map(ref => basename(ref.value));
 		result.push(`Instructions(${instructions.length}): ${instructions.join(', ')}`);
-		const promptFiles = sorted.filter(isPromptFile).map(ref => basename(ref.value));
-		result.push(`PromptFile(${promptFiles.length}): ${promptFiles.join(', ')}`);
 		const indexFiles = sorted.filter(isCustomizationsIndex);
-		result.push(`CustomizationsIndex(${indexFiles.length}`);
+		result.push(`CustomizationsIndex(${indexFiles.length}):`);
 		for (const ref of indexFiles) {
 			await this.toIndexDebug(ref.value, ref.toolReferences, verbose, result);
 		}
