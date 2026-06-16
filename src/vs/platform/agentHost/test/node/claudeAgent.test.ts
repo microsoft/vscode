@@ -3034,15 +3034,16 @@ suite('ClaudeAgent', () => {
 	test('resolveSessionConfig returns Claude-native permissionMode + reused Permissions schema', async () => {
 		// Plan section 3.3.5 / decision B5 — Claude collapses the platform's
 		// two-axis approval model (`autoApprove` × `mode`) onto a single
-		// `permissionMode` axis matching the SDK's native
-		// `PermissionMode` enum. `Permissions` (allow/deny tool lists)
-		// is reused unchanged from `platformSessionSchema` because the
-		// SDK accepts `allowedTools` / `disallowedTools` natively.
-		// Tested keys: presence + ordering of enum + the six-value
-		// canonical set (matching SDK `PermissionMode` typedef at
-		// `sdk.d.ts:1560`, ratified in Phase 6.1 Cycle A under I2) +
-		// default. Skipped keys (AutoApprove, Mode, Isolation, Branch,
-		// BranchNameHint) MUST be absent — workbench
+		// `permissionMode` axis based on the SDK's native `PermissionMode`
+		// enum. The SDK typedef (`sdk.d.ts:1560`) has six values; VS Code
+		// intentionally exposes the five interactive modes and excludes
+		// SDK-only `dontAsk`. `Permissions` (allow/deny tool lists) is reused
+		// unchanged from `platformSessionSchema` because the SDK accepts
+		// `allowedTools` / `disallowedTools` natively.
+		// Tested keys: presence + ordering of enum + those five modes +
+		// default. Skipped keys
+		// (AutoApprove, Mode, Isolation, Branch, BranchNameHint) MUST be
+		// absent — workbench
 		// `AgentHostModePicker` and friends key off these property names
 		// to decide what to render, and accidentally re-introducing
 		// `mode` would drop the wrong picker into the Claude UI.
@@ -3067,7 +3068,7 @@ suite('ClaudeAgent', () => {
 			topLevelType: 'object',
 			propertyKeys: ['permissionMode', 'permissions'],
 			permissionModeType: 'string',
-			permissionModeEnum: ['default', 'acceptEdits', 'bypassPermissions', 'plan', 'dontAsk', 'auto'],
+			permissionModeEnum: ['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions'],
 			permissionModeDefault: 'default',
 			permissionsType: 'object',
 			values: { permissionMode: 'default' },

@@ -520,10 +520,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 	/**
 	 * Pull `permissionMode` out of the post-validation `IAgentCreateSessionConfig.config`
-	 * bag, narrowing the runtime `unknown` value to the SDK's six-value
-	 * `PermissionMode` union (sdk.d.ts:1560). Falls back to `'default'`
-	 * when the bag is absent or carries something the schema validator
-	 * shouldn't have accepted (defense-in-depth).
+	 * bag, narrowing the runtime `unknown` value to the Claude modes VS Code
+	 * exposes. Falls back to `'default'` when the bag is absent or carries
+	 * something the schema validator shouldn't have accepted (defense-in-depth).
 	 */
 	private _resolvePermissionMode(config: Record<string, unknown> | undefined): ClaudePermissionMode {
 		return narrowClaudePermissionMode(config?.[ClaudeSessionConfigKey.PermissionMode]) ?? 'default';

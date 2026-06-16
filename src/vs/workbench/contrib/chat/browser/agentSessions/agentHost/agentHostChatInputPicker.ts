@@ -17,7 +17,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
+import { type ClaudePermissionMode, ClaudeSessionConfigKey, narrowClaudePermissionMode } from '../../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import type { ResolveSessionConfigResult, SessionConfigPropertySchema, SessionConfigValueItem } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import type { SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -43,7 +43,7 @@ const FILTER_THRESHOLD = 10;
 const LEARN_MORE_VALUE = '__agentHostChatInputPicker.learnMore__';
 const PERMISSION_MODE_LEARN_MORE_URL = 'https://aka.ms/vscode/docs/permissions';
 
-const claudePermissionModeIcons: Record<string, ThemeIcon> = {
+const claudePermissionModeIcons: Record<ClaudePermissionMode, ThemeIcon> = {
 	default: Codicon.shield,
 	acceptEdits: Codicon.edit,
 	plan: Codicon.lightbulb,
@@ -75,7 +75,8 @@ function getConfigIcon(property: string, value: unknown | undefined): ThemeIcon 
 		return Codicon.shield;
 	}
 	if (property === ClaudeSessionConfigKey.PermissionMode && typeof value === 'string') {
-		return claudePermissionModeIcons[value];
+		const mode = narrowClaudePermissionMode(value);
+		return mode ? claudePermissionModeIcons[mode] : undefined;
 	}
 	return undefined;
 }

@@ -268,8 +268,8 @@ suite('isWellKnownClaudePermissionModeSchema', () => {
 		assert.strictEqual(isWellKnownClaudePermissionModeSchema(schema({ enum: ['default', 'acceptEdits'] })), true);
 	});
 
-	test('keeps accepting SDK-compatible schemas that include dontAsk', () => {
-		assert.strictEqual(isWellKnownClaudePermissionModeSchema(schema({ enum: ['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions', 'dontAsk'] })), true);
+	test('rejects schemas that include unsupported SDK-only values', () => {
+		assert.strictEqual(isWellKnownClaudePermissionModeSchema(schema({ enum: ['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions', 'dontAsk'] })), false);
 	});
 
 	test('rejects schemas missing "default" or containing custom values', () => {
