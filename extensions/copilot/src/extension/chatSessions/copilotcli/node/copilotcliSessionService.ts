@@ -411,6 +411,11 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 				}, { flushDebounceMs: undefined, settings: undefined, version: undefined });
 			}
 			catch (error) {
+				// Permanent for this window: the Lazy caches this rejected promise, so the
+				// session manager will never become available. Flag it so the automatic
+				// session-list refresh stops re-throwing on every pass (e.g. when the SDK's
+				// native runtime addon ships no prebuild for the platform, such as musl Linux).
+				this._sessionManagerUnavailable = true;
 				this.logService.error(`Failed to initialize Copilot CLI Session Manager: ${error}`);
 				throw error;
 			}
@@ -657,7 +662,20 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 
 	private _getAllSessionsProgress: Promise<readonly ICopilotCLISessionItem[]> | undefined;
 	private _isGettingSessions: number = 0;
+
+	/**
+	 * Set once the SDK `LocalSessionManager` fails to initialize (e.g. the SDK's
+	 * native runtime addon ships no prebuild for the current platform, such as
+	 * musl-based Linux). The failure is permanent for the lifetime of the window
+	 * because {@link _sessionManager} caches the rejected promise, so the automatic
+	 * session-list refresh degrades to "no sessions" instead of re-throwing — and
+	 * re-reporting an unhandled error — on every refresh pass.
+	 */
+	private _sessionManagerUnavailable = false;
 	async getAllSessions(token: CancellationToken): Promise<readonly ICopilotCLISessionItem[]> {
+		if (this._sessionManagerUnavailable) {
+			return [];
+		}
 		if (!this._getAllSessionsProgress) {
 			this._getAllSessionsProgress = this._getAllSessions(token);
 		}
