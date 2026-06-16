@@ -50,7 +50,7 @@ export class PromptPathRepresentationService implements IPromptPathRepresentatio
 
 	getFilePath(uri: Uri, makeRelative?: boolean): string {
 		if (uri.scheme === Schemas.file || uri.scheme === Schemas.vscodeRemote) {
-			if (makeRelative) {
+			if (makeRelative === true) {
 				const folders = this.workspaceService.getWorkspaceFolders();
 				if (folders.length === 1) {
 					const folder = folders[0];
