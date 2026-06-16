@@ -489,6 +489,21 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	/**
+	 * Type-keyed companion to {@link _isContributionAvailable}. Resolves the
+	 * session type (including alternative ids) to its contribution and reports
+	 * whether that contribution is currently enabled by its `when` clause.
+	 *
+	 * Session types with no contribution entry (e.g. the built-in `local`
+	 * provider, or item controllers registered without a matching contribution)
+	 * are treated as available, since there is no `when` clause gating them.
+	 */
+	private _isContributionAvailableForType(sessionType: string): boolean {
+		const resolvedType = this._resolveToPrimaryType(sessionType) ?? sessionType;
+		const contribution = this._contributions.get(resolvedType)?.contribution;
+		return !contribution || this._isContributionAvailable(contribution);
+	}
+
+	/**
 	 * Resolves a session type to its primary type, checking for alternative IDs.
 	 * @param sessionType The session type or alternative ID to resolve
 	 * @returns The primary session type, or undefined if not found or not available
@@ -846,8 +861,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			chatViewType = resolvedType;
 		}
 
-		const contribution = this._contributions.get(chatViewType)?.contribution;
-		if (contribution && !this._isContributionAvailable(contribution)) {
+		if (!this._isContributionAvailableForType(chatViewType)) {
 			return false;
 		}
 
@@ -863,9 +877,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	async canResolveChatSession(sessionType: string) {
 		await this._extensionService.whenInstalledExtensionsRegistered();
-		const resolvedType = this._resolveToPrimaryType(sessionType) || sessionType;
-		const contribution = this._contributions.get(resolvedType)?.contribution;
-		if (contribution && !this._isContributionAvailable(contribution)) {
+		if (!this._isContributionAvailableForType(sessionType)) {
 			return false;
 		}
 
@@ -945,6 +957,15 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				const resolvedType = this._resolveToPrimaryType(chatSessionType) ?? chatSessionType;
 				if (providersToResolve && !providersToResolve.includes(resolvedType)) {
 					return; // skip: not considered for resolving
+				}
+
+				// Skip controllers whose contribution is gated off by its `when`
+				// clause. The item controller is registered independently of the
+				// contribution (e.g. by the extension host), so without this check
+				// its sessions would still be listed even though they can no longer
+				// be resolved/opened (which obeys the same `when` via canResolveChatSession).
+				if (!this._isContributionAvailableForType(chatSessionType)) {
+					return; // skip: contribution disabled by its `when` clause
 				}
 
 				try {
