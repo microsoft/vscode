@@ -28,6 +28,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
+import { createAgentModelPricingMeta } from '../../common/agentModelPricing.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostSessionSyncEnabledConfigKey, AutoApproveLevel, ISchemaProperty, SessionMode, createSchema, platformRootSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
@@ -129,11 +130,19 @@ interface ISerializedModelSelection {
  * payload already carries but the SDK type doesn't yet declare. Mirror of `IClaudeModelSupports` in `claudeAgent.ts`.
  */
 interface ICopilotModelBilling {
+	readonly multiplier?: number;
+	/** Coarse price bucket surfaced as a tag in the model picker hover. */
+	readonly priceCategory?: string;
 	readonly tokenPrices?: {
+		/** Default-tier prices, expressed as credits per 1M tokens. */
 		readonly contextMax?: number;
+		readonly inputPrice?: number;
+		readonly cachePrice?: number;
+		readonly outputPrice?: number;
 		readonly longContext?: {
 			readonly contextMax?: number;
 			readonly inputPrice?: number;
+			readonly cachePrice?: number;
 			readonly outputPrice?: number;
 		};
 	};
@@ -352,6 +361,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._register(completions.registerProvider(new CopilotSlashCommandCompletionProvider(this.id, {
 			hasHistory: (sessionId) => !this._provisionalSessions.has(sessionId) && this._sessions.has(sessionId),
 			isRubberDuckEnabled: () => this._isRubberDuckEnabled(),
+			hasRuntimeSlashCommand: async (sessionId, command) => this._sessions.get(sessionId)?.hasRuntimeSlashCommand(command) ?? false,
 		})));
 
 		// Restart the CLI client when a setting baked into the client/subprocess at
@@ -719,6 +729,36 @@ export class CopilotAgent extends Disposable implements IAgent {
 		};
 	}
 
+	/**
+	 * Builds the open `_meta` pricing bag for a model from its billing info so the chat model picker can render its
+	 * cost hover. Cost values are credits per 1M tokens.
+	 *
+	 * Long-context costs are only emitted when they differ from the default tier, mirroring `normalizeTokenPrices` in
+	 * `extensions/copilot/src/extension/conversation/common/languageModelAccess.ts`.
+	 *
+	 * `billing.tokenPrices` / `billing.priceCategory` are present on the runtime CAPI `/models` payload but not yet
+	 * declared on the published SDK `ModelBilling` type — narrow through {@link ICopilotModelBilling}.
+	 */
+	private _createModelPricingMeta(billing: ModelInfo['billing'] | undefined): Record<string, unknown> | undefined {
+		const typedBilling = billing as ICopilotModelBilling | undefined;
+		const tokenPrices = typedBilling?.tokenPrices;
+		const longContext = tokenPrices?.longContext;
+
+		const differsFromDefault = (longValue: number | undefined, defaultValue: number | undefined): number | undefined =>
+			longValue !== undefined && longValue !== defaultValue ? longValue : undefined;
+
+		return createAgentModelPricingMeta({
+			multiplierNumeric: typeof typedBilling?.multiplier === 'number' ? typedBilling.multiplier : undefined,
+			inputCost: tokenPrices?.inputPrice,
+			cacheCost: tokenPrices?.cachePrice,
+			outputCost: tokenPrices?.outputPrice,
+			longContextInputCost: differsFromDefault(longContext?.inputPrice, tokenPrices?.inputPrice),
+			longContextCacheCost: differsFromDefault(longContext?.cachePrice, tokenPrices?.cachePrice),
+			longContextOutputCost: differsFromDefault(longContext?.outputPrice, tokenPrices?.outputPrice),
+			priceCategory: typeof typedBilling?.priceCategory === 'string' ? typedBilling.priceCategory : undefined,
+		});
+	}
+
 	private _createModelConfigSchema(m: ModelInfo): ConfigSchema | undefined {
 		const properties: ConfigSchema['properties'] = {};
 		const thinkingLevel = this._createThinkingLevelConfigSchemaProperty(m.supportedReasoningEfforts, m.defaultReasoningEffort);
@@ -892,9 +932,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			supportsVision: !!m.capabilities?.supports?.vision,
 			configSchema: this._createModelConfigSchema(m),
 			policyState: m.policy?.state as PolicyState | undefined,
-			_meta: typeof m.billing?.multiplier === 'number' ? {
-				multiplierNumeric: m.billing.multiplier,
-			} : undefined,
+			_meta: this._createModelPricingMeta(m.billing),
 		}));
 		this._logService.info(`[Copilot] Found ${result.length} models`);
 		return result;

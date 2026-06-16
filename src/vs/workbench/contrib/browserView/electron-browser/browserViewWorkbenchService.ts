@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BrowserViewCommandId, BrowserViewStorageScope, IBrowserViewOpenOptions, IBrowserViewOwner, IBrowserViewService, IBrowserViewState, IBrowserViewTheme, ipcBrowserViewChannelName } from '../../../../platform/browserView/common/browserView.js';
-import { IBrowserViewWorkbenchService, IBrowserViewModel, BrowserViewModel, IBrowserEditorViewState } from '../common/browserView.js';
+import { IBrowserViewWorkbenchService, IBrowserViewModel, BrowserViewModel, IBrowserEditorViewState, IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewOpenHandler } from '../common/browserView.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
 import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { AUX_WINDOW_GROUP, IEditorService, PreferredGroup } from '../../../services/editor/common/editorService.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -58,6 +58,8 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 
 	private readonly _browserViewService: IBrowserViewService;
 	private readonly _known = new Map<string, BrowserEditorInput>();
+	private readonly _contextualFilters = new Set<IBrowserViewContextualFilter>();
+	private readonly _openHandlers = new Set<IBrowserViewOpenHandler>();
 	private readonly _mainWindowId: number;
 
 	/** Latest tunnel-proxy credentials pushed from the local extension host. */
@@ -187,6 +189,38 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		return this._known;
 	}
 
+	registerContextualFilter(filter: IBrowserViewContextualFilter): IDisposable {
+		this._contextualFilters.add(filter);
+		const changeListener = filter.onDidChange?.(() => this._onDidChangeBrowserViews.fire());
+		this._onDidChangeBrowserViews.fire();
+		return toDisposable(() => {
+			this._contextualFilters.delete(filter);
+			changeListener?.dispose();
+			this._onDidChangeBrowserViews.fire();
+		});
+	}
+
+	getContextualBrowserViews(context?: IBrowserViewFilterContext): Map<string, BrowserEditorInput> {
+		if (this._contextualFilters.size === 0) {
+			return this._known;
+		}
+		const filters = [...this._contextualFilters];
+		const result = new Map<string, BrowserEditorInput>();
+		for (const [id, input] of this._known) {
+			if (filters.every(filter => filter.include(input, { ...context }))) {
+				result.set(id, input);
+			}
+		}
+		return result;
+	}
+
+	registerOpenHandler(handler: IBrowserViewOpenHandler): IDisposable {
+		this._openHandlers.add(handler);
+		return toDisposable(() => {
+			this._openHandlers.delete(handler);
+		});
+	}
+
 	getOrCreateLazy(id: string, initialState?: IBrowserEditorViewState, model?: IBrowserViewModel): BrowserEditorInput {
 		if (!this._known.has(id)) {
 			const input = this.instantiationService.createInstance(BrowserEditorInput, { id, ...initialState }, async () => {
@@ -290,6 +324,13 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	 */
 	private async _openEditorForCreatedView(view: BrowserEditorInput, owner: IBrowserViewOwner, openOptions: IBrowserViewOpenOptions): Promise<void> {
 		const opts = openOptions;
+
+		// Give registered handlers a chance to prevent the editor from opening.
+		for (const handler of this._openHandlers) {
+			if (!handler.shouldOpenEditor(view, owner, opts)) {
+				return;
+			}
+		}
 
 		// Resolve target group: auxiliary window, parent's group, or default
 		let targetGroup: PreferredGroup | undefined;

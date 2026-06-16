@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.126.0",
-  "distro": "8edd514e8c5617018ec1e3f7e9c482edd103640a",
+  "distro": "39e488a8cb34d47db0473ad97d30fee4d8fe9e50",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -24,7 +24,7 @@
     "compile-copilot": "npm --prefix extensions/copilot run compile",
     "transpile": "npm-run-all2 -lp transpile-client transpile-extensions compile-copilot",
     "transpile-extensions": "npm run gulp transpile-extensions compile-extension-media",
-    "compile-check-ts-native": "tsgo --project ./src/tsconfig.json --noEmit --skipLibCheck",
+    "typecheck-client": "tsgo --project ./src/tsconfig.json --noEmit --skipLibCheck",
     "codex:gen-protocol": "node build/codex/generate-protocol.mjs",
     "watch": "npm-run-all2 -lp watch-client-transpile watch-client watch-extensions watch-copilot",
     "watch-transpile": "npm-run-all2 -lp watch-client-transpile watch-extensions watch-copilot",
