@@ -641,7 +641,6 @@
       {
         "name": "copilot_runVscodeCommand",
         "displayName": "Run VS Code Command",
-        "when": "config.github.copilot.chat.newWorkspaceCreation.enabled",
         "toolReferenceName": "runCommand",
         "legacyToolReferenceFullNames": [
           "new/runVscodeCommand"
