@@ -81,10 +81,6 @@ export class AgentSessionHoverWidget extends Disposable {
 		this.renderScheduler.schedule();
 	}
 
-	onHidden() {
-		this.renderScheduler.cancel();
-	}
-
 	private async loadModel() {
 		const modelRef = await this.chatService.acquireOrLoadSession(this.session.resource, ChatAgentLocation.Chat, this.cts.token, 'AgentSessionHoverWidget#loadModel');
 		if (this._store.isDisposed) {
@@ -147,14 +143,14 @@ export class AgentSessionHoverWidget extends Disposable {
 		listWidget.setViewModel(viewModel);
 		listWidget.refresh();
 
-		const viewModelScheudler = this._register(new RunOnceScheduler(() => {
+		const viewModelScheduler = this._register(new RunOnceScheduler(() => {
 			if (this.domNode.isConnected) {
 				listWidget.refresh();
 			}
 		}, 500));
 		this._register(viewModel.onDidChange(() => {
-			if (!viewModelScheudler.isScheduled()) {
-				viewModelScheudler.schedule();
+			if (!viewModelScheduler.isScheduled()) {
+				viewModelScheduler.schedule();
 			}
 		}));
 
