@@ -129,37 +129,26 @@ export interface IPolicy {
 }
 
 /**
- * A subordinate attachment to an existing {@link IPolicy} (the "owner").
+ * A subordinate attachment to an existing {@link IPolicy} (the "owner"). A setting may declare a
+ * `policyReference` instead of a full `policy` to be governed by a policy owned by another setting,
+ * letting a single enterprise policy lock more than one setting (e.g. gating an agent in both the
+ * editor window and the Agents window).
  *
- * A configuration setting may declare a `policyReference` instead of a full `policy`
- * to be governed by a policy that is *owned* (fully declared) by another setting. This
- * lets a single enterprise policy lock more than one setting — for example, the same
- * policy gating an agent in both the editor window and the Agents window.
- *
- * Unlike {@link IPolicy}, a reference carries only the *runtime* bits needed so the
- * policy can be resolved in whatever process the referencing setting lives in (each
- * process must register the policy name locally for the OS policy watcher to observe
- * it). It deliberately does NOT carry catalog metadata (`category`, `minimumVersion`,
- * `localization`): exactly one owner per policy name provides those, which keeps the
- * exported policy catalog and generated ADMX/plist unambiguous.
+ * A reference carries only the *runtime* bits needed to resolve the policy in the process it lives
+ * in; it deliberately omits catalog metadata (`category`, `minimumVersion`, `localization`) so the
+ * single owner remains the authoritative source for the exported policy catalog.
  */
 export interface IPolicyReference {
 
-	/**
-	 * The name of the owning {@link IPolicy} this setting attaches to.
-	 */
+	/** The name of the owning {@link IPolicy} this setting attaches to. */
 	readonly name: PolicyName;
 
 	/**
-	 * Optional account-based value callback, identical in purpose to {@link IPolicy.value}.
-	 * Supplied here (rather than inherited) because the owning policy may be declared in a
-	 * different process that is not loaded where this setting lives.
+	 * Optional account-based value callback ({@link IPolicy.value}). Supplied here rather than
+	 * inherited because the owning policy may be declared in a process not loaded here.
 	 */
 	readonly value?: (policyData: IPolicyData) => string | number | boolean | undefined;
 
-	/**
-	 * Declares Copilot managed-settings keys this reference's value callback reads.
-	 * See {@link IPolicy.managedSettings}.
-	 */
+	/** Copilot managed-settings keys this reference's value callback reads ({@link IPolicy.managedSettings}). */
 	readonly managedSettings?: IManagedSettingsPolicyDefinitions;
 }

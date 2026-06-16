@@ -104,13 +104,9 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 	get configurationModel() { return this._configurationModel; }
 
 	/**
-	 * The authoritative policy definition submitted to the policy service per policy name, keyed
-	 * by the registry schema object it was derived from (`IPolicy` for an owner, `IPolicyReference`
-	 * for a subordinate). Because the registry stores these schema objects stably, reusing the
-	 * cached definition when the source is unchanged keeps the submitted object identity stable and
-	 * avoids redundant policy-service re-registration. A change of source (e.g. a reference being
-	 * upgraded to its owner once the owner registers) produces a new definition that supersedes the
-	 * previous one.
+	 * The registry schema object (`IPolicy` owner or `IPolicyReference`) last used to build the
+	 * definition submitted per policy name. Tracked so a definition is only re-submitted when its
+	 * source changes (e.g. a reference upgraded to its owner), avoiding redundant re-registration.
 	 */
 	private readonly _policyDefinitionSources = new Map<PolicyName, IPolicy | IPolicyReference>();
 
@@ -149,14 +145,12 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 		const configurationProperties = this.configurationRegistry.getConfigurationProperties();
 		const excludedConfigurationProperties = this.configurationRegistry.getExcludedConfigurationProperties();
 
-		// Collect the policy-controlled settings touched by this batch (both owners and
-		// references), plus removed settings. `keys` is consumed by `update()` to (re)apply or
-		// clear the policy value on each affected setting.
+		// Collect the policy-controlled settings touched by this batch (owners and references),
+		// plus removed settings. `keys` is consumed by `update()` to (re)apply or clear the value.
 		for (const key of properties) {
 			const config = configurationProperties[key] ?? excludedConfigurationProperties[key];
 			if (!config) {
-				// Config is removed. So add it to the list in case it was registered as a policy before
-				keys.push(key);
+				keys.push(key); // removed: let `update()` clear any previously applied policy value
 				continue;
 			}
 			const policyName = config.policy?.name ?? config.policyReference?.name;
@@ -166,21 +160,16 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 			}
 		}
 
-		// Resolve the authoritative definition for every policy name touched, owner-first, and
-		// submit only the ones whose source actually changed. The owner always wins, regardless of
-		// whether it registered before or after a subordinate `policyReference` (see
-		// `_policyDefinitionSources`).
+		// Resolve the authoritative (owner-first) definition for each policy name and submit only
+		// those whose source changed, so an owner always wins over a reference regardless of
+		// registration order while avoiding redundant policy-service churn.
 		const changedDefinitions: IStringDictionary<PolicyDefinition> = {};
 		for (const policyName of policyNames) {
 			const resolved = this.resolvePolicyDefinition(policyName);
-			if (!resolved) {
-				continue;
+			if (resolved && this._policyDefinitionSources.get(policyName) !== resolved.source) {
+				this._policyDefinitionSources.set(policyName, resolved.source);
+				changedDefinitions[policyName] = resolved.definition;
 			}
-			if (this._policyDefinitionSources.get(policyName) === resolved.source) {
-				continue;
-			}
-			this._policyDefinitionSources.set(policyName, resolved.source);
-			changedDefinitions[policyName] = resolved.definition;
 		}
 
 		if (!isEmptyObject(changedDefinitions)) {
@@ -191,10 +180,10 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 	}
 
 	/**
-	 * Resolve the authoritative policy definition for `policyName`. An owner (a setting that
-	 * declares the full `policy`) takes precedence; only when no owner is registered in this
-	 * process does a subordinate `policyReference` provide the definition, so the policy still
-	 * resolves where the owner is not loaded.
+	 * Resolve the authoritative policy definition for `policyName`. An owner (a setting declaring
+	 * the full `policy`) takes precedence; only when no owner is registered in this process does a
+	 * subordinate `policyReference` provide the definition, so the policy still resolves where the
+	 * owner is not loaded.
 	 */
 	private resolvePolicyDefinition(policyName: PolicyName): { source: IPolicy | IPolicyReference; definition: PolicyDefinition } | undefined {
 		const configurationProperties = this.configurationRegistry.getConfigurationProperties();
@@ -205,28 +194,18 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 			const config = configurationProperties[ownerKey] ?? excludedConfigurationProperties[ownerKey];
 			if (config?.policy) {
 				const type = this.updateToPolicyDefinitionType(config.type, policyName);
-				if (!type) {
-					return undefined;
-				}
 				const { value, managedSettings, restrictedValue } = config.policy;
-				this.logService.trace(`PolicyConfiguration#resolvePolicyDefinition - resolved owner for policy '${policyName}' from setting '${ownerKey}'`);
-				return { source: config.policy, definition: { type, value, managedSettings, restrictedValue } };
+				return type ? { source: config.policy, definition: { type, value, managedSettings, restrictedValue } } : undefined;
 			}
 		}
 
 		const referenceKeys = this.configurationRegistry.getPolicyReferenceConfigurations().get(policyName);
-		if (referenceKeys) {
-			for (const referenceKey of referenceKeys) {
-				const config = configurationProperties[referenceKey] ?? excludedConfigurationProperties[referenceKey];
-				if (config?.policyReference) {
-					const type = this.updateToPolicyDefinitionType(config.type, policyName);
-					if (!type) {
-						return undefined;
-					}
-					const { value, managedSettings } = config.policyReference;
-					this.logService.trace(`PolicyConfiguration#resolvePolicyDefinition - synthesized referenced policy '${policyName}' from setting '${referenceKey}' (no owner loaded)`);
-					return { source: config.policyReference, definition: { type, value, managedSettings } };
-				}
+		for (const referenceKey of referenceKeys ?? []) {
+			const config = configurationProperties[referenceKey] ?? excludedConfigurationProperties[referenceKey];
+			if (config?.policyReference) {
+				const type = this.updateToPolicyDefinitionType(config.type, policyName);
+				const { value, managedSettings } = config.policyReference;
+				return type ? { source: config.policyReference, definition: { type, value, managedSettings } } : undefined;
 			}
 		}
 
@@ -247,9 +226,6 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 			if (references) {
 				keys.push(...references);
 			}
-		}
-		if (keys.length) {
-			this.logService.trace('PolicyConfiguration#onDidChangePolicies - applying to settings', keys);
 		}
 		this.update(keys, true);
 	}

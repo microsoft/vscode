@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { distinct } from '../../../base/common/arrays.js';
-import { equals } from '../../../base/common/objects.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IJSONSchema } from '../../../base/common/jsonSchema.js';
@@ -1040,45 +1039,6 @@ export function validateProperty(property: string, schema: IRegisteredConfigurat
 	}
 	if (schema.policy?.name && configurationRegistry.getPolicyConfigurations().get(schema.policy?.name) !== undefined) {
 		return nls.localize('config.policy.duplicate', "Cannot register '{0}'. The associated policy {1} is already registered with {2}. To attach another setting to the same policy, use 'policyReference'.", property, schema.policy?.name, configurationRegistry.getPolicyConfigurations().get(schema.policy?.name));
-	}
-	// All settings sharing a policy name (the owner plus every reference) must use the exact same
-	// value type, otherwise a single enterprise policy value cannot apply consistently to all of
-	// them. Validate against whatever sibling settings are already registered in this process.
-	const policyName = schema.policy?.name ?? schema.policyReference?.name;
-	if (policyName) {
-		const typeMismatch = findPolicyTypeMismatch(policyName, schema.type, property);
-		if (typeMismatch) {
-			return typeMismatch;
-		}
-	}
-	return null;
-}
-
-/**
- * Returns an error string if any setting already registered against `policyName` (the owner or an
- * existing reference) has a different `type` than `incomingType`; otherwise `null`. The comparison
- * is by exact configuration `type` so a single policy value applies identically to every setting.
- */
-function findPolicyTypeMismatch(policyName: PolicyName, incomingType: IRegisteredConfigurationPropertySchema['type'], property: string): string | null {
-	const configurationProperties = configurationRegistry.getConfigurationProperties();
-	const excludedProperties = configurationRegistry.getExcludedConfigurationProperties();
-	const siblingKeys: string[] = [];
-	const ownerKey = configurationRegistry.getPolicyConfigurations().get(policyName);
-	if (ownerKey !== undefined) {
-		siblingKeys.push(ownerKey);
-	}
-	const referenceKeys = configurationRegistry.getPolicyReferenceConfigurations().get(policyName);
-	if (referenceKeys) {
-		siblingKeys.push(...referenceKeys);
-	}
-	for (const siblingKey of siblingKeys) {
-		if (siblingKey === property) {
-			continue;
-		}
-		const sibling = configurationProperties[siblingKey] ?? excludedProperties[siblingKey];
-		if (sibling && !equals(sibling.type, incomingType)) {
-			return nls.localize('config.policy.typeMismatch', "Cannot register '{0}'. Its type '{1}' does not match the type '{2}' of setting '{3}' which shares policy {4}. All settings sharing a policy must use the same type.", property, JSON.stringify(incomingType), JSON.stringify(sibling.type), siblingKey, policyName);
-		}
 	}
 	return null;
 }
