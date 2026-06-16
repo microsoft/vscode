@@ -1283,13 +1283,16 @@ suite('AgentHostChatContribution', () => {
 			assert.ok(when, 'folder picker menu item has a when clause');
 
 			const evalWhen = (values: Record<string, ContextKeyValue>) => when.evaluate({ getValue: <T extends ContextKeyValue = ContextKeyValue>(key: string) => values[key] as T });
-			const agentHost = { [ChatContextKeys.lockedCodingAgentId.key]: 'agent-host-copilot' };
+			const agentHost = {
+				[ChatContextKeys.lockedCodingAgentId.key]: 'agent-host-copilot',
+				[ChatContextKeys.chatIsAgentHostSession.key]: true,
+			};
 
 			assert.deepStrictEqual({
 				multiRootEditor: evalWhen({ ...agentHost, workspaceFolderCount: 2, isSessionsWindow: false }),
 				singleFolder: evalWhen({ ...agentHost, workspaceFolderCount: 1, isSessionsWindow: false }),
 				sessionsWindow: evalWhen({ ...agentHost, workspaceFolderCount: 2, isSessionsWindow: true }),
-				nonAgentHost: evalWhen({ [ChatContextKeys.lockedCodingAgentId.key]: 'copilot', workspaceFolderCount: 2, isSessionsWindow: false }),
+				nonAgentHost: evalWhen({ [ChatContextKeys.lockedCodingAgentId.key]: 'copilot', [ChatContextKeys.chatIsAgentHostSession.key]: false, workspaceFolderCount: 2, isSessionsWindow: false }),
 			}, {
 				multiRootEditor: true,
 				singleFolder: false,
