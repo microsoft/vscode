@@ -21,7 +21,7 @@ import type { RawSourceMap } from 'source-map';
 import ts from 'typescript';
 import watch from './watch/index.ts';
 import * as tsb from './tsb/index.ts';
-import { createTsgoStream } from './tsgo.ts';
+import { createTsgoStream, spawnTsgo } from './tsgo.ts';
 
 
 import { extractExtensionPointNamesFromFile } from './extractExtensionPoints.ts';
@@ -120,15 +120,17 @@ export function transpileTask(src: string, out: string, esbuild?: boolean): task
 	return task;
 }
 
-export function compileTask(src: string, out: string, build: boolean, options: { disableMangle?: boolean; preserveEnglish?: boolean } = {}): task.StreamTask {
+export function compileTask(src: string, out: string, build: boolean, options: { disableMangle?: boolean; preserveEnglish?: boolean } = {}): task.Task {
 
-	const task = () => {
+	const task = async () => {
 
 		if (os.totalmem() < 4_000_000_000) {
 			throw new Error('compilation requires 4GB of RAM');
 		}
 
-		const compile = createCompile(src, { build, emitError: true, transpileOnly: false, preserveEnglish: !!options.preserveEnglish });
+		// For dev builds we can transpile with esbuild for speed and type-check with tsgo (no emit).
+		// For `build`, keep the full tsb pipeline because the NLS step requires `file.sourceMap`.
+		const compile = createCompile(src, { build, emitError: true, transpileOnly: build ? false : { esbuild: true }, preserveEnglish: !!options.preserveEnglish });
 		const srcPipe = gulp.src(`${src}/**`, { base: `${src}` });
 		const generator = new MonacoGenerator(false);
 		if (src === 'src') {
@@ -158,11 +160,15 @@ export function compileTask(src: string, out: string, build: boolean, options: {
 			});
 		}
 
-		return srcPipe
+		const emit = util.streamToPromise(srcPipe
 			.pipe(mangleStream)
 			.pipe(generator.stream)
 			.pipe(compile())
-			.pipe(gulp.dest(out));
+			.pipe(gulp.dest(out)));
+
+		const typecheck = spawnTsgo(compile.projectPath, { taskName: `compile-${path.basename(src)}`, noEmit: true });
+
+		await Promise.all([emit, typecheck]);
 	};
 
 	task.taskName = `compile-${path.basename(src)}`;
