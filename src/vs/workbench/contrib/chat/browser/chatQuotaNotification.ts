@@ -4,10 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { safeIntl } from '../../../../base/common/date.js';
+import { createMarkdownCommandLink, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
@@ -24,7 +28,8 @@ const TRAJECTORY_MINIMUM_PERCENT_USED = 10;
 const TRAJECTORY_MAXIMUM_PERCENT_USED = 35;
 const TRAJECTORY_TREATMENT = 'chatQuotaTrajectoryNudge';
 const TRAJECTORY_DISMISSED_STORAGE_KEY = 'chat.quotaTrajectory.dismissedPeriod';
-const CREDIT_EFFICIENCY_LEARN_MORE_URL = 'https://www.microsoft.com';
+const CREDIT_EFFICIENCY_LEARN_MORE_URL = 'https://aka.ms/token-usage-tips';
+const CREDIT_EFFICIENCY_LEARN_MORE_COMMAND_ID = 'workbench.action.chat.learnMoreAboutCreditUsage';
 
 const enum QuotaNotificationKind {
 	None,
@@ -90,6 +95,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	private _trajectoryNudgeEnabled = false;
 	private _activeQuotaNotificationKind = QuotaNotificationKind.None;
 	private _lastLoggedTrajectoryShownSignature: string | undefined;
+	private _activeTrajectoryWarning: { averageDailyUsage: number; percentUsed: number } | undefined;
 
 	constructor(
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
@@ -114,7 +120,9 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 				this._storeTrajectoryDismissal();
 			}
 			this._activeQuotaNotificationKind = QuotaNotificationKind.None;
+			this._activeTrajectoryWarning = undefined;
 		}));
+		this._register(CommandsRegistry.registerCommand(CREDIT_EFFICIENCY_LEARN_MORE_COMMAND_ID, (accessor: ServicesAccessor) => this._handleCreditEfficiencyLearnMoreCommand(accessor)));
 
 		// Re-evaluate when the selected model changes (e.g. switching between Copilot and BYOK).
 		// The chatModelId context key is widget-scoped and may not bubble to the global
@@ -325,23 +333,30 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	private _showQuotaTrajectoryWarning(warning: { averageDailyUsage: number; percentUsed: number }): void {
 		this._showingExhausted = false;
 		this._activeQuotaNotificationKind = QuotaNotificationKind.Trajectory;
+		this._activeTrajectoryWarning = warning;
 		this._logQuotaTrajectoryNudgeShown(warning);
+		const learnMoreLink = createMarkdownCommandLink({
+			text: localize('quota.trajectory.learnMore', "Learn more about managing credits"),
+			id: CREDIT_EFFICIENCY_LEARN_MORE_COMMAND_ID,
+			tooltip: localize('quota.trajectory.learnMoreTooltip', "Learn more about managing credits"),
+		});
 
 		this._setNotification({
 			id: QUOTA_NOTIFICATION_ID,
 			severity: ChatInputNotificationSeverity.Info,
-			message: localize('quota.trajectory.title', "Fast Credit Usage"),
-			description: localize('quota.trajectory.desc', "Based on recent usage, your monthly allowance may run out before it resets."),
-			actions: [{
-				label: localize('quota.trajectory.learnMore', "Review Credit Tips"),
-				commandId: 'vscode.open',
-				commandArgs: [URI.parse(CREDIT_EFFICIENCY_LEARN_MORE_URL)],
-				secondary: true,
-				run: () => this._handleQuotaTrajectoryNudgeAction(warning, 'learnMore'),
-			}],
+			message: new MarkdownString(localize({ key: 'quota.trajectory.message', comment: ['{Locked="]({0})"}'] }, "Based on recent usage, your monthly allowance may run out before it resets. {0}", learnMoreLink), { isTrusted: { enabledCommands: [CREDIT_EFFICIENCY_LEARN_MORE_COMMAND_ID] } }),
+			description: undefined,
+			actions: [],
 			dismissible: true,
 			autoDismissOnMessage: false,
 		});
+	}
+
+	private async _handleCreditEfficiencyLearnMoreCommand(accessor: ServicesAccessor): Promise<void> {
+		if (this._activeQuotaNotificationKind === QuotaNotificationKind.Trajectory && this._activeTrajectoryWarning) {
+			this._handleQuotaTrajectoryNudgeAction(this._activeTrajectoryWarning, 'learnMore');
+		}
+		await accessor.get(IOpenerService).open(URI.parse(CREDIT_EFFICIENCY_LEARN_MORE_URL));
 	}
 
 	private _handleQuotaTrajectoryNudgeAction(warning: { averageDailyUsage: number; percentUsed: number }, action: ChatQuotaTrajectoryNudgeAction): void {
@@ -397,6 +412,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	private _showExhaustedNotification(): void {
 		this._showingExhausted = true;
 		this._activeQuotaNotificationKind = QuotaNotificationKind.None;
+		this._activeTrajectoryWarning = undefined;
 
 		const entitlement = this._chatEntitlementService.entitlement;
 		const quotas = this._chatEntitlementService.quotas;
@@ -439,6 +455,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	private _showOverageActivationNotification(): void {
 		this._showingExhausted = true;
 		this._activeQuotaNotificationKind = QuotaNotificationKind.None;
+		this._activeTrajectoryWarning = undefined;
 
 		this._setNotification({
 			id: QUOTA_NOTIFICATION_ID,
@@ -457,6 +474,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	private _showQuotaApproachingWarning(warning: { percentUsed: number; threshold: number }): void {
 		this._showingExhausted = false;
 		this._activeQuotaNotificationKind = QuotaNotificationKind.None;
+		this._activeTrajectoryWarning = undefined;
 
 		const entitlement = this._chatEntitlementService.entitlement;
 		const quotas = this._chatEntitlementService.quotas;
@@ -530,6 +548,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	private _showRateLimitWarning(warning: { percentUsed: number; type: 'session' | 'weekly'; resetDate: string | undefined }): void {
 		this._showingExhausted = false;
 		this._activeQuotaNotificationKind = QuotaNotificationKind.None;
+		this._activeTrajectoryWarning = undefined;
 
 		const message = warning.type === 'session'
 			? localize('rateLimit.session', "You've used {0}% of your session rate limit.", warning.percentUsed)
@@ -579,6 +598,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	private _showManagedPlanBlockedNotification(): void {
 		this._showingExhausted = true;
 		this._activeQuotaNotificationKind = QuotaNotificationKind.None;
+		this._activeTrajectoryWarning = undefined;
 
 		this._setNotification({
 			id: QUOTA_NOTIFICATION_ID,
@@ -633,6 +653,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	private _hideNotification(): void {
 		this._showingExhausted = false;
 		this._activeQuotaNotificationKind = QuotaNotificationKind.None;
+		this._activeTrajectoryWarning = undefined;
 		this._chatInputNotificationService.deleteNotification(QUOTA_NOTIFICATION_ID);
 	}
 

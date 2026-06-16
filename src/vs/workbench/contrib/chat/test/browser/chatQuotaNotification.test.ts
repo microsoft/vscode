@@ -5,10 +5,16 @@
 
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { createMarkdownCommandLink } from '../../../../../base/common/htmlContent.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ServiceIdentifier, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
@@ -17,6 +23,9 @@ import { ChatEntitlement, IChatEntitlementService, IChatSentiment, IQuotaSnapsho
 import { ChatQuotaNotificationContribution } from '../../browser/chatQuotaNotification.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../common/languageModels.js';
 import { ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
+
+const CREDIT_EFFICIENCY_LEARN_MORE_COMMAND_ID = 'workbench.action.chat.learnMoreAboutCreditUsage';
+const CREDIT_EFFICIENCY_LEARN_MORE_URL = 'https://aka.ms/token-usage-tips';
 
 // --- Mock IChatEntitlementService -------------------------------------------
 
@@ -188,6 +197,35 @@ function makeRateLimitSnapshot(percentRemaining: number, opts?: Partial<IRateLim
 		resetDate: '2026-06-01T00:00:00Z',
 		...opts,
 	};
+}
+
+async function runCreditEfficiencyLearnMoreCommand(): Promise<URI[]> {
+	const opened: URI[] = [];
+	const openerService: IOpenerService = {
+		_serviceBrand: undefined,
+		registerOpener: () => Disposable.None,
+		registerValidator: () => Disposable.None,
+		registerExternalUriResolver: () => Disposable.None,
+		setDefaultExternalOpener: () => { },
+		registerExternalOpener: () => Disposable.None,
+		open: async resource => {
+			opened.push(URI.isUri(resource) ? resource : URI.parse(resource));
+			return true;
+		},
+		resolveExternalUri: async resource => ({ resolved: resource, dispose: () => { } }),
+	};
+	const accessor: ServicesAccessor = {
+		get: <T>(id: ServiceIdentifier<T>): T => {
+			if (id === IOpenerService) {
+				return openerService as T;
+			}
+			throw new Error('Unexpected service');
+		},
+	};
+	const command = CommandsRegistry.getCommand(CREDIT_EFFICIENCY_LEARN_MORE_COMMAND_ID);
+	assert.ok(command);
+	await command.handler(accessor);
+	return opened;
 }
 
 function makeResetDate(daysUntilReset: number): string {
@@ -658,16 +696,23 @@ suite('ChatQuotaNotificationContribution', () => {
 
 			await flushPromises();
 
-			assert.ok(notificationMock.getNotification());
+			const notification = notificationMock.getNotification();
+			assert.ok(notification);
+			const message = notification.message;
+			const learnMoreLink = createMarkdownCommandLink({
+				text: 'Learn more about managing credits',
+				id: CREDIT_EFFICIENCY_LEARN_MORE_COMMAND_ID,
+				tooltip: 'Learn more about managing credits',
+			});
 			assert.deepStrictEqual({
-				message: notificationMock.getNotification()!.message,
-				severity: notificationMock.getNotification()!.severity,
-				action: notificationMock.getNotification()!.actions[0].label,
-				autoDismissOnMessage: notificationMock.getNotification()!.autoDismissOnMessage,
+				message: typeof message === 'string' ? message : message.value,
+				severity: notification.severity,
+				actions: notification.actions.length,
+				autoDismissOnMessage: notification.autoDismissOnMessage,
 			}, {
-				message: 'Fast Credit Usage',
+				message: `Based on recent usage, your monthly allowance may run out before it resets. ${learnMoreLink}`,
 				severity: ChatInputNotificationSeverity.Info,
-				action: 'Review Credit Tips',
+				actions: 0,
 				autoDismissOnMessage: false,
 			});
 		});
@@ -714,7 +759,7 @@ suite('ChatQuotaNotificationContribution', () => {
 
 		test('logs action click telemetry', async () => {
 			const telemetryService = new TestTelemetryService();
-			const { notificationMock } = createContribution({
+			createContribution({
 				entitlement: ChatEntitlement.Pro,
 				quotas: {
 					resetDate: makeResetDate(24),
@@ -724,29 +769,35 @@ suite('ChatQuotaNotificationContribution', () => {
 			}, { trajectoryTreatment: 'enabled', telemetryService });
 
 			await flushPromises();
-			notificationMock.getNotification()!.actions[0].run?.();
+			const opened = await runCreditEfficiencyLearnMoreCommand();
 
-			assert.deepStrictEqual(telemetryService.events, [
-				{
-					name: 'chatQuotaTrajectoryNudgeShown',
-					data: {
-						severity: 'info',
-						entitlement: 'Pro',
-						averageDailyUsage: 3.67,
-						percentUsed: 22,
+			assert.deepStrictEqual({
+				events: telemetryService.events,
+				opened: opened.map(uri => uri.toString()),
+			}, {
+				events: [
+					{
+						name: 'chatQuotaTrajectoryNudgeShown',
+						data: {
+							severity: 'info',
+							entitlement: 'Pro',
+							averageDailyUsage: 3.67,
+							percentUsed: 22,
+						},
 					},
-				},
-				{
-					name: 'chatQuotaTrajectoryNudgeActionClicked',
-					data: {
-						severity: 'info',
-						entitlement: 'Pro',
-						averageDailyUsage: 3.67,
-						percentUsed: 22,
-						action: 'learnMore',
+					{
+						name: 'chatQuotaTrajectoryNudgeActionClicked',
+						data: {
+							severity: 'info',
+							entitlement: 'Pro',
+							averageDailyUsage: 3.67,
+							percentUsed: 22,
+							action: 'learnMore',
+						},
 					},
-				},
-			]);
+				],
+				opened: [CREDIT_EFFICIENCY_LEARN_MORE_URL],
+			});
 		});
 
 		test('action click dismisses trajectory nudge for the quota period', async () => {
@@ -762,7 +813,7 @@ suite('ChatQuotaNotificationContribution', () => {
 			await flushPromises();
 			assert.ok(notificationMock.getNotification());
 
-			notificationMock.getNotification()!.actions[0].run?.();
+			await runCreditEfficiencyLearnMoreCommand();
 			await flushPromises();
 
 			assert.strictEqual(notificationMock.getNotification(), undefined);
