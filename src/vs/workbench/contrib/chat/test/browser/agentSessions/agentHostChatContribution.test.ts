@@ -70,7 +70,7 @@ import { ChatQuestionCarouselData } from '../../../common/model/chatProgressType
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import type { IChatModel, IChatPendingRequest, IChatRequestModel } from '../../../common/model/chatModel.js';
 import { convertBufferToScreenshotVariable } from '../../../browser/attachments/chatScreenshotContext.js';
-import { AgentHostCompletionReferenceKind, toAgentHostCompletionVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { AgentHostCompletionReferenceKind, toAgentHostCompletionVariableEntry, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 
 // ---- Mock agent host service ------------------------------------------------
 
@@ -437,13 +437,14 @@ class MockChatWidgetService extends mock<IChatWidgetService>() {
 	readonly clearQuestionCarouselCalls: { sessionResource: URI; responseId: string | undefined; resolveId: string | undefined }[] = [];
 	private readonly _widgets = new Map<string, ReturnType<IChatWidgetService['getWidgetBySessionResource']>>();
 
-	setWidgetForSession(sessionResource: URI): void {
+	setWidgetForSession(sessionResource: URI, implicitContextValues?: readonly Partial<IChatRequestVariableEntry>[]): void {
 		// eslint-disable-next-line local/code-no-any-casts
 		this._widgets.set(sessionResource.toString(), {
 			input: {
 				clearQuestionCarousel: (responseId?: string, resolveId?: string) => {
 					this.clearQuestionCarouselCalls.push({ sessionResource, responseId, resolveId });
 				},
+				implicitContext: implicitContextValues ? { values: implicitContextValues } : undefined,
 			},
 		} as any);
 	}
@@ -3385,7 +3386,7 @@ suite('AgentHostChatContribution', () => {
 			]);
 		}));
 
-		test('implicit visible code location does not become selection attachment', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		test('implicit visible code location becomes document attachment without selection', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
@@ -3410,7 +3411,62 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
 			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
-			assert.strictEqual(turnAction.message.attachments, undefined);
+			assert.deepStrictEqual(turnAction.message.attachments, [
+				{
+					type: MessageAttachmentKind.Resource,
+					uri: URI.file('/workspace/foo.ts').toString(),
+					label: 'visible code',
+					displayKind: 'document',
+				},
+			]);
+		}));
+
+		test('active editor implicit context is forwarded as a document attachment for agent sessions', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, chatWidgetService } = createContribution(disposables);
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-implicit-active-editor' });
+			chatWidgetService.setWidgetForSession(sessionResource, [
+				{ kind: 'implicit', id: 'vscode.implicit.viewport', name: 'foo.ts', isSelection: false, value: { uri: URI.file('/workspace/foo.ts'), range: new Range(1, 1, 20, 1) } },
+			]);
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'what\'s in this file?',
+				sessionResource,
+			});
+			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.turnActions.length, 1);
+			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+			assert.deepStrictEqual(turnAction.message.attachments, [
+				{ type: MessageAttachmentKind.Resource, uri: URI.file('/workspace/foo.ts').toString(), label: 'foo.ts', displayKind: 'document' },
+			]);
+		}));
+
+		test('active editor implicit context is not duplicated when also attached explicitly', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, chatWidgetService } = createContribution(disposables);
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-implicit-dedup' });
+			const fileUri = URI.file('/workspace/foo.ts');
+			chatWidgetService.setWidgetForSession(sessionResource, [
+				{ kind: 'implicit', id: 'vscode.implicit.viewport', name: 'foo.ts', isSelection: false, value: { uri: fileUri, range: new Range(1, 1, 20, 1) } },
+			]);
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'what\'s in this file?',
+				sessionResource,
+				variables: {
+					variables: [
+						upcastPartial({ kind: 'file', id: 'v-file', name: 'foo.ts', value: fileUri }),
+					],
+				},
+			});
+			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.turnActions.length, 1);
+			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+			assert.deepStrictEqual(turnAction.message.attachments, [
+				{ type: MessageAttachmentKind.Resource, uri: fileUri.toString(), label: 'foo.ts', displayKind: 'document' },
+			]);
 		}));
 
 		test('non-file URI variables (e.g. untitled documents) are forwarded as attachments', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

@@ -2914,7 +2914,38 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	private _convertVariablesToAttachments(request: IChatAgentRequest): MessageAttachment[] {
-		return this._variableEntriesToAttachments(request.variables.variables, request.sessionResource, request.message);
+		const attachments = this._variableEntriesToAttachments(request.variables.variables, request.sessionResource, request.message);
+		this._appendActiveEditorAttachments(attachments, request);
+		return attachments;
+	}
+
+	/**
+	 * Forward the user's active editor as ambient context. The "suggested context" flow keeps the active file out of
+	 * the request for agents, leaving an agent-host backend unable to resolve what "this file" means. Re-add the active
+	 * editor (already computed by the implicit-context machinery on the widget) as a lightweight reference, deduping
+	 * against any file the user attached explicitly.
+	 */
+	private _appendActiveEditorAttachments(attachments: MessageAttachment[], request: IChatAgentRequest): void {
+		const implicitContext = this._chatWidgetService.getWidgetBySessionResource(request.sessionResource)?.input.implicitContext;
+		if (!implicitContext) {
+			return;
+		}
+		const existingResourceUris = new Set<string>();
+		for (const attachment of attachments) {
+			if (attachment.type === MessageAttachmentKind.Resource) {
+				existingResourceUris.add(attachment.uri);
+			}
+		}
+		for (const entry of implicitContext.values) {
+			if (entry.value === undefined) {
+				continue;
+			}
+			const attachment = this._convertVariableToAttachment(entry, request.sessionResource, request.message);
+			if (attachment?.type === MessageAttachmentKind.Resource && !existingResourceUris.has(attachment.uri)) {
+				existingResourceUris.add(attachment.uri);
+				attachments.push(attachment);
+			}
+		}
 	}
 
 	private _variableEntriesToAttachments(variables: readonly IChatRequestVariableEntry[], sessionResource: URI, messageText?: string): MessageAttachment[] {
@@ -2934,11 +2965,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private _convertVariableToAttachment(v: IChatRequestVariableEntry, sessionResource: URI, messageText?: string): MessageAttachment | undefined {
 		const referenceRange = this._toAttachmentReferenceRange(messageText, v.range);
 		// File / implicit attachments: a Location → selection, a URI → resource.
-		// Only the selection variant of an implicit attachment becomes a
-		// `selection`; the bare visible-document case stays a plain file
-		// reference (or, when there's no value at all, gets dropped).
+		// Only an implicit selection becomes a `selection`; an implicit visible
+		// document is forwarded as a plain document reference (its viewport range
+		// is dropped so it isn't mistaken for a selection).
 		if ((v.kind === 'file' || (v.kind === 'implicit' && v.isSelection)) && isLocation(v.value)) {
 			return this._toSelectionAttachment(v.value, v.name, 'selection', sessionResource, v._meta, referenceRange);
+		}
+		if (v.kind === 'implicit' && isLocation(v.value)) {
+			return this._toResourceAttachment(v.value.uri, v.name, 'document', sessionResource, v._meta, referenceRange);
 		}
 		if ((v.kind === 'file' || v.kind === 'implicit') && v.value instanceof URI) {
 			return this._toResourceAttachment(v.value, v.name, 'document', sessionResource, v._meta, referenceRange);
