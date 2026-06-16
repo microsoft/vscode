@@ -4293,9 +4293,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .chat-model-hover-price-badge {
 	flex: 0 0 auto;
-	padding: 1px 8px;
-	border-radius: 10px;
-	border: 1px solid var(--vscode-contrastBorder, var(--vscode-editorWidget-border));
+	padding: 2px 8px;
+	border-radius: var(--vscode-cornerRadius-circle);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-editorWidget-border));
 	font-size: 11px;
 	color: var(--vscode-descriptionForeground);
 	white-space: nowrap;
@@ -4343,7 +4343,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-model-hover-cost-count {
-	font-weight: 450;
+	font-weight: 600;
 	color: var(--vscode-foreground);
 }
 
@@ -4397,5 +4397,5 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .monaco-workbench .chat-model-hover-configurable > .monaco-button .codicon[class*='codicon-'] {
-	font-size: 14px;
+	font-size: var(--vscode-codiconFontSize-compact);
 }

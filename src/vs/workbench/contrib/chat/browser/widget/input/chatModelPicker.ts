@@ -1539,6 +1539,13 @@ export class ModelPickerWidget extends Disposable {
 }
 
 
+/**
+ * Configuration property groups the config picker can render and focus.
+ * Hover "configure" buttons must be limited to these so they never deep-link
+ * into a section that `_showConfigPicker` cannot build (see `_buildConfigItems`).
+ */
+const SUPPORTED_CONFIG_GROUPS: readonly string[] = ['navigation', 'tokens'];
+
 export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, openerService: IOpenerService, isUBB?: boolean, onConfigure?: (group: string) => void): { element: HTMLElement; disposable: DisposableStore } | undefined {
 	const isAuto = isAutoModel(model);
 	const container = dom.$('.chat-model-hover');
@@ -1586,7 +1593,7 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 
 		if (metrics.length > 0) {
 			const contextLabels = getContextSizeLabels(model);
-			// Only show the long-context column when its prices actually differ from the default.
+			// Show the long-context column whenever any metric has a long-context price.
 			const hasLongContext = metrics.some(m => m.long !== undefined);
 
 			container.appendChild(dom.$('.chat-model-hover-separator'));
@@ -1664,10 +1671,12 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 	// --- Configurable properties (UBB only — PRU uses inline toolbar actions) ---
 	if (!isAuto && isUBB && model.metadata.configurationSchema?.properties) {
 		const configButtons: { group: string; label: string }[] = [];
+		const seenGroups = new Set<string>();
 		for (const [, propSchema] of Object.entries(model.metadata.configurationSchema.properties)) {
-			if (propSchema.enum && propSchema.enum.length >= 2 && propSchema.group) {
+			if (propSchema.enum && propSchema.enum.length >= 2 && propSchema.group && SUPPORTED_CONFIG_GROUPS.includes(propSchema.group) && !seenGroups.has(propSchema.group)) {
 				const label = propSchema.title ?? propSchema.description;
 				if (label) {
+					seenGroups.add(propSchema.group);
 					configButtons.push({ group: propSchema.group, label });
 				}
 			}
