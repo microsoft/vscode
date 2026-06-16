@@ -700,8 +700,15 @@ export async function processResponseFromMessagesEndpoint(
 				return;
 			}
 			idleTimer = setTimeout(() => {
-				idleReported = true;
 				const idleMs = Date.now() - lastChunkTime;
+				// Guard against an event-loop race: a chunk can arrive and re-arm the
+				// timer at the same tick the previously scheduled callback fires, so a
+				// stale callback may still run after clearTimeout. Re-check the actual
+				// idle time before reporting to avoid a false positive on a healthy stream.
+				if (idleReported || idleMs < ANTHROPIC_STREAM_IDLE_TIMEOUT_MS) {
+					return;
+				}
+				idleReported = true;
 				logService.error(`[messagesAPI] stream idle for ${idleMs}ms with no chunk (requestId: ${requestId}, ghRequestId: ${ghRequestId}, completions: ${completionsEmitted})`);
 				/* __GDPR__
 					"messagesApi.streamIdleTimeout" : {
