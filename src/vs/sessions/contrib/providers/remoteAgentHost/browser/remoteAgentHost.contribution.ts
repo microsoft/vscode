@@ -872,6 +872,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			canDelegate: true,
 			requiresCustomModels: true,
 			supportsAutoModel: agentHostProviderSupportsAutoModel(agent.provider),
+			agentHostProviderId: agent.provider,
 			supportsDelegation: false,
 			capabilities: {
 				supportsCheckpoints: true,

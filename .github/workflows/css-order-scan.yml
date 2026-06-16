@@ -79,12 +79,15 @@ jobs:
 
       - name: Start serve-out
         # The scan attaches to an already-running serve (component-explorer-attach.json).
-        # Start it in the background and wait until rspack reports the loopback URL.
+        # Start it in the background and wait until the dev server accepts connections.
+        # Probe the port directly instead of grepping the log: rspack's stdout is
+        # block-buffered when redirected to a file, so the "Loopback" line can take
+        # minutes to land in the log even though the server is already listening.
         run: |
           npm run serve-out-rspack > /tmp/serve-out.log 2>&1 &
           echo "SERVE_PID=$!" >> "$GITHUB_ENV"
           for i in $(seq 1 120); do
-            if grep -q "Loopback: http://localhost:5123/" /tmp/serve-out.log; then
+            if curl -s -o /dev/null "http://localhost:5123/"; then
               echo "serve-out is ready"
               exit 0
             fi

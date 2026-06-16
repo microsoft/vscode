@@ -554,56 +554,6 @@ registerAction2(class ArchiveSectionAction extends Action2 {
 	}
 });
 
-registerAction2(class UnarchiveSectionAction extends Action2 {
-	constructor() {
-		super({
-			id: 'sessionsView.sectionUnarchive',
-			title: localize2('unarchiveSection', "Restore All"),
-			icon: Codicon.discard,
-			menu: [{
-				id: SessionSectionToolbarMenuId,
-				group: 'navigation',
-				order: 0,
-				when: ContextKeyExpr.equals(SessionSectionTypeContext.key, 'archived'),
-			}]
-		});
-	}
-	async run(accessor: ServicesAccessor, context?: ISessionSection): Promise<void> {
-		if (!context || !context.sessions || context.sessions.length === 0) {
-			return;
-		}
-
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const dialogService = accessor.get(IDialogService);
-		const storageService = accessor.get(IStorageService);
-
-		if (context.sessions.length > 1) {
-			const skipConfirmation = storageService.getBoolean(ConfirmArchiveStorageKey, StorageScope.PROFILE, false);
-			if (!skipConfirmation) {
-				const confirmed = await dialogService.confirm({
-					message: localize('unarchiveSectionSessions.confirm', "Are you sure you want to restore {0} sessions?", context.sessions.length),
-					primaryButton: localize('unarchiveSectionSessions.unarchive', "Restore All"),
-					checkbox: {
-						label: localize('doNotAskAgain2', "Do not ask me again")
-					}
-				});
-
-				if (!confirmed.confirmed) {
-					return;
-				}
-
-				if (confirmed.checkboxChecked) {
-					storageService.store(ConfirmArchiveStorageKey, true, StorageScope.PROFILE, StorageTarget.USER);
-				}
-			}
-		}
-
-		for (const session of context.sessions) {
-			await sessionsManagementService.unarchiveSession(session);
-		}
-	}
-});
-
 //  Session Item Actions
 
 registerAction2(class PinSessionAction extends Action2 {

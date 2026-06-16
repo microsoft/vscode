@@ -4363,6 +4363,16 @@
               "experimental",
               "onExp"
             ]
+          },
+          "github.copilot.chat.tools.grepSearch.outputFormat": {
+            "type": "string",
+            "default": "tag",
+            "enum": ["grep", "tag"],
+            "markdownDescription": "%github.copilot.chat.tools.grepSearch.outputFormat%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
           }
         }
       },
@@ -5570,7 +5580,8 @@
       ],
       "chat/contextUsage/actions": [
         {
-          "command": "github.copilot.chat.compact"
+          "command": "github.copilot.chat.compact",
+          "when": "!chatIsAgentHostSession"
         }
       ],
       "chat/newSession": [

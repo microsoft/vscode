@@ -1297,6 +1297,15 @@ export class TelemetrySender implements IDisposable {
 		const modelResponse = response === undefined ? response : await response;
 		const resolvedSimilarFilesContext = await similarFilesContext?.catch(() => undefined);
 
+		// `modelResponse` is only set when the fetch succeeded. Empty string responses
+		// (e.g. diff-patch model emitting "" to indicate "no edit") are dropped by
+		// `eventPropertiesToSimpleObject` because it filters out falsy values, which makes
+		// them indistinguishable from cancellations, failures, or no-fetch paths in the
+		// restricted telemetry table. `fetchResult` carries the underlying
+		// `ChatFetchResponseType` so consumers can tell `success` + empty `modelResponse`
+		// (model responded with nothing) apart from other reasons `modelResponse` is empty.
+		const fetchResult: ChatFetchResponseType | undefined = modelResponse?.fetchResult;
+
 		this._telemetryService.sendEnhancedGHTelemetryEvent(NES_GH_TELEMETRY_EVENT_NAME,
 			multiplexProperties({
 				opportunityId,
@@ -1307,6 +1316,7 @@ export class TelemetrySender implements IDisposable {
 				modelName,
 				prompt,
 				modelResponse: modelResponse === undefined || modelResponse.response.type !== ChatFetchResponseType.Success ? undefined : modelResponse.response.value,
+				fetchResult,
 				alternativeAction: alternativeAction ? JSON.stringify({ ...alternativeAction, enhancedTelemetrySendingReason: sendingReason }) : undefined,
 				enhancedTelemetrySendingReason: !alternativeAction && sendingReason ? JSON.stringify(sendingReason) : undefined,
 				postProcessingOutcome,
