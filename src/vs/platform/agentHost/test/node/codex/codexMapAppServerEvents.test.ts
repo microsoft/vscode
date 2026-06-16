@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { createCodexSessionMapState, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, turnStateFromStatus } from '../../../node/codex/codexMapAppServerEvents.js';
+import { createCodexSessionMapState, extractUserInputText, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, resetCodexTurnMapState, turnStateFromStatus } from '../../../node/codex/codexMapAppServerEvents.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolResultContentType, TurnState } from '../../../common/state/sessionState.js';
 
@@ -490,5 +490,34 @@ suite('codexMapAppServerEvents', () => {
 		assert.strictEqual(turnStateFromStatus('interrupted'), TurnState.Cancelled);
 		assert.strictEqual(turnStateFromStatus('failed'), TurnState.Error);
 		assert.strictEqual(turnStateFromStatus('weird'), TurnState.Complete);
+	});
+
+	test('extractUserInputText joins text inputs and ignores non-text', () => {
+		assert.strictEqual(
+			extractUserInputText([
+				{ type: 'text', text: 'first', text_elements: [] },
+				{ type: 'image', url: 'http://x/y.png' },
+				{ type: 'text', text: 'second', text_elements: [] },
+				{ type: 'mention', name: 'foo', path: '/foo' },
+			]),
+			'first\n\nsecond',
+		);
+		assert.strictEqual(extractUserInputText([]), '');
+		assert.strictEqual(extractUserInputText([{ type: 'image', url: 'http://x/y.png' }]), '');
+	});
+
+	test('resetCodexTurnMapState clears item maps but preserves currentTurnId', () => {
+		const state = createCodexSessionMapState();
+		state.currentTurnId = 'turn_a';
+		state.itemToPartId.set('i1', 'p1');
+		state.itemToToolCall.set('i2', { toolCallId: 'tc', turnId: 'turn_a', toolName: 'shell', output: '' });
+		state.itemToReasoningPartId.set('i3', 'r1');
+		resetCodexTurnMapState(state);
+		assert.deepStrictEqual({
+			currentTurnId: state.currentTurnId,
+			parts: state.itemToPartId.size,
+			toolCalls: state.itemToToolCall.size,
+			reasoning: state.itemToReasoningPartId.size,
+		}, { currentTurnId: 'turn_a', parts: 0, toolCalls: 0, reasoning: 0 });
 	});
 });

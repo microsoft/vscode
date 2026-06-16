@@ -32,7 +32,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { CodexAppServerClient, JsonRpcError, transportFromChildProcess, type ICodexAppServerClient } from './codexAppServerClient.js';
 import { ICodexProxyService, type ICodexProxyHandle } from './codexProxyService.js';
-import { createCodexSessionMapState, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangeOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, type ICodexSessionMapState } from './codexMapAppServerEvents.js';
+import { createCodexSessionMapState, extractUserInputText, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangeOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, resetCodexTurnMapState, type ICodexSessionMapState } from './codexMapAppServerEvents.js';
 import { resolveCodexInput } from './codexPromptResolver.js';
 import { replayThreadToTurns } from './codexReplayMapper.js';
 import { CodexSessionMetadataStore } from './codexSessionMetadataStore.js';
@@ -51,7 +51,9 @@ import type { ThreadListResponse } from './protocol/generated/v2/ThreadListRespo
 import type { ThreadReadResponse } from './protocol/generated/v2/ThreadReadResponse.js';
 import type { TurnCompletedNotification } from './protocol/generated/v2/TurnCompletedNotification.js';
 import type { TurnStartedNotification } from './protocol/generated/v2/TurnStartedNotification.js';
+import type { ItemStartedNotification } from './protocol/generated/v2/ItemStartedNotification.js';
 import type { TurnStartParams } from './protocol/generated/v2/TurnStartParams.js';
+import type { UserInput } from './protocol/generated/v2/UserInput.js';
 
 const CLIENT_INFO = {
 	name: 'vscode_agent_host',
@@ -214,6 +216,14 @@ interface ICodexSession {
 	 * approval requests on the same session resolve automatically.
 	 */
 	readonly acceptedForSession: Set<string>;
+	/**
+	 * Steering messages handed to codex via `turn/steer` that are awaiting
+	 * the matching `userMessage` item echo, which promotes them into their
+	 * own visible turn. Keyed by {@link PendingMessage.id}. Drained (with a
+	 * `steering_consumed` signal) on turn completion, abort, dispose, or a
+	 * `turn/steer` rejection so the chat UI's pending bubble never sticks.
+	 */
+	readonly pendingSteeringFlips: Map<string, PendingMessage>;
 	model: ModelSelection | undefined;
 	/** Workbench-facing turn id for the active turn. */
 	currentTurnId: string | undefined;
@@ -644,7 +654,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		// Wire global notification → SessionAction dispatch.
 		this._registerIgnoredNotifications(client);
 		this._register(client.onNotification('turn/started', params => this._dispatchByThread(params.threadId, s => this._handleTurnStartedNotification(s, params))));
-		this._register(client.onNotification('item/started', params => this._dispatchByThread(params.threadId, s => mapItemStarted(s.mapState, this._withHostTurnId(s, params)))));
+		this._register(client.onNotification('item/started', params => this._dispatchByThread(params.threadId, s => this._handleItemStarted(s, params))));
 		this._register(client.onNotification('item/agentMessage/delta', params => this._dispatchByThread(params.threadId, s => mapAgentMessageDelta(s.mapState, this._withHostTurnId(s, params)))));
 		this._register(client.onNotification('item/commandExecution/outputDelta', params => this._dispatchByThread(params.threadId, s => mapCommandExecutionOutputDelta(s.mapState, this._withHostTurnId(s, params)))));
 		this._register(client.onNotification('item/fileChange/patchUpdated', params => this._dispatchByThread(params.threadId, s => mapFileChangePatchUpdated(s.mapState, this._withHostTurnId(s, params)))));
@@ -703,7 +713,106 @@ export class CodexAgent extends Disposable implements IAgent {
 			session.currentAppTurnId = undefined;
 		}
 		session.hostTurnIdByAppTurnId.delete(appTurnId);
+		// Any steering still buffered was never echoed as a `userMessage`
+		// item; clear the pending bubble now that the turn is over.
+		this._drainPendingSteering(session);
 		return out;
+	}
+
+	/**
+	 * Dispatch a codex `item/started` notification. `userMessage` items are
+	 * intercepted here (rather than in the pure mapper) because steering
+	 * promotion needs the agent's per-session turn-correlation state; all
+	 * other item kinds defer to {@link mapItemStarted}.
+	 */
+	private _handleItemStarted(session: ICodexSession, params: ItemStartedNotification): (SessionAction | ChatAction)[] {
+		if (params.item.type === 'userMessage') {
+			return this._handleSteeredUserMessage(session, params.item.content);
+		}
+		return mapItemStarted(session.mapState, this._withHostTurnId(session, params));
+	}
+
+	/**
+	 * Codex echoes every user message — the turn opener (already shown by
+	 * the workbench before `sendMessage`) and any steered input — as a
+	 * `userMessage` item. Only steered input is buffered in
+	 * {@link ICodexSession.pendingSteeringFlips}; a buffered match is
+	 * promoted into its own visible turn and everything else is dropped.
+	 */
+	private _handleSteeredUserMessage(session: ICodexSession, content: readonly UserInput[]): (SessionAction | ChatAction)[] {
+		const text = extractUserInputText(content);
+		const steering = this._takeMatchingPendingSteering(session, text);
+		if (!steering) {
+			return [];
+		}
+		return this._beginSteeringTurn(session, steering);
+	}
+
+	/**
+	 * Pop the buffered steering message whose text matches the echoed
+	 * `userMessage` content. Matching by content (not FIFO) keeps the
+	 * mapping correct when several steering messages with different texts
+	 * are in flight.
+	 */
+	private _takeMatchingPendingSteering(session: ICodexSession, text: string): PendingMessage | undefined {
+		for (const [id, msg] of session.pendingSteeringFlips) {
+			if (msg.message.text === text) {
+				session.pendingSteeringFlips.delete(id);
+				return msg;
+			}
+		}
+		return undefined;
+	}
+
+	/**
+	 * Promote a steered message into its own protocol turn: complete the
+	 * in-flight turn (so its response parts settle into history) and open a
+	 * fresh turn whose user message is the steering content. The
+	 * `queuedMessageId` clears the corresponding pending steering bubble.
+	 * Subsequent codex items for the same app-server turn are re-mapped to
+	 * the new host turn id so the steering response lands there.
+	 */
+	private _beginSteeringTurn(session: ICodexSession, steering: PendingMessage): (SessionAction | ChatAction)[] {
+		const actions: (SessionAction | ChatAction)[] = [];
+		const appTurnId = session.currentAppTurnId;
+		const previousHostTurnId = session.currentTurnId ?? (appTurnId ? this._hostTurnId(session, appTurnId) : undefined);
+		if (previousHostTurnId) {
+			actions.push({ type: ActionType.ChatTurnComplete, turnId: previousHostTurnId });
+		}
+		const newHostTurnId = generateUuid();
+		if (appTurnId) {
+			session.hostTurnIdByAppTurnId.set(appTurnId, newHostTurnId);
+		}
+		session.currentTurnId = newHostTurnId;
+		resetCodexTurnMapState(session.mapState);
+		actions.push({
+			type: ActionType.ChatTurnStarted,
+			turnId: newHostTurnId,
+			message: steering.message,
+			queuedMessageId: steering.id,
+		});
+		return actions;
+	}
+
+	/**
+	 * Clear any steering messages still buffered (never echoed by codex)
+	 * and fire `steering_consumed` for each so the chat UI removes the
+	 * lingering pending bubble. Called on turn completion, abort, dispose,
+	 * and connection loss.
+	 */
+	private _drainPendingSteering(session: ICodexSession): void {
+		if (session.pendingSteeringFlips.size === 0) {
+			return;
+		}
+		const ids = [...session.pendingSteeringFlips.keys()];
+		session.pendingSteeringFlips.clear();
+		for (const id of ids) {
+			this._fireSteeringConsumed(session, id);
+		}
+	}
+
+	private _fireSteeringConsumed(session: ICodexSession, id: string): void {
+		this._onDidSessionProgress.fire({ kind: 'steering_consumed', session: session.sessionUri, id });
 	}
 
 	private _registerIgnoredNotifications(client: ICodexAppServerClient): void {
@@ -819,6 +928,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		for (const session of this._sessions.values()) {
 			// Unpark any pending approvals so awaiters unwind.
 			session.pendingCommandApprovals.denyAll('decline');
+			// Clear any buffered steering so its pending bubble doesn't leak.
+			this._drainPendingSteering(session);
 			const turnId = session.currentTurnId;
 			const appTurnId = session.currentAppTurnId;
 			session.currentTurnId = undefined;
@@ -909,6 +1020,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			mapState: createCodexSessionMapState(),
 			pendingCommandApprovals: new PendingRequestRegistry<CommandExecutionApprovalDecision>(),
 			acceptedForSession: new Set<string>(),
+			pendingSteeringFlips: new Map<string, PendingMessage>(),
 			model: effectiveModel,
 			currentTurnId: undefined,
 			currentAppTurnId: undefined,
@@ -1158,6 +1270,9 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	setPendingMessages(sessionUri: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): void {
+		// Queued messages are consumed server-side (AgentSideEffects drives a
+		// fresh turn per `idle`); only the single steering message reaches the
+		// agent for mid-turn injection.
 		if (!steeringMessage) {
 			return;
 		}
@@ -1166,31 +1281,39 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!session) {
 			return;
 		}
+		// `_syncPendingMessages` re-sends the current steering message on every
+		// pending-state change; ignore a steering message already in flight.
+		if (session.pendingSteeringFlips.has(steeringMessage.id)) {
+			return;
+		}
 		const appTurnId = session.currentAppTurnId;
-		if (!appTurnId) {
-			// No active turn — let the framework re-queue this as a normal sendMessage.
-			return;
-		}
 		const conn = this._connection;
-		if (conn.kind !== 'ready') {
-			return;
-		}
 		const text = steeringMessage.message.text;
-		if (text.length === 0 && (!steeringMessage.message.attachments || steeringMessage.message.attachments.length === 0)) {
+		const hasContent = text.length > 0 || (steeringMessage.message.attachments?.length ?? 0) > 0;
+		// Steering only makes sense mid-turn. Without an active codex turn, a
+		// ready connection, a thread, or any content we cannot steer — clear
+		// the pending bubble so it doesn't stick (the model never saw it).
+		if (!appTurnId || conn.kind !== 'ready' || session.threadId === undefined || !hasContent) {
+			this._fireSteeringConsumed(session, steeringMessage.id);
 			return;
 		}
 		const { input } = resolveCodexInput(text, steeringMessage.message.attachments);
-		if (session.threadId === undefined) {
-			return;
-		}
 		const threadId = session.threadId;
+		// Buffer so the codex `userMessage` echo can promote this into a
+		// visible turn (see {@link _handleSteeredUserMessage}).
+		session.pendingSteeringFlips.set(steeringMessage.id, steeringMessage);
 		void conn.client.request<'turn/steer'>('turn/steer', {
 			threadId,
 			input: input.slice(),
 			expectedTurnId: appTurnId,
 		}).catch(err => {
+			// Steer rejected (commonly an `expectedTurnId` mismatch because the
+			// turn just completed). Drop the buffered entry and clear the
+			// pending bubble so it doesn't stick.
+			if (session.pendingSteeringFlips.delete(steeringMessage.id)) {
+				this._fireSteeringConsumed(session, steeringMessage.id);
+			}
 			if (err instanceof JsonRpcError) {
-				// `expectedTurnId` mismatch is benign — framework will requeue.
 				this._logService.info(`[Codex:${sessionId}] turn/steer skipped: ${err.message}`);
 				return;
 			}
@@ -1201,7 +1324,13 @@ export class CodexAgent extends Disposable implements IAgent {
 	async abortSession(sessionUri: URI): Promise<void> {
 		const sessionId = AgentSession.id(sessionUri);
 		const session = this._sessions.get(sessionId);
-		if (!session || !session.currentAppTurnId || session.threadId === undefined) {
+		if (!session) {
+			return;
+		}
+		// Clear any steering buffered for the turn we're aborting so its
+		// pending bubble doesn't outlive the turn.
+		this._drainPendingSteering(session);
+		if (!session.currentAppTurnId || session.threadId === undefined) {
 			return;
 		}
 		const threadId = session.threadId;
@@ -1235,6 +1364,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		// Unpark any pending approvals so codex doesn't deadlock waiting
 		// on a response we will never deliver.
 		session.pendingCommandApprovals.denyAll('decline');
+		// Clear any buffered steering so its pending bubble doesn't leak.
+		this._drainPendingSteering(session);
 		const conn = this._connection;
 		if (conn.kind === 'ready' && session.threadId !== undefined) {
 			const threadId = session.threadId;
@@ -1299,6 +1430,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				mapState: createCodexSessionMapState(),
 				pendingCommandApprovals: new PendingRequestRegistry<CommandExecutionApprovalDecision>(),
 				acceptedForSession: new Set<string>(),
+				pendingSteeringFlips: new Map<string, PendingMessage>(),
 				model: undefined,
 				currentTurnId: undefined,
 				currentAppTurnId: undefined,

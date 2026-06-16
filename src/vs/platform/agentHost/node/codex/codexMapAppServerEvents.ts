@@ -22,6 +22,7 @@ import type { ReasoningTextDeltaNotification } from './protocol/generated/v2/Rea
 import type { ThreadTokenUsageUpdatedNotification } from './protocol/generated/v2/ThreadTokenUsageUpdatedNotification.js';
 import type { TurnCompletedNotification } from './protocol/generated/v2/TurnCompletedNotification.js';
 import type { TurnStartedNotification } from './protocol/generated/v2/TurnStartedNotification.js';
+import type { UserInput } from './protocol/generated/v2/UserInput.js';
 import type { WebSearchAction } from './protocol/generated/v2/WebSearchAction.js';
 import type { DynamicToolCallOutputContentItem } from './protocol/generated/v2/DynamicToolCallOutputContentItem.js';
 import type { JsonValue } from './protocol/generated/serde_json/JsonValue.js';
@@ -63,6 +64,35 @@ export function createCodexSessionMapState(): ICodexSessionMapState {
 		itemToReasoningPartId: new Map(),
 		currentTurnId: undefined,
 	};
+}
+
+/**
+ * Clear the per-turn bookkeeping maps so streamed parts, tool-calls, and
+ * reasoning parts from a finished (or preempted) turn don't bleed into the
+ * next one. Does NOT touch {@link ICodexSessionMapState.currentTurnId},
+ * which tracks the codex app-server turn id and is owned by the
+ * turn/started + turn/completed handlers.
+ */
+export function resetCodexTurnMapState(state: ICodexSessionMapState): void {
+	state.itemToPartId.clear();
+	state.itemToToolCall.clear();
+	state.itemToReasoningPartId.clear();
+}
+
+/**
+ * Collect the plain-text portions of a codex `userMessage` item's
+ * `content` (an array of {@link UserInput}). Non-text inputs (images,
+ * skills, mentions) are ignored. Multiple text parts are joined with a
+ * blank line, mirroring {@link mapTurnStarted}'s reconstruction.
+ */
+export function extractUserInputText(content: readonly UserInput[]): string {
+	const collected: string[] = [];
+	for (const c of content) {
+		if (c.type === 'text') {
+			collected.push(c.text);
+		}
+	}
+	return collected.join('\n\n');
 }
 
 function reasoningKey(itemId: string, kind: 'summary' | 'text', index: number): string {
@@ -152,20 +182,13 @@ export function mapTurnStarted(
 	fallbackUserText: string,
 ): (SessionAction | ChatAction)[] {
 	state.currentTurnId = params.turn.id;
-	state.itemToPartId.clear();
-	state.itemToToolCall.clear();
-	state.itemToReasoningPartId.clear();
+	resetCodexTurnMapState(state);
 	let userText = fallbackUserText;
 	const first = params.turn.items?.[0];
 	if (first && first.type === 'userMessage') {
-		const collected: string[] = [];
-		for (const c of first.content) {
-			if (c.type === 'text') {
-				collected.push(c.text);
-			}
-		}
+		const collected = extractUserInputText(first.content);
 		if (collected.length > 0) {
-			userText = collected.join('\n\n');
+			userText = collected;
 		}
 	}
 	return [
