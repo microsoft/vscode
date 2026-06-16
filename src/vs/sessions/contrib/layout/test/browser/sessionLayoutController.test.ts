@@ -28,7 +28,7 @@ import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from
 import { ISessionsViewService } from '../../../../services/sessions/browser/sessionsViewService.js';
 import { IChat, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { LayoutController } from '../../browser/sessionLayoutController.js';
-import { CHANGES_VIEW_ID } from '../../../changes/common/changes.js';
+import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID } from '../../../changes/common/changes.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
@@ -113,6 +113,7 @@ suite('LayoutController', () => {
 	let openedViews: string[];
 	let setPartHiddenCalls: { hidden: boolean; part: Parts }[];
 	let activePaneCompositeId: string | undefined;
+	let pinnedAuxiliaryBarContainerIds: string[];
 
 	interface ICreateOptions {
 		readonly useModal?: 'off' | 'some' | 'all';
@@ -190,12 +191,20 @@ suite('LayoutController', () => {
 		});
 
 		activePaneCompositeId = undefined;
+		pinnedAuxiliaryBarContainerIds = [SESSIONS_FILES_CONTAINER_ID, CHANGES_VIEW_CONTAINER_ID];
 		instaService.stub(IPaneCompositePartService, new class extends mock<IPaneCompositePartService>() {
 			override getActivePaneComposite(_location: ViewContainerLocation): IPaneComposite | undefined {
 				if (activePaneCompositeId) {
 					return { getId: () => activePaneCompositeId! } as IPaneComposite;
 				}
 				return undefined;
+			}
+			override getPinnedPaneCompositeIds(_location: ViewContainerLocation): string[] {
+				const ids = [...pinnedAuxiliaryBarContainerIds];
+				if (activePaneCompositeId && !ids.includes(activePaneCompositeId)) {
+					ids.push(activePaneCompositeId);
+				}
+				return ids;
 			}
 		});
 
@@ -294,6 +303,61 @@ suite('LayoutController', () => {
 		assert.ok(
 			openedViewContainers.includes('some.custom.view'),
 			'should restore active view container when returning to session 1'
+		);
+	});
+
+	test('prefers changes over a stale saved Files selection when the session has changes', () => {
+		createLayoutController();
+		const session1 = makeSession(URI.parse('session:1'), { changes: [makeChange('/file.ts')] });
+		const session2 = makeSession(URI.parse('session:2'));
+
+		// Session 1 has the Files container active (the default for a session
+		// before changes appear / or an explicit user choice).
+		activeSessionObs.set(session1, undefined);
+		activePaneCompositeId = SESSIONS_FILES_CONTAINER_ID;
+
+		activeSessionObs.set(session2, undefined);
+
+		openedViewContainers = [];
+		openedViews = [];
+		activeSessionObs.set(session1, undefined);
+
+		assert.ok(
+			openedViews.includes(CHANGES_VIEW_ID),
+			'should show Changes since the session has changes, ignoring the stale Files selection'
+		);
+		assert.ok(
+			!openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
+			'should not restore the stale Files selection'
+		);
+	});
+
+	test('shows changes for untitled session with changes', () => {
+		createLayoutController();
+		const session = makeSession(URI.parse('session:1'), {
+			status: SessionStatus.Untitled,
+			changes: [makeChange('/file.ts')],
+		});
+		activeSessionObs.set(session, undefined);
+
+		assert.ok(openedViews.includes(CHANGES_VIEW_ID));
+	});
+
+	test('does not force-open Files when the Files pane is hidden', () => {
+		createLayoutController();
+		// User has hidden / unpinned the Files pane.
+		pinnedAuxiliaryBarContainerIds = [CHANGES_VIEW_CONTAINER_ID];
+		const session = makeSession(URI.parse('session:1'));
+
+		activeSessionObs.set(session, undefined);
+
+		assert.ok(
+			!openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
+			'should not open the hidden Files pane'
+		);
+		assert.ok(
+			openedViews.includes(CHANGES_VIEW_ID),
+			'should fall back to Changes when Files is hidden'
 		);
 	});
 
