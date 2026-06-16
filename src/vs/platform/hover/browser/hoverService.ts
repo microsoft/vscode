@@ -431,6 +431,10 @@ export class HoverService extends Disposable implements IHoverService {
 		}
 
 		options.onDidShow?.();
+		if (options.onDidHide) {
+			const onDidHide = options.onDidHide;
+			store.add(toDisposable(() => onDidHide()));
+		}
 	}
 
 	/**
