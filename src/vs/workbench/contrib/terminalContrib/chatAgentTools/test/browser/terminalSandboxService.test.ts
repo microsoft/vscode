@@ -657,6 +657,7 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(config.filesystem.allowRead.includes('/configured/readable/path'), 'Sandbox config should preserve configured allowRead paths');
 		ok(!config.filesystem.allowWrite.includes('/home/user/.volta/'), 'Sandbox config should not include command-specific node write allow-list paths before a command is parsed');
 		ok(!config.filesystem.allowRead.includes('/home/user/.gitconfig'), 'Sandbox config should not include command-specific git read allow-list paths before a command is parsed');
+		ok(!config.filesystem.allowRead.includes('/home/user/.config/gh/config.yml'), 'Sandbox config should not include the GitHub CLI config before a Git command is parsed');
 		ok(!config.filesystem.allowRead.includes('/home/user/.nvm/versions'), 'Sandbox config should not include command-specific node read allow-list paths before a command is parsed');
 		ok(!config.filesystem.allowRead.includes('/home/user/.cache/pip'), 'Sandbox config should not include command-specific common dev read allow-list paths before a command is parsed');
 		ok(config.filesystem.allowRead.includes('/app'), 'Sandbox config should include the VS Code app root');
@@ -699,6 +700,7 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(nodeConfig.filesystem.allowRead.includes('/home/user/.nvm/versions'), 'Node commands should include node-specific read allow-list paths');
 		ok(nodeConfig.filesystem.allowWrite.includes('/home/user/.volta/'), 'Node commands should include node-specific write allow-list paths');
 		ok(!nodeConfig.filesystem.allowRead.includes('/home/user/.gitconfig'), 'Node commands should not include git-specific read allow-list paths');
+		ok(!nodeConfig.filesystem.allowRead.includes('/home/user/.config/gh/config.yml'), 'Node commands should not include the GitHub CLI config');
 
 		await sandboxService.wrapCommand('git status', false, 'bash', undefined, [{ keyword: 'git', args: ['status'] }]);
 		const gitConfigContent = createdFiles.get(configPath);
@@ -706,6 +708,7 @@ suite('TerminalSandboxService - network domains', () => {
 
 		const gitConfig = JSON.parse(gitConfigContent);
 		ok(gitConfig.filesystem.allowRead.includes('/home/user/.gitconfig'), 'Git commands should include git-specific read allow-list paths');
+		ok(gitConfig.filesystem.allowRead.includes('/home/user/.config/gh/config.yml'), 'Git commands should include the GitHub CLI config');
 		ok(!gitConfig.filesystem.allowRead.includes('/home/user/.nvm/versions'), 'Refreshing for a new command should start allowRead from the current command details');
 		ok(!gitConfig.filesystem.allowWrite.includes('/home/user/.volta/'), 'Refreshing for a new command should start allowWrite from the current command details');
 	});
@@ -746,6 +749,8 @@ suite('TerminalSandboxService - network domains', () => {
 			ok(!config.filesystem.allowRead.includes('/home/user/.gnupg'), `${command} should not include GPG read allow-list paths`);
 			ok(!config.filesystem.allowWrite.includes('/home/user/.gnupg'), `${command} should not include GPG write allow-list paths`);
 			ok(config.filesystem.allowRead.includes('/home/user/.gitconfig'), `${command} should still include generic git read allow-list paths`);
+			ok(config.filesystem.allowRead.includes('/home/user/.config/gh/config.yml'), `${command} should include the GitHub CLI config`);
+			ok(!config.filesystem.allowWrite.includes('/home/user/.config/gh/config.yml'), `${command} should not make the GitHub CLI config writable`);
 		}
 
 		const npmConfig = await getConfigAfterWrap('npm install', [{ keyword: 'npm', args: ['install'] }]);
@@ -827,6 +832,25 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(config.filesystem.allowRead.includes('/workspace-one'), 'Sandbox config should re-allow reads from workspace folders on macOS');
 		ok(config.filesystem.allowRead.includes('/configured/path'), 'Sandbox config should re-allow reads from configured allowWrite paths on macOS');
 		ok(config.filesystem.allowRead.includes('/configured/readable/path'), 'Sandbox config should preserve configured allowRead paths on macOS');
+	});
+
+	test('should allow Git commands to read the GitHub CLI config on macOS', async () => {
+		remoteAgentService.remoteEnvironment = {
+			...remoteAgentService.remoteEnvironment!,
+			os: OperatingSystem.Macintosh
+		};
+
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const configPath = await sandboxService.getSandboxConfigPath();
+
+		ok(configPath, 'Config path should be defined');
+		await sandboxService.wrapCommand('git push', false, 'zsh', undefined, [{ keyword: 'git', args: ['push'] }]);
+		const configContent = createdFiles.get(configPath);
+		ok(configContent, 'Config file should be rewritten for the Git command');
+
+		const config = JSON.parse(configContent);
+		ok(config.filesystem.allowRead.includes('~/.config/gh/config.yml'), 'Git commands should include the GitHub CLI config on macOS');
+		ok(!config.filesystem.allowWrite.includes('~/.config/gh/config.yml'), 'Git commands should not make the GitHub CLI config writable on macOS');
 	});
 
 	test('should not expand home paths in macOS filesystem sandbox config paths', async () => {
