@@ -693,7 +693,9 @@ export async function processResponseFromMessagesEndpoint(
 			const elapsedMs = Date.now() - startTime;
 			logService.error(`[messagesAPI] stream exceeded max duration of ${ANTHROPIC_STREAM_MAX_DURATION_MS}ms (elapsed: ${elapsedMs}ms, requestId: ${requestId}, ghRequestId: ${ghRequestId}); aborting stream.`);
 			feed.reject(new Error(`Anthropic Messages stream exceeded maximum duration of ${ANTHROPIC_STREAM_MAX_DURATION_MS}ms (requestId: ${requestId})`));
-			void response.body.destroy();
+			void response.body.destroy().catch(err => {
+				logService.error(`[messagesAPI] failed to destroy stream after max-duration cutoff (requestId: ${requestId}, ghRequestId: ${ghRequestId}): ${err instanceof Error ? err.message : String(err)}`);
+			});
 		}, ANTHROPIC_STREAM_MAX_DURATION_MS);
 
 		try {
