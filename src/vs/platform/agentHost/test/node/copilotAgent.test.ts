@@ -93,6 +93,7 @@ class TestAgentHostGitService implements IAgentHostGitService {
 		return this.dirtyWorkingDirectories.has(workingDirectory.fsPath);
 	}
 	async commitAll(): Promise<void> { }
+	async restore(): Promise<void> { }
 	async hasUpstream(): Promise<boolean> { return false; }
 	async pushBranch(): Promise<void> { }
 	async getSessionGitState(): Promise<undefined> { return undefined; }
@@ -168,9 +169,13 @@ interface ITestCopilotModelInfo {
 	};
 	readonly policy?: { readonly state?: NonNullable<ModelInfo['policy']>['state'] };
 	readonly billing?: ModelInfo['billing'] & {
+		readonly priceCategory?: string;
 		readonly tokenPrices?: {
 			readonly contextMax?: number;
-			readonly longContext?: { readonly contextMax?: number; readonly inputPrice?: number; readonly outputPrice?: number };
+			readonly inputPrice?: number;
+			readonly cachePrice?: number;
+			readonly outputPrice?: number;
+			readonly longContext?: { readonly contextMax?: number; readonly inputPrice?: number; readonly cachePrice?: number; readonly outputPrice?: number };
 		};
 	};
 	readonly supportedReasoningEfforts?: ModelInfo['supportedReasoningEfforts'];
@@ -510,6 +515,30 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('createSession falls back to an empty temp directory when workingDirectory is omitted', async () => {
+		const agent = createTestAgent(disposables);
+		let createdWorkingDirectory: URI | undefined;
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+
+			const result = await agent.createSession({
+				session: AgentSession.uri('copilotcli', 'temp-fallback'),
+			});
+
+			assert.strictEqual(result.provisional, true);
+			assert.ok(result.workingDirectory);
+			createdWorkingDirectory = result.workingDirectory;
+			assert.strictEqual(createdWorkingDirectory.scheme, Schemas.file);
+			assert.strictEqual(createdWorkingDirectory.fsPath.toLowerCase().startsWith(os.tmpdir().toLowerCase()), true);
+			assert.deepStrictEqual(await fs.readdir(createdWorkingDirectory.fsPath), []);
+		} finally {
+			if (createdWorkingDirectory) {
+				await fs.rm(createdWorkingDirectory.fsPath, { recursive: true, force: true });
+			}
+			await disposeAgent(agent);
+		}
+	});
+
 	suite('restart on startup config change', () => {
 
 		class StopCountingClient extends TestCopilotClient {
@@ -598,6 +627,43 @@ suite('CopilotAgent', () => {
 				policyState: undefined,
 				_meta: { multiplierNumeric: 1.5 },
 			}]);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('models include token-price and price-category metadata when billing provides it', async () => {
+		const agent = createTestAgent(disposables, {
+			copilotClient: new TestCopilotClient([], [{
+				id: 'claude-sonnet',
+				name: 'Claude Sonnet',
+				capabilities: { limits: { max_context_window_tokens: 200_000 } },
+				billing: {
+					multiplier: 1,
+					priceCategory: 'medium',
+					tokenPrices: {
+						contextMax: 200_000,
+						inputPrice: 3,
+						cachePrice: 1,
+						outputPrice: 15,
+						longContext: { contextMax: 1_000_000, inputPrice: 6, cachePrice: 1, outputPrice: 22.5 },
+					},
+				},
+			}]),
+		});
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			const models = await waitForState(agent.models, models => models.length > 0);
+
+			assert.deepStrictEqual(models[0]._meta, {
+				multiplierNumeric: 1,
+				inputCost: 3,
+				cacheCost: 1,
+				outputCost: 15,
+				longContextInputCost: 6,
+				longContextOutputCost: 22.5,
+				priceCategory: 'medium',
+			});
 		} finally {
 			await disposeAgent(agent);
 		}

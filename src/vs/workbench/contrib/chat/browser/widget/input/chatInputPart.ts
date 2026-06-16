@@ -502,6 +502,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				name: mode.name.get(),
 				content: modeInstructions.content,
 				toolReferences: this.toolService.toToolReferences(modeInstructions.toolReferences),
+				allowedSubagents: mode.agents?.get(),
 				metadata: modeInstructions.metadata,
 				isBuiltin: mode.isBuiltin
 			} : undefined,
@@ -2370,7 +2371,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const contribution = this.chatSessionsService.getChatSessionContribution(sessionType);
 		if (contribution) {
-			this._widget?.lockToCodingAgent(contribution.name, contribution.displayName, contribution.type);
+			this._widget?.lockToCodingAgent(contribution.name, contribution.displayName, contribution.type, contribution.agentHostProviderId);
 		} else {
 			this._widget?.unlockFromCodingAgent();
 		}
@@ -2622,6 +2623,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Context usage widget — will be positioned in the toolbar after toolbars are created
 		this.contextUsageWidget = this._register(this.instantiationService.createInstance(ChatContextUsageWidget));
+		this.contextUsageWidget.setChatWidget(widget);
 		this.contextUsageWidget.setModelConfigurationResolver(
 			modelId => this.getModelConfiguration(modelId),
 			this._modelConfigStore.onDidChange,
@@ -3912,6 +3914,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				buttonConfigProvider: (action) => {
 					if (action.id === ChatEditingShowChangesAction.ID || action.id === ViewPreviousEditsAction.Id) {
 						return { showIcon: true, showLabel: false, isSecondary: true };
+					}
+					// The cloud-agent "Open pull request" action renders icon-only; its sibling
+					// "Create pull request" action keeps its text label.
+					if (action.id === 'github.copilot.chat.cloudSessions.openPullRequestForTask') {
+						return { showIcon: true, showLabel: false };
 					}
 					return undefined;
 				}

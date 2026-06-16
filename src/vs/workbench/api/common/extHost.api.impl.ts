@@ -783,6 +783,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'tokenInformation');
 				return extHostLanguages.tokenAtPosition(doc, pos);
 			},
+			computeFullSyntaxHighlighting(source: string, languageId: string) {
+				checkProposedApiEnabled(extension, 'documentSyntaxHighlighting');
+				return extHostLanguages.computeFullSyntaxHighlighting(source, languageId);
+			},
+			get onDidChangeSyntaxHighlighting() {
+				checkProposedApiEnabled(extension, 'documentSyntaxHighlighting');
+				return extHostLanguages.onDidChangeSyntaxHighlighting;
+			},
 			registerInlayHintsProvider(selector: vscode.DocumentSelector, provider: vscode.InlayHintsProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerInlayHintsProvider(extension, selector, provider);
 			},
@@ -2064,6 +2072,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			SnippetString: extHostTypes.SnippetString,
 			SourceBreakpoint: extHostTypes.SourceBreakpoint,
 			StandardTokenType: extHostTypes.StandardTokenType,
+			SyntaxHighlightingTokenFontStyle: extHostTypes.SyntaxHighlightingTokenFontStyle,
 			StatusBarAlignment: extHostTypes.StatusBarAlignment,
 			SymbolInformation: extHostTypes.SymbolInformation,
 			SymbolKind: extHostTypes.SymbolKind,

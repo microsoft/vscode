@@ -123,6 +123,8 @@ A `MutableDisposable` on `LocalSession` ensures repeated `trackModel` calls don'
 - **`createNewChat`** — for the current new session, returns the already-prepared `IChat` and updates `mainChat`. For an existing committed session, creates a subsequent (child) chat linked to the primary via `parentResource`.
 - **`deleteChat`** — removes a single child chat from a multi-chat session after a confirmation dialog; deleting the primary (or the last remaining chat) removes the whole session. An unknown/stale chat URI is a no-op.
 
+A **"Delete..."** session context-menu action (registered in `localChatSessions.contribution.ts`, gated on `LOCAL_PROVIDER_ID`) delegates to the shared `confirmAndDeleteSessions` helper, which confirms and then calls `ISessionsManagementService.deleteSession` (routing to `deleteSession` above).
+
 ## Multi-Chat Support
 
 A local session may host multiple chats. The hierarchy is stored entirely in the provider's own metadata — there is no setting and multi-chat is always enabled.
