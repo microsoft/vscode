@@ -12,7 +12,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { ChangesetOperationTargetKind } from '../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { ChangesetOperation, ChangesetOperationScope } from '../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ChangesetStatus, Changeset, StateComponents, type ChangesetState, type Turn } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildDefaultChatUri, ChangesetStatus, Changeset, StateComponents, type ChangesetState, type ChatState, type ChatSummary, type SessionState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ISessionChangeset, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, SessionChangesetOperationScope, sessionFileChangesEqual } from '../../../../services/sessions/common/session.js';
 import { changesetFilesToChanges } from './agentHostDiffs.js';
@@ -319,25 +319,49 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 
 		this.id = changesetSummary.changeKind;
 
-		// Subscribe to session changes
-		const sessionStateObs = createActiveSessionSubscriptionObs<{ turns: readonly Turn[] | undefined }>(
+		// Turns moved off the session and onto a per-chat channel with the
+		// multi-chat protocol. Subscribe to the session to discover its
+		// chats, then track the chat that was modified most recently — its
+		// last completed turn is the session's "last turn".
+		const sessionStateObs = createActiveSessionSubscriptionObs<SessionState>(
 			options,
 			isActiveSessionObs,
 			StateComponents.Session,
 			constObservable(sessionUri),
 		);
 
-		const turnIdsObs = derived(reader => {
+		const mostRecentChatUriObs = derivedOpts({ equalsFn: isEqual }, reader => {
 			const sessionState = sessionStateObs.read(reader).read(reader);
 			if (!sessionState || sessionState instanceof Error) {
+				return URI.parse(buildDefaultChatUri(sessionUri));
+			}
+
+			// `modifiedAt` is ISO 8601, so lexicographic compare is chronological.
+			const mostRecentChat = sessionState.chats.reduce<ChatSummary | undefined>(
+				(best, c) => !best || c.modifiedAt > best.modifiedAt ? c : best,
+				undefined
+			);
+			return URI.parse(mostRecentChat?.resource ?? sessionState.defaultChat ?? buildDefaultChatUri(sessionUri));
+		});
+
+		const chatStateObs = createActiveSessionSubscriptionObs<ChatState>(
+			options,
+			isActiveSessionObs,
+			StateComponents.Chat,
+			mostRecentChatUriObs,
+		);
+
+		const lastTurnIdObs = derived(reader => {
+			const chatState = chatStateObs.read(reader).read(reader);
+			if (!chatState || chatState instanceof Error) {
 				return undefined;
 			}
-			return sessionState.turns?.map(turn => turn.id);
+			return chatState.turns?.at(-1)?.id;
 		});
 
 		// Last turn changes
 		this.channelUriObs = derivedOpts({ equalsFn: isEqual }, reader => {
-			const lastTurnId = turnIdsObs.read(reader)?.at(-1);
+			const lastTurnId = lastTurnIdObs.read(reader);
 			if (!lastTurnId) {
 				return undefined;
 			}
