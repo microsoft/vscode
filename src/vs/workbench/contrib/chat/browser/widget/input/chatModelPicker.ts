@@ -7,8 +7,10 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
 import { renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { getBaseLayerHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegate2.js';
 import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { IAction, toAction } from '../../../../../../base/common/actions.js';
 import { IStringDictionary } from '../../../../../../base/common/collections.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -217,8 +219,11 @@ function createModelItem(
 	isUBB?: boolean,
 	ariaDescription?: string,
 	pinAction?: IAction,
+	onConfigure?: (model: ILanguageModelChatMetadataAndIdentifier, group: string) => void,
 ): IActionListItem<IActionWidgetDropdownAction> {
-	const hover = model && openerService ? getModelHoverContent(model, openerService, isUBB) : undefined;
+	const hover = model && openerService
+		? getModelHoverContent(model, openerService, isUBB, onConfigure ? (group) => onConfigure(model, group) : undefined)
+		: undefined;
 	return {
 		item: action,
 		kind: ActionListItemKind.Action,
@@ -473,6 +478,7 @@ export function buildModelPickerItems(
 	openerService?: IOpenerService,
 	isUBB?: boolean,
 	showAutoModel: boolean = false,
+	onConfigure?: (model: ILanguageModelChatMetadataAndIdentifier, group: string) => void,
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
 	if (models.length === 0) {
@@ -609,7 +615,7 @@ export function buildModelPickerItems(
 						? getProviderGroupForModel(model, modelToGroup, languageModelsService!).groupName
 						: undefined;
 					const { action: pinnedAction, ariaDescription: pinnedAriaDesc } = createModelAction(model, selectedModelId, onSelect, configAccess, undefined, showGroupLabel, isUBB);
-					items.push(createModelItem(pinnedAction, model, openerService, groupLabel, isUBB, pinnedAriaDesc, makePinAction(model)));
+					items.push(createModelItem(pinnedAction, model, openerService, groupLabel, isUBB, pinnedAriaDesc, makePinAction(model), onConfigure));
 				}
 			}
 
@@ -710,7 +716,7 @@ export function buildModelPickerItems(
 							? getProviderGroupForModel(item.model, modelToGroup, languageModelsService!).groupName
 							: undefined;
 						const { action: promotedAction, ariaDescription: promotedAriaDesc } = createModelAction(item.model, selectedModelId, onSelect, configAccess, undefined, showGroupLabel, isUBB);
-						items.push(createModelItem(promotedAction, item.model, openerService, groupLabel, isUBB, promotedAriaDesc, makePinAction(item.model)));
+						items.push(createModelItem(promotedAction, item.model, openerService, groupLabel, isUBB, promotedAriaDesc, makePinAction(item.model), onConfigure));
 					} else {
 						items.push(createUnavailableModelItem(item.id, item.entry, item.reason, manageSettingsUrl, updateStateType, chatEntitlementService));
 					}
@@ -802,7 +808,7 @@ export function buildModelPickerItems(
 							items.push(createUnavailableModelItem(model.metadata.id, entry, 'update', manageSettingsUrl, updateStateType, chatEntitlementService, ModelPickerSection.Other));
 						} else {
 							const { action: bucketAction, ariaDescription: bucketAriaDesc } = createModelAction(model, selectedModelId, onSelect, configAccess, ModelPickerSection.Other, showGroupHeaders, isUBB);
-							items.push(createModelItem(bucketAction, model, openerService, undefined, isUBB, bucketAriaDesc, makePinAction(model)));
+							items.push(createModelItem(bucketAction, model, openerService, undefined, isUBB, bucketAriaDesc, makePinAction(model), onConfigure));
 						}
 					}
 				}
@@ -836,7 +842,7 @@ export function buildModelPickerItems(
 			});
 		for (const model of sortedModels) {
 			const { action: flatAction, ariaDescription: flatAriaDesc } = createModelAction(model, selectedModelId, onSelect, configAccess, undefined, undefined, isUBB);
-			items.push(createModelItem(flatAction, model, openerService, undefined, isUBB, flatAriaDesc));
+			items.push(createModelItem(flatAction, model, openerService, undefined, isUBB, flatAriaDesc, undefined, onConfigure));
 		}
 	}
 
@@ -1111,6 +1117,15 @@ export class ModelPickerWidget extends Disposable {
 			this._onDidChangeSelection.fire(model);
 		};
 
+		// Selecting a model from a hover's config button: apply the selection,
+		// close the model picker, then open the config picker focused on the
+		// requested section (Thinking Effort or Context Size).
+		const onConfigure = (model: ILanguageModelChatMetadataAndIdentifier, group: string) => {
+			onSelect(model);
+			this._actionWidgetService.hide();
+			this._showConfigPicker(group);
+		};
+
 		const models = this._delegate.getModels();
 		const isUBB = !!this._entitlementService.quotas.usageBasedBilling;
 		const isSignedOut = this._entitlementService.entitlement === ChatEntitlement.Unknown;
@@ -1155,6 +1170,7 @@ export class ModelPickerWidget extends Disposable {
 			this._openerService,
 			isUBB,
 			this._delegate.showAutoModel?.() ?? false,
+			onConfigure,
 		);
 
 		// Collect all hover disposables so they are properly cleaned up when the
@@ -1446,9 +1462,11 @@ export class ModelPickerWidget extends Disposable {
 	/**
 	 * Opens the combined configuration dropdown containing the model's Thinking
 	 * Effort and Context Size options (when available), in a single popup anchored
-	 * to the config button.
+	 * to the config button. When `focusGroup` is provided, focus is moved to the
+	 * first option of that section (e.g. 'navigation' for Thinking Effort or
+	 * 'tokens' for Context Size).
 	 */
-	private _showConfigPicker(): void {
+	private _showConfigPicker(focusGroup?: string): void {
 		if (this._domNode?.classList.contains('disabled') || !this._configButton || !this._selectedModel) {
 			return;
 		}
@@ -1508,11 +1526,20 @@ export class ModelPickerWidget extends Disposable {
 				footerText: localize('chat.config.keepOpenTip', "Tip: Hold {0} to keep open", isMacintosh ? '\u2318' : localize('chat.config.ctrlKey', "Ctrl")),
 			}
 		);
+
+		// Focus the requested section's first option (e.g. when opened from a
+		// model hover's Thinking Effort / Context Size button).
+		if (focusGroup) {
+			const groupItem = items.find(item => item.kind === ActionListItemKind.Action && item.item?.id?.startsWith(`${focusGroup}.`));
+			if (groupItem?.kind === ActionListItemKind.Action && groupItem.item) {
+				this._actionWidgetService.focusItemById(groupItem.item.id);
+			}
+		}
 	}
 }
 
 
-export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, openerService: IOpenerService, isUBB?: boolean): { element: HTMLElement; disposable: DisposableStore } | undefined {
+export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, openerService: IOpenerService, isUBB?: boolean, onConfigure?: (group: string) => void): { element: HTMLElement; disposable: DisposableStore } | undefined {
 	const isAuto = isAutoModel(model);
 	const container = dom.$('.chat-model-hover');
 	const disposables = new DisposableStore();
@@ -1624,21 +1651,27 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 
 	// --- Configurable properties (UBB only — PRU uses inline toolbar actions) ---
 	if (!isAuto && isUBB && model.metadata.configurationSchema?.properties) {
-		const configurableLabels: string[] = [];
+		const configButtons: { group: string; label: string }[] = [];
 		for (const [, propSchema] of Object.entries(model.metadata.configurationSchema.properties)) {
-			if (propSchema.enum && propSchema.enum.length >= 2) {
+			if (propSchema.enum && propSchema.enum.length >= 2 && propSchema.group) {
 				const label = propSchema.title ?? propSchema.description;
 				if (label) {
-					configurableLabels.push(label);
+					configButtons.push({ group: propSchema.group, label });
 				}
 			}
 		}
-		if (configurableLabels.length > 0) {
+		if (configButtons.length > 0) {
 			container.appendChild(dom.$('.chat-model-hover-separator'));
 			const configRow = dom.$('.chat-model-hover-configurable');
-			configRow.appendChild(dom.$('span.chat-model-hover-configurable-label', undefined, localize('models.configurable', "Configurable:")));
-			for (const label of configurableLabels) {
-				configRow.appendChild(dom.$('span.chat-model-hover-configurable-tag', undefined, label));
+			for (const { group, label } of configButtons) {
+				const button = disposables.add(new Button(configRow, {
+					...defaultButtonStyles,
+					secondary: true,
+					supportIcons: true,
+					title: label,
+				}));
+				button.label = `$(${Codicon.settingsGear.id}) ${label}`;
+				disposables.add(button.onDidClick(() => onConfigure?.(group)));
 			}
 			container.appendChild(configRow);
 		}

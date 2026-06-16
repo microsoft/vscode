@@ -4372,14 +4372,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: 12px;
 }
 
-.chat-model-hover-configurable-label {
-	font-weight: 600;
+.chat-model-hover-configurable > .monaco-button {
+	width: auto;
+	padding: 2px 8px;
+	font-size: 11px;
 }
 
-.chat-model-hover-configurable-tag {
-	padding: 2px 8px;
-	border-radius: 10px;
-	border: 1px solid var(--vscode-contrastBorder, var(--vscode-editorWidget-border));
-	background: transparent;
-	font-size: 11px;
+.monaco-workbench .chat-model-hover-configurable > .monaco-button .codicon[class*='codicon-'] {
+	font-size: 14px;
 }
