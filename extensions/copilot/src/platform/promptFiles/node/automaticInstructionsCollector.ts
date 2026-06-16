@@ -20,18 +20,21 @@ import { match as globMatch, splitGlobAware } from '../../../util/vs/base/common
 import { hash } from '../../../util/vs/base/common/hash';
 import { ResourceMap, ResourceSet } from '../../../util/vs/base/common/map';
 import { basename, dirname } from '../../../util/vs/base/common/resources';
+import { posix } from '../../../util/vs/base/common/path';
 import { stringDiff } from '../../../util/vs/base/common/diff/diff';
 import { URI } from '../../../util/vs/base/common/uri';
 import { ParsedPromptFile } from '../../../util/vs/workbench/contrib/chat/common/promptSyntax/promptFileParser';
 import { isLocation } from '../../../util/common/types';
 import { getToolName, ToolName } from '../../../extension/tools/common/toolNames';
-import { isCustomizationsIndex, isInstructionFile, isPromptFile, toCustomizationsIndexReference, toInstructionFileReference } from '../../../extension/prompt/common/chatVariablesCollection';
+import { isCustomizationsIndex, isInstructionFile, toCustomizationsIndexReference, toInstructionFileReference } from '../../../extension/prompt/common/chatVariablesCollection';
 import { getToolReferencePromptContent } from '../../../extension/prompt/vscode-node/promptVariablesService';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { getChatSessionType, matchesSessionType } from '../../chat/common/sessionUtils';
-import { CopilotChatAttr, GenAiAttr, IOTelService } from '../../otel/common';
+import { CopilotChatAttr, GenAiAttr, GenAiOperationName, IOTelService } from '../../otel/common';
 import { ICustomInstructionsService } from '../../customInstructions/common/customInstructionsService';
 import { IPromptVariablesService } from '../../../extension/prompt/node/promptVariablesService';
+import { arrayEqual } from 'diff/lib/util/array.js';
+import { structuralEquals } from '../../../util/vs/base/common/equals';
 
 /**
  * Telemetry payload (parity with core's `instructionsCollected` event).
@@ -845,22 +848,23 @@ export class CustomInstructionsReferenceLogger {
 	constructor(
 		@IOTelService private readonly _otelService: IOTelService,
 		@ILogService private readonly _logService: ILogService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IPromptVariablesService private readonly _promptVariablesService: IPromptVariablesService,
 		@ICustomInstructionsService private readonly _customInstructionsService: ICustomInstructionsService
 	) { }
 
 	async logReferences(sessionId: string | undefined, references: readonly vscode.ChatPromptReference[], collectInstructionsInExtension: boolean): Promise<void> {
-		const customInstructionsDebugString = await this.toCustomInstructionsDebugString(references, false);
+		const customInstructionsDebugInfo = await this.toCustomInstructionsDebugInfo(references);
 		const span = this._otelService.startSpan('collect_automatic_instructions', {
 			attributes: {
-				[GenAiAttr.OPERATION_NAME]: 'core_event',
-				[CopilotChatAttr.CHAT_SESSION_ID]: sessionId || 'unknown',
+				[GenAiAttr.OPERATION_NAME]: GenAiOperationName.CHAT,
+				...(sessionId ? { [CopilotChatAttr.CHAT_SESSION_ID]: sessionId } : {}),
 			},
 		});
 		span.setAttributes({
-			[CopilotChatAttr.DEBUG_NAME]: `Collected Automatic Instructions ${collectInstructionsInExtension ? 'extension' : 'core'}`,
+			[CopilotChatAttr.DEBUG_NAME]: `Agent Instructions`,
 			'copilot_chat.event_category': 'discovery',
-			'copilot_chat.event_details': customInstructionsDebugString,
+			'copilot_chat.event_details': ICustomInstructionsDebugInfo.formatCompact(customInstructionsDebugInfo) + (collectInstructionsInExtension ? '\n(collected in extension)' : '\n(collected in core)'),
 		});
 		span.end();
 	}
@@ -871,44 +875,119 @@ export class CustomInstructionsReferenceLogger {
 
 		const result = await collector.collect({ sessionResource, references: without, tools, modeInstructions2 }, token);
 
-		const coreStr = await this.toCustomInstructionsDebugString(core, true);
-		const extStr = await this.toCustomInstructionsDebugString(result, true);
-		if (coreStr !== extStr) {
-			const diff = formatStringDiff(coreStr, extStr);
+		const coreInfo = await this.toCustomInstructionsDebugInfo(core);
+		const extInfo = await this.toCustomInstructionsDebugInfo(result);
+		const isMatch = ICustomInstructionsDebugInfo.equals(coreInfo, extInfo);
+		if (!isMatch) {
+			const diff = ICustomInstructionsDebugInfo.formatDiff(coreInfo, extInfo, true);
 			this._logService.info(`[AutomaticInstructionsCollector] Core vs extension instructions mismatch:\n--- diff ---\n${diff}`);
 		} else {
 			this._logService.info(`[AutomaticInstructionsCollector] Core vs extension instructions match (${core.length} entries)`);
 		}
+
+		// Internal-only parity signal for comparing core vs extension instruction collection.
+		const simpleDiff = isMatch ? ICustomInstructionsDebugInfo.formatDiff(coreInfo, extInfo, false) : '';
+		this._telemetryService.sendInternalMSFTTelemetryEvent('automaticInstructionsCollectionComparison', { diff: simpleDiff }, { isMatch: isMatch ? 1 : 0 });
 	}
 
-	private async toIndexDebug(content: string, toolReferences: readonly vscode.ChatLanguageModelToolReference[] | undefined, verbose: boolean, result: string[]): Promise<void> {
+	private async toIndexDebugInfo(content: string, toolReferences: readonly vscode.ChatLanguageModelToolReference[] | undefined): Promise<IndexDebugInfo> {
 		if (toolReferences?.length) {
 			content = await this._promptVariablesService.resolveToolReferencesInPrompt(content, toolReferences);
 		}
 		const indexFile = this._customInstructionsService.parseInstructionIndexFile(content);
-		result.push(`   agents ${indexFile.agents.size}: ${Array.from(indexFile.agents.keys()).join(', ')}`);
-		result.push(`   instructions ${indexFile.instructions.size} : ${Array.from(indexFile.instructions.values()).map(instr => basename(instr)).join(', ')}`);
-		result.push(`   skills ${indexFile.skills.size}: ${Array.from(indexFile.skills).map(skill => basename(dirname(skill))).join(', ')}`);
-		if (verbose) {
-			result.push(content);
-		}
+		return {
+			agents: Array.from(indexFile.agents.keys()),
+			instructions: Array.from(indexFile.instructions.values()).map(instr => instr.toString()).sort(),
+			skills: Array.from(indexFile.skills).map(skill => skill.toString()).sort(),
+			content
+		};
 	}
 
-	private async toCustomInstructionsDebugString(references: readonly vscode.ChatPromptReference[], verbose: boolean = false): Promise<string> {
-		const sorted = [...references].sort((a, b) => a.name.localeCompare(b.name));
+	private async toCustomInstructionsDebugInfo(references: readonly vscode.ChatPromptReference[]): Promise<ICustomInstructionsDebugInfo> {
+		const instructions = references.filter(isInstructionFile).map(ref => ref.value.toString()).sort();
+		const index = references.find(isCustomizationsIndex);
+		const indexInfo = index ? await this.toIndexDebugInfo(index.value, index.toolReferences) : undefined;
+		return { instructions, index: indexInfo };
+	}
 
+}
+
+interface IndexDebugInfo {
+	instructions: string[];
+	skills: string[];
+	agents: string[];
+	content: string;
+}
+
+interface ICustomInstructionsDebugInfo {
+	instructions: string[];
+	index: IndexDebugInfo | undefined;
+}
+
+namespace ICustomInstructionsDebugInfo {
+	export function equals(a: ICustomInstructionsDebugInfo, b: ICustomInstructionsDebugInfo): boolean {
+		return structuralEquals(a, b);
+	}
+	function formatNames(a: string[]): string {
+		return a.join(', ');
+	}
+	function formatFileNames(a: string[]): string {
+		return a.map(i => posix.basename(i)).join(', ');
+	}
+	function formatSkillNames(a: string[]): string {
+		return a.map(i => posix.basename(posix.dirname(i))).join(', ');
+	}
+	export function formatCompact(a: ICustomInstructionsDebugInfo): string {
 		const result = [];
-		const instructions = sorted.filter(isInstructionFile).map(ref => basename(ref.value));
-		result.push(`Instructions(${instructions.length}): ${instructions.join(', ')}`);
-		const indexFiles = sorted.filter(isCustomizationsIndex);
-		result.push(`CustomizationsIndex(${indexFiles.length}):`);
-		for (const ref of indexFiles) {
-			await this.toIndexDebug(ref.value, ref.toolReferences, verbose, result);
+		result.push(`instructions: [${a.instructions.length} entries]`);
+		if (a.instructions.length > 0) {
+			result.push(`(${a.instructions.map(i => posix.basename(i)).join(', ')})`);
+		}
+		if (a.index) {
+			result.push(`index: {`);
+			result.push(`agents: [${a.index.agents.length}] ${formatFileNames(a.index.agents)}`);
+			result.push(`instructions: [${a.index.instructions.length}] ${formatFileNames(a.index.instructions)}`);
+			result.push(`skills: [${a.index.skills.length}] ${formatSkillNames(a.index.skills)}`);
+			result.push(`}`);
 		}
 		return result.join('\n');
 	}
-}
 
+	export function formatDiff(a: ICustomInstructionsDebugInfo, b: ICustomInstructionsDebugInfo, verbose: boolean): string {
+		const result = [];
+		if (!arrayEqual(a.instructions, b.instructions)) {
+			result.push('-' + formatFileNames(a.instructions));
+			result.push('+' + formatFileNames(b.instructions));
+		}
+
+		const aIndex = a.index;
+		const bIndex = b.index;
+		if (aIndex === undefined && bIndex !== undefined) {
+			result.push('index: -undefined +defined');
+		} else if (aIndex !== undefined && bIndex === undefined) {
+			result.push('index: -defined +undefined');
+		} else if (aIndex !== undefined && bIndex !== undefined) {
+			if (!arrayEqual(aIndex.agents, bIndex.agents)) {
+				result.push('agents: -' +formatNames(aIndex.agents));
+				result.push('agents: +' + formatNames(bIndex.agents));
+			}
+			if (!arrayEqual(aIndex.instructions, bIndex.instructions)) {
+				result.push('index.instructions: -' + formatFileNames(aIndex.instructions));
+				result.push('index.instructions: +' + formatFileNames(bIndex.instructions));
+			}
+			if (!arrayEqual(aIndex.skills, bIndex.skills)) {
+				result.push('skills: -' + formatSkillNames(aIndex.skills));
+				result.push('skills: +' + formatSkillNames(bIndex.skills));
+			}
+			if (aIndex.content !== bIndex.content) {
+				result.push('content diff:');
+				result.push(verbose ? formatStringDiff(aIndex.content, bIndex.content) : '');
+			}
+		}
+
+		return result.join('\n');
+	}
+}
 
 
 
