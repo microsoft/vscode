@@ -26,10 +26,10 @@ import { IOutputService } from '../../../../../workbench/services/output/common/
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { ISendRequestOptions, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
-import { WorkspacePicker, IWorkspaceSelection } from '../../browser/sessionWorkspacePicker.js';
+import { WorkspacePicker } from '../../browser/sessionWorkspacePicker.js';
 import { IWorkspacesService } from '../../../../../platform/workspaces/common/workspaces.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -39,55 +39,87 @@ import { IFileDialogService } from '../../../../../platform/dialogs/common/dialo
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { INotification, INotificationHandle, INotificationService, NoOpNotification, NotificationMessage } from '../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 
 // ---- Storage key (must match the one in sessionWorkspacePicker.ts) ----------
 const STORAGE_KEY_RECENT_WORKSPACES = 'sessions.recentlyPickedWorkspaces';
 
 // ---- Mock providers ---------------------------------------------------------
 
+// Maps mock provider id → URI path prefix it resolves. In production, the
+// URI's authority/scheme determines which provider can resolve it; the
+// tests use file URIs only, so we map provider ids to their conventional
+// path roots (e.g. /remote, /local, /copilot, /agent-host).
+const MOCK_PROVIDER_PATH_PREFIXES: Record<string, string> = {
+	'agenthost-remote-1': '/remote',
+	'local-1': '/local',
+	'default-copilot': '/copilot',
+	'local-agent-host': '/agent-host',
+};
+
 function createMockProvider(id: string, opts?: {
 	connectionStatus?: ISettableObservable<RemoteAgentHostConnectionStatus>;
 	browseActions?: readonly ISessionWorkspaceBrowseAction[];
+	canConnectOnDemand?: boolean;
+	connect?: () => Promise<void>;
+	onDidReportConnectProgress?: Event<{ readonly connectionKey: string; readonly message: string }>;
+	remoteAddress?: string;
 }): ISessionsProvider {
+	const pathPrefix = MOCK_PROVIDER_PATH_PREFIXES[id];
+	const canResolve = (uri: URI) => !pathPrefix || uri.path === pathPrefix || uri.path.startsWith(`${pathPrefix}/`);
 	const base = {
 		id,
 		label: `Provider ${id}`,
 		icon: Codicon.remote,
+		order: 0,
 		sessionTypes: [],
 		onDidChangeSessionTypes: Event.None,
 		browseActions: opts?.browseActions ?? [],
-		resolveWorkspace: (uri: URI): ISessionWorkspace => ({
-			uri,
-			label: uri.path.substring(1) || uri.path,
-			icon: Codicon.folder,
-			folders: [{
-				root: uri,
-				workingDirectory: uri,
-				name: uri.path.substring(1) || uri.path,
-				description: undefined,
-				gitRepository: { uri, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable(undefined) },
-			}],
-			requiresWorkspaceTrust: false,
-			isVirtualWorkspace: false,
-		}),
+		resolveWorkspace: (uri: URI): ISessionWorkspace | undefined => {
+			if (!canResolve(uri)) {
+				return undefined;
+			}
+			return {
+				uri,
+				label: uri.path.substring(1) || uri.path,
+				icon: Codicon.folder,
+				folders: [{
+					root: uri,
+					workingDirectory: uri,
+					name: uri.path.substring(1) || uri.path,
+					description: undefined,
+					gitRepository: { uri, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable(undefined) },
+				}],
+				requiresWorkspaceTrust: false,
+				isVirtualWorkspace: false,
+			};
+		},
 		onDidChangeSessions: Event.None,
 		getSessions: () => [],
 		createNewSession: () => { throw new Error('Not implemented'); },
+		deleteNewSession: () => { },
 		getSessionTypes: () => [],
 		renameChat: async () => { },
+		getModels: () => [],
+		getModelPickerOptions: () => ({ useGroupedModelPicker: true, showFeatured: true, showUnavailableFeatured: false, showManageModelsAction: false }),
+		onDidChangeModels: Event.None,
 		setModel: () => { },
 		archiveSession: async () => { },
 		unarchiveSession: async () => { },
 		deleteSession: async () => { },
 		deleteChat: async () => { },
-		sendAndCreateChat: async () => { throw new Error('Not implemented'); },
-		addChat: () => { throw new Error('Not implemented'); },
-		sendRequest: async () => { throw new Error('Not implemented'); },
+		createNewChat: async () => { throw new Error('Not implemented'); },
+		sendRequest: async (_sessionId: string, _chatResource: URI, _options: ISendRequestOptions) => { throw new Error('Not implemented'); },
 	};
 	if (opts?.connectionStatus) {
 		return {
 			...base,
+			canConnectOnDemand: opts.canConnectOnDemand,
+			connect: opts.connect,
 			connectionStatus: opts.connectionStatus,
+			onDidReportConnectProgress: opts.onDidReportConnectProgress,
+			remoteAddress: opts.remoteAddress,
 			onDidChangeSessionConfig: Event.None,
 			getSessionConfig: () => undefined,
 			setSessionConfigValue: async () => { },
@@ -132,6 +164,46 @@ class MockSessionsProvidersService extends Disposable {
 	}
 }
 
+class RecordingNotificationHandle extends NoOpNotification {
+	closed = false;
+	messages: NotificationMessage[] = [];
+
+	constructor(message: NotificationMessage) {
+		super();
+		this.messages.push(message);
+	}
+
+	override updateMessage(message: NotificationMessage): void {
+		this.messages.push(message);
+	}
+
+	override close(): void {
+		this.closed = true;
+	}
+}
+
+class RecordingNotificationService extends TestNotificationService {
+	readonly handles: RecordingNotificationHandle[] = [];
+	readonly errors: Array<string | Error> = [];
+
+	override notify(notification: INotification): INotificationHandle {
+		const handle = new RecordingNotificationHandle(notification.message);
+		this.handles.push(handle);
+		return handle;
+	}
+
+	override error(error: string | Error): INotificationHandle {
+		this.errors.push(error);
+		return super.error(error);
+	}
+}
+
+class DispatchingWorkspacePicker extends WorkspacePicker {
+	dispatchFolder(folderUri: URI, providerId: string): Promise<void> {
+		return this._dispatchPickerItem({ folderUri, providerId });
+	}
+}
+
 // ---- Test helpers -----------------------------------------------------------
 
 function seedStorage(storageService: IStorageService, entries: { uri: URI; providerId: string; checked: boolean }[]): void {
@@ -147,6 +219,8 @@ function createTestPicker(
 	disposables: DisposableStore,
 	providersService: MockSessionsProvidersService,
 	storageService?: IStorageService,
+	notificationService: INotificationService = new TestNotificationService(),
+	pickerCtor: typeof WorkspacePicker = WorkspacePicker,
 ): WorkspacePicker {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const storage = storageService ?? disposables.add(new TestStorageService());
@@ -166,19 +240,20 @@ function createTestPicker(
 	instantiationService.stub(IFileDialogService, {});
 	instantiationService.stub(IContextKeyService, new MockContextKeyService());
 	instantiationService.stub(IMenuService, { createMenu: () => ({ onDidChange: Event.None, getActions: () => [], dispose: () => { } }) });
+	instantiationService.stub(INotificationService, notificationService);
 	instantiationService.stub(IWorkspacesService, {
 		getRecentlyOpened: async () => ({ workspaces: [], files: [] }),
 		onDidChangeRecentlyOpened: Event.None,
 	});
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 
-	return disposables.add(instantiationService.createInstance(WorkspacePicker));
+	return disposables.add(instantiationService.createInstance(pickerCtor));
 }
 
 // ---- Assertion helpers ------------------------------------------------------
 
 function assertSelectedProvider(picker: WorkspacePicker, expectedProviderId: string | undefined, message?: string): void {
-	assert.strictEqual(picker.selectedProject?.providerId, expectedProviderId, message);
+	assert.strictEqual(picker.selectedResolved?.providerId, expectedProviderId, message);
 }
 
 // ---- Tests ------------------------------------------------------------------
@@ -237,7 +312,7 @@ suite('WorkspacePicker - Connection Status', () => {
 
 		assertSelectedProvider(picker, 'agenthost-remote-1', 'Selection is restored synchronously');
 
-		const events: Array<IWorkspaceSelection | undefined> = [];
+		const events: Array<URI | undefined> = [];
 		disposables.add(picker.onDidSelectWorkspace(e => events.push(e)));
 
 		// Advance past the grace period.
@@ -287,11 +362,7 @@ suite('WorkspacePicker - Connection Status', () => {
 		const picker = createTestPicker(disposables, providersService, storage);
 
 		// User picks a local workspace while the remote is still trying to connect.
-		const localPick: IWorkspaceSelection = {
-			providerId: 'local-1',
-			workspace: localProvider.resolveWorkspace(URI.file('/local/picked'))!,
-		};
-		picker.setSelectedWorkspace(localPick, false);
+		picker.setSelectedWorkspace(URI.file('/local/picked'), { fireEvent: false });
 
 		// Grace period elapses; remote still disconnected — must not affect user pick.
 		await timeout(10_000);
@@ -344,7 +415,7 @@ suite('WorkspacePicker - Connection Status', () => {
 
 		assertSelectedProvider(picker, 'agenthost-remote-1', 'Selection is restored while connecting');
 
-		const events: Array<IWorkspaceSelection | undefined> = [];
+		const events: Array<URI | undefined> = [];
 		disposables.add(picker.onDidSelectWorkspace(e => events.push(e)));
 
 		// SSH tunnel begins.
@@ -391,6 +462,44 @@ suite('WorkspacePicker - Connection Status', () => {
 		assertSelectedProvider(picker, 'agenthost-remote-1', 'Selection should be preserved on disconnect');
 	});
 
+	test('failed on-demand recent connect closes progress notification and reports error', async () => {
+		const remoteStatus = observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.disconnected);
+		const progress = new Emitter<{ readonly connectionKey: string; readonly message: string }>();
+		disposables.add(progress);
+		let connectCalls = 0;
+		const remoteProvider = createMockProvider('agenthost-remote-1', {
+			connectionStatus: remoteStatus,
+			canConnectOnDemand: true,
+			remoteAddress: 'wsl:Ubuntu-24.04',
+			onDidReportConnectProgress: progress.event,
+			connect: async () => {
+				connectCalls++;
+				progress.fire({ connectionKey: 'wsl:Ubuntu-24.04', message: 'Opening WSL...' });
+				throw new Error('boom');
+			},
+		});
+		const notifications = new RecordingNotificationService();
+
+		providersService.setProviders([remoteProvider]);
+		const picker = createTestPicker(disposables, providersService, undefined, notifications, DispatchingWorkspacePicker) as DispatchingWorkspacePicker;
+
+		await picker.dispatchFolder(URI.file('/remote/project'), 'agenthost-remote-1');
+
+		assert.deepStrictEqual({
+			connectCalls,
+			progressClosed: notifications.handles[0]?.closed,
+			progressMessages: notifications.handles[0]?.messages,
+			errors: notifications.errors.map(error => String(error)),
+			selectedProvider: picker.selectedResolved?.providerId,
+		}, {
+			connectCalls: 1,
+			progressClosed: true,
+			progressMessages: ['Connecting to Provider agenthost-remote-1...', 'Opening WSL...'],
+			errors: ['Failed to connect to Provider agenthost-remote-1.'],
+			selectedProvider: undefined,
+		});
+	});
+
 	test('reconnect keeps the selection (no extra event fires)', () => {
 		const remoteStatus = observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.connected);
 		const remoteProvider = createMockProvider('agenthost-remote-1', { connectionStatus: remoteStatus });
@@ -409,7 +518,7 @@ suite('WorkspacePicker - Connection Status', () => {
 		remoteStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
 		assertSelectedProvider(picker, 'agenthost-remote-1');
 		assert.strictEqual(
-			picker.selectedProject?.workspace.folders[0]?.root.path,
+			picker.selectedResolved?.workspace.folders[0]?.root.path,
 			'/remote/project',
 		);
 	});
@@ -431,19 +540,15 @@ suite('WorkspacePicker - Connection Status', () => {
 		// Select the local workspace
 		const resolvedWorkspace = localProvider.resolveWorkspace(URI.file('/local/project'));
 		assert.ok(resolvedWorkspace, 'resolveWorkspace should resolve file:// URIs');
-		const localWorkspace: IWorkspaceSelection = {
-			providerId: 'local-1',
-			workspace: resolvedWorkspace,
-		};
-		picker.setSelectedWorkspace(localWorkspace, false);
+		picker.setSelectedWorkspace(URI.file('/local/project'), { fireEvent: false });
 
 		// Verify storage: only the local entry should be checked
 		const raw = storage.get(STORAGE_KEY_RECENT_WORKSPACES, StorageScope.PROFILE);
 		assert.ok(raw, 'Storage should have recent workspaces');
-		const stored = JSON.parse(raw!) as { providerId: string; checked: boolean }[];
+		const stored = JSON.parse(raw!) as { uri: { path: string }; checked: boolean }[];
 		const checkedEntries = stored.filter(e => e.checked);
 		assert.strictEqual(checkedEntries.length, 1, 'Only one entry should be checked');
-		assert.strictEqual(checkedEntries[0].providerId, 'local-1', 'The local entry should be checked');
+		assert.strictEqual(checkedEntries[0].uri.path, '/local/project', 'The local entry should be checked');
 	});
 
 	test('local provider is never treated as unavailable', () => {
@@ -511,11 +616,7 @@ suite('WorkspacePicker - Connection Status', () => {
 		assertSelectedProvider(picker, undefined, 'No fallback while checked entry pending');
 
 		// User explicitly picks a Copilot workspace.
-		const copilotPick: IWorkspaceSelection = {
-			providerId: 'default-copilot',
-			workspace: copilotProvider.resolveWorkspace(URI.file('/copilot/picked'))!,
-		};
-		picker.setSelectedWorkspace(copilotPick, false);
+		picker.setSelectedWorkspace(URI.file('/copilot/picked'), { fireEvent: false });
 		assertSelectedProvider(picker, 'default-copilot', 'User pick is honored');
 
 		// Now the late provider for the (still-stored) checked entry arrives.
@@ -562,6 +663,7 @@ function createTestablePicker(disposables: DisposableStore, providersService: Mo
 	instantiationService.stub(IFileDialogService, {});
 	instantiationService.stub(IContextKeyService, new MockContextKeyService());
 	instantiationService.stub(IMenuService, { createMenu: () => ({ onDidChange: Event.None, getActions: () => [], dispose: () => { } }) });
+	instantiationService.stub(INotificationService, new TestNotificationService());
 	instantiationService.stub(IWorkspacesService, {
 		getRecentlyOpened: async () => ({ workspaces: [], files: [] }),
 		onDidChangeRecentlyOpened: Event.None,

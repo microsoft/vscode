@@ -86,6 +86,10 @@ const terminalSandboxReadAllowListKeywordMap: ReadonlyMap<string, TerminalSandbo
  */
 
 function getTerminalSandboxReadAllowListForOperation(operation: TerminalSandboxReadAllowListOperation, os: OperatingSystem): readonly string[] {
+	if (os === OperatingSystem.Windows) {
+		return [];
+	}
+
 	switch (operation) {
 		case TerminalSandboxReadAllowListOperation.Git:
 			switch (os) {
@@ -94,6 +98,7 @@ function getTerminalSandboxReadAllowListForOperation(operation: TerminalSandboxR
 				default:
 					return [
 						'~/.gitconfig',
+						'~/.config/gh/config.yml',
 						'~/.config/git/config',
 						'~/.gitignore',
 						'~/.gitignore_global',

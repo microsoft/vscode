@@ -332,8 +332,8 @@ export const platformSessionSchema = createSchema({
 			localize('agentHost.sessionConfig.mode.plan', "Plan"),
 		],
 		enumDescriptions: [
-			localize('agentHost.sessionConfig.mode.interactiveDescription', "Ask for input and approval for each action"),
-			localize('agentHost.sessionConfig.mode.planDescription', "Generate a plan first, then choose how to execute it"),
+			localize('agentHost.sessionConfig.mode.interactiveDescription', "Step-by-step collaboration"),
+			localize('agentHost.sessionConfig.mode.planDescription', "Plan first, execute when ready"),
 		],
 		default: 'interactive',
 		sessionMutable: true,
@@ -351,6 +351,20 @@ export const platformSessionSchema = createSchema({
  *   rules.
  */
 export const AgentHostTelemetryLevelConfigKey = 'telemetryLevel';
+
+/**
+ * Root config key forwarded from the renderer when VS Code's
+ * `chat.sessionSync.enabled` setting changes. Controls the `remote` flag
+ * passed to the copilot-sdk `CopilotClientOptions`.
+ */
+export const AgentHostSessionSyncEnabledConfigKey = 'sessionSyncEnabled';
+
+/**
+ * The VS Code setting ID for session sync. Defined here so the platform
+ * layer (renderer-side forwarding) can reference it without importing from
+ * `workbench/contrib/chat`.
+ */
+export const SESSION_SYNC_ENABLED_SETTING_ID = 'chat.sessionSync.enabled';
 
 export function telemetryLevelToAgentHostConfigValue(telemetryLevel: TelemetryLevel): TelemetryConfiguration {
 	switch (telemetryLevel) {
@@ -388,5 +402,11 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.telemetryLevel.description', "Most restrictive telemetry level requested by connected clients."),
 		enum: [TelemetryConfiguration.ON, TelemetryConfiguration.ERROR, TelemetryConfiguration.CRASH, TelemetryConfiguration.OFF],
 		default: TelemetryConfiguration.ON,
+	}),
+	[AgentHostSessionSyncEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.sessionSyncEnabled.title', "Session Sync"),
+		description: localize('agentHost.config.sessionSyncEnabled.description', "Whether remote session sync is enabled for the copilot-sdk CLI."),
+		default: false,
 	}),
 });

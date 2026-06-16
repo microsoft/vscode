@@ -20,6 +20,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpConnectionState, McpServerInstallState, IMcpService, IMcpServer } from '../../../../contrib/mcp/common/mcpTypes.js';
 import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
+import { MCP_PLUGIN_COLLECTION_ID_PREFIX } from '../../../mcp/common/discovery/pluginMcpDiscovery.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { isContributionDisabled } from '../../common/enablement.js';
 import { McpCommandIds } from '../../../../contrib/mcp/common/mcpCommandIds.js';
@@ -47,7 +48,7 @@ const $ = DOM.$;
 
 const MCP_ITEM_HEIGHT = 36;
 
-const PLUGIN_COLLECTION_PREFIX = 'plugin.';
+const PLUGIN_COLLECTION_PREFIX = MCP_PLUGIN_COLLECTION_ID_PREFIX;
 
 const COPILOT_EXTENSION_IDS = ['github.copilot', 'github.copilot-chat'];
 
@@ -185,8 +186,15 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpB
 
 		templateData.container.classList.remove('builtin');
 		templateData.name.textContent = formatDisplayName(element.server.label);
-		if (element.server.description) {
-			templateData.description.textContent = truncateToFirstLine(element.server.description);
+		const description = element.server.description?.trim();
+		// Marketplace (gallery) entries are always clickable so users can install/inspect them,
+		// even when no description is returned by the gallery. Installed rows only opt-in to the
+		// detail view when there is something extra to show.
+		const isGallery = !element.server.local;
+		const hasDetail = !!description || isGallery;
+		templateData.container.classList.toggle('has-detail', hasDetail);
+		if (description) {
+			templateData.description.textContent = truncateToFirstLine(description);
 			templateData.description.style.display = '';
 		} else {
 			templateData.description.style.display = 'none';
@@ -360,6 +368,7 @@ export class McpListWidget extends Disposable {
 	private disabledMessage!: HTMLElement;
 	private readonly disabledLinkListener = this._register(new MutableDisposable());
 	private browseButton!: Button;
+	private backButton!: Button;
 	private addButton!: Button;
 
 	private filteredServers: IWorkbenchMcpServer[] = [];
@@ -421,7 +430,7 @@ export class McpListWidget extends Disposable {
 		sectionTitleDescription.appendChild(document.createTextNode(' '));
 		this.sectionLink = DOM.append(sectionTitleDescription, $('a.section-title-link')) as HTMLAnchorElement;
 		this.sectionLink.textContent = localize('learnMoreMcp', "Learn more about MCP servers");
-		this.sectionLink.href = 'https://code.visualstudio.com/docs/copilot/chat/mcp-servers';
+		this.sectionLink.href = 'https://code.visualstudio.com/docs/agent-customization/mcp-servers?referrer=in-product';
 		this._register(DOM.addDisposableListener(this.sectionLink, 'click', (e) => {
 			e.preventDefault();
 			const href = this.sectionLink.href;
@@ -473,6 +482,22 @@ export class McpListWidget extends Disposable {
 		// Button container (Browse Marketplace + Add Server)
 		const buttonContainer = DOM.append(this.searchAndButtonContainer, $('.list-button-group'));
 
+		// Back button (visible only in marketplace browse mode)
+		const backButtonContainer = DOM.append(buttonContainer, $('.list-add-button-container'));
+		this.backButton = this._register(new Button(backButtonContainer, {
+			...defaultButtonStyles,
+			secondary: true,
+			supportIcons: true,
+			title: localize('backToInstalled', "Back to installed servers"),
+			ariaLabel: localize('backToInstalled', "Back to installed servers")
+		}));
+		this.backButton.label = `$(${Codicon.arrowLeft.id}) ${localize('mcpBrowseBack', "Back")}`;
+		this.backButton.element.classList.add('list-add-button');
+		backButtonContainer.style.display = 'none';
+		this._register(this.backButton.onDidClick(() => {
+			this.toggleBrowseMode(false);
+		}));
+
 		// Browse Marketplace button
 		const browseButtonContainer = DOM.append(buttonContainer, $('.list-add-button-container'));
 		this.browseButton = this._register(new Button(browseButtonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
@@ -499,8 +524,6 @@ export class McpListWidget extends Disposable {
 		// Empty state
 		this.emptyContainer = DOM.append(this.element, $('.mcp-empty-state'));
 		const emptyHeader = DOM.append(this.emptyContainer, $('.empty-state-header'));
-		const emptyIcon = DOM.append(emptyHeader, $('.empty-icon'));
-		emptyIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.server));
 		this.emptyText = DOM.append(emptyHeader, $('.empty-text'));
 		this.emptySubtext = DOM.append(this.emptyContainer, $('.empty-subtext'));
 
@@ -563,7 +586,13 @@ export class McpListWidget extends Disposable {
 				if (e.element.type === 'group-header') {
 					this.toggleGroup(e.element);
 				} else if (e.element.type === 'server-item') {
-					this._onDidSelectServer.fire(e.element.server);
+					// Marketplace entries are always selectable; installed rows only open
+					// detail when there is something extra to show beyond the row.
+					const server = e.element.server;
+					const isGallery = !server.local;
+					if (isGallery || server.description) {
+						this._onDidSelectServer.fire(server);
+					}
 				}
 				// builtin-item: no action on click (read-only)
 			}
@@ -641,6 +670,7 @@ export class McpListWidget extends Disposable {
 		// Update UI for browse vs installed mode
 		this.addButton.element.style.display = browse ? 'none' : '';
 		this.browseButton.element.parentElement!.style.display = browse ? 'none' : '';
+		this.backButton.element.parentElement!.style.display = browse ? '' : 'none';
 
 		this.searchInput.setPlaceHolder(browse
 			? localize('searchGalleryPlaceholder', "Search MCP marketplace...")
@@ -1056,7 +1086,7 @@ export class McpListWidget extends Disposable {
 						type: 'question',
 					});
 					if (result.confirmed) {
-						plugin.remove();
+						plugin.remove?.();
 					}
 				}
 			));

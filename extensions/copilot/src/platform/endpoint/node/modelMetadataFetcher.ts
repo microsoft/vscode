@@ -254,7 +254,16 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 		}
 		const requestStartTime = Date.now();
 
-		const copilotToken = (await this._authService.getCopilotToken()).token;
+		let copilotToken: string;
+		try {
+			copilotToken = (await this._authService.getCopilotToken()).token;
+		} catch (e) {
+			// No Copilot auth (e.g. signed-out BYOK-only mode).
+			this._lastFetchTime = Date.now();
+			this._lastFetchError = e;
+			return;
+		}
+
 		const requestId = generateUuid();
 		const requestMetadata: RequestMetadata = { type: RequestType.Models, isModelLab: this._isModelLab };
 
@@ -328,6 +337,15 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 		// If there's an experiment that takes precedence over what comes back from CAPI
 		if (experimentalOverrides[chatModelInfo.id]) {
 			modelLimit += experimentalOverrides[chatModelInfo.id];
+			return modelLimit;
+		}
+
+		// When a long context tier exists, use max_context_window_tokens as the
+		// prompt token basis so users can opt into the full context window via
+		// the model picker. The configurationSchema default (defaultContextMax)
+		// ensures users aren't billed at the long-context rate without explicit opt-in.
+		if (chatModelInfo.billing?.token_prices?.long_context && chatModelInfo.capabilities?.limits?.max_context_window_tokens) {
+			modelLimit += chatModelInfo.capabilities.limits.max_context_window_tokens;
 			return modelLimit;
 		}
 

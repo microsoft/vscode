@@ -19,14 +19,14 @@ import { IAgentPluginService } from '../../../../../workbench/contrib/chat/commo
 import { IAICustomizationItemsModel, ItemsModelSection } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { getChatSessionType } from '../../../../../workbench/contrib/chat/common/model/chatUri.js';
-import { AICustomizationManagementSection } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection, AICustomizationSources } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IAICustomizationListItem } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemSource.js';
 import { AICustomizationShortcutsWidget } from '../../browser/aiCustomizationShortcutsWidget.js';
 import { CUSTOMIZATION_ITEMS, CustomizationLinkViewItem, SESSIONS_CUSTOMIZATIONS_SIDEBAR_MODE_SETTING, SessionsCustomizationsSidebarMode } from '../../browser/customizationsToolbar.contribution.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { Menus } from '../../../../browser/menus.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { URI } from '../../../../../base/common/uri.js';
 
 // Ensure color registrations are loaded
@@ -156,7 +156,7 @@ function createMockHarnessService(hiddenSections: readonly string[] = []): ICust
 		label: 'Fixture',
 		icon: ThemeIcon.fromId('vm'),
 		hiddenSections,
-		getStorageSourceFilter: () => ({ sources: [] }),
+		getStorageSourceFilter: () => ({ sources: AICustomizationSources.all }),
 	};
 	return new class extends mock<ICustomizationHarnessService>() {
 		override readonly activeSessionResource = observableValue('mockActiveSessionResource', URI.parse(`${descriptor.id}:///session`));
@@ -195,7 +195,7 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?:
 				override readonly onDidVisibleEditorsChange = Event.None;
 				override readonly onDidEditorsChange = Event.None;
 			}());
-			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
 				override readonly activeSession = observableValue('mockActiveSession', undefined);
 			}());
 			reg.defineInstance(IAICustomizationItemsModel, createMockItemsModel(options?.counts));

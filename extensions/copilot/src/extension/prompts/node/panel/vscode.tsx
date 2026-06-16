@@ -140,6 +140,9 @@ export class VscodePrompt extends PromptElement<VscodePromptProps, VscodePromptS
 		if (token.isCancellationRequested) {
 			return { settings: [], commands: [], query: userQuery };
 		}
+		if (embeddingResult.values.length === 0) {
+			return { settings: [], commands: [], query: userQuery, currentVersion: currentSanitized };
+		}
 
 		const nClosestValuesPromise = progress
 			? reportProgressOnSlowPromise(progress, new ChatResponseProgressPart(l10n.t("Searching command and setting index....")), this.combinedEmbeddingIndex.nClosestValues(embeddingResult.values[0], shouldIncludeDocsSearch ? 5 : 25), 500)

@@ -5,10 +5,11 @@
 
 import { ChatFetchError } from '../../../platform/chat/common/commonTypes';
 import { isAutoModel } from '../../../platform/endpoint/node/autoChatEndpoint';
+import { getImageTelemetryEventMeasurements, type ImageTelemetryMeasurements } from '../../../platform/image/common/imageTelemetry';
 import { FetcherId } from '../../../platform/networking/common/fetcherService';
 import { IChatEndpoint, IChatRequestTelemetryProperties, IEndpointBody } from '../../../platform/networking/common/networking';
 import { ChatCompletion } from '../../../platform/networking/common/openai';
-import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
+import { ITelemetryService, type TelemetryEventMeasurements, type TelemetryEventProperties } from '../../../platform/telemetry/common/telemetry';
 import { TelemetryData } from '../../../platform/telemetry/common/telemetryData';
 import { isBYOKModel } from '../../byok/node/openAIEndpoint';
 
@@ -24,6 +25,7 @@ export interface IChatMLFetcherSuccessfulData {
 	timeToFirstToken: number;
 	timeToFirstTokenEmitted: number;
 	hasImageMessages: boolean;
+	imageTelemetryMeasurements: ImageTelemetryMeasurements;
 	transport: string;
 	fetcher: FetcherId | undefined;
 	bytesReceived: number | undefined;
@@ -64,6 +66,7 @@ export interface IChatMLFetcherCancellationMeasures {
 	isAuto: number;
 	bytesReceived: number | undefined;
 	issuedTime: number;
+	imageTelemetryMeasurements: ImageTelemetryMeasurements;
 }
 
 export interface IChatMLFetcherErrorData {
@@ -75,6 +78,7 @@ export interface IChatMLFetcherErrorData {
 	maxResponseTokens: number;
 	timeToFirstToken: number;
 	isVisionRequest: boolean;
+	imageTelemetryMeasurements: ImageTelemetryMeasurements;
 	transport: string;
 	interactionType: string;
 	fetcher: FetcherId | undefined;
@@ -83,6 +87,29 @@ export interface IChatMLFetcherErrorData {
 	wasRetried: boolean;
 	suspendEventSeen: boolean | undefined;
 	resumeEventSeen: boolean | undefined;
+}
+
+function getTurnFromBaseTelemetry(baseTelemetry: TelemetryData): number | undefined {
+	const turnIndex = baseTelemetry.properties.turnIndex;
+	if (typeof turnIndex !== 'string') {
+		return undefined;
+	}
+
+	const parsedTurnIndex = Number(turnIndex);
+	return Number.isFinite(parsedTurnIndex) ? parsedTurnIndex : undefined;
+}
+
+function sendResponseTelemetryEvent(
+	telemetryService: ITelemetryService,
+	eventName: string,
+	properties: TelemetryEventProperties,
+	measurements: TelemetryEventMeasurements,
+	imageTelemetryMeasurements: ImageTelemetryMeasurements,
+): void {
+	telemetryService.sendTelemetryEvent(eventName, { github: true, microsoft: true }, properties, measurements);
+	if (imageTelemetryMeasurements.imageCount > 0) {
+		telemetryService.sendEnhancedGHTelemetryEvent(eventName, properties, measurements);
+	}
 }
 
 export class ChatMLFetcherTelemetrySender {
@@ -101,6 +128,7 @@ export class ChatMLFetcherTelemetrySender {
 			timeToFirstToken,
 			timeToFirstTokenEmitted,
 			hasImageMessages,
+			imageTelemetryMeasurements,
 			transport,
 			fetcher,
 			bytesReceived,
@@ -125,6 +153,7 @@ export class ChatMLFetcherTelemetrySender {
 				"requestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the current turn request" },
 				"gitHubRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "GitHub request id if available" },
 				"associatedRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Another request ID that this request is associated with (eg, the originating request of a summarization request)." },
+				"turn": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "How many turns have been made in the conversation.", "isMeasurement": true },
 				"reasoningEffort": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reasoning effort level" },
 				"reasoningSummary": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reasoning summary level" },
 				"fetcher": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The fetcher used for the request" },
@@ -133,6 +162,8 @@ export class ChatMLFetcherTelemetrySender {
 				"clientPromptTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of prompt tokens, locally counted", "isMeasurement": true },
 				"promptTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of prompt tokens, server side counted", "isMeasurement": true },
 				"promptCacheTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of prompt tokens hitting cache as reported by server", "isMeasurement": true },
+				"promptCacheCreation1hTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Cache-creation input tokens written with the 1h (extended) TTL, billed at 2x base rate. Only populated when Anthropic reports the cache_creation breakdown.", "isMeasurement": true },
+				"promptCacheCreation5mTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Cache-creation input tokens written with the default 5m TTL, billed at 1.25x base rate. Only populated when Anthropic reports the cache_creation breakdown.", "isMeasurement": true },
 				"tokenCountMax": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Maximum generated tokens", "isMeasurement": true },
 				"tokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of generated tokens", "isMeasurement": true },
 				"reasoningTokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of reasoning tokens", "isMeasurement": true },
@@ -144,6 +175,23 @@ export class ChatMLFetcherTelemetrySender {
 				"timeToComplete": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Time to complete the request", "isMeasurement": true },
 				"issuedTime": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Timestamp when the request was issued", "isMeasurement": true },
 				"isVisionRequest": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the request was for a vision model", "isMeasurement": true },
+				"imageCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of input images attached to the request", "isMeasurement": true },
+				"totalImageBytes": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Sum of byte sizes for attached input images when known", "isMeasurement": true },
+				"maxImageBytes": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image byte size in the request", "isMeasurement": true },
+				"maxImageWidth": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image width in the request", "isMeasurement": true },
+				"maxImageHeight": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image height in the request", "isMeasurement": true },
+				"maxImagePixels": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image pixel count in the request", "isMeasurement": true },
+				"totalImagePixels": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Sum of known input image pixel counts in the request", "isMeasurement": true },
+				"imagePngCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of PNG input images", "isMeasurement": true },
+				"imageJpegCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of JPEG input images", "isMeasurement": true },
+				"imageGifCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of GIF input images", "isMeasurement": true },
+				"imageWebpCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of WebP input images", "isMeasurement": true },
+				"imageUnknownMimeCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images whose MIME type is unknown or unsupported", "isMeasurement": true },
+				"imageClipboardCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images sourced from clipboard or paste", "isMeasurement": true },
+				"imageScreenshotCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images sourced from screenshot capture", "isMeasurement": true },
+				"imageFileCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images sourced from local file attachment", "isMeasurement": true },
+				"imageUrlCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images sourced from URL", "isMeasurement": true },
+				"imageUnknownSourceCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images whose source could not be determined", "isMeasurement": true },
 				"isBYOK": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the request was for a BYOK model", "isMeasurement": true },
 				"isAuto": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the request was for an Auto model", "isMeasurement": true },
 				"bytesReceived": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of bytes received in the response", "isMeasurement": true },
@@ -161,7 +209,7 @@ export class ChatMLFetcherTelemetrySender {
 				"iterationNumber": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Iteration number within the tool calling loop" }
 			}
 		*/
-		telemetryService.sendTelemetryEvent('response.success', { github: true, microsoft: true }, {
+		sendResponseTelemetryEvent(telemetryService, 'response.success', {
 			reason: chatCompletion.finishReason,
 			filterReason: chatCompletion.filterReason,
 			source: baseTelemetry?.properties.messageSource ?? 'unknown',
@@ -189,10 +237,13 @@ export class ChatMLFetcherTelemetrySender {
 			...(baseTelemetry?.properties.connectivityTestErrorGitHubRequestId ? { connectivityTestErrorGitHubRequestId: baseTelemetry.properties.connectivityTestErrorGitHubRequestId } : {}),
 			...(baseTelemetry?.properties.retryAfterFilterCategory ? { retryAfterFilterCategory: baseTelemetry.properties.retryAfterFilterCategory } : {}),
 		}, {
+			turn: getTurnFromBaseTelemetry(baseTelemetry),
 			totalTokenMax: chatEndpointInfo?.modelMaxPromptTokens ?? -1,
 			tokenCountMax: maxResponseTokens,
 			promptTokenCount: chatCompletion.usage?.prompt_tokens,
 			promptCacheTokenCount: chatCompletion.usage?.prompt_tokens_details?.cached_tokens,
+			promptCacheCreation1hTokenCount: chatCompletion.usage?.prompt_tokens_details?.anthropic_cache_creation?.ephemeral_1h_input_tokens,
+			promptCacheCreation5mTokenCount: chatCompletion.usage?.prompt_tokens_details?.anthropic_cache_creation?.ephemeral_5m_input_tokens,
 			clientPromptTokenCount: promptTokenCount,
 			tokenCount: chatCompletion.usage?.total_tokens,
 			reasoningTokens: chatCompletion.usage?.completion_tokens_details?.reasoning_tokens,
@@ -204,12 +255,13 @@ export class ChatMLFetcherTelemetrySender {
 			timeToComplete: Date.now() - baseTelemetry.issuedTime,
 			issuedTime: baseTelemetry.issuedTime,
 			isVisionRequest: hasImageMessages ? 1 : -1,
+			...getImageTelemetryEventMeasurements(imageTelemetryMeasurements),
 			isBYOK: isBYOKModel(chatEndpointInfo),
 			isAuto: isAutoModel(chatEndpointInfo),
 			bytesReceived,
 			suspendEventSeen: suspendEventSeen ? 1 : 0,
 			resumeEventSeen: resumeEventSeen ? 1 : 0,
-		});
+		}, imageTelemetryMeasurements);
 	}
 
 	public static sendCancellationTelemetry(
@@ -245,6 +297,7 @@ export class ChatMLFetcherTelemetrySender {
 			isAuto,
 			bytesReceived,
 			issuedTime,
+			imageTelemetryMeasurements,
 		}: IChatMLFetcherCancellationMeasures
 	) {
 		/* __GDPR__
@@ -270,6 +323,23 @@ export class ChatMLFetcherTelemetrySender {
 				"timeToComplete": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Time to complete the request", "isMeasurement": true },
 				"issuedTime": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Timestamp when the request was issued", "isMeasurement": true },
 				"isVisionRequest": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the request was for a vision model", "isMeasurement": true },
+				"imageCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of input images attached to the request", "isMeasurement": true },
+				"totalImageBytes": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Sum of byte sizes for attached input images when known", "isMeasurement": true },
+				"maxImageBytes": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image byte size in the request", "isMeasurement": true },
+				"maxImageWidth": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image width in the request", "isMeasurement": true },
+				"maxImageHeight": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image height in the request", "isMeasurement": true },
+				"maxImagePixels": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image pixel count in the request", "isMeasurement": true },
+				"totalImagePixels": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Sum of known input image pixel counts in the request", "isMeasurement": true },
+				"imagePngCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of PNG input images", "isMeasurement": true },
+				"imageJpegCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of JPEG input images", "isMeasurement": true },
+				"imageGifCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of GIF input images", "isMeasurement": true },
+				"imageWebpCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of WebP input images", "isMeasurement": true },
+				"imageUnknownMimeCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images whose MIME type is unknown or unsupported", "isMeasurement": true },
+				"imageClipboardCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images sourced from clipboard or paste", "isMeasurement": true },
+				"imageScreenshotCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images sourced from screenshot capture", "isMeasurement": true },
+				"imageFileCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images sourced from local file attachment", "isMeasurement": true },
+				"imageUrlCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images sourced from URL", "isMeasurement": true },
+				"imageUnknownSourceCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images whose source could not be determined", "isMeasurement": true },
 				"isBYOK": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the request was for a BYOK model", "isMeasurement": true },
 				"isAuto": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the request was for an Auto model", "isMeasurement": true },
 				"bytesReceived": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of bytes received before cancellation", "isMeasurement": true },
@@ -282,7 +352,7 @@ export class ChatMLFetcherTelemetrySender {
 				"resumeEventSeen": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether a system resume event was seen during the request", "isMeasurement": true }
 			}
 		*/
-		telemetryService.sendTelemetryEvent('response.cancelled', { github: true, microsoft: true }, {
+		sendResponseTelemetryEvent(telemetryService, 'response.cancelled', {
 			apiType,
 			source,
 			requestId,
@@ -308,12 +378,13 @@ export class ChatMLFetcherTelemetrySender {
 			timeToComplete: timeToCancelled,
 			issuedTime,
 			isVisionRequest,
+			...getImageTelemetryEventMeasurements(imageTelemetryMeasurements),
 			isBYOK,
 			isAuto,
 			bytesReceived,
 			suspendEventSeen: suspendEventSeen ? 1 : 0,
 			resumeEventSeen: resumeEventSeen ? 1 : 0,
-		});
+		}, imageTelemetryMeasurements);
 	}
 
 	public static sendResponseErrorTelemetry(
@@ -327,6 +398,7 @@ export class ChatMLFetcherTelemetrySender {
 			maxResponseTokens,
 			timeToFirstToken,
 			isVisionRequest,
+			imageTelemetryMeasurements,
 			transport,
 			interactionType,
 			fetcher,
@@ -364,6 +436,23 @@ export class ChatMLFetcherTelemetrySender {
 				"timeToComplete": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Time to complete the request", "isMeasurement": true },
 				"issuedTime": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Timestamp when the request was issued", "isMeasurement": true },
 				"isVisionRequest": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the request was for a vision model", "isMeasurement": true },
+				"imageCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of input images attached to the request", "isMeasurement": true },
+				"totalImageBytes": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Sum of byte sizes for attached input images when known", "isMeasurement": true },
+				"maxImageBytes": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image byte size in the request", "isMeasurement": true },
+				"maxImageWidth": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image width in the request", "isMeasurement": true },
+				"maxImageHeight": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image height in the request", "isMeasurement": true },
+				"maxImagePixels": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image pixel count in the request", "isMeasurement": true },
+				"totalImagePixels": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Sum of known input image pixel counts in the request", "isMeasurement": true },
+				"imagePngCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of PNG input images", "isMeasurement": true },
+				"imageJpegCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of JPEG input images", "isMeasurement": true },
+				"imageGifCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of GIF input images", "isMeasurement": true },
+				"imageWebpCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of WebP input images", "isMeasurement": true },
+				"imageUnknownMimeCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images whose MIME type is unknown or unsupported", "isMeasurement": true },
+				"imageClipboardCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images sourced from clipboard or paste", "isMeasurement": true },
+				"imageScreenshotCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images sourced from screenshot capture", "isMeasurement": true },
+				"imageFileCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images sourced from local file attachment", "isMeasurement": true },
+				"imageUrlCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images sourced from URL", "isMeasurement": true },
+				"imageUnknownSourceCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images whose source could not be determined", "isMeasurement": true },
 				"isBYOK": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the request was for a BYOK model", "isMeasurement": true },
 				"isAuto": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the request was for an Auto model", "isMeasurement": true },
 				"wasRetried": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the error will be retried", "isMeasurement": true },
@@ -377,7 +466,7 @@ export class ChatMLFetcherTelemetrySender {
 				"resumeEventSeen": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether a system resume event was seen during the request", "isMeasurement": true }
 			}
 		*/
-		telemetryService.sendTelemetryEvent('response.error', { github: true, microsoft: true }, {
+		sendResponseTelemetryEvent(telemetryService, 'response.error', {
 			type: processed.type,
 			reason: processed.reasonDetail || processed.reason,
 			source: telemetryProperties?.messageSource ?? 'unknown',
@@ -406,12 +495,13 @@ export class ChatMLFetcherTelemetrySender {
 			timeToComplete: Date.now() - issuedTime,
 			issuedTime,
 			isVisionRequest: isVisionRequest ? 1 : -1,
+			...getImageTelemetryEventMeasurements(imageTelemetryMeasurements),
 			isBYOK: isBYOKModel(chatEndpointInfo),
 			isAuto: isAutoModel(chatEndpointInfo),
 			wasRetried: wasRetried ? 1 : 0,
 			bytesReceived,
 			suspendEventSeen: suspendEventSeen ? 1 : 0,
 			resumeEventSeen: resumeEventSeen ? 1 : 0,
-		});
+		}, imageTelemetryMeasurements);
 	}
 }

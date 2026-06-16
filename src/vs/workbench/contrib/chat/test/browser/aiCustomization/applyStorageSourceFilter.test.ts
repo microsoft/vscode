@@ -6,11 +6,10 @@
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
-import { applyStorageSourceFilter, BUILTIN_STORAGE, IStorageSourceFilter } from '../../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationSource, AICustomizationSources, applySourceFilter, IStorageSourceFilter } from '../../../common/aiCustomizationWorkspaceService.js';
 
-function item(path: string, storage: PromptsStorage | string): { uri: URI; storage: string } {
-	return { uri: URI.file(path), storage };
+function item(path: string, source: AICustomizationSource): { uri: URI; source: AICustomizationSource } {
+	return { uri: URI.file(path), source };
 }
 
 suite('applyStorageSourceFilter', () => {
@@ -19,73 +18,73 @@ suite('applyStorageSourceFilter', () => {
 	suite('source filtering', () => {
 		test('keeps items matching sources', () => {
 			const items = [
-				item('/w/a.md', PromptsStorage.local),
-				item('/u/b.md', PromptsStorage.user),
-				item('/e/c.md', PromptsStorage.extension),
+				item('/w/a.md', AICustomizationSources.local),
+				item('/u/b.md', AICustomizationSources.user),
+				item('/e/c.md', AICustomizationSources.extension),
 			];
 			const filter: IStorageSourceFilter = {
-				sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.extension],
+				sources: [AICustomizationSources.local, AICustomizationSources.user, AICustomizationSources.extension],
 			};
-			assert.strictEqual(applyStorageSourceFilter(items, filter).length, 3);
+			assert.strictEqual(applySourceFilter(items, filter).length, 3);
 		});
 
 		test('removes items not in sources', () => {
 			const items = [
-				item('/w/a.md', PromptsStorage.local),
-				item('/u/b.md', PromptsStorage.user),
-				item('/e/c.md', PromptsStorage.extension),
-				item('/p/d.md', PromptsStorage.plugin),
+				item('/w/a.md', AICustomizationSources.local),
+				item('/u/b.md', AICustomizationSources.user),
+				item('/e/c.md', AICustomizationSources.extension),
+				item('/p/d.md', AICustomizationSources.plugin),
 			];
 			const filter: IStorageSourceFilter = {
-				sources: [PromptsStorage.local],
+				sources: [AICustomizationSources.local],
 			};
-			const result = applyStorageSourceFilter(items, filter);
+			const result = applySourceFilter(items, filter);
 			assert.strictEqual(result.length, 1);
 			assert.strictEqual(result[0].uri.toString(), URI.file('/w/a.md').toString());
 		});
 
 		test('empty sources removes everything', () => {
 			const items = [
-				item('/w/a.md', PromptsStorage.local),
-				item('/u/b.md', PromptsStorage.user),
+				item('/w/a.md', AICustomizationSources.local),
+				item('/u/b.md', AICustomizationSources.user),
 			];
 			const filter: IStorageSourceFilter = { sources: [] };
-			assert.strictEqual(applyStorageSourceFilter(items, filter).length, 0);
+			assert.strictEqual(applySourceFilter(items, filter).length, 0);
 		});
 
 		test('empty items returns empty', () => {
 			const filter: IStorageSourceFilter = {
-				sources: [PromptsStorage.local, PromptsStorage.user],
+				sources: [AICustomizationSources.local, AICustomizationSources.user],
 			};
-			assert.strictEqual(applyStorageSourceFilter([], filter).length, 0);
+			assert.strictEqual(applySourceFilter([], filter).length, 0);
 		});
 	});
 
 	suite('includedUserFileRoots filtering', () => {
 		test('undefined includedUserFileRoots keeps all user files', () => {
 			const items = [
-				item('/home/.copilot/a.md', PromptsStorage.user),
-				item('/home/.vscode/b.md', PromptsStorage.user),
-				item('/home/.claude/c.md', PromptsStorage.user),
+				item('/home/.copilot/a.md', AICustomizationSources.user),
+				item('/home/.vscode/b.md', AICustomizationSources.user),
+				item('/home/.claude/c.md', AICustomizationSources.user),
 			];
 			const filter: IStorageSourceFilter = {
-				sources: [PromptsStorage.user],
+				sources: [AICustomizationSources.user],
 				// includedUserFileRoots not set = allow all
 			};
-			assert.strictEqual(applyStorageSourceFilter(items, filter).length, 3);
+			assert.strictEqual(applySourceFilter(items, filter).length, 3);
 		});
 
 		test('includedUserFileRoots filters user files by root', () => {
 			const items = [
-				item('/home/.copilot/instructions/a.md', PromptsStorage.user),
-				item('/home/.vscode/instructions/b.md', PromptsStorage.user),
-				item('/home/.claude/rules/c.md', PromptsStorage.user),
+				item('/home/.copilot/instructions/a.md', AICustomizationSources.user),
+				item('/home/.vscode/instructions/b.md', AICustomizationSources.user),
+				item('/home/.claude/rules/c.md', AICustomizationSources.user),
 			];
 			const filter: IStorageSourceFilter = {
-				sources: [PromptsStorage.user],
+				sources: [AICustomizationSources.user],
 				includedUserFileRoots: [URI.file('/home/.copilot'), URI.file('/home/.claude')],
 			};
-			const result = applyStorageSourceFilter(items, filter);
+			const result = applySourceFilter(items, filter);
 			assert.strictEqual(result.length, 2);
 			assert.strictEqual(result[0].uri.toString(), URI.file('/home/.copilot/instructions/a.md').toString());
 			assert.strictEqual(result[1].uri.toString(), URI.file('/home/.claude/rules/c.md').toString());
@@ -93,81 +92,81 @@ suite('applyStorageSourceFilter', () => {
 
 		test('includedUserFileRoots does not affect non-user items', () => {
 			const items = [
-				item('/w/a.md', PromptsStorage.local),
-				item('/e/b.md', PromptsStorage.extension),
-				item('/home/.copilot/c.md', PromptsStorage.user),
+				item('/w/a.md', AICustomizationSources.local),
+				item('/e/b.md', AICustomizationSources.extension),
+				item('/home/.copilot/c.md', AICustomizationSources.user),
 			];
 			const filter: IStorageSourceFilter = {
-				sources: [PromptsStorage.local, PromptsStorage.extension, PromptsStorage.user],
+				sources: [AICustomizationSources.local, AICustomizationSources.extension, AICustomizationSources.user],
 				includedUserFileRoots: [URI.file('/home/.copilot')],
 			};
-			const result = applyStorageSourceFilter(items, filter);
+			const result = applySourceFilter(items, filter);
 			// local + extension kept (not affected by user root filter), user kept (matches root)
 			assert.strictEqual(result.length, 3);
 		});
 
 		test('empty includedUserFileRoots removes all user files', () => {
 			const items = [
-				item('/w/a.md', PromptsStorage.local),
-				item('/home/.copilot/b.md', PromptsStorage.user),
+				item('/w/a.md', AICustomizationSources.local),
+				item('/home/.copilot/b.md', AICustomizationSources.user),
 			];
 			const filter: IStorageSourceFilter = {
-				sources: [PromptsStorage.local, PromptsStorage.user],
+				sources: [AICustomizationSources.local, AICustomizationSources.user],
 				includedUserFileRoots: [], // explicit empty = no user files allowed
 			};
-			const result = applyStorageSourceFilter(items, filter);
+			const result = applySourceFilter(items, filter);
 			assert.strictEqual(result.length, 1);
-			assert.strictEqual(result[0].storage, PromptsStorage.local);
+			assert.strictEqual(result[0].source, AICustomizationSources.local);
 		});
 
 		test('user file at exact root is included', () => {
 			const items = [
-				item('/home/.copilot', PromptsStorage.user),
+				item('/home/.copilot', AICustomizationSources.user),
 			];
 			const filter: IStorageSourceFilter = {
-				sources: [PromptsStorage.user],
+				sources: [AICustomizationSources.user],
 				includedUserFileRoots: [URI.file('/home/.copilot')],
 			};
-			assert.strictEqual(applyStorageSourceFilter(items, filter).length, 1);
+			assert.strictEqual(applySourceFilter(items, filter).length, 1);
 		});
 
 		test('user file outside all roots is excluded', () => {
 			const items = [
-				item('/other/path/a.md', PromptsStorage.user),
+				item('/other/path/a.md', AICustomizationSources.user),
 			];
 			const filter: IStorageSourceFilter = {
-				sources: [PromptsStorage.user],
+				sources: [AICustomizationSources.user],
 				includedUserFileRoots: [URI.file('/home/.copilot'), URI.file('/home/.claude')],
 			};
-			assert.strictEqual(applyStorageSourceFilter(items, filter).length, 0);
+			assert.strictEqual(applySourceFilter(items, filter).length, 0);
 		});
 
 		test('deeply nested user file under root is included', () => {
 			const items = [
-				item('/home/.copilot/instructions/sub/deep/a.md', PromptsStorage.user),
+				item('/home/.copilot/instructions/sub/deep/a.md', AICustomizationSources.user),
 			];
 			const filter: IStorageSourceFilter = {
-				sources: [PromptsStorage.user],
+				sources: [AICustomizationSources.user],
 				includedUserFileRoots: [URI.file('/home/.copilot')],
 			};
-			assert.strictEqual(applyStorageSourceFilter(items, filter).length, 1);
+			assert.strictEqual(applySourceFilter(items, filter).length, 1);
 		});
 	});
 
 	suite('combined filtering', () => {
 		test('source filter + user root filter applied together', () => {
 			const items = [
-				item('/w/a.md', PromptsStorage.local),
-				item('/home/.copilot/b.md', PromptsStorage.user),
-				item('/home/.vscode/c.md', PromptsStorage.user),
-				item('/e/d.md', PromptsStorage.extension),
-				item('/p/e.md', PromptsStorage.plugin),
+				item('/w/a.md', AICustomizationSources.local),
+				item('/home/.copilot/b.md', AICustomizationSources.user),
+				item('/home/.vscode/c.md', AICustomizationSources.user),
+				item('/e/d.md', AICustomizationSources.extension),
+				item('/p/e.md', AICustomizationSources.plugin),
 			];
 			const filter: IStorageSourceFilter = {
-				sources: [PromptsStorage.local, PromptsStorage.user],
+				sources: [AICustomizationSources.local, AICustomizationSources.user],
 				includedUserFileRoots: [URI.file('/home/.copilot')],
 			};
-			const result = applyStorageSourceFilter(items, filter);
+			const result = applySourceFilter(items, filter);
 			// local (kept), .copilot user (kept), .vscode user (excluded by root),
 			// extension (excluded by source), plugin (excluded by source)
 			assert.strictEqual(result.length, 2);
@@ -175,93 +174,93 @@ suite('applyStorageSourceFilter', () => {
 
 		test('sessions-like filter: hooks show only local', () => {
 			const items = [
-				item('/w/.github/hooks/pre.json', PromptsStorage.local),
-				item('/home/.claude/settings.json', PromptsStorage.user),
+				item('/w/.github/hooks/pre.json', AICustomizationSources.local),
+				item('/home/.claude/settings.json', AICustomizationSources.user),
 			];
 			const filter: IStorageSourceFilter = {
-				sources: [PromptsStorage.local],
+				sources: [AICustomizationSources.local],
 			};
-			const result = applyStorageSourceFilter(items, filter);
+			const result = applySourceFilter(items, filter);
 			assert.strictEqual(result.length, 1);
-			assert.strictEqual(result[0].storage, PromptsStorage.local);
+			assert.strictEqual(result[0].source, AICustomizationSources.local);
 		});
 
 		test('sessions-like filter: instructions show only CLI roots', () => {
 			const items = [
-				item('/w/.github/instructions/a.md', PromptsStorage.local),
-				item('/home/.copilot/instructions/b.md', PromptsStorage.user),
-				item('/home/.claude/rules/c.md', PromptsStorage.user),
-				item('/home/.vscode-profile/instructions/d.md', PromptsStorage.user),
+				item('/w/.github/instructions/a.md', AICustomizationSources.local),
+				item('/home/.copilot/instructions/b.md', AICustomizationSources.user),
+				item('/home/.claude/rules/c.md', AICustomizationSources.user),
+				item('/home/.vscode-profile/instructions/d.md', AICustomizationSources.user),
 			];
 			const filter: IStorageSourceFilter = {
-				sources: [PromptsStorage.local, PromptsStorage.user],
+				sources: [AICustomizationSources.local, AICustomizationSources.user],
 				includedUserFileRoots: [
 					URI.file('/home/.copilot'),
 					URI.file('/home/.claude'),
 					URI.file('/home/.agents'),
 				],
 			};
-			const result = applyStorageSourceFilter(items, filter);
+			const result = applySourceFilter(items, filter);
 			// local + .copilot + .claude pass; .vscode-profile excluded
 			assert.strictEqual(result.length, 3);
 		});
 
 		test('core-like filter: show everything', () => {
 			const items = [
-				item('/w/a.md', PromptsStorage.local),
-				item('/u/b.md', PromptsStorage.user),
-				item('/e/c.md', PromptsStorage.extension),
-				item('/p/d.md', PromptsStorage.plugin),
+				item('/w/a.md', AICustomizationSources.local),
+				item('/u/b.md', AICustomizationSources.user),
+				item('/e/c.md', AICustomizationSources.extension),
+				item('/p/d.md', AICustomizationSources.plugin),
 			];
 			const filter: IStorageSourceFilter = {
-				sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.extension, PromptsStorage.plugin],
+				sources: [AICustomizationSources.local, AICustomizationSources.user, AICustomizationSources.extension, AICustomizationSources.plugin],
 			};
-			assert.strictEqual(applyStorageSourceFilter(items, filter).length, 4);
+			assert.strictEqual(applySourceFilter(items, filter).length, 4);
 		});
 
 		test('core-like filter with builtin: extension items pass when both extension and builtin are in sources', () => {
 			// Items from the chat extension have storage=extension but groupKey=builtin.
 			// The filter operates on storage, so extension items pass through regardless of groupKey.
 			const items = [
-				item('/w/a.md', PromptsStorage.local),
-				item('/e/builtin-agent.md', PromptsStorage.extension),
-				item('/e/third-party.md', PromptsStorage.extension),
-				item('/b/sessions-builtin.md', BUILTIN_STORAGE),
+				item('/w/a.md', AICustomizationSources.local),
+				item('/e/builtin-agent.md', AICustomizationSources.extension),
+				item('/e/third-party.md', AICustomizationSources.extension),
+				item('/b/sessions-builtin.md', AICustomizationSources.builtin),
 			];
 			const filter: IStorageSourceFilter = {
-				sources: [PromptsStorage.local, PromptsStorage.extension, BUILTIN_STORAGE],
+				sources: [AICustomizationSources.local, AICustomizationSources.extension, AICustomizationSources.builtin],
 			};
-			const result = applyStorageSourceFilter(items, filter);
+			const result = applySourceFilter(items, filter);
 			assert.strictEqual(result.length, 4);
 		});
 
 		test('builtin source is respected independently', () => {
 			const items = [
-				item('/e/from-extension.md', PromptsStorage.extension),
-				item('/b/from-sessions.md', BUILTIN_STORAGE),
+				item('/e/from-extension.md', AICustomizationSources.extension),
+				item('/b/from-sessions.md', AICustomizationSources.builtin),
 			];
 			// Only builtin in sources — extension items excluded
 			const filter: IStorageSourceFilter = {
-				sources: [BUILTIN_STORAGE],
+				sources: [AICustomizationSources.builtin],
 			};
-			const result = applyStorageSourceFilter(items, filter);
+			const result = applySourceFilter(items, filter);
 			assert.strictEqual(result.length, 1);
-			assert.strictEqual(result[0].storage, BUILTIN_STORAGE);
+			assert.strictEqual(result[0].source, AICustomizationSources.builtin);
 		});
 	});
 
 	suite('type safety', () => {
 		test('works with objects that have extra properties', () => {
 			const items = [
-				{ uri: URI.file('/w/a.md'), storage: PromptsStorage.local, name: 'A', extra: true },
-				{ uri: URI.file('/u/b.md'), storage: PromptsStorage.user, name: 'B', extra: false },
+				{ uri: URI.file('/w/a.md'), source: AICustomizationSources.local, name: 'A', extra: true },
+				{ uri: URI.file('/u/b.md'), source: AICustomizationSources.user, name: 'B', extra: false },
 			];
 			const filter: IStorageSourceFilter = {
-				sources: [PromptsStorage.local],
+				sources: [AICustomizationSources.local],
 			};
-			const result = applyStorageSourceFilter(items, filter);
+			const result = applySourceFilter(items, filter);
 			assert.strictEqual(result.length, 1);
-			assert.strictEqual((result[0] as typeof items[0]).name, 'A');
+			assert.strictEqual(result[0].name, 'A');
 		});
 	});
 });

@@ -145,7 +145,8 @@
 		"completionsEnablementSetting": "github.copilot.enable",
 		"nextEditSuggestionsSetting": "github.copilot.nextEditSuggestions.enabled",
 		"tokenEntitlementUrl": "https://api.github.com/copilot_internal/v2/token",
-		"mcpRegistryDataUrl": "https://api.github.com/copilot/mcp_registry"
+		"mcpRegistryDataUrl": "https://api.github.com/copilot/mcp_registry",
+		"managedSettingsUrl": "https://api.github.com/copilot_internal/managed_settings"
 	},
 	"trustedExtensionAuthAccess": {
 		"github": [
@@ -233,5 +234,6 @@
 	"builtInExtensionsEnabledWithAutoUpdates": [
 		"GitHub.copilot-chat"
 	],
-	"sessionsWindowAllowedExtensions": []
+	"sessionsWindowAllowedExtensions": [],
+	"voiceWsUrl": "wss://falcon-caas.mai.microsoft.com/voice-code/api/v1/realtime/voice"
 }
