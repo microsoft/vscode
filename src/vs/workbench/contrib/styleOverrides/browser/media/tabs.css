@@ -117,3 +117,30 @@
 	font-size: 12px;
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
 }
+
+/*
+ * Settings switcher tabs (User / Remote / Workspace / Folder) in the Settings
+ * editor header. These are action-bar items whose active state is drawn as a
+ * bottom-border underline on the `.action-label`. Give them the same rounded
+ * pill look as the editor and panel tabs: drop the underline, round the label
+ * and show a subtle background on the active (checked) tab.
+ */
+.style-override-tabs .settings-editor .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
+	border-radius: var(--vscode-cornerRadius-small) !important;
+	border-bottom: none !important;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	padding: 2px 8px !important;
+}
+
+.style-override-tabs .settings-editor .settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked {
+	background-color: color-mix(in srgb, var(--vscode-foreground) 10%, transparent) !important;
+}
+
+.style-override-tabs .settings-editor .settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked:not(:focus) {
+	border-bottom-color: transparent !important;
+}
+
+/* Drop the underline beneath the settings header controls row. */
+.style-override-tabs .settings-editor > .settings-header > .settings-header-controls {
+	border-bottom: none !important;
+}

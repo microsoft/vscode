@@ -129,6 +129,15 @@
 	overflow: hidden;
 }
 
+/*
+ * Settings editor row container. The focused/hovered row paints a background
+ * (and the focused row draws an outline) on this element, so round it to the
+ * inner tier to match.
+ */
+.style-override-roundedCorners .settings-editor .settings-tree-container .setting-item-contents.settings-row-inner-container {
+	border-radius: var(--vscode-cornerRadius-medium) !important;
+}
+
 /* =============================================================================
  * Outer (8px) — overlays / floating UI above the rest of the workbench.
  * ========================================================================== */
