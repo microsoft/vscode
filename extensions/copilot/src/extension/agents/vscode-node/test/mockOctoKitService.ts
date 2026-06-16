@@ -31,6 +31,8 @@ export class MockOctoKitService implements IOctoKitService {
 	createPullRequest = async () => ({ number: 0, url: '' });
 	getPullRequestFromGlobalId = async () => null;
 	getPullRequestFiles = async () => [];
+	compareCommits = async () => undefined;
+	getRepositoryById: IOctoKitService['getRepositoryById'] = async () => undefined;
 	closePullRequest = async () => false;
 	findPullRequestByHeadBranch = async () => undefined;
 	getOpenPullRequestsForUser = async () => [];

@@ -8,21 +8,30 @@ import { MarkdownString, isMarkdownString } from '../../../../base/common/htmlCo
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as nls from '../../../../nls.js';
+import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
+import { SessionConfigKey } from '../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { ActionType } from '../../../../platform/agentHost/common/state/protocol/actions.js';
+import { StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IChatAgentService } from '../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { IChatSlashCommandService } from '../common/participants/chatSlashCommands.js';
 import { IChatService } from '../common/chatService/chatService.js';
 import { IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, SessionType } from '../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel } from '../common/constants.js';
+import { getChatSessionType, isUntitledChatSession } from '../common/model/chatUri.js';
 import { ACTION_ID_NEW_CHAT } from './actions/chatActions.js';
 import { ChatSubmitAction, OpenModePickerAction, OpenModelPickerAction } from './actions/chatExecuteActions.js';
 import { ManagePluginsAction } from './actions/chatPluginActions.js';
 import { ConfigureToolsAction } from './actions/chatToolActions.js';
 import { IAgentSessionsService } from './agentSessions/agentSessionsService.js';
+import { IAgentHostSessionWorkingDirectoryResolver } from './agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
+import { toAgentHostBackendSessionUri } from './agentSessions/agentHost/agentHostSessionUri.js';
+import { IAgentHostUntitledProvisionalSessionService } from './agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { CONFIGURE_INSTRUCTIONS_ACTION_ID } from './promptSyntax/attachInstructionsAction.js';
 import { showConfigureHooksQuickPick } from './promptSyntax/hookActions.js';
 import { CONFIGURE_PROMPTS_ACTION_ID } from './promptSyntax/runPromptAction.js';
@@ -32,7 +41,6 @@ import { agentSlashCommandToMarkdown, agentToMarkdown } from './widget/chatConte
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from './aiCustomization/aiCustomizationManagement.js';
-import { getChatSessionType } from '../common/model/chatUri.js';
 
 export class ChatSlashCommandsContribution extends Disposable {
 
@@ -47,6 +55,10 @@ export class ChatSlashCommandsContribution extends Disposable {
 		@IChatService chatService: IChatService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
+		@IAgentHostService agentHostService: IAgentHostService,
+		@IAgentHostUntitledProvisionalSessionService agentHostProvisionalService: IAgentHostUntitledProvisionalSessionService,
+		@IAgentHostSessionWorkingDirectoryResolver agentHostWorkingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
@@ -208,7 +220,36 @@ export class ChatSlashCommandsContribution extends Disposable {
 				chatService.setChatSessionTitle(sessionResource, title);
 			}
 		}));
-		const setPermissionLevelForSession = (sessionResource: URI, level: ChatPermissionLevel) => {
+		const getAgentHostWorkingDirectory = (sessionResource: URI): URI | undefined => {
+			return agentHostWorkingDirectoryResolver.resolve(sessionResource)
+				?? workspaceContextService.getWorkspace().folders[0]?.uri;
+		};
+		const readAgentHostConfigValues = (backendSession: URI): Record<string, unknown> | undefined => {
+			const state = agentHostService.getSubscriptionUnmanaged(StateComponents.Session, backendSession)?.value;
+			return state && !(state instanceof Error) ? state.config?.values : undefined;
+		};
+		const setPermissionLevelForSession = async (sessionResource: URI, level: ChatPermissionLevel) => {
+			const backendSession = toAgentHostBackendSessionUri(sessionResource);
+			if (backendSession) {
+				const permittedLevel = configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false
+					? ChatPermissionLevel.Default
+					: level;
+				const partial = { [SessionConfigKey.AutoApprove]: permittedLevel };
+				const workingDirectory = getAgentHostWorkingDirectory(sessionResource);
+				if (isUntitledChatSession(sessionResource)) {
+					await agentHostProvisionalService.applyConfigChange(sessionResource, backendSession.scheme, workingDirectory, partial);
+					return;
+				}
+
+				agentHostService.dispatch(backendSession.toString(), {
+					type: ActionType.SessionConfigChanged,
+					config: partial,
+				});
+				const nextConfig = { ...(readAgentHostConfigValues(backendSession) ?? {}), ...partial };
+				void agentHostProvisionalService.refreshResolvedConfig(sessionResource, backendSession.scheme, workingDirectory, nextConfig);
+				return;
+			}
+
 			const widget = chatWidgetService.getWidgetBySessionResource(sessionResource) ?? chatWidgetService.lastFocusedWidget;
 			if (widget) {
 				widget.input.setPermissionLevel(level);
@@ -223,9 +264,9 @@ export class ChatSlashCommandsContribution extends Disposable {
 				executeImmediately: true,
 				silent: true,
 				locations: [ChatAgentLocation.Chat],
-				sessionTypes: [SessionType.Local, SessionType.CopilotCLI],
+				sessionTypes: [SessionType.Local, SessionType.CopilotCLI, SessionType.AgentHostCopilot],
 			}, async (_prompt, _progress, _history, _location, sessionResource) => {
-				setPermissionLevelForSession(sessionResource, ChatPermissionLevel.AutoApprove);
+				await setPermissionLevelForSession(sessionResource, ChatPermissionLevel.AutoApprove);
 			}));
 			this._store.add(slashCommandService.registerSlashCommand({
 				command: 'disableAutoApprove',
@@ -234,9 +275,9 @@ export class ChatSlashCommandsContribution extends Disposable {
 				executeImmediately: true,
 				silent: true,
 				locations: [ChatAgentLocation.Chat],
-				sessionTypes: [SessionType.Local, SessionType.CopilotCLI],
+				sessionTypes: [SessionType.Local, SessionType.CopilotCLI, SessionType.AgentHostCopilot],
 			}, async (_prompt, _progress, _history, _location, sessionResource) => {
-				setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Default);
+				await setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Default);
 			}));
 			this._store.add(slashCommandService.registerSlashCommand({
 				command: 'yolo',
@@ -245,9 +286,9 @@ export class ChatSlashCommandsContribution extends Disposable {
 				executeImmediately: true,
 				silent: true,
 				locations: [ChatAgentLocation.Chat],
-				sessionTypes: [SessionType.Local, SessionType.CopilotCLI],
+				sessionTypes: [SessionType.Local, SessionType.CopilotCLI, SessionType.AgentHostCopilot],
 			}, async (_prompt, _progress, _history, _location, sessionResource) => {
-				setPermissionLevelForSession(sessionResource, ChatPermissionLevel.AutoApprove);
+				await setPermissionLevelForSession(sessionResource, ChatPermissionLevel.AutoApprove);
 			}));
 			this._store.add(slashCommandService.registerSlashCommand({
 				command: 'disableYolo',
@@ -256,34 +297,32 @@ export class ChatSlashCommandsContribution extends Disposable {
 				executeImmediately: true,
 				silent: true,
 				locations: [ChatAgentLocation.Chat],
-				sessionTypes: [SessionType.Local, SessionType.CopilotCLI],
+				sessionTypes: [SessionType.Local, SessionType.CopilotCLI, SessionType.AgentHostCopilot],
 			}, async (_prompt, _progress, _history, _location, sessionResource) => {
-				setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Default);
+				await setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Default);
 			}));
-			if (configurationService.getValue<boolean>(ChatConfiguration.AutopilotEnabled) !== false) {
-				this._store.add(slashCommandService.registerSlashCommand({
-					command: 'autopilot',
-					detail: nls.localize('autopilot', "Set permissions to autopilot mode"),
-					sortText: 'z1_autopilot',
-					executeImmediately: true,
-					silent: true,
-					locations: [ChatAgentLocation.Chat],
-					sessionTypes: [SessionType.Local, SessionType.CopilotCLI],
-				}, async (_prompt, _progress, _history, _location, sessionResource) => {
-					setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Autopilot);
-				}));
-				this._store.add(slashCommandService.registerSlashCommand({
-					command: 'exitAutopilot',
-					detail: nls.localize('exitAutopilot', "Set permissions back to default"),
-					sortText: 'z1_exitAutopilot',
-					executeImmediately: true,
-					silent: true,
-					locations: [ChatAgentLocation.Chat],
-					sessionTypes: [SessionType.Local, SessionType.CopilotCLI],
-				}, async (_prompt, _progress, _history, _location, sessionResource) => {
-					setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Default);
-				}));
-			}
+			this._store.add(slashCommandService.registerSlashCommand({
+				command: 'autopilot',
+				detail: nls.localize('autopilot', "Set permissions to autopilot mode"),
+				sortText: 'z1_autopilot',
+				executeImmediately: true,
+				silent: true,
+				locations: [ChatAgentLocation.Chat],
+				sessionTypes: [SessionType.Local, SessionType.CopilotCLI, SessionType.AgentHostCopilot],
+			}, async (_prompt, _progress, _history, _location, sessionResource) => {
+				await setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Autopilot);
+			}));
+			this._store.add(slashCommandService.registerSlashCommand({
+				command: 'exitAutopilot',
+				detail: nls.localize('exitAutopilot', "Set permissions back to default"),
+				sortText: 'z1_exitAutopilot',
+				executeImmediately: true,
+				silent: true,
+				locations: [ChatAgentLocation.Chat],
+				sessionTypes: [SessionType.Local, SessionType.CopilotCLI, SessionType.AgentHostCopilot],
+			}, async (_prompt, _progress, _history, _location, sessionResource) => {
+				await setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Default);
+			}));
 		}
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'help',

@@ -21,7 +21,7 @@ import { getClaudeToolPath, isClaudeFileEditTool } from './claudeToolDisplay.js'
  * after-content when the matching synthetic `tool_result` arrives, and
  * stages a {@link ToolResultFileEditContent} on the session's
  * {@link ClaudeMapperState} so the synchronous mapper can attach it to
- * the `SessionToolCallComplete` action.
+ * the `ChatToolCallComplete` action.
  *
  * Hooks (`Options.hooks.PreToolUse` / `Options.hooks.PostToolUse`) are
  * deliberately NOT used: they are user-bypassable via settings, whereas

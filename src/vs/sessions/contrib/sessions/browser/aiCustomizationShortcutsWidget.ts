@@ -25,8 +25,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { AICustomizationManagementEditorInput } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 const $ = DOM.$;
 
 const CUSTOMIZATIONS_COLLAPSED_KEY = 'agentSessions.customizationsCollapsed';
@@ -54,7 +53,7 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
-		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsService private readonly sessionsService: ISessionsService,
 	) {
 		super();
 
@@ -167,7 +166,7 @@ export class AICustomizationShortcutsWidget extends Disposable {
 	}
 
 	private async _openWelcomePage(): Promise<void> {
-		const sessionResource = this.sessionsManagementService.activeSession.get()?.resource;
+		const sessionResource = this.sessionsService.activeSession.get()?.resource;
 		if (sessionResource) {
 			this.harnessService.setActiveSession(sessionResource);
 		}

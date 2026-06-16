@@ -18,7 +18,6 @@ import { autorun, derived, derivedObservableWithCache, derivedOpts, IObservable,
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { MenuWorkbenchButtonBar } from '../../../../platform/actions/browser/buttonbar.js';
@@ -57,8 +56,7 @@ import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/b
 import { IMultiDiffEditorOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
 import { getChangesEditorLabels } from './changesEditorLabels.js';
 import { ChangesMultiDiffSourceResolver, getChangesMultiDiffSourceUri } from './changesMultiDiffSourceResolver.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { CIStatusWidget } from './checksWidget.js';
 import { GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../../services/sessions/common/session.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
@@ -70,7 +68,7 @@ import { logChangesViewFileSelect, logChangesViewVersionModeChange, logChangesVi
 import { ChecksViewModel } from './checksViewModel.js';
 // eslint-disable-next-line local/code-import-patterns -- TODO: move skill button constants out of providers
 import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, isAgentHostSkillButtonId } from '../../providers/agentHost/browser/agentHostSkillButtons.js';
-import { ActiveSessionContextKeys, CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, IsolationMode } from '../common/changes.js';
+import { ActiveSessionContextKeys, CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, IsolationMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
 import { buildTreeChildren, ChangesTreeElement, ChangesTreeRenderer, IChangesFileItem, IChangesTreeRootInfo, isChangesFileItem, toIChangesFileItem } from './changesViewRenderer.js';
 import { ChangesViewModel } from './changesViewModel.js';
 import { ResourceTree } from '../../../../base/common/resourceTree.js';
@@ -94,7 +92,6 @@ class ChangesButtonBarWidget extends Disposable {
 		viewModel: ChangesViewModel,
 		hasGitOperationInProgressObs: IObservable<boolean>,
 		@IMenuService menuService: IMenuService,
-		@ICodeReviewService codeReviewService: ICodeReviewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -113,43 +110,6 @@ class ChangesButtonBarWidget extends Disposable {
 			return activeSessionState?.outgoingChanges;
 		});
 
-		const reviewStateObs = derivedOpts<{ isLoading: boolean; commentCount: number | undefined }>({ equalsFn: structuralEquals }, reader => {
-			const sessionResource = viewModel.activeSessionResourceObs.read(reader);
-			if (!sessionResource) {
-				return { isLoading: false, commentCount: undefined };
-			}
-
-			const sessionChanges = viewModel.activeSessionChangesObs.read(reader);
-			const prReviewState = codeReviewService.getPRReviewState(sessionResource).read(reader);
-			const prReviewCommentCount = prReviewState.kind === PRReviewStateKind.Loaded
-				? prReviewState.comments.length
-				: 0;
-
-			let isLoading = false;
-			let commentCount: number | undefined;
-			if (sessionChanges && sessionChanges.length > 0) {
-				const reviewFiles = getCodeReviewFilesFromSessionChanges(sessionChanges);
-				const reviewVersion = getCodeReviewVersion(reviewFiles);
-				const reviewState = codeReviewService.getReviewState(sessionResource).read(reader);
-
-				if (reviewState.kind === CodeReviewStateKind.Loading && reviewState.version === reviewVersion) {
-					isLoading = true;
-				} else {
-					const codeReviewCommentCount = reviewState.kind === CodeReviewStateKind.Result && reviewState.version === reviewVersion
-						? reviewState.comments.length
-						: 0;
-					const totalReviewCommentCount = codeReviewCommentCount + prReviewCommentCount;
-					if (totalReviewCommentCount > 0) {
-						commentCount = totalReviewCommentCount;
-					}
-				}
-			} else if (prReviewCommentCount > 0) {
-				commentCount = prReviewCommentCount;
-			}
-
-			return { isLoading, commentCount };
-		});
-
 		const runningLabelObs = observableValue<string | IMarkdownString | undefined>(this, undefined);
 
 		// Clear the running label override
@@ -163,7 +123,6 @@ class ChangesButtonBarWidget extends Disposable {
 			const hasGitOperationInProgress = hasGitOperationInProgressObs.read(reader);
 			const sessionResource = viewModel.activeSessionResourceObs.read(reader);
 			const outgoingChanges = outgoingChangesObs.read(reader) ?? 0;
-			const reviewState = reviewStateObs.read(reader);
 
 			const buttonBar = new MenuWorkbenchButtonBar(
 				container,
@@ -173,7 +132,7 @@ class ChangesButtonBarWidget extends Disposable {
 					menuOptions: sessionResource
 						? { arg: sessionResource }
 						: { shouldForwardArgs: true },
-					buttonConfigProvider: (action) => this._getButtonConfiguration(action, outgoingChanges, reviewState, hasGitOperationInProgress, runningLabelObs)
+					buttonConfigProvider: (action) => this._getButtonConfiguration(action, outgoingChanges, hasGitOperationInProgress, runningLabelObs)
 				},
 				menuService, contextKeyService, contextMenuService, keybindingService, telemetryService, hoverService
 			);
@@ -185,7 +144,7 @@ class ChangesButtonBarWidget extends Disposable {
 		}));
 	}
 
-	private _getButtonConfiguration(action: IAction, outgoingChanges: number, reviewState: { isLoading: boolean; commentCount: number | undefined }, hasGitOperationInProgress: boolean, runningLabelObs: IObservable<string | IMarkdownString | undefined>): { showIcon: boolean; showLabel: boolean; isSecondary?: boolean; customLabel?: string | IMarkdownString; customLabelObs?: IObservable<string | IMarkdownString | undefined>; customClass?: string } | undefined {
+	private _getButtonConfiguration(action: IAction, outgoingChanges: number, hasGitOperationInProgress: boolean, runningLabelObs: IObservable<string | IMarkdownString | undefined>): { showIcon: boolean; showLabel: boolean; isSecondary?: boolean; customLabel?: string | IMarkdownString; customLabelObs?: IObservable<string | IMarkdownString | undefined>; customClass?: string } | undefined {
 		if (
 			action.id === 'github.copilot.sessions.commit' ||
 			action.id === 'github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR'
@@ -220,16 +179,8 @@ class ChangesButtonBarWidget extends Disposable {
 				: action.label;
 			return { customLabel, showIcon: true, showLabel: true, isSecondary: false };
 		}
-		if (action.id === RUN_SESSION_CODE_REVIEW_ACTION_ID) {
-			if (reviewState.isLoading) {
-				return { showIcon: true, showLabel: true, isSecondary: true, customLabel: '$(loading~spin)', customClass: 'code-review-loading' };
-			}
-			if (reviewState.commentCount !== undefined) {
-				return { showIcon: true, showLabel: true, isSecondary: true, customLabel: String(reviewState.commentCount), customClass: 'code-review-comments' };
-			}
-			return { showIcon: true, showLabel: false, isSecondary: true };
-		}
 		if (
+			action.id === RUN_SESSION_CODE_REVIEW_ACTION_ID ||
 			action.id === 'chatEditing.viewAllSessionChanges' ||
 			action.id === 'github.copilot.chat.openPullRequestCopilotCLIAgentSession.openPR'
 		) {
@@ -278,8 +229,6 @@ export class ChangesViewPane extends ViewPane {
 	private filesHeaderNode: HTMLElement | undefined;
 	private fileHeaderToolbarContainer: HTMLElement | undefined;
 	private contentContainer: HTMLElement | undefined;
-	private overviewContainer: HTMLElement | undefined;
-	private summaryContainer: HTMLElement | undefined;
 	private listContainer: HTMLElement | undefined;
 	// Actions container is positioned outside the card for this layout experiment
 	private actionsContainer: HTMLElement | undefined;
@@ -326,7 +275,7 @@ export class ChangesViewPane extends ViewPane {
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
 		@IEditorService private readonly editorService: IEditorService,
-		@ISessionsManagementService private readonly sessionManagementService: ISessionsManagementService,
+		@ISessionsService private readonly sessionsService: ISessionsService,
 		@ILabelService private readonly labelService: ILabelService,
 		@ILogService private readonly logService: ILogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -453,10 +402,6 @@ export class ChangesViewPane extends ViewPane {
 			},
 		}));
 
-		// Overview section (header with summary only - actions moved outside card)
-		this.overviewContainer = dom.append(this.contentContainer, $('.chat-editing-session-overview'));
-		this.summaryContainer = dom.append(this.overviewContainer, $('.changes-summary'));
-
 		// Changes card progress bar
 		const progressContainer = dom.append(this.contentContainer, $('.changes-progress'));
 		this.changesProgressBar = this._register(new ProgressBar(progressContainer, defaultProgressBarStyles));
@@ -469,8 +414,6 @@ export class ChangesViewPane extends ViewPane {
 		this.welcomeContainer = dom.append(this.contentContainer, $('.changes-welcome'));
 		this.welcomeContainer.style.display = 'none';
 
-		const welcomeIcon = dom.append(this.welcomeContainer, $('.changes-welcome-icon'));
-		welcomeIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.diffMultiple));
 		const welcomeMessage = dom.append(this.welcomeContainer, $('.changes-welcome-message'));
 		welcomeMessage.textContent = localize('changesView.noChanges', "Changed files and other session artifacts will appear here.");
 
@@ -603,7 +546,12 @@ export class ChangesViewPane extends ViewPane {
 		});
 
 		// Changes statistics
-		const topLevelStats = derived(reader => {
+		const topLevelStats = derivedObservableWithCache<{ files: number; added: number; removed: number } | undefined>(this, (reader, lastValue) => {
+			const isLoading = this.viewModel.activeSessionIsLoadingObs.read(reader);
+			if (isLoading) {
+				return lastValue;
+			}
+
 			const entries = changesObs.read(reader);
 
 			let added = 0, removed = 0;
@@ -628,7 +576,7 @@ export class ChangesViewPane extends ViewPane {
 		}
 
 		const activeSessionStatusObs = derived(reader => {
-			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			const activeSession = this.sessionsService.activeSession.read(reader);
 			return activeSession?.status.read(reader);
 		});
 
@@ -647,8 +595,8 @@ export class ChangesViewPane extends ViewPane {
 
 			const hasGitRepository = this.viewModel.activeSessionHasGitRepositoryObs.read(reader);
 
-			const { files } = topLevelStats.read(reader);
-			const hasEntries = files > 0;
+			const stats = topLevelStats.read(reader);
+			const hasEntries = stats !== undefined && stats.files > 0;
 
 			// Show the files header whenever the session is git-backed (so users
 			// can switch version modes) or there are session-provided entries to
@@ -664,28 +612,6 @@ export class ChangesViewPane extends ViewPane {
 
 			this.layoutSplitView();
 		}));
-
-		// Update summary text (line counts only, file count is shown in badge)
-		if (this.summaryContainer) {
-			dom.clearNode(this.summaryContainer);
-
-			const linesAddedSpan = dom.$('.working-set-lines-added');
-			const linesRemovedSpan = dom.$('.working-set-lines-removed');
-
-			this.summaryContainer.appendChild(linesAddedSpan);
-			this.summaryContainer.appendChild(linesRemovedSpan);
-
-			this.renderDisposables.add(autorun(reader => {
-				if (this.viewModel.activeSessionIsLoadingObs.read(reader)) {
-					return;
-				}
-
-				const { added, removed } = topLevelStats.read(reader);
-
-				linesAddedSpan.textContent = `+${added}`;
-				linesRemovedSpan.textContent = `-${removed}`;
-			}));
-		}
 
 		// Create the tree
 		if (!this.tree && this.listContainer) {
@@ -710,6 +636,12 @@ export class ChangesViewPane extends ViewPane {
 				if (modalEditorMode === 'all') {
 					const items = changesObs.get();
 					this._openFileItem(e.element, items, e.sideBySide, !!e.editorOptions?.preserveFocus, !!e.editorOptions?.pinned, items.length > 1);
+					return;
+				}
+
+				// Open a single file diff editor when configured to do so
+				if (this.configurationService.getValue<boolean>(SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING)) {
+					void this._openSingleFileDiffEditor(e.element, e.sideBySide, !!e.editorOptions?.preserveFocus, !!e.editorOptions?.pinned);
 					return;
 				}
 
@@ -760,17 +692,17 @@ export class ChangesViewPane extends ViewPane {
 		}));
 	}
 
-	private _bindContextKeys(topLevelStats: IObservable<{ files: number }>): void {
+	private _bindContextKeys(topLevelStats: IObservable<{ files: number } | undefined>): void {
 		// Request in progress (can be updated independently since it only affects action enablement, and not visibility)
 		this.renderDisposables.add(bindContextKey(ChatContextKeys.requestInProgress, this.scopedContextKeyService, reader => {
-			const activeSessionStatus = this.sessionManagementService.activeSession.read(reader)?.status.read(reader);
+			const activeSessionStatus = this.sessionsService.activeSession.read(reader)?.status.read(reader);
 			return activeSessionStatus !== SessionStatus.Completed && activeSessionStatus !== SessionStatus.Error;
 		}));
 
 		// Has changes (can be updated independently since it only affects action enablement, and not visibility)
 		this.renderDisposables.add(bindContextKey(ChatContextKeys.hasAgentSessionChanges, this.scopedContextKeyService, reader => {
-			const { files } = topLevelStats.read(reader);
-			return files > 0;
+			const stats = topLevelStats.read(reader);
+			return stats !== undefined && stats.files > 0;
 		}));
 
 		// Bulk update the context keys
@@ -804,10 +736,10 @@ export class ChangesViewPane extends ViewPane {
 		if (!this.tree) {
 			return;
 		}
-		// Subtract overview/padding within the content container
-		const overviewHeight = this.overviewContainer?.offsetHeight ?? 0;
+
+		// Subtract the files header height within the content container
 		const filesHeaderHeight = this.filesHeaderNode?.offsetHeight ?? 0;
-		const treeHeight = Math.max(0, paneHeight - filesHeaderHeight - overviewHeight);
+		const treeHeight = Math.max(0, paneHeight - filesHeaderHeight);
 		this.tree.layout(treeHeight, this.currentBodyWidth);
 		this.tree.getHTMLElement().style.height = `${treeHeight}px`;
 	}
@@ -842,7 +774,7 @@ export class ChangesViewPane extends ViewPane {
 		// Get the repository details for the session
 		// - uri: location of the repository
 		// - workingDirectory: location of the worktree
-		const activeSession = this.sessionManagementService.activeSession.get();
+		const activeSession = this.sessionsService.activeSession.get();
 		const folder = activeSession?.workspace.get()?.folders[0];
 		const workspaceFolderUri = folder?.workingDirectory;
 		if (!folder?.root || !workspaceFolderUri) {
@@ -987,7 +919,7 @@ export class ChangesViewPane extends ViewPane {
 			[this.instantiationService.createInstance(ChangesTreeRenderer, this.viewModel, resourceLabels, actionRunner,
 				() => {
 					// Pass in the tree root to be used to compute the label description
-					const activeSession = this.sessionManagementService.activeSession.get();
+					const activeSession = this.sessionsService.activeSession.get();
 					const folder = activeSession?.workspace.get()?.folders[0];
 					return folder?.root.scheme === GITHUB_REMOTE_FILE_SCHEME
 						? URI.from({ scheme: Schemas.copilotPr, path: '/' })
@@ -1101,6 +1033,23 @@ export class ChangesViewPane extends ViewPane {
 			resource: modifiedFileUri,
 			...labels,
 			options: { preserveFocus, pinned, modal: { sidebar, navigation } }
+		}, group);
+	}
+
+	private async _openSingleFileDiffEditor(item: IChangesFileItem, sideBySide: boolean, preserveFocus: boolean, pinned: boolean): Promise<void> {
+		const { uri, originalUri, isDeletion } = item;
+		const group = sideBySide ? SIDE_GROUP : ACTIVE_GROUP;
+		const labels = getChangesEditorLabels(uri, this.labelService);
+
+		// Always open a diff editor. Added files (no original) and deleted files
+		// (no modified) are shown as a diff against an empty side, matching the
+		// "Open Changes" action.
+		const modifiedUri = isDeletion ? undefined : uri;
+		await this.editorService.openEditor({
+			original: { resource: originalUri },
+			modified: { resource: modifiedUri },
+			...labels,
+			options: { preserveFocus, pinned }
 		}, group);
 	}
 

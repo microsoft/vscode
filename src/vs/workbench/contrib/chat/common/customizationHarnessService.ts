@@ -23,6 +23,7 @@ import { ExtensionIdentifier } from '../../../../platform/extensions/common/exte
 import { getCanonicalPluginCommandId } from './plugins/agentPluginService.js';
 import { getChatSessionType, LocalChatSessionUri } from './model/chatUri.js';
 
+
 export const ICustomizationHarnessService = createDecorator<ICustomizationHarnessService>('customizationHarnessService');
 
 /**
@@ -191,6 +192,16 @@ export interface ICustomizationItem {
 	readonly actions?: readonly ICustomizationItemAction[];
 }
 
+export interface ICustomizationAgentRef {
+	readonly id: string;
+
+	readonly uri: URI;
+	/** Agent name (from frontmatter `name`, or file-derived) */
+	readonly name: string;
+	/** Optional short description for UI preview (from frontmatter `description`) */
+	readonly description?: string;
+}
+
 export function isPluginCustomizationItem(item: { readonly type: string }): boolean {
 	return item.type === 'plugin' || item.type === AICustomizationManagementSection.Plugins;
 }
@@ -213,6 +224,16 @@ export interface ICustomizationItemProvider {
 	 *   this session.
 	 */
 	provideChatSessionCustomizations(sessionResource: URI, token: CancellationToken): Promise<ICustomizationItem[] | undefined>;
+
+	/**
+	 * Provide the custom agents this harness supports.
+	 *
+	 * @param sessionResource URI of the chat session whose
+	 *   customizations should be included. Providers that surface
+	 *   session-scoped state (e.g. an agent host) should read from
+	 *   this session.
+	 */
+	provideCustomAgents?(sessionResource: URI, token: CancellationToken): Promise<readonly ICustomAgent[]>;
 }
 
 /**
@@ -695,8 +716,13 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 			return allAgents.filter(agent => matchesSessionType(agent.sessionTypes, sessionType));
 		}
 
+		if (harness.itemProvider.provideCustomAgents) {
+			return harness.itemProvider.provideCustomAgents(sessionResource, token);
+		}
+
+
 		const items = await harness.itemProvider.provideChatSessionCustomizations(sessionResource, token);
-		if (!items) {
+		if (!items || token.isCancellationRequested) {
 			return [];
 		}
 

@@ -11,19 +11,17 @@ import { EditorContributionInstantiation, registerEditorContribution } from '../
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { Selection, SelectionDirection } from '../../../../editor/common/core/selection.js';
-import { URI } from '../../../../base/common/uri.js';
 import { addStandardDisposableListener, getWindow, ModifierKeyEmitter } from '../../../../base/browser/dom.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { IAgentFeedbackService } from './agentFeedbackService.js';
-import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { createAgentFeedbackContext, getSessionForResource } from './agentFeedbackEditorUtils.js';
+import { createAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
 import { localize } from '../../../../nls.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Action } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { ISession } from '../../../services/sessions/common/session.js';
 
 class AgentFeedbackInputWidget extends Disposable implements IOverlayWidget {
 
@@ -163,6 +161,14 @@ class AgentFeedbackInputWidget extends Disposable implements IOverlayWidget {
 		this._autoSize();
 	}
 
+	setPlaceholder(placeholder: string): void {
+		if (this._inputElement.placeholder === placeholder) {
+			return;
+		}
+		this._inputElement.placeholder = placeholder;
+		this._autoSize();
+	}
+
 	autoSize(): void {
 		this._autoSize();
 	}
@@ -204,14 +210,13 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 	private _visible = false;
 	private _mouseDown = false;
 	private _suppressSelectionChangeOnce = false;
-	private _sessionResource: URI | undefined;
+	private _session: ISession | undefined;
+	private _pinnedSelection: Selection | undefined;
 	private readonly _widgetListeners = this._store.add(new DisposableStore());
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IAgentFeedbackService private readonly _agentFeedbackService: IAgentFeedbackService,
-		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
-		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 	) {
 		super();
@@ -228,7 +233,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 				return;
 			}
 			this._mouseDown = true;
-			this._hide();
+			this._autoHide();
 		}));
 		this._store.add(this._editor.onMouseUp((e) => {
 			this._mouseDown = false;
@@ -249,7 +254,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 				if (this._isWidgetTarget(getWindow(this._editor.getDomNode()!).document.activeElement)) {
 					return;
 				}
-				this._hide();
+				this._autoHide();
 			}, 0);
 		}));
 		this._store.add(this._editor.onDidFocusEditorText(() => this._onSelectionChanged()));
@@ -272,7 +277,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 	private _onModelChanged(): void {
 		this._hide();
 		this._suppressSelectionChangeOnce = false;
-		this._sessionResource = undefined;
+		this._session = undefined;
 	}
 
 	private _onSelectionChanged(): void {
@@ -285,25 +290,32 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			return;
 		}
 
+		// If the widget is open and the user has typed text, freeze its state.
+		// Auto-hide and auto-reposition are suppressed; the user must explicitly
+		// close the widget via Esc.
+		if (this._visible && this._hasInputText()) {
+			return;
+		}
+
 		const selection = this._editor.getSelection();
 		if (!selection || (selection.isEmpty() && !this._getDiffHunkForSelection(selection))) {
-			this._hide();
+			this._autoHide();
 			return;
 		}
 
 		const model = this._editor.getModel();
 		if (!model) {
-			this._hide();
+			this._autoHide();
 			return;
 		}
 
-		const sessionResource = getSessionForResource(model.uri, this._chatEditingService, this._sessionsManagementService);
-		if (!sessionResource) {
-			this._hide();
+		const session = this._agentFeedbackService.getSessionForFile(model.uri);
+		if (!session) {
+			this._autoHide();
 			return;
 		}
 
-		this._sessionResource = sessionResource;
+		this._session = session;
 		this._show();
 	}
 
@@ -315,9 +327,18 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			this._registerWidgetListeners(widget);
 		}
 
+		widget.setPlaceholder(this._getPlaceholder());
 		widget.clearInput();
 		widget.show();
+		this._pinnedSelection = this._editor.getSelection() ?? undefined;
 		this._updatePosition();
+	}
+
+	private _getPlaceholder(): string {
+		const hasChanges = !!this._session && this._session.changes.get().length > 0;
+		return hasChanges
+			? localize('agentFeedback.addFeedback', "Add Feedback")
+			: localize('agentFeedback.addComment', "Add Comment");
 	}
 
 	private _hide(): void {
@@ -326,6 +347,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		}
 
 		this._visible = false;
+		this._pinnedSelection = undefined;
 		this._widgetListeners.clear();
 
 		if (this._widget) {
@@ -333,6 +355,22 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			this._widget.setPosition(null);
 			this._widget.clearInput();
 		}
+	}
+
+	private _hasInputText(): boolean {
+		return !!this._widget && this._widget.inputElement.value.trim().length > 0;
+	}
+
+	/**
+	 * Hide the widget unless the user has typed text. When text is present the
+	 * widget is preserved so the user does not lose their in-progress feedback;
+	 * they can close it explicitly via Esc.
+	 */
+	private _autoHide(): void {
+		if (this._hasInputText()) {
+			return;
+		}
+		this._hide();
 	}
 
 	private _registerWidgetListeners(widget: AgentFeedbackInputWidget): void {
@@ -447,7 +485,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 				if (this._editor.hasWidgetFocus()) {
 					return;
 				}
-				this._hide();
+				this._autoHide();
 			}, 0);
 		}));
 	}
@@ -474,13 +512,13 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			return false;
 		}
 
-		const selection = this._editor.getSelection();
+		const selection = this._pinnedSelection ?? this._editor.getSelection();
 		const model = this._editor.getModel();
-		if (!selection || !model || !this._sessionResource) {
+		if (!selection || !model || !this._session) {
 			return false;
 		}
 
-		this._agentFeedbackService.addFeedback(this._sessionResource, model.uri, selection, text, undefined, createAgentFeedbackContext(this._editor, this._codeEditorService, model.uri, selection));
+		this._agentFeedbackService.addFeedback(this._session.resource, model.uri, selection, text, undefined, createAgentFeedbackContext(this._editor, this._codeEditorService, model.uri, selection));
 		this._hideAndRefocusEditor();
 		return true;
 	}
@@ -495,13 +533,13 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			return;
 		}
 
-		const selection = this._editor.getSelection();
+		const selection = this._pinnedSelection ?? this._editor.getSelection();
 		const model = this._editor.getModel();
-		if (!selection || !model || !this._sessionResource) {
+		if (!selection || !model || !this._session) {
 			return;
 		}
 
-		const sessionResource = this._sessionResource;
+		const sessionResource = this._session.resource;
 		this._hideAndRefocusEditor();
 		this._agentFeedbackService.addFeedbackAndSubmit(sessionResource, model.uri, selection, text, undefined, createAgentFeedbackContext(this._editor, this._codeEditorService, model.uri, selection));
 	}
@@ -556,9 +594,14 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			return;
 		}
 
-		const selection = this._editor.getSelection();
+		// While the user has typed text, keep the widget anchored to the
+		// selection it was opened against so it doesn't follow new selections
+		// or hide when the user clicks elsewhere in the editor.
+		const selection = (this._hasInputText() && this._pinnedSelection)
+			? this._pinnedSelection
+			: this._editor.getSelection();
 		if (!selection) {
-			this._hide();
+			this._autoHide();
 			return;
 		}
 
@@ -571,7 +614,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		if (selection.isEmpty()) {
 			const diffHunk = this._getDiffHunkForSelection(selection);
 			if (!diffHunk) {
-				this._hide();
+				this._autoHide();
 				return;
 			}
 

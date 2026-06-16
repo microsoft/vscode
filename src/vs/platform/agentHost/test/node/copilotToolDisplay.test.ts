@@ -463,6 +463,40 @@ suite('rg / grep search tool display', () => {
 	});
 });
 
+suite('web_fetch tool display', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function text(msg: ReturnType<typeof getInvocationMessage> | ReturnType<typeof getPastTenseMessage>): string {
+		return typeof msg === 'string' ? msg : msg.markdown;
+	}
+
+	test('uses the fetched URL for invocation and completion messages', () => {
+		const parameters = { url: 'https://example.com/docs' };
+		assert.deepStrictEqual({
+			invocation: text(getInvocationMessage('web_fetch', 'Fetch Web Content', parameters)),
+			pastTense: text(getPastTenseMessage('web_fetch', 'Fetch Web Content', parameters, true)),
+			input: getToolInputString('web_fetch', parameters, undefined),
+		}, {
+			invocation: 'Fetching [https://example.com/docs](https://example.com/docs)',
+			pastTense: 'Fetched [https://example.com/docs](https://example.com/docs)',
+			input: 'https://example.com/docs',
+		});
+	});
+
+	test('falls back to generic URL wording when the URL is absent', () => {
+		assert.deepStrictEqual({
+			invocation: text(getInvocationMessage('web_fetch', 'Fetch Web Content', undefined)),
+			pastTense: text(getPastTenseMessage('web_fetch', 'Fetch Web Content', undefined, true)),
+			failure: text(getPastTenseMessage('web_fetch', 'Fetch Web Content', { url: 'https://example.com/docs' }, false)),
+		}, {
+			invocation: 'Fetching URL',
+			pastTense: 'Fetched URL',
+			failure: '"Fetch Web Content" failed',
+		});
+	});
+});
+
 suite('sql tool display', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();

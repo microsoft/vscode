@@ -14,7 +14,8 @@ import { ISharedProcessService } from '../../../../../platform/ipc/electron-brow
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { IRemoteAgentHostService, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { PROTOCOL_VERSION } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import {
 	ITunnelAgentHostService,
 	TUNNEL_AGENT_HOST_CHANNEL,
@@ -105,7 +106,10 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 		const result = await this._mainService.connect(auth.token, auth.provider, tunnel.tunnelId, tunnel.clusterId);
 		this._logService.info(`${LOG_PREFIX} Tunnel relay connected, connectionId=${result.connectionId}`);
 
-		// Create relay transport + protocol client, then register with RemoteAgentHostService
+		// Build relay transport + protocol client. If construction itself
+		// fails (rare — would mean the AHP logger or transport ctor threw)
+		// tear the just-opened main-side relay down before propagating.
+		let protocolClient: RemoteAgentHostProtocolClient;
 		try {
 			const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
 			const logger = ahpLoggingEnabled ? this._instantiationService.createInstance(
@@ -113,15 +117,40 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 				{ logsHome: this._environmentService.logsHome, connectionId: result.connectionId, transport: 'tunnel' },
 			) : undefined;
 			const transport = new TunnelRelayTransport(result.connectionId, this._mainService, logger);
-			const protocolClient = this._instantiationService.createInstance(
+			protocolClient = this._instantiationService.createInstance(
 				RemoteAgentHostProtocolClient, result.address, transport, undefined,
 			);
+		} catch (err) {
+			this._logService.error(`${LOG_PREFIX} Connection setup failed`, err);
+			this._mainService.disconnect(result.connectionId).catch(() => { /* best effort */ });
+			throw err;
+		}
 
+		// Keep an incompatible handshake from tearing down the relay: the
+		// protocol client must remain registered with IRemoteAgentHostService
+		// so `triggerServerUpgrade` can locate it and send `_vscodeUpgrade`
+		// over the still-open transport.
+		let status: RemoteAgentHostConnectionStatus = RemoteAgentHostConnectionStatus.connected;
+		let connectError: unknown;
+		try {
 			await protocolClient.connect();
 			this._logService.info(`${LOG_PREFIX} Protocol handshake completed with ${result.address}`);
+		} catch (err) {
+			const incompatible = RemoteAgentHostConnectionStatus.fromConnectError(err, [PROTOCOL_VERSION]);
+			if (!RemoteAgentHostConnectionStatus.isIncompatible(incompatible)) {
+				this._logService.error(`${LOG_PREFIX} Connection setup failed`, err);
+				protocolClient.dispose();
+				this._mainService.disconnect(result.connectionId).catch(() => { /* best effort */ });
+				throw err;
+			}
+			this._logService.warn(`${LOG_PREFIX} Incompatible with ${result.address}: ${incompatible.message}`);
+			status = incompatible;
+			connectError = err;
+		}
 
-			this.cacheTunnel(tunnel, auth.provider);
+		this.cacheTunnel(tunnel, auth.provider);
 
+		try {
 			await this._remoteAgentHostService.addManagedConnection({
 				name: result.name,
 				connectionToken: result.connectionToken,
@@ -132,11 +161,16 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 					label: tunnel.name,
 					authProvider: auth.provider,
 				},
-			}, protocolClient);
+			}, protocolClient, undefined, status);
 		} catch (err) {
-			this._logService.error(`${LOG_PREFIX} Connection setup failed`, err);
+			this._logService.error(`${LOG_PREFIX} addManagedConnection failed`, err);
+			protocolClient.dispose();
 			this._mainService.disconnect(result.connectionId).catch(() => { /* best effort */ });
 			throw err;
+		}
+
+		if (connectError) {
+			throw connectError;
 		}
 	}
 
@@ -272,7 +306,7 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 			authProvider,
 		});
 		this.clearAutoConnectSuppression(tunnel.tunnelId);
-		this._storeCachedTunnels(filtered.slice(0, 20));
+		this._storeCachedTunnels(filtered);
 		this._onDidChangeTunnels.fire();
 	}
 

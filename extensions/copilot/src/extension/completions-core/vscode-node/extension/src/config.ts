@@ -20,6 +20,7 @@ import {
 import { CopilotConfigPrefix } from '../../lib/src/constants';
 import { Logger } from '../../lib/src/logger';
 import { transformEvent } from '../../lib/src/util/event';
+import { Schemas } from '../../../../../util/vs/base/common/network';
 
 const logger = new Logger('extensionConfig');
 
@@ -155,6 +156,9 @@ export function isCompletionEnabled(accessor: ServicesAccessor): boolean | undef
 }
 
 export function isCompletionEnabledForDocument(accessor: ServicesAccessor, document: vscode.TextDocument): boolean {
+	if (document.uri.scheme === Schemas.vscodeChatInput) {
+		return vscode.workspace.getConfiguration(CopilotConfigPrefix).get<boolean>('completions.chat.enabled', false);
+	}
 	return getEnabledConfig(accessor, document.languageId);
 }
 

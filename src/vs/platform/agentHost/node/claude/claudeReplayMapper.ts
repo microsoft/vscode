@@ -13,6 +13,7 @@ import {
 	ToolCallStatus,
 	ToolResultContentType,
 	TurnState,
+	MessageKind,
 	type ResponsePart,
 	type ToolCallCancelledState,
 	type ToolCallCompletedState,
@@ -361,7 +362,7 @@ class ReplayBuilder {
 		const state = a.pendingToolUseIds.size === 0 ? TurnState.Complete : TurnState.Cancelled;
 		const turn: Turn = {
 			id: a.id,
-			userMessage: { text: a.userText },
+			message: { text: a.userText, origin: { kind: MessageKind.User } },
 			responseParts: a.responseParts,
 			usage: undefined,
 			state,

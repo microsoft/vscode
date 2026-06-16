@@ -16,7 +16,7 @@ import { ContextManagementResponse, CUSTOM_TOOL_SEARCH_NAME, getContextManagemen
 import { IToolDeferralService } from '../../../platform/networking/common/toolDeferralService';
 import { IResponseDelta, OpenAiFunctionTool } from '../../../platform/networking/common/fetch';
 import { APIUsage } from '../../../platform/networking/common/openai';
-import { CopilotChatAttr, emitInferenceDetailsEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, type OTelModelOptions, StdAttr, toSystemInstructions, toToolDefinitions, truncateForOTel } from '../../../platform/otel/common/index';
+import { CopilotChatAttr, emitInferenceDetailsEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, type OTelModelOptions, StdAttr, stringifyToolDefinitionsForOTel, toSystemInstructions, truncateForOTel } from '../../../platform/otel/common/index';
 import { IOTelService, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
 import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
 import { retrieveCapturingTokenByCorrelation, runWithCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
@@ -97,6 +97,7 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 		// This handles the case where AsyncLocalStorage context was lost crossing VS Code IPC.
 		const correlationId = (options as { modelOptions?: OTelModelOptions }).modelOptions?._capturingTokenCorrelationId;
 		const capturingToken = correlationId ? retrieveCapturingTokenByCorrelation(correlationId) : undefined;
+		const telemetryTurn = (options as { modelOptions?: OTelModelOptions }).modelOptions?._telemetryTurn;
 
 		// Restore OTel trace context to link spans back to the agent trace
 		const parentTraceContext = (options as { modelOptions?: OTelModelOptions }).modelOptions?._otelTraceContext ?? undefined;
@@ -331,14 +332,16 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 					otelSpan.setAttributes({
 						[GenAiAttr.USAGE_INPUT_TOKENS]: result.usage.prompt_tokens ?? 0,
 						[GenAiAttr.USAGE_OUTPUT_TOKENS]: result.usage.completion_tokens ?? 0,
-						...(result.usage.prompt_tokens_details?.cached_tokens
+						...(result.usage.prompt_tokens_details?.cached_tokens !== undefined
 							? { [GenAiAttr.USAGE_CACHE_READ_INPUT_TOKENS]: result.usage.prompt_tokens_details.cached_tokens }
 							: {}),
 						[GenAiAttr.RESPONSE_MODEL]: model.id,
 						[GenAiAttr.RESPONSE_ID]: requestId,
 						[GenAiAttr.RESPONSE_FINISH_REASONS]: ['stop'],
 						[GenAiAttr.CONVERSATION_ID]: requestId,
+						[GenAiAttr.REQUEST_STREAM]: true,
 						...(result.ttft ? { [CopilotChatAttr.TIME_TO_FIRST_TOKEN]: result.ttft } : {}),
+						...(result.ttft ? { [GenAiAttr.RESPONSE_TIME_TO_FIRST_CHUNK]: result.ttft / 1000 } : {}),
 						[GenAiAttr.REQUEST_MAX_TOKENS]: model.maxOutputTokens ?? 0,
 					});
 					// Opt-in content capture
@@ -366,6 +369,7 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 					if (result.usage.prompt_tokens) { GenAiMetrics.recordTokenUsage(this._otelService, result.usage.prompt_tokens, 'input', metricAttrs); }
 					if (result.usage.completion_tokens) { GenAiMetrics.recordTokenUsage(this._otelService, result.usage.completion_tokens, 'output', metricAttrs); }
 					if (result.ttft) { GenAiMetrics.recordTimeToFirstToken(this._otelService, model.id, result.ttft / 1000); }
+					if (result.ttft) { GenAiMetrics.recordTimeToFirstChunk(this._otelService, result.ttft / 1000, metricAttrs); }
 				}
 
 				// Emit OTel inference details event
@@ -398,6 +402,7 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 						"requestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the current turn request" },
 						"gitHubRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "GitHub request id if available" },
 						"associatedRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Another request ID that this request is associated with (eg, the originating request of a summarization request)." },
+						"turn": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "How many turns have been made in the conversation.", "isMeasurement": true },
 						"reasoningEffort": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reasoning effort level" },
 						"reasoningSummary": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reasoning summary level" },
 						"fetcher": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The fetcher used for the request" },
@@ -440,6 +445,7 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 					requestId,
 				}, {
 					totalTokenMax: model.maxInputTokens ?? -1,
+					...(telemetryTurn !== undefined ? { turn: telemetryTurn } : {}),
 					tokenCountMax: model.maxOutputTokens ?? -1,
 					promptTokenCount: result.usage?.prompt_tokens,
 					promptCacheTokenCount: result.usage?.prompt_tokens_details?.cached_tokens,
@@ -501,9 +507,9 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 			if (this._otelService.config.captureContent) {
 				// Tool definitions on the chat span (issue #299934) with `parameters`
 				// per OTel GenAI semantic conventions (issue #300318).
-				const toolDefs = toToolDefinitions(options.tools);
-				if (toolDefs) {
-					otelSpan.setAttribute(GenAiAttr.TOOL_DEFINITIONS, truncateForOTel(JSON.stringify(toolDefs), this._otelService.config.maxAttributeSizeChars));
+				const toolDefsJson = stringifyToolDefinitionsForOTel(options.tools);
+				if (toolDefsJson) {
+					otelSpan.setAttribute(GenAiAttr.TOOL_DEFINITIONS, truncateForOTel(toolDefsJson, this._otelService.config.maxAttributeSizeChars));
 				}
 				try {
 					const { systemTexts, inputMsgs } = buildOTelInputFromChatMessages(messages);

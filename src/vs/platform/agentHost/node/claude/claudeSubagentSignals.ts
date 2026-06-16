@@ -115,7 +115,7 @@ export function mapSubagentSystemMessage(
 }
 
 /**
- * Phase 12 fix — build the `SessionToolCallReady` signal for a top-level
+ * Phase 12 fix — build the `ChatToolCallReady` signal for a top-level
  * Task/Agent tool_use block AND record the spawn's metadata onto the
  * registry. The workbench's
  * [stateToProgressAdapter.ts](../../../../workbench/contrib/chat/browser/agentSessions/agentHost/stateToProgressAdapter.ts)
@@ -157,7 +157,7 @@ export function buildTopLevelSubagentReadyAction(
 		kind: 'action',
 		session,
 		action: {
-			type: ActionType.SessionToolCallReady,
+			type: ActionType.ChatToolCallReady,
 			turnId,
 			toolCallId: block.id,
 			invocationMessage: getClaudeInvocationMessage(block.name, getClaudeToolDisplayName(block.name), block.input),
@@ -177,9 +177,9 @@ export function buildTopLevelSubagentReadyAction(
  * envelopes. So this canonical envelope IS the only signal source for
  * inner content. We emit:
  *
- *   - `text` / `thinking` → `SessionResponsePart` (Markdown / Reasoning)
+ *   - `text` / `thinking` → `ChatResponsePart` (Markdown / Reasoning)
  *     with the full block content.
- *   - `tool_use` → `SessionToolCallStart` + `SessionToolCallReady`
+ *   - `tool_use` → `ChatToolCallStart` + `ChatToolCallReady`
  *     (`confirmed: NotNeeded`, since the SDK runs inner tools in
  *     `bypassPermissions` and the parent's `canUseTool` is skipped),
  *     plus side effects on `state` (cross-message lookup) and
@@ -205,7 +205,7 @@ export function emitInnerAssistantSignals(
 				kind: 'action',
 				session,
 				action: {
-					type: ActionType.SessionResponsePart,
+					type: ActionType.ChatResponsePart,
 					turnId,
 					part: {
 						kind: ResponsePartKind.Markdown,
@@ -221,7 +221,7 @@ export function emitInnerAssistantSignals(
 				kind: 'action',
 				session,
 				action: {
-					type: ActionType.SessionResponsePart,
+					type: ActionType.ChatResponsePart,
 					turnId,
 					part: {
 						kind: ResponsePartKind.Reasoning,
@@ -253,7 +253,7 @@ export function emitInnerAssistantSignals(
 				kind: 'action',
 				session,
 				action: {
-					type: ActionType.SessionToolCallStart,
+					type: ActionType.ChatToolCallStart,
 					turnId,
 					toolCallId: block.id,
 					toolName,
@@ -265,7 +265,7 @@ export function emitInnerAssistantSignals(
 				kind: 'action',
 				session,
 				action: {
-					type: ActionType.SessionToolCallReady,
+					type: ActionType.ChatToolCallReady,
 					turnId,
 					toolCallId: block.id,
 					invocationMessage: getClaudeInvocationMessage(toolName, displayName, block.input),

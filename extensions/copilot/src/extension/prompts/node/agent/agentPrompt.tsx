@@ -230,8 +230,7 @@ export class AgentPrompt extends PromptElement<AgentPromptProps> {
 	}
 
 	/**
-	 * When the experimental `FreezeCustomizationsIndex` setting is enabled,
-	 * snapshot the customizations-index variable on the first turn of the
+	 * Snapshot the customizations-index variable on the first turn of the
 	 * conversation and reuse it for every subsequent turn. Stops per-turn
 	 * churn in the bundled `<instructions>`/`<skills>`/`<agents>` text (e.g.
 	 * the active mode swapping which subagent entry is listed in `<agents>`)
@@ -239,27 +238,23 @@ export class AgentPrompt extends PromptElement<AgentPromptProps> {
 	 *
 	 * Returns:
 	 * - `frozen`: the value (and matching tool-reference offsets) to substitute
-	 *   in the system prompt. Always present when the setting is enabled and a
-	 *   variable is available.
+	 *   in the system prompt. Always present once a variable is available.
 	 * - `drift`: the live current-turn value (and offsets) when it differs from
 	 *   `frozen`. Rendered in the latest user message so the model sees the
-	 *   up-to-date listing without busting the system prompt cache. Also
-	 *   emitted as an empty value when the live variable disappears, so the
-	 *   model gets a signal that previously listed entries are no longer
-	 *   available.
+	 *   up-to-date listing without busting the system prompt cache. Only
+	 *   surfaced when the variable was present this turn; an absent variable
+	 *   (e.g. on a request path without `instructionContext` such as terminal
+	 *   steering, or when collection ran but produced no listings) leaves the
+	 *   frozen system-prompt listing standing rather than emitting an empty
+	 *   update that would falsely signal removal.
 	 *
-	 * Returns `undefined` overall if no override should apply (setting off,
-	 * no first turn available, or no snapshot yet and the variable is absent
-	 * on this turn).
+	 * Returns `undefined` overall if no override should apply (no first turn
+	 * available, or no snapshot yet and the variable is absent on this turn).
 	 */
 	private getOrFreezeCustomizationsIndex(): {
 		frozen: { value: string; toolReferences: readonly ChatLanguageModelToolReference[] | undefined };
 		drift?: { value: string; toolReferences: readonly ChatLanguageModelToolReference[] | undefined };
 	} | undefined {
-		const enabled = this.configurationService.getExperimentBasedConfig(ConfigKey.Advanced.FreezeCustomizationsIndex, this.experimentationService);
-		if (!enabled) {
-			return undefined;
-		}
 		const firstTurn = this.props.promptContext.conversation?.turns.at(0);
 		if (!firstTurn) {
 			return undefined;
@@ -272,14 +267,17 @@ export class AgentPrompt extends PromptElement<AgentPromptProps> {
 		const existing = firstTurn.getMetadata(CustomizationsIndexMetadata);
 		if (existing && existing.cacheKey === currentCacheKey) {
 			const frozen = { value: existing.value, toolReferences: existing.toolReferences };
-			// Surface drift in either direction: a different live value, or the
-			// live variable disappearing entirely (treated as an empty listing).
-			// Without the second case the model is left looking at the stale
-			// frozen `<instructions>`/`<skills>`/`<agents>` block with no signal
-			// that entries have been removed.
-			const effectiveCurrent = currentValue ?? '';
-			if (effectiveCurrent !== existing.value) {
-				return { frozen, drift: { value: effectiveCurrent, toolReferences: currentToolReferences } };
+			// Only surface drift when the variable was present this turn AND
+			// differs from the snapshot. An absent variable can mean either
+			// "collection didn't run" (e.g. terminal steering requests omit
+			// `instructionContext`) or "collection ran but produced no listings".
+			// In either case we keep the frozen system-prompt listing standing
+			// rather than emit an empty `<customizationsUpdate>` block, which
+			// would falsely tell the model that all customizations were removed
+			// (its rendered text says it "supersedes" the system prompt) and
+			// would needlessly churn the cache tail.
+			if (currentValue !== undefined && currentValue !== existing.value) {
+				return { frozen, drift: { value: currentValue, toolReferences: currentToolReferences } };
 			}
 			return { frozen };
 		}
@@ -404,8 +402,7 @@ export interface AgentUserMessageProps extends BasePromptElementProps, AgentUser
 	 * store just the drift block and historical replays on later turns would
 	 * lose the actual user query, busting cross-turn cache continuity.
 	 *
-	 * Only set when the experimental `FreezeCustomizationsIndex` setting is
-	 * enabled and the current value differs from the snapshot captured on
+	 * Only set when the current value differs from the snapshot captured on
 	 * the first turn.
 	 */
 	readonly customizationsIndexUpdate?: { value: string; toolReferences: readonly ChatLanguageModelToolReference[] | undefined };
@@ -600,7 +597,9 @@ class CurrentDatePrompt extends PromptElement<BasePromptElementProps> {
 	}
 
 	async render(state: void, sizing: PromptSizing) {
-		const dateStr = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+		// Use the local date in ISO 8601 format (no localized words) so the prompt is not affected by the user's system language (issue #309008)
+		const now = new Date();
+		const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 		// Only include current date when not running simulations, since if we generate cache entries with the current date, the cache will be invalidated every day
 		return (
 			!this.envService.isSimulation() && <>The current date is {dateStr}.</>
@@ -638,8 +637,8 @@ interface CustomizationsIndexUpdateProps extends BasePromptElementProps {
  * the drift block and historical replays on later turns would lose the
  * actual user query.
  *
- * Used only when `FreezeCustomizationsIndex` is on and the live index
- * differs from the snapshot captured on the first turn.
+ * Used only when the live index differs from the snapshot captured on the
+ * first turn.
  */
 class CustomizationsIndexUpdate extends PromptElement<CustomizationsIndexUpdateProps> {
 	constructor(

@@ -29,7 +29,7 @@ use crate::options::Quality;
 use crate::update_service::{
 	unzip_downloaded_release, Platform, Release, TargetKind, UpdateService,
 };
-use crate::util::command::new_script_command;
+use crate::util::command::{kill_tree, new_script_command};
 use crate::util::errors::{AnyError, CodeError};
 use crate::util::http::{self, BoxedHttp};
 use crate::util::http::{empty_body, full_body, HyperBody};
@@ -53,6 +53,31 @@ pub const STARTUP_TIMEOUT: Duration = Duration::from_secs(30);
 /// startup; its presence is what tells the server that it has a managing
 /// CLI and may therefore advertise the management RPC method to clients.
 pub const MANAGEMENT_SOCKET_ENV: &str = "VSCODE_AGENT_HOST_MANAGEMENT_SOCKET";
+
+/// Environment variable holding a commit SHA used to override the agent
+/// host version the *first* time it is resolved. When set, the agent host
+/// is initially downloaded and started at this commit; subsequent upgrades
+/// still resolve the real latest version. Intended for testing the upgrade
+/// flow.
+pub const INITIAL_AGENT_HOST_VERSION_ENV: &str = "VSCODE_CLI_INITIAL_AH_VERSION";
+
+/// Reads {@link INITIAL_AGENT_HOST_VERSION_ENV}, returning the commit SHA
+/// override if it is set to a non-empty value. The value is restricted to
+/// hex digits so it can't smuggle path separators (`/`, `..`) or other
+/// characters into the URL and filesystem paths derived from the commit.
+fn initial_agent_host_version() -> Option<String> {
+	match std::env::var(INITIAL_AGENT_HOST_VERSION_ENV) {
+		Ok(v) => {
+			let v = v.trim();
+			if !v.is_empty() && v.chars().all(|c| c.is_ascii_hexdigit()) {
+				Some(v.to_string())
+			} else {
+				None
+			}
+		}
+		_ => None,
+	}
+}
 
 /// Delay between sending the upgrade response and actually killing the
 /// running server. Lets the response hop back through the CLI proxy and
@@ -363,6 +388,15 @@ impl AgentHostManager {
 			}
 		}
 
+		// On the very first resolution, an explicit initial version override
+		// (used to test the upgrade flow) must win over the generic cached
+		// fallback below so the requested commit is what we download and start.
+		if self.latest_release.lock().await.is_none() && initial_agent_host_version().is_some() {
+			let release = self.get_latest_release().await?;
+			let dir = self.ensure_downloaded(&release).await?;
+			return Ok((release, dir));
+		}
+
 		let quality = VSCODE_CLI_QUALITY
 			.ok_or(CodeError::UpdatesNotConfigured("no configured quality"))
 			.and_then(|q| {
@@ -440,6 +474,29 @@ impl AgentHostManager {
 				Quality::try_from(q).map_err(|_| CodeError::UpdatesNotConfigured("unknown quality"))
 			})?;
 
+		// The first time we resolve a version, honor an explicit commit
+		// override so the upgrade flow can be tested: the agent host is
+		// initially downloaded and started at this commit, and a subsequent
+		// upgrade (which calls this method again, with `latest` already set)
+		// still resolves the real latest version.
+		if latest.is_none() {
+			if let Some(commit) = initial_agent_host_version() {
+				let release = Release {
+					name: String::new(),
+					commit,
+					platform: self.platform,
+					target: TargetKind::Server,
+					quality,
+				};
+				info!(
+					self.log,
+					"Using initial agent host version override: {}", release.commit
+				);
+				*latest = Some((now, release.clone()));
+				return Ok(release);
+			}
+		}
+
 		let result = self
 			.update_service
 			.get_latest_commit(self.platform, TargetKind::Server, quality)
@@ -505,10 +562,35 @@ impl AgentHostManager {
 	}
 
 	/// Kills the currently running server, if any.
+	///
+	/// The server is launched via a bash/cmd shim (`<server>/bin/code-server-<quality>`)
+	/// which `spawn`s the underlying `node ... server-main.js` child. A plain
+	/// `child.kill()` only terminates the shim and reparents the node child to
+	/// PID 1, leaking it. `kill_tree` signals the shim and its descendants so
+	/// the node process is reaped along with the launcher. See issue #319516.
 	pub async fn kill_running_server(&self) {
 		let mut running = self.running.lock().await;
 		if let Some(mut server) = running.take() {
-			let _ = server.child.kill().await;
+			if let Some(pid) = server.child.id() {
+				let _ = kill_tree(pid).await;
+			}
+			// Reap the child so we don't leave a zombie. Bound the wait so a
+			// process that ignores SIGTERM can't wedge the supervisor's
+			// shutdown or upgrade path; escalate to SIGKILL via Child::kill if
+			// the graceful shutdown doesn't land in time.
+			const REAP_TIMEOUT: Duration = Duration::from_secs(5);
+			if tokio::time::timeout(REAP_TIMEOUT, server.child.wait())
+				.await
+				.is_err()
+			{
+				warning!(
+					self.log,
+					"Server did not exit within {}s after kill_tree; escalating to SIGKILL",
+					REAP_TIMEOUT.as_secs()
+				);
+				let _ = server.child.kill().await;
+				let _ = server.child.wait().await;
+			}
 		}
 	}
 
