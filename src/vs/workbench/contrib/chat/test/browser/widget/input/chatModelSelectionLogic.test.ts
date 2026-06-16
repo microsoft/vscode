@@ -1725,9 +1725,9 @@ suite('ChatModelSelectionLogic', () => {
 			// And the fallback default must not be a BYOK model (which is what gets persisted today, clobbering the user
 			// choice on the next launch).
 			const fallback = findDefaultModel(available, ChatAgentLocation.Chat);
-			assert.strictEqual(
+			assert.notStrictEqual(
 				fallback?.metadata.isBYOK,
-				undefined,
+				true,
 				'reset fallback should not be a BYOK model',
 			);
 		});

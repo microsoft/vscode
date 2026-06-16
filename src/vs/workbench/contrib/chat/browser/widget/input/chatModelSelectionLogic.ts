@@ -248,7 +248,7 @@ export function resolveModelFromSyncState(
 /**
  * Merges live models with cached models per-vendor, evicting cache for vendors no longer contributed.
  *
- * - `resolvedVendors`: vendors that produced at least one result. An empty live list for these is authoritative
+ * - `resolvedVendors`: vendors that have finished resolving. An empty live list for these is authoritative
  *   (e.g. BYOK key removed), so their cache is dropped.
  * - Copilot is the exception: its models are gated on an async token that can resolve slower than fast/local BYOK
  *   providers, so an early empty resolution is transient. Keeping its cache avoids resetting (and persisting) a
