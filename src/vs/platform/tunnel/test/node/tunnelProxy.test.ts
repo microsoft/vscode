@@ -10,7 +10,7 @@ import type { TLSSocket } from 'tls';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ITunnelConnectFn, TunnelProxy } from '../../node/tunnelProxy.js';
-import { ITunnelProxyInfo } from '../../common/sharedProcessTunnelProxyService.js';
+import { ITunnelProxyInfo } from '../../common/tunnelProxy.js';
 import { NodeSocket } from '../../../../base/parts/ipc/node/ipc.net.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 

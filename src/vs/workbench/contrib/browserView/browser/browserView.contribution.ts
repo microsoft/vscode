@@ -16,6 +16,8 @@ class WebBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 		return false;
 	}
 
+	setRemoteProxyInfo(): void { }
+
 	readonly onDidChangeBrowserViews = Event.None;
 	readonly onDidChangeSharingAvailable = Event.None;
 	readonly isSharingAvailable = false;

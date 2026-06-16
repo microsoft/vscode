@@ -12,6 +12,7 @@ import { VSBuffer } from '../../../base/common/buffer.js';
 
 export interface IExtHostManagedSockets extends ExtHostManagedSocketsShape {
 	setFactory(socketFactoryId: number, makeConnection: () => Thenable<vscode.ManagedMessagePassing>): void;
+	makeConnection(socketFactoryId: number): Promise<vscode.ManagedMessagePassing>;
 	readonly _serviceBrand: undefined;
 }
 
@@ -44,6 +45,13 @@ export class ExtHostManagedSockets implements IExtHostManagedSockets {
 
 		this._factory = new ManagedSocketFactory(socketFactoryId, makeConnection);
 		this._proxy.$registerSocketFactory(this._factory.socketFactoryId);
+	}
+
+	makeConnection(socketFactoryId: number): Promise<vscode.ManagedMessagePassing> {
+		if (!this._factory || this._factory.socketFactoryId !== socketFactoryId) {
+			throw new Error(`No socket factory with id ${socketFactoryId}`);
+		}
+		return Promise.resolve(this._factory.makeConnection());
 	}
 
 	async $openRemoteSocket(socketFactoryId: number): Promise<number> {

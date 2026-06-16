@@ -14,7 +14,7 @@ import { VSBuffer } from '../../../base/common/buffer.js';
 import { Limiter } from '../../../base/common/async.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { ILogService } from '../../log/common/log.js';
-import { ITunnelProxyInfo } from '../common/sharedProcessTunnelProxyService.js';
+import { ITunnelProxyInfo } from '../common/tunnelProxy.js';
 import { generateSelfSignedCert } from './selfSignedCert.js';
 
 /**
