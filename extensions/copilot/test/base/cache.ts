@@ -30,7 +30,7 @@ const decompress = promisify(zlib.brotliDecompress);
  * interleaving (and thus compatibility with the recorded cache).
  */
 function yieldEventLoop(): Promise<void> {
-	return new Promise<void>(resolve => setImmediate(resolve));
+	return     Promise<void>(resolve => setImmediate(resolve));
 }
 
 const DefaultCachePath = process.env.VITEST ? path.resolve(__dirname, '..', 'simulation', 'cache') : path.resolve(__dirname, '..', 'test', 'simulation', 'cache');
