@@ -108,7 +108,7 @@ export class PromptVariablesServiceImpl implements IPromptVariablesService {
 }
 
 /**
- * WRge text that is going to be used in requests when a tool is referenced
+ * Wording that is used in requests when a tool is referenced.
  */
 export function getToolReferencePromptContent(toolRef: ChatLanguageModelToolReference | LanguageModelToolInformation): string {
 	const toolName = getToolName(toolRef.name);
