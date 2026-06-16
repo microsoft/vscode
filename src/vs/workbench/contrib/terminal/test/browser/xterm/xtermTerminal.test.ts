@@ -183,6 +183,7 @@ suite('XtermTerminal', () => {
 			const result = xterm.getContentsAsText(disposedMarker);
 			// Should return content from line 0 (including line 1) instead of throwing
 			ok(result.startsWith('line 1\nline 2\nline 3\nline 4\nline 5'), `Unexpected result: ${result}`);
+		});
 
 		test('should throw error when endMarker is disposed (line === -1)', async () => {
 			await write('line 1\r\n');
