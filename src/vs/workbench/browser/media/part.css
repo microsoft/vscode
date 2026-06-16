@@ -128,6 +128,15 @@
 	margin-right: 12px;
 }
 
+/*
+ * The bottom panel's title draws a 1px top border (a separator from the editor
+ * area). The floating card already has its own border, so this internal line is
+ * redundant — drop it.
+ */
+.monaco-workbench.floating-panels .part.panel.bottom .composite.title {
+	border-top-width: 0 !important;
+}
+
 /* Main editor: float like the other cards, but stay flush with the title bar. */
 .monaco-workbench.floating-panels > .monaco-grid-view .part.editor {
 	margin: 6px;
