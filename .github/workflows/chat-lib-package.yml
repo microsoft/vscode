@@ -9,7 +9,7 @@ permissions:
 
 concurrency:
   group: chat-lib-tests-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: 
 
 jobs:
   test:
@@ -17,16 +17,16 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
-      fail-fast: false
+      fail-fast: 
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses:        /checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses:        /setup-node@v6
         with:
           node-version-file: extensions/copilot/.nvmrc
           cache: npm
