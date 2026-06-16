@@ -99,7 +99,9 @@ export class FindTextInFilesTool implements ICopilotTool<IFindTextInFilesToolPar
 			patterns = [new RelativePattern(workingDir.uri!, '**')];
 		}
 
-		void this.sendSearchToolTelemetry(options, globResult);
+		const outputFormat = this.getOutputFormat();
+		const useGrepStyle = outputFormat === 'grep';
+		void this.sendSearchToolTelemetry(options, globResult, outputFormat);
 
 		checkCancellation(token);
 		const askedForTooManyResults = options.input.maxResults && options.input.maxResults > MaxResultsCap;
@@ -111,7 +113,6 @@ export class FindTextInFilesTool implements ICopilotTool<IFindTextInFilesToolPar
 		// try find text with a timeout of 20s
 		const timeoutInMs = 20_000;
 
-		const useGrepStyle = this.getOutputFormat() === 'grep';
 		// For the grp output we don't limit the number of matches by cutting files. We instead
 		// keep files and cut matches for each file. Therefore we need to ask for more results upfront
 		// to account for the fact that some files will be cut off. For the tag output we cut off files
@@ -333,7 +334,7 @@ Then if you want to include those files you can call the tool again by setting "
 		return result;
 	}
 
-	private async sendSearchToolTelemetry(options: vscode.LanguageModelToolInvocationOptions<IFindTextInFilesToolParams>, globResult: InputGlobResult | undefined): Promise<void> {
+	private async sendSearchToolTelemetry(options: vscode.LanguageModelToolInvocationOptions<IFindTextInFilesToolParams>, globResult: InputGlobResult | undefined, outputFormat: string): Promise<void> {
 		const model = options.model && (await this.endpointProvider.getChatEndpoint(options.model)).model;
 		const isMultiRoot = this.workspaceService.getWorkspaceFolders().length > 1;
 		const includePattern = options.input.includePattern;
@@ -346,7 +347,8 @@ Then if you want to include those files you can call the tool again by setting "
 				"isMultiRoot": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the workspace has multiple root folders" },
 				"patternScopedToFolder": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the includePattern was resolved to a specific workspace folder" },
 				"patternStartsWithFolderPath": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the raw includePattern starts with a workspace folder absolute path" },
-				"patternContainsFolderPath": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the raw includePattern contains a workspace folder absolute path anywhere" }
+				"patternContainsFolderPath": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the raw includePattern contains a workspace folder absolute path anywhere" },
+				"outputFormat": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The output format of the search results" }
 			}
 		*/
 		this.telemetryService.sendMSFTTelemetryEvent('findTextInFilesToolInvoked', {
@@ -356,6 +358,7 @@ Then if you want to include those files you can call the tool again by setting "
 			patternScopedToFolder: String(!!globResult?.folderName),
 			patternStartsWithFolderPath: String(!!includePattern && isAbsolute(includePattern) && !!this.workspaceService.getWorkspaceFolder(URI.file(includePattern))),
 			patternContainsFolderPath: String(patternContainsWorkspaceFolderPath(includePattern, this.workspaceService)),
+			outputFormat: outputFormat
 		});
 	}
 
