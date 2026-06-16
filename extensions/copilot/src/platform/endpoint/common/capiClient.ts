@@ -19,6 +19,11 @@ export interface ICAPIClientService extends CAPIClient {
 	abExpContext: string | undefined;
 }
 
+/**
+ * Wraps an IFetcherService to intercept LLM requests through a proxy for token compression.
+ * When COPILOT_PROXY_URL is set and the request targets an LLM endpoint, the request is
+ * routed through the proxy with X-Original-Url and X-Original-Host headers.
+ */
 class ProxyInterceptingFetcherService implements IFetcherService {
 	declare readonly _serviceBrand: undefined;
 
@@ -41,7 +46,8 @@ class ProxyInterceptingFetcherService implements IFetcherService {
 		const proxyUrl = getConfiguredProxyUrl();
 		if (proxyUrl && isLLMEndpoint(url)) {
 			const headers: Record<string, string> = { ...(options.headers as Record<string, string> ?? {}) };
-			url = maybeInterceptUrlThroughProxy(url, proxyUrl, headers);
+			const originalUrl = url;
+			url = maybeInterceptUrlThroughProxy(originalUrl, proxyUrl, headers);
 			options = { ...options, headers };
 		}
 		return this._inner.fetch(url, options);
