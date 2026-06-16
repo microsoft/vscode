@@ -279,6 +279,7 @@
 	"github.copilot.config.autoFix": "Automatically fix diagnostics for edited files.",
 	"github.copilot.config.rateLimitAutoSwitchToAuto": "Automatically switch to the Auto model and retry when you hit a per-model rate limit.",
 	"github.copilot.tools.createNewWorkspace.userDescription": "Scaffold a new workspace in VS Code",
+	"github.copilot.chat.tools.grepSearch.outputFormat": "The output format for the grep search tool. Can be either 'grep' or 'tag'. The default is 'tag'.",
 	"copilot.tools.errors.description": "Check errors for a particular file",
 	"copilot.tools.applyPatch.description": "Edit text files in the workspace",
 	"copilot.tools.findTestFiles.description": "For a source code file, find the file that contains the tests. For a test file, find the file that contains the code under test",
