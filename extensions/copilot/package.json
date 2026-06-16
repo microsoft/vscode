@@ -3108,6 +3108,12 @@
         "category": "GitHub Pull Request"
       },
       {
+        "command": "github.copilot.chat.cloudSessions.openPullRequestForTask",
+        "title": "%github.copilot.command.cloudSessions.openPullRequestForTask.title%",
+        "icon": "$(git-pull-request)",
+        "category": "GitHub Pull Request"
+      },
+      {
         "command": "github.copilot.chat.cloudSessions.openRepository",
         "title": "%github.copilot.command.cloudSessions.openRepository.title%",
         "icon": "$(repo)",
@@ -4357,6 +4363,16 @@
               "experimental",
               "onExp"
             ]
+          },
+          "github.copilot.chat.tools.grepSearch.outputFormat": {
+            "type": "string",
+            "default": "tag",
+            "enum": ["grep", "tag"],
+            "markdownDescription": "%github.copilot.chat.tools.grepSearch.outputFormat%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
           }
         }
       },
@@ -5486,6 +5502,11 @@
           "command": "github.copilot.chat.cloudSessions.createPullRequestForTask",
           "when": "chatSessionType == copilot-cloud-agent && github.copilot.chat.cloudTaskCanCreatePullRequest && !isSessionsWindow",
           "group": "navigation@0"
+        },
+        {
+          "command": "github.copilot.chat.cloudSessions.openPullRequestForTask",
+          "when": "chatSessionType == copilot-cloud-agent && github.copilot.chat.cloudTaskCanOpenPullRequest && !isSessionsWindow",
+          "group": "navigation@0"
         }
       ],
       "agents/changes/actions/primary": [
@@ -5559,7 +5580,8 @@
       ],
       "chat/contextUsage/actions": [
         {
-          "command": "github.copilot.chat.compact"
+          "command": "github.copilot.chat.compact",
+          "when": "!chatIsAgentHostSession"
         }
       ],
       "chat/newSession": [
@@ -5889,6 +5911,14 @@
         },
         {
           "command": "github.copilot.chat.cloudSessions.openRepository",
+          "when": "false"
+        },
+        {
+          "command": "github.copilot.chat.cloudSessions.createPullRequestForTask",
+          "when": "false"
+        },
+        {
+          "command": "github.copilot.chat.cloudSessions.openPullRequestForTask",
           "when": "false"
         },
         {
@@ -7017,7 +7047,6 @@
     "@fluentui/react-components": "^9.66.6",
     "@fluentui/react-icons": "^2.0.305",
     "@hediet/node-reload": "^0.8.0",
-    "@keyv/sqlite": "^4.0.5",
     "@octokit/types": "^14.1.0",
     "@stylistic/eslint-plugin": "^3.0.1",
     "@types/eslint": "^9.0.0",
@@ -7060,7 +7089,6 @@
     "fastq": "^1.19.1",
     "glob": "^11.1.0",
     "js-yaml": "^4.1.1",
-    "keyv": "^5.3.2",
     "minimist": "^1.2.8",
     "mobx": "^6.13.7",
     "mobx-react-lite": "^4.1.0",
@@ -7082,7 +7110,7 @@
     "shiki": "~1.15.0",
     "sinon": "^21.0.0",
     "source-map-support": "^0.5.21",
-    "tar": "^7.5.11",
+    "tar": "^7.5.16",
     "ts-dedent": "^2.2.0",
     "tsx": "^4.20.3",
     "typescript": "^5.8.3",
@@ -7142,9 +7170,7 @@
     "web-tree-sitter": "^0.23.0"
   },
   "overrides": {
-    "@aminya/node-gyp-build": "npm:node-gyp-build@4.8.1",
     "string_decoder": "npm:string_decoder@1.2.0",
-    "node-gyp": "npm:node-gyp@10.3.1",
     "zod": "3.25.76"
   },
   "vscodeCommit": "94c8e2adc50e26ef70af85a0de3a9efed757acaa",

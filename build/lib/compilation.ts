@@ -292,8 +292,7 @@ function generateApiProposalNames() {
 	}
 
 	const pattern = /vscode\.proposed\.([a-zA-Z\d]+)\.d\.ts$/;
-	const versionPattern = /^\s*\/\/\s*version\s*:\s*(\d+)\s*$/mi;
-	const proposals = new Map<string, { proposal: string; version?: number }>();
+	const proposals = new Map<string, { proposal: string }>();
 
 	const input = es.through();
 	const output = input
@@ -308,13 +307,8 @@ function generateApiProposalNames() {
 
 			const proposalName = match[1];
 
-			const contents = f.contents!.toString('utf8');
-			const versionMatch = versionPattern.exec(contents);
-			const version = versionMatch ? versionMatch[1] : undefined;
-
 			proposals.set(proposalName, {
 				proposal: `https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.${proposalName}.d.ts`,
-				version: version ? parseInt(version) : undefined
 			});
 		}, function () {
 			const names = [...proposals.keys()].sort();
@@ -329,10 +323,10 @@ function generateApiProposalNames() {
 				'const _allApiProposals = {',
 				`${names.map(proposalName => {
 					const proposal = proposals.get(proposalName)!;
-					return `\t${proposalName}: {${eol}\t\tproposal: '${proposal.proposal}',${eol}${proposal.version ? `\t\tversion: ${proposal.version}${eol}` : ''}\t}`;
+					return `\t${proposalName}: {${eol}\t\tproposal: '${proposal.proposal}',${eol}\t}`;
 				}).join(`,${eol}`)}`,
 				'};',
-				'export const allApiProposals = Object.freeze<{ [proposalName: string]: Readonly<{ proposal: string; version?: number }> }>(_allApiProposals);',
+				'export const allApiProposals = Object.freeze<{ [proposalName: string]: Readonly<{ proposal: string }> }>(_allApiProposals);',
 				'export type ApiProposalName = keyof typeof _allApiProposals;',
 				'',
 			].join(eol);

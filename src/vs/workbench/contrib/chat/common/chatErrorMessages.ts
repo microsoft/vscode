@@ -196,8 +196,8 @@ export function getQuotaMessageForPlan(copilotPlan: string | undefined, isUsageB
 					: localize('chatError.quota.ubb.business', "You've reached your credit limit. To continue working, please contact your organization's Copilot admin or wait for your credits to reset.");
 			default:
 				return resetDateString
-					? localize('chatError.quota.ubb.defaultDate', "You've reached your credit limit. To continue working, switch to Auto. For additional paid credits, please reach out to your organization's Copilot admin or wait until your credits reset on {0}.", resetDateString)
-					: localize('chatError.quota.ubb.default', "You've reached your credit limit. To continue working, switch to Auto. For additional paid credits, please reach out to your organization's Copilot admin or wait for your credits to reset.");
+					? localize('chatError.quota.ubb.defaultDate', "You've reached your credit limit. For additional paid credits, please reach out to your organization's Copilot admin or wait until your credits reset on {0}.", resetDateString)
+					: localize('chatError.quota.ubb.default', "You've reached your credit limit. For additional paid credits, please reach out to your organization's Copilot admin or wait for your credits to reset.");
 		}
 	}
 
@@ -213,7 +213,7 @@ export function getQuotaMessageForPlan(copilotPlan: string | undefined, isUsageB
 		case 'enterprise':
 			return localize('chatError.quota.business', "You've exhausted your credits. To continue working, please contact your organization's Copilot admin or wait for your allowance to renew.");
 		default:
-			return localize('chatError.quota.default', "You've exhausted your premium model quota. To continue working, switch to Auto. For additional paid premium requests, please reach out to your organization's Copilot admin or wait for your allowance to renew.");
+			return localize('chatError.quota.default', "You've exhausted your premium model quota. For additional paid premium requests, please reach out to your organization's Copilot admin or wait for your allowance to renew.");
 	}
 }
 

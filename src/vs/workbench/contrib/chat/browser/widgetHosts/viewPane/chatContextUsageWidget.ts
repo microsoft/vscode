@@ -22,6 +22,7 @@ import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatContextUsageDetails, IChatContextUsageData } from './chatContextUsageDetails.js';
+import type { IChatWidget } from '../../chat.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 
@@ -104,6 +105,7 @@ export class ChatContextUsageWidget extends Disposable {
 	private _currentModelId: string | undefined;
 	private readonly _hoverDisposable = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _contextUsageDetails = this._register(new MutableDisposable<ChatContextUsageDetails>());
+	private _chatWidget: IChatWidget | undefined;
 
 	private currentData: IChatContextUsageData | undefined;
 
@@ -171,6 +173,11 @@ export class ChatContextUsageWidget extends Disposable {
 		this.setupHover();
 	}
 
+	setChatWidget(widget: IChatWidget): void {
+		this._chatWidget = widget;
+		this._contextUsageDetails.value?.setChatWidget(widget);
+	}
+
 	/**
 	 * Shows the sticky context usage details hover and records that the user
 	 * has opened it. Returns `true` if the details were shown.
@@ -200,7 +207,7 @@ export class ChatContextUsageWidget extends Disposable {
 			return undefined;
 		}
 		if (!this._contextUsageDetails.value) {
-			this._contextUsageDetails.value = this.instantiationService.createInstance(ChatContextUsageDetails);
+			this._contextUsageDetails.value = this.instantiationService.createInstance(ChatContextUsageDetails, this._chatWidget);
 		}
 		this._contextUsageDetails.value.update(this.currentData);
 		return this._contextUsageDetails.value;

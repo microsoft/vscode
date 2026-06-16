@@ -23,13 +23,13 @@ import { ILogService } from '../../log/common/log.js';
 import { AgentProvider, AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentCreateSessionConfig, IAgentHostAuthTokenRequest, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agentService.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { buildDefaultChangesetCatalogue, parseChangesetUri } from '../common/changesetUri.js';
-import { ActionType, ActionEnvelope, INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type ClientAnnotationsAction } from '../common/state/sessionActions.js';
+import { ActionType, ActionEnvelope, INotification, type ChatAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type ClientAnnotationsAction } from '../common/state/sessionActions.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, MessageAttachmentKind, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
-import type { SessionPendingMessageSetAction, SessionTurnStartedAction } from '../common/state/protocol/actions.js';
-import { ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isSubagentSession, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
+import type { ChatPendingMessageSetAction, ChatTurnStartedAction } from '../common/state/protocol/actions.js';
+import { ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isSubagentSession, parseDefaultChatUri, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { IProductService } from '../../product/common/productService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostTerminalManager, type IAgentHostTerminalManager } from './agentHostTerminalManager.js';
@@ -469,13 +469,15 @@ export class AgentService extends Disposable implements IAgentService {
 		// live/active session (which would close the chat view holding the
 		// in-flight response bubble). Two cases need this: a provider can
 		// transiently drop a session (e.g. `CopilotAgent.listSessions` returns
-		// an empty array right after `session/turnComplete`), and a
-		// provisional session (created but not yet materialized — see
-		// `createSession`) is absent for its entire provisional window. We use
-		// *all* tracked summaries (not just announced ones) to cover the latter.
+		// an empty array right after `session/turnComplete`), and a provisional
+		// session (created but not yet materialized — see `createSession`) that
+		// has had any turn activity must stay visible until it materializes.
+		// Idle provisional sessions are deliberately *not* overlaid so the
+		// new-session composer's eagerly-created session doesn't leak into the
+		// list before its first message (#321269).
 		const known = new Set(withStatus.map(s => s.session.toString()));
 		const additions: IAgentSessionMetadata[] = [];
-		for (const summary of this._stateManager.getAllSessionSummaries()) {
+		for (const summary of this._stateManager.getOverlaySessionSummaries()) {
 			if (known.has(summary.resource)) {
 				continue;
 			}
@@ -599,7 +601,7 @@ export class AgentService extends Disposable implements IAgentService {
 			const summary = this._buildInitialSummary(provider, session, config, created, forkedTitle);
 			const state = this._stateManager.createSession(summary);
 			state.config = sessionConfig;
-			state.turns = sourceTurns;
+			this._stateManager.seedDefaultChatTurns(summary.resource, sourceTurns);
 			state.activeClient = config.activeClient;
 			if (initialCustomizations && initialCustomizations.length > 0) {
 				state.customizations = [...initialCustomizations];
@@ -873,6 +875,27 @@ export class AgentService extends Disposable implements IAgentService {
 				snapshot = this._stateManager.getSnapshot(resourceStr);
 			}
 			if (!snapshot) {
+				// Chat channel URIs carry their owning session URI. The chat
+				// snapshot only materializes once that session is restored
+				// (which seeds the default chat state), so restore the parent
+				// session rather than the chat URI itself. This makes the
+				// chat-channel subscribe self-sufficient and independent of
+				// whether the session channel was subscribed first.
+				const parsedChatSession = parseDefaultChatUri(resourceStr);
+				if (parsedChatSession !== undefined) {
+					if (!this._stateManager.getSessionState(parsedChatSession)) {
+						const parentUri = URI.parse(parsedChatSession);
+						const parsedSubagentParent = parseSubagentSessionUri(parentUri);
+						if (parsedSubagentParent) {
+							await this._restoreSubagentSession(parsedChatSession, parsedSubagentParent.parentSession);
+						} else {
+							await this.restoreSession(parentUri);
+						}
+					}
+					snapshot = this._stateManager.getSnapshot(resourceStr);
+				}
+			}
+			if (!snapshot) {
 				// Changeset URIs are routed through the coordinator (which
 				// owns its URI shape, the unknown-id early throw, and turn
 				// / static seeding). Other URIs fall through to the
@@ -1125,8 +1148,21 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private readonly _clientDispatchQueues = new Map<string, Promise<void>>();
 
-	dispatchAction(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
+	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
 		this._logService.trace(`[AgentService] dispatchAction: type=${action.type}, clientId=${clientId}, clientSeq=${clientSeq}`, action);
+
+		// Clients dispatch conversation (chat) actions against the session's
+		// default chat channel. Normalize to the owning session URI so the
+		// downstream attachment rewrite, optimistic state apply, and side
+		// effects (which key agents/permissions by session) all operate on a
+		// consistent session URI. The state manager re-derives the chat
+		// channel URI when emitting to per-chat subscribers.
+		if (isAhpChatChannel(channel)) {
+			const session = parseDefaultChatUri(channel);
+			if (session !== undefined) {
+				channel = session;
+			}
+		}
 
 		const pending = this._clientDispatchQueues.get(clientId);
 		if (!pending && !this._needsAsyncRewrite(channel, action)) {
@@ -1134,7 +1170,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		const next = (pending ?? Promise.resolve()).then(async () => {
-			const rewritten: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction = this._needsAsyncRewrite(channel, action)
+			const rewritten: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction = this._needsAsyncRewrite(channel, action)
 				? await this._rewriteUserMessageAttachments(channel, action, clientId)
 				: action;
 			this._dispatchActionNow(channel, rewritten, clientId, clientSeq);
@@ -1149,7 +1185,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}));
 	}
 
-	private _dispatchActionNow(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
+	private _dispatchActionNow(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
 		const origin = { clientId, clientSeq };
 		this._stateManager.dispatchClientAction(channel, action, origin);
 		if (action.type === ActionType.RootConfigChanged) {
@@ -1158,8 +1194,8 @@ export class AgentService extends Disposable implements IAgentService {
 		this._sideEffects.handleAction(channel, action);
 	}
 
-	private _needsAsyncRewrite(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): action is SessionTurnStartedAction | SessionPendingMessageSetAction {
-		if (action.type !== ActionType.SessionTurnStarted && action.type !== ActionType.SessionPendingMessageSet) {
+	private _needsAsyncRewrite(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): action is ChatTurnStartedAction | ChatPendingMessageSetAction {
+		if (action.type !== ActionType.ChatTurnStarted && action.type !== ActionType.ChatPendingMessageSet) {
 			return false;
 		}
 		const attachmentsRootStr = this._attachmentsRoot(channel).toString();
@@ -1200,7 +1236,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * etc.) the original attachment is preserved so the agent still has a
 	 * chance to make use of it.
 	 */
-	private async _rewriteUserMessageAttachments<T extends SessionTurnStartedAction | SessionPendingMessageSetAction>(channel: string, action: T, clientId: string): Promise<T> {
+	private async _rewriteUserMessageAttachments<T extends ChatTurnStartedAction | ChatPendingMessageSetAction>(channel: string, action: T, clientId: string): Promise<T> {
 		const attachments = action.message.attachments;
 		if (!attachments?.length) {
 			return action;
@@ -1475,10 +1511,7 @@ export class AgentService extends Disposable implements IAgentService {
 			config: persistedConfigValues,
 		});
 		if (restoredConfig) {
-			const restoredState = this._stateManager.getSessionState(sessionStr);
-			if (restoredState) {
-				restoredState.config = restoredConfig;
-			}
+			this._stateManager.setSessionConfig(sessionStr, restoredConfig);
 		}
 
 		this._logService.info(`[AgentService] Restored session ${sessionStr} with ${turns.length} turns`);
