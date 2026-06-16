@@ -782,8 +782,13 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			return;
 		}
 
-		this.hasPendingUpdate = false;
 		return this.updateSessionsListThrottler.queue(async () => {
+			if (this.updatePauseOwner) {
+				this.hasPendingUpdate = true;
+				return;
+			}
+
+			this.hasPendingUpdate = false;
 			this.computeRecentRepositoryLabels();
 			await this.sessionsList?.updateChildren();
 
