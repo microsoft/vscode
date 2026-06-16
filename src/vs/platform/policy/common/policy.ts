@@ -19,15 +19,7 @@ export type PolicyDefinition = {
 	restrictedValue?: PolicyValue;
 };
 
-/**
- * Returns a structured-clone-safe copy of `definition` for transport over IPC (for example as
- * part of the window configuration's `policiesData`). The `value` callback is a function and is
- * therefore dropped: it is only evaluated by account-based policy services in the process that
- * owns the policy, never by the {@link PolicyChannelClient} consumers that receive serialized
- * definitions. Leaving the function in place throws "An object could not be cloned" when the
- * configuration is sent to the renderer — which happens for any policy registered in the main
- * process (e.g. the agent host settings contribution).
- */
+/** Returns a structured-clone-safe copy of `definition`, dropping the non-cloneable `value` callback. */
 export function toSerializablePolicyDefinition(definition: PolicyDefinition): PolicyDefinition {
 	return { type: definition.type, managedSettings: definition.managedSettings, restrictedValue: definition.restrictedValue };
 }
@@ -70,11 +62,7 @@ export abstract class AbstractPolicyService extends Disposable implements IPolic
 	readonly onDidChange = this._onDidChange.event;
 
 	async updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<IStringDictionary<PolicyValue>> {
-		// Apply incoming definitions, replacing any existing definition for the same policy name.
-		// This lets an authoritative definition (e.g. a policy owner that registers after a
-		// subordinate `policyReference`) supersede a previously registered one. Callers are
-		// expected to submit a stable definition object per policy name and only when it actually
-		// changes, so the identity comparison below avoids redundant watcher churn.
+		// Replace existing definitions; identity comparison avoids redundant watcher churn.
 		let changed = false;
 		for (const name of Object.keys(policyDefinitions)) {
 			if (this.policyDefinitions[name] !== policyDefinitions[name]) {
