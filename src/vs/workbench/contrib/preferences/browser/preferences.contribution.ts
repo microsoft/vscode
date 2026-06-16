@@ -717,7 +717,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 
 			run(accessor: ServicesAccessor): void {
 				const preferencesEditor = getPreferencesEditor(accessor);
-				preferencesEditor?.focusSettings();
+				preferencesEditor?.focusFirstSettingFromSearch();
 			}
 		}));
 

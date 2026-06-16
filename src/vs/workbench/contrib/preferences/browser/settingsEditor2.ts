@@ -95,10 +95,10 @@ export function createGroupIterator(group: SettingsTreeGroupElement): Iterable<I
 const $ = DOM.$;
 
 const searchBoxLabel = localize('SearchSettings.AriaLabel', "Search settings");
-const searchBoxHistoryHint = localize({
-	key: 'SearchSettings.HistoryHint',
-	comment: ['Suffix appended to the settings search input placeholder hinting that the up and down arrow keys navigate the search history. The character inserted is \u21C5 to represent the up and down arrow keys.']
-}, " ({0} for history)", '\u21C5');
+const searchBoxPlaceholderWithHistory = localize({
+	key: 'SearchSettings.PlaceholderWithHistory',
+	comment: ['Placeholder for the settings search input hinting that the up and down arrow keys navigate the search history. The character inserted for {0} is \u21C5 to represent the up and down arrow keys.']
+}, "Search settings ({0} for history)", '\u21C5');
 const SEARCH_TOC_BEHAVIOR_KEY = 'workbench.settings.settingsSearchTocBehavior';
 
 const SHOW_AI_RESULTS_ENABLED_LABEL = localize('showAiResultsEnabled', "Show AI-recommended results");
@@ -196,6 +196,13 @@ export class SettingsEditor2 extends EditorPane {
 	private searchDelayer: Delayer<void>;
 	private searchInProgress: CancellationTokenSource | null = null;
 	private aiSearchPromise: CancelablePromise<void> | null = null;
+
+	/**
+	 * The trimmed query value that the currently rendered results reflect. Used to determine
+	 * whether the displayed results are up to date with the current search input value before
+	 * moving focus into the results.
+	 */
+	private renderedSearchQuery: string | undefined = '';
 
 	private showAiResultsAction: Action | null = null;
 
@@ -680,7 +687,7 @@ export class SettingsEditor2 extends EditorPane {
 		if (this.searchWidget.isNavigatingHistory()) {
 			this.searchWidget.showNextValue();
 		} else {
-			this.focusSettings();
+			this.focusFirstSettingFromSearch();
 		}
 	}
 
@@ -690,6 +697,28 @@ export class SettingsEditor2 extends EditorPane {
 	 */
 	navigateSearchHistoryPrevious(): void {
 		this.searchWidget.showPreviousValue();
+	}
+
+	/**
+	 * Whether the currently rendered results reflect the current search input value.
+	 * Returns false while a search is still pending (debounced) or in progress, so that
+	 * focus is not moved into stale results.
+	 */
+	private isSearchUpToDate(): boolean {
+		return !this.searchInputDelayer.isTriggered && this.renderedSearchQuery === this.searchWidget.getValue().trim();
+	}
+
+	/**
+	 * Moves focus from the search input into the first settings result, but only when the
+	 * displayed results are up to date with the current search input. If the results are
+	 * stale (a search is still pending or in progress), this does nothing so that focus does
+	 * not land on results from a previous query.
+	 */
+	focusFirstSettingFromSearch(): void {
+		if (!this.isSearchUpToDate()) {
+			return;
+		}
+		this.focusSettings();
 	}
 
 	private updateSettingFirstRowFocusedContext(element: SettingsTreeElement | null): void {
@@ -736,7 +765,7 @@ export class SettingsEditor2 extends EditorPane {
 	 */
 	private updateSearchPlaceholder(): void {
 		const hasHistory = this.searchWidget.getHistory().length > 0;
-		this.searchWidget.setPlaceHolder(hasHistory ? localize('SearchSettings.PlaceholderWithHistoryHint', "Search settings{0}", searchBoxHistoryHint) : searchBoxLabel);
+		this.searchWidget.setPlaceHolder(hasHistory ? searchBoxPlaceholderWithHistory : searchBoxLabel);
 	}
 
 	private updateInputAriaLabel() {
@@ -1787,6 +1816,7 @@ export class SettingsEditor2 extends EditorPane {
 		if (query) {
 			this.searchWidget.addToHistory();
 			this.updateSearchPlaceholder();
+			this.saveSearchHistory();
 		}
 		await this.triggerSearch(query.replace(/\u203A/g, ' '), expandResults);
 	}
@@ -1884,6 +1914,7 @@ export class SettingsEditor2 extends EditorPane {
 				this.viewState.categoryFilter = undefined;
 			}
 			this.tocTreeModel.currentSearchModel = this.searchResultModel;
+			this.renderedSearchQuery = this.viewState.query;
 
 			if (this.searchResultModel) {
 				// Added a filter model
@@ -2001,6 +2032,7 @@ export class SettingsEditor2 extends EditorPane {
 
 	private onDidFinishSearch(expandResults: boolean, progressRunner: IProgressRunner | undefined): void {
 		this.tocTreeModel.currentSearchModel = this.searchResultModel;
+		this.renderedSearchQuery = this.viewState.query;
 		if (expandResults) {
 			this.tocTree.setFocus([]);
 			this.viewState.categoryFilter = undefined;
