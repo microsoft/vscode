@@ -217,10 +217,6 @@ import '../workbench/contrib/notebook/browser/notebook.contribution.js';
 // Speech
 import '../workbench/contrib/speech/browser/speech.contribution.js';
 
-// Voice Mode
-import '../workbench/contrib/agentsVoice/browser/agentsVoice.contribution.js';
-import '../workbench/contrib/agentsVoice/browser/sessionsVoiceBar.contribution.js';
-
 // Chat
 import '../workbench/contrib/chat/browser/chat.shared.contribution.js';
 //import '../workbench/contrib/inlineChat/browser/inlineChat.contribution.js';

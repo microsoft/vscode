@@ -70,9 +70,6 @@ export class SessionsPart extends Part {
 	private _progressBar: ProgressBar | undefined;
 	private _progressIndicator: IProgressIndicator | undefined;
 
-	/** Container below the grid for external contributions (e.g. voice bar). */
-	private _bottomArea: HTMLElement | undefined;
-
 	/**
 	 * Session views mounted in the grid, in display order (left-to-right). Slots
 	 * are reused across reconciliations: only the slot count changes with the
@@ -195,20 +192,6 @@ export class SessionsPart extends Part {
 			findTargetView: (child: HTMLElement) => this._findTargetView(child),
 		};
 		this._register(this.instantiationService.createInstance(SessionDropTarget, contentArea, dropDelegate));
-
-		// Bottom area for external contributions (e.g. voice bar).
-		this._bottomArea = $('.sessions-bottom-area');
-		contentArea.appendChild(this._bottomArea);
-
-		// Re-layout when the bottom area changes size (e.g. voice bar shown/hidden).
-		const bottomAreaObserver = new ResizeObserver(() => {
-			if (this._lastLayout) {
-				const { width, height, top, left } = this._lastLayout;
-				this.layout(width, height, top, left);
-			}
-		});
-		bottomAreaObserver.observe(this._bottomArea);
-		this._register({ dispose: () => bottomAreaObserver.disconnect() });
 
 		return contentArea;
 	}
@@ -451,10 +434,8 @@ export class SessionsPart extends Part {
 			height - SessionsPart.MARGIN_TOP - marginBottom - borderTotal
 		);
 
-		// Layout the internal grid widget within the content area,
-		// accounting for the bottom area height (e.g. voice bar).
-		const bottomAreaHeight = this._bottomArea?.offsetHeight ?? 0;
-		this._gridWidget?.layout(contentSize.width, Math.max(0, contentSize.height - bottomAreaHeight), top, left);
+		// Layout the internal grid widget within the content area.
+		this._gridWidget?.layout(contentSize.width, contentSize.height, top, left);
 
 		// Store the full grid-allocated dimensions so that Part.relayout() works correctly.
 		super.layout(width, height, top, left);
@@ -466,14 +447,6 @@ export class SessionsPart extends Part {
 		}
 		this._slots.length = 0;
 		super.dispose();
-	}
-
-	/**
-	 * Returns the container element below the grid for external contributions
-	 * (e.g. voice bar). Available after `create()` has been called.
-	 */
-	getBottomArea(): HTMLElement | undefined {
-		return this._bottomArea;
 	}
 
 	toJSON(): object {
