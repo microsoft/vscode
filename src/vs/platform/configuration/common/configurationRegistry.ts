@@ -111,14 +111,12 @@ export interface IConfigurationRegistry {
 	getConfigurationProperties(): IStringDictionary<IRegisteredConfigurationPropertySchema>;
 
 	/**
-	 * Returns the *owning* setting key for each policy name (the setting that declares the
-	 * full `policy`). At most one owner exists per policy name.
+	 * Returns the owning setting key per policy name (at most one owner per name).
 	 */
 	getPolicyConfigurations(): Map<PolicyName, string>;
 
 	/**
-	 * Returns the *subordinate* setting keys for each policy name (settings that declare a
-	 * `policyReference` to that policy). A policy may govern any number of referencing settings.
+	 * Returns the referencing setting keys per policy name.
 	 */
 	getPolicyReferenceConfigurations(): Map<PolicyName, Set<string>>;
 
@@ -231,11 +229,9 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	policy?: IPolicy;
 
 	/**
-	 * When specified, this setting is governed by a policy *owned* by another setting
-	 * (see {@link policy}). Use this to let a single enterprise policy lock more than one
-	 * setting. A setting must not declare both `policy` and `policyReference`.
-	 * The subordinate setting must be of the same type as the owning setting (enforced when
-	 * exporting the policy catalog), and its effective value is locked by the owning setting's policy.
+	 * When specified, this setting is governed by a policy owned by another setting.
+	 * A setting must not declare both `policy` and `policyReference`.
+	 * The type must match the owning setting (enforced when exporting the policy catalog).
 	 */
 	policyReference?: IPolicyReference;
 

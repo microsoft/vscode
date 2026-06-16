@@ -137,12 +137,7 @@ export class PolicyExportContribution extends Disposable implements IWorkbenchCo
 					this.log(`Merged ${added} extension configuration policies.`);
 				}
 
-				// Attach the settings each policy governs via `policyReference` so the catalog
-				// (and the docs generated from it) can list every setting an enterprise policy
-				// controls — not just the owning setting. A reference MUST match the owning
-				// policy's type: the same policy value is applied verbatim to every governed
-				// setting, so a type mismatch is a registration bug. Fail the export rather than
-				// emit a catalog that mis-describes the setting.
+				// Link policyReference settings and enforce type match (same value is applied verbatim).
 				const policyReferenceConfigurations = configurationRegistry.getPolicyReferenceConfigurations();
 				let linkedReferences = 0;
 				for (const policy of policyData.policies) {

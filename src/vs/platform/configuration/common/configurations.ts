@@ -103,12 +103,7 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 	private _configurationModel: ConfigurationModel;
 	get configurationModel() { return this._configurationModel; }
 
-	/**
-	 * The policy definition last submitted to the policy service per policy name. A definition is
-	 * only re-submitted when its fields actually change (e.g. an owner registering after a reference,
-	 * or an owner deregistering so a reference's bare definition takes over), avoiding redundant
-	 * policy-service re-registration.
-	 */
+	/** Last definition submitted per policy name; avoids redundant re-registration. */
 	private readonly _submittedPolicyDefinitions = new Map<PolicyName, PolicyDefinition>();
 
 	/** Maps each policy-controlled setting key to its policy name, so removed keys can be re-resolved. */
@@ -149,14 +144,10 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 		const configurationProperties = this.configurationRegistry.getConfigurationProperties();
 		const excludedConfigurationProperties = this.configurationRegistry.getExcludedConfigurationProperties();
 
-		// Collect the policy-controlled settings touched by this batch (owners and references),
-		// plus removed settings. `keys` is consumed by `update()` to (re)apply or clear the value.
 		for (const key of properties) {
 			const config = configurationProperties[key] ?? excludedConfigurationProperties[key];
 			if (!config) {
-				keys.push(key); // removed: let `update()` clear any previously applied policy value
-				// If this key contributed to a policy, re-resolve so the definition can fall back to a
-				// surviving owner/reference (e.g. owner deregistered but references remain).
+				keys.push(key); // deregistered — update() will clear this key's applied policy value
 				const removedPolicyName = this._policyNameByKey.get(key);
 				if (removedPolicyName !== undefined) {
 					this._policyNameByKey.delete(key);
@@ -172,8 +163,6 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 			}
 		}
 
-		// Resolve the authoritative definition for each policy name and submit only those whose
-		// definition actually changed, avoiding redundant policy-service churn.
 		const changedDefinitions: IStringDictionary<PolicyDefinition> = {};
 		for (const policyName of policyNames) {
 			const definition = this.resolvePolicyDefinition(policyName);
@@ -191,17 +180,10 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 	}
 
 	private isSamePolicyDefinition(a: PolicyDefinition | undefined, b: PolicyDefinition): boolean {
-		// The callback / managed-settings come from stable registry schema objects, so identity
-		// comparison detects a genuine change without re-submitting equal definitions.
 		return !!a && a.type === b.type && a.value === b.value && a.managedSettings === b.managedSettings && a.restrictedValue === b.restrictedValue;
 	}
 
-	/**
-	 * Resolve the policy definition for `policyName`. The owner (a setting declaring the full
-	 * `policy`) is authoritative for the type, value callback and other runtime bits. A subordinate
-	 * `policyReference` contributes nothing but the policy name (registered with the owner's type, or
-	 * its own type when no owner is loaded) so the OS policy watcher observes the name in this process.
-	 */
+	/** Resolve the authoritative definition: owner wins; references provide a bare type fallback. */
 	private resolvePolicyDefinition(policyName: PolicyName): PolicyDefinition | undefined {
 		const configurationProperties = this.configurationRegistry.getConfigurationProperties();
 		const excludedConfigurationProperties = this.configurationRegistry.getExcludedConfigurationProperties();
@@ -216,7 +198,6 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 			}
 		}
 
-		// No owner loaded here: a reference registers the policy name so the OS watcher observes it.
 		const referenceKeys = this.configurationRegistry.getPolicyReferenceConfigurations().get(policyName);
 		for (const referenceKey of referenceKeys ?? []) {
 			const config = configurationProperties[referenceKey] ?? excludedConfigurationProperties[referenceKey];

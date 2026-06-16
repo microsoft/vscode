@@ -816,9 +816,6 @@ class PolicyDiagnosticsAction extends Action2 {
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			const notAppliedPolicy: Array<{ name: string; key: string; property: any; inspection: any }> = [];
 
-			// Collect both the owning setting (declares the full `policy`) and any subordinate
-			// settings (declare a `policyReference`) so the diagnostics list every setting an
-			// enterprise policy controls.
 			const collectPolicySetting = (policyName: string, settingKey: string) => {
 				const property = configurationProperties[settingKey] ?? excludedProperties[settingKey];
 				if (property) {
