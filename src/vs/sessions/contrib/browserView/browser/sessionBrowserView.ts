@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IBrowserViewWorkbenchService } from '../../../../workbench/contrib/browserView/common/browserView.js';
 import { BrowserEditorInput } from '../../../../workbench/contrib/browserView/common/browserEditorInput.js';
@@ -49,6 +50,37 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 					this._attachLifecycle(editor);
 				}
 			}
+		}));
+
+		// Restrict the window's contextual browser views to those owned by the
+		// active session (or those with no known owning session).
+		const onDidChangeActiveSession = this._register(new Emitter<void>());
+		this._register(runOnChange(this._sessionsService.activeSession, () => onDidChangeActiveSession.fire()));
+		this._register(this._browserViewService.registerContextualFilter({
+			include: (input, context) => {
+				const tracked = this._trackedInputs.get(input.id);
+				// `owner.sessionId` is the session *resource* URI string (set by the
+				// browser tools from `sessionResource.toString()`), not the composite
+				// `ISession.sessionId` (`providerId:resource`). Compare resource-to-resource.
+				const sessionResource = input.model?.owner.sessionId ?? tracked?.session.resource.toString();
+				if (!sessionResource) {
+					return true; // no owning session known
+				}
+				const activeSessionResource = context.activeSessionId ?? this._sessionsService.activeSession.read(undefined)?.resource.toString();
+				return sessionResource === activeSessionResource;
+			},
+			onDidChange: onDidChangeActiveSession.event,
+		}));
+
+		// Only open a browser tab automatically when its owning session is the active session.
+		this._register(this._browserViewService.registerOpenHandler({
+			shouldOpenEditor: (_input, owner) => {
+				if (!owner.sessionId) {
+					return true; // no owning session known; open in the active session
+				}
+				const activeSessionResource = this._sessionsService.activeSession.read(undefined)?.resource.toString();
+				return owner.sessionId === activeSessionResource;
+			},
 		}));
 
 		// Force-destroy browser views when sessions are removed.
