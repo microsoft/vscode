@@ -38,8 +38,9 @@ export class AgentHostDiscardChangesOperationContribution extends Disposable imp
 		return [{
 			id: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES,
 			label: localize('agentHost.changeset.discardChanges', "Discard Changes"),
-			scopes: [ChangesetOperationScope.Resource],
+			confirmation: localize('agentHost.changeset.discardChanges.confirmation', "Are you sure you want to discard the changes in \'{0}\'? This action cannot be undone."),
 			icon: 'discard',
+			scopes: [ChangesetOperationScope.Resource],
 			status: ChangesetOperationStatus.Idle,
 		} satisfies ChangesetOperation];
 	}

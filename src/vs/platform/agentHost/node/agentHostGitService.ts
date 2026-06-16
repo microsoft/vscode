@@ -55,6 +55,15 @@ export interface IAgentHostGitService {
 	commitAll(workingDirectory: URI, message: string): Promise<void>;
 
 	/**
+	 * Restores files in the working tree via `git restore`. When
+	 * {@link options.staged} is true, restores the index instead of the
+	 * working tree. When {@link options.ref} is provided, the contents are
+	 * taken from that ref (`--source`). An empty {@link paths} array
+	 * restores everything (`.`).
+	 */
+	restore(workingDirectory: URI, paths: readonly string[], options?: { readonly staged?: boolean; readonly ref?: string }): Promise<void>;
+
+	/**
 	 * Returns true when the named branch has an upstream tracking ref
 	 * (i.e. `<branch>@{upstream}` resolves). Used before {@link pushBranch}
 	 * to decide whether `--set-upstream` is needed.
@@ -301,6 +310,24 @@ export class AgentHostGitService implements IAgentHostGitService {
 		await this._runGit(workingDirectory, ['commit', '--no-verify', '--no-gpg-sign', '-m', message], { timeout: 60_000, throwOnError: true });
 	}
 
+	async restore(workingDirectory: URI, paths: readonly string[], options?: { readonly staged?: boolean; readonly ref?: string }): Promise<void> {
+		const args = ['restore'];
+
+		if (options?.staged) {
+			args.push('--staged');
+		}
+
+		if (options?.ref) {
+			args.push('--source', options.ref);
+		}
+
+		if (paths.length === 0) {
+			paths = ['.'];
+		}
+
+		await this._runGit(workingDirectory, [...args, '--', ...paths], { throwOnError: true });
+	}
+
 	async hasUpstream(workingDirectory: URI, branchName: string): Promise<boolean> {
 		const output = await this._runGit(workingDirectory, ['rev-parse', '--abbrev-ref', `${branchName}@{upstream}`]);
 		return output !== undefined && output.trim().length > 0;
@@ -435,7 +462,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 		// its argument as a revision, so an attacker-controlled sha that starts
 		// with `-` could inject options, and a non-hex value could resolve to
 		// commit could resolve to surprising refs. Object names are 4-64 lowercase hex chars.
-		if (!/^[0-9a-f]{4,64}$/.test(sha)) {
+		if (!/^ [0 - 9a - f]{ 4, 64 } $ /.test(sha)) {
 			return undefined;
 		}
 		const inside = await this._runGit(workingDirectory, ['rev-parse', '--is-inside-work-tree']);
@@ -707,7 +734,6 @@ export function summarizeStderrForError(stderr: string): string {
  * repository has no commits (no `HEAD` to read into the temp index).
  */
 export const EMPTY_TREE_OBJECT = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
-
 /**
  * Parses NUL-separated `git status --porcelain=v1 -z --untracked-files=all`
  * output and returns the repo-relative paths of untracked entries (status

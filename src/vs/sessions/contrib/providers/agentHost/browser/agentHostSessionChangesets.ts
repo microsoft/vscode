@@ -3,14 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
-import { isEqual } from '../../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../../base/common/resources.js';
+import { format } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { ChangesetOperationTargetKind } from '../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { ChangesetOperation, ChangesetOperationScope } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChangesetStatus, Changeset, StateComponents, type ChangesetState, type Turn } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ISessionChangeset, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, SessionChangesetOperationScope, sessionFileChangesEqual } from '../../../../services/sessions/common/session.js';
 import { changesetFilesToChanges } from './agentHostDiffs.js';
 import { IAgentHostAdapterOptions } from './baseAgentHostSessionsProvider.js';
@@ -107,7 +110,14 @@ function toSessionChangesetOperation(operation: ChangesetOperation): ISessionCha
 		icon: operation.icon
 			? ThemeIcon.fromId(operation.icon)
 			: undefined,
-		scopes: operation.scopes.map(toSessionChangesetOperationScope)
+		scopes: operation.scopes.map(toSessionChangesetOperationScope),
+		confirmation: operation.confirmation
+			? typeof operation.confirmation === 'string'
+				? operation.confirmation
+				: new MarkdownString(operation.confirmation.markdown, {
+					isTrusted: false, supportThemeIcons: true
+				})
+			: undefined,
 	};
 }
 
@@ -129,7 +139,10 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 	protected abstract readonly channelUriObs: IObservable<URI | undefined>;
 	protected abstract readonly changesetStateObs: IObservable<IObservable<ChangesetState | Error | undefined | null>>;
 
-	constructor(private readonly _options: IAgentHostAdapterOptions) {
+	constructor(
+		private readonly _options: IAgentHostAdapterOptions,
+		private readonly _dialogService: IDialogService,
+	) {
 		this.isLoadingChanges = derived(reader => {
 			const changesetState = this.changesetStateObs.read(reader).read(reader);
 
@@ -208,6 +221,23 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 			return;
 		}
 
+		const operation = this.operations.get().find(o => o.id === operationId);
+		if (operation?.confirmation) {
+			const message = typeof operation.confirmation === 'string'
+				? operation.confirmation
+				: operation.confirmation.value;
+			const { confirmed } = await this._dialogService.confirm({
+				type: 'warning',
+				message: target?.kind === 'resource'
+					? format(message, basename(target.resource))
+					: message,
+				primaryButton: operation.label,
+			});
+			if (!confirmed) {
+				return;
+			}
+		}
+
 		await connection.invokeChangesetOperation({
 			operationId,
 			channel: channel.toString(),
@@ -240,8 +270,9 @@ class AgentHostChangeset extends AbstractAgentHostChangeset {
 		options: IAgentHostAdapterOptions,
 		isActiveSessionObs: IObservable<boolean>,
 		changesetSummary: Changeset & { isDefault: boolean },
+		@IDialogService dialogService: IDialogService,
 	) {
-		super(options);
+		super(options, dialogService);
 
 		this.channelUriObs = constObservable(URI.parse(changesetSummary.uriTemplate));
 
@@ -281,13 +312,14 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 		options: IAgentHostAdapterOptions,
 		isActiveSessionObs: IObservable<boolean>,
 		changesetSummary: Changeset & { isDefault: boolean },
+		@IDialogService dialogService: IDialogService,
 	) {
-		super(options);
+		super(options, dialogService);
 
 		this.id = changesetSummary.changeKind;
 
 		// Subscribe to session changes
-		const sessionStateObs = createActiveSessionSubscriptionObs<{ turns: readonly Turn[] }>(
+		const sessionStateObs = createActiveSessionSubscriptionObs<{ turns: readonly Turn[] | undefined }>(
 			options,
 			isActiveSessionObs,
 			StateComponents.Session,
@@ -299,7 +331,7 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 			if (!sessionState || sessionState instanceof Error) {
 				return undefined;
 			}
-			return sessionState.turns.map(turn => turn.id);
+			return sessionState.turns?.map(turn => turn.id);
 		});
 
 		// Last turn changes

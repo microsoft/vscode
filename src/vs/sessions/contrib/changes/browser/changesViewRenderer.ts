@@ -7,7 +7,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { ICompressedTreeElement, ICompressedTreeNode } from '../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
 import { ICompressibleTreeRenderer } from '../../../../base/browser/ui/tree/objectTree.js';
 import { ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
-import { ActionRunner, IAction, toAction } from '../../../../base/common/actions.js';
+import { ActionRunner, toAction } from '../../../../base/common/actions.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { basename, dirname, extUriBiasedIgnorePathCase, relativePath } from '../../../../base/common/resources.js';
@@ -394,19 +394,18 @@ export class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTre
 			}
 
 			const operations = this._operations.read(reader);
-
-			const actions: IAction[] = [];
-			for (const operation of operations) {
-				actions.push(toAction({
-					id: operation.id,
-					label: operation.label,
-					class: operation.icon
-						? ThemeIcon.asClassName(operation.icon)
-						: undefined,
-					enabled: true,
-					run: () => changeset.invokeOperation(operation.id, { kind: 'resource', resource: data.uri })
-				}));
-			}
+			const actions = operations.map(operation => toAction({
+				id: operation.id,
+				label: operation.label,
+				class: operation.icon
+					? ThemeIcon.asClassName(operation.icon)
+					: undefined,
+				enabled: true,
+				run: () => changeset.invokeOperation(operation.id, {
+					kind: 'resource',
+					resource: data.uri,
+				})
+			}));
 
 			return actions;
 		});

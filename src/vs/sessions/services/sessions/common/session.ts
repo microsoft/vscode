@@ -211,6 +211,16 @@ export interface ISessionChangesetOperation {
 	readonly icon?: ThemeIcon;
 	/** The scopes to which this operation applies. */
 	readonly scopes: SessionChangesetOperationScope[];
+	/**
+	 * Optional confirmation prompt to display before invoking the operation.
+	 * When present, callers MUST show this message to the user (typically in
+	 * a confirmation dialog) and only invoke the operation after the user
+	 * accepts. The presence of this field also signals that the operation
+	 * is destructive — callers SHOULD style the affirmative button
+	 * accordingly. The message may contain `{0}` which will be substituted
+	 * with the target resource's basename when applicable.
+	 */
+	readonly confirmation?: string | IMarkdownString;
 }
 
 /**

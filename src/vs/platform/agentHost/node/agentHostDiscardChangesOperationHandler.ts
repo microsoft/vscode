@@ -4,13 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { basename } from '../../../base/common/resources.js';
+import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
+import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
 import { ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
 import { type IChangesetOperationHandler } from '../common/changesetOperation.js';
 import { ChangesetOperationTargetKind, type InvokeChangesetOperationParams, type InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { type SessionState } from '../common/state/sessionState.js';
 import { ILogService } from '../../log/common/log.js';
+import { IAgentHostGitService } from './agentHostGitService.js';
 
 export class AgentHostDiscardChangesOperationHandler implements IChangesetOperationHandler {
 
@@ -18,6 +22,8 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 
 	constructor(
 		private readonly _getSessionState: (sessionKey: string) => SessionState | undefined,
+		@IAgentHostChangesetService private readonly _changesets: IAgentHostChangesetService,
+		@IAgentHostGitService private readonly _agentHostGitService: IAgentHostGitService,
 		@ILogService private readonly _logService: ILogService,
 	) { }
 
@@ -48,12 +54,34 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 		}
 
 		if (params.target?.kind !== ChangesetOperationTargetKind.Resource) {
-			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Operation '${AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES}' requires a resource target.`);
+			throw new ProtocolError(
+				JsonRpcErrorCodes.InvalidParams,
+				`Operation '${AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES}' requires a resource target.`);
 		}
 
-		this._logService.info(`[AgentHostDiscardChangesOperationHandler] invoked with params: ${JSON.stringify(params)}`);
+		const workingDirectoryStr = sessionState.summary.workingDirectory;
+		if (!workingDirectoryStr) {
+			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Session has no working directory: ${sessionUri}`);
+		}
 
-		return { message: { markdown: localize('agentHost.changeset.discardChanges.stub', "Discard changes operation invoked (stub).") } };
+		const workingDirectory = URI.parse(workingDirectoryStr);
+		const resource = URI.parse(params.target.resource);
+
+		this._logService.info(`[AgentHostDiscardChangesOperationHandler] Restoring '${resource.fsPath}' for session ${sessionUri}`);
+
+		try {
+			await this._agentHostGitService.restore(workingDirectory, [resource.fsPath]);
+		} catch (err) {
+			this._throwIfCancelled(token);
+			throw new ProtocolError(
+				JsonRpcErrorCodes.InternalError, `
+				Failed to discard changes: ${err instanceof Error ? err.message : String(err)}`);
+		}
+
+		// Re-compute the uncommitted changeset for the session
+		void this._changesets.computeUncommittedChangeset(sessionUri);
+
+		return { message: { markdown: localize('agentHost.changeset.discardChanges.discarded', "Discarded changes to `{0}`.", basename(resource)) } };
 	}
 
 	private _throwIfCancelled(token: CancellationToken): void {
