@@ -100,6 +100,16 @@ export enum Filters {
 	 * The release/build date of VS Code (UTC) in the format yyyymmddHH.
 	 */
 	ReleaseDate = 'X-VSCode-ReleaseDate',
+
+	/**
+	 * The kind of window VS Code is running in (`editor` or `agents`).
+	 */
+	WindowKind = 'X-VSCode-WindowKind',
+}
+
+export const enum WindowKind {
+	Editor = 'editor',
+	Agents = 'agents',
 }
 
 export class AssignmentFilterProvider implements IExperimentationFilterProvider {
@@ -109,7 +119,8 @@ export class AssignmentFilterProvider implements IExperimentationFilterProvider 
 		private machineId: string,
 		private devDeviceId: string,
 		private targetPopulation: TargetPopulation,
-		private releaseDate: string
+		private releaseDate: string,
+		private windowKind: WindowKind
 	) { }
 
 	/**
@@ -148,6 +159,8 @@ export class AssignmentFilterProvider implements IExperimentationFilterProvider 
 				return platform.PlatformToString(platform.platform);
 			case Filters.ReleaseDate:
 				return AssignmentFilterProvider.formatReleaseDate(this.releaseDate);
+			case Filters.WindowKind:
+				return this.windowKind;
 			default:
 				return '';
 		}
