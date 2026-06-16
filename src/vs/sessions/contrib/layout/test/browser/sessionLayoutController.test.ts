@@ -200,11 +200,10 @@ suite('LayoutController', () => {
 				return undefined;
 			}
 			override getPinnedPaneCompositeIds(_location: ViewContainerLocation): string[] {
-				const ids = [...pinnedAuxiliaryBarContainerIds];
-				if (activePaneCompositeId && !ids.includes(activePaneCompositeId)) {
-					ids.push(activePaneCompositeId);
-				}
-				return ids;
+				// Mirrors production: pinned ids only. The active composite is not
+				// necessarily pinned (that distinction lives in getVisiblePaneCompositeIds),
+				// so tests must add a container to pinnedAuxiliaryBarContainerIds to model it as pinned.
+				return [...pinnedAuxiliaryBarContainerIds];
 			}
 		});
 
@@ -293,7 +292,9 @@ suite('LayoutController', () => {
 		const session2 = makeSession(URI.parse('session:2'));
 
 		activeSessionObs.set(session1, undefined);
+		// The active container must also be pinned for it to be restored.
 		activePaneCompositeId = 'some.custom.view';
+		pinnedAuxiliaryBarContainerIds = [...pinnedAuxiliaryBarContainerIds, 'some.custom.view'];
 
 		activeSessionObs.set(session2, undefined);
 

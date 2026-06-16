@@ -367,7 +367,7 @@ export class LayoutController extends Disposable {
 		}
 
 		// Restore a saved non-Files active container (e.g. the user explicitly
-		// chose Changes or another pane), but only if it is still pinned/visible.
+		// chose Changes or another pane), but only if it is still pinned.
 		// A saved Files selection is intentionally not restored here: Files is the
 		// default when a session has no changes, so restoring it unconditionally
 		// would shadow the "prefer Changes when there are changes" rule below.
