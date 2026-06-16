@@ -69,7 +69,7 @@ type RuntimeSlashCommandCache = { readonly expiresAt: number; readonly promise: 
 const COPILOT_HOME_DIRECTORY = '.copilot';
 const SESSION_STATE_DIRECTORY = join(COPILOT_HOME_DIRECTORY, 'session-state');
 const EMPTY_TOOL_RESULT_TEXT = '<empty />';
-const RUNTIME_SLASH_COMMAND_CACHE_TTL_MS = 10_000;
+const RUNTIME_SLASH_COMMAND_CACHE_TTL_MS = 30_000;
 
 function getEmptyToolResultText(binaryResults: readonly { readonly type: 'image' | 'resource' }[] | undefined): string {
 	if (!binaryResults?.length) {
