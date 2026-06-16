@@ -10,7 +10,7 @@ import { IVSCodeExtensionContext } from '../../../platform/extContext/common/ext
 import { IPromptPathRepresentationService } from '../../../platform/prompts/common/promptPathRepresentationService';
 import { getToolName } from '../../tools/common/toolNames';
 import { IPromptVariablesService } from '../node/promptVariablesService';
-import { LanguageModelToolInformation } from '../../../vscodeTypes';
+import type { LanguageModelToolInformation } from '../../../vscodeTypes';
 
 /**
  * Known template variables that can be resolved at runtime.
