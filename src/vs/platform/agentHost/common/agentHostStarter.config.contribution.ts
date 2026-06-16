@@ -54,7 +54,6 @@ configurationRegistry.registerConfiguration({
 			// Claude provider with the same policy, so disabling Claude applies across surfaces.
 			policyReference: {
 				name: 'Claude3PIntegration',
-				value: (policyData) => policyData.chat_preview_features_enabled === false ? false : undefined,
 			},
 		},
 		[AgentHostCodexAgentEnabledSettingId]: {

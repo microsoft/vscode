@@ -196,51 +196,36 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 	}
 
 	/**
-	 * Resolve the authoritative policy definition for `policyName`. The owner (a setting declaring
-	 * the full `policy`) provides the authoritative type plus any runtime bits it carries; any
-	 * subordinate `policyReference` then fills in `value` / `managedSettings` the owner does not
-	 * provide — and supplies the whole definition when no owner is loaded in this process. This lets
-	 * a reference contribute the account-policy callback for an owner (e.g. a distro/extension owner)
-	 * that cannot declare one.
+	 * Resolve the policy definition for `policyName`. The owner (a setting declaring the full
+	 * `policy`) is authoritative for the type, value callback and other runtime bits. A subordinate
+	 * `policyReference` contributes nothing but the policy name (registered with the owner's type, or
+	 * its own type when no owner is loaded) so the OS policy watcher observes the name in this process.
 	 */
 	private resolvePolicyDefinition(policyName: PolicyName): PolicyDefinition | undefined {
 		const configurationProperties = this.configurationRegistry.getConfigurationProperties();
 		const excludedConfigurationProperties = this.configurationRegistry.getExcludedConfigurationProperties();
 
-		let type: 'string' | 'number' | 'boolean' | undefined;
-		let value: PolicyDefinition['value'];
-		let managedSettings: PolicyDefinition['managedSettings'];
-		let restrictedValue: PolicyDefinition['restrictedValue'];
-
 		const ownerKey = this.configurationRegistry.getPolicyConfigurations().get(policyName);
 		if (ownerKey !== undefined) {
 			const config = configurationProperties[ownerKey] ?? excludedConfigurationProperties[ownerKey];
 			if (config?.policy) {
-				type = this.updateToPolicyDefinitionType(config.type, policyName);
-				if (!type) {
-					return undefined;
-				}
-				({ value, managedSettings, restrictedValue } = config.policy);
+				const type = this.updateToPolicyDefinitionType(config.type, policyName);
+				const { value, managedSettings, restrictedValue } = config.policy;
+				return type ? { type, value, managedSettings, restrictedValue } : undefined;
 			}
 		}
 
+		// No owner loaded here: a reference registers the policy name so the OS watcher observes it.
 		const referenceKeys = this.configurationRegistry.getPolicyReferenceConfigurations().get(policyName);
 		for (const referenceKey of referenceKeys ?? []) {
 			const config = configurationProperties[referenceKey] ?? excludedConfigurationProperties[referenceKey];
-			if (!config?.policyReference) {
-				continue;
+			if (config?.policyReference) {
+				const type = this.updateToPolicyDefinitionType(config.type, policyName);
+				return type ? { type } : undefined;
 			}
-			if (!type) {
-				type = this.updateToPolicyDefinitionType(config.type, policyName);
-				if (!type) {
-					return undefined;
-				}
-			}
-			value ??= config.policyReference.value;
-			managedSettings ??= config.policyReference.managedSettings;
 		}
 
-		return type ? { type, value, managedSettings, restrictedValue } : undefined;
+		return undefined;
 	}
 
 	private onDidChangePolicies(policyNames: readonly PolicyName[]): void {

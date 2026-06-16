@@ -32,7 +32,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			// Agents window with the same policy that gates it in the editor window.
 			policyReference: {
 				name: 'Claude3PIntegration',
-				value: (policyData) => policyData.chat_preview_features_enabled === false ? false : undefined,
 			},
 		},
 	},

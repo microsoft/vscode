@@ -134,21 +134,13 @@ export interface IPolicy {
  * letting a single enterprise policy lock more than one setting (e.g. gating an agent in both the
  * editor window and the Agents window).
  *
- * A reference carries only the *runtime* bits needed to resolve the policy in the process it lives
- * in; it deliberately omits catalog metadata (`category`, `minimumVersion`, `localization`) so the
- * single owner remains the authoritative source for the exported policy catalog.
+ * A reference is a pure pointer: it carries no policy semantics of its own. The owner is the single
+ * source of truth for the policy's catalog metadata *and* its runtime behaviour (type, value
+ * callback, etc.); a reference only contributes the policy name so the setting is gated and the OS
+ * policy watcher observes the name in processes where the owner is not loaded.
  */
 export interface IPolicyReference {
 
 	/** The name of the owning {@link IPolicy} this setting attaches to. */
 	readonly name: PolicyName;
-
-	/**
-	 * Optional account-based value callback ({@link IPolicy.value}). Supplied here rather than
-	 * inherited because the owning policy may be declared in a process not loaded here.
-	 */
-	readonly value?: (policyData: IPolicyData) => string | number | boolean | undefined;
-
-	/** Copilot managed-settings keys this reference's value callback reads ({@link IPolicy.managedSettings}). */
-	readonly managedSettings?: IManagedSettingsPolicyDefinitions;
 }

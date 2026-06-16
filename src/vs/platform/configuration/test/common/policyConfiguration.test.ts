@@ -20,14 +20,10 @@ import { FilePolicyService } from '../../../policy/common/filePolicyService.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { PolicyCategory } from '../../../../base/common/policy.js';
-import { IPolicyData } from '../../../../base/common/defaultAccount.js';
 
 suite('PolicyConfiguration', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-
-	// Stable callback identity so tests can assert the merged definition carries it.
-	const referenceValueCallback = (policyData: IPolicyData) => policyData.chat_preview_features_enabled === false ? false : undefined;
 
 	let testObject: PolicyConfiguration;
 	let fileService: IFileService;
@@ -116,7 +112,6 @@ suite('PolicyConfiguration', () => {
 				'default': true,
 				policyReference: {
 					name: 'PolicyShared',
-					value: referenceValueCallback,
 				}
 			},
 			'policy.orphanReferenceSetting': {
@@ -321,18 +316,16 @@ suite('PolicyConfiguration', () => {
 		assert.deepStrictEqual(acutal.keys, ['policy.orphanReferenceSetting']);
 	});
 
-	test('initialize: the resolved definition merges the owner type/restrictedValue with the reference value callback', async () => {
+	test('initialize: the owner definition is authoritative; a reference only contributes the policy name', async () => {
 		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicyShared': false })));
 
 		await testObject.initialize();
 
-		// The owner declares restrictedValue but no value callback; the reference declares the value
-		// callback. The merged definition must carry both, so a reference can supply account-policy
-		// gating for an owner (e.g. a distro/extension owner) that cannot declare a callback.
+		// The owner declares restrictedValue; the reference is a pure pointer. The registered
+		// definition must be the owner's.
 		const definition = policyService.policyDefinitions['PolicyShared'];
-		assert.strictEqual(definition?.restrictedValue, true, 'owner restrictedValue must be preserved');
-		assert.strictEqual(definition?.value, referenceValueCallback, 'reference value callback must be used when the owner lacks one');
 		assert.strictEqual(definition?.type, 'boolean');
+		assert.strictEqual(definition?.restrictedValue, true);
 	});
 
 	test('change: a late-registering owner supersedes an earlier reference definition', async () => {
