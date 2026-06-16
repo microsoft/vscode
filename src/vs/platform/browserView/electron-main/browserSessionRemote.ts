@@ -96,14 +96,13 @@ export class BrowserSessionRemote implements IBrowserSessionRemote {
 		return this._readyPromise;
 	}
 
-	acquire(viewId: string, proxyInfo: ITunnelProxyInfo | undefined): Promise<void> {
+	acquire(viewId: string, proxyInfo: ITunnelProxyInfo | undefined): void {
 		if (!proxyInfo || this._session.storageScope === BrowserViewStorageScope.Global) {
 			this.release(viewId);
-			return this._readyPromise;
+			return;
 		}
 		this._viewIds.add(viewId);
 		this._setProxy(proxyInfo);
-		return this._readyPromise;
 	}
 
 	release(viewId: string): void {

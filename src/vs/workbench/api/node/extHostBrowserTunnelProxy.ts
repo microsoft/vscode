@@ -165,7 +165,9 @@ export class NodeExtHostBrowserTunnelProxy extends Disposable implements IExtHos
 				return nodeSocketFactory.connect(connectTo, path, query, debugLabel);
 			},
 			register() {
-				throw new Error('not implemented');
+				// This adapter only dials the already-established remote connection (see
+				// connect); it is never used to register socket factories.
+				throw new Error('BrowserTunnelProxy socket factory does not support register()');
 			},
 		};
 

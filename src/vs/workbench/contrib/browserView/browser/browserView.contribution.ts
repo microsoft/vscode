@@ -8,6 +8,7 @@ import { IBrowserViewWorkbenchService, IBrowserViewCDPService, IBrowserViewModel
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { CDPEvent, CDPRequest, CDPResponse } from '../../../../platform/browserView/common/cdp/types.js';
+import { ITunnelProxyInfo } from '../../../../platform/tunnel/common/tunnelProxy.js';
 import { BrowserEditorInput } from '../common/browserEditorInput.js';
 
 class WebBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
@@ -17,7 +18,7 @@ class WebBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 		return false;
 	}
 
-	setRemoteProxyInfo(): void { }
+	setRemoteProxyInfo(_info: ITunnelProxyInfo | undefined): void { }
 
 	readonly onDidChangeBrowserViews = Event.None;
 	readonly onDidChangeSharingAvailable = Event.None;

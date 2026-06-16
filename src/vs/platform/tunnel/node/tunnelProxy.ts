@@ -554,11 +554,11 @@ class RemoteSocketStream extends Duplex {
 		this._disposables.add(this._socket.onData(data => this.push(data.buffer)));
 		this._disposables.add(this._socket.onEnd(() => this.push(null)));
 		this._disposables.add(this._socket.onClose(e => {
-			if (e?.type === SocketCloseEventType.NodeSocketCloseEvent && e.error) {
-				this.destroy(e.error);
-			} else {
-				this.push(null);
-			}
+			// The transport is fully closed, so tear the stream down: this emits
+			// 'close' (removing it from the proxy's socket set and evicting it from
+			// the http.Agent pool) and disposes the underlying ISocket via _destroy.
+			// A clean close carries no error.
+			this.destroy(e?.type === SocketCloseEventType.NodeSocketCloseEvent ? e.error : undefined);
 		}));
 	}
 
@@ -580,7 +580,10 @@ class RemoteSocketStream extends Duplex {
 
 	override _write(chunk: Buffer, _encoding: BufferEncoding, callback: (error?: Error | null) => void): void {
 		this._socket.write(VSBuffer.wrap(chunk));
-		callback();
+		// Respect backpressure: defer completion until the socket has drained its
+		// buffer so a fast producer cannot queue unbounded data on a slow managed /
+		// exec-server transport.
+		this._socket.drain().then(() => callback(), err => callback(err));
 	}
 
 	override _final(callback: (error?: Error | null) => void): void {

@@ -343,7 +343,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 					view.inspector.setTheme(config.theme);
 				}
 				if (didProxyChange) {
-					void view.session.remote.acquire(view.id, config.proxyInfo);
+					view.session.remote.acquire(view.id, config.proxyInfo);
 				}
 				if (typeof config.maxHistoryEntries === 'number') {
 					view.session.history.setMaxEntries(config.maxHistoryEntries);
