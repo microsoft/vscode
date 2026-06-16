@@ -19,6 +19,8 @@ export enum AgentSessionProviders {
 	Codex = SessionType.Codex,
 	Growth = SessionType.Growth,
 	AgentHostCopilot = SessionType.AgentHostCopilot,
+	AgentHostClaude = SessionType.AgentHostClaude,
+	AgentHostCodex = SessionType.AgentHostCodex,
 }
 
 /**
@@ -60,8 +62,10 @@ export function getAgentSessionProviderName(provider: AgentSessionTarget): strin
 		case AgentSessionProviders.Cloud:
 			return localize('chat.session.providerLabel.cloud', "Cloud");
 		case AgentSessionProviders.Claude:
+		case AgentSessionProviders.AgentHostClaude:
 			return 'Claude';
 		case AgentSessionProviders.Codex:
+		case AgentSessionProviders.AgentHostCodex:
 			return 'Codex';
 		case AgentSessionProviders.Growth:
 			return 'Growth';
