@@ -131,8 +131,8 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 					{
 						...action,
 						id: 'chat.permissions.default.sandbox',
-						label: localize('permissions.default.sandbox', "Ask Outside Sandbox"),
-						detail: localize('permissions.default.sandbox.subtext', "Auto-approve inside sandbox, ask otherwise"),
+						label: localize('permissions.default.sandbox', "Ask for Approvals (Sandboxed)"),
+						detail: localize('permissions.default.sandbox.subtext', "Auto-approve inside sandbox, ask outside it"),
 						icon: ThemeIcon.fromId(Codicon.shield.id),
 						checked: currentLevel === ChatPermissionLevel.Default && sandboxOn,
 						tooltip: '',
@@ -250,7 +250,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 				default:
 					icon = Codicon.shield;
 					if (sandboxOn) {
-						label = localize('permissions.defaultSandboxed.label', "Ask Outside Sandbox");
+						label = localize('permissions.defaultSandboxed.label', "Ask for Approvals (Sandboxed)");
 					} else {
 						label = localize('permissions.default.label', "Ask for Approvals");
 					}
