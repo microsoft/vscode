@@ -27,9 +27,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: true,
 			experiment: { mode: 'startup' },
 			description: localize('sessions.chat.claudeAgent.enabled', "Enable Claude Agent sessions in the Agents window. Start and resume agentic coding sessions powered by Anthropic's Claude Agent SDK directly. Uses your existing Copilot subscription."),
-			// Subordinate to the `Claude3PIntegration` enterprise policy (owned by the Copilot
-			// extension setting `github.copilot.chat.claudeAgent.enabled`). This gates Claude in the
-			// Agents window with the same policy that gates it in the editor window.
+			// References the `Claude3PIntegration` policy (owned by `github.copilot.chat.claudeAgent.enabled`) so the Agents window is gated like the editor.
 			policyReference: {
 				name: 'Claude3PIntegration',
 			},

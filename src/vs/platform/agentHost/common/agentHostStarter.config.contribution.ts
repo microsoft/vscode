@@ -49,9 +49,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.agentHost.claudeAgent.enabled', "When enabled, the agent host registers the Claude provider (subject to the Claude SDK being reachable). Independent of `#chat.agents.claude.preferAgentHost#` and `#chat.editor.claude.preferAgentHost#`, which choose which integration surfaces Claude. Requires `#chat.agentHost.enabled#`. The agent host process must be restarted for changes to take effect."),
 			default: true,
 			tags: ['experimental', 'advanced'],
-			// Subordinate to the `Claude3PIntegration` enterprise policy (owned by the Copilot
-			// extension setting `github.copilot.chat.claudeAgent.enabled`). This gates the agent-host
-			// Claude provider with the same policy, so disabling Claude applies across surfaces.
+			// References the `Claude3PIntegration` policy (owned by `github.copilot.chat.claudeAgent.enabled`) so disabling Claude applies across surfaces.
 			policyReference: {
 				name: 'Claude3PIntegration',
 			},
@@ -61,9 +59,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.agentHost.codexAgent.enabled', "When enabled, the agent host registers the Codex provider (subject to the Codex SDK being reachable). Requires `#chat.agentHost.enabled#`. The agent host process must be restarted for changes to take effect."),
 			default: false,
 			tags: ['experimental', 'advanced'],
-			// Owner of the `Codex3PIntegration` enterprise policy. The agent host is the single
-			// runtime through which Codex is surfaced in both the editor window and the Agents
-			// window, so gating here disables Codex everywhere.
+			// Owns the `Codex3PIntegration` policy; gating here disables Codex across all agent-host surfaces.
 			policy: {
 				name: 'Codex3PIntegration',
 				category: PolicyCategory.InteractiveSession,
