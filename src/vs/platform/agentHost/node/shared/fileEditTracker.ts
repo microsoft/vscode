@@ -11,6 +11,7 @@ import { ILogService } from '../../../log/common/log.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { FileEditKind, ToolResultContentType, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
+import { extractAiChunks } from './editChunkExtractor.js';
 import { IEditSurvivalReporterFactory } from './editSurvivalReporter.js';
 
 const SESSION_DB_SCHEME = 'session-db';
@@ -145,13 +146,17 @@ export class FileEditTracker {
 	 * @param turnId - The turn that produced this edit.
 	 * @param toolCallId - The tool call that produced this edit.
 	 * @param filePath - Absolute path of the edited file.
-	 * @param aiChunks - Optional explicit AI-written text chunks
-	 *   extracted from the tool input (see
-	 *   {@link IEditSurvivalReporterLaunchParams.aiChunks}). Omit when
-	 *   the tool input is unrecognised; the survival reporter falls
-	 *   back to whole-file scoring.
+	 * @param toolName - The tool that produced this edit. Used together
+	 *   with {@link toolInput} to extract the AI-written text chunks
+	 *   for region-based survival scoring (see
+	 *   {@link IEditSurvivalReporterLaunchParams.aiChunks}). Pass an
+	 *   empty string when the tool is unknown; the survival reporter
+	 *   then falls back to whole-file scoring.
+	 * @param toolInput - The raw tool input, as received from the
+	 *   agent. Parsed by {@link extractAiChunks} -- unknown shapes are
+	 *   tolerated and yield an empty chunk list (whole-file fallback).
 	 */
-	async takeCompletedEdit(turnId: string, toolCallId: string, filePath: string, aiChunks?: readonly string[]): Promise<ToolResultFileEditContent | undefined> {
+	async takeCompletedEdit(turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown): Promise<ToolResultFileEditContent | undefined> {
 		const edit = this._completedEdits.get(filePath);
 		if (!edit) {
 			return undefined;
@@ -198,7 +203,7 @@ export class FileEditTracker {
 			beforeText,
 			afterText,
 			isCreate,
-			aiChunks,
+			aiChunks: extractAiChunks(toolName, toolInput, filePath),
 		});
 
 		return {

@@ -59,7 +59,7 @@ suite('FileEditTracker', () => {
 		await fileService.writeFile(URI.file('/workspace/test.txt'), VSBuffer.fromString('modified content\nline 2\nline 3'));
 		await tracker.completeEdit('/workspace/test.txt');
 
-		const fileEdit = await tracker.takeCompletedEdit('turn-1', 'tc-1', '/workspace/test.txt');
+		const fileEdit = await tracker.takeCompletedEdit('turn-1', 'tc-1', '/workspace/test.txt', '', undefined);
 		assert.ok(fileEdit);
 		assert.strictEqual(fileEdit.type, ToolResultContentType.FileEdit);
 
@@ -89,7 +89,7 @@ suite('FileEditTracker', () => {
 		await fileService.writeFile(URI.file('/workspace/new-file.txt'), VSBuffer.fromString('new file\ncontent'));
 		await tracker.completeEdit('/workspace/new-file.txt');
 
-		const fileEdit = await tracker.takeCompletedEdit('turn-1', 'tc-2', '/workspace/new-file.txt');
+		const fileEdit = await tracker.takeCompletedEdit('turn-1', 'tc-2', '/workspace/new-file.txt', '', undefined);
 		assert.ok(fileEdit);
 
 		// Wait for the fire-and-forget DB write to complete
@@ -102,7 +102,7 @@ suite('FileEditTracker', () => {
 	});
 
 	test('takeCompletedEdit returns undefined for unknown file path', async () => {
-		const result = await tracker.takeCompletedEdit('turn-1', 'tc-x', '/nonexistent');
+		const result = await tracker.takeCompletedEdit('turn-1', 'tc-x', '/nonexistent', '', undefined);
 		assert.strictEqual(result, undefined);
 	});
 
@@ -128,7 +128,7 @@ suite('FileEditTracker', () => {
 		await fileService.writeFile(URI.file('/workspace/brand-new.txt'), VSBuffer.fromString('fresh'));
 		await localTracker.completeEdit('/workspace/brand-new.txt');
 
-		const fileEdit = await localTracker.takeCompletedEdit('turn-1', 'tc-create', '/workspace/brand-new.txt');
+		const fileEdit = await localTracker.takeCompletedEdit('turn-1', 'tc-create', '/workspace/brand-new.txt', '', undefined);
 		assert.ok(fileEdit);
 
 		const records = await db.getAllFileEdits();
@@ -153,7 +153,7 @@ suite('FileEditTracker', () => {
 		await fileService.writeFile(URI.file('/workspace/file.ts'), VSBuffer.fromString('modified'));
 		await tracker.completeEdit('/workspace/file.ts');
 
-		await tracker.takeCompletedEdit('turn-1', 'tc-3', '/workspace/file.ts');
+		await tracker.takeCompletedEdit('turn-1', 'tc-3', '/workspace/file.ts', '', undefined);
 
 		const content = await db.readFileEditContent('tc-3', '/workspace/file.ts');
 		assert.ok(content);
