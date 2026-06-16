@@ -572,7 +572,7 @@
  * transparent background those pieces stop covering the selection layer and the
  * corners render as blocky squares. Paint it with the same color the chat input
  * container uses so the editor still visually matches its surroundings. */
-.agent-sessions-workbench .interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor .monaco-editor-background {
+.agent-sessions-workbench .interactive-session .interactive-input-part:not(.chat-edit-input-container .interactive-input-part) .chat-editor-container .interactive-input-editor .monaco-editor .monaco-editor-background {
 	background-color: var(--vscode-agentsChatInput-background) !important;
 }
 
