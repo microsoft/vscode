@@ -423,6 +423,12 @@ function mapResult(
 		// reported model. Phase 6 turns are single-model; multi-model
 		// attribution is a Phase 7+ concern.
 		const modelKey = Object.keys(message.modelUsage)[0];
+		// `total_cost_usd` is the SDK's per-turn cost in USD. Surface it
+		// under the well-known `_meta.cost` key the workbench reads to
+		// render per-turn cost (mirrors the Copilot agent at
+		// `copilotAgentSession.ts`). Omitted when the SDK reports a
+		// non-numeric value so we never emit a bogus `_meta`.
+		const cost = message.total_cost_usd;
 		signals.push({
 			kind: 'action',
 			session,
@@ -434,6 +440,7 @@ function mapResult(
 					outputTokens: message.usage.output_tokens,
 					cacheReadTokens: message.usage.cache_read_input_tokens,
 					...(modelKey ? { model: modelKey } : {}),
+					...(typeof cost === 'number' ? { _meta: { cost } } : {}),
 				},
 			},
 		});
