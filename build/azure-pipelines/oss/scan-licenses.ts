@@ -221,8 +221,21 @@ function main(): void {
 
 	// Step 3: Scan each extension's node_modules
 	const entries = new Map<string, LicenseEntry>();
+	// Presence index: packages found on disk in node_modules but with NO license
+	// file. These never reach the NOTICE output, but they ARE shipped — so we
+	// record name+version here. merge-notices.ts reads this sibling file to tell
+	// "present but unlicensed" (an override should INJECT) apart from "not shipped"
+	// (an override is stale and should be deleted). Keyed by lowercased name.
+	const noLicenseSeen = new Map<string, { name: string; version: string }>();
 	let scanned = 0;
 	let noLicense = 0;
+
+	// TODO(future): expand the scanner to walk EVERY node_modules folder in the
+	// repo (e.g. remote/node_modules, remote/web/node_modules, and nested
+	// node_modules), not just the extension + root roots below. The copilot
+	// extension folder has no node_modules, so it is naturally excluded. Walking
+	// all node_modules would make the presence index complete; until then the
+	// presence index is best-effort and the stale-override signal is warn-only.
 
 	for (const ext of extensions) {
 		const nmDirs = [
@@ -261,6 +274,7 @@ function main(): void {
 					});
 				} else {
 					noLicense++;
+					noLicenseSeen.set(key, { name: resolvedName, version: pkgInfo?.version || '' });
 					console.warn(`  NO LICENSE: ${resolvedName} (extension: ${ext})`);
 				}
 			}
@@ -322,6 +336,7 @@ function main(): void {
 				});
 			} else {
 				rootNoLicense++;
+				noLicenseSeen.set(key, { name: resolvedName, version: pkgInfo?.version || '' });
 				console.warn(`  NO LICENSE: ${resolvedName} (root node_modules)`);
 			}
 		}
@@ -455,6 +470,16 @@ function main(): void {
 	}
 	fs.writeFileSync(outputPath, output, 'utf8');
 
+	// Write the presence index as a sibling file. A package counts as
+	// "present but unlicensed" only if it was never resolved with a license
+	// anywhere (filter out anything that later landed in `entries`).
+	const presencePath = args['presence'] || (outputPath + '.presence.json');
+	const presence = [...noLicenseSeen.entries()]
+		.filter(([k]) => !entries.has(k))
+		.map(([, v]) => ({ name: v.name, version: v.version }))
+		.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+	fs.writeFileSync(presencePath, JSON.stringify(presence, null, '\t'), 'utf8');
+
 	// Summary
 	console.log('');
 	console.log('=== License Scan Summary ===');
@@ -473,6 +498,8 @@ function main(): void {
 	console.log(`    Entries without:           ${cgManifestNoDetail}`);
 	console.log(`  Total entries in output:     ${entries.size}`);
 	console.log(`  Output: ${outputPath}`);
+	console.log(`  Presence index (present but unlicensed): ${presence.length}`);
+	console.log(`  Presence output: ${presencePath}`);
 }
 
 function parseArgs(argv: string[]): Record<string, string> {

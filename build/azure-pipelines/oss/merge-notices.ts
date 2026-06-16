@@ -199,8 +199,10 @@ async function mainAsync(): Promise<void> {
 	// Apply cglicenses.json overrides (the manual "last ~4%" gap-fill file).
 	// CELA-approved: overrides come from human-authored entries, not the tool.
 	let overridesApplied = 0;
+	let overridesInjected = 0;
 	let overrideEntryCount = 0;
 	const unmatchedOverrides: string[] = [];
+	const staleOverrides: string[] = [];
 	if (cglicensesPath) {
 		if (!fs.existsSync(cglicensesPath)) {
 			console.warn(`WARN: --cglicenses path not found: ${cglicensesPath}`);
@@ -208,22 +210,60 @@ async function mainAsync(): Promise<void> {
 			try {
 				const overrides = readCglicenses(cglicensesPath);
 				console.log(`--- Applying ${overrides.length} cglicenses.json overrides ---`);
-				const result = await applyOverrides(merged, overrides, { fetchUris: true });
+
+				// Load the scanner's presence index (packages on disk with no license
+				// file). This lets applyOverrides tell "present but unlicensed" (inject)
+				// apart from "not shipped" (stale -> warn + skip).
+				const presencePath = args['presence'] || (extPath ? extPath + '.presence.json' : '');
+				const presentNames = new Set<string>();
+				if (presencePath && fs.existsSync(presencePath)) {
+					try {
+						const raw: unknown = JSON.parse(fs.readFileSync(presencePath, 'utf8'));
+						if (Array.isArray(raw)) {
+							for (const item of raw as { name?: string }[]) {
+								if (item && typeof item.name === 'string') {
+									presentNames.add(item.name.toLowerCase());
+								}
+							}
+						}
+						console.log(`  Presence index: ${presentNames.size} present-but-unlicensed packages (${presencePath})`);
+					} catch (err) {
+						console.warn(`  WARN: could not read presence index ${presencePath}: ${(err as Error).message}`);
+					}
+				} else {
+					console.warn(`  WARN: no presence index found (${presencePath || 'none'}); stale overrides cannot be detected, so unmatched overrides with usable text will be injected.`);
+				}
+
+				const result = await applyOverrides(merged, overrides, { fetchUris: true, presentNames });
 				overridesApplied = result.appliedNames.length;
+				overridesInjected = result.injectedNames.length;
 				overrideEntryCount = result.appliedEntryCount;
 				unmatchedOverrides.push(...result.unmatchedNames);
+				staleOverrides.push(...result.staleNames);
 				for (const name of result.appliedNames.sort()) {
-					console.log(`    * ${name}`);
+					console.log(`    * edited: ${name}`);
+				}
+				for (const name of result.injectedNames.sort()) {
+					console.log(`    + injected: ${name}`);
 				}
 				for (const err of result.errors) {
 					console.error(`    ! ${err}`);
 				}
-				if (result.unmatchedNames.length > 0) {
-					console.warn(`  ${result.unmatchedNames.length} override entries do not match any merged package (possibly stale):`);
-					for (const name of result.unmatchedNames.sort()) {
-						console.warn(`    ? ${name}`);
+				if (result.staleNames.length > 0) {
+					console.warn(`  ${result.staleNames.length} override(s) reference a package not present in the build (stale — consider deleting from cglicenses.json):`);
+					for (const name of result.staleNames.sort()) {
+						console.warn(`    ? stale: ${name}`);
 					}
 				}
+				if (result.unmatchedNames.length > 0) {
+					console.warn(`  ${result.unmatchedNames.length} override(s) have no matching package and no usable license text:`);
+					for (const name of result.unmatchedNames.sort()) {
+						console.warn(`    ? unmatched: ${name}`);
+					}
+				}
+				// Stale overrides are warn-only and NEVER fail the build (the PR-time
+				// check is the real gate). --strict still fails on genuine errors and on
+				// unmatched (no-usable-text) overrides.
 				if (strict && (result.errors.length > 0 || result.unmatchedNames.length > 0)) {
 					console.error('--strict: failing build due to override errors or unmatched entries');
 					process.exit(2);
@@ -281,6 +321,8 @@ required to debug changes to any libraries licensed under the GNU Lesser General
 		// this points reviewers at the package's installed copy.
 		if (entry.source === 'extension-scanner') {
 			output += '(license text obtained directly from package LICENSE file)\n';
+		} else if (entry.source === 'cglicenses-override') {
+			output += '(license text supplied by cglicenses.json manual override)\n';
 		}
 		output += '\n';
 		if (entry.licenseText) {
@@ -301,7 +343,9 @@ required to debug changes to any libraries licensed under the GNU Lesser General
 	console.log(`    Extension duplicates skipped: ${extSkipped}`);
 	if (cglicensesPath) {
 		console.log(`    cglicenses overrides applied: ${overridesApplied} (${overrideEntryCount} merged entries updated)`);
-		console.log(`    cglicenses overrides unmatched (possibly stale): ${unmatchedOverrides.length}`);
+		console.log(`    cglicenses overrides injected: ${overridesInjected}`);
+		console.log(`    cglicenses overrides stale (skipped, warn-only): ${staleOverrides.length}`);
+		console.log(`    cglicenses overrides unmatched (no usable text): ${unmatchedOverrides.length}`);
 	}
 	console.log(`  Output: ${outputPath} (${sizeMB} MB)`);
 }
