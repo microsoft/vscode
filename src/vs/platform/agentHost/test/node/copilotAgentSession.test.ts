@@ -611,6 +611,27 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	test('`/env` escapes plain text runtime command output before emitting markdown', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [{
+				name: 'env',
+				kind: 'builtin',
+				description: 'Show loaded environment details',
+				allowDuringAgentExecution: true,
+			}],
+		};
+		mockSession.commandInvokeResult = { kind: 'text', text: '*plain*\n- item', markdown: false };
+
+		await session.send('/env', undefined, 'turn-env');
+
+		const responsePart = getActions(signals).find(a => a.type === ActionType.ChatResponsePart) as ChatResponsePartAction | undefined;
+		assert.strictEqual(responsePart?.part.kind, ResponsePartKind.Markdown);
+		if (responsePart?.part.kind === ResponsePartKind.Markdown) {
+			assert.strictEqual(responsePart.part.content, '\\*plain\\*\n\\- item');
+		}
+	});
+
 	test('`/env` falls through to a normal SDK send when not listed', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 		mockSession.commandListResult = { commands: [] };
