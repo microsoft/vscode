@@ -603,6 +603,16 @@ function markLastCacheableBlock(msg: MessageParam, cacheTtl?: '1h'): void {
 	}
 }
 
+/**
+ * Maximum total time the Anthropic Messages streaming body may run before the
+ * cutoff aborts it. The HTTP layer can return 200 with headers and then hang
+ * mid-stream with no further data and no error (see microsoft/vscode#321432),
+ * leaving the `for await` below blocked forever. After this many milliseconds
+ * the stream is aborted and the iterable rejects so the request fails fast
+ * instead of hanging indefinitely.
+ */
+const ANTHROPIC_STREAM_MAX_DURATION_MS = 5 * 60 * 1000;
+
 export async function processResponseFromMessagesEndpoint(
 	instantiationService: IInstantiationService,
 	telemetryService: ITelemetryService,
@@ -669,8 +679,32 @@ export async function processResponseFromMessagesEndpoint(
 			}
 		});
 
-		for await (const chunk of response.body) {
-			parser.feed(chunk);
+		// Cut off a streaming body that runs longer than the maximum duration. The
+		// response can arrive as 200 with headers and then hang mid-stream with no
+		// further chunk and no error (microsoft/vscode#321432), so the loop below
+		// would block forever. Race the stream against a timer: when it fires, abort
+		// the body and reject the iterable so the request fails fast instead of
+		// hanging indefinitely. The in-loop guard stops a still-flowing stream that
+		// has nonetheless exceeded the limit.
+		const startTime = Date.now();
+		let cutoffReached = false;
+		const cutoffTimer = setTimeout(() => {
+			cutoffReached = true;
+			const elapsedMs = Date.now() - startTime;
+			logService.error(`[messagesAPI] stream exceeded max duration of ${ANTHROPIC_STREAM_MAX_DURATION_MS}ms (elapsed: ${elapsedMs}ms, requestId: ${requestId}, ghRequestId: ${ghRequestId}); aborting stream.`);
+			feed.reject(new Error(`Anthropic Messages stream exceeded maximum duration of ${ANTHROPIC_STREAM_MAX_DURATION_MS}ms (requestId: ${requestId})`));
+			void response.body.destroy();
+		}, ANTHROPIC_STREAM_MAX_DURATION_MS);
+
+		try {
+			for await (const chunk of response.body) {
+				if (cutoffReached) {
+					break;
+				}
+				parser.feed(chunk);
+			}
+		} finally {
+			clearTimeout(cutoffTimer);
 		}
 	}, async () => {
 		await response.body.destroy();
