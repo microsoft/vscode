@@ -907,6 +907,7 @@ export class CopilotAgentSession extends Disposable {
 		if (slashCommand?.command === 'compact') {
 			try {
 				await this._wrapper.session.rpc.history.compact();
+				this.emitInitialMarkdown(localize('copilotAgent.compactionCompleted', "Compaction completed"));
 			} catch (err) {
 				this._logService.error(err, `[Copilot:${this.sessionId}] rpc.history.compact failed`);
 				throw err;

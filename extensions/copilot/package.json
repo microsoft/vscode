@@ -5570,7 +5570,8 @@
       ],
       "chat/contextUsage/actions": [
         {
-          "command": "github.copilot.chat.compact"
+          "command": "github.copilot.chat.compact",
+          "when": "!chatIsAgentHostSession"
         }
       ],
       "chat/newSession": [
