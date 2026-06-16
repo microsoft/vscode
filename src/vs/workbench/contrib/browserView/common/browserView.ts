@@ -39,6 +39,7 @@ import {
 	IBrowserViewCertificateError,
 	IElementData,
 	IBrowserViewOwner,
+	IBrowserViewOpenOptions,
 	IBrowserViewRect,
 	browserZoomDefaultIndex,
 	browserZoomFactors,
@@ -153,6 +154,48 @@ export interface IBrowserEditorViewState {
 export const IBrowserViewWorkbenchService = createDecorator<IBrowserViewWorkbenchService>('browserViewWorkbenchService');
 
 /**
+ * A filter that contextually restricts the browser views returned by
+ * {@link IBrowserViewWorkbenchService.getContextualBrowserViews}.
+ */
+export interface IBrowserViewContextualFilter {
+	/**
+	 * Returns `true` if the given browser view should be part of the
+	 * contextual set.
+	 */
+	include(input: BrowserEditorInput, context: IBrowserViewFilterContext): boolean;
+
+	/**
+	 * Optional event that fires when the result of {@link include} may have
+	 * changed for one or more views (e.g. the active session changed).
+	 */
+	readonly onDidChange?: Event<void>;
+}
+
+export interface IBrowserViewFilterContext {
+	/**
+	 * The session *resource* URI string (`session.resource.toString()`) of the
+	 * relevant session, if any. This is the same value stored in
+	 * {@link IBrowserViewOwner.sessionId} — not the composite
+	 * `ISession.sessionId` (`providerId:resource`).
+	 */
+	activeSessionId?: string;
+}
+
+/**
+ * A handler that decides whether an editor should be opened for a newly
+ * created browser view. Registered via
+ * {@link IBrowserViewWorkbenchService.registerOpenHandler}.
+ */
+export interface IBrowserViewOpenHandler {
+	/**
+	 * Called before an editor is opened for a newly created browser view.
+	 * Return `false` to prevent the editor from being opened. A view is opened
+	 * only when every registered handler allows it.
+	 */
+	shouldOpenEditor(input: BrowserEditorInput, owner: IBrowserViewOwner, openOptions: IBrowserViewOpenOptions): boolean;
+}
+
+/**
  * Workbench-level service for browser views that provides model-based access to browser views.
  * This service manages browser view models that proxy to the main process browser view service.
  */
@@ -182,6 +225,28 @@ export interface IBrowserViewWorkbenchService {
 	 * Get all known browser views.
 	 */
 	getKnownBrowserViews(): Map<string, BrowserEditorInput>;
+
+	/**
+	 * Register a contextual filter that restricts which browser views are
+	 * returned by {@link getContextualBrowserViews}. A view is part of the
+	 * contextual set only when every registered filter includes it.
+	 */
+	registerContextualFilter(filter: IBrowserViewContextualFilter): IDisposable;
+
+	/**
+	 * Get the browser views that pass all registered contextual filters. When
+	 * no filters are registered this is equivalent to {@link getKnownBrowserViews}.
+	 *
+	 * @param context The filter context to use (or inferred if not provided)
+	 */
+	getContextualBrowserViews(context?: IBrowserViewFilterContext): Map<string, BrowserEditorInput>;
+
+	/**
+	 * Register a handler that decides whether an editor should be opened for a
+	 * newly created browser view. The editor is opened only when every
+	 * registered handler allows it.
+	 */
+	registerOpenHandler(handler: IBrowserViewOpenHandler): IDisposable;
 
 	/**
 	 * Get an existing browser view for the given ID, or create a new one if it doesn't exist.

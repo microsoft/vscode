@@ -641,7 +641,6 @@
       {
         "name": "copilot_runVscodeCommand",
         "displayName": "Run VS Code Command",
-        "when": "config.github.copilot.chat.newWorkspaceCreation.enabled",
         "toolReferenceName": "runCommand",
         "legacyToolReferenceFullNames": [
           "new/runVscodeCommand"
@@ -4359,6 +4358,16 @@
             "type": "string",
             "default": "claude-haiku-4.5,claude-sonnet-4.5,claude-sonnet-4.6,gemini-2.5-pro,gemini-3-flash,gemini-3.5-flash",
             "markdownDescription": "%github.copilot.config.conversationCompaction.prismModelFilter%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
+          "github.copilot.chat.tools.grepSearch.outputFormat": {
+            "type": "string",
+            "default": "tag",
+            "enum": ["grep", "tag"],
+            "markdownDescription": "%github.copilot.chat.tools.grepSearch.outputFormat%",
             "tags": [
               "experimental",
               "onExp"

@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ExitPlanModeRequest, MessageOptions, PermissionRequestResult, SessionConfig, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
+import type { CopilotSession, ExitPlanModeRequest, MessageOptions, PermissionRequestResult, SessionConfig, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { CancellationError } from '../../../../base/common/errors.js';
+import { escapeMarkdownSyntaxTokens } from '../../../../base/common/htmlContent.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isAbsolute, join } from '../../../../base/common/path.js';
@@ -41,7 +42,7 @@ import type { CopilotSessionLaunchPlan, IActiveClientSnapshot, ICopilotSessionLa
 import { ActiveClientState } from '../activeClientState.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
-import { parseLeadingSlashCommand } from './copilotSlashCommandCompletionProvider.js';
+import { isPromptInvokedCopilotSlashCommand, isRuntimeCopilotSlashCommand, parseLeadingSlashCommand } from './copilotSlashCommandCompletionProvider.js';
 import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
 import { buildSandboxConfigForSdk } from './sandboxConfigForSdk.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
@@ -63,10 +64,13 @@ import { McpServerStatus, type McpServerState } from '../../common/state/protoco
  */
 export type CopilotSdkMode = 'interactive' | 'plan' | 'autopilot';
 type CopilotSdkAttachment = Required<MessageOptions>['attachments'][number];
+type CopilotCommandInvocationResult = Awaited<ReturnType<CopilotSession['rpc']['commands']['invoke']>>;
+type RuntimeSlashCommandCache = { readonly expiresAt: number; readonly promise: Promise<ReadonlySet<string>> };
 
 const COPILOT_HOME_DIRECTORY = '.copilot';
 const SESSION_STATE_DIRECTORY = join(COPILOT_HOME_DIRECTORY, 'session-state');
 const EMPTY_TOOL_RESULT_TEXT = '<empty />';
+const RUNTIME_SLASH_COMMAND_CACHE_TTL_MS = 30_000;
 
 function getEmptyToolResultText(binaryResults: readonly { readonly type: 'image' | 'resource' }[] | undefined): string {
 	if (!binaryResults?.length) {
@@ -132,6 +136,17 @@ type ToolUseHookInput = PreToolUseHookInput | PostToolUseHookInput;
 function getToolCommand(input: ToolUseHookInput): string | undefined {
 	const command = isObject(input.toolArgs) ? Reflect.get(input.toolArgs, 'command') : undefined;
 	return isString(command) ? command : undefined;
+}
+
+function toCopilotSdkMode(mode: string | undefined): CopilotSdkMode | undefined {
+	switch (mode) {
+		case 'interactive':
+		case 'plan':
+		case 'autopilot':
+			return mode;
+		default:
+			return undefined;
+	}
 }
 
 /**
@@ -367,6 +382,7 @@ export class CopilotAgentSession extends Disposable {
 	private _turnCopilotUsageTotalNanoAiu = 0;
 	/** SDK session wrapper, set by {@link initializeSession}. */
 	private _wrapper!: CopilotSessionWrapper;
+	private _runtimeSlashCommandCache: RuntimeSlashCommandCache | undefined;
 	/** Last agent mode pushed to the SDK via {@link applyMode}, to elide redundant `rpc.mode.set` calls. */
 	private _lastAppliedMode: CopilotSdkMode | undefined;
 	private readonly _steeringMessagesInFlight = new Set<string>();
@@ -919,8 +935,45 @@ export class CopilotAgentSession extends Disposable {
 			this._completeActiveTurn();
 			return;
 		}
-		if (slashCommand?.command === 'research') {
-			prompt = slashCommand.rest ? `/research ${slashCommand.rest}` : '/research';
+		if (slashCommand && isRuntimeCopilotSlashCommand(slashCommand.command) && await this.hasRuntimeSlashCommand(slashCommand.command)) {
+			let result: CopilotCommandInvocationResult;
+			try {
+				result = await this._wrapper.session.rpc.commands.invoke({
+					name: slashCommand.command,
+				});
+			} catch (err) {
+				this._logService.error(err, `[Copilot:${this.sessionId}] rpc.commands.invoke(${slashCommand.command}) failed`);
+				throw err;
+			}
+			switch (result.kind) {
+				case 'text':
+					this._emitMarkdownDelta(result.markdown === true ? result.text : escapeMarkdownSyntaxTokens(result.text));
+					break;
+				case 'completed':
+					if (result.message) {
+						this._emitMarkdownDelta(result.message);
+					}
+					break;
+				case 'agent-prompt': {
+					const runtimeMode = toCopilotSdkMode(result.mode);
+					if (runtimeMode) {
+						mode = runtimeMode;
+					}
+					prompt = result.prompt;
+					break;
+				}
+				default:
+					this._logService.warn(`[Copilot:${this.sessionId}] Unexpected /${slashCommand.command} command result kind: ${result.kind}`);
+					this._emitMarkdownDelta(localize('copilotSlashCommand.unsupportedRuntimeResult', "The /{0} command returned an unsupported result.", slashCommand.command));
+					break;
+			}
+			if (result.kind !== 'agent-prompt') {
+				this._completeActiveTurn();
+				return;
+			}
+		}
+		if (slashCommand && isPromptInvokedCopilotSlashCommand(slashCommand.command)) {
+			prompt = slashCommand.rest ? `/${slashCommand.command} ${slashCommand.rest}` : `/${slashCommand.command}`;
 		}
 		if (slashCommand?.command === 'plan') {
 			mode = 'plan';
@@ -949,6 +1002,31 @@ export class CopilotAgentSession extends Disposable {
 		await this.applyMode(mode);
 		await this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined });
 		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
+	}
+
+	async hasRuntimeSlashCommand(command: string): Promise<boolean> {
+		try {
+			return (await this._getRuntimeSlashCommands()).has(command);
+		} catch (err) {
+			this._logService.warn(`[Copilot:${this.sessionId}] rpc.commands.list failed`, err);
+			return false;
+		}
+	}
+
+	private _getRuntimeSlashCommands(): Promise<ReadonlySet<string>> {
+		const now = Date.now();
+		if (this._runtimeSlashCommandCache && this._runtimeSlashCommandCache.expiresAt > now) {
+			return this._runtimeSlashCommandCache.promise;
+		}
+		const promise = this._wrapper.session.rpc.commands.list({ includeBuiltins: true, includeSkills: false, includeClientCommands: false })
+			.then(result => new Set(result.commands.filter(command => command.kind === 'builtin').map(command => command.name)));
+		this._runtimeSlashCommandCache = { expiresAt: now + RUNTIME_SLASH_COMMAND_CACHE_TTL_MS, promise };
+		promise.catch(() => {
+			if (this._runtimeSlashCommandCache?.promise === promise) {
+				this._runtimeSlashCommandCache = undefined;
+			}
+		});
+		return promise;
 	}
 
 	/**
