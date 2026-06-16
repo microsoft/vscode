@@ -16,7 +16,8 @@ import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema, isWell
 import { IAgentHostSessionsProvider } from '../../../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../../../services/sessions/common/sessionsProvider.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../../../services/sessions/browser/sessionsService.js';
 
 const PROVIDER_ID = 'local-agent-host';
 const SESSION_ID = 'local-agent-host:s1';
@@ -85,15 +86,15 @@ function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSessio
 		}
 	})();
 	const activeSessionObs = observableValue<IActiveSession | undefined>('activeSession', activeSession);
-	const sessionsManagementService = new (class extends mock<ISessionsManagementService>() {
+	const sessionsManagementService = new (class extends mock<ISessionsService>() {
 		override readonly activeSession = activeSessionObs;
 	})();
 
 	const insta = store.add(new TestInstantiationService());
-	insta.set(ISessionsManagementService, sessionsManagementService);
+	insta.set(ISessionsService, sessionsManagementService);
 	insta.set(ISessionsProvidersService, sessionsProvidersService);
 
-	const delegate = store.add(insta.createInstance(AgentHostPermissionPickerDelegate));
+	const delegate = store.add(insta.createInstance(AgentHostPermissionPickerDelegate, activeSessionObs));
 	return { delegate, provider, activeSessionObs };
 }
 

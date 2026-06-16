@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EffortLevel, McpServerConfig, Options, PermissionMode, Query, SDKUserMessage, SdkPluginConfig } from '@anthropic-ai/claude-agent-sdk';
+import type { EffortLevel, McpServerConfig, Options, PermissionMode, Query, SDKUserMessage, SdkPluginConfig } from '@anthropic-ai/claude-agent-sdk';
 import Anthropic from '@anthropic-ai/sdk';
 import * as l10n from '@vscode/l10n';
 import type * as vscode from 'vscode';

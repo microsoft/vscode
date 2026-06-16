@@ -8,13 +8,13 @@ import type * as vscode from 'vscode';
 import { IEndpointProvider } from '../../../../platform/endpoint/common/endpointProvider';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
-import { formatPricingLabel, getModelCapabilitiesDescription } from '../../../conversation/common/languageModelAccess';
+import { formatPricingLabel, getModelCapabilitiesDescription, getReasoningEffortDescription } from '../../../conversation/common/languageModelAccess';
 import { createServiceIdentifier } from '../../../../util/common/services';
 import { Emitter } from '../../../../util/vs/base/common/event';
 import { Disposable } from '../../../../util/vs/base/common/lifecycle';
 import type { ParsedClaudeModelId } from '../common/claudeModelId';
 import { tryParseClaudeModelId } from './claudeModelId';
-import { EffortLevel } from '@anthropic-ai/claude-agent-sdk';
+import type { EffortLevel } from '@anthropic-ai/claude-agent-sdk';
 
 export const CLAUDE_REASONING_EFFORT_PROPERTY = 'reasoningEffort';
 
@@ -231,13 +231,7 @@ function buildConfigurationSchema(endpoint: IChatEndpoint): vscode.LanguageModel
 				title: l10n.t('Thinking Effort'),
 				enum: effortLevels,
 				enumItemLabels: effortLevels.map(level => level.charAt(0).toUpperCase() + level.slice(1)),
-				enumDescriptions: effortLevels.map(level => {
-					switch (level) {
-						case 'low': return l10n.t('Faster responses with less reasoning');
-						case 'medium': return l10n.t('Balanced reasoning and speed');
-						case 'high': return l10n.t('Greater reasoning depth but slower');
-					}
-				}),
+				enumDescriptions: effortLevels.map(getReasoningEffortDescription),
 				default: defaultEffort,
 				group: 'navigation',
 			}

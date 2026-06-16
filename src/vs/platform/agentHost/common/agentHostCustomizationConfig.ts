@@ -5,7 +5,7 @@
 
 import { localize } from '../../../nls.js';
 import { createSchema, schemaProperty } from './agentHostSchema.js';
-import { CustomizationType, type Customization } from './state/protocol/state.js';
+import { CustomizationType, type Customization, type PluginCustomization } from './state/protocol/state.js';
 import { customizationId } from './state/sessionState.js';
 
 /**
@@ -20,8 +20,10 @@ export const enum AgentHostConfigKey {
 	 * TODO: revisit magic key in config; refine into a dedicated typed channel. https://github.com/microsoft/vscode/issues/313812
 	 */
 	DefaultShell = 'defaultShell',
-	/** When true, Copilot SDK sessions use the SDK's default terminal behavior instead of Agent Host's terminal tool override. */
-	DisableCustomTerminalTool = 'disableCustomTerminalTool',
+	/** When true, Copilot SDK sessions use Agent Host's custom terminal tool override instead of the SDK's default terminal behavior. Disabled by default. */
+	EnableCustomTerminalTool = 'enableCustomTerminalTool',
+	/** When true, Copilot SDK sessions enable the rubber duck critic subagent. */
+	RubberDuck = 'rubberDuck',
 }
 
 /**
@@ -68,10 +70,16 @@ export const agentHostCustomizationConfigSchema = createSchema({
 		title: localize('agentHost.config.defaultShell.title', "Default Shell"),
 		description: localize('agentHost.config.defaultShell.description', "Absolute path to the shell executable used by host-managed terminals. Normally pushed by the connected VS Code client from `terminal.integrated.agentHostProfile.<os>` (falling back to `terminal.integrated.defaultProfile.<os>`); when unset, the agent host falls back to the system shell. Only the path is supported; `args` and `env` from the workbench profile are not piped through yet. The workbench only pushes this for the local agent host — remote agent host operators should set this directly in the remote machine's `agent-host-config.json`."),
 	}),
-	[AgentHostConfigKey.DisableCustomTerminalTool]: schemaProperty<boolean>({
+	[AgentHostConfigKey.EnableCustomTerminalTool]: schemaProperty<boolean>({
 		type: 'boolean',
-		title: localize('agentHost.config.disableCustomTerminalTool.title', "Use SDK Terminal Tool"),
-		description: localize('agentHost.config.disableCustomTerminalTool.description', "When enabled, Copilot SDK sessions use the SDK's default terminal behavior instead of Agent Host's terminal tool override."),
+		title: localize('agentHost.config.enableCustomTerminalTool.title', "Use Agent Host Terminal Tool"),
+		description: localize('agentHost.config.enableCustomTerminalTool.description', "When enabled, Copilot SDK sessions use Agent Host's terminal tool override instead of the SDK's default terminal behavior."),
+		default: false,
+	}),
+	[AgentHostConfigKey.RubberDuck]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.rubberDuck.title', "Rubber Duck Agent"),
+		description: localize('agentHost.config.rubberDuck.description', "When enabled, the coding agent uses a rubber duck critic subagent to review code changes using a complementary model."),
 		default: false,
 	}),
 });
@@ -97,7 +105,7 @@ export function getAgentHostConfiguredCustomizations(values: Record<string, unkn
  * Lifts a persisted plugin config entry into the new
  * {@link Customization} container shape.
  */
-export function toContainerCustomization(entry: IPersistedCustomizationConfigEntry): Customization {
+export function toContainerCustomization(entry: IPersistedCustomizationConfigEntry): PluginCustomization {
 	return {
 		type: CustomizationType.Plugin,
 		id: customizationId(entry.uri),
@@ -106,4 +114,3 @@ export function toContainerCustomization(entry: IPersistedCustomizationConfigEnt
 		enabled: true,
 	};
 }
-

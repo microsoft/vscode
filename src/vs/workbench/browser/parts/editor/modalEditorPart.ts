@@ -361,6 +361,7 @@ export class ModalEditorPart {
 						description: activeEditor.getDescription(labelFormat === 'short' ? Verbosity.SHORT : labelFormat === 'long' ? Verbosity.LONG : Verbosity.MEDIUM) || ''
 					},
 					{
+						title: activeEditor.getTitle(Verbosity.LONG),
 						icon: activeEditor.getIcon(),
 						extraClasses: activeEditor.getLabelExtraClasses(),
 					}

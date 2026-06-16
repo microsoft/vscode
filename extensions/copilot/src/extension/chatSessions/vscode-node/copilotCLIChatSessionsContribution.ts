@@ -47,7 +47,7 @@ import { emptyWorkspaceInfo, getWorkingDirectory, isIsolationEnabled, IWorkspace
 import { ICustomSessionTitleService } from '../copilotcli/common/customSessionTitleService';
 import { IChatDelegationSummaryService } from '../copilotcli/common/delegationSummaryService';
 import { getCopilotCLISessionDir } from '../copilotcli/node/cliHelpers';
-import { COPILOT_CLI_REASONING_EFFORT_PROPERTY, ICopilotCLIAgents, ICopilotCLIModels, ICopilotCLISDK, isWelcomeView } from '../copilotcli/node/copilotCli';
+import { COPILOT_CLI_CONTEXT_SIZE_PROPERTY, COPILOT_CLI_REASONING_EFFORT_PROPERTY, ICopilotCLIAgents, ICopilotCLIModels, ICopilotCLISDK, isWelcomeView, resolveContextTier } from '../copilotcli/node/copilotCli';
 import { CopilotCLIPromptResolver } from '../copilotcli/node/copilotcliPromptResolver';
 import { builtinSlashSCommands, CopilotCLICommand, copilotCLICommands, CopilotCLIQuotaExceededError, ICopilotCLISession } from '../copilotcli/node/copilotcliSession';
 import { ICopilotCLISessionItem, ICopilotCLISessionService } from '../copilotcli/node/copilotcliSessionService';
@@ -1432,6 +1432,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		let sessionPermissionLevel: string | undefined = undefined;
 		let sdkSessionId: string | undefined = undefined;
 		let activeSession: ICopilotCLISession | undefined;
+		let notifySessionChange = true;
 		try {
 
 			const initialOptions = chatSessionContext?.initialSessionOptions;
@@ -1610,7 +1611,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			const modelDetailsEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIModelDetailsEnabled);
 			const creditsUsed = this._chatQuotaService.getCreditsForTurn(request.id);
 			const { result, responseModelId } = await getCopilotCLIModelDetails(session.object, model, this.copilotCLIModels, this.logService, modelDetailsEnabled, creditsUsed);
-			await persistCopilotCLIResponseModelId(session.object.sessionId, request.id, responseModelId, this.chatSessionMetadataStore, this.logService, creditsUsed);
+			await persistCopilotCLIResponseModelId(session.object.sessionId, request.id, responseModelId, model?.model === 'auto', this.chatSessionMetadataStore, this.logService, creditsUsed);
 
 			if (isUntitled && request.command !== 'remote' && !token.isCancellationRequested) {
 				this.scheduleUntitledSessionSwap(id, request.id, request.prompt, session.object.sessionId, chatSessionContext.chatSessionItem);
@@ -1622,6 +1623,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 				return {};
 			}
 			if (ex instanceof CopilotCLIQuotaExceededError) {
+				notifySessionChange = false;
 				return { errorDetails: { message: ex.message, isQuotaExceeded: true } };
 			}
 			throw ex;
@@ -1638,7 +1640,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 				}
 			}
 			this.contentProvider.untrackActiveSession(sessionId, activeSession, sdkSessionId ? this.pendingRequestBySession.has(sdkSessionId) : false);
-			if (chatSessionContext?.chatSessionItem.resource) {
+			if (chatSessionContext?.chatSessionItem.resource && notifySessionChange) {
 				this.sessionItemProvider.notifySessionsChange();
 			}
 			disposables.dispose();
@@ -1917,7 +1919,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 	}
 
 	private async getPromptInfoFromRequest(request: vscode.ChatRequest, token: vscode.CancellationToken): Promise<ParsedPromptFile | undefined> {
-		const promptFile = new ChatVariablesCollection(request.references).find(isPromptFile);
+		const promptFile = new ChatVariablesCollection(request.references).find(v => isPromptFile(v.reference));
 		if (!promptFile || !URI.isUri(promptFile.reference.value)) {
 			return undefined;
 		}
@@ -1929,7 +1931,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		}
 	}
 
-	private async getOrCreateSession(request: vscode.ChatRequest, chatSessionContext: vscode.ChatSessionContext, stream: vscode.ChatResponseStream, options: { model: { model: string; reasoningEffort?: string } | undefined; agent: SweCustomAgent | undefined; newBranch?: Promise<string | undefined>; sessionParentId?: string; permissionLevel?: string }, disposables: DisposableStore, token: vscode.CancellationToken): Promise<{ session: IReference<ICopilotCLISession> | undefined; trusted: boolean }> {
+	private async getOrCreateSession(request: vscode.ChatRequest, chatSessionContext: vscode.ChatSessionContext, stream: vscode.ChatResponseStream, options: { model: { model: string; reasoningEffort?: string; contextTier?: 'default' | 'long_context' } | undefined; agent: SweCustomAgent | undefined; newBranch?: Promise<string | undefined>; sessionParentId?: string; permissionLevel?: string }, disposables: DisposableStore, token: vscode.CancellationToken): Promise<{ session: IReference<ICopilotCLISession> | undefined; trusted: boolean }> {
 		const { resource } = chatSessionContext.chatSessionItem;
 		const existingSessionId = this.sessionItemProvider.untitledSessionIdMapping.get(SessionIdForCLI.parse(resource));
 		const id = existingSessionId ?? SessionIdForCLI.parse(resource);
@@ -1947,8 +1949,8 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		const debugTargetSessionIds = extractDebugTargetSessionIds(request.references);
 		const mcpServerMappings = buildMcpServerMappings(request.tools);
 		const session = isNewSession ?
-			await this.sessionService.createSession({ model: model?.model, reasoningEffort: model?.reasoningEffort, workspace: workspaceInfo, agent, debugTargetSessionIds, mcpServerMappings, sessionParentId: options.sessionParentId }, token) :
-			await this.sessionService.getSession({ sessionId: id, model: model?.model, reasoningEffort: model?.reasoningEffort, workspace: workspaceInfo, agent, debugTargetSessionIds, mcpServerMappings }, token);
+			await this.sessionService.createSession({ model: model?.model, reasoningEffort: model?.reasoningEffort, contextTier: model?.contextTier, workspace: workspaceInfo, agent, debugTargetSessionIds, mcpServerMappings, sessionParentId: options.sessionParentId }, token) :
+			await this.sessionService.getSession({ sessionId: id, model: model?.model, reasoningEffort: model?.reasoningEffort, contextTier: model?.contextTier, workspace: workspaceInfo, agent, debugTargetSessionIds, mcpServerMappings }, token);
 		this.sessionItemProvider.notifySessionsChange();
 		// TODO @DonJayamanne We need to refresh to add this new session, but we need a label.
 		// So when creating a session we need a dummy label (or an initial prompt).
@@ -1976,7 +1978,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		return { session, trusted };
 	}
 
-	private async getModelId(request: vscode.ChatRequest | undefined, token: vscode.CancellationToken): Promise<{ model: string; reasoningEffort?: string } | undefined> {
+	private async getModelId(request: vscode.ChatRequest | undefined, token: vscode.CancellationToken): Promise<{ model: string; reasoningEffort?: string; contextTier?: 'default' | 'long_context' } | undefined> {
 		const promptFile = request ? await this.getPromptInfoFromRequest(request, token) : undefined;
 		const model = promptFile?.header?.model ? await getModelFromPromptFile(promptFile.header.model, this.copilotCLIModels) : undefined;
 		if (token.isCancellationRequested) {
@@ -1989,9 +1991,14 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		const preferredModelInRequest = request?.model?.id ? await this.copilotCLIModels.resolveModel(request.model.id) : undefined;
 		if (preferredModelInRequest) {
 			const reasoningEffort = isReasoningEffortFeatureEnabled(this.configurationService) ? request?.modelConfiguration?.[COPILOT_CLI_REASONING_EFFORT_PROPERTY] : undefined;
+			const contextSize = request?.modelConfiguration?.[COPILOT_CLI_CONTEXT_SIZE_PROPERTY];
+			const resolvedModels = await this.copilotCLIModels.getModels();
+			const modelInfo = resolvedModels.find(m => m.id === preferredModelInRequest);
+			const contextTier = resolveContextTier(contextSize, modelInfo);
 			return {
 				model: preferredModelInRequest,
-				reasoningEffort: typeof reasoningEffort === 'string' && reasoningEffort ? reasoningEffort : undefined
+				reasoningEffort: typeof reasoningEffort === 'string' && reasoningEffort ? reasoningEffort : undefined,
+				contextTier,
 			};
 		}
 		const defaultModel = await this.copilotCLIModels.getDefaultModel();
@@ -2108,7 +2115,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		const { prompt, attachments, references } = await this.promptResolver.resolvePrompt(request, await requestPromptPromise, (otherReferences || []).concat([]), workspaceInfo, [], token);
 
 		const mcpServerMappings = buildMcpServerMappings(request.tools);
-		const session = await this.sessionService.createSession({ workspace: workspaceInfo, agent, model: model?.model, reasoningEffort: model?.reasoningEffort, mcpServerMappings }, token);
+		const session = await this.sessionService.createSession({ workspace: workspaceInfo, agent, model: model?.model, reasoningEffort: model?.reasoningEffort, contextTier: model?.contextTier, mcpServerMappings }, token);
 		const modeInstructions = this.createModeInstructions(request);
 		this.chatSessionMetadataStore.updateRequestDetails(session.object.sessionId, [{ vscodeRequestId: request.id, agentId: agent?.name ?? '', modeInstructions }]).catch(ex => this.logService.error(ex, 'Failed to update request details'));
 		if (summary) {

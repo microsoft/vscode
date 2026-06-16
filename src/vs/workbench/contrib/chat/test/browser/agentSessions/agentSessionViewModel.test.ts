@@ -22,7 +22,7 @@ import { MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { AgentSessionProviders, getAgentCanContinueIn, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../../browser/agentSessions/agentSessions.js';
+import { AgentSessionProviders, getAgentCanContinueIn, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../../browser/agentSessions/agentSessions.js';
 
 class StaticChatSessionItemController implements IChatSessionItemController {
 	readonly onDidChangeChatSessionItems = Event.None;
@@ -2169,6 +2169,11 @@ suite('AgentSessions', () => {
 			assert.strictEqual(icon.id, Codicon.cloud.id);
 		});
 
+		test('should return correct icon for AgentHostCopilot provider', () => {
+			const icon = getAgentSessionProviderIcon(AgentSessionProviders.AgentHostCopilot);
+			assert.strictEqual(icon.id, Codicon.copilot.id);
+		});
+
 		test('should return correct name for Growth provider', () => {
 			const name = getAgentSessionProviderName(AgentSessionProviders.Growth);
 			assert.strictEqual(name, 'Growth');
@@ -2177,6 +2182,36 @@ suite('AgentSessions', () => {
 		test('should return correct icon for Growth provider', () => {
 			const icon = getAgentSessionProviderIcon(AgentSessionProviders.Growth);
 			assert.strictEqual(icon.id, Codicon.lightbulb.id);
+		});
+
+		test('should return correct name for AgentHostClaude provider', () => {
+			const name = getAgentSessionProviderName(AgentSessionProviders.AgentHostClaude);
+			assert.strictEqual(name, 'Claude');
+		});
+
+		test('should return correct icon for AgentHostClaude provider', () => {
+			const icon = getAgentSessionProviderIcon(AgentSessionProviders.AgentHostClaude);
+			assert.strictEqual(icon.id, Codicon.claude.id);
+		});
+
+		test('should return correct name for AgentHostCodex provider', () => {
+			const name = getAgentSessionProviderName(AgentSessionProviders.AgentHostCodex);
+			assert.strictEqual(name, 'Codex');
+		});
+
+		test('should return correct icon for AgentHostCodex provider', () => {
+			const icon = getAgentSessionProviderIcon(AgentSessionProviders.AgentHostCodex);
+			assert.strictEqual(icon.id, Codicon.openai.id);
+		});
+
+		test('should resolve AgentHostClaude provider from session type', () => {
+			const provider = getAgentSessionProvider(AgentSessionProviders.AgentHostClaude);
+			assert.strictEqual(provider, AgentSessionProviders.AgentHostClaude);
+		});
+
+		test('should resolve AgentHostCodex provider from session type', () => {
+			const provider = getAgentSessionProvider(AgentSessionProviders.AgentHostCodex);
+			assert.strictEqual(provider, AgentSessionProviders.AgentHostCodex);
 		});
 
 		test('should handle Local provider type in model', async () => {

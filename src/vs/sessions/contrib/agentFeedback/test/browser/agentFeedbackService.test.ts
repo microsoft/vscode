@@ -11,15 +11,18 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-import { AgentFeedbackService, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
+import { AgentFeedbackKind, AgentFeedbackService, AgentFeedbackState, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
 import { IChatEditingService } from '../../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
-import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IEditorService, IVisibleEditorsChangeEvent } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 
 function r(startLine: number, endLine: number = startLine): Range {
 	return new Range(startLine, 1, endLine, 1);
@@ -42,15 +45,15 @@ suite('AgentFeedbackService - Ordering', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() { });
-		instantiationService.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() { });
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
 			override onDidVisibleEditorsChange = Event.None;
 			override visibleEditorPanes = [];
 		});
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
-			override activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+			override getSession(_resource: URI) { return undefined; }
 		});
+		instantiationService.stub(ISessionsService, { activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined) } as unknown as ISessionsService);
 
 		service = store.add(instantiationService.createInstance(AgentFeedbackService));
 		session = URI.parse('test://session/1');
@@ -299,16 +302,15 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() { });
-		instantiationService.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() { });
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
 			override onDidVisibleEditorsChange = visibleEditorsEmitter.event;
 			override get visibleEditorPanes() { return visiblePanes; }
 		});
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
-			override activeSession = activeSessionObs;
 			override getSession(resource: URI) { return sessions.get(resource.toString()); }
 		});
+		instantiationService.stub(ISessionsService, { activeSession: activeSessionObs } as unknown as ISessionsService);
 
 		service = store.add(instantiationService.createInstance(AgentFeedbackService));
 
@@ -398,5 +400,97 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 		setActiveSession(undefined);
 
 		assert.strictEqual(service.getSessionForFile(fileA), undefined);
+	});
+});
+
+suite('AgentFeedbackService - State', () => {
+
+	const store = new DisposableStore();
+	let service: IAgentFeedbackService;
+	let session: URI;
+	let fileA: URI;
+	/** When set, getSession reports the session under this provider id. */
+	let sessionProviderId: string | undefined;
+
+	setup(() => {
+		sessionProviderId = undefined;
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() { });
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+			override onDidVisibleEditorsChange = Event.None;
+			override visibleEditorPanes = [];
+		});
+		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+			override getProvider<T extends ISessionsProvider>(_providerId: string): T | undefined { return undefined; }
+		});
+		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override onDidDeleteSession = Event.None;
+			override getSession(_resource: URI) {
+				return sessionProviderId
+					? { providerId: sessionProviderId, sessionId: 'session-1' } as unknown as ISession
+					: undefined;
+			}
+		});
+		instantiationService.stub(ISessionsService, { activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined) } as unknown as ISessionsService);
+
+		service = store.add(instantiationService.createInstance(AgentFeedbackService));
+		session = URI.parse('test://session/1');
+		fileA = URI.parse('file:///a.ts');
+	});
+
+	teardown(() => store.clear());
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('feedback defaults to the accepted state', () => {
+		const feedback = service.addFeedback(session, fileA, r(10), 'hello');
+		assert.strictEqual(feedback.state, AgentFeedbackState.Accepted);
+	});
+
+	test('created feedback transitions to accepted on acceptFeedback', () => {
+		const created = service.addFeedback(session, fileA, r(10), 'pending', undefined, undefined, undefined, AgentFeedbackKind.AgentReview, AgentFeedbackState.Created);
+		assert.strictEqual(created.state, AgentFeedbackState.Created);
+
+		service.acceptFeedback(session, created.id);
+		assert.strictEqual(service.getFeedback(session)[0].state, AgentFeedbackState.Accepted);
+	});
+
+	test('markFeedbackSubmitted resolves accepted items directly for non-agent-host sessions', () => {
+		const accepted = service.addFeedback(session, fileA, r(10), 'accepted');
+		const created = service.addFeedback(session, fileA, r(20), 'created', undefined, undefined, undefined, AgentFeedbackKind.AgentReview, AgentFeedbackState.Created);
+
+		service.markFeedbackSubmitted(session);
+
+		const stateById = new Map(service.getFeedback(session).map(item => [item.id, item.state]));
+		assert.deepStrictEqual({
+			accepted: stateById.get(accepted.id),
+			created: stateById.get(created.id),
+		}, {
+			accepted: AgentFeedbackState.Resolved,
+			created: AgentFeedbackState.Created,
+		});
+	});
+
+	test('markFeedbackSubmitted keeps accepted items submitted for agent-host sessions', () => {
+		sessionProviderId = LOCAL_AGENT_HOST_PROVIDER_ID;
+		service.addFeedback(session, fileA, r(10), 'accepted');
+
+		service.markFeedbackSubmitted(session);
+
+		assert.strictEqual(service.getFeedback(session)[0].state, AgentFeedbackState.Submitted);
+	});
+
+	test('resolving and un-resolving moves between resolved and submitted', () => {
+		const feedback = service.addFeedback(session, fileA, r(10), 'feedback');
+		// Non-agent-host submit resolves the comment directly.
+		service.markFeedbackSubmitted(session);
+		assert.strictEqual(service.getFeedback(session)[0].state, AgentFeedbackState.Resolved);
+
+		service.setFeedbackResolved(session, feedback.id, false);
+		assert.strictEqual(service.getFeedback(session)[0].state, AgentFeedbackState.Submitted);
+
+		service.setFeedbackResolved(session, feedback.id, true);
+		assert.strictEqual(service.getFeedback(session)[0].state, AgentFeedbackState.Resolved);
 	});
 });

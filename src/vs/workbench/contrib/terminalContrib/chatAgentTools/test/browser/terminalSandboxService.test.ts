@@ -23,7 +23,7 @@ import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../
 import { Event, Emitter } from '../../../../../../base/common/event.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
-import { isWindows, OperatingSystem } from '../../../../../../base/common/platform.js';
+import { isWindows, OperatingSystem, OS } from '../../../../../../base/common/platform.js';
 import { IRemoteAgentEnvironment } from '../../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { testWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
@@ -260,6 +260,7 @@ suite('TerminalSandboxService - network domains', () => {
 		// Setup default configuration
 		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
 		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, true);
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
 		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, []);
 		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, []);
 
@@ -317,12 +318,11 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(result.sandboxConfigPath, 'Sandbox config path should still be returned when config creation succeeds');
 	});
 
-	test('should report repair actions when Ubuntu AppArmor remediation is supported', async () => {
+	test('should report the repair action when bubblewrap is unusable', async () => {
 		sandboxHelperService.status = {
 			bubblewrapInstalled: true,
 			bubblewrapUsable: false,
 			bubblewrapError: 'No permissions to create namespace',
-			supportsUbuntuAppArmorRemediation: true,
 			socatInstalled: true,
 		};
 
@@ -330,11 +330,11 @@ suite('TerminalSandboxService - network domains', () => {
 		const result = await sandboxService.checkForSandboxingPrereqs();
 
 		strictEqual(result.failedCheck, TerminalSandboxPrerequisiteCheck.Bubblewrap);
-		deepStrictEqual(result.remediations, [TerminalSandboxPreCheckRemediation.InstallUbuntuAppArmorProfile, TerminalSandboxPreCheckRemediation.DisableUbuntuUserNamespaceRestriction]);
+		deepStrictEqual(result.remediations, [TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespaceRestriction]);
 		strictEqual(result.detail, 'No permissions to create namespace');
 	});
 
-	test('should run approved Ubuntu bubblewrap remediation commands', async () => {
+	test('should run the approved bubblewrap remediation command', async () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		const runAndCapture = async (remediation: TerminalSandboxPreCheckRemediation): Promise<string | undefined> => {
 			let sentCommand: string | undefined;
@@ -360,13 +360,10 @@ suite('TerminalSandboxService - network domains', () => {
 			return sentCommand;
 		};
 
-		deepStrictEqual([
-			await runAndCapture(TerminalSandboxPreCheckRemediation.InstallUbuntuAppArmorProfile),
-			await runAndCapture(TerminalSandboxPreCheckRemediation.DisableUbuntuUserNamespaceRestriction),
-		], [
-			'sudo apt update && sudo apt install -y apparmor-profiles apparmor-utils && sudo install -m 0644 /usr/share/apparmor/extra-profiles/bwrap-userns-restrict /etc/apparmor.d/bwrap-userns-restrict && sudo apparmor_parser -r /etc/apparmor.d/bwrap-userns-restrict',
+		strictEqual(
+			await runAndCapture(TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespaceRestriction),
 			'sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0',
-		]);
+		);
 	});
 
 	test('should report successful sandbox prereq checks', async () => {
@@ -470,6 +467,9 @@ suite('TerminalSandboxService - network domains', () => {
 		const signedCommitWithGlobalOptionConfig = await getConfigAfterWrap('git -C repo commit --gpg-sign=key -m "test"', [{ keyword: 'git', args: ['-C', 'repo', 'commit', '--gpg-sign=key', '-m', 'test'] }]);
 		strictEqual(signedCommitWithGlobalOptionConfig.network.allowAllUnixSockets, true, 'Signed git commits with global options should allow Unix sockets for GPG signing');
 
+		const chainedSignedCommitConfig = await getConfigAfterWrap('git commit -S -m "test" && npm install', [{ keyword: 'git', args: ['commit', '-S', '-m', 'test'] }, { keyword: 'npm', args: ['install'] }]);
+		strictEqual(Object.prototype.hasOwnProperty.call(chainedSignedCommitConfig.network, 'allowAllUnixSockets'), false, 'Chained signed git commits should not allow all Unix sockets for the entire invocation');
+
 		const unsignedCommitConfig = await getConfigAfterWrap('git commit -m "test"', [{ keyword: 'git', args: ['commit', '-m', 'test'] }]);
 		strictEqual(Object.prototype.hasOwnProperty.call(unsignedCommitConfig.network, 'allowAllUnixSockets'), false, 'Unsigned git commits should not allow all Unix sockets');
 
@@ -481,6 +481,16 @@ suite('TerminalSandboxService - network domains', () => {
 		const config = getTerminalSandboxRuntimeConfigurationForCommands(OperatingSystem.Windows, [{ keyword: 'git', args: ['commit', '-S', '-m', 'test'] }]);
 
 		deepStrictEqual(config, {}, 'Signed git commit runtime values should not apply on Windows');
+	});
+
+	test('should skip unsafe command-specific runtime values for chained commands', () => {
+		const config = getTerminalSandboxRuntimeConfigurationForCommands(OperatingSystem.Linux, [{ keyword: 'git', args: ['commit', '-S', '-m', 'test'] }, { keyword: 'npm', args: ['install'] }]);
+
+		deepStrictEqual(config, {
+			filesystem: {
+				allowWrite: ['~/.volta/']
+			}
+		});
 	});
 
 	test('should preserve user runtime settings over command-specific runtime values', async () => {
@@ -647,6 +657,7 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(config.filesystem.allowRead.includes('/configured/readable/path'), 'Sandbox config should preserve configured allowRead paths');
 		ok(!config.filesystem.allowWrite.includes('/home/user/.volta/'), 'Sandbox config should not include command-specific node write allow-list paths before a command is parsed');
 		ok(!config.filesystem.allowRead.includes('/home/user/.gitconfig'), 'Sandbox config should not include command-specific git read allow-list paths before a command is parsed');
+		ok(!config.filesystem.allowRead.includes('/home/user/.config/gh/config.yml'), 'Sandbox config should not include the GitHub CLI config before a Git command is parsed');
 		ok(!config.filesystem.allowRead.includes('/home/user/.nvm/versions'), 'Sandbox config should not include command-specific node read allow-list paths before a command is parsed');
 		ok(!config.filesystem.allowRead.includes('/home/user/.cache/pip'), 'Sandbox config should not include command-specific common dev read allow-list paths before a command is parsed');
 		ok(config.filesystem.allowRead.includes('/app'), 'Sandbox config should include the VS Code app root');
@@ -673,6 +684,7 @@ suite('TerminalSandboxService - network domains', () => {
 
 		ok(config.filesystem.denyRead.includes('/home/user'), 'Sandbox config should deny arbitrary reads from the user home');
 		ok(config.filesystem.allowRead.includes(expectedWorkspaceStoragePath), 'Sandbox config should re-allow reads from workspace storage');
+		ok(config.filesystem.allowWrite.includes(expectedWorkspaceStoragePath), 'Sandbox config should allow writes to workspace storage');
 	});
 
 	test('should only add command-specific allow-list paths for the current command details', async () => {
@@ -688,6 +700,7 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(nodeConfig.filesystem.allowRead.includes('/home/user/.nvm/versions'), 'Node commands should include node-specific read allow-list paths');
 		ok(nodeConfig.filesystem.allowWrite.includes('/home/user/.volta/'), 'Node commands should include node-specific write allow-list paths');
 		ok(!nodeConfig.filesystem.allowRead.includes('/home/user/.gitconfig'), 'Node commands should not include git-specific read allow-list paths');
+		ok(!nodeConfig.filesystem.allowRead.includes('/home/user/.config/gh/config.yml'), 'Node commands should not include the GitHub CLI config');
 
 		await sandboxService.wrapCommand('git status', false, 'bash', undefined, [{ keyword: 'git', args: ['status'] }]);
 		const gitConfigContent = createdFiles.get(configPath);
@@ -695,6 +708,7 @@ suite('TerminalSandboxService - network domains', () => {
 
 		const gitConfig = JSON.parse(gitConfigContent);
 		ok(gitConfig.filesystem.allowRead.includes('/home/user/.gitconfig'), 'Git commands should include git-specific read allow-list paths');
+		ok(gitConfig.filesystem.allowRead.includes('/home/user/.config/gh/config.yml'), 'Git commands should include the GitHub CLI config');
 		ok(!gitConfig.filesystem.allowRead.includes('/home/user/.nvm/versions'), 'Refreshing for a new command should start allowRead from the current command details');
 		ok(!gitConfig.filesystem.allowWrite.includes('/home/user/.volta/'), 'Refreshing for a new command should start allowWrite from the current command details');
 	});
@@ -735,6 +749,8 @@ suite('TerminalSandboxService - network domains', () => {
 			ok(!config.filesystem.allowRead.includes('/home/user/.gnupg'), `${command} should not include GPG read allow-list paths`);
 			ok(!config.filesystem.allowWrite.includes('/home/user/.gnupg'), `${command} should not include GPG write allow-list paths`);
 			ok(config.filesystem.allowRead.includes('/home/user/.gitconfig'), `${command} should still include generic git read allow-list paths`);
+			ok(config.filesystem.allowRead.includes('/home/user/.config/gh/config.yml'), `${command} should include the GitHub CLI config`);
+			ok(!config.filesystem.allowWrite.includes('/home/user/.config/gh/config.yml'), `${command} should not make the GitHub CLI config writable`);
 		}
 
 		const npmConfig = await getConfigAfterWrap('npm install', [{ keyword: 'npm', args: ['install'] }]);
@@ -816,6 +832,25 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(config.filesystem.allowRead.includes('/workspace-one'), 'Sandbox config should re-allow reads from workspace folders on macOS');
 		ok(config.filesystem.allowRead.includes('/configured/path'), 'Sandbox config should re-allow reads from configured allowWrite paths on macOS');
 		ok(config.filesystem.allowRead.includes('/configured/readable/path'), 'Sandbox config should preserve configured allowRead paths on macOS');
+	});
+
+	test('should allow Git commands to read the GitHub CLI config on macOS', async () => {
+		remoteAgentService.remoteEnvironment = {
+			...remoteAgentService.remoteEnvironment!,
+			os: OperatingSystem.Macintosh
+		};
+
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const configPath = await sandboxService.getSandboxConfigPath();
+
+		ok(configPath, 'Config path should be defined');
+		await sandboxService.wrapCommand('git push', false, 'zsh', undefined, [{ keyword: 'git', args: ['push'] }]);
+		const configContent = createdFiles.get(configPath);
+		ok(configContent, 'Config file should be rewritten for the Git command');
+
+		const config = JSON.parse(configContent);
+		ok(config.filesystem.allowRead.includes('~/.config/gh/config.yml'), 'Git commands should include the GitHub CLI config on macOS');
+		ok(!config.filesystem.allowWrite.includes('~/.config/gh/config.yml'), 'Git commands should not make the GitHub CLI config writable on macOS');
 	});
 
 	test('should not expand home paths in macOS filesystem sandbox config paths', async () => {
@@ -938,6 +973,22 @@ suite('TerminalSandboxService - network domains', () => {
 		strictEqual(wrapResult.isSandboxWrapped, true, 'Command should remain sandbox wrapped');
 	});
 
+	if (OS === OperatingSystem.Linux) {
+		test('should apply ELECTRON_RUN_AS_NODE to the sandbox runtime after the Linux temp-dir cd', async () => {
+			remoteAgentService.remoteEnvironment = null;
+			const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+			await sandboxService.getSandboxConfigPath();
+
+			const wrapResult = await sandboxService.wrapCommand('head -1 /etc/shells', false, 'bash', URI.file('/workspace-one'));
+			const expectedWrappedCwd = String.raw`-c 'cd '\''/workspace-one'\'' && head -1 /etc/shells'`;
+
+			ok(wrapResult.command.startsWith(`cd '${sandboxService.getTempDir()?.path}'; ELECTRON_RUN_AS_NODE=1 PATH="$PATH:`), 'ELECTRON_RUN_AS_NODE should apply to the sandbox runtime, not the temp-dir cd');
+			ok(!wrapResult.command.startsWith('ELECTRON_RUN_AS_NODE=1 cd '), 'ELECTRON_RUN_AS_NODE should not apply to the temp-dir cd command');
+			ok(wrapResult.command.includes(expectedWrappedCwd), `Sandboxed command should restore the original cwd before running the user command. Actual: ${wrapResult.command}`);
+			strictEqual(wrapResult.isSandboxWrapped, true, 'Command should remain sandbox wrapped');
+		});
+	}
+
 	test('should preserve TMPDIR when unsandboxed execution is requested', async () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
@@ -979,6 +1030,7 @@ suite('TerminalSandboxService - network domains', () => {
 	});
 
 	test('should switch to unsandboxed execution when a domain is not allowlisted', async () => {
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, false);
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
@@ -990,8 +1042,36 @@ suite('TerminalSandboxService - network domains', () => {
 		strictEqual(wrapResult.command, `env TMPDIR="${sandboxService.getTempDir()?.path}" 'bash' -c 'curl https://example.com'`);
 	});
 
+	test('should request network-enabled sandbox execution for a non-allowlisted domain when enabled', async () => {
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const wrapResult = await sandboxService.wrapCommand('curl https://example.com', false, 'bash');
+
+		strictEqual(wrapResult.isSandboxWrapped, true, 'Blocked domains should stay sandboxed when network requests are enabled');
+		strictEqual(wrapResult.requiresAllowNetworkConfirmation, true, 'Blocked domains should require network confirmation');
+		strictEqual(wrapResult.requiresUnsandboxConfirmation, undefined, 'Blocked domains should not request unsandbox confirmation when a safer network request is available');
+		deepStrictEqual(wrapResult.blockedDomains, ['example.com']);
+		ok(wrapResult.command.includes('--settings'), 'Command should remain wrapped with the sandbox runtime');
+	});
+
+	test('should request network-enabled sandbox execution even when unsandboxed commands are disabled', async () => {
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, false);
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const wrapResult = await sandboxService.wrapCommand('curl https://example.com', false, 'bash');
+
+		strictEqual(wrapResult.isSandboxWrapped, true, 'Network access should not require leaving the sandbox');
+		strictEqual(wrapResult.requiresAllowNetworkConfirmation, true, 'Network access should be confirmable independently from unsandboxed execution');
+		deepStrictEqual(wrapResult.blockedDomains, ['example.com']);
+	});
+
 	test('should keep blocked-domain commands sandboxed when unsandboxed commands are disabled', async () => {
 		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, false);
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, false);
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
@@ -1025,6 +1105,7 @@ suite('TerminalSandboxService - network domains', () => {
 	});
 
 	test('should give denied domains precedence over allowlisted domains', async () => {
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, false);
 		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['*.github.com']);
 		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['api.github.com']);
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
@@ -1033,6 +1114,21 @@ suite('TerminalSandboxService - network domains', () => {
 		const wrapResult = await sandboxService.wrapCommand('curl https://api.github.com/repos/microsoft/vscode');
 
 		strictEqual(wrapResult.isSandboxWrapped, false, 'Denied domains should not stay sandboxed');
+		deepStrictEqual(wrapResult.blockedDomains, ['api.github.com']);
+		deepStrictEqual(wrapResult.deniedDomains, ['api.github.com']);
+	});
+
+	test('should allow confirmed sandboxed network override for explicitly denied domains when enabled', async () => {
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['*.github.com']);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['api.github.com']);
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const wrapResult = await sandboxService.wrapCommand('curl https://api.github.com/repos/microsoft/vscode', false, 'bash');
+
+		strictEqual(wrapResult.isSandboxWrapped, true, 'Denied domains should remain filesystem sandboxed when network requests are enabled');
+		strictEqual(wrapResult.requiresAllowNetworkConfirmation, true, 'Explicitly denied domains should require network confirmation');
 		deepStrictEqual(wrapResult.blockedDomains, ['api.github.com']);
 		deepStrictEqual(wrapResult.deniedDomains, ['api.github.com']);
 	});
@@ -1108,11 +1204,13 @@ suite('TerminalSandboxService - network domains', () => {
 		await sandboxService.getSandboxConfigPath();
 
 		const testComResult = await sandboxService.wrapCommand('curl test.com', false, 'bash');
-		strictEqual(testComResult.isSandboxWrapped, false, 'Well-known bare domain suffixes should trigger domain checks');
+		strictEqual(testComResult.isSandboxWrapped, true, 'Well-known bare domain suffixes should keep the command sandboxed pending network confirmation');
+		strictEqual(testComResult.requiresAllowNetworkConfirmation, true, 'Well-known bare domain suffixes should trigger allow-network confirmation');
 		deepStrictEqual(testComResult.blockedDomains, ['test.com']);
 
 		const testOrgComResult = await sandboxService.wrapCommand('curl test.org.com', false, 'bash');
-		strictEqual(testOrgComResult.isSandboxWrapped, false, 'Well-known bare domain suffixes should trigger domain checks for multi-label hosts');
+		strictEqual(testOrgComResult.isSandboxWrapped, true, 'Well-known bare domain suffixes should keep multi-label hosts sandboxed pending network confirmation');
+		strictEqual(testOrgComResult.requiresAllowNetworkConfirmation, true, 'Well-known bare domain suffixes should trigger allow-network confirmation for multi-label hosts');
 		deepStrictEqual(testOrgComResult.blockedDomains, ['test.org.com']);
 	});
 
@@ -1122,7 +1220,8 @@ suite('TerminalSandboxService - network domains', () => {
 
 		const wrapResult = await sandboxService.wrapCommand('curl https://example.zip/path', false, 'bash');
 
-		strictEqual(wrapResult.isSandboxWrapped, false, 'URL authorities should still trigger blocked-domain prompts even when their suffix looks like a file extension');
+		strictEqual(wrapResult.isSandboxWrapped, true, 'URL authorities should stay sandboxed pending network confirmation even when their suffix looks like a file extension');
+		strictEqual(wrapResult.requiresAllowNetworkConfirmation, true, 'URL authorities should still trigger allow-network prompts even when their suffix looks like a file extension');
 		deepStrictEqual(wrapResult.blockedDomains, ['example.zip']);
 	});
 
@@ -1132,7 +1231,8 @@ suite('TerminalSandboxService - network domains', () => {
 
 		const wrapResult = await sandboxService.wrapCommand('curl https://example.bar/path', false, 'bash');
 
-		strictEqual(wrapResult.isSandboxWrapped, false, 'URL authorities should not require a well-known bare-host suffix');
+		strictEqual(wrapResult.isSandboxWrapped, true, 'URL authorities should stay sandboxed pending network confirmation without requiring a well-known bare-host suffix');
+		strictEqual(wrapResult.requiresAllowNetworkConfirmation, true, 'URL authorities should trigger allow-network prompts without requiring a well-known bare-host suffix');
 		deepStrictEqual(wrapResult.blockedDomains, ['example.bar']);
 	});
 
@@ -1142,7 +1242,8 @@ suite('TerminalSandboxService - network domains', () => {
 
 		const wrapResult = await sandboxService.wrapCommand('git clone git@example.zip:owner/repo.git', false, 'bash');
 
-		strictEqual(wrapResult.isSandboxWrapped, false, 'SSH remotes should still trigger blocked-domain prompts even when their suffix looks like a file extension');
+		strictEqual(wrapResult.isSandboxWrapped, true, 'SSH remotes should stay sandboxed pending network confirmation even when their suffix looks like a file extension');
+		strictEqual(wrapResult.requiresAllowNetworkConfirmation, true, 'SSH remotes should still trigger allow-network prompts even when their suffix looks like a file extension');
 		deepStrictEqual(wrapResult.blockedDomains, ['example.zip']);
 	});
 
@@ -1209,7 +1310,8 @@ suite('TerminalSandboxService - network domains', () => {
 
 		const wrapResult = await sandboxService.wrapCommand('git clone git@github.com:microsoft/vscode.git');
 
-		strictEqual(wrapResult.isSandboxWrapped, false, 'SSH-style remotes should trigger domain checks');
+		strictEqual(wrapResult.isSandboxWrapped, true, 'SSH-style remotes should stay sandboxed pending network confirmation');
+		strictEqual(wrapResult.requiresAllowNetworkConfirmation, true, 'SSH-style remotes should trigger allow-network confirmation');
 		deepStrictEqual(wrapResult.blockedDomains, ['github.com']);
 	});
 
@@ -1254,10 +1356,10 @@ suite('TerminalSandboxService - network domains', () => {
 		const command = 'echo $HOME $(curl eth0.me) `id`';
 		const wrapResult = await sandboxService.wrapCommand(command, false, 'bash');
 
-		strictEqual(wrapResult.isSandboxWrapped, false, 'Commands with blocked domains inside substitutions should not stay sandboxed');
-		strictEqual(wrapResult.requiresUnsandboxConfirmation, true, 'Blocked domains inside substitutions should require confirmation');
+		strictEqual(wrapResult.isSandboxWrapped, true, 'Commands with blocked domains inside substitutions should stay sandboxed pending network confirmation');
+		strictEqual(wrapResult.requiresAllowNetworkConfirmation, true, 'Blocked domains inside substitutions should require allow-network confirmation');
 		deepStrictEqual(wrapResult.blockedDomains, ['eth0.me']);
-		strictEqual(wrapResult.command, `env TMPDIR="${sandboxService.getTempDir()?.path}" 'bash' -c 'echo $HOME $(curl eth0.me) \`id\`'`);
+		ok(wrapResult.command.includes('--settings'), 'Command should remain wrapped with the sandbox runtime');
 	});
 
 	test('should escape single-quote breakout payloads in wrapped command argument', async () => {

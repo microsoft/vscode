@@ -9,7 +9,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
-import { BrowserViewSharingState, IBrowserEditorViewState, IBrowserViewWorkbenchService } from './browserView.js';
+import { BrowserViewSharingState, INavigateOptions, IBrowserEditorViewState, IBrowserViewWorkbenchService } from './browserView.js';
 import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput, Verbosity } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
@@ -157,14 +157,15 @@ export class BrowserEditorInput extends EditorInput {
 		return this._model ? this._model.sharingState !== BrowserViewSharingState.Unavailable : this.browserViewWorkbenchService.isSharingAvailable;
 	}
 
-	navigate(url: string): void {
+	navigate(url: string, options?: INavigateOptions): void {
+		const destination = url.trim();
 		if (this._model) {
-			void this._model.loadURL(url);
+			void this._model.loadURL(destination, options);
 		} else {
 			// If the model isn't created yet, update the initial data so that the URL is correct when the model is created
 			this._initialData = {
 				id: this._id,
-				url
+				url: destination
 			};
 			this._onDidChangeLabel.fire();
 		}

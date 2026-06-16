@@ -30,8 +30,10 @@ export enum BrowserViewCommandId {
 	OpenSettings = `${commandPrefix}.openSettings`,
 
 	// Favorites
-	AddFavorite = `${commandPrefix}.addFavorite`,
-	RemoveFavorite = `${commandPrefix}.removeFavorite`,
+	ToggleFavorite = `${commandPrefix}.toggleFavorite`,
+
+	// History
+	ShowHistory = `${commandPrefix}.showHistory`,
 
 	// Chat actions
 	AddElementToChat = `${commandPrefix}.addElementToChat`,
@@ -87,8 +89,33 @@ export interface IBrowserViewTheme {
 	readonly font?: string;
 }
 
-export interface IBrowserViewConfiguration {
+/**
+ * The full set of configuration a window contributes for the browser views it
+ * owns. Sent as a single unit by the owning window.
+ */
+export interface IBrowserViewWindowConfiguration {
+	/** Theme variables for injected UI. */
+	readonly theme: IBrowserViewTheme;
+	/** Map of command ID to accelerator label for context menus. */
+	readonly keybindings: { [commandId: string]: string };
+
+	/** Whether AI features are disabled for this window. */
 	readonly aiFeaturesDisabled?: boolean;
+	/** Maximum number of entries to retain per browser session history. */
+	readonly maxHistoryEntries?: number;
+	/**
+	 * The id of the shared-process tunnel proxy the window's remote browser
+	 * views should connect through, or `undefined` if no proxy should be used.
+	 */
+	readonly proxyId?: string;
+	/**
+	 * The window's contribution to the `file://` allowlist used by integrated
+	 * browser sessions. Main unions every window's contribution into a
+	 * process-wide allowlist; entries are dropped when the window is destroyed.
+	 * Usually `getTrustedUris()` plus, when the workspace itself is trusted, its
+	 * workspace folder paths.
+	 */
+	readonly trustedFileRoots: readonly string[];
 }
 
 export interface IBrowserViewBounds {
@@ -176,8 +203,14 @@ export interface IBrowserViewCreatedEvent {
 
 export interface IBrowserViewCreateOptions {
 	readonly owner: IBrowserViewOwner;
-	readonly scope: BrowserViewStorageScope;
+	readonly sessionOptions: IBrowserSessionOptions;
 	readonly initialState?: Partial<IBrowserViewState>;
+}
+
+/** `applicationSharedStorage` keys this session writes to. Empty for ephemeral sessions. */
+export interface IBrowserViewStorageKeys {
+	readonly history?: string;
+	readonly favicons?: string;
 }
 
 export interface IBrowserViewState {
@@ -194,8 +227,10 @@ export interface IBrowserViewState {
 	lastError: IBrowserViewLoadError | undefined;
 	certificateError: IBrowserViewCertificateError | undefined;
 	storageScope: BrowserViewStorageScope;
+	storageKeys: IBrowserViewStorageKeys;
 	browserZoomIndex: number;
 	isElementSelectionActive: boolean;
+	isRemoteSession: boolean;
 	isAreaSelectionActive: boolean;
 	device: IBrowserDeviceProfile | undefined;
 }
@@ -282,6 +317,11 @@ export enum BrowserViewStorageScope {
 	Ephemeral = 'ephemeral'
 }
 
+export interface IBrowserSessionOptions {
+	/** Storage / data-isolation scope for the session. */
+	scope: BrowserViewStorageScope;
+}
+
 export const ipcBrowserViewChannelName = 'browserView';
 
 /**
@@ -334,13 +374,10 @@ export interface IBrowserViewService {
 	onDynamicDidClose(id: string): Event<void>;
 	onDynamicDidSelectElement(id: string): Event<IElementData>;
 	onDynamicDidChangeElementSelectionActive(id: string): Event<boolean>;
-	/**
-	 * Fires exactly once per area-selection session, terminating it. Receives the user-drawn
-	 * rectangle on success, or `undefined` if the picker was cancelled.
-	 */
 	onDynamicDidPickArea(id: string): Event<IBrowserViewRect | undefined>;
 	onDynamicDidChangeAreaSelectionActive(id: string): Event<boolean>;
 	onDynamicDidChangeDeviceEmulation(id: string): Event<IBrowserDeviceProfile | undefined>;
+	onDynamicDidChangeRemoteStatus(id: string): Event<boolean>;
 
 	/**
 	 * Get all known browser views with their ownership and state information.
@@ -513,6 +550,13 @@ export interface IBrowserViewService {
 	untrustCertificate(id: string, host: string, fingerprint: string): Promise<void>;
 
 	/**
+	 * Delete entries from this view's session history.
+	 * @param id The browser view identifier
+	 * @param entryIds The IDs of the history entries to delete. If omitted, deletes all history.
+	 */
+	deleteBrowserHistory(id: string, entryIds?: readonly number[]): Promise<void>;
+
+	/**
 	 * Get captured console logs for a browser view.
 	 * Console messages are automatically captured from the moment the view is created.
 	 * @param id The browser view identifier
@@ -542,20 +586,10 @@ export interface IBrowserViewService {
 	toggleAreaSelection(id: string, enabled?: boolean): Promise<void>;
 
 	/**
-	 * Update the theme used by injected UI across all browser views.
-	 * @param theme The theme variables to apply
+	 * Replace the calling window's configuration for the browser views it owns.
+	 *
+	 * @param windowId The calling window's `vscodeWindowId`.
+	 * @param config The configuration to apply.
 	 */
-	updateTheme(theme: IBrowserViewTheme): Promise<void>;
-
-	/**
-	 * Update the keybinding accelerators used in browser view context menus.
-	 * @param keybindings A map of command ID to accelerator label
-	 */
-	updateKeybindings(keybindings: { [commandId: string]: string }): Promise<void>;
-
-	/**
-	 * Update workbench configuration that affect browser view behavior.
-	 * @param config The configuration to apply
-	 */
-	updateConfiguration(config: IBrowserViewConfiguration): Promise<void>;
+	updateWindowConfiguration(windowId: number, config: IBrowserViewWindowConfiguration): Promise<void>;
 }

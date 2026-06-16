@@ -10,10 +10,10 @@ import { derived, derivedOpts, IObservable, ISettableObservable, observableValue
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ISessionChangeset, ISessionFileChange } from '../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
-import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
+import { ISessionChangeset, ISessionChangesetOperation, ISessionFileChange } from '../../../services/sessions/common/session.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { AgentFeedbackState, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
+import { ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { ChangesViewMode, IsolationMode } from '../common/changes.js';
 
 export interface ActiveSessionState {
@@ -40,6 +40,7 @@ export class ChangesViewModel extends Disposable {
 	readonly activeSessionChangesObs: IObservable<readonly ISessionFileChange[]>;
 	readonly activeSessionChangesetsObs: IObservable<readonly ISessionChangeset[] | undefined>;
 	readonly activeSessionChangesetObs: IObservable<ISessionChangeset | undefined>;
+	readonly activeSessionChangesetOperationsObs: IObservable<readonly ISessionChangesetOperation[]>;
 	readonly activeSessionHasGitRepositoryObs: IObservable<boolean>;
 	readonly activeSessionReviewCommentCountByFileObs: IObservable<Map<string, number>>;
 	readonly activeSessionAgentFeedbackCountByFileObs: IObservable<Map<string, number>>;
@@ -63,25 +64,25 @@ export class ChangesViewModel extends Disposable {
 	constructor(
 		@IAgentFeedbackService private readonly agentFeedbackService: IAgentFeedbackService,
 		@ICodeReviewService private readonly codeReviewService: ICodeReviewService,
-		@ISessionsManagementService private readonly sessionManagementService: ISessionsManagementService,
+		@ISessionsService private readonly sessionsService: ISessionsService,
 		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 
 		// Active session resource
 		this.activeSessionResourceObs = derivedOpts({ equalsFn: isEqual }, reader => {
-			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			const activeSession = this.sessionsService.activeSession.read(reader);
 			return activeSession?.resource;
 		});
 
 		// Active session type
 		this.activeSessionTypeObs = derived(reader => {
-			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			const activeSession = this.sessionsService.activeSession.read(reader);
 			return activeSession?.sessionType;
 		});
 
 		this.activeSessionIsVirtualWorkspaceObs = derived(reader => {
-			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			const activeSession = this.sessionsService.activeSession.read(reader);
 			return activeSession?.workspace.read(reader)?.isVirtualWorkspace ?? false;
 		});
 
@@ -92,7 +93,7 @@ export class ChangesViewModel extends Disposable {
 				return true;
 			}
 
-			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			const activeSession = this.sessionsService.activeSession.read(reader);
 			const workspace = activeSession?.workspace.read(reader);
 			return workspace?.folders[0].gitRepository !== undefined;
 		});
@@ -110,7 +111,7 @@ export class ChangesViewModel extends Disposable {
 
 		// Changeset
 		this.activeSessionChangesetsObs = derived(reader => {
-			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			const activeSession = this.sessionsService.activeSession.read(reader);
 			return activeSession?.changesets.read(reader);
 		});
 
@@ -126,6 +127,11 @@ export class ChangesViewModel extends Disposable {
 				: undefined;
 
 			return selectedChangeset ?? activeSessionChangesets.find(c => c.isDefault.read(reader));
+		});
+
+		this.activeSessionChangesetOperationsObs = derived(reader => {
+			const changeset = this.activeSessionChangesetObs.read(reader);
+			return changeset?.operations.read(reader) ?? [];
 		});
 
 		// Changes
@@ -158,7 +164,7 @@ export class ChangesViewModel extends Disposable {
 				return lastValue;
 			}
 
-			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			const activeSession = this.sessionsService.activeSession.read(reader);
 			const activeSessionChanges = activeSession?.changes.read(reader) ?? [];
 			const workspace = activeSession?.workspace.read(reader);
 
@@ -219,8 +225,6 @@ export class ChangesViewModel extends Disposable {
 	private _getActiveSessionReviewComments(): IObservable<Map<string, number>> {
 		return derived(reader => {
 			const sessionResource = this.activeSessionResourceObs.read(reader);
-			const changes = [...this.activeSessionChangesObs.read(reader)];
-
 			if (!sessionResource) {
 				return new Map<string, number>();
 			}
@@ -232,23 +236,6 @@ export class ChangesViewModel extends Disposable {
 					const uriKey = comment.uri.fsPath;
 					result.set(uriKey, (result.get(uriKey) ?? 0) + 1);
 				}
-			}
-
-			if (changes.length === 0) {
-				return result;
-			}
-
-			const reviewFiles = getCodeReviewFilesFromSessionChanges(changes);
-			const reviewVersion = getCodeReviewVersion(reviewFiles);
-			const reviewState = this.codeReviewService.getReviewState(sessionResource).read(reader);
-
-			if (reviewState.kind !== CodeReviewStateKind.Result || reviewState.version !== reviewVersion) {
-				return result;
-			}
-
-			for (const comment of reviewState.comments) {
-				const uriKey = comment.uri.fsPath;
-				result.set(uriKey, (result.get(uriKey) ?? 0) + 1);
 			}
 
 			return result;
@@ -267,7 +254,7 @@ export class ChangesViewModel extends Disposable {
 			const feedbackItems = this.agentFeedbackService.getFeedback(sessionResource);
 			const result = new Map<string, number>();
 			for (const item of feedbackItems) {
-				if (!item.sourcePRReviewCommentId) {
+				if (!item.sourcePRReviewCommentId && item.state !== AgentFeedbackState.Resolved) {
 					const uriKey = item.resourceUri.fsPath;
 					result.set(uriKey, (result.get(uriKey) ?? 0) + 1);
 				}

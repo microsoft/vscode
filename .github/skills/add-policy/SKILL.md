@@ -118,7 +118,7 @@ If you need a new category, add it to `PolicyCategory` in `src/vs/base/common/po
 Check the `VS Code - Build` watch task output, or run:
 
 ```bash
-npm run compile-check-ts-native
+npm run typecheck-client
 ```
 
 ### Step 4 — Export the policy data

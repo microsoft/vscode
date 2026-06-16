@@ -61,7 +61,7 @@ describe('AutomodeService', () => {
 	let configurationService: IConfigurationService;
 	let mockChatEndpoint: IChatEndpoint;
 	let envService: NullEnvService;
-	let mockTelemetryService: ITelemetryService & { sendMSFTTelemetryEvent: ReturnType<typeof vi.fn> };
+	let mockTelemetryService: ITelemetryService & { sendEnhancedGHTelemetryEvent: ReturnType<typeof vi.fn>; sendMSFTTelemetryEvent: ReturnType<typeof vi.fn> };
 
 	function createEndpoint(model: string, provider: string, overrides?: Partial<IChatEndpoint>): IChatEndpoint {
 		return {
@@ -154,7 +154,7 @@ describe('AutomodeService', () => {
 			sendMSFTTelemetryErrorEvent: vi.fn(),
 			sendSharedTelemetryEvent: vi.fn(),
 			sendEnhancedGHTelemetryEvent: vi.fn(),
-		} as unknown as ITelemetryService & { sendMSFTTelemetryEvent: ReturnType<typeof vi.fn> };
+		} as unknown as ITelemetryService & { sendEnhancedGHTelemetryEvent: ReturnType<typeof vi.fn>; sendMSFTTelemetryEvent: ReturnType<typeof vi.fn> };
 	});
 
 	afterEach(() => {
@@ -431,6 +431,24 @@ describe('AutomodeService', () => {
 			const secondResult = await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [openaiEndpoint, claudeEndpoint]);
 			// Same object reference since token didn't change
 			expect(secondResult).toBe(firstResult);
+		});
+
+		it('should fall back to first available model when the current provider is empty', async () => {
+			const openaiEndpoint = createEndpoint('gpt-4o', 'OpenAI');
+			const chamomileEndpoint = createEndpoint('chamomile', '');
+
+			mockApiResponse(['chamomile'], 'token-empty-provider');
+
+			automodeService = createService();
+			const chatRequest: Partial<ChatRequest> = {
+				location: ChatLocation.Panel,
+				prompt: 'test',
+				sessionId: 'session-empty-provider'
+			};
+
+			const firstResult = await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [openaiEndpoint, chamomileEndpoint]);
+			const secondResult = await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [openaiEndpoint, chamomileEndpoint]);
+			expect([firstResult.model, secondResult.model]).toEqual(['chamomile', 'chamomile']);
 		});
 
 		it('should fall back to first known endpoint when no available models match', async () => {
@@ -1114,6 +1132,20 @@ describe('AutomodeService', () => {
 				overrideReason: 'clientOverride',
 			});
 			expect(selectionEvent![2]).toMatchObject({
+				imageCount: 1,
+				totalImageBytes: 24,
+				maxImageBytes: 24,
+				maxImageWidth: 7,
+				maxImageHeight: 11,
+				maxImagePixels: 77,
+				totalImagePixels: 77,
+				imagePngCount: 1,
+				imageClipboardCount: 1,
+			});
+
+			const restrictedEvent = mockTelemetryService.sendEnhancedGHTelemetryEvent.mock.calls.find((call: unknown[]) => call[0] === 'automode.routerDecisionRestricted');
+			expect(restrictedEvent).toBeDefined();
+			expect(restrictedEvent![2]).toMatchObject({
 				imageCount: 1,
 				totalImageBytes: 24,
 				maxImageBytes: 24,

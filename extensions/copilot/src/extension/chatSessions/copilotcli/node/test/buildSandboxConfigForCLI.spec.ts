@@ -23,12 +23,13 @@ describe('buildSandboxConfigForCLI', () => {
 			expect(buildSandboxConfigForCLI('win32', 'off', undefined)).toBeUndefined();
 		});
 
-		it('enables sandbox for `on` on non-Windows but not on Windows', () => {
-			expect(buildSandboxConfigForCLI('linux', 'on', undefined)).toEqual({
-				enabled: true,
-				userPolicy: { filesystem: {}, network: { allowOutbound: false } },
-			});
-			expect(buildSandboxConfigForCLI('win32', 'on', undefined)).toBeUndefined();
+		it('enables sandbox for `on` on every platform', () => {
+			for (const platform of ['darwin', 'linux', 'win32'] as const) {
+				expect(buildSandboxConfigForCLI(platform, 'on', undefined)).toEqual({
+					enabled: true,
+					userPolicy: { filesystem: {}, network: { allowOutbound: false } },
+				});
+			}
 		});
 
 		it('enables sandbox and outbound network for `allowNetwork` on every platform', () => {
@@ -50,7 +51,7 @@ describe('buildSandboxConfigForCLI', () => {
 			};
 			expect(buildSandboxConfigForCLI('linux', 'on', setting)?.userPolicy?.filesystem).toEqual({ readwritePaths: ['/linux'] });
 			expect(buildSandboxConfigForCLI('darwin', 'on', setting)?.userPolicy?.filesystem).toEqual({ readwritePaths: ['/mac'] });
-			expect(buildSandboxConfigForCLI('win32', 'allowNetwork', setting)?.userPolicy?.filesystem).toEqual({ readwritePaths: ['C:\\win'] });
+			expect(buildSandboxConfigForCLI('win32', 'on', setting)?.userPolicy?.filesystem).toEqual({ readwritePaths: ['C:\\win'] });
 		});
 
 		it('maps each setting to the corresponding SDK list', () => {
@@ -157,6 +158,18 @@ describe('buildSandboxConfigForCLI', () => {
 		it('ignores empty host lists', () => {
 			expect(buildSandboxConfigForCLI('linux', 'on', undefined, { allowedHosts: [], blockedHosts: [] })?.userPolicy?.network).toEqual({
 				allowOutbound: false,
+			});
+		});
+
+		it('drops host lists and keeps outbound closed on darwin (Seatbelt has no per-host filter)', () => {
+			expect(buildSandboxConfigForCLI('darwin', 'on', undefined, { allowedHosts: ['github.com'], blockedHosts: ['evil.example'] })?.userPolicy?.network).toEqual({
+				allowOutbound: false,
+			});
+		});
+
+		it('darwin `allowNetwork` still opens outbound (host lists were already ignored)', () => {
+			expect(buildSandboxConfigForCLI('darwin', 'allowNetwork', undefined, { allowedHosts: ['github.com'] })?.userPolicy?.network).toEqual({
+				allowOutbound: true,
 			});
 		});
 	});

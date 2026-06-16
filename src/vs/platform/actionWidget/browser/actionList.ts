@@ -14,11 +14,11 @@ import { IAction, SubmenuAction, toAction } from '../../../base/common/actions.j
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { Emitter } from '../../../base/common/event.js';
-import { IMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
+import { IMarkdownString, isMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
 import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
 import { AnchorPosition } from '../../../base/common/layout.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { OS } from '../../../base/common/platform.js';
+import { OS, isMacintosh } from '../../../base/common/platform.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { URI } from '../../../base/common/uri.js';
 import './actionWidget.css';
@@ -36,7 +36,11 @@ export const previewSelectedActionCommand = 'previewSelectedCodeAction';
 
 export interface IActionListDelegate<T> {
 	onHide(didCancel?: boolean): void;
-	onSelect(action: T, preview?: boolean): void;
+	/**
+	 * @param keepOpen Whether the user requested to keep the widget open while
+	 * selecting (e.g. by holding the platform modifier).
+	 */
+	onSelect(action: T, preview?: boolean, keepOpen?: boolean): void;
 	onFilter?(filter: string, cancellationToken: CancellationToken): Promise<readonly IActionListItem<T>[]>;
 	onHover?(action: T, cancellationToken: CancellationToken): Promise<{ canPreview: boolean } | void>;
 	onFocus?(action: T | undefined): void;
@@ -49,7 +53,7 @@ export interface IActionListItemHover {
 	/**
 	 * Content to display in the hover. Can be a markdown string or an HTMLElement for full DOM control.
 	 */
-	readonly content?: string | MarkdownString | HTMLElement;
+	readonly content?: string | IMarkdownString | HTMLElement;
 	/**
 	 * Optional disposable associated with the hover content (e.g. from rendered markdown).
 	 */
@@ -528,6 +532,22 @@ export interface IActionListOptions {
 	 * Optional text shown below the action list as a footer.
 	 */
 	readonly footerText?: string;
+
+	/**
+	 * Optional text shown above the action list as a header banner. When set, it is
+	 * rendered at the top of the widget, optionally prefixed by {@link headerIcon}.
+	 */
+	readonly headerText?: string;
+
+	/**
+	 * Optional icon shown to the left of {@link headerText} in the header banner.
+	 */
+	readonly headerIcon?: ThemeIcon;
+
+	/**
+	 * Optional CSS class name added to the action list container, for scoped styling.
+	 */
+	readonly className?: string;
 }
 
 /**
@@ -563,6 +583,7 @@ export class ActionListWidget<T> extends Disposable {
 	private readonly _filterInput: HTMLInputElement | undefined;
 	private readonly _filterContainer: HTMLElement | undefined;
 	private readonly _footerContainer: HTMLElement | undefined;
+	private readonly _headerContainer: HTMLElement | undefined;
 	private readonly _filterCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly _groupTitleByIndex = new Map<number, string>();
 
@@ -576,7 +597,7 @@ export class ActionListWidget<T> extends Disposable {
 
 	constructor(
 		user: string,
-		preview: boolean,
+		protected readonly _supportsPreview: boolean,
 		items: readonly IActionListItem<T>[],
 		protected readonly _delegate: IActionListDelegate<T>,
 		accessibilityProvider: Partial<IListAccessibilityProvider<IActionListItem<T>>> | undefined,
@@ -590,6 +611,12 @@ export class ActionListWidget<T> extends Disposable {
 		this.domNode.classList.add('actionList');
 		if (this._options?.inlineDescription) {
 			this.domNode.classList.add('inline-description');
+		}
+		if (this._options?.className) {
+			const classNames = this._options.className.split(/\s+/).filter(className => className.length > 0);
+			if (classNames.length > 0) {
+				this.domNode.classList.add(...classNames);
+			}
 		}
 		this._actionLineHeight = 24;
 
@@ -633,7 +660,7 @@ export class ActionListWidget<T> extends Disposable {
 		const hasAnySubmenuActions = reserveSubmenuSpace && items.some(item => !!item.submenuActions?.length && !item.hover?.content);
 
 		this._list = this._register(new List(user, this.domNode, virtualDelegate, [
-			new ActionItemRenderer<T>(preview, (item) => this._removeItem(item), (item) => this._showSubmenuForItem(item), hasAnySubmenuActions, this._groupTitleByIndex, this._options?.linkHandler, this._options?.hideDefaultKeybindingTooltip ?? false, this._keybindingService, this._openerService),
+			new ActionItemRenderer<T>(this._supportsPreview, (item) => this._removeItem(item), (item) => this._showSubmenuForItem(item), hasAnySubmenuActions, this._groupTitleByIndex, this._options?.linkHandler, this._options?.hideDefaultKeybindingTooltip ?? false, this._keybindingService, this._openerService),
 			new HeaderRenderer(),
 			new SeparatorRenderer(),
 		], {
@@ -652,6 +679,13 @@ export class ActionListWidget<T> extends Disposable {
 						} else if (element.description) {
 							const descText = typeof element.description === 'string' ? element.description : element.description.value;
 							label = label + ', ' + stripNewlines(descText);
+						}
+						if (element.hover?.content && !element.ariaDescription && !element.description) {
+							const hoverContent = element.hover.content;
+							const hoverText = typeof hoverContent === 'string' ? hoverContent : isMarkdownString(hoverContent) ? hoverContent.value : dom.isHTMLElement(hoverContent) ? hoverContent.textContent ?? undefined : undefined;
+							if (hoverText && (!element.detail || stripNewlines(element.detail) !== stripNewlines(hoverText))) {
+								label = label + ', ' + stripNewlines(hoverText);
+							}
 						}
 						if (element.group?.title) {
 							label = label + ', ' + element.group.title;
@@ -731,6 +765,20 @@ export class ActionListWidget<T> extends Disposable {
 			this._footerContainer.textContent = this._options.footerText;
 		}
 
+		// Create header banner
+		if (this._options?.headerText) {
+			this._headerContainer = document.createElement('div');
+			this._headerContainer.className = 'action-list-header';
+			if (this._options.headerIcon) {
+				const icon = dom.append(this._headerContainer, dom.$('span.action-list-header-icon'));
+				icon.classList.add(...ThemeIcon.asClassNameArray(this._options.headerIcon));
+				// Decorative: the header text already conveys the meaning.
+				icon.setAttribute('aria-hidden', 'true');
+			}
+			const text = dom.append(this._headerContainer, dom.$('span.action-list-header-text'));
+			text.textContent = this._options.headerText;
+		}
+
 		this._applyFilter();
 
 		if (this._list.length) {
@@ -801,7 +849,7 @@ export class ActionListWidget<T> extends Disposable {
 		}).catch(() => { /* best-effort */ });
 	}
 
-	private _applyFilter(skipTextFilter = false): void {
+	private _applyFilter(skipTextFilter = false, fireLayout = true): void {
 		const filterLower = skipTextFilter ? '' : this._filterText.toLowerCase();
 		const isFiltering = !skipTextFilter && filterLower.length > 0;
 		const visible: IActionListItem<T>[] = [];
@@ -942,7 +990,9 @@ export class ActionListWidget<T> extends Disposable {
 		this._list.splice(0, this._list.length, visible);
 
 		// Notify the parent that a re-layout is needed
-		this._onDidRequestLayout.fire();
+		if (fireLayout) {
+			this._onDidRequestLayout.fire();
+		}
 
 		// Restore focus after splice destroyed DOM elements,
 		// otherwise the blur handler in ActionWidgetService closes the widget.
@@ -961,6 +1011,9 @@ export class ActionListWidget<T> extends Disposable {
 						if ((el.item as { id?: string })?.id === focusedItemId) {
 							this._list.setFocus([i]);
 							this._list.reveal(i);
+							// Move DOM focus back to the list: the splice above destroyed
+							// the previously focused row, leaving DOM focus on the body.
+							this._list.domFocus();
 							break;
 						}
 					}
@@ -979,6 +1032,10 @@ export class ActionListWidget<T> extends Disposable {
 
 	get footerContainer(): HTMLElement | undefined {
 		return this._footerContainer;
+	}
+
+	get headerContainer(): HTMLElement | undefined {
+		return this._headerContainer;
 	}
 
 	get filterInput(): HTMLInputElement | undefined {
@@ -1010,6 +1067,51 @@ export class ActionListWidget<T> extends Disposable {
 			return this._list.element(focused[0]);
 		}
 		return undefined;
+	}
+
+	/**
+	 * Replaces the items in the list in place, preserving the current filter,
+	 * without closing or repositioning the widget. When {@link focusItemId} is
+	 * provided, that item ({@link IActionListItem.item}'s `id`) is focused;
+	 * otherwise the previously focused item is preserved (matched by id).
+	 */
+	updateItems(items: readonly IActionListItem<T>[], focusItemId?: string): void {
+		this._allMenuItems = [...items];
+		// Don't fire a layout request: the item set keeps the same shape, so the
+		// widget size is unchanged and repositioning could mis-anchor if the
+		// anchor element was re-rendered by the action that triggered this update.
+		this._applyFilter(false, false);
+		if (focusItemId !== undefined) {
+			this.focusItemById(focusItemId);
+		}
+	}
+
+	/**
+	 * Focuses the item whose {@link IActionListItem.item}'s `id` matches
+	 * {@link itemId}, without rebuilding the list. Re-applies the focus after the
+	 * current event so a mouse click's own pointer handling cannot reset it.
+	 */
+	focusItemById(itemId: string): void {
+		const focusItem = () => {
+			for (let i = 0; i < this._list.length; i++) {
+				const el = this._list.element(i);
+				if ((el.item as { id?: string })?.id === itemId) {
+					this._list.setFocus([i]);
+					this._list.reveal(i);
+					this._list.domFocus();
+					break;
+				}
+			}
+		};
+		focusItem();
+		// Re-apply after the current event finishes: when triggered by a mouse
+		// click, the list's own pointer handling can reset focus after our
+		// callback returns, which would otherwise drop the focus highlight.
+		queueMicrotask(() => {
+			if (this.domNode.isConnected) {
+				focusItem();
+			}
+		});
 	}
 
 	private _focusCheckedOrFirst(): void {
@@ -1333,7 +1435,14 @@ export class ActionListWidget<T> extends Disposable {
 			}
 		}
 		if (element.item && this.focusCondition(element)) {
-			this._delegate.onSelect(element.item, e.browserEvent instanceof PreviewSelectedEvent);
+			const isPreviewEvent = e.browserEvent instanceof PreviewSelectedEvent;
+			// Holding the platform modifier (Cmd on macOS, Ctrl elsewhere) while
+			// selecting requests that the widget stays open after running. For
+			// keyboard, Cmd/Ctrl+Enter maps to a preview request; on a list that
+			// does not support preview we treat it as a keep-open request instead.
+			const keepOpen = (dom.isMouseEvent(e.browserEvent) && (isMacintosh ? e.browserEvent.metaKey : e.browserEvent.ctrlKey))
+				|| (isPreviewEvent && !this._supportsPreview);
+			this._delegate.onSelect(element.item, isPreviewEvent && this._supportsPreview, keepOpen);
 		} else {
 			this._list.setSelection([]);
 		}
@@ -1430,7 +1539,7 @@ export class ActionListWidget<T> extends Disposable {
 
 		this._submenuDisposables.clear();
 		this._currentSubmenuElement = element;
-		dom.clearNode(this._submenuContainer);
+		this._clearSubmenuContainer();
 
 		// When the item has hover content, render it as a header
 		let hoverHeader: HTMLElement | undefined;
@@ -1438,8 +1547,14 @@ export class ActionListWidget<T> extends Disposable {
 		if (hoverContent) {
 			if (dom.isHTMLElement(hoverContent)) {
 				hoverHeader = hoverContent;
+				// The hover element is owned by the caller and reused across shows,
+				// so its disposable must NOT be tied to the per-navigation submenu
+				// store (which is cleared every time the submenu switches). Tearing
+				// it down there would destroy reused content — e.g. Button widgets
+				// remove their DOM on dispose, leaving an empty hover. Track it for
+				// the widget's lifetime instead.
 				if (element.hover?.disposable) {
-					this._submenuDisposables.add(element.hover.disposable);
+					this._register(element.hover.disposable);
 				}
 			} else {
 				const markdown = typeof hoverContent === 'string' ? new MarkdownString(hoverContent) : hoverContent;
@@ -1629,8 +1744,21 @@ export class ActionListWidget<T> extends Disposable {
 		this._submenuDisposables.clear();
 		this._currentSubmenuWidget = undefined;
 		this._currentSubmenuElement = undefined;
-		dom.clearNode(this._submenuContainer);
+		this._clearSubmenuContainer();
 		this._submenuContainer.style.display = 'none';
+	}
+
+	/**
+	 * Clears the submenu/hover panel. If focus currently lives inside the panel
+	 * (e.g. the user clicked a button in the hover content), focus is first moved
+	 * back to the list. Otherwise clearing the panel would drop focus to <body>,
+	 * which blurs the action widget and dismisses it.
+	 */
+	private _clearSubmenuContainer(): void {
+		if (this._submenuContainer.contains(dom.getActiveElement())) {
+			this._list.domFocus();
+		}
+		dom.clearNode(this._submenuContainer);
 	}
 
 	private _scheduleSubmenuHide(): void {
@@ -1766,6 +1894,10 @@ export class ActionList<T> extends Disposable {
 		return this._widget.footerContainer;
 	}
 
+	get headerContainer(): HTMLElement | undefined {
+		return this._widget.headerContainer;
+	}
+
 	get filterInput(): HTMLInputElement | undefined {
 		return this._widget.filterInput;
 	}
@@ -1851,6 +1983,14 @@ export class ActionList<T> extends Disposable {
 		this._widget.acceptSelected(preview);
 	}
 
+	updateItems(items: readonly IActionListItem<T>[], focusItemId?: string): void {
+		this._widget.updateItems(items, focusItemId);
+	}
+
+	focusItemById(itemId: string): void {
+		this._widget.focusItemById(itemId);
+	}
+
 	private hasDynamicHeight(): boolean {
 		return this._widget.hasDynamicHeight;
 	}
@@ -1871,7 +2011,8 @@ export class ActionList<T> extends Disposable {
 
 		const filterHeight = this._widget.filterContainer ? 36 : 0;
 		const footerHeight = this._widget.footerContainer ? 32 : 0;
-		const chromeHeight = filterHeight + footerHeight;
+		const headerHeight = this._widget.headerContainer ? this._widget.headerContainer.offsetHeight || 36 : 0;
+		const chromeHeight = filterHeight + footerHeight + headerHeight;
 		const targetWindow = dom.getWindow(this.domNode);
 		let availableHeight;
 

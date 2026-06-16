@@ -40,7 +40,6 @@ suite('SandboxHelperService', () => {
 
 	test('reports bubblewrap usable when its capability probe succeeds', async () => {
 		let probedCommand: string | undefined;
-		let releaseInfoRead = false;
 		const result = await SandboxHelperService.checkSandboxDependenciesWith(
 			async command => `/usr/bin/${command}`,
 			true,
@@ -48,49 +47,29 @@ suite('SandboxHelperService', () => {
 				probedCommand = command;
 				return { usable: true };
 			},
-			async () => {
-				releaseInfoRead = true;
-				return { id: 'ubuntu', version_id: '24.04' };
-			},
 		);
 
 		strictEqual(probedCommand, '/usr/bin/bwrap');
-		strictEqual(releaseInfoRead, false);
 		deepStrictEqual(result, {
 			bubblewrapInstalled: true,
 			bubblewrapUsable: true,
 			bubblewrapError: undefined,
-			supportsUbuntuAppArmorRemediation: false,
 			socatInstalled: true,
 		});
 	});
 
-	test('reports AppArmor remediation support when bubblewrap fails on Ubuntu 24.04', async () => {
+	test('reports the probe error when bubblewrap is unusable', async () => {
 		const result = await SandboxHelperService.checkSandboxDependenciesWith(
 			async command => `/usr/bin/${command}`,
 			true,
 			async () => ({ usable: false, error: 'No permissions to create namespace' }),
-			async () => ({ id: 'ubuntu', version_id: '24.04' }),
 		);
 
 		deepStrictEqual(result, {
 			bubblewrapInstalled: true,
 			bubblewrapUsable: false,
 			bubblewrapError: 'No permissions to create namespace',
-			supportsUbuntuAppArmorRemediation: true,
 			socatInstalled: true,
 		});
-	});
-
-	test('does not report AppArmor remediation support when bubblewrap fails on Ubuntu 22.04', async () => {
-		const result = await SandboxHelperService.checkSandboxDependenciesWith(
-			async command => `/usr/bin/${command}`,
-			true,
-			async () => ({ usable: false, error: 'No permissions to create namespace' }),
-			async () => ({ id: 'ubuntu', version_id: '22.04' }),
-		);
-
-		strictEqual(result?.bubblewrapUsable, false);
-		strictEqual(result?.supportsUbuntuAppArmorRemediation, false);
 	});
 });

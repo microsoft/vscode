@@ -6,7 +6,7 @@
 import type { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AgentSession } from '../common/agentService.js';
 import type { MessageAttachment } from '../common/state/protocol/state.js';
-import { isSubagentSession, type SessionState } from '../common/state/sessionState.js';
+import { isSubagentSession, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
 
 export type AgentHostUserMessageSentSource = 'direct' | 'queued';
 
@@ -36,11 +36,45 @@ export type IAgentHostUserMessageSentClassification = {
 	comment: 'Tracks user messages sent from the agent host process to an agent provider.';
 };
 
+export type AgentHostTurnResult = 'success' | 'error' | 'cancelled';
+
+export interface IAgentHostTurnCompletedEvent {
+	provider: string;
+	agentSessionId: string;
+	timeToFirstProgress: number | undefined;
+	totalTime: number;
+	result: AgentHostTurnResult;
+	model: string | undefined;
+	permissionLevel: string | undefined;
+}
+
+export type IAgentHostTurnCompletedClassification = {
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
+	timeToFirstProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from turn start to the first visible progress (text delta, response part, tool call start, or reasoning).' };
+	totalTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total time in milliseconds from turn start to turn completion.' };
+	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the turn completed successfully, with an error, or was cancelled.' };
+	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model identifier selected for the session at turn start (e.g. gemini-3.5-flash).' };
+	permissionLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The tool auto-approval level configured for the session at turn start (e.g. default, autoApprove, autopilot).' };
+	owner: 'roblourens';
+	comment: 'Tracks agent host turn performance including time to first visible progress and total turn duration.';
+};
+
+export interface IAgentHostTurnCompletedReport {
+	provider: string;
+	session: string;
+	timeToFirstProgress: number | undefined;
+	totalTime: number;
+	result: AgentHostTurnResult;
+	model: string | undefined;
+	permissionLevel: string | undefined;
+}
+
 export class AgentHostTelemetryReporter {
 
 	constructor(private readonly _telemetryService: ITelemetryService) { }
 
-	userMessageSent(provider: string, session: string, sessionState: SessionState | undefined, source: AgentHostUserMessageSentSource, attachments: readonly MessageAttachment[] | undefined): void {
+	userMessageSent(provider: string, session: string, sessionState: ISessionWithDefaultChat | undefined, source: AgentHostUserMessageSentSource, attachments: readonly MessageAttachment[] | undefined): void {
 		const attachmentCount = attachments?.length ?? 0;
 		const activeClient = sessionState?.activeClient;
 		this._telemetryService.publicLog2<IAgentHostUserMessageSentEvent, IAgentHostUserMessageSentClassification>('agentHost.userMessageSent', {
@@ -57,4 +91,17 @@ export class AgentHostTelemetryReporter {
 			attachmentCount,
 		});
 	}
+
+	turnCompleted(report: IAgentHostTurnCompletedReport): void {
+		this._telemetryService.publicLog2<IAgentHostTurnCompletedEvent, IAgentHostTurnCompletedClassification>('agentHost.turnCompleted', {
+			provider: report.provider,
+			agentSessionId: AgentSession.id(report.session),
+			timeToFirstProgress: report.timeToFirstProgress,
+			totalTime: report.totalTime,
+			result: report.result,
+			model: report.model,
+			permissionLevel: report.permissionLevel,
+		});
+	}
 }
+

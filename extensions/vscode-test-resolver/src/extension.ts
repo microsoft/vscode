@@ -24,6 +24,10 @@ let outputChannel: vscode.OutputChannel;
 
 const SLOWED_DOWN_CONNECTION_DELAY = 800;
 
+function isExpectedSocketCloseError(error: NodeJS.ErrnoException): boolean {
+	return error.code === 'ECONNRESET' || error.code === 'EPIPE' || error.code === 'ECONNABORTED';
+}
+
 export function activate(context: vscode.ExtensionContext) {
 
 	let connectionPaused = false;
@@ -270,6 +274,11 @@ export function activate(context: vscode.ExtensionContext) {
 					outputChannel.appendLine(`Proxy connection accepted`);
 					let remoteReady = true, localReady = true;
 					const remoteSocket = net.createConnection({ port: serverAddr.port });
+					const onSocketError = (error: NodeJS.ErrnoException) => {
+						if (!isExpectedSocketCloseError(error)) {
+							outputChannel.appendLine(`Socket error: ${error.message}`);
+						}
+					};
 
 					let isDisconnected = false;
 					const handleConnectionPause = () => {
@@ -326,6 +335,8 @@ export function activate(context: vscode.ExtensionContext) {
 							proxySocket.resume();
 						}
 					});
+					proxySocket.on('error', onSocketError);
+					remoteSocket.on('error', onSocketError);
 					proxySocket.on('close', () => {
 						outputChannel.appendLine(`Proxy socket closed, closing remote socket.`);
 						remoteSocket.end();

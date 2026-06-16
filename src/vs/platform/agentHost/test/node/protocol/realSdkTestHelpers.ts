@@ -25,17 +25,17 @@ import { SubscribeResult } from '../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import {
 	MessageKind,
-	ResponsePartKind, ROOT_STATE_URI, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind,
-	SessionInputResponseKind, ToolResultContentType, isSubagentSession,
-	type SessionInputAnswer, type SessionInputRequest, type SessionState, type TerminalState,
+	ResponsePartKind, ROOT_STATE_URI, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind,
+	ChatInputResponseKind, ToolResultContentType, buildDefaultChatUri, isSubagentSession,
+	type MessageAttachment, type ChatInputAnswer, type ChatInputRequest, type SessionState, type TerminalState,
 	type ToolResultContent, type ToolResultSubagentContent,
 } from '../../../common/state/sessionState.js';
 import type { RootState } from '../../../common/state/protocol/state.js';
 import {
 	NotificationType,
 	type RootAgentsChangedAction,
-	type SessionInputRequestedAction, type SessionToolCallReadyAction,
-	type SessionToolCallStartAction,
+	type ChatInputRequestedAction, type ChatToolCallReadyAction,
+	type ChatToolCallStartAction,
 } from '../../../common/state/sessionActions.js';
 import type { SessionAddedParams } from '../../../common/state/protocol/notifications.js';
 import {
@@ -102,7 +102,9 @@ export interface IRealSdkProviderConfig {
 	 * package. Forwarded to `startRealServer` so the agent host registers
 	 * the Claude provider.
 	 */
-	readonly claudeSdkPath?: string;
+	readonly claudeSdkRoot?: string;
+	/** Optional path to a locally installed `codex` binary. Forwarded to `startRealServer`. */
+	readonly codexSdkRoot?: string;
 	/**
 	 * Provider implements `config.isolation: 'worktree'` and resolves the
 	 * working directory to a `.worktrees/...` path on materialization.
@@ -159,6 +161,10 @@ export async function createRealSession(
 
 	const subscribeResult = await c.call<SubscribeResult>('subscribe', { channel: sessionUri });
 	void (subscribeResult.snapshot!.state as SessionState);
+	// Conversation contents (turns, etc.) live on the session's default chat
+	// channel in the multi-chat protocol; subscribe to it as well so `chat/*`
+	// action notifications are delivered to this client.
+	await c.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
 	c.clearReceived();
 
 	return sessionUri;
@@ -170,9 +176,22 @@ export function dispatchTurn(c: TestProtocolClient, session: string, turnId: str
 		channel: session,
 		clientSeq,
 		action: {
-			type: 'session/turnStarted',
+			type: 'chat/turnStarted',
 			turnId,
 			message: { text, origin: { kind: MessageKind.User } },
+		},
+	});
+}
+
+/** Dispatch a turn with the given user message text and attachments. */
+export function dispatchTurnWithAttachments(c: TestProtocolClient, session: string, turnId: string, text: string, attachments: readonly MessageAttachment[], clientSeq: number): void {
+	c.notify('dispatchAction', {
+		channel: session,
+		clientSeq,
+		action: {
+			type: 'chat/turnStarted',
+			turnId,
+			message: { text, origin: { kind: MessageKind.User }, attachments: [...attachments] },
 		},
 	});
 }
@@ -181,45 +200,45 @@ export function dispatchTurn(c: TestProtocolClient, session: string, turnId: str
 
 // #region Input answer helpers
 
-export function getAcceptedAnswers(request: SessionInputRequest): Record<string, SessionInputAnswer> | undefined {
+export function getAcceptedAnswers(request: ChatInputRequest): Record<string, ChatInputAnswer> | undefined {
 	if (!request.questions?.length) {
 		return undefined;
 	}
 
 	return Object.fromEntries(request.questions.map(question => {
 		switch (question.kind) {
-			case SessionInputQuestionKind.Text:
+			case ChatInputQuestionKind.Text:
 				return [question.id, {
-					state: SessionInputAnswerState.Submitted,
-					value: { kind: SessionInputAnswerValueKind.Text, value: question.defaultValue ?? 'interactive' },
-				} satisfies SessionInputAnswer];
-			case SessionInputQuestionKind.Number:
-			case SessionInputQuestionKind.Integer:
+					state: ChatInputAnswerState.Submitted,
+					value: { kind: ChatInputAnswerValueKind.Text, value: question.defaultValue ?? 'interactive' },
+				} satisfies ChatInputAnswer];
+			case ChatInputQuestionKind.Number:
+			case ChatInputQuestionKind.Integer:
 				return [question.id, {
-					state: SessionInputAnswerState.Submitted,
-					value: { kind: SessionInputAnswerValueKind.Number, value: question.defaultValue ?? question.min ?? 1 },
-				} satisfies SessionInputAnswer];
-			case SessionInputQuestionKind.Boolean:
+					state: ChatInputAnswerState.Submitted,
+					value: { kind: ChatInputAnswerValueKind.Number, value: question.defaultValue ?? question.min ?? 1 },
+				} satisfies ChatInputAnswer];
+			case ChatInputQuestionKind.Boolean:
 				return [question.id, {
-					state: SessionInputAnswerState.Submitted,
-					value: { kind: SessionInputAnswerValueKind.Boolean, value: question.defaultValue ?? true },
-				} satisfies SessionInputAnswer];
-			case SessionInputQuestionKind.SingleSelect: {
+					state: ChatInputAnswerState.Submitted,
+					value: { kind: ChatInputAnswerValueKind.Boolean, value: question.defaultValue ?? true },
+				} satisfies ChatInputAnswer];
+			case ChatInputQuestionKind.SingleSelect: {
 				const preferredOption = question.options.find(option => /interactive/i.test(option.id) || /interactive/i.test(option.label))
 					?? question.options.find(option => option.recommended)
 					?? question.options[0];
 				return [question.id, {
-					state: SessionInputAnswerState.Submitted,
-					value: { kind: SessionInputAnswerValueKind.Selected, value: preferredOption.id },
-				} satisfies SessionInputAnswer];
+					state: ChatInputAnswerState.Submitted,
+					value: { kind: ChatInputAnswerValueKind.Selected, value: preferredOption.id },
+				} satisfies ChatInputAnswer];
 			}
-			case SessionInputQuestionKind.MultiSelect: {
+			case ChatInputQuestionKind.MultiSelect: {
 				const preferredOptions = question.options.filter(option => option.recommended);
 				const selectedOptions = preferredOptions.length > 0 ? preferredOptions : question.options.slice(0, 1);
 				return [question.id, {
-					state: SessionInputAnswerState.Submitted,
-					value: { kind: SessionInputAnswerValueKind.SelectedMany, value: selectedOptions.map(option => option.id) },
-				} satisfies SessionInputAnswer];
+					state: ChatInputAnswerState.Submitted,
+					value: { kind: ChatInputAnswerValueKind.SelectedMany, value: selectedOptions.map(option => option.id) },
+				} satisfies ChatInputAnswer];
 			}
 		}
 	}));
@@ -233,13 +252,13 @@ export function getMarkdownResponseText(c: TestProtocolClient): string {
 	const markdownPartIds = new Set<string>();
 	const pieces: string[] = [];
 	for (const notification of c.receivedNotifications(n =>
-		isActionNotification(n, 'session/responsePart') || isActionNotification(n, 'session/delta')
+		isActionNotification(n, 'chat/responsePart') || isActionNotification(n, 'chat/delta')
 	)) {
 		const action = getActionEnvelope(notification).action;
-		if (action.type === 'session/responsePart' && action.part.kind === ResponsePartKind.Markdown) {
+		if (action.type === 'chat/responsePart' && action.part.kind === ResponsePartKind.Markdown) {
 			markdownPartIds.add(action.part.id);
 			pieces.push(action.part.content);
-		} else if (action.type === 'session/delta' && markdownPartIds.has(action.partId)) {
+		} else if (action.type === 'chat/delta' && markdownPartIds.has(action.partId)) {
 			pieces.push(action.content);
 		}
 	}
@@ -253,8 +272,16 @@ export interface IDrivenTurnResult {
 }
 
 export async function driveTurnToCompletion(c: TestProtocolClient, session: string, turnId: string, text: string, clientSeq: number): Promise<IDrivenTurnResult> {
+	return driveTurn(c, session, turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq));
+}
+
+export async function driveTurnWithAttachmentsToCompletion(c: TestProtocolClient, session: string, turnId: string, text: string, attachments: readonly MessageAttachment[], clientSeq: number): Promise<IDrivenTurnResult> {
+	return driveTurn(c, session, turnId, clientSeq, () => dispatchTurnWithAttachments(c, session, turnId, text, attachments, clientSeq));
+}
+
+async function driveTurn(c: TestProtocolClient, session: string, turnId: string, clientSeq: number, dispatch: () => void): Promise<IDrivenTurnResult> {
 	c.clearReceived();
-	dispatchTurn(c, session, turnId, text, clientSeq);
+	dispatch();
 
 	const seenNotifications = new Set<object>();
 	let nextClientSeq = clientSeq + 1;
@@ -263,25 +290,25 @@ export async function driveTurnToCompletion(c: TestProtocolClient, session: stri
 
 	while (true) {
 		const notification = await c.waitForNotification(n => !seenNotifications.has(n as object) && (
-			isActionNotification(n, 'session/toolCallReady')
-			|| isActionNotification(n, 'session/inputRequested')
-			|| isActionNotification(n, 'session/turnComplete')
-			|| isActionNotification(n, 'session/error')
+			isActionNotification(n, 'chat/toolCallReady')
+			|| isActionNotification(n, 'chat/inputRequested')
+			|| isActionNotification(n, 'chat/turnComplete')
+			|| isActionNotification(n, 'chat/error')
 		), 90_000);
 		seenNotifications.add(notification as object);
 
-		if (isActionNotification(notification, 'session/error')) {
+		if (isActionNotification(notification, 'chat/error')) {
 			throw new Error(`Session error while driving ${turnId}`);
 		}
 
-		if (isActionNotification(notification, 'session/toolCallReady')) {
-			const action = getActionEnvelope(notification).action as SessionToolCallReadyAction;
+		if (isActionNotification(notification, 'chat/toolCallReady')) {
+			const action = getActionEnvelope(notification).action as ChatToolCallReadyAction;
 			if (!action.confirmed) {
 				sawPendingConfirmation = true;
 				c.notify('dispatchAction', {
 					clientSeq: nextClientSeq++,
 					action: {
-						type: 'session/toolCallConfirmed',
+						type: 'chat/toolCallConfirmed',
 						session, turnId,
 						toolCallId: action.toolCallId,
 						approved: true,
@@ -291,22 +318,25 @@ export async function driveTurnToCompletion(c: TestProtocolClient, session: stri
 			continue;
 		}
 
-		if (isActionNotification(notification, 'session/inputRequested')) {
+		if (isActionNotification(notification, 'chat/inputRequested')) {
 			sawInputRequest = true;
-			const action = getActionEnvelope(notification).action as SessionInputRequestedAction;
+			const action = getActionEnvelope(notification).action as ChatInputRequestedAction;
 			c.notify('dispatchAction', {
 				clientSeq: nextClientSeq++,
 				action: {
-					type: 'session/inputCompleted',
+					type: 'chat/inputCompleted',
 					session,
 					requestId: action.request.id,
-					response: SessionInputResponseKind.Accept,
+					response: ChatInputResponseKind.Accept,
 					answers: getAcceptedAnswers(action.request),
 				},
 			});
 			continue;
 		}
 
+
+		const action = getActionEnvelope(notification).action as { turnId: string };
+		assert.strictEqual(action.turnId, turnId);
 		break;
 	}
 
@@ -328,15 +358,15 @@ export function terminalText(state: TerminalState): string {
 
 /** Looks up the toolName for a toolCallReady by joining against the matching toolCallStart. */
 export function findToolNameForCall(c: TestProtocolClient, toolCallId: string): string | undefined {
-	return c.receivedNotifications(n => isActionNotification(n, 'session/toolCallStart'))
-		.map(n => getActionEnvelope(n).action as SessionToolCallStartAction)
+	return c.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'))
+		.map(n => getActionEnvelope(n).action as ChatToolCallStartAction)
 		.find(a => a.toolCallId === toolCallId)?.toolName;
 }
 
 export interface IApprovalRule {
 	readonly toolName: string;
 	readonly matchInput?: (toolInput: string | undefined) => boolean;
-	readonly inspect?: (info: { action: SessionToolCallReadyAction; errors: string[] }) => void;
+	readonly inspect?: (info: { action: ChatToolCallReadyAction; errors: string[] }) => void;
 }
 
 export interface IBackgroundApprovalLoopOptions {
@@ -369,14 +399,14 @@ export function startBackgroundApprovalLoop(c: TestProtocolClient, options: IBac
 		while (active) {
 			try {
 				const ready = await c.waitForNotification(n => {
-					if (!isActionNotification(n, 'session/toolCallReady')) {
+					if (!isActionNotification(n, 'chat/toolCallReady')) {
 						return false;
 					}
 					return !processedSeqs.has(getActionEnvelope(n).serverSeq);
 				}, 2_000);
 				const envelope = getActionEnvelope(ready);
 				processedSeqs.add(envelope.serverSeq);
-				const action = envelope.action as SessionToolCallReadyAction;
+				const action = envelope.action as ChatToolCallReadyAction;
 				if (action.confirmed) {
 					continue;
 				}
@@ -395,7 +425,7 @@ export function startBackgroundApprovalLoop(c: TestProtocolClient, options: IBac
 						channel: envelope.channel,
 						clientSeq: ++approvalSeq,
 						action: {
-							type: 'session/toolCallConfirmed',
+							type: 'chat/toolCallConfirmed',
 							turnId: action.turnId,
 							toolCallId: action.toolCallId, approved: false,
 						},
@@ -410,7 +440,7 @@ export function startBackgroundApprovalLoop(c: TestProtocolClient, options: IBac
 					channel: envelope.channel,
 					clientSeq: ++approvalSeq,
 					action: {
-						type: 'session/toolCallConfirmed',
+						type: 'chat/toolCallConfirmed',
 						turnId: action.turnId,
 						toolCallId: action.toolCallId, approved: true,
 					},
@@ -469,7 +499,7 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 
 		setup(async function () {
 			this.timeout(60_000);
-			server = await startRealServer({ claudeSdkPath: config.claudeSdkPath });
+			server = await startRealServer({ claudeSdkRoot: config.claudeSdkRoot, codexSdkRoot: config.codexSdkRoot });
 			client = new TestProtocolClient(server.port);
 			await client.connect();
 		});
@@ -510,9 +540,11 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			const sessionUri = await createRealSession(client, config, `real-sdk-simple-${config.provider}`, createdSessions, URI.file(tmpdir()).toString());
 			dispatchTurn(client, sessionUri, 'turn-1', 'Say exactly "hello" and nothing else', 1);
 
-			await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'), 90_000);
+			const complete = await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'), 90_000);
+			const completeAction = getActionEnvelope(complete).action as { turnId: string };
+			assert.strictEqual(completeAction.turnId, 'turn-1');
 
-			const responseParts = client.receivedNotifications(n => isActionNotification(n, 'session/responsePart'));
+			const responseParts = client.receivedNotifications(n => isActionNotification(n, 'chat/responsePart'));
 			assert.ok(responseParts.length > 0, 'should have received at least one response part');
 		});
 
@@ -598,15 +630,15 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			let nextSeq = 2;
 			while (true) {
 				const next = await client.waitForNotification(n =>
-					(isActionNotification(n, 'session/toolCallReady')
+					(isActionNotification(n, 'chat/toolCallReady')
 						&& (getActionEnvelope(n).action as { confirmed?: string }).confirmed === undefined)
-					|| isActionNotification(n, 'session/toolCallComplete')
-					|| isActionNotification(n, 'session/error'),
+					|| isActionNotification(n, 'chat/toolCallComplete')
+					|| isActionNotification(n, 'chat/error'),
 					90_000);
-				if (isActionNotification(next, 'session/error')) {
+				if (isActionNotification(next, 'chat/error')) {
 					throw new Error('Session error during permission test');
 				}
-				if (isActionNotification(next, 'session/toolCallComplete')) {
+				if (isActionNotification(next, 'chat/toolCallComplete')) {
 					break;
 				}
 				const action = getActionEnvelope(next).action as { toolCallId: string };
@@ -614,14 +646,14 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 					channel: sessionUri,
 					clientSeq: nextSeq++,
 					action: {
-						type: 'session/toolCallConfirmed',
+						type: 'chat/toolCallConfirmed',
 						turnId: 'turn-perm',
 						toolCallId: action.toolCallId, approved: true,
 					},
 				});
 			}
 
-			const toolStarts = client.receivedNotifications(n => isActionNotification(n, 'session/toolCallStart'));
+			const toolStarts = client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'));
 			assert.ok(toolStarts.length > 0, 'expected at least one shell tool call');
 		});
 
@@ -680,7 +712,7 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			dispatchTurn(client, sessionUri, 'turn-abort', 'Write a very long essay about the history of computing', 1);
 
 			await client.waitForNotification(
-				n => isActionNotification(n, 'session/responsePart') || isActionNotification(n, 'session/toolCallStart'),
+				n => isActionNotification(n, 'chat/responsePart') || isActionNotification(n, 'chat/toolCallStart'),
 				60_000,
 			);
 
@@ -770,33 +802,33 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			const resolvedWorkingDirectoryPath = URI.parse(addedSummary.workingDirectory!).fsPath;
 
 			await client.waitForNotification(
-				n => isActionNotification(n, 'session/turnComplete') || isActionNotification(n, 'session/error'),
+				n => isActionNotification(n, 'chat/turnComplete') || isActionNotification(n, 'chat/error'),
 				90_000,
 			);
 
-			const errors = client.receivedNotifications(n => isActionNotification(n, 'session/error'));
+			const errors = client.receivedNotifications(n => isActionNotification(n, 'chat/error'));
 			assert.strictEqual(errors.length, 0,
 				errors.length > 0
 					? `Session error during turn (worktree path lost on resume): ${(getActionEnvelope(errors[0]).action as { error?: { message?: string } }).error?.message}`
 					: '');
 
-			const responseParts = client.receivedNotifications(n => isActionNotification(n, 'session/responsePart'));
+			const responseParts = client.receivedNotifications(n => isActionNotification(n, 'chat/responsePart'));
 			assert.ok(responseParts.length > 0, 'should have received at least one response part after session refresh');
 
 			client.clearReceived();
 			dispatchTurn(client, addedSummary.resource, 'turn-wt-terminal', 'Run the shell command: pwd', 3);
 
-			const toolStartNotif = await client.waitForNotification(n => isActionNotification(n, 'session/toolCallStart'), 60_000);
+			const toolStartNotif = await client.waitForNotification(n => isActionNotification(n, 'chat/toolCallStart'), 60_000);
 			const toolStartAction = getActionEnvelope(toolStartNotif).action as { toolCallId: string };
 
-			const toolReadyNotif = await client.waitForNotification(n => isActionNotification(n, 'session/toolCallReady'), 30_000);
+			const toolReadyNotif = await client.waitForNotification(n => isActionNotification(n, 'chat/toolCallReady'), 30_000);
 			const toolReadyAction = getActionEnvelope(toolReadyNotif).action as { confirmed?: string };
 			if (!toolReadyAction.confirmed) {
 				client.notify('dispatchAction', {
 					channel: addedSummary.resource,
 					clientSeq: 4,
 					action: {
-						type: 'session/toolCallConfirmed',
+						type: 'chat/toolCallConfirmed',
 						turnId: 'turn-wt-terminal',
 						toolCallId: toolStartAction.toolCallId, approved: true,
 					},
@@ -804,7 +836,7 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			}
 
 			const terminalContentNotif = await client.waitForNotification(n => {
-				if (!isActionNotification(n, 'session/toolCallContentChanged')) {
+				if (!isActionNotification(n, 'chat/toolCallContentChanged')) {
 					return false;
 				}
 				const action = getActionEnvelope(n).action as { toolCallId: string; content: readonly ToolResultContent[] };
@@ -818,7 +850,7 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			const initialTerminalState = terminalSubscribeResult.snapshot!.state as TerminalState;
 			assert.strictEqual(initialTerminalState.cwd, resolvedWorkingDirectoryPath, 'terminal should be created in the resolved worktree directory');
 
-			await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'), 90_000);
+			await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'), 90_000);
 			const terminalSnapshot = await client.call<SubscribeResult>('subscribe', { channel: terminalUri });
 			const terminalState = terminalSnapshot.snapshot!.state as TerminalState;
 			assert.ok(terminalText(terminalState).includes(resolvedWorkingDirectoryPath),
@@ -842,7 +874,7 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 				while (approvalsActive) {
 					try {
 						const ready = await client.waitForNotification(n => {
-							if (!isActionNotification(n, 'session/toolCallReady')) {
+							if (!isActionNotification(n, 'chat/toolCallReady')) {
 								return false;
 							}
 							const envelope = getActionEnvelope(n);
@@ -858,7 +890,7 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 									channel: envelope.channel,
 									clientSeq: ++approvalSeq,
 									action: {
-										type: 'session/toolCallConfirmed',
+										type: 'chat/toolCallConfirmed',
 										turnId: action.turnId,
 										toolCallId: action.toolCallId, approved: true,
 									},
@@ -876,7 +908,7 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 				1);
 
 			const subagentContentNotif = await client.waitForNotification(n => {
-				if (!isActionNotification(n, 'session/toolCallContentChanged')) {
+				if (!isActionNotification(n, 'chat/toolCallContentChanged')) {
 					return false;
 				}
 				const envelope = getActionEnvelope(n);
@@ -893,7 +925,7 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			await client.call<SubscribeResult>('subscribe', { channel: subagentSessionUri });
 
 			await client.waitForNotification(n => {
-				if (!isActionNotification(n, 'session/turnComplete')) {
+				if (!isActionNotification(n, 'chat/turnComplete')) {
 					return false;
 				}
 				return getActionEnvelope(n).channel === sessionUri;
@@ -902,8 +934,8 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			approvalsActive = false;
 			await approvalLoop;
 
-			const toolStarts = client.receivedNotifications(n => isActionNotification(n, 'session/toolCallStart'))
-				.map(n => ({ channel: getActionEnvelope(n).channel, action: getActionEnvelope(n).action as SessionToolCallStartAction }));
+			const toolStarts = client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'))
+				.map(n => ({ channel: getActionEnvelope(n).channel, action: getActionEnvelope(n).action as ChatToolCallStartAction }));
 
 			const parentStarts = toolStarts.filter(t => t.channel === sessionUri).map(t => t.action);
 			const subagentStarts = toolStarts.filter(t => t.channel === subagentSessionUri).map(t => t.action);

@@ -11,12 +11,45 @@ import { IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IPosition } from '../../../../editor/common/core/position.js';
-import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { isRemoteAgentHostSessionType } from '../../../../platform/agentHost/common/agentHostSessionType.js';
+import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from './participants/chatAgents.js';
 import { IChatEditingSession } from './editing/chatEditingService.js';
 import { IChatRequestModeInstructions, IChatRequestVariableData, ISerializableChatModelInputState } from './model/chatModel.js';
-import { IChatProgress, IChatSessionTiming } from './chatService/chatService.js';
+import { IChatProgress, IChatResponseErrorDetails, IChatSessionTiming } from './chatService/chatService.js';
 import { Target } from './promptSyntax/promptTypes.js';
+
+export const enum ChatSessionsExtensions {
+	AsyncActivation = 'workbench.contrib.chatSessions.asyncActivation'
+}
+
+export interface IAsyncChatSessionActivationContribution {
+	matchSessionType(sessionType: string): boolean;
+	waitForActivation(accessor: ServicesAccessor, sessionType: string): Promise<boolean>;
+}
+
+export interface IAsyncChatSessionActivationRegistry {
+	register(contribution: IAsyncChatSessionActivationContribution): IDisposable;
+	getActivators(sessionType: string): readonly IAsyncChatSessionActivationContribution[];
+}
+
+class AsyncChatSessionActivationRegistry implements IAsyncChatSessionActivationRegistry {
+	private readonly _contributions = new Set<IAsyncChatSessionActivationContribution>();
+
+	register(contribution: IAsyncChatSessionActivationContribution): IDisposable {
+		this._contributions.add(contribution);
+		return {
+			dispose: () => this._contributions.delete(contribution)
+		};
+	}
+
+	getActivators(sessionType: string): readonly IAsyncChatSessionActivationContribution[] {
+		return Array.from(this._contributions).filter(contribution => contribution.matchSessionType(sessionType));
+	}
+}
+
+Registry.add(ChatSessionsExtensions.AsyncActivation, new AsyncChatSessionActivationRegistry());
 
 export const enum ChatSessionStatus {
 	Failed = 0,
@@ -133,6 +166,23 @@ export interface IChatSessionsExtensionPoint {
 	readonly customAgentTarget?: Target;
 	readonly requiresCustomModels?: boolean;
 	/**
+	 * Whether this session type supports the synthetic "Auto" model fallback.
+	 * Defaults to true. When false and no models are available, the picker
+	 * shows a "No models available" state instead of "Auto".
+	 *
+	 * This is distinct from {@link requiresCustomModels}, which only controls
+	 * whether the picker is filtered to the session's own model pool — a
+	 * session can own a custom pool yet still support Auto (e.g. the Copilot
+	 * CLI agent host).
+	 */
+	readonly supportsAutoModel?: boolean;
+	/**
+	 * Logical Agent Host provider ID for Agent Host-backed chat sessions.
+	 * For example, both local `agent-host-copilotcli` and remote
+	 * `remote-{authority}-copilotcli` sessions use `copilotcli`.
+	 */
+	readonly agentHostProviderId?: string;
+	/**
 	 * When false, the delegation picker is hidden for this session type.
 	 * Defaults to true.
 	 */
@@ -224,6 +274,12 @@ export type IChatSessionHistoryItem = {
 	parts: IChatProgress[];
 	participant: string;
 	details?: string;
+	/**
+	 * Error details for a failed response. Rendered as a proper chat error
+	 * (including the quota-exceeded upgrade affordance), mirroring the live
+	 * agent result's `errorDetails`.
+	 */
+	errorDetails?: IChatResponseErrorDetails;
 };
 
 export type IChatSessionRequestHistoryItem = Extract<IChatSessionHistoryItem, { type: 'request' }>;
@@ -246,21 +302,36 @@ export namespace SessionType {
 	export const Codex = 'openai-codex';
 	export const Growth = 'copilot-growth';
 	export const AgentHostCopilot = 'agent-host-copilotcli';
+	export const AgentHostClaude = 'agent-host-claude';
+	export const AgentHostCodex = 'agent-host-codex';
 }
 
 /**
- * Returns whether the given session type is an agent host target.
- * Matches the local agent host (`agent-host-*`) and remote agent hosts (`remote-*`).
+ * Returns whether the given session type is a local agent host target.
+ */
+export function isLocalAgentHostTarget(target: string): boolean {
+	return target === SessionType.AgentHostCopilot ||
+		target.startsWith('agent-host-');
+}
+
+/**
+ * Returns whether the given session type is a remote agent host target.
  *
  * Note: The `remote-` prefix convention is established by
  * `RemoteAgentHostContribution` which generates session types as
  * `remote-{sanitizedAddress}-{provider}`. If future remote providers that
  * are NOT agent hosts need a different prefix, this function must be updated.
  */
+export function isRemoteAgentHostTarget(target: string): boolean {
+	return isRemoteAgentHostSessionType(target);
+}
+
+/**
+ * Returns whether the given session type is an agent host target.
+ * Matches the local agent host (`agent-host-*`) and remote agent hosts (`remote-*`).
+ */
 export function isAgentHostTarget(target: string): boolean {
-	return target === SessionType.AgentHostCopilot ||
-		target.startsWith('agent-host-') ||
-		target.startsWith('remote-');
+	return isLocalAgentHostTarget(target) || isRemoteAgentHostTarget(target);
 }
 
 /**
@@ -314,6 +385,14 @@ export interface IChatSession extends IDisposable {
 	 * @returns The forked session item. The promise is rejected if forking fails.
 	 */
 	forkSession?: (request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken) => Promise<IChatSessionItem>;
+
+	/**
+	 * Renames the session.
+	 * @param title The new title for the session.
+	 * @param token Cancellation token.
+	 * @returns A promise that resolves once the rename has been dispatched. The promise is rejected if renaming fails.
+	 */
+	renameSession?: (title: string, token: CancellationToken) => Promise<void>;
 }
 
 export interface IChatSessionContentProvider {
@@ -465,6 +544,13 @@ export interface IChatSessionItemController {
 	getNewChatSessionInputState?(sessionResource: URI, token: CancellationToken): Promise<readonly IChatSessionProviderOptionGroup[] | undefined>;
 
 	resolveChatSessionItem?(resource: URI, token: CancellationToken): Promise<IChatSessionItem | undefined>;
+
+	/**
+	 * Permanently delete the session identified by `resource`. Implementations should tear down any backend state for
+	 * the session. The controller is expected to fire an `onDidChangeChatSessionItems` event with the removed resource
+	 * as a result of the deletion.
+	 */
+	deleteChatSessionItem?(resource: URI, token: CancellationToken): Promise<void>;
 }
 
 export interface IChatSessionOptionsChangeEvent {
@@ -663,6 +749,15 @@ export interface IChatSessionsService {
 	requiresCustomModelsForSessionType(chatSessionType: string): boolean;
 
 	/**
+	 * Returns whether the session type supports the synthetic "Auto" model
+	 * fallback. The built-in local chat always supports it; contributed session
+	 * types default to `false` unless they set `supportsAutoModel`. When false
+	 * and no models are available, the picker shows a "No models available"
+	 * state instead of "Auto".
+	 */
+	supportsAutoModelForSessionType(chatSessionType: string): boolean;
+
+	/**
 	 * Returns whether the session type supports delegation.
 	 * Defaults to true when not explicitly set.
 	 */
@@ -682,6 +777,19 @@ export interface IChatSessionsService {
 	 */
 	forkChatSession(sessionResource: URI, request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken): Promise<IChatSessionItem>;
 
+	/**
+	 * Returns whether the loaded session supports renaming.
+	 */
+	sessionSupportsRename(sessionResource: URI): boolean;
+
+	/**
+	 * Renames a contributed chat session.
+	 * @param sessionResource The session resource to rename.
+	 * @param title The new title for the session.
+	 * @param token Cancellation token.
+	 */
+	renameChatSession(sessionResource: URI, title: string, token: CancellationToken): Promise<void>;
+
 	readonly onDidChangeOptionGroups: Event<string>;
 
 	getOptionGroupsForSessionType(chatSessionType: string): IChatSessionProviderOptionGroup[] | undefined;
@@ -698,6 +806,12 @@ export interface IChatSessionsService {
 	 * Returns undefined if the controller doesn't have a handler or if no controller is registered.
 	 */
 	createNewChatSessionItem(chatSessionType: string, request: IChatNewSessionRequest, token: CancellationToken): Promise<IChatSessionItem | undefined>;
+
+	/**
+	 * Permanently deletes a chat session item by delegating to the registered controller's `deleteChatSessionItem`
+	 * handler. Throws if the controller does not implement `deleteChatSessionItem`.
+	 */
+	deleteChatSessionItem(sessionResource: URI, token: CancellationToken): Promise<void>;
 
 	/**
 	 * Registers an alias so that session-option lookups by the real resource
