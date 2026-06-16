@@ -45,6 +45,11 @@ import type { SandboxPolicy } from './protocol/generated/v2/SandboxPolicy.js';
 import type { CommandExecutionApprovalDecision } from './protocol/generated/v2/CommandExecutionApprovalDecision.js';
 import type { CommandExecutionRequestApprovalParams } from './protocol/generated/v2/CommandExecutionRequestApprovalParams.js';
 import type { CommandExecutionRequestApprovalResponse } from './protocol/generated/v2/CommandExecutionRequestApprovalResponse.js';
+import type { FileChangeApprovalDecision } from './protocol/generated/v2/FileChangeApprovalDecision.js';
+import type { FileChangeRequestApprovalParams } from './protocol/generated/v2/FileChangeRequestApprovalParams.js';
+import type { FileChangeRequestApprovalResponse } from './protocol/generated/v2/FileChangeRequestApprovalResponse.js';
+import type { PermissionsRequestApprovalParams } from './protocol/generated/v2/PermissionsRequestApprovalParams.js';
+import type { PermissionsRequestApprovalResponse } from './protocol/generated/v2/PermissionsRequestApprovalResponse.js';
 import type { DynamicToolSpec } from './protocol/generated/v2/DynamicToolSpec.js';
 import type { DynamicToolCallParams } from './protocol/generated/v2/DynamicToolCallParams.js';
 import type { DynamicToolCallResponse } from './protocol/generated/v2/DynamicToolCallResponse.js';
@@ -352,11 +357,6 @@ function dynamicToolResponseFromResult(result: ToolCallResult): DynamicToolCallR
 	return { contentItems, success: result.success };
 }
 
-/**
- * Stable, order-insensitive signature of a client tool set, used to detect
- * whether the tools registered with a codex thread (at `thread/start`) still
- * match the session's current tools.
- */
 function toolsSignature(tools: readonly ToolDefinition[] | undefined): string {
 	if (!tools || tools.length === 0) {
 		return '';
@@ -365,6 +365,23 @@ function toolsSignature(tools: readonly ToolDefinition[] | undefined): string {
 		.map(t => `${t.name}\u0000${t.description ?? ''}\u0000${JSON.stringify(t.inputSchema ?? null)}`)
 		.sort()
 		.join('\u0001');
+}
+
+/**
+ * Map a resolved approval decision to the {@link FileChangeApprovalDecision}
+ * subset. The host's boolean response only yields `accept`/`decline`; the
+ * command-only amendment variants are treated as a decline for file changes.
+ */
+function narrowFileChangeDecision(decision: CommandExecutionApprovalDecision): FileChangeApprovalDecision {
+	switch (decision) {
+		case 'accept':
+		case 'acceptForSession':
+		case 'decline':
+		case 'cancel':
+			return decision;
+		default:
+			return 'decline';
+	}
 }
 
 export class CodexAgent extends Disposable implements IAgent {
@@ -756,6 +773,18 @@ export class CodexAgent extends Disposable implements IAgent {
 			params => this._handleCommandApprovalRequestRpc(params),
 		));
 
+		// File-change and permission-escalation approval requests (raised in
+		// non-`danger-full-access` sandboxes / on the on-request approval
+		// policy). Surface them through the same pending-confirmation flow.
+		this._register(client.onRequest<'item/fileChange/requestApproval'>(
+			'item/fileChange/requestApproval',
+			params => this._handleFileChangeApprovalRequestRpc(params),
+		));
+		this._register(client.onRequest<'item/permissions/requestApproval'>(
+			'item/permissions/requestApproval',
+			params => this._handlePermissionsApprovalRequestRpc(params),
+		));
+
 		// Client-provided (dynamic) tool execution requests. Codex asks the
 		// host to run a tool registered via `thread/start.dynamicTools`; we
 		// route the call to the owning workbench client and answer with its
@@ -1080,6 +1109,56 @@ export class CodexAgent extends Disposable implements IAgent {
 			session.acceptedForSession.add(command);
 		}
 		return decision;
+	}
+
+	private async _handleFileChangeApprovalRequestRpc(params: FileChangeRequestApprovalParams): Promise<{ readonly result: FileChangeRequestApprovalResponse }> {
+		const decision = await this._requestItemApproval(params.threadId, params.itemId, params.reason ?? 'Apply file changes');
+		return { result: { decision: narrowFileChangeDecision(decision) } };
+	}
+
+	private async _handlePermissionsApprovalRequestRpc(params: PermissionsRequestApprovalParams): Promise<{ readonly result: PermissionsRequestApprovalResponse }> {
+		const decision = await this._requestItemApproval(params.threadId, params.itemId, params.reason ?? 'Grant elevated permissions');
+		const granted = decision === 'accept' || decision === 'acceptForSession';
+		return {
+			result: {
+				// Grant exactly what was requested on accept; nothing on decline.
+				permissions: granted
+					? { network: params.permissions.network ?? undefined, fileSystem: params.permissions.fileSystem ?? undefined }
+					: {},
+				scope: decision === 'acceptForSession' ? 'session' : 'turn',
+			},
+		};
+	}
+
+	/**
+	 * Shared approval flow for item-scoped `requestApproval` requests that
+	 * don't carry their own command string: look up the host tool call for
+	 * the item, fire a pending-confirmation `ChatToolCallReady`, and resolve
+	 * when the user (via {@link respondToPermissionRequest}) decides. Declines
+	 * if the session or item is unknown.
+	 */
+	private async _requestItemApproval(threadId: string, itemId: string, confirmationTitle: string): Promise<CommandExecutionApprovalDecision> {
+		const sessionId = this._sessionIdByThreadId.get(threadId);
+		const session = sessionId ? this._sessions.get(sessionId) : undefined;
+		if (!session) {
+			this._logService.warn(`[Codex] approval request for unknown threadId=${threadId}; declining`);
+			return 'decline';
+		}
+		const entry = session.mapState.itemToToolCall.get(itemId);
+		if (!entry) {
+			this._logService.warn(`[Codex:${sessionId}] approval request for unknown itemId=${itemId}; declining`);
+			return 'decline';
+		}
+		return session.pendingCommandApprovals.registerAndFire(entry.toolCallId, () => {
+			this._fire(session.sessionUri, {
+				type: ActionType.ChatToolCallReady,
+				turnId: entry.turnId,
+				toolCallId: entry.toolCallId,
+				invocationMessage: confirmationTitle,
+				toolInput: confirmationTitle,
+				confirmationTitle,
+			});
+		});
 	}
 
 	private _handleConnectionLost(): void {

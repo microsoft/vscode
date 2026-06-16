@@ -285,4 +285,52 @@ defineSharedRealSdkTests(CODEX_CONFIG);
 		}
 		assert.ok(completed, 'a tool registered after prewarm should still reach the client via a thread restart');
 	});
+
+	test('file-change approval is surfaced and can be approved', async function () {
+		this.timeout(180_000);
+		const workingDirectory = mkdtempSync(join(tmpdir(), 'codex-fileapprove-'));
+		tempDirs.push(workingDirectory);
+		const session = await createRealSession(client, CODEX_CONFIG, 'fileapprove-client', createdSessions, workingDirectory);
+
+		// Read-only sandbox + on-request approval forces codex to ask before
+		// applying any file edit (an `item/fileChange/requestApproval`).
+		client.notify('dispatchAction', {
+			channel: session,
+			clientSeq: 1,
+			action: { type: 'session/configChanged', config: { 'codex.sandboxMode': 'read-only', 'codex.approvalPolicy': 'on-request' } },
+		});
+		await client.waitForNotification(n => isActionNotification(n, 'session/configChanged'), 30_000);
+
+		const turnId = generateUuid();
+		dispatchTurn(client, session, turnId, 'Create a new file named hello.txt containing exactly the text "hi" by editing the file (use your apply_patch/file-edit capability, not a shell command).', 2);
+
+		const seen = new Set<object>();
+		let sawPendingConfirmation = false;
+		let nextSeq = 3;
+		while (true) {
+			const n = await client.waitForNotification(x => !seen.has(x as object) && (
+				(isActionNotification(x, 'chat/toolCallReady') && (getActionEnvelope(x).action as { confirmed?: string }).confirmed === undefined)
+				|| isActionNotification(x, 'chat/toolCallComplete')
+				|| isActionNotification(x, 'chat/turnComplete')
+				|| isActionNotification(x, 'chat/error')), 120_000);
+			seen.add(n as object);
+			if (isActionNotification(n, 'chat/error')) {
+				throw new Error('codex reported a turn error during file-change approval test');
+			}
+			if (isActionNotification(n, 'chat/toolCallReady')) {
+				sawPendingConfirmation = true;
+				const action = getActionEnvelope(n).action as { toolCallId: string };
+				client.notify('dispatchAction', {
+					channel: session,
+					clientSeq: nextSeq++,
+					action: { type: 'chat/toolCallConfirmed', turnId, toolCallId: action.toolCallId, approved: true },
+				});
+				continue;
+			}
+			if (isActionNotification(n, 'chat/toolCallComplete') || isActionNotification(n, 'chat/turnComplete')) {
+				break;
+			}
+		}
+		assert.ok(sawPendingConfirmation, 'a file edit under a read-only sandbox should surface a pending-confirmation tool call');
+	});
 });
