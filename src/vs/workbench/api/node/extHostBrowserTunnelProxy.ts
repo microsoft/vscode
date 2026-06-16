@@ -33,6 +33,13 @@ import { ISignService } from '../../../platform/sign/common/sign.js';
  * resolution. Managed connections are dialed in-process through
  * {@link IExtHostManagedSockets}.
  *
+ * This only ever runs in the *local* extension host. The proxy must listen on a
+ * port reachable by the owning window and route through the local machine's link
+ * to the remote, and the managed (exec-server) socket factory only exists in the
+ * local ext host because the resolver runs there. A remote-hosted instance would
+ * bind on the wrong machine and could not service managed connections, so it
+ * ignores enablement (see {@link $setEnabled}).
+ *
  * The HTTPS server runs while the consumer has enabled it ({@link $setEnabled}).
  * It is started *once* and kept alive: the live connection endpoint is fed to it
  * through a long-lived, mutable {@link MutableAddressProvider} resolved per
@@ -73,6 +80,12 @@ export class NodeExtHostBrowserTunnelProxy extends Disposable implements IExtHos
 	}
 
 	$setEnabled(enabled: boolean): void {
+		// Only the local extension host can host the proxy (see class doc). On the
+		// remote ext host there is no managed socket factory and the server would
+		// bind on the wrong machine, so ignore enablement entirely.
+		if (this._initData.remote.isRemote) {
+			return;
+		}
 		if (this._enabled === enabled) {
 			return;
 		}
@@ -146,7 +159,7 @@ export class NodeExtHostBrowserTunnelProxy extends Disposable implements IExtHos
 			_serviceBrand: undefined,
 			async connect(connectTo, path: string, query: string, debugLabel: string): Promise<ISocket> {
 				if (connectTo.type === RemoteConnectionType.Managed) {
-					const result = await managedSockets.makeConnection(connectTo.id);
+					const result = await managedSockets.makeConnection();
 					return ExtHostManagedSocket.connect(result, path, query, debugLabel);
 				}
 				return nodeSocketFactory.connect(connectTo, path, query, debugLabel);
