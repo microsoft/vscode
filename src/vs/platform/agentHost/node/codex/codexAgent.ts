@@ -15,7 +15,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../log/common/log.js';
-import { createSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
+import { createSchema, platformSessionSchema, schemaProperty, type SessionMode } from '../../common/agentHostSchema.js';
 import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentSdkRootEnvVar, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, type AgentProvider } from '../../common/agentService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -37,8 +37,10 @@ import { resolveCodexInput } from './codexPromptResolver.js';
 import { buildUserInputRequest, emptyUserInputResponse, userInputResponseFromAnswers } from './codexUserInputMapper.js';
 import { replayThreadToTurns } from './codexReplayMapper.js';
 import { CodexSessionMetadataStore } from './codexSessionMetadataStore.js';
-import { CodexSessionConfigKey, isCodexSupportedModel, narrowAdditionalDirectories, narrowApprovalPolicy, narrowBoolean, narrowReasoningEffort, narrowSandboxMode, narrowWebSearchMode, normalizeCodexModelId, type CodexApprovalPolicy } from './codexSessionConfigKeys.js';
+import { CodexSessionConfigKey, collaborationModeKind, isCodexSupportedModel, narrowAdditionalDirectories, narrowApprovalPolicy, narrowBoolean, narrowPersonality, narrowReasoningEffort, narrowReasoningSummary, narrowSandboxMode, narrowWebSearchMode, normalizeCodexModelId, type CodexApprovalPolicy } from './codexSessionConfigKeys.js';
 import type { ReasoningEffort } from './protocol/generated/ReasoningEffort.js';
+import type { ReasoningSummary } from './protocol/generated/ReasoningSummary.js';
+import type { Personality } from './protocol/generated/Personality.js';
 import type { WebSearchMode } from './protocol/generated/WebSearchMode.js';
 import type { SandboxMode } from './protocol/generated/v2/SandboxMode.js';
 import type { SandboxPolicy } from './protocol/generated/v2/SandboxPolicy.js';
@@ -146,6 +148,39 @@ const codexSessionConfigSchema = createSchema({
 		default: 'medium',
 		sessionMutable: true,
 	}),
+	[SessionConfigKey.Mode]: platformSessionSchema.definition[SessionConfigKey.Mode],
+	[CodexSessionConfigKey.Personality]: schemaProperty<Personality>({
+		type: 'string',
+		title: localize('codex.sessionConfig.personality', "Personality"),
+		description: localize('codex.sessionConfig.personalityDescription', "Tone Codex uses when communicating."),
+		enum: ['none', 'friendly', 'pragmatic'],
+		enumLabels: [
+			localize('codex.sessionConfig.personality.none', "Default"),
+			localize('codex.sessionConfig.personality.friendly', "Friendly"),
+			localize('codex.sessionConfig.personality.pragmatic', "Pragmatic"),
+		],
+		enumDescriptions: [
+			localize('codex.sessionConfig.personality.noneDescription', "Use Codex's built-in default tone."),
+			localize('codex.sessionConfig.personality.friendlyDescription', "Warmer, more conversational tone."),
+			localize('codex.sessionConfig.personality.pragmaticDescription', "Terse, no-nonsense tone focused on actions."),
+		],
+		default: 'none',
+		sessionMutable: true,
+	}),
+	[CodexSessionConfigKey.ReasoningSummary]: schemaProperty<ReasoningSummary>({
+		type: 'string',
+		title: localize('codex.sessionConfig.reasoningSummary', "Reasoning Summary"),
+		description: localize('codex.sessionConfig.reasoningSummaryDescription', "How Codex summarizes its reasoning in the response stream."),
+		enum: ['auto', 'concise', 'detailed', 'none'],
+		enumLabels: [
+			localize('codex.sessionConfig.reasoningSummary.auto', "Auto"),
+			localize('codex.sessionConfig.reasoningSummary.concise', "Concise"),
+			localize('codex.sessionConfig.reasoningSummary.detailed', "Detailed"),
+			localize('codex.sessionConfig.reasoningSummary.none', "None"),
+		],
+		default: 'auto',
+		sessionMutable: true,
+	}),
 	[CodexSessionConfigKey.AdditionalDirectories]: schemaProperty<string[]>({
 		type: 'array',
 		title: localize('codex.sessionConfig.additionalDirectories', "Additional Writable Directories"),
@@ -166,9 +201,12 @@ const codexSessionConfigSchema = createSchema({
 });
 
 const codexVisibleSessionConfigSchema = createSchema({
+	[SessionConfigKey.Mode]: codexSessionConfigSchema.definition[SessionConfigKey.Mode],
 	[CodexSessionConfigKey.ApprovalPolicy]: codexSessionConfigSchema.definition[CodexSessionConfigKey.ApprovalPolicy],
 	[CodexSessionConfigKey.SandboxMode]: codexSessionConfigSchema.definition[CodexSessionConfigKey.SandboxMode],
 	[CodexSessionConfigKey.WebSearchMode]: codexSessionConfigSchema.definition[CodexSessionConfigKey.WebSearchMode],
+	[CodexSessionConfigKey.Personality]: codexSessionConfigSchema.definition[CodexSessionConfigKey.Personality],
+	[CodexSessionConfigKey.ReasoningSummary]: codexSessionConfigSchema.definition[CodexSessionConfigKey.ReasoningSummary],
 	[SessionConfigKey.Permissions]: platformSessionSchema.definition[SessionConfigKey.Permissions],
 });
 
@@ -184,6 +222,9 @@ interface ICodexSessionConfigDefaults {
 	readonly [CodexSessionConfigKey.ModelReasoningEffort]: ReasoningEffort;
 	readonly [CodexSessionConfigKey.AdditionalDirectories]: string[];
 	readonly [CodexSessionConfigKey.NetworkAccessEnabled]: boolean;
+	readonly [SessionConfigKey.Mode]: SessionMode;
+	readonly [CodexSessionConfigKey.Personality]: Personality;
+	readonly [CodexSessionConfigKey.ReasoningSummary]: ReasoningSummary;
 }
 
 const codexSessionConfigDefaults: ICodexSessionConfigDefaults = {
@@ -193,6 +234,9 @@ const codexSessionConfigDefaults: ICodexSessionConfigDefaults = {
 	[CodexSessionConfigKey.ModelReasoningEffort]: 'medium',
 	[CodexSessionConfigKey.AdditionalDirectories]: [],
 	[CodexSessionConfigKey.NetworkAccessEnabled]: false,
+	[SessionConfigKey.Mode]: 'interactive',
+	[CodexSessionConfigKey.Personality]: 'none',
+	[CodexSessionConfigKey.ReasoningSummary]: 'auto',
 };
 
 const CodexPrewarmTtlMs = 60_000;
@@ -566,15 +610,31 @@ export class CodexAgent extends Disposable implements IAgent {
 		};
 	}
 
-	private _turnStartOptions(session: ICodexSession): Pick<TurnStartParams, 'approvalPolicy' | 'sandboxPolicy' | 'effort' | 'runtimeWorkspaceRoots'> {
+	private _turnStartOptions(session: ICodexSession, modelId: string): Pick<TurnStartParams, 'approvalPolicy' | 'sandboxPolicy' | 'effort' | 'runtimeWorkspaceRoots' | 'personality' | 'summary' | 'collaborationMode'> {
 		const config = this._readSessionConfig(session);
 		const approvalPolicy = narrowApprovalPolicy(config[CodexSessionConfigKey.ApprovalPolicy]) ?? codexSessionConfigDefaults[CodexSessionConfigKey.ApprovalPolicy];
 		const sandboxPolicy = this._sandboxPolicy(session, config);
 		const runtimeWorkspaceRoots = sandboxPolicy.type === 'workspaceWrite' ? sandboxPolicy.writableRoots : undefined;
+		const effort = this._getReasoningEffort(session);
+		const personality = narrowPersonality(config[CodexSessionConfigKey.Personality]) ?? codexSessionConfigDefaults[CodexSessionConfigKey.Personality];
+		const summary = narrowReasoningSummary(config[CodexSessionConfigKey.ReasoningSummary]) ?? codexSessionConfigDefaults[CodexSessionConfigKey.ReasoningSummary];
+		// Map the platform-generic Agent Mode to codex's native collaboration
+		// mode. Always send it (even for `default`) so switching Plan → Interactive
+		// resets the sticky thread mode. `collaborationMode.settings` carries the
+		// model + effort because codex treats it as authoritative over the
+		// top-level fields when a collaboration mode is set.
+		const mode = collaborationModeKind(config[SessionConfigKey.Mode]);
+		const collaborationMode: TurnStartParams['collaborationMode'] = {
+			mode,
+			settings: { model: modelId, reasoning_effort: effort ?? null, developer_instructions: null },
+		};
 		return {
 			approvalPolicy,
 			sandboxPolicy,
-			effort: this._getReasoningEffort(session),
+			effort,
+			personality,
+			summary,
+			collaborationMode,
 			...(runtimeWorkspaceRoots ? { runtimeWorkspaceRoots } : {}),
 		};
 	}
@@ -1538,8 +1598,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		session.lastPromptText = prompt;
 		session.currentTurnId = effectiveTurnId;
 		try {
-			const turnOptions = this._turnStartOptions(session);
 			const model = await this._resolveModel(session);
+			const turnOptions = this._turnStartOptions(session, model.id);
 			await conn.client.request<'turn/start'>('turn/start', {
 				threadId,
 				input: input.slice(),
@@ -1971,9 +2031,12 @@ export class CodexAgent extends Disposable implements IAgent {
 			? codexWorkspaceWriteSessionConfigSchema.toProtocol()
 			: codexVisibleSessionConfigSchema.toProtocol();
 		const resolvedValues: Record<string, unknown> = {
+			[SessionConfigKey.Mode]: values[SessionConfigKey.Mode],
 			[CodexSessionConfigKey.ApprovalPolicy]: values[CodexSessionConfigKey.ApprovalPolicy],
 			[CodexSessionConfigKey.SandboxMode]: values[CodexSessionConfigKey.SandboxMode],
 			[CodexSessionConfigKey.WebSearchMode]: values[CodexSessionConfigKey.WebSearchMode],
+			[CodexSessionConfigKey.Personality]: values[CodexSessionConfigKey.Personality],
+			[CodexSessionConfigKey.ReasoningSummary]: values[CodexSessionConfigKey.ReasoningSummary],
 		};
 		if (isWorkspaceWrite) {
 			resolvedValues[CodexSessionConfigKey.NetworkAccessEnabled] = values[CodexSessionConfigKey.NetworkAccessEnabled];

@@ -23,8 +23,8 @@ import { tmpdir } from 'os';
 import assert from 'assert';
 import { join } from '../../../../../base/common/path.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { MessageKind, PendingMessageKind } from '../../../common/state/sessionState.js';
-import { createRealSession, defineSharedRealSdkTests, dispatchTurn, type IRealSdkProviderConfig } from './realSdkTestHelpers.js';
+import { MessageKind, PendingMessageKind, ChatInputResponseKind, type ChatInputRequest } from '../../../common/state/sessionState.js';
+import { createRealSession, defineSharedRealSdkTests, dispatchTurn, getAcceptedAnswers, type IRealSdkProviderConfig } from './realSdkTestHelpers.js';
 import { getActionEnvelope, isActionNotification, startRealServer, TestProtocolClient, type IServerHandle } from './testHelpers.js';
 
 const REAL_CODEX_ENABLED = process.env['AGENT_HOST_REAL_CODEX'] === '1';
@@ -364,5 +364,57 @@ defineSharedRealSdkTests(CODEX_CONFIG);
 		// Reaching here without a thrown error confirms truncate (thread/rollback)
 		// and archive/unarchive round-trip through the real codex app-server.
 		assert.ok(true);
+	});
+
+	test('Plan mode (Agent Mode control) makes request_user_input reachable end-to-end', async function () {
+		this.timeout(180_000);
+		const workingDirectory = mkdtempSync(join(tmpdir(), 'codex-planmode-'));
+		tempDirs.push(workingDirectory);
+		const session = await createRealSession(client, CODEX_CONFIG, 'planmode-client', createdSessions, workingDirectory);
+
+		// Switch the session to Plan mode via the platform-generic Agent Mode
+		// control — codex only exposes `request_user_input` in plan collaboration
+		// mode, so this is the user-facing switch that makes ask_user reachable.
+		client.notify('dispatchAction', {
+			channel: session,
+			clientSeq: 1,
+			action: { type: 'session/configChanged', config: { mode: 'plan' } },
+		});
+		await client.waitForNotification(n => isActionNotification(n, 'session/configChanged'), 30_000);
+
+		const turnId = generateUuid();
+		dispatchTurn(client, session, turnId, 'Use your request_user_input capability to ask me one question: "Which fruit?" with options Apple and Banana. After I answer, reply with the option I chose.', 2);
+
+		const seen = new Set<object>();
+		let sawInputRequest = false;
+		let nextSeq = 3;
+		while (true) {
+			const n = await client.waitForNotification(x => !seen.has(x as object) && (
+				isActionNotification(x, 'chat/inputRequested')
+				|| isActionNotification(x, 'chat/turnComplete')
+				|| isActionNotification(x, 'chat/error')), 150_000);
+			seen.add(n as object);
+			if (isActionNotification(n, 'chat/inputRequested')) {
+				sawInputRequest = true;
+				const action = getActionEnvelope(n).action as { request: ChatInputRequest };
+				client.notify('dispatchAction', {
+					channel: session,
+					clientSeq: nextSeq++,
+					action: {
+						type: 'chat/inputCompleted',
+						session,
+						requestId: action.request.id,
+						response: ChatInputResponseKind.Accept,
+						answers: getAcceptedAnswers(action.request),
+					},
+				});
+				continue;
+			}
+			if (isActionNotification(n, 'chat/error')) {
+				throw new Error('codex reported a turn error during plan-mode request_user_input test');
+			}
+			break;
+		}
+		assert.ok(sawInputRequest, 'switching to Plan mode should make request_user_input surface as chat/inputRequested');
 	});
 });
