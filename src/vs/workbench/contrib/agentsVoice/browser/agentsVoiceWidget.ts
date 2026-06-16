@@ -469,6 +469,7 @@ export class AgentsVoiceWidget extends Disposable {
 						doneCount: this._doneCount.read(reader),
 						showCounters: opts.showStatusCounters,
 						speakingSessionLabel: this._speakingSessionLabel.read(reader),
+						speakingSessionResource: this._speakingSession.read(reader),
 						pendingToolConfirmations: this._pendingToolConfirmations.read(reader),
 						onOpenSession: (r) => this.callbacks.openSession(r),
 					});
