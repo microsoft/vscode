@@ -14,7 +14,7 @@
  *     rename, color picker, ...).
  *   - Inner radius (6px): non-control containers that sit within the UI
  *     (notification center surfaces, sticky scroll, ...).
- *   - Controls (4px): all interactible UI controls (text inputs, selects,
+ *   - Controls (4px): all interactable UI controls (text inputs, selects,
  *     list/tree rows, ...).
  *
  * All rules are gated behind the `.style-override-roundedCorners` class, which
