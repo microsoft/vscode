@@ -141,7 +141,7 @@ import '../workbench/services/dataChannel/browser/dataChannelService.js';
 import '../workbench/services/inlineCompletions/common/inlineCompletionsUnification.js';
 import '../workbench/services/chat/common/chatEntitlementService.js';
 import '../workbench/services/log/common/defaultLogLevels.js';
-import '../workbench/services/agentHost/common/agentHostPermissionService.js';
+import '../workbench/services/agentHost/common/agentHostResourceService.js';
 import './services/agentHost/browser/agentHostCustomizationService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
@@ -447,7 +447,8 @@ import '../workbench/contrib/opener/browser/opener.contribution.js';
 
 import './browser/paneCompositePartService.js';
 import './browser/parts/editorParts.js';
-import './browser/parts/sessionsPartService.js';
+import './browser/parts/sessionsParts.js';
+import './services/sessions/browser/sessionsService.js';
 import './browser/parts/menubar.contribution.js';
 import './browser/layoutActions.js';
 
@@ -460,7 +461,7 @@ import './contrib/chat/browser/customizationsDebugLog.contribution.js';
 import './contrib/providers/copilotChatSessions/browser/copilotChatSessions.contribution.js';
 import './contrib/providers/localChatSessions/browser/localChatSessions.contribution.js';
 import './contrib/sessions/browser/sessions.contribution.js';
-import './contrib/sessions/browser/views/sessionsListModelService.js';
+import './services/sessions/browser/sessionsListModelService.js';
 import './services/agentHostFilter/browser/agentHostFilterService.js';
 import './contrib/sessions/browser/customizationsToolbar.contribution.js';
 import './contrib/changes/browser/changes.contribution.js';

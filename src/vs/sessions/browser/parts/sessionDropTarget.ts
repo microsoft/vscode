@@ -15,6 +15,7 @@ import { IThemeService, Themable } from '../../../platform/theme/common/themeSer
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../workbench/common/theme.js';
 import { DraggedSessionIdentifier } from '../dnd.js';
 import { ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
 
 /** Side of a target view where a dragged session can be dropped. */
 type DropSide = 'left' | 'right';
@@ -48,6 +49,7 @@ class SessionDropOverlay extends Themable {
 		private readonly _targetElement: HTMLElement,
 		@IThemeService themeService: IThemeService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
 	) {
 		super(themeService);
 
@@ -143,7 +145,7 @@ class SessionDropOverlay extends Themable {
 			return;
 		}
 
-		this._sessionsManagementService.insertAt(session, this.targetSessionId, side);
+		this._sessionsService.insertAt(session, this.targetSessionId, side);
 	}
 
 	private _positionOverlay(mousePosX: number): void {

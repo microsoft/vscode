@@ -77,9 +77,9 @@ async function copyCopilotCliWorkerFiles() {
 	await copyCopilotCLIFolders(sourceDir, targetDir);
 }
 
-async function copyCopilotCliSharpFiles() {
-	const sourceDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'sharp');
-	const targetDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'sdk', 'sharp');
+async function copyCopilotCliTGrepFiles() {
+	const sourceDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'tgrep');
+	const targetDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'sdk', 'tgrep');
 
 	await copyCopilotCLIFolders(sourceDir, targetDir);
 }
@@ -120,6 +120,7 @@ async function copyCopilotCliPrebuildFiles() {
 					}
 					return src.endsWith('computer.node')
 						|| src.endsWith('runtime.node')
+						|| src.endsWith('cli-native.node')
 						// node-pty natives: pty.node (+ spawn-helper) on Unix,
 						// conpty.node and its companions on Windows. `endsWith('pty.node')`
 						// also matches `conpty.node`. The conpty native additionally needs
@@ -192,9 +193,9 @@ async function main() {
 
 	await removeCopilotCLIShim();
 	await copyCopilotCliWorkerFiles();
-	await copyCopilotCliSharpFiles();
 	await copyCopilotCliDefinitionFiles();
 	await copyCopilotCliSkillsFiles();
+	await copyCopilotCliTGrepFiles();
 	await copyCopilotCliQueryFiles();
 	await copyCopilotCliPrebuildFiles();
 

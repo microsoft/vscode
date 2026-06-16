@@ -37,18 +37,23 @@ import { ToolBar } from '../../../../../base/browser/ui/toolbar/toolbar.js';
 import { preferencesClearInputIcon } from '../../../preferences/browser/preferencesIcons.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IEditorProgressService } from '../../../../../platform/progress/common/progress.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { CONTEXT_MODELS_SEARCH_FOCUS } from '../../common/constants.js';
+import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
+import { LANGUAGE_MODEL_CHAT_PROVIDER_EXTENSION_TAG } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import Severity from '../../../../../base/common/severity.js';
 import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
-import { formatTokenCount } from '../widget/input/chatModelPicker.js';
+import { formatTokenCount } from '../../../../../base/common/numbers.js';
 
 const $ = DOM.$;
 
 const HEADER_HEIGHT = 30;
 const VENDOR_ROW_HEIGHT = 30;
 const MODEL_ROW_HEIGHT = 26;
+const CLOSE_MODAL_EDITOR_COMMAND_ID = 'workbench.action.closeModalEditor';
 
 export function getModelHoverContent(model: ILanguageModel): MarkdownString {
 	const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
@@ -81,16 +86,16 @@ export function getModelHoverContent(model: ILanguageModel): MarkdownString {
 				: localize('models.inputCost.plural', 'Input Cost: {0} credits per 1M tokens', model.metadata.inputCost));
 			markdown.appendText(`\n`);
 		}
-		if (model.metadata.outputCost !== undefined) {
-			markdown.appendMarkdown(model.metadata.outputCost === 1
-				? localize('models.outputCost.singular', 'Output Cost: {0} credit per 1M tokens', model.metadata.outputCost)
-				: localize('models.outputCost.plural', 'Output Cost: {0} credits per 1M tokens', model.metadata.outputCost));
-			markdown.appendText(`\n`);
-		}
 		if (model.metadata.cacheCost !== undefined) {
 			markdown.appendMarkdown(model.metadata.cacheCost === 1
 				? localize('models.cacheCost.singular', 'Cache Cost: {0} credit per 1M tokens', model.metadata.cacheCost)
 				: localize('models.cacheCost.plural', 'Cache Cost: {0} credits per 1M tokens', model.metadata.cacheCost));
+			markdown.appendText(`\n`);
+		}
+		if (model.metadata.outputCost !== undefined) {
+			markdown.appendMarkdown(model.metadata.outputCost === 1
+				? localize('models.outputCost.singular', 'Output Cost: {0} credit per 1M tokens', model.metadata.outputCost)
+				: localize('models.outputCost.plural', 'Output Cost: {0} credits per 1M tokens', model.metadata.outputCost));
 			markdown.appendText(`\n`);
 		}
 
@@ -104,16 +109,16 @@ export function getModelHoverContent(model: ILanguageModel): MarkdownString {
 					: localize('models.longContextInputCost.plural', 'Input Cost: {0} credits per 1M tokens', model.metadata.longContextInputCost));
 				markdown.appendText(`\n`);
 			}
-			if (model.metadata.longContextOutputCost !== undefined) {
-				markdown.appendMarkdown(model.metadata.longContextOutputCost === 1
-					? localize('models.longContextOutputCost.singular', 'Output Cost: {0} credit per 1M tokens', model.metadata.longContextOutputCost)
-					: localize('models.longContextOutputCost.plural', 'Output Cost: {0} credits per 1M tokens', model.metadata.longContextOutputCost));
-				markdown.appendText(`\n`);
-			}
 			if (model.metadata.longContextCacheCost !== undefined) {
 				markdown.appendMarkdown(model.metadata.longContextCacheCost === 1
 					? localize('models.longContextCacheCost.singular', 'Cache Cost: {0} credit per 1M tokens', model.metadata.longContextCacheCost)
 					: localize('models.longContextCacheCost.plural', 'Cache Cost: {0} credits per 1M tokens', model.metadata.longContextCacheCost));
+				markdown.appendText(`\n`);
+			}
+			if (model.metadata.longContextOutputCost !== undefined) {
+				markdown.appendMarkdown(model.metadata.longContextOutputCost === 1
+					? localize('models.longContextOutputCost.singular', 'Output Cost: {0} credit per 1M tokens', model.metadata.longContextOutputCost)
+					: localize('models.longContextOutputCost.plural', 'Output Cost: {0} credits per 1M tokens', model.metadata.longContextOutputCost));
 				markdown.appendText(`\n`);
 			}
 		}
@@ -144,6 +149,52 @@ export function getModelHoverContent(model: ILanguageModel): MarkdownString {
 	}
 
 	return markdown;
+}
+
+/**
+ * Pure helper for building the dropdown actions shown by the **Add Models** button.
+ *
+ * Exposed for unit testing. When `supportsAddingModels` is false, no actions are returned
+ * regardless of the other inputs so that the existing entitlement/managed-by-organization
+ * restriction is preserved.
+ */
+export function buildAddModelsDropdownActions(
+	configurableVendors: ILanguageModelProviderDescriptor[],
+	supportsAddingModels: boolean,
+	runVendorAction: (vendor: ILanguageModelProviderDescriptor) => void | Promise<void>,
+): IAction[] {
+	if (!supportsAddingModels) {
+		return [];
+	}
+
+	// Sort vendors alphabetically by displayName, but pin "OpenAI Compatible (Deprecated)" (customoai)
+	// at the end of the sorted list and "Custom Endpoint" (customendpoint) after a separator at the very end.
+	const customEndpointVendor = configurableVendors.find(v => v.vendor === 'customendpoint');
+	const customOaiVendor = configurableVendors.find(v => v.vendor === 'customoai');
+	const sortedVendors = configurableVendors
+		.filter(v => v.vendor !== 'customendpoint' && v.vendor !== 'customoai')
+		.sort((a, b) => a.displayName.localeCompare(b.displayName));
+	if (customOaiVendor) {
+		sortedVendors.push(customOaiVendor);
+	}
+
+	const toVendorAction = (vendor: ILanguageModelProviderDescriptor) => toAction({
+		id: `enable-${vendor.vendor}`,
+		label: vendor.displayName,
+		run: async () => {
+			await runVendorAction(vendor);
+		}
+	});
+
+	const actions: IAction[] = sortedVendors.map(toVendorAction);
+	if (customEndpointVendor) {
+		if (actions.length > 0) {
+			actions.push(new Separator());
+		}
+		actions.push(toVendorAction(customEndpointVendor));
+	}
+
+	return actions;
 }
 
 class ModelsFilterAction extends Action {
@@ -557,8 +608,8 @@ class CombinedCostColumnRenderer extends ModelsTableColumnRenderer<ICombinedCost
 		const elementDisposables = new DisposableStore();
 		const grid = DOM.append(container, $('.model-cost-grid'));
 		const inputCell = DOM.append(grid, $('span.model-cost-cell'));
-		const outputCell = DOM.append(grid, $('span.model-cost-cell'));
 		const cacheCell = DOM.append(grid, $('span.model-cost-cell'));
+		const outputCell = DOM.append(grid, $('span.model-cost-cell'));
 		return {
 			container,
 			inputCell,
@@ -571,8 +622,8 @@ class CombinedCostColumnRenderer extends ModelsTableColumnRenderer<ICombinedCost
 
 	override renderElement(entry: IViewModelEntry, index: number, templateData: ICombinedCostColumnTemplateData): void {
 		templateData.inputCell.textContent = '';
-		templateData.outputCell.textContent = '';
 		templateData.cacheCell.textContent = '';
+		templateData.outputCell.textContent = '';
 		super.renderElement(entry, index, templateData);
 	}
 
@@ -588,8 +639,8 @@ class CombinedCostColumnRenderer extends ModelsTableColumnRenderer<ICombinedCost
 
 		if (hasCost) {
 			templateData.inputCell.textContent = inputCost !== undefined ? localize('cost.input', "In: {0}", inputCost) : '';
-			templateData.outputCell.textContent = outputCost !== undefined ? localize('cost.output', "Out: {0}", outputCost) : '';
 			templateData.cacheCell.textContent = cacheCost !== undefined ? localize('cost.cache', "Cache: {0}", cacheCost) : '';
+			templateData.outputCell.textContent = outputCost !== undefined ? localize('cost.output', "Out: {0}", outputCost) : '';
 
 			const parts: string[] = [];
 			if (inputCost !== undefined) {
@@ -597,15 +648,15 @@ class CombinedCostColumnRenderer extends ModelsTableColumnRenderer<ICombinedCost
 					? localize('cost.inputHover.singular', "Input: {0} credit per 1M tokens", inputCost)
 					: localize('cost.inputHover.plural', "Input: {0} credits per 1M tokens", inputCost));
 			}
-			if (outputCost !== undefined) {
-				parts.push(outputCost === 1
-					? localize('cost.outputHover.singular', "Output: {0} credit per 1M tokens", outputCost)
-					: localize('cost.outputHover.plural', "Output: {0} credits per 1M tokens", outputCost));
-			}
 			if (cacheCost !== undefined) {
 				parts.push(cacheCost === 1
 					? localize('cost.cacheHover.singular', "Cache: {0} credit per 1M tokens", cacheCost)
 					: localize('cost.cacheHover.plural', "Cache: {0} credits per 1M tokens", cacheCost));
+			}
+			if (outputCost !== undefined) {
+				parts.push(outputCost === 1
+					? localize('cost.outputHover.singular', "Output: {0} credit per 1M tokens", outputCost)
+					: localize('cost.outputHover.plural', "Output: {0} credits per 1M tokens", outputCost));
 			}
 			templateData.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(templateData.container, () => ({
 				content: parts.join('\n'),
@@ -1016,8 +1067,11 @@ export class ChatModelsWidget extends Disposable {
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 
@@ -1123,8 +1177,9 @@ export class ChatModelsWidget extends Disposable {
 			...defaultButtonStyles,
 			supportIcons: true,
 		};
+
 		this.addButton = this._register(new Button(this.addButtonContainer, buttonOptions));
-		this.addButton.label = `$(${Codicon.add.id}) ${localize('models.enableModelProvider', 'Add Models...')}`;
+		this.addButton.label = `$(${Codicon.add.id}) ${localize('models.enableModelProvider', 'Add Models')}`;
 		this.addButton.element.classList.add('models-add-model-button');
 		this.updateAddModelsButton();
 		this._register(this.addButton.onDidClick((e) => {
@@ -1135,6 +1190,18 @@ export class ChatModelsWidget extends Disposable {
 				});
 			}
 		}));
+
+		// The marketplace button is hidden in the Agents window where installing
+		// model provider extensions is not supported.
+		if (!this.environmentService.isSessionsWindow) {
+			const browseMarketplaceButton = this._register(new Button(this.addButtonContainer, {
+				...buttonOptions,
+				secondary: true,
+			}));
+			browseMarketplaceButton.label = `$(${Codicon.extensions.id}) ${localize('models.installProviderExtensions', "Install Model Providers")}`;
+			browseMarketplaceButton.element.classList.add('models-browse-marketplace-button');
+			this._register(browseMarketplaceButton.onDidClick(() => this.openLanguageModelProviderExtensionsSearch()));
+		}
 
 		// Table container
 		this.tableContainer = DOM.append(container, $('.models-table-container'));
@@ -1295,15 +1362,15 @@ export class ChatModelsWidget extends Disposable {
 								? localize('inputCost.ariaLabel.singular', "Input cost: {0} credit per 1M tokens", e.model.metadata.inputCost)
 								: localize('inputCost.ariaLabel.plural', "Input cost: {0} credits per 1M tokens", e.model.metadata.inputCost));
 						}
-						if (e.model.metadata.outputCost !== undefined) {
-							ariaLabels.push(e.model.metadata.outputCost === 1
-								? localize('outputCost.ariaLabel.singular', "Output cost: {0} credit per 1M tokens", e.model.metadata.outputCost)
-								: localize('outputCost.ariaLabel.plural', "Output cost: {0} credits per 1M tokens", e.model.metadata.outputCost));
-						}
 						if (e.model.metadata.cacheCost !== undefined) {
 							ariaLabels.push(e.model.metadata.cacheCost === 1
 								? localize('cacheCost.ariaLabel.singular', "Cache cost: {0} credit per 1M tokens", e.model.metadata.cacheCost)
 								: localize('cacheCost.ariaLabel.plural', "Cache cost: {0} credits per 1M tokens", e.model.metadata.cacheCost));
+						}
+						if (e.model.metadata.outputCost !== undefined) {
+							ariaLabels.push(e.model.metadata.outputCost === 1
+								? localize('outputCost.ariaLabel.singular', "Output cost: {0} credit per 1M tokens", e.model.metadata.outputCost)
+								: localize('outputCost.ariaLabel.plural', "Output cost: {0} credits per 1M tokens", e.model.metadata.outputCost));
 						}
 						return ariaLabels.join('. ');
 					},
@@ -1477,35 +1544,24 @@ export class ChatModelsWidget extends Disposable {
 				&& entitlement !== ChatEntitlement.Available
 				&& !isManagedEntitlement);
 
-		this.addButton.enabled = supportsAddingModels && configurableVendors.length > 0;
+		this.dropdownActions = buildAddModelsDropdownActions(
+			configurableVendors,
+			supportsAddingModels,
+			vendor => this.addModelsForVendor(vendor),
+		);
+
+		this.addButton.enabled = supportsAddingModels && this.dropdownActions.length > 0;
 		this.addButton.setTitle(!supportsAddingModels && isManagedEntitlement ? localize('models.managedByOrganization', "Adding models is managed by your organization") : '');
+	}
 
-		// Sort vendors alphabetically by displayName, but pin "OpenAI Compatible (Deprecated)" (customoai)
-		// at the end of the sorted list and "Custom Endpoint" (customendpoint) after a separator at the very end.
-		const customEndpointVendor = configurableVendors.find(v => v.vendor === 'customendpoint');
-		const customOaiVendor = configurableVendors.find(v => v.vendor === 'customoai');
-		const sortedVendors = configurableVendors
-			.filter(v => v.vendor !== 'customendpoint' && v.vendor !== 'customoai')
-			.sort((a, b) => a.displayName.localeCompare(b.displayName));
-		if (customOaiVendor) {
-			sortedVendors.push(customOaiVendor);
+	private async openLanguageModelProviderExtensionsSearch(): Promise<void> {
+		const activeModalEditorPart = this.editorGroupsService.activeModalEditorPart;
+		const isInModalEditor = !!activeModalEditorPart && this.editorGroupsService.getPart(this.editorGroupsService.activeGroup) === activeModalEditorPart;
+		if (isInModalEditor) {
+			await this.commandService.executeCommand(CLOSE_MODAL_EDITOR_COMMAND_ID);
 		}
 
-		const toVendorAction = (vendor: ILanguageModelProviderDescriptor) => toAction({
-			id: `enable-${vendor.vendor}`,
-			label: vendor.displayName,
-			run: async () => {
-				await this.addModelsForVendor(vendor);
-			}
-		});
-
-		this.dropdownActions = sortedVendors.map(toVendorAction);
-		if (customEndpointVendor) {
-			if (this.dropdownActions.length > 0) {
-				this.dropdownActions.push(new Separator());
-			}
-			this.dropdownActions.push(toVendorAction(customEndpointVendor));
-		}
+		await this.extensionsWorkbenchService.openSearch(`tag:"${LANGUAGE_MODEL_CHAT_PROVIDER_EXTENSION_TAG}"`, false);
 	}
 
 	private filterModels(): void {

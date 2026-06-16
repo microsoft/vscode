@@ -350,8 +350,8 @@ export function getQuotaMessageForPlan(copilotPlan: string | undefined, isUsageB
 					: l10n.t(`You've reached your credit limit. To continue working, please contact your organization's Copilot admin or wait for your credits to reset.`);
 			default:
 				return resetDateString
-					? l10n.t(`You've reached your credit limit. To continue working, switch to Auto. For additional paid credits, please reach out to your organization's Copilot admin or wait until your credits reset on {0}.`, resetDateString)
-					: l10n.t(`You've reached your credit limit. To continue working, switch to Auto. For additional paid credits, please reach out to your organization's Copilot admin or wait for your credits to reset.`);
+					? l10n.t(`You've reached your credit limit. For additional paid credits, please reach out to your organization's Copilot admin or wait until your credits reset on {0}.`, resetDateString)
+					: l10n.t(`You've reached your credit limit. For additional paid credits, please reach out to your organization's Copilot admin or wait for your credits to reset.`);
 		}
 	}
 
@@ -367,7 +367,7 @@ export function getQuotaMessageForPlan(copilotPlan: string | undefined, isUsageB
 		case 'enterprise':
 			return l10n.t(`You've exhausted your credits. To continue working, please contact your organization's Copilot admin or wait for your allowance to renew.`);
 		default:
-			return l10n.t(`You've exhausted your premium model quota. To continue working, switch to Auto. For additional paid premium requests, please reach out to your organization's Copilot admin or wait for your allowance to renew.`);
+			return l10n.t(`You've exhausted your premium model quota. For additional paid premium requests, please reach out to your organization's Copilot admin or wait for your allowance to renew.`);
 	}
 }
 
@@ -387,7 +387,14 @@ function getQuotaHitMessage(fetchResult: ChatFetchError, copilotPlan: string | u
 			comment: [`{Locked=']({'}`]
 		});
 	} else if (fetchResult.capiError?.code === 'additional_spend_limit_reached') {
-		return l10n.t(`You've reached your additional usage limit for your plan. Upgrade your plan to keep going.`);
+		if (copilotPlan === 'business' || copilotPlan === 'enterprise') {
+			return l10n.t(`You've reached your additional usage limit for your plan. Please contact your admin.`);
+		}
+		return l10n.t({
+			message: `You've reached your additional usage limit for your plan. [Manage Budget]({0})`,
+			args: ['https://github.com/settings/copilot/features'],
+			comment: [`{Locked=']({'}`]
+		});
 	} else if (fetchResult.capiError?.code === 'billing_not_configured' && fetchResult.capiError?.message) {
 		return fetchResult.capiError.message;
 	} else if (fetchResult.capiError?.code && fetchResult.capiError?.message) {

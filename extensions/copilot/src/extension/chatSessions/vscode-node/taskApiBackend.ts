@@ -24,6 +24,7 @@ import { IAuthenticationService } from '../../../platform/authentication/common/
 import { ICAPIClientService } from '../../../platform/endpoint/common/capiClient';
 import { GithubRepoId } from '../../../platform/git/common/gitService';
 import { SessionInfo } from '../../../platform/github/common/githubAPI';
+import { IOctoKitService } from '../../../platform/github/common/githubService';
 import { ILogService } from '../../../platform/log/common/logService';
 import {
 	ITaskApiClient,
@@ -66,8 +67,8 @@ function findPullArtifact(task: AgentTask): (AgentTaskArtifact & { data: AgentTa
 	return task.artifacts?.find(
 		(a): a is AgentTaskArtifact & { data: AgentTaskGitHubResourceData } =>
 			a.provider === 'github'
-			&& a.type === 'pull'
-			&& typeof (a.data as AgentTaskGitHubResourceData).id === 'number',
+			&& a.type === 'github_resource'
+			&& (a.data as AgentTaskGitHubResourceData).type === 'pull',
 	);
 }
 
@@ -109,9 +110,11 @@ function taskToSessionInfo(task: AgentTask): SessionInfo {
  * Parse `task.html_url` (e.g. `https://github.com/<owner>/<repo>/agents/tasks/<id>`) to
  * recover the repo identity. The Task API wire shape only carries `task.repository.id`, so
  * when the caller doesn't already know the repo (e.g. the global `listTasks` path) this is
- * how we keep `PullArtifactRef.repo.owner/name` populated for resolver fallbacks.
+ * how we keep `PullArtifactRef.repo.owner/name` populated for resolver fallbacks. Also
+ * exported so the provider can derive `{owner, repo}` for the "Create pull request"
+ * toolbar action on PR-less tasks.
  */
-function parseRepoFromTaskUrl(htmlUrl: string | undefined): { owner: string; name: string } | undefined {
+export function parseRepoFromTaskUrl(htmlUrl: string | undefined): { owner: string; name: string } | undefined {
 	if (!htmlUrl) {
 		return undefined;
 	}
@@ -155,6 +158,33 @@ function taskToPullArtifactRef(
 }
 
 /**
+ * Branch-comparison refs for a settled, PR-less task that pushed a branch. Returns undefined
+ * for in-progress/queued tasks, tasks that already have a pull artifact (changes come from the
+ * PR), tasks without a branch artifact, or when the repo identity can't be resolved. The
+ * provider uses these to fetch the changed files for the session's changed-files toolbar.
+ */
+function taskToDiffRefs(
+	task: AgentTask,
+	repoIdentity: { owner: string; name: string } | undefined,
+): { owner: string; repo: string; baseRef: string; headRef: string } | undefined {
+	if (task.state === 'queued' || task.state === 'in_progress') {
+		return undefined;
+	}
+	if (findPullArtifact(task)) {
+		return undefined;
+	}
+	const branch = findBranchArtifact(task);
+	if (!branch) {
+		return undefined;
+	}
+	const repo = repoIdentity ?? parseRepoFromTaskUrl(task.html_url);
+	if (!repo) {
+		return undefined;
+	}
+	return { owner: repo.owner, repo: repo.name, baseRef: branch.data.base_ref, headRef: branch.data.head_ref };
+}
+
+/**
  * Cloud agent backend backed by Mission Control's Task API (v2). Selected via the
  * `github.copilot.chat.cloudAgentBackend.version` setting set to `v2`. HTTP requests
  * route through {@link TaskApiHttpClient} below, which uses `ICAPIClientService` for
@@ -167,6 +197,7 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 	constructor(
 		private readonly _taskApiClient: ITaskApiClient,
 		private readonly _logService: ILogService,
+		private readonly _octoKitService: IOctoKitService,
 	) { }
 
 	parseSessionId(resource: vscode.Uri): CloudSessionIdentity | undefined {
@@ -189,7 +220,11 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 			event_content: params.prompt,
 			problem_statement: params.problemStatement,
 			base_ref: params.baseRef,
-			create_pull_request: true,
+			// v2 default: don't auto-create a PR. The provider surfaces a "Create pull
+			// request" toolbar action in the chat input when the task completes without an
+			// attached pull artifact, so the user can opt in. See
+			// `CopilotCloudSessionsProvider.handleCreatePullRequestForTaskCommand`.
+			create_pull_request: false,
 			event_type: 'visual_studio_code_remote_agent_tool_invoked',
 			...(params.headRef && { head_ref: params.headRef }),
 			...(params.customAgent && { custom_agent: params.customAgent }),
@@ -245,6 +280,7 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 			.map(({ task, repo }): CloudSessionData => ({
 				latestSession: taskToSessionInfo(task),
 				pullArtifact: taskToPullArtifactRef(task, repo),
+				diffRefs: taskToDiffRefs(task, repo),
 			}));
 	}
 
@@ -332,6 +368,35 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 			this._logService.warn(`Failed to find task for ${owner}/${repo}#${prNumber}: ${e}`);
 			return undefined;
 		}
+	}
+
+	async createPullRequestForTask(task: AgentTaskGetResponse): Promise<AgentTaskCreatePullRequestResponse> {
+		const repo = await this._resolveRepoForTask(task);
+		if (!repo) {
+			throw new Error(l10n.t('Unable to determine the repository for this task.'));
+		}
+		return this._taskApiClient.createPRForTask(repo.owner, repo.name, task.id);
+	}
+
+	/**
+	 * Resolve `{owner, name}` for a task. Primary source is the task's `html_url`; when that is
+	 * absent the Task API only exposes the numeric `repository.id`, which we resolve to a
+	 * name-with-owner via the GitHub REST repositories-by-id endpoint.
+	 */
+	private async _resolveRepoForTask(task: AgentTaskGetResponse): Promise<{ owner: string; name: string } | undefined> {
+		const fromUrl = parseRepoFromTaskUrl(task.html_url);
+		if (fromUrl) {
+			return fromUrl;
+		}
+		const repoId = (task.repository as { id?: number } | undefined)?.id;
+		if (typeof repoId === 'number') {
+			const resolved = await this._octoKitService.getRepositoryById(repoId, { createIfNone: { detail: l10n.t('Sign in to GitHub to create a pull request.') } });
+			if (resolved) {
+				return resolved;
+			}
+			this._logService.warn(`Could not resolve repository ${repoId} for task ${task.id}.`);
+		}
+		return undefined;
 	}
 }
 

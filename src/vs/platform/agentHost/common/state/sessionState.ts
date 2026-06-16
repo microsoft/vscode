@@ -13,13 +13,21 @@
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { URI as ResourceURI } from '../../../../base/common/uri.js';
+import type { IProductService } from '../../../product/common/productService.js';
 import {
 	SessionLifecycle,
 	TerminalState,
 	ToolResultContentType,
 	ToolResultFileEditContent,
+	ChatOriginKind,
 	type ActiveTurn,
 	type ChangesetState,
+	type ChatState,
+	type ChatSummary,
+	type ChatInputRequest,
+	type PendingMessage,
+	type Turn,
+	type AnnotationsState,
 	type URI as ProtocolURI,
 	type RootState,
 	type SessionState,
@@ -37,30 +45,31 @@ import {
 
 // Re-export everything from the protocol state module
 export {
-	ChangesetOperationScope, ChangesetStatus, CustomizationLoadStatus,
+	ChangesetOperationScope, ChangesetOperationStatus, ChangesetStatus, CustomizationLoadStatus,
 	CustomizationType, MessageAttachmentKind, MessageKind,
 	PendingMessageKind,
 	PolicyState,
 	ResponsePartKind,
-	SessionInputAnswerState,
-	SessionInputAnswerValueKind,
-	SessionInputQuestionKind,
-	SessionInputResponseKind,
+	ChatInputAnswerState as SessionInputAnswerState,
+	ChatInputAnswerValueKind as SessionInputAnswerValueKind,
+	ChatInputQuestionKind as SessionInputQuestionKind,
+	ChatInputResponseKind as SessionInputResponseKind,
+	ChatOriginKind,
 	SessionLifecycle,
-	SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus,
+	SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus,
 	ToolResultContentType,
-	TurnState, type ActiveTurn, type AgentCustomization, type AgentInfo, type AgentSelection, type ChangesetFile,
-	type ChangesetOperation, type ChangesetState, type ChangesetSummary, type ChildCustomization, type ClientPluginCustomization, type ConfigPropertySchema,
+	TurnState, type ActiveTurn, type AgentCustomization, type AgentInfo, type AgentSelection, type Annotation, type AnnotationEntry, type AnnotationsState, type AnnotationsSummary, type Changeset, type ChangesetFile,
+	type ChangesetOperation, type ChangesetState, type ChatState, type ChatSummary, type ChatInteractivity, type ChatOrigin, type ChildCustomization, type ClientPluginCustomization, type ConfigPropertySchema,
 	type ConfigSchema,
 	type ContentRef, type Customization, type CustomizationDegradedState,
 	type CustomizationErrorState, type CustomizationLoadedState, type CustomizationLoadingState, type CustomizationLoadState, type DirectoryCustomization, type ErrorInfo, type HookCustomization, type FileEdit as ISessionFileDiff, type ToolResultEmbeddedResourceContent as IToolResultBinaryContent, type MarkdownResponsePart, type McpServerCustomization, type MessageAttachment,
 	type MessageResourceAttachment, type ModelSelection, type PendingMessage, type PluginCustomization, type ProjectInfo, type PromptCustomization, type ReasoningResponsePart,
 	type ResponsePart,
 	type RootState, type RuleCustomization, type SessionActiveClient,
-	type SessionConfigState, type SessionInputAnswer,
-	type SessionInputOption, type SessionInputQuestion, type SessionInputRequest, type SessionModelInfo,
+	type SessionConfigState, type ChatInputAnswer as SessionInputAnswer,
+	type ChatInputOption as SessionInputOption, type ChatInputQuestion as SessionInputQuestion, type ChatInputRequest as SessionInputRequest, type SessionModelInfo,
 	type SessionState,
-	type SessionSummary, type SkillCustomization, type Snapshot, type StringOrMarkdown, type TerminalState,
+	type SessionSummary, type SkillCustomization, type Snapshot, type StringOrMarkdown, type TerminalState, type TextRange,
 	type ToolAnnotations,
 	type ToolCallCancelledState,
 	type ToolCallCompletedState,
@@ -71,6 +80,7 @@ export {
 	type ToolCallRunningState,
 	type ToolCallState,
 	type ToolCallStreamingState,
+	type ToolCallContributor,
 	type ToolDefinition, type ToolResultContent,
 	type ToolResultFileEditContent,
 	type ToolResultSubagentContent,
@@ -82,6 +92,21 @@ export {
 export {
 	ChangesetOperationTargetKind, type ChangesetOperationFollowUp, type ChangesetOperationTarget
 } from './protocol/commands.js';
+
+// Canonical chat-input type names (the protocol renamed the former
+// `SessionInput*` types to `ChatInput*` when input requests moved onto the
+// chat channel). Re-exported here so consumers can import them from the glue
+// layer alongside the legacy `SessionInput*` aliases above.
+export {
+	ChatInputAnswerState,
+	ChatInputAnswerValueKind,
+	ChatInputQuestionKind,
+	ChatInputResponseKind,
+	type ChatInputAnswer,
+	type ChatInputOption,
+	type ChatInputQuestion,
+	type ChatInputRequest,
+} from './protocol/state.js';
 
 // ---- File edit kind ---------------------------------------------------------
 
@@ -365,9 +390,75 @@ export function createSessionState(summary: SessionSummary): SessionState {
 	return {
 		summary,
 		lifecycle: SessionLifecycle.Creating,
+		chats: [],
+		defaultChat: undefined,
+	};
+}
+
+/**
+ * Creates an empty {@link ChatState} for a chat. The summary fields are
+ * denormalized onto the chat state per the protocol contract; callers pass
+ * the chat's catalog summary and this seeds an empty conversation.
+ */
+export function createChatState(summary: ChatSummary): ChatState {
+	return {
+		resource: summary.resource,
+		title: summary.title,
+		status: summary.status,
+		activity: summary.activity,
+		modifiedAt: summary.modifiedAt,
+		model: summary.model,
+		agent: summary.agent,
+		origin: summary.origin,
+		interactivity: summary.interactivity,
+		workingDirectory: summary.workingDirectory,
 		turns: [],
 		activeTurn: undefined,
 	};
+}
+
+/**
+ * Derives the default-chat {@link ChatSummary} for a session from its
+ * {@link SessionSummary}. The default chat inherits the session's title,
+ * status, activity, model, agent and working directory, and is marked as a
+ * {@link ChatOriginKind.User | user-originated} chat. `modifiedAt` is
+ * converted from the session's epoch-millis timestamp to the ISO-8601 string
+ * the chat protocol uses.
+ */
+export function createDefaultChatSummary(session: SessionSummary, chatUri: ProtocolURI): ChatSummary {
+	const summary: ChatSummary = {
+		resource: chatUri,
+		title: session.title,
+		status: session.status,
+		modifiedAt: new Date(session.modifiedAt).toISOString(),
+		origin: { kind: ChatOriginKind.User },
+	};
+	if (session.activity !== undefined) { summary.activity = session.activity; }
+	if (session.model !== undefined) { summary.model = session.model; }
+	if (session.agent !== undefined) { summary.agent = session.agent; }
+	if (session.workingDirectory !== undefined) { summary.workingDirectory = session.workingDirectory; }
+	return summary;
+}
+
+/**
+ * Derives a {@link ChatSummary} from a fully-populated {@link ChatState} by
+ * projecting out the denormalized summary fields. Used to keep the parent
+ * session's `chats` catalog in sync with a chat's denormalized state.
+ */
+export function chatSummaryFromState(state: ChatState): ChatSummary {
+	const summary: ChatSummary = {
+		resource: state.resource,
+		title: state.title,
+		status: state.status,
+		modifiedAt: state.modifiedAt,
+	};
+	if (state.activity !== undefined) { summary.activity = state.activity; }
+	if (state.model !== undefined) { summary.model = state.model; }
+	if (state.agent !== undefined) { summary.agent = state.agent; }
+	if (state.origin !== undefined) { summary.origin = state.origin; }
+	if (state.interactivity !== undefined) { summary.interactivity = state.interactivity; }
+	if (state.workingDirectory !== undefined) { summary.workingDirectory = state.workingDirectory; }
+	return summary;
 }
 
 export function createActiveTurn(id: string, message: Message): ActiveTurn {
@@ -382,16 +473,135 @@ export function createActiveTurn(id: string, message: Message): ActiveTurn {
 export const enum StateComponents {
 	Root,
 	Session,
+	Chat,
 	Terminal,
 	Changeset,
+	Annotations,
 }
 
 export type ComponentToState = {
 	[StateComponents.Root]: RootState;
 	[StateComponents.Session]: SessionState;
+	[StateComponents.Chat]: ChatState;
 	[StateComponents.Terminal]: TerminalState;
 	[StateComponents.Changeset]: ChangesetState;
+	[StateComponents.Annotations]: AnnotationsState;
 };
+
+// ---- Default chat URI helpers ----------------------------------------------
+
+/** Scheme used by chat channel URIs (`ahp-chat://...`). */
+export const AHP_CHAT_SCHEME = 'ahp-chat';
+
+/**
+ * Derives the deterministic default-chat channel URI for a session. While the
+ * protocol allows a session to contain many chats, VS Code currently models
+ * every session as having exactly one chat — its default chat — whose URI is
+ * derived from the owning session URI so producers and consumers can compute
+ * it without a lookup table.
+ *
+ * The session URI is encoded into the path so {@link parseDefaultChatUri} can
+ * recover it.
+ */
+export function buildDefaultChatUri(sessionUri: ProtocolURI | ResourceURI): string {
+	const session = typeof sessionUri === 'string' ? sessionUri : sessionUri.toString();
+	const encoded = encodeBase64(VSBuffer.fromString(session), false, true);
+	return `${AHP_CHAT_SCHEME}://default/${encoded}`;
+}
+
+/**
+ * Inverse of {@link buildDefaultChatUri}: recovers the owning session URI from
+ * a default-chat channel URI. Returns `undefined` when `uri` is not a
+ * well-formed default-chat URI.
+ */
+export function parseDefaultChatUri(uri: ProtocolURI | ResourceURI): string | undefined {
+	let parsed: ResourceURI;
+	try {
+		parsed = typeof uri === 'string' ? ResourceURI.parse(uri) : uri;
+	} catch {
+		return undefined;
+	}
+	if (parsed.scheme !== AHP_CHAT_SCHEME || parsed.authority !== 'default') {
+		return undefined;
+	}
+	const encoded = parsed.path.replace(/^\//, '');
+	if (!encoded) {
+		return undefined;
+	}
+	try {
+		return decodeBase64(encoded).toString();
+	} catch {
+		return undefined;
+	}
+}
+
+/** Returns `true` when `uri` identifies a chat channel. */
+export function isAhpChatChannel(uri: string): boolean {
+	try {
+		return ResourceURI.parse(uri).scheme === AHP_CHAT_SCHEME;
+	} catch {
+		return false;
+	}
+}
+
+// ---- Session + default-chat composite --------------------------------------
+
+/**
+ * A {@link SessionState} merged with the conversation contents of its default
+ * {@link ChatState}. The protocol moved turns and pending/input state off the
+ * session and onto a per-chat channel; VS Code recombines the session summary
+ * with its single default chat into this composite so consumers can read
+ * `turns`/`activeTurn`/pending state through one object as they did before
+ * multi-chat.
+ */
+export interface ISessionWithDefaultChat extends SessionState {
+	/** Completed turns of the default chat. */
+	turns: Turn[];
+	/** Currently in-progress turn of the default chat. */
+	activeTurn?: ActiveTurn;
+	/** Steering message pending on the default chat. */
+	steeringMessage?: PendingMessage;
+	/** Queued messages pending on the default chat. */
+	queuedMessages?: PendingMessage[];
+	/** Input requests outstanding on the default chat. */
+	inputRequests?: ChatInputRequest[];
+}
+
+/**
+ * Merges a {@link SessionState} with its default {@link ChatState} into an
+ * {@link ISessionWithDefaultChat}. When the chat state is absent (e.g. not yet
+ * hydrated) the conversation fields default to empty.
+ */
+export function mergeSessionWithDefaultChat(session: SessionState, chat: ChatState | undefined): ISessionWithDefaultChat {
+	return {
+		...session,
+		turns: chat?.turns ?? [],
+		activeTurn: chat?.activeTurn,
+		steeringMessage: chat?.steeringMessage,
+		queuedMessages: chat?.queuedMessages,
+		inputRequests: chat?.inputRequests,
+	};
+}
+
+/**
+ * Resolves the active turn of a session's default chat, if any.
+ */
+export function getActiveTurn(chat: ChatState | undefined): ActiveTurn | undefined {
+	return chat?.activeTurn;
+}
+
+/**
+ * Resolves the default chat's catalog summary from a session, if present.
+ */
+export function getDefaultChat(session: SessionState): ChatSummary | undefined {
+	if (session.defaultChat !== undefined) {
+		const match = session.chats.find(c => c.resource === session.defaultChat);
+		if (match) {
+			return match;
+		}
+	}
+	return session.chats[0];
+}
 
 // ---- SessionMeta accessors -------------------------------------------------
 
@@ -491,4 +701,104 @@ export function withSessionGitState(meta: SessionMeta | undefined, gitState: ISe
 		delete next[SESSION_META_GIT_KEY];
 	}
 	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+// ---- RootState _meta accessors ---------------------------------------------
+
+/**
+ * VS Code-side alias for the protocol's open `_meta` property bag on
+ * {@link RootState}. Keys SHOULD be namespaced to avoid collisions; values MUST
+ * be JSON-serializable.
+ */
+export type RootMeta = Record<string, unknown>;
+
+/**
+ * Reserved key under {@link RootMeta} for the well-known host-build payload.
+ * Value at this key, when present, MUST be shaped like {@link IHostBuildInfo}.
+ * This is a VS Code-specific convention layered on top of the protocol's
+ * generic `_meta` bag — the protocol itself does not know about build info.
+ */
+export const ROOT_META_HOST_BUILD_KEY = 'hostBuild';
+
+/**
+ * Build information about the program hosting the agent host (the VS Code CLI),
+ * carried under {@link RootMeta} at {@link ROOT_META_HOST_BUILD_KEY}. Lets a
+ * client see which build is hosting it — useful when inspecting the output of a
+ * remote agent host.
+ *
+ * All fields except {@link version} are optional — a build that does not track
+ * a particular field should omit it.
+ */
+export interface IHostBuildInfo {
+	/** Product version (e.g. `1.96.0`). */
+	readonly version: string;
+	/** Commit SHA of the build, if known. */
+	readonly commit?: string;
+	/** Build date (ISO 8601), if known. */
+	readonly date?: string;
+	/** Release quality (e.g. `stable`, `insider`), if known. */
+	readonly quality?: string;
+}
+
+/**
+ * Derives {@link IHostBuildInfo} from the host's {@link IProductService}.
+ */
+export function hostBuildInfoFromProduct(productService: IProductService): IHostBuildInfo {
+	return {
+		version: productService.version,
+		commit: productService.commit,
+		date: productService.date,
+		quality: productService.quality,
+	};
+}
+
+/**
+ * Reads the well-known host-build payload from {@link RootMeta}, if present.
+ * Returns `undefined` when the meta bag is absent or the value at the host-build
+ * key is not a plain object with a string `version`. Optional fields with wrong
+ * types are silently dropped.
+ */
+export function readHostBuildInfo(meta: RootMeta | undefined): IHostBuildInfo | undefined {
+	const value = meta?.[ROOT_META_HOST_BUILD_KEY];
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+	const raw = value as Record<string, unknown>;
+	if (typeof raw['version'] !== 'string') {
+		return undefined;
+	}
+	const result: { version: string; commit?: string; date?: string; quality?: string } = {
+		version: raw['version'],
+	};
+	if (typeof raw['commit'] === 'string') { result.commit = raw['commit']; }
+	if (typeof raw['date'] === 'string') { result.date = raw['date']; }
+	if (typeof raw['quality'] === 'string') { result.quality = raw['quality']; }
+	return result;
+}
+
+/**
+ * Returns a new {@link RootMeta} with the host-build payload set to
+ * `buildInfo`, or with the slot removed if `buildInfo` is `undefined`. Returns
+ * `undefined` if the result would be empty.
+ */
+export function withHostBuildInfo(meta: RootMeta | undefined, buildInfo: IHostBuildInfo | undefined): RootMeta | undefined {
+	const next: { [key: string]: unknown } = { ...meta };
+	if (buildInfo !== undefined) {
+		next[ROOT_META_HOST_BUILD_KEY] = buildInfo;
+	} else {
+		delete next[ROOT_META_HOST_BUILD_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/**
+ * Formats {@link IHostBuildInfo} as a short single-line human-readable string,
+ * e.g. `1.96.0 (commit abc1234, 2024-01-02T03:04:05Z, insider)`.
+ */
+export function formatHostBuildInfo(info: IHostBuildInfo): string {
+	const details: string[] = [];
+	if (info.commit) { details.push(`commit ${info.commit}`); }
+	if (info.date) { details.push(info.date); }
+	if (info.quality) { details.push(info.quality); }
+	return details.length > 0 ? `${info.version} (${details.join(', ')})` : info.version;
 }

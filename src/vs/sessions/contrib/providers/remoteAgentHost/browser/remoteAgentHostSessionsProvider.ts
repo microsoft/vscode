@@ -17,7 +17,7 @@ import { localize } from '../../../../../nls.js';
 import { agentHostUri } from '../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSession, type IAgentConnection, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
-import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, remoteAgentHostLogOutputChannelId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import type { ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -31,12 +31,13 @@ import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browse
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { IAgentHostConnectProgress } from '../../../../common/agentHostSessionsProvider.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
 import { IGitHubInfo, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { AgentHostSessionAdapter, BaseAgentHostSessionsProvider } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
-import { remoteAgentHostSessionTypeId } from '../common/remoteAgentHostSessionType.js';
+import { remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 
 /** Storage key prefix for cached session summaries, per remote address. */
 const CACHED_SESSIONS_STORAGE_PREFIX = 'remoteAgentHost.cachedSessions.';
@@ -107,6 +108,8 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly connectOnDemand?: () => Promise<void>;
 	/** Optional hook to tear down the active connection on demand (e.g. tunnel relay). */
 	readonly disconnectOnDemand?: () => Promise<void>;
+	/** Optional progress messages during on-demand connect. */
+	readonly onDidReportConnectProgress?: Event<IAgentHostConnectProgress>;
 }
 
 /**
@@ -135,6 +138,12 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	readonly icon: ThemeIcon = Codicon.remote;
 	readonly remoteAddress: string;
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
+	readonly canConnectOnDemand: boolean;
+	readonly onDidReportConnectProgress: Event<IAgentHostConnectProgress> | undefined;
+
+	protected override getLogOutputChannelId(): string | undefined {
+		return remoteAgentHostLogOutputChannelId(this.remoteAddress);
+	}
 
 	private readonly _connectionStatus = observableValue<RemoteAgentHostConnectionStatus>('connectionStatus', RemoteAgentHostConnectionStatus.disconnected);
 	readonly connectionStatus: IObservable<RemoteAgentHostConnectionStatus> = this._connectionStatus;
@@ -205,14 +214,16 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		@ILogService logService: ILogService,
 		@IGitHubService gitHubService: IGitHubService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+		@ISessionsService sessionsService: ISessionsService,
 		@IAgentHostActiveClientService activeClientService: IAgentHostActiveClientService,
 	) {
-		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsManagementService, activeClientService, storageService);
+		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, storageService);
 
 		this._connectionAuthority = agentHostAuthority(config.address);
 		this._connectOnDemand = config.connectOnDemand;
 		this._disconnectOnDemand = config.disconnectOnDemand;
+		this.onDidReportConnectProgress = config.onDidReportConnectProgress;
+		this.canConnectOnDemand = !!config.connectOnDemand;
 		const displayName = config.name || config.address;
 
 		this.id = `agenthost-${this._connectionAuthority}`;
@@ -358,6 +369,9 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 			this._authenticationSettled = true;
 		}
 		this._authenticationPending.set(pending, undefined);
+		if (!pending) {
+			this._resumeNewSessionAfterAuthenticationSettles();
+		}
 	}
 
 	/**
@@ -407,10 +421,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this._onDidDisconnect.fire();
 		this._connection = undefined;
 		this._defaultDirectory = undefined;
-		if (this._newSession) {
-			// Setter on the MutableDisposable handles disposal of the old value.
-			this._newSession = undefined;
-		}
+		this._disposeAllNewSessions();
 
 		if (this._sessionTypes.length > 0) {
 			this._sessionTypes = [];
@@ -542,6 +553,14 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 
 	resolveWorkspace(repositoryUri: URI): ISessionWorkspace | undefined {
 		if (repositoryUri.scheme !== AGENT_HOST_SCHEME) {
+			return undefined;
+		}
+		// Only claim URIs that belong to *this* connection. Without this
+		// check, every agent-host provider matches every agent-host URI
+		// and the workspace picker's first-match-wins lookup attributes
+		// the folder to whichever provider is iterated first — so a folder
+		// picked from WSL ends up labelled with another host's name.
+		if (repositoryUri.authority !== this._connectionAuthority) {
 			return undefined;
 		}
 		return this._buildWorkspaceFromUri(repositoryUri);

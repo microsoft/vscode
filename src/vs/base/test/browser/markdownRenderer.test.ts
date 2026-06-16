@@ -35,14 +35,14 @@ suite('MarkdownRenderer', () => {
 		});
 
 		test('Strips links with disallowed schemes (default config)', () => {
-			const markdown = { value: `Read [](vscode-agent-host://my-host/file/-/path/to/foo.ts)` };
+			const markdown = { value: `Read [](vscode-agent-host://my-host/path/to/foo.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0)` };
 			const result: HTMLElement = store.add(renderMarkdown(markdown)).element;
 			// No <a> element should remain because the scheme isn't allowed.
 			assert.strictEqual(result.querySelector('a'), null);
 		});
 
 		test('Preserves link when scheme is allowed via allowedLinkSchemes.augment', () => {
-			const markdown = { value: `Read [](vscode-agent-host://my-host/file/-/path/to/foo.ts)` };
+			const markdown = { value: `Read [](vscode-agent-host://my-host/path/to/foo.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0)` };
 			const result: HTMLElement = store.add(renderMarkdown(markdown, {
 				sanitizerConfig: {
 					allowedLinkSchemes: { augment: ['vscode-agent-host'] },
@@ -50,7 +50,7 @@ suite('MarkdownRenderer', () => {
 			})).element;
 			const anchor = result.querySelector('a');
 			assert.ok(anchor, 'expected <a> to be preserved when scheme is allowed');
-			assert.strictEqual(anchor!.dataset.href, 'vscode-agent-host://my-host/file/-/path/to/foo.ts');
+			assert.strictEqual(anchor!.dataset.href, 'vscode-agent-host://my-host/path/to/foo.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0');
 		});
 	});
 
@@ -302,7 +302,7 @@ suite('MarkdownRenderer', () => {
 		});
 
 		const result: HTMLElement = store.add(renderMarkdown(md)).element;
-		assert.strictEqual(result.innerHTML, `<p><a href="" title="command:doFoo" draggable="false" data-href="command:doFoo">command1</a> <a href="" data-href="command:doFoo">command2</a></p>`);
+		assert.strictEqual(result.innerHTML, `<p><a href="" title="" draggable="false" data-href="command:doFoo">command1</a> <a href="" data-href="command:doFoo">command2</a></p>`);
 	});
 
 	test('Should remove relative links if there is no base url', () => {
@@ -387,6 +387,11 @@ suite('MarkdownRenderer', () => {
 			].join('\n');
 			const result: string = renderAsPlaintext(markdown, { includeCodeBlocksFences: true });
 			assert.strictEqual(result, expected);
+		});
+
+		test('does not double-escape entities inside code spans', () => {
+			assert.strictEqual(renderAsPlaintext({ value: 'Run `tests & build`' }), 'Run tests & build');
+			assert.strictEqual(renderAsPlaintext({ value: 'Use `<form>` tag' }), 'Use <form> tag');
 		});
 	});
 

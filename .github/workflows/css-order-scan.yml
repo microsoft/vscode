@@ -1,0 +1,129 @@
+name: CSS Cascade-Order Scan
+
+on:
+  schedule:
+    # Once per day at 05:17 UTC (off the hour to avoid scheduler contention).
+    - cron: '17 5 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: css-order-scan-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    name: Scan CSS cascade-order dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Prepare node_modules cache key
+        run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts compile $(node -p process.arch) > .build/packagelockhash
+
+      - name: Restore node_modules cache
+        id: cache-node-modules
+        uses: actions/cache@v5
+        with:
+          path: .build/node_modules_cache
+          key: "node_modules-css-order-scan-${{ hashFiles('.build/packagelockhash') }}"
+
+      - name: Extract node_modules cache
+        if: steps.cache-node-modules.outputs.cache-hit == 'true'
+        run: tar -xzf .build/node_modules_cache/cache.tgz
+
+      - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm ci --ignore-scripts
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install build dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm ci
+        working-directory: build
+
+      - name: Install rspack dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm ci
+        working-directory: build/rspack
+
+      - name: Create node_modules archive
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: |
+          set -e
+          node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
+          mkdir -p .build/node_modules_cache
+          tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
+
+      - name: Copy codicons
+        run: cp node_modules/@vscode/codicons/dist/codicon.ttf src/vs/base/browser/ui/codicons/codicon/codicon.ttf
+
+      - name: Transpile source
+        run: npm run transpile-client
+
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium
+
+      - name: Start serve-out
+        # The scan attaches to an already-running serve (component-explorer-attach.json).
+        # Start it in the background and wait until the dev server accepts connections.
+        # Probe the port directly instead of grepping the log: rspack's stdout is
+        # block-buffered when redirected to a file, so the "Loopback" line can take
+        # minutes to land in the log even though the server is already listening.
+        run: |
+          npm run serve-out-rspack > /tmp/serve-out.log 2>&1 &
+          echo "SERVE_PID=$!" >> "$GITHUB_ENV"
+          for i in $(seq 1 120); do
+            if curl -s -o /dev/null "http://localhost:5123/"; then
+              echo "serve-out is ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::serve-out did not become ready in time"
+          cat /tmp/serve-out.log
+          exit 1
+
+      - name: Run CSS order scan
+        run: node test/componentFixtures/cssOrderScan.mts --fixture-id-regex ".*"
+
+      - name: Stop serve-out
+        if: always()
+        run: kill "$SERVE_PID" 2>/dev/null || true
+
+      - name: Upload serve-out log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: serve-out-log
+          path: /tmp/serve-out.log
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: css-order-report
+          path: test/componentFixtures/.build/css-order-report/
+
+      - name: Write job summary
+        if: always()
+        run: |
+          REPORT="test/componentFixtures/.build/css-order-report/report.md"
+          if [ -f "$REPORT" ]; then
+            cat "$REPORT" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No report was produced." >> "$GITHUB_STEP_SUMMARY"
+          fi
