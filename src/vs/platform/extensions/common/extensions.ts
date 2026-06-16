@@ -506,9 +506,16 @@ export class ExtensionError extends Error {
 	readonly extension: ExtensionIdentifier;
 
 	constructor(extensionIdentifier: ExtensionIdentifier, cause: Error, message?: string) {
-		super(`Error in extension ${ExtensionIdentifier.toKey(extensionIdentifier)}: ${message ?? cause.message}`, { cause });
+		const detail = message && cause?.message ? `${message}: ${cause.message}` : (message ?? cause?.message);
+		super(`Error in extension ${ExtensionIdentifier.toKey(extensionIdentifier)}: ${detail}`, { cause });
 		this.name = 'ExtensionError';
 		this.extension = extensionIdentifier;
+		// Adopt the underlying cause's stack so error telemetry buckets by the real
+		// failure site inside the extension instead of the generic event-dispatch
+		// frames. Extension attribution relies on `this.extension`, not this stack.
+		if (cause?.stack) {
+			this.stack = cause.stack;
+		}
 	}
 }
 
