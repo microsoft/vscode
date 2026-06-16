@@ -366,24 +366,20 @@ export class LayoutController extends Disposable {
 			return;
 		}
 
-		// Restore a saved non-Files active container (e.g. the user explicitly
-		// chose Changes or another pane), but only if it is still pinned.
-		// A saved Files selection is intentionally not restored here: Files is the
-		// default when a session has no changes, so restoring it unconditionally
-		// would shadow the "prefer Changes when there are changes" rule below.
+		// Restore the user's last explicit auxiliary bar choice (Files, Changes or
+		// any other pane), but only if that pane is still pinned. If it was hidden /
+		// unpinned (e.g. the user hid the Files tab) we skip it and fall through to
+		// the default below rather than force-opening a hidden pane.
 		const savedContainerId = savedState?.auxiliaryBarActiveViewContainerId;
-		if (
-			savedContainerId &&
-			savedContainerId !== SESSIONS_FILES_CONTAINER_ID &&
-			this._isAuxiliaryBarContainerPinned(savedContainerId)
-		) {
+		if (savedContainerId && this._isAuxiliaryBarContainerPinned(savedContainerId)) {
 			this._viewsService.openViewContainer(savedContainerId, false);
 			return;
 		}
 
-		// Default: prefer Changes when the session has changes. Otherwise show the
-		// Files pane, unless the user has hidden/unpinned it — in which case fall
-		// back to Changes rather than force-opening Files.
+		// Default for a session without a saved choice (e.g. fresh or untitled):
+		// prefer Changes when the session has changes. Otherwise show the Files
+		// pane, unless the user has hidden/unpinned it — in which case fall back to
+		// Changes rather than force-opening Files.
 		if (hasChanges || !this._isAuxiliaryBarContainerPinned(SESSIONS_FILES_CONTAINER_ID)) {
 			this._viewsService.openView(CHANGES_VIEW_ID, false);
 		} else {

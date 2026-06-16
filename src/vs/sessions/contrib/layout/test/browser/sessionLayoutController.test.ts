@@ -307,13 +307,12 @@ suite('LayoutController', () => {
 		);
 	});
 
-	test('prefers changes over a stale saved Files selection when the session has changes', () => {
+	test('restores an explicit Files choice on session switch even when the session has changes', () => {
 		createLayoutController();
 		const session1 = makeSession(URI.parse('session:1'), { changes: [makeChange('/file.ts')] });
 		const session2 = makeSession(URI.parse('session:2'));
 
-		// Session 1 has the Files container active (the default for a session
-		// before changes appear / or an explicit user choice).
+		// The user explicitly selects the (pinned) Files pane for session 1.
 		activeSessionObs.set(session1, undefined);
 		activePaneCompositeId = SESSIONS_FILES_CONTAINER_ID;
 
@@ -324,12 +323,12 @@ suite('LayoutController', () => {
 		activeSessionObs.set(session1, undefined);
 
 		assert.ok(
-			openedViews.includes(CHANGES_VIEW_ID),
-			'should show Changes since the session has changes, ignoring the stale Files selection'
+			openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
+			'should restore the user\'s explicit Files choice'
 		);
 		assert.ok(
-			!openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
-			'should not restore the stale Files selection'
+			!openedViews.includes(CHANGES_VIEW_ID),
+			'should not override the explicit Files choice with Changes'
 		);
 	});
 
