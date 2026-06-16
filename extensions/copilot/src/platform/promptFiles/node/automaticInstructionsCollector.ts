@@ -169,7 +169,7 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 
 		// Step 3 (run before agent instructions to match core ordering).
 		// Follow references from anything currently attached as instruction.
-		await this._addReferencedInstructions(seenInstructionUris, telemetry, newEntries, token);
+		await this._addReferencedInstructions(seenInstructionUris, telemetry, newEntries, token, seenInstructionUris);
 		if (token.isCancellationRequested) {
 			return [];
 		}
