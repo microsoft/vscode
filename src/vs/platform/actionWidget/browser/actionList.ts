@@ -14,7 +14,7 @@ import { IAction, SubmenuAction, toAction } from '../../../base/common/actions.j
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { Emitter } from '../../../base/common/event.js';
-import { IMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
+import { IMarkdownString, isMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
 import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
 import { AnchorPosition } from '../../../base/common/layout.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -663,6 +663,13 @@ export class ActionListWidget<T> extends Disposable {
 						} else if (element.description) {
 							const descText = typeof element.description === 'string' ? element.description : element.description.value;
 							label = label + ', ' + stripNewlines(descText);
+						}
+						if (element.hover?.content && !element.ariaDescription && !element.description) {
+							const hoverContent = element.hover.content;
+							const hoverText = typeof hoverContent === 'string' ? hoverContent : isMarkdownString(hoverContent) ? hoverContent.value : dom.isHTMLElement(hoverContent) ? hoverContent.textContent ?? undefined : undefined;
+							if (hoverText && (!element.detail || stripNewlines(element.detail) !== stripNewlines(hoverText))) {
+								label = label + ', ' + stripNewlines(hoverText);
+							}
 						}
 						if (element.group?.title) {
 							label = label + ', ' + element.group.title;
