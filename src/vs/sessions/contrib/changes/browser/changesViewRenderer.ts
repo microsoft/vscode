@@ -226,7 +226,6 @@ export class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTre
 		label.element.appendChild(actionBarContainer);
 
 		const toolbarMenu = templateDisposables.add(this.menuService.createMenu(MenuId.AgentsChangeInlineToolbar, contextKeyService));
-		templateDisposables.add(toolbarMenu);
 
 		templateDisposables.add(bindContextKey(ChatContextKeys.agentSessionType, contextKeyService, reader => {
 			const activeSession = this.sessionsService.activeSession.read(reader);
