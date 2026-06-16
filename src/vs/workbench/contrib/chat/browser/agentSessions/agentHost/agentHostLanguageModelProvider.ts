@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { readAgentModelPricingMeta } from '../../../../../../platform/agentHost/common/agentModelPricing.js';
 import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelConfigurationSchema } from '../../../common/languageModels.js';
 
@@ -60,7 +61,8 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 		return this._models
 			.filter(m => m.policyState !== 'disabled')
 			.map(m => {
-				const multiplierNumeric = typeof m._meta?.multiplierNumeric === 'number' ? m._meta.multiplierNumeric : undefined;
+				const pricing = readAgentModelPricingMeta(m._meta);
+				const multiplierNumeric = pricing.multiplierNumeric;
 				return {
 					identifier: `${this._vendor}:${m.id}`,
 					metadata: {
@@ -76,6 +78,13 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 						isUserSelectable: true,
 						pricing: multiplierNumeric !== undefined ? `${multiplierNumeric}x` : undefined,
 						multiplierNumeric,
+						inputCost: pricing.inputCost,
+						cacheCost: pricing.cacheCost,
+						outputCost: pricing.outputCost,
+						longContextInputCost: pricing.longContextInputCost,
+						longContextCacheCost: pricing.longContextCacheCost,
+						longContextOutputCost: pricing.longContextOutputCost,
+						priceCategory: pricing.priceCategory,
 						targetChatSessionType: this._sessionType,
 						capabilities: {
 							vision: m.supportsVision ?? false,
