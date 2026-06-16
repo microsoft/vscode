@@ -799,7 +799,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 	private updatePauseOwner: object | undefined;
 	private hasPendingUpdate = false;
 
-	pauseUpdates(): IDisposable {
+	private pauseUpdates(): IDisposable {
 		const owner = {};
 		this.updatePauseOwner = owner;
 		return toDisposable(() => {

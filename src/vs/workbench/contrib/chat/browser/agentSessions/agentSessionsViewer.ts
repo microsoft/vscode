@@ -569,8 +569,9 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			onDidShow: () => {
 				// Pause list updates before rendering starts so resolving the session's lazy details does not re-sort the list
 				// and cause sessions to jump under the cursor (see #320509).
-				pauseDisposable?.dispose();
+				const previousPauseDisposable = pauseDisposable;
 				pauseDisposable = this.options.pauseSessionUpdates?.();
+				previousPauseDisposable?.dispose();
 				widget.onRendered();
 			},
 			onDidHide: () => {
