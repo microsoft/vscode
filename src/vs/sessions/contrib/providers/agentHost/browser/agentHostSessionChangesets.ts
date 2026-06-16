@@ -99,6 +99,7 @@ function toSessionChangesetOperationScope(scope: ChangesetOperationScope): Sessi
 		case ChangesetOperationScope.Changeset: return SessionChangesetOperationScope.Changeset;
 		case ChangesetOperationScope.Resource: return SessionChangesetOperationScope.Resource;
 		case ChangesetOperationScope.Range: return SessionChangesetOperationScope.Range;
+		default: throw new Error(`Unknown ChangesetOperationScope: ${scope}`);
 	}
 }
 
