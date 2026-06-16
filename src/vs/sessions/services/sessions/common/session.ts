@@ -176,10 +176,41 @@ export interface ISessionChangeset {
 	readonly isLoadingChanges: IObservable<boolean>;
 	/** Observable for the file changes in this changeset. */
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
+	/** Observable for the operations in this changeset. */
+	readonly operations: IObservable<readonly ISessionChangesetOperation[]>;
 	/** Reference to the original checkpoint for this changeset. */
 	readonly originalCheckpointRef: IObservable<string | undefined>;
 	/** Reference to the modified checkpoint for this changeset. */
 	readonly modifiedCheckpointRef: IObservable<string | undefined>;
+	/**
+	 * Invoke an operation declared in {@link operations}. `target` must be
+	 * provided for resource-scoped operations and omitted for changeset-
+	 * scoped ones — implementations are expected to validate this against
+	 * the corresponding {@link ISessionChangesetOperation.scopes}.
+	 */
+	invokeOperation(operationId: string, target?: ISessionChangesetOperationTarget): Promise<void>;
+}
+
+export type ISessionChangesetOperationTarget =
+	| { readonly kind: 'resource'; readonly resource: URI };
+
+export const enum SessionChangesetOperationScope {
+	Changeset = 'changeset',
+	Resource = 'resource',
+	Range = 'range',
+}
+
+export interface ISessionChangesetOperation {
+	/** Unique identifier for the operation. */
+	readonly id: string;
+	/** Display label for the operation. */
+	readonly label: string;
+	/** Optional description for the operation. */
+	readonly description?: string;
+	/** Optional icon for the operation. */
+	readonly icon?: ThemeIcon;
+	/** The scopes to which this operation applies. */
+	readonly scopes: SessionChangesetOperationScope[];
 }
 
 /**

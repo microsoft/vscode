@@ -5,10 +5,13 @@
 
 import { constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { ChangesetOperationTargetKind } from '../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
+import { ChangesetOperation, ChangesetOperationScope } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChangesetStatus, Changeset, StateComponents, type ChangesetState, type Turn } from '../../../../../platform/agentHost/common/state/sessionState.js';
-import { ISessionChangeset, ISessionFileChange, sessionFileChangesEqual } from '../../../../services/sessions/common/session.js';
+import { ISessionChangeset, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, SessionChangesetOperationScope, sessionFileChangesEqual } from '../../../../services/sessions/common/session.js';
 import { changesetFilesToChanges } from './agentHostDiffs.js';
 import { IAgentHostAdapterOptions } from './baseAgentHostSessionsProvider.js';
 
@@ -88,6 +91,26 @@ function createActiveSessionSubscriptionObs<T>(
 	});
 }
 
+function toSessionChangesetOperationScope(scope: ChangesetOperationScope): SessionChangesetOperationScope {
+	switch (scope) {
+		case ChangesetOperationScope.Changeset: return SessionChangesetOperationScope.Changeset;
+		case ChangesetOperationScope.Resource: return SessionChangesetOperationScope.Resource;
+		case ChangesetOperationScope.Range: return SessionChangesetOperationScope.Range;
+	}
+}
+
+function toSessionChangesetOperation(operation: ChangesetOperation): ISessionChangesetOperation {
+	return {
+		id: operation.id,
+		label: operation.label,
+		description: operation.description,
+		icon: operation.icon
+			? ThemeIcon.fromId(operation.icon)
+			: undefined,
+		scopes: operation.scopes.map(toSessionChangesetOperationScope)
+	};
+}
+
 abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 	abstract readonly id: string;
 	abstract readonly label: string;
@@ -101,9 +124,12 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 
 	readonly isLoadingChanges: IObservable<boolean>;
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
+	readonly operations: IObservable<readonly ISessionChangesetOperation[]>;
+
+	protected abstract readonly channelUriObs: IObservable<URI | undefined>;
 	protected abstract readonly changesetStateObs: IObservable<IObservable<ChangesetState | Error | undefined | null>>;
 
-	constructor(options: IAgentHostAdapterOptions) {
+	constructor(private readonly _options: IAgentHostAdapterOptions) {
 		this.isLoadingChanges = derived(reader => {
 			const changesetState = this.changesetStateObs.read(reader).read(reader);
 
@@ -143,18 +169,54 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 			}
 
 			const files = changesetFilesToChanges(changesetState.files);
-			return options.mapDiffUri
+			return this._options.mapDiffUri
 				? files.map(f => ({
 					...f,
-					uri: options.mapDiffUri!(f.uri),
-					originalUri: f.originalUri ? options.mapDiffUri!(f.originalUri) : undefined,
-					modifiedUri: f.modifiedUri ? options.mapDiffUri!(f.modifiedUri) : undefined,
+					uri: this._options.mapDiffUri!(f.uri),
+					originalUri: f.originalUri ? this._options.mapDiffUri!(f.originalUri) : undefined,
+					modifiedUri: f.modifiedUri ? this._options.mapDiffUri!(f.modifiedUri) : undefined,
 				}))
 				: files;
 		});
 
 		this.changes = derivedOpts({ equalsFn: sessionFileChangesEqual }, reader => {
 			return changesObs.read(reader) ?? [];
+		});
+
+		this.operations = derivedObservableWithCache<readonly ISessionChangesetOperation[]>(this, (reader, lastValue) => {
+			const changesetState = this.changesetStateObs.read(reader).read(reader);
+			if (changesetState === null || changesetState instanceof Error) {
+				return [];
+			}
+
+			if (changesetState === undefined) {
+				return lastValue ?? [];
+			}
+
+			return changesetState.operations?.map(toSessionChangesetOperation) ?? [];
+		});
+	}
+
+	async invokeOperation(operationId: string, target?: ISessionChangesetOperationTarget): Promise<void> {
+		const connection = this._options.getConnection();
+		if (!connection) {
+			return;
+		}
+
+		const channel = this.channelUriObs.get();
+		if (!channel) {
+			return;
+		}
+
+		await connection.invokeChangesetOperation({
+			operationId,
+			channel: channel.toString(),
+			target: target?.kind === 'resource'
+				? {
+					kind: ChangesetOperationTargetKind.Resource,
+					resource: target.resource.toString()
+				}
+				: undefined,
 		});
 	}
 }
@@ -171,6 +233,7 @@ class AgentHostChangeset extends AbstractAgentHostChangeset {
 	readonly isEnabled = constObservable(true);
 	readonly isDefault: IObservable<boolean>;
 
+	protected override readonly channelUriObs: IObservable<URI | undefined>;
 	protected override readonly changesetStateObs: IObservable<IObservable<ChangesetState | Error | undefined | null>>;
 
 	constructor(
@@ -180,11 +243,13 @@ class AgentHostChangeset extends AbstractAgentHostChangeset {
 	) {
 		super(options);
 
+		this.channelUriObs = constObservable(URI.parse(changesetSummary.uriTemplate));
+
 		this.changesetStateObs = createActiveSessionSubscriptionObs<ChangesetState>(
 			options,
 			isActiveSessionObs,
 			StateComponents.Changeset,
-			constObservable(URI.parse(changesetSummary.uriTemplate)),
+			this.channelUriObs,
 		);
 
 		this.id = changesetSummary.changeKind;
@@ -207,6 +272,8 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 
 	readonly isDefault = observableValue(this, false);
 	readonly isEnabled: IObservable<boolean>;
+
+	protected override readonly channelUriObs: IObservable<URI | undefined>;
 	protected readonly changesetStateObs: IObservable<IObservable<ChangesetState | Error | undefined | null>>;
 
 	constructor(
@@ -236,7 +303,7 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 		});
 
 		// Last turn changes
-		const changesetUriObs = derivedOpts({ equalsFn: isEqual }, reader => {
+		this.channelUriObs = derivedOpts({ equalsFn: isEqual }, reader => {
 			const lastTurnId = turnIdsObs.read(reader)?.at(-1);
 			if (!lastTurnId) {
 				return undefined;
@@ -251,9 +318,9 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 			options,
 			isActiveSessionObs,
 			StateComponents.Changeset,
-			changesetUriObs,
+			this.channelUriObs,
 		);
 
-		this.isEnabled = derived(reader => changesetUriObs.read(reader) !== undefined);
+		this.isEnabled = derived(reader => this.channelUriObs.read(reader) !== undefined);
 	}
 }
