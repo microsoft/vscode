@@ -4343,7 +4343,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-model-hover-cost-count {
-	font-weight: 600;
+	font-weight: 500;
 	color: var(--vscode-foreground);
 }
 
