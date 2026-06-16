@@ -10,9 +10,10 @@
  * Claude collapses the platform's two-axis approval model
  * (`autoApprove` × `mode`) onto a single `permissionMode` axis matching
  * the Claude SDK's native `PermissionMode` (see
- * `@anthropic-ai/claude-agent-sdk` typings, `sdk.d.ts:1560`). VS Code
- * exposes five of the SDK's six values, intentionally excluding the
- * SDK-only `dontAsk` mode.
+ * `@anthropic-ai/claude-agent-sdk` typings, `sdk.d.ts:1560`). The five
+ * values mirror the SDK enum values that VS Code exposes, excluding
+ * `dontAsk`, so that the value flowing back into `query({ permissionMode })`
+ * requires no translation layer.
  *
  * The platform `Permissions` key (allow/deny tool lists) is reused
  * unchanged from `platformSessionSchema` because the Claude SDK accepts

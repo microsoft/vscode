@@ -3035,14 +3035,15 @@ suite('ClaudeAgent', () => {
 		// Plan section 3.3.5 / decision B5 — Claude collapses the platform's
 		// two-axis approval model (`autoApprove` × `mode`) onto a single
 		// `permissionMode` axis matching the SDK's native
-		// `PermissionMode` enum. VS Code exposes five of the six values
-		// from the SDK typedef at `sdk.d.ts:1560`, intentionally excluding
-		// SDK-only `dontAsk`. `Permissions` (allow/deny tool lists) is
-		// reused unchanged from `platformSessionSchema` because the
-		// SDK accepts `allowedTools` / `disallowedTools` natively.
+		// `PermissionMode` enum (5/6 values, excluding `dontAsk`;
+		// sdk.d.ts:1560). `Permissions` (allow/deny tool lists) is reused
+		// unchanged from `platformSessionSchema` because the SDK accepts
+		// `allowedTools` / `disallowedTools` natively.
 		// Tested keys: presence + ordering of enum + the five-value
-		// VS Code-exposed set + default. Skipped keys (AutoApprove, Mode,
-		// Isolation, Branch, BranchNameHint) MUST be absent — workbench
+		// canonical set (matching SDK `PermissionMode` typedef at
+		// `sdk.d.ts:1560`, excluding `dontAsk`, ratified in Phase 6.1 Cycle A
+		// under I2) + default. Skipped keys (AutoApprove, Mode, Isolation,
+		// Branch, BranchNameHint) MUST be absent — workbench
 		// `AgentHostModePicker` and friends key off these property names
 		// to decide what to render, and accidentally re-introducing
 		// `mode` would drop the wrong picker into the Claude UI.

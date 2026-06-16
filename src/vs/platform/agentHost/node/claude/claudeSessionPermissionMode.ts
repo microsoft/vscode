@@ -9,12 +9,12 @@ import type { IAgentConfigurationService } from '../agentConfigurationService.js
 
 /**
  * Read the live `permissionMode` for a session from
- * {@link IAgentConfigurationService}, narrowed to the five-value VS Code
- * subset of the SDK's `PermissionMode` union (`sdk.d.ts:1560`). Returns
- * `undefined` when the session's schema hasn't been registered or carries
- * a value that slipped past schema validation — callers pick the fallback
- * (the createSession-time intent at materialize, `'default'` at the
- * canUseTool gate, etc.).
+ * {@link IAgentConfigurationService}, narrowed to the SDK's
+ * `PermissionMode` union (5/6 values, excluding `dontAsk`; sdk.d.ts:1560).
+ * Returns `undefined` when the session's schema hasn't been registered or
+ * carries a value that slipped past schema validation — callers pick the
+ * fallback (the createSession-time intent at materialize, `'default'` at
+ * the canUseTool gate, etc.).
  *
  * Called on every canUseTool entry, on every rebind, and before each
  * `session.send` so a mid-turn `SessionConfigChanged` action wins over
