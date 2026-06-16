@@ -282,11 +282,11 @@ export class AgentHostGitService implements IAgentHostGitService {
 		// tracking from the start point (e.g. when starting from
 		// 'origin/main', without --no-track git would set the new branch's
 		// upstream to origin/main, which would mis-attribute pushes/pulls).
-		await this._runGit(repositoryRoot, ['worktree', 'add', '--no-track', '-b', branchName, worktree.fsPath, resolvedStartPoint], { timeout: 60_000, throwOnError: true });
+		await this._runGit(repositoryRoot, ['-c', 'checkout.workers=0', 'worktree', 'add', '--no-track', '-b', branchName, worktree.fsPath, resolvedStartPoint], { timeout: 180_000, throwOnError: true });
 	}
 
 	async addExistingWorktree(repositoryRoot: URI, worktree: URI, branchName: string): Promise<void> {
-		await this._runGit(repositoryRoot, ['worktree', 'add', worktree.fsPath, branchName], { timeout: 60_000, throwOnError: true });
+		await this._runGit(repositoryRoot, ['-c', 'checkout.workers=0', 'worktree', 'add', worktree.fsPath, branchName], { timeout: 180_000, throwOnError: true });
 	}
 
 	async removeWorktree(repositoryRoot: URI, worktree: URI): Promise<void> {
