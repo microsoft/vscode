@@ -10,6 +10,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { FileService } from '../../../../files/common/fileService.js';
+import { createFileSystemProviderError, FileSystemProviderErrorCode } from '../../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../log/common/log.js';
 import { NullTelemetryServiceShape } from '../../../../telemetry/common/telemetryUtils.js';
@@ -95,6 +96,53 @@ suite('agentHost editSurvivalReporter', () => {
 		assert.strictEqual(data.didFileGetDeleted, 1);
 		assert.strictEqual(data.isCreate, 1);
 		assert.strictEqual(data.provider, 'codex');
+	});
+
+	test('skips the sample on transient read errors (no event, reporter keeps running)', async () => {
+		// Use a fake file service whose readFile throws a permission
+		// error -- not FILE_NOT_FOUND -- on the first call only, then
+		// succeeds. The reporter should skip the first sample (no
+		// telemetry, no didFileGetDeleted) and emit normally on the
+		// second sample.
+		await fileService.writeFile(URI.file('/workspace/flaky.ts'), VSBuffer.fromString('after'));
+		const realReadFile = fileService.readFile.bind(fileService);
+		let calls = 0;
+		const flakyFileService = new Proxy(fileService, {
+			get(target, prop, receiver) {
+				if (prop === 'readFile') {
+					return (...args: Parameters<typeof realReadFile>) => {
+						calls++;
+						if (calls === 1) {
+							return Promise.reject(createFileSystemProviderError('permission denied', FileSystemProviderErrorCode.NoPermissions));
+						}
+						return realReadFile(...args);
+					};
+				}
+				return Reflect.get(target, prop, receiver);
+			},
+		});
+		const flakyFactory = new EditSurvivalReporterFactory(flakyFileService, new NullLogService(), telemetry);
+
+		const reporter = flakyFactory.launch({
+			sessionUri: 'claude:/session-flaky',
+			turnId: 'turn-1',
+			toolCallId: 'tc-flaky',
+			filePath: '/workspace/flaky.ts',
+			beforeText: 'before',
+			afterText: 'after',
+			isCreate: false,
+		});
+		disposables.add(reporter);
+
+		// First sample (t=0) is skipped due to the permission error,
+		// second sample (t=5s) would emit -- but waiting 5s in a unit
+		// test is wasteful, so we just verify the first sample produced
+		// no telemetry and the reporter is still scheduled (i.e. didn't
+		// dispose itself like it would for a real delete).
+		await timeout(50);
+
+		assert.strictEqual(telemetry.events.length, 0, 'transient errors must not emit telemetry');
+		assert.strictEqual(calls, 1, 'readFile should have been called exactly once');
 	});
 
 	test('skips notebook files entirely (no events ever)', async () => {

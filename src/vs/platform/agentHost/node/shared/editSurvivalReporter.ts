@@ -7,7 +7,7 @@ import { TimeoutTimer } from '../../../../base/common/async.js';
 import { Disposable, type IDisposable } from '../../../../base/common/lifecycle.js';
 import { extname } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IFileService } from '../../../files/common/files.js';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../../files/common/files.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
@@ -154,18 +154,29 @@ class SessionEditSurvivalReporter extends Disposable {
 		const timeDelayMs = SAMPLE_SCHEDULE_MS[sampleIndex];
 
 		try {
-			let currentText: string | undefined;
+			let currentText: string;
 			let didFileGetDeleted = false;
 			try {
 				const content = await this._fileService.readFile(URI.file(this._params.filePath));
 				currentText = content.value.toString();
 			} catch (err) {
-				didFileGetDeleted = true;
+				// Only treat genuine "file is gone" as a delete event.
+				// Other failures (permissions, transient provider hiccups,
+				// FILE_TOO_LARGE, etc.) shouldn't bias the telemetry as
+				// reverts -- skip this sample and try again next time.
+				if (toFileOperationResult(err) === FileOperationResult.FILE_NOT_FOUND) {
+					didFileGetDeleted = true;
+					currentText = '';
+				} else {
+					this._logService.warn(`[EditSurvivalReporter] readFile failed for ${this._params.filePath}, skipping sample: ${err}`);
+					this._scheduleNext();
+					return;
+				}
 			}
 
 			const aiChunks = this._params.aiChunks ?? [];
 			const useChunked = aiChunks.length > 0;
-			const scores = currentText === undefined
+			const scores = didFileGetDeleted
 				? { fourGram: 0, noRevert: 0 }
 				: useChunked
 					? computeChunkedEditSurvival(this._params.beforeText, this._params.afterText, aiChunks, currentText)
@@ -188,7 +199,7 @@ class SessionEditSurvivalReporter extends Disposable {
 					isCreate: this._params.isCreate ? 1 : 0,
 					beforeTextLength: this._params.beforeText.length,
 					afterTextLength: this._params.afterText.length,
-					currentTextLength: currentText?.length ?? 0,
+					currentTextLength: didFileGetDeleted ? 0 : currentText.length,
 				},
 			);
 
