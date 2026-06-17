@@ -122,6 +122,17 @@ const MCP_TOOL_APPROVAL_QUESTION_ID_PREFIX = 'mcp_tool_call_approval_';
 const MCP_TOOL_APPROVAL_ANSWER_ALLOW = 'Allow';
 const MCP_TOOL_APPROVAL_ANSWER_DECLINE = '__codex_mcp_decline__';
 
+/**
+ * `supported_endpoints` value (on a Copilot CAPI {@link CCAModel}) that marks
+ * a model as reachable through CAPI's OpenAI-shaped Responses endpoint. Codex
+ * only drives models via this endpoint (the `vscode-proxy` provider uses
+ * `wire_api="responses"`), so the model picker is filtered to models that
+ * advertise it. Confirmed against the live CAPI catalog: gpt-5.x / gpt-5*-codex
+ * / mai-code carry `/responses`; Anthropic models carry `/v1/messages` and
+ * chat-only models carry `/chat/completions` (neither is usable by codex).
+ */
+const CODEX_RESPONSES_ENDPOINT = '/responses';
+
 const codexSessionConfigSchema = createSchema({
 	[CodexSessionConfigKey.ApprovalPolicy]: schemaProperty<CodexApprovalPolicy>({
 		type: 'string',
@@ -709,13 +720,16 @@ export class CodexAgent extends Disposable implements IAgent {
 				return;
 			}
 			const configSchema = this._createReasoningEffortConfigSchema();
-			// Codex reaches every model through the `vscode-proxy` custom model
-			// provider (see CodexProxyService), which forwards the selected model
-			// id to Copilot CAPI. So expose the full CAPI catalog — not just
-			// OpenAI models — and pass the chosen id straight through; CAPI is the
+			// Codex talks to every model through the `vscode-proxy` custom model
+			// provider with `wire_api="responses"` (see CodexProxyService), so it
+			// can only drive models that expose Copilot CAPI's OpenAI-shaped
+			// Responses endpoint. Filter the catalog to those advertising
+			// `/responses` in `supported_endpoints` (this drops Anthropic
+			// `/v1/messages` and chat-completions-only models, which codex cannot
+			// use). The chosen id is forwarded straight through; CAPI remains the
 			// authority on what the token may actually use.
 			const models = all
-				.slice()
+				.filter(m => m.supported_endpoints?.includes(CODEX_RESPONSES_ENDPOINT))
 				.sort((a, b) => Number(b.is_chat_default) - Number(a.is_chat_default))
 				.map((m): IAgentModelInfo => ({
 					provider: this.id,
