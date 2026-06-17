@@ -1711,19 +1711,25 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.mainContainer.classList.toggle(LayoutClasses.MAIN_EDITOR_AREA_HIDDEN, hidden);
 
 		if (this.editorPartView) {
+			// Only force an even split on the *first* reveal, when the grid has
+			// no cached editor width yet. On subsequent show/hide cycles the grid
+			// caches/restores the user-adjusted width via `getViewCachedVisibleSize`,
+			// so we must not overwrite it.
+			const shouldApplyEvenSplit = !hidden && this.workbenchGrid.getViewCachedVisibleSize(this.editorPartView) === undefined;
+
 			// Capture the sessions part width *before* revealing the editor. The
 			// editor is hidden (0px) right now, so the sessions part spans the
 			// whole main area; we split that in half below so the editor opens
 			// as an even split rather than at its minimum/restored width.
 			// Measuring after the reveal is unreliable because the grid first
 			// restores the editor to its cached/minimum width.
-			const mainAreaWidthBeforeReveal = !hidden
+			const mainAreaWidthBeforeReveal = shouldApplyEvenSplit
 				? this.workbenchGrid.getViewSize(this.sessionsPartView).width
 				: 0;
 
 			this.workbenchGrid.setViewVisible(this.editorPartView, !hidden);
 
-			if (!hidden) {
+			if (shouldApplyEvenSplit) {
 				this._applyEditorSplitSize(mainAreaWidthBeforeReveal);
 			}
 		}

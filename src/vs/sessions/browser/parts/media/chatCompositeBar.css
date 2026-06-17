@@ -221,6 +221,11 @@
 	text-decoration: none;
 }
 
+.chat-composite-bar-meta-diff .action-label:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+
 .chat-composite-bar-meta-added {
 	color: var(--vscode-chat-linesAddedForeground);
 }
