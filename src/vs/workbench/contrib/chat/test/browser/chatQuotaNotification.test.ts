@@ -732,6 +732,21 @@ suite('ChatQuotaNotificationContribution', () => {
 			assert.ok(notificationMock.getNotification());
 		});
 
+		test('shows for Max users', async () => {
+			const { notificationMock } = createContribution({
+				entitlement: ChatEntitlement.Max,
+				quotas: {
+					resetDate: makeResetDate(24),
+					usageBasedBilling: true,
+					premiumChat: makeQuotaSnapshot(72),
+				},
+			}, { trajectoryTreatment: 'enabled' });
+
+			await flushPromises();
+
+			assert.ok(notificationMock.getNotification());
+		});
+
 		test('does not show when projected daily usage is below threshold', async () => {
 			const { notificationMock } = createContribution({
 				entitlement: ChatEntitlement.Pro,
@@ -908,8 +923,8 @@ suite('ChatQuotaNotificationContribution', () => {
 			assert.strictEqual(notificationMock.getNotification(), undefined);
 		});
 
-		test('does not show for Edu, Max, Business, Enterprise, Free, or Unknown users', async () => {
-			for (const entitlement of [ChatEntitlement.EDU, ChatEntitlement.Max, ChatEntitlement.Business, ChatEntitlement.Enterprise, ChatEntitlement.Free, ChatEntitlement.Unknown]) {
+		test('does not show for Edu, Business, Enterprise, Free, or Unknown users', async () => {
+			for (const entitlement of [ChatEntitlement.EDU, ChatEntitlement.Business, ChatEntitlement.Enterprise, ChatEntitlement.Free, ChatEntitlement.Unknown]) {
 				const { notificationMock } = createContribution({
 					entitlement,
 					quotas: {
