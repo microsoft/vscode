@@ -43,6 +43,7 @@ import type { ITerminalExecuteStrategy, ITerminalExecuteStrategyResult } from '.
 import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
 import { RichExecuteStrategy } from '../executeStrategy/richExecuteStrategy.js';
 import { getOutput } from '../outputHelpers.js';
+import { LargeOutputFileWriter } from '../largeOutputFileWriter.js';
 import { buildCommandDisplayText, extractCdPrefix, isFish, isPowerShell, isWindowsPowerShell, isZsh, normalizeTerminalCommandForDisplay } from '../runInTerminalHelpers.js';
 import type { ICommandLinePresenter } from './commandLinePresenter/commandLinePresenter.js';
 import { NodeCommandLinePresenter } from './commandLinePresenter/nodeCommandLinePresenter.js';
@@ -151,7 +152,7 @@ function createPowerShellModelDescription(shell: string, sandboxingOptions: ISan
 	parts.push(
 		'',
 		'Output Management:',
-		'- Output is automatically truncated if longer than 60KB to prevent context overflow',
+		'- Output exceeding 20KB is saved to a temp file; the result includes the file path so you can read the full output with readFile or search it with grep',
 		'- Use Select-Object, Where-Object, Format-Table to filter output',
 		'- Use -First/-Last parameters to limit results',
 		'- For pager commands, add | Out-String or | Format-List',
@@ -211,7 +212,7 @@ export function createSandboxLines(sandboxingOptions: ISandboxingOnOptions): str
 		lines.push('- To get more access (each prompts the user — never ask the user for permission yourself):');
 		if (sandboxingOptions.retryWithAllowNetworkRequests) {
 			lines.push(
-				'  - Need a blocked domain? Set requestAllowNetwork=true and provide requestAllowNetworkReason. This keeps the filesystem sandbox in place and only relaxes the network, so prefer it for network-only needs. Do this proactively when network use is obvious (git fetch/pull/push/clone; npm/yarn/pnpm/pip/cargo/go/brew installs; curl; wget), or reactively after a network failure (e.g. \'Network request failed\').',
+				'  - Need a blocked domain? Set requestAllowNetwork=true and provide requestAllowNetworkReason. This keeps the filesystem sandbox in place and only relaxes the network, so prefer it for network-only needs. Do this proactively when network use is obvious (git fetch/pull/push/clone; npm/yarn/pnpm/pip/cargo/go/brew installs; curl; wget), or reactively after a network failure (e.g. \'Network request failed\', HTTP code 403).',
 			);
 		}
 		if (sandboxingOptions.allowToRunUnsandboxedCommands) {
@@ -289,7 +290,7 @@ Use ${TerminalToolId.SendToTerminal} to send commands or input to a terminal ses
 	parts.push(`
 
 Output Management:
-- Output is automatically truncated if longer than 60KB to prevent context overflow
+- Output exceeding 20KB is saved to a temp file; the result includes the file path so you can read the full output with readFile or search it with grep
 - Use head, tail, grep, awk to filter and limit output size
 - For pager commands, disable paging: git --no-pager or add | cat
 - Use wc -l to count lines before displaying large outputs
@@ -416,7 +417,7 @@ export async function createRunInTerminalToolData(
 		toolReferenceName: TOOL_REFERENCE_NAME,
 		legacyToolReferenceFullNames: LEGACY_TOOL_REFERENCE_FULL_NAMES,
 		displayName: localize('runInTerminalTool.displayName', 'Run in Terminal'),
-		modelDescription: `${modelDescription}\n\nExecution mode:\n- mode='sync' (strongly preferred): waits for the command to complete and returns full output inline. Use for ALL one-shot commands (builds, tests, installs, compilation, scripts). Omit timeout to let the command run to completion — the tool handles idle detection and input prompts automatically.\n- mode='async': waits for an initial idle/output signal from the command, then returns a terminal ID and output snapshot while the process continues running. Use ONLY for processes that must keep running indefinitely (servers, watchers, daemons). Timeout caps how long to wait for the initial idle/output signal.\n\nTimeout parameter: Usually omit timeout entirely for sync commands — the tool returns automatically on completion, input-needed, or cancellation. Only set a timeout as a safety net for commands you suspect might hang. Use 0 to explicitly indicate no timeout.\n\nSync output is final: When a sync command completes, the full output is returned inline — do NOT call ${TerminalToolId.GetTerminalOutput} afterward. Only use ${TerminalToolId.GetTerminalOutput} if the tool result explicitly indicates the command was moved to background, timed out, or needs input.\n\nTerminal notifications: When an async command finishes or a sync command times out, you will be automatically notified on your next turn with the exit code and terminal output. You will also be notified if the terminal needs input. Do NOT poll or sleep to wait for completion.`,
+		modelDescription: `${modelDescription}\n\nExecution mode:\n- mode='sync' (strongly preferred): waits for the command to complete and returns full output inline. Use for ALL one-shot commands (builds, tests, installs, compilation, scripts). Omit timeout to let the command run to completion — the tool handles idle detection and input prompts automatically.\n- mode='async': waits for an initial idle/output signal from the command, then returns a terminal ID and output snapshot while the process continues running. Use ONLY for processes that must keep running indefinitely (servers, watchers, daemons). Timeout caps how long to wait for the initial idle/output signal.\n\nTimeout parameter: Usually omit timeout entirely for sync commands — the tool returns automatically on completion, input-needed, or cancellation. Only set a timeout as a safety net for commands you suspect might hang. Use 0 to explicitly indicate no timeout.\n\nSync output is final: When a sync command completes, the full output is returned inline — do NOT call ${TerminalToolId.GetTerminalOutput} afterward. Only use ${TerminalToolId.GetTerminalOutput} if the tool result explicitly indicates the command was moved to background, timed out, or needs input. Do NOT tell the user to check the terminal panel — all command output is already included in the tool result.\n\nTerminal notifications: When an async command finishes or a sync command times out, you will be automatically notified on your next turn with the exit code and terminal output. You will also be notified if the terminal needs input. Do NOT poll or sleep to wait for completion.`,
 		userDescription: localize('runInTerminalTool.userDescription', 'Run commands in the terminal'),
 		source: ToolDataSource.Internal,
 		icon: Codicon.terminal,
@@ -629,6 +630,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	private readonly _telemetry: RunInTerminalToolTelemetry;
 	private readonly _commandArtifactCollector: TerminalCommandArtifactCollector;
 	protected readonly _profileFetcher: TerminalProfileFetcher;
+	private readonly _largeOutputFileWriter: LargeOutputFileWriter;
 
 	private readonly _commandLineRewriters: ICommandLineRewriter[];
 	private readonly _commandLineAnalyzers: ICommandLineAnalyzer[];
@@ -823,6 +825,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._telemetry = this._instantiationService.createInstance(RunInTerminalToolTelemetry);
 		this._commandArtifactCollector = this._instantiationService.createInstance(TerminalCommandArtifactCollector);
 		this._profileFetcher = this._instantiationService.createInstance(TerminalProfileFetcher);
+		this._largeOutputFileWriter = this._register(this._instantiationService.createInstance(LargeOutputFileWriter));
 
 		this._commandLineRewriters = [
 			this._register(this._instantiationService.createInstance(CommandLineCdPrefixRewriter)),
@@ -870,11 +873,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._removeTerminalAssociations(e);
 		}));
 
-		// Listen for chat session disposal to clean up associated terminals
+		// Listen for chat session disposal to clean up associated terminals and temp files
 		this._register(this._chatService.onDidDisposeSession(e => {
 			for (const resource of e.sessionResources) {
 				this._cleanupSessionTerminals(resource);
 			}
+			this._largeOutputFileWriter.cleanup();
 		}));
 
 	}
@@ -2446,7 +2450,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		if (outputAnalyzerMessage) {
 			resultText.push(`${outputAnalyzerMessage}\n`);
 		}
-		resultText.push(terminalResult);
+		// Process large output: write to file if needed, then truncate with file path
+		const processedOutput = await this._largeOutputFileWriter.processOutput(terminalResult);
+		resultText.push(processedOutput);
 
 		const isError = exitCode !== undefined && exitCode !== 0;
 		const endCwd = await toolTerminal.instance.getCwdResource();

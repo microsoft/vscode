@@ -21,6 +21,7 @@ import { ILogService } from '../../log/common/log.js';
 import { computeChangesSummaryFromLiveState, computeChangesSummaryFromPersistedDiffs } from './agentHostChangesetService.js';
 import { ChangesSummary } from '../common/state/protocol/state.js';
 import { IAgentHostChangesetService, META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS } from '../common/agentHostChangesetService.js';
+import { IChangesetOperationContributionService } from '../common/changesetOperation.js';
 
 /**
  * Raw metadata blob values for the session DB, batch-read by the caller.
@@ -104,6 +105,7 @@ export class ChangesetSessionCoordinator extends Disposable {
 
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
+		private readonly _changesetOperationContributionService: IChangesetOperationContributionService,
 		@IAgentHostChangesetService private readonly _changesets: IAgentHostChangesetService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostFileMonitorService fileMonitorService: IAgentHostFileMonitorService,
@@ -230,17 +232,20 @@ export class ChangesetSessionCoordinator extends Disposable {
 		const parsed = parseChangesetUri(resourceStr);
 		if (parsed?.kind === ChangesetKind.Branch) {
 			this._triggerBranchRefresh(parsed.sessionUri);
+			this._changesetOperationContributionService.refreshOperationsFromCurrentState(parsed.sessionUri);
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
 			return;
 		}
 		if (parsed?.kind === ChangesetKind.Uncommitted) {
 			this._subscribedUncommittedSessions.add(parsed.sessionUri);
 			this._triggerUncommittedRefresh(parsed.sessionUri);
+			this._changesetOperationContributionService.refreshOperationsFromCurrentState(parsed.sessionUri);
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
 			return;
 		}
 		if (parsed?.kind === ChangesetKind.Session) {
 			this._triggerSessionRefresh(parsed.sessionUri);
+			this._changesetOperationContributionService.refreshOperationsFromCurrentState(parsed.sessionUri);
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
 			return;
 		}

@@ -2756,6 +2756,14 @@ export enum StandardTokenType {
 	RegEx = 3
 }
 
+export enum SyntaxHighlightingTokenFontStyle {
+	None = 0,
+	Italic = 1,
+	Bold = 2,
+	Underline = 4,
+	Strikethrough = 8,
+}
+
 
 export class LinkedEditingRanges {
 	constructor(public readonly ranges: Range[], public readonly wordPattern?: RegExp) {

@@ -992,12 +992,14 @@ class AgentSessionAdapter implements ICopilotChatSession {
 			if (!base?.pullRequest || !this._gitHubService) {
 				return base;
 			}
-			const prModelRef = reader.store.add(this._gitHubService.createPullRequestModelReference(base.owner, base.repo, base.pullRequest.number));
-			const livePR = prModelRef.object.pullRequest.read(reader);
-			if (!livePR) {
+			// Prefer the last-seen PR state from the shared cache (retained while
+			// the session is inactive and seeded from storage on reload). Fall
+			// back to the metadata icon from `base` until the cache is populated.
+			const cached = this._gitHubService.getCachedPullRequestState(base.owner, base.repo, base.pullRequest.number).read(reader);
+			if (!cached) {
 				return base;
 			}
-			return { ...base, pullRequest: { ...base.pullRequest, icon: computePullRequestIcon(livePR.isDraft ? 'draft' : livePR.state) } };
+			return { ...base, pullRequest: { ...base.pullRequest, icon: computePullRequestIcon(cached.iconState) } };
 		});
 
 		this._workspace = observableValue(this, this._buildWorkspace(session));
@@ -1703,9 +1705,11 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				inputCost: modelMetadata?.inputCost,
 				outputCost: modelMetadata?.outputCost,
 				cacheCost: modelMetadata?.cacheCost,
+				cacheWriteCost: modelMetadata?.cacheWriteCost,
 				longContextInputCost: modelMetadata?.longContextInputCost,
 				longContextOutputCost: modelMetadata?.longContextOutputCost,
 				longContextCacheCost: modelMetadata?.longContextCacheCost,
+				longContextCacheWriteCost: modelMetadata?.longContextCacheWriteCost,
 				priceCategory: modelMetadata?.priceCategory,
 				maxInputTokens: modelMetadata?.maxInputTokens ?? 0,
 				maxOutputTokens: modelMetadata?.maxOutputTokens ?? 0,

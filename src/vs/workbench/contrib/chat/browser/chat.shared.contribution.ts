@@ -1173,11 +1173,12 @@ configurationRegistry.registerConfiguration({
 			items: { type: 'string' },
 			description: nls.localize('chat.agentHost.clientTools', "Tool reference names to expose as client-provided tools in agent host sessions."),
 			default: [
-				'runTask', 'getTaskOutput', 'problems', 'runTests', 'addComment', 'listComments', 'deleteComments', 'resolveComments',
+				'runTask', 'getTaskOutput', 'problems', 'runTests',
 				// These are always present in the {@link ChatConfiguration.AgentHostClientTools} default but
 				// out of these, only the tools that are actually registered/enabled are seen by the agent.
 				...browserChatToolReferenceNames,
 			],
+			agentsWindow: { default: ['runTask', 'getTaskOutput', ...browserChatToolReferenceNames] },
 			tags: ['experimental', 'advanced'],
 		},
 		[ChatConfiguration.ToolConfirmationCarousel]: {
@@ -1808,7 +1809,12 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
-
+		[ChatConfiguration.CollectInstructionsInExtension]: {
+			type: 'boolean',
+			description: nls.localize('chat.experimental.collectInstructionsInExtension', "When enabled, automatic instruction collection (.instructions.md, agent instructions, customizations index) is performed by the GitHub Copilot Chat extension instead of the core workbench."),
+			default: false,
+			tags: ['experimental'],
+		},
 		[ChatConfiguration.ChatCustomizationHarnessSelectorEnabled]: {
 			type: 'boolean',
 			tags: ['preview'],
