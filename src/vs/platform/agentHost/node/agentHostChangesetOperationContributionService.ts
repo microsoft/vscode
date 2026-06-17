@@ -127,6 +127,15 @@ export class AgentHostChangesetOperationContributionService extends Disposable i
 		});
 
 		const operationPromise = handler.invoke(params, CancellationToken.None)
+			.then(result => {
+				this._stateManager.dispatchServerAction(params.channel, {
+					type: ActionType.ChangesetOperationStatusChanged,
+					operationId: params.operationId,
+					status: ChangesetOperationStatus.Idle,
+				});
+
+				return result;
+			})
 			.catch((error) => {
 				this._stateManager.dispatchServerAction(params.channel, {
 					type: ActionType.ChangesetOperationStatusChanged,
