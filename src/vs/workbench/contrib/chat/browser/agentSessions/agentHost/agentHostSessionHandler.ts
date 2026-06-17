@@ -2882,14 +2882,31 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 */
 	private _createTurnModelLookup(sessionResource: URI, fallbackRawModelId: string | undefined): TurnModelLookup {
 		const resolveRaw = (rawModelId: string | undefined): string | undefined => rawModelId ?? fallbackRawModelId;
+		// Resolve the registered language model for a turn, trying the
+		// turn's own reported model id first and then the session's
+		// fallback model id. The turn-reported id can differ from the
+		// registered id (e.g. the Claude SDK reports the raw provider
+		// slug `claude-sonnet-4-6` while models are registered under the
+		// CAPI id `claude-sonnet-4.6`); without this fallback the lookup
+		// fails and the entire response-detail footer — including
+		// per-turn credits — is dropped.
+		const lookupModel = (rawModelId: string | undefined) => {
+			for (const candidate of [rawModelId, fallbackRawModelId]) {
+				const modelId = this._toLanguageModelId(sessionResource, candidate);
+				if (!modelId) {
+					continue;
+				}
+				const model = this._languageModelsService.lookupLanguageModel(modelId);
+				if (model) {
+					return model;
+				}
+			}
+			return undefined;
+		};
 		return {
 			toLanguageModelId: (rawModelId) => this._toLanguageModelId(sessionResource, resolveRaw(rawModelId)),
 			toResponseDetails: (rawModelId, usage) => {
-				const modelId = this._toLanguageModelId(sessionResource, resolveRaw(rawModelId));
-				if (!modelId) {
-					return undefined;
-				}
-				const model = this._languageModelsService.lookupLanguageModel(modelId);
+				const model = lookupModel(rawModelId);
 				if (!model) {
 					return undefined;
 				}
