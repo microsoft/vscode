@@ -299,6 +299,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 
 		// Clean up when user closes window via OS controls
 		Event.once(auxiliaryWindow.onUnload)(() => {
+			this.voiceSessionController.setTargetSession(undefined);
 			this.voiceSessionController.disconnect();
 			this._window = undefined;
 			this._windowDisposables.clear();

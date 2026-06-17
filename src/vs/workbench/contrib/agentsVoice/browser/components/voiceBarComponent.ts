@@ -58,6 +58,11 @@ export function createVoiceBar(): VoiceBarComponent {
 
 			if ((isSpeaking && props.speakingSession) || (!isSpeaking && !isListening)) {
 				container.style.display = 'none';
+				// Detach handler when hidden to avoid stale listeners
+				if (currentStopHandler) {
+					stopBtn.removeEventListener('click', currentStopHandler);
+					currentStopHandler = undefined;
+				}
 				return;
 			}
 			container.style.display = 'flex';
@@ -68,11 +73,16 @@ export function createVoiceBar(): VoiceBarComponent {
 				: localize('agentsVoice.listening', "Listening");
 
 			stopBtn.style.display = isSpeaking ? '' : 'none';
-			if (currentStopHandler) {
+			if (isSpeaking) {
+				if (currentStopHandler) {
+					stopBtn.removeEventListener('click', currentStopHandler);
+				}
+				currentStopHandler = (e: Event) => { e.preventDefault(); e.stopPropagation(); props.onStopSpeech(); };
+				stopBtn.addEventListener('click', currentStopHandler);
+			} else if (currentStopHandler) {
 				stopBtn.removeEventListener('click', currentStopHandler);
+				currentStopHandler = undefined;
 			}
-			currentStopHandler = (e: Event) => { e.preventDefault(); e.stopPropagation(); props.onStopSpeech(); };
-			stopBtn.addEventListener('click', currentStopHandler);
 		}
 	};
 }
