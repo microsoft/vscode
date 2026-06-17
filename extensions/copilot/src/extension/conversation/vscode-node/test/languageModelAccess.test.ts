@@ -400,26 +400,50 @@ suite('normalizeTokenPrices', () => {
 	test('converts tiered AIU prices to credits per 1M tokens', () => {
 		const result = normalizeTokenPrices({
 			batch_size: 1_000_000,
-			default: { input_price: 3, output_price: 15, cache_price: 0.375 },
+			default: { input_price: 3, output_price: 15, cache_price: 0.375, cache_write_price: 1.5 },
 		});
 		assert.ok(result);
 		assert.strictEqual(result.default.inputPrice, 3);
 		assert.strictEqual(result.default.outputPrice, 15);
 		assert.strictEqual(result.default.cachePrice, 0.375);
+		assert.strictEqual(result.default.cacheWritePrice, 1.5);
 		assert.strictEqual(result.longContext, undefined);
+	});
+
+	test('leaves cacheWritePrice undefined when absent from response', () => {
+		const result = normalizeTokenPrices({
+			batch_size: 1_000_000,
+			default: { input_price: 3, output_price: 15 },
+		});
+		assert.ok(result);
+		assert.strictEqual(result.default.cachePrice, undefined);
+		assert.strictEqual(result.default.cacheWritePrice, undefined);
 	});
 
 	test('includes long-context tier when present', () => {
 		const result = normalizeTokenPrices({
 			batch_size: 1_000_000,
-			default: { input_price: 3, output_price: 15, cache_price: 0.375 },
-			long_context: { input_price: 6, output_price: 30, cache_price: 0.75 },
+			default: { input_price: 3, output_price: 15, cache_price: 0.375, cache_write_price: 1.5 },
+			long_context: { input_price: 6, output_price: 30, cache_price: 0.75, cache_write_price: 3 },
 		});
 		assert.ok(result);
 		assert.strictEqual(result.default.inputPrice, 3);
+		assert.strictEqual(result.default.cacheWritePrice, 1.5);
 		assert.strictEqual(result.longContext?.inputPrice, 6);
 		assert.strictEqual(result.longContext?.outputPrice, 30);
 		assert.strictEqual(result.longContext?.cachePrice, 0.75);
+		assert.strictEqual(result.longContext?.cacheWritePrice, 3);
+	});
+
+	test('includes long-context tier when cache_write_price differs from default', () => {
+		const result = normalizeTokenPrices({
+			batch_size: 1_000_000,
+			default: { input_price: 3, output_price: 15, cache_write_price: 1.5 },
+			long_context: { input_price: 3, output_price: 15, cache_write_price: 3 },
+		});
+		assert.ok(result);
+		assert.ok(result.longContext, 'long-context tier should be included when cache_write_price differs');
+		assert.strictEqual(result.longContext?.cacheWritePrice, 3);
 	});
 });
 
