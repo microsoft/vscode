@@ -14,6 +14,7 @@ import { TokenClassificationExtensionPoints } from '../../services/themes/common
 import { LanguageConfigurationFileHandler } from '../../contrib/codeEditor/common/languageConfigurationExtensionPoint.js';
 import { StatusBarItemsExtensionPoint } from './statusBarExtensionPoint.js';
 import { CSSExtensionPoint } from '../../services/themes/browser/cssExtensionPoint.js';
+import { UriHandlerExtensionPoint } from '../common/uriHandlerExtensionPoint.js';
 
 // --- mainThread participants
 import './mainThreadLocalization.js';
@@ -120,6 +121,7 @@ export class ExtensionPoints implements IWorkbenchContribution {
 		this.instantiationService.createInstance(LanguageConfigurationFileHandler);
 		this.instantiationService.createInstance(StatusBarItemsExtensionPoint);
 		this.instantiationService.createInstance(CSSExtensionPoint);
+		this.instantiationService.createInstance(UriHandlerExtensionPoint);
 	}
 }
 

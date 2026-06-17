@@ -1860,6 +1860,7 @@ export interface MainThreadUrlsShape extends IDisposable {
 	$registerUriHandler(handle: number, extensionId: ExtensionIdentifier, extensionDisplayName: string): Promise<void>;
 	$unregisterUriHandler(handle: number): Promise<void>;
 	$createAppUri(uri: UriComponents): Promise<UriComponents>;
+	$notifyCsrfDeeplinkRejection(extensionId: ExtensionIdentifier, extensionDisplayName: string): Promise<void>;
 }
 
 export interface IChatResponseProgressFileTreeData {
@@ -1886,6 +1887,13 @@ export type IChatProgressDto =
 
 export interface ExtHostUrlsShape {
 	$handleExternalUri(handle: number, uri: UriComponents): Promise<void>;
+	/**
+	 * Pre-activation CSRF check driven from the workbench. Resolves a manifest-declared CSRF policy
+	 * for `extensionId` (if this extension host hosts it) and verifies the uri's token without
+	 * activating the extension. Returns `unhandled` when there is no manifest policy, the path is
+	 * exempt, or this host does not own the extension.
+	 */
+	$verifyCsrf(extensionId: ExtensionIdentifier, uri: UriComponents, secretFile?: string): Promise<'verified' | 'rejected' | 'unhandled'>;
 }
 
 export interface MainThreadUriOpenersShape extends IDisposable {

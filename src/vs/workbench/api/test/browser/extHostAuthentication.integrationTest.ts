@@ -38,6 +38,7 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IUserActivityService, UserActivityService } from '../../../services/userActivity/common/userActivityService.js';
 import { ExtHostUrls } from '../../common/extHostUrls.js';
+import { NullExtHostUriHandlerCsrfSecret } from '../../common/extHostUriHandlerCsrfSecret.js';
 import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
 import { TestSecretStorageService } from '../../../../platform/secrets/test/common/testSecretStorageService.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
@@ -178,7 +179,7 @@ suite('ExtHostAuthentication', () => {
 				}
 			} as any,
 			new ExtHostWindow(initData, rpcProtocol),
-			new ExtHostUrls(rpcProtocol),
+			new ExtHostUrls(rpcProtocol, null!, new NullExtHostUriHandlerCsrfSecret(), new NullLogService()),
 			new ExtHostProgress(rpcProtocol),
 			disposables.add(new TestLoggerService()),
 			new NullLogService()

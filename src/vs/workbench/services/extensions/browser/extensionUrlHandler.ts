@@ -13,6 +13,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IURLHandler, IURLService, IOpenURLOptions } from '../../../../platform/url/common/url.js';
 import { IHostService } from '../../host/browser/host.js';
 import { ActivationKind, IExtensionService } from '../common/extensions.js';
+import { stripCsrfToken } from '../common/uriHandlerCsrf.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
@@ -71,10 +72,23 @@ export interface IExtensionContributedURLHandler extends IURLHandler {
 	extensionDisplayName: string;
 }
 
+/** Verdict of a pre-activation CSRF check for a deeplink. */
+export type UriHandlerCsrfVerdict = 'verified' | 'rejected' | 'unhandled';
+
+/**
+ * Verifies a deeplink's CSRF token before the target extension is activated. Implemented per
+ * extension host (by `MainThreadUrls`); only the host that owns the extension returns a definitive
+ * verdict, the rest return `unhandled`.
+ */
+export interface IUriHandlerCsrfVerifier {
+	verifyCsrf(extensionId: ExtensionIdentifier, uri: URI, secretFile?: string): Promise<UriHandlerCsrfVerdict>;
+}
+
 export interface IExtensionUrlHandler {
 	readonly _serviceBrand: undefined;
 	registerExtensionHandler(extensionId: ExtensionIdentifier, handler: IExtensionContributedURLHandler): void;
 	unregisterExtensionHandler(extensionId: ExtensionIdentifier): void;
+	registerCsrfVerifier(verifier: IUriHandlerCsrfVerifier): IDisposable;
 }
 
 export interface IExtensionUrlHandlerOverride {
@@ -118,6 +132,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 
 	private extensionHandlers = new Map<string, IExtensionContributedURLHandler>();
 	private uriBuffer = new Map<string, { timestamp: number; uri: URI }[]>();
+	private csrfVerifiers = new Set<IUriHandlerCsrfVerifier>();
 	private userTrustedExtensionsStorage: UserTrustedExtensionIdStorage;
 	private disposable: IDisposable;
 
@@ -168,6 +183,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 
 		const initialHandler = this.extensionHandlers.get(ExtensionIdentifier.toKey(extensionId));
 		let extensionDisplayName: string;
+		let csrfTrusted = false;
 
 		if (!initialHandler) {
 			// The extension is not yet activated, so let's check if it is installed and enabled
@@ -175,19 +191,37 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 			if (!extension) {
 				await this.handleUnhandledURL(uri, extensionId, options);
 				return true;
-			} else {
-				extensionDisplayName = extension.displayName ?? '';
+			}
+			extensionDisplayName = extension.displayName ?? '';
+
+			// Pre-activation CSRF check (manifest-declared): drop forged links before activating,
+			// and let a verified link skip the trust prompt.
+			const csrf = extension.contributes?.uriHandler?.csrfProtection;
+			if (csrf && this.csrfVerifiers.size > 0) {
+				const policy = csrf === true ? undefined : csrf;
+				const exempt = policy?.unprotectedPaths?.includes(uri.path) ?? false;
+				if (!exempt) {
+					const verdict = await this.checkCsrf(extension.identifier, uri, policy?.secretFile);
+					if (verdict === 'rejected') {
+						return true; // handled by dropping it — the extension is never activated
+					}
+					csrfTrusted = verdict === 'verified';
+				}
 			}
 		} else {
+			// Already-activated: no pre-activation check needed. Forged links are still gated by the
+			// authoritative verification in ExtHostUrls.$handleExternalUri before the handler runs.
 			extensionDisplayName = initialHandler.extensionDisplayName;
 		}
 
-		const trusted = options?.trusted
+		const trusted = csrfTrusted
+			|| options?.trusted
 			|| this.productService.trustedExtensionProtocolHandlers?.some(value => equalsIgnoreCase(value, extensionId))
 			|| this.didUserTrustExtension(ExtensionIdentifier.toKey(extensionId));
 
 		if (!trusted) {
-			const uriString = uri.toString(false);
+			// don't print invalid csrf token in the toast
+			const uriString = stripCsrfToken(uri).toString(false);
 			let uriLabel = uriString;
 
 			if (uriLabel.length > 40) {
@@ -259,6 +293,25 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 
 	unregisterExtensionHandler(extensionId: ExtensionIdentifier): void {
 		this.extensionHandlers.delete(ExtensionIdentifier.toKey(extensionId));
+	}
+
+	registerCsrfVerifier(verifier: IUriHandlerCsrfVerifier): IDisposable {
+		this.csrfVerifiers.add(verifier);
+		return toDisposable(() => this.csrfVerifiers.delete(verifier));
+	}
+
+	private async checkCsrf(extensionId: ExtensionIdentifier, uri: URI, secretFile?: string): Promise<UriHandlerCsrfVerdict> {
+		const verdicts = await Promise.all(
+			[...this.csrfVerifiers].map(verifier => verifier.verifyCsrf(extensionId, uri, secretFile).then(v => v, () => 'unhandled' as const))
+		);
+		// Fail closed: any host that rejects wins; otherwise a definitive `verified` from the owning host.
+		if (verdicts.some(v => v === 'rejected')) {
+			return 'rejected';
+		}
+		if (verdicts.some(v => v === 'verified')) {
+			return 'verified';
+		}
+		return 'unhandled';
 	}
 
 	private async handleURLByExtension(extensionId: ExtensionIdentifier | string, handler: IURLHandler, uri: URI, options?: IOpenURLOptions): Promise<boolean> {
@@ -342,6 +395,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		this.disposable.dispose();
 		this.extensionHandlers.clear();
 		this.uriBuffer.clear();
+		this.csrfVerifiers.clear();
 	}
 }
 

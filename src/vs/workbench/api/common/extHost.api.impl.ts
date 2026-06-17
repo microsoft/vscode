@@ -987,8 +987,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerFileDecorationProvider(provider: vscode.FileDecorationProvider) {
 				return extHostDecorations.registerFileDecorationProvider(provider, extension);
 			},
-			registerUriHandler(handler: vscode.UriHandler) {
-				return extHostUrls.registerUriHandler(extension, handler);
+			registerUriHandler(handler: vscode.UriHandler, options?: vscode.UriHandlerOptions) {
+				return extHostUrls.registerUriHandler(extension, handler, options);
 			},
 			createQuickPick<T extends vscode.QuickPickItem>(): vscode.QuickPick<T> {
 				return extHostQuickOpen.createQuickPick(extension);

@@ -12,6 +12,7 @@ import { ExtHostLogService } from '../common/extHostLogService.js';
 import { ExtensionStoragePaths, IExtensionStoragePaths } from '../common/extHostStoragePaths.js';
 import { ExtHostTelemetry, IExtHostTelemetry } from '../common/extHostTelemetry.js';
 import { ExtHostExtensionService } from './extHostExtensionService.js';
+import { IExtHostUriHandlerCsrfSecret, NullExtHostUriHandlerCsrfSecret } from '../common/extHostUriHandlerCsrfSecret.js';
 
 // #########################################################################
 // ###                                                                   ###
@@ -24,3 +25,4 @@ registerSingleton(IExtHostAuthentication, ExtHostAuthentication, InstantiationTy
 registerSingleton(IExtHostExtensionService, ExtHostExtensionService, InstantiationType.Eager);
 registerSingleton(IExtensionStoragePaths, ExtensionStoragePaths, InstantiationType.Eager);
 registerSingleton(IExtHostTelemetry, new SyncDescriptor(ExtHostTelemetry, [true], true));
+registerSingleton(IExtHostUriHandlerCsrfSecret, NullExtHostUriHandlerCsrfSecret, InstantiationType.Delayed);

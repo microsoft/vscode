@@ -242,6 +242,16 @@ export interface IExtensionContributions {
 	readonly languageModelTools?: ReadonlyArray<IToolContribution>;
 	readonly languageModelToolSets?: ReadonlyArray<IToolSetContribution>;
 	readonly mcpServerDefinitionProviders?: ReadonlyArray<IMcpCollectionContribution>;
+	readonly uriHandler?: IUriHandlerContribution;
+}
+
+export interface IUriHandlerCsrfProtection {
+	readonly secretFile?: string;
+	readonly unprotectedPaths?: readonly string[];
+}
+
+export interface IUriHandlerContribution {
+	readonly csrfProtection?: boolean | IUriHandlerCsrfProtection;
 }
 
 export interface IExtensionCapabilities {
