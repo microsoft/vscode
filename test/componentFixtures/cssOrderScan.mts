@@ -20,7 +20,7 @@
  *   node test/componentFixtures/cssOrderScan.mts [--out <dir>] [--fixture-id-regex <rx>]
  */
 
-import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { bisectConflict, type FixtureEntry, readServeUrl, Renderer } from './cssOrderShared.mts';
@@ -99,19 +99,18 @@ function slugify(fixtureId: string): string {
 }
 
 /**
- * A Markdown link (not an embedded image) to a captured render. Honors
- * `--image-base-url` when set; otherwise inlines the PNG as a base64 `data:`
- * URI so the report stays self-contained without bloating it with `<img>`s.
+ * A Markdown link (not an embedded image) to a captured render.
+ * When `--image-base-url` is set, links point to `<base>/<hash>`. Otherwise,
+ * links stay relative to the report directory.
  */
 async function imageLink(args: Args, label: string, hash: string, relativePath: string | undefined): Promise<string | undefined> {
-	if (args.imageBaseUrl) {
-		return `[${label}](${args.imageBaseUrl.replace(/\/$/, '')}/${hash})`;
-	}
 	if (!relativePath) {
 		return undefined;
 	}
-	const bytes = await readFile(join(args.out, relativePath));
-	return `[${label}](data:image/png;base64,${bytes.toString('base64')})`;
+	if (args.imageBaseUrl) {
+		return `[${label}](${args.imageBaseUrl.replace(/\/$/, '')}/${hash})`;
+	}
+	return `[${label}](${relativePath})`;
 }
 
 async function renderMarkdown(args: Args, problems: readonly Problem[], totals: { scanned: number; errored: number }): Promise<string> {
