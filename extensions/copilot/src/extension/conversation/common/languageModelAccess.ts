@@ -31,6 +31,42 @@ export function pickDefaultReasoningEffort(effortLevels: readonly string[], fami
 }
 
 /**
+ * Returns the localized description shown in the picker hover for a given
+ * reasoning-effort `level`. Centralised here so every provider surfaces the
+ * same wording. Falls back to the raw level for unknown values.
+ */
+export function getReasoningEffortDescription(level: string): string {
+	switch (level) {
+		case 'none': return l10n.t('No reasoning applied');
+		case 'minimal': return l10n.t('Minimal reasoning for fastest responses');
+		case 'low': return l10n.t('Faster responses with less reasoning');
+		case 'medium': return l10n.t('Balanced reasoning and speed');
+		case 'high': return l10n.t('Greater reasoning depth but slower');
+		case 'xhigh': return l10n.t('Highest reasoning depth but slowest');
+		case 'max': return l10n.t('Absolute maximum capability with no constraints');
+		default: return level;
+	}
+}
+
+/**
+ * Returns the localized, title-cased picker label for a given
+ * reasoning-effort `level`. Centralised here so every provider surfaces the
+ * same wording. Falls back to capitalizing an unknown value.
+ */
+export function getReasoningEffortLabel(level: string): string {
+	switch (level) {
+		case 'none': return l10n.t('None');
+		case 'minimal': return l10n.t('Minimal');
+		case 'low': return l10n.t('Low');
+		case 'medium': return l10n.t('Medium');
+		case 'high': return l10n.t('High');
+		case 'xhigh': return l10n.t('Extra High');
+		case 'max': return l10n.t('Max');
+		default: return level.charAt(0).toUpperCase() + level.slice(1);
+	}
+}
+
+/**
  * Builds the `reasoningEffort` property descriptor for a model's
  * {@link LanguageModelConfigurationSchema}. Centralises the default-selection
  * and localized descriptions so the picker stays consistent across the
@@ -41,19 +77,8 @@ export function buildReasoningEffortSchemaProperty(effortLevels: readonly string
 		type: 'string',
 		title: l10n.t('Thinking Effort'),
 		enum: effortLevels,
-		enumItemLabels: effortLevels.map(level => level.charAt(0).toUpperCase() + level.slice(1)),
-		enumDescriptions: effortLevels.map(level => {
-			switch (level) {
-				case 'none': return l10n.t('No reasoning applied');
-				case 'minimal': return l10n.t('Minimal reasoning for fastest responses');
-				case 'low': return l10n.t('Faster responses with less reasoning');
-				case 'medium': return l10n.t('Balanced reasoning and speed');
-				case 'high': return l10n.t('Greater reasoning depth but slower');
-				case 'xhigh': return l10n.t('Highest reasoning depth but slowest');
-				case 'max': return l10n.t('Absolute maximum capability with no constraints');
-				default: return level;
-			}
-		}),
+		enumItemLabels: effortLevels.map(getReasoningEffortLabel),
+		enumDescriptions: effortLevels.map(getReasoningEffortDescription),
 		default: pickDefaultReasoningEffort(effortLevels, family),
 		group: 'navigation',
 	};
@@ -120,11 +145,30 @@ export function getModelCapabilitiesDescription(endpoint: IChatEndpoint | Langua
 }
 
 function formatAicPrice(price: number): string {
+	if (price === 0) {
+		return '0';
+	}
 	if (price < 0.01) {
 		return price.toExponential(2);
 	}
 	// Remove unnecessary trailing zeros
 	return price.toFixed(4).replace(/\.?0+$/, '');
+}
+
+/**
+ * Formats a token count as a human-readable string (e.g. 128K, 1M, 2.5M).
+ */
+export function formatTokenCount(count: number): string {
+	if (count >= 1_000_000) {
+		const value = count / 1_000_000;
+		const floored = Math.floor(value * 10) / 10;
+		return floored % 1 === 0 ? `${floored.toFixed(0)}M` : `${floored.toFixed(1)}M`;
+	} else if (count > 900_000) {
+		return '1M';
+	} else if (count >= 1000) {
+		return `${Math.round(count / 1000)}K`;
+	}
+	return count.toString();
 }
 
 /**

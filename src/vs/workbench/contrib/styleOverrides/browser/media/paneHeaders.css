@@ -1,0 +1,72 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Style-override module: "Pane Headers".
+ *
+ * Restyles view pane (sidebar / panel section) headers:
+ *   - replaces the full-width separator lines with shorter, inset ones,
+ *   - rounds the header corners, and
+ *   - adds a background tint on hover.
+ *
+ * The pane border (`border-top`) and the pane's left border are applied as
+ * inline styles by the PaneView (src/vs/base/browser/ui/splitview/paneview.ts),
+ * so the resets below must use `!important` to win over those inline values.
+ *
+ * All rules are gated behind the `.style-override-paneHeaders` class, which the
+ * StyleOverridesContribution toggles onto the workbench container(s) when the
+ * `workbench.experimental.styleOverrides` setting includes "paneHeaders".
+ * Without that class these rules never apply.
+ */
+
+/*
+ * Remove the full-width separator lines / borders (set inline by the PaneView)
+ * so we can redraw them inset below.
+ */
+.style-override-paneHeaders .monaco-pane-view .pane > .pane-header,
+.style-override-paneHeaders .monaco-pane-view .pane {
+	border: none !important;
+}
+
+/*
+ * Redraw the section separator as a shorter, inset line at the top of each
+ * header (the header is already `position: relative`). It uses the same section
+ * header border color the PaneView would, falling back across sidebar / panel
+ * tokens so it is visible in both locations.
+ */
+.style-override-paneHeaders .monaco-pane-view .pane > .pane-header::before {
+	content: "";
+	position: absolute;
+	top: 0;
+	left: 8px;
+	right: 8px;
+	height: 1px;
+	pointer-events: none;
+	background-color: var(--vscode-sideBarSectionHeader-border, var(--vscode-panelSectionHeader-border, var(--vscode-panel-border)));
+}
+
+/* The first section in a pane has no separator above it. */
+.style-override-paneHeaders .monaco-pane-view .split-view-view:first-of-type > .pane > .pane-header::before {
+	display: none;
+}
+
+/* Round the header corners. */
+.style-override-paneHeaders .monaco-pane-view .pane > .pane-header {
+	border-radius: var(--vscode-cornerRadius-medium);
+}
+
+/* Tint the header background on hover (overrides the inline header background). */
+.style-override-paneHeaders .monaco-pane-view .pane > .pane-header:hover {
+	background-color: var(--vscode-list-hoverBackground) !important;
+}
+
+/*
+ * Remove the focus outline when the header is focused by pointer (click). The
+ * outline comes from the global `.monaco-workbench [tabindex="0"]:focus` rule.
+ * `:not(:focus-visible)` keeps the visible focus ring for keyboard users.
+ */
+.style-override-paneHeaders .monaco-pane-view .pane > .pane-header:focus:not(:focus-visible) {
+	outline: none !important;
+}

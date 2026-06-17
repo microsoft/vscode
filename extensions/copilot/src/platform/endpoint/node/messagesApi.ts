@@ -70,6 +70,9 @@ interface AnthropicStreamEvent {
 				ephemeral_1h_input_tokens?: number;
 				ephemeral_5m_input_tokens?: number;
 			};
+			output_tokens_details?: {
+				thinking_tokens?: number;
+			};
 		};
 	};
 	index?: number;
@@ -99,6 +102,9 @@ interface AnthropicStreamEvent {
 		cache_creation?: {
 			ephemeral_1h_input_tokens?: number;
 			ephemeral_5m_input_tokens?: number;
+		};
+		output_tokens_details?: {
+			thinking_tokens?: number;
 		};
 	};
 	copilot_usage?: {
@@ -164,13 +170,20 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 	}
 
 	const thinkingEnabled = !!thinkingConfig;
-	let effort: 'low' | 'medium' | 'high' | undefined;
-	if (thinkingConfig && endpoint.supportsReasoningEffort?.length) {
-		const candidateEffort = configurationService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride)
-			?? reasoningEffort
-			?? (endpoint.supportsReasoningEffort.length === 1 ? endpoint.supportsReasoningEffort[0] : 'medium');
-		if (candidateEffort === 'low' || candidateEffort === 'medium' || candidateEffort === 'high') {
-			effort = candidateEffort;
+	let effort: string | undefined;
+	if (thinkingConfig) {
+		const declaredLevels = endpoint.supportsReasoningEffort?.length ? endpoint.supportsReasoningEffort : undefined;
+		const explicitlyUnsupported = endpoint.supportsReasoningEffort !== undefined && endpoint.supportsReasoningEffort.length === 0;
+		const defaultEffort = declaredLevels
+			? (declaredLevels.includes('medium') ? 'medium' : declaredLevels[Math.floor((declaredLevels.length - 1) / 2)])
+			: !explicitlyUnsupported && endpoint.supportsAdaptiveThinking ? 'high' : undefined;
+		if (defaultEffort !== undefined) {
+			const candidateEffort = configurationService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride)
+				?? reasoningEffort
+				?? defaultEffort;
+			if (typeof candidateEffort === 'string' && candidateEffort.length > 0 && (!declaredLevels || declaredLevels.includes(candidateEffort))) {
+				effort = candidateEffort;
+			}
 		}
 	}
 
@@ -452,23 +465,27 @@ function rawContentToAnthropicContent(content: readonly Raw.ChatCompletionConten
 			}
 			case Raw.ChatCompletionContentPartKind.Opaque: {
 				if (part.value && typeof part.value === 'object' && 'type' in part.value) {
-					const opaqueValue = part.value as { type: string; thinking?: { id: string; text?: string | string[]; encrypted?: string } };
+					const opaqueValue = part.value as { type: string; thinking?: { id: string; text?: string | string[]; encrypted?: string; redacted?: boolean } };
 					if (opaqueValue.type === 'thinking' && opaqueValue.thinking) {
 						const thinkingText = Array.isArray(opaqueValue.thinking.text)
 							? opaqueValue.thinking.text.join('')
 							: opaqueValue.thinking.text;
-						if (thinkingText && opaqueValue.thinking.encrypted) {
-							// Regular thinking block: text is present, encrypted field contains the signature
-							convertedContent.push({
-								type: 'thinking',
-								thinking: thinkingText,
-								signature: opaqueValue.thinking.encrypted,
-							});
-						} else if (opaqueValue.thinking.encrypted && !thinkingText) {
-							// Redacted thinking block: no text, only encrypted data from Claude
+						if (opaqueValue.thinking.redacted && opaqueValue.thinking.encrypted) {
+							// Genuine redacted_thinking block: `encrypted` holds the opaque `data` blob.
 							convertedContent.push({
 								type: 'redacted_thinking',
 								data: opaqueValue.thinking.encrypted,
+							});
+						} else if (opaqueValue.thinking.encrypted) {
+							// Regular thinking block: `encrypted` holds the signature. The text may be
+							// empty (e.g. `display: "omitted"` or pruned under token budget); the Anthropic
+							// API still accepts a thinking block with an empty `thinking` field as long as
+							// the signature is intact. We must NEVER ship the signature as redacted `data`,
+							// which the API rejects with "Invalid 'data' in 'redacted_thinking' block".
+							convertedContent.push({
+								type: 'thinking',
+								thinking: thinkingText || '',
+								signature: opaqueValue.thinking.encrypted,
 							});
 						}
 					}
@@ -677,6 +694,13 @@ interface AnthropicCompletionState {
 	readonly cacheCreation1hTokens: number | undefined;
 	readonly cacheCreation5mTokens: number | undefined;
 	readonly cacheReadTokens: number;
+	/**
+	 * Anthropic-reported thinking (reasoning) tokens, a subset of
+	 * `output_tokens`. Surfaced as `completion_tokens_details.reasoning_tokens`
+	 * to match the OpenAI/CAPI naming used elsewhere in telemetry. Undefined
+	 * when the server did not include `output_tokens_details`.
+	 */
+	readonly thinkingTokens: number | undefined;
 	readonly requestId: string;
 	readonly ghRequestId: string;
 	readonly serverExperiments: string;
@@ -744,7 +768,7 @@ function buildAnthropicCompletion(state: AnthropicCompletionState, logService: I
 					: {}),
 			},
 			completion_tokens_details: {
-				reasoning_tokens: 0,
+				reasoning_tokens: state.thinkingTokens ?? 0,
 				accepted_prediction_tokens: 0,
 				rejected_prediction_tokens: 0,
 			},
@@ -797,6 +821,9 @@ type AnthropicNonStreamingResponse =
 			cache_creation?: {
 				ephemeral_1h_input_tokens?: number;
 				ephemeral_5m_input_tokens?: number;
+			};
+			output_tokens_details?: {
+				thinking_tokens?: number;
 			};
 		};
 	}
@@ -933,6 +960,7 @@ export async function processNonStreamingResponseFromMessagesEndpoint(
 			cacheCreation1hTokens: usage?.cache_creation?.ephemeral_1h_input_tokens,
 			cacheCreation5mTokens: usage?.cache_creation?.ephemeral_5m_input_tokens,
 			cacheReadTokens: usage?.cache_read_input_tokens ?? 0,
+			thinkingTokens: usage?.output_tokens_details?.thinking_tokens,
 			requestId,
 			ghRequestId,
 			serverExperiments,
@@ -983,6 +1011,7 @@ export class AnthropicMessagesProcessor {
 	private cacheCreation1hTokens: number | undefined;
 	private cacheCreation5mTokens: number | undefined;
 	private cacheReadTokens: number = 0;
+	private thinkingTokens: number | undefined;
 	private copilotUsage?: { total_nano_aiu: number };
 	private contextManagementResponse?: ContextManagementResponse;
 	private stopReason: string | undefined;
@@ -1065,6 +1094,7 @@ export class AnthropicMessagesProcessor {
 					this.cacheCreation1hTokens = chunk.message.usage.cache_creation?.ephemeral_1h_input_tokens ?? this.cacheCreation1hTokens;
 					this.cacheCreation5mTokens = chunk.message.usage.cache_creation?.ephemeral_5m_input_tokens ?? this.cacheCreation5mTokens;
 					this.cacheReadTokens = chunk.message.usage.cache_read_input_tokens ?? 0;
+					this.thinkingTokens = chunk.message.usage.output_tokens_details?.thinking_tokens ?? this.thinkingTokens;
 				}
 				return;
 			case 'content_block_start':
@@ -1094,6 +1124,7 @@ export class AnthropicMessagesProcessor {
 						thinking: {
 							id: `thinking_${chunk.index}`,
 							encrypted: data,
+							redacted: true,
 						}
 					});
 				}
@@ -1177,6 +1208,7 @@ export class AnthropicMessagesProcessor {
 					this.cacheCreation1hTokens = chunk.usage.cache_creation?.ephemeral_1h_input_tokens ?? this.cacheCreation1hTokens;
 					this.cacheCreation5mTokens = chunk.usage.cache_creation?.ephemeral_5m_input_tokens ?? this.cacheCreation5mTokens;
 					this.cacheReadTokens = chunk.usage.cache_read_input_tokens ?? this.cacheReadTokens;
+					this.thinkingTokens = chunk.usage.output_tokens_details?.thinking_tokens ?? this.thinkingTokens;
 				}
 				if (chunk.copilot_usage && typeof chunk.copilot_usage.total_nano_aiu === 'number') {
 					this.copilotUsage = chunk.copilot_usage;
@@ -1272,6 +1304,7 @@ export class AnthropicMessagesProcessor {
 					cacheCreation1hTokens: this.cacheCreation1hTokens,
 					cacheCreation5mTokens: this.cacheCreation5mTokens,
 					cacheReadTokens: this.cacheReadTokens,
+					thinkingTokens: this.thinkingTokens,
 					requestId: this.requestId,
 					ghRequestId: this.ghRequestId,
 					serverExperiments: this.serverExperiments,

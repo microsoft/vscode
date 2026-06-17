@@ -39,17 +39,18 @@ import { IHostService } from '../../../../../workbench/services/host/browser/hos
 import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { logSessionsInteraction } from '../../../../common/sessionsTelemetry.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { Menus } from '../../../../browser/menus.js';
 import { MobileSessionFilterChips } from '../../../../browser/parts/mobile/mobileSessionFilterChips.js';
 import { IMobileSortGroupSheetItem, showMobileSortGroupSheet } from '../../../../browser/parts/mobile/mobileSortGroupSheet.js';
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
 import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
-import { ISessionsPartService } from '../../../../browser/parts/sessionsPartService.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';
-const ACTION_ID_NEW_SESSION = 'workbench.action.sessions.newChat';
 const GROUPING_STORAGE_KEY = 'sessionsViewPane.grouping';
 const SORTING_STORAGE_KEY = 'sessionsViewPane.sorting';
 
@@ -59,13 +60,13 @@ const SORTING_STORAGE_KEY = 'sessionsViewPane.sorting';
  * the session is already the last visible one, this is a no-op aside from
  * activation.
  */
-export async function openSessionToTheSide(sessionsManagementService: ISessionsManagementService, session: ISession, options?: { preserveFocus?: boolean }): Promise<void> {
-	const visible = sessionsManagementService.visibleSessions.get();
+export async function openSessionToTheSide(sessionsService: ISessionsService, session: ISession, options?: { preserveFocus?: boolean }): Promise<void> {
+	const visible = sessionsService.visibleSessions.get();
 	const lastVisible = visible[visible.length - 1];
 	if (lastVisible && lastVisible.sessionId !== session.sessionId) {
-		sessionsManagementService.insertAt(session, lastVisible.sessionId, 'right');
+		sessionsService.insertAt(session, lastVisible.sessionId, 'right');
 	}
-	await sessionsManagementService.openSession(session.resource, options);
+	await sessionsService.openSession(session.resource, options);
 }
 
 export const SessionsViewFilterSubMenu = new MenuId('SessionsViewPaneFilterSubMenu');
@@ -104,11 +105,12 @@ export class SessionsView extends ViewPane {
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsService private readonly sessionsService: ISessionsService,
 		@IHostService private readonly hostService: IHostService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -219,11 +221,11 @@ export class SessionsView extends ViewPane {
 					// Alt-click: open the session to the right of the last visible session in the grid.
 					const session = this.sessionsManagementService.getSession(resource);
 					if (session) {
-						openSessionToTheSide(this.sessionsManagementService, session, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
+						openSessionToTheSide(this.sessionsService, session, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
 						return;
 					}
 				}
-				this.sessionsManagementService.openSession(resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
+				this.sessionsService.openSession(resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
 			},
 		}));
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
@@ -271,7 +273,7 @@ export class SessionsView extends ViewPane {
 
 		// When the active session changes, select it in the list
 		this._register(autorun(reader => {
-			const activeSession = this.sessionsManagementService.activeSession.read(reader);
+			const activeSession = this.sessionsService.activeSession.read(reader);
 			if (activeSession) {
 				if (!sessionsControl.reveal(activeSession.resource)) {
 					sessionsControl.clearFocus();
@@ -338,8 +340,7 @@ export class SessionsView extends ViewPane {
 		newSessionButton.element.classList.add('agent-sessions-compact-new-button');
 		this._register(newSessionButton.onDidClick(() => {
 			logSessionsInteraction(this.telemetryService, 'newSession');
-			this.sessionsManagementService.openNewSessionView();
-			this.sessionsPartService.focusSession(this.sessionsManagementService.activeSession.get());
+			this.commandService.executeCommand(NEW_SESSION_ACTION_ID);
 		}));
 
 		const newSessionLabel = localize('newCompact', "New");
@@ -356,8 +357,8 @@ export class SessionsView extends ViewPane {
 		DOM.reset(newSessionButton.element, buttonLabel);
 
 		const getNewSessionKeybinding = () => {
-			const primaryKeybinding = this.keybindingService.lookupKeybinding(ACTION_ID_NEW_SESSION, this.scopedContextKeyService, true);
-			const resolvedKeybindings = this.keybindingService.lookupKeybindings(ACTION_ID_NEW_SESSION);
+			const primaryKeybinding = this.keybindingService.lookupKeybinding(NEW_SESSION_ACTION_ID, this.scopedContextKeyService, true);
+			const resolvedKeybindings = this.keybindingService.lookupKeybindings(NEW_SESSION_ACTION_ID);
 			return primaryKeybinding ?? resolvedKeybindings[0];
 		};
 
@@ -406,7 +407,7 @@ export class SessionsView extends ViewPane {
 	}
 
 	private restoreLastSelectedSession(): void {
-		const activeSession = this.sessionsManagementService.activeSession.get();
+		const activeSession = this.sessionsService.activeSession.get();
 		if (activeSession && this.sessionsControl) {
 			this.sessionsControl.reveal(activeSession.resource);
 		}

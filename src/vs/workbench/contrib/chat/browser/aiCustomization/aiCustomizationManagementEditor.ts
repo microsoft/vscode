@@ -334,6 +334,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private harnessDropdownLabel: HTMLElement | undefined;
 	private sidebarHeaderContainer: HTMLElement | undefined;
 	private homeButton: HTMLElement | undefined;
+	private homeButtonIcon: HTMLElement | undefined;
 	private homeButtonLabel: HTMLElement | undefined;
 
 	private readonly inEditorContextKey: IContextKey<boolean>;
@@ -370,6 +371,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.inEditorContextKey = CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR.bindTo(contextKeyService);
 		this.sectionContextKey = CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_SECTION.bindTo(contextKeyService);
 		this.harnessContextKey = CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_HARNESS.bindTo(contextKeyService);
+		this.updateHarnessLabelPresentation();
 
 		// Track workspace changes for embedded editor
 		this._register(autorun(reader => {
@@ -516,6 +518,16 @@ export class AICustomizationManagementEditor extends EditorPane {
 		return false; //this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationHarnessSelectorEnabled) !== false;
 	}
 
+	private getActiveHarnessLabel(): string {
+		return this.harnessService.getActiveDescriptor().label || localize('localHarnessLabel', "Local");
+	}
+
+	private updateHarnessLabelPresentation(): void {
+		const harnessLabel = this.getActiveHarnessLabel();
+		AICustomizationManagementEditorInput.getOrCreate().setHarnessLabel(harnessLabel);
+		this.welcomePage?.setHarnessLabel(harnessLabel);
+	}
+
 	/**
 	 * Rebuilds the visible sections list based on the active harness's
 	 * `hiddenSections`. If the current selection falls into a hidden
@@ -600,6 +612,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.harnessService.availableHarnesses.read(reader);
 			const activeId = this.harnessService.activeHarness.read(reader);
 			this.harnessContextKey.set(activeId);
+			this.updateHomeButtonHarnessPresentation();
 			this.rebuildVisibleSections();
 			this.ensureHarnessDropdown();
 			this.updateHarnessDropdown();
@@ -628,16 +641,18 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		// Home/overview button
 		const homeButton = this.homeButton = DOM.append(headerRow, $('button.sidebar-home-button'));
+		homeButton.classList.add('sidebar-harness-home-button');
 		homeButton.setAttribute('aria-label', localize('homeButton', "Overview"));
 		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), homeButton, localize('homeButtonTooltip', "Back to overview")));
-		const homeIcon = DOM.append(homeButton, $('span.sidebar-home-icon'));
+		const homeIcon = this.homeButtonIcon = DOM.append(homeButton, $('span.sidebar-home-icon'));
 		homeIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.home));
 		homeIcon.setAttribute('aria-hidden', 'true');
 		const homeLabel = this.homeButtonLabel = DOM.append(homeButton, $('span.sidebar-home-label'));
-		homeLabel.textContent = localize('overview', "Overview");
+		homeLabel.textContent = localize('homeButtonLabel', "Overview");
 		this.editorDisposables.add(DOM.addDisposableListener(homeButton, 'click', () => {
 			this.showWelcomePage();
 		}));
+		this.updateHomeButtonHarnessPresentation();
 
 		// Harness dropdown (shown when multiple harnesses available)
 		//this.createHarnessDropdown(headerRow);
@@ -700,6 +715,20 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const harnessVisible = this.harnessDropdownContainer && this.harnessDropdownContainer.style.display !== 'none';
 		this.homeButtonLabel.style.display = harnessVisible ? 'none' : '';
 		this.homeButton.style.flex = harnessVisible ? '' : '1';
+	}
+
+	private updateHomeButtonHarnessPresentation(): void {
+		this.updateHarnessLabelPresentation();
+
+		if (!this.homeButton || !this.homeButtonIcon || !this.homeButtonLabel) {
+			return;
+		}
+
+		this.homeButtonIcon.className = 'sidebar-home-icon';
+		this.homeButtonIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.home));
+		this.homeButtonLabel.textContent = localize('homeButtonLabel', "Overview");
+		this.homeButton.setAttribute('aria-label', localize('homeButton', "Overview"));
+		this.homeButton.title = localize('homeButtonTooltip', "Back to overview");
 	}
 
 	private updateHarnessDropdown(): void {
@@ -782,6 +811,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.commandService,
 			this.workspaceService,
 			this.hoverService,
+			this.getActiveHarnessLabel(),
 		));
 		this.welcomePage.rebuildCards(new Set(this.sections.map(s => s.id)));
 	}
@@ -852,7 +882,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			modelsDescription.textContent = localize('modelsDescription', "Browse and manage language models from different providers. Select models for use in chat, code completion, and other AI features.");
 			const modelsLink = DOM.append(this.modelsFooterElement, $('a.section-footer-link')) as HTMLAnchorElement;
 			modelsLink.textContent = localize('learnMoreModels', "Learn more about language models");
-			modelsLink.href = 'https://code.visualstudio.com/docs/copilot/customization/language-models';
+			modelsLink.href = 'https://code.visualstudio.com/docs/agent-customization/language-models?referrer=in-product';
 			this.editorDisposables.add(DOM.addDisposableListener(modelsLink, 'click', (e) => {
 				e.preventDefault();
 				this.openerService.open(URI.parse(modelsLink.href));

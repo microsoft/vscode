@@ -50,6 +50,7 @@ import { TelemetryLevel } from '../../../platform/telemetry/common/telemetry.js'
 import { ISerializableEnvironmentDescriptionMap, ISerializableEnvironmentVariableCollection } from '../../../platform/terminal/common/environmentVariable.js';
 import { ICreateContributedTerminalProfileOptions, IProcessProperty, IProcessReadyWindowsPty, IShellLaunchConfigDto, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile, TerminalExitReason, TerminalLocation, TerminalShellType } from '../../../platform/terminal/common/terminal.js';
 import { ProvidedPortAttributes, TunnelCreationOptions, TunnelOptions, TunnelPrivacyId, TunnelProviderFeatures } from '../../../platform/tunnel/common/tunnel.js';
+import { ITunnelProxyInfo } from '../../../platform/tunnel/common/tunnelProxy.js';
 import { EditSessionIdentityMatch } from '../../../platform/workspace/common/editSessions.js';
 import { WorkspaceTrustRequestOptions } from '../../../platform/workspace/common/workspaceTrust.js';
 import { SaveReason } from '../../common/editor.js';
@@ -591,8 +592,20 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 export interface MainThreadLanguagesShape extends IDisposable {
 	$changeLanguage(resource: UriComponents, languageId: string): Promise<void>;
 	$tokensAtPosition(resource: UriComponents, position: IPosition): Promise<undefined | { type: StandardTokenType; range: IRange }>;
+	$computeFullSyntaxHighlighting(source: string, languageId: string): Promise<ISyntaxHighlightingResultDto>;
 	$setLanguageStatus(handle: number, status: ILanguageStatus): void;
 	$removeLanguageStatus(handle: number): void;
+}
+
+export interface ISyntaxHighlightingTokenDto {
+	readonly length: number;
+	readonly foreground: number;
+	readonly fontStyle: number;
+}
+
+export interface ISyntaxHighlightingResultDto {
+	readonly tokens: ISyntaxHighlightingTokenDto[];
+	readonly colorMap: string[];
 }
 
 export interface MainThreadMessageOptions {
@@ -1235,6 +1248,14 @@ export interface ExtHostManagedSocketsShape {
 	$remoteSocketDrain(socketId: number): Promise<void>;
 }
 
+export interface MainThreadBrowserTunnelProxyShape extends IDisposable {
+	$updateProxyInfo(info: ITunnelProxyInfo | undefined): void;
+}
+
+export interface ExtHostBrowserTunnelProxyShape {
+	$setEnabled(enabled: boolean): void;
+}
+
 export enum CellOutputKind {
 	Text = 1,
 	Error = 2,
@@ -1813,7 +1834,7 @@ export interface IToolDataDto {
 	id: string;
 	toolReferenceName?: string;
 	legacyToolReferenceFullNames?: readonly string[];
-	fullReferenceName?: string;
+	fullReferenceName: string | undefined;
 	tags?: readonly string[];
 	displayName: string;
 	userDescription?: string;
@@ -2585,6 +2606,7 @@ export interface ExtHostFileSystemEventServiceShape {
 
 export interface ExtHostLanguagesShape {
 	$acceptLanguageIds(ids: string[]): void;
+	$acceptSyntaxHighlightingThemeChanged(): void;
 }
 
 export interface ExtHostHeapServiceShape {
@@ -4042,6 +4064,7 @@ export const MainContext = {
 	MainThreadTheming: createProxyIdentifier<MainThreadThemingShape>('MainThreadTheming'),
 	MainThreadTunnelService: createProxyIdentifier<MainThreadTunnelServiceShape>('MainThreadTunnelService'),
 	MainThreadManagedSockets: createProxyIdentifier<MainThreadManagedSocketsShape>('MainThreadManagedSockets'),
+	MainThreadBrowserTunnelProxy: createProxyIdentifier<MainThreadBrowserTunnelProxyShape>('MainThreadBrowserTunnelProxy'),
 	MainThreadTimeline: createProxyIdentifier<MainThreadTimelineShape>('MainThreadTimeline'),
 	MainThreadTesting: createProxyIdentifier<MainThreadTestingShape>('MainThreadTesting'),
 	MainThreadLocalization: createProxyIdentifier<MainThreadLocalizationShape>('MainThreadLocalizationShape'),
@@ -4128,6 +4151,7 @@ export const ExtHostContext = {
 	ExtHostTheming: createProxyIdentifier<ExtHostThemingShape>('ExtHostTheming'),
 	ExtHostTunnelService: createProxyIdentifier<ExtHostTunnelServiceShape>('ExtHostTunnelService'),
 	ExtHostManagedSockets: createProxyIdentifier<ExtHostManagedSocketsShape>('ExtHostManagedSockets'),
+	ExtHostBrowserTunnelProxy: createProxyIdentifier<ExtHostBrowserTunnelProxyShape>('ExtHostBrowserTunnelProxy'),
 	ExtHostAuthentication: createProxyIdentifier<ExtHostAuthenticationShape>('ExtHostAuthentication'),
 	ExtHostTimeline: createProxyIdentifier<ExtHostTimelineShape>('ExtHostTimeline'),
 	ExtHostTesting: createProxyIdentifier<ExtHostTestingShape>('ExtHostTesting'),

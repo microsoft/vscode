@@ -27,6 +27,19 @@ import { IProductService } from '../../../product/common/productService.js';
 export interface ICopilotApiServiceRequestOptions {
 	readonly headers?: Readonly<Record<string, string>>;
 	readonly signal?: AbortSignal;
+
+	/**
+	 * Suppress the `Copilot-Integration-Id` header on this request.
+	 *
+	 * When unset, `@vscode/copilot-api` derives the integration id from the
+	 * discovered Copilot SKU: a `no_auth_limited_copilot` SKU maps to
+	 * `vscode-nl`, which the CAPI backend treats as the limited/no-auth
+	 * integration and refuses premium models such as `claude-opus-4.7`.
+	 * Setting this to `true` omits the header so CAPI authorizes against the
+	 * token's real entitlement. Mirrors the Copilot Chat extension's
+	 * `ClaudeStreamingPassThroughEndpoint.getEndpointFetchOptions()`.
+	 */
+	readonly suppressIntegrationId?: boolean;
 }
 
 /**
@@ -392,6 +405,21 @@ export interface ICopilotApiService {
 	models(githubToken: string, options?: ICopilotApiServiceRequestOptions): Promise<CCAModel[]>;
 
 	/**
+	 * Pass-through to CAPI's OpenAI-shaped Responses endpoint
+	 * (`{capiBaseUrl}/responses`). Used by `CodexProxyService` to forward
+	 * `/v1/responses` requests from the Codex CLI without deserializing
+	 * the body. The caller owns the returned `Response` (its body and any
+	 * streaming) and is responsible for consuming or aborting it.
+	 *
+	 * @throws on non-2xx upstream response.
+	 */
+	responses(
+		githubToken: string,
+		body: string,
+		options?: ICopilotApiServiceRequestOptions,
+	): Promise<Response>;
+
+	/**
 	 * Send arbitrary user chat messages through CAPI's `/chat/completions`
 	 * endpoint and return the assistant text.
 	 *
@@ -491,6 +519,54 @@ export class CopilotApiService implements ICopilotApiService {
 
 		const json = await response.json();
 		return json.data ?? [];
+	}
+
+	async responses(
+		githubToken: string,
+		body: string,
+		options?: ICopilotApiServiceRequestOptions,
+	): Promise<Response> {
+		const capiClient = await this._getClientForToken(githubToken);
+		const requestId = generateUuid();
+
+		// Parse the request body to log the model being sent (debug aid; failures
+		// are non-fatal — the body is forwarded byte-for-byte regardless).
+		let requestModel = '<unknown>';
+		try {
+			const parsed = JSON.parse(body);
+			requestModel = parsed.model ?? '<none>';
+		} catch { /* ignore parse errors */ }
+		this._logService.info(`[CopilotApiService] POST responses: requestId=${requestId}, model=${requestModel}`);
+
+		const response = await capiClient.makeRequest<Response>(
+			{
+				method: 'POST',
+				headers: {
+					...options?.headers,
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${githubToken}`,
+					'X-Request-Id': requestId,
+					'OpenAI-Intent': 'conversation',
+				},
+				// Opt-in per request — see
+				// `ICopilotApiServiceRequestOptions.suppressIntegrationId`.
+				suppressIntegrationId: options?.suppressIntegrationId,
+				body,
+				signal: options?.signal,
+			},
+			{ type: RequestType.ChatResponses },
+		);
+
+		this._logService.info(`[CopilotApiService] responses status=${response.status}, requestId=${requestId}`);
+
+		if (!response.ok) {
+			if (response.status === 401 || response.status === 403) {
+				this._invalidateClientForToken(githubToken);
+			}
+			const text = await response.text().catch(() => '');
+			throw buildCopilotApiHttpError(response.status, response.statusText, text, 'CAPI responses request failed');
+		}
+		return response;
 	}
 
 	async utilityChatCompletion(
@@ -647,8 +723,19 @@ export class CopilotApiService implements ICopilotApiService {
 					'Content-Type': 'application/json',
 					'Authorization': `Bearer ${githubToken}`,
 					'X-Request-Id': requestId,
-					'OpenAI-Intent': 'conversation',
+					'X-GitHub-Api-Version': '2026-01-09',
+					// Should these be parameterized?
+					'OpenAI-Intent': 'messages-proxy',
+					'X-Interaction-Type': 'messages-proxy',
+					// `X-Initiator` (user|agent) is intentionally omitted: the
+					// user-vs-agent turn origin known to `ClaudeAgentSession` is not
+					// plumbed across the SDK subprocess to this proxy, so a hardcoded
+					// value would mislabel most agent-loop traffic. CAPI accepts the
+					// request without it (the `responses()` and `utilityChatCompletion()`
+					// paths already omit it). Thread a real per-turn initiator here if
+					// that signal ever becomes available at the proxy boundary.
 				},
+				suppressIntegrationId: options?.suppressIntegrationId,
 				body,
 				signal: options?.signal,
 			},

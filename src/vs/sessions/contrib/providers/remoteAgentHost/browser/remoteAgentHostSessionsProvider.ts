@@ -3,41 +3,41 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { basename, dirname } from '../../../../../base/common/resources.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
+import { basename, dirname } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { localize } from '../../../../../nls.js';
 import { agentHostUri } from '../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSession, type IAgentConnection, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
+import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, remoteAgentHostLogOutputChannelId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import type { ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
-import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
-import { AgentHostSessionAdapter, BaseAgentHostSessionsProvider } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
-import { IGitHubService } from '../../../github/browser/githubService.js';
+import { IAgentHostConnectProgress } from '../../../../common/agentHostSessionsProvider.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
 import { IGitHubInfo, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
-import { remoteAgentHostSessionTypeId } from '../common/remoteAgentHostSessionType.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { IGitHubService } from '../../../github/browser/githubService.js';
+import { AgentHostSessionAdapter, BaseAgentHostSessionsProvider } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
+import { remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 
 /** Storage key prefix for cached session summaries, per remote address. */
 const CACHED_SESSIONS_STORAGE_PREFIX = 'remoteAgentHost.cachedSessions.';
@@ -108,6 +108,8 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly connectOnDemand?: () => Promise<void>;
 	/** Optional hook to tear down the active connection on demand (e.g. tunnel relay). */
 	readonly disconnectOnDemand?: () => Promise<void>;
+	/** Optional progress messages during on-demand connect. */
+	readonly onDidReportConnectProgress?: Event<IAgentHostConnectProgress>;
 }
 
 /**
@@ -136,9 +138,12 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	readonly icon: ThemeIcon = Codicon.remote;
 	readonly remoteAddress: string;
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
+	readonly canConnectOnDemand: boolean;
+	readonly onDidReportConnectProgress: Event<IAgentHostConnectProgress> | undefined;
 
-	private _outputChannelId: string | undefined;
-	get outputChannelId(): string | undefined { return this._outputChannelId; }
+	protected override getLogOutputChannelId(): string | undefined {
+		return remoteAgentHostLogOutputChannelId(this.remoteAddress);
+	}
 
 	private readonly _connectionStatus = observableValue<RemoteAgentHostConnectionStatus>('connectionStatus', RemoteAgentHostConnectionStatus.disconnected);
 	readonly connectionStatus: IObservable<RemoteAgentHostConnectionStatus> = this._connectionStatus;
@@ -209,14 +214,16 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		@ILogService logService: ILogService,
 		@IGitHubService gitHubService: IGitHubService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+		@ISessionsService sessionsService: ISessionsService,
 		@IAgentHostActiveClientService activeClientService: IAgentHostActiveClientService,
 	) {
-		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsManagementService, activeClientService, storageService);
+		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, storageService);
 
 		this._connectionAuthority = agentHostAuthority(config.address);
 		this._connectOnDemand = config.connectOnDemand;
 		this._disconnectOnDemand = config.disconnectOnDemand;
+		this.onDidReportConnectProgress = config.onDidReportConnectProgress;
+		this.canConnectOnDemand = !!config.connectOnDemand;
 		const displayName = config.name || config.address;
 
 		this.id = `agenthost-${this._connectionAuthority}`;
@@ -273,7 +280,6 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	protected _adapterOptions() {
 		const web = this.isWebPlatform;
 		return {
-			description: web ? undefined : new MarkdownString().appendText(this.label),
 			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined) => {
 				const uriForDescription = project?.uri ?? workingDirectory;
 				const description = uriForDescription ? this._labelService.getUriLabel(dirname(uriForDescription), { relative: false }) : undefined;
@@ -353,11 +359,6 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this._connectionStatus.set(status, undefined);
 	}
 
-	/** Set the output channel ID for this provider's IPC log. */
-	setOutputChannelId(id: string): void {
-		this._outputChannelId = id;
-	}
-
 	setAuthenticationPending(pending: boolean): void {
 		// Sticky: once the first authentication pass settles, never surface
 		// pending again. Subsequent re-auths happen silently in the background.
@@ -368,6 +369,9 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 			this._authenticationSettled = true;
 		}
 		this._authenticationPending.set(pending, undefined);
+		if (!pending) {
+			this._resumeNewSessionAfterAuthenticationSettles();
+		}
 	}
 
 	/**
@@ -398,8 +402,9 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 
 		this._attachConnectionListeners(connection, this._connectionListeners);
 
-		// Always refresh sessions when a connection is (re)established
-		this._cacheInitialized = true;
+		// Always refresh sessions when a connection is (re)established.
+		// `_refreshSessions` owns `_cacheInitialized` (set on a successful
+		// list) and arms a backoff retry if the first attempt fails.
 		this._refreshSessions(wasUnpublished);
 	}
 
@@ -416,10 +421,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this._onDidDisconnect.fire();
 		this._connection = undefined;
 		this._defaultDirectory = undefined;
-		if (this._newSession) {
-			// Setter on the MutableDisposable handles disposal of the old value.
-			this._newSession = undefined;
-		}
+		this._disposeAllNewSessions();
 
 		if (this._sessionTypes.length > 0) {
 			this._sessionTypes = [];
@@ -438,6 +440,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		// triggers a full list refresh (which will reconcile against the
 		// persisted entries we keep on disk).
 		this._cacheInitialized = false;
+		this._cancelSessionRefreshRetry();
 	}
 
 	/**
@@ -550,6 +553,14 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 
 	resolveWorkspace(repositoryUri: URI): ISessionWorkspace | undefined {
 		if (repositoryUri.scheme !== AGENT_HOST_SCHEME) {
+			return undefined;
+		}
+		// Only claim URIs that belong to *this* connection. Without this
+		// check, every agent-host provider matches every agent-host URI
+		// and the workspace picker's first-match-wins lookup attributes
+		// the folder to whichever provider is iterated first — so a folder
+		// picked from WSL ends up labelled with another host's name.
+		if (repositoryUri.authority !== this._connectionAuthority) {
 			return undefined;
 		}
 		return this._buildWorkspaceFromUri(repositoryUri);

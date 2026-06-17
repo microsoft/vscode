@@ -38,10 +38,10 @@ import { FileService } from '../../../files/common/fileService.js';
 import { IAgentMaterializeSessionEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agentService.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/agentFeedbackAttachments.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, SessionInputResponseKind, SessionStatus, ToolResultContentType, buildSubagentSessionUri, customizationId, type ClientPluginCustomization, type Customization } from '../../common/state/sessionState.js';
+import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, buildSubagentSessionUri, customizationId, type ClientPluginCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { ProtectedResourceMetadata, SessionInputAnswerState, SessionInputAnswerValueKind, ToolCallStatus, type SessionConfigState, type SessionInputRequest, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { ProtectedResourceMetadata, ChatInputAnswerState, ChatInputAnswerValueKind, ToolCallStatus, type SessionConfigState, type ChatInputRequest, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { IAgentHostGitService } from '../../node/agentHostGitService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -50,6 +50,7 @@ import { ClaudeAgent } from '../../node/claude/claudeAgent.js';
 import { ClaudeAgentSession } from '../../node/claude/claudeAgentSession.js';
 import { ClaudeSessionMetadataStore } from '../../node/claude/claudeSessionMetadataStore.js';
 import { ClaudeAgentSdkService, IClaudeAgentSdkService, IClaudeSdkBindings } from '../../node/claude/claudeAgentSdkService.js';
+import { IAgentSdkDownloader } from '../../node/agentSdkDownloader.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { IClaudeProxyHandle, IClaudeProxyService } from '../../node/claude/claudeProxyService.js';
 import { resolvePromptToContentBlocks } from '../../node/claude/claudePromptResolver.js';
@@ -73,7 +74,7 @@ class FakeAgentPluginManager implements IAgentPluginManager {
 	async syncCustomizations(
 		clientId: string,
 		customizations: ClientPluginCustomization[],
-		progress?: (status: Customization) => void,
+		progress?: (status: PluginCustomization) => void,
 	): Promise<ISyncedCustomization[]> {
 		this.syncCalls.push({ clientId, customizations: [...customizations] });
 		if (this.syncResult) {
@@ -114,8 +115,14 @@ class FakeCopilotApiService implements ICopilotApiService {
 
 	messages(): never { throw new Error('not used in ClaudeAgent tests'); }
 	countTokens(): Promise<Anthropic.MessageTokensCount> { throw new Error('not used in ClaudeAgent tests'); }
+	responses(): Promise<Response> { throw new Error('not used in ClaudeAgent tests'); }
 	utilityChatCompletion(): Promise<never> { throw new Error('not used in ClaudeAgent tests'); }
 }
+
+const FakeProductService: IProductService = {
+	_serviceBrand: undefined,
+	version: '1.0.0-test',
+} as IProductService;
 
 // FakeClaudeSubagentResolver removed in the Phase 12 refactor (the
 // IClaudeSubagentResolver service no longer exists). Per-session
@@ -456,6 +463,7 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 	supportedAgents(): never { throw new Error('FakeQuery: supportedAgents not modeled'); }
 	mcpServerStatus(): never { throw new Error('FakeQuery: mcpServerStatus not modeled'); }
 	getContextUsage(): never { throw new Error('FakeQuery: getContextUsage not modeled'); }
+	usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET(): never { throw new Error('FakeQuery: usage_EXPERIMENTAL not modeled'); }
 	/** Phase 11 — programmable tool-name snapshot returned by `reloadPlugins()`. */
 	reloadPluginsResults: readonly string[][] = [];
 	reloadPluginsCallCount = 0;
@@ -480,6 +488,8 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 	setMcpServers(): never { throw new Error('FakeQuery: setMcpServers not modeled'); }
 	streamInput(): never { throw new Error('FakeQuery: streamInput not modeled'); }
 	stopTask(): never { throw new Error('FakeQuery: stopTask not modeled'); }
+	reloadSkills(): never { throw new Error('FakeQuery: reloadSkills not modeled'); }
+	backgroundTasks(): never { throw new Error('FakeQuery: backgroundTasks not modeled'); }
 	close(): void { /* no-op */ }
 	[Symbol.asyncDispose](): Promise<void> { return Promise.resolve(); }
 }
@@ -637,6 +647,7 @@ function createTestContext(
 		[IAgentPluginManager, new FakeAgentPluginManager()],
 		[IAgentHostGitService, createNoopGitService()],
 		[IAgentConfigurationService, configService],
+		[IProductService, FakeProductService],
 	);
 	const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 	const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -646,6 +657,19 @@ function createTestContext(
 /** Drains the microtask queue so awaited refresh writes settle. */
 function tick(): Promise<void> {
 	return new Promise(resolve => setImmediate(resolve));
+}
+
+/**
+ * Stub for {@link IAgentSdkDownloader} consumed by tests that need a real
+ * `ClaudeAgentSdkService` constructor but override `_loadSdk` themselves —
+ * the downloader is therefore never actually called.
+ */
+function stubAgentSdkDownloader(): IAgentSdkDownloader {
+	return {
+		_serviceBrand: undefined,
+		isAvailable: () => false,
+		loadSdkRoot: () => { throw new Error('test stub: downloader.loadSdkRoot should not be called'); },
+	};
 }
 
 // #endregion
@@ -797,6 +821,7 @@ suite('ClaudeAgent', () => {
 						description: 'Controls how much reasoning effort Claude uses.',
 						enum: ['low', 'medium', 'high'],
 						enumLabels: ['Low', 'Medium', 'High'],
+						enumDescriptions: ['Faster responses with less reasoning', 'Balanced reasoning and speed', 'Greater reasoning depth but slower'],
 						default: 'high',
 					},
 				},
@@ -810,6 +835,7 @@ suite('ClaudeAgent', () => {
 						description: 'Controls how much reasoning effort Claude uses.',
 						enum: ['high'],
 						enumLabels: ['High'],
+						enumDescriptions: ['Greater reasoning depth but slower'],
 						default: 'high',
 					},
 				},
@@ -824,6 +850,7 @@ suite('ClaudeAgent', () => {
 						description: 'Controls how much reasoning effort Claude uses.',
 						enum: ['low', 'high'],
 						enumLabels: ['Low', 'High'],
+						enumDescriptions: ['Faster responses with less reasoning', 'Greater reasoning depth but slower'],
 						default: 'high',
 					},
 				},
@@ -916,6 +943,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeAgentSdkService, new FakeClaudeAgentSdkService()],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IAgentHostGitService, createNoopGitService()],
+			[IProductService, FakeProductService],
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -977,6 +1005,7 @@ suite('ClaudeAgent', () => {
 			[ISessionDataService, createNullSessionDataService()],
 			[IClaudeAgentSdkService, new FakeClaudeAgentSdkService()],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
+			[IProductService, FakeProductService],
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent = instantiationService.createInstance(ClaudeAgent);
@@ -1044,6 +1073,7 @@ suite('ClaudeAgent', () => {
 			[ISessionDataService, createNullSessionDataService()],
 			[IClaudeAgentSdkService, new FakeClaudeAgentSdkService()],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
+			[IProductService, FakeProductService],
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -1367,7 +1397,9 @@ suite('ClaudeAgent', () => {
 			model: sdk.capturedStartupOptions[0]?.model,
 			permissionMode: sdk.capturedStartupOptions[0]?.permissionMode,
 		}, {
-			model: 'claude-sonnet-4.6',
+			// Endpoint id `claude-sonnet-4.6` is normalized to SDK format at the
+			// SDK seam (see `toSdkModelId`); the CLI only recognizes the dashed form.
+			model: 'claude-sonnet-4-6',
 			permissionMode: 'plan',
 		});
 	});
@@ -1400,7 +1432,8 @@ suite('ClaudeAgent', () => {
 			model: sdk.capturedStartupOptions[0]?.model,
 			effort: sdk.capturedStartupOptions[0]?.effort,
 		}, {
-			model: 'claude-opus-4.6',
+			// Endpoint id `claude-opus-4.6` → SDK format at the SDK seam.
+			model: 'claude-opus-4-6',
 			effort: 'high',
 		});
 	});
@@ -1476,14 +1509,14 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
-	test('text content_block emits SessionResponsePart(Markdown) before SessionDelta', async () => {
+	test('text content_block emits ChatResponsePart(Markdown) before ChatDelta', async () => {
 		// Phase 6 §5.1 Test 6 + §3.6. The protocol reducer at
-		// `actions.ts:233 (SessionDelta)` requires the targeted
-		// `SessionResponsePart` to have already been emitted, otherwise
+		// `actions.ts:233 (ChatDelta)` requires the targeted
+		// `ChatResponsePart` to have already been emitted, otherwise
 		// the delta has nowhere to land. This test pins that ordering by
 		// staging a single text turn and asserting the first emitted
-		// `SessionResponsePart(Markdown, partId=X)` precedes every
-		// `SessionDelta(partId=X)` for the same X. The mapper allocates
+		// `ChatResponsePart(Markdown, partId=X)` precedes every
+		// `ChatDelta(partId=X)` for the same X. The mapper allocates
 		// the partId on `content_block_start`, BEFORE any delta can
 		// arrive (deltas are SDK-ordered after the start), so the
 		// invariant holds by construction.
@@ -1511,27 +1544,27 @@ suite('ClaudeAgent', () => {
 		const actionSignals = signals.filter(s => s.kind === 'action');
 		const partActions = actionSignals
 			.map((s, i) => ({ s, i }))
-			.filter(({ s }) => s.kind === 'action' && s.action.type === ActionType.SessionResponsePart);
+			.filter(({ s }) => s.kind === 'action' && s.action.type === ActionType.ChatResponsePart);
 		const deltaActions = actionSignals
 			.map((s, i) => ({ s, i }))
-			.filter(({ s }) => s.kind === 'action' && s.action.type === ActionType.SessionDelta);
+			.filter(({ s }) => s.kind === 'action' && s.action.type === ActionType.ChatDelta);
 
 		assert.strictEqual(partActions.length, 1, 'exactly one Markdown response part');
 		assert.strictEqual(deltaActions.length, 2, 'two text deltas');
 
-		const part = partActions[0].s.kind === 'action' && partActions[0].s.action.type === ActionType.SessionResponsePart
+		const part = partActions[0].s.kind === 'action' && partActions[0].s.action.type === ActionType.ChatResponsePart
 			? partActions[0].s.action
 			: undefined;
-		const firstDelta = deltaActions[0].s.kind === 'action' && deltaActions[0].s.action.type === ActionType.SessionDelta
+		const firstDelta = deltaActions[0].s.kind === 'action' && deltaActions[0].s.action.type === ActionType.ChatDelta
 			? deltaActions[0].s.action
 			: undefined;
-		const secondDelta = deltaActions[1].s.kind === 'action' && deltaActions[1].s.action.type === ActionType.SessionDelta
+		const secondDelta = deltaActions[1].s.kind === 'action' && deltaActions[1].s.action.type === ActionType.ChatDelta
 			? deltaActions[1].s.action
 			: undefined;
 
-		assert.ok(part, 'SessionResponsePart action present');
-		assert.ok(firstDelta, 'first SessionDelta action present');
-		assert.ok(secondDelta, 'second SessionDelta action present');
+		assert.ok(part, 'ChatResponsePart action present');
+		assert.ok(firstDelta, 'first ChatDelta action present');
+		assert.ok(secondDelta, 'second ChatDelta action present');
 		assert.strictEqual(part.part.kind, ResponsePartKind.Markdown, 'part kind is Markdown');
 
 		assert.deepStrictEqual({
@@ -1551,10 +1584,10 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
-	test('thinking content_block emits SessionResponsePart(Reasoning) before SessionReasoning', async () => {
+	test('thinking content_block emits ChatResponsePart(Reasoning) before ChatReasoning', async () => {
 		// Phase 6 §5.1 Test 7. Same ordering invariant as Test 6 but for
-		// extended-thinking blocks: `SessionResponsePart(Reasoning)` MUST
-		// precede every `SessionReasoning(partId)` for the same partId
+		// extended-thinking blocks: `ChatResponsePart(Reasoning)` MUST
+		// precede every `ChatReasoning(partId)` for the same partId
 		// (`actions.ts:540` reducer requires the part to exist).
 		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
@@ -1580,24 +1613,24 @@ suite('ClaudeAgent', () => {
 		const actionSignals = signals.filter(s => s.kind === 'action');
 		const partActions = actionSignals
 			.map((s, i) => ({ s, i }))
-			.filter(({ s }) => s.kind === 'action' && s.action.type === ActionType.SessionResponsePart);
+			.filter(({ s }) => s.kind === 'action' && s.action.type === ActionType.ChatResponsePart);
 		const reasoningActions = actionSignals
 			.map((s, i) => ({ s, i }))
-			.filter(({ s }) => s.kind === 'action' && s.action.type === ActionType.SessionReasoning);
+			.filter(({ s }) => s.kind === 'action' && s.action.type === ActionType.ChatReasoning);
 
-		const part = partActions[0]?.s.kind === 'action' && partActions[0].s.action.type === ActionType.SessionResponsePart
+		const part = partActions[0]?.s.kind === 'action' && partActions[0].s.action.type === ActionType.ChatResponsePart
 			? partActions[0].s.action
 			: undefined;
-		const firstReasoning = reasoningActions[0]?.s.kind === 'action' && reasoningActions[0].s.action.type === ActionType.SessionReasoning
+		const firstReasoning = reasoningActions[0]?.s.kind === 'action' && reasoningActions[0].s.action.type === ActionType.ChatReasoning
 			? reasoningActions[0].s.action
 			: undefined;
-		const secondReasoning = reasoningActions[1]?.s.kind === 'action' && reasoningActions[1].s.action.type === ActionType.SessionReasoning
+		const secondReasoning = reasoningActions[1]?.s.kind === 'action' && reasoningActions[1].s.action.type === ActionType.ChatReasoning
 			? reasoningActions[1].s.action
 			: undefined;
 
-		assert.ok(part, 'SessionResponsePart action present');
-		assert.ok(firstReasoning, 'first SessionReasoning action present');
-		assert.ok(secondReasoning, 'second SessionReasoning action present');
+		assert.ok(part, 'ChatResponsePart action present');
+		assert.ok(firstReasoning, 'first ChatReasoning action present');
+		assert.ok(secondReasoning, 'second ChatReasoning action present');
 		assert.ok(part.part.kind === ResponsePartKind.Reasoning, 'part kind is Reasoning');
 
 		assert.deepStrictEqual({
@@ -1619,11 +1652,11 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
-	test('result emits SessionUsage immediately before SessionTurnComplete', async () => {
+	test('result emits ChatUsage immediately before ChatTurnComplete', async () => {
 		// Phase 6 §5.1 Test 8 + §4 mapping table. The protocol contract
 		// requires usage to be reported BEFORE the turn is marked
 		// complete (otherwise consumers that flush state on
-		// `SessionTurnComplete` lose the usage attribution). Both
+		// `ChatTurnComplete` lose the usage attribution). Both
 		// signals come from the single `result` SDK message; the mapper
 		// emits them in the prescribed order.
 		const { agent, sdk } = createTestContext(disposables);
@@ -1633,7 +1666,7 @@ suite('ClaudeAgent', () => {
 		const sessionId = AgentSession.id(created.session);
 		const result = makeResultSuccess(sessionId);
 		// Override the zero-default usage with values the mapper must
-		// forward verbatim into `SessionUsage.usage`.
+		// forward verbatim into `ChatUsage.usage`.
 		result.usage.input_tokens = 17;
 		result.usage.output_tokens = 42;
 		result.usage.cache_read_input_tokens = 5;
@@ -1659,13 +1692,13 @@ suite('ClaudeAgent', () => {
 		const tail = signals
 			.map(s => s.kind === 'action' ? s.action : undefined)
 			.filter((a): a is NonNullable<typeof a> =>
-				a?.type === ActionType.SessionUsage || a?.type === ActionType.SessionTurnComplete);
+				a?.type === ActionType.ChatUsage || a?.type === ActionType.ChatTurnComplete);
 
-		const usage = tail[0]?.type === ActionType.SessionUsage ? tail[0] : undefined;
-		const complete = tail[1]?.type === ActionType.SessionTurnComplete ? tail[1] : undefined;
+		const usage = tail[0]?.type === ActionType.ChatUsage ? tail[0] : undefined;
+		const complete = tail[1]?.type === ActionType.ChatTurnComplete ? tail[1] : undefined;
 
-		assert.ok(usage, 'first action in tail is SessionUsage');
-		assert.ok(complete, 'second action in tail is SessionTurnComplete');
+		assert.ok(usage, 'first action in tail is ChatUsage');
+		assert.ok(complete, 'second action in tail is ChatTurnComplete');
 
 		assert.deepStrictEqual({
 			tailLength: tail.length,
@@ -1679,8 +1712,8 @@ suite('ClaudeAgent', () => {
 			model: usage.usage.model,
 		}, {
 			tailLength: 2,
-			usageType: ActionType.SessionUsage,
-			completeType: ActionType.SessionTurnComplete,
+			usageType: ActionType.ChatUsage,
+			completeType: ActionType.ChatTurnComplete,
 			usageTurnId: 'turn-1',
 			completeTurnId: 'turn-1',
 			inputTokens: 17,
@@ -1724,18 +1757,18 @@ suite('ClaudeAgent', () => {
 
 		const partActions = signals
 			.map(s => s.kind === 'action' ? s.action : undefined)
-			.filter(a => a?.type === ActionType.SessionResponsePart);
+			.filter(a => a?.type === ActionType.ChatResponsePart);
 		const deltaActions = signals
 			.map(s => s.kind === 'action' ? s.action : undefined)
-			.filter(a => a?.type === ActionType.SessionDelta);
+			.filter(a => a?.type === ActionType.ChatDelta);
 
-		const part0 = partActions[0]?.type === ActionType.SessionResponsePart ? partActions[0] : undefined;
-		const part1 = partActions[1]?.type === ActionType.SessionResponsePart ? partActions[1] : undefined;
-		const delta0 = deltaActions[0]?.type === ActionType.SessionDelta ? deltaActions[0] : undefined;
-		const delta1 = deltaActions[1]?.type === ActionType.SessionDelta ? deltaActions[1] : undefined;
+		const part0 = partActions[0]?.type === ActionType.ChatResponsePart ? partActions[0] : undefined;
+		const part1 = partActions[1]?.type === ActionType.ChatResponsePart ? partActions[1] : undefined;
+		const delta0 = deltaActions[0]?.type === ActionType.ChatDelta ? deltaActions[0] : undefined;
+		const delta1 = deltaActions[1]?.type === ActionType.ChatDelta ? deltaActions[1] : undefined;
 
-		assert.ok(part0 && part1, 'two SessionResponsePart actions present');
-		assert.ok(delta0 && delta1, 'two SessionDelta actions present');
+		assert.ok(part0 && part1, 'two ChatResponsePart actions present');
+		assert.ok(delta0 && delta1, 'two ChatDelta actions present');
 
 		const id0 = part0.part.kind === ResponsePartKind.Markdown ? part0.part.id : '';
 		const id1 = part1.part.kind === ResponsePartKind.Markdown ? part1.part.id : '';
@@ -1759,10 +1792,10 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
-	test('canonical SDKAssistantMessage with tool_use content drops silently (partial stream owns SessionToolCallStart)', async () => {
+	test('canonical SDKAssistantMessage with tool_use content drops silently (partial stream owns ChatToolCallStart)', async () => {
 		// Phase 7 §3.3: the canonical `SDKAssistantMessage` (`type:
 		// 'assistant'`) is no longer special-cased for `tool_use`. The
-		// `stream_event` partials already emitted `SessionToolCallStart`
+		// `stream_event` partials already emitted `ChatToolCallStart`
 		// — the reducer is append-only, so re-emitting from the canonical
 		// envelope would duplicate. Drop silently. The Phase 6.1
 		// warn-and-drop is gone alongside `canUseTool: deny`.
@@ -1787,7 +1820,7 @@ suite('ClaudeAgent', () => {
 
 		const responsePartCount = signals
 			.map(s => s.kind === 'action' ? s.action : undefined)
-			.filter(a => a?.type === ActionType.SessionResponsePart).length;
+			.filter(a => a?.type === ActionType.ChatResponsePart).length;
 
 		assert.deepStrictEqual({
 			responsePartCount,
@@ -1831,12 +1864,12 @@ suite('ClaudeAgent', () => {
 
 		const partActions = signals
 			.map(s => s.kind === 'action' ? s.action : undefined)
-			.filter(a => a?.type === ActionType.SessionResponsePart);
+			.filter(a => a?.type === ActionType.ChatResponsePart);
 		const deltaActions = signals
 			.map(s => s.kind === 'action' ? s.action : undefined)
-			.filter(a => a?.type === ActionType.SessionDelta);
+			.filter(a => a?.type === ActionType.ChatDelta);
 
-		const delta0 = deltaActions[0]?.type === ActionType.SessionDelta ? deltaActions[0] : undefined;
+		const delta0 = deltaActions[0]?.type === ActionType.ChatDelta ? deltaActions[0] : undefined;
 
 		assert.deepStrictEqual({
 			partCount: partActions.length,
@@ -1980,6 +2013,7 @@ suite('ClaudeAgent', () => {
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IAgentHostGitService, createNoopGitService()],
 			[IAgentConfigurationService, configService],
+			[IProductService, FakeProductService],
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent: ClaudeAgent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -2325,11 +2359,11 @@ suite('ClaudeAgent', () => {
 		await agent.sendMessage(created.session, 'hi', undefined, 'turn-1');
 
 		const deltas = observed.flatMap(s =>
-			s.kind === 'action' && s.action.type === ActionType.SessionDelta
+			s.kind === 'action' && s.action.type === ActionType.ChatDelta
 				? [s.action.content]
 				: []);
 		const turnCompletes = observed.filter(s =>
-			s.kind === 'action' && s.action.type === ActionType.SessionTurnComplete);
+			s.kind === 'action' && s.action.type === ActionType.ChatTurnComplete);
 
 		assert.deepStrictEqual({
 			deltas,
@@ -2577,6 +2611,7 @@ suite('ClaudeAgent', () => {
 			[ISessionDataService, sessionData],
 			[IClaudeAgentSdkService, sdk],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
+			[IProductService, FakeProductService],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -2647,6 +2682,7 @@ suite('ClaudeAgent', () => {
 			[ISessionDataService, sessionData],
 			[IClaudeAgentSdkService, sdk],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
+			[IProductService, FakeProductService],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -2730,6 +2766,7 @@ suite('ClaudeAgent', () => {
 			[ISessionDataService, createNullSessionDataService()],
 			[IClaudeAgentSdkService, sdk],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
+			[IProductService, FakeProductService],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -2776,6 +2813,7 @@ suite('ClaudeAgent', () => {
 			[ISessionDataService, sessionData],
 			[IClaudeAgentSdkService, sdk],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
+			[IProductService, FakeProductService],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -2896,7 +2934,10 @@ suite('ClaudeAgent', () => {
 			}
 		}
 
-		const services = new ServiceCollection([ILogService, new RecordingLogService()]);
+		const services = new ServiceCollection(
+			[ILogService, new RecordingLogService()],
+			[IAgentSdkDownloader, stubAgentSdkDownloader()],
+		);
 		const inst = disposables.add(new InstantiationService(services));
 		const svc = inst.createInstance(TestableClaudeAgentSdkService);
 
@@ -2974,7 +3015,10 @@ suite('ClaudeAgent', () => {
 			}
 		}
 
-		const inst = disposables.add(new InstantiationService(new ServiceCollection([ILogService, new NullLogService()])));
+		const inst = disposables.add(new InstantiationService(new ServiceCollection(
+			[ILogService, new NullLogService()],
+			[IAgentSdkDownloader, stubAgentSdkDownloader()],
+		)));
 		const svc = inst.createInstance(TestableClaudeAgentSdkService);
 
 		const subagentIds = await svc.listSubagents('sess-1');
@@ -3081,6 +3125,7 @@ suite('ClaudeAgent', () => {
 			[ISessionDataService, createNullSessionDataService()],
 			[IClaudeAgentSdkService, new FakeClaudeAgentSdkService()],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
+			[IProductService, FakeProductService],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = instantiationService.createInstance(ClaudeAgent);
@@ -3133,6 +3178,7 @@ suite('ClaudeAgent', () => {
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IAgentHostGitService, createNoopGitService()],
 			[IAgentConfigurationService, configService],
+			[IProductService, FakeProductService],
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent: ClaudeAgent = instantiationService.createInstance(ClaudeAgent);
@@ -3169,7 +3215,7 @@ suite('ClaudeAgent', () => {
 
 	test('onClientToolCallComplete is a benign no-op for an unknown toolCallId (Phase 10)', () => {
 		// `AgentSideEffects` fires `onClientToolCallComplete` for every
-		// server-dispatched `SessionToolCallComplete` envelope, including
+		// server-dispatched `ChatToolCallComplete` envelope, including
 		// the ones the Claude mapper emits for normal SDK tool completions.
 		// Unknown ids (SDK-owned tools, stale workbench races) must NOT throw.
 		const { agent } = createTestContext(disposables);
@@ -3773,13 +3819,13 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 		const sub = ctx.agent.onDidSessionProgress(s => signals.push(s));
 		disposables.add(sub);
 
-		// AskUserQuestion — emits a SessionInputRequested action.
+		// AskUserQuestion — emits a ChatInputRequested action.
 		const askPromise = canUseTool(
 			'AskUserQuestion',
 			{ questions: [{ question: 'q1', multiSelect: 'single-or-free-form', header: 'h', options: [{ label: 'a' }] }] },
 			{ ...makeOptions('toolu_inner_ask'), agentID: 'agent-ask' },
 		);
-		ctx.agent.respondToUserInputRequest('toolu_inner_ask', SessionInputResponseKind.Cancel);
+		ctx.agent.respondToUserInputRequest('toolu_inner_ask', ChatInputResponseKind.Cancel);
 		await askPromise;
 
 		// ExitPlanMode — emits a pending_confirmation.
@@ -3791,7 +3837,7 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 		ctx.agent.respondToPermissionRequest('toolu_inner_plan', false);
 		await planPromise;
 
-		const askAction = signals.find(s => s.kind === 'action' && s.action.type === ActionType.SessionInputRequested);
+		const askAction = signals.find(s => s.kind === 'action' && s.action.type === ActionType.ChatInputRequested);
 		const planConfirm = signals.find(s => s.kind === 'pending_confirmation' && s.state.toolName === 'ExitPlanMode');
 
 		assert.deepStrictEqual({
@@ -3814,14 +3860,14 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 
 	/**
 	 * Materialize a session and return its captured `canUseTool` closure
-	 * plus the {@link SessionInputRequest} stream so the AskUserQuestion
+	 * plus the {@link ChatInputRequest} stream so the AskUserQuestion
 	 * / ExitPlanMode tests can drive question rendering and answer
 	 * dispatch directly without touching the SDK's `for await` loop.
 	 */
 	async function materialize(): Promise<{
 		ctx: ITestContext;
 		canUseTool: NonNullable<Options['canUseTool']>;
-		inputRequests: SessionInputRequest[];
+		inputRequests: ChatInputRequest[];
 		sessionUri: URI;
 	}> {
 		const ctx = createTestContext(disposables);
@@ -3847,9 +3893,9 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 			values: {},
 		};
 
-		const inputRequests: SessionInputRequest[] = [];
+		const inputRequests: ChatInputRequest[] = [];
 		disposables.add(ctx.agent.onDidSessionProgress(s => {
-			if (s.kind === 'action' && s.action.type === ActionType.SessionInputRequested) {
+			if (s.kind === 'action' && s.action.type === ActionType.ChatInputRequested) {
 				inputRequests.push(s.action.request);
 			}
 		}));
@@ -3860,7 +3906,7 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 		return { ctx, canUseTool, inputRequests, sessionUri: created.session };
 	}
 
-	test('Test 12 — AskUserQuestion: surfaces SessionInputRequested, returns updatedInput keyed by question text', async () => {
+	test('Test 12 — AskUserQuestion: surfaces ChatInputRequested, returns updatedInput keyed by question text', async () => {
 		const { ctx, canUseTool, inputRequests } = await materialize();
 
 		const promise = canUseTool('AskUserQuestion', {
@@ -3873,10 +3919,10 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 		await tick();
 
 		const inputRequest = inputRequests.at(-1)!;
-		ctx.agent.respondToUserInputRequest('tu_ask', SessionInputResponseKind.Accept, {
+		ctx.agent.respondToUserInputRequest('tu_ask', ChatInputResponseKind.Accept, {
 			q1: {
-				state: SessionInputAnswerState.Submitted,
-				value: { kind: SessionInputAnswerValueKind.Selected, value: 'Apple' },
+				state: ChatInputAnswerState.Submitted,
+				value: { kind: ChatInputAnswerValueKind.Selected, value: 'Apple' },
 			},
 		});
 		const result = await promise;
@@ -3910,7 +3956,7 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 		}, { signal: new AbortController().signal, toolUseID: 'tu_ask_cancel' });
 		await tick();
 
-		ctx.agent.respondToUserInputRequest('tu_ask_cancel', SessionInputResponseKind.Cancel);
+		ctx.agent.respondToUserInputRequest('tu_ask_cancel', ChatInputResponseKind.Cancel);
 		const result = await promise;
 
 		assert.deepStrictEqual(result, { behavior: 'deny', message: 'The user cancelled the question' });
@@ -4016,7 +4062,7 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 
 	test('respondToUserInputRequest unknown id is silent', () => {
 		const ctx = createTestContext(disposables);
-		ctx.agent.respondToUserInputRequest('nope', SessionInputResponseKind.Accept);
+		ctx.agent.respondToUserInputRequest('nope', ChatInputResponseKind.Accept);
 	});
 });
 
@@ -4266,7 +4312,7 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 		ctx.sdk.nextQueryMessages = [makeSystemInitMessage(sid), makeResultSuccess(sid)];
 		await ctx.agent.sendMessage(created.session, 'hi', undefined, 'turn-1');
 		const opts = ctx.sdk.capturedStartupOptions[0];
-		assert.deepStrictEqual({ model: opts.model, effort: opts.effort }, { model: 'claude-sonnet-4.6', effort: 'medium' });
+		assert.deepStrictEqual({ model: opts.model, effort: opts.effort }, { model: 'claude-sonnet-4-6', effort: 'medium' });
 	});
 
 	test('changeModel on a materialized session queues a model+effort bundle that drains at the next yield boundary', async () => {
@@ -4282,7 +4328,7 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 			models: query.recordedModels,
 			efforts: query.recordedFlagSettings.map(s => s.effortLevel),
 		}, {
-			models: ['claude-sonnet-4.6'],
+			models: ['claude-sonnet-4-6'],
 			efforts: ['high'],
 		});
 	});
@@ -4480,7 +4526,7 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 		await tick();
 		advance.complete();
 		await p2;
-		assert.deepStrictEqual({ models: firstQuery.recordedModels, efforts: firstQuery.recordedFlagSettings.map(s => s.effortLevel) }, { models: ['claude-sonnet-4.6'], efforts: ['high'] });
+		assert.deepStrictEqual({ models: firstQuery.recordedModels, efforts: firstQuery.recordedFlagSettings.map(s => s.effortLevel) }, { models: ['claude-sonnet-4-6'], efforts: ['high'] });
 
 		// Now abort and resend; the rebound query MUST receive the same
 		// model + effort via the rebind's re-apply pass.
@@ -4493,16 +4539,16 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 		assert.deepStrictEqual({
 			models: reboundQuery.recordedModels,
 			efforts: reboundQuery.recordedFlagSettings.map(s => s.effortLevel),
-		}, { models: ['claude-sonnet-4.6'], efforts: ['high'] });
+		}, { models: ['claude-sonnet-4-6'], efforts: ['high'] });
 	});
 
-	test('intermediate result during steering does NOT complete the in-flight sendMessage or fire SessionTurnComplete', async () => {
+	test('intermediate result during steering does NOT complete the in-flight sendMessage or fire ChatTurnComplete', async () => {
 		// CONTEXT.md M10: when the SDK preempts via `'now'`-priority, it
 		// emits one `result` message per turn it ran (the aborted
 		// original + the steering reply). Protocol-wise this is ONE Turn,
 		// so the agent must suppress the intermediate result: do not
 		// settle the original sendMessage's deferred, do not fire
-		// SessionTurnComplete. The FINAL result (when no steering is
+		// ChatTurnComplete. The FINAL result (when no steering is
 		// outstanding) closes the protocol Turn.
 		const ctx = createTestContext(disposables);
 		await ctx.agent.authenticate('https://api.github.com', 'tok');
@@ -4547,9 +4593,9 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 		advance.complete();
 		await inFlight;
 
-		// Exactly one SessionTurnComplete fires (the final result), and
+		// Exactly one ChatTurnComplete fires (the final result), and
 		// steering_consumed fires for the echo.
-		const turnCompletes = signals.filter(s => s.kind === 'action' && s.action.type === ActionType.SessionTurnComplete);
+		const turnCompletes = signals.filter(s => s.kind === 'action' && s.action.type === ActionType.ChatTurnComplete);
 		const consumed = signals.filter(s => s.kind === 'steering_consumed');
 		assert.deepStrictEqual({
 			turnCompleteCount: turnCompletes.length,
@@ -4762,6 +4808,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			[IAgentPluginManager, pluginManager],
 			[IAgentHostGitService, createNoopGitService()],
 			[IAgentConfigurationService, configService],
+			[IProductService, FakeProductService],
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -5018,6 +5065,3 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 });
 
 // #endregion
-
-
-

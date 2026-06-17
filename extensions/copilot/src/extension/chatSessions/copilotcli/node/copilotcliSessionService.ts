@@ -3,14 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AutoModeSessionManager as SDKAutoModeSessionManager, AutoModeSessionResult, internal, LocalSession, LocalSessionMetadata, Session, SessionContext, SessionEvent, SessionOptions, SweCustomAgent } from '@github/copilot/sdk';
+import type { AutoModeSessionResult, internal, LocalSessionMetadata, AutoModeSessionManager as SDKAutoModeSessionManager, SessionContext, SessionEvent, SessionOptions, SweCustomAgent } from '@github/copilot/sdk';
 import * as l10n from '@vscode/l10n';
 import { createReadStream } from 'node:fs';
 import { devNull } from 'node:os';
 import { createInterface } from 'node:readline';
 import type { ChatCustomAgent, ChatRequest, ChatSessionItem } from 'vscode';
 import { IChatDebugFileLoggerService } from '../../../../platform/chat/common/chatDebugFileLoggerService';
+import { ModelDetailsInfo } from '../../../../platform/chat/common/chatModelDetails';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
+import { INTEGRATION_ID } from '../../../../platform/endpoint/common/licenseAgreement';
 import { INativeEnvService } from '../../../../platform/env/common/envService';
 import { IVSCodeExtensionContext } from '../../../../platform/extContext/common/extensionContext';
 import { IFileSystemService } from '../../../../platform/filesystem/common/fileSystemService';
@@ -19,6 +21,7 @@ import { ILogService } from '../../../../platform/log/common/logService';
 import { deriveCopilotCliOTelEnv } from '../../../../platform/otel/common/agentOTelEnv';
 import { IOTelService } from '../../../../platform/otel/common/otelService';
 import { IPromptsService } from '../../../../platform/promptFiles/common/promptsService';
+import { IExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { createServiceIdentifier } from '../../../../util/common/services';
 import { coalesce } from '../../../../util/vs/base/common/arrays';
@@ -40,17 +43,15 @@ import { IChatSessionWorktreeService } from '../../common/chatSessionWorktreeSer
 import { isUntitledSessionId } from '../../common/utils';
 import { emptyWorkspaceInfo, getWorkingDirectory, IWorkspaceInfo } from '../../common/workspaceInfo';
 import { buildChatHistoryFromEvents, RequestIdDetails, stripReminders } from '../common/copilotCLITools';
-import { ModelDetailsInfo } from '../../../../platform/chat/common/chatModelDetails';
 import { ICustomSessionTitleService } from '../common/customSessionTitleService';
 import { IChatDelegationSummaryService } from '../common/delegationSummaryService';
-import { SessionIdForCLI } from '../common/utils';
+import { LocalSession, Session, SessionIdForCLI } from '../common/utils';
 import { getCopilotCLISessionDir } from './cliHelpers';
 import { getAgentFileNameFromFilePath, ICopilotCLIAgents, ICopilotCLIModels, ICopilotCLISDK, isEnabledForCopilotCLI } from './copilotCli';
 import { CopilotCliBridgeSpanProcessor } from './copilotCliBridgeSpanProcessor';
 import { CopilotCLISession, ICopilotCLISession } from './copilotcliSession';
 import { ICopilotCLISkills } from './copilotCLISkills';
 import { ICopilotCLIMCPHandler, McpServerMappings, remapCustomAgentTools } from './mcpHandler';
-import { INTEGRATION_ID } from '../../../../platform/endpoint/common/licenseAgreement';
 
 
 const COPILOT_CLI_WORKSPACE_JSON_FILE_KEY = 'github.copilot.cli.workspaceSessionFile';
@@ -256,6 +257,7 @@ export type ExtendedChatRequest = ChatRequest & { prompt: string };
 export type ISessionOptions = {
 	model?: string;
 	reasoningEffort?: string;
+	contextTier?: 'default' | 'long_context';
 	workspace: IWorkspaceInfo;
 	agent?: SweCustomAgent;
 	debugTargetSessionIds?: readonly string[];
@@ -362,6 +364,8 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		@IChatDebugFileLoggerService private readonly _debugFileLogger: IChatDebugFileLoggerService,
 		@IPromptsService private readonly _promptsService: IPromptsService,
 		@ICopilotCLIModels private readonly _copilotCLIModels: ICopilotCLIModels,
+		@IExperimentationService private readonly _experimentationService: IExperimentationService,
+		@IVSCodeExtensionContext private readonly _vscodeExtensionContext?: IVSCodeExtensionContext,
 	) {
 		super();
 		this.showExternalSessions = this.configurationService.getConfig(ConfigKey.Advanced.CLIShowExternalSessions);
@@ -380,37 +384,28 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		this._sessionManager = new Lazy<Promise<internal.LocalSessionManager>>(async () => {
 			try {
 				const sdkPackage = await this.getSDKPackage();
-				const { internal, createLocalFeatureFlagService } = sdkPackage;
-				// Always enable SDK OTel so the debug panel receives native spans via the bridge.
-				// When user OTel is disabled, we force file exporter to /dev/null so the SDK
-				// creates OtelSessionTracker (for debug panel) but doesn't export to any collector.
-				if (!process.env['COPILOT_OTEL_ENABLED']) {
-					process.env['COPILOT_OTEL_ENABLED'] = 'true';
-				}
-				// Default content capture to 'true' for the debug panel. When user OTel
-				// is enabled, their captureContent setting overrides this default below.
-				// When user OTel is disabled, the default gives debug panel content.
-				// If the user explicitly set the env var, respect their choice.
-				if (!process.env['OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT']) {
-					process.env['OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT'] = 'true';
-				}
-				if (this._otelService.config.enabled) {
+				const { internal, createLocalFeatureFlagServiceCreator } = sdkPackage;
+				// The SDK reads OTel config from process.env at startup. Snapshot
+				// the originals so disposal restores them and subprocesses don't
+				// inherit our mutations.
+				this._registerOTelEnvSnapshot();
+				if (this._otelService.config.enabledExplicitly) {
 					const otelEnv = deriveCopilotCliOTelEnv(this._otelService.config);
 					for (const [key, value] of Object.entries(otelEnv)) {
 						process.env[key] = value;
 					}
-					// When user OTel is enabled, their captureContent config takes
-					// precedence over the debug-panel default set above.
 					process.env['OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT'] = String(this._otelService.config.captureContent);
 				} else {
-					// User OTel disabled: ensure SDK doesn't export to any external collector.
-					// Use file exporter to /dev/null so the SDK creates OtelSessionTracker
-					// (for debug panel) but writes spans nowhere.
-					process.env['COPILOT_OTEL_EXPORTER_TYPE'] = 'file';
+					// User opted out. Keep the SDK's OtelSessionTracker alive for the
+					// debug panel by setting only the file exporter path (the SDK
+					// auto-derives exporterType='file' from it), pointed at /dev/null.
+					// Clear any inherited OTLP endpoint so the SDK can't fall back to it.
 					process.env['COPILOT_OTEL_FILE_EXPORTER_PATH'] = devNull;
+					delete process.env['OTEL_EXPORTER_OTLP_ENDPOINT'];
+					delete process.env['COPILOT_OTEL_ENDPOINT'];
 				}
 				return new internal.LocalSessionManager({
-					featureFlagService: createLocalFeatureFlagService(),
+					createFeatureFlagService: createLocalFeatureFlagServiceCreator(),
 					telemetryService: new internal.NoopTelemetryService(),
 					autoModeManager: this.createAutoModeManager(sdkPackage),
 				}, { flushDebounceMs: undefined, settings: undefined, version: undefined });
@@ -425,6 +420,39 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 
 	private async getSDKPackage(): Promise<SDKPackage> {
 		return this.copilotCLISDK.getPackage();
+	}
+
+	/**
+	 * Snapshot OTel env vars before SDK mutation and restore them on disposal,
+	 * so subprocesses spawned later don't inherit our mutations.
+	 */
+	private _otelEnvSnapshotted = false;
+	private _registerOTelEnvSnapshot(): void {
+		if (this._otelEnvSnapshotted) {
+			return;
+		}
+		this._otelEnvSnapshotted = true;
+		const keys = [
+			'COPILOT_OTEL_ENABLED',
+			'OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT',
+			'OTEL_EXPORTER_OTLP_ENDPOINT',
+			'COPILOT_OTEL_ENDPOINT',
+			'COPILOT_OTEL_EXPORTER_TYPE',
+			'COPILOT_OTEL_FILE_EXPORTER_PATH',
+		];
+		const originals = new Map<string, string | undefined>();
+		for (const key of keys) {
+			originals.set(key, process.env[key]);
+		}
+		this._register(toDisposable(() => {
+			for (const [key, value] of originals) {
+				if (value === undefined) {
+					delete process.env[key];
+				} else {
+					process.env[key] = value;
+				}
+			}
+		}));
 	}
 
 	private createAutoModeManager(sdkPackage: SDKPackage): SDKAutoModeSessionManager {
@@ -640,6 +668,35 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 
 	private _sessionLabels: Map<string, string> = new Map();
 
+	/**
+	 * The agent host's `<userDataPath>/agentSessionData/` directory, derived from `globalStorageUri`
+	 * (`<userDataPath>/User/globalStorage/<extId>`). The Extension API doesn't expose `userDataPath` directly.
+	 * `undefined` when no extension context (e.g. tests).
+	 */
+	private _getAgentHostSessionDataDir(): URI | undefined {
+		const globalStorageUri = this._vscodeExtensionContext?.globalStorageUri;
+		if (!globalStorageUri) {
+			return undefined;
+		}
+		const userDataPath = dirname(dirname(dirname(globalStorageUri)));
+		return joinPath(userDataPath, 'agentSessionData');
+	}
+
+	/**
+	 * Whether the agent host owns this session — it writes a per-session SQLite DB at
+	 * `<userDataPath>/agentSessionData/<sessionId>/session.db` and we skip those to avoid double-listing sessions both
+	 * surfaces read from the shared `~/.copilot/session-state/` directory.
+	 */
+	private async _isOwnedByAgentHost(sessionId: string, dataDir: URI | undefined): Promise<boolean> {
+		if (!dataDir) {
+			return false;
+		}
+		// Must mirror `SessionDataService._sanitizedSessionKey`.
+		const sanitized = sessionId.replace(/[^a-zA-Z0-9_.-]/g, '-');
+		const dbPath = joinPath(dataDir, sanitized, 'session.db');
+		return this.fileSystem.stat(dbPath).then(() => true, () => false);
+	}
+
 	async _getAllSessions(token: CancellationToken): Promise<readonly ICopilotCLISessionItem[]> {
 		this._isGettingSessions++;
 		try {
@@ -648,9 +705,15 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 
 			await this._sessionTracker.initialize();
 
+			// Skip sessions the agent host already lists (both surfaces share `~/.copilot/session-state/`).
+			const agentHostDataDir = this._getAgentHostSessionDataDir();
+
 			// Convert SessionMetadata to ICopilotCLISession
 			const diskSessions: ICopilotCLISessionItem[] = coalesce(await Promise.all(
 				sessionMetadataList.map(async (metadata): Promise<ICopilotCLISessionItem | undefined> => {
+					if (await this._isOwnedByAgentHost(metadata.sessionId, agentHostDataDir)) {
+						return;
+					}
 					const workingDirectory = metadata.context?.cwd ? URI.file(metadata.context.cwd) : undefined;
 					this._sessionWorkingDirectories.set(metadata.sessionId, workingDirectory);
 					if (!await this.shouldShowSession(metadata.sessionId, metadata.context)) {
@@ -776,24 +839,24 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 					}
 				}));
 			}
-			promises.push(sessionManager.loadDeferredRepoHooks(sdkSession));
+			promises.push(sessionManager.loadDeferredRepoHooks(sdkSession.sessionId));
 			await Promise.all(promises);
 
 			if (sessionOptions.copilotUrl) {
-				sdkSession.setAuthInfo({
-					type: 'hmac',
-					hmac: 'empty',
-					host: 'https://github.com',
-					copilotUser: {
-						endpoints: {
-							api: sessionOptions.copilotUrl
-						}
-					}
-				});
+				// Only respect this from user (global) settings — a malicious workspace
+				// setting could downgrade auth from HMAC to token.
+				const authTypeInspect = this.configurationService.inspectConfig(ConfigKey.Shared.DebugOverrideAuthType);
+				const authType = authTypeInspect?.globalValue ?? 'hmac';
+				const copilotUser = { endpoints: { api: sessionOptions.copilotUrl } };
+				const host = 'https://github.com' as const;
+				const authInfo = authType === 'token'
+					? { type: 'token' as const, token: 'mock-token', host, copilotUser }
+					: { type: 'hmac' as const, hmac: 'empty', host, copilotUser };
+				sdkSession.updateOptions({ authInfo });
 			}
 			this.logService.trace(`[CopilotCLISession] Created new CopilotCLI session ${sdkSession.sessionId}.`);
 
-			const session = this.createCopilotSession(sdkSession, options.workspace, options.agent?.name, sessionManager);
+			const session = this.createCopilotSession(sdkSession, options.workspace, options.agent?.name, sessionManager, !!sessionOptions.sandboxConfig?.enabled);
 			session.object.add(mcpGateway);
 
 			// Set origin
@@ -832,6 +895,18 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 
 			// Navigate: ProxyTracerProvider._delegate → BasicTracerProvider._activeSpanProcessor → MultiSpanProcessor._spanProcessors
 			const delegate = (globalProvider as unknown as Record<string, unknown>)._delegate ?? globalProvider;
+
+			// The in-process Copilot CLI SDK does not register its own JS OTel
+			// provider — its tracing is emitted by a native runtime. As a result the global provider
+			// resolves to the extension's own provider. Attaching the bridge there would re-forward
+			// the extension's own spans and produce duplicate entries in the chat debug logs view.
+			// In this case we skip the bridge entirely: native CLI tool calls and agent responses are
+			// synthesized directly from the SDK event stream in `copilotcliSession.ts`.
+			if ((delegate as Record<string, unknown>).__copilotChatOwnProvider) {
+				this.logService.info('[CopilotCLISession] Global OTel provider is the extension provider; skipping bridge install (debug entries are synthesized from SDK events)');
+				return;
+			}
+
 			const activeProcessor = (delegate as unknown as Record<string, unknown>)._activeSpanProcessor as Record<string, unknown> | undefined;
 			const processorArray = activeProcessor?._spanProcessors;
 
@@ -951,6 +1026,9 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		if (options.reasoningEffort && this.configurationService.getConfig(ConfigKey.Advanced.CLIThinkingEffortEnabled)) {
 			allOptions.reasoningEffort = options.reasoningEffort;
 		}
+		if (options.contextTier) {
+			allOptions.contextTier = options.contextTier;
+		}
 
 		const sandboxConfig = this.getSandboxConfig();
 		if (sandboxConfig) {
@@ -961,16 +1039,17 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	}
 
 	private getSandboxConfig(): SessionOptions['sandboxConfig'] {
-		const sandboxSettingId = process.platform === 'win32' ? 'chat.agent.sandbox.enabledWindows' : 'chat.agent.sandbox.enabled';
-		const rawSandboxSetting = this.configurationService.getNonExtensionConfig<unknown>(sandboxSettingId);
-		const sandboxSetting = typeof rawSandboxSetting === 'string'
-			? rawSandboxSetting
-			: rawSandboxSetting === true ? 'on' : rawSandboxSetting === false ? 'off' : undefined;
+		const sandboxSetting = this.configurationService.getExperimentBasedConfig(ConfigKey.Advanced.CLISandboxEnabled, this._experimentationService);
+		if (sandboxSetting === 'off') {
+			return undefined;
+		}
 		const rawFileSystemSetting = this.configurationService.getNonExtensionConfig<unknown>('chat.agent.sandbox.fileSystem');
 		const fileSystemSetting = rawFileSystemSetting && typeof rawFileSystemSetting === 'object'
 			? rawFileSystemSetting as IAgentSandboxFileSystemSettings
 			: undefined;
-		return buildSandboxConfigForCLI(process.platform, sandboxSetting, fileSystemSetting);
+		const allowedHosts = readStringArraySetting(this.configurationService, 'chat.agent.allowedNetworkDomains');
+		const blockedHosts = readStringArraySetting(this.configurationService, 'chat.agent.deniedNetworkDomains');
+		return buildSandboxConfigForCLI(process.platform, sandboxSetting, fileSystemSetting, { allowedHosts, blockedHosts });
 	}
 
 	public async getSession(options: IGetSessionOptions, token: CancellationToken): Promise<RefCountedSession | undefined> {
@@ -1006,8 +1085,8 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 					this.logService.error(`[CopilotCLISession] CopilotCLI failed to get session ${options.sessionId}.`);
 					return undefined;
 				}
-				await sessionManager.loadDeferredRepoHooks(sdkSession);
-				const session = this.createCopilotSession(sdkSession, options.workspace, options.agent?.name, sessionManager);
+				await sessionManager.loadDeferredRepoHooks(sdkSession.sessionId);
+				const session = this.createCopilotSession(sdkSession, options.workspace, options.agent?.name, sessionManager, !!sessionOptions.sandboxConfig?.enabled);
 				session.object.add(mcpGateway);
 				return session;
 			}
@@ -1075,7 +1154,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 				// Agents from older requests isn't useful, hence to save time.
 				// Re-use the same custom agent from last request for all previous requests.
 				const modeInstructions = defaultModeInstructions;
-				detailsByCopilotId.set(d.copilotRequestId, { requestId: d.vscodeRequestId, toolIdEditMap: d.toolIdEditMap, modeInstructions, responseModelId: d.responseModelId, creditsUsed: d.creditsUsed });
+				detailsByCopilotId.set(d.copilotRequestId, { requestId: d.vscodeRequestId, toolIdEditMap: d.toolIdEditMap, modeInstructions, responseModelId: d.responseModelId, creditsUsed: d.creditsUsed, isUsingAutoModel: d.isUsingAutoModel });
 			}
 		}
 		const getVSCodeRequestId = (sdkRequestId: string) => {
@@ -1287,9 +1366,9 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		return firstUserMessage;
 	}
 
-	private createCopilotSession(sdkSession: Session, workspaceInfo: IWorkspaceInfo, agentName: string | undefined, sessionManager: internal.LocalSessionManager): RefCountedSession {
-		sdkSession.setPermissionsRequired(true);
-		const session = this.instantiationService.createInstance(CopilotCLISession, workspaceInfo, agentName, sdkSession, []);
+	private createCopilotSession(sdkSession: Session, workspaceInfo: IWorkspaceInfo, agentName: string | undefined, sessionManager: internal.LocalSessionManager, sandboxEnabled: boolean): RefCountedSession {
+		sdkSession.permissions.setRequired({ required: true });
+		const session = this.instantiationService.createInstance(CopilotCLISession, workspaceInfo, agentName, sdkSession, [], sandboxEnabled);
 		this._debugFileLogger.startSession(session.sessionId).catch(err => {
 			this.logService.error('[CopilotCLISession] Failed to start debug log session', err);
 		});
@@ -1586,10 +1665,9 @@ export function buildSandboxConfigForCLI(
 	platform: NodeJS.Platform,
 	sandboxSetting: string | undefined,
 	fileSystemSetting: IAgentSandboxFileSystemSettings | undefined,
+	networkHosts?: { allowedHosts?: readonly string[]; blockedHosts?: readonly string[] },
 ): SessionOptions['sandboxConfig'] {
-	const sandboxEnabled = platform === 'win32'
-		? sandboxSetting === 'allowNetwork'
-		: sandboxSetting === 'on' || sandboxSetting === 'allowNetwork';
+	const sandboxEnabled = sandboxSetting === 'on' || sandboxSetting === 'allowNetwork';
 	if (!sandboxEnabled) {
 		return undefined;
 	}
@@ -1620,6 +1698,20 @@ export function buildSandboxConfigForCLI(
 		}
 	}
 
+	// `allowNetwork` opens outbound to everything and ignores the host allow/block lists. Otherwise,
+	// mirror the terminal sandbox runtime: when an allow- or block-list is set we open outbound so
+	// the host filter is actually enforced (the SDK strips host lists when outbound is off). A
+	// deny-list-only configuration still permits non-denied domains.
+	//
+	// macOS Seatbelt has no per-host filter — the runtime strips both lists and would silently
+	// degrade `allowOutbound: true` to "allow all outbound". To avoid surprising the user with
+	// unrestricted access when they explicitly configured host rules, fail closed on darwin: keep
+	// outbound off and drop the unenforceable lists.
+	const allowAllNetwork = sandboxSetting === 'allowNetwork';
+	const hostListsEnforceable = platform !== 'darwin';
+	const allowedHosts = !allowAllNetwork && hostListsEnforceable && networkHosts?.allowedHosts?.length ? [...networkHosts.allowedHosts] : undefined;
+	const blockedHosts = !allowAllNetwork && hostListsEnforceable && networkHosts?.blockedHosts?.length ? [...networkHosts.blockedHosts] : undefined;
+	const allowOutbound = allowAllNetwork || !!allowedHosts || !!blockedHosts;
 	return {
 		enabled: true,
 		userPolicy: {
@@ -1629,8 +1721,19 @@ export function buildSandboxConfigForCLI(
 				...(denied.size ? { deniedPaths: [...denied] } : {}),
 			},
 			network: {
-				allowOutbound: sandboxSetting === 'allowNetwork',
+				allowOutbound,
+				...(allowOutbound && allowedHosts ? { allowedHosts } : {}),
+				...(allowOutbound && blockedHosts ? { blockedHosts } : {}),
 			},
 		},
 	};
+}
+
+function readStringArraySetting(configurationService: IConfigurationService, settingId: string): readonly string[] | undefined {
+	const raw = configurationService.getNonExtensionConfig<unknown>(settingId);
+	if (!Array.isArray(raw)) {
+		return undefined;
+	}
+	const values = raw.filter((v): v is string => typeof v === 'string' && v.length > 0);
+	return values.length ? values : undefined;
 }

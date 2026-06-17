@@ -129,6 +129,21 @@
             "included": true
         },
         {
+            "key": "chat.agentHost.codexAgent.enabled",
+            "name": "Codex3PIntegration",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.126",
+            "localization": {
+                "description": {
+                    "key": "chat.agentHost.codexAgent.enabled.policy",
+                    "value": "Enable Codex Agent sessions in VS Code. Start and resume agentic coding sessions powered by OpenAI Codex SDK. Uses your existing Copilot subscription."
+                }
+            },
+            "type": "boolean",
+            "default": false,
+            "included": true
+        },
+        {
             "key": "chat.tools.global.autoApprove",
             "name": "ChatToolsAutoApprove",
             "category": "InteractiveSession",
@@ -361,7 +376,7 @@
             "key": "extensions.autoUpdate",
             "name": "ExtensionsAutoUpdate",
             "category": "Extensions",
-            "minimumVersion": "1.122",
+            "minimumVersion": "1.125",
             "localization": {
                 "description": {
                     "key": "extensions.autoUpdate",
@@ -370,15 +385,11 @@
                 "enumDescriptions": [
                     {
                         "key": "extensions.autoUpdate.on",
-                        "value": "Enabled extensions are updated automatically."
-                    },
-                    {
-                        "key": "extensions.autoUpdate.delayed",
-                        "value": "Enabled extensions are updated automatically, but only 6 hours after a new version has been published."
+                        "value": "Download and install updates automatically only for enabled extensions."
                     },
                     {
                         "key": "extensions.autoUpdate.off",
-                        "value": "Extensions are not updated automatically."
+                        "value": "Extensions are not automatically updated."
                     }
                 ]
             },
@@ -386,9 +397,23 @@
             "default": "on",
             "enum": [
                 "on",
-                "delayed",
                 "off"
             ],
+            "included": true
+        },
+        {
+            "key": "extensions.autoUpdateDelay",
+            "name": "ExtensionsAutoUpdateDelay",
+            "category": "Extensions",
+            "minimumVersion": "1.125",
+            "localization": {
+                "description": {
+                    "key": "extensions.autoUpdateDelay",
+                    "value": "Controls the delay in hours after an extension update is published before it is automatically installed. Only applies when `#extensions.autoUpdate#` is set to `on`. This delay helps avoid installing potentially problematic updates immediately after release."
+                }
+            },
+            "type": "number",
+            "default": 2,
             "included": true
         },
         {
@@ -590,7 +615,7 @@
                 }
             },
             "type": "boolean",
-            "default": false,
+            "default": true,
             "included": true
         },
         {
@@ -651,7 +676,10 @@
             },
             "type": "boolean",
             "default": true,
-            "included": true
+            "included": true,
+            "referencedSettings": [
+                "chat.agentHost.claudeAgent.enabled"
+            ]
         }
     ]
 }

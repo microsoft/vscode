@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 3
-
 declare module 'vscode' {
 
 	export interface ChatParticipant {
@@ -1080,6 +1078,7 @@ declare module 'vscode' {
 		readonly name: string;
 		readonly content: string;
 		readonly toolReferences?: readonly ChatLanguageModelToolReference[];
+		readonly allowedSubagents?: readonly string[];
 		readonly metadata?: Record<string, boolean | string | number>;
 		/**
 		 * Whether the mode is a builtin mode (e.g. Ask, Edit, Agent) rather than a user or extension-defined custom mode.

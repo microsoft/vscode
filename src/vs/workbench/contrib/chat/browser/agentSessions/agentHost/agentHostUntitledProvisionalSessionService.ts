@@ -65,6 +65,7 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
+import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 
 export const IAgentHostUntitledProvisionalSessionService =
 	createDecorator<IAgentHostUntitledProvisionalSessionService>('agentHostUntitledProvisionalSessionService');
@@ -146,9 +147,8 @@ export interface IAgentHostUntitledProvisionalSessionService {
 	disposeSession(sessionResource: URI): Promise<void>;
 
 	/**
-	 * Latest workbench-side re-resolved config (schema + values) for a
-	 * provisional session, if any. Populated by {@link applyConfigChange}
-	 * after a value change so dependent properties (e.g. branch ↔ isolation)
+	 * Latest workbench-side re-resolved config (schema + values) for a chat
+	 * session, if any. Populated after a value change so dependent properties
 	 * refresh without a protocol-level schema-update channel.
 	 *
 	 * Both the schema and the values matter: `resolveSessionConfig` runs
@@ -156,6 +156,17 @@ export interface IAgentHostUntitledProvisionalSessionService {
 	 * derived defaults the consumer should prefer over `state.config.values`.
 	 */
 	getResolvedConfig(sessionResource: URI): ResolveSessionConfigResult | undefined;
+
+	/**
+	 * Re-resolve config for an already-created chat session and cache the
+	 * schema/values overlay returned by the provider.
+	 */
+	refreshResolvedConfig(
+		sessionResource: URI,
+		provider: string,
+		workingDirectory: URI | undefined,
+		config: Record<string, unknown> | undefined,
+	): Promise<void>;
 }
 
 interface IEntry {
@@ -169,6 +180,13 @@ interface IEntry {
 	 */
 	config: Record<string, unknown>;
 	/**
+	 * Working directory the provisional backend session was created with. A
+	 * created session's cwd is immutable, so when the user picks a different
+	 * folder the entry is recreated; this lets a folder change no-op when the
+	 * cwd is unchanged.
+	 */
+	workingDirectory?: URI;
+	/**
 	 * Latest re-resolved config (schema + values) for this provisional, set
 	 * by {@link applyConfigChange} after each value change. Cleared when the
 	 * entry is rebound or disposed.
@@ -181,6 +199,8 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 
 	private readonly _entries = new ResourceMap<IEntry>();
 	private readonly _pending = new ResourceMap<Promise<URI | undefined>>();
+	private readonly _resolvedConfigs = new ResourceMap<ResolveSessionConfigResult>();
+	private readonly _resolvedConfigRequestSeq = new ResourceMap<number>();
 	// URIs that were the source of a successful `tryRebind`. The chat widget
 	// briefly reattaches to the old untitled URI before its viewModel switches
 	// to the new real URI; without this tombstone the picker would call
@@ -196,6 +216,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		@IChatService chatService: IChatService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
 	) {
 		super();
 
@@ -209,9 +230,23 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				if (this._entries.has(sessionResource)) {
 					void this.disposeSession(sessionResource);
 				}
+				this._resolvedConfigs.delete(sessionResource);
+				this._resolvedConfigRequestSeq.delete(sessionResource);
 				// Drop any tombstone for the abandoned untitled URI so the
 				// set doesn't grow unbounded across the workbench lifetime.
 				this._rebound.delete(sessionResource);
+			}
+		}));
+
+		// A session's working directory is fixed at creation time. When the user
+		// picks a different folder for a not-yet-started session that already has
+		// a provisional backend session (built up by config chips), recreate that
+		// provisional at the new cwd so chip schemas resolve against it. The
+		// service owns this reaction so concurrent chip instances don't race.
+		this._register(this._newSessionFolderService.onDidChangeFolder(sessionResource => {
+			const folder = this._newSessionFolderService.getFolder(sessionResource);
+			if (folder && this._entries.has(sessionResource)) {
+				void this._changeWorkingDirectory(sessionResource, folder);
 			}
 		}));
 	}
@@ -261,7 +296,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 					workingDirectory,
 					config: initialConfig,
 				});
-				this._entries.set(sessionResource, { backendSession: created, config: { ...(initialConfig ?? {}) } });
+				this._entries.set(sessionResource, { backendSession: created, config: { ...(initialConfig ?? {}) }, workingDirectory });
 				this._onDidChange.fire(sessionResource);
 				return created;
 			} catch (err) {
@@ -325,8 +360,10 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		// Atomically swap entries: insert the new entry, drop the old one.
 		// Order matters — the old entry's `dispose` below must not race with
 		// the picker's `onDidChange` re-render reading the new entry.
-		this._entries.set(newSessionResource, { backendSession: created, config: { ...config } });
+		this._entries.set(newSessionResource, { backendSession: created, config: { ...config }, workingDirectory, resolvedConfig: oldEntry.resolvedConfig });
 		this._entries.delete(oldSessionResource);
+		this._resolvedConfigs.delete(oldSessionResource);
+		this._resolvedConfigRequestSeq.delete(oldSessionResource);
 		this._rebound.add(oldSessionResource);
 		// Only notify for the new resource. Firing for `oldSessionResource`
 		// would race the chat widget's `onDidChangeViewModel`: the picker is
@@ -343,9 +380,73 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		return created;
 	}
 
+	/**
+	 * Recreate the provisional backend session for `sessionResource` at a new
+	 * working directory, preserving the user's config choices. A created
+	 * session's cwd is immutable, so the only way to honor a folder change is to
+	 * dispose and recreate. Reuses the same deterministic backend URI so the
+	 * chat-resource-to-backend mapping stays stable. Sequencer-queued so it
+	 * settles in order with config-chip changes for the same resource.
+	 */
+	private _changeWorkingDirectory(sessionResource: URI, newWorkingDirectory: URI): Promise<void> {
+		return this._sequencer.queue(sessionResource.toString(), async () => {
+			const entry = this._entries.get(sessionResource);
+			if (!entry) {
+				return;
+			}
+			if (entry.workingDirectory?.toString() === newWorkingDirectory.toString()) {
+				return;
+			}
+			// Read the stripped backend provider scheme (e.g. `copilot`), not
+			// the full `agent-host-*` chat-resource scheme.
+			const provider = entry.backendSession.scheme;
+			const config = { ...entry.config };
+			try {
+				await this._agentHostService.disposeSession(entry.backendSession);
+			} catch (err) {
+				this._logService.warn(`[AgentHostProvisional] Failed to dispose provisional before cwd change ${entry.backendSession.toString()}: ${err instanceof Error ? err.message : String(err)}`);
+			}
+			let created: URI;
+			try {
+				created = await this._agentHostService.createSession({
+					provider,
+					session: entry.backendSession,
+					workingDirectory: newWorkingDirectory,
+					config,
+				});
+			} catch (err) {
+				this._logService.warn(`[AgentHostProvisional] Failed to recreate provisional at new cwd: ${err instanceof Error ? err.message : String(err)}`);
+				// The old provisional is gone; drop the entry so the next
+				// getOrCreate rebuilds it from scratch.
+				this._entries.delete(sessionResource);
+				this._onDidChange.fire(sessionResource);
+				return;
+			}
+			this._entries.set(sessionResource, { backendSession: created, config, workingDirectory: newWorkingDirectory, resolvedConfig: entry.resolvedConfig });
+			// Re-resolve config against the new cwd so chip schemas refresh.
+			try {
+				const resolved = await this._agentHostService.resolveSessionConfig({
+					provider,
+					workingDirectory: newWorkingDirectory,
+					config: { ...config },
+				});
+				const current = this._entries.get(sessionResource);
+				if (current && current.backendSession.toString() === created.toString()) {
+					current.config = { ...current.config, ...resolved.values };
+					current.resolvedConfig = resolved;
+				}
+			} catch (err) {
+				this._logService.warn(`[AgentHostProvisional] schema re-resolve after cwd change failed: ${err instanceof Error ? err.message : String(err)}`);
+			}
+			this._onDidChange.fire(sessionResource);
+		});
+	}
+
 	async disposeSession(sessionResource: URI): Promise<void> {
 		await this.waitForPending(sessionResource);
 		const entry = this._entries.get(sessionResource);
+		this._resolvedConfigs.delete(sessionResource);
+		this._resolvedConfigRequestSeq.delete(sessionResource);
 		if (!entry) {
 			return;
 		}
@@ -366,6 +467,8 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		}
 		this._entries.clear();
 		this._pending.clear();
+		this._resolvedConfigs.clear();
+		this._resolvedConfigRequestSeq.clear();
 		this._rebound.clear();
 		super.dispose();
 	}
@@ -380,7 +483,37 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	}
 
 	getResolvedConfig(sessionResource: URI): ResolveSessionConfigResult | undefined {
-		return this._entries.get(sessionResource)?.resolvedConfig;
+		return this._entries.get(sessionResource)?.resolvedConfig ?? this._resolvedConfigs.get(sessionResource);
+	}
+
+	async refreshResolvedConfig(
+		sessionResource: URI,
+		provider: string,
+		workingDirectory: URI | undefined,
+		config: Record<string, unknown> | undefined,
+	): Promise<void> {
+		const seq = (this._resolvedConfigRequestSeq.get(sessionResource) ?? 0) + 1;
+		this._resolvedConfigRequestSeq.set(sessionResource, seq);
+		try {
+			const resolved = await this._agentHostService.resolveSessionConfig({
+				provider,
+				workingDirectory,
+				config,
+			});
+			if (this._resolvedConfigRequestSeq.get(sessionResource) !== seq) {
+				return;
+			}
+			const entry = this._entries.get(sessionResource);
+			if (entry) {
+				entry.config = { ...entry.config, ...resolved.values };
+				entry.resolvedConfig = resolved;
+			} else {
+				this._resolvedConfigs.set(sessionResource, resolved);
+			}
+			this._onDidChange.fire(sessionResource);
+		} catch (err) {
+			this._logService.warn(`[AgentHostProvisional] schema re-resolve failed: ${err instanceof Error ? err.message : String(err)}`);
+		}
 	}
 
 	async applyConfigChange(

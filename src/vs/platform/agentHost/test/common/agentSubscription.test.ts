@@ -8,9 +8,9 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ActionType, type ActionEnvelope } from '../../common/state/sessionActions.js';
-import { SessionLifecycle, SessionStatus, TerminalClaimKind, type RootState, type SessionState, type TerminalState } from '../../common/state/protocol/state.js';
-import { ROOT_STATE_URI, StateComponents } from '../../common/state/sessionState.js';
-import { AgentSubscriptionManager, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
+import { MessageKind, SessionLifecycle, SessionStatus, TerminalClaimKind, TurnState, type RootState, type SessionState, type TerminalState } from '../../common/state/protocol/state.js';
+import { buildDefaultChatUri, createChatState, createDefaultChatSummary, ROOT_STATE_URI, StateComponents, type ChatState } from '../../common/state/sessionState.js';
+import { AgentSubscriptionManager, ChatStateSubscription, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
 
 // Helpers
 
@@ -35,7 +35,14 @@ function makeSessionState(sessionUri: string, overrides?: Partial<SessionState>)
 			project: { uri: 'file:///test-project', displayName: 'Test Project' },
 		},
 		lifecycle: SessionLifecycle.Ready,
-		turns: [],
+		chats: [],
+		...overrides,
+	};
+}
+
+function makeChatState(chatUri: string, sessionState: SessionState = makeSessionState(sessionUri), overrides?: Partial<ChatState>): ChatState {
+	return {
+		...createChatState(createDefaultChatSummary(sessionState.summary, chatUri)),
 		...overrides,
 	};
 }
@@ -52,9 +59,10 @@ function makeTerminalState(overrides?: Partial<TerminalState>): TerminalState {
 function makeEnvelope(action: ActionEnvelope['action'], serverSeq: number, origin?: ActionEnvelope['origin'], rejectionReason?: string, channel?: string): ActionEnvelope {
 	const resolvedChannel = channel ?? (
 		action.type.startsWith('root/') ? ROOT_STATE_URI
-			: action.type.startsWith('terminal/') ? terminalUri
-				: action.type.startsWith('changeset/') ? changesetUri
-					: sessionUri
+			: action.type.startsWith('chat/') ? chatUri
+				: action.type.startsWith('terminal/') ? terminalUri
+					: action.type.startsWith('changeset/') ? changesetUri
+						: sessionUri
 	);
 	return { channel: resolvedChannel, action, serverSeq, origin, rejectionReason };
 }
@@ -62,6 +70,7 @@ function makeEnvelope(action: ActionEnvelope['action'], serverSeq: number, origi
 const noop = () => { };
 const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toString();
 const terminalUri = URI.from({ scheme: 'agenthost-terminal', path: '/term1' }).toString();
+const chatUri = buildDefaultChatUri(sessionUri);
 const changesetUri = `${sessionUri}/changeset/session`;
 
 // RootStateSubscription
@@ -291,6 +300,20 @@ suite('SessionStateSubscription', () => {
 		assert.strictEqual((sub.value as SessionState).summary.title, 'Local');
 	});
 
+	test('server terminal turn action remains ignored by session subscription', () => {
+		const sub = createSub();
+		const state = makeSessionState(sessionUri);
+		sub.handleSnapshot(state, 0);
+
+		sub.receiveEnvelope(makeEnvelope(
+			{ type: ActionType.ChatTurnComplete, turnId: 'turn-1' },
+			1,
+			undefined,
+		));
+
+		assert.deepStrictEqual(sub.value, state);
+	});
+
 	test('after all pending cleared, value falls through to verifiedValue', () => {
 		const sub = createSub();
 		sub.handleSnapshot(makeSessionState(sessionUri), 0);
@@ -372,6 +395,56 @@ suite('SessionStateSubscription', () => {
 
 		assert.strictEqual(fired.length, 1);
 		assert.strictEqual(fired[0].summary.title, 'Changed');
+	});
+});
+
+// ChatStateSubscription
+
+suite('ChatStateSubscription', () => {
+
+	let disposables: DisposableStore;
+	let seq: number;
+
+	setup(() => {
+		disposables = new DisposableStore();
+		seq = 0;
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createSub(uri: string = chatUri, clientId: string = 'c1'): ChatStateSubscription {
+		return disposables.add(new ChatStateSubscription(uri, clientId, () => ++seq, noop));
+	}
+
+	test('server terminal turn action drops stale optimistic turn start', () => {
+		const sub = createSub();
+		sub.handleSnapshot(makeChatState(chatUri), 0);
+
+		sub.applyOptimistic({
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		});
+
+		assert.strictEqual((sub.value as ChatState | undefined)?.activeTurn?.id, 'turn-1');
+
+		sub.receiveEnvelope(makeEnvelope(
+			{ type: ActionType.ChatTurnComplete, turnId: 'turn-1' },
+			1,
+			undefined,
+		));
+
+		assert.deepStrictEqual({
+			activeTurn: (sub.value as ChatState | undefined)?.activeTurn,
+			turns: (sub.value as ChatState | undefined)?.turns.map(turn => ({ id: turn.id, state: turn.state })),
+		}, {
+			activeTurn: undefined,
+			turns: [{ id: 'turn-1', state: TurnState.Complete }],
+		});
 	});
 });
 
@@ -462,19 +535,19 @@ suite('AgentSubscriptionManager', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createManager(): AgentSubscriptionManager {
+	function createManager(subscribe: (resource: URI) => Promise<{ resource: string; state: SessionState | TerminalState; fromSeq: number }> = async (resource) => {
+		subscribedResources.push(resource.toString());
+		const key = resource.toString();
+		if (key.startsWith('copilot:')) {
+			return { resource: key, state: makeSessionState(key), fromSeq: 0 };
+		}
+		return { resource: key, state: makeTerminalState(), fromSeq: 0 };
+	}): AgentSubscriptionManager {
 		return disposables.add(new AgentSubscriptionManager(
 			'c1',
 			() => ++seq,
 			noop,
-			async (resource) => {
-				subscribedResources.push(resource.toString());
-				const key = resource.toString();
-				if (key.startsWith('copilot:')) {
-					return { resource: key, state: makeSessionState(key), fromSeq: 0 };
-				}
-				return { resource: key, state: makeTerminalState(), fromSeq: 0 };
-			},
+			subscribe,
 			(resource) => {
 				unsubscribedResources.push(resource.toString());
 			},
@@ -497,7 +570,7 @@ suite('AgentSubscriptionManager', () => {
 	test('getSubscription returns IReference with subscription', async () => {
 		const mgr = createManager();
 		const uri = URI.parse(sessionUri);
-		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, uri);
+		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, uri, 'test');
 
 		assert.ok(ref.object);
 		assert.strictEqual(ref.object.value, undefined); // not yet initialized (async)
@@ -512,8 +585,8 @@ suite('AgentSubscriptionManager', () => {
 	test('second call for same resource increments refcount', async () => {
 		const mgr = createManager();
 		const uri = URI.parse(sessionUri);
-		const ref1 = mgr.getSubscription<SessionState>(StateComponents.Session, uri);
-		const ref2 = mgr.getSubscription<SessionState>(StateComponents.Session, uri);
+		const ref1 = mgr.getSubscription<SessionState>(StateComponents.Session, uri, 'test');
+		const ref2 = mgr.getSubscription<SessionState>(StateComponents.Session, uri, 'test');
 
 		await new Promise(r => setTimeout(r, 0));
 
@@ -532,7 +605,7 @@ suite('AgentSubscriptionManager', () => {
 	test('disposing last ref calls unsubscribe callback', async () => {
 		const mgr = createManager();
 		const uri = URI.parse(sessionUri);
-		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, uri);
+		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, uri, 'test');
 
 		await new Promise(r => setTimeout(r, 0));
 
@@ -545,7 +618,7 @@ suite('AgentSubscriptionManager', () => {
 		mgr.handleRootSnapshot(makeRootState(), 0);
 
 		const uri = URI.parse(sessionUri);
-		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, uri);
+		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, uri, 'test');
 		await new Promise(r => setTimeout(r, 0));
 
 		// Send a root action
@@ -568,7 +641,7 @@ suite('AgentSubscriptionManager', () => {
 	test('creating session subscription for copilot: URI', async () => {
 		const mgr = createManager();
 		const mySessionUri = URI.from({ scheme: 'copilot', path: '/my-session' });
-		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, mySessionUri);
+		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, mySessionUri, 'test');
 		await new Promise(r => setTimeout(r, 0));
 
 		assert.ok(ref.object.value);
@@ -580,7 +653,7 @@ suite('AgentSubscriptionManager', () => {
 	test('creating terminal subscription for terminal URI', async () => {
 		const mgr = createManager();
 		const uri = URI.parse(terminalUri);
-		const ref = mgr.getSubscription<TerminalState>(StateComponents.Terminal, uri);
+		const ref = mgr.getSubscription<TerminalState>(StateComponents.Terminal, uri, 'test');
 		await new Promise(r => setTimeout(r, 0));
 
 		assert.ok(ref.object.value);
@@ -592,7 +665,7 @@ suite('AgentSubscriptionManager', () => {
 	test('dispatchOptimistic applies to matching session subscription', async () => {
 		const mgr = createManager();
 		const uri = URI.parse(sessionUri);
-		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, uri);
+		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, uri, 'test');
 		await new Promise(r => setTimeout(r, 0));
 
 		const clientSeq = mgr.dispatchOptimistic(uri.toString(), {
@@ -611,8 +684,8 @@ suite('AgentSubscriptionManager', () => {
 	test('dispose clears all subscriptions and calls unsubscribe for each', async () => {
 		const mgr = createManager();
 
-		const ref1 = mgr.getSubscription<SessionState>(StateComponents.Session, URI.parse(sessionUri));
-		const ref2 = mgr.getSubscription<TerminalState>(StateComponents.Terminal, URI.parse(terminalUri));
+		const ref1 = mgr.getSubscription<SessionState>(StateComponents.Session, URI.parse(sessionUri), 'test');
+		const ref2 = mgr.getSubscription<TerminalState>(StateComponents.Terminal, URI.parse(terminalUri), 'test');
 		await new Promise(r => setTimeout(r, 0));
 
 		// Remove the manager from disposables so we can dispose it manually
@@ -639,7 +712,7 @@ suite('AgentSubscriptionManager', () => {
 		const uri = URI.parse(sessionUri);
 
 		// Create a subscription via getSubscription
-		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, uri);
+		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, uri, 'test');
 		await new Promise(r => setTimeout(r, 0));
 
 		// Get it unmanaged
@@ -653,5 +726,118 @@ suite('AgentSubscriptionManager', () => {
 		// Now unmanaged should return undefined since it was released
 		const after = mgr.getSubscriptionUnmanaged<SessionState>(uri);
 		assert.strictEqual(after, undefined);
+	});
+
+	test('getSubscription retries after a failed subscribe for the same resource', async () => {
+		let subscribeAttempts = 0;
+		const mgr = createManager(async resource => {
+			subscribedResources.push(resource.toString());
+			subscribeAttempts++;
+			if (subscribeAttempts === 1) {
+				throw new Error('not found yet');
+			}
+			return { resource: resource.toString(), state: makeSessionState(resource.toString(), { summary: { ...makeSessionState(resource.toString()).summary, title: 'Retried' } }), fromSeq: 0 };
+		});
+		const uri = URI.parse(sessionUri);
+
+		const failedRef = mgr.getSubscription<SessionState>(StateComponents.Session, uri, 'test');
+		await new Promise(r => setTimeout(r, 0));
+
+		assert.ok(failedRef.object.value instanceof Error);
+
+		const retryRef = mgr.getSubscription<SessionState>(StateComponents.Session, uri, 'test');
+		await new Promise(r => setTimeout(r, 0));
+
+		assert.deepStrictEqual({
+			subscribeAttempts,
+			retriedTitle: (retryRef.object.value as SessionState).summary.title,
+			unmanagedIsRetry: mgr.getSubscriptionUnmanaged<SessionState>(uri) === retryRef.object,
+		}, {
+			subscribeAttempts: 2,
+			retriedTitle: 'Retried',
+			unmanagedIsRetry: true,
+		});
+
+		failedRef.dispose();
+		assert.strictEqual(mgr.getSubscriptionUnmanaged<SessionState>(uri), retryRef.object);
+
+		retryRef.dispose();
+		assert.strictEqual(mgr.getSubscriptionUnmanaged<SessionState>(uri), undefined);
+	});
+
+	test('getActiveSubscriptions reports kind, refCount, holders and status per active subscription', async () => {
+		const mgr = createManager();
+		const sUri = URI.parse(sessionUri);
+		const tUri = URI.parse(terminalUri);
+
+		const sessionRef = mgr.getSubscription<SessionState>(StateComponents.Session, sUri, 'SessionHolder');
+		const sessionRef2 = mgr.getSubscription<SessionState>(StateComponents.Session, sUri, 'SessionHolder');
+		const terminalRef = mgr.getSubscription<TerminalState>(StateComponents.Terminal, tUri, 'TerminalHolder');
+
+		const map = () => mgr.getActiveSubscriptions().map(s => ({ resource: s.resource.toString(), kind: s.kind, refCount: s.refCount, holders: s.holders, status: s.status }));
+		const pending = map();
+
+		await new Promise(r => setTimeout(r, 0));
+
+		const active = map();
+
+		assert.deepStrictEqual({ pending, active }, {
+			pending: [
+				{ resource: sessionUri, kind: StateComponents.Session, refCount: 2, holders: [{ owner: 'SessionHolder', count: 2 }], status: 'pending' },
+				{ resource: terminalUri, kind: StateComponents.Terminal, refCount: 1, holders: [{ owner: 'TerminalHolder', count: 1 }], status: 'pending' },
+			],
+			active: [
+				{ resource: sessionUri, kind: StateComponents.Session, refCount: 2, holders: [{ owner: 'SessionHolder', count: 2 }], status: 'snapshot' },
+				{ resource: terminalUri, kind: StateComponents.Terminal, refCount: 1, holders: [{ owner: 'TerminalHolder', count: 1 }], status: 'snapshot' },
+			],
+		});
+
+		sessionRef.dispose();
+		sessionRef2.dispose();
+		terminalRef.dispose();
+
+		assert.strictEqual(mgr.getActiveSubscriptions().length, 0);
+	});
+
+	test('getActiveSubscriptions tracks distinct holders and drops them as references are disposed', async () => {
+		const mgr = createManager();
+		const sUri = URI.parse(sessionUri);
+
+		const refA = mgr.getSubscription<SessionState>(StateComponents.Session, sUri, 'HolderA');
+		const refB = mgr.getSubscription<SessionState>(StateComponents.Session, sUri, 'HolderB');
+		const refB2 = mgr.getSubscription<SessionState>(StateComponents.Session, sUri, 'HolderB');
+		await new Promise(r => setTimeout(r, 0));
+
+		const withAll = mgr.getActiveSubscriptions()[0].holders;
+
+		refB.dispose();
+		const afterOneB = mgr.getActiveSubscriptions()[0].holders;
+
+		// Disposing the same reference twice must not over-remove holders.
+		refB.dispose();
+		const afterDoubleDispose = mgr.getActiveSubscriptions()[0].holders;
+
+		refA.dispose();
+		refB2.dispose();
+
+		assert.deepStrictEqual({ withAll, afterOneB, afterDoubleDispose, remaining: mgr.getActiveSubscriptions().length }, {
+			// Sorted by descending count, so HolderB (2) precedes HolderA (1).
+			withAll: [{ owner: 'HolderB', count: 2 }, { owner: 'HolderA', count: 1 }],
+			afterOneB: [{ owner: 'HolderA', count: 1 }, { owner: 'HolderB', count: 1 }],
+			afterDoubleDispose: [{ owner: 'HolderA', count: 1 }, { owner: 'HolderB', count: 1 }],
+			remaining: 0,
+		});
+	});
+
+	test('getActiveSubscriptions reports error status for a failed subscription', async () => {
+		const mgr = createManager(async () => { throw new Error('nope'); });
+		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, URI.parse(sessionUri), 'test');
+		await new Promise(r => setTimeout(r, 0));
+
+		assert.deepStrictEqual(
+			mgr.getActiveSubscriptions().map(s => ({ kind: s.kind, status: s.status })),
+			[{ kind: StateComponents.Session, status: 'error' }],
+		);
+		ref.dispose();
 	});
 });

@@ -8,7 +8,7 @@ import './media/newChatInSession.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { derived } from '../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -16,8 +16,12 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { NewChatInputWidget } from './newChatInput.js';
+import { sessionHasNoSelectableModel } from './modelPicker.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { IChatViewOptions } from '../../../browser/parts/chatView.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 
 // #region --- New Chat In Session Widget ---
@@ -33,27 +37,50 @@ export class NewChatInSessionWidget extends Disposable {
 
 	private readonly _newChatInput: NewChatInputWidget;
 	private readonly _tipDisposable = this._register(new MutableDisposable());
+	private readonly _session: IObservable<IActiveSession | undefined>;
 
 	constructor(
+		_options: IChatViewOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsService private readonly sessionsService: ISessionsService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
 
+		this._session = derived(reader => {
+			const activeSession = this.sessionsService.activeSession.read(reader);
+			return activeSession;
+		});
+
 		const canSendRequest = derived(reader => {
-			const session = this.sessionsManagementService.activeSession.read(reader);
-			return !!session;
+			const session = this._session.read(reader);
+			if (!session) {
+				return false;
+			}
+			// Re-evaluate the no-available-model gate whenever the active
+			// session's provider reports a model-list change. The provider
+			// aggregates both language-model registry changes and (for cloud
+			// sessions) option-group changes, matching the model picker's own
+			// reactivity so the gate never goes stale.
+			const provider = this.sessionsProvidersService.getProvider(session.providerId);
+			if (provider) {
+				observableSignalFromEvent(this, provider.onDidChangeModels).read(reader);
+			}
+			return !sessionHasNoSelectableModel(session, this.sessionsProvidersService);
 		});
 
 		const loading = derived(_reader => false);
 
 		this._newChatInput = this._register(this.instantiationService.createInstance(NewChatInputWidget, {
+			session: this._session,
 			getContextFolderUri: () => this._getContextFolderUri(),
-			sendRequest: async (text: string, attachedContext?: IChatRequestVariableEntry[]) => this._send(text, attachedContext),
+			sendRequest: async ({ query, attachments }) => this._send(query, attachments),
 			canSendRequest,
 			loading,
+			historyKey: constObservable(undefined), // no persisted history for the new-chat-in-session view
 			minEditorHeight: 64,
 			placeholder: localize('newChatInSessionPlaceholder', 'Ask a follow-up question or start a new topic within this session...'),
 		}));
@@ -121,7 +148,7 @@ export class NewChatInSessionWidget extends Disposable {
 	 * Returns the workspace URI from the active session's workspace.
 	 */
 	private _getContextFolderUri(): URI | undefined {
-		const session = this.sessionsManagementService.activeSession.get();
+		const session = this._session.get();
 		const workspace = session?.workspace.get();
 		return workspace?.folders[0]?.workingDirectory;
 	}
@@ -129,7 +156,7 @@ export class NewChatInSessionWidget extends Disposable {
 	// --- Send ---
 
 	private async _send(query: string, attachedContext?: IChatRequestVariableEntry[]): Promise<void> {
-		const activeSession = this.sessionsManagementService.activeSession.get();
+		const activeSession = this._session.get();
 		if (!activeSession) {
 			return;
 		}
@@ -147,6 +174,10 @@ export class NewChatInSessionWidget extends Disposable {
 
 	focusInput(): void {
 		this._newChatInput.focus();
+	}
+
+	attach(uris: URI[]): void {
+		this._newChatInput.attach(uris);
 	}
 }
 

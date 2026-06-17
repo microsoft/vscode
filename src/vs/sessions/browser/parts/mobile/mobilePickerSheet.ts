@@ -9,7 +9,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 
 const $ = DOM.$;
@@ -122,6 +122,53 @@ export interface IMobilePickerSheetSearchSource {
 }
 
 /**
+ * Renderer API passed into the {@link showMobileContentSheet} body
+ * callback. The renderer fills {@link bodyContainer} with arbitrary DOM
+ * and may call {@link close} to dismiss the sheet (e.g. after a confirm
+ * button is tapped, or after a sub-view navigation completes).
+ */
+export interface IMobileContentSheetApi {
+	/**
+	 * The same element passed as the first argument to the body
+	 * renderer; exposed here for convenience so callbacks can capture
+	 * the API object without also closing over the body element.
+	 */
+	readonly bodyContainer: HTMLElement;
+
+	/** Dismiss the sheet (plays the close animation). Idempotent. */
+	close(): void;
+}
+
+/**
+ * Options for {@link showMobileContentSheet}.
+ */
+export interface IMobileContentSheetOptions {
+	/**
+	 * Optional caption shown beneath the title (single-line, muted).
+	 * Mirrors {@link IMobilePickerSheetOptions.caption}.
+	 */
+	readonly caption?: string;
+
+	/**
+	 * Optional set of icon buttons rendered in the sheet's title row
+	 * to the left of the Done button. Tapping a header action resolves
+	 * the promise (the same dismissal semantics as the Done button).
+	 */
+	readonly headerActions?: readonly IMobilePickerSheetHeaderAction[];
+
+	/** Optional override for the Done button label (defaults to "Done"). */
+	readonly doneLabel?: string;
+
+	/**
+	 * When true, the Done button is hidden. Use this for sheets where
+	 * the body itself provides primary dismissal (e.g. a confirm widget
+	 * with explicit Approve / Reject buttons that call `api.close()`).
+	 * The user can still dismiss via the backdrop or Escape.
+	 */
+	readonly hideDoneButton?: boolean;
+}
+
+/**
  * Prefix used on the resolved id when a header action is invoked from a
  * mobile picker sheet, so callers can disambiguate header taps from
  * regular row selections.
@@ -149,7 +196,6 @@ export function showMobilePickerSheet(
 	options?: IMobilePickerSheetOptions,
 ): Promise<string | undefined> {
 	return new Promise<string | undefined>(resolve => {
-		const disposables = new DisposableStore();
 		let resolved = false;
 
 		const finish = (id: string | undefined) => {
@@ -157,74 +203,16 @@ export function showMobilePickerSheet(
 				return;
 			}
 			resolved = true;
-			sheet.classList.add('closing');
-			backdrop.classList.add('closing');
-			// Dispose all event listeners and inflight queries immediately
-			// so nothing fires during the 180ms close animation. The DOM
-			// node itself is removed at the end of the animation.
-			disposables.dispose();
-			DOM.getWindow(workbenchContainer).setTimeout(() => {
-				overlay.remove();
-				resolve(id);
-			}, 180);
+			shell.close(() => resolve(id));
 		};
 
-		// -- DOM: backdrop + sheet -------------------------------------
-		const overlay = DOM.append(workbenchContainer, $('div.mobile-picker-sheet-overlay'));
-		const backdrop = DOM.append(overlay, $('div.mobile-picker-sheet-backdrop'));
-		const sheet = DOM.append(overlay, $('div.mobile-picker-sheet'));
-		sheet.setAttribute('role', 'dialog');
-		sheet.setAttribute('aria-modal', 'true');
-		sheet.setAttribute('aria-label', title);
-
-		// -- Header (drag handle + title row + caption) ----------------
-		DOM.append(sheet, $('div.mobile-picker-sheet-handle'));
-
-		const titleRow = DOM.append(sheet, $('div.mobile-picker-sheet-title-row'));
-		const titleEl = DOM.append(titleRow, $('div.mobile-picker-sheet-title'));
-		titleEl.textContent = title;
-
-		// Optional header actions (icon buttons) rendered between the
-		// title and the Done button. Useful for sheet-level shortcuts
-		// like "browse for a folder" that aren't a single picker row.
-		if (options?.headerActions) {
-			for (const action of options.headerActions) {
-				const btn = DOM.append(titleRow, $('button.mobile-picker-sheet-header-action', { type: 'button' })) as HTMLButtonElement;
-				btn.setAttribute('aria-label', action.label);
-				btn.title = action.label;
-				const iconHost = DOM.append(btn, $('span.mobile-picker-sheet-header-action-icon'));
-				const iconEl = DOM.append(iconHost, $('span.mobile-picker-sheet-header-action-icon-glyph'));
-				iconEl.classList.add(...ThemeIcon.asClassNameArray(action.icon));
-				const btnGesture = Gesture.addTarget(btn);
-				disposables.add(btnGesture);
-				const onActivate = () => finish(`${MOBILE_PICKER_SHEET_HEADER_ACTION_PREFIX}${action.id}`);
-				const btnClick = DOM.addDisposableListener(btn, DOM.EventType.CLICK, (e: MouseEvent) => {
-					e.preventDefault();
-					onActivate();
-				});
-				disposables.add(btnClick);
-				const btnTap = DOM.addDisposableListener(btn, TouchEventType.Tap, onActivate);
-				disposables.add(btnTap);
-			}
-		}
-
-		const doneBtn = DOM.append(titleRow, $('button.mobile-picker-sheet-done', { type: 'button' })) as HTMLButtonElement;
-		doneBtn.textContent = localize('mobilePickerSheet.done', "Done");
-		doneBtn.setAttribute('aria-label', localize('mobilePickerSheet.doneAriaLabel', "Close {0}", title));
-		const doneGesture = Gesture.addTarget(doneBtn);
-		disposables.add(doneGesture);
-		const doneClick = DOM.addDisposableListener(doneBtn, DOM.EventType.CLICK, (e: MouseEvent) => {
-			e.preventDefault();
-			finish(undefined);
+		const shell: IMobileSheetShell = buildMobileSheetShell(workbenchContainer, title, {
+			caption: options?.caption,
+			headerActions: options?.headerActions,
+			onDismiss: () => finish(undefined),
+			onHeaderAction: actionId => finish(`${MOBILE_PICKER_SHEET_HEADER_ACTION_PREFIX}${actionId}`),
 		});
-		disposables.add(doneClick);
-		const doneTap = DOM.addDisposableListener(doneBtn, TouchEventType.Tap, () => finish(undefined));
-		disposables.add(doneTap);
-
-		if (options?.caption) {
-			const caption = DOM.append(sheet, $('div.mobile-picker-sheet-caption'));
-			caption.textContent = options.caption;
-		}
+		const { sheet, disposables } = shell;
 
 		// -- Optional inline search input ------------------------------
 		// Sits between the title row and the scrollable list. Its value
@@ -371,59 +359,6 @@ export function showMobilePickerSheet(
 			setSearchQuery = (query: string) => renderResults(query);
 		}
 
-		// -- Dismissal: backdrop + Escape ------------------------------
-		const backdropClick = DOM.addDisposableListener(backdrop, DOM.EventType.CLICK, () => finish(undefined));
-		disposables.add(backdropClick);
-		const backdropGesture = Gesture.addTarget(backdrop);
-		disposables.add(backdropGesture);
-		const backdropTap = DOM.addDisposableListener(backdrop, TouchEventType.Tap, () => finish(undefined));
-		disposables.add(backdropTap);
-
-		const keyHandler = DOM.addDisposableListener(DOM.getWindow(workbenchContainer), DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			if (e.key === 'Escape') {
-				e.preventDefault();
-				e.stopPropagation();
-				finish(undefined);
-			}
-		}, true);
-		disposables.add(keyHandler);
-
-		// -- iOS keyboard avoidance -----------------------------------
-		// On iOS Safari, when the virtual keyboard opens the layout
-		// viewport (`vh` units) does NOT shrink — only the visual
-		// viewport changes. The sheet uses `position: fixed` which
-		// positions against the layout viewport, so without correction
-		// the keyboard covers the bottom portion of the sheet (including
-		// the search input the user is actively typing into).
-		//
-		// `window.visualViewport` exposes the real visible area. We
-		// listen for `resize` and `scroll` events on it and translate
-		// the sheet upward by the keyboard height so the search input
-		// remains visible.
-		const win = DOM.getWindow(workbenchContainer);
-		const vv = win.visualViewport;
-		if (vv) {
-			const adjustForKeyboard = () => {
-				// The keyboard height is the difference between the
-				// layout viewport height and the visual viewport height,
-				// plus any scroll offset the browser applied.
-				const keyboardHeight = win.innerHeight - vv.height;
-				overlay.style.bottom = `${Math.max(0, keyboardHeight)}px`;
-				overlay.style.height = `${vv.height}px`;
-			};
-			vv.addEventListener('resize', adjustForKeyboard);
-			vv.addEventListener('scroll', adjustForKeyboard);
-			disposables.add(toDisposable(() => {
-				vv.removeEventListener('resize', adjustForKeyboard);
-				vv.removeEventListener('scroll', adjustForKeyboard);
-				overlay.style.bottom = '';
-				overlay.style.height = '';
-			}));
-			// Run once immediately in case the keyboard is already
-			// visible (e.g., sheet opened while another input had focus).
-			adjustForKeyboard();
-		}
-
 		// Focus the search input if present, otherwise focus the first
 		// checked row (or the first row) for keyboard users.
 		if (searchInput) {
@@ -432,6 +367,280 @@ export function showMobilePickerSheet(
 			(renderState.firstCheckedRow ?? renderState.firstRow)?.focus();
 		}
 	});
+}
+
+/**
+ * Show a phone-friendly bottom sheet that hosts arbitrary body content.
+ *
+ * Reuses the same shell as {@link showMobilePickerSheet} — translucent
+ * backdrop, slide-up animation, drag handle, title row with Done button,
+ * optional caption, optional icon header actions, iOS visual-viewport
+ * keyboard avoidance, and `Escape` / backdrop dismissal — but leaves the
+ * scrollable body to the caller. Use this for overlays that don't fit
+ * the picker's row-list shape: tool-confirmation carousels, plan
+ * reviews, anchor previews, code-block expand views, and so on.
+ *
+ * The {@link renderBody} callback is invoked once after the sheet shell
+ * mounts. The caller fills the supplied `bodyElement` with whatever DOM
+ * they like and may return an {@link IDisposable} whose `dispose()` runs
+ * when the sheet closes (alongside the shell's own listeners).
+ *
+ * The body container has `overflow-y: auto`,
+ * `-webkit-overflow-scrolling: touch`, and `touch-action: pan-y` applied
+ * via the `.mobile-content-sheet-body` class so vertical scrolling works
+ * correctly under iOS.
+ *
+ * The returned promise resolves with `void` when the sheet closes for
+ * any reason: Done button, backdrop tap, Escape, a header action tap,
+ * or an explicit `api.close()` from inside `renderBody`.
+ *
+ * @example
+ * ```ts
+ * await showMobileContentSheet(
+ *     this._layoutService.mainContainer,
+ *     localize('confirm.title', "Confirm Tool Use"),
+ *     (body, api) => {
+ *         const store = new DisposableStore();
+ *         const summary = DOM.append(body, DOM.$('div.tool-confirm-summary'));
+ *         summary.textContent = toolDescription;
+ *
+ *         const approve = DOM.append(body, DOM.$('button.tool-confirm-approve'));
+ *         approve.textContent = localize('confirm.approve', "Approve");
+ *         store.add(DOM.addDisposableListener(approve, 'click', () => {
+ *             writeApproval();
+ *             api.close();
+ *         }));
+ *
+ *         return store;
+ *     },
+ *     { caption: localize('confirm.caption', "This will modify your workspace.") },
+ * );
+ * ```
+ */
+export function showMobileContentSheet(
+	workbenchContainer: HTMLElement,
+	title: string,
+	renderBody: (bodyElement: HTMLElement, api: IMobileContentSheetApi) => IDisposable | void,
+	options?: IMobileContentSheetOptions,
+): Promise<void> {
+	return new Promise<void>(resolve => {
+		let resolved = false;
+
+		const close = () => {
+			if (resolved) {
+				return;
+			}
+			resolved = true;
+			shell.close(() => resolve());
+		};
+
+		const shell: IMobileSheetShell = buildMobileSheetShell(workbenchContainer, title, {
+			caption: options?.caption,
+			headerActions: options?.headerActions,
+			doneLabel: options?.doneLabel,
+			hideDoneButton: options?.hideDoneButton,
+			onDismiss: close,
+			onHeaderAction: () => close(),
+		});
+
+		const bodyContainer = DOM.append(shell.sheet, $('div.mobile-content-sheet-body'));
+
+		const api: IMobileContentSheetApi = { bodyContainer, close };
+		const bodyDisposable = renderBody(bodyContainer, api);
+		if (bodyDisposable) {
+			shell.disposables.add(bodyDisposable);
+		}
+	});
+}
+
+/** Options consumed by {@link buildMobileSheetShell}. */
+interface IMobileSheetShellOptions {
+	readonly caption?: string;
+	readonly headerActions?: readonly IMobilePickerSheetHeaderAction[];
+	readonly doneLabel?: string;
+	readonly hideDoneButton?: boolean;
+	/**
+	 * Called when the user dismisses the sheet via the Done button,
+	 * backdrop tap, or Escape key. The shell does NOT close itself in
+	 * response to dismissal — the caller is expected to invoke
+	 * {@link IMobileSheetShell.close} from this callback.
+	 */
+	readonly onDismiss: () => void;
+	/**
+	 * Called when a header action button is tapped. If omitted, header
+	 * action taps fall through to {@link onDismiss}.
+	 */
+	readonly onHeaderAction?: (actionId: string) => void;
+}
+
+/** Primitives returned by {@link buildMobileSheetShell}. */
+interface IMobileSheetShell {
+	readonly overlay: HTMLElement;
+	readonly backdrop: HTMLElement;
+	/** The sheet container — append body content here. */
+	readonly sheet: HTMLElement;
+	/** Disposable store tied to the sheet's lifetime; cleared on close. */
+	readonly disposables: DisposableStore;
+	/**
+	 * Play the close animation, dispose listeners, and remove the DOM
+	 * node after the animation completes. Idempotent — subsequent
+	 * calls are no-ops. The optional callback fires once the node has
+	 * been removed.
+	 */
+	close(onAnimationEnd?: () => void): void;
+}
+
+/**
+ * Build the shared shell for {@link showMobilePickerSheet} and
+ * {@link showMobileContentSheet}: overlay, backdrop, sheet (drag handle,
+ * title row with Done button and optional header actions, optional
+ * caption), backdrop / Escape dismissal, and iOS visual-viewport
+ * keyboard avoidance. Callers append their own content children to
+ * `sheet`.
+ */
+function buildMobileSheetShell(
+	workbenchContainer: HTMLElement,
+	title: string,
+	options: IMobileSheetShellOptions,
+): IMobileSheetShell {
+	const disposables = new DisposableStore();
+	let closed = false;
+
+	// -- DOM: backdrop + sheet -------------------------------------
+	const overlay = DOM.append(workbenchContainer, $('div.mobile-picker-sheet-overlay'));
+	const backdrop = DOM.append(overlay, $('div.mobile-picker-sheet-backdrop'));
+	const sheet = DOM.append(overlay, $('div.mobile-picker-sheet'));
+	sheet.setAttribute('role', 'dialog');
+	sheet.setAttribute('aria-modal', 'true');
+	sheet.setAttribute('aria-label', title);
+
+	// -- Header (drag handle + title row + caption) ----------------
+	DOM.append(sheet, $('div.mobile-picker-sheet-handle'));
+
+	const titleRow = DOM.append(sheet, $('div.mobile-picker-sheet-title-row'));
+	const titleEl = DOM.append(titleRow, $('div.mobile-picker-sheet-title'));
+	titleEl.textContent = title;
+
+	// Optional header actions (icon buttons) rendered between the
+	// title and the Done button. Useful for sheet-level shortcuts
+	// like "browse for a folder" that aren't a single picker row.
+	if (options.headerActions) {
+		for (const action of options.headerActions) {
+			const btn = DOM.append(titleRow, $('button.mobile-picker-sheet-header-action', { type: 'button' })) as HTMLButtonElement;
+			btn.setAttribute('aria-label', action.label);
+			btn.title = action.label;
+			const iconHost = DOM.append(btn, $('span.mobile-picker-sheet-header-action-icon'));
+			const iconEl = DOM.append(iconHost, $('span.mobile-picker-sheet-header-action-icon-glyph'));
+			iconEl.classList.add(...ThemeIcon.asClassNameArray(action.icon));
+			const btnGesture = Gesture.addTarget(btn);
+			disposables.add(btnGesture);
+			const onActivate = () => {
+				if (options.onHeaderAction) {
+					options.onHeaderAction(action.id);
+				} else {
+					options.onDismiss();
+				}
+			};
+			const btnClick = DOM.addDisposableListener(btn, DOM.EventType.CLICK, (e: MouseEvent) => {
+				e.preventDefault();
+				onActivate();
+			});
+			disposables.add(btnClick);
+			const btnTap = DOM.addDisposableListener(btn, TouchEventType.Tap, onActivate);
+			disposables.add(btnTap);
+		}
+	}
+
+	if (!options.hideDoneButton) {
+		const doneBtn = DOM.append(titleRow, $('button.mobile-picker-sheet-done', { type: 'button' })) as HTMLButtonElement;
+		doneBtn.textContent = options.doneLabel ?? localize('mobilePickerSheet.done', "Done");
+		doneBtn.setAttribute('aria-label', localize('mobilePickerSheet.doneAriaLabel', "Close {0}", title));
+		const doneGesture = Gesture.addTarget(doneBtn);
+		disposables.add(doneGesture);
+		const doneClick = DOM.addDisposableListener(doneBtn, DOM.EventType.CLICK, (e: MouseEvent) => {
+			e.preventDefault();
+			options.onDismiss();
+		});
+		disposables.add(doneClick);
+		const doneTap = DOM.addDisposableListener(doneBtn, TouchEventType.Tap, () => options.onDismiss());
+		disposables.add(doneTap);
+	}
+
+	if (options.caption) {
+		const caption = DOM.append(sheet, $('div.mobile-picker-sheet-caption'));
+		caption.textContent = options.caption;
+	}
+
+	// -- Dismissal: backdrop + Escape ------------------------------
+	const backdropClick = DOM.addDisposableListener(backdrop, DOM.EventType.CLICK, () => options.onDismiss());
+	disposables.add(backdropClick);
+	const backdropGesture = Gesture.addTarget(backdrop);
+	disposables.add(backdropGesture);
+	const backdropTap = DOM.addDisposableListener(backdrop, TouchEventType.Tap, () => options.onDismiss());
+	disposables.add(backdropTap);
+
+	const keyHandler = DOM.addDisposableListener(DOM.getWindow(workbenchContainer), DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+		if (e.key === 'Escape') {
+			e.preventDefault();
+			e.stopPropagation();
+			options.onDismiss();
+		}
+	}, true);
+	disposables.add(keyHandler);
+
+	// -- iOS keyboard avoidance -----------------------------------
+	// On iOS Safari, when the virtual keyboard opens the layout
+	// viewport (`vh` units) does NOT shrink — only the visual
+	// viewport changes. The sheet uses `position: fixed` which
+	// positions against the layout viewport, so without correction
+	// the keyboard covers the bottom portion of the sheet (including
+	// any input the user is actively typing into).
+	//
+	// `window.visualViewport` exposes the real visible area. We
+	// listen for `resize` and `scroll` events on it and translate
+	// the sheet upward by the keyboard height so the focused input
+	// remains visible.
+	const win = DOM.getWindow(workbenchContainer);
+	const vv = win.visualViewport;
+	if (vv) {
+		const adjustForKeyboard = () => {
+			// The keyboard height is the difference between the
+			// layout viewport height and the visual viewport height.
+			const keyboardHeight = win.innerHeight - vv.height;
+			overlay.style.bottom = `${Math.max(0, keyboardHeight)}px`;
+			overlay.style.height = `${vv.height}px`;
+		};
+		vv.addEventListener('resize', adjustForKeyboard);
+		vv.addEventListener('scroll', adjustForKeyboard);
+		disposables.add(toDisposable(() => {
+			vv.removeEventListener('resize', adjustForKeyboard);
+			vv.removeEventListener('scroll', adjustForKeyboard);
+			overlay.style.bottom = '';
+			overlay.style.height = '';
+		}));
+		// Run once immediately in case the keyboard is already
+		// visible (e.g., sheet opened while another input had focus).
+		adjustForKeyboard();
+	}
+
+	const close = (onAnimationEnd?: () => void) => {
+		if (closed) {
+			return;
+		}
+		closed = true;
+		sheet.classList.add('closing');
+		backdrop.classList.add('closing');
+		// Dispose all event listeners and inflight queries immediately
+		// so nothing fires during the 180ms close animation. The DOM
+		// node itself is removed at the end of the animation.
+		disposables.dispose();
+		DOM.getWindow(workbenchContainer).setTimeout(() => {
+			overlay.remove();
+			onAnimationEnd?.();
+		}, 180);
+	};
+
+	return { overlay, backdrop, sheet, disposables, close };
 }
 
 /** Mutable bookkeeping passed through {@link renderRow} so we can track section dividers and the row to focus. */
