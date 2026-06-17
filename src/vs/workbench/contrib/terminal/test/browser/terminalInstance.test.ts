@@ -398,7 +398,7 @@ suite('Workbench - TerminalInstance', () => {
 		let instantiationService: TestInstantiationService;
 		let capabilities: TerminalCapabilityStore;
 
-		function createInstance(partial?: Partial<ITerminalInstance>): Pick<ITerminalInstance, 'shellLaunchConfig' | 'shellType' | 'userHome' | 'cwd' | 'initialCwd' | 'processName' | 'sequence' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'> {
+		function createInstance(partial?: Partial<ITerminalInstance>): Pick<ITerminalInstance, 'shellLaunchConfig' | 'shellType' | 'userHome' | 'cwd' | 'initialCwd' | 'processName' | 'sequence' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description' | 'progressState'> {
 			const capabilities = store.add(new TerminalCapabilityStore());
 			if (!isWindows) {
 				capabilities.add(TerminalCapability.NaiveCwdDetection, null!);
@@ -416,6 +416,7 @@ suite('Workbench - TerminalInstance', () => {
 				title: '',
 				description: '',
 				userHome: undefined,
+				progressState: undefined,
 				...partial
 			};
 		}
@@ -552,6 +553,36 @@ suite('Workbench - TerminalInstance', () => {
 				strictEqual(terminalLabelComputer.title, 'process ~ root2');
 				strictEqual(terminalLabelComputer.description, 'root2');
 			}
+		});
+		test('should resolve progress state 0 (no progress) as empty string', () => {
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}${separator}${progress}', description: '' } } } });
+			terminalLabelComputer.refreshLabel(createInstance({ capabilities, processName: 'bash', progressState: { state: 0, value: 0 } }));
+			strictEqual(terminalLabelComputer.title, 'bash');
+		});
+		test('should resolve progress state 1 (normal) as percentage', () => {
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}${separator}${progress}', description: '' } } } });
+			terminalLabelComputer.refreshLabel(createInstance({ capabilities, processName: 'bash', progressState: { state: 1, value: 75 } }));
+			strictEqual(terminalLabelComputer.title, 'bash - 75%');
+		});
+		test('should resolve progress state 2 (error) as error icon', () => {
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}${separator}${progress}', description: '' } } } });
+			terminalLabelComputer.refreshLabel(createInstance({ capabilities, processName: 'bash', progressState: { state: 2, value: 0 } }));
+			strictEqual(terminalLabelComputer.title, 'bash - $(error)');
+		});
+		test('should resolve progress state 3 (indeterminate) as loading icon', () => {
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}${separator}${progress}', description: '' } } } });
+			terminalLabelComputer.refreshLabel(createInstance({ capabilities, processName: 'bash', progressState: { state: 3, value: 0 } }));
+			strictEqual(terminalLabelComputer.title, 'bash - $(loading~spin)');
+		});
+		test('should resolve progress state 4 (warning) as alert icon', () => {
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}${separator}${progress}', description: '' } } } });
+			terminalLabelComputer.refreshLabel(createInstance({ capabilities, processName: 'bash', progressState: { state: 4, value: 0 } }));
+			strictEqual(terminalLabelComputer.title, 'bash - $(alert)');
+		});
+		test('should resolve progress as empty when progressState is undefined', () => {
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}${separator}${progress}', description: '' } } } });
+			terminalLabelComputer.refreshLabel(createInstance({ capabilities, processName: 'bash', progressState: undefined }));
+			strictEqual(terminalLabelComputer.title, 'bash');
 		});
 	});
 
