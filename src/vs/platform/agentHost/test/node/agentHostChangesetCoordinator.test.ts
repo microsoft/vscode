@@ -415,7 +415,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 	readonly uncommittedRefreshes: string[] = [];
 	readonly sessionRefreshes: string[] = [];
 
-	private _hasUncommittedSubscribers: (session: string) => boolean = () => false;
+	private _hasSubscription: (session: string, changeset: string) => boolean = () => false;
 
 	registerStaticChangesets(_session: string): void { }
 	restoreStaticChangeset(_session: string, _kind: StaticChangesetKind, _diffs: readonly ISessionFileDiff[]): void { }
@@ -431,7 +431,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 		this.sessionRefreshes.push(session);
 	}
 	async computeUncommittedChangeset(session: string): Promise<string> {
-		if (this._hasUncommittedSubscribers(session)) {
+		if (this._hasSubscription(session, URI.parse(buildUncommittedChangesetUri(session)).toString())) {
 			this.uncommittedRefreshes.push(session);
 		}
 		return `${session}/changeset/uncommitted`;
@@ -441,9 +441,8 @@ class TestChangesetService implements IAgentHostChangesetService {
 	onToolCallEditsApplied(_session: string, _turnId: string): void { }
 	onTurnComplete(_session: string, _turnId: string | undefined): void { }
 	onSessionTruncated(_session: string): void { }
-	setTurnSubscriberProbe(_probe: (session: string, turnId: string) => boolean): void { }
-	setUncommittedSubscriberProbe(probe: (session: string) => boolean): void {
-		this._hasUncommittedSubscribers = probe;
+	setSubscriberProbe(probe: (session: string, changeset: string) => boolean): void {
+		this._hasSubscription = probe;
 	}
 
 	clearRefreshes(): void {
