@@ -435,17 +435,16 @@ describe('TaskApiBackend', () => {
 		]);
 	});
 
-	it('fetchSessionList omits creator_id when the current user id cannot be resolved', async () => {
-		const client = new FakeTaskApiClient();
+	it('fetchSessionList fails closed (no repo fetch, empty result) when the current user id cannot be resolved', async () => {
+		const client = new FakeTaskApiClient({ repoTasks: [{ id: 't1', state: 'completed', created_at: '2026-03-27T00:00:00Z', creator: { id: 999 } } as unknown as AgentTask] });
 		const octoKitService = new MockOctoKitService();
 		octoKitService.getCurrentAuthedUser = async () => undefined;
 		const backend = new TaskApiBackend(client, new TestLogService(), octoKitService);
 
-		await backend.fetchSessionList([new GithubRepoId('octocat', 'hello-world')], false, false);
+		const result = await backend.fetchSessionList([new GithubRepoId('octocat', 'hello-world')], false, false);
 
-		expect(client.listForRepoCalls).toEqual([
-			{ owner: 'octocat', repo: 'hello-world', options: { per_page: 100 } },
-		]);
+		expect(client.listForRepoCalls).toEqual([]);
+		expect(result).toEqual([]);
 	});
 
 	it('fetchSessionList does not send creator_id on the user-scoped global list', async () => {

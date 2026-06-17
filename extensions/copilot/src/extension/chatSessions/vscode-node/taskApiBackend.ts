@@ -261,9 +261,15 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 		} else {
 			// The repo-scoped endpoint returns every collaborator's tasks by default. Scope it to
 			// the current user's own tasks via `creator_id`, matching the github.com/copilot/agents
-			// repo page. If the user id can't be resolved, fall back to the unfiltered list.
+			// repo page. Fail closed: if the user id can't be resolved we skip the repo fetch and
+			// return no tasks rather than reverting to the unscoped list, which would expose other
+			// collaborators' tasks during transient auth/API failures.
 			const creatorId = await this._resolveCurrentUserId();
-			const repoListOpts: ListTasksOptions = creatorId !== undefined ? { ...listOpts, creator_id: creatorId } : listOpts;
+			if (creatorId === undefined) {
+				this._logService.warn('Skipping repo-scoped cloud task list because the current user id could not be resolved; returning no sessions to avoid exposing other users\' tasks.');
+				return [];
+			}
+			const repoListOpts: ListTasksOptions = { ...listOpts, creator_id: creatorId };
 			const responses = await Promise.all(
 				repoIds.map(async repo => {
 					try {
@@ -293,7 +299,7 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 
 	/**
 	 * Resolve the authenticated user's numeric GitHub id for the repo task `creator_id` filter.
-	 * Returns undefined (and logs) on failure so listing can proceed unfiltered.
+	 * Returns undefined (and logs) on failure; callers fail closed rather than listing unscoped.
 	 */
 	private async _resolveCurrentUserId(): Promise<number | undefined> {
 		try {
