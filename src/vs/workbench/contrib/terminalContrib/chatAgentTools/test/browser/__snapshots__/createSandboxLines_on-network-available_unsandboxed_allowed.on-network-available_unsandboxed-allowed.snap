@@ -4,6 +4,17 @@
   "retryWithAllowNetworkRequests": false
 }
 ----
+{
+  "requestUnsandboxedExecution": {
+    "type": "boolean",
+    "description": "Request that this command run outside the terminal sandbox. Only set this when the command clearly needs unsandboxed access. The user will be prompted before the command runs unsandboxed."
+  },
+  "requestUnsandboxedExecutionReason": {
+    "type": "string",
+    "description": "A short explanation of why this command must run outside the terminal sandbox. Only provide this when requestUnsandboxedExecution is true."
+  }
+}
+----
 
 Sandboxing:
 - Commands run inside a sandbox by default. The sandbox keeps the filesystem mostly read-only.

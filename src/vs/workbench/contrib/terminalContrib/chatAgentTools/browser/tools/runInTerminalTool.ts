@@ -230,6 +230,32 @@ export function createSandboxLines(sandboxingOptions: ISandboxingOnOptions): str
 	return lines;
 }
 
+export function createSandboxProperties(sandboxingOptions: ISandboxingOnOptions): IJSONSchemaMap {
+	const isNetworkAvailable = sandboxingOptions.sandboxMode === 'on-network-available';
+	return {
+		...(sandboxingOptions.allowToRunUnsandboxedCommands ? {
+			requestUnsandboxedExecution: {
+				type: 'boolean',
+				description: 'Request that this command run outside the terminal sandbox. Only set this when the command clearly needs unsandboxed access. The user will be prompted before the command runs unsandboxed.'
+			},
+			requestUnsandboxedExecutionReason: {
+				type: 'string',
+				description: 'A short explanation of why this command must run outside the terminal sandbox. Only provide this when requestUnsandboxedExecution is true.'
+			}
+		} : {}),
+		...(isNetworkAvailable || !sandboxingOptions.retryWithAllowNetworkRequests ? {} : {
+			requestAllowNetwork: {
+				type: 'boolean',
+				description: 'Request that this command remain in the terminal sandbox but run with unrestricted network access. Only set this when the command clearly needs network access but the required network access was blocked. The user will be prompted before network restrictions are relaxed.'
+			},
+			requestAllowNetworkReason: {
+				type: 'string',
+				description: 'A short explanation of why this sandboxed command needs unrestricted network access. Only provide this when requestAllowNetwork is true.'
+			}
+		})
+	};
+}
+
 function createGenericDescription(sandboxingOptions: ISandboxingOptions): string {
 	const parts = [`
 Command Execution:
@@ -383,32 +409,7 @@ export async function createRunInTerminalToolData(
 			description: 'A short description of the goal or purpose of the command (e.g., "Install dependencies", "Start development server").'
 		},
 	};
-	const sandboxProperties: IJSONSchemaMap = isSandboxEnabled ? {
-		allowToRunUnsandboxedCommands: {
-			type: 'boolean',
-			const: allowToRunUnsandboxedCommands,
-			default: allowToRunUnsandboxedCommands,
-			description: 'Whether this tool invocation is allowed to run commands outside the terminal sandbox. This value is set by VS Code based on chat.agent.sandbox.allowUnsandboxedCommands.'
-		},
-		requestUnsandboxedExecution: {
-			type: 'boolean',
-			description: 'Request that this command run outside the terminal sandbox. Only set this when the command clearly needs unsandboxed access. The user will be prompted before the command runs unsandboxed.'
-		},
-		requestUnsandboxedExecutionReason: {
-			type: 'string',
-			description: 'A short explanation of why this command must run outside the terminal sandbox. Only provide this when requestUnsandboxedExecution is true.'
-		},
-		...(isSandboxAllowNetworkEnabled || !retryWithAllowNetworkRequestsSetting ? {} : {
-			requestAllowNetwork: {
-				type: 'boolean',
-				description: 'Request that this command remain in the terminal sandbox but run with unrestricted network access. Only set this when the command clearly needs network access but the required network access was blocked. The user will be prompted before network restrictions are relaxed.'
-			},
-			requestAllowNetworkReason: {
-				type: 'string',
-				description: 'A short explanation of why this sandboxed command needs unrestricted network access. Only provide this when requestAllowNetwork is true.'
-			}
-		})
-	} : {};
+	const sandboxProperties: IJSONSchemaMap = isSandboxEnabled ? createSandboxProperties(sandboxingOptions as ISandboxingOnOptions) : {};
 
 	return {
 		id: TerminalToolId.RunInTerminal,

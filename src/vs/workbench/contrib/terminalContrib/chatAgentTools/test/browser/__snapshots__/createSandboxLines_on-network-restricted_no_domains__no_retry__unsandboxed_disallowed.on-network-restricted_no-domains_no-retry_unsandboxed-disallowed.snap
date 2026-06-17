@@ -4,6 +4,8 @@
   "retryWithAllowNetworkRequests": false
 }
 ----
+{}
+----
 
 Sandboxing:
 - Commands run inside a sandbox by default. The sandbox restricts two things independently: the filesystem and the network.

@@ -5,13 +5,14 @@
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
-import { createSandboxLines, type ISandboxingOnOptions } from '../../browser/tools/runInTerminalTool.js';
+import { createSandboxLines, createSandboxProperties, type ISandboxingOnOptions } from '../../browser/tools/runInTerminalTool.js';
 
 suite('createSandboxLines', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	async function assertLines(name: string, options: ISandboxingOnOptions) {
-		const snapshot = `${JSON.stringify(options, undefined, 2)}\n----\n${createSandboxLines(options).join('\n')}`;
+		const properties = JSON.stringify(createSandboxProperties(options), undefined, 2);
+		const snapshot = `${JSON.stringify(options, undefined, 2)}\n----\n${properties}\n----\n${createSandboxLines(options).join('\n')}`;
 		await assertSnapshot(snapshot, { name });
 	}
 
