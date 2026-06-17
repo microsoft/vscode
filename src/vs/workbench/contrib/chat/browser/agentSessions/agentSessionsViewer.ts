@@ -102,6 +102,7 @@ interface IAgentSessionStatusIconInputs {
 class AgentSessionStatusIcon extends Disposable {
 
 	private static readonly PIXEL_SPINNER_GRID_KEY = '__pixel_spinner_grid__';
+	private static readonly PIXEL_SPINNER_RING_KEY = '__pixel_spinner_ring__';
 
 	private _currentCacheKey: string | undefined;
 	private _lastInputs: IAgentSessionStatusIconInputs | undefined;
@@ -136,15 +137,17 @@ class AgentSessionStatusIcon extends Disposable {
 		const { session, statusOnly } = inputs;
 		this.container.className = `agent-session-icon${session.status === AgentSessionStatus.NeedsInput ? ' needs-input' : ''}`;
 
-		if (session.status === AgentSessionStatus.InProgress && !this.accessibilityService.isMotionReduced()) {
-			this.container.style.color = asCssVariable('textLink.foreground');
-			if (this._currentCacheKey === AgentSessionStatusIcon.PIXEL_SPINNER_GRID_KEY) {
+		if ((session.status === AgentSessionStatus.InProgress || session.status === AgentSessionStatus.NeedsInput) && !this.accessibilityService.isMotionReduced()) {
+			const isNeedsInput = session.status === AgentSessionStatus.NeedsInput;
+			const cacheKey = isNeedsInput ? AgentSessionStatusIcon.PIXEL_SPINNER_RING_KEY : AgentSessionStatusIcon.PIXEL_SPINNER_GRID_KEY;
+			this.container.style.color = isNeedsInput ? asCssVariable('list.warningForeground') : asCssVariable('textLink.foreground');
+			if (this._currentCacheKey === cacheKey) {
 				return;
 			}
 
-			this._currentCacheKey = AgentSessionStatusIcon.PIXEL_SPINNER_GRID_KEY;
+			this._currentCacheKey = cacheKey;
 			clearNode(this.container);
-			createPixelSpinner(this.container, { variant: 'grid' });
+			createPixelSpinner(this.container, { variant: isNeedsInput ? 'ring' : 'grid' });
 			return;
 		}
 
