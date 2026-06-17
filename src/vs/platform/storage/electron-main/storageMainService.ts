@@ -346,7 +346,7 @@ class StorageMap extends Disposable {
 				this.mapStorage.delete(storageId);
 				this.clearStorageReferences(storageId);
 				result.onDidClose();
-				this._store.delete(result.storage);
+				queueMicrotask(() => this._store.delete(result.storage));
 			});
 		}
 
