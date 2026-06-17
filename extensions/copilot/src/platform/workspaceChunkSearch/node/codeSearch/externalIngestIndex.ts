@@ -1042,6 +1042,14 @@ export class ExternalIngestIndex extends Disposable {
 			if (stat.type !== 1) { // FileType.File = 1
 				return undefined;
 			}
+			// Virtual/custom file system providers can return a FileStat whose size
+			// or mtime is not a number, violating the declared `number` type. These
+			// values are later bound as SQLite parameters (node:sqlite rejects any
+			// non-number), so treat such a stat as unusable instead of letting the
+			// bind throw "Provided value cannot be bound to SQLite parameter".
+			if (typeof stat.size !== 'number' || typeof stat.mtime !== 'number') {
+				return undefined;
+			}
 			return { size: stat.size, mtime: stat.mtime };
 		} catch {
 			return undefined;
