@@ -233,7 +233,7 @@ export class GenAiMetrics {
 
 	/**
 	 * Cloud backend funnel metric: records a single backend operation outcome (e.g. createSession,
-	 * fetchSessionList, followUp) tagged with the rollout arm so v1 (Jobs API) and v2 (Task API) can
+	 * fetchSessionList, followUp) tagged with the backend version so v1 (Jobs API) and v2 (Task API) can
 	 * be compared apples-to-apples. Emits a count and, when provided, an operation-duration histogram.
 	 */
 	static recordCloudOperation(otel: IOTelService, operation: string, backendVersion: string, success: boolean, durationMs?: number): void {
@@ -250,7 +250,7 @@ export class GenAiMetrics {
 		}
 	}
 
-	/** Cloud backend guardrail metric: increments the per-arm error counter for a failed backend operation. */
+	/** Cloud backend guardrail metric: increments the per-backend-version error counter for a failed backend operation. */
 	static incrementCloudError(otel: IOTelService, operation: string, backendVersion: string, errorType: string): void {
 		otel.incrementCounter('copilot_chat.cloud.error.count', 1, {
 			'operation': operation,

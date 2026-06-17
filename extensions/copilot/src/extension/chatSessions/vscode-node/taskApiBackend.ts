@@ -430,7 +430,7 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 
 /**
  * Error thrown by {@link TaskApiHttpClient} for non-2xx Task API responses. Carries the HTTP
- * `status` so backend catch sites can surface it to telemetry (the per-arm guardrail dimension).
+ * `status` so backend catch sites can surface it to telemetry (the per-backend-version guardrail dimension).
  */
 export class TaskApiError extends Error {
 	constructor(message: string, readonly status: number, readonly action: string) {

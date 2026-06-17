@@ -7,7 +7,7 @@ import { GenAiMetrics } from '../../../platform/otel/common/genAiMetrics';
 import { IOTelService } from '../../../platform/otel/common/otelService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 
-/** Cloud agent backend rollout arm. v1 = Jobs API (PR-based), v2 = Task API (task-based). */
+/** Cloud agent backend version. v1 = Jobs API (PR-based), v2 = Task API (task-based). */
 export type CloudBackendVersion = 'v1' | 'v2';
 
 /** Outcome of a cloud backend funnel step. */
@@ -32,7 +32,7 @@ const MAX_ERROR_MESSAGE_LENGTH = 300;
 /**
  * Shared telemetry surface for the Cloud Agent backends. The whole point of this abstraction is
  * that the {@link JobsApiBackend} (v1) and {@link TaskApiBackend} (v2) emit *identical* funnel and
- * guardrail signals, each stamped with the rollout arm (`backendVersion`), so the
+ * guardrail signals, each stamped with the backend version (`backendVersion`), so the
  * `chat.cloudAgentBackend.version` experiment can be monitored apples-to-apples and rolled back
  * the moment v2 regresses against v1.
  */
@@ -59,13 +59,13 @@ export interface ICloudBackendInstrumentation {
 
 	/**
 	 * Legacy v1 (Jobs API) event: a remote-agent job invocation started. Retained for dashboard
-	 * continuity alongside the arm-tagged {@link sessionCreated} signal. Emitted by the v1 backend only.
+	 * continuity alongside the version-tagged {@link sessionCreated} signal. Emitted by the v1 backend only.
 	 */
 	legacyJobInvoke(hasHeadRef: boolean): void;
 
 	/**
 	 * Legacy v1 (Jobs API) event: a remote-agent job first returned pull request information. Retained
-	 * for dashboard continuity alongside the arm-tagged {@link sessionActivated} signal. v1 backend only.
+	 * for dashboard continuity alongside the version-tagged {@link sessionActivated} signal. v1 backend only.
 	 */
 	legacyJobPullRequestReady(): void;
 }
@@ -95,7 +95,7 @@ function errorMessageOf(error: unknown): string {
 /**
  * Concrete instrumentation backed by {@link ITelemetryService} (MSFT telemetry events) and
  * {@link IOTelService} (OTel metrics). Constructed once in `CopilotCloudSessionsProvider` with the
- * resolved rollout arm and shared by whichever backend is active.
+ * resolved backend version and shared by whichever backend is active.
  */
 export class CloudBackendInstrumentation implements ICloudBackendInstrumentation {
 
@@ -110,8 +110,8 @@ export class CloudBackendInstrumentation implements ICloudBackendInstrumentation
 			/* __GDPR__
 				"copilotcloud.chat.sessionCreate" : {
 					"owner": "osortega",
-					"comment": "Cloud agent session/task creation outcome, used to compare v1 (Jobs API) and v2 (Task API) rollout arms.",
-					"backendVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Rollout arm: v1 (Jobs API) or v2 (Task API)." },
+					"comment": "Cloud agent session/task creation outcome, used to compare the v1 (Jobs API) and v2 (Task API) backend versions.",
+					"backendVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Cloud agent backend version: v1 (Jobs API) or v2 (Task API)." },
 					"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether session creation succeeded or failed." },
 					"errorType": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Low-cardinality error classifier (e.g. http_500) when creation failed." },
 					"errorMessage": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "comment": "Error message when creation failed." },
@@ -128,8 +128,8 @@ export class CloudBackendInstrumentation implements ICloudBackendInstrumentation
 			/* __GDPR__
 				"copilotcloud.chat.sessionCreate" : {
 					"owner": "osortega",
-					"comment": "Cloud agent session/task creation outcome, used to compare v1 (Jobs API) and v2 (Task API) rollout arms.",
-					"backendVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Rollout arm: v1 (Jobs API) or v2 (Task API)." },
+					"comment": "Cloud agent session/task creation outcome, used to compare the v1 (Jobs API) and v2 (Task API) backend versions.",
+					"backendVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Cloud agent backend version: v1 (Jobs API) or v2 (Task API)." },
 					"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether session creation succeeded or failed." },
 					"durationMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Time in milliseconds from create attempt to success." }
 				}
@@ -146,8 +146,8 @@ export class CloudBackendInstrumentation implements ICloudBackendInstrumentation
 		/* __GDPR__
 			"copilotcloud.chat.sessionActivated" : {
 				"owner": "osortega",
-				"comment": "Cloud agent session became active (PR available on v1, first turn on v2). Used to compare time-to-activation across rollout arms.",
-				"backendVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Rollout arm: v1 (Jobs API) or v2 (Task API)." },
+				"comment": "Cloud agent session became active (PR available on v1, first turn on v2). Used to compare time-to-activation across backend versions.",
+				"backendVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Cloud agent backend version: v1 (Jobs API) or v2 (Task API)." },
 				"durationMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Time in milliseconds from creation to activation." }
 			}
 		*/
@@ -163,8 +163,8 @@ export class CloudBackendInstrumentation implements ICloudBackendInstrumentation
 			/* __GDPR__
 				"copilotcloud.chat.followup" : {
 					"owner": "osortega",
-					"comment": "Cloud agent follow-up/steer outcome, used to compare v1 (Jobs API) and v2 (Task API) rollout arms.",
-					"backendVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Rollout arm: v1 (Jobs API) or v2 (Task API)." },
+					"comment": "Cloud agent follow-up/steer outcome, used to compare the v1 (Jobs API) and v2 (Task API) backend versions.",
+					"backendVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Cloud agent backend version: v1 (Jobs API) or v2 (Task API)." },
 					"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the follow-up succeeded or failed." },
 					"errorType": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Low-cardinality error classifier when the follow-up failed." },
 					"errorMessage": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "comment": "Error message when the follow-up failed." }
@@ -180,8 +180,8 @@ export class CloudBackendInstrumentation implements ICloudBackendInstrumentation
 			/* __GDPR__
 				"copilotcloud.chat.followup" : {
 					"owner": "osortega",
-					"comment": "Cloud agent follow-up/steer outcome, used to compare v1 (Jobs API) and v2 (Task API) rollout arms.",
-					"backendVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Rollout arm: v1 (Jobs API) or v2 (Task API)." },
+					"comment": "Cloud agent follow-up/steer outcome, used to compare the v1 (Jobs API) and v2 (Task API) backend versions.",
+					"backendVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Cloud agent backend version: v1 (Jobs API) or v2 (Task API)." },
 					"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the follow-up succeeded or failed." }
 				}
 			*/
@@ -199,7 +199,7 @@ export class CloudBackendInstrumentation implements ICloudBackendInstrumentation
 			"copilotcloud.chat.operationError" : {
 				"owner": "osortega",
 				"comment": "A cloud agent backend operation failed. Primary guardrail signal for the v1/v2 rollout — a rising v2-vs-v1 error rate should trigger rollback.",
-				"backendVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Rollout arm: v1 (Jobs API) or v2 (Task API)." },
+				"backendVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Cloud agent backend version: v1 (Jobs API) or v2 (Task API)." },
 				"operation": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The backend operation that failed (e.g. fetchSessionList, createPullRequest)." },
 				"errorType": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Low-cardinality error classifier (e.g. http_500)." },
 				"errorMessage": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "comment": "The error message." },

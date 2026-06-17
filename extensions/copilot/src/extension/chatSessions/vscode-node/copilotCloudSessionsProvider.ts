@@ -342,7 +342,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	// runtime "not supported" throws on the type surface.
 	private readonly _backend: CloudAgentBackend;
 
-	/** Resolved Cloud Agent rollout arm (`v1` Jobs API | `v2` Task API) for this provider instance. */
+	/** Resolved Cloud Agent backend version (`v1` Jobs API | `v2` Task API) for this provider instance. */
 	private readonly _backendVersion: CloudBackendVersion;
 
 	constructor(
@@ -373,7 +373,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		// Note: read once at construction — changes to the setting require an extension host reload to take effect.
 		const backendVersion = configurationService.getExperimentBasedConfig(ConfigKey.CloudAgentBackendVersion, this._experimentationService);
 		this._backendVersion = backendVersion;
-		// Shared, arm-tagged telemetry/OTel surface so v1 and v2 emit identical funnel and guardrail
+		// Shared, version-tagged telemetry/OTel surface so v1 and v2 emit identical funnel and guardrail
 		// signals — this is what makes the rollout observable and comparable apples-to-apples.
 		const instrumentation = new CloudBackendInstrumentation(backendVersion, this.telemetry, this._otelService);
 		if (backendVersion === 'v2') {
@@ -2562,7 +2562,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				"isUntitled": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Indicates if the chat session is untitled." },
 				"partnerAgent": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The partner agent name (e.g., Copilot, Claude, Codex)." },
 				"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The selected model ID." },
-				"backendVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Cloud agent backend rollout arm: v1 (Jobs API) or v2 (Task API)." }
+				"backendVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Cloud agent backend version: v1 (Jobs API) or v2 (Task API)." }
 			}
 		*/
 		this.telemetry.sendMSFTTelemetryEvent('copilotcloud.chat.invoke', {
