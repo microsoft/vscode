@@ -46,19 +46,12 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computePullRequestIcon } from '../../../github/common/types.js';
+import { CHANGESET_UPDATE_THROTTLE_MS } from './agentHostChangesetConstants.js';
 import { changesetFileToChange, mapProtocolStatus } from './agentHostDiffs.js';
 import { createChangesets } from './agentHostSessionChangesets.js';
 
 const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.sessionConfigPicker.selectedValues';
 const UNSAFE_SESSION_CONFIG_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
-
-/**
- * Minimum interval between changeset-driven UI recomputes. While an agent
- * edits, the host streams many changeset envelopes per second; coalescing them
- * to ~10 updates/second keeps the Changes view responsive without perceptible
- * lag, and stops every envelope from forcing a full list relayout.
- */
-export const CHANGESET_UPDATE_THROTTLE_MS = 100;
 
 function isSafeSessionConfigKey(property: string): boolean {
 	return !UNSAFE_SESSION_CONFIG_KEYS.has(property);

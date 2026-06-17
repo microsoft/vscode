@@ -16,8 +16,9 @@ import { ChangesetOperation, ChangesetOperationScope, type ChangesetFile } from 
 import { buildDefaultChatUri, ChangesetStatus, Changeset, StateComponents, type ChangesetState, type ChatState, type ChatSummary, type SessionState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ISessionChangeset, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, SessionChangesetOperationScope, sessionFileChangesEqual } from '../../../../services/sessions/common/session.js';
+import { CHANGESET_UPDATE_THROTTLE_MS } from './agentHostChangesetConstants.js';
 import { changesetFileToChange } from './agentHostDiffs.js';
-import { CHANGESET_UPDATE_THROTTLE_MS, IAgentHostAdapterOptions } from './baseAgentHostSessionsProvider.js';
+import { IAgentHostAdapterOptions } from './baseAgentHostSessionsProvider.js';
 
 const enum ChangesetKind {
 	Branch = 'branch',
