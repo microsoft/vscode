@@ -99,7 +99,7 @@
 /* ---- Floating Panels (experimental) ---- */
 
 /*
- * When `workbench.experimental.floatingPanels.enabled` is set, the primary side
+ * When `workbench.experimental.floatingPanels` is set, the primary side
  * bar, secondary side bar and bottom panel are rendered as floating cards with a
  * margin, border and rounded corners — echoing the agents window design. The
  * matching content dimensions are reduced in code (AbstractPaneCompositePart) so
