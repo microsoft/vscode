@@ -192,13 +192,17 @@ function createSandboxLines(sandboxingOptions: ISandboxingOnOptions): string[] {
 	const deniedSet = new Set(deniedDomains);
 	const effectiveAllowed = allowedDomains.filter(d => !deniedSet.has(d)) || [];
 
-	if (effectiveAllowed.length === 0) {
-		lines.push('- All network access is blocked in the sandbox. Commands that require network access will fail unless requestAllowNetwork=true is set.');
+	if (sandboxingOptions.sandboxMode === 'on-network-available') {
+		lines.push('- All network access is available in the sandbox.');
 	} else {
-		lines.push(`- Only the following domains are accessible in the sandbox: ${effectiveAllowed.join(', ')}. Commands that require network access to other domains will fail unless requestAllowNetwork=true is set.`);
-	}
-	if (deniedDomains.length > 0) {
-		lines.push(`- The following domains are explicitly blocked in the sandbox: ${deniedDomains.join(', ')}`);
+		if (effectiveAllowed.length === 0) {
+			lines.push('- All network access is blocked in the sandbox. Commands that require network access will fail unless requestAllowNetwork=true is set.');
+		} else {
+			lines.push(`- Only the following domains are accessible in the sandbox: ${effectiveAllowed.join(', ')}. Commands that require network access to other domains will fail unless requestAllowNetwork=true is set.`);
+		}
+		if (deniedDomains.length > 0) {
+			lines.push(`- The following domains are explicitly blocked in the sandbox: ${deniedDomains.join(', ')}`);
+		}
 	}
 
 	if (sandboxingOptions.retryWithAllowNetworkRequests) {
