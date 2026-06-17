@@ -11,7 +11,7 @@ import {
 	ChangesetKind,
 	parseChangesetUri,
 } from '../common/changesetUri.js';
-import { ChangesetStatus } from '../common/state/sessionState.js';
+import { ChangesetStatus, ISessionGitState } from '../common/state/sessionState.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { ChangesetFileMonitorCoordinator } from './agentHostChangesetFileMonitorCoordinator.js';
 import { IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
@@ -158,11 +158,17 @@ export class ChangesetSessionCoordinator extends Disposable {
 	 * the base branch used by Branch Changes and fresh uncommitted counts, so
 	 * refresh both static changesets once the session has a working directory.
 	 */
-	onSessionGitStateChanged(sessionStr: string): void {
+	onSessionGitStateChanged(sessionStr: string, gitState: ISessionGitState): void {
 		this._logService.debug(`[ChangesetSessionCoordinator] Git state changed for ${sessionStr}; refreshing static changesets. hasWorkingDirectory=${!!this._configurationService.getEffectiveWorkingDirectory(sessionStr)}`);
 		this._triggerBranchRefresh(sessionStr);
 		this._triggerSessionRefresh(sessionStr);
 		this._triggerUncommittedRefresh(sessionStr);
+
+		// Update the operations for all subscribed changesets
+		const changesets = this._subscriptions.get(sessionStr);
+		if (changesets && changesets.size > 0) {
+			this._changesetOperationContributionService.updateOperations(sessionStr, changesets, gitState);
+		}
 	}
 
 	/**
@@ -195,24 +201,25 @@ export class ChangesetSessionCoordinator extends Disposable {
 	onFirstSubscriber(resource: URI): void {
 		const resourceStr = resource.toString();
 		const parsed = parseChangesetUri(resourceStr);
+
 		if (parsed?.kind === ChangesetKind.Branch) {
 			this._addSubscription(parsed.sessionUri, resourceStr);
 			this._triggerBranchRefresh(parsed.sessionUri);
-			this._changesetOperationContributionService.refreshOperationsFromCurrentState(parsed.sessionUri);
+			this._changesetOperationContributionService.updateOperations(parsed.sessionUri, [resourceStr]);
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
 			return;
 		}
 		if (parsed?.kind === ChangesetKind.Uncommitted) {
 			this._addSubscription(parsed.sessionUri, resourceStr);
 			this._triggerUncommittedRefresh(parsed.sessionUri);
-			this._changesetOperationContributionService.refreshOperationsFromCurrentState(parsed.sessionUri);
+			this._changesetOperationContributionService.updateOperations(parsed.sessionUri, [resourceStr]);
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
 			return;
 		}
 		if (parsed?.kind === ChangesetKind.Session) {
 			this._addSubscription(parsed.sessionUri, resourceStr);
 			this._triggerSessionRefresh(parsed.sessionUri);
-			this._changesetOperationContributionService.refreshOperationsFromCurrentState(parsed.sessionUri);
+			this._changesetOperationContributionService.updateOperations(parsed.sessionUri, [resourceStr]);
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
 			return;
 		}
@@ -223,6 +230,7 @@ export class ChangesetSessionCoordinator extends Disposable {
 			// subsequent deltas flow from `onToolCallEditsApplied` /
 			// `onTurnComplete` once we've added this turn id here.
 			this._addSubscription(parsed.sessionUri, resourceStr);
+			this._changesetOperationContributionService.updateOperations(parsed.sessionUri, [resourceStr]);
 			return;
 		}
 		if (!parsed && this._stateManager.getSessionState(resourceStr)) {

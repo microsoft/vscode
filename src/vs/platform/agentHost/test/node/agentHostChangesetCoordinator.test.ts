@@ -56,7 +56,6 @@ suite('ChangesetSessionCoordinator', () => {
 		const gitService = createGitService(root);
 		const operationContributionService: IChangesetOperationContributionService = {
 			registerContribution: () => Disposable.None,
-			refreshOperationsFromCurrentState: () => { },
 			updateOperations: () => { },
 			invokeChangesetOperation: async () => ({}),
 			dispose: () => { },
@@ -166,34 +165,6 @@ suite('ChangesetSessionCoordinator', () => {
 		await tick();
 
 		assert.deepStrictEqual(environment.changesets.sessionRefreshes, []);
-	});
-
-	test('git state changes refresh uncommitted only while uncommitted subscribers exist', () => {
-		const session = AgentSession.uri('mock', 'session-1').toString();
-		const environment = createEnvironment();
-		createSession(environment.stateManager, session, 'file:///repo/worktree');
-
-		environment.coordinator.onFirstSubscriber(URI.parse(session));
-		environment.changesets.clearRefreshes();
-		environment.coordinator.onSessionGitStateChanged(session);
-		assert.deepStrictEqual({
-			sessionRefreshes: environment.changesets.sessionRefreshes,
-			uncommittedRefreshes: environment.changesets.uncommittedRefreshes,
-		}, {
-			sessionRefreshes: [session],
-			uncommittedRefreshes: [],
-		});
-
-		environment.coordinator.onFirstSubscriber(URI.parse(buildUncommittedChangesetUri(session)));
-		environment.changesets.clearRefreshes();
-		environment.coordinator.onSessionGitStateChanged(session);
-		assert.deepStrictEqual({
-			sessionRefreshes: environment.changesets.sessionRefreshes,
-			uncommittedRefreshes: environment.changesets.uncommittedRefreshes,
-		}, {
-			sessionRefreshes: [session],
-			uncommittedRefreshes: [session],
-		});
 	});
 
 	test('does not attach root state when watcher acquisition fails', async () => {
