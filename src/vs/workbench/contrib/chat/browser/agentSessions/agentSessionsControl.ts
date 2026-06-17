@@ -774,18 +774,18 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		}
 	}
 
-	async update(): Promise<void> {
+	async update(): Promise<boolean> {
 		if (this.updatePauseOwner) {
 			// While updates are paused (e.g. a session hover is open), avoid re-sorting the list so items don't jump
 			// around under the user's cursor. Remember that an update is pending and run it once updates are resumed.
 			this.hasPendingUpdate = true;
-			return;
+			return false;
 		}
 
 		return this.updateSessionsListThrottler.queue(async () => {
 			if (this.updatePauseOwner) {
 				this.hasPendingUpdate = true;
-				return;
+				return false;
 			}
 
 			this.hasPendingUpdate = false;
@@ -793,6 +793,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			await this.sessionsList?.updateChildren();
 
 			this._onDidUpdate.fire();
+			return true;
 		});
 	}
 
