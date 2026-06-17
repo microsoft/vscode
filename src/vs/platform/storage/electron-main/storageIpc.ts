@@ -169,11 +169,12 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 	}
 
 	private getOwnerWindowId(ctx: string): number | undefined {
-		if (!ctx.startsWith('window:')) {
+		const windowContextMatch = /^window:(\d+)(?:,|$)/.exec(ctx);
+		if (!windowContextMatch) {
 			return undefined;
 		}
 
-		const windowId = Number(ctx.substring('window:'.length));
+		const windowId = Number(windowContextMatch[1]);
 		if (!Number.isInteger(windowId)) {
 			return undefined;
 		}

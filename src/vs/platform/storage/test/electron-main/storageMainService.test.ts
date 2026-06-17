@@ -381,6 +381,46 @@ suite('StorageMainService', function () {
 		await profileStorage.close();
 	});
 
+	test('storage channel acquires owner refs from compound window contexts', async function () {
+		const lifecycleMainService = new TestLifecycleMainService();
+		const window = disposables.add(new TestCodeWindow(1));
+		const storageMainService = createStorageService(lifecycleMainService);
+		const storageChannel = disposables.add(new StorageDatabaseChannel(new NullLogService(), storageMainService));
+		const profile = createProfile('compound-context-profile');
+		const workspace = { id: generateUuid() };
+
+		storageChannel.listen('window:1,module:test', 'onDidChangeStorage', { profile, workspace: undefined });
+		await storageChannel.call('window:1,module:test', 'getItems', { profile: undefined, workspace });
+
+		const profileStorage = storageMainService.profileStorage(profile);
+		const workspaceStorage = storageMainService.workspaceStorage(workspace);
+
+		const closedProfile = Event.toPromise(profileStorage.onDidCloseStorage);
+		const closedWorkspace = Event.toPromise(workspaceStorage.onDidCloseStorage);
+		lifecycleMainService.fireOnBeforeCloseWindow(window.asCodeWindow());
+		await Promise.all([closedProfile, closedWorkspace]);
+	});
+
+	test('storage channel ignores malformed window contexts for owner refs', async function () {
+		const lifecycleMainService = new TestLifecycleMainService();
+		const window = disposables.add(new TestCodeWindow(1));
+		const storageMainService = createStorageService(lifecycleMainService);
+		const storageChannel = disposables.add(new StorageDatabaseChannel(new NullLogService(), storageMainService));
+		const workspace = { id: generateUuid() };
+
+		await storageChannel.call('window:not-a-number,module:test', 'getItems', { profile: undefined, workspace });
+
+		const workspaceStorage = storageMainService.workspaceStorage(workspace);
+		let didClose = false;
+		disposables.add(workspaceStorage.onDidCloseStorage(() => didClose = true));
+
+		lifecycleMainService.fireOnBeforeCloseWindow(window.asCodeWindow());
+		await timeout(0);
+		strictEqual(didClose, false);
+
+		await workspaceStorage.close();
+	});
+
 	test('default profile storage does not close application storage with owner window', async function () {
 		const lifecycleMainService = new TestLifecycleMainService();
 		const window = disposables.add(new TestCodeWindow(1));
