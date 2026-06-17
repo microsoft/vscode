@@ -516,6 +516,7 @@ const STRATEGY_CONFIG: Partial<Record<PromptingStrategy, Partial<ModelConfigurat
 		currentFile: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace },
 		recentlyViewedDocuments: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace },
 		supportsNextCursorLinePrediction: false,
+		allowImportChanges: ImportChanges.All,
 	},
 	[PromptingStrategy.PatchBased02WithoutRecentLineNumbers]: {
 		includeTagsInCurrentFile: false,
@@ -523,6 +524,7 @@ const STRATEGY_CONFIG: Partial<Record<PromptingStrategy, Partial<ModelConfigurat
 		currentFile: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace },
 		recentlyViewedDocuments: { includeLineNumbers: IncludeLineNumbersOption.None },
 		supportsNextCursorLinePrediction: false,
+		allowImportChanges: ImportChanges.All,
 	},
 };
 
