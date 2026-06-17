@@ -603,6 +603,16 @@ function markLastCacheableBlock(msg: MessageParam, cacheTtl?: '1h'): void {
 	}
 }
 
+/**
+ * How long the Anthropic Messages streaming body may go without producing a
+ * chunk before the idle watchdog considers it stalled and reports it via
+ * telemetry. The HTTP layer can return 200 with headers and then hang
+ * mid-stream with no further data and no error (see microsoft/vscode#321432).
+ * For now this only observes the stall so we can measure how often it happens
+ * in the wild; it does not abort the request.
+ */
+const ANTHROPIC_STREAM_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
+
 export async function processResponseFromMessagesEndpoint(
 	instantiationService: IInstantiationService,
 	telemetryService: ITelemetryService,
@@ -622,6 +632,7 @@ export async function processResponseFromMessagesEndpoint(
 		const ghRequestId = response.headers.get('x-github-request-id') ?? '';
 		const { serverExperiments } = getRequestId(response.headers);
 		const processor = instantiationService.createInstance(AnthropicMessagesProcessor, telemetryData, requestId, ghRequestId, serverExperiments);
+		let completionsEmitted = 0;
 		const parser = new SSEParser((ev) => {
 			try {
 				logService.trace(`[messagesAPI]SSE: ${ev.data}`);
@@ -662,6 +673,7 @@ export async function processResponseFromMessagesEndpoint(
 					}
 					sendEngineMessagesTelemetry(telemetryService, [telemetryMessage], telemetryDataWithUsage, true, logService);
 
+					completionsEmitted++;
 					feed.emitOne(completion);
 				}
 			} catch (e) {
@@ -669,8 +681,66 @@ export async function processResponseFromMessagesEndpoint(
 			}
 		});
 
-		for await (const chunk of response.body) {
-			parser.feed(chunk);
+		// Observe a stalled streaming body: the response can arrive as 200 with
+		// headers and then hang mid-stream with no further chunk and no error
+		// (microsoft/vscode#321432). Reset the watchdog on every chunk; if no chunk
+		// arrives within the timeout, emit telemetry once so the stall is
+		// measurable in the wild. This intentionally does not abort the stream —
+		// we only want to observe how often this happens before changing behavior.
+		const startTime = Date.now();
+		let lastChunkTime = startTime;
+		let chunksReceived = 0;
+		let idleReported = false;
+		let idleTimer: ReturnType<typeof setTimeout> | undefined;
+		const armIdleTimer = () => {
+			if (idleTimer) {
+				clearTimeout(idleTimer);
+			}
+			if (idleReported) {
+				return;
+			}
+			idleTimer = setTimeout(() => {
+				const idleMs = Date.now() - lastChunkTime;
+				// Guard against an event-loop race: a chunk can arrive and re-arm the
+				// timer at the same tick the previously scheduled callback fires, so a
+				// stale callback may still run after clearTimeout. Re-check the actual
+				// idle time before reporting to avoid a false positive on a healthy stream.
+				if (idleReported || idleMs < ANTHROPIC_STREAM_IDLE_TIMEOUT_MS) {
+					return;
+				}
+				idleReported = true;
+				logService.error(`[messagesAPI] stream idle for ${idleMs}ms with no chunk (requestId: ${requestId}, ghRequestId: ${ghRequestId}, completions: ${completionsEmitted})`);
+				/* __GDPR__
+					"messagesApi.streamIdleTimeout" : {
+						"owner": "meganrogge",
+						"comment": "Tracks when the Anthropic Messages streaming response stalls mid-stream with no data and no error, so we can measure how often this happens in the wild (microsoft/vscode#321432).",
+						"requestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The request id from the response headers, used to correlate with server-side logs." },
+						"ghRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The GitHub request id from the response headers, used to correlate with server-side logs." },
+						"idleMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Milliseconds since the last received chunk when the watchdog tripped." },
+						"elapsedMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Milliseconds since the stream started when the watchdog tripped." },
+						"chunksReceived": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Number of body chunks received before the stall." },
+						"completionsEmitted": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Number of completions emitted before the stall; 0 means the hang occurred on the first turn, greater than 0 means a mid-stream hang." }
+					}
+				*/
+				telemetryService.sendMSFTTelemetryEvent('messagesApi.streamIdleTimeout',
+					{ requestId, ghRequestId },
+					{ idleMs, elapsedMs: Date.now() - startTime, chunksReceived, completionsEmitted }
+				);
+			}, ANTHROPIC_STREAM_IDLE_TIMEOUT_MS);
+		};
+
+		try {
+			armIdleTimer();
+			for await (const chunk of response.body) {
+				lastChunkTime = Date.now();
+				chunksReceived++;
+				armIdleTimer();
+				parser.feed(chunk);
+			}
+		} finally {
+			if (idleTimer) {
+				clearTimeout(idleTimer);
+			}
 		}
 	}, async () => {
 		await response.body.destroy();

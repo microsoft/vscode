@@ -7,8 +7,10 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
 import { renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { getBaseLayerHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegate2.js';
 import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { IAction, toAction } from '../../../../../../base/common/actions.js';
 import { IStringDictionary } from '../../../../../../base/common/collections.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -217,8 +219,11 @@ function createModelItem(
 	isUBB?: boolean,
 	ariaDescription?: string,
 	pinAction?: IAction,
+	onConfigure?: (model: ILanguageModelChatMetadataAndIdentifier, group: string) => void,
 ): IActionListItem<IActionWidgetDropdownAction> {
-	const hover = model && openerService ? getModelHoverContent(model, openerService, isUBB) : undefined;
+	const hover = model && openerService
+		? getModelHoverContent(model, openerService, isUBB, onConfigure ? (group) => onConfigure(model, group) : undefined)
+		: undefined;
 	return {
 		item: action,
 		kind: ActionListItemKind.Action,
@@ -301,6 +306,36 @@ function getPriceCategoryLabel(priceCategory: string | undefined): string | unde
 		default:
 			return localize('chat.priceCategory.unknown', "{0} cost", priceCategory.charAt(0).toUpperCase() + priceCategory.slice(1));
 	}
+}
+
+/**
+ * Returns true for price categories that should be highlighted with a warning color.
+ */
+function isHighCostCategory(priceCategory: string | undefined): boolean {
+	return priceCategory === 'high' || priceCategory === 'very_high';
+}
+
+/**
+ * Resolves the context-size column headers (e.g. "200K" / "1M") from the model's
+ * context-size configuration. The smallest window is treated as the default context
+ * and the largest as the long context. Falls back to the model's max input tokens.
+ */
+function getContextSizeLabels(model: ILanguageModelChatMetadataAndIdentifier): { defaultLabel?: string; longLabel?: string } {
+	const properties = model.metadata.configurationSchema?.properties;
+	if (properties) {
+		for (const propSchema of Object.values(properties)) {
+			if (propSchema.group !== 'tokens' || !propSchema.enum || propSchema.enum.length < 2) {
+				continue;
+			}
+			const entries = propSchema.enum.map((value, index) => ({
+				value: Number(value),
+				label: propSchema.enumItemLabels?.[index] ?? formatTokenCount(Number(value)),
+			}));
+			entries.sort((a, b) => a.value - b.value);
+			return { defaultLabel: entries[0].label, longLabel: entries[entries.length - 1].label };
+		}
+	}
+	return { defaultLabel: model.metadata.maxInputTokens ? formatTokenCount(model.metadata.maxInputTokens) : undefined };
 }
 
 /**
@@ -443,6 +478,7 @@ export function buildModelPickerItems(
 	openerService?: IOpenerService,
 	isUBB?: boolean,
 	showAutoModel: boolean = false,
+	onConfigure?: (model: ILanguageModelChatMetadataAndIdentifier, group: string) => void,
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
 	if (models.length === 0) {
@@ -579,7 +615,7 @@ export function buildModelPickerItems(
 						? getProviderGroupForModel(model, modelToGroup, languageModelsService!).groupName
 						: undefined;
 					const { action: pinnedAction, ariaDescription: pinnedAriaDesc } = createModelAction(model, selectedModelId, onSelect, configAccess, undefined, showGroupLabel, isUBB);
-					items.push(createModelItem(pinnedAction, model, openerService, groupLabel, isUBB, pinnedAriaDesc, makePinAction(model)));
+					items.push(createModelItem(pinnedAction, model, openerService, groupLabel, isUBB, pinnedAriaDesc, makePinAction(model), onConfigure));
 				}
 			}
 
@@ -680,7 +716,7 @@ export function buildModelPickerItems(
 							? getProviderGroupForModel(item.model, modelToGroup, languageModelsService!).groupName
 							: undefined;
 						const { action: promotedAction, ariaDescription: promotedAriaDesc } = createModelAction(item.model, selectedModelId, onSelect, configAccess, undefined, showGroupLabel, isUBB);
-						items.push(createModelItem(promotedAction, item.model, openerService, groupLabel, isUBB, promotedAriaDesc, makePinAction(item.model)));
+						items.push(createModelItem(promotedAction, item.model, openerService, groupLabel, isUBB, promotedAriaDesc, makePinAction(item.model), onConfigure));
 					} else {
 						items.push(createUnavailableModelItem(item.id, item.entry, item.reason, manageSettingsUrl, updateStateType, chatEntitlementService));
 					}
@@ -772,7 +808,7 @@ export function buildModelPickerItems(
 							items.push(createUnavailableModelItem(model.metadata.id, entry, 'update', manageSettingsUrl, updateStateType, chatEntitlementService, ModelPickerSection.Other));
 						} else {
 							const { action: bucketAction, ariaDescription: bucketAriaDesc } = createModelAction(model, selectedModelId, onSelect, configAccess, ModelPickerSection.Other, showGroupHeaders, isUBB);
-							items.push(createModelItem(bucketAction, model, openerService, undefined, isUBB, bucketAriaDesc, makePinAction(model)));
+							items.push(createModelItem(bucketAction, model, openerService, undefined, isUBB, bucketAriaDesc, makePinAction(model), onConfigure));
 						}
 					}
 				}
@@ -806,7 +842,7 @@ export function buildModelPickerItems(
 			});
 		for (const model of sortedModels) {
 			const { action: flatAction, ariaDescription: flatAriaDesc } = createModelAction(model, selectedModelId, onSelect, configAccess, undefined, undefined, isUBB);
-			items.push(createModelItem(flatAction, model, openerService, undefined, isUBB, flatAriaDesc));
+			items.push(createModelItem(flatAction, model, openerService, undefined, isUBB, flatAriaDesc, undefined, onConfigure));
 		}
 	}
 
@@ -1081,6 +1117,15 @@ export class ModelPickerWidget extends Disposable {
 			this._onDidChangeSelection.fire(model);
 		};
 
+		// Selecting a model from a hover's config button: apply the selection,
+		// close the model picker, then open the config picker focused on the
+		// requested section (Thinking Effort or Context Size).
+		const onConfigure = (model: ILanguageModelChatMetadataAndIdentifier, group: string) => {
+			onSelect(model);
+			this._actionWidgetService.hide();
+			this._showConfigPicker(group);
+		};
+
 		const models = this._delegate.getModels();
 		const isUBB = !!this._entitlementService.quotas.usageBasedBilling;
 		const isSignedOut = this._entitlementService.entitlement === ChatEntitlement.Unknown;
@@ -1125,6 +1170,7 @@ export class ModelPickerWidget extends Disposable {
 			this._openerService,
 			isUBB,
 			this._delegate.showAutoModel?.() ?? false,
+			onConfigure,
 		);
 
 		// Collect all hover disposables so they are properly cleaned up when the
@@ -1416,9 +1462,11 @@ export class ModelPickerWidget extends Disposable {
 	/**
 	 * Opens the combined configuration dropdown containing the model's Thinking
 	 * Effort and Context Size options (when available), in a single popup anchored
-	 * to the config button.
+	 * to the config button. When `focusGroup` is provided, focus is moved to the
+	 * first option of that section (e.g. 'navigation' for Thinking Effort or
+	 * 'tokens' for Context Size).
 	 */
-	private _showConfigPicker(): void {
+	private _showConfigPicker(focusGroup?: string): void {
 		if (this._domNode?.classList.contains('disabled') || !this._configButton || !this._selectedModel) {
 			return;
 		}
@@ -1478,21 +1526,46 @@ export class ModelPickerWidget extends Disposable {
 				footerText: localize('chat.config.keepOpenTip', "Tip: Hold {0} to keep open", isMacintosh ? '\u2318' : localize('chat.config.ctrlKey', "Ctrl")),
 			}
 		);
+
+		// Focus the requested section's first option (e.g. when opened from a
+		// model hover's Thinking Effort / Context Size button).
+		if (focusGroup) {
+			const groupItem = items.find(item => item.kind === ActionListItemKind.Action && item.item?.id?.startsWith(`${focusGroup}.`));
+			if (groupItem?.kind === ActionListItemKind.Action && groupItem.item) {
+				this._actionWidgetService.focusItemById(groupItem.item.id);
+			}
+		}
 	}
 }
 
 
-export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, openerService: IOpenerService, isUBB?: boolean): { element: HTMLElement; disposable: DisposableStore } | undefined {
+/**
+ * Configuration property groups the config picker can render and focus.
+ * Hover "configure" buttons must be limited to these so they never deep-link
+ * into a section that `_showConfigPicker` cannot build (see `_buildConfigItems`).
+ */
+const SUPPORTED_CONFIG_GROUPS: readonly string[] = ['navigation', 'tokens'];
+
+export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, openerService: IOpenerService, isUBB?: boolean, onConfigure?: (group: string) => void): { element: HTMLElement; disposable: DisposableStore } | undefined {
 	const isAuto = isAutoModel(model);
 	const container = dom.$('.chat-model-hover');
 	const disposables = new DisposableStore();
 
-	// --- Model name header ---
-	container.appendChild(dom.$('.chat-model-hover-name', undefined, model.metadata.name));
+	// --- Title row: model name + price category badge (top-right) ---
+	const titleRow = dom.$('.chat-model-hover-title-row');
+	titleRow.appendChild(dom.$('.chat-model-hover-name', undefined, model.metadata.name));
+	const priceCategoryLabel = (!isAuto && isUBB) ? getPriceCategoryLabel(model.metadata.priceCategory) : undefined;
+	if (priceCategoryLabel) {
+		const badge = dom.$('span.chat-model-hover-price-badge', undefined, priceCategoryLabel);
+		if (isHighCostCategory(model.metadata.priceCategory)) {
+			badge.classList.add('high-cost');
+		}
+		titleRow.appendChild(badge);
+	}
+	container.appendChild(titleRow);
 
 	// --- Description (tooltip as markdown) ---
 	if (model.metadata.tooltip) {
-		container.appendChild(dom.$('.chat-model-hover-separator'));
 		const descriptionContainer = dom.$('.chat-model-hover-description');
 		const md = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 		if (model.metadata.statusIcon) {
@@ -1510,68 +1583,85 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 	}
 
 	// --- Cost info (UBB only) ---
+	let costTableRendered = false;
 	if (!isAuto && isUBB) {
-		const formatCostValue = (cost: number): string => {
-			return cost === 1
-				? localize('models.costValueSingular', "{0} credit", cost)
-				: localize('models.costValuePlural', "{0} credits", cost);
-		};
-		const buildCostLines = (input: number | undefined, cache: number | undefined, output: number | undefined): { label: string; value: string }[] => {
-			const lines: { label: string; value: string }[] = [];
-			if (input !== undefined) {
-				lines.push({ label: localize('models.inputCostLabel', "Input"), value: formatCostValue(input) });
+		const metrics: { label: string; def: number | undefined; long: number | undefined }[] = [
+			{ label: localize('models.inputCostLabel', "Input"), def: model.metadata.inputCost, long: model.metadata.longContextInputCost },
+			{ label: localize('models.cacheCostLabel', "Cache Read"), def: model.metadata.cacheCost, long: model.metadata.longContextCacheCost },
+			{ label: localize('models.cacheWriteCostLabel', "Cache Write"), def: model.metadata.cacheWriteCost, long: model.metadata.longContextCacheWriteCost },
+			{ label: localize('models.outputCostLabel', "Output"), def: model.metadata.outputCost, long: model.metadata.longContextOutputCost },
+		].filter(m => m.def !== undefined || m.long !== undefined);
+
+		if (metrics.length > 0) {
+			const contextLabels = getContextSizeLabels(model);
+			// Show the long-context column whenever any metric has a long-context price.
+			const hasLongContext = metrics.some(m => m.long !== undefined);
+
+			container.appendChild(dom.$('.chat-model-hover-separator'));
+
+			const table = dom.$('.chat-model-hover-cost-table');
+			if (hasLongContext) {
+				container.classList.add('has-long-context');
+				table.classList.add('has-long-context');
 			}
-			if (cache !== undefined) {
-				lines.push({ label: localize('models.cacheCostLabel', "Cached input"), value: formatCostValue(cache) });
-			}
-			if (output !== undefined) {
-				lines.push({ label: localize('models.outputCostLabel', "Output"), value: formatCostValue(output) });
-			}
-			return lines;
-		};
-		const appendCostSection = (parent: HTMLElement, title: string, lines: { label: string; value: string }[], categoryLabel?: string): void => {
-			const section = dom.$('.chat-model-hover-cost');
-			const titleRow = dom.$('.chat-model-hover-cost-title-row');
-			titleRow.appendChild(dom.$('.chat-model-hover-cost-title', undefined, title));
-			if (categoryLabel) {
-				titleRow.appendChild(dom.$('span.chat-model-hover-cost-tag', undefined, categoryLabel));
-			}
-			section.appendChild(titleRow);
-			for (const line of lines) {
-				section.appendChild(dom.$('.chat-model-hover-cost-line', undefined,
-					dom.$('span.chat-model-hover-cost-line-label', undefined, `${line.label}: `),
-					dom.$('span', undefined, line.value),
+
+			const appendCell = (text: string, ...classNames: string[]): void => {
+				table.appendChild(dom.$(`.chat-model-hover-cost-cell${classNames.map(c => '.' + c).join('')}`, undefined, text));
+			};
+
+			// Renders a "<count> credits" value cell with the count visually emphasized.
+			const appendCostCell = (cost: number | undefined): void => {
+				if (cost === undefined) {
+					table.appendChild(dom.$('.chat-model-hover-cost-cell.value'));
+					return;
+				}
+				const unit = cost === 1
+					? localize('models.creditUnitSingular', "credit")
+					: localize('models.creditUnitPlural', "credits");
+				table.appendChild(dom.$('.chat-model-hover-cost-cell.value', undefined,
+					dom.$('span.chat-model-hover-cost-count', undefined, String(cost)),
+					dom.$('span.chat-model-hover-cost-unit', undefined, ` ${unit}`),
 				));
-			}
-			parent.appendChild(section);
-		};
+			};
 
-		const costLines = buildCostLines(model.metadata.inputCost, model.metadata.cacheCost, model.metadata.outputCost);
-		const priceCategoryLabel = getPriceCategoryLabel(model.metadata.priceCategory);
-		if (costLines.length > 0) {
-			appendCostSection(container, localize('models.priceTitle', "Cost (per 1M tokens)"), costLines, priceCategoryLabel);
+			// Header row: "Cost" + context-size value(s) — context columns only shown with long context
+			appendCell(localize('models.priceTitle', "Cost"), 'header', 'title');
+			if (hasLongContext) {
+				appendCell(contextLabels.defaultLabel ?? '', 'header', 'value');
+				appendCell(contextLabels.longLabel ?? '', 'header', 'value');
 
-			// Long-context pricing — only when it differs from default
-			const longContextCostLines = buildCostLines(model.metadata.longContextInputCost, model.metadata.longContextCacheCost, model.metadata.longContextOutputCost);
-			if (longContextCostLines.length > 0) {
-				appendCostSection(container, localize('models.longContextPriceTitle', "Long context cost (per 1M tokens)"), longContextCostLines);
+				// Subheader row: "per 1M tokens" + context column labels
+				appendCell(localize('models.perMillionTokens', "per 1M tokens"), 'subheader', 'label');
+				appendCell(localize('models.defaultContext', "Default Context"), 'subheader', 'value');
+				appendCell(localize('models.longContext', "Long Context"), 'subheader', 'value');
+			} else {
+				// Single price: still surface the (max) context size in the header,
+				// and keep "per 1M tokens" beneath the "Cost" label.
+				appendCell(contextLabels.defaultLabel ?? '', 'header', 'value');
+				appendCell(localize('models.perMillionTokens', "per 1M tokens"), 'subheader', 'label');
+				appendCell(localize('models.defaultContext', "Default Context"), 'subheader', 'value');
 			}
-		} else if (priceCategoryLabel) {
-			const costSection = dom.$('.chat-model-hover-cost');
-			const titleRow = dom.$('.chat-model-hover-cost-title-row');
-			titleRow.appendChild(dom.$('.chat-model-hover-cost-title', undefined, localize('models.priceCategoryTitle', "Cost")));
-			titleRow.appendChild(dom.$('span.chat-model-hover-cost-tag', undefined, priceCategoryLabel));
-			costSection.appendChild(titleRow);
-			container.appendChild(costSection);
-		} else if (model.metadata.pricing && !isMultiplierPricing(model)) {
+
+			// Cost rows
+			for (const metric of metrics) {
+				appendCell(metric.label, 'label');
+				appendCostCell(metric.def);
+				if (hasLongContext) {
+					appendCostCell(metric.long);
+				}
+			}
+
+			container.appendChild(table);
+			costTableRendered = true;
+		} else if (!priceCategoryLabel && model.metadata.pricing && !isMultiplierPricing(model)) {
 			const costSection = dom.$('.chat-model-hover-cost');
 			costSection.appendChild(dom.$('span', undefined, localize('models.cost', 'Cost: {0}', model.metadata.pricing)));
 			container.appendChild(costSection);
 		}
 	}
 
-	// --- Context size ---
-	if (!isAuto && (model.metadata.maxInputTokens || model.metadata.maxOutputTokens)) {
+	// --- Context size (only when not already shown in the cost table) ---
+	if (!isAuto && !costTableRendered && (model.metadata.maxInputTokens || model.metadata.maxOutputTokens)) {
 		const totalTokens = (model.metadata.maxInputTokens ?? 0) + (model.metadata.maxOutputTokens ?? 0);
 		const contextSection = dom.$('.chat-model-hover-context');
 		contextSection.appendChild(dom.$('.chat-model-hover-context-label', undefined, localize('models.contextSize', "Max context")));
@@ -1581,21 +1671,29 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 
 	// --- Configurable properties (UBB only — PRU uses inline toolbar actions) ---
 	if (!isAuto && isUBB && model.metadata.configurationSchema?.properties) {
-		const configurableLabels: string[] = [];
+		const configButtons: { group: string; label: string }[] = [];
+		const seenGroups = new Set<string>();
 		for (const [, propSchema] of Object.entries(model.metadata.configurationSchema.properties)) {
-			if (propSchema.enum && propSchema.enum.length >= 2) {
+			if (propSchema.enum && propSchema.enum.length >= 2 && propSchema.group && SUPPORTED_CONFIG_GROUPS.includes(propSchema.group) && !seenGroups.has(propSchema.group)) {
 				const label = propSchema.title ?? propSchema.description;
 				if (label) {
-					configurableLabels.push(label);
+					seenGroups.add(propSchema.group);
+					configButtons.push({ group: propSchema.group, label });
 				}
 			}
 		}
-		if (configurableLabels.length > 0) {
+		if (configButtons.length > 0) {
 			container.appendChild(dom.$('.chat-model-hover-separator'));
 			const configRow = dom.$('.chat-model-hover-configurable');
-			configRow.appendChild(dom.$('span.chat-model-hover-configurable-label', undefined, localize('models.configurable', "Configurable:")));
-			for (const label of configurableLabels) {
-				configRow.appendChild(dom.$('span.chat-model-hover-configurable-tag', undefined, label));
+			for (const { group, label } of configButtons) {
+				const button = disposables.add(new Button(configRow, {
+					...defaultButtonStyles,
+					secondary: true,
+					supportIcons: true,
+					title: label,
+				}));
+				button.label = `$(${Codicon.settingsGear.id}) ${label}`;
+				disposables.add(button.onDidClick(() => onConfigure?.(group)));
 			}
 			container.appendChild(configRow);
 		}

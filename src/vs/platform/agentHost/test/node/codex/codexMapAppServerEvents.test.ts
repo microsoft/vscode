@@ -5,9 +5,9 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { createCodexSessionMapState, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, turnStateFromStatus } from '../../../node/codex/codexMapAppServerEvents.js';
+import { createCodexSessionMapState, extractUserInputText, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, resetCodexTurnMapState, turnStateFromStatus } from '../../../node/codex/codexMapAppServerEvents.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolResultContentType, TurnState } from '../../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState } from '../../../common/state/sessionState.js';
 
 suite('codexMapAppServerEvents', () => {
 
@@ -393,6 +393,47 @@ suite('codexMapAppServerEvents', () => {
 		});
 	});
 
+	test('dynamicToolCall item carries a Client contributor when toolsClientId is set', () => {
+		const state = createCodexSessionMapState();
+		state.toolsClientId = 'win-7';
+		const startActions = mapItemStarted(state, {
+			item: { type: 'dynamicToolCall', id: 'dyn_2', namespace: null, tool: 'get_magic_word', arguments: {}, status: 'inProgress', contentItems: null, success: null, durationMs: null } as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const start = startActions[0] as { type: ActionType; toolName: string; contributor?: { kind: ToolCallContributorKind; clientId: string } };
+		assert.deepStrictEqual({
+			type: start.type,
+			toolName: start.toolName,
+			contributor: start.contributor,
+		}, {
+			type: ActionType.ChatToolCallStart,
+			toolName: 'get_magic_word',
+			contributor: { kind: ToolCallContributorKind.Client, clientId: 'win-7' },
+		});
+	});
+
+	test('dynamicToolCall item omits the Client contributor for a server tool', () => {
+		// A server tool is registered under its bare name and executes
+		// in-process, so it must not carry a Client contributor even when a
+		// workbench client owns the (other) client tools.
+		const state = createCodexSessionMapState(new Set(['addComment']));
+		state.toolsClientId = 'win-7';
+		const startActions = mapItemStarted(state, {
+			item: { type: 'dynamicToolCall', id: 'dyn_3', namespace: null, tool: 'addComment', arguments: {}, status: 'inProgress', contentItems: null, success: null, durationMs: null } as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const start = startActions[0] as { type: ActionType; toolName: string; contributor?: { kind: ToolCallContributorKind; clientId: string } };
+		assert.deepStrictEqual({
+			type: start.type,
+			toolName: start.toolName,
+			contributor: start.contributor,
+		}, {
+			type: ActionType.ChatToolCallStart,
+			toolName: 'addComment',
+			contributor: undefined,
+		});
+	});
+
 	test('dynamicToolCall item maps to tool call lifecycle', () => {
 		const state = createCodexSessionMapState();
 		const startActions = mapItemStarted(state, {
@@ -490,5 +531,34 @@ suite('codexMapAppServerEvents', () => {
 		assert.strictEqual(turnStateFromStatus('interrupted'), TurnState.Cancelled);
 		assert.strictEqual(turnStateFromStatus('failed'), TurnState.Error);
 		assert.strictEqual(turnStateFromStatus('weird'), TurnState.Complete);
+	});
+
+	test('extractUserInputText joins text inputs and ignores non-text', () => {
+		assert.strictEqual(
+			extractUserInputText([
+				{ type: 'text', text: 'first', text_elements: [] },
+				{ type: 'image', url: 'http://x/y.png' },
+				{ type: 'text', text: 'second', text_elements: [] },
+				{ type: 'mention', name: 'foo', path: '/foo' },
+			]),
+			'first\n\nsecond',
+		);
+		assert.strictEqual(extractUserInputText([]), '');
+		assert.strictEqual(extractUserInputText([{ type: 'image', url: 'http://x/y.png' }]), '');
+	});
+
+	test('resetCodexTurnMapState clears item maps but preserves currentTurnId', () => {
+		const state = createCodexSessionMapState();
+		state.currentTurnId = 'turn_a';
+		state.itemToPartId.set('i1', 'p1');
+		state.itemToToolCall.set('i2', { toolCallId: 'tc', turnId: 'turn_a', toolName: 'shell', output: '' });
+		state.itemToReasoningPartId.set('i3', 'r1');
+		resetCodexTurnMapState(state);
+		assert.deepStrictEqual({
+			currentTurnId: state.currentTurnId,
+			parts: state.itemToPartId.size,
+			toolCalls: state.itemToToolCall.size,
+			reasoning: state.itemToReasoningPartId.size,
+		}, { currentTurnId: 'turn_a', parts: 0, toolCalls: 0, reasoning: 0 });
 	});
 });

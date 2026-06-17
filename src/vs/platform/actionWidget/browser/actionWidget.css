@@ -66,7 +66,7 @@
 	background-color: var(--vscode-list-hoverBackground) !important;
 	color: var(--vscode-list-hoverForeground);
 	outline: 1px solid var(--vscode-menu-selectionBorder, transparent);
-	outline-offset: -1px;
+	outline-offset: -2px;
 }
 
 .action-widget .monaco-list-row.group-header {
@@ -403,6 +403,8 @@
 	font-size: 11px;
 	/* Left padding matches the list row padding so the text aligns with the section headings. */
 	padding: 4px 10px 2px 6px;
+	/* Space between the last list item and the divider above the footer. */
+	margin-top: 4px;
 	border-top: 1px solid var(--vscode-editorHoverWidget-border);
 }
 

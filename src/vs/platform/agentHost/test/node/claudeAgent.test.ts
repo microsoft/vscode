@@ -821,6 +821,7 @@ suite('ClaudeAgent', () => {
 						description: 'Controls how much reasoning effort Claude uses.',
 						enum: ['low', 'medium', 'high'],
 						enumLabels: ['Low', 'Medium', 'High'],
+						enumDescriptions: ['Faster responses with less reasoning', 'Balanced reasoning and speed', 'Greater reasoning depth but slower'],
 						default: 'high',
 					},
 				},
@@ -834,6 +835,7 @@ suite('ClaudeAgent', () => {
 						description: 'Controls how much reasoning effort Claude uses.',
 						enum: ['high'],
 						enumLabels: ['High'],
+						enumDescriptions: ['Greater reasoning depth but slower'],
 						default: 'high',
 					},
 				},
@@ -848,6 +850,7 @@ suite('ClaudeAgent', () => {
 						description: 'Controls how much reasoning effort Claude uses.',
 						enum: ['low', 'high'],
 						enumLabels: ['Low', 'High'],
+						enumDescriptions: ['Faster responses with less reasoning', 'Greater reasoning depth but slower'],
 						default: 'high',
 					},
 				},
@@ -1394,7 +1397,9 @@ suite('ClaudeAgent', () => {
 			model: sdk.capturedStartupOptions[0]?.model,
 			permissionMode: sdk.capturedStartupOptions[0]?.permissionMode,
 		}, {
-			model: 'claude-sonnet-4.6',
+			// Endpoint id `claude-sonnet-4.6` is normalized to SDK format at the
+			// SDK seam (see `toSdkModelId`); the CLI only recognizes the dashed form.
+			model: 'claude-sonnet-4-6',
 			permissionMode: 'plan',
 		});
 	});
@@ -1427,7 +1432,8 @@ suite('ClaudeAgent', () => {
 			model: sdk.capturedStartupOptions[0]?.model,
 			effort: sdk.capturedStartupOptions[0]?.effort,
 		}, {
-			model: 'claude-opus-4.6',
+			// Endpoint id `claude-opus-4.6` → SDK format at the SDK seam.
+			model: 'claude-opus-4-6',
 			effort: 'high',
 		});
 	});
@@ -3035,14 +3041,15 @@ suite('ClaudeAgent', () => {
 		// Plan section 3.3.5 / decision B5 — Claude collapses the platform's
 		// two-axis approval model (`autoApprove` × `mode`) onto a single
 		// `permissionMode` axis matching the SDK's native
-		// `PermissionMode` enum. `Permissions` (allow/deny tool lists)
-		// is reused unchanged from `platformSessionSchema` because the
-		// SDK accepts `allowedTools` / `disallowedTools` natively.
-		// Tested keys: presence + ordering of enum + the six-value
+		// `PermissionMode` enum (5/6 values, excluding `dontAsk`;
+		// sdk.d.ts:1560). `Permissions` (allow/deny tool lists) is reused
+		// unchanged from `platformSessionSchema` because the SDK accepts
+		// `allowedTools` / `disallowedTools` natively.
+		// Tested keys: presence + ordering of enum + the five-value
 		// canonical set (matching SDK `PermissionMode` typedef at
-		// `sdk.d.ts:1560`, ratified in Phase 6.1 Cycle A under I2) +
-		// default. Skipped keys (AutoApprove, Mode, Isolation, Branch,
-		// BranchNameHint) MUST be absent — workbench
+		// `sdk.d.ts:1560`, excluding `dontAsk`, ratified in Phase 6.1 Cycle A
+		// under I2) + default. Skipped keys (AutoApprove, Mode, Isolation,
+		// Branch, BranchNameHint) MUST be absent — workbench
 		// `AgentHostModePicker` and friends key off these property names
 		// to decide what to render, and accidentally re-introducing
 		// `mode` would drop the wrong picker into the Claude UI.
@@ -3067,7 +3074,7 @@ suite('ClaudeAgent', () => {
 			topLevelType: 'object',
 			propertyKeys: ['permissionMode', 'permissions'],
 			permissionModeType: 'string',
-			permissionModeEnum: ['default', 'acceptEdits', 'bypassPermissions', 'plan', 'dontAsk', 'auto'],
+			permissionModeEnum: ['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions'],
 			permissionModeDefault: 'default',
 			permissionsType: 'object',
 			values: { permissionMode: 'default' },
@@ -4306,7 +4313,7 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 		ctx.sdk.nextQueryMessages = [makeSystemInitMessage(sid), makeResultSuccess(sid)];
 		await ctx.agent.sendMessage(created.session, 'hi', undefined, 'turn-1');
 		const opts = ctx.sdk.capturedStartupOptions[0];
-		assert.deepStrictEqual({ model: opts.model, effort: opts.effort }, { model: 'claude-sonnet-4.6', effort: 'medium' });
+		assert.deepStrictEqual({ model: opts.model, effort: opts.effort }, { model: 'claude-sonnet-4-6', effort: 'medium' });
 	});
 
 	test('changeModel on a materialized session queues a model+effort bundle that drains at the next yield boundary', async () => {
@@ -4322,7 +4329,7 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 			models: query.recordedModels,
 			efforts: query.recordedFlagSettings.map(s => s.effortLevel),
 		}, {
-			models: ['claude-sonnet-4.6'],
+			models: ['claude-sonnet-4-6'],
 			efforts: ['high'],
 		});
 	});
@@ -4520,7 +4527,7 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 		await tick();
 		advance.complete();
 		await p2;
-		assert.deepStrictEqual({ models: firstQuery.recordedModels, efforts: firstQuery.recordedFlagSettings.map(s => s.effortLevel) }, { models: ['claude-sonnet-4.6'], efforts: ['high'] });
+		assert.deepStrictEqual({ models: firstQuery.recordedModels, efforts: firstQuery.recordedFlagSettings.map(s => s.effortLevel) }, { models: ['claude-sonnet-4-6'], efforts: ['high'] });
 
 		// Now abort and resend; the rebound query MUST receive the same
 		// model + effort via the rebind's re-apply pass.
@@ -4533,7 +4540,7 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 		assert.deepStrictEqual({
 			models: reboundQuery.recordedModels,
 			efforts: reboundQuery.recordedFlagSettings.map(s => s.effortLevel),
-		}, { models: ['claude-sonnet-4.6'], efforts: ['high'] });
+		}, { models: ['claude-sonnet-4-6'], efforts: ['high'] });
 	});
 
 	test('intermediate result during steering does NOT complete the in-flight sendMessage or fire ChatTurnComplete', async () => {
