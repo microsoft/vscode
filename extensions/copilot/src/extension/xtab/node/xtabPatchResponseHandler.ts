@@ -5,6 +5,7 @@
 
 import { DocumentId } from '../../../platform/inlineEdits/common/dataTypes/documentId';
 import { DuplicateAdditionsMode } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { ResponseProcessor } from '../../../platform/inlineEdits/common/responseProcessor';
 import { NoNextEditReason, StreamedEdit } from '../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { ILogger } from '../../../platform/log/common/logService';
 import { ErrorUtils } from '../../../util/common/errors';
@@ -39,6 +40,14 @@ class Patch {
 		}
 		const [, filename, lineNumber] = match;
 		return new Patch(filename, parseInt(lineNumber, 10));
+	}
+
+	/**
+	 * Creates a pure-insertion patch (no removed lines) at the given line.
+	 * Used for the continuation portion of a ghost-text progressive reveal.
+	 */
+	public static insertion(filePath: string, lineNumZeroBased: number): Patch {
+		return new Patch(filePath, lineNumZeroBased);
 	}
 
 	addLine(line: string): boolean {
@@ -280,13 +289,16 @@ export namespace XtabPatchResponseHandler {
 		window: OffsetRange | undefined,
 		parentTracer: ILogger,
 		duplicateAdditionsMode: DuplicateAdditionsMode = DuplicateAdditionsMode.Off,
+		enableProgressiveGhostText: boolean = false,
 	): AsyncGenerator<StreamedEdit, NoNextEditReason, void> {
 		const tracer = parentTracer.createSubLogger(['XtabCustomDiffPatchResponseHandler', 'handleResponse']);
 		const activeDocRelativePath = toUniquePath(activeDocumentId, workspaceRoot?.path);
 
 		try {
 			let dropAllRemaining = false;
-			for await (const edit of extractEdits(linesStream)) {
+			const cursorLine = enableProgressiveGhostText ? currentDocument.cursorLineOffset : undefined;
+			const progressiveDocPath = enableProgressiveGhostText ? activeDocRelativePath : undefined;
+			for await (const edit of extractEdits(linesStream, cursorLine, progressiveDocPath)) {
 				if (dropAllRemaining) {
 					continue;
 				}
@@ -351,8 +363,32 @@ export namespace XtabPatchResponseHandler {
 		return undefined;
 	}
 
-	export async function* extractEdits(linesStream: AsyncIterable<string>): AsyncGenerator<Patch> {
+	/**
+	 * Checks whether the first patch qualifies for ghost-text progressive reveal.
+	 * A patch qualifies if it has exactly one removed line, at least one added line,
+	 * targets the cursor line in the active document, and the edit on the first
+	 * line is additive (the removed line is a subsequence of the first added line).
+	 */
+	export function isGhostTextPatch(patch: Patch, cursorLineZeroBased: number, activeDocRelativePath: string): boolean {
+		return patch.removedLines.length === 1
+			&& patch.addedLines.length >= 1
+			&& patch.lineNumZeroBased === cursorLineZeroBased
+			&& patch.filePath === activeDocRelativePath
+			&& ResponseProcessor.isAdditiveEdit(patch.removedLines[0], patch.addedLines[0]);
+	}
+
+	/**
+	 * @param cursorLineZeroBased When provided (along with activeDocRelativePath),
+	 * enables ghost-text progressive reveal for the first patch: if the first patch
+	 * is a ghost-text (single removed line at the cursor that is additively edited),
+	 * the cursor-line replacement is yielded immediately and any further added lines
+	 * are collected into a separate pure-insertion patch.
+	 */
+	export async function* extractEdits(linesStream: AsyncIterable<string>, cursorLineZeroBased?: number, activeDocRelativePath?: string): AsyncGenerator<Patch> {
 		let currentPatch: Patch | null = null;
+		let isFirstPatch = true;
+		// Tracks whether we've already attempted progressive reveal (succeeds or fails only once).
+		let progressiveRevealDone = false;
 		for await (const line of linesStream) {
 			if (line.trim() === ResponseTags.NO_EDIT) {
 				break;
@@ -362,13 +398,35 @@ export namespace XtabPatchResponseHandler {
 				continue;
 			}
 			if (currentPatch.addLine(line)) {
+				// For the first patch, check if we can do progressive reveal:
+				// once we have the `-` line and first `+` line, check ghost-text.
+				if (isFirstPatch && !progressiveRevealDone
+					&& cursorLineZeroBased !== undefined
+					&& activeDocRelativePath !== undefined
+					&& currentPatch.addedLines.length === 1
+					&& currentPatch.removedLines.length >= 1
+				) {
+					if (isGhostTextPatch(currentPatch, cursorLineZeroBased, activeDocRelativePath)) {
+						// Yield the cursor-line replacement immediately
+						const earlyPatch = Patch.insertion(currentPatch.filePath, currentPatch.lineNumZeroBased);
+						earlyPatch.removedLines = [...currentPatch.removedLines];
+						earlyPatch.addedLines = [...currentPatch.addedLines];
+						yield earlyPatch;
+						// Replace currentPatch with a continuation pure-insertion patch
+						currentPatch = Patch.insertion(currentPatch.filePath, currentPatch.lineNumZeroBased + 1);
+					}
+					progressiveRevealDone = true;
+				}
 				continue;
 			}
 			// line does not belong to current patch, yield current and start new
-			yield currentPatch;
+			if (currentPatch.removedLines.length > 0 || currentPatch.addedLines.length > 0) {
+				yield currentPatch;
+			}
 			currentPatch = Patch.ofLine(line);
+			isFirstPatch = false;
 		}
-		if (currentPatch) {
+		if (currentPatch && (currentPatch.removedLines.length > 0 || currentPatch.addedLines.length > 0)) {
 			yield currentPatch;
 		}
 	}

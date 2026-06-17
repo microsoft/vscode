@@ -759,4 +759,332 @@ another_file.js:
 			expect(returnValue).toBeInstanceOf(NoNextEditReason.NoSuggestions);
 		});
 	});
+
+	describe('progressive ghost-text reveal via extractEdits', () => {
+
+		async function collectPatchesWithCursor(patchText: string, cursorLineZeroBased: number, activeDocPath: string = 'file.py'): Promise<string> {
+			const linesStream = AsyncIterUtils.fromArray(patchText.split('\n'));
+			const patches = await AsyncIterUtils.toArray(XtabPatchResponseHandler.extractEdits(linesStream, cursorLineZeroBased, activeDocPath));
+			return patches.map(p => p.toString()).join('\n');
+		}
+
+		it('splits ghost-text patch into cursor-line replacement and continuation insertion', async () => {
+			const result = await collectPatchesWithCursor(
+				[
+					'file.py:4',
+					'-lineA',
+					'+lineA_extended',
+					'+lineB',
+					'+lineC',
+				].join('\n'),
+				4,
+			);
+			expect(result).toEqual([
+				'file.py:4',
+				'-lineA',
+				'+lineA_extended',
+				'file.py:5',
+				'+lineB',
+				'+lineC',
+			].join('\n'));
+		});
+
+		it('splits when removed line equals first added line', async () => {
+			const result = await collectPatchesWithCursor(
+				[
+					'file.py:4',
+					'-lineA',
+					'+lineA',
+					'+lineB',
+				].join('\n'),
+				4,
+			);
+			expect(result).toEqual([
+				'file.py:4',
+				'-lineA',
+				'+lineA',
+				'file.py:5',
+				'+lineB',
+			].join('\n'));
+		});
+
+		it('does not split when cursor line does not match patch line', async () => {
+			const result = await collectPatchesWithCursor(
+				[
+					'file.py:4',
+					'-lineA',
+					'+lineA_extended',
+					'+lineB',
+				].join('\n'),
+				10,
+			);
+			expect(result).toEqual([
+				'file.py:4',
+				'-lineA',
+				'+lineA_extended',
+				'+lineB',
+			].join('\n'));
+		});
+
+		it('does not split when there are multiple removed lines', async () => {
+			const result = await collectPatchesWithCursor(
+				[
+					'file.py:4',
+					'-lineA',
+					'-lineB',
+					'+lineA_extended',
+					'+lineC',
+				].join('\n'),
+				4,
+			);
+			expect(result).toEqual([
+				'file.py:4',
+				'-lineA',
+				'-lineB',
+				'+lineA_extended',
+				'+lineC',
+			].join('\n'));
+		});
+
+		it('does not split when edit is not additive', async () => {
+			const result = await collectPatchesWithCursor(
+				[
+					'file.py:4',
+					'-hello world',
+					'+goodbye',
+					'+lineB',
+				].join('\n'),
+				4,
+			);
+			expect(result).toEqual([
+				'file.py:4',
+				'-hello world',
+				'+goodbye',
+				'+lineB',
+			].join('\n'));
+		});
+
+		it('only splits the first patch, not subsequent ones', async () => {
+			const result = await collectPatchesWithCursor(
+				[
+					'file.py:4',
+					'-lineA',
+					'+lineA_extended',
+					'+lineB',
+					'file.py:10',
+					'-lineX',
+					'+lineX_extended',
+					'+lineY',
+				].join('\n'),
+				4,
+			);
+			expect(result).toEqual([
+				'file.py:4',
+				'-lineA',
+				'+lineA_extended',
+				'file.py:5',
+				'+lineB',
+				'file.py:10',
+				'-lineX',
+				'+lineX_extended',
+				'+lineY',
+			].join('\n'));
+		});
+
+		it('handles ghost-text with only one added line (no continuation patch)', async () => {
+			const result = await collectPatchesWithCursor(
+				[
+					'file.py:4',
+					'-lineA',
+					'+lineA_extended',
+				].join('\n'),
+				4,
+			);
+			// Single added line: early patch is emitted, continuation is empty and not yielded
+			expect(result).toEqual([
+				'file.py:4',
+				'-lineA',
+				'+lineA_extended',
+			].join('\n'));
+		});
+
+		it('does not split when cursorLineZeroBased is not provided', async () => {
+			const linesStream = AsyncIterUtils.fromArray([
+				'file.py:4',
+				'-lineA',
+				'+lineA_extended',
+				'+lineB',
+			]);
+			const patches = await AsyncIterUtils.toArray(XtabPatchResponseHandler.extractEdits(linesStream));
+			const result = patches.map(p => p.toString()).join('\n');
+			expect(result).toEqual([
+				'file.py:4',
+				'-lineA',
+				'+lineA_extended',
+				'+lineB',
+			].join('\n'));
+		});
+
+		it('does not split when patch targets a different file', async () => {
+			const result = await collectPatchesWithCursor(
+				[
+					'other.py:4',
+					'-lineA',
+					'+lineA_extended',
+					'+lineB',
+				].join('\n'),
+				4,
+				'file.py',
+			);
+			expect(result).toEqual([
+				'other.py:4',
+				'-lineA',
+				'+lineA_extended',
+				'+lineB',
+			].join('\n'));
+		});
+
+		it('does not split second patch even if it matches cursor line', async () => {
+			// First patch is NOT ghost-text (non-additive), second patch IS at cursor line and additive
+			const result = await collectPatchesWithCursor(
+				[
+					'file.py:0',
+					'-import os',
+					'+import sys',
+					'file.py:4',
+					'-lineA',
+					'+lineA_extended',
+					'+lineB',
+				].join('\n'),
+				4,
+			);
+			expect(result).toEqual([
+				'file.py:0',
+				'-import os',
+				'+import sys',
+				'file.py:4',
+				'-lineA',
+				'+lineA_extended',
+				'+lineB',
+			].join('\n'));
+		});
+	});
+
+	describe('handleResponse with enableProgressiveGhostText', () => {
+
+		it('yields two edits for ghost-text when progressive reveal is enabled', async () => {
+			const docId = DocumentId.create('file:///test.ts');
+			const docContent = 'function foo() {\n    let x = 1;\n}\n';
+			// Cursor on line 2 (1-based) → cursorLineOffset = 1
+			const documentBeforeEdits = new CurrentDocument(new StringText(docContent), new Position(2, 5));
+
+			async function* makeStream(): AsyncGenerator<string> {
+				yield '/test.ts:1';
+				yield '-    let x = 1;';
+				yield '+    let x = 1;';
+				yield '+    let y = 2;';
+			}
+
+			const { edits } = await consumeHandleResponse(
+				makeStream(),
+				documentBeforeEdits,
+				docId,
+				undefined,
+				undefined,
+				new TestLogService(),
+				DuplicateAdditionsMode.Off,
+				true,
+			);
+
+			expect(edits).toHaveLength(2);
+			// First edit: cursor-line replacement
+			expect(edits[0].edit).toEqual(new LineReplacement(new LineRange(2, 3), ['    let x = 1;']));
+			// Second edit: continuation insertion
+			expect(edits[1].edit).toEqual(new LineReplacement(new LineRange(3, 3), ['    let y = 2;']));
+		});
+
+		it('yields single edit when progressive reveal is disabled (default)', async () => {
+			const docId = DocumentId.create('file:///test.ts');
+			const docContent = 'function foo() {\n    let x = 1;\n}\n';
+			const documentBeforeEdits = new CurrentDocument(new StringText(docContent), new Position(2, 5));
+
+			async function* makeStream(): AsyncGenerator<string> {
+				yield '/test.ts:1';
+				yield '-    let x = 1;';
+				yield '+    let x = 1;';
+				yield '+    let y = 2;';
+			}
+
+			const { edits } = await consumeHandleResponse(
+				makeStream(),
+				documentBeforeEdits,
+				docId,
+				undefined,
+				undefined,
+				new TestLogService(),
+			);
+
+			expect(edits).toHaveLength(1);
+			expect(edits[0].edit).toEqual(new LineReplacement(new LineRange(2, 3), ['    let x = 1;', '    let y = 2;']));
+		});
+
+		it('progressive reveal with TrimDuplicate trims continuation but keeps early edit', async () => {
+			const docId = DocumentId.create('file:///test.ts');
+			// Document: line 1 = "function foo() {", line 2 = "    let x = 1;", line 3 = "}"
+			const docContent = 'function foo() {\n    let x = 1;\n}\n';
+			const documentBeforeEdits = new CurrentDocument(new StringText(docContent), new Position(2, 5));
+
+			async function* makeStream(): AsyncGenerator<string> {
+				yield '/test.ts:1';
+				yield '-    let x = 1;';
+				yield '+    let x = 1;';
+				yield '+    let y = 2;';
+				yield '+}'; // duplicates line 3
+			}
+
+			const { edits } = await consumeHandleResponse(
+				makeStream(),
+				documentBeforeEdits,
+				docId,
+				undefined,
+				undefined,
+				new TestLogService(),
+				DuplicateAdditionsMode.TrimDuplicate,
+				true,
+			);
+
+			// Early edit is yielded, continuation has `}` trimmed by dedup
+			expect(edits).toHaveLength(2);
+			expect(edits[0].edit).toEqual(new LineReplacement(new LineRange(2, 3), ['    let x = 1;']));
+			expect(edits[1].edit).toEqual(new LineReplacement(new LineRange(3, 3), ['    let y = 2;']));
+		});
+
+		it('progressive reveal with DropPatch drops continuation but keeps early edit', async () => {
+			const docId = DocumentId.create('file:///test.ts');
+			const docContent = 'function foo() {\n    let x = 1;\n}\n';
+			const documentBeforeEdits = new CurrentDocument(new StringText(docContent), new Position(2, 5));
+
+			async function* makeStream(): AsyncGenerator<string> {
+				yield '/test.ts:1';
+				yield '-    let x = 1;';
+				yield '+    let x = 1;';
+				yield '+}'; // duplicates line 3 — triggers DropPatch on continuation
+			}
+
+			const { edits } = await consumeHandleResponse(
+				makeStream(),
+				documentBeforeEdits,
+				docId,
+				undefined,
+				undefined,
+				new TestLogService(),
+				DuplicateAdditionsMode.DropPatch,
+				true,
+			);
+
+			// Early edit is yielded, continuation is dropped by dedup
+			expect(edits).toHaveLength(1);
+			expect(edits[0].edit).toEqual(new LineReplacement(new LineRange(2, 3), ['    let x = 1;']));
+		});
+	});
 });
