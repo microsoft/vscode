@@ -84,6 +84,11 @@ export interface IModelTokenPriceTier {
 	output_price: number;
 	cache_price: number;
 	/**
+	 * Cost (in the tier's native unit) of writing a token to the prompt cache.
+	 * Optional — absent on responses/tiers that do not bill cache writes separately.
+	 */
+	cache_write_price?: number;
+	/**
 	 * The maximum context window size (in tokens) for this pricing tier.
 	 * Present on the `default` tier only when a `long_context` tier also
 	 * exists; always present on the `long_context` tier itself.

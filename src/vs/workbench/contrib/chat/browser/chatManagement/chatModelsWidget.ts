@@ -79,7 +79,7 @@ export function getModelHoverContent(model: ILanguageModel): MarkdownString {
 		markdown.appendText(`\n`);
 	}
 
-	if (model.metadata.inputCost !== undefined || model.metadata.outputCost !== undefined || model.metadata.cacheCost !== undefined) {
+	if (model.metadata.inputCost !== undefined || model.metadata.outputCost !== undefined || model.metadata.cacheCost !== undefined || model.metadata.cacheWriteCost !== undefined) {
 		if (model.metadata.inputCost !== undefined) {
 			markdown.appendMarkdown(model.metadata.inputCost === 1
 				? localize('models.inputCost.singular', 'Input Cost: {0} credit per 1M tokens', model.metadata.inputCost)
@@ -92,6 +92,12 @@ export function getModelHoverContent(model: ILanguageModel): MarkdownString {
 				: localize('models.cacheCost.plural', 'Cache Cost: {0} credits per 1M tokens', model.metadata.cacheCost));
 			markdown.appendText(`\n`);
 		}
+		if (model.metadata.cacheWriteCost !== undefined) {
+			markdown.appendMarkdown(model.metadata.cacheWriteCost === 1
+				? localize('models.cacheWriteCost.singular', 'Cache Write Cost: {0} credit per 1M tokens', model.metadata.cacheWriteCost)
+				: localize('models.cacheWriteCost.plural', 'Cache Write Cost: {0} credits per 1M tokens', model.metadata.cacheWriteCost));
+			markdown.appendText(`\n`);
+		}
 		if (model.metadata.outputCost !== undefined) {
 			markdown.appendMarkdown(model.metadata.outputCost === 1
 				? localize('models.outputCost.singular', 'Output Cost: {0} credit per 1M tokens', model.metadata.outputCost)
@@ -99,7 +105,7 @@ export function getModelHoverContent(model: ILanguageModel): MarkdownString {
 			markdown.appendText(`\n`);
 		}
 
-		if (model.metadata.longContextInputCost !== undefined || model.metadata.longContextOutputCost !== undefined || model.metadata.longContextCacheCost !== undefined) {
+		if (model.metadata.longContextInputCost !== undefined || model.metadata.longContextOutputCost !== undefined || model.metadata.longContextCacheCost !== undefined || model.metadata.longContextCacheWriteCost !== undefined) {
 			markdown.appendText(`\n`);
 			markdown.appendMarkdown(`**${localize('models.longContextPricing', 'Long Context Pricing')}**`);
 			markdown.appendText(`\n`);
@@ -113,6 +119,12 @@ export function getModelHoverContent(model: ILanguageModel): MarkdownString {
 				markdown.appendMarkdown(model.metadata.longContextCacheCost === 1
 					? localize('models.longContextCacheCost.singular', 'Cache Cost: {0} credit per 1M tokens', model.metadata.longContextCacheCost)
 					: localize('models.longContextCacheCost.plural', 'Cache Cost: {0} credits per 1M tokens', model.metadata.longContextCacheCost));
+				markdown.appendText(`\n`);
+			}
+			if (model.metadata.longContextCacheWriteCost !== undefined) {
+				markdown.appendMarkdown(model.metadata.longContextCacheWriteCost === 1
+					? localize('models.longContextCacheWriteCost.singular', 'Cache Write Cost: {0} credit per 1M tokens', model.metadata.longContextCacheWriteCost)
+					: localize('models.longContextCacheWriteCost.plural', 'Cache Write Cost: {0} credits per 1M tokens', model.metadata.longContextCacheWriteCost));
 				markdown.appendText(`\n`);
 			}
 			if (model.metadata.longContextOutputCost !== undefined) {
@@ -590,6 +602,7 @@ interface ICombinedCostColumnTemplateData extends IModelTableColumnTemplateData 
 	readonly inputCell: HTMLElement;
 	readonly outputCell: HTMLElement;
 	readonly cacheCell: HTMLElement;
+	readonly cacheWriteCell: HTMLElement;
 }
 
 class CombinedCostColumnRenderer extends ModelsTableColumnRenderer<ICombinedCostColumnTemplateData> {
@@ -609,12 +622,14 @@ class CombinedCostColumnRenderer extends ModelsTableColumnRenderer<ICombinedCost
 		const grid = DOM.append(container, $('.model-cost-grid'));
 		const inputCell = DOM.append(grid, $('span.model-cost-cell'));
 		const cacheCell = DOM.append(grid, $('span.model-cost-cell'));
+		const cacheWriteCell = DOM.append(grid, $('span.model-cost-cell'));
 		const outputCell = DOM.append(grid, $('span.model-cost-cell'));
 		return {
 			container,
 			inputCell,
 			outputCell,
 			cacheCell,
+			cacheWriteCell,
 			disposables,
 			elementDisposables
 		};
@@ -623,6 +638,7 @@ class CombinedCostColumnRenderer extends ModelsTableColumnRenderer<ICombinedCost
 	override renderElement(entry: IViewModelEntry, index: number, templateData: ICombinedCostColumnTemplateData): void {
 		templateData.inputCell.textContent = '';
 		templateData.cacheCell.textContent = '';
+		templateData.cacheWriteCell.textContent = '';
 		templateData.outputCell.textContent = '';
 		super.renderElement(entry, index, templateData);
 	}
@@ -634,12 +650,13 @@ class CombinedCostColumnRenderer extends ModelsTableColumnRenderer<ICombinedCost
 	}
 
 	override renderModelElement(entry: ILanguageModelEntry, index: number, templateData: ICombinedCostColumnTemplateData): void {
-		const { inputCost, outputCost, cacheCost } = entry.model.metadata;
-		const hasCost = inputCost !== undefined || outputCost !== undefined || cacheCost !== undefined;
+		const { inputCost, outputCost, cacheCost, cacheWriteCost } = entry.model.metadata;
+		const hasCost = inputCost !== undefined || outputCost !== undefined || cacheCost !== undefined || cacheWriteCost !== undefined;
 
 		if (hasCost) {
 			templateData.inputCell.textContent = inputCost !== undefined ? localize('cost.input', "In: {0}", inputCost) : '';
 			templateData.cacheCell.textContent = cacheCost !== undefined ? localize('cost.cache', "Cache: {0}", cacheCost) : '';
+			templateData.cacheWriteCell.textContent = cacheWriteCost !== undefined ? localize('cost.cacheWrite', "Cache write: {0}", cacheWriteCost) : '';
 			templateData.outputCell.textContent = outputCost !== undefined ? localize('cost.output', "Out: {0}", outputCost) : '';
 
 			const parts: string[] = [];
@@ -652,6 +669,11 @@ class CombinedCostColumnRenderer extends ModelsTableColumnRenderer<ICombinedCost
 				parts.push(cacheCost === 1
 					? localize('cost.cacheHover.singular', "Cache: {0} credit per 1M tokens", cacheCost)
 					: localize('cost.cacheHover.plural', "Cache: {0} credits per 1M tokens", cacheCost));
+			}
+			if (cacheWriteCost !== undefined) {
+				parts.push(cacheWriteCost === 1
+					? localize('cost.cacheWriteHover.singular', "Cache write: {0} credit per 1M tokens", cacheWriteCost)
+					: localize('cost.cacheWriteHover.plural', "Cache write: {0} credits per 1M tokens", cacheWriteCost));
 			}
 			if (outputCost !== undefined) {
 				parts.push(outputCost === 1
@@ -1294,8 +1316,8 @@ export class ChatModelsWidget extends Disposable {
 			{
 				label: isUBB ? localize('cost', 'Cost (Credits per 1M Tokens)') : localize('pricing', 'Pricing'),
 				tooltip: '',
-				weight: isUBB ? 0.24 : 0.15,
-				minimumWidth: isUBB ? 240 : 200,
+				weight: isUBB ? 0.3 : 0.15,
+				minimumWidth: isUBB ? 340 : 200,
 				templateId: CombinedCostColumnRenderer.TEMPLATE_ID,
 				project(row: IViewModelEntry): IViewModelEntry { return row; }
 			},
@@ -1366,6 +1388,11 @@ export class ChatModelsWidget extends Disposable {
 							ariaLabels.push(e.model.metadata.cacheCost === 1
 								? localize('cacheCost.ariaLabel.singular', "Cache cost: {0} credit per 1M tokens", e.model.metadata.cacheCost)
 								: localize('cacheCost.ariaLabel.plural', "Cache cost: {0} credits per 1M tokens", e.model.metadata.cacheCost));
+						}
+						if (e.model.metadata.cacheWriteCost !== undefined) {
+							ariaLabels.push(e.model.metadata.cacheWriteCost === 1
+								? localize('cacheWriteCost.ariaLabel.singular', "Cache write cost: {0} credit per 1M tokens", e.model.metadata.cacheWriteCost)
+								: localize('cacheWriteCost.ariaLabel.plural', "Cache write cost: {0} credits per 1M tokens", e.model.metadata.cacheWriteCost));
 						}
 						if (e.model.metadata.outputCost !== undefined) {
 							ariaLabels.push(e.model.metadata.outputCost === 1

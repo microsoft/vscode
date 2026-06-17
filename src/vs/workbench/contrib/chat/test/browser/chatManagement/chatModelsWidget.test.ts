@@ -126,7 +126,8 @@ suite('ChatModelsWidget', () => {
 			const model = createModel({
 				inputCost: 0,
 				outputCost: 0,
-				cacheCost: 0
+				cacheCost: 0,
+				cacheWriteCost: 0
 			});
 
 			const markdown = getModelHoverContent(model);
@@ -134,6 +135,50 @@ suite('ChatModelsWidget', () => {
 
 			assert.ok(value.includes('Input Cost'));
 			assert.ok(value.includes('0 credits per 1M tokens'));
+			assert.ok(value.includes('Cache Write Cost'));
+		});
+
+		test('includes cache write cost when present', () => {
+			const model = createModel({
+				inputCost: 4,
+				cacheCost: 1,
+				cacheWriteCost: 5,
+				outputCost: 14
+			});
+
+			const markdown = getModelHoverContent(model);
+			const value = markdown.value;
+
+			assert.ok(value.includes('Cache Write Cost'));
+			assert.ok(value.includes('5 credits per 1M tokens'));
+		});
+
+		test('omits cache write cost when absent', () => {
+			const model = createModel({
+				inputCost: 4,
+				cacheCost: 1,
+				outputCost: 14
+				// cacheWriteCost intentionally omitted
+			});
+
+			const markdown = getModelHoverContent(model);
+			const value = markdown.value;
+
+			assert.ok(!value.includes('Cache Write Cost'));
+		});
+
+		test('includes long context cache write cost when present', () => {
+			const model = createModel({
+				inputCost: 4,
+				cacheWriteCost: 5,
+				longContextCacheWriteCost: 12
+			});
+
+			const markdown = getModelHoverContent(model);
+			const value = markdown.value;
+
+			assert.ok(value.includes('Long Context Pricing'));
+			assert.ok(value.includes('12 credits per 1M tokens'));
 		});
 	});
 

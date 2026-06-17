@@ -1588,6 +1588,7 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 		const metrics: { label: string; def: number | undefined; long: number | undefined }[] = [
 			{ label: localize('models.inputCostLabel', "Input"), def: model.metadata.inputCost, long: model.metadata.longContextInputCost },
 			{ label: localize('models.cacheCostLabel', "Cached input"), def: model.metadata.cacheCost, long: model.metadata.longContextCacheCost },
+			{ label: localize('models.cacheWriteCostLabel', "Cache write"), def: model.metadata.cacheWriteCost, long: model.metadata.longContextCacheWriteCost },
 			{ label: localize('models.outputCostLabel', "Output"), def: model.metadata.outputCost, long: model.metadata.longContextOutputCost },
 		].filter(m => m.def !== undefined || m.long !== undefined);
 

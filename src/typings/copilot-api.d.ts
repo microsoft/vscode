@@ -91,6 +91,7 @@ declare module '@vscode/copilot-api' {
 	interface CCAModelTokenPriceTier {
 		input_price?: number;
 		cache_price?: number;
+		cache_write_price?: number;
 		output_price?: number;
 		context_max?: number;
 	}

@@ -174,8 +174,9 @@ interface ITestCopilotModelInfo {
 			readonly contextMax?: number;
 			readonly inputPrice?: number;
 			readonly cachePrice?: number;
+			readonly cacheWritePrice?: number;
 			readonly outputPrice?: number;
-			readonly longContext?: { readonly contextMax?: number; readonly inputPrice?: number; readonly cachePrice?: number; readonly outputPrice?: number };
+			readonly longContext?: { readonly contextMax?: number; readonly inputPrice?: number; readonly cachePrice?: number; readonly cacheWritePrice?: number; readonly outputPrice?: number };
 		};
 	};
 	readonly supportedReasoningEfforts?: ModelInfo['supportedReasoningEfforts'];
@@ -659,9 +660,50 @@ suite('CopilotAgent', () => {
 				multiplierNumeric: 1,
 				inputCost: 3,
 				cacheCost: 1,
+				cacheWriteCost: 0,
 				outputCost: 15,
 				longContextInputCost: 6,
 				longContextOutputCost: 22.5,
+				priceCategory: 'medium',
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('models include cache-write token prices when billing provides them', async () => {
+		const agent = createTestAgent(disposables, {
+			copilotClient: new TestCopilotClient([], [{
+				id: 'claude-sonnet',
+				name: 'Claude Sonnet',
+				capabilities: { limits: { max_context_window_tokens: 200_000 } },
+				billing: {
+					multiplier: 1,
+					priceCategory: 'medium',
+					tokenPrices: {
+						contextMax: 200_000,
+						inputPrice: 3,
+						cachePrice: 1,
+						cacheWritePrice: 5,
+						outputPrice: 15,
+						longContext: { contextMax: 1_000_000, inputPrice: 6, cachePrice: 1, cacheWritePrice: 12, outputPrice: 22.5 },
+					},
+				},
+			}]),
+		});
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			const models = await waitForState(agent.models, models => models.length > 0);
+
+			assert.deepStrictEqual(models[0]._meta, {
+				multiplierNumeric: 1,
+				inputCost: 3,
+				cacheCost: 1,
+				cacheWriteCost: 5,
+				outputCost: 15,
+				longContextInputCost: 6,
+				longContextOutputCost: 22.5,
+				longContextCacheWriteCost: 12,
 				priceCategory: 'medium',
 			});
 		} finally {

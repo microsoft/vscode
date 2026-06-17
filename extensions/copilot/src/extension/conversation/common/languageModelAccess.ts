@@ -196,14 +196,15 @@ export interface IRawTokenPrices {
 	input_price?: number;
 	cache_price?: number;
 	output_price?: number;
-	default?: { input_price?: number; cache_price?: number; output_price?: number; context_max?: number };
-	long_context?: { input_price?: number; cache_price?: number; output_price?: number; context_max?: number };
+	default?: { input_price?: number; cache_price?: number; cache_write_price?: number; output_price?: number; context_max?: number };
+	long_context?: { input_price?: number; cache_price?: number; cache_write_price?: number; output_price?: number; context_max?: number };
 }
 
 export interface INormalizedPriceTier {
 	readonly inputPrice: number;
 	readonly outputPrice: number;
 	readonly cachePrice: number | undefined;
+	readonly cacheWritePrice: number | undefined;
 	readonly contextMax?: number;
 }
 
@@ -233,6 +234,7 @@ export function normalizeTokenPrices(tokenPrices: IRawTokenPrices | undefined): 
 			inputPrice: defaultTier.input_price * scale,
 			outputPrice: defaultTier.output_price * scale,
 			cachePrice: defaultTier.cache_price !== undefined ? defaultTier.cache_price * scale : undefined,
+			cacheWritePrice: defaultTier.cache_write_price !== undefined ? defaultTier.cache_write_price * scale : undefined,
 			contextMax: defaultTier.context_max,
 		};
 		let longContext: INormalizedPriceTier | undefined;
@@ -242,12 +244,14 @@ export function normalizeTokenPrices(tokenPrices: IRawTokenPrices | undefined): 
 				inputPrice: lc.input_price * scale,
 				outputPrice: lc.output_price * scale,
 				cachePrice: lc.cache_price !== undefined ? lc.cache_price * scale : undefined,
+				cacheWritePrice: lc.cache_write_price !== undefined ? lc.cache_write_price * scale : undefined,
 				contextMax: lc.context_max,
 			};
 			// Only include long-context tier when prices differ from default
 			if (lcNormalized.inputPrice !== normalized.inputPrice
 				|| lcNormalized.outputPrice !== normalized.outputPrice
-				|| lcNormalized.cachePrice !== normalized.cachePrice) {
+				|| lcNormalized.cachePrice !== normalized.cachePrice
+				|| lcNormalized.cacheWritePrice !== normalized.cacheWritePrice) {
 				longContext = lcNormalized;
 			}
 		}
@@ -263,6 +267,7 @@ export function normalizeTokenPrices(tokenPrices: IRawTokenPrices | undefined): 
 			inputPrice: (tokenPrices.input_price / NANO_AIU_DIVISOR) * scale,
 			outputPrice: (tokenPrices.output_price / NANO_AIU_DIVISOR) * scale,
 			cachePrice: tokenPrices.cache_price !== undefined ? (tokenPrices.cache_price / NANO_AIU_DIVISOR) * scale : undefined,
+			cacheWritePrice: undefined,
 		},
 	};
 }

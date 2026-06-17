@@ -1043,9 +1043,11 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 							inputCost: pricing?.default.inputPrice,
 							outputCost: pricing?.default.outputPrice,
 							cacheCost: pricing?.default.cachePrice,
+							cacheWriteCost: pricing?.default.cacheWritePrice ?? 0,
 							longContextInputCost: pricing?.longContext?.inputPrice,
 							longContextOutputCost: pricing?.longContext?.outputPrice,
 							longContextCacheCost: pricing?.longContext?.cachePrice,
+							longContextCacheWriteCost: pricing?.longContext?.cacheWritePrice,
 							priceCategory: model.model_picker_price_category,
 							capabilities: {
 								vision: model.capabilities?.supports?.vision ?? false,

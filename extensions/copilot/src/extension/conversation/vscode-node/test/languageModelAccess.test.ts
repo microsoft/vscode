@@ -469,6 +469,39 @@ suite('normalizeTokenPrices', () => {
 		assert.strictEqual(result.default.inputPrice, 3);
 		assert.strictEqual(result.default.outputPrice, 15);
 	});
+
+	test('maps and scales cache_write_price on the default tier', () => {
+		const result = normalizeTokenPrices({
+			batch_size: 500_000,
+			default: { input_price: 3, output_price: 15, cache_price: 0.375, cache_write_price: 5 },
+		});
+		assert.deepStrictEqual(result?.default, {
+			inputPrice: 6,
+			outputPrice: 30,
+			cachePrice: 0.75,
+			cacheWritePrice: 10,
+			contextMax: undefined,
+		});
+	});
+
+	test('includes long-context tier when only cache_write_price differs', () => {
+		const result = normalizeTokenPrices({
+			batch_size: 1_000_000,
+			default: { input_price: 3, output_price: 15, cache_price: 1, cache_write_price: 5 },
+			long_context: { input_price: 3, output_price: 15, cache_price: 1, cache_write_price: 10, context_max: 1_000_000 },
+		});
+		assert.strictEqual(result?.longContext?.cacheWritePrice, 10);
+	});
+
+	test('legacy flat format leaves cacheWritePrice undefined', () => {
+		const result = normalizeTokenPrices({
+			batch_size: 1_000_000,
+			input_price: 3_000_000_000,
+			output_price: 15_000_000_000,
+			cache_price: 375_000_000,
+		});
+		assert.strictEqual(result?.default.cacheWritePrice, undefined);
+	});
 });
 
 suite('formatPricingLabel', () => {
