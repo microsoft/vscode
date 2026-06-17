@@ -412,6 +412,28 @@ suite('codexMapAppServerEvents', () => {
 		});
 	});
 
+	test('dynamicToolCall item omits the Client contributor for a server tool', () => {
+		// A server tool is registered under its bare name and executes
+		// in-process, so it must not carry a Client contributor even when a
+		// workbench client owns the (other) client tools.
+		const state = createCodexSessionMapState(new Set(['addComment']));
+		state.toolsClientId = 'win-7';
+		const startActions = mapItemStarted(state, {
+			item: { type: 'dynamicToolCall', id: 'dyn_3', namespace: null, tool: 'addComment', arguments: {}, status: 'inProgress', contentItems: null, success: null, durationMs: null } as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const start = startActions[0] as { type: ActionType; toolName: string; contributor?: { kind: ToolCallContributorKind; clientId: string } };
+		assert.deepStrictEqual({
+			type: start.type,
+			toolName: start.toolName,
+			contributor: start.contributor,
+		}, {
+			type: ActionType.ChatToolCallStart,
+			toolName: 'addComment',
+			contributor: undefined,
+		});
+	});
+
 	test('dynamicToolCall item maps to tool call lifecycle', () => {
 		const state = createCodexSessionMapState();
 		const startActions = mapItemStarted(state, {

@@ -286,6 +286,50 @@ defineSharedRealSdkTests(CODEX_CONFIG);
 		assert.ok(completed, 'a tool registered after prewarm should still reach the client via a thread restart');
 	});
 
+	test('server tool (listComments) is registered and executed in-process', async function () {
+		this.timeout(180_000);
+		const workingDirectory = mkdtempSync(join(tmpdir(), 'codex-servertool-'));
+		tempDirs.push(workingDirectory);
+		const session = await createRealSession(client, CODEX_CONFIG, 'servertool-client', createdSessions, workingDirectory);
+
+		// No client tools are registered. The agent host's server tools
+		// (feedback "comments") are wired automatically by the server and must
+		// be registered with codex at `thread/start` without any client.
+		const turnId = generateUuid();
+		dispatchTurn(client, session, turnId, 'Call your listComments tool to list existing comments, then tell me exactly how many comments there are.', 1);
+
+		// Drive the turn to completion WITHOUT ever dispatching a
+		// `chat/toolCallComplete`: a server tool executes in-process, so the
+		// agent host answers codex's `item/tool/call` itself. If the harness had
+		// to round-trip to a client, the turn would hang and time out.
+		const seen = new Set<object>();
+		let sawServerToolCall = false;
+		let serverToolHadClientContributor = false;
+		while (true) {
+			const n = await client.waitForNotification(x => !seen.has(x as object) && (
+				isActionNotification(x, 'chat/toolCallStart')
+				|| isActionNotification(x, 'chat/turnComplete')
+				|| isActionNotification(x, 'chat/error')), 120_000);
+			seen.add(n as object);
+			if (isActionNotification(n, 'chat/toolCallStart')) {
+				const a = getActionEnvelope(n).action as { toolName?: string; contributor?: { kind: string } };
+				if (a.toolName === 'listComments') {
+					sawServerToolCall = true;
+					// A server tool executes in-process, so it must NOT advertise
+					// a client contributor (which would route execution away).
+					serverToolHadClientContributor = a.contributor?.kind === 'client';
+				}
+				continue;
+			}
+			if (isActionNotification(n, 'chat/error')) {
+				throw new Error('codex reported a turn error during server-tool test');
+			}
+			break;
+		}
+		assert.ok(sawServerToolCall, 'codex should have invoked the in-process listComments server tool');
+		assert.strictEqual(serverToolHadClientContributor, false, 'a server tool must not carry a Client contributor');
+	});
+
 	test('file-change approval is surfaced and can be approved', async function () {
 		this.timeout(180_000);
 		const workingDirectory = mkdtempSync(join(tmpdir(), 'codex-fileapprove-'));

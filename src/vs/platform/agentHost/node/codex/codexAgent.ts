@@ -26,6 +26,7 @@ import type { ConfigSchema, ModelSelection, ProtectedResourceMetadata, ToolDefin
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { type ClientPluginCustomization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, ChatInputResponseKind, type ToolCallResult, ToolResultContentType, type Turn } from '../../common/state/sessionState.js';
 import type { ISyncedCustomization } from '../../common/agentPluginManager.js';
+import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { extractForwardedErrorInfo } from '../shared/forwardedChatError.js';
@@ -356,6 +357,8 @@ interface ICodexSession {
 	prewarmTimer: ReturnType<typeof setTimeout> | undefined;
 	/** True once the prewarmed session has been claimed by a user turn. */
 	prewarmClaimed: boolean;
+	/** True once the agent host's server tools have been advertised on this session. */
+	serverToolsAdvertised: boolean;
 }
 
 /**
@@ -466,6 +469,15 @@ export class CodexAgent extends Disposable implements IAgent {
 	private _connection: ConnectionState = { kind: 'idle' };
 	private _modelsRefreshPromise: Promise<void> | undefined;
 	private readonly _metadataStore: CodexSessionMetadataStore;
+
+	/**
+	 * The agent host's server-tool host (feedback "comments" today, more in the
+	 * future). Server tools execute in-process against the session's own state
+	 * — unlike client tools, which round-trip to the workbench. `undefined`
+	 * until {@link setServerToolHost} is called during registration; remains
+	 * `undefined` in test / standalone construction.
+	 */
+	private _serverToolHost: IAgentServerToolHost | undefined;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -907,13 +919,31 @@ export class CodexAgent extends Disposable implements IAgent {
 		return { client, proxyHandle, child };
 	}
 
-	/** Map the session's client tools into codex `dynamicTools` specs. */
+	/**
+	 * Map the session's tools into codex `dynamicTools` specs: the agent host's
+	 * server tools (executed in-process) plus the workbench client's tools
+	 * (round-tripped to the client). Both are registered with codex the same
+	 * way — at `thread/start` — and dispatched apart in
+	 * {@link _handleDynamicToolCallRpc} by name.
+	 */
 	private _buildDynamicTools(session: ICodexSession): DynamicToolSpec[] | undefined {
-		const tools = session.clientTools;
-		if (!tools || tools.length === 0) {
+		const serverTools = this._serverToolHost?.definitions ?? [];
+		const clientTools = session.clientTools ?? [];
+		// Server tools first; a server tool name shadows a colliding client tool
+		// (the agent host owns those names) and matches the routing order below.
+		const seen = new Set<string>();
+		const all: ToolDefinition[] = [];
+		for (const t of [...serverTools, ...clientTools]) {
+			if (seen.has(t.name)) {
+				continue;
+			}
+			seen.add(t.name);
+			all.push(t);
+		}
+		if (all.length === 0) {
 			return undefined;
 		}
-		return tools.map(t => ({
+		return all.map(t => ({
 			name: t.name,
 			description: t.description ?? '',
 			inputSchema: (t.inputSchema ?? { type: 'object' }) as JsonValue,
@@ -925,6 +955,19 @@ export class CodexAgent extends Disposable implements IAgent {
 		const session = sessionId ? this._sessions.get(sessionId) : undefined;
 		if (!session) {
 			return { result: this._toolFailure(`Codex tool call for unknown thread ${params.threadId}`) };
+		}
+		// Server tools are executed in-process against the session's own state
+		// (no workbench round-trip). We register them under their bare name, so
+		// codex calls back with `namespace === null`. Dispatch them here before
+		// the client-tool path below.
+		const host = this._serverToolHost;
+		if (host && params.namespace === null && host.toolNames.includes(params.tool)) {
+			try {
+				const text = host.executeTool(session.sessionUri.toString(), params.tool, params.arguments);
+				return { result: { contentItems: [{ type: 'inputText', text }], success: true } };
+			} catch (err) {
+				return { result: this._toolFailure(`Server tool ${params.tool} failed: ${err instanceof Error ? err.message : String(err)}`) };
+			}
 		}
 		// `item/started` for the `dynamicToolCall` (id === callId) is delivered
 		// before this request and seeds the host toolCallId + ChatToolCallReady
@@ -1372,7 +1415,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			threadId: undefined,
 			sessionUri,
 			workingDirectory: config.workingDirectory,
-			mapState: createCodexSessionMapState(),
+			mapState: createCodexSessionMapState(new Set(this._serverToolHost?.toolNames ?? [])),
 			pendingCommandApprovals: new PendingRequestRegistry<CommandExecutionApprovalDecision>(),
 			acceptedForSession: new Set<string>(),
 			pendingSteeringFlips: new Map<string, PendingMessage>(),
@@ -1394,6 +1437,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			materializedEventFired: false,
 			prewarmTimer: undefined,
 			prewarmClaimed: false,
+			serverToolsAdvertised: false,
 		};
 		this._sessions.set(sessionId, session);
 		this._schedulePrewarm(session);
@@ -1468,6 +1512,14 @@ export class CodexAgent extends Disposable implements IAgent {
 		session.materializedToolsSig = toolsSignature(session.clientTools);
 		this._logService.info(`[Codex DEBUG] materialized session=${session.sessionUri.toString()} threadId=${session.threadId}`);
 		this._sessionIdByThreadId.set(session.threadId, session.sessionId);
+		// Advertise the agent host's server tools on this session so clients see
+		// them as server-provided. Execution happens in-process via
+		// `_handleDynamicToolCallRpc`; the tools were registered with codex in
+		// the `dynamicTools` of the `thread/start` above.
+		if (!session.serverToolsAdvertised && this._serverToolHost) {
+			session.serverToolsAdvertised = true;
+			this._serverToolHost.advertise(session.sessionUri.toString());
+		}
 	}
 
 	/**
@@ -1913,7 +1965,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				threadId,
 				sessionUri: session,
 				workingDirectory,
-				mapState: createCodexSessionMapState(),
+				mapState: createCodexSessionMapState(new Set(this._serverToolHost?.toolNames ?? [])),
 				pendingCommandApprovals: new PendingRequestRegistry<CommandExecutionApprovalDecision>(),
 				acceptedForSession: new Set<string>(),
 				pendingSteeringFlips: new Map<string, PendingMessage>(),
@@ -1935,8 +1987,16 @@ export class CodexAgent extends Disposable implements IAgent {
 				materializedEventFired: true,
 				prewarmTimer: undefined,
 				prewarmClaimed: true,
+				serverToolsAdvertised: false,
 			});
 			this._sessionIdByThreadId.set(threadId, sessionId);
+			// Restored threads skip materialization (the thread already exists),
+			// so advertise the server tools here for client-side parity.
+			const restored = this._sessions.get(sessionId);
+			if (restored && !restored.serverToolsAdvertised && this._serverToolHost) {
+				restored.serverToolsAdvertised = true;
+				this._serverToolHost.advertise(restored.sessionUri.toString());
+			}
 		}
 		return this._threadToMetadata(read.thread, session);
 	}
@@ -2016,6 +2076,10 @@ export class CodexAgent extends Disposable implements IAgent {
 			summary: thread.name ?? thread.preview ?? undefined,
 			workingDirectory: thread.cwd ? URI.file(thread.cwd) : undefined,
 		};
+	}
+
+	setServerToolHost(host: IAgentServerToolHost): void {
+		this._serverToolHost = host;
 	}
 
 	setClientTools(session: URI, clientId: string | undefined, tools: ToolDefinition[]): void {

@@ -55,6 +55,13 @@ export interface ICodexSessionMapState {
 	 * to that client. `undefined` when no client tools are registered.
 	 */
 	toolsClientId: string | undefined;
+	/**
+	 * Names of the agent host's server tools (executed in-process). A
+	 * `dynamicToolCall` for one of these omits the `Client` contributor so the
+	 * workbench does not try to route execution to a client — the agent host
+	 * answers the `item/tool/call` directly.
+	 */
+	serverToolNames: ReadonlySet<string>;
 }
 
 export interface ICodexToolCallEntry {
@@ -64,13 +71,14 @@ export interface ICodexToolCallEntry {
 	output: string;
 }
 
-export function createCodexSessionMapState(): ICodexSessionMapState {
+export function createCodexSessionMapState(serverToolNames: ReadonlySet<string> = new Set()): ICodexSessionMapState {
 	return {
 		itemToPartId: new Map(),
 		itemToToolCall: new Map(),
 		itemToReasoningPartId: new Map(),
 		currentTurnId: undefined,
 		toolsClientId: undefined,
+		serverToolNames,
 	};
 }
 
@@ -441,6 +449,10 @@ export function mapItemStarted(
 		const toolName = params.item.namespace ? `${params.item.namespace}.${params.item.tool}` : params.item.tool;
 		const toolInput = toolInputText(params.item.arguments);
 		const output = dynamicToolOutput(params.item.contentItems);
+		// Server tools (registered under their bare name) execute in-process, so
+		// they carry no `Client` contributor; only client-provided tools route
+		// execution back to the owning workbench client.
+		const isServerTool = params.item.namespace === null && state.serverToolNames.has(params.item.tool);
 		state.itemToToolCall.set(params.item.id, {
 			toolCallId,
 			turnId: params.turnId,
@@ -454,7 +466,7 @@ export function mapItemStarted(
 				toolCallId,
 				toolName,
 				displayName: params.item.tool,
-				...(state.toolsClientId ? { contributor: { kind: ToolCallContributorKind.Client, clientId: state.toolsClientId } } : {}),
+				...(state.toolsClientId && !isServerTool ? { contributor: { kind: ToolCallContributorKind.Client, clientId: state.toolsClientId } } : {}),
 			},
 			{
 				type: ActionType.ChatToolCallDelta,
