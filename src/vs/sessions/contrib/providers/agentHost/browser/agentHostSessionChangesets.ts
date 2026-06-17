@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { arrayEqualsC, structuralEquals } from '../../../../../base/common/equals.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
@@ -11,10 +12,10 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { ChangesetOperationTargetKind } from '../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
-import { ChangesetOperation, ChangesetOperationScope } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ChangesetOperation, ChangesetOperationScope, ChangesetOperationStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { buildDefaultChatUri, ChangesetStatus, Changeset, StateComponents, type ChangesetState, type ChatState, type ChatSummary, type SessionState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { ISessionChangeset, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, SessionChangesetOperationScope, sessionFileChangesEqual } from '../../../../services/sessions/common/session.js';
+import { ISessionChangeset, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, sessionFileChangesEqual } from '../../../../services/sessions/common/session.js';
 import { changesetFilesToChanges } from './agentHostDiffs.js';
 import { IAgentHostAdapterOptions } from './baseAgentHostSessionsProvider.js';
 
@@ -103,6 +104,16 @@ function toSessionChangesetOperationScope(scope: ChangesetOperationScope): Sessi
 	}
 }
 
+function toSessionChangesetOperationStatus(status: ChangesetOperationStatus): SessionChangesetOperationStatus {
+	switch (status) {
+		case ChangesetOperationStatus.Idle: return SessionChangesetOperationStatus.Idle;
+		case ChangesetOperationStatus.Running: return SessionChangesetOperationStatus.Running;
+		case ChangesetOperationStatus.Error: return SessionChangesetOperationStatus.Error;
+		case ChangesetOperationStatus.Disabled: return SessionChangesetOperationStatus.Disabled;
+		default: throw new Error(`Unknown ChangesetOperationStatus: ${status}`);
+	}
+}
+
 function toSessionChangesetOperation(operation: ChangesetOperation): ISessionChangesetOperation {
 	return {
 		id: operation.id,
@@ -112,6 +123,7 @@ function toSessionChangesetOperation(operation: ChangesetOperation): ISessionCha
 			? ThemeIcon.fromId(operation.icon)
 			: undefined,
 		scopes: operation.scopes.map(toSessionChangesetOperationScope),
+		status: toSessionChangesetOperationStatus(operation.status),
 		confirmation: operation.confirmation
 			? typeof operation.confirmation === 'string'
 				? operation.confirmation
@@ -197,7 +209,7 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 			return changesObs.read(reader) ?? [];
 		});
 
-		this.operations = derivedObservableWithCache<readonly ISessionChangesetOperation[]>(this, (reader, lastValue) => {
+		const operationsObs = derivedObservableWithCache<readonly ISessionChangesetOperation[]>(this, (reader, lastValue) => {
 			const changesetState = this.changesetStateObs.read(reader).read(reader);
 			if (changesetState === null || changesetState instanceof Error) {
 				return [];
@@ -208,6 +220,10 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 			}
 
 			return changesetState.operations?.map(toSessionChangesetOperation) ?? [];
+		});
+
+		this.operations = derivedOpts({ equalsFn: arrayEqualsC(structuralEquals) }, reader => {
+			return operationsObs.read(reader) ?? [];
 		});
 	}
 

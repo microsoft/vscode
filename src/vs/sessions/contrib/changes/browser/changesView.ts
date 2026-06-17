@@ -59,7 +59,7 @@ import { getChangesEditorLabels } from './changesEditorLabels.js';
 import { ChangesMultiDiffSourceResolver, getChangesMultiDiffSourceUri } from './changesMultiDiffSourceResolver.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { CIStatusWidget } from './checksWidget.js';
-import { GITHUB_REMOTE_FILE_SCHEME, SessionChangesetOperationScope, SessionStatus } from '../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus } from '../../../services/sessions/common/session.js';
 import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
 import { IView, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
@@ -262,10 +262,14 @@ class ChangesWorkbenchButtonBarWidget extends Disposable {
 				.map(op => toAction({
 					id: op.id,
 					label: op.icon
-						? `$(${op.icon.id}) ${op.label}`
-						: op.label,
+						? op.status === SessionChangesetOperationStatus.Running
+							? `$(loading) ${op.label}`
+							: `$(${op.icon.id}) ${op.label}`
+						: op.status === SessionChangesetOperationStatus.Running
+							? `$(loading) ${op.label}`
+							: op.label,
 					tooltip: op.description,
-					enabled: true,
+					enabled: op.status !== SessionChangesetOperationStatus.Disabled && op.status !== SessionChangesetOperationStatus.Running,
 					run: () => changeset.invokeOperation(op.id),
 				}));
 		});
@@ -277,10 +281,13 @@ class ChangesWorkbenchButtonBarWidget extends Disposable {
 			const primaryActions: IAction[] = [];
 
 			if (operationActions.length > 1) {
-				// Create a dropdown
-				const primaryAction = operationActions[0];
-				const secondaryActions = operationActions.slice(1);
-				primaryActions.push(new SubmenuAction('changesView.operations.primary.dropdown', primaryAction.label, [primaryAction, ...secondaryActions]));
+				// Dropdown action
+				const runningActionIndex = operationActions
+					.findIndex(action => action.label.startsWith('$(loading)') && !action.enabled);
+				const primaryActionIndex = runningActionIndex !== -1 ? runningActionIndex : 0;
+				const primaryAction = operationActions.splice(primaryActionIndex, 1)[0];
+
+				primaryActions.push(new SubmenuAction('changesView.operations.primary.dropdown', primaryAction.label, [primaryAction, ...operationActions]));
 			} else {
 				primaryActions.push(...operationActions);
 			}
