@@ -47,7 +47,11 @@ class MockCopilotSession {
 	readonly sendRequests: unknown[] = [];
 	readonly modeSetCalls: Array<{ mode: 'interactive' | 'plan' | 'autopilot' }> = [];
 	readonly compactCalls: unknown[] = [];
+	readonly commandListCalls: unknown[] = [];
+	readonly commandInvokeCalls: Array<{ name: string; input?: string }> = [];
 	compactResult: { success: boolean; tokensRemoved: number; messagesRemoved: number } = { success: true, tokensRemoved: 0, messagesRemoved: 0 };
+	commandListResult: { commands: Array<{ name: string; kind: 'builtin' | 'skill' | 'client'; description: string; allowDuringAgentExecution: boolean }> } = { commands: [] };
+	commandInvokeResult: { kind: 'text'; text: string; markdown?: boolean } | { kind: 'completed'; message?: string } | { kind: 'agent-prompt'; prompt: string; displayPrompt: string; mode?: 'interactive' | 'plan' | 'autopilot' } = { kind: 'text', text: '' };
 	messages: SessionEvent[] = [];
 
 	private readonly _handlers = new Map<string, Set<(event: SessionEvent) => void>>();
@@ -100,6 +104,16 @@ class MockCopilotSession {
 			compact: async (params?: unknown) => {
 				this.compactCalls.push(params ?? null);
 				return this.compactResult;
+			},
+		},
+		commands: {
+			list: async (params?: unknown) => {
+				this.commandListCalls.push(params ?? null);
+				return this.commandListResult;
+			},
+			invoke: async (params: { name: string; input?: string }) => {
+				this.commandInvokeCalls.push(params);
+				return this.commandInvokeResult;
 			},
 		},
 		mcp: {
@@ -181,7 +195,7 @@ type ISessionInternalsForTest = {
 	_editTracker: {
 		trackEditStart(path: string): Promise<void>;
 		completeEdit(path: string): Promise<void>;
-		takeCompletedEdit(turnId: string, toolCallId: string, path: string): Promise<ToolResultFileEditContent | undefined>;
+		takeCompletedEdit(turnId: string, toolCallId: string, path: string, toolName: string, toolInput: unknown, modelId: string | undefined): Promise<ToolResultFileEditContent | undefined>;
 	};
 	_pendingClientToolCalls: {
 		register(toolCallId: string): Promise<ToolResultObject>;
@@ -529,6 +543,50 @@ suite('CopilotAgentSession', () => {
 		}]);
 	});
 
+	test('sends paste simple attachments as text blobs', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+
+		await session.send('continue', [{
+			type: MessageAttachmentKind.Simple,
+			label: 'Previous conversation',
+			displayKind: 'paste',
+			modelRepresentation: 'Transcript text',
+		}]);
+
+		assert.deepStrictEqual(mockSession.sendRequests, [{
+			prompt: 'continue',
+			attachments: [{
+				type: 'blob',
+				data: encodeBase64(VSBuffer.fromString('Transcript text')),
+				mimeType: 'text/plain',
+				displayName: 'Previous conversation',
+			}],
+		}]);
+
+		mockSession.messages = [{
+			type: 'user.message',
+			id: 'event-1',
+			parentId: null,
+			timestamp: new Date().toISOString(),
+			data: {
+				interactionId: 'message-1',
+				content: 'continue',
+				attachments: [{
+					type: 'blob',
+					data: encodeBase64(VSBuffer.fromString('Transcript text')),
+					mimeType: 'text/plain',
+					displayName: 'Previous conversation',
+				}],
+			},
+		}];
+
+		assert.deepStrictEqual((await session.getMessages())[0].message.attachments, [{
+			type: MessageAttachmentKind.Simple,
+			label: 'Previous conversation',
+			modelRepresentation: 'Transcript text',
+		}]);
+	});
+
 	test('`/compact` runs the history compact RPC and completes the turn with output', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 
@@ -573,6 +631,163 @@ suite('CopilotAgentSession', () => {
 		assert.deepStrictEqual(mockSession.sendRequests, []);
 		const turnComplete = getActions(signals).find(a => a.type === ActionType.ChatTurnComplete);
 		assert.ok(turnComplete, 'expected the turn to complete on a failed compaction');
+	});
+
+	test('`/env` runs the runtime command when listed and emits markdown output', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [{
+				name: 'env',
+				kind: 'builtin',
+				description: 'Show loaded environment details',
+				allowDuringAgentExecution: true,
+			}],
+		};
+		mockSession.commandInvokeResult = { kind: 'text', text: '## Environment\n\nLoaded.', markdown: true };
+
+		await session.send('/env', undefined, 'turn-env');
+
+		const actions = getActions(signals);
+		assert.deepStrictEqual({
+			commandListCalls: mockSession.commandListCalls,
+			commandInvokeCalls: mockSession.commandInvokeCalls,
+			sendRequests: mockSession.sendRequests,
+			responseParts: actions
+				.filter(a => a.type === ActionType.ChatResponsePart)
+				.map(a => {
+					const part = (a as ChatResponsePartAction).part;
+					return part.kind === ResponsePartKind.Markdown ? { kind: part.kind, content: part.content } : { kind: part.kind };
+				}),
+			turnComplete: actions
+				.filter(a => a.type === ActionType.ChatTurnComplete)
+				.map(a => (a as ChatTurnCompleteAction).turnId),
+		}, {
+			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: false }],
+			commandInvokeCalls: [{ name: 'env' }],
+			sendRequests: [],
+			responseParts: [{ kind: ResponsePartKind.Markdown, content: '## Environment\n\nLoaded.' }],
+			turnComplete: ['turn-env'],
+		});
+	});
+
+	test('`/env` escapes plain text runtime command output before emitting markdown', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [{
+				name: 'env',
+				kind: 'builtin',
+				description: 'Show loaded environment details',
+				allowDuringAgentExecution: true,
+			}],
+		};
+		mockSession.commandInvokeResult = { kind: 'text', text: '*plain*\n- item', markdown: false };
+
+		await session.send('/env', undefined, 'turn-env');
+
+		const responsePart = getActions(signals).find(a => a.type === ActionType.ChatResponsePart) as ChatResponsePartAction | undefined;
+		assert.strictEqual(responsePart?.part.kind, ResponsePartKind.Markdown);
+		if (responsePart?.part.kind === ResponsePartKind.Markdown) {
+			assert.strictEqual(responsePart.part.content, '\\*plain\\*\n\\- item');
+		}
+	});
+
+	test('`/env` falls through to a normal SDK send when not listed', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.commandListResult = { commands: [] };
+
+		await session.send('/env', undefined, 'turn-env');
+
+		assert.deepStrictEqual({
+			commandListCalls: mockSession.commandListCalls,
+			commandInvokeCalls: mockSession.commandInvokeCalls,
+			sendRequests: mockSession.sendRequests,
+			responseParts: getActions(signals).filter(a => a.type === ActionType.ChatResponsePart),
+			turnComplete: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete),
+		}, {
+			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: false }],
+			commandInvokeCalls: [],
+			sendRequests: [{ prompt: '/env', attachments: undefined }],
+			responseParts: [],
+			turnComplete: [],
+		});
+	});
+
+	test('caches runtime slash command availability across checks', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [
+				{
+					name: 'env',
+					kind: 'builtin',
+					description: 'Show loaded environment details',
+					allowDuringAgentExecution: true,
+				},
+				{
+					name: 'review',
+					kind: 'builtin',
+					description: 'Run code review agent to analyze changes',
+					allowDuringAgentExecution: false,
+				},
+				{
+					name: 'not-a-builtin',
+					kind: 'skill',
+					description: 'Skill command',
+					allowDuringAgentExecution: false,
+				},
+			],
+		};
+
+		assert.deepStrictEqual({
+			env: await session.hasRuntimeSlashCommand('env'),
+			review: await session.hasRuntimeSlashCommand('review'),
+			skill: await session.hasRuntimeSlashCommand('not-a-builtin'),
+			commandListCalls: mockSession.commandListCalls,
+		}, {
+			env: true,
+			review: true,
+			skill: false,
+			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: false }],
+		});
+	});
+
+	test('`/review` forwards as a prompt-invoked command', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		await session.send('/review focus on tests', undefined, 'turn-review');
+
+		assert.deepStrictEqual({
+			commandListCalls: mockSession.commandListCalls,
+			commandInvokeCalls: mockSession.commandInvokeCalls,
+			sendRequests: mockSession.sendRequests,
+			responseParts: getActions(signals).filter(a => a.type === ActionType.ChatResponsePart),
+			turnComplete: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete),
+		}, {
+			commandListCalls: [],
+			commandInvokeCalls: [],
+			sendRequests: [{ prompt: '/review focus on tests', attachments: undefined }],
+			responseParts: [],
+			turnComplete: [],
+		});
+	});
+
+	test('`/security-review` forwards as a prompt-invoked command', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		await session.send('/security-review', undefined, 'turn-security-review');
+
+		assert.deepStrictEqual({
+			commandListCalls: mockSession.commandListCalls,
+			commandInvokeCalls: mockSession.commandInvokeCalls,
+			sendRequests: mockSession.sendRequests,
+			responseParts: getActions(signals).filter(a => a.type === ActionType.ChatResponsePart),
+			turnComplete: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete),
+		}, {
+			commandListCalls: [],
+			commandInvokeCalls: [],
+			sendRequests: [{ prompt: '/security-review', attachments: undefined }],
+			responseParts: [],
+			turnComplete: [],
+		});
 	});
 
 	test('emits accumulated Copilot usage metadata', async () => {
@@ -1635,7 +1850,7 @@ suite('CopilotAgentSession', () => {
 			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, { workingDirectory });
 			const sessionInternals = session as unknown as ISessionInternalsForTest;
 			const taken: string[] = [];
-			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, _toolCallId, path) => {
+			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, _toolCallId, path, _toolName, _toolInput, _modelId) => {
 				taken.push(path);
 				return undefined;
 			};

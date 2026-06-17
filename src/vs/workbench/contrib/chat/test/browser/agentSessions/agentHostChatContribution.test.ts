@@ -70,7 +70,8 @@ import { ChatQuestionCarouselData } from '../../../common/model/chatProgressType
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import type { IChatModel, IChatPendingRequest, IChatRequestModel } from '../../../common/model/chatModel.js';
 import { convertBufferToScreenshotVariable } from '../../../browser/attachments/chatScreenshotContext.js';
-import { AgentHostCompletionReferenceKind, toAgentHostCompletionVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { AgentHostCompletionReferenceKind, ChatPasteAttachmentMetadata, toAgentHostCompletionVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { messageAttachmentsToVariableData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
 // ---- Mock agent host service ------------------------------------------------
 
@@ -877,6 +878,95 @@ suite('AgentHostChatContribution', () => {
 
 			fire({ type: 'chat/turnComplete', session: session!, turnId: turnId! } as ChatAction);
 			await turnPromise;
+		});
+
+		test('sends paste variables as paste simple attachments', async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'continue',
+				variables: {
+					variables: [{
+						kind: 'paste',
+						id: 'transcript',
+						name: 'Previous conversation',
+						value: 'Transcript text',
+						code: 'Transcript text',
+						language: 'markdown',
+						pastedLines: 'Previous conversation',
+						fileName: 'Previous conversation',
+						copiedFrom: undefined,
+					}],
+				},
+			});
+
+			const turnStarted = agentHostService.turnActions[0].action as ITurnStartedAction;
+			assert.deepStrictEqual(turnStarted.message.attachments, [{
+				type: MessageAttachmentKind.Simple,
+				label: 'Previous conversation',
+				modelRepresentation: 'Transcript text',
+			}]);
+
+			fire({ type: 'chat/turnComplete', session: session!, turnId: turnId! } as ChatAction);
+			await turnPromise;
+		});
+
+		test('restores tagged simple paste attachments as paste variable entries', () => {
+			const variableData = messageAttachmentsToVariableData([{
+				type: MessageAttachmentKind.Simple,
+				label: 'Previous conversation',
+				modelRepresentation: 'conversation transcript',
+				_meta: {
+					[ChatPasteAttachmentMetadata.Kind]: 'paste',
+					[ChatPasteAttachmentMetadata.Language]: 'markdown',
+					[ChatPasteAttachmentMetadata.FileName]: 'Previous conversation',
+					[ChatPasteAttachmentMetadata.PastedLines]: 'Previous conversation',
+				},
+			}], 'test');
+
+			assert.deepStrictEqual(variableData?.variables.map(variable => ({
+				kind: variable.kind,
+				name: variable.name,
+				value: variable.value,
+				code: variable.kind === 'paste' ? variable.code : undefined,
+				language: variable.kind === 'paste' ? variable.language : undefined,
+				pastedLines: variable.kind === 'paste' ? variable.pastedLines : undefined,
+				fileName: variable.kind === 'paste' ? variable.fileName : undefined,
+			})), [{
+				kind: 'paste',
+				name: 'Previous conversation',
+				value: 'conversation transcript',
+				code: 'conversation transcript',
+				language: 'markdown',
+				pastedLines: 'Previous conversation',
+				fileName: 'Previous conversation',
+			}]);
+		});
+
+		test('restores paste displayKind simple attachments as generic variable entries', () => {
+			const variableData = messageAttachmentsToVariableData([{
+				type: MessageAttachmentKind.Simple,
+				label: 'Previous conversation',
+				displayKind: 'paste',
+				modelRepresentation: 'conversation transcript',
+			}], 'test');
+
+			assert.deepStrictEqual(variableData?.variables.map(variable => ({
+				kind: variable.kind,
+				name: variable.name,
+				value: variable.value,
+				code: variable.kind === 'paste' ? variable.code : undefined,
+				language: variable.kind === 'paste' ? variable.language : undefined,
+				pastedLines: variable.kind === 'paste' ? variable.pastedLines : undefined,
+				fileName: variable.kind === 'paste' ? variable.fileName : undefined,
+			})), [{
+				kind: 'generic',
+				name: 'Previous conversation',
+				value: 'conversation transcript',
+				code: undefined,
+				language: undefined,
+				pastedLines: undefined,
+				fileName: undefined,
+			}]);
 		});
 	});
 
@@ -3118,6 +3208,45 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(models[0].metadata.pricing, '1.5x');
 			assert.strictEqual(models[0].metadata.multiplierNumeric, 1.5);
 			assert.strictEqual(models[0].metadata.targetChatSessionType, 'agent-host-copilot');
+		});
+
+		test('maps cost metadata from _meta onto model metadata', async () => {
+			const provider = disposables.add(new AgentHostLanguageModelProvider('agent-host-copilot', 'agent-host-copilot'));
+			provider.updateModels([
+				{
+					provider: 'copilot', id: 'claude-sonnet', name: 'Claude Sonnet', maxContextWindow: 200000, supportsVision: false,
+					_meta: {
+						multiplierNumeric: 1,
+						inputCost: 3,
+						cacheCost: 1,
+						outputCost: 15,
+						longContextInputCost: 6,
+						longContextOutputCost: 22.5,
+						priceCategory: 'medium',
+					},
+				},
+			]);
+
+			const models = await provider.provideLanguageModelChatInfo({}, CancellationToken.None);
+
+			const metadata = models[0].metadata;
+			assert.deepStrictEqual({
+				inputCost: metadata.inputCost,
+				cacheCost: metadata.cacheCost,
+				outputCost: metadata.outputCost,
+				longContextInputCost: metadata.longContextInputCost,
+				longContextCacheCost: metadata.longContextCacheCost,
+				longContextOutputCost: metadata.longContextOutputCost,
+				priceCategory: metadata.priceCategory,
+			}, {
+				inputCost: 3,
+				cacheCost: 1,
+				outputCost: 15,
+				longContextInputCost: 6,
+				longContextCacheCost: undefined,
+				longContextOutputCost: 22.5,
+				priceCategory: 'medium',
+			});
 		});
 
 		test('filters out disabled models', async () => {

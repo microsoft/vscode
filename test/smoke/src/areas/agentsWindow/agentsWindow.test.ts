@@ -185,11 +185,6 @@ export function setup(logger: Logger) {
 		});
 
 		it('Test Copilot CLI session (sandbox)', async function () {
-			// Sandbox-backed shell tool currently only runs cleanly on macOS
-			// in CI. On Linux the bubblewrap policy fails to start bash inside
-			// the sandbox; on Windows AppContainer cold-start usually exceeds
-			// the 120s budget. Re-enable here once both backends are fixed.
-			//
 			// To debug a CI run, download the per-platform logs artifact from
 			// the Azure DevOps build:
 			//
@@ -216,7 +211,7 @@ export function setup(logger: Logger) {
 			//   *-Test_Copilot_CLI_session*.png` — last-frame screenshot of
 			//   the Agents Window when a test fails; the JSON dump in the
 			//   chat usually surfaces the raw `tool_result` payload.
-			if (process.platform !== 'darwin') {
+			if (process.platform === 'win32') {
 				this.skip();
 			}
 
@@ -388,7 +383,7 @@ export function setup(logger: Logger) {
 			// The AgentHost-side sandbox log we assert on is
 			// `<logsPath>/agenthost.log` (the utility-process log), produced by
 			// CopilotAgentSession when it auto-approves a sandboxed shell call.
-			if (process.platform !== 'darwin') {
+			if (process.platform === 'win32') {
 				this.skip();
 			}
 
@@ -486,7 +481,7 @@ export function setup(logger: Logger) {
 			// The AgentHost-side sandbox log we assert on is
 			// `<logsPath>/agenthost.log` (the utility-process log), produced by
 			// CopilotAgentSession when it auto-approves a sandboxed shell call.
-			if (process.platform !== 'darwin') {
+			if (process.platform === 'win32') {
 				this.skip();
 			}
 

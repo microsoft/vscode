@@ -76,9 +76,11 @@ export interface IChatSessionProviderOptionModelMetadata {
 	readonly inputCost?: number;
 	readonly outputCost?: number;
 	readonly cacheCost?: number;
+	readonly cacheWriteCost?: number;
 	readonly longContextInputCost?: number;
 	readonly longContextOutputCost?: number;
 	readonly longContextCacheCost?: number;
+	readonly longContextCacheWriteCost?: number;
 	readonly priceCategory?: string;
 	readonly maxInputTokens?: number;
 	readonly maxOutputTokens?: number;
@@ -302,6 +304,8 @@ export namespace SessionType {
 	export const Codex = 'openai-codex';
 	export const Growth = 'copilot-growth';
 	export const AgentHostCopilot = 'agent-host-copilotcli';
+	export const AgentHostClaude = 'agent-host-claude';
+	export const AgentHostCodex = 'agent-host-codex';
 }
 
 /**

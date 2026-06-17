@@ -11,9 +11,10 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
-import { constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, ISettableObservable, observableFromEvent, observableFromPromise, observableValue, observableValueOpts, transaction } from '../../../../../base/common/observable.js';
+import { constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, ISettableObservable, mapObservableArrayCached, observableFromEvent, observableFromPromise, observableValue, observableValueOpts, throttledObservable, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
@@ -24,7 +25,7 @@ import { getEffectiveAgents } from '../../../../../platform/agentHost/common/cus
 import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentCustomization, AgentSelection, ChangesSummary, Customization, CustomizationType, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AgentCustomization, AgentSelection, ChangesSummary, type ChangesetFile, Customization, CustomizationType, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AgentInfo, readSessionGitState, ROOT_STATE_URI, SessionMeta, StateComponents, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -45,7 +46,8 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computePullRequestIcon } from '../../../github/common/types.js';
-import { changesetFilesToChanges, mapProtocolStatus } from './agentHostDiffs.js';
+import { CHANGESET_UPDATE_THROTTLE_MS } from './agentHostChangesetConstants.js';
+import { changesetFileToChange, mapProtocolStatus } from './agentHostDiffs.js';
 import { createChangesets } from './agentHostSessionChangesets.js';
 
 const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.sessionConfigPicker.selectedValues';
@@ -275,10 +277,15 @@ export class AgentHostSessionAdapter implements ISession {
 			const uri = URI.parse(`https://github.com/${coords.owner}/${coords.repo}/pull/${prNumber}`);
 			let icon: ThemeIcon | undefined;
 			if (gitHubService) {
-				const ref = reader.store.add(gitHubService.createPullRequestModelReference(coords.owner, coords.repo, prNumber));
-				const livePR = ref.object.pullRequest.read(reader);
-				if (livePR) {
-					icon = computePullRequestIcon(livePR.isDraft ? 'draft' : livePR.state);
+				// Read the last-seen PR state from the shared cache rather than
+				// holding a live model reference here. This keeps the icon
+				// rendering even when the session is inactive/invisible (the cache
+				// retains the last value and is seeded from storage on reload),
+				// while polling is driven centrally for only a limited set of
+				// sessions (see GitHubPullRequestPollingContribution).
+				const cached = gitHubService.getCachedPullRequestState(coords.owner, coords.repo, prNumber).read(reader);
+				if (cached) {
+					icon = computePullRequestIcon(cached.iconState);
 				}
 			}
 			return {
@@ -368,28 +375,45 @@ export class AgentHostSessionAdapter implements ISession {
 			return observableFromEvent(subscriptionRef.object.onDidChange, () => subscriptionRef.object.value);
 		});
 
-		const changesetChangesObs = derivedObservableWithCache<readonly (IChatSessionFileChange | IChatSessionFileChange2)[] | undefined>(this, (reader, lastValue) => {
+		const mapDiffUri = this._options.mapDiffUri;
+
+		// Coalesce the per-envelope changeset stream. `sessionChangesetStateObs`
+		// is a nested observable (which-subscription → value); flatten it to the
+		// value stream, then throttle. Throttle (not debounce) so a continuous
+		// stream keeps updating ~10x/s instead of starving until edits stop; the
+		// trailing read always delivers the final state.
+		const throttledChangesetValueObs = throttledObservable(sessionChangesetStateObs.flatten(), CHANGESET_UPDATE_THROTTLE_MS);
+
+		// Hold the raw `ChangesetFile[]` (with last-value semantics) rather than
+		// the mapped changes. The changeset reducer preserves the reference of
+		// every file that didn't change, so keeping the raw list lets the
+		// per-file cache below skip rebuilding them.
+		const changesetFilesObs = derivedObservableWithCache<readonly ChangesetFile[] | undefined>(this, (reader, lastValue) => {
 			const isActiveSession = this.isActiveSessionObs.read(reader);
 			if (!isActiveSession) {
 				return lastValue;
 			}
 
-			const branchChangesState = sessionChangesetStateObs.read(reader)?.read(reader);
+			const branchChangesState = throttledChangesetValueObs.read(reader);
 			if (!branchChangesState || branchChangesState instanceof Error || branchChangesState.status !== 'ready') {
 				return lastValue;
 			}
 
-			const mapDiffUri = this._options.mapDiffUri;
-			const files = changesetFilesToChanges(branchChangesState.files);
+			return branchChangesState.files;
+		});
 
-			const mapped = mapDiffUri ? files.map(f => ({
-				...f,
-				uri: mapDiffUri(f.uri),
-				originalUri: f.originalUri ? mapDiffUri(f.originalUri) : undefined,
-				modifiedUri: f.modifiedUri ? mapDiffUri(f.modifiedUri) : undefined,
-			})) : files;
+		// Build one change per file, reusing the cached result for files whose
+		// `ChangesetFile` reference is unchanged. Only the file(s) that actually
+		// changed get re-parsed and re-mapped, turning the previous O(all files)
+		// URI work per update into O(changed files).
+		const mappedChangesObs = mapObservableArrayCached(this, changesetFilesObs.map(files => files ?? []), file => changesetFileToChange(file, mapDiffUri));
 
-			return mapped;
+		const changesetChangesObs = derived<readonly (IChatSessionFileChange | IChatSessionFileChange2)[] | undefined>(this, reader => {
+			const files = changesetFilesObs.read(reader);
+			if (files === undefined) {
+				return undefined;
+			}
+			return mappedChangesObs.read(reader).filter(isDefined);
 		});
 
 		const changesetSummaryObs = derivedOpts<ISessionChangesSummary | undefined>({ equalsFn: structuralEquals }, reader => {
@@ -1262,6 +1286,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	protected abstract _formatSessionTypeLabel(agentLabel: string): string;
 
 	/**
+	 * Whether `provider` should be advertised as a session type by this host.
+	 * Defaults to `true` (advertise everything the host reports). The local
+	 * provider overrides this to suppress the agent host's Claude when the
+	 * window prefers the extension-host Claude, mirroring the gate
+	 * {@link AgentHostContribution} applies to the chat session contribution so
+	 * the welcome picker doesn't list Claude twice.
+	 */
+	protected _shouldAdvertiseAgent(_provider: string): boolean {
+		return true;
+	}
+
+	/**
 	 * Reconcile {@link _sessionTypes} against the agents advertised by the
 	 * host's root state, firing {@link onDidChangeSessionTypes} only if the
 	 * id/label set actually changed.
@@ -1272,15 +1308,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._onDidChangeCustomAgents.fire();
 			this._onDidChangeCustomizations.fire();
 		}
-		const next = rootState.agents.map((agent): ISessionType => ({
-			id: agent.provider,
-			// The chat session contribution and language models for an agent-host
-			// agent are registered under its resource scheme (`agent-host-<provider>`),
-			// not the bare provider id, so carry it for availability lookups.
-			chatSessionType: this.resourceSchemeForProvider(agent.provider),
-			label: this._formatSessionTypeLabel(agent.displayName?.trim() || agent.provider),
-			icon: this.iconForAgentProvider(agent.provider) ?? this.icon,
-		}));
+		const next = rootState.agents
+			.filter(agent => this._shouldAdvertiseAgent(agent.provider))
+			.map((agent): ISessionType => ({
+				id: agent.provider,
+				// The chat session contribution and language models for an agent-host
+				// agent are registered under its resource scheme (`agent-host-<provider>`),
+				// not the bare provider id, so carry it for availability lookups.
+				chatSessionType: this.resourceSchemeForProvider(agent.provider),
+				label: this._formatSessionTypeLabel(agent.displayName?.trim() || agent.provider),
+				icon: this.iconForAgentProvider(agent.provider) ?? this.icon,
+			}));
 
 		const prev = this._sessionTypes;
 		if (prev.length === next.length && prev.every((t, i) => t.id === next[i].id && t.label === next[i].label)) {
@@ -1351,8 +1389,27 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	getSessions(): ISession[] {
 		this._ensureSessionCache();
-		const sessions: ISession[] = [...this._sessionCache.values()];
-		if (this._pendingSession) {
+		// Filter at read time (rather than evicting from the cache) so a gate
+		// flip is instant in both directions: hidden sessions stay cached and
+		// reappear immediately when the preference flips back. The default gate
+		// admits everything; only the local provider suppresses the agent host's
+		// Claude when the window prefers the extension-host Claude.
+		//
+		// Both `agentProvider` (cached) and `sessionType` (pending) carry the
+		// bare provider name (e.g. `claude`), which is what the gate expects —
+		// NOT the `agent-host-<provider>` resource scheme from
+		// `resourceSchemeForProvider`. Keep it that way.
+		//
+		// Subclasses whose `_shouldAdvertiseAgent` can change at runtime MUST
+		// fire `onDidChangeSessions` when it does, so consumers re-query and
+		// re-filter (see the local provider's `preferAgentHost` listener).
+		const sessions: ISession[] = [];
+		for (const cached of this._sessionCache.values()) {
+			if (this._shouldAdvertiseAgent(cached.agentProvider)) {
+				sessions.push(cached);
+			}
+		}
+		if (this._pendingSession && this._shouldAdvertiseAgent(this._pendingSession.sessionType)) {
 			sessions.push(this._pendingSession);
 		}
 		return sessions;
@@ -1822,7 +1879,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return {
 			useGroupedModelPicker: true,
 			showFeatured: true,
-			showUnavailableFeatured: false,
+			showUnavailableFeatured: true,
 			showManageModelsAction: false,
 			showAutoModel,
 		};
