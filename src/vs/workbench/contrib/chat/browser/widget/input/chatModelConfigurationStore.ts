@@ -114,7 +114,9 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	 */
 	restoreModelConfiguration(modelId: string, values: IStringDictionary<unknown>): void {
 		const filtered = filterConfigurationToSchema(values, this.languageModelsService.lookupLanguageModel(modelId)?.configurationSchema);
-		this.setModelConfiguration(modelId, filtered);
+		// Intentionally fire-and-forget: `setModelConfiguration` completes synchronously
+		// (no awaits) and the interface only returns a Promise for API symmetry.
+		void this.setModelConfiguration(modelId, filtered);
 	}
 
 	/**

@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
+import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { ChatModelConfigurationStore } from '../../../../browser/widget/input/chatModelConfigurationStore.js';
@@ -97,7 +98,8 @@ suite('ChatModelConfigurationStore', () => {
 		const fired: string[] = [];
 		store.add(editor.onDidChange(id => fired.push(id)));
 		let writes = 0;
-		store.add(storage.onDidChangeValue(StorageScope.APPLICATION, KEY, store)(() => writes++));
+		const ds = store.add(new DisposableStore());
+		store.add(storage.onDidChangeValue(StorageScope.APPLICATION, KEY, ds)(() => writes++));
 
 		// Re-applying the same value (e.g. restoring on every input-state sync
 		// while a session stays selected) must be a no-op.
