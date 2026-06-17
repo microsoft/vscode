@@ -13,7 +13,7 @@ import { ConfigurationKeyValuePairs, ConfigurationMigrationWorkbenchContribution
 import { WorkbenchPhase, registerWorkbenchContribution2 } from '../common/contributions.js';
 import { NotificationsPosition, NotificationsSettings } from '../common/notifications.js';
 import { CustomEditorLabelService } from '../services/editor/common/customEditorLabelService.js';
-import { ActivityBarPosition, EditorActionsLocation, EditorTabsMode, LayoutSettings } from '../services/layout/browser/layoutService.js';
+import { ActivityBarPosition, EditorActionsLocation, EditorTabsMode, LayoutSettings, SecondarySideBarLocation } from '../services/layout/browser/layoutService.js';
 import { defaultWindowTitle, defaultWindowTitleSeparator } from './parts/titlebar/windowTitle.js';
 
 const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -567,7 +567,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'string',
 				'enum': ['left', 'right'],
 				'default': 'left',
-				'description': localize('sideBarLocation', "Controls the location of the primary side bar and activity bar. They can either show on the left or right of the workbench. The secondary side bar will show on the opposite side of the workbench."),
+				'description': localize('sideBarLocation', "Controls the location of the primary side bar and activity bar. They can either show on the left or right of the workbench."),
 				agentsWindow: { default: 'left', readOnly: true },
 			},
 			'workbench.panel.showLabels': {
@@ -607,6 +607,18 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('workbench.secondarySideBar.defaultVisibility.maximized', "The secondary side bar is visible and maximized by default.")
 				],
 				agentsWindow: { default: 'visibleInWorkspace', readOnly: true },
+			},
+			[LayoutSettings.SECONDARY_SIDE_BAR_LOCATION]: {
+				'type': 'string',
+				'enum': [SecondarySideBarLocation.OPPOSITE, SecondarySideBarLocation.LEFT, SecondarySideBarLocation.RIGHT],
+				'default': SecondarySideBarLocation.OPPOSITE,
+				'description': localize('secondarySideBarLocation', "Controls the location of the secondary side bar. By default, it shows on the opposite side of the primary side bar."),
+				'enumDescriptions': [
+					localize('workbench.secondarySideBar.location.opposite', "Show the secondary side bar on the opposite side of the primary side bar."),
+					localize('workbench.secondarySideBar.location.left', "Show the secondary side bar on the left."),
+					localize('workbench.secondarySideBar.location.right', "Show the secondary side bar on the right.")
+				],
+				agentsWindow: { default: SecondarySideBarLocation.OPPOSITE, readOnly: true },
 			},
 			'workbench.secondarySideBar.forceMaximized': {
 				'type': 'boolean',
