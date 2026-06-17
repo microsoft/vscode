@@ -14,7 +14,7 @@ Policies allow enterprise administrators to lock configuration settings via OS-l
 - Reviewing a PR that touches policy registration
 - Adding account-based policy support via `IPolicyData`
 - Wiring an enterprise **managed setting** (native MDM / GitHub server) — see **[github-managed-settings.md](./github-managed-settings.md)**
-- Having one policy govern **multiple** settings via `policyReference` — see **[github-managed-settings.md](./github-managed-settings.md)**
+- Having one policy govern **multiple** settings via `policyReference`
 
 ## Architecture Overview
 
@@ -284,9 +284,35 @@ policy: { name: 'Codex3PIntegration', category: PolicyCategory.InteractiveSessio
 policyReference: { name: 'Codex3PIntegration' }
 ```
 
-A setting must **not** declare both `policy` and `policyReference`; the reference's type
-must match the owner's. See [github-managed-settings.md](./github-managed-settings.md)
-for the registry internals, IPC-safe serialization, and catalog/diagnostics output.
+`policyReference` is not managed-settings-specific: use it whenever one enterprise
+policy should lock multiple settings to the same value. The reference is a **pure
+pointer**. It contributes no type, `value`, `managedSettings`, `restrictedValue`, or
+localization of its own; the owner remains the single source of truth for policy
+metadata and runtime behavior.
+
+Key rules and internals:
+
+- A setting must **not** declare both `policy` and `policyReference` (rejected during
+  configuration registration).
+- Exactly one setting may own a policy name with `policy`; additional settings attach
+  with `policyReference`.
+- The reference setting's type must match the owner's type; `npm run export-policy-data`
+  enforces this because the same resolved policy value is applied verbatim to owner and
+  references.
+- `ConfigurationRegistry.getPolicyReferenceConfigurations()` tracks `policyName →
+  Set<settingKey>`, and `PolicyConfiguration` updates both the owner setting and all
+  registered references when the policy value changes.
+- `AbstractPolicyService.serialize()` uses `toSerializablePolicyDefinition()` to strip
+  the non-cloneable `value()` callback before sending policy definitions over IPC.
+- `AbstractPolicyService.updatePolicyDefinitions()` replaces definitions per policy
+  name, so a late-registering owner supersedes an earlier reference fallback; if the
+  owner is removed, a reference can still provide a bare type fallback.
+- Exported policy data includes `referencedSettings` for references that are registered
+  during export, and **Developer: Policy Diagnostics** lists registered owner/reference
+  settings under the same policy name.
+
+For managed-settings-specific examples that combine `policyReference` with Copilot
+managed settings, see [github-managed-settings.md](./github-managed-settings.md).
 
 ## Examples
 
