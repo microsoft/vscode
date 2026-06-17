@@ -20,6 +20,7 @@ import { AgentFeedbackAttachmentContribution } from './agentFeedbackAttachment.j
 import { AgentFeedbackAttachmentWidget } from './agentFeedbackAttachmentWidget.js';
 import { AgentFeedbackEditorOverlay } from './agentFeedbackEditorOverlay.js';
 import { hasActiveSessionAgentFeedback, registerAgentFeedbackEditorActions, submitActiveSessionFeedbackActionId } from './agentFeedbackEditorActions.js';
+import { registerAgentFeedbackReviewCommands } from './agentFeedbackReviewCommands.js';
 import { IChatAttachmentWidgetRegistry } from '../../../../workbench/contrib/chat/browser/attachments/chatAttachmentWidgetRegistry.js';
 import { IAgentFeedbackVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -81,6 +82,8 @@ registerWorkbenchContribution2(AgentFeedbackEditorOverlay.ID, AgentFeedbackEdito
 registerWorkbenchContribution2(AgentFeedbackAttachmentContribution.ID, AgentFeedbackAttachmentContribution, WorkbenchPhase.AfterRestored);
 
 registerAgentFeedbackEditorActions();
+
+registerAgentFeedbackReviewCommands();
 
 registerSingleton(IAgentFeedbackService, AgentFeedbackService, InstantiationType.Delayed);
 
