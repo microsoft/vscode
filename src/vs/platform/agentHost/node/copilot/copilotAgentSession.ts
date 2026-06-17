@@ -379,12 +379,18 @@ export class CopilotAgentSession extends Disposable {
 	/** Protocol turn ID set by {@link send}, used for file edit tracking. */
 	private _turnId = '';
 	/**
-	 * Last model id reported by the SDK (via setModel or onUsage).
-	 * Stamped onto edit-survival telemetry so dashboards can slice by
-	 * model. Best-effort: this is the session-level model, not the
-	 * per-tool model -- in practice they match for the parent agent,
-	 * but Copilot CLI subagents (if any) are attributed to whatever
-	 * model the session last reported.
+	 * Last model id reported by the SDK's `Usage` event (and any
+	 * `setModel` call). Stamped onto edit-survival telemetry so
+	 * dashboards can slice by model.
+	 *
+	 * The SDK emits a `Usage` event per LLM call with the model that
+	 * actually ran it -- including subagent calls (e.g. a sonnet
+	 * parent that spawned a haiku subagent will produce
+	 * `Usage{model=claude-haiku-4.5}` events while the subagent is
+	 * running, and `Usage{model=claude-sonnet-4.6}` events otherwise).
+	 * Because the `Usage` event for an LLM turn precedes that turn's
+	 * `tool_use` events, the value here matches the model that
+	 * produced any subsequent edit -- subagent edits included.
 	 */
 	private _lastSeenModelId: string | undefined;
 	/** Accumulated Copilot usage for the current top-level turn, in nano-AIU. */
