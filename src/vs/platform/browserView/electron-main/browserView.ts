@@ -210,7 +210,7 @@ export class BrowserView extends Disposable {
 		this.emulator = this._register(new BrowserViewEmulator(this, this.logService));
 		this.inspector = this._register(new BrowserViewInspector(this));
 
-		const fireRemoteStatus = () => this._onDidChangeRemoteStatus.fire(!!this.session.remote.proxyId);
+		const fireRemoteStatus = () => this._onDidChangeRemoteStatus.fire(this.session.remote.isRemote);
 		this._register(this.session.remote.onDidStart(fireRemoteStatus));
 		this._register(this.session.remote.onDidStop(fireRemoteStatus));
 
@@ -541,7 +541,7 @@ export class BrowserView extends Disposable {
 			storageKeys: this.session.history.storageKeys,
 			browserZoomIndex: this._browserZoomIndex,
 			isElementSelectionActive: this.inspector.isElementSelectionActive,
-			isRemoteSession: !!this.session.remote.proxyId,
+			isRemoteSession: this.session.remote.isRemote,
 			isAreaSelectionActive: this.inspector.isAreaSelectionActive,
 			device: this.emulator.device
 		};

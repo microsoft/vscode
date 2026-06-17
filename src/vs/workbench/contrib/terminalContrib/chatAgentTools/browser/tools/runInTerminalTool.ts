@@ -168,11 +168,12 @@ function createSandboxLines(allowToRunUnsandboxedCommands: boolean, retryWithAll
 		'- ATTENTION: Terminal sandboxing is enabled, commands run in a sandbox by default',
 		'- When executing commands within the sandboxed environment, all operations requiring a temporary directory must utilize the $TMPDIR environment variable. The /tmp directory is not guaranteed to be accessible or writable and must be avoided',
 		'- Tools and scripts should respect the TMPDIR environment variable, which is automatically set to an appropriate path within the sandbox',
+		'- If the Git commands fail while chained together (using && or ;), rewrite and run them as separate, individual commands',
 	];
 	if (retryWithAllowNetworkRequests) {
 		lines.push(
 			'- When a command fails due to network access being blocked by the sandbox, immediately re-run it with requestAllowNetwork=true and provide requestAllowNetworkReason. This keeps the command in the sandbox with unrestricted network access and automatically shows a confirmation prompt to the user',
-			'- Only set requestAllowNetwork=true when there is evidence of network failures caused by the sandbox, e.g. \'Network request failed\' errors, API call failures, or other indications of blocked network access in the command output',
+			'- Only set requestAllowNetwork=true when there is evidence of network failures caused by the sandbox, e.g. \'Network request failed\' errors, responses containing \'Received HTTP code 403 from proxy after CONNECT\', API call failures, or other indications of blocked network access in the command output',
 			'- When setting requestAllowNetwork=true, also provide requestAllowNetworkReason explaining why the command needs network access',
 		);
 	}

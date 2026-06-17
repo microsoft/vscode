@@ -16,6 +16,7 @@ import { buildSubagentSessionUri, SessionStatus, type ISessionFileDiff } from '.
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { ChangesetSessionCoordinator, IChangesetSessionMetadata } from '../../node/agentHostChangesetCoordinator.js';
 import { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs, StaticChangesetKind } from '../../common/agentHostChangesetService.js';
+import { IChangesetOperationContributionService } from '../../common/changesetOperation.js';
 import { IAgentHostFileMonitorOptions, IAgentHostFileMonitorService } from '../../node/agentHostFileMonitorService.js';
 import { IAgentHostGitService } from '../../node/agentHostGitService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -53,7 +54,14 @@ suite('ChangesetSessionCoordinator', () => {
 		const changesets = new TestChangesetService();
 		const monitor = disposables.add(new TestFileMonitorService());
 		const gitService = createGitService(root);
-		const coordinator = disposables.add(new ChangesetSessionCoordinator(stateManager, changesets, configurationService, monitor, gitService, new NullLogService()));
+		const operationContributionService: IChangesetOperationContributionService = {
+			registerContribution: () => Disposable.None,
+			refreshOperationsFromCurrentState: () => { },
+			updateOperations: () => { },
+			invokeChangesetOperation: async () => ({}),
+			dispose: () => { },
+		};
+		const coordinator = disposables.add(new ChangesetSessionCoordinator(stateManager, operationContributionService, changesets, configurationService, monitor, gitService, new NullLogService()));
 		return { stateManager, changesets, monitor, gitService, coordinator };
 	}
 

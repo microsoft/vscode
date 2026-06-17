@@ -69,6 +69,9 @@ open existing:  view.openSession(uri, { preserveFocus })
                   → view arranges visible slot (activeSession = active slot) + focuses    // focus skipped when preserveFocus
 new session:    composer → view.openNewSession({ folderUri, ... })  // view: management.createNewSession() (model draft) + activates it
                   → view observes activeSession == draft → shows draft slot
+delegate:       command → management.createNewSession({ providerId, sessionTypeId })
+                  → view.insertAt(draft, sourceSessionId, 'right', true)  // show beside source
+                  → management.sendNewChatRequest(draft, transcript attachments)
 send:           composer → management.sendNewChatRequest()  // model: provider calls + events
                   → view reacts (onDidReplaceSession + active-session chats) → swaps slot / active chat
 focus a slot:   part.onDidFocusSession → view.setActive → updates active visible slot

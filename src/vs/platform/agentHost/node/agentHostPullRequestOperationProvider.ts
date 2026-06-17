@@ -76,7 +76,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 				id: 'create-pr',
 				label: localize('agentHost.changeset.createPR', "Create Pull Request"),
 				scopes: [ChangesetOperationScope.Changeset],
-				icon: 'git-pull-request',
+				icon: 'git-pull-request-create',
 				status: ChangesetOperationStatus.Idle,
 			},
 			{
@@ -86,7 +86,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 				icon: 'git-pull-request-draft',
 				status: ChangesetOperationStatus.Idle,
 			},
-		];
+		] satisfies ChangesetOperation[];
 	}
 
 	private _key(sessionKey: string, branchName: string): string {

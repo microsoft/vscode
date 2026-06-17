@@ -138,6 +138,13 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 				if (current && !(current instanceof Error)) {
 					this._syncSessionTypesFromRootState(current);
 				}
+				// `getSessions()` filters by the same gate, so the set of visible
+				// sessions just changed too. Fire an empty-payload change so the
+				// open list re-queries and re-filters. The payload is deliberately
+				// empty: these sessions are hidden, not removed, and signalling
+				// them as `removed` would be misread as a remote deletion (e.g. by
+				// the sessions telemetry contribution).
+				this._onDidChangeSessions.fire({ added: [], removed: [], changed: [] });
 			}
 		}));
 	}
@@ -155,6 +162,12 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 	 * session contribution. Without this, the welcome picker's "Local Agent
 	 * Host" group would list Claude even though the running Claude session is
 	 * served by the extension host — surfacing it twice.
+	 *
+	 * TODO: Remove this override (and the gate it applies in `getSessions()`
+	 * plus the `preferAgentHost` re-fire in the constructor) once the
+	 * extension-host Claude implementation is retired. With the agent host as
+	 * the only Claude there is nothing to disambiguate, so the base default
+	 * (advertise everything) is correct. See {@link shouldSurfaceLocalAgentHostProvider}.
 	 */
 	protected override _shouldAdvertiseAgent(provider: string): boolean {
 		return shouldSurfaceLocalAgentHostProvider(provider, this._configurationService, this._isSessionsWindow);
