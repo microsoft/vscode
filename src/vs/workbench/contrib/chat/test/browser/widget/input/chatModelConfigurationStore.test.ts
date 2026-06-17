@@ -89,6 +89,25 @@ suite('ChatModelConfigurationStore', () => {
 		assert.deepStrictEqual(fired, [MODEL]);
 	});
 
+	test('setting an unchanged value does not fire onDidChange or rewrite storage', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const editor = createStore(storage, createStubService());
+		editor.setModelConfiguration(MODEL, { thinkingEffort: 'high' });
+
+		const fired: string[] = [];
+		store.add(editor.onDidChange(id => fired.push(id)));
+		let writes = 0;
+		store.add(storage.onDidChangeValue(StorageScope.APPLICATION, KEY, store)(() => writes++));
+
+		// Re-applying the same value (e.g. restoring on every input-state sync
+		// while a session stays selected) must be a no-op.
+		editor.setModelConfiguration(MODEL, { thinkingEffort: 'high' });
+		editor.restoreModelConfiguration(MODEL, { thinkingEffort: 'high' });
+
+		assert.deepStrictEqual(fired, []);
+		assert.strictEqual(writes, 0);
+	});
+
 	test('restoreModelConfiguration seeds the snapshot and persists to the scoped bucket', () => {
 		const storage = store.add(new InMemoryStorageService());
 		const editor = createStore(storage, createStubService());

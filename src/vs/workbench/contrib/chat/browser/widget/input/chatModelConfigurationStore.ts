@@ -7,6 +7,7 @@ import { IAction } from '../../../../../../base/common/actions.js';
 import { IStringDictionary } from '../../../../../../base/common/collections.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { equals } from '../../../../../../base/common/objects.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { createModelConfigurationActions, ILanguageModelsService } from '../../../common/languageModels.js';
 import { computeStoredConfiguration, extractSchemaDefaults, filterConfigurationToSchema, resolveModelConfiguration } from './chatModelConfigurationLogic.js';
@@ -66,16 +67,24 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	async setModelConfiguration(modelId: string, values: IStringDictionary<unknown>): Promise<void> {
 		const schemaDefaults = this._schemaDefaults(modelId);
 		const stored = computeStoredConfiguration(this.getModelConfiguration(modelId) ?? {}, values, schemaDefaults);
+		const nextOverride = { ...schemaDefaults, ...stored };
+
+		// Skip redundant updates. `restoreModelConfiguration` can be invoked on
+		// every input-state sync while a session stays selected, so avoid storming
+		// storage writes and onDidChange listeners when nothing actually changes.
+		const bucket = this._readBucket();
+		if (equals(this._overrides.get(modelId), nextOverride) && equals(bucket[modelId], stored)) {
+			return;
+		}
 
 		// In-memory snapshot keeps the full effective config (defaults + overrides).
-		this._overrides.set(modelId, { ...schemaDefaults, ...stored });
+		this._overrides.set(modelId, nextOverride);
 
 		// Persist as the scoped default for newly opened editors. The entry is
 		// stored even when empty so that an explicit reset-to-default is
 		// remembered and does not fall back to the profile-global value on the
 		// next read. Already-open editors keep their own in-memory snapshot and
 		// are unaffected because nothing listens to storage changes for this key.
-		const bucket = this._readBucket();
 		bucket[modelId] = stored;
 		this._writeBucket(bucket);
 
