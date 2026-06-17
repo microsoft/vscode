@@ -81,6 +81,58 @@ export class AgentsWindow {
 	}
 
 	/**
+	 * Returns whether the given session type appears in the new-session picker.
+	 *
+	 * The picker dropdown is a one-shot snapshot rendered when it opens and is
+	 * populated from the (async) registered session providers — so a provider
+	 * that registers a few seconds after the page loads (e.g. the agent-host
+	 * Codex provider, which spawns a native app-server first) may not be present
+	 * the first time the dropdown opens. We therefore **re-open** the dropdown on
+	 * each attempt (a stale open dropdown never gains new rows) and poll until the
+	 * label appears or `timeoutMs` elapses, dismissing with Escape between tries.
+	 *
+	 * Use this to gate tests on optionally-registered providers (skip when
+	 * absent) instead of relying on {@link selectSessionType} throwing.
+	 */
+	async isSessionTypeAvailable(label: string, timeoutMs: number = 30_000): Promise<boolean> {
+		await this.code.waitForElement(SESSION_TYPE_PICKER_VISIBLE);
+
+		const itemSel = `.action-widget .monaco-list-row`;
+		const needle = label.toLowerCase();
+		const deadline = Date.now() + timeoutMs;
+
+		while (Date.now() < deadline) {
+			// (Re-)open the dropdown so its rows reflect the current provider set.
+			await this.code.waitAndClick(SESSION_TYPE_PICKER_VISIBLE);
+
+			let found = false;
+			const openDeadline = Math.min(deadline, Date.now() + 2_000);
+			while (Date.now() < openDeadline) {
+				const items = await this.code.getElements(itemSel, /* recursive */ true);
+				const labels = (items ?? []).map(i => (i.textContent ?? '').trim());
+				if (labels.some(t => t.toLowerCase().includes(needle))) {
+					found = true;
+					break;
+				}
+				await new Promise(r => setTimeout(r, 200));
+			}
+
+			// Dismiss the dropdown so it does not intercept later clicks. Best-effort:
+			// a dismiss hiccup must never turn an availability check (and the
+			// graceful skip that may follow) into a test failure.
+			try {
+				await this.code.dispatchKeybinding('escape', async () => { await this.code.waitForElement(itemSel, el => !el, 20); });
+			} catch { /* dropdown already gone or slow to close — ignore */ }
+
+			if (found) {
+				return true;
+			}
+			await new Promise(r => setTimeout(r, 500));
+		}
+		return false;
+	}
+
+	/**
 	 * Select the given session type from the new-session picker.
 	 *
 	 * The picker trigger is the `.action-label` inside
