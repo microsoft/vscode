@@ -33,8 +33,19 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 	 */
 	private readonly _sessionTracking = new DisposableMap<string>();
 
-	/** Reactive mirror of all known sessions, used to pick the most recent ones. */
-	private readonly _allSessions: ISettableObservable<readonly ISession[]> = observableValue(this, []);
+	/**
+	 * Session ids of the {@link MAX_POLLED_RECENT_SESSIONS} most recently updated
+	 * (non-archived) sessions. Recomputed imperatively whenever the set of
+	 * sessions changes (see {@link _onDidChangeSessions}).
+	 *
+	 * Computed imperatively rather than inside {@link _polledSessionIds}: reading
+	 * every session's `updatedAt` reactively would — for multi-chat sessions,
+	 * whose `updatedAt` funnels through a single shared event — add one listener
+	 * per session and trip the listener-leak detector as the session count grows.
+	 * The session providers fire `onDidChangeSessions` whenever a session updates,
+	 * so a non-reactive snapshot stays fresh.
+	 */
+	private readonly _recentSessionIds: ISettableObservable<ReadonlySet<string>> = observableValue(this, new Set());
 
 	/**
 	 * Session ids whose pull request state should be polled continuously: the
@@ -103,22 +114,13 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 		}));
 
 		this._polledSessionIds = derived(this, reader => {
-			const ids = new Set<string>();
+			const ids = new Set<string>(this._recentSessionIds.read(reader));
 
 			// Always poll the sessions currently open in the grid.
 			for (const session of this._sessionsService.visibleSessions.read(reader)) {
 				if (session && !session.isArchived.read(reader)) {
 					ids.add(session.sessionId);
 				}
-			}
-
-			// Plus the most recently updated (non-archived) sessions.
-			const recent = this._allSessions.read(reader)
-				.filter(session => !session.isArchived.read(reader))
-				.sort((a, b) => b.updatedAt.read(reader).getTime() - a.updatedAt.read(reader).getTime())
-				.slice(0, MAX_POLLED_RECENT_SESSIONS);
-			for (const session of recent) {
-				ids.add(session.sessionId);
 			}
 
 			return ids;
@@ -137,7 +139,30 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 			this._sessionTracking.deleteAndDispose(session.sessionId);
 		}
 
-		this._allSessions.set(this._sessionsManagementService.getSessions(), undefined);
+		this._updateRecentSessionIds();
+	}
+
+	/**
+	 * Recompute {@link _recentSessionIds} from the current sessions. Reads each
+	 * session's `updatedAt`/`isArchived` non-reactively (`get`) on purpose — see
+	 * {@link _recentSessionIds} — and runs on every `onDidChangeSessions`, which
+	 * the providers fire whenever a session updates, so it stays fresh.
+	 */
+	private _updateRecentSessionIds(): void {
+		const recent = this._sessionsManagementService.getSessions()
+			.filter(session => !session.isArchived.get())
+			.sort((a, b) => b.updatedAt.get().getTime() - a.updatedAt.get().getTime())
+			.slice(0, MAX_POLLED_RECENT_SESSIONS)
+			.map(session => session.sessionId);
+
+		// Skip the update (and the resulting `_polledSessionIds` recomputation)
+		// when the membership is unchanged. Order is irrelevant for the set.
+		const current = this._recentSessionIds.get();
+		if (recent.length === current.size && recent.every(id => current.has(id))) {
+			return;
+		}
+
+		this._recentSessionIds.set(new Set(recent), undefined);
 	}
 
 	/**
