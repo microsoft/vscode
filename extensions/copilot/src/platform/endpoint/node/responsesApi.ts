@@ -587,9 +587,9 @@ interface ResponsesCacheControl {
 }
 
 /**
- * Whether a raw message carries a prompt-cache breakpoint. Breakpoints are appended to the end of
- * a message's content by `addCacheBreakpoints`; the Responses content converters drop the
- * `CacheBreakpoint` part itself, so we detect it at the message level here.
+ * Whether a raw message carries one or more prompt-cache breakpoints. The Responses content
+ * converters drop `CacheBreakpoint` parts, so we detect them at the message level and later attach
+ * `cache_control` to the appropriate Responses input item/content block.
  */
 function hasCacheBreakpoint(message: Raw.ChatMessage): boolean {
 	return message.content.some(part => part.type === Raw.ChatCompletionContentPartKind.CacheBreakpoint);
