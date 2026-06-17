@@ -6,7 +6,7 @@
 import assert from 'assert';
 import type { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { CodexSessionConfigKey, collaborationModeKind, isCodexSupportedModel, narrowAdditionalDirectories, narrowApprovalPolicy, narrowBoolean, narrowPersonality, narrowReasoningEffort, narrowReasoningSummary, narrowSandboxMode, narrowWebSearchMode, normalizeCodexModelId } from '../../../node/codex/codexSessionConfigKeys.js';
+import { CodexSessionConfigKey, collaborationModeKind, narrowAdditionalDirectories, narrowApprovalPolicy, narrowBoolean, narrowPersonality, narrowReasoningEffort, narrowReasoningSummary, narrowSandboxMode, narrowWebSearchMode } from '../../../node/codex/codexSessionConfigKeys.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
@@ -53,30 +53,6 @@ suite('codexSessionConfigKeys', () => {
 			personality: ['friendly', 'pragmatic', undefined],
 			reasoningSummary: ['auto', 'detailed', undefined],
 			collaborationMode: ['plan', 'default', 'default'],
-		});
-	});
-
-	test('filters Codex models to supported OpenAI model ids', () => {
-		assert.deepStrictEqual([
-			isCodexSupportedModel('auto', 'Codex Auto'),
-			isCodexSupportedModel('claude-sonnet-4.5', 'Claude Sonnet 4.5'),
-			isCodexSupportedModel('gpt-5.2', 'GPT-5.2'),
-			isCodexSupportedModel('gpt-5.1-codex-max', 'GPT-5.1 Codex Max'),
-			isCodexSupportedModel('codex-mini-latest', 'Codex Mini'),
-		], [false, false, true, true, true]);
-	});
-
-	test('normalizes provider-prefixed Codex model ids', () => {
-		assert.deepStrictEqual({
-			raw: normalizeCodexModelId('gpt-5.2'),
-			prefixed: normalizeCodexModelId('copilot/gpt-5.2'),
-			unsupportedRaw: normalizeCodexModelId('claude-sonnet-4.5'),
-			unsupportedPrefixed: normalizeCodexModelId('copilot/auto'),
-		}, {
-			raw: 'gpt-5.2',
-			prefixed: 'gpt-5.2',
-			unsupportedRaw: undefined,
-			unsupportedPrefixed: undefined,
 		});
 	});
 

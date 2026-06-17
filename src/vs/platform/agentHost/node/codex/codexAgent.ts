@@ -5,8 +5,6 @@
 
 import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import * as fs from 'fs';
-import { type CCAModel } from '@vscode/copilot-api';
-import { timeout } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -24,7 +22,7 @@ import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProt
 import { ActionType, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
 import type { ConfigSchema, ModelSelection, ProtectedResourceMetadata, ToolDefinition } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
-import { type ClientPluginCustomization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, ChatInputResponseKind, type ToolCallResult, ToolResultContentType, type Turn } from '../../common/state/sessionState.js';
+import { type ClientPluginCustomization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, ChatInputResponseKind, type PolicyState, type ToolCallResult, ToolResultContentType, type Turn } from '../../common/state/sessionState.js';
 import type { ISyncedCustomization } from '../../common/agentPluginManager.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
@@ -40,7 +38,7 @@ import { resolveCodexInput } from './codexPromptResolver.js';
 import { buildUserInputRequest, emptyUserInputResponse, userInputResponseFromAnswers } from './codexUserInputMapper.js';
 import { replayThreadToTurns } from './codexReplayMapper.js';
 import { CodexSessionMetadataStore } from './codexSessionMetadataStore.js';
-import { CodexSessionConfigKey, collaborationModeKind, getCodexModelCatalogId, isCodexSupportedModel, narrowAdditionalDirectories, narrowApprovalPolicy, narrowBoolean, narrowPersonality, narrowReasoningEffort, narrowReasoningSummary, narrowSandboxMode, narrowWebSearchMode, normalizeCodexModelId, type CodexApprovalPolicy } from './codexSessionConfigKeys.js';
+import { CodexSessionConfigKey, collaborationModeKind, narrowAdditionalDirectories, narrowApprovalPolicy, narrowBoolean, narrowPersonality, narrowReasoningEffort, narrowReasoningSummary, narrowSandboxMode, narrowWebSearchMode, type CodexApprovalPolicy } from './codexSessionConfigKeys.js';
 import type { ReasoningEffort } from './protocol/generated/ReasoningEffort.js';
 import type { ReasoningSummary } from './protocol/generated/ReasoningSummary.js';
 import type { Personality } from './protocol/generated/Personality.js';
@@ -63,7 +61,6 @@ import type { ToolRequestUserInputParams } from './protocol/generated/v2/ToolReq
 import type { ToolRequestUserInputResponse } from './protocol/generated/v2/ToolRequestUserInputResponse.js';
 import type { JsonValue } from './protocol/generated/serde_json/JsonValue.js';
 import type { GetAccountResponse } from './protocol/generated/v2/GetAccountResponse.js';
-import type { ModelListResponse } from './protocol/generated/v2/ModelListResponse.js';
 import type { Thread } from './protocol/generated/v2/Thread.js';
 import type { ThreadListResponse } from './protocol/generated/v2/ThreadListResponse.js';
 import type { ThreadReadResponse } from './protocol/generated/v2/ThreadReadResponse.js';
@@ -243,15 +240,6 @@ const codexSessionConfigDefaults: ICodexSessionConfigDefaults = {
 };
 
 const CodexPrewarmTtlMs = 60_000;
-
-/**
- * The Copilot CAPI `/models` endpoint can return an incomplete catalog while
- * its backend cache is warming up, intermittently omitting the GPT-5 / Codex
- * models. These bound a short retry of the catalog fetch until it includes at
- * least one Codex-supported model.
- */
-const CODEX_MODEL_REFRESH_MAX_ATTEMPTS = 3;
-const CODEX_MODEL_REFRESH_RETRY_DELAY_MS = 500;
 
 /**
  * Per-session bookkeeping. The codex thread is owned by the shared
@@ -545,33 +533,27 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private _supportedModelOrUndefined(model: ModelSelection | undefined): ModelSelection | undefined {
-		if (model) {
-			const normalizedId = normalizeCodexModelId(model.id);
-			if (normalizedId) {
-				return normalizedId === model.id ? model : { ...model, id: normalizedId };
-			}
+		if (model && this._models.get().some(m => m.id === model.id)) {
+			return model;
 		}
 		if (model) {
-			this._logService.warn(`[Codex] Ignoring unsupported model '${model.id}'`);
+			this._logService.warn(`[Codex] Ignoring unknown model '${model.id}'`);
 		}
 		return this._defaultModel();
 	}
 
 	private async _resolveModel(session: ICodexSession): Promise<ModelSelection> {
+		// Ensure the catalog is populated before validating the selection so a
+		// model picked before models finished loading isn't dropped.
+		if (this._models.get().length === 0 && this._modelsRefreshPromise) {
+			await this._modelsRefreshPromise;
+		}
 		const selected = this._supportedModelOrUndefined(session.model);
 		if (selected) {
 			session.model = selected;
 			return selected;
 		}
-		if (this._modelsRefreshPromise) {
-			await this._modelsRefreshPromise;
-		}
-		const refreshed = this._defaultModel();
-		if (refreshed) {
-			session.model = refreshed;
-			return refreshed;
-		}
-		throw new Error('Codex requires a GPT-5 or Codex model, but no supported models are available.');
+		throw new Error('Codex has no available models.');
 	}
 
 	private _createReasoningEffortConfigSchema(): ConfigSchema {
@@ -664,61 +646,32 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	private async _refreshModels(token: string): Promise<void> {
 		try {
-			const conn = await this._ensureConnection();
-			const codexModelDefaults = new Map<string, boolean>();
-			let cursor: string | null | undefined = null;
-			do {
-				const response: ModelListResponse = await conn.client.request<'model/list', ModelListResponse>('model/list', { cursor, includeHidden: false });
-				for (const model of response.data) {
-					if (!model.hidden) {
-						codexModelDefaults.set(getCodexModelCatalogId(model.model), model.isDefault);
-					}
-				}
-				cursor = response.nextCursor;
-			} while (cursor);
-
-			// The Copilot models catalog (CAPI `/models`) can return an
-			// incomplete result on a cold backend cache — sometimes omitting the
-			// GPT-5 / Codex models entirely. Codex performs a one-shot refresh, so
-			// caching that partial result leaves the session showing "No models
-			// available". Re-fetch the catalog a few times until it contains at
-			// least one model Codex actually supports (the Codex-side `model/list`
-			// above is authoritative and stable).
-			let all: CCAModel[] = [];
-			for (let attempt = 0; attempt < CODEX_MODEL_REFRESH_MAX_ATTEMPTS; attempt++) {
-				if (this._githubToken !== token) {
-					return;
-				}
-				all = await this._copilotApiService.models(token, { suppressIntegrationId: true });
-				const hasCodexModel = all.some(m => codexModelDefaults.has(getCodexModelCatalogId(m.id)));
-				if (hasCodexModel) {
-					break;
-				}
-				if (attempt < CODEX_MODEL_REFRESH_MAX_ATTEMPTS - 1) {
-					this._logService.info(`[Codex] Copilot catalog missing Codex models (attempt ${attempt + 1}/${CODEX_MODEL_REFRESH_MAX_ATTEMPTS}, got ${all.length} models); retrying`);
-					await timeout(CODEX_MODEL_REFRESH_RETRY_DELAY_MS);
-				}
-			}
+			const all = await this._copilotApiService.models(token);
 			if (this._githubToken !== token) {
 				return;
 			}
 			const configSchema = this._createReasoningEffortConfigSchema();
-			const filtered = all
-				.map(m => ({ model: m, catalogId: getCodexModelCatalogId(m.id) }))
-				.filter(({ model, catalogId }) => !!model.supported_endpoints?.includes('/responses') && codexModelDefaults.has(catalogId) && isCodexSupportedModel(catalogId, model.name))
-				.sort((a, b) => (Number(b.model.is_chat_default) - Number(a.model.is_chat_default)) || (Number(codexModelDefaults.get(b.catalogId)) - Number(codexModelDefaults.get(a.catalogId))))
-				.map(({ model, catalogId }): IAgentModelInfo => ({
+			// Codex reaches every model through the `vscode-proxy` custom model
+			// provider (see CodexProxyService), which forwards the selected model
+			// id to Copilot CAPI. So expose the full CAPI catalog — not just
+			// OpenAI models — and pass the chosen id straight through; CAPI is the
+			// authority on what the token may actually use.
+			const models = all
+				.slice()
+				.sort((a, b) => Number(b.is_chat_default) - Number(a.is_chat_default))
+				.map((m): IAgentModelInfo => ({
 					provider: this.id,
-					id: catalogId,
-					name: model.name ?? catalogId,
-					maxContextWindow: model.capabilities?.limits?.max_context_window_tokens,
-					supportsVision: !!model.capabilities?.supports?.vision,
+					id: m.id,
+					name: m.name ?? m.id,
+					maxContextWindow: m.capabilities?.limits?.max_context_window_tokens,
+					supportsVision: !!m.capabilities?.supports?.vision,
 					configSchema,
+					policyState: m.policy?.state as PolicyState | undefined,
+					_meta: typeof m.billing?.multiplier === 'number' ? {
+						multiplierNumeric: m.billing.multiplier,
+					} : undefined,
 				}));
-			if (filtered.length === 0) {
-				this._logService.warn(`[Codex] Refresh produced no models (copilot catalog size=${all.length}, codex defaults=${codexModelDefaults.size})`);
-			}
-			this._models.set(filtered, undefined);
+			this._models.set(models, undefined);
 		} catch (err) {
 			this._logService.warn(`[Codex] Failed to refresh models: ${err instanceof Error ? err.message : String(err)}`);
 			if (this._githubToken === token) {

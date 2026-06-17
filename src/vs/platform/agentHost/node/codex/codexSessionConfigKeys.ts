@@ -24,30 +24,6 @@ export const enum CodexSessionConfigKey {
 
 export type CodexApprovalPolicy = Extract<AskForApproval, 'never' | 'on-request' | 'on-failure' | 'untrusted'>;
 
-export function isCodexSupportedModel(id: string, name?: string): boolean {
-	if (id.toLowerCase() === 'auto') {
-		return false;
-	}
-	return /^(gpt-5|codex)/i.test(id) || /codex/i.test(name ?? '');
-}
-
-export function normalizeCodexModelId(id: string): string | undefined {
-	if (isCodexSupportedModel(id)) {
-		return id;
-	}
-	const slashIndex = id.lastIndexOf('/');
-	if (slashIndex === -1 || slashIndex === id.length - 1) {
-		return undefined;
-	}
-	const rawId = id.substring(slashIndex + 1);
-	return isCodexSupportedModel(rawId) ? rawId : undefined;
-}
-
-export function getCodexModelCatalogId(id: string): string {
-	const normalizedId = normalizeCodexModelId(id);
-	return normalizedId && normalizedId !== id ? normalizedId : id;
-}
-
 export function narrowApprovalPolicy(value: unknown): CodexApprovalPolicy | undefined {
 	switch (value) {
 		case 'never':
