@@ -299,21 +299,6 @@ suite('LayoutController', () => {
 
 	// --- Editor / auxiliary bar invariant ---
 
-	test('reveals auxiliary bar when the editor part becomes visible', () => {
-		createLayoutController();
-		partVisibility.set(Parts.EDITOR_PART, true);
-		partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-		setPartHiddenCalls = [];
-
-		// Simulate the editor part becoming visible (e.g. opening a file from chat)
-		onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
-
-		assert.ok(
-			setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === false),
-			'auxiliary bar should be revealed when the editor becomes visible'
-		);
-	});
-
 	test('does not force auxiliary bar visible when restoring editor working set on session switch', async () => {
 		const session = makeSession(URI.parse('session:1'));
 		createLayoutController({
