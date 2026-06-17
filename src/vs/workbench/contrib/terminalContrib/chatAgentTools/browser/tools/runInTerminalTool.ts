@@ -188,7 +188,7 @@ export function createSandboxLines(sandboxingOptions: ISandboxingOnOptions): str
 			? '- Commands run inside a sandbox by default. The sandbox keeps the filesystem mostly read-only.'
 			: '- Commands run inside a sandbox by default. The sandbox restricts two things independently: the filesystem and the network.',
 		'- Filesystem: read-only outside the workspace and $TMPDIR, which stay read-write. Parts of $HOME are hidden for privacy, but common developer tools (git, package managers, language toolchains) still work because their $HOME config and cache paths are automatically made readable.',
-		'- Use $TMPDIR for temporary files; /tmp may not be writable. The TMPDIR env var is always set to a writable path.',
+		'- Use $TMPDIR for temporary files; /tmp may not be writable. On macOS and Linux the TMPDIR env var is set to a writable path.',
 	];
 
 	if (!isNetworkAvailable) {
