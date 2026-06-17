@@ -41,7 +41,7 @@ import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import type { CopilotSessionLaunchPlan, IActiveClientSnapshot, ICopilotSessionLauncher, ICopilotSessionRuntime } from './copilotSessionLauncher.js';
 import { ActiveClientState } from '../activeClientState.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
-import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
+import { buildCopilotSystemNotification, stripCopilotSystemNotificationBlocks } from './copilotSystemNotification.js';
 import { isPromptInvokedCopilotSlashCommand, isRuntimeCopilotSlashCommand, parseLeadingSlashCommand } from './copilotSlashCommandCompletionProvider.js';
 import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
 import { buildSandboxConfigForSdk } from './sandboxConfigForSdk.js';
@@ -462,6 +462,8 @@ export class CopilotAgentSession extends Disposable {
 	 * part state must not mask or append to each other.
 	 */
 	private readonly _currentMarkdownPartIds = new Map<string, string>();
+	private _pendingMarkdownSystemNotificationPrefix = '';
+	private _isInMarkdownSystemNotification = false;
 	/** Current reasoning response part IDs for the active turn, keyed by `parentToolCallId ?? ''`. */
 	private readonly _currentReasoningPartIds = new Map<string, string>();
 	/** Tracks whether a non-empty activity has been published, so we only emit a clear when needed. */
@@ -663,6 +665,8 @@ export class CopilotAgentSession extends Disposable {
 		this._turnId = turnId;
 		this._turnCopilotUsageTotalNanoAiu = 0;
 		this._currentMarkdownPartIds.clear();
+		this._pendingMarkdownSystemNotificationPrefix = '';
+		this._isInMarkdownSystemNotification = false;
 		this._currentReasoningPartIds.clear();
 		this._parentToolCallIdsByAgentId.clear();
 	}
@@ -678,6 +682,8 @@ export class CopilotAgentSession extends Disposable {
 		});
 		this._turnId = '';
 		this._currentMarkdownPartIds.clear();
+		this._pendingMarkdownSystemNotificationPrefix = '';
+		this._isInMarkdownSystemNotification = false;
 		this._currentReasoningPartIds.clear();
 		this._parentToolCallIdsByAgentId.clear();
 	}
@@ -733,6 +739,14 @@ export class CopilotAgentSession extends Disposable {
 	 * markdown response part; subsequent deltas append to it.
 	 */
 	private _emitMarkdownDelta(content: string, parentToolCallId?: string): void {
+		const visibleContent = this._stripStreamingSystemNotifications(content);
+		if (!visibleContent) {
+			return;
+		}
+		this._emitVisibleMarkdownDelta(visibleContent, parentToolCallId);
+	}
+
+	private _emitVisibleMarkdownDelta(content: string, parentToolCallId?: string): void {
 		const markdownScope = parentToolCallId ?? '';
 		let partId = this._currentMarkdownPartIds.get(markdownScope);
 		if (!partId) {
@@ -751,6 +765,53 @@ export class CopilotAgentSession extends Disposable {
 			partId,
 			content,
 		}, parentToolCallId);
+	}
+
+	private _stripStreamingSystemNotifications(content: string): string {
+		const startTag = '<system_notification>';
+		const endTag = '</system_notification>';
+		let remaining = this._pendingMarkdownSystemNotificationPrefix + content;
+		this._pendingMarkdownSystemNotificationPrefix = '';
+		let visibleContent = '';
+
+		while (remaining) {
+			if (this._isInMarkdownSystemNotification) {
+				const endIndex = remaining.indexOf(endTag);
+				if (endIndex === -1) {
+					for (let i = Math.min(endTag.length - 1, remaining.length); i > 0; i--) {
+						const suffix = remaining.slice(remaining.length - i);
+						if (endTag.startsWith(suffix)) {
+							this._pendingMarkdownSystemNotificationPrefix = suffix;
+							break;
+						}
+					}
+					return visibleContent;
+				}
+				remaining = remaining.slice(endIndex + endTag.length);
+				this._isInMarkdownSystemNotification = false;
+				continue;
+			}
+
+			const startIndex = remaining.indexOf(startTag);
+			if (startIndex !== -1) {
+				visibleContent += remaining.slice(0, startIndex);
+				remaining = remaining.slice(startIndex + startTag.length);
+				this._isInMarkdownSystemNotification = true;
+				continue;
+			}
+
+			for (let i = Math.min(startTag.length - 1, remaining.length); i > 0; i--) {
+				const suffix = remaining.slice(remaining.length - i);
+				if (startTag.startsWith(suffix)) {
+					this._pendingMarkdownSystemNotificationPrefix = suffix;
+					return visibleContent + remaining.slice(0, remaining.length - i);
+				}
+			}
+
+			return visibleContent + remaining;
+		}
+
+		return visibleContent;
 	}
 
 	/** Emits a reasoning delta, similar to {@link _emitMarkdownDelta} but for reasoning parts. */
@@ -2008,12 +2069,16 @@ export class CopilotAgentSession extends Disposable {
 			if (this._currentMarkdownPartIds.has(markdownScope)) {
 				return;
 			}
+			const content = stripCopilotSystemNotificationBlocks(e.data.content);
+			if (!content) {
+				return;
+			}
 			const partId = generateUuid();
 			this._currentMarkdownPartIds.set(markdownScope, partId);
 			this._emitAction({
 				type: ActionType.ChatResponsePart,
 				turnId: this._turnId,
-				part: { kind: ResponsePartKind.Markdown, id: partId, content: e.data.content },
+				part: { kind: ResponsePartKind.Markdown, id: partId, content },
 			}, parentToolCallId);
 		}));
 
