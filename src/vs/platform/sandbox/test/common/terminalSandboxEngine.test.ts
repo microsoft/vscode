@@ -294,6 +294,30 @@ suite('TerminalSandboxEngine', () => {
 		ok(!config.filesystem.allowWrite.includes('/workspace-a'), 'Refreshed config should drop the old write root');
 	});
 
+	test('always denies reads of the sandbox config file on Linux and macOS', async () => {
+		for (const os of [OperatingSystem.Linux, OperatingSystem.Macintosh]) {
+			const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost({
+				getOS: () => Promise.resolve(os),
+			})));
+
+			const configPath = await engine.getSandboxConfigPath();
+			ok(configPath, 'Config path should be defined');
+			const tempDirPath = engine.getTempDir()?.path;
+			ok(tempDirPath, 'Temp dir path should be defined');
+			const config = JSON.parse(createdFiles.get(configPath)!);
+
+			deepStrictEqual({
+				denyRead: config.filesystem.denyRead.includes(configPath),
+				configAllowWrite: config.filesystem.allowWrite.includes(configPath),
+				tempDirAllowWrite: config.filesystem.allowWrite.includes(tempDirPath),
+			}, {
+				denyRead: true,
+				configAllowWrite: false,
+				tempDirAllowWrite: true,
+			});
+		}
+	});
+
 	test('preserves filesystem symlink paths and resolves their targets on Linux when writing the config', async () => {
 		setSandboxSetting(AgentSandboxSettingId.AgentSandboxLinuxFileSystem, {
 			allowRead: ['~/read-link'],
