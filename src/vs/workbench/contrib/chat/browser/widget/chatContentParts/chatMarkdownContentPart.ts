@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
+import { applyBlockTextDirection } from '../../../../../../base/browser/textDirection.js';
 import { allowedMarkdownHtmlAttributes, MarkdownRendererMarkedOptions, type MarkdownRenderOptions } from '../../../../../../base/browser/markdownRenderer.js';
 import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
@@ -378,6 +379,10 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 			const markdownDecorationsRenderer = instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
 			store.add(markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(this.markdown, result.element));
+
+			// Lay out RTL (Hebrew/Arabic) content right-to-left per paragraph while
+			// keeping code blocks left-to-right.
+			applyBlockTextDirection(result.element);
 
 			const layoutParticipants = new Lazy(() => {
 				const observer = store.add(new dom.DisposableResizeObserver('ChatMarkdownContentPart.mathLayout', () => this.mathLayoutParticipants.forEach(layout => layout())));

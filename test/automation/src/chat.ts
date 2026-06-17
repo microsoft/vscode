@@ -108,6 +108,15 @@ export class Chat {
 		return (await response.textContent()) ?? '';
 	}
 
+	/**
+	 * Reads the resolved writing direction of the latest rendered response. Used by the
+	 * RTL smoke test to assert Hebrew/Arabic content is laid out right-to-left.
+	 */
+	async getLatestResponseTextDirection(): Promise<string | null> {
+		const directional = this.code.driver.currentPage.locator(`${CHAT_RESPONSE_COMPLETE} .chat-markdown-part [dir]`).last();
+		return await directional.getAttribute('dir');
+	}
+
 	async waitForModelInFooter(): Promise<void> {
 		await this.code.waitForElements(CHAT_FOOTER_DETAILS, false, el => {
 			return el.some(el => {
