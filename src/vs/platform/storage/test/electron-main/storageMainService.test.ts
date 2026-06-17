@@ -243,6 +243,27 @@ suite('StorageMainService', function () {
 		await workspaceStorage2.close();
 	});
 
+	test('storage requested while previous instance is closing creates new storage', async function () {
+		const storageMainService = createStorageService();
+		const profile = inMemoryProfile;
+		const workspace = { id: generateUuid() };
+
+		const profileStorage = storageMainService.profileStorage(profile);
+		const profileStorageClosePromise = profileStorage.close();
+		const profileStorage2 = storageMainService.profileStorage(profile);
+		notStrictEqual(profileStorage, profileStorage2);
+
+		const workspaceStorage = storageMainService.workspaceStorage(workspace);
+		const workspaceStorageClosePromise = workspaceStorage.close();
+		const workspaceStorage2 = storageMainService.workspaceStorage(workspace);
+		notStrictEqual(workspaceStorage, workspaceStorage2);
+
+		await profileStorageClosePromise;
+		await workspaceStorageClosePromise;
+		await profileStorage2.close();
+		await workspaceStorage2.close();
+	});
+
 	test('storage closed before init works', async function () {
 		const storageMainService = createStorageService();
 		const profile = inMemoryProfile;

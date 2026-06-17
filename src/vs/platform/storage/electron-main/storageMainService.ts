@@ -356,6 +356,12 @@ class StorageMap extends Disposable {
 
 	getOrCreate(storageId: string, ownerWindowId: number | undefined, create: () => { storage: IStorageMain; onDidClose: () => void }): IStorageMain {
 		let storage = this.mapStorage.get(storageId);
+		if (storage?.isClosing) {
+			this.mapStorage.delete(storageId);
+			this.clearStorageReferences(storageId);
+			storage = undefined;
+		}
+
 		if (!storage) {
 			const result = create();
 			storage = new RefCountedStorage(result.storage, result.onDidClose, () => {
@@ -371,13 +377,13 @@ class StorageMap extends Disposable {
 	}
 
 	close(storageId: string): Promise<void> | undefined {
-		return this.mapStorage.get(storageId)?.close();
+		return this.closeStorage(storageId);
 	}
 
 	closeAll(): Promise<void>[] {
 		this.clearWindowReferences();
 
-		return Array.from(this.mapStorage.values(), storage => storage.close());
+		return Array.from(this.mapStorage.keys()).map(storageId => this.closeStorage(storageId)!);
 	}
 
 	private addWindowReference(storageId: string, storage: RefCountedStorage, ownerWindowId: number | undefined): void {
@@ -403,8 +409,22 @@ class StorageMap extends Disposable {
 		}
 
 		for (const storageId of storageIds) {
-			await this.mapStorage.get(storageId)?.decrement(ownerWindowId);
+			if (this.mapStorage.get(storageId)?.decrement(ownerWindowId)) {
+				await this.closeStorage(storageId);
+			}
 		}
+	}
+
+	private closeStorage(storageId: string): Promise<void> | undefined {
+		const storage = this.mapStorage.get(storageId);
+		if (!storage) {
+			return undefined;
+		}
+
+		this.mapStorage.delete(storageId);
+		this.clearStorageReferences(storageId);
+
+		return storage.close();
 	}
 
 	private clearWindowReferences(): void {
@@ -435,8 +455,14 @@ class RefCountedStorage extends Disposable {
 
 	private readonly ownerWindowIds = new Set<number>();
 	private readonly closeListener: IDisposable;
+	private readonly doClose: () => Promise<void>;
+	private closePromise: Promise<void> | undefined;
 	private didClose = false;
 	private didCleanup = false;
+
+	get isClosing(): boolean {
+		return !!this.closePromise;
+	}
 
 	constructor(
 		readonly storage: IStorageMain,
@@ -445,6 +471,9 @@ class RefCountedStorage extends Disposable {
 	) {
 		super();
 
+		this.doClose = storage.close.bind(storage);
+		storage.close = () => this.close();
+
 		this.closeListener = Event.once(storage.onDidCloseStorage)(() => this.handleDidClose());
 	}
 
@@ -452,23 +481,21 @@ class RefCountedStorage extends Disposable {
 		this.ownerWindowIds.add(ownerWindowId);
 	}
 
-	async decrement(ownerWindowId: number): Promise<void> {
+	decrement(ownerWindowId: number): boolean {
 		if (!this.ownerWindowIds.delete(ownerWindowId)) {
-			return;
+			return false;
 		}
 
-		if (this.ownerWindowIds.size === 0) {
-			await this.close();
-		}
+		return this.ownerWindowIds.size === 0;
 	}
 
 	async close(): Promise<void> {
-		if (this.didClose) {
-			return;
+		if (!this.closePromise) {
+			this.ownerWindowIds.clear();
+			this.closePromise = this.doClose();
 		}
 
-		this.ownerWindowIds.clear();
-		await this.storage.close();
+		await this.closePromise;
 	}
 
 	private handleDidClose(): void {
@@ -485,6 +512,7 @@ class RefCountedStorage extends Disposable {
 		this.ownerWindowIds.clear();
 		this.closeListener.dispose();
 		this.cleanup();
+		this.storage.close = this.doClose;
 		this.storage.dispose();
 
 		super.dispose();
