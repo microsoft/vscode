@@ -289,6 +289,18 @@ function isCopilotSdkToolOutputTempFile(filePath: string, tmpDir: string): boole
 }
 
 /**
+ * Best-effort `JSON.stringify` that never throws (e.g. on circular references),
+ * used only for diagnostic logging.
+ */
+function safeJsonStringify(value: unknown): string {
+	try {
+		return JSON.stringify(value);
+	} catch (error) {
+		return `<unserializable: ${error instanceof Error ? error.message : String(error)}>`;
+	}
+}
+
+/**
  * Options for constructing a {@link CopilotAgentSession}.
  */
 export interface ICopilotAgentSessionOptions {
@@ -2343,7 +2355,8 @@ export class CopilotAgentSession extends Disposable {
 			}
 			// TODO: `copilotUsage` is marked `asInternal` in the SDK schema so it is not exposed on the generated
 			// `AssistantUsageData` type, but it is present at runtime. Read it dynamically.
-			const copilotUsage = (e.data as unknown as Record<string, unknown>).copilotUsage as { totalNanoAiu?: number } | undefined;
+			const rawUsage = e.data as unknown as Record<string, unknown>;
+			const copilotUsage = rawUsage.copilotUsage as { totalNanoAiu?: number } | undefined;
 			if (typeof copilotUsage?.totalNanoAiu === 'number') {
 				this._turnCopilotUsageTotalNanoAiu += copilotUsage.totalNanoAiu;
 				metadata.copilotUsage = {
@@ -2351,7 +2364,24 @@ export class CopilotAgentSession extends Disposable {
 					totalNanoAiu: this._turnCopilotUsageTotalNanoAiu,
 				};
 			}
+
+			// `quotaSnapshots` is likewise marked `asInternal` in the SDK schema (so it is
+			// absent from the generated `AssistantUsageData` type) but is present at runtime:
+			// the runtime rides the user's current quota along on each usage event, mirroring
+			// the Copilot Chat extension's `copilot_quota_snapshots` response field. Read it
+			// dynamically and forward it on the usage `_meta` so the core can update
+			// `IChatEntitlementService` per response — no extra `account.getQuota` round-trip.
+			const quotaSnapshots = rawUsage.quotaSnapshots as Record<string, unknown> | undefined;
+			if (quotaSnapshots && Object.keys(quotaSnapshots).length > 0) {
+				metadata.quotaSnapshots = quotaSnapshots;
+			}
+
+			// TEMP(quota): log the quota snapshots carried on the usage event so we
+			// can confirm the shape. Remove once quota plumbing is verified.
+			this._logService.info(`[Copilot:${sessionId}] usage quota snapshots: ${quotaSnapshots ? safeJsonStringify(quotaSnapshots) : '<none>'}`);
+
 			this._logService.trace(`[Copilot:${sessionId}] Usage: model=${e.data.model}, in=${e.data.inputTokens ?? '?'}, out=${e.data.outputTokens ?? '?'}, cacheRead=${e.data.cacheReadTokens ?? '?'}, cost=${e.data.cost ?? '?'}, totalNanoAiu=${metadata.copilotUsage ? this._turnCopilotUsageTotalNanoAiu : '?'}`);
+
 			const usage: UsageInfo = {
 				inputTokens: e.data.inputTokens,
 				outputTokens: e.data.outputTokens,
