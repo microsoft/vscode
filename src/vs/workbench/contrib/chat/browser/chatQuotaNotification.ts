@@ -26,6 +26,8 @@ const THRESHOLDS = [50, 75, 90, 95];
 const TRAJECTORY_DAILY_USAGE_THRESHOLD = 4.5;
 const TRAJECTORY_MINIMUM_PERCENT_USED = 10;
 const TRAJECTORY_MAXIMUM_PERCENT_USED = 35;
+const BILLING_PERIOD_DAYS = 30;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const TRAJECTORY_TREATMENT = 'chatQuotaTrajectoryNudge';
 const TRAJECTORY_SHOWN_STORAGE_KEY = 'chat.quotaTrajectory.shownPeriod';
 const CREDIT_EFFICIENCY_LEARN_MORE_URL = 'https://aka.ms/token-usage-tips';
@@ -89,6 +91,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	private _prevSessionPercentUsed: number | undefined;
 	private _prevWeeklyPercentUsed: number | undefined;
 	private _trajectoryNudgeEnabled = false;
+	private _trajectoryTreatmentInitialized = false;
 	private _activeQuotaNotificationKind = QuotaNotificationKind.None;
 	private _lastLoggedTrajectoryShownSignature: string | undefined;
 	private _activeTrajectoryWarning: { averageDailyUsage: number; percentUsed: number } | undefined;
@@ -107,7 +110,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		this._register(this._chatEntitlementService.onDidChangeQuotaRemaining(() => this._update()));
 		this._register(this._chatEntitlementService.onDidChangeQuotaExceeded(() => this._update()));
 		this._register(this._chatEntitlementService.onDidChangeEntitlement(() => this._update()));
-		this._register(this._assignmentService.onDidRefetchAssignments(() => this._updateTrajectoryTreatment()));
+		this._register(this._assignmentService.onDidRefetchAssignments(() => { void this._updateTrajectoryTreatment(); }));
 		this._register(this._chatInputNotificationService.onDidDismiss(id => {
 			if (id !== QUOTA_NOTIFICATION_ID) {
 				return;
@@ -143,14 +146,16 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		}));
 
 		// Check initial state in case quota is already exhausted at startup
-		this._updateTrajectoryTreatment();
+		void this._updateTrajectoryTreatment();
 		this._update();
 	}
 
 	private async _updateTrajectoryTreatment(): Promise<void> {
 		const trajectoryTreatment = await this._assignmentService.getTreatment<string>(TRAJECTORY_TREATMENT);
 		const trajectoryEnabled = trajectoryTreatment === 'enabled';
-		if (this._trajectoryNudgeEnabled === trajectoryEnabled) {
+		const wasInitialized = this._trajectoryTreatmentInitialized;
+		this._trajectoryTreatmentInitialized = true;
+		if (wasInitialized && this._trajectoryNudgeEnabled === trajectoryEnabled) {
 			return;
 		}
 		this._trajectoryNudgeEnabled = trajectoryEnabled;
@@ -244,6 +249,17 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			return;
 		}
 
+		// Nothing new to show — only hide if the exhausted notification is
+		// active and the quota is no longer exhausted (state-driven).
+		if (this._showingExhausted && !this._isQuotaUsedUp()) {
+			this._hideNotification();
+		}
+
+		if (!this._trajectoryTreatmentInitialized) {
+			this._captureNotificationBaselines();
+			return;
+		}
+
 		// Priority 2: Quota approaching threshold
 		if (isQuotaNotificationEligible) {
 			const trajectoryWarning = this._computeQuotaTrajectoryWarning();
@@ -266,16 +282,26 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			return;
 		}
 
-		// Nothing new to show — only hide if the exhausted notification is
-		// active and the quota is no longer exhausted (state-driven).
-		if (this._showingExhausted && !this._isQuotaUsedUp()) {
-			this._hideNotification();
-		}
+		this._captureNotificationBaselines();
 	}
 
 	// --- Threshold crossing detection ----------------------------------------
 
-	private _computeQuotaWarning(): { percentUsed: number; threshold: number } | undefined {
+	private _captureNotificationBaselines(): void {
+		const snapshot = this._getRelevantSnapshot();
+		this._prevQuotaPercentUsed = !snapshot || snapshot.unlimited ? undefined : 100 - snapshot.percentRemaining;
+		this._prevSessionPercentUsed = this._getRateLimitPercentUsed(this._chatEntitlementService.quotas.sessionRateLimit);
+		this._prevWeeklyPercentUsed = this._getRateLimitPercentUsed(this._chatEntitlementService.quotas.weeklyRateLimit);
+	}
+
+	private _getRateLimitPercentUsed(snapshot: IRateLimitSnapshot | undefined): number | undefined {
+		if (!snapshot || snapshot.unlimited) {
+			return undefined;
+		}
+		return 100 - snapshot.percentRemaining;
+	}
+
+	private _computeQuotaWarning(): { percentUsed: number } | undefined {
 		const snapshot = this._getRelevantSnapshot();
 		if (!snapshot || snapshot.unlimited) {
 			this._prevQuotaPercentUsed = undefined;
@@ -311,8 +337,8 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			return undefined;
 		}
 
-		const periodStartTime = resetTime - (30 * 24 * 60 * 60 * 1000);
-		const elapsedDays = Math.max(0, (Date.now() - periodStartTime) / (24 * 60 * 60 * 1000));
+		const periodStartTime = resetTime - (BILLING_PERIOD_DAYS * MS_PER_DAY);
+		const elapsedDays = Math.max(0, (Date.now() - periodStartTime) / MS_PER_DAY);
 		if (elapsedDays <= 0) {
 			return undefined;
 		}
