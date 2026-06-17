@@ -504,9 +504,6 @@ export class CopilotApiService implements ICopilotApiService {
 					...options?.headers,
 					'Authorization': `Bearer ${githubToken}`,
 				},
-				// Opt-in per request — see
-				// `ICopilotApiServiceRequestOptions.suppressIntegrationId`.
-				suppressIntegrationId: options?.suppressIntegrationId,
 				signal: options?.signal,
 			},
 			{ type: RequestType.Models },

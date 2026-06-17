@@ -557,25 +557,6 @@ suite('CopilotApiService', () => {
 			assert.ok(withHeader['Copilot-Integration-Id'], 'integration id should be present by default');
 			assert.strictEqual(suppressed['Copilot-Integration-Id'], undefined, 'integration id should be suppressed when opted in');
 		});
-
-		test('models() honors suppressIntegrationId so the catalog reflects the real entitlement', async () => {
-			const { fetch: fetchFn, captured } = routingFetch(() => modelsResponse([]));
-			const service = createService(fetchFn);
-
-			// Default: the derived integration id (e.g. the limited `vscode-nl`)
-			// is sent, which can yield a restricted model catalog.
-			await service.models('gh-tok');
-			const withHeader = captured().init?.headers as Record<string, string>;
-
-			// Opt-in: the header is omitted so CAPI lists the token's real
-			// entitlement — the Codex harness relies on this to surface the
-			// GPT-5 / Codex models.
-			await service.models('gh-tok', { suppressIntegrationId: true });
-			const suppressed = captured().init?.headers as Record<string, string>;
-
-			assert.ok(withHeader['Copilot-Integration-Id'], 'integration id should be present by default');
-			assert.strictEqual(suppressed['Copilot-Integration-Id'], undefined, 'integration id should be suppressed when opted in');
-		});
 	});
 
 	// #endregion
