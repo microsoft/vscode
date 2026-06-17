@@ -858,6 +858,11 @@ declare module 'vscode' {
 		readonly outputBuffer?: number;
 
 		/**
+		 * The number of copilot credits consumed by this request.
+		 */
+		readonly copilotCredits?: number;
+
+		/**
 		 * Optional breakdown of prompt token usage by category and label.
 		 * If the percentages do not sum to 100%, the remaining will be shown as "Uncategorized".
 		 */

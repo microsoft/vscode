@@ -8,7 +8,7 @@ import { escapeMarkdownLinkLabel, IMarkdownString, MarkdownString } from '../../
 import { marked, type Token, type Tokens, type TokensList } from '../../../../../../base/common/marked/marked.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { MessageKind, ToolCallContributorKind, ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, getToolSubagentContent, type ActiveTurn, type ICompletedToolCall, type Message, type ToolCallState, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { MessageKind, ToolCallContributorKind, ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, getToolSubagentContent, type ActiveTurn, type ICompletedToolCall, type Message, type ToolCallState, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo, type UsageInfoMeta } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { getChatErrorDetailsFromMeta, IChatErrorContext } from '../../../common/chatErrorMessages.js';
 import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -174,7 +174,20 @@ export function usageInfoToChatUsage(usage: UsageInfo | undefined): IChatUsage |
 		kind: 'usage',
 		promptTokens: usage.inputTokens ?? 0,
 		completionTokens: usage.outputTokens ?? 0,
+		copilotCredits: getCopilotCredits(usage),
 	};
+}
+
+function getCopilotCredits(usage: UsageInfo | undefined): number | undefined {
+	const meta = usage?._meta as UsageInfoMeta | undefined;
+	const totalNanoAiu = meta?.copilotUsage?.totalNanoAiu;
+	if (typeof totalNanoAiu === 'number' && totalNanoAiu >= 0) {
+		return totalNanoAiu / 1_000_000_000;
+	}
+	const cost = meta?.cost;
+	return typeof cost === 'number' && cost >= 0
+		? cost
+		: undefined;
 }
 
 /**
