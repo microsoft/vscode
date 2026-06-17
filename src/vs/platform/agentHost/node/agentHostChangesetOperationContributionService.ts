@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableMap, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { toErrorMessage } from '../../../base/common/errorMessage.js';
+import { Disposable, DisposableMap, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
 import { buildBranchChangesetUri, buildSessionChangesetUri, buildUncommittedChangesetUri, ChangesetKind } from '../common/changesetUri.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType } from '../common/state/sessionActions.js';
-import { ChangesetOperationScope, ChangesetOperationTargetKind, readSessionGitState, type ChangesetOperation, type ISessionGitState } from '../common/state/sessionState.js';
+import { ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, readSessionGitState, type ChangesetOperation, type ErrorInfo, type ISessionGitState } from '../common/state/sessionState.js';
 import type { IChangesetOperationContribution, IChangesetOperationContributionService, IChangesetOperationContext, IChangesetOperationHandler, IChangesetOperationRegistry } from '../common/changesetOperation.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { AgentHostSessionGitStateService } from './agentHostSessionGitStateService.js';
@@ -44,7 +45,7 @@ export class AgentHostChangesetOperationContributionService extends Disposable i
 		});
 	}
 
-	getOperations(context: IChangesetOperationContext): readonly ChangesetOperation[] | undefined {
+	private _getOperations(context: IChangesetOperationContext): readonly ChangesetOperation[] | undefined {
 		const operations: ChangesetOperation[] = [];
 		for (const contribution of this._handlerRegistrations.keys()) {
 			const contributed = contribution.getOperations(context);
@@ -70,7 +71,7 @@ export class AgentHostChangesetOperationContributionService extends Disposable i
 	}
 
 	private _updateOperationsForChangeset(sessionKey: string, changesetUri: string, changesetKind: ChangesetKind, gitState: ISessionGitState): void {
-		const operations = this.getOperations({ sessionKey, changesetUri, changesetKind, gitState });
+		const operations = this._getOperations({ sessionKey, changesetUri, changesetKind, gitState });
 		this._stateManager.dispatchServerAction(changesetUri, {
 			type: ActionType.ChangesetOperationsChanged,
 			operations: operations ? [...operations] : undefined,
@@ -105,18 +106,46 @@ export class AgentHostChangesetOperationContributionService extends Disposable i
 		if (!handler) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `No operation handler registered for '${params.operationId}' on changeset ${params.channel}`);
 		}
+
+		return this._invokeChangesetOperation(handler, params);
+	}
+
+	private _invokeChangesetOperation(
+		handler: IChangesetOperationHandler,
+		params: InvokeChangesetOperationParams,
+	): Promise<InvokeChangesetOperationResult> {
 		const operationKey = `${params.channel}\x00${params.operationId}\x00${JSON.stringify(params.target ?? null)}`;
-		const inFlight = this._inFlightOperations.get(operationKey);
-		if (inFlight) {
-			return inFlight;
+		const inFlightOperationResult = this._inFlightOperations.get(operationKey);
+		if (inFlightOperationResult) {
+			return inFlightOperationResult;
 		}
-		const invoked = handler.invoke(params, CancellationToken.None).finally(() => {
-			if (this._inFlightOperations.get(operationKey) === invoked) {
-				this._inFlightOperations.delete(operationKey);
-			}
+
+		this._stateManager.dispatchServerAction(params.channel, {
+			type: ActionType.ChangesetOperationStatusChanged,
+			operationId: params.operationId,
+			status: ChangesetOperationStatus.Running,
 		});
-		this._inFlightOperations.set(operationKey, invoked);
-		return invoked;
+
+		const operationPromise = handler.invoke(params, CancellationToken.None)
+			.catch((error) => {
+				this._stateManager.dispatchServerAction(params.channel, {
+					type: ActionType.ChangesetOperationStatusChanged,
+					operationId: params.operationId,
+					status: ChangesetOperationStatus.Error,
+					error: toChangesetOperationError(error),
+				});
+
+				throw error;
+			})
+			.finally(() => {
+				if (this._inFlightOperations.get(operationKey) === operationPromise) {
+					this._inFlightOperations.delete(operationKey);
+				}
+			});
+
+		this._inFlightOperations.set(operationKey, operationPromise);
+
+		return operationPromise;
 	}
 
 	private _registerChangesetOperationHandler(operationId: string, handler: IChangesetOperationHandler): IDisposable {
@@ -130,4 +159,11 @@ export class AgentHostChangesetOperationContributionService extends Disposable i
 			}
 		});
 	}
+}
+
+function toChangesetOperationError(error: unknown): ErrorInfo {
+	const message = toErrorMessage(error);
+	return error instanceof Error
+		? { errorType: error.name, message, stack: error.stack }
+		: { errorType: 'Error', message };
 }

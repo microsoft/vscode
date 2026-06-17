@@ -282,12 +282,13 @@ class ChangesWorkbenchButtonBarWidget extends Disposable {
 
 			if (operationActions.length > 1) {
 				// Dropdown action
-				const runningActionIndex = operationActions
-					.findIndex(action => action.label.startsWith('$(loading)') && !action.enabled);
+				const actions = operationActions.slice();
+				const runningActionIndex = actions.findIndex(action =>
+					action.label.startsWith('$(loading)') && !action.enabled);
 				const primaryActionIndex = runningActionIndex !== -1 ? runningActionIndex : 0;
-				const primaryAction = operationActions.splice(primaryActionIndex, 1)[0];
+				const primaryAction = actions.splice(primaryActionIndex, 1)[0];
 
-				primaryActions.push(new SubmenuAction('changesView.operations.primary.dropdown', primaryAction.label, [primaryAction, ...operationActions]));
+				primaryActions.push(new SubmenuAction('changesView.operations.primary.dropdown', primaryAction.label, [primaryAction, ...actions]));
 			} else {
 				primaryActions.push(...operationActions);
 			}
