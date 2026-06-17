@@ -44,17 +44,17 @@ class Patch {
 		return new Patch(filename, parseInt(lineNumber, 10));
 	}
 
-	addLine(line: string) {
+	addLine(line: string): boolean {
 		const contentLine = line.slice(1);
 		if (line.startsWith('-')) {
 			this.removedLines.push(contentLine);
 			return true;
-		} else if (line.startsWith('+')) {
+		}
+		if (line.startsWith('+')) {
 			this.addedLines.push(contentLine);
 			return true;
-		} else {
-			return false;
 		}
+		return false;
 	}
 
 	public toString(): string {
@@ -247,9 +247,77 @@ export function tryRemoveDuplicateAdditions(
 }
 
 
-export class XtabCustomDiffPatchResponseHandler {
+/**
+ * The outcome of evaluating the duplicate-additions policy for a single patch.
+ * Controls what the stream loop does next:
+ *   - `emit`       — yield the (possibly trimmed) replacement and continue
+ *   - `skip`       — drop this patch and continue to the next
+ *   - `skipAndStop` — drop this patch and all remaining patches in the stream
+ */
+type EditDecision =
+	| { kind: 'emit'; lineReplacement: LineReplacement }
+	| { kind: 'skip' }
+	| { kind: 'skipAndStop' };
 
-	public static async *handleResponse(
+/**
+ * Runs duplicate-addition detection on `lineReplacement` and applies the
+ * configured `mode` policy, returning an `EditDecision` for the caller to act on.
+ *
+ * Logs only telemetry-safe metadata (no raw line content) via `tracer` and
+ * fires `onDuplicateRemoved` for every detected duplicate regardless of mode.
+ */
+function applyDuplicatePolicy(
+	edit: Patch,
+	lineReplacement: LineReplacement,
+	content: AbstractText,
+	mode: Exclude<DuplicateAdditionsMode, DuplicateAdditionsMode.Off>,
+	tracer: ILogger,
+	onDuplicateRemoved?: OnDuplicateRemovedCallback,
+): EditDecision {
+	const removal = tryRemoveDuplicateAdditions(lineReplacement, content);
+	if (removal === undefined) {
+		return { kind: 'emit', lineReplacement };
+	}
+
+	// Log only metadata (kind / counts / location) — do NOT include raw line
+	// content. The tracer output may end up in user-visible diagnostics.
+	tracer.trace(`Detected duplicate addition(s) (kind=${removal.kind}, count=${removal.removedLines.length}, mode=${mode}) for edit at ${edit.filePath}:${edit.lineNumZeroBased}`);
+	onDuplicateRemoved?.({
+		summary: {
+			kind: removal.kind,
+			removedLineCount: removal.removedLines.length,
+			remainingAdditionCount: removal.newAdditions.length,
+		},
+		mode,
+		filePath: edit.filePath,
+		lineNumZeroBased: edit.lineNumZeroBased,
+	});
+
+	switch (mode) {
+		case DuplicateAdditionsMode.Log:
+			// Yield the patch unchanged.
+			return { kind: 'emit', lineReplacement };
+		case DuplicateAdditionsMode.DropPatch:
+			return { kind: 'skip' };
+		case DuplicateAdditionsMode.DropAllRemaining:
+			// Drop this patch and skip every subsequent patch in the stream.
+			// We still consume the stream to completion so the underlying
+			// fetch is allowed to finalize cleanly.
+			return { kind: 'skipAndStop' };
+		case DuplicateAdditionsMode.TrimDuplicate: {
+			const newLines = removal.newAdditions;
+			if (newLines.length === 0 && lineReplacement.lineRange.length === 0) {
+				// Trim left a no-op patch — drop it.
+				return { kind: 'skip' };
+			}
+			return { kind: 'emit', lineReplacement: new LineReplacement(lineReplacement.lineRange, newLines) };
+		}
+	}
+}
+
+export namespace XtabCustomDiffPatchResponseHandler {
+
+	export async function* handleResponse(
 		linesStream: AsyncIterable<string>,
 		currentDocument: CurrentDocument,
 		activeDocumentId: DocumentId,
@@ -264,7 +332,7 @@ export class XtabCustomDiffPatchResponseHandler {
 
 		try {
 			let dropAllRemaining = false;
-			for await (const edit of XtabCustomDiffPatchResponseHandler.extractEdits(linesStream)) {
+			for await (const edit of extractEdits(linesStream)) {
 				if (dropAllRemaining) {
 					continue;
 				}
@@ -272,57 +340,27 @@ export class XtabCustomDiffPatchResponseHandler {
 				const isActiveDoc = edit.filePath === activeDocRelativePath;
 				const targetDocument = isActiveDoc
 					? activeDocumentId
-					: XtabCustomDiffPatchResponseHandler.resolveTargetDocument(edit.filePath, workspaceRoot);
+					: resolveTargetDocument(edit.filePath, workspaceRoot);
 				if (!targetDocument) {
 					tracer.error(`Could not resolve target document for edit: ${edit.toString()}`);
 					continue;
 				}
 
-				let lineReplacement = XtabCustomDiffPatchResponseHandler.resolveEdit(edit);
+				let lineReplacement = resolveEdit(edit);
 
 				// Only attempt dedup for the active document — other files'
 				// content is not directly available here.
 				if (duplicateAdditionsMode !== DuplicateAdditionsMode.Off && isActiveDoc) {
-					const removal = tryRemoveDuplicateAdditions(lineReplacement, currentDocument.content);
-					if (removal !== undefined) {
-						// Log only metadata (kind / counts / location) — do
-						// NOT include raw line content. The tracer output
-						// may end up in user-visible diagnostics.
-						tracer.trace(`Detected duplicate addition(s) (kind=${removal.kind}, count=${removal.removedLines.length}, mode=${duplicateAdditionsMode}) for edit at ${edit.filePath}:${edit.lineNumZeroBased}`);
-						onDuplicateRemoved?.({
-							summary: {
-								kind: removal.kind,
-								removedLineCount: removal.removedLines.length,
-								remainingAdditionCount: removal.newAdditions.length,
-							},
-							mode: duplicateAdditionsMode,
-							filePath: edit.filePath,
-							lineNumZeroBased: edit.lineNumZeroBased,
-						});
-
-						switch (duplicateAdditionsMode) {
-							case DuplicateAdditionsMode.Log:
-								// Yield the patch unchanged.
-								break;
-							case DuplicateAdditionsMode.DropPatch:
-								continue;
-							case DuplicateAdditionsMode.DropAllRemaining:
-								// Drop this patch and skip every subsequent
-								// patch in the stream. We still consume the
-								// stream to completion so the underlying
-								// fetch is allowed to finalize cleanly.
-								dropAllRemaining = true;
-								continue;
-							case DuplicateAdditionsMode.TrimDuplicate: {
-								const newAdditions = removal.newAdditions;
-								if (newAdditions.length === 0 && lineReplacement.lineRange.length === 0) {
-									// Trim left a no-op patch — drop it.
-									continue;
-								}
-								lineReplacement = new LineReplacement(lineReplacement.lineRange, newAdditions);
-								break;
-							}
-						}
+					const decision = applyDuplicatePolicy(edit, lineReplacement, currentDocument.content, duplicateAdditionsMode, tracer, onDuplicateRemoved);
+					switch (decision.kind) {
+						case 'skip':
+							continue;
+						case 'skipAndStop':
+							dropAllRemaining = true;
+							continue;
+						case 'emit':
+							lineReplacement = decision.lineReplacement;
+							break;
 					}
 				}
 
@@ -344,11 +382,11 @@ export class XtabCustomDiffPatchResponseHandler {
 		return new NoNextEditReason.NoSuggestions(currentDocument.content, window, undefined);
 	}
 
-	private static resolveEdit(patch: Patch): LineReplacement {
+	function resolveEdit(patch: Patch): LineReplacement {
 		return new LineReplacement(new LineRange(patch.lineNumZeroBased + 1, patch.lineNumZeroBased + 1 + patch.removedLines.length), patch.addedLines);
 	}
 
-	private static resolveTargetDocument(filePath: string, workspaceRoot: URI | undefined): DocumentId | undefined {
+	function resolveTargetDocument(filePath: string, workspaceRoot: URI | undefined): DocumentId | undefined {
 		if (isAbsolute(filePath)) {
 			return DocumentId.create(URI.file(filePath).toString());
 		}
@@ -359,10 +397,9 @@ export class XtabCustomDiffPatchResponseHandler {
 		return undefined;
 	}
 
-	public static async *extractEdits(linesStream: AsyncIterable<string>): AsyncGenerator<Patch> {
+	export async function* extractEdits(linesStream: AsyncIterable<string>): AsyncGenerator<Patch> {
 		let currentPatch: Patch | null = null;
 		for await (const line of linesStream) {
-			// if no current patch, try to parse a new one
 			if (line.trim() === ResponseTags.NO_EDIT) {
 				break;
 			}
@@ -370,15 +407,12 @@ export class XtabCustomDiffPatchResponseHandler {
 				currentPatch = Patch.ofLine(line);
 				continue;
 			}
-			// try to add line to current patch
 			if (currentPatch.addLine(line)) {
 				continue;
-			} else { // line does not belong to current patch, yield current and start new
-				if (currentPatch) {
-					yield currentPatch;
-				}
-				currentPatch = Patch.ofLine(line);
 			}
+			// line does not belong to current patch, yield current and start new
+			yield currentPatch;
+			currentPatch = Patch.ofLine(line);
 		}
 		if (currentPatch) {
 			yield currentPatch;
