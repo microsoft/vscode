@@ -21,7 +21,7 @@ import { SpyingTelemetryService } from '../../../telemetry/node/spyingTelemetryS
 import { createFakeStreamResponse } from '../../../test/node/fetcher';
 import { createPlatformServices } from '../../../test/node/services';
 import type { ThinkingData } from '../../../thinking/common/thinking';
-import { CustomDataPartMimeTypes } from '../../common/endpointTypes';
+import { CacheType, CustomDataPartMimeTypes } from '../../common/endpointTypes';
 import { createResponsesRequestBody, getResponsesApiCompactionThresholdFromBody, processResponseFromChatEndpoint, responseApiInputToRawMessagesForLogging } from '../responsesApi';
 
 const testEndpoint: IChatEndpoint = {
@@ -981,6 +981,188 @@ describe('createResponsesRequestBody', () => {
 
 		accessor.dispose();
 		services.dispose();
+	});
+});
+
+describe('createResponsesRequestBody cache_control markers', () => {
+	const cacheBreakpoint = (): Raw.ChatCompletionContentPart => ({
+		type: Raw.ChatCompletionContentPartKind.CacheBreakpoint,
+		cacheType: CacheType,
+	});
+
+	const buildBody = (messages: Raw.ChatMessage[], endpoint = testEndpoint) => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), endpoint.model, endpoint));
+		accessor.dispose();
+		services.dispose();
+		return body;
+	};
+
+	it('attaches cache_control to the last content block of a user message', () => {
+		const messages: Raw.ChatMessage[] = [{
+			role: Raw.ChatRole.User,
+			content: [
+				{ type: Raw.ChatCompletionContentPartKind.Text, text: 'first' },
+				{ type: Raw.ChatCompletionContentPartKind.Text, text: 'second' },
+				cacheBreakpoint(),
+			],
+		}];
+
+		const body = buildBody(messages);
+
+		expect(body.input?.[0]).toMatchObject({
+			role: 'user',
+			content: [
+				{ type: 'input_text', text: 'first' },
+				{ type: 'input_text', text: 'second', cache_control: { type: CacheType } },
+			],
+		});
+		expect((body.input?.[0] as { content: unknown[] }).content[0]).not.toHaveProperty('cache_control');
+	});
+
+	it('attaches cache_control to the last content block of a system message', () => {
+		const messages: Raw.ChatMessage[] = [{
+			role: Raw.ChatRole.System,
+			content: [
+				{ type: Raw.ChatCompletionContentPartKind.Text, text: 'be concise' },
+				cacheBreakpoint(),
+			],
+		}];
+
+		const body = buildBody(messages);
+
+		expect(body.input?.[0]).toMatchObject({
+			role: 'system',
+			content: [{ type: 'input_text', text: 'be concise', cache_control: { type: CacheType } }],
+		});
+	});
+
+	it('attaches cache_control to the last output_text of a terminal assistant message', () => {
+		const messages: Raw.ChatMessage[] = [{
+			role: Raw.ChatRole.Assistant,
+			content: [
+				{ type: Raw.ChatCompletionContentPartKind.Text, text: 'final answer' },
+				cacheBreakpoint(),
+			],
+		}];
+
+		const body = buildBody(messages);
+
+		expect(body.input?.[0]).toMatchObject({
+			role: 'assistant',
+			type: 'message',
+			content: [{ type: 'output_text', text: 'final answer', cache_control: { type: CacheType } }],
+		});
+	});
+
+	it('attaches cache_control at item level to a tool result (function_call_output)', () => {
+		const messages: Raw.ChatMessage[] = [
+			{
+				role: Raw.ChatRole.Assistant,
+				content: [],
+				toolCalls: [{ id: 'call_1', type: 'function', function: { name: 'read_file', arguments: '{}' } }],
+			},
+			{
+				role: Raw.ChatRole.Tool,
+				toolCallId: 'call_1',
+				content: [
+					{ type: Raw.ChatCompletionContentPartKind.Text, text: 'result' },
+					cacheBreakpoint(),
+				],
+			},
+		];
+
+		const body = buildBody(messages);
+
+		expect(body.input?.[1]).toMatchObject({
+			type: 'function_call_output',
+			call_id: 'call_1',
+			output: 'result',
+			cache_control: { type: CacheType },
+		});
+	});
+
+	it('attaches cache_control at item level to the last function_call when the assistant has tool calls', () => {
+		const messages: Raw.ChatMessage[] = [{
+			role: Raw.ChatRole.Assistant,
+			content: [
+				{ type: Raw.ChatCompletionContentPartKind.Text, text: 'calling' },
+				cacheBreakpoint(),
+			],
+			toolCalls: [
+				{ id: 'call_a', type: 'function', function: { name: 'tool_a', arguments: '{}' } },
+				{ id: 'call_b', type: 'function', function: { name: 'tool_b', arguments: '{}' } },
+			],
+		}];
+
+		const body = buildBody(messages);
+		const input = body.input as OpenAI.Responses.ResponseInputItem[];
+
+		const lastCall = input.find(item => isFunctionCallInputItem(item, 'tool_b'));
+		expect(lastCall).toMatchObject({ cache_control: { type: CacheType } });
+
+		const firstCall = input.find(item => isFunctionCallInputItem(item, 'tool_a'));
+		expect(firstCall).not.toHaveProperty('cache_control');
+
+		const messageItem = input.find(item => (item as { type?: string }).type === 'message');
+		expect((messageItem as { content: unknown[] }).content[0]).not.toHaveProperty('cache_control');
+	});
+
+	it('attaches cache_control to the trailing image item of a tool result with images', () => {
+		const messages: Raw.ChatMessage[] = [
+			{
+				role: Raw.ChatRole.Assistant,
+				content: [],
+				toolCalls: [{ id: 'call_img', type: 'function', function: { name: 'screenshot', arguments: '{}' } }],
+			},
+			{
+				role: Raw.ChatRole.Tool,
+				toolCallId: 'call_img',
+				content: [
+					{ type: Raw.ChatCompletionContentPartKind.Text, text: 'see image' },
+					{ type: Raw.ChatCompletionContentPartKind.Image, imageUrl: { url: 'data:image/png;base64,abc', detail: 'auto' } },
+					cacheBreakpoint(),
+				],
+			},
+		];
+
+		const body = buildBody(messages);
+
+		expect(body.input?.at(-1)).toMatchObject({
+			role: 'user',
+			content: [
+				{ type: 'input_text', text: 'Image associated with the above tool call:' },
+				{ type: 'input_image', cache_control: { type: CacheType } },
+			],
+		});
+		expect(body.input?.[1]).not.toHaveProperty('cache_control');
+	});
+
+	it('falls back to a whitespace text block when the marked message has no other content', () => {
+		const messages: Raw.ChatMessage[] = [{
+			role: Raw.ChatRole.User,
+			content: [cacheBreakpoint()],
+		}];
+
+		const body = buildBody(messages);
+
+		expect(body.input?.[0]).toMatchObject({
+			role: 'user',
+			content: [{ type: 'input_text', text: ' ', cache_control: { type: CacheType } }],
+		});
+	});
+
+	it('does not attach cache_control when the message has no breakpoint', () => {
+		const messages: Raw.ChatMessage[] = [{
+			role: Raw.ChatRole.User,
+			content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'hello' }],
+		}];
+
+		const body = buildBody(messages);
+
+		expect((body.input?.[0] as { content: unknown[] }).content[0]).not.toHaveProperty('cache_control');
 	});
 });
 

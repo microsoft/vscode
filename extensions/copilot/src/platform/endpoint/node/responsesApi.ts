@@ -29,6 +29,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { TelemetryData } from '../../telemetry/common/telemetryData';
 import { getVerbosityForModelSync, isHiddenModelM } from '../common/chatModelCapabilities';
 import { rawPartAsCompactionData } from '../common/compactionDataContainer';
+import { CacheType } from '../common/endpointTypes';
 import { rawPartAsPhaseData } from '../common/phaseDataContainer';
 import { getIndexOfStatefulMarker, getStatefulMarkerAndIndex } from '../common/statefulMarkerContainer';
 import { rawPartAsThinkingData } from '../common/thinkingDataContainer';
@@ -378,6 +379,7 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 
 	const input: OpenAI.Responses.ResponseInputItem[] = [];
 	for (const message of messages) {
+		const inputStartIndex = input.length;
 		switch (message.role) {
 			case Raw.ChatRole.Assistant:
 				if (message.content.length) {
@@ -471,6 +473,16 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 			case Raw.ChatRole.System:
 				input.push({ role: 'system', content: message.content.map(rawContentToResponsesContent).filter(isDefined) });
 				break;
+		}
+
+		if (input.length > inputStartIndex && hasCacheBreakpoint(message)) {
+			// Attach the prompt-cache marker to the last item this message produced, scanning back past
+			// reasoning/compaction items that cannot carry it.
+			for (let inputIndex = input.length - 1; inputIndex >= inputStartIndex; inputIndex--) {
+				if (tryApplyCacheControl(input[inputIndex])) {
+					break;
+				}
+			}
 		}
 	}
 
@@ -568,6 +580,54 @@ function rawContentToResponsesAssistantContent(part: Raw.ChatCompletionContentPa
 				return { type: 'output_text', text: part.text };
 			}
 	}
+}
+
+interface ResponsesCacheControl {
+	readonly type: typeof CacheType;
+}
+
+/**
+ * Whether a raw message carries a prompt-cache breakpoint. Breakpoints are appended to the end of
+ * a message's content by `addCacheBreakpoints`; the Responses content converters drop the
+ * `CacheBreakpoint` part itself, so we detect it at the message level here.
+ */
+function hasCacheBreakpoint(message: Raw.ChatMessage): boolean {
+	return message.content.some(part => part.type === Raw.ChatCompletionContentPartKind.CacheBreakpoint);
+}
+
+/**
+ * Attaches a prompt-cache marker (`cache_control: { type: 'ephemeral' }`) to a single Responses API
+ * input item, mirroring the Anthropic Messages API converter.
+ *
+ * Items that carry a `content` array (user/system/assistant messages) receive the marker on their
+ * last content block; an empty content array gets a whitespace text block to carry it (an empty
+ * string is invalid). Items without a content array (`function_call`, `function_call_output`,
+ * `tool_search_*`) receive the marker at the item level. Returns whether a marker was applied.
+ */
+function tryApplyCacheControl(item: OpenAI.Responses.ResponseInputItem): boolean {
+	const content = (item as { content?: unknown }).content;
+	if (Array.isArray(content)) {
+		const lastContentBlock = content.at(-1) as { cache_control?: ResponsesCacheControl } | undefined;
+		if (lastContentBlock) {
+			lastContentBlock.cache_control = { type: CacheType };
+		} else {
+			content.push({ type: 'input_text', text: ' ', cache_control: { type: CacheType } });
+		}
+		return true;
+	}
+
+	const itemType = (item as { type?: string }).type;
+	if (
+		itemType === 'function_call'
+		|| itemType === 'function_call_output'
+		|| itemType === 'tool_search_call'
+		|| itemType === 'tool_search_output'
+	) {
+		(item as { cache_control?: ResponsesCacheControl }).cache_control = { type: CacheType };
+		return true;
+	}
+
+	return false;
 }
 
 /**
