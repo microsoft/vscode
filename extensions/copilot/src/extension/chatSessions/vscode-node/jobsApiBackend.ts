@@ -25,6 +25,18 @@ import { body_suffix, formatBodyPlaceholder, JOBS_API_VERSION, SessionIdForPr } 
 const CLOUD_SESSIONS_AUTH_OPTIONS: AuthOptions = { createIfNone: { detail: l10n.t('Sign in to GitHub to access Copilot cloud sessions.') } };
 
 /**
+ * Error thrown for invalid Jobs API (v1) create responses. Carries the HTTP `status` (when known)
+ * so cloud backend telemetry can classify v1 create failures by status (the guardrail error
+ * dimension), mirroring {@link TaskApiError} on the v2 backend.
+ */
+export class JobsApiError extends Error {
+	constructor(message: string, readonly status: number | undefined) {
+		super(message);
+		this.name = 'JobsApiError';
+	}
+}
+
+/**
  * Cloud agent backend backed by the legacy Jobs API. This is the default and is
  * behaviorally identical to the inline code that previously lived in
  * `CopilotCloudSessionsProvider`.
@@ -172,17 +184,17 @@ export class JobsApiBackend implements PrCloudAgentBackend {
 		const statusCode = (response as { status?: number } | undefined)?.status;
 		switch (statusCode) {
 			case 401:
-				return new Error(vscode.l10n.t('Cloud agent is not authorized to run on this repository. This may be because the Copilot coding agent is disabled for your organization, or your active GitHub account does not have push access to the target repository.'));
+				return new JobsApiError(vscode.l10n.t('Cloud agent is not authorized to run on this repository. This may be because the Copilot coding agent is disabled for your organization, or your active GitHub account does not have push access to the target repository.'), statusCode);
 			case 403:
-				return new Error(vscode.l10n.t('Cloud agent is not enabled for this repository. You may need to enable it in [GitHub settings]({0}) or contact your organization administrator.', `https://${params.host}/settings/copilot/coding_agent`));
+				return new JobsApiError(vscode.l10n.t('Cloud agent is not enabled for this repository. You may need to enable it in [GitHub settings]({0}) or contact your organization administrator.', `https://${params.host}/settings/copilot/coding_agent`), statusCode);
 			case 404:
-				return new Error(vscode.l10n.t('The repository `{0}/{1}` was not found or you do not have access to it.', params.owner, params.repo));
+				return new JobsApiError(vscode.l10n.t('The repository `{0}/{1}` was not found or you do not have access to it.', params.owner, params.repo), statusCode);
 			case 422:
-				return new Error(vscode.l10n.t('Cloud agent was unable to create a pull request with the specified base branch `{0}`. Please push the branch to the remote and verify repository rules allow this operation. For empty repos, push an initial commit and try again.', params.baseRef));
+				return new JobsApiError(vscode.l10n.t('Cloud agent was unable to create a pull request with the specified base branch `{0}`. Please push the branch to the remote and verify repository rules allow this operation. For empty repos, push an initial commit and try again.', params.baseRef), statusCode);
 			case 500:
-				return new Error(vscode.l10n.t('Cloud agent service encountered an internal error. Please try again later.'));
+				return new JobsApiError(vscode.l10n.t('Cloud agent service encountered an internal error. Please try again later.'), statusCode);
 			default:
-				return new Error(vscode.l10n.t('Received invalid response {0} from cloud agent.', statusCode ? statusCode : ''));
+				return new JobsApiError(vscode.l10n.t('Received invalid response {0} from cloud agent.', statusCode ? statusCode : ''), statusCode);
 		}
 	}
 

@@ -70,16 +70,22 @@ export interface ICloudBackendInstrumentation {
 	legacyJobPullRequestReady(): void;
 }
 
-/** Extract a low-cardinality error classifier suitable for a telemetry/metric dimension. */
-export function cloudErrorType(error: unknown, status?: number): string {
+/** Resolve a numeric HTTP status from an explicit value or a duck-typed `error.status`. */
+function cloudHttpStatus(error: unknown, status?: number): number | undefined {
 	if (typeof status === 'number') {
-		return `http_${status}`;
+		return status;
 	}
 	const ducked = (error && typeof error === 'object' && 'status' in error)
 		? (error as { status?: unknown }).status
 		: undefined;
-	if (typeof ducked === 'number') {
-		return `http_${ducked}`;
+	return typeof ducked === 'number' ? ducked : undefined;
+}
+
+/** Extract a low-cardinality error classifier suitable for a telemetry/metric dimension. */
+export function cloudErrorType(error: unknown, status?: number): string {
+	const resolvedStatus = cloudHttpStatus(error, status);
+	if (typeof resolvedStatus === 'number') {
+		return `http_${resolvedStatus}`;
 	}
 	if (error instanceof Error) {
 		return error.name || 'Error';
@@ -155,7 +161,10 @@ export class CloudBackendInstrumentation implements ICloudBackendInstrumentation
 			backendVersion: this.backendVersion,
 		}, { durationMs });
 		GenAiMetrics.recordCloudOperation(this._otelService, 'sessionActivated', this.backendVersion, true, durationMs);
-		GenAiMetrics.incrementCloudPrReadyCount(this._otelService, this.backendVersion);
+		// pr_ready is a v1 (Jobs API) concept; v2 (Task API) activation is a first turn, not a PR becoming available.
+		if (this.backendVersion === 'v1') {
+			GenAiMetrics.incrementCloudPrReadyCount(this._otelService, this.backendVersion);
+		}
 	}
 
 	followUp(outcome: CloudBackendOutcome, error?: unknown): void {
@@ -194,7 +203,8 @@ export class CloudBackendInstrumentation implements ICloudBackendInstrumentation
 	}
 
 	operationFailed(operation: CloudBackendOperation, error: unknown, status?: number): void {
-		const errorType = cloudErrorType(error, status);
+		const resolvedStatus = cloudHttpStatus(error, status);
+		const errorType = cloudErrorType(error, resolvedStatus);
 		/* __GDPR__
 			"copilotcloud.chat.operationError" : {
 				"owner": "osortega",
@@ -211,7 +221,7 @@ export class CloudBackendInstrumentation implements ICloudBackendInstrumentation
 			operation,
 			errorType,
 			errorMessage: errorMessageOf(error),
-		}, status !== undefined ? { status } : undefined);
+		}, resolvedStatus !== undefined ? { status: resolvedStatus } : undefined);
 		GenAiMetrics.incrementCloudError(this._otelService, operation, this.backendVersion, errorType);
 	}
 

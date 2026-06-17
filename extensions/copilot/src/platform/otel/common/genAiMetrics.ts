@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CopilotChatAttr, type EditOutcome, type EditSource, GenAiAttr, StdAttr } from './genAiAttributes';
+import { CopilotChatAttr, type EditOutcome, type EditSource, GenAiAttr, GitHubCopilotAttr, StdAttr } from './genAiAttributes';
 import type { IOTelService } from './otelService';
 
 /**
@@ -223,12 +223,12 @@ export class GenAiMetrics {
 	static incrementCloudSessionCount(otel: IOTelService, partnerAgent: string, backendVersion?: string): void {
 		otel.incrementCounter('copilot_chat.cloud.session.count', 1, {
 			'partner_agent': partnerAgent,
-			...(backendVersion ? { [CopilotChatAttr.CLOUD_BACKEND_VERSION]: backendVersion } : {}),
+			...(backendVersion ? { [GitHubCopilotAttr.CLOUD_BACKEND_VERSION]: backendVersion } : {}),
 		});
 	}
 
 	static incrementCloudPrReadyCount(otel: IOTelService, backendVersion?: string): void {
-		otel.incrementCounter('copilot_chat.cloud.pr_ready.count', 1, backendVersion ? { [CopilotChatAttr.CLOUD_BACKEND_VERSION]: backendVersion } : undefined);
+		otel.incrementCounter('copilot_chat.cloud.pr_ready.count', 1, backendVersion ? { [GitHubCopilotAttr.CLOUD_BACKEND_VERSION]: backendVersion } : undefined);
 	}
 
 	/**
@@ -239,13 +239,13 @@ export class GenAiMetrics {
 	static recordCloudOperation(otel: IOTelService, operation: string, backendVersion: string, success: boolean, durationMs?: number): void {
 		otel.incrementCounter('copilot_chat.cloud.operation.count', 1, {
 			'operation': operation,
-			[CopilotChatAttr.CLOUD_BACKEND_VERSION]: backendVersion,
+			[GitHubCopilotAttr.CLOUD_BACKEND_VERSION]: backendVersion,
 			'success': success,
 		});
 		if (durationMs !== undefined) {
 			otel.recordMetric('copilot_chat.cloud.operation.duration', durationMs, {
 				'operation': operation,
-				[CopilotChatAttr.CLOUD_BACKEND_VERSION]: backendVersion,
+				[GitHubCopilotAttr.CLOUD_BACKEND_VERSION]: backendVersion,
 			});
 		}
 	}
@@ -254,7 +254,7 @@ export class GenAiMetrics {
 	static incrementCloudError(otel: IOTelService, operation: string, backendVersion: string, errorType: string): void {
 		otel.incrementCounter('copilot_chat.cloud.error.count', 1, {
 			'operation': operation,
-			[CopilotChatAttr.CLOUD_BACKEND_VERSION]: backendVersion,
+			[GitHubCopilotAttr.CLOUD_BACKEND_VERSION]: backendVersion,
 			[StdAttr.ERROR_TYPE]: errorType,
 		});
 	}

@@ -168,8 +168,6 @@ export const CopilotChatAttr = {
 	HOOK_RESULT_KIND: 'copilot_chat.hook_result_kind',
 	/** Custom chat mode name (when a custom mode is active) */
 	MODE_NAME: 'copilot_chat.mode_name',
-	/** Cloud agent backend version classifier: `v1` (Jobs API) | `v2` (Task API). Used to compare rollout arms. */
-	CLOUD_BACKEND_VERSION: 'copilot_chat.cloud.backend_version',
 	/** Aggregated session cost in USD (Claude agent) */
 	TOTAL_COST_USD: 'copilot_chat.total_cost_usd',
 	/** Per-request cost from copilot_usage.total_nano_aiu */
@@ -206,6 +204,9 @@ export const CopilotCliSdkAttr = {
 export const GitHubCopilotAttr = {
 	/** Agent type classifier: `builtin` | `plugin` | `custom`. */
 	AGENT_TYPE: 'github.copilot.agent.type',
+
+	/** Cloud agent backend version classifier: `v1` (Jobs API) | `v2` (Task API). Used to compare the rollout backend versions. */
+	CLOUD_BACKEND_VERSION: 'github.copilot.cloud.backend_version',
 
 	/** Git remote URL (normalized). Dual of `copilot_chat.repo.remote_url`. */
 	GIT_REPOSITORY: 'github.copilot.git.repository',
