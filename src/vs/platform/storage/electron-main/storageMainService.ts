@@ -5,7 +5,7 @@
 
 import { URI } from '../../../base/common/uri.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { join } from '../../../base/common/path.js';
 import { IStorage } from '../../../base/parts/storage/common/storage.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
@@ -338,16 +338,20 @@ class StorageMap extends Disposable {
 		if (!storage) {
 			const result = create();
 			this._register(result.storage);
+			const cleanup = this._register(toDisposable(result.onDidClose));
 			storage = new RefCountedStorage(result.storage);
 			this.mapStorage.set(storageId, storage);
 
-			// Don't use this._register() for Event.once as it auto-disposes
-			Event.once(result.storage.onDidCloseStorage)(() => {
+			// Defer storage disposal so all close listeners can observe the close event first.
+			const closeListener = this._register(Event.once(result.storage.onDidCloseStorage)(() => {
 				this.mapStorage.delete(storageId);
 				this.clearStorageReferences(storageId);
-				result.onDidClose();
-				queueMicrotask(() => this._store.delete(result.storage));
-			});
+				this._store.delete(cleanup);
+				queueMicrotask(() => {
+					this._store.delete(result.storage);
+					this._store.delete(closeListener);
+				});
+			}));
 		}
 
 		this.addWindowReference(storageId, storage, ownerWindowId);

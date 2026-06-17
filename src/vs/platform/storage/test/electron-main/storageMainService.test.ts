@@ -471,6 +471,7 @@ suite('StorageMainService', function () {
 
 		let didChange = false;
 		disposables.add(storageChannel.listen('window:2', 'onDidChangeStorage', { profile, workspace: undefined })(() => didChange = true));
+		await storageChannel.call('window:2', 'getItems', { profile, workspace: undefined });
 
 		const profileStorage2 = storageMainService.profileStorage(profile);
 		profileStorage2.set('foo', 'bar');
