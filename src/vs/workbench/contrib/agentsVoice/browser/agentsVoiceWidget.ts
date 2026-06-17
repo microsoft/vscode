@@ -504,7 +504,7 @@ export class AgentsVoiceWidget extends Disposable {
 					});
 				}
 
-				this._expandSpacer.style.display = '';
+				this._expandSpacer.style.display = showExpanded ? '' : 'none';
 				this._chevronWrapper.style.display = opts.showExpandChevron ? 'flex' : 'none';
 				this._chevronWrapper.title = showExpanded ? 'Collapse sessions' : 'Expand sessions';
 				this._chevronIcon.className = `codicon codicon-${showExpanded ? 'chevron-up' : 'chevron-down'}`;
