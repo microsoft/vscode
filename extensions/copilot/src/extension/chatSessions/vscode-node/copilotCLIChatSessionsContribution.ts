@@ -1679,8 +1679,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			// session after the swap.
 			this.sessionItemProvider.sdkToUntitledUriMapping.delete(sdkSessionId);
 			this.folderRepositoryManager.deleteNewSessionFolder(untitledSessionId);
-			const modifiedResource = SessionIdForCLI.getResource(sdkSessionId);
-			this.sessionItemProvider.swap(chatSessionItem, { resource: modifiedResource, label: requestPrompt });
+			this.sessionItemProvider.swap(chatSessionItem, { resource: SessionIdForCLI.getResource(sdkSessionId), label: requestPrompt });
 		}, CHECK_FOR_STEERING_DELAY, this._store);
 	}
 
