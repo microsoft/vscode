@@ -18,7 +18,7 @@ import { IMarkdownString, isMarkdownString, MarkdownString } from '../../../base
 import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
 import { AnchorPosition } from '../../../base/common/layout.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { OS, isMacintosh } from '../../../base/common/platform.js';
+import { OS } from '../../../base/common/platform.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { URI } from '../../../base/common/uri.js';
 import './actionWidget.css';
@@ -36,11 +36,7 @@ export const previewSelectedActionCommand = 'previewSelectedCodeAction';
 
 export interface IActionListDelegate<T> {
 	onHide(didCancel?: boolean): void;
-	/**
-	 * @param keepOpen Whether the user requested to keep the widget open while
-	 * selecting (e.g. by holding the platform modifier).
-	 */
-	onSelect(action: T, preview?: boolean, keepOpen?: boolean): void;
+	onSelect(action: T, preview?: boolean): void;
 	onFilter?(filter: string, cancellationToken: CancellationToken): Promise<readonly IActionListItem<T>[]>;
 	onHover?(action: T, cancellationToken: CancellationToken): Promise<{ canPreview: boolean } | void>;
 	onFocus?(action: T | undefined): void;
@@ -1436,13 +1432,7 @@ export class ActionListWidget<T> extends Disposable {
 		}
 		if (element.item && this.focusCondition(element)) {
 			const isPreviewEvent = e.browserEvent instanceof PreviewSelectedEvent;
-			// Holding the platform modifier (Cmd on macOS, Ctrl elsewhere) while
-			// selecting requests that the widget stays open after running. For
-			// keyboard, Cmd/Ctrl+Enter maps to a preview request; on a list that
-			// does not support preview we treat it as a keep-open request instead.
-			const keepOpen = (dom.isMouseEvent(e.browserEvent) && (isMacintosh ? e.browserEvent.metaKey : e.browserEvent.ctrlKey))
-				|| (isPreviewEvent && !this._supportsPreview);
-			this._delegate.onSelect(element.item, isPreviewEvent && this._supportsPreview, keepOpen);
+			this._delegate.onSelect(element.item, isPreviewEvent && this._supportsPreview);
 		} else {
 			this._list.setSelection([]);
 		}

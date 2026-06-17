@@ -27,7 +27,7 @@ export class AgentHostCommitOperationContribution extends Disposable implements 
 		this._registry = registry;
 		const store = new DisposableStore();
 		const getSessionState = (sessionKey: string) => this._stateManager.getSessionState(sessionKey);
-		const handler = this._instantiationService.createInstance(AgentHostCommitOperationHandler, getSessionState, sessionKey => this._onCommitted(sessionKey));
+		const handler = this._instantiationService.createInstance(AgentHostCommitOperationHandler, getSessionState, (sessionKey, changeset) => this._onCommitted(sessionKey, changeset));
 		store.add(registry.registerChangesetOperationHandler(AgentHostCommitOperationHandler.OPERATION_COMMIT, handler));
 		store.add({ dispose: () => { this._registry = undefined; } });
 		return store;
@@ -47,8 +47,8 @@ export class AgentHostCommitOperationContribution extends Disposable implements 
 		} satisfies ChangesetOperation];
 	}
 
-	private async _onCommitted(sessionKey: string): Promise<void> {
-		this._registry?.onDidChangeOperations(sessionKey);
-		await this._registry?.refreshSessionGitState(sessionKey);
+	private async _onCommitted(sessionKey: string, changeset: string): Promise<void> {
+		this._registry?.onDidChangeOperations(sessionKey, changeset);
+		await this._registry?.refreshSessionGitState(sessionKey, changeset);
 	}
 }

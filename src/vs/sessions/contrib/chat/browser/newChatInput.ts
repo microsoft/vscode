@@ -60,7 +60,7 @@ import { autorun, IObservable } from '../../../../base/common/observable.js';
 import { ChatInputNotificationWidget } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationWidget.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
 import { ModelPicker, ModelPickerActionViewItem } from './modelPicker.js';
-import { ISessionInputContext, SessionInputContext } from './sessionInputContext.js';
+import { ISessionContext, SessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 
 
@@ -189,7 +189,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		super();
 		this._scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection(
 			[INewChatModelPickerService, new NewChatModelPickerService()],
-			[ISessionInputContext, new SessionInputContext(this.options.session)],
+			[ISessionContext, new SessionContext(this.options.session)],
 		)));
 		this._history = this._register(this.instantiationService.createInstance(ChatHistoryNavigator, ChatAgentLocation.Chat));
 		if (this.options.historyKey) {

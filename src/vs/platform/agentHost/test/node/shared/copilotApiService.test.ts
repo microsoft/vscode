@@ -372,6 +372,54 @@ suite('CopilotApiService', () => {
 			assert.ok(minted.some(h => h.includes('gh-tok-A')));
 			assert.ok(minted.some(h => h.includes('gh-tok-B')));
 		});
+
+		suite('CAPI URL override (VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE)', () => {
+			const ENV = 'VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE';
+			let saved: string | undefined;
+
+			setup(() => { saved = process.env[ENV]; });
+			teardown(() => {
+				if (saved === undefined) {
+					delete process.env[ENV];
+				} else {
+					process.env[ENV] = saved;
+				}
+			});
+
+			test('a loopback override skips discovery and routes CAPI at the override', async () => {
+				process.env[ENV] = 'http://127.0.0.1:12345';
+				let discoveryHit = false;
+				const service = createService(async (input) => {
+					const url = getUrl(input);
+					if (url.includes('/copilot_internal')) {
+						discoveryHit = true;
+						return tokenResponse();
+					}
+					return anthropicResponse([{ type: 'text', text: 'ok' }]);
+				});
+
+				await service.messages('gh-secret', baseRequest);
+
+				assert.strictEqual(discoveryHit, false, 'discovery must be skipped for a loopback override');
+			});
+
+			test('a non-loopback override is ignored and normal discovery runs (no token leak)', async () => {
+				process.env[ENV] = 'https://evil.example.com';
+				let discoveryHit = false;
+				const service = createService(async (input) => {
+					const url = getUrl(input);
+					if (url.includes('/copilot_internal')) {
+						discoveryHit = true;
+						return tokenResponse();
+					}
+					return anthropicResponse([{ type: 'text', text: 'ok' }]);
+				});
+
+				await service.messages('gh-secret', baseRequest);
+
+				assert.strictEqual(discoveryHit, true, 'a non-loopback override must be ignored so the token is never sent to it');
+			});
+		});
 	});
 
 	// #endregion
