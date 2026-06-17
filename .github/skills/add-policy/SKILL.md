@@ -13,7 +13,7 @@ Policies allow enterprise administrators to lock configuration settings via OS-l
 - Modifying an existing policy (rename, category change, etc.)
 - Reviewing a PR that touches policy registration
 - Adding account-based policy support via `IPolicyData`
-- Wiring an enterprise **managed setting** (MDM / file / GitHub server) — see **[github-managed-settings.md](./github-managed-settings.md)**
+- Wiring an enterprise **managed setting** (native MDM / GitHub server) — see **[github-managed-settings.md](./github-managed-settings.md)**
 - Having one policy govern **multiple** settings via `policyReference` — see **[github-managed-settings.md](./github-managed-settings.md)**
 
 ## Architecture Overview
@@ -24,7 +24,7 @@ Policies allow enterprise administrators to lock configuration settings via OS-l
 |--------|---------------|----------------------|
 | **OS-level** (Windows registry, macOS plist) | `NativePolicyService` via `@vscode/policy-watcher` | Watches `Software\Policies\Microsoft\{productName}` (Windows) or bundle identifier prefs (macOS) |
 | **Linux file** | `FilePolicyService` | Reads `/etc/vscode/policy.json` |
-| **Account/GitHub** | `AccountPolicyService` | Reads `IPolicyData` from `IDefaultAccountService.policyData`, applies `value()` function. Also consumes `IPolicyData.managedSettings` (server `/copilot_internal/managed_settings` + native MDM) |
+| **Account/GitHub** | `AccountPolicyService` | Reads `IPolicyData` from `IDefaultAccountService.policyData`, applies `value()` function. Server-delivered managed settings arrive on `policyData.managedSettings`; native MDM is a **separate** input (`ICopilotManagedSettingsService`) that `AccountPolicyService` merges in `getPolicyData()` |
 | **Copilot managed settings (native MDM)** | `CopilotManagedSettingsService` via `@vscode/policy-watcher` | Watches `SOFTWARE\Policies\GitHubCopilot` (Windows) / `com.github.copilot` prefs (macOS); feeds the canonical `managedSettings` bag — see [github-managed-settings.md](./github-managed-settings.md) |
 | **Multiplex** | `MultiplexPolicyService` | Combines OS-level + account policy services; used in desktop main |
 
@@ -232,19 +232,21 @@ Key details:
 
 ### Real-world examples
 
-See `chat.tools.global.autoApprove` and `chat.useHooks` in `src/vs/workbench/contrib/chat/browser/chat.contribution.ts` for existing settings that use this pattern.
+See `chat.tools.global.autoApprove` and `chat.useHooks` in `src/vs/workbench/contrib/chat/browser/chat.shared.contribution.ts` for existing settings that use this pattern.
 
-## Enterprise Managed Settings (MDM / file / GitHub server)
+## Enterprise Managed Settings (native MDM / GitHub server)
 
-GitHub Copilot enterprise admins can lock settings through a **managed-settings** bag
-delivered three ways — native MDM (Windows registry / macOS plist), a local
-`managed-settings.json`, or the GitHub `/copilot_internal/managed_settings` endpoint.
-All three converge on `IPolicyData.managedSettings` (a flat dot-path bag) and are
-consumed by the **existing** `policy.value(policyData)` callback — there is no new
-`IPolicyService`.
+GitHub Copilot enterprise admins can lock settings through a **managed-settings** bag.
+VS Code feeds the bag from **two** channels: native MDM (Windows registry / macOS plist)
+and the GitHub `/copilot_internal/managed_settings` endpoint. (The external
+`managed-settings-schema.json` also describes a `managed-settings.json` file channel, but
+VS Code does **not** read such a file.) Both VS Code channels converge on
+`IPolicyData.managedSettings` (a flat dot-path bag) and are consumed by the **existing**
+`policy.value(policyData)` callback — there is no new `IPolicyService`.
 
 To drive a policy from a managed setting, declare `managedSettings` on the policy and
-read `policyData.managedSettings?.[KEY]` in `value`:
+read `policyData.managedSettings?.[KEY]` in `value` (the real `ChatToolsAutoApprove` also
+ORs in `chat_preview_features_enabled === false`):
 
 ```typescript
 policy: {
@@ -252,7 +254,8 @@ policy: {
     category: PolicyCategory.InteractiveSession,
     minimumVersion: '1.99',
     value: (policyData) =>
-        policyData.managedSettings?.[COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY] === 'disable' ? false : undefined,
+        policyData.managedSettings?.[COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY] === 'disable'
+            || policyData.chat_preview_features_enabled === false ? false : undefined,
     managedSettings: {
         [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: { type: 'string' },
     },

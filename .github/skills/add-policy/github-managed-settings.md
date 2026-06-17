@@ -1,35 +1,35 @@
 # GitHub Copilot Managed Settings
 
 This file documents the **managed-settings** modality: how an enterprise admin's
-Copilot configuration (delivered via MDM, a file, or the GitHub server) flows into
-VS Code's policy stack and locks a setting. It is a companion to `SKILL.md` — read
+Copilot configuration (delivered to VS Code via native MDM or the GitHub server) flows
+into VS Code's policy stack and locks a setting. It is a companion to `SKILL.md` — read
 that first for the general policy lifecycle (`policy:` field, export, artifacts).
 
 Managed settings layer **on top of** the existing policy framework. They do **not**
 introduce a new `IPolicyService`; they feed `IPolicyData.managedSettings`, which the
 existing `policy.value(policyData)` callback already consumes via `AccountPolicyService`.
 
-## The big idea: one canonical bag, three delivery channels
+## The big idea: one canonical bag, two delivery channels (in VS Code)
 
 Every enterprise-managed Copilot setting resolves through a single normalized bag:
 
 ```ts
 // src/vs/base/common/policy.ts
-export type ManagedSettingValue = string | number | boolean;
+export type PolicyValue = string | number | boolean;
+export type ManagedSettingValue = PolicyValue;
 export type ManagedSettingsData = Readonly<Record<string, ManagedSettingValue>>;
 ```
 
-…surfaced on `IPolicyData.managedSettings` (`src/vs/base/common/defaultAccount.ts`):
+…surfaced on `IPolicyData.managedSettings` (`src/vs/base/common/defaultAccount.ts`).
+The real JSDoc there summarizes it as: a normalized bag keyed by dot-separated paths
+(e.g. `permissions.disableBypassPermissionsMode`), the single channel for
+enterprise-managed config so server-delivered and native MDM settings resolve
+identically, with structured settings (e.g. `enabledPlugins`, `extraKnownMarketplaces`)
+carried as canonical JSON strings:
 
 ```ts
 export interface IPolicyData {
     // ...
-    /** Normalized enterprise-managed settings, keyed by dot-separated paths
-     *  (e.g. `permissions.disableBypassPermissionsMode`). Single channel for
-     *  enterprise config: server-delivered AND native MDM both project into this
-     *  bag, so policy value() callbacks behave identically regardless of source.
-     *  Structured settings (enabledPlugins, extraKnownMarketplaces) are carried
-     *  as canonical JSON strings. */
     readonly managedSettings?: ManagedSettingsData;
 }
 ```
@@ -41,13 +41,17 @@ and parsed back into the object-typed setting on read by `PolicyConfiguration`.
 
 ### Delivery channels
 
+VS Code implements **two** channels feeding the bag; the external schema additionally
+describes a file-based channel that other Copilot clients may implement but that VS Code
+does **not** read today (no `managed-settings.json` reader exists in `src/`).
+
 | Channel | Where it's read | Implementation | Lands on |
 |---------|-----------------|----------------|----------|
 | **Native MDM** (Windows registry / macOS plist) | OS managed preferences | `CopilotManagedSettingsService` (`src/vs/platform/policy/node/copilotManagedSettingsService.ts`) via `@vscode/policy-watcher` | `ICopilotManagedSettingsService.managedSettings` |
-| **File-based** (`managed-settings.json`) | local file (per schema) | same MDM service path | `ICopilotManagedSettingsService.managedSettings` |
-| **Server-managed** (`/copilot_internal/managed_settings`) | GitHub endpoint returning enterprise `.github/copilot/settings.json` | `adaptManagedSettings` (`src/vs/workbench/services/accounts/browser/managedSettings.ts`) → `DefaultAccountService.policyData` | `accountPolicyData.managedSettings` |
+| **Server-managed** (`/copilot_internal/managed_settings`) | GitHub endpoint; per the code comment in `managedSettings.ts`, it returns the enterprise's `.github/copilot/settings.json` content | `adaptManagedSettings` (`src/vs/workbench/services/accounts/browser/managedSettings.ts`) → `DefaultAccountService.policyData` | `accountPolicyData.managedSettings` |
+| **File-based** (`managed-settings.json`) | external schema only | *not implemented in VS Code* | — |
 
-All three converge in `AccountPolicyService.getPolicyData()`:
+Both VS Code channels converge in `AccountPolicyService.getPolicyData()`:
 
 ```ts
 // MDM overrides server; then project onto the declared schema.
@@ -59,30 +63,40 @@ const managedSettingsData = projectManagedSettings(
 return { ...accountPolicyData, managedSettings: managedSettingsData };
 ```
 
-**Merge order: native MDM wins over server-delivered.** Then everything is projected
-onto the declared schema (see below).
+**Merge order: native MDM (`managedPolicyData`) wins over server-delivered
+(`accountPolicyData?.managedSettings`)** — it is spread last. Then everything is
+projected onto the declared schema (see below).
 
 ## Schema source of truth
 
 When the developer has `copilot-agent-runtime` checked out side-by-side, reference
 `copilot-agent-runtime/schema/managed-settings-schema.json` as the authoritative
-shape. It is aligned with the `managed_settings` API output and is the same schema for
-all three channels (MDM plist/registry, file-based, server-managed). Its top-level keys
-today:
+shape. It is aligned with the `managed_settings` API output and is the schema for all
+delivery channels (MDM plist/registry, file-based, server-managed). Its top-level
+properties today are `permissions`, `enabledPlugins`, `extraKnownMarketplaces`, and
+`strictKnownMarketplaces` (nested objects/arrays). Note the schema is **nested**, whereas
+the VS Code bag is **flattened** to dot-paths — e.g. the schema's nested
+`permissions.disableBypassPermissionsMode` becomes the flat bag key of the same name
+(the `COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY` constant):
 
-| Schema key | Type | Composition (`x-composition.strategy`) |
-|------------|------|----------------------------------------|
+| Schema property (path) | Type in schema | Composition (`x-composition.strategy`) |
+|------------------------|----------------|----------------------------------------|
 | `permissions.disableBypassPermissionsMode` | string enum `"disable"` | most-restrictive-wins (sticky once set) |
 | `enabledPlugins` | `{ "PLUGIN@MARKETPLACE": boolean }` | deny-wins (false beats true; enterprise denials immutable) |
-| `extraKnownMarketplaces` | `{ name: { source } }` | most-restrictive-wins (higher layer is the complete allowlist) |
+| `extraKnownMarketplaces` | `{ name: { source } }`, source `github` \| `git` \| `directory` | most-restrictive-wins (higher layer is the complete allowlist) |
 | `strictKnownMarketplaces` | array of source descriptors | most-restrictive-wins (empty array = lockdown) |
 
-> Note a current divergence: the schema models `strictKnownMarketplaces` as an array
-> allowlist, but the VS Code runtime today declares the `COPILOT_STRICT_MARKETPLACES_KEY`
-> managed key as a **boolean** flag (`{ type: 'boolean' }` on `ChatStrictMarketplaces`).
-> When reconciling, treat `managed-settings-schema.json` as the API source of truth and
-> keep the VS Code `managedSettings` type declaration aligned with what the server
-> actually projects into the bag.
+> **Current schema ↔ runtime divergences** (treat `managed-settings-schema.json` as the
+> API source of truth, and keep the VS Code `managedSettings` type declarations aligned
+> with what the server actually projects into the bag):
+> - `strictKnownMarketplaces`: schema models an **array** allowlist, but VS Code declares
+>   `COPILOT_STRICT_MARKETPLACES_KEY` as a **boolean** flag (`{ type: 'boolean' }` on
+>   `ChatStrictMarketplaces`).
+> - `extraKnownMarketplaces`: the schema permits source kinds `github` / `git` /
+>   `directory`, but the VS Code normalizer only accepts `github` and `git` —
+>   `directory` (and any other kind) is dropped with a warning
+>   (`managedSettings.ts` `normalizeExtraKnownMarketplaces`; `IExtraKnownMarketplaceEntry`
+>   in `base/common/managedSettings.ts` only types `github`/`git`).
 
 Note the schema's `x-composition` describes the **server/runtime** layering across
 enterprise/org/user. Inside VS Code the bag has already been collapsed to a single
@@ -135,8 +149,10 @@ Key rules for the `value` callback:
 
 For settings whose `type` is `'object'` or `'array'`, the policy still declares the
 managed-settings key as a **string** (the JSON is carried as a string), and the
-`value` callback returns that raw string. `PolicyConfiguration` then `JSON.parse`s it
-back into the typed value on read (see `configurations.ts`). Examples in
+`value` callback returns that raw string. When the policy value is a string but the
+setting's type is not, `PolicyConfiguration` parses it back into the typed value on read
+via its own lenient JSONC parser (`PolicyConfiguration.parse()` using a `json.visit`
+streaming visitor — *not* `JSON.parse`; see `configurations.ts`). Examples in
 `chat.shared.contribution.ts`:
 
 ```ts
@@ -171,15 +187,21 @@ Constants (also in `copilotManagedSettings.ts`):
 
 ## Wiring (where the MDM service is constructed)
 
-Native MDM is desktop-main only (`src/vs/code/electron-main/main.ts`):
+Native MDM is desktop-main only (`src/vs/code/electron-main/main.ts`). The real wiring
+constructs the platform service first (Windows / macOS only), then registers it — falling
+back to `NullCopilotManagedSettingsService` on Linux (abbreviated):
 
 ```ts
+let copilotManagedSettingsService: CopilotManagedSettingsService | undefined;
 if (isWindows) {
     copilotManagedSettingsService = new CopilotManagedSettingsService(
         logService, GITHUB_COPILOT_WIN32_POLICY_NAME, { registryPath: GITHUB_COPILOT_WIN32_REGISTRY_PATH });
 } else if (isMacintosh) {
     copilotManagedSettingsService = new CopilotManagedSettingsService(
         logService, GITHUB_COPILOT_MACOS_BUNDLE_ID);
+}
+if (copilotManagedSettingsService) {
+    services.set(ICopilotManagedSettingsService, copilotManagedSettingsService);
 } else {
     services.set(ICopilotManagedSettingsService, new NullCopilotManagedSettingsService());
 }
@@ -256,9 +278,13 @@ Rules & internals:
   late-registering **owner supersedes** an earlier-registered reference (and removing the
   owner falls back to the reference's bare type).
 - **Catalog & diagnostics:** the exported `PolicyDto` gains `referencedSettings: string[]`
-  (sorted; omitted when a policy governs only its owner) and `policyData.jsonc` lists them.
-  **Developer: Policy Diagnostics** (`developerActions.ts`) lists every setting each policy
-  governs, owner + references.
+  (sorted; omitted when a policy governs only its owner). The exporter only captures
+  references that are **registered/loaded at export time**, so the checked-in
+  `policyData.jsonc` can list fewer references than the source declares — e.g.
+  `Claude3PIntegration` lists only `chat.agentHost.claudeAgent.enabled`, not the
+  `sessions.chat.claudeAgent.enabled` reference declared in the sessions contribution.
+  At runtime, the **Developer: Policy Diagnostics** report (`developerActions.ts`) lists
+  every registered setting each policy governs, owner + references.
 
 ## What changed (PR history)
 
