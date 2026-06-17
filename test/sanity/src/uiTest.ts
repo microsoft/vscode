@@ -101,6 +101,9 @@ export class UITest {
 		const trustButton = page.locator('.workspace-trust-buttons .monaco-button', { hasText: /^Trust$/ }).first();
 		await trustButton.click();
 		await page.waitForTimeout(500);
+		const closeButton = page.locator('.monaco-action-bar .action-label[aria-label="Close Modal Editor"]').first();
+		await closeButton.click();
+		await page.waitForTimeout(500);
 	}
 
 	/**
