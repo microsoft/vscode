@@ -812,7 +812,6 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': false,
 				'tags': ['experimental'],
 				'description': localize('floatingPanels', "Controls whether the side bars and bottom panel are shown as floating cards with rounded corners and gaps, similar to the agents window design."),
-				agentsWindow: { default: false },
 			},
 		}
 	});

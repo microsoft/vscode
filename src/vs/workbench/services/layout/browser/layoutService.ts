@@ -57,8 +57,8 @@ export const enum LayoutSettings {
  * The margin (in pixels) reserved on each side of a part when the floating
  * panels experiment (`LayoutSettings.FLOATING_PANELS`) is enabled. Parts grow
  * or shrink their content by this amount to leave room for the card margin and
- * border applied in CSS (`part.css`, `.floating-panels`). The same value must
- * be kept in sync with the literal margins used there.
+ * border applied in CSS (`part.css`, `.floating-panels`). This value must be
+ * kept in sync with the `--floating-panel-margin` custom property defined there.
  */
 export const FLOATING_PANEL_MARGIN = 6;
 
@@ -223,6 +223,13 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Returns whether the given part has the keyboard focus or not.
 	 */
 	hasFocus(part: Parts): boolean;
+
+	/**
+	 * Returns whether the floating panels experiment is enabled for this
+	 * workbench. Always `false` for the agents window, which has its own floating
+	 * card design and must not apply the experiment's content insets.
+	 */
+	isFloatingPanelsEnabled(): boolean;
 
 	/**
 	 * Focuses the part in the target window. If the part is not visible this is a noop.

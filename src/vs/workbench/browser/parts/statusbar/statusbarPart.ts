@@ -131,7 +131,7 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 	//#region IView
 
 	private get floatingBottomPadding(): number {
-		return this.getId() === Parts.STATUSBAR_PART && this.configurationService.getValue<boolean>(LayoutSettings.FLOATING_PANELS) === true ? StatusbarPart.FLOATING_BOTTOM_PADDING : 0;
+		return this.getId() === Parts.STATUSBAR_PART && this.layoutService.isFloatingPanelsEnabled() ? StatusbarPart.FLOATING_BOTTOM_PADDING : 0;
 	}
 
 	readonly minimumWidth: number = 0;
@@ -220,9 +220,10 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateStyles()));
 
 		// Floating panels changes the reserved bottom padding (and therefore the
-		// part height): signal the grid that the size constraint changed.
+		// part height) for the main status bar only: signal the grid that the size
+		// constraint changed.
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(LayoutSettings.FLOATING_PANELS)) {
+			if (this.getId() === Parts.STATUSBAR_PART && e.affectsConfiguration(LayoutSettings.FLOATING_PANELS)) {
 				this._onDidChange.fire(undefined);
 			}
 		}));

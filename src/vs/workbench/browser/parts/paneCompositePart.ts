@@ -12,7 +12,7 @@ import { IPaneComposite } from '../../common/panecomposite.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../common/views.js';
 import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IView } from '../../../base/browser/ui/grid/grid.js';
-import { IWorkbenchLayoutService, LayoutSettings, Parts, SINGLE_WINDOW_PARTS, FLOATING_PANEL_MARGIN } from '../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts, SINGLE_WINDOW_PARTS, FLOATING_PANEL_MARGIN } from '../../services/layout/browser/layoutService.js';
 import { CompositePart, ICompositePartOptions, ICompositeTitleLabel } from './compositePart.js';
 import { IPaneCompositeBarOptions, PaneCompositeBar } from './paneCompositeBar.js';
 import { Dimension, EventHelper, trackFocus, $, addDisposableListener, EventType, prepend, getWindow } from '../../../base/browser/dom.js';
@@ -628,7 +628,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	 * right margin, so its width inset is larger.
 	 */
 	private getFloatingInset(): { width: number; height: number } {
-		if (this.configurationService.getValue<boolean>(LayoutSettings.FLOATING_PANELS) !== true) {
+		if (!this.layoutService.isFloatingPanelsEnabled()) {
 			return { width: 0, height: 0 };
 		}
 

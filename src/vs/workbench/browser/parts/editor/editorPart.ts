@@ -24,7 +24,7 @@ import { EditorDropTarget } from './editorDropTarget.js';
 import { Color } from '../../../../base/common/color.js';
 import { CenteredViewLayout, CenteredViewState } from '../../../../base/browser/ui/centered/centeredViewLayout.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { Parts, IWorkbenchLayoutService, Position, LayoutSettings, FLOATING_PANEL_MARGIN } from '../../../services/layout/browser/layoutService.js';
+import { Parts, IWorkbenchLayoutService, Position, FLOATING_PANEL_MARGIN } from '../../../services/layout/browser/layoutService.js';
 import { DeepPartial, assertType } from '../../../../base/common/types.js';
 import { CompositeDragAndDropObserver } from '../../dnd.js';
 import { DeferredPromise, Promises } from '../../../../base/common/async.js';
@@ -1366,9 +1366,10 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 
 		// When the floating panels experiment is enabled, reserve a margin around the
 		// main editor so it floats like the side bar and panel cards. The editor has
-		// no top margin (it stays flush with the title bar). The matching `margin` is
-		// applied in CSS (`.floating-panels .part.editor`).
-		if (this.windowId === mainWindow.vscodeWindowId && this.configurationService.getValue<boolean>(LayoutSettings.FLOATING_PANELS) === true) {
+		// no top margin (it stays flush with the title bar). Scope to the main window
+		// (auxiliary editor windows do not apply the matching CSS). The matching
+		// `margin` is applied in CSS (`.floating-panels .part.editor`).
+		if (this.windowId === mainWindow.vscodeWindowId && this.layoutService.isFloatingPanelsEnabled()) {
 			width = Math.max(0, width - FLOATING_PANEL_MARGIN * 2);
 			height = Math.max(0, height - FLOATING_PANEL_MARGIN);
 		}

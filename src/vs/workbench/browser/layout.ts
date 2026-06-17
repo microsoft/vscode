@@ -618,7 +618,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
-	private isFloatingPanelsEnabled(): boolean {
+	isFloatingPanelsEnabled(): boolean {
 		return this.configurationService.getValue<boolean>(LayoutSettings.FLOATING_PANELS) === true;
 	}
 

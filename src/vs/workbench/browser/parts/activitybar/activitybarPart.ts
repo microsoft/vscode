@@ -76,7 +76,7 @@ export class ActivitybarPart extends Part {
 	private get baseWidth(): number { return this._isCompact ? ActivitybarPart.COMPACT_ACTIVITYBAR_WIDTH : ActivitybarPart.ACTIVITYBAR_WIDTH; }
 
 	/** Extra space reserved around the part when the floating panels experiment is enabled. */
-	private get floatingGutter(): number { return this.configurationService.getValue<boolean>(LayoutSettings.FLOATING_PANELS) === true ? ActivitybarPart.FLOATING_MARGIN : 0; }
+	private get floatingGutter(): number { return this.layoutService.isFloatingPanelsEnabled() ? ActivitybarPart.FLOATING_MARGIN : 0; }
 
 	private readonly compositeBar = this._register(new MutableDisposable<PaneCompositeBar>());
 	private content: HTMLElement | undefined;
@@ -260,7 +260,7 @@ export class ActivitybarPart extends Part {
 		const contentAreaSize = super.layoutContents(contentWidth, contentHeight).contentSize;
 
 		// Layout composite bar
-		this.compositeBar.value.layout(contentAreaSize.width, contentAreaSize.height);
+		this.compositeBar.value.layout(contentWidth, contentAreaSize.height);
 	}
 
 	toJSON(): object {
