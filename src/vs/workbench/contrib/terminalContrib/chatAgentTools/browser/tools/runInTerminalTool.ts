@@ -93,18 +93,23 @@ const TOOL_REFERENCE_NAME = 'runInTerminal';
 const LEGACY_TOOL_REFERENCE_FULL_NAMES = ['runCommands/runInTerminal'];
 const INPUT_NEEDED_NOTIFICATION_THROTTLE_MS = 5000;
 
-export interface ISandboxingEnabledOptions {
-	sandboxMode: 'on' | 'onAllowNetwork';
+export interface ISandboxingOnNetworkRestrictedOptions {
+	sandboxMode: 'on-network-restricted';
 	allowToRunUnsandboxedCommands: boolean;
 	retryWithAllowNetworkRequests: boolean;
 	networkDomains?: ITerminalSandboxResolvedNetworkDomains;
 }
-
+export interface ISandboxingOnNetworkAvailableOptions {
+	sandboxMode: 'on-network-available';
+	allowToRunUnsandboxedCommands: boolean;
+	retryWithAllowNetworkRequests: false;
+	networkDomains: undefined;
+}
+export type ISandboxingOnOptions = ISandboxingOnNetworkRestrictedOptions | ISandboxingOnNetworkAvailableOptions;
 export interface ISandboxingDisabledOptions {
 	sandboxMode: 'off';
 }
-
-export type ISandboxingOptions = ISandboxingEnabledOptions | ISandboxingDisabledOptions;
+export type ISandboxingOptions = ISandboxingOnOptions | ISandboxingDisabledOptions;
 
 function createPowerShellModelDescription(shell: string, sandboxingOptions: ISandboxingOptions): string {
 	const isWinPwsh = isWindowsPowerShell(shell);
@@ -173,7 +178,7 @@ function createPowerShellModelDescription(shell: string, sandboxingOptions: ISan
 	return parts.join('\n');
 }
 
-function createSandboxLines(sandboxingOptions: ISandboxingEnabledOptions): string[] {
+function createSandboxLines(sandboxingOptions: ISandboxingOnOptions): string[] {
 	const lines = [
 		'',
 		'Sandboxing:',
@@ -324,18 +329,20 @@ export async function createRunInTerminalToolData(
 		terminalSandboxService.isEnabled(),
 		terminalSandboxService.isSandboxAllowNetworkEnabled(),
 	]);
-	const retryWithAllowNetworkRequests = isSandboxEnabled && !isSandboxAllowNetworkEnabled && retryWithAllowNetworkRequestsSetting;
-
-	const networkDomains = isSandboxEnabled && !isSandboxAllowNetworkEnabled ? terminalSandboxService.getResolvedNetworkDomains() : undefined;
 
 	const sandboxingOptions: ISandboxingOptions = (
 		isSandboxEnabled
-			? {
-				sandboxMode: isSandboxAllowNetworkEnabled ? 'onAllowNetwork' : 'on',
+			? (isSandboxAllowNetworkEnabled ? {
+				sandboxMode: 'on-network-available',
 				allowToRunUnsandboxedCommands,
-				retryWithAllowNetworkRequests,
-				networkDomains
+				retryWithAllowNetworkRequests: false,
+				networkDomains: undefined
 			} : {
+				sandboxMode: 'on-network-restricted',
+				allowToRunUnsandboxedCommands,
+				retryWithAllowNetworkRequests: retryWithAllowNetworkRequestsSetting,
+				networkDomains: terminalSandboxService.getResolvedNetworkDomains()
+			}) : {
 				sandboxMode: 'off'
 			}
 	);
