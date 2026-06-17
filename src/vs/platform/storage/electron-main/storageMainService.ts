@@ -5,7 +5,7 @@
 
 import { URI } from '../../../base/common/uri.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { join } from '../../../base/common/path.js';
 import { IStorage } from '../../../base/parts/storage/common/storage.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
@@ -17,6 +17,7 @@ import { AbstractStorageService, isProfileUsingDefaultStorage, IStorageService, 
 import { ApplicationStorageMain, ApplicationSharedStorageMain, ProfileStorageMain, InMemoryStorageMain, IStorageMain, IStorageMainOptions, WorkspaceStorageMain, IStorageChangeEvent } from './storageMain.js';
 import { IUserDataProfile, IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
 import { IUserDataProfilesMainService } from '../../userDataProfile/electron-main/userDataProfile.js';
+import { ICodeWindow } from '../../window/electron-main/window.js';
 import { IAnyWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { Schemas } from '../../../base/common/network.js';
@@ -86,6 +87,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 	private shutdownReason: ShutdownReason | undefined = undefined;
 	private readonly profileStorageMap: StorageMap;
 	private readonly workspaceStorageMap: StorageMap;
+	private readonly mapWindowIdToStorageReleaseListener = new Map<number /* window ID */, IDisposable>();
 
 	private readonly _onDidChangeProfileStorage = this._register(new Emitter<IProfileStorageChangeEvent>());
 	readonly onDidChangeProfileStorage = this._onDidChangeProfileStorage.event;
@@ -125,11 +127,8 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 			this.applicationSharedStorage.init();
 		})();
 
-		this._register(Event.any(this.lifecycleMainService.onBeforeCloseWindow, this.lifecycleMainService.onDidDestroyWindow)(window => {
-			void Promise.all([
-				this.profileStorageMap.releaseWindowStorage(window.id),
-				this.workspaceStorageMap.releaseWindowStorage(window.id)
-			]).catch(error => this.logService.error(error));
+		this._register(this.lifecycleMainService.onWillLoadWindow(e => {
+			this.registerWindowStorageRelease(e.window);
 		}));
 
 		// All Storage: Close when shutting down
@@ -172,6 +171,23 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 				e.join(storageClose);
 			}
 		}));
+	}
+
+	private registerWindowStorageRelease(window: ICodeWindow): void {
+		if (this.mapWindowIdToStorageReleaseListener.has(window.id)) {
+			return;
+		}
+
+		const listener = Event.once(Event.any(window.onDidClose, window.onDidDestroy))(() => {
+			this.mapWindowIdToStorageReleaseListener.delete(window.id);
+			listener.dispose();
+
+			void Promise.all([
+				this.profileStorageMap.releaseWindowStorage(window.id),
+				this.workspaceStorageMap.releaseWindowStorage(window.id)
+			]).catch(error => this.logService.error(error));
+		});
+		this.mapWindowIdToStorageReleaseListener.set(window.id, listener);
 	}
 
 	//#region Application Storage
@@ -314,6 +330,15 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		}
 
 		return false;
+	}
+
+	override dispose(): void {
+		for (const listener of this.mapWindowIdToStorageReleaseListener.values()) {
+			listener.dispose();
+		}
+		this.mapWindowIdToStorageReleaseListener.clear();
+
+		super.dispose();
 	}
 
 }

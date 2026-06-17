@@ -129,11 +129,6 @@ export interface ILifecycleMainService {
 	readonly onBeforeCloseWindow: Event<ICodeWindow>;
 
 	/**
-	 * An event that fires after a window has been destroyed.
-	 */
-	readonly onDidDestroyWindow: Event<ICodeWindow>;
-
-	/**
 	 * Make a `ICodeWindow` known to the lifecycle main service.
 	 */
 	registerWindow(window: ICodeWindow): void;
@@ -232,9 +227,6 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 	private readonly _onBeforeCloseWindow = this._register(new Emitter<ICodeWindow>());
 	readonly onBeforeCloseWindow = this._onBeforeCloseWindow.event;
-
-	private readonly _onDidDestroyWindow = this._register(new Emitter<ICodeWindow>());
-	readonly onDidDestroyWindow = this._onDidDestroyWindow.event;
 
 	private _quitRequested = false;
 	get quitRequested(): boolean { return this._quitRequested; }
@@ -467,8 +459,6 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		}));
 		windowListeners.add(Event.fromNodeEventEmitter<electron.Event>(win, 'closed')(() => {
 			this.trace(`Lifecycle#window.on('closed') - window ID ${window.id}`);
-
-			this._onDidDestroyWindow.fire(window);
 
 			// update window count
 			this.windowCounter--;

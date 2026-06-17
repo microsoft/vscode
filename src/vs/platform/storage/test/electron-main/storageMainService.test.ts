@@ -317,11 +317,12 @@ suite('StorageMainService', function () {
 		const storageMainService = createStorageService(lifecycleMainService);
 		const profile = createProfile('profile-owner');
 
+		lifecycleMainService.fireOnWillLoadWindow(window.asCodeWindow());
 		const profileStorage = storageMainService.profileStorage(profile, window.id);
 		strictEqual(profileStorage, storageMainService.profileStorage(profile, window.id)); // repeated requests from the same window do not double count
 
 		const closed = Event.toPromise(profileStorage.onDidCloseStorage);
-		lifecycleMainService.fireOnBeforeCloseWindow(window.asCodeWindow());
+		window.close();
 		await closed;
 	});
 
@@ -332,18 +333,20 @@ suite('StorageMainService', function () {
 		const storageMainService = createStorageService(lifecycleMainService);
 		const profile = createProfile('shared-profile');
 
+		lifecycleMainService.fireOnWillLoadWindow(window1.asCodeWindow());
+		lifecycleMainService.fireOnWillLoadWindow(window2.asCodeWindow());
 		const profileStorage = storageMainService.profileStorage(profile, window1.id);
 		strictEqual(profileStorage, storageMainService.profileStorage(profile, window2.id));
 
 		let didClose = false;
 		disposables.add(profileStorage.onDidCloseStorage(() => didClose = true));
 
-		lifecycleMainService.fireOnBeforeCloseWindow(window1.asCodeWindow());
+		window1.close();
 		await timeout(0);
 		strictEqual(didClose, false);
 
 		const closed = Event.toPromise(profileStorage.onDidCloseStorage);
-		lifecycleMainService.fireOnBeforeCloseWindow(window2.asCodeWindow());
+		window2.close();
 		await closed;
 		strictEqual(didClose, true);
 	});
@@ -355,12 +358,13 @@ suite('StorageMainService', function () {
 		const workspace1 = { id: generateUuid() };
 		const workspace2 = { id: generateUuid() };
 
+		lifecycleMainService.fireOnWillLoadWindow(window.asCodeWindow());
 		const workspaceStorage1 = storageMainService.workspaceStorage(workspace1, window.id);
 		const workspaceStorage2 = storageMainService.workspaceStorage(workspace2, window.id);
 
 		const closed1 = Event.toPromise(workspaceStorage1.onDidCloseStorage);
 		const closed2 = Event.toPromise(workspaceStorage2.onDidCloseStorage);
-		lifecycleMainService.fireOnBeforeCloseWindow(window.asCodeWindow());
+		window.close();
 		await Promise.all([closed1, closed2]);
 	});
 
@@ -370,10 +374,11 @@ suite('StorageMainService', function () {
 		const storageMainService = createStorageService(lifecycleMainService);
 		const workspace = { id: generateUuid() };
 
+		lifecycleMainService.fireOnWillLoadWindow(window.asCodeWindow());
 		const workspaceStorage = storageMainService.workspaceStorage(workspace, window.id);
 
 		const closed = Event.toPromise(workspaceStorage.onDidCloseStorage);
-		lifecycleMainService.fireOnDidDestroyWindow(window.asCodeWindow());
+		window.destroy();
 		await closed;
 	});
 
@@ -383,11 +388,12 @@ suite('StorageMainService', function () {
 		const storageMainService = createStorageService(lifecycleMainService);
 		const profile = createProfile('anonymous-profile');
 
+		lifecycleMainService.fireOnWillLoadWindow(window.asCodeWindow());
 		const profileStorage = storageMainService.profileStorage(profile);
 		let didClose = false;
 		disposables.add(profileStorage.onDidCloseStorage(() => didClose = true));
 
-		lifecycleMainService.fireOnBeforeCloseWindow(window.asCodeWindow());
+		window.close();
 		await timeout(0);
 		strictEqual(didClose, false);
 
@@ -402,6 +408,7 @@ suite('StorageMainService', function () {
 		const profile = createProfile('owner-window-id-profile');
 		const workspace = { id: generateUuid() };
 
+		lifecycleMainService.fireOnWillLoadWindow(window.asCodeWindow());
 		storageChannel.listen('main', 'onDidChangeStorage', { profile, workspace: undefined, ownerWindowId: window.id });
 		await storageChannel.call('main', 'getItems', { profile: undefined, workspace, ownerWindowId: window.id });
 		await storageChannel.call('main', 'getItems', { profile: undefined, workspace, ownerWindowId: window.id });
@@ -411,7 +418,7 @@ suite('StorageMainService', function () {
 
 		const closedProfile = Event.toPromise(profileStorage.onDidCloseStorage);
 		const closedWorkspace = Event.toPromise(workspaceStorage.onDidCloseStorage);
-		lifecycleMainService.fireOnBeforeCloseWindow(window.asCodeWindow());
+		window.close();
 		await Promise.all([closedProfile, closedWorkspace]);
 	});
 
@@ -423,6 +430,7 @@ suite('StorageMainService', function () {
 		const workspaceWithoutOwner = { id: generateUuid() };
 		const workspaceWithMalformedOwner = { id: generateUuid() };
 
+		lifecycleMainService.fireOnWillLoadWindow(window.asCodeWindow());
 		await storageChannel.call('window:1', 'getItems', { profile: undefined, workspace: workspaceWithoutOwner });
 		await storageChannel.call('main', 'getItems', { profile: undefined, workspace: workspaceWithMalformedOwner, ownerWindowId: 1.1 });
 
@@ -433,7 +441,7 @@ suite('StorageMainService', function () {
 		let didCloseWithMalformedOwner = false;
 		disposables.add(workspaceStorageWithMalformedOwner.onDidCloseStorage(() => didCloseWithMalformedOwner = true));
 
-		lifecycleMainService.fireOnBeforeCloseWindow(window.asCodeWindow());
+		window.close();
 		await timeout(0);
 		strictEqual(didCloseWithoutOwner, false);
 		strictEqual(didCloseWithMalformedOwner, false);
@@ -447,13 +455,14 @@ suite('StorageMainService', function () {
 		const storageMainService = createStorageService(lifecycleMainService);
 		const defaultProfile = createProfile('default-profile', true);
 
+		lifecycleMainService.fireOnWillLoadWindow(window.asCodeWindow());
 		const profileStorage = storageMainService.profileStorage(defaultProfile, window.id);
 		strictEqual(profileStorage, storageMainService.applicationStorage);
 
 		let didClose = false;
 		disposables.add(profileStorage.onDidCloseStorage(() => didClose = true));
 
-		lifecycleMainService.fireOnBeforeCloseWindow(window.asCodeWindow());
+		window.close();
 		await timeout(0);
 		strictEqual(didClose, false);
 	});
@@ -487,10 +496,11 @@ suite('StorageMainService', function () {
 		const storageChannel = disposables.add(new StorageDatabaseChannel(new NullLogService(), storageMainService));
 		const profile = createProfile('channel-profile');
 
+		lifecycleMainService.fireOnWillLoadWindow(window1.asCodeWindow());
 		storageChannel.listen('main', 'onDidChangeStorage', { profile, workspace: undefined, ownerWindowId: window1.id });
 		const profileStorage = storageMainService.profileStorage(profile);
 		const closed = Event.toPromise(profileStorage.onDidCloseStorage);
-		lifecycleMainService.fireOnBeforeCloseWindow(window1.asCodeWindow());
+		window1.close();
 		await closed;
 
 		let didChange = false;

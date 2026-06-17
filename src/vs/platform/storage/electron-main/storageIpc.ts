@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { ILogService } from '../../log/common/log.js';
@@ -29,18 +29,18 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 	) {
 		super();
 
-		this._register(this.registerStorageChangeListeners(storageMainService.applicationStorage, this.onDidChangeApplicationStorageEmitter));
-		this._register(this.registerStorageChangeListeners(storageMainService.applicationSharedStorage, this.onDidChangeApplicationSharedStorageEmitter));
+		this.registerStorageChangeListeners(storageMainService.applicationStorage, this.onDidChangeApplicationStorageEmitter);
+		this.registerStorageChangeListeners(storageMainService.applicationSharedStorage, this.onDidChangeApplicationSharedStorageEmitter);
 	}
 
 	//#region Storage Change Events
 
-	private registerStorageChangeListeners(storage: IStorageMain, emitter: Emitter<ISerializableItemsChangeEvent>): IDisposable {
+	private registerStorageChangeListeners(storage: IStorageMain, emitter: Emitter<ISerializableItemsChangeEvent>, store: DisposableStore = this._store): void {
 
 		// Listen for changes in provided storage to send to listeners
 		// that are listening. Use a debouncer to reduce IPC traffic.
 
-		return Event.debounce(storage.onDidChangeStorage, (prev: IStorageChangeEvent[] | undefined, cur: IStorageChangeEvent) => {
+		store.add(Event.debounce(storage.onDidChangeStorage, (prev: IStorageChangeEvent[] | undefined, cur: IStorageChangeEvent) => {
 			if (!prev) {
 				prev = [cur];
 			} else {
@@ -52,7 +52,7 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 			if (events.length) {
 				emitter.fire(this.serializeStorageChangeEvents(events, storage));
 			}
-		});
+		}));
 	}
 
 	private serializeStorageChangeEvents(events: IStorageChangeEvent[], storage: IStorageMain): ISerializableItemsChangeEvent {
@@ -74,7 +74,7 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 	}
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	listen(_ctx: string, event: string, arg: IBaseSerializableStorageRequest): Event<any> {
+	listen(_: unknown, event: string, arg: IBaseSerializableStorageRequest): Event<any> {
 		switch (event) {
 			case 'onDidChangeStorage': {
 				const profile = arg.profile ? revive<IUserDataProfile>(arg.profile) : undefined;
@@ -95,7 +95,7 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 				if (!profileStorageChangeEmitter) {
 					const store = new DisposableStore();
 					const emitter = store.add(new Emitter<ISerializableItemsChangeEvent>());
-					store.add(this.registerStorageChangeListeners(storage, emitter));
+					this.registerStorageChangeListeners(storage, emitter, store);
 					store.add(Event.once(storage.onDidCloseStorage)(() => {
 						this.mapProfileToOnDidChangeProfileStorageEmitter.delete(profile.id);
 						store.dispose();
@@ -114,7 +114,7 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 	//#endregion
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	async call(_ctx: string, command: string, arg: IBaseSerializableStorageRequest): Promise<any> {
+	async call(_: unknown, command: string, arg: IBaseSerializableStorageRequest): Promise<any> {
 		const profile = arg.profile ? revive<IUserDataProfile>(arg.profile) : undefined;
 		const workspace = reviveIdentifier(arg.workspace);
 		const applicationShared = arg.applicationShared;
