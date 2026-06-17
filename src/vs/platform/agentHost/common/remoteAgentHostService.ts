@@ -104,6 +104,7 @@ export const RemoteAgentHostAutoConnectSettingId = 'chat.remoteAgentHostsAutoCon
 export const enum RemoteAgentHostEntryType {
 	WebSocket = 'websocket',
 	SSH = 'ssh',
+	WSL = 'wsl',
 	Tunnel = 'tunnel',
 }
 
@@ -157,7 +158,15 @@ export interface IRemoteAgentHostTunnelConnection {
 	readonly authProvider?: 'github' | 'microsoft';
 }
 
-export type RemoteAgentHostConnection = IRemoteAgentHostWebSocketConnection | IRemoteAgentHostSSHConnection | IRemoteAgentHostTunnelConnection;
+export interface IRemoteAgentHostWSLConnection {
+	readonly type: RemoteAgentHostEntryType.WSL;
+	/** Display address: `wsl:<distro>`. */
+	readonly address: string;
+	/** WSL distro name (e.g. `Ubuntu-22.04`). */
+	readonly distro: string;
+}
+
+export type RemoteAgentHostConnection = IRemoteAgentHostWebSocketConnection | IRemoteAgentHostSSHConnection | IRemoteAgentHostWSLConnection | IRemoteAgentHostTunnelConnection;
 
 /** A configured remote agent host entry. WebSocket entries are persisted in {@link RemoteAgentHostsSettingId}; SSH entries are persisted in storage. */
 export interface IRemoteAgentHostEntry {
@@ -170,6 +179,7 @@ export function getEntryAddress(entry: IRemoteAgentHostEntry): string {
 	switch (entry.connection.type) {
 		case RemoteAgentHostEntryType.WebSocket:
 		case RemoteAgentHostEntryType.SSH:
+		case RemoteAgentHostEntryType.WSL:
 			return entry.connection.address;
 		case RemoteAgentHostEntryType.Tunnel:
 			return `${TUNNEL_ADDRESS_PREFIX}${entry.connection.tunnelId}`;
@@ -179,6 +189,13 @@ export function getEntryAddress(entry: IRemoteAgentHostEntry): string {
 export function remoteAgentHostLogOutputChannelId(address: string): string {
 	return `agentHost.otlp.${address}`;
 }
+
+/**
+ * Output channel id for the local agent host process logger (forwarded
+ * from the utility process via `RemoteLoggerChannelClient`). Matches the
+ * logger id registered in `agentHostMain.ts`.
+ */
+export const AGENT_HOST_LOG_OUTPUT_CHANNEL_ID = 'agenthost';
 
 export const enum RemoteAgentHostInputValidationError {
 	Empty = 'empty',
@@ -458,6 +475,7 @@ export function entryToRawEntry(entry: IRemoteAgentHostEntry): IRawRemoteAgentHo
 				name: entry.name,
 				connectionToken: entry.connectionToken,
 			};
+		case RemoteAgentHostEntryType.WSL:
 		case RemoteAgentHostEntryType.Tunnel:
 			return undefined;
 	}

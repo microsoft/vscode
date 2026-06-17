@@ -213,6 +213,7 @@ const funWorkingMessages = [
 	localize('chat.working.fun.1', "Bribing the hamster"),
 	localize('chat.working.fun.2', "Reticulating splines"),
 	localize('chat.working.fun.3', "Untangling the spaghetti"),
+	localize('chat.working.fun.4', "Communing with the codebase"),
 
 	// Minecraft
 	localize('chat.working.fun.minecraft.1', "Mining diamonds"),
@@ -221,7 +222,7 @@ const funWorkingMessages = [
 	localize('chat.working.fun.ms.1', "Summoning Clippy"),
 ];
 
-const FUN_WORKING_MESSAGE_RATE = 100;
+const FUN_WORKING_MESSAGE_RATE = 50;
 
 type ThinkingPhrasesConfiguration = { mode?: 'replace' | 'append'; phrases?: string[] };
 
@@ -323,6 +324,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private titleShimmerSpan: HTMLElement | undefined;
 	private titleDetailContainer: HTMLElement | undefined;
 	private readonly _externalResourceWidget: ChatThinkingExternalResourceWidget;
+	private readonly _pendingExternalResources = new Map<string, IChatToolInvocation | IChatToolInvocationSerialized>();
 	private readonly _titleDetailRendered = this._register(new MutableDisposable<IRenderedMarkdown>());
 	private readonly _pendingAppendRefresh = this._register(new MutableDisposable<IDisposable>());
 	private readonly diffStatsByPartId = new Map<string, IEditSessionDiffStats>();
@@ -1061,6 +1063,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.domNode.classList.remove('chat-thinking-fade-top', 'chat-thinking-fade-bottom');
 		this.streamingCompleted = true;
 
+		// Now that streaming is complete, render any aggregated images that were
+		// deferred while scrolling was pinned in fixed scrolling mode.
+		this.flushPendingExternalResources();
+
 		if (this.wrapperResizeObserverDisposable) {
 			this.wrapperResizeObserverDisposable.dispose();
 			this.wrapperResizeObserverDisposable = undefined;
@@ -1467,6 +1473,9 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		this.domNode.classList.remove('chat-thinking-persistent-streaming');
 		this.streamingCompleted = true;
 
+		// Render any aggregated images that were deferred during fixed scrolling streaming.
+		this.flushPendingExternalResources();
+
 		if (this._collapseButton) {
 			this._collapseButton.icon = Codicon.check;
 			this.setFinalizedTitle(finalLabel);
@@ -1582,6 +1591,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		}
 		this.toolLabelsByCallId.delete(toolCallId);
 
+		this._pendingExternalResources.delete(toolCallId);
 		this._externalResourceWidget.removeToolInvocation(toolCallId);
 
 		this.updateWorkingSpinnerVisibility();
@@ -1640,6 +1650,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			// Use the tracked displayed label (which may differ from invocationMessage
 			// for streaming edit tools that show "Editing files")
 			const toolCallId = removedItem.toolInvocationOrMarkdown.toolCallId;
+			this._pendingExternalResources.delete(toolCallId);
 			this._externalResourceWidget.removeToolInvocation(toolCallId);
 			const label = this.toolLabelsByCallId.get(toolCallId);
 			if (label) {
@@ -1736,6 +1747,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			this.extractedTitles.splice(titleIndex, 1);
 		}
 		this.toolLabelsByCallId.delete(toolCallId);
+		this._pendingExternalResources.delete(toolCallId);
 		this._externalResourceWidget.removeToolInvocation(toolCallId);
 		this.updateWorkingSpinnerVisibility();
 		this.updateDropdownClickability();
@@ -1955,6 +1967,14 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 	}
 
 	private updateExternalResourceParts(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): void {
+		// In fixed scrolling mode, defer rendering aggregated images at the bottom while
+		// the response is still streaming. The images would otherwise overlap the pinned
+		// scrolling viewport. They are flushed once streaming completes.
+		if (this.fixedScrollingMode && !this.streamingCompleted && !this.element.isComplete) {
+			this._pendingExternalResources.set(toolInvocation.toolCallId, toolInvocation);
+			return;
+		}
+
 		const extractedImages = extractImagesFromToolInvocationOutputDetails(toolInvocation, this.element.sessionResource);
 		if (extractedImages.length === 0) {
 			return;
@@ -1968,6 +1988,17 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		}));
 
 		this._externalResourceWidget.setToolInvocationParts(toolInvocation.toolCallId, parts);
+	}
+
+	private flushPendingExternalResources(): void {
+		if (this._pendingExternalResources.size === 0) {
+			return;
+		}
+		const pending = Array.from(this._pendingExternalResources.values());
+		this._pendingExternalResources.clear();
+		for (const toolInvocation of pending) {
+			this.updateExternalResourceParts(toolInvocation);
+		}
 	}
 
 	private appendItemToDOM(

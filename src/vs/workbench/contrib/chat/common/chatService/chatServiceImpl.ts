@@ -48,7 +48,7 @@ import { IChatTransferService } from '../model/chatTransferService.js';
 import { chatSessionResourceToId, getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../model/chatUri.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, isPromptTextVariableEntry } from '../attachments/chatVariableEntries.js';
 import { IDynamicVariable } from '../attachments/chatVariables.js';
-import { ChatAgentLocation, ChatModeKind } from '../constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../constants.js';
 import { ChatMessageRole, IChatMessage, ILanguageModelsService } from '../languageModels.js';
 import { ILanguageModelToolsService, IToolAndToolSetEnablementMap } from '../tools/languageModelToolsService.js';
 import { ChatSessionOperationLog } from '../model/chatSessionOperationLog.js';
@@ -662,7 +662,7 @@ export class ChatService extends Disposable implements IChatService {
 			sessionResource: sessionResource,
 			canUseTools: false,
 			transferEditingSession: providedSession.transferredState?.editingSession,
-			inputState: providedSession.transferredState?.inputState ?? storedInputState,
+			inputState: providedSession.transferredState?.inputState,
 		}, debugOwner ?? 'ChatService#loadRemoteSession');
 
 		logChangesToStateModel(modelRef.object.inputModel, `loadRemoteSession inputState source: session=${sessionResource.toString()}, chatSessionType=${chatSessionType}, historyModelId=${modelId}, agentUri=${agentUri?.toString()}, historySelectedModel=${historySelectedModel}, transferredSelectedModel=${providedSession.transferredState?.inputState?.selectedModel?.identifier}, storedSelectedModel=${storedInputState?.selectedModel?.identifier}, finalSelectedModel=${modelRef.object.inputModel.state.get()?.selectedModel?.identifier}, hasTransferredInputState=${!!providedSession.transferredState?.inputState}, hasStoredInputState=${!!storedInputState}, hasInitialData=${!!initialData}`, modelRef.object.inputModel.state.get(), undefined, this.logService);
@@ -731,7 +731,7 @@ export class ChatService extends Disposable implements IChatService {
 					kind: ChatModeKind.Agent,
 					isBuiltin: message.modeInstructions.isBuiltin ?? false,
 					modeInstructions: message.modeInstructions,
-					modeId: 'custom',
+					telemetryModeId: 'custom',
 					applyCodeBlockSuggestionId: undefined,
 				} satisfies IChatRequestModeInfo : undefined;
 				lastRequest = model.addRequest(parsedRequest,
@@ -756,8 +756,11 @@ export class ChatService extends Disposable implements IChatService {
 					for (const part of message.parts) {
 						model.acceptResponseProgress(lastRequest, part);
 					}
-					if (message.details && lastRequest.response) {
-						lastRequest.response.setResult({ details: message.details });
+					if (lastRequest.response && (message.details || message.errorDetails)) {
+						lastRequest.response.setResult({
+							...(message.details ? { details: message.details } : {}),
+							...(message.errorDetails ? { errorDetails: message.errorDetails } : {}),
+						});
 					}
 				}
 			}
@@ -1209,6 +1212,10 @@ export class ChatService extends Disposable implements IChatService {
 				if (!ctx) {
 					return [];
 				}
+				// When the extension is responsible for instruction collection, skip the core path entirely.
+				if (this.configurationService.getValue<boolean>(ChatConfiguration.CollectInstructionsInExtension) === true) {
+					return [];
+				}
 				markChat(sessionResource, ChatPerfMark.WillCollectInstructions);
 				try {
 					// Seed the variable set with existing attachments so that
@@ -1315,7 +1322,7 @@ export class ChatService extends Disposable implements IChatService {
 							rejectedConfirmationData: options?.rejectedConfirmationData,
 							agentHostSessionConfig: options?.agentHostSessionConfig,
 							userSelectedModelId: options?.userSelectedModelId,
-							modelConfiguration: options?.userSelectedModelId ? this.languageModelsService.getModelConfiguration(options.userSelectedModelId) : undefined,
+							modelConfiguration: options?.userSelectedModelConfiguration ?? (options?.userSelectedModelId ? this.languageModelsService.getModelConfiguration(options.userSelectedModelId) : undefined),
 							userSelectedTools: options?.userSelectedTools?.get(),
 							modeInstructions: options?.modeInfo?.modeInstructions,
 							permissionLevel: options?.modeInfo?.permissionLevel,
@@ -1528,7 +1535,7 @@ export class ChatService extends Disposable implements IChatService {
 				this.processNextPendingRequest(model);
 			}
 		});
-		if (options?.userSelectedModelId) {
+		if (options?.userSelectedModelId && !options.isSystemInitiated) {
 			this.languageModelsService.addToRecentlyUsedList(options.userSelectedModelId);
 		}
 		this._onDidSubmitRequest.fire({ chatSessionResource: model.sessionResource, message: parsedRequest });
@@ -1560,7 +1567,7 @@ export class ChatService extends Disposable implements IChatService {
 	 */
 	private processNextPendingRequest(model: ChatModel): void {
 		// Agent host sessions delegate queue management to the server.
-		// The server dispatches SessionTurnStarted with queuedMessageId when
+		// The server dispatches ChatTurnStarted with queuedMessageId when
 		// it consumes a queued message, so the client should not dequeue eagerly.
 		if (this._isServerManagedQueue(model.sessionResource)) {
 			return;

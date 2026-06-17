@@ -5,8 +5,10 @@
 
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
+import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -17,9 +19,12 @@ import { EndOfLinePreference } from '../../../../../editor/common/model.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { SnippetController2 } from '../../../../../editor/contrib/snippet/browser/snippetController2.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IRemoteAgentHostService, parseRemoteAgentHostInput, RemoteAgentHostEntryType, RemoteAgentHostInputValidationError, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ISSHRemoteAgentHostService, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHAgentHostConnection, type ISSHResolvedConfig } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { ITunnelAgentHostService, TUNNEL_ADDRESS_PREFIX, type ITunnelInfo } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
+import { IWSLRemoteAgentHostService, WSL_INSTALL_DOCS_URL, type IWSLDistro } from '../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
@@ -29,11 +34,11 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { SessionsCategories } from '../../../../common/categories.js';
 import { SessionWorkspacePickerGroupContext } from '../../../../common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
-import { ISessionsPartService } from '../../../../browser/parts/sessionsPartService.js';
+import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 
 /** Action / command IDs registered by this file. */
 export const RemoteAgentHostCommandIds = {
@@ -42,6 +47,7 @@ export const RemoteAgentHostCommandIds = {
 	addNewSSHHost: 'workbench.action.sessions.addNewSSHHost',
 	configureSSHHosts: 'workbench.action.sessions.configureSSHHosts',
 	connectViaTunnel: 'workbench.action.sessions.connectViaTunnel',
+	connectViaWSL: 'workbench.action.sessions.connectViaWSL',
 	manageRemoteAgentHosts: 'workbench.action.sessions.manageRemoteAgentHosts',
 } as const;
 
@@ -571,7 +577,7 @@ async function promptForRemoteFolder(
 	connection: ISSHAgentHostConnection,
 ): Promise<void> {
 	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
-	const sessionsManagementService = accessor.get(ISessionsManagementService);
+	const sessionsService = accessor.get(ISessionsService);
 	const sessionsPartService = accessor.get(ISessionsPartService);
 
 	// The provider is created synchronously during addManagedConnection's
@@ -596,8 +602,8 @@ async function promptForRemoteFolder(
 		return;
 	}
 
-	sessionsManagementService.openNewSessionView();
-	sessionsPartService.getSessionView(sessionsManagementService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri);
+	sessionsService.openNewSession();
+	sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri);
 }
 
 registerAction2(class extends Action2 {
@@ -918,7 +924,7 @@ async function promptForTunnelFolder(
 	tunnel: ITunnelInfo,
 ): Promise<void> {
 	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
-	const sessionsManagementService = accessor.get(ISessionsManagementService);
+	const sessionsService = accessor.get(ISessionsService);
 	const sessionsPartService = accessor.get(ISessionsPartService);
 
 	const tunnelAddress = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
@@ -945,8 +951,8 @@ async function promptForTunnelFolder(
 		return;
 	}
 
-	sessionsManagementService.openNewSessionView();
-	sessionsPartService.getSessionView(sessionsManagementService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, provider.id);
+	sessionsService.openNewSession();
+	sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, provider.id);
 }
 
 registerAction2(class extends Action2 {
@@ -969,6 +975,203 @@ registerAction2(class extends Action2 {
 
 	override async run(accessor: ServicesAccessor, onBack?: () => void): Promise<void> {
 		const result = await promptToConnectViaTunnel(accessor, { showBackButton: !!onBack });
+		if (result === 'back') {
+			onBack?.();
+		}
+	}
+});
+
+// ---- Connect via WSL -------------------------------------------------------
+
+interface IWSLDistroPickItem extends IQuickPickItem {
+	readonly distro: IWSLDistro;
+}
+
+async function promptToConnectViaWSL(
+	accessor: ServicesAccessor,
+	options: { showBackButton?: boolean } = {},
+): Promise<'back' | void> {
+	const wslService = accessor.get(IWSLRemoteAgentHostService);
+	const notificationService = accessor.get(INotificationService);
+	const quickInputService = accessor.get(IQuickInputService);
+	const openerService = accessor.get(IOpenerService);
+	const instantiationService = accessor.get(IInstantiationService);
+	const logService = accessor.get(ILogService);
+
+	const installAction = new Action(
+		'wsl.openDocs',
+		localize('wslInstallDocsAction', "Install WSL"),
+		undefined,
+		true,
+		() => openerService.open(URI.parse(WSL_INSTALL_DOCS_URL)),
+	);
+
+	if (!(await wslService.isWSLAvailable())) {
+		notificationService.notify({
+			severity: Severity.Info,
+			message: localize('wslNotInstalled', "Windows Subsystem for Linux is not installed or not enabled."),
+			actions: { primary: [installAction] },
+		});
+		return;
+	}
+
+	let distros: IWSLDistro[];
+	try {
+		distros = await wslService.listDistros();
+	} catch (err) {
+		logService.error('[WSL] listDistros failed', err);
+		notificationService.error(localize('wslListFailed', "Failed to list WSL distributions: {0}", toErrorMessage(err)));
+		return;
+	}
+
+	if (distros.length === 0) {
+		notificationService.notify({
+			severity: Severity.Info,
+			message: localize('wslNoDistros', "No WSL 2 distributions are installed."),
+			actions: { primary: [installAction] },
+		});
+		return;
+	}
+
+	const items: IWSLDistroPickItem[] = distros.map(d => ({
+		label: d.name,
+		description: d.isRunning ? localize('wslDistroRunning', "Running") : localize('wslDistroStopped', "Stopped"),
+		detail: d.isDefault ? localize('wslDistroDefault', "Default distribution") : undefined,
+		distro: d,
+	}));
+
+	let picked: IWSLDistroPickItem | undefined;
+	if (items.length === 1 && !options.showBackButton) {
+		picked = items[0];
+	} else {
+		const result = await new Promise<'back' | IWSLDistroPickItem | undefined>(resolve => {
+			const store = new DisposableStore();
+			const picker = store.add(quickInputService.createQuickPick<IWSLDistroPickItem>());
+			picker.title = localize('wslPickTitle', "Connect via WSL");
+			picker.placeholder = localize('wslPickPlaceholder', "Select a WSL distribution to connect to");
+			picker.items = items;
+			if (options.showBackButton) {
+				picker.buttons = [quickInputService.backButton];
+			}
+			store.add(picker.onDidTriggerButton(button => {
+				if (button === quickInputService.backButton) {
+					resolve('back');
+					picker.hide();
+				}
+			}));
+			store.add(picker.onDidAccept(() => {
+				resolve(picker.selectedItems[0]);
+				picker.hide();
+			}));
+			store.add(picker.onDidHide(() => {
+				resolve(undefined);
+				store.dispose();
+			}));
+			picker.show();
+		});
+
+		if (result === 'back') {
+			return 'back';
+		}
+		if (!result) {
+			return;
+		}
+		picked = result;
+	}
+
+	const handle = notificationService.notify({
+		severity: Severity.Info,
+		message: localize('wslConnecting', "Connecting to WSL distribution '{0}'...", picked.distro.name),
+		progress: { infinite: true },
+	});
+
+	const expectedKey = `wsl:${picked.distro.name}`;
+	const progressListener = wslService.onDidReportConnectProgress?.(progress => {
+		if (progress.connectionKey === expectedKey) {
+			handle.updateMessage(progress.message);
+		}
+	});
+
+	try {
+		await wslService.connect({ distro: picked.distro.name, name: picked.distro.name });
+		handle.close();
+	} catch (err) {
+		handle.close();
+		if (isCancellationError(err)) {
+			return;
+		}
+		logService.error(`[WSL] Connect to '${picked.distro.name}' failed`, err);
+		notificationService.error(localize('wslConnectFailed', "Failed to connect to WSL distribution '{0}': {1}", picked.distro.name, toErrorMessage(err)));
+		return;
+	} finally {
+		progressListener?.dispose();
+	}
+
+	await instantiationService.invokeFunction(accessor => promptForWSLFolder(accessor, picked.distro.name));
+}
+
+/**
+ * After a successful WSL connection, show the remote folder picker and
+ * pre-select the chosen folder in the workspace picker.
+ */
+async function promptForWSLFolder(
+	accessor: ServicesAccessor,
+	distro: string,
+): Promise<void> {
+	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
+	const sessionsService = accessor.get(ISessionsService);
+	const sessionsPartService = accessor.get(ISessionsPartService);
+
+	const wslAddress = `wsl:${distro}`;
+	const provider = sessionsProvidersService.getProviders().find((p): p is IAgentHostSessionsProvider => isAgentHostProvider(p) && p.remoteAddress === wslAddress);
+	if (!provider) {
+		return;
+	}
+
+	const browseAction = provider.browseActions[0];
+	if (!browseAction) {
+		return;
+	}
+
+	const workspace = await browseAction.run();
+	if (!workspace) {
+		return;
+	}
+	const folderUri = workspace.folders[0]?.root;
+	if (!folderUri) {
+		return;
+	}
+
+	sessionsService.openNewSession();
+	sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, provider.id);
+}
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: RemoteAgentHostCommandIds.connectViaWSL,
+			title: localize2('connectViaWSL', "Connect to Remote Agent Host via WSL"),
+			shortTitle: localize2('connectViaWSLShort', "WSL..."),
+			category: SessionsCategories.Sessions,
+			f1: true,
+			icon: Codicon.terminalLinux,
+			precondition: ContextKeyExpr.and(
+				ContextKeyExpr.equals('isWindows', true),
+				ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true),
+			),
+			menu: {
+				id: Menus.SessionWorkspaceManage,
+				order: 15,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('isWindows', true),
+					SessionWorkspacePickerGroupContext.isEqualTo(SESSION_WORKSPACE_GROUP_REMOTE),
+				),
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, onBack?: () => void): Promise<void> {
+		const result = await promptToConnectViaWSL(accessor, { showBackButton: !!onBack });
 		if (result === 'back') {
 			onBack?.();
 		}

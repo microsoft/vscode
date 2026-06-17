@@ -26,7 +26,7 @@ import { IInstantiationService } from '../../../../util/vs/platform/instantiatio
 import { ensureNodePtyShim } from './nodePtyShim';
 import { ensureRipgrepShim } from './ripgrepShim';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
-import { formatTokenCount, getModelCapabilitiesDescription, normalizeTokenPrices } from '../../../conversation/common/languageModelAccess';
+import { formatTokenCount, getModelCapabilitiesDescription, getReasoningEffortDescription, normalizeTokenPrices } from '../../../conversation/common/languageModelAccess';
 
 export const COPILOT_CLI_REASONING_EFFORT_PROPERTY = 'reasoningEffort';
 const COPILOT_CLI_MODEL_MEMENTO_KEY = 'github.copilot.cli.sessionModel';
@@ -199,7 +199,12 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 		const provider: vscode.LanguageModelChatProvider = {
 			onDidChangeLanguageModelChatInformation: this._onDidChange.event,
 			provideLanguageModelChatInformation: async (_options, _token) => {
-				return this._resolvedModelInfos ?? [];
+				const models = this._resolvedModelInfos ?? [];
+				if (models.length) {
+					return models;
+				}
+				const autoModelEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIAutoModelEnabled);
+				return autoModelEnabled ? [buildAutoModel()] : [];
 			},
 			provideLanguageModelChatResponse: async (_model, _messages, _options, _progress, _token) => {
 				// Implemented via chat participants.
@@ -260,7 +265,7 @@ function buildAutoModel(defaultModel?: CopilotCLIModelInfo): vscode.LanguageMode
 	return {
 		id: 'auto',
 		name: 'Auto',
-		tooltip: l10n.t('Auto selects the best model based on your request complexity and model performance. Model use through Auto is billed at a 10% discount.'),
+		tooltip: l10n.t('Auto selects the best model based on your request complexity and model performance.'),
 		family: defaultModel?.id ?? '',
 		version: '',
 		maxInputTokens: defaultModel?.maxInputTokens ?? defaultModel?.maxContextWindowTokens ?? 0,
@@ -290,16 +295,7 @@ function buildConfigurationSchema(modelInfo: CopilotCLIModelInfo, isReasoningEff
 				title: l10n.t('Thinking Effort'),
 				enum: effortLevels,
 				enumItemLabels: effortLevels.map(level => level.charAt(0).toUpperCase() + level.slice(1)),
-				enumDescriptions: effortLevels.map(level => {
-					switch (level) {
-						case 'none': return l10n.t('No reasoning applied');
-						case 'low': return l10n.t('Faster responses with less reasoning');
-						case 'medium': return l10n.t('Balanced reasoning and speed');
-						case 'high': return l10n.t('Greater reasoning depth but slower');
-						case 'xhigh': return l10n.t('Maximum reasoning depth but slower');
-						default: return level;
-					}
-				}),
+				enumDescriptions: effortLevels.map(getReasoningEffortDescription),
 				default: defaultEffort,
 				group: 'navigation',
 			};
@@ -626,22 +622,24 @@ export class CopilotCLISDK implements ICopilotCLISDK {
 		const overrideProxyUrl = this.configurationService.getConfig(ConfigKey.Shared.DebugOverrideProxyUrl);
 
 		if (overrideProxyUrl) {
-			this.logService.info('[CopilotCLISession] Proxy URL configured, skipping client-side token validation');
-			return {
-				type: 'hmac',
-				hmac: 'empty',
-				host: 'https://github.com',
-				copilotUser: {
-					endpoints: {
-						api: overrideProxyUrl,
-						// `proxy` must also point at the mock server so that SDK
-						// calls to /copilot_internal/v2/token and /models/session
-						// are routed to the mock instead of the real GitHub API
-						// (which would reject the fake HMAC with a 401).
-						proxy: overrideProxyUrl,
-					}
+			// Only respect this from user (global) settings — a malicious workspace
+			// setting could downgrade auth from HMAC to token.
+			const authTypeInspect = this.configurationService.inspectConfig(ConfigKey.Shared.DebugOverrideAuthType);
+			const authType = authTypeInspect?.globalValue ?? 'hmac';
+			this.logService.info(`[CopilotCLISession] Proxy URL configured (authType=${authType}), skipping client-side token validation`);
+			const copilotUser = {
+				endpoints: {
+					api: overrideProxyUrl,
+					// `proxy` must also point at the mock server so that SDK
+					// calls to /copilot_internal/v2/token and /models/session
+					// are routed to the mock instead of the real GitHub API.
+					proxy: overrideProxyUrl,
 				}
 			};
+			if (authType === 'token') {
+				return { type: 'token', token: 'mock-token', host: 'https://github.com', copilotUser };
+			}
+			return { type: 'hmac', hmac: 'empty', host: 'https://github.com', copilotUser };
 		}
 
 		const { resolveAuthInfoFromToken } = await this.getPackage();

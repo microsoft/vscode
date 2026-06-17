@@ -11,7 +11,7 @@ import { IRemoteAgentHostConnectionInfo, RemoteAgentHostConnectionStatus } from 
 import { IsSessionsWindowContext } from '../../../../../../workbench/common/contextkeys.js';
 import { OpenCopilotCliStateFileAction } from '../../../../../../workbench/contrib/chat/browser/actions/openCopilotCliStateFileAction.js';
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { resolveEventsUri } from '../../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
+import { buildLocalCopilotLogsUri, buildRemoteCopilotLogsUri, getCopilotCliSessionRawId, resolveEventsUri } from '../../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
 import { IsAgentHostSession } from '../../browser/agentHostSkillButtons.js';
 import { OpenSessionEventsFileAction } from '../../browser/openSessionEventsFileActions.js';
 
@@ -73,6 +73,30 @@ suite('openSessionEventsFile resolveEventsUri', () => {
 		);
 	});
 
+	test('copilot log roots resolve beside session-state', () => {
+		const conn = makeRemoteConn('localhost:4321', '/home/remote');
+		const remoteLogs = buildRemoteCopilotLogsUri(conn);
+		assert.deepStrictEqual({
+			rawId: getCopilotCliSessionRawId(URI.parse('agent-host-copilotcli:/abc')),
+			nonCopilotRawId: getCopilotCliSessionRawId(URI.parse('agent-host-copilot:/abc')),
+			localLogs: buildLocalCopilotLogsUri(userHome).toString(),
+			remoteLogs: remoteLogs ? {
+				scheme: remoteLogs.scheme,
+				authority: remoteLogs.authority,
+				isLogsPath: remoteLogs.path.endsWith('/home/remote/.copilot/logs'),
+			} : undefined,
+		}, {
+			rawId: 'abc',
+			nonCopilotRawId: undefined,
+			localLogs: 'file:///home/me/.copilot/logs',
+			remoteLogs: {
+				scheme: 'vscode-agent-host',
+				authority: 'localhost__4321',
+				isLogsPath: true,
+			},
+		});
+	});
+
 	test('EH CLI copilotcli session resolves to ~/.copilot/session-state/<id>/events.jsonl', () => {
 		const result = resolveEventsUri(URI.parse('copilotcli:/abc'), userHome, () => undefined);
 		assert.deepStrictEqual(
@@ -90,7 +114,7 @@ suite('openSessionEventsFile resolveEventsUri', () => {
 		);
 		assert.deepStrictEqual(
 			{ kind: result.kind, resource: result.kind === 'ok' ? result.resource.toString() : undefined },
-			{ kind: 'ok', resource: 'vscode-agent-host://localhost__4321/file/-/home/remote/.copilot/session-state/xyz/events.jsonl' },
+			{ kind: 'ok', resource: 'vscode-agent-host://localhost__4321/home/remote/.copilot/session-state/xyz/events.jsonl?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0' },
 		);
 	});
 

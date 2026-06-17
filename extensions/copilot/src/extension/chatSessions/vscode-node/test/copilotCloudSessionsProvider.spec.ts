@@ -5,14 +5,17 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import * as vscode from 'vscode';
-import type { AgentTaskGetResponse, AgentTaskSessionEvent } from '@vscode/copilot-api';
-import { IGitService } from '../../../../platform/git/common/gitService';
+import type { AgentTask, AgentTaskCreateRequest, AgentTaskGetResponse, AgentTaskListEventsResponse, AgentTaskListResponse, AgentTaskSessionEvent, AgentTaskSteerRequest, AgentTaskCreatePullRequestResponse } from '@vscode/copilot-api';
+import { GithubRepoId, IGitService } from '../../../../platform/git/common/gitService';
 import { PullRequestSearchItem, SessionInfo } from '../../../../platform/github/common/githubAPI';
 import { TestLogService } from '../../../../platform/testing/common/testLogService';
 import { mock } from '../../../../util/common/test/simpleMock';
 import { ChatRequestTurn2, ChatResponseMarkdownPart, ChatResponseTurn2, ChatToolInvocationPart } from '../../../../vscodeTypes';
+import { ITaskApiClient, ListTaskEventsOptions, ListTasksOptions } from '../../common/taskApiTypes';
 import { ChatSessionContentBuilder } from '../copilotCloudSessionContentBuilder';
 import { normalizeInitialSessionOptions, parseSessionLogChunksSafely } from '../copilotCloudSessionsProvider';
+import { TaskApiBackend, parseRepoFromTaskUrl } from '../taskApiBackend';
+import { MockOctoKitService } from '../../../agents/vscode-node/test/mockOctoKitService';
 
 vi.mock('vscode', async () => {
 	const actual = await import('../../../../vscodeTypes');
@@ -313,5 +316,162 @@ describe('ChatSessionContentBuilder Task API history', () => {
 		expect(history[0]).toBeInstanceOf(ChatRequestTurn2);
 		const req = history[0] as ChatRequestTurn2;
 		expect(req.prompt).toBe('Original prompt from creation');
+	});
+});
+
+// --- TaskApiBackend (v2) -------------------------------------------------------------------
+
+class FakeTaskApiClient implements ITaskApiClient {
+	public lastCreateRequest: AgentTaskCreateRequest | undefined;
+	public createPRCalls: Array<{ owner: string; repo: string; taskId: string }> = [];
+	public listForRepoCalls: Array<{ owner: string; repo: string; options?: ListTasksOptions }> = [];
+	public listCalls: Array<{ options?: ListTasksOptions }> = [];
+	private readonly _createPRResult: AgentTaskCreatePullRequestResponse;
+	private readonly _createResult: AgentTask;
+	private readonly _repoTasks: readonly AgentTask[];
+
+	constructor(opts?: { createResult?: AgentTask; createPRResult?: AgentTaskCreatePullRequestResponse; repoTasks?: readonly AgentTask[] }) {
+		this._createResult = opts?.createResult ?? ({
+			id: 'task-created',
+			state: 'queued',
+			created_at: '2026-03-27T00:00:00Z',
+			html_url: 'https://github.com/octocat/hello-world/agents/tasks/task-created',
+		} as unknown as AgentTask);
+		this._createPRResult = opts?.createPRResult ?? { id: 1, number: 42, repository_id: 1 };
+		this._repoTasks = opts?.repoTasks ?? [];
+	}
+
+	async createTask(_owner: string, _repo: string, request: AgentTaskCreateRequest): Promise<AgentTask> {
+		this.lastCreateRequest = request;
+		return this._createResult;
+	}
+	async listTasksForRepo(owner: string, repo: string, options?: ListTasksOptions): Promise<AgentTaskListResponse> {
+		this.listForRepoCalls.push({ owner, repo, options });
+		return { tasks: this._repoTasks } as unknown as AgentTaskListResponse;
+	}
+	async listTasks(options?: ListTasksOptions): Promise<AgentTaskListResponse> {
+		this.listCalls.push({ options });
+		return { tasks: [] } as unknown as AgentTaskListResponse;
+	}
+	async getTask(_taskId: string): Promise<AgentTaskGetResponse> {
+		return { id: _taskId } as unknown as AgentTaskGetResponse;
+	}
+	async getTaskEvents(_taskId: string, _options?: ListTaskEventsOptions): Promise<AgentTaskListEventsResponse> {
+		return { events: [] } as unknown as AgentTaskListEventsResponse;
+	}
+	async steerTask(_taskId: string, _request: AgentTaskSteerRequest): Promise<void> { }
+	async createPRForTask(owner: string, repo: string, taskId: string): Promise<AgentTaskCreatePullRequestResponse> {
+		this.createPRCalls.push({ owner, repo, taskId });
+		return this._createPRResult;
+	}
+	async archiveTask(_owner: string, _repo: string, taskId: string): Promise<AgentTask> {
+		return { id: taskId } as unknown as AgentTask;
+	}
+	async unarchiveTask(_owner: string, _repo: string, taskId: string): Promise<AgentTask> {
+		return { id: taskId } as unknown as AgentTask;
+	}
+}
+
+const fakeChatStream = {} as vscode.ChatResponseStream;
+const noToken = { isCancellationRequested: false, onCancellationRequested: () => ({ dispose() { } }) } as unknown as vscode.CancellationToken;
+
+describe('TaskApiBackend', () => {
+	it('createSession sends create_pull_request: false so the v2 backend no longer auto-creates PRs', async () => {
+		const client = new FakeTaskApiClient();
+		const backend = new TaskApiBackend(client, new TestLogService(), new MockOctoKitService());
+
+		await backend.createSession({
+			owner: 'octocat',
+			repo: 'hello-world',
+			host: 'github.com',
+			title: 'New task',
+			prompt: 'Do the thing',
+			problemStatement: 'Statement',
+			baseRef: 'main',
+		}, fakeChatStream, noToken);
+
+		expect(client.lastCreateRequest?.create_pull_request).toBe(false);
+	});
+
+	it('createPullRequestForTask resolves owner/repo from the task html_url and delegates to createPRForTask', async () => {
+		const client = new FakeTaskApiClient();
+		const backend = new TaskApiBackend(client, new TestLogService(), new MockOctoKitService());
+
+		const result = await backend.createPullRequestForTask({ id: 'task-1', html_url: 'https://github.com/octocat/hello-world/agents/tasks/task-1' } as AgentTaskGetResponse);
+
+		expect(client.createPRCalls).toEqual([{ owner: 'octocat', repo: 'hello-world', taskId: 'task-1' }]);
+		expect(result).toEqual({ id: 1, number: 42, repository_id: 1 });
+	});
+
+	it('createPullRequestForTask resolves the repo by id when the task has no html_url', async () => {
+		const client = new FakeTaskApiClient();
+		const octoKitService = new MockOctoKitService();
+		octoKitService.getRepositoryById = async () => ({ owner: 'octocat', name: 'hello-world' });
+		const backend = new TaskApiBackend(client, new TestLogService(), octoKitService);
+
+		await backend.createPullRequestForTask({ id: 'task-2', repository: { id: 123 } } as unknown as AgentTaskGetResponse);
+
+		expect(client.createPRCalls).toEqual([{ owner: 'octocat', repo: 'hello-world', taskId: 'task-2' }]);
+	});
+
+	it('createPullRequestForTask throws when the repository cannot be resolved', async () => {
+		const client = new FakeTaskApiClient();
+		const backend = new TaskApiBackend(client, new TestLogService(), new MockOctoKitService());
+
+		await expect(backend.createPullRequestForTask({ id: 'task-3' } as AgentTaskGetResponse)).rejects.toThrow();
+		expect(client.createPRCalls).toEqual([]);
+	});
+
+	it('fetchSessionList scopes the repo task list to the current user via creator_id', async () => {
+		const client = new FakeTaskApiClient();
+		const octoKitService = new MockOctoKitService();
+		octoKitService.getCurrentAuthedUser = async () => ({ id: 4242, login: 'octocat', name: 'The Octocat', avatar_url: '' });
+		const backend = new TaskApiBackend(client, new TestLogService(), octoKitService);
+
+		await backend.fetchSessionList([new GithubRepoId('octocat', 'hello-world')], false, false);
+
+		expect(client.listForRepoCalls).toEqual([
+			{ owner: 'octocat', repo: 'hello-world', options: { per_page: 100, creator_id: 4242 } },
+		]);
+	});
+
+	it('fetchSessionList fails closed (no repo fetch, empty result) when the current user id cannot be resolved', async () => {
+		const client = new FakeTaskApiClient({ repoTasks: [{ id: 't1', state: 'completed', created_at: '2026-03-27T00:00:00Z', creator: { id: 999 } } as unknown as AgentTask] });
+		const octoKitService = new MockOctoKitService();
+		octoKitService.getCurrentAuthedUser = async () => undefined;
+		const backend = new TaskApiBackend(client, new TestLogService(), octoKitService);
+
+		const result = await backend.fetchSessionList([new GithubRepoId('octocat', 'hello-world')], false, false);
+
+		expect(client.listForRepoCalls).toEqual([]);
+		expect(result).toEqual([]);
+	});
+
+	it('fetchSessionList does not send creator_id on the user-scoped global list', async () => {
+		const client = new FakeTaskApiClient();
+		const backend = new TaskApiBackend(client, new TestLogService(), new MockOctoKitService());
+
+		await backend.fetchSessionList(undefined, false, false);
+
+		expect(client.listForRepoCalls).toEqual([]);
+		expect(client.listCalls).toEqual([{ options: { per_page: 100 } }]);
+	});
+});
+
+describe('parseRepoFromTaskUrl', () => {
+	it('extracts owner and name from a task html_url', () => {
+		expect(parseRepoFromTaskUrl('https://github.com/octocat/hello-world/agents/tasks/abc')).toEqual({ owner: 'octocat', name: 'hello-world' });
+	});
+
+	it('returns undefined for an unparseable URL', () => {
+		expect(parseRepoFromTaskUrl('not-a-url')).toBeUndefined();
+	});
+
+	it('returns undefined when the path does not start with owner/repo', () => {
+		expect(parseRepoFromTaskUrl('https://github.com/')).toBeUndefined();
+	});
+
+	it('returns undefined when the URL is undefined', () => {
+		expect(parseRepoFromTaskUrl(undefined)).toBeUndefined();
 	});
 });

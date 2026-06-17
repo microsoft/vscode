@@ -257,6 +257,8 @@ export class ExtensionHostConnection extends Disposable {
 				];
 			}
 
+			this._log(`Starting extension host process...`);
+
 			const env = await buildUserEnvironment(startParams.env, true, startParams.language, this._environmentService, this._logService, this._configurationService);
 			removeDangerousEnvVariables(env);
 
@@ -329,10 +331,9 @@ export class ExtensionHostConnection extends Disposable {
 			}
 
 		} catch (error) {
-			console.error('ExtensionHostConnection errored');
-			if (error) {
-				console.error(error);
-			}
+			this._logError(`Failed to start extension host process`);
+			this._logService.error(error);
+			this._cleanResources();
 		}
 	}
 

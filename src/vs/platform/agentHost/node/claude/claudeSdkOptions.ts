@@ -14,6 +14,7 @@ import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import type { ModelSelection } from '../../common/state/protocol/state.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
 import { buildClientToolMcpServer } from './clientTools/claudeClientToolMcpServer.js';
+import { toSdkModelId } from './claudeModelId.js';
 import { IClaudeProxyHandle } from './claudeProxyService.js';
 import { SessionClientToolsDiff } from './clientTools/claudeSessionClientToolsModel.js';
 
@@ -32,6 +33,14 @@ export interface IBuildOptionsInput {
 	readonly canUseTool: NonNullable<Options['canUseTool']>;
 	readonly isResume: boolean;
 	readonly mcpServers: Record<string, McpSdkServerConfigWithInstance> | undefined;
+	/**
+	 * SDK-prefixed tool names to auto-approve without prompting (projected
+	 * onto `Options.allowedTools`). Used for the agent host's feedback server
+	 * tools, which only touch the session's annotations channel and are always
+	 * safe. Omitted from the returned options when empty so the SDK keeps its
+	 * default.
+	 */
+	readonly allowedTools?: readonly string[];
 	/**
 	 * Local plugin directories to load at SDK startup. Projected onto
 	 * `Options.plugins` as `{ type: 'local', path }`. Omitted from the
@@ -98,13 +107,14 @@ export async function buildOptions(
 		includePartialMessages: true,
 		forwardSubagentText: true,
 		enableFileCheckpointing: true,
-		model: input.model?.id,
+		model: toSdkModelId(input.model?.id),
 		effort: resolveClaudeEffort(input.model),
 		permissionMode: input.permissionMode,
 		...(input.isResume
 			? { resume: input.sessionId }
 			: { sessionId: input.sessionId }),
 		...(input.mcpServers ? { mcpServers: input.mcpServers } : {}),
+		...(input.allowedTools && input.allowedTools.length > 0 ? { allowedTools: [...input.allowedTools] } : {}),
 		...(input.plugins && input.plugins.length > 0
 			? { plugins: input.plugins.map(p => ({ type: 'local' as const, path: p.fsPath })) }
 			: {}),

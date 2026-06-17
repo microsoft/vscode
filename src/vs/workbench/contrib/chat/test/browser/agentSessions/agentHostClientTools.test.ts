@@ -16,11 +16,11 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { AgentSession, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { isSessionAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { buildSubagentSessionUri, MessageKind, SessionLifecycle, SessionStatus, createSessionState, StateComponents, type SessionState, type SessionSummary, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { sessionReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
+import { isChatAction, isSessionAction, type ActionEnvelope, type ChatAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { buildDefaultChatUri, buildSubagentSessionUri, createChatState, createDefaultChatSummary, MessageKind, SessionLifecycle, SessionStatus, createSessionState, StateComponents, type ChatState, type SessionState, type SessionSummary, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { chatReducer, sessionReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
-import { ToolCallConfirmationReason, ToolResultContentType } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { IChatProgress, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
@@ -48,6 +48,7 @@ import { IAgentPluginService } from '../../../common/plugins/agentPluginService.
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 
 // =============================================================================
@@ -238,7 +239,7 @@ suite('AgentHostClientTools', () => {
 
 	suite('client tools registration', () => {
 
-		function createMockToolsService(disposables: DisposableStore, tools: IToolData[]) {
+		function createMockToolsService(disposables: DisposableStore, tools: IToolData[], options?: { requireConfirmation?: boolean }) {
 			const onDidChangeTools = disposables.add(new Emitter<void>());
 			const pendingToolCalls = new Map<string, ChatToolInvocation>();
 			const begunToolCalls: ChatToolInvocation[] = [];
@@ -257,7 +258,18 @@ suite('AgentHostClientTools', () => {
 					invokedToolCalls.push(invocation);
 					const toolInvocation = pendingToolCalls.get(invocation.chatStreamToolCallId ?? invocation.callId);
 					pendingToolCalls.delete(invocation.chatStreamToolCallId ?? invocation.callId);
-					toolInvocation?.transitionFromStreaming(undefined, invocation.parameters, { type: ToolConfirmKind.ConfirmationNotNeeded });
+					if (options?.requireConfirmation && toolInvocation) {
+						toolInvocation.transitionFromStreaming({
+							invocationMessage: 'Run Task',
+							confirmationMessages: {
+								title: 'Confirm tool execution',
+								message: 'Run the task?',
+							},
+						}, invocation.parameters, undefined);
+						await IChatToolInvocation.awaitConfirmation(toolInvocation, CancellationToken.None);
+					} else {
+						toolInvocation?.transitionFromStreaming(undefined, invocation.parameters, { type: ToolConfirmKind.ConfirmationNotNeeded });
+					}
 					const result: IToolResult = { content: [{ kind: 'text', value: 'done' }] };
 					await toolInvocation?.didExecuteTool(result);
 					return result;
@@ -286,6 +298,7 @@ suite('AgentHostClientTools', () => {
 				createToolSet: () => { throw new Error('not impl'); },
 				getFullReferenceNames: () => [],
 				getFullReferenceName: () => '',
+				getFullReferenceNameMap: () => new Map(),
 				getToolByFullReferenceName: () => undefined,
 				getDeprecatedFullReferenceNames: () => new Map(),
 				toToolAndToolSetEnablementMap: () => new Map(),
@@ -314,20 +327,27 @@ suite('AgentHostClientTools', () => {
 			override readonly onAgentHostExit = Event.None;
 			override readonly onAgentHostStart = Event.None;
 
-			private readonly _liveSubscriptions = new Map<string, { state: SessionState; emitter: Emitter<SessionState> }>();
-			public dispatchedActions: { channel: string; action: SessionAction | TerminalAction | IRootConfigChangedAction }[] = [];
+			private readonly _liveSubscriptions = new Map<string, { state: SessionState | ChatState; emitter: Emitter<SessionState | ChatState> }>();
+			public dispatchedActions: { channel: string; action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction }[] = [];
 
-			override dispatch(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
+			override dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
 				this.dispatchedActions.push({ channel, action });
-				if (isSessionAction(action)) {
+				if (isSessionAction(action) || isChatAction(action)) {
 					this.applySessionAction(channel, action);
 				}
 			}
 
-			applySessionAction(channel: string | URI, action: SessionAction): void {
+			applySessionAction(channel: string | URI, action: SessionAction | ChatAction): void {
 				const channelStr = typeof channel === 'string' ? channel : channel.toString();
-				const entry = this._ensureLiveSubscription(channelStr);
-				entry.state = sessionReducer(entry.state, action as Parameters<typeof sessionReducer>[1], () => { });
+				if (isChatAction(action)) {
+					const chatChannel = channelStr.startsWith('ahp-chat:') ? channelStr : buildDefaultChatUri(channelStr);
+					const entry = this._ensureLiveSubscription(StateComponents.Chat, chatChannel);
+					entry.state = chatReducer(entry.state as ChatState, action as Parameters<typeof chatReducer>[1], () => { });
+					entry.emitter.fire(entry.state);
+					return;
+				}
+				const entry = this._ensureLiveSubscription(StateComponents.Session, channelStr);
+				entry.state = sessionReducer(entry.state as SessionState, action as Parameters<typeof sessionReducer>[1], () => { });
 				entry.emitter.fire(entry.state);
 			}
 
@@ -339,9 +359,9 @@ suite('AgentHostClientTools', () => {
 				onDidApplyAction: Event.None,
 			};
 
-			override getSubscription<T>(_kind: StateComponents, resource: URI): IReference<IAgentSubscription<T>> {
+			override getSubscription<T>(kind: StateComponents, resource: URI): IReference<IAgentSubscription<T>> {
 				const resourceStr = resource.toString();
-				this._ensureLiveSubscription(resourceStr);
+				this._ensureLiveSubscription(kind, resourceStr);
 				const entry = this._liveSubscriptions.get(resourceStr)!;
 				const emitter = entry.emitter as unknown as Emitter<T>;
 
@@ -361,12 +381,12 @@ suite('AgentHostClientTools', () => {
 				};
 			}
 
-			private _ensureLiveSubscription(resourceStr: string): { state: SessionState; emitter: Emitter<SessionState> } {
+			private _ensureLiveSubscription(kind: StateComponents, resourceStr: string): { state: SessionState | ChatState; emitter: Emitter<SessionState | ChatState> } {
 				let entry = this._liveSubscriptions.get(resourceStr);
 				if (entry) {
 					return entry;
 				}
-				const emitter = disposables.add(new Emitter<SessionState>());
+				const emitter = disposables.add(new Emitter<SessionState | ChatState>());
 				const summary: SessionSummary = {
 					resource: resourceStr,
 					provider: 'copilot',
@@ -375,7 +395,9 @@ suite('AgentHostClientTools', () => {
 					createdAt: Date.now(),
 					modifiedAt: Date.now(),
 				};
-				const initialState: SessionState = { ...createSessionState(summary), lifecycle: SessionLifecycle.Ready };
+				const initialState = kind === StateComponents.Chat
+					? createChatState(createDefaultChatSummary(summary, resourceStr))
+					: { ...createSessionState(summary), lifecycle: SessionLifecycle.Ready };
 				entry = { state: initialState, emitter };
 				this._liveSubscriptions.set(resourceStr, entry);
 				return entry;
@@ -386,11 +408,12 @@ suite('AgentHostClientTools', () => {
 			disposables: DisposableStore,
 			tools: IToolData[],
 			configOverrides?: { clientTools?: string[] },
+			toolServiceOptions?: { requireConfirmation?: boolean },
 		) {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			const connection = new MockAgentHostConnection();
 
-			const toolsService = createMockToolsService(disposables, tools);
+			const toolsService = createMockToolsService(disposables, tools, toolServiceOptions);
 			const configValues: Record<string, unknown> = {
 				'chat.agentHost.clientTools': configOverrides?.clientTools ?? ['runTask', 'runTests'],
 			};
@@ -402,6 +425,7 @@ suite('AgentHostClientTools', () => {
 
 			instantiationService.stub(ILogService, new NullLogService());
 			instantiationService.stub(IProductService, { quality: 'insider' });
+			instantiationService.stub(IChatEntitlementService, { entitlement: ChatEntitlement.Free, quotas: {} } as Partial<IChatEntitlementService> as IChatEntitlementService);
 			instantiationService.stub(IChatAgentService, {
 				registerDynamicAgent: () => toDisposable(() => { }),
 			});
@@ -577,26 +601,26 @@ suite('AgentHostClientTools', () => {
 			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
 
 			connection.applySessionAction(URI.parse(backendSession), {
-				type: ActionType.SessionTurnStarted,
+				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
 				message: { text: 'run the task', origin: { kind: MessageKind.User } },
-			} as SessionAction);
+			} as ChatAction);
 			connection.applySessionAction(URI.parse(backendSession), {
-				type: ActionType.SessionToolCallStart,
+				type: ActionType.ChatToolCallStart,
 				turnId: 'turn-1',
 				toolCallId: 'tool-call-1',
 				toolName: 'runTask',
 				displayName: 'Run Task',
-				toolClientId: connection.clientId,
-			} as SessionAction);
+				contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
+			} as ChatAction);
 			connection.applySessionAction(URI.parse(backendSession), {
-				type: ActionType.SessionToolCallReady,
+				type: ActionType.ChatToolCallReady,
 				turnId: 'turn-1',
 				toolCallId: 'tool-call-1',
 				invocationMessage: 'Run Task',
 				toolInput: '{"task":"build"}',
 				confirmed: ToolCallConfirmationReason.NotNeeded,
-			} as SessionAction);
+			} as ChatAction);
 
 			await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			await timeout(0);
@@ -613,9 +637,80 @@ suite('AgentHostClientTools', () => {
 				parameters: { task: 'build' },
 				chatStreamToolCallId: 'tool-call-1',
 			}]);
-			assert.ok(connection.dispatchedActions.some(entry => isSessionAction(entry.action)
-				&& entry.action.type === ActionType.SessionToolCallComplete
+			assert.ok(connection.dispatchedActions.some(entry => isChatAction(entry.action)
+				&& entry.action.type === ActionType.ChatToolCallComplete
 				&& entry.action.toolCallId === 'tool-call-1'));
+		});
+
+		test('auto-approves client tool confirmation as a setting when the agent host marks the call', async () => {
+			const { handler, connection } = createHandlerWithMocks(disposables, [testRunTaskTool], undefined, { requireConfirmation: true });
+			const sessionResource = URI.parse('agent-host-copilot:/session-1');
+			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
+
+			connection.applySessionAction(URI.parse(backendSession), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				message: { text: 'run the task', origin: { kind: MessageKind.User } },
+			} as ChatAction);
+			connection.applySessionAction(URI.parse(backendSession), {
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'tool-call-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
+			} as ChatAction);
+			connection.applySessionAction(URI.parse(backendSession), {
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-1',
+				toolCallId: 'tool-call-1',
+				invocationMessage: 'Run Task',
+				toolInput: '{"task":"build"}',
+				confirmationTitle: 'Run Task',
+				_meta: { autoApproveBySetting: true },
+			} as ChatAction);
+
+			await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			await timeout(0);
+			await timeout(0);
+			await timeout(0);
+
+			assert.deepStrictEqual(connection.dispatchedActions
+				.filter(entry => isChatAction(entry.action)
+					&& (entry.action.type === ActionType.ChatToolCallConfirmed || entry.action.type === ActionType.ChatToolCallComplete)
+					&& entry.action.toolCallId === 'tool-call-1')
+				.map(entry => {
+					if (entry.action.type === ActionType.ChatToolCallConfirmed) {
+						return {
+							type: entry.action.type,
+							approved: entry.action.approved,
+							confirmed: entry.action.approved ? entry.action.confirmed : undefined,
+							success: undefined,
+						};
+					}
+					if (entry.action.type === ActionType.ChatToolCallComplete) {
+						return {
+							type: entry.action.type,
+							approved: undefined,
+							confirmed: undefined,
+							success: entry.action.result.success,
+						};
+					}
+					throw new Error(`Unexpected action type: ${entry.action.type}`);
+				}), [
+				{
+					type: ActionType.ChatToolCallConfirmed,
+					approved: true,
+					confirmed: ToolCallConfirmationReason.Setting,
+					success: undefined,
+				},
+				{
+					type: ActionType.ChatToolCallComplete,
+					approved: undefined,
+					confirmed: undefined,
+					success: true,
+				},
+			]);
 		});
 
 		test('reconnecting to an active turn with owned client tool completes the initial snapshot invocation', async () => {
@@ -624,26 +719,26 @@ suite('AgentHostClientTools', () => {
 			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
 
 			connection.applySessionAction(URI.parse(backendSession), {
-				type: ActionType.SessionTurnStarted,
+				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
 				message: { text: 'run the task', origin: { kind: MessageKind.User } },
-			} as SessionAction);
+			} as ChatAction);
 			connection.applySessionAction(URI.parse(backendSession), {
-				type: ActionType.SessionToolCallStart,
+				type: ActionType.ChatToolCallStart,
 				turnId: 'turn-1',
 				toolCallId: 'tool-call-1',
 				toolName: 'runTask',
 				displayName: 'Run Task',
-				toolClientId: connection.clientId,
-			} as SessionAction);
+				contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
+			} as ChatAction);
 			connection.applySessionAction(URI.parse(backendSession), {
-				type: ActionType.SessionToolCallReady,
+				type: ActionType.ChatToolCallReady,
 				turnId: 'turn-1',
 				toolCallId: 'tool-call-1',
 				invocationMessage: 'Run Task',
 				toolInput: '{"task":"build"}',
 				confirmed: ToolCallConfirmationReason.NotNeeded,
-			} as SessionAction);
+			} as ChatAction);
 
 			const session = await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
 
@@ -672,7 +767,7 @@ suite('AgentHostClientTools', () => {
 			// implementation, not the agent host). Before the fix, the
 			// renderer skipped local invocation for subagent tool calls,
 			// leaving the subagent's deferred unresolved. After the fix the
-			// tool is invoked locally and the SessionToolCallComplete is
+			// tool is invoked locally and the ChatToolCallComplete is
 			// dispatched against the subagent session URI — the agent then
 			// resolves it back to the parent session that owns the deferred.
 			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
@@ -683,12 +778,12 @@ suite('AgentHostClientTools', () => {
 
 			// Parent turn with a `task` tool that spawns a subagent.
 			connection.applySessionAction(URI.parse(backendSession), {
-				type: ActionType.SessionTurnStarted,
+				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
 				message: { text: 'do work', origin: { kind: MessageKind.User } },
 			});
 			connection.applySessionAction(URI.parse(backendSession), {
-				type: ActionType.SessionToolCallStart,
+				type: ActionType.ChatToolCallStart,
 				turnId: 'turn-1',
 				toolCallId: parentToolCallId,
 				toolName: 'task',
@@ -696,7 +791,7 @@ suite('AgentHostClientTools', () => {
 				_meta: { toolKind: 'subagent' },
 			});
 			connection.applySessionAction(URI.parse(backendSession), {
-				type: ActionType.SessionToolCallReady,
+				type: ActionType.ChatToolCallReady,
 				turnId: 'turn-1',
 				toolCallId: parentToolCallId,
 				invocationMessage: 'Spawning subagent',
@@ -708,20 +803,20 @@ suite('AgentHostClientTools', () => {
 			// matches the renderer's clientId so the renderer owns the
 			// invocation).
 			connection.applySessionAction(URI.parse(subagentBackendSession), {
-				type: ActionType.SessionTurnStarted,
+				type: ActionType.ChatTurnStarted,
 				turnId: 'sub-turn-1',
 				message: { text: '', origin: { kind: MessageKind.User } },
 			});
 			connection.applySessionAction(URI.parse(subagentBackendSession), {
-				type: ActionType.SessionToolCallStart,
+				type: ActionType.ChatToolCallStart,
 				turnId: 'sub-turn-1',
 				toolCallId: 'inner-tool-call-1',
 				toolName: 'runTask',
 				displayName: 'Run Task',
-				toolClientId: connection.clientId,
+				contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
 			});
 			connection.applySessionAction(URI.parse(subagentBackendSession), {
-				type: ActionType.SessionToolCallReady,
+				type: ActionType.ChatToolCallReady,
 				turnId: 'sub-turn-1',
 				toolCallId: 'inner-tool-call-1',
 				invocationMessage: 'Run Task',
@@ -744,15 +839,15 @@ suite('AgentHostClientTools', () => {
 			// URI (the agent will then resolve it to the parent session that
 			// owns the SDK deferred).
 			const completionEntry = connection.dispatchedActions.find(entry =>
-				isSessionAction(entry.action)
-				&& entry.action.type === ActionType.SessionToolCallComplete
+				isChatAction(entry.action)
+				&& entry.action.type === ActionType.ChatToolCallComplete
 				&& entry.action.toolCallId === 'inner-tool-call-1'
 			);
 			assert.ok(completionEntry, 'completion for the inner client tool should be dispatched');
 			assert.strictEqual(
 				completionEntry.channel.toString(),
-				subagentBackendSession,
-				'completion should target the subagent session URI'
+				buildDefaultChatUri(subagentBackendSession),
+				'completion should target the subagent default chat URI'
 			);
 		});
 	});

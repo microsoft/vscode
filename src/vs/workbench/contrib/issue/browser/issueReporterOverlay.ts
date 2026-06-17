@@ -730,7 +730,13 @@ export class IssueReporterOverlay {
 			selectedExtension: this.selectedExtension,
 		});
 		this.data.issueSource = this.selectedIssueSource;
-		this.data.extensionId = fileOnExtension ? this.selectedExtension?.id : undefined;
+		// Preserve a preset `extensionId` while the extension list is still loading:
+		// `selectedExtension` may be undefined here even though the caller asked
+		// for a specific extension, and overwriting with `undefined` would prevent
+		// the catch-up retry in `updateExtensionOptions` from re-resolving it.
+		this.data.extensionId = fileOnExtension
+			? (this.selectedExtension?.id ?? this.data.extensionId)
+			: undefined;
 	}
 
 	private updateTitlePlaceholder(): void {
@@ -793,7 +799,15 @@ export class IssueReporterOverlay {
 			? this.model.getData().allExtensions.find(candidate => candidate.id.toLowerCase() === extensionId.toLowerCase())
 			: undefined;
 		this.selectedExtension = extension;
-		this.data.extensionId = extension?.id;
+		// Preserve the requested extensionId even when the extension list hasn't
+		// been populated yet (typical wizard flow: the constructor runs before
+		// `populateReporterDataAsync` finishes filling `allExtensions`). Without
+		// this preservation, the later catch-up retry in `updateExtensionOptions`
+		// sees `this.data.extensionId === undefined` and never re-resolves,
+		// dropping any preset extension data with it.
+		if (extensionId === undefined || extension) {
+			this.data.extensionId = extension?.id;
+		}
 		this.extensionSelect.select(this.getSelectedExtensionIndex());
 		this.updateExtensionValidation();
 		this.updateIssueSourceFlags();
@@ -802,6 +816,25 @@ export class IssueReporterOverlay {
 			this.updateTargetStatus();
 			this.searchSimilarIssues();
 			return;
+		}
+
+		// Apply any preset extension data BEFORE the built-in source-switch below.
+		// When the reporter is opened programmatically (e.g. via the
+		// `workbench.action.openIssueReporter` command) with a preset `extensionId`
+		// plus extension `data`/`uri`, propagate that data onto the selected
+		// extension and the model so it shows up in the issue body. Doing this
+		// before the built-in early-return is important: extensions bundled with
+		// the dev build (Copilot, etc.) are flagged `isBuiltin`, which triggers
+		// the source switch to VSCode and returns — otherwise the preset data
+		// would be silently lost for every built-in caller. We guard on
+		// `!this.includeExtensionData` (rather than `!extension.data`) because
+		// `issueService` pre-populates `extension.data` on every enabled
+		// extension, so that field is not a reliable "already applied" signal —
+		// `includeExtensionData` is only flipped to `true` by
+		// `applyExtensionIssueData`.
+		const hasPresetData = !this.includeExtensionData && (this.data.data !== undefined || this.data.uri !== undefined || this.data.privateUri !== undefined);
+		if (!loadExtensionData && hasPresetData) {
+			this.applyExtensionIssueData(extension, this.data);
 		}
 
 		if (extension.isBuiltin && this.selectedIssueSource === IssueSource.Extension && !this.data.issueSource) {
@@ -1414,7 +1447,12 @@ export class IssueReporterOverlay {
 			loading.textContent = localize('loadingSystemInfo', "Loading system information...");
 		}
 
-		if (modelData.fileOnExtension && modelData.extensionData) {
+		if (modelData.extensionData) {
+			// Match `buildIssueBody`, which only gates on `extensionData`. Gating
+			// here on `fileOnExtension` as well would hide the section in the
+			// review UI whenever the issue source was auto-switched away from
+			// Extension (e.g. built-in extensions are filed against VS Code),
+			// even though the extension data still ends up in the submitted body.
 			diagnosticSectionCount++;
 			diagnosticSectionStates.push(() => this.includeExtensionData);
 			this.createDiagSection(diagContainer, {

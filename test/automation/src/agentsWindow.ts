@@ -36,14 +36,15 @@ export class AgentsWindow {
 	}
 
 	/**
-	 * Start a new session from inside the Agents Window via the
-	 * `workbench.action.sessions.newChat` keybinding (Ctrl+L). The action
-	 * is not exposed in the command palette, so we drive it through its
-	 * key chord which works cross-platform (mac uses WinCtrl+L as the
-	 * secondary binding, which maps to plain Ctrl+L).
+	 * Start a new session from inside the Agents Window by executing
+	 * `workbench.action.sessions.newChat` via the command palette. We
+	 * avoid a raw keybinding dispatch because the action's Ctrl+L
+	 * binding is gated on `!editorAreaFocus`, which is false after
+	 * interacting with the chat editor.
 	 */
 	async startNewSession(): Promise<void> {
-		await this.code.dispatchKeybinding('ctrl+l', async () => this.waitForNewSessionView());
+		await this.quickaccess.runCommand('workbench.action.sessions.newChat');
+		await this.waitForNewSessionView();
 	}
 
 	/**
@@ -93,29 +94,53 @@ export class AgentsWindow {
 
 		const itemSel = `.action-widget .monaco-list-row`;
 		const maxAttempts = 3;
+		const needle = label.toLowerCase();
 
 		// The picker click can silently do nothing if the active session
-		// isn't fully initialized yet. Retry the click until the dropdown
-		// rows appear.
-		for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+		// isn't fully initialized yet, and the dropdown is async-populated:
+		// providers (e.g. the AgentHost-backed Copilot CLI variant) can
+		// register a few seconds after the dropdown first renders. Retry
+		// opening the dropdown and poll its rows until the requested label
+		// appears, instead of just waiting for "any item".
+		let lastSeen: string[] = [];
+		outer: for (let attempt = 1; attempt <= maxAttempts; attempt++) {
 			await this.code.waitAndClick(SESSION_TYPE_PICKER_VISIBLE);
-			try {
-				await this.code.waitForElement(itemSel, el => !!el && (el.textContent ?? '').trim().length > 0, 30 /* ~3 seconds */);
-				break;
-			} catch {
-				if (attempt === maxAttempts) {
-					throw new Error(`Session type picker did not populate after ${maxAttempts} attempts`);
+			const deadline = Date.now() + 10_000;
+			while (Date.now() < deadline) {
+				const items = await this.code.getElements(itemSel, /* recursive */ true);
+				lastSeen = (items ?? []).map(i => (i.textContent ?? '').trim());
+				if (lastSeen.some(t => t.toLowerCase().includes(needle))) {
+					break outer;
 				}
-				await new Promise(r => setTimeout(r, 2000));
+				await new Promise(r => setTimeout(r, 250));
 			}
+			if (attempt === maxAttempts) {
+				throw new Error(`Session type "${label}" not found in picker. Available: ${lastSeen.join(', ')}`);
+			}
+			await new Promise(r => setTimeout(r, 2000));
 		}
 
 		const items = await this.code.waitForElements(itemSel, /* recursive */ true);
-		const matchIndex = items.findIndex(el => (el.textContent ?? '').trim().toLowerCase().includes(label.toLowerCase()));
+		const isActionRow = (el: { className: string }) => el.className.includes('action');
+		const rowText = (el: { textContent: string }) => (el.textContent ?? '').trim().toLowerCase();
+
+		// Prefer an actionable row whose label matches directly (e.g. a
+		// session type label like "Claude" or "Copilot CLI").
+		let matchIndex = items.findIndex(el => isActionRow(el) && rowText(el).includes(needle));
+		// Otherwise treat the label as a provider section header (e.g. "Local
+		// Agent Host"): headers are non-clickable rows rendered above their
+		// session types, so select the first actionable row beneath the header.
+		if (matchIndex < 0) {
+			const headerIndex = items.findIndex(el => !isActionRow(el) && rowText(el).includes(needle));
+			if (headerIndex >= 0) {
+				matchIndex = items.findIndex((el, index) => index > headerIndex && isActionRow(el));
+			}
+		}
 		if (matchIndex < 0) {
 			throw new Error(`Session type "${label}" not found in picker. Available: ${items.map(i => (i.textContent ?? '').trim()).join(', ')}`);
 		}
-		await this.code.waitAndClick(`.action-widget .monaco-list-row[data-index="${matchIndex}"]`);
+		const dataIndex = items[matchIndex].attributes['data-index'] ?? String(matchIndex);
+		await this.code.waitAndClick(`.action-widget .monaco-list-row[data-index="${dataIndex}"]`);
 	}
 
 	/**
@@ -138,11 +163,23 @@ export class AgentsWindow {
 		for (let attempt = 1; attempt <= maxClickAttempts; attempt++) {
 			await this.code.waitAndClick(SEND_BUTTON_ENABLED);
 			// Verify the new-session view disappeared (confirms send took effect).
+			// Use a generous budget here because on slow dev machines / busy CI the
+			// transition can take well over 3 seconds and we don't want to fall
+			// through to a retry that then waits 20s for a send button that has
+			// since been torn down by the (actually successful) first click.
 			try {
-				await this.code.waitForElement(NEW_SESSION_VIEW, result => !result, 30 /* ~3 seconds */);
+				await this.code.waitForElement(NEW_SESSION_VIEW, result => !result, 150 /* ~15 seconds */);
 				return; // View gone — send succeeded
 			} catch {
-				// View still present — click may not have fired; retry
+				// View still present — click may not have fired. Only retry if the
+				// send button is still around; if it's gone, the click did take
+				// effect and the view transition is merely lagging behind.
+				const sendButtonGone = await this.code
+					.waitForElement(SEND_BUTTON_ENABLED, result => !result, 1)
+					.then(() => true, () => false);
+				if (sendButtonGone) {
+					return;
+				}
 				if (attempt < maxClickAttempts) {
 					await new Promise(r => setTimeout(r, 1000));
 				}
@@ -164,16 +201,20 @@ export class AgentsWindow {
 
 		const responseSelector = `${RESPONSE_COMPLETE} .rendered-markdown`;
 		const deadline = Date.now() + timeoutMs;
+		let lastTexts: string[] = [];
 		while (Date.now() < deadline) {
 			const elements = await this.code.getElements(responseSelector, /* recursive */ true);
-			for (const el of (elements ?? [])) {
-				const text = el.textContent || '';
+			lastTexts = (elements ?? []).map(el => el.textContent || '');
+			for (const text of lastTexts) {
 				if (typeof predicate === 'string' ? text.includes(predicate) : predicate.test(text)) {
 					return text;
 				}
 			}
 			await new Promise(r => setTimeout(r, 500));
 		}
-		throw new Error(`Timed out waiting for assistant text matching ${predicate}`);
+		const seen = lastTexts.length
+			? lastTexts.map((t, i) => `  [${i}] ${JSON.stringify(t.length > 500 ? t.slice(0, 500) + '…' : t)}`).join('\n')
+			: '  (no assistant response elements found)';
+		throw new Error(`Timed out waiting for assistant text matching ${predicate}\nLast-seen response text(s):\n${seen}`);
 	}
 }

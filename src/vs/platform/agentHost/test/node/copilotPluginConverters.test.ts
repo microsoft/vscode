@@ -17,10 +17,10 @@ import { NullLogService } from '../../../log/common/log.js';
 import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import { toSdkInstructionDirectories, toSdkMcpServers, toSdkCustomAgents, toSdkSkillDirectories, parsedPluginsEqual, toSdkHooks } from '../../node/copilot/copilotPluginConverters.js';
 import type { IMcpServerDefinition, INamedPluginResource, IParsedHookGroup, IParsedPlugin, IParsedSkill } from '../../../agentPlugins/common/pluginParsers.js';
-import { CustomizationType, type HookCustomization, type McpServerCustomization, type SkillCustomization } from '../../common/state/protocol/state.js';
+import { CustomizationType, McpServerStatus, type HookCustomization, type McpServerCustomization, type SkillCustomization } from '../../common/state/protocol/state.js';
 
 function stubMcpCustomization(name = 'test'): McpServerCustomization {
-	return { type: CustomizationType.McpServer, id: `mcp:${name}`, uri: 'file:///plugin', name };
+	return { type: CustomizationType.McpServer, id: `mcp:${name}`, uri: 'file:///plugin', name, enabled: true, state: { kind: McpServerStatus.Starting } };
 }
 function stubHookCustomization(type: string): HookCustomization {
 	return { type: CustomizationType.Hook, id: `hook:${type}`, uri: 'file:///plugin/hooks.json', name: 'hooks.json' };

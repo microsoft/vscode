@@ -1036,6 +1036,109 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	order: 1;
 }
 
+/* Status indicator container — sits at the rightmost end of the secondary toolbar, next to the context usage button. Intentionally non-responsive so contributed status items never collapse into an overflow menu. */
+.interactive-session .chat-secondary-toolbar .chat-input-status-container {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	order: 2;
+}
+
+.interactive-session .chat-secondary-toolbar .chat-input-status-container:empty {
+	display: none;
+}
+
+/* Hover popup contents shown when hovering an item in the chat-input-status toolbar */
+.chat-input-status-hover.chat-input-status-hover-content {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	padding: 8px 10px;
+	min-width: 240px;
+	max-width: 420px;
+}
+
+.chat-input-status-hover .chat-input-status-hover-title {
+	font-weight: 600;
+}
+
+.chat-input-status-hover .chat-input-status-hover-title p {
+	margin: 0;
+}
+
+.chat-input-status-hover .chat-input-status-hover-title a {
+	color: var(--vscode-textLink-foreground);
+	text-decoration: none;
+}
+
+.chat-input-status-hover .chat-input-status-hover-title a:hover {
+	text-decoration: underline;
+}
+
+.chat-input-status-hover .chat-input-status-hover-detail a {
+	color: var(--vscode-textLink-foreground);
+	text-decoration: none;
+}
+
+.chat-input-status-hover .chat-input-status-hover-detail a:hover {
+	text-decoration: underline;
+}
+
+.chat-input-status-hover .chat-input-status-hover-detail code {
+	font-family: var(--monaco-monospace-font);
+	font-size: 11px;
+	background: var(--vscode-textCodeBlock-background, transparent);
+	padding: 1px 4px;
+	border-radius: 3px;
+	white-space: nowrap;
+}
+
+.chat-input-status-hover .chat-input-status-hover-description {
+	color: var(--vscode-descriptionForeground);
+	white-space: pre-wrap;
+}
+
+.chat-input-status-hover .chat-input-status-hover-detail {
+	color: var(--vscode-foreground);
+}
+
+.chat-input-status-hover .chat-input-status-hover-detail table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 12px;
+}
+
+.chat-input-status-hover .chat-input-status-hover-detail thead {
+	display: none;
+}
+
+.chat-input-status-hover .chat-input-status-hover-detail th,
+.chat-input-status-hover .chat-input-status-hover-detail td {
+	padding: 3px 8px 3px 0;
+	text-align: left;
+	vertical-align: top;
+	word-break: break-word;
+}
+
+.chat-input-status-hover .chat-input-status-hover-detail tbody tr:not(:last-child) td {
+	border-bottom: 1px solid var(--vscode-widget-border, transparent);
+}
+
+.chat-input-status-hover .chat-input-status-hover-detail tbody td:first-child {
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+}
+
+.chat-input-status-hover .chat-input-status-hover-detail p {
+	margin: 0;
+}
+
+.chat-input-status-hover .chat-input-status-hover-actions {
+	display: flex;
+	justify-content: flex-end;
+	margin-top: 4px;
+}
+
 /* When context usage is inside the toolbars (compact mode), keep the ordering */
 .interactive-session .chat-input-toolbars .chat-context-usage-container {
 	order: 1;
@@ -1047,7 +1150,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:has(> .action-label.codicon-arrow-up) {
 	position: relative;
-	border-radius: 5px;
+	border-radius: var(--vscode-cornerRadius-circle);
 }
 
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:has(> .action-label.codicon-arrow-up) > .action-label.codicon-arrow-up {
@@ -1057,9 +1160,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	transition: background-color 250ms ease, color 250ms ease;
 }
 
-/* Optical alignment: nudge arrow glyph 1px left to visually center it. */
+/* Nudge icon position to ensure it looks optically aligned within the button */
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-arrow-up::before {
 	display: inline-block;
+	transform: translateX(-0.5px);
 }
 
 /* Focus indicator drawn on the action-item wrapper so it sits cleanly around
@@ -1067,7 +1171,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled):has(> .action-label.codicon-arrow-up:focus-visible) {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: 1px;
-	border-radius: 5px;
+	border-radius: var(--vscode-cornerRadius-circle);
 }
 
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:has(> .action-label.codicon-arrow-up) > .action-label.codicon-arrow-up:focus,
@@ -1079,7 +1183,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up {
 	background: var(--vscode-button-background);
 	color: var(--vscode-button-foreground) !important;
-	border-radius: 5px;
+	border-radius: var(--vscode-cornerRadius-circle);
 	transition: background-color 120ms ease;
 }
 
@@ -1632,7 +1736,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 	align-items: center;
 	gap: 6px;
-	padding: 0 8px 0 5px;
+	padding: 0 4px;
 }
 
 .interactive-session .chat-secondary-toolbar:empty {
@@ -1907,8 +2011,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	text-overflow: ellipsis;
 }
 
-.chat-input-picker-item .action-label.model-picker-split .model-picker-effort,
-.chat-input-picker-item .action-label.model-picker-split .model-picker-tokens {
+.chat-input-picker-item .action-label.model-picker-split .model-picker-config {
 	flex-shrink: 0;
 }
 
@@ -3069,7 +3172,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	/* shimmer animation for shimmer progress */
-	&.shimmer-progress .rendered-markdown.progress-step > p {
+	&.shimmer-progress .rendered-markdown.progress-step:not(.chat-progress-partial-shimmer) > p,
+	&.shimmer-progress .rendered-markdown.progress-step.chat-progress-partial-shimmer .chat-progress-shimmer-text {
 		background: linear-gradient(90deg,
 				var(--vscode-descriptionForeground) 0%,
 				var(--vscode-descriptionForeground) 30%,
@@ -3436,21 +3540,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.chat-rate-limited-button {
 		margin-top: 6px;
 		margin-bottom: 2px;
-	}
-
-	.chat-quota-error-secondary-button {
-		margin-top: 6px;
-		padding: 0px;
-		border: none;
-	}
-
-	.chat-quota-error-secondary-button,
-	.chat-quota-wait-warning {
-		font-size: 12px;
-	}
-
-	.chat-quota-wait-warning {
-		margin-top: 2px;
 	}
 
 	.chat-quota-error-message,
@@ -4168,11 +4257,38 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
+	max-width: 250px;
+}
+
+.chat-model-hover.has-long-context {
+	max-width: 300px;
 }
 
 .chat-model-hover-name {
 	font-weight: bold;
 	font-size: 13px;
+}
+
+.chat-model-hover-title-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.chat-model-hover-price-badge {
+	flex: 0 0 auto;
+	padding: 2px 8px;
+	border-radius: var(--vscode-cornerRadius-circle);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-editorWidget-border));
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+}
+
+.chat-model-hover-price-badge.high-cost {
+	color: var(--vscode-notificationsWarningIcon-foreground, var(--vscode-editorWarning-foreground));
+	border-color: var(--vscode-notificationsWarningIcon-foreground, var(--vscode-editorWarning-foreground));
 }
 
 .chat-model-hover-separator {
@@ -4194,36 +4310,49 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin: 0;
 }
 
+.chat-model-hover-cost-table {
+	display: grid;
+	grid-template-columns: auto auto;
+	column-gap: 16px;
+	row-gap: 2px;
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-model-hover-cost-table.has-long-context {
+	grid-template-columns: auto auto auto;
+}
+
+.chat-model-hover-cost-cell.value {
+	text-align: right;
+}
+
+.chat-model-hover-cost-count {
+	font-weight: 500;
+	color: var(--vscode-foreground);
+}
+
+.chat-model-hover-cost-unit {
+	font-weight: normal;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-model-hover-cost-cell.header {
+	color: var(--vscode-foreground);
+	font-weight: 600;
+}
+
+.chat-model-hover-cost-cell.subheader {
+	font-size: 11px;
+	padding-bottom: 4px;
+}
+
 .chat-model-hover-cost {
 	display: flex;
 	flex-direction: column;
 	gap: 2px;
 	font-size: 12px;
 	color: var(--vscode-descriptionForeground);
-}
-
-.chat-model-hover-cost-title-row {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	margin-bottom: 2px;
-}
-
-.chat-model-hover-cost-title {
-	font-weight: 600;
-}
-
-.chat-model-hover-cost-tag {
-	padding: 2px 8px;
-	border-radius: 10px;
-	border: 1px solid var(--vscode-contrastBorder, var(--vscode-editorWidget-border));
-	background: transparent;
-	font-size: 11px;
-}
-
-.chat-model-hover-cost-line-label {
-	color: var(--vscode-foreground);
-	opacity: 0.85;
 }
 
 .chat-model-hover-context {
@@ -4246,14 +4375,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: 12px;
 }
 
-.chat-model-hover-configurable-label {
-	font-weight: 600;
+.chat-model-hover-configurable > .monaco-button {
+	width: auto;
+	padding: 2px 8px;
+	font-size: 11px;
 }
 
-.chat-model-hover-configurable-tag {
-	padding: 2px 8px;
-	border-radius: 10px;
-	border: 1px solid var(--vscode-contrastBorder, var(--vscode-editorWidget-border));
-	background: transparent;
-	font-size: 11px;
+.monaco-workbench .chat-model-hover-configurable > .monaco-button .codicon[class*='codicon-'] {
+	font-size: var(--vscode-codiconFontSize-compact);
 }

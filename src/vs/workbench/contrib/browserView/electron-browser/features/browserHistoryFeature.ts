@@ -359,6 +359,7 @@ class ShowBrowserHistoryAction extends Action2 {
 				group: BrowserActionGroup.Data,
 				order: 1,
 				when,
+				isHiddenByDefault: true,
 			},
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyCode.KeyH,

@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
+import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { isMarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -12,6 +13,7 @@ import { Disposable, DisposableStore } from '../../../../../../base/common/lifec
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
@@ -57,6 +59,7 @@ export class ChatInputNotificationWidget extends Disposable {
 		@ICommandService private readonly _commandService: ICommandService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
+		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super();
 		this._sessionTypeProvider = sessionTypeProvider;
@@ -100,7 +103,7 @@ export class ChatInputNotificationWidget extends Disposable {
 		// Apply severity class
 		container.classList.add(severityToClass[notification.severity]);
 
-		// Header row: icon + title + dismiss
+		// Header row: icon + title + mute + dismiss
 		const headerRow = dom.append(container, $('.chat-input-notification-header'));
 
 		// Severity icon
@@ -117,6 +120,34 @@ export class ChatInputNotificationWidget extends Disposable {
 			titleElement.textContent = notification.message;
 		}
 		const ariaTitle = isMarkdownString(notification.message) ? notification.message.value : notification.message;
+
+		if (notification.mute) {
+			const mute = notification.mute;
+			const muteButton = dom.append(headerRow, $('.chat-input-notification-mute'));
+			muteButton.appendChild(dom.$(ThemeIcon.asCSSSelector(Codicon.bellSlash)));
+			muteButton.tabIndex = 0;
+			muteButton.role = 'button';
+			muteButton.ariaLabel = mute.tooltip;
+			this._contentDisposables.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('element'), muteButton, mute.tooltip));
+
+			// Defer to a microtask for the same reason as the dismiss button:
+			// the command synchronously tears down the notification, and the
+			// resulting re-render must happen after the click has propagated.
+			const doMute = () => queueMicrotask(() => {
+				this._telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
+					id: mute.commandId,
+					from: 'chatInputNotification',
+				});
+				this._commandService.executeCommand(mute.commandId, ...(mute.commandArgs ?? []));
+			});
+			this._contentDisposables.add(dom.addDisposableListener(muteButton, dom.EventType.CLICK, doMute));
+			this._contentDisposables.add(dom.addDisposableListener(muteButton, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					doMute();
+				}
+			}));
+		}
 
 		// Dismiss button (in header row, pushed to the right)
 		if (notification.dismissible) {

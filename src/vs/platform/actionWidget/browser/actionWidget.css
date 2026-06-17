@@ -66,7 +66,7 @@
 	background-color: var(--vscode-list-hoverBackground) !important;
 	color: var(--vscode-list-hoverForeground);
 	outline: 1px solid var(--vscode-menu-selectionBorder, transparent);
-	outline-offset: -1px;
+	outline-offset: -2px;
 }
 
 .action-widget .monaco-list-row.group-header {
@@ -137,6 +137,21 @@
 
 .action-widget .monaco-list-row.action .action-list-item-toolbar .codicon {
 	font-size: 16px;
+}
+
+/* Compact icon modifier: render the leading row codicon at the compact size */
+.action-widget .actionList.compact-icons .monaco-list-row.action .codicon {
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
+}
+
+/* Toolbar codicons keep the regular codicon size even in compact lists */
+.action-widget .actionList.compact-icons .monaco-list-row.action .action-list-item-toolbar .codicon {
+	font-size: var(--vscode-codiconFontSize, 16px);
+}
+
+/* The submenu indicator keeps the regular codicon size even in compact lists */
+.action-widget .actionList.compact-icons .monaco-list-row.action .action-list-submenu-indicator.codicon {
+	font-size: var(--vscode-codiconFontSize, 16px);
 }
 
 .action-widget .monaco-list-row.action.option-disabled,
@@ -236,6 +251,15 @@
 	color: var(--vscode-descriptionForeground);
 	margin-left: 0.5em;
 	font-size: 12px;
+}
+
+.action-widget .monaco-list .monaco-list-row .description a {
+	color: var(--vscode-textLink-foreground);
+}
+
+.action-widget .monaco-list .monaco-list-row .description a:hover,
+.action-widget .monaco-list .monaco-list-row .description a:active {
+	color: var(--vscode-textLink-activeForeground);
 }
 
 .action-widget .monaco-list-row.action .group-title {
@@ -377,8 +401,48 @@
 .action-widget .action-list-footer {
 	color: var(--vscode-descriptionForeground);
 	font-size: 11px;
-	padding: 4px 10px 2px 10px;
+	/* Left padding matches the list row padding so the text aligns with the section headings. */
+	padding: 4px 10px 2px 6px;
+	/* Space between the last list item and the divider above the footer. */
+	margin-top: 4px;
 	border-top: 1px solid var(--vscode-editorHoverWidget-border);
+}
+
+/* Header banner */
+.action-widget .action-list-header {
+	display: flex;
+	align-items: flex-start;
+	/* Match the row gap so the text aligns with the item labels. */
+	gap: 6px;
+	color: var(--vscode-banner-foreground);
+	font-size: 12px;
+	line-height: 16px;
+	/* Match the row padding so the icon sits in the item icon column and the text aligns with the item labels. Top padding matches the left so the icon is evenly inset. */
+	padding: 6px 12px 6px 6px;
+	/* No horizontal margin so the rounded box matches the item hover outline. */
+	margin-bottom: 2px;
+	background-color: var(--vscode-banner-background);
+	border-radius: var(--vscode-cornerRadius-medium);
+}
+
+/* Give widgets with a header banner more room so the banner text reads well. */
+.action-widget:has(.action-list-header) {
+	min-width: 160px;
+}
+
+.action-widget .action-list-header .action-list-header-icon {
+	flex-shrink: 0;
+	/* Match the row icon column so the icon centers on the item icon column and the text lines up with the item labels. The filled info glyph reads optically heavier than the item check icon, so render it slightly smaller. */
+	width: 12px;
+	text-align: center;
+	font-size: 12px !important;
+	line-height: 16px;
+	color: var(--vscode-banner-iconForeground);
+}
+
+.action-widget .action-list-header .action-list-header-text {
+	flex: 1;
+	font-size: 11px;
 }
 
 /* Anchor for the absolutely-positioned submenu panel */

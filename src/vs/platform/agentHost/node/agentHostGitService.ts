@@ -46,6 +46,36 @@ export interface IAgentHostGitService {
 	 * worktree that still contains uncommitted work.
 	 */
 	hasUncommittedChanges(workingDirectory: URI): Promise<boolean>;
+
+	/**
+	 * Stages and commits all tracked, staged, and untracked changes in the
+	 * working tree. Mirrors the Copilot CLI session PR path, which commits
+	 * uncommitted work before creating a pull request.
+	 */
+	commitAll(workingDirectory: URI, message: string): Promise<void>;
+
+	/**
+	 * Restores files in the working tree via `git restore`. When
+	 * {@link options.staged} is true, restores the index instead of the
+	 * working tree. When {@link options.ref} is provided, the contents are
+	 * taken from that ref (`--source`). An empty {@link paths} array
+	 * restores everything (`.`).
+	 */
+	restore(workingDirectory: URI, paths: readonly string[], options?: { readonly staged?: boolean; readonly ref?: string }): Promise<void>;
+
+	/**
+	 * Returns true when the named branch has an upstream tracking ref
+	 * (i.e. `<branch>@{upstream}` resolves). Used before {@link pushBranch}
+	 * to decide whether `--set-upstream` is needed.
+	 */
+	hasUpstream(workingDirectory: URI, branchName: string): Promise<boolean>;
+
+	/**
+	 * Pushes {@link branchName} to `origin`. When {@link setUpstream} is
+	 * true, the push uses `--set-upstream` so subsequent fetch/push
+	 * commands track the remote branch.
+	 */
+	pushBranch(workingDirectory: URI, branchName: string, setUpstream: boolean): Promise<void>;
 	/**
 	 * Computes the {@link ISessionGitState} for the working directory by
 	 * shelling out to `git`. Returns undefined if the directory is not a
@@ -252,11 +282,11 @@ export class AgentHostGitService implements IAgentHostGitService {
 		// tracking from the start point (e.g. when starting from
 		// 'origin/main', without --no-track git would set the new branch's
 		// upstream to origin/main, which would mis-attribute pushes/pulls).
-		await this._runGit(repositoryRoot, ['worktree', 'add', '--no-track', '-b', branchName, worktree.fsPath, resolvedStartPoint], { timeout: 60_000, throwOnError: true });
+		await this._runGit(repositoryRoot, ['-c', 'checkout.workers=0', 'worktree', 'add', '--no-track', '-b', branchName, worktree.fsPath, resolvedStartPoint], { timeout: 180_000, throwOnError: true });
 	}
 
 	async addExistingWorktree(repositoryRoot: URI, worktree: URI, branchName: string): Promise<void> {
-		await this._runGit(repositoryRoot, ['worktree', 'add', worktree.fsPath, branchName], { timeout: 60_000, throwOnError: true });
+		await this._runGit(repositoryRoot, ['-c', 'checkout.workers=0', 'worktree', 'add', worktree.fsPath, branchName], { timeout: 180_000, throwOnError: true });
 	}
 
 	async removeWorktree(repositoryRoot: URI, worktree: URI): Promise<void> {
@@ -273,6 +303,43 @@ export class AgentHostGitService implements IAgentHostGitService {
 	async hasUncommittedChanges(workingDirectory: URI): Promise<boolean> {
 		const output = await this._runGit(workingDirectory, ['status', '--porcelain']);
 		return !!output && output.trim().length > 0;
+	}
+
+	async commitAll(workingDirectory: URI, message: string): Promise<void> {
+		await this._runGit(workingDirectory, ['add', '-A', '--', ':/'], { throwOnError: true });
+		await this._runGit(workingDirectory, ['commit', '--no-verify', '--no-gpg-sign', '-m', message], { timeout: 60_000, throwOnError: true });
+	}
+
+	async restore(workingDirectory: URI, paths: readonly string[], options?: { readonly staged?: boolean; readonly ref?: string }): Promise<void> {
+		const args = ['restore'];
+
+		if (options?.staged) {
+			args.push('--staged');
+		}
+
+		if (options?.ref) {
+			args.push('--source', options.ref);
+		}
+
+		if (paths.length === 0) {
+			paths = ['.'];
+		}
+
+		await this._runGit(workingDirectory, [...args, '--', ...paths], { throwOnError: true });
+	}
+
+	async hasUpstream(workingDirectory: URI, branchName: string): Promise<boolean> {
+		const output = await this._runGit(workingDirectory, ['rev-parse', '--abbrev-ref', `${branchName}@{upstream}`]);
+		return output !== undefined && output.trim().length > 0;
+	}
+
+	async pushBranch(workingDirectory: URI, branchName: string, setUpstream: boolean): Promise<void> {
+		const args = ['push'];
+		if (setUpstream) {
+			args.push('--set-upstream');
+		}
+		args.push('origin', branchName);
+		await this._runGit(workingDirectory, args, { timeout: 60_000, throwOnError: true });
 	}
 
 	async computeSessionFileDiffs(workingDirectory: URI, options: IComputeSessionFileDiffsOptions): Promise<readonly ISessionFileDiff[] | undefined> {
@@ -316,13 +383,17 @@ export class AgentHostGitService implements IAgentHostGitService {
 		// included in `--cached --raw` output; otherwise a plain `git diff`
 		// is sufficient and avoids the temp-dir overhead.
 		const statusOut = await this._runGit(repositoryRoot, ['status', '--porcelain=v1', '-z', '--untracked-files=all']);
-		const untracked = parseUntrackedPaths(statusOut);
+		if (statusOut === undefined) {
+			return undefined;
+		}
+		const hasUntracked = parseUntrackedPaths(statusOut).length > 0;
 
 		let rawDiffOutput: string | undefined;
-		if (untracked.length === 0) {
+		if (!hasUntracked) {
 			rawDiffOutput = await this._runGit(repositoryRoot, ['diff', '--raw', '--numstat', '--diff-filter=ADMR', '-z', mergeBaseCommit, '--']);
 		} else {
-			rawDiffOutput = await this._runWithTempIndex(repositoryRoot, mergeBaseCommit);
+			const changedPaths = parseChangedPaths(statusOut);
+			rawDiffOutput = await this._runWithTempIndex(repositoryRoot, mergeBaseCommit, changedPaths);
 		}
 
 		if (rawDiffOutput === undefined) {
@@ -332,9 +403,9 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return parseGitDiffRawNumstat(rawDiffOutput, repositoryRoot, options.sessionUri, mergeBaseCommit);
 	}
 
-	private async _runWithTempIndex(repositoryRoot: URI, mergeBaseCommit: string): Promise<string | undefined> {
-		// Build a throwaway index so we can stage the entire working tree
-		// (including untracked files) without disturbing the user's real
+	private async _runWithTempIndex(repositoryRoot: URI, mergeBaseCommit: string, changedPaths: readonly string[]): Promise<string | undefined> {
+		// Build a throwaway index so we can stage the changed working tree
+		// paths (including untracked files) without disturbing the user's real
 		// index. `read-tree HEAD` seeds it; in empty repos that fails so we
 		// fall back to the empty tree, leaving everything as "added".
 		const tempDir = URI.joinPath(this._environmentService.tmpDir, `agent-host-git-diff-${generateUuid()}`);
@@ -354,14 +425,30 @@ export class AgentHostGitService implements IAgentHostGitService {
 				// Empty repo (no HEAD yet) - `read-tree` of the empty tree always succeeds.
 				await this._runGit(repositoryRoot, ['read-tree', EMPTY_TREE_OBJECT], { env });
 			}
-			// Stage every change in the working tree (modified, deleted,
-			// untracked, renamed). `add -A` plus an explicit `:/` pathspec
-			// covers the entire repo from any cwd.
-			await this._runGit(repositoryRoot, ['add', '-A', '--', ':/'], { env });
+			if (!(await this._stageChangedPaths(repositoryRoot, tempDir, changedPaths, env))) {
+				return undefined;
+			}
 			return await this._runGit(repositoryRoot, ['diff', '--cached', '--raw', '--numstat', '--diff-filter=ADMR', '-z', mergeBaseCommit, '--'], { env });
 		} finally {
 			try { await this._fileService.del(tempDir, { recursive: true, useTrash: false }); } catch { /* best-effort */ }
 		}
+	}
+
+	private async _stageChangedPaths(repositoryRoot: URI, tempDir: URI, changedPaths: readonly string[], env: Record<string, string>): Promise<boolean> {
+		if (changedPaths.length === 0) {
+			return true;
+		}
+		const pathspecFile = URI.joinPath(tempDir, 'pathspec');
+		// Stage only the paths `git status` reported as changed. The previous
+		// full-repo `git add -A -- :/` walked nested repos/worktrees and large
+		// checkouts, which made temp-index diffing slow and timeout-prone. A
+		// NUL-separated pathspec preserves odd filenames while keeping deletes
+		// and rename/copy sources in scope.
+		await this._fileService.writeFile(pathspecFile, VSBuffer.fromString(changedPaths.join('\x00') + '\x00'));
+		this._logService.debug(`[agentHostGitService] Staging ${changedPaths.length} changed path(s) into temp index`);
+		return await this._runGit(repositoryRoot, ['add', '-A', `--pathspec-from-file=${pathspecFile.fsPath}`, '--pathspec-file-nul'], {
+			env: { ...env, GIT_LITERAL_PATHSPECS: '1' },
+		}) !== undefined;
 	}
 
 	private async _resolveRemoteTrackingBranch(repositoryRoot: URI, branch: string): Promise<string | undefined> {
@@ -410,6 +497,11 @@ export class AgentHostGitService implements IAgentHostGitService {
 			return undefined;
 		}
 		const repositoryRoot = URI.file(repoRoot);
+		const statusOut = await this._runGit(repositoryRoot, ['status', '--porcelain=v1', '-z', '--untracked-files=all']);
+		if (statusOut === undefined) {
+			return undefined;
+		}
+		const changedPaths = parseChangedPaths(statusOut);
 		const tempDir = URI.joinPath(this._environmentService.tmpDir, `agent-host-checkpoint-${generateUuid()}`);
 		await this._fileService.createFolder(tempDir);
 		const indexFile = URI.joinPath(tempDir, 'index').fsPath;
@@ -420,8 +512,9 @@ export class AgentHostGitService implements IAgentHostGitService {
 			if (seeded === undefined) {
 				await this._runGit(repositoryRoot, ['read-tree', EMPTY_TREE_OBJECT], { env });
 			}
-			// Stage the entire working tree (including untracked, excluding ignored).
-			await this._runGit(repositoryRoot, ['add', '-A', '--', ':/'], { env });
+			if (!(await this._stageChangedPaths(repositoryRoot, tempDir, changedPaths, env))) {
+				return undefined;
+			}
 			const tree = (await this._runGit(repositoryRoot, ['write-tree'], { env }))?.trim();
 			return tree || undefined;
 		} finally {
@@ -470,7 +563,9 @@ export class AgentHostGitService implements IAgentHostGitService {
 		if (!repoRoot) {
 			return undefined;
 		}
+
 		const repositoryRoot = URI.file(repoRoot);
+
 		// Validate both refs resolve before invoking `git diff` so a missing
 		// ref returns undefined rather than producing a confusing error.
 		const fromOid = (await this._runGit(repositoryRoot, ['rev-parse', '--verify', '--quiet', options.fromRef]))?.trim();
@@ -478,10 +573,12 @@ export class AgentHostGitService implements IAgentHostGitService {
 		if (!fromOid || !toOid) {
 			return undefined;
 		}
+
 		const raw = await this._runGit(repositoryRoot, ['diff', '--raw', '--numstat', '--diff-filter=ADMR', '-z', fromOid, toOid, '--']);
 		if (raw === undefined) {
 			return undefined;
 		}
+
 		return parseGitDiffRawNumstat(raw, repositoryRoot, options.sessionUri, fromOid, toOid);
 	}
 
@@ -542,6 +639,8 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	private _runGit(workingDirectory: URI, args: readonly string[], options?: { readonly timeout?: number; readonly throwOnError?: boolean; readonly env?: Record<string, string>; readonly maxBuffer?: number }): Promise<string | undefined> {
+		this._logService.trace(`[agentHostGitService] > git ${args.join(' ')}`);
+
 		return new Promise((resolve, reject) => {
 			const env = options?.env ? { ...process.env, ...options.env } : undefined;
 			const timeoutMs = options?.timeout ?? 5000;
@@ -559,7 +658,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 					// it readable; log the full unmodified output here so the
 					// raw progress/diagnostic text is still available.
 					if (stderr) {
-						this._logService.warn(`[agentHostGitService] git ${args.join(' ')} failed; full stderr:\n${stderr}`);
+						this._logService.warn(`[agentHostGitService] > git ${args.join(' ')} failed; full stderr:\n${stderr}`);
 					}
 					if (options?.throwOnError) {
 						reject(new Error(formatGitError(args, timeoutMs, didTimeOut, error, stderr), { cause: error }));
@@ -621,9 +720,13 @@ export function summarizeStderrForError(stderr: string): string {
 	if (lines.length === 0) {
 		return '';
 	}
-	const last = lines[lines.length - 1];
 	const MAX = 200;
-	return last.length > MAX ? `${last.slice(0, MAX - 1)}…` : last;
+	const gitLfsMissing = lines.find(line =>
+		/\bgit-lfs\b/i.test(line) &&
+		/(command not found|not recognized|no such file)/i.test(line)
+	);
+	const summary = gitLfsMissing ?? lines[lines.length - 1];
+	return summary.length > MAX ? `${summary.slice(0, MAX - 1)}…` : summary;
 }
 
 /**
@@ -641,22 +744,47 @@ export const EMPTY_TREE_OBJECT = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
  * Exported for tests.
  */
 export function parseUntrackedPaths(output: string | undefined): string[] {
+	return parseChangedPaths(output, status => status === '??');
+}
+
+/**
+ * Parses NUL-separated `git status --porcelain=v1 -z --untracked-files=all`
+ * output and returns all changed repo-relative paths. Rename/copy entries
+ * include both the destination and source paths so scoped `git add -A`
+ * stages both sides of the change.
+ *
+ * Exported for tests.
+ */
+export function parseChangedPaths(output: string | undefined, includeStatus: (status: string) => boolean = () => true): string[] {
 	if (!output) {
 		return [];
 	}
 	const result: string[] = [];
+	const seen = new Set<string>();
+	const addPath = (path: string) => {
+		if (path && !seen.has(path)) {
+			seen.add(path);
+			result.push(path);
+		}
+	};
 	const segments = output.split('\x00');
 	for (let i = 0; i < segments.length; i++) {
 		const seg = segments[i];
 		if (!seg) { continue; }
 		// Each entry is "XY <path>"; for renames v1 emits a second NUL-separated
-		// "from" path that we have to skip. We only care about untracked here.
+		// "from" path.
 		const status = seg.substring(0, 2);
 		const path = seg.substring(3);
-		if (status === '??') {
-			result.push(path);
-		} else if (status[0] === 'R' || status[0] === 'C') {
-			// Skip the "from" path for renames/copies.
+		const isRenameOrCopy = status[0] === 'R' || status[1] === 'R' || status[0] === 'C' || status[1] === 'C';
+		if (includeStatus(status)) {
+			addPath(path);
+			if (isRenameOrCopy) {
+				const sourcePath = segments[++i];
+				if (sourcePath) {
+					addPath(sourcePath);
+				}
+			}
+		} else if (isRenameOrCopy) {
 			i++;
 		}
 	}
@@ -748,27 +876,35 @@ export function parseGitDiffRawNumstat(output: string, repositoryRoot: URI, sess
 
 	return changes.map(change => {
 		const stats = numStats.get(change.newPath ?? change.oldPath ?? '');
-		const hasBefore = change.kind !== FileEditKind.Create;
-		const hasAfter = change.kind !== FileEditKind.Delete;
+
+		const beforeFileUri = change.oldPath ? URI.joinPath(repositoryRoot, change.oldPath) : undefined;
+		const afterFileUri = change.newPath ? URI.joinPath(repositoryRoot, change.newPath) : undefined;
+
+		const before = change.kind !== FileEditKind.Create && change.oldPath && beforeFileUri
+			? {
+				uri: beforeFileUri.toString(),
+				content: { uri: buildGitBlobUri(sessionUri, beforeRef, change.oldPath, beforeFileUri.path) },
+			}
+			: undefined;
+
+		const after = change.kind !== FileEditKind.Delete && change.newPath && afterFileUri
+			? {
+				uri: afterFileUri.toString(),
+				content: afterRef !== undefined
+					? { uri: buildGitBlobUri(sessionUri, afterRef, change.newPath, afterFileUri.path) }
+					: { uri: afterFileUri.toString() }
+			}
+			: undefined;
+
+		const diff = {
+			added: stats?.added ?? 0,
+			removed: stats?.removed ?? 0
+		};
+
 		return {
-			...(hasBefore && change.oldPath ? {
-				before: {
-					uri: URI.joinPath(repositoryRoot, change.oldPath).toString(),
-					content: { uri: buildGitBlobUri(sessionUri, beforeRef, change.oldPath) },
-				},
-			} : {}),
-			...(hasAfter && change.newPath ? {
-				after: afterRef !== undefined
-					? {
-						uri: buildGitBlobUri(sessionUri, afterRef, change.newPath),
-						content: { uri: buildGitBlobUri(sessionUri, afterRef, change.newPath) },
-					}
-					: {
-						uri: URI.joinPath(repositoryRoot, change.newPath).toString(),
-						content: { uri: URI.joinPath(repositoryRoot, change.newPath).toString() },
-					},
-			} : {}),
-			diff: { added: stats?.added ?? 0, removed: stats?.removed ?? 0 },
+			...(before ? { before } : {}),
+			...(after ? { after } : {}),
+			diff
 		};
 	});
 }
