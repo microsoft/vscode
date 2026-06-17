@@ -145,9 +145,7 @@ export class FileEditTracker {
 	 *
 	 * `toolName` and `toolInput` are forwarded to {@link extractAiChunks}
 	 * for region-based survival scoring; unknown shapes fall back to
-	 * whole-file scoring. `modelId` is forwarded so survival telemetry
-	 * can be sliced by model -- always expected to be set; a missing
-	 * value is logged as a warning.
+	 * whole-file scoring.
 	 */
 	async takeCompletedEdit(turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined): Promise<ToolResultFileEditContent | undefined> {
 		const edit = this._completedEdits.get(filePath);
