@@ -5,23 +5,58 @@
 
 import './media/agentFeedbackEditorInput.css';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { ICodeEditor, IDiffEditor, IOverlayWidget, IOverlayWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
 import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
-import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
+import { EditorCommand, EditorContributionInstantiation, registerEditorCommand, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { Selection, SelectionDirection } from '../../../../editor/common/core/selection.js';
 import { addStandardDisposableListener, getWindow, ModifierKeyEmitter } from '../../../../base/browser/dom.js';
-import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { IAgentFeedbackService } from './agentFeedbackService.js';
 import { createAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
 import { localize } from '../../../../nls.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { Action } from '../../../../base/common/actions.js';
+import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { Action, IAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { UILabelProvider } from '../../../../base/common/keybindingLabels.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { OS } from '../../../../base/common/platform.js';
 import { ISession } from '../../../services/sessions/common/session.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+
+/**
+ * Action view item for the primary "Add Feedback" button. In addition to its
+ * own keybinding, the tooltip also surfaces the alternate "Add Feedback and
+ * Submit" action and its keybinding (held via Alt), mirroring how editor title
+ * actions such as "Open Preview to the Side" advertise their alt action.
+ */
+class AgentFeedbackAddActionViewItem extends ActionViewItem {
+
+	constructor(
+		action: IAction,
+		options: IActionViewItemOptions,
+		private readonly _altLabel: string,
+		private readonly _altKeybinding: string,
+	) {
+		super(undefined, action, options);
+	}
+
+	protected override getTooltip(): string | undefined {
+		const base = super.getTooltip();
+		if (!base) {
+			return base;
+		}
+		const altSection = localize('agentFeedback.addTooltipAltSection', "{0} ({1})", this._altLabel, this._altKeybinding);
+		return localize('agentFeedback.addTooltipWithAlt', "{0}\n[{1}] {2}", base, UILabelProvider.modifierLabels[OS].altKey, altSection);
+	}
+}
 
 class AgentFeedbackInputWidget extends Disposable implements IOverlayWidget {
 
@@ -85,7 +120,14 @@ class AgentFeedbackInputWidget extends Disposable implements IOverlayWidget {
 			() => { this._onDidTriggerAddAndSubmit.fire(); return Promise.resolve(); }
 		));
 
-		this._actionBar = this._register(new ActionBar(actionsContainer));
+		this._actionBar = this._register(new ActionBar(actionsContainer, {
+			actionViewItemProvider: (action, options) => {
+				if (action === this._addAction) {
+					return new AgentFeedbackAddActionViewItem(action, options, this._addAndSubmitAction.label, localize('altEnter', "Alt+Enter"));
+				}
+				return undefined;
+			}
+		}));
 		this._actionBar.push(this._addAction, { icon: true, label: false, keybinding: localize('enter', "Enter") });
 
 		// Toggle to alt action when Alt key is held
@@ -202,9 +244,17 @@ class AgentFeedbackInputWidget extends Disposable implements IOverlayWidget {
 
 }
 
+export const AgentFeedbackInputVisibleContext = new RawContextKey<boolean>('agentFeedbackEditorInputVisible', false, localize('agentFeedbackEditorInputVisible', "Whether the agent feedback input is currently visible"));
+
+export const focusAgentFeedbackInputActionId = 'agentFeedbackEditor.action.focusInput';
+
 export class AgentFeedbackEditorInputContribution extends Disposable implements IEditorContribution {
 
 	static readonly ID = 'agentFeedback.editorInputContribution';
+
+	static get(editor: ICodeEditor): AgentFeedbackEditorInputContribution | null {
+		return editor.getContribution<AgentFeedbackEditorInputContribution>(AgentFeedbackEditorInputContribution.ID);
+	}
 
 	private _widget: AgentFeedbackInputWidget | undefined;
 	private _visible = false;
@@ -212,14 +262,19 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 	private _suppressSelectionChangeOnce = false;
 	private _session: ISession | undefined;
 	private _pinnedSelection: Selection | undefined;
+	private readonly _visibleContext: IContextKey<boolean>;
 	private readonly _widgetListeners = this._store.add(new DisposableStore());
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IAgentFeedbackService private readonly _agentFeedbackService: IAgentFeedbackService,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
+
+		this._visibleContext = AgentFeedbackInputVisibleContext.bindTo(contextKeyService);
 
 		this._store.add(this._editor.onDidChangeCursorSelection(() => this._onSelectionChanged()));
 		this._store.add(this._editor.onDidChangeModel(() => this._onModelChanged()));
@@ -298,13 +353,19 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		}
 
 		const selection = this._editor.getSelection();
-		if (!selection || (selection.isEmpty() && !this._getDiffHunkForSelection(selection))) {
+		if (!selection || selection.isEmpty()) {
 			this._autoHide();
 			return;
 		}
 
 		const model = this._editor.getModel();
 		if (!model) {
+			this._autoHide();
+			return;
+		}
+
+		// The feedback input is not relevant for read-only output views.
+		if (model.uri.scheme === Schemas.outputChannel) {
 			this._autoHide();
 			return;
 		}
@@ -324,6 +385,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 
 		if (!this._visible) {
 			this._visible = true;
+			this._visibleContext.set(true);
 			this._registerWidgetListeners(widget);
 		}
 
@@ -336,9 +398,15 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 
 	private _getPlaceholder(): string {
 		const hasChanges = !!this._session && this._session.changes.get().length > 0;
-		return hasChanges
+		const base = hasChanges
 			? localize('agentFeedback.addFeedback', "Add Feedback")
 			: localize('agentFeedback.addComment', "Add Comment");
+
+		const keybindingLabel = this._keybindingService.lookupKeybinding(focusAgentFeedbackInputActionId)?.getLabel();
+		if (!keybindingLabel) {
+			return base;
+		}
+		return localize('agentFeedback.placeholderWithKeybinding', "{0} ({1})", base, keybindingLabel);
 	}
 
 	private _hide(): void {
@@ -348,6 +416,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 
 		this._visible = false;
 		this._pinnedSelection = undefined;
+		this._visibleContext.set(false);
 		this._widgetListeners.clear();
 
 		if (this._widget) {
@@ -399,14 +468,6 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 				if (e.keyCode === KeyCode.Escape) {
 					this._hide();
 					this._editor.focus();
-					return;
-				}
-
-				// Ctrl+I / Cmd+I explicitly focuses the feedback input
-				if ((e.ctrlKey || e.metaKey) && e.keyCode === KeyCode.KeyI) {
-					e.preventDefault();
-					e.stopPropagation();
-					widget.inputElement.focus();
 					return;
 				}
 
@@ -544,51 +605,6 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		this._agentFeedbackService.addFeedbackAndSubmit(sessionResource, model.uri, selection, text, undefined, createAgentFeedbackContext(this._editor, this._codeEditorService, model.uri, selection));
 	}
 
-	private _getContainingDiffEditor(): IDiffEditor | undefined {
-		return this._codeEditorService.listDiffEditors().find(diffEditor =>
-			diffEditor.getModifiedEditor() === this._editor || diffEditor.getOriginalEditor() === this._editor
-		);
-	}
-
-	private _getDiffHunkForSelection(selection: Selection): { startLineNumber: number; endLineNumberExclusive: number } | undefined {
-		if (!selection.isEmpty()) {
-			return undefined;
-		}
-
-		const diffEditor = this._getContainingDiffEditor();
-		if (!diffEditor) {
-			return undefined;
-		}
-
-		const diffResult = diffEditor.getDiffComputationResult();
-		if (!diffResult) {
-			return undefined;
-		}
-
-		const position = selection.getStartPosition();
-		const lineNumber = position.lineNumber;
-		const isModifiedEditor = diffEditor.getModifiedEditor() === this._editor;
-		for (const change of diffResult.changes2) {
-			const lineRange = isModifiedEditor ? change.modified : change.original;
-			if (!lineRange.isEmpty && lineRange.contains(lineNumber)) {
-				// Don't show when cursor is at the start or end position of the hunk
-				const isAtHunkStart = lineNumber === lineRange.startLineNumber && position.column === 1;
-				const lastHunkLine = lineRange.endLineNumberExclusive - 1;
-				const model = this._editor.getModel();
-				const isAtHunkEnd = model && lineNumber === lastHunkLine && position.column === model.getLineMaxColumn(lastHunkLine);
-				if (isAtHunkStart || isAtHunkEnd) {
-					return undefined;
-				}
-				return {
-					startLineNumber: lineRange.startLineNumber,
-					endLineNumberExclusive: lineRange.endLineNumberExclusive,
-				};
-			}
-		}
-
-		return undefined;
-	}
-
 	private _updatePosition(): void {
 		if (!this._widget || !this._visible) {
 			return;
@@ -612,35 +628,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		const widgetWidth = widgetDom.offsetWidth || 150;
 
 		if (selection.isEmpty()) {
-			const diffHunk = this._getDiffHunkForSelection(selection);
-			if (!diffHunk) {
-				this._autoHide();
-				return;
-			}
-
-			const cursorPosition = selection.getStartPosition();
-			const scrolledPosition = this._editor.getScrolledVisiblePosition(cursorPosition);
-			if (!scrolledPosition) {
-				this._widget.setPosition(null);
-				return;
-			}
-
-			const hunkLineCount = diffHunk.endLineNumberExclusive - diffHunk.startLineNumber;
-			const cursorLineOffset = cursorPosition.lineNumber - diffHunk.startLineNumber;
-			const topHalfLineCount = Math.ceil(hunkLineCount / 2);
-			const top = hunkLineCount < 10
-				? cursorLineOffset < topHalfLineCount
-					? scrolledPosition.top - (cursorLineOffset * lineHeight) - widgetHeight
-					: scrolledPosition.top + ((diffHunk.endLineNumberExclusive - cursorPosition.lineNumber) * lineHeight)
-				: scrolledPosition.top - widgetHeight;
-			const left = Math.max(0, Math.min(scrolledPosition.left, layoutInfo.width - widgetWidth));
-
-			this._widget.setPosition({
-				preference: {
-					top: Math.max(0, Math.min(top, layoutInfo.height - widgetHeight)),
-					left,
-				}
-			});
+			this._autoHide();
 			return;
 		}
 
@@ -675,8 +663,10 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		// Clamp vertical position within editor bounds
 		top = Math.max(0, Math.min(top, layoutInfo.height - widgetHeight));
 
-		// Clamp horizontal position so the widget stays within the editor
-		const left = Math.max(0, Math.min(scrolledPosition.left, layoutInfo.width - widgetWidth));
+		// Clamp horizontal position so the widget sticks within the content area:
+		// never left of contentLeft (so it doesn't overlap the line numbers and
+		// glyph margin) and never past the right edge of the editor.
+		const left = Math.max(layoutInfo.contentLeft, Math.min(scrolledPosition.left, layoutInfo.width - widgetWidth));
 
 		this._widget.setPosition({ preference: { top, left } });
 	}
@@ -692,3 +682,16 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 }
 
 registerEditorContribution(AgentFeedbackEditorInputContribution.ID, AgentFeedbackEditorInputContribution, EditorContributionInstantiation.Eventually);
+
+const AgentFeedbackInputCommand = EditorCommand.bindToContribution<AgentFeedbackEditorInputContribution>(AgentFeedbackEditorInputContribution.get);
+
+registerEditorCommand(new AgentFeedbackInputCommand({
+	id: focusAgentFeedbackInputActionId,
+	precondition: AgentFeedbackInputVisibleContext,
+	handler: c => c.focusInput(),
+	kbOpts: {
+		kbExpr: EditorContextKeys.editorTextFocus,
+		primary: KeyMod.CtrlCmd | KeyCode.KeyI,
+		weight: KeybindingWeight.WorkbenchContrib,
+	}
+}));

@@ -18,7 +18,7 @@ import { IWorkbenchContribution } from '../../../../workbench/common/contributio
 import { EditorGroupView } from '../../../../workbench/browser/parts/editor/editorGroupView.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IAgentFeedbackService } from './agentFeedbackService.js';
-import { hasUnsubmittedAgentFeedback, hasSessionEditorComments, navigateNextFeedbackActionId, navigatePreviousFeedbackActionId, navigationBearingFakeActionId, submitFeedbackActionId } from './agentFeedbackEditorActions.js';
+import { hasUnsubmittedAgentFeedback, hasSessionEditorComments, navigateNextFeedbackActionId, navigatePreviousFeedbackActionId, navigationBearingFakeActionId, submitActiveSessionFeedbackActionId, submitFeedbackActionId } from './agentFeedbackEditorActions.js';
 import { assertType } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 import { getActiveResourceCandidates } from './agentFeedbackEditorUtils.js';
@@ -50,7 +50,12 @@ class AgentFeedbackActionViewItem extends ActionViewItem {
 		if (!value || this.options.keybinding) {
 			return value;
 		}
-		return this._keybindingService.appendKeybinding(value, this._action.id);
+		// The submit button advertises the keybinding of the configurable submit
+		// action (which is the one exposed in the command palette).
+		const keybindingActionId = this._action.id === submitFeedbackActionId
+			? submitActiveSessionFeedbackActionId
+			: this._action.id;
+		return this._keybindingService.appendKeybinding(value, keybindingActionId);
 	}
 }
 

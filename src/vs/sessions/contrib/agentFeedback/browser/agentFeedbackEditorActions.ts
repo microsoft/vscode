@@ -167,6 +167,7 @@ class SubmitActiveSessionFeedbackAction extends Action2 {
 			title: localize2('agentFeedback.submitFeedback', 'Submit Feedback'),
 			icon: Codicon.comment,
 			category: CHAT_CATEGORY,
+			f1: true,
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, hasActiveSessionAgentFeedback),
 		});
 	}
