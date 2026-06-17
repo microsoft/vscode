@@ -17,12 +17,12 @@ import { StringText } from '../../../../util/vs/editor/common/core/text/abstract
 import { ensureDependenciesAreSet } from '../../../../util/vs/editor/common/core/text/positionToOffset';
 import { FetchStreamError } from '../../common/fetchStreamError';
 import { CurrentDocument } from '../../common/xtabCurrentDocument';
-import { DuplicateAdditionRemoval, DuplicateAdditionRemovalSummary, OnDuplicateRemovedCallback, tryRemoveDuplicateAdditions, XtabCustomDiffPatchResponseHandler } from '../../node/xtabCustomDiffPatchResponseHandler';
+import { DuplicateAdditionRemoval, DuplicateAdditionRemovalSummary, OnDuplicateRemovedCallback, tryRemoveDuplicateAdditions, XtabPatchResponseHandler } from '../../node/xtabPatchResponseHandler';
 
 async function consumeHandleResponse(
-	...args: Parameters<typeof XtabCustomDiffPatchResponseHandler.handleResponse>
+	...args: Parameters<typeof XtabPatchResponseHandler.handleResponse>
 ): Promise<{ edits: StreamedEdit[]; returnValue: NoNextEditReason }> {
-	const gen = XtabCustomDiffPatchResponseHandler.handleResponse(...args);
+	const gen = XtabPatchResponseHandler.handleResponse(...args);
 	const edits: StreamedEdit[] = [];
 	for (; ;) {
 		const result = await gen.next();
@@ -60,7 +60,7 @@ describe('XtabCustomDiffPatchResponseHandler', () => {
 
 	async function collectPatches(patchText: string): Promise<string> {
 		const linesStream = AsyncIterUtils.fromArray(patchText.split('\n'));
-		const patches = await AsyncIterUtils.toArray(XtabCustomDiffPatchResponseHandler.extractEdits(linesStream));
+		const patches = await AsyncIterUtils.toArray(XtabPatchResponseHandler.extractEdits(linesStream));
 		return patches.map(p => p.toString()).join('\n');
 	}
 

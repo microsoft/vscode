@@ -315,7 +315,7 @@ function applyDuplicatePolicy(
 	}
 }
 
-export namespace XtabCustomDiffPatchResponseHandler {
+export namespace XtabPatchResponseHandler {
 
 	export async function* handleResponse(
 		linesStream: AsyncIterable<string>,

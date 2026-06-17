@@ -72,7 +72,7 @@ import { CurrentDocument } from '../common/xtabCurrentDocument';
 import { getCurrentLine, isModelLineCompatible } from './cursorLineDivergence';
 import { EditIntentParseMode } from './editIntent';
 import { handleCodeBlock, handleEditWindowOnly, handleEditWindowWithEditIntent, handleUnifiedWithXml, ResponseParseResult } from './responseFormatHandlers';
-import { XtabCustomDiffPatchResponseHandler } from './xtabCustomDiffPatchResponseHandler';
+import { XtabPatchResponseHandler } from './xtabPatchResponseHandler';
 import { XtabEndpoint } from './xtabEndpoint';
 import { CursorJumpPrediction, XtabNextCursorPredictor } from './xtabNextCursorPredictor';
 import { charCount, constructMessages, findMergeConflictMarkersRange } from './xtabUtils';
@@ -944,7 +944,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 					const pseudoEditWindow = currentDocument.transformer.getOffsetRange(new Range(clippedTaggedCurrentDoc.keptRange.start + 1, 1, clippedTaggedCurrentDoc.keptRange.endExclusive, lastLineLength + 1));
 					const duplicateAdditionsMode = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabDuplicateAdditionsMode, this.expService);
 					parseResult = new ResponseParseResult.DirectEdits(
-						XtabCustomDiffPatchResponseHandler.handleResponse(
+						XtabPatchResponseHandler.handleResponse(
 							linesStream,
 							currentDocument,
 							activeDoc.id,
