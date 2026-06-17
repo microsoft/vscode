@@ -76,6 +76,9 @@ export class IssueReporterOverlay {
 	readonly onDidRequestOpenRecording: Event<string> = this._onDidRequestOpenRecording.event;
 	private readonly _onDidRequestOpenScreenshot = new Emitter<IScreenshot>();
 	readonly onDidRequestOpenScreenshot: Event<IScreenshot> = this._onDidRequestOpenScreenshot.event;
+	private readonly _onDidChangeAttachments = new Emitter<void>();
+	/** Fires whenever the screenshot/recording collection changes so the host can persist it (#318376). */
+	readonly onDidChangeAttachments: Event<void> = this._onDidChangeAttachments.event;
 
 	private wizardPanel!: HTMLElement;
 	private updateBanner!: HTMLElement;
@@ -749,9 +752,11 @@ export class IssueReporterOverlay {
 			{ label: localize('extensionSource', "A VS Code extension"), value: IssueSource.Extension },
 			{ label: localize('marketplace', "Extensions Marketplace"), value: IssueSource.Marketplace },
 		];
-		// Only show the Extension target if there are non-builtin, non-theme extensions installed.
-		// When no extensions exist, the option is useless and clutters the UI (#318315).
-		if (!this.hasReportableExtensions()) {
+		// Hide the Extension target when it can't apply: extensions can't run in
+		// the Agents Window so the picker would always be empty there (#318451),
+		// and in any window there is nothing to report against when no non-builtin,
+		// non-theme extensions are installed (#318315).
+		if (this.data.isSessionsWindow || !this.hasReportableExtensions()) {
 			return options.filter(o => o.value !== IssueSource.Extension);
 		}
 		return options;
@@ -1960,6 +1965,7 @@ export class IssueReporterOverlay {
 		this.updateAttachmentViews();
 		this.updateAttachmentButtons();
 		this.updateStepUI();
+		this._onDidChangeAttachments.fire();
 
 		// Immediately open the annotation editor for the new screenshot
 		this.openAnnotationEditor(this.screenshots.length - 1);
@@ -2060,6 +2066,7 @@ export class IssueReporterOverlay {
 				this.updateScreenshotThumbnails();
 				this.updateAttachmentButtons();
 				this.updateStepUI();
+				this._onDidChangeAttachments.fire();
 			}));
 		}
 
@@ -2083,6 +2090,7 @@ export class IssueReporterOverlay {
 				this.updateScreenshotThumbnails();
 				this.updateAttachmentButtons();
 				this.updateStepUI();
+				this._onDidChangeAttachments.fire();
 			}));
 		}
 
@@ -2123,6 +2131,7 @@ export class IssueReporterOverlay {
 			screenshot.annotatedDataUrl = dataUrl;
 			screenshot.annotationState = state;
 			this.updateAttachmentViews();
+			this._onDidChangeAttachments.fire();
 		}));
 
 		this.disposables.add(editor.onDidCancel(() => {
@@ -2136,6 +2145,23 @@ export class IssueReporterOverlay {
 
 	getRecordings(): readonly { filePath: string; durationMs: number; thumbnailDataUrl?: string }[] {
 		return this.recordings;
+	}
+
+	/**
+	 * Replace the current attachments with a previously-captured set. Used when the
+	 * issue reporter editor is moved between the main editor area and a modal editor
+	 * part in the Agents Window, which rebuilds the wizard and would otherwise drop
+	 * the in-memory screenshots and recordings (#318376). Does not fire
+	 * `onDidChangeAttachments` since the host is the source of this state.
+	 */
+	restoreAttachments(screenshots: readonly IScreenshot[], recordings: readonly { filePath: string; durationMs: number; thumbnailDataUrl?: string }[]): void {
+		this.screenshots.length = 0;
+		this.screenshots.push(...screenshots.slice(0, MAX_ATTACHMENTS));
+		this.recordings.length = 0;
+		this.recordings.push(...recordings.slice(0, Math.max(0, MAX_ATTACHMENTS - this.screenshots.length)));
+		this.updateAttachmentViews();
+		this.updateAttachmentButtons();
+		this.updateStepUI();
 	}
 
 	private buildIssueBody(): string {
@@ -2531,6 +2557,7 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 		this.updateAttachmentViews();
 		this.updateAttachmentButtons();
 		this.updateStepUI();
+		this._onDidChangeAttachments.fire();
 	}
 
 	private updateAttachmentViews(): void {
@@ -2594,6 +2621,7 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 		this._onDidRequestStopRecording.dispose();
 		this._onDidRequestOpenRecording.dispose();
 		this._onDidRequestOpenScreenshot.dispose();
+		this._onDidChangeAttachments.dispose();
 		this._onDidRequestGenerateTitle.dispose();
 	}
 }

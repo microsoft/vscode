@@ -154,6 +154,11 @@ export class IssueReporterEditorPane extends EditorPane {
 			this.wizard.reparentFloatingBar();
 			this.wizard.showFloatingBar();
 			this.wizard.setUpdateAvailable(this.shouldShowUpdateBanner());
+			// Restore attachments captured before the editor was moved back into
+			// this pane from a modal editor part (#318376). The input is the source
+			// of truth; the existing onDidChangeAttachments subscription keeps it in
+			// sync.
+			this.restoreAttachmentsFromInput(input);
 			return;
 		}
 
@@ -200,6 +205,16 @@ export class IssueReporterEditorPane extends EditorPane {
 		}));
 
 		this.wizard.show();
+
+		// Restore attachments mirrored onto the input before a move, and keep the
+		// input in sync as attachments change so they survive the wizard being
+		// rebuilt when the editor moves between the main editor area and a modal
+		// editor part in the Agents Window (#318376).
+		this.restoreAttachmentsFromInput(input);
+		this.inputDisposables.add(this.wizard.onDidChangeAttachments(() => {
+			input.savedScreenshots = this.wizard?.getScreenshots().slice();
+			input.savedRecordings = this.wizard?.getRecordings().slice();
+		}));
 
 		// Populate system info in background (non-blocking)
 		void this.populateSystemInfo();
@@ -485,6 +500,15 @@ export class IssueReporterEditorPane extends EditorPane {
 			this.wizard?.updateModel({
 				isInstallationPure: data.isInstallationPure,
 			});
+		}
+	}
+
+	private restoreAttachmentsFromInput(input: IssueReporterEditorInput): void {
+		if (!this.wizard) {
+			return;
+		}
+		if (input.savedScreenshots?.length || input.savedRecordings?.length) {
+			this.wizard.restoreAttachments(input.savedScreenshots ?? [], input.savedRecordings ?? []);
 		}
 	}
 
