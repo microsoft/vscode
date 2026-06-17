@@ -130,10 +130,14 @@ function createMockNotificationService() {
 			onDidShow.fire(id);
 		},
 		actionNotification(id: string, commandId: string) {
-			if (!lastNotification || lastNotification.id !== id || dismissed) {
+			if (!lastNotification || lastNotification.id !== id || dismissed || deleted) {
 				return;
 			}
-			onDidAction.fire({ notificationId: id, commandId });
+			// Validate that the commandId exists in the notification's actions
+			const hasAction = lastNotification.actions.some(a => a.commandId === commandId);
+			if (hasAction) {
+				onDidAction.fire({ notificationId: id, commandId });
+			}
 		},
 		getActiveNotification(filter?: (notification: IChatInputNotification) => boolean) {
 			if (deleted || dismissed || !lastNotification) {

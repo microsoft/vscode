@@ -180,8 +180,13 @@ class ChatInputNotificationService extends Disposable implements IChatInputNotif
 	}
 
 	actionNotification(id: string, commandId: string): void {
-		if (this._notifications.has(id) && !this._dismissed.has(id)) {
-			this._onDidAction.fire({ notificationId: id, commandId });
+		const notification = this._notifications.get(id);
+		if (notification && !this._dismissed.has(id)) {
+			// Validate that the commandId exists in the notification's actions
+			const hasAction = notification.actions.some(a => a.commandId === commandId);
+			if (hasAction) {
+				this._onDidAction.fire({ notificationId: id, commandId });
+			}
 		}
 	}
 
