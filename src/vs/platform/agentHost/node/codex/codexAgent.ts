@@ -16,7 +16,7 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../log/common/log.js';
 import { createSchema, platformSessionSchema, schemaProperty, type SessionMode } from '../../common/agentHostSchema.js';
-import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentSdkRootEnvVar, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, type AgentProvider } from '../../common/agentService.js';
+import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentSdkRootEnvVar, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IMcpNotification, type AgentProvider } from '../../common/agentService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ActionType, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
@@ -25,6 +25,9 @@ import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from 
 import { type ClientPluginCustomization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, ChatInputResponseKind, type PolicyState, type ToolCallResult, ToolResultContentType, type Turn } from '../../common/state/sessionState.js';
 import type { ISyncedCustomization } from '../../common/agentPluginManager.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
+import { McpCustomizationController } from '../shared/mcpCustomizationController.js';
+import { buildCodexMcpReadResult, codexMcpListToInventory, codexMcpToolsChanged, inventoryToSdkServers, translateCodexMcpStartupState, type ICodexMcpServerEntry } from './codexMcpServers.js';
+import type { Customization } from '../../common/state/protocol/channels-session/state.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { extractForwardedErrorInfo } from '../shared/forwardedChatError.js';
@@ -69,6 +72,10 @@ import type { TurnStartedNotification } from './protocol/generated/v2/TurnStarte
 import type { ItemStartedNotification } from './protocol/generated/v2/ItemStartedNotification.js';
 import type { TurnStartParams } from './protocol/generated/v2/TurnStartParams.js';
 import type { UserInput } from './protocol/generated/v2/UserInput.js';
+import type { ListMcpServerStatusResponse } from './protocol/generated/v2/ListMcpServerStatusResponse.js';
+import type { McpServerToolCallResponse } from './protocol/generated/v2/McpServerToolCallResponse.js';
+import type { McpResourceReadResponse } from './protocol/generated/v2/McpResourceReadResponse.js';
+import type { McpServerStartupState } from './protocol/generated/v2/McpServerStartupState.js';
 
 const CLIENT_INFO = {
 	name: 'vscode_agent_host',
@@ -347,6 +354,13 @@ interface ICodexSession {
 	prewarmClaimed: boolean;
 	/** True once the agent host's server tools have been advertised on this session. */
 	serverToolsAdvertised: boolean;
+	/**
+	 * Per-session MCP customization surface. Created lazily the first time
+	 * the session needs to surface codex's MCP servers (either via
+	 * {@link CodexAgent.getSessionCustomizations} or when the connection's
+	 * MCP inventory is applied). Disposed when the session is removed.
+	 */
+	mcpController: McpCustomizationController | undefined;
 }
 
 /**
@@ -446,6 +460,9 @@ export class CodexAgent extends Disposable implements IAgent {
 	private readonly _onDidMaterializeSession = this._register(new Emitter<IAgentMaterializeSessionEvent>());
 	readonly onDidMaterializeSession = this._onDidMaterializeSession.event;
 
+	private readonly _onMcpNotification = this._register(new Emitter<IMcpNotification>());
+	readonly onMcpNotification = this._onMcpNotification.event;
+
 	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, []);
 	readonly models: IObservable<readonly IAgentModelInfo[]> = this._models;
 
@@ -453,6 +470,14 @@ export class CodexAgent extends Disposable implements IAgent {
 	private readonly _sessions = new Map<string, ICodexSession>();
 	/** Inverse map: codex threadId → caller-facing sessionId, for routing codex notifications back to sessions. */
 	private readonly _sessionIdByThreadId = new Map<string, string>();
+	/**
+	 * Connection-global MCP server inventory reported by the codex
+	 * app-server (`mcpServerStatus/list` + `mcpServer/startupStatus/updated`).
+	 * Codex owns MCP servers at the process level — shared across every
+	 * thread — so the inventory lives on the agent and is mirrored onto each
+	 * session's {@link ICodexSession.mcpController}. Keyed by server name.
+	 */
+	private readonly _mcpInventory = new Map<string, ICodexMcpServerEntry>();
 	private _githubToken: string | undefined;
 	private _connection: ConnectionState = { kind: 'idle' };
 	private _modelsRefreshPromise: Promise<void> | undefined;
@@ -832,6 +857,13 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._register(client.onNotification('item/completed', params => this._dispatchByThread(params.threadId, s => mapItemCompleted(s.mapState, this._withHostTurnId(s, params)))));
 		this._register(client.onNotification('turn/completed', params => this._dispatchByThread(params.threadId, s => this._handleTurnCompletedNotification(s, params))));
 
+		// MCP server lifecycle. Codex owns MCP servers at the process level
+		// (shared across threads); surface them to AHP clients as per-session
+		// customizations + an `mcp://` side channel. The startup notification
+		// drives state transitions; `ready` triggers a full inventory refresh
+		// so the freshly-loaded tools become available.
+		this._register(client.onNotification('mcpServer/startupStatus/updated', params => this._handleMcpStartupStatus(client, params.name, params.status, params.error)));
+
 		// Phase 4: command-execution approval requests. Park on a
 		// per-session deferred, emit `ChatToolCallReady` in the
 		// PendingConfirmation state, and answer codex when the user
@@ -868,6 +900,11 @@ export class CodexAgent extends Disposable implements IAgent {
 			'item/tool/requestUserInput',
 			params => this._handleUserInputRequestRpc(params),
 		));
+
+		// Seed the MCP server inventory from the freshly-connected app-server.
+		// Best-effort and fire-and-forget: failures leave the inventory empty
+		// until the next `mcpServer/startupStatus/updated` notification.
+		void this._refreshMcpInventory(client);
 
 		return { client, proxyHandle, child };
 	}
@@ -1391,6 +1428,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			prewarmTimer: undefined,
 			prewarmClaimed: false,
 			serverToolsAdvertised: false,
+			mcpController: undefined,
 		};
 		this._sessions.set(sessionId, session);
 		this._schedulePrewarm(session);
@@ -1769,6 +1807,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		session.disposed = true;
 		this._claimPrewarm(session);
 		this._sessions.delete(sessionId);
+		session.mcpController?.dispose();
 		if (session.threadId !== undefined) {
 			this._sessionIdByThreadId.delete(session.threadId);
 		}
@@ -1941,6 +1980,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				prewarmTimer: undefined,
 				prewarmClaimed: true,
 				serverToolsAdvertised: false,
+				mcpController: undefined,
 			});
 			this._sessionIdByThreadId.set(threadId, sessionId);
 			// Restored threads skip materialization (the thread already exists),
@@ -2063,6 +2103,205 @@ export class CodexAgent extends Disposable implements IAgent {
 		// no-op; customizations not yet wired for codex.
 	}
 
+	// ---- MCP servers -------------------------------------------------------
+
+	/**
+	 * Surfaces codex's MCP servers to AHP clients as per-session
+	 * customizations. Codex has no plugin/directory customization layer, so
+	 * every server is a bare top-level {@link McpServerCustomization}. The
+	 * returned snapshot reflects the current connection-global inventory;
+	 * subsequent lifecycle transitions arrive as customization actions
+	 * emitted by the session's {@link McpCustomizationController}.
+	 */
+	async getSessionCustomizations(sessionUri: URI): Promise<readonly Customization[]> {
+		const session = this._sessions.get(AgentSession.id(sessionUri));
+		if (!session) {
+			return [];
+		}
+		const controller = this._getOrCreateMcpController(session);
+		controller.applyAll(inventoryToSdkServers(this._mcpInventory));
+		return controller.topLevelCustomizations();
+	}
+
+	/**
+	 * Routes an MCP request received on this session's `mcp://` side channel
+	 * to codex. Read-only methods (`tools/list`, `resources/list`,
+	 * `resources/templates/list`) are answered from the cached inventory;
+	 * `tools/call` and `resources/read` round-trip to the app-server with the
+	 * session's thread id. Unknown servers / methods reject with
+	 * `Method not found` so the protocol server maps them to JSON-RPC
+	 * `-32601`.
+	 */
+	async handleMcpRequest(sessionUri: URI, serverName: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {
+		const sessionId = AgentSession.id(sessionUri);
+		const session = this._sessions.get(sessionId);
+		if (!session) {
+			throw new Error(`Method not found: no active session ${sessionId}`);
+		}
+		const entry = this._mcpInventory.get(serverName);
+		if (!entry) {
+			throw new Error(`Method not found: unknown MCP server '${serverName}'`);
+		}
+		const read = buildCodexMcpReadResult(method, entry);
+		if (read.handled) {
+			return read.result;
+		}
+		switch (method) {
+			case 'tools/call': {
+				const tool = params && typeof params['name'] === 'string' ? params['name'] : undefined;
+				if (!tool) {
+					throw new Error(`tools/call missing 'name' parameter`);
+				}
+				const threadId = await this._ensureThreadId(session);
+				const conn = await this._ensureConnection();
+				return conn.client.request<'mcpServer/tool/call', McpServerToolCallResponse>('mcpServer/tool/call', {
+					threadId,
+					server: serverName,
+					tool,
+					arguments: (params ? params['arguments'] : undefined) as JsonValue,
+				});
+			}
+			case 'resources/read': {
+				const uri = params && typeof params['uri'] === 'string' ? params['uri'] : undefined;
+				if (!uri) {
+					throw new Error(`resources/read missing 'uri' parameter`);
+				}
+				const threadId = await this._ensureThreadId(session);
+				const conn = await this._ensureConnection();
+				return conn.client.request<'mcpServer/resource/read', McpResourceReadResponse>('mcpServer/resource/read', {
+					threadId,
+					server: serverName,
+					uri,
+				});
+			}
+			default:
+				throw new Error(`Method not found: ${method}`);
+		}
+	}
+
+	/**
+	 * Lazily create the per-session {@link McpCustomizationController}. Not
+	 * registered on the agent (sessions come and go) — disposed explicitly
+	 * when the session is removed.
+	 */
+	private _getOrCreateMcpController(session: ICodexSession): McpCustomizationController {
+		if (!session.mcpController) {
+			session.mcpController = new McpCustomizationController({
+				providerId: this.id,
+				sessionId: session.sessionId,
+				resolveChildId: () => undefined,
+				emit: action => this._fire(session.sessionUri, action),
+			});
+		}
+		return session.mcpController;
+	}
+
+	/** Mirrors the connection-global inventory onto every live session. */
+	private _applyMcpInventoryToSessions(): void {
+		const servers = inventoryToSdkServers(this._mcpInventory);
+		for (const session of this._sessions.values()) {
+			if (session.disposed) {
+				continue;
+			}
+			this._getOrCreateMcpController(session).applyAll(servers);
+		}
+	}
+
+	/**
+	 * Re-reads the full MCP inventory from the app-server (paginated) and
+	 * re-publishes it to every session. Fires `notifications/tools/list_changed`
+	 * on each ready channel whose tool set changed.
+	 */
+	private async _refreshMcpInventory(client: ICodexAppServerClient): Promise<void> {
+		let data: ListMcpServerStatusResponse['data'] = [];
+		try {
+			let cursor: string | null | undefined = null;
+			do {
+				const response: ListMcpServerStatusResponse = await client.request<'mcpServerStatus/list', ListMcpServerStatusResponse>('mcpServerStatus/list', { cursor, detail: 'full' });
+				data = data.concat(response.data);
+				cursor = response.nextCursor;
+			} while (cursor);
+		} catch (err) {
+			this._logService.warn(`[Codex] Failed to list MCP servers: ${err instanceof Error ? err.message : String(err)}`);
+			return;
+		}
+		// Drop the result if the connection was replaced while we were listing.
+		if (this._connection.kind === 'ready' && this._connection.client !== client) {
+			return;
+		}
+		const next = codexMcpListToInventory(data);
+		const toolsChanged: string[] = [];
+		for (const [name, entry] of next) {
+			const prev = this._mcpInventory.get(name);
+			if (prev && codexMcpToolsChanged(prev, entry)) {
+				toolsChanged.push(name);
+			}
+		}
+		this._mcpInventory.clear();
+		for (const [name, entry] of next) {
+			this._mcpInventory.set(name, entry);
+		}
+		this._applyMcpInventoryToSessions();
+		for (const name of toolsChanged) {
+			this._fireMcpToolsListChanged(name);
+		}
+	}
+
+	/**
+	 * Handles a `mcpServer/startupStatus/updated` notification. `ready`
+	 * triggers a full inventory refresh (to pull the now-loaded tools);
+	 * other transitions update the cached state in place so the UI sees the
+	 * server settle into starting/error/stopped promptly.
+	 */
+	private _handleMcpStartupStatus(client: ICodexAppServerClient, name: string, status: McpServerStartupState, error: string | null): void {
+		if (this._connection.kind === 'ready' && this._connection.client !== client) {
+			return;
+		}
+		if (status === 'ready') {
+			void this._refreshMcpInventory(client);
+			return;
+		}
+		if (status === 'cancelled') {
+			this._mcpInventory.delete(name);
+		} else {
+			const prev = this._mcpInventory.get(name);
+			this._mcpInventory.set(name, {
+				state: translateCodexMcpStartupState(status, error),
+				tools: prev?.tools ?? [],
+				resources: prev?.resources ?? [],
+				resourceTemplates: prev?.resourceTemplates ?? [],
+			});
+		}
+		this._applyMcpInventoryToSessions();
+	}
+
+	/**
+	 * Broadcasts `notifications/tools/list_changed` for `serverName` on every
+	 * session whose channel for that server is currently ready. Clients
+	 * refetch `tools/list` in response.
+	 */
+	private _fireMcpToolsListChanged(serverName: string): void {
+		for (const session of this._sessions.values()) {
+			const channel = session.mcpController?.channelForServer(serverName);
+			if (channel) {
+				this._onMcpNotification.fire({ channel, method: 'notifications/tools/list_changed' });
+			}
+		}
+	}
+
+	/**
+	 * Ensures the session has a materialized codex thread and returns its id.
+	 * MCP tool calls (`mcpServer/tool/call`) are thread-scoped, so a call
+	 * arriving before the first turn lazily starts the thread.
+	 */
+	private async _ensureThreadId(session: ICodexSession): Promise<string> {
+		await this._materializeIfNeeded(session, false);
+		if (session.threadId === undefined) {
+			throw new Error(`Cannot run MCP tool: codex session ${session.sessionId} is not materialized`);
+		}
+		return session.threadId;
+	}
+
 	async shutdown(): Promise<void> {
 		if (this._connection.kind === 'ready') {
 			try { this._connection.client.dispose(); } catch { /* ignore */ }
@@ -2073,9 +2312,11 @@ export class CodexAgent extends Disposable implements IAgent {
 			s.pendingCommandApprovals.denyAll('decline');
 			s.pendingClientToolCalls.rejectAll(new CancellationError());
 			s.pendingUserInputs.rejectAll(new CancellationError());
+			s.mcpController?.dispose();
 		}
 		this._sessions.clear();
 		this._sessionIdByThreadId.clear();
+		this._mcpInventory.clear();
 	}
 
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
@@ -2144,9 +2385,11 @@ export class CodexAgent extends Disposable implements IAgent {
 			s.pendingCommandApprovals.denyAll('decline');
 			s.pendingClientToolCalls.rejectAll(new CancellationError());
 			s.pendingUserInputs.rejectAll(new CancellationError());
+			s.mcpController?.dispose();
 		}
 		this._sessions.clear();
 		this._sessionIdByThreadId.clear();
+		this._mcpInventory.clear();
 		super.dispose();
 	}
 }
