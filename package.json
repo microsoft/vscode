@@ -24,7 +24,7 @@
     "compile-copilot": "npm --prefix extensions/copilot run compile",
     "transpile": "npm-run-all2 -lp transpile-client transpile-extensions compile-copilot",
     "transpile-extensions": "npm run gulp transpile-extensions compile-extension-media",
-    "compile-check-ts-native": "tsgo --project ./src/tsconfig.json --noEmit --skipLibCheck",
+    "typecheck-client": "tsgo --project ./src/tsconfig.json --noEmit --skipLibCheck",
     "codex:gen-protocol": "node build/codex/generate-protocol.mjs",
     "watch": "npm-run-all2 -lp watch-client-transpile watch-client watch-extensions watch-copilot",
     "watch-transpile": "npm-run-all2 -lp watch-client-transpile watch-extensions watch-copilot",
@@ -94,7 +94,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
-    "@github/copilot": "^1.0.61",
+    "@github/copilot": "^1.0.63",
     "@github/copilot-sdk": "^1.0.1",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",

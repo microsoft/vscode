@@ -15,8 +15,6 @@ import { BrowserSessionTrust, IBrowserSessionTrust } from './browserSessionTrust
 import { BrowserSessionHistory, IBrowserSessionHistory } from './browserSessionHistory.js';
 import { BrowserSessionRemote, IBrowserSessionRemote } from './browserSessionRemote.js';
 import { FileAccess, Schemas } from '../../../base/common/network.js';
-import { ISharedProcessTunnelProxyService } from '../../tunnel/common/sharedProcessTunnelProxyService.js';
-import { ILogService } from '../../log/common/log.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { localize } from '../../../nls.js';
 
@@ -226,12 +224,10 @@ export class BrowserSession {
 		readonly electronSession: Electron.Session,
 		/** Resolved storage scope. */
 		readonly storageScope: BrowserViewStorageScope,
-		@ISharedProcessTunnelProxyService tunnelService: ISharedProcessTunnelProxyService,
-		@ILogService logService: ILogService,
 	) {
 		this._trust = new BrowserSessionTrust(this);
 		this._history = new BrowserSessionHistory(this);
-		this._remote = new BrowserSessionRemote(this, tunnelService, logService);
+		this._remote = new BrowserSessionRemote(this);
 		this.configure();
 		BrowserSession.knownSessions.add(electronSession);
 		BrowserSession._bySession.set(electronSession, this);

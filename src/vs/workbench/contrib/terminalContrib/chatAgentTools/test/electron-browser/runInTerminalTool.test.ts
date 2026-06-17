@@ -608,6 +608,7 @@ suite('RunInTerminalTool', () => {
 			ok(toolData.modelDescription?.includes('evil.com'), 'Expected denied domains in description');
 			ok(toolData.modelDescription?.includes('requestAllowNetwork=true'), 'Expected model description to recommend network-enabled sandbox execution first');
 			ok(toolData.modelDescription?.includes('Only set requestAllowNetwork=true when there is evidence of network failures caused by the sandbox'), 'Expected model description to constrain allow-network requests to sandbox network failures');
+			ok(toolData.modelDescription?.includes('Received HTTP code 403 from proxy after CONNECT'), 'Expected model description to recognize CONNECT proxy HTTP 403 responses as evidence of blocked network access');
 		});
 
 		test('should exclude denied domains from effective allowed list', async () => {

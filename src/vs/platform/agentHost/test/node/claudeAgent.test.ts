@@ -821,6 +821,7 @@ suite('ClaudeAgent', () => {
 						description: 'Controls how much reasoning effort Claude uses.',
 						enum: ['low', 'medium', 'high'],
 						enumLabels: ['Low', 'Medium', 'High'],
+						enumDescriptions: ['Faster responses with less reasoning', 'Balanced reasoning and speed', 'Greater reasoning depth but slower'],
 						default: 'high',
 					},
 				},
@@ -834,6 +835,7 @@ suite('ClaudeAgent', () => {
 						description: 'Controls how much reasoning effort Claude uses.',
 						enum: ['high'],
 						enumLabels: ['High'],
+						enumDescriptions: ['Greater reasoning depth but slower'],
 						default: 'high',
 					},
 				},
@@ -848,6 +850,7 @@ suite('ClaudeAgent', () => {
 						description: 'Controls how much reasoning effort Claude uses.',
 						enum: ['low', 'high'],
 						enumLabels: ['Low', 'High'],
+						enumDescriptions: ['Faster responses with less reasoning', 'Greater reasoning depth but slower'],
 						default: 'high',
 					},
 				},
@@ -1394,7 +1397,9 @@ suite('ClaudeAgent', () => {
 			model: sdk.capturedStartupOptions[0]?.model,
 			permissionMode: sdk.capturedStartupOptions[0]?.permissionMode,
 		}, {
-			model: 'claude-sonnet-4.6',
+			// Endpoint id `claude-sonnet-4.6` is normalized to SDK format at the
+			// SDK seam (see `toSdkModelId`); the CLI only recognizes the dashed form.
+			model: 'claude-sonnet-4-6',
 			permissionMode: 'plan',
 		});
 	});
@@ -1427,7 +1432,8 @@ suite('ClaudeAgent', () => {
 			model: sdk.capturedStartupOptions[0]?.model,
 			effort: sdk.capturedStartupOptions[0]?.effort,
 		}, {
-			model: 'claude-opus-4.6',
+			// Endpoint id `claude-opus-4.6` → SDK format at the SDK seam.
+			model: 'claude-opus-4-6',
 			effort: 'high',
 		});
 	});
@@ -4306,7 +4312,7 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 		ctx.sdk.nextQueryMessages = [makeSystemInitMessage(sid), makeResultSuccess(sid)];
 		await ctx.agent.sendMessage(created.session, 'hi', undefined, 'turn-1');
 		const opts = ctx.sdk.capturedStartupOptions[0];
-		assert.deepStrictEqual({ model: opts.model, effort: opts.effort }, { model: 'claude-sonnet-4.6', effort: 'medium' });
+		assert.deepStrictEqual({ model: opts.model, effort: opts.effort }, { model: 'claude-sonnet-4-6', effort: 'medium' });
 	});
 
 	test('changeModel on a materialized session queues a model+effort bundle that drains at the next yield boundary', async () => {
@@ -4322,7 +4328,7 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 			models: query.recordedModels,
 			efforts: query.recordedFlagSettings.map(s => s.effortLevel),
 		}, {
-			models: ['claude-sonnet-4.6'],
+			models: ['claude-sonnet-4-6'],
 			efforts: ['high'],
 		});
 	});
@@ -4520,7 +4526,7 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 		await tick();
 		advance.complete();
 		await p2;
-		assert.deepStrictEqual({ models: firstQuery.recordedModels, efforts: firstQuery.recordedFlagSettings.map(s => s.effortLevel) }, { models: ['claude-sonnet-4.6'], efforts: ['high'] });
+		assert.deepStrictEqual({ models: firstQuery.recordedModels, efforts: firstQuery.recordedFlagSettings.map(s => s.effortLevel) }, { models: ['claude-sonnet-4-6'], efforts: ['high'] });
 
 		// Now abort and resend; the rebound query MUST receive the same
 		// model + effort via the rebind's re-apply pass.
@@ -4533,7 +4539,7 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 		assert.deepStrictEqual({
 			models: reboundQuery.recordedModels,
 			efforts: reboundQuery.recordedFlagSettings.map(s => s.effortLevel),
-		}, { models: ['claude-sonnet-4.6'], efforts: ['high'] });
+		}, { models: ['claude-sonnet-4-6'], efforts: ['high'] });
 	});
 
 	test('intermediate result during steering does NOT complete the in-flight sendMessage or fire ChatTurnComplete', async () => {

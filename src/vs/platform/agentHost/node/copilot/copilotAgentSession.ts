@@ -378,6 +378,14 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _sessionDataDir: URI;
 	/** Protocol turn ID set by {@link send}, used for file edit tracking. */
 	private _turnId = '';
+	/**
+	 * Last model id seen on the SDK's per-LLM-call `Usage` event (or a
+	 * direct {@link setModel} call). We rely on the
+	 * `Usage` event rather than the tool-call event itself because
+	 * tool-call events don't carry the model id; the `Usage` event for
+	 * an LLM turn precedes that turn's `tool_use` events.
+	 */
+	private _lastSeenModelId: string | undefined;
 	/** Accumulated Copilot usage for the current top-level turn, in nano-AIU. */
 	private _turnCopilotUsageTotalNanoAiu = 0;
 	/** SDK session wrapper, set by {@link initializeSession}. */
@@ -1186,6 +1194,7 @@ export class CopilotAgentSession extends Disposable {
 
 	async setModel(model: string, reasoningEffort?: SessionConfig['reasoningEffort'], contextTier?: SessionConfig['contextTier']): Promise<void> {
 		this._logService.info(`[Copilot:${this.sessionId}] Changing model to: ${model}`);
+		this._lastSeenModelId = model;
 		await this._wrapper.session.setModel(model, { reasoningEffort, contextTier });
 	}
 
@@ -2204,7 +2213,7 @@ export class CopilotAgentSession extends Disposable {
 			const filePaths = isEditTool(tracked.toolName, command) ? this._getEditFilePaths(tracked.parameters) : [];
 			for (const filePath of filePaths) {
 				try {
-					const fileEdit = await this._editTracker.takeCompletedEdit(this._turnId, e.data.toolCallId, filePath);
+					const fileEdit = await this._editTracker.takeCompletedEdit(this._turnId, e.data.toolCallId, filePath, tracked.toolName, tracked.parameters, this._lastSeenModelId);
 					if (fileEdit) {
 						content.push(fileEdit);
 					}
@@ -2352,6 +2361,9 @@ export class CopilotAgentSession extends Disposable {
 				};
 			}
 			this._logService.trace(`[Copilot:${sessionId}] Usage: model=${e.data.model}, in=${e.data.inputTokens ?? '?'}, out=${e.data.outputTokens ?? '?'}, cacheRead=${e.data.cacheReadTokens ?? '?'}, cost=${e.data.cost ?? '?'}, totalNanoAiu=${metadata.copilotUsage ? this._turnCopilotUsageTotalNanoAiu : '?'}`);
+			if (typeof e.data.model === 'string' && e.data.model) {
+				this._lastSeenModelId = e.data.model;
+			}
 			const usage: UsageInfo = {
 				inputTokens: e.data.inputTokens,
 				outputTokens: e.data.outputTokens,

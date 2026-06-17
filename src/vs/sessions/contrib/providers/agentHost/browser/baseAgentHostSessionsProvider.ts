@@ -275,10 +275,15 @@ export class AgentHostSessionAdapter implements ISession {
 			const uri = URI.parse(`https://github.com/${coords.owner}/${coords.repo}/pull/${prNumber}`);
 			let icon: ThemeIcon | undefined;
 			if (gitHubService) {
-				const ref = reader.store.add(gitHubService.createPullRequestModelReference(coords.owner, coords.repo, prNumber));
-				const livePR = ref.object.pullRequest.read(reader);
-				if (livePR) {
-					icon = computePullRequestIcon(livePR.isDraft ? 'draft' : livePR.state);
+				// Read the last-seen PR state from the shared cache rather than
+				// holding a live model reference here. This keeps the icon
+				// rendering even when the session is inactive/invisible (the cache
+				// retains the last value and is seeded from storage on reload),
+				// while polling is driven centrally for only a limited set of
+				// sessions (see GitHubPullRequestPollingContribution).
+				const cached = gitHubService.getCachedPullRequestState(coords.owner, coords.repo, prNumber).read(reader);
+				if (cached) {
+					icon = computePullRequestIcon(cached.iconState);
 				}
 			}
 			return {
@@ -1365,8 +1370,27 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	getSessions(): ISession[] {
 		this._ensureSessionCache();
-		const sessions: ISession[] = [...this._sessionCache.values()];
-		if (this._pendingSession) {
+		// Filter at read time (rather than evicting from the cache) so a gate
+		// flip is instant in both directions: hidden sessions stay cached and
+		// reappear immediately when the preference flips back. The default gate
+		// admits everything; only the local provider suppresses the agent host's
+		// Claude when the window prefers the extension-host Claude.
+		//
+		// Both `agentProvider` (cached) and `sessionType` (pending) carry the
+		// bare provider name (e.g. `claude`), which is what the gate expects —
+		// NOT the `agent-host-<provider>` resource scheme from
+		// `resourceSchemeForProvider`. Keep it that way.
+		//
+		// Subclasses whose `_shouldAdvertiseAgent` can change at runtime MUST
+		// fire `onDidChangeSessions` when it does, so consumers re-query and
+		// re-filter (see the local provider's `preferAgentHost` listener).
+		const sessions: ISession[] = [];
+		for (const cached of this._sessionCache.values()) {
+			if (this._shouldAdvertiseAgent(cached.agentProvider)) {
+				sessions.push(cached);
+			}
+		}
+		if (this._pendingSession && this._shouldAdvertiseAgent(this._pendingSession.sessionType)) {
 			sessions.push(this._pendingSession);
 		}
 		return sessions;
@@ -1836,7 +1860,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return {
 			useGroupedModelPicker: true,
 			showFeatured: true,
-			showUnavailableFeatured: false,
+			showUnavailableFeatured: true,
 			showManageModelsAction: false,
 			showAutoModel,
 		};
