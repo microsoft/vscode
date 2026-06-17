@@ -5,7 +5,7 @@
 
 import { URI } from '../../../base/common/uri.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import { join } from '../../../base/common/path.js';
 import { IStorage } from '../../../base/parts/storage/common/storage.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
@@ -242,18 +242,18 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		return this.profileStorageMap.getOrCreate(profile.id, ownerWindowId, () => {
 			this.logService.trace(`StorageMainService: creating profile storage (${profile.name})`);
 
-			const storage = this.createProfileStorage(profile);
+			const profileStorage = this.createProfileStorage(profile);
 
 			// Don't use this._register() for listeners that are disposed early
 			// as it causes entries to accumulate in _store when storage is closed/reopened
-			const listener = storage.onDidChangeStorage(e => this._onDidChangeProfileStorage.fire({
+			const listener = profileStorage.onDidChangeStorage(e => this._onDidChangeProfileStorage.fire({
 				...e,
-				storage,
+				storage: profileStorage,
 				profile
 			}));
 
 			return {
-				storage,
+				storage: profileStorage,
 				onDidClose: () => {
 					this.logService.trace(`StorageMainService: closed profile storage (${profile.name})`);
 
@@ -358,21 +358,11 @@ class StorageMap extends Disposable {
 		let storage = this.mapStorage.get(storageId);
 		if (!storage) {
 			const result = create();
-			this._register(result.storage);
-			const cleanup = this._register(toDisposable(result.onDidClose));
-			storage = new RefCountedStorage(result.storage);
-			this.mapStorage.set(storageId, storage);
-
-			// Defer storage disposal so all close listeners can observe the close event first.
-			const closeListener = this._register(Event.once(result.storage.onDidCloseStorage)(() => {
+			storage = new RefCountedStorage(result.storage, result.onDidClose, () => {
 				this.mapStorage.delete(storageId);
 				this.clearStorageReferences(storageId);
-				this._store.delete(cleanup);
-				queueMicrotask(() => {
-					this._store.delete(result.storage);
-					this._store.delete(closeListener);
-				});
-			}));
+			});
+			this.mapStorage.set(storageId, storage);
 		}
 
 		this.addWindowReference(storageId, storage, ownerWindowId);
@@ -432,18 +422,31 @@ class StorageMap extends Disposable {
 
 	override dispose(): void {
 		this.clearWindowReferences();
+		for (const storage of this.mapStorage.values()) {
+			storage.dispose();
+		}
+		this.mapStorage.clear();
 
 		super.dispose();
 	}
 }
 
-class RefCountedStorage {
+class RefCountedStorage extends Disposable {
 
 	private readonly ownerWindowIds = new Set<number>();
+	private readonly closeListener: IDisposable;
+	private didClose = false;
+	private didCleanup = false;
 
 	constructor(
-		readonly storage: IStorageMain
-	) { }
+		readonly storage: IStorageMain,
+		private readonly onDidClose: () => void,
+		private readonly onDidCloseStorage: () => void
+	) {
+		super();
+
+		this.closeListener = Event.once(storage.onDidCloseStorage)(() => this.handleDidClose());
+	}
 
 	increment(ownerWindowId: number): void {
 		this.ownerWindowIds.add(ownerWindowId);
@@ -460,8 +463,40 @@ class RefCountedStorage {
 	}
 
 	async close(): Promise<void> {
+		if (this.didClose) {
+			return;
+		}
+
 		this.ownerWindowIds.clear();
 		await this.storage.close();
+	}
+
+	private handleDidClose(): void {
+		if (this.didClose) {
+			return;
+		}
+
+		this.didClose = true;
+		this.onDidCloseStorage();
+		this.dispose();
+	}
+
+	override dispose(): void {
+		this.ownerWindowIds.clear();
+		this.closeListener.dispose();
+		this.cleanup();
+		this.storage.dispose();
+
+		super.dispose();
+	}
+
+	private cleanup(): void {
+		if (this.didCleanup) {
+			return;
+		}
+
+		this.didCleanup = true;
+		this.onDidClose();
 	}
 }
 
