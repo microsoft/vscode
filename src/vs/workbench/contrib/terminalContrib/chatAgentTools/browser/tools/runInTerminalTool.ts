@@ -178,51 +178,53 @@ function createPowerShellModelDescription(shell: string, sandboxingOptions: ISan
 	return parts.join('\n');
 }
 
-function createSandboxLines(sandboxingOptions: ISandboxingOnOptions): string[] {
+export function createSandboxLines(sandboxingOptions: ISandboxingOnOptions): string[] {
+	const isNetworkAvailable = sandboxingOptions.sandboxMode === 'on-network-available';
 	const lines = [
 		'',
 		'Sandboxing:',
-		'- ATTENTION: Terminal sandboxing is enabled, commands run in a sandbox BY DEFAULT.',
-		'- Most of the file system is read-only and certain paths are not fully accessible for privacy reasons (like the $HOME directory). However, the workspace directory and $TMPDIR are mounted as read-write.',
-		'- When executing commands, all operations requiring a temporary directory must utilize the $TMPDIR environment variable. The /tmp directory is not guaranteed to be accessible or writable and must be avoided. Tools and scripts should respect the TMPDIR environment variable, which is always defined and set to an appropriate read-write path',
+		isNetworkAvailable
+			? '- Commands run inside a sandbox by default. The sandbox keeps the filesystem mostly read-only.'
+			: '- Commands run inside a sandbox by default. The sandbox restricts two things independently: the filesystem and the network.',
+		'- Filesystem: read-only outside the workspace and $TMPDIR, which stay read-write. Parts of $HOME are hidden for privacy, but common developer tools (git, package managers, language toolchains) still work because their $HOME config and cache paths are automatically made readable.',
+		'- Use $TMPDIR for temporary files; /tmp may not be writable. The TMPDIR env var is always set to a writable path.',
 	];
 
-	const deniedDomains = sandboxingOptions.networkDomains?.deniedDomains || [];
-	const allowedDomains = sandboxingOptions.networkDomains?.allowedDomains || [];
-	const deniedSet = new Set(deniedDomains);
-	const effectiveAllowed = allowedDomains.filter(d => !deniedSet.has(d)) || [];
+	if (!isNetworkAvailable) {
+		const deniedDomains = sandboxingOptions.networkDomains?.deniedDomains ?? [];
+		const allowedDomains = sandboxingOptions.networkDomains?.allowedDomains ?? [];
+		const deniedSet = new Set(deniedDomains);
+		const effectiveAllowed = allowedDomains.filter(d => !deniedSet.has(d));
 
-	if (sandboxingOptions.sandboxMode === 'on-network-available') {
-		lines.push('- All network access is available in the sandbox.');
-	} else {
+		const retrySuffix = sandboxingOptions.retryWithAllowNetworkRequests ? ' unless requestAllowNetwork=true is set' : '';
 		if (effectiveAllowed.length === 0) {
-			lines.push('- All network access is blocked in the sandbox. Commands that require network access will fail unless requestAllowNetwork=true is set.');
+			lines.push(`- Network: blocked in the sandbox; commands that need the network fail${retrySuffix}.`);
 		} else {
-			lines.push(`- Only the following domains are accessible in the sandbox: ${effectiveAllowed.join(', ')}. Commands that require network access to other domains will fail unless requestAllowNetwork=true is set.`);
+			lines.push(`- Network: only these domains are reachable in the sandbox: ${effectiveAllowed.join(', ')}. Other domains fail${retrySuffix}.`);
 		}
 		if (deniedDomains.length > 0) {
-			lines.push(`- The following domains are explicitly blocked in the sandbox: ${deniedDomains.join(', ')}`);
+			lines.push(`- These domains are explicitly blocked in the sandbox: ${deniedDomains.join(', ')}`);
 		}
 	}
 
-	if (sandboxingOptions.retryWithAllowNetworkRequests) {
-		lines.push(
-			'- Proactively set requestAllowNetwork=true on the FIRST attempt when the command clearly requires network access, instead of waiting for it to fail. This includes git operations that contact a remote (git fetch, git pull, git push, git clone, git ls-remote, git remote update), package manager operations that download (npm install/ci, yarn, pnpm, pip install, cargo fetch/build, go mod download, brew install), and downloaders (curl, wget). Provide requestAllowNetworkReason.',
-			'- When a command fails due to network access being blocked by the sandbox, immediately re-run it with requestAllowNetwork=true and provide requestAllowNetworkReason. This keeps the command in the sandbox with unrestricted network access and automatically shows a confirmation prompt to the user',
-			'- Set requestAllowNetwork=true either proactively (the command clearly needs the network, see above) or reactively when there is evidence of network failures caused by the sandbox, e.g. \'Network request failed\' errors, API call failures, or other indications of blocked network access in the command output',
-			'- When setting requestAllowNetwork=true, also provide requestAllowNetworkReason explaining why the command needs network access',
-		);
+	if (sandboxingOptions.retryWithAllowNetworkRequests || sandboxingOptions.allowToRunUnsandboxedCommands) {
+		lines.push('- To get more access (each prompts the user — never ask the user for permission yourself):');
+		if (sandboxingOptions.retryWithAllowNetworkRequests) {
+			lines.push(
+				'  - Need a blocked domain? Set requestAllowNetwork=true and provide requestAllowNetworkReason. This keeps the filesystem sandbox in place and only relaxes the network, so prefer it for network-only needs. Do this proactively when network use is obvious (git fetch/pull/push/clone; npm/yarn/pnpm/pip/cargo/go/brew installs; curl; wget), or reactively after a network failure (e.g. \'Network request failed\').',
+			);
+		}
+		if (sandboxingOptions.allowToRunUnsandboxedCommands) {
+			const removesAllClause = sandboxingOptions.retryWithAllowNetworkRequests
+				? 'This grants full filesystem AND network access by removing all sandbox protection, so for network-only needs prefer requestAllowNetwork and use this only when filesystem (or other non-network) access is also blocked.'
+				: 'This grants full filesystem and network access by removing all sandbox protection, so use it only when the command truly needs it.';
+			lines.push(
+				`  - Need filesystem or other access the sandbox blocks? Set requestUnsandboxedExecution=true and provide requestUnsandboxedExecutionReason. ${removesAllClause} Do this proactively when it clearly needs it (writing/deleting files outside the workspace and $TMPDIR like $HOME, /usr, /etc; installing to system locations; elevated privileges), or reactively after a sandbox failure (e.g. \'Operation not permitted\').`,
+			);
+		}
 	}
-	if (sandboxingOptions.allowToRunUnsandboxedCommands) {
-		lines.push(
-			'- Proactively set requestUnsandboxedExecution=true on the FIRST attempt when the command clearly needs access that the sandbox does not grant, instead of waiting for it to fail. This includes writing or deleting files outside the workspace and $TMPDIR (e.g. modifying $HOME, /usr, /etc, or other system paths), installing software to system locations, or commands that require elevated/system privileges. Provide requestUnsandboxedExecutionReason.',
-			'- For commands that only need NETWORK access, prefer requestAllowNetwork=true (which keeps the command in the sandbox) over requestUnsandboxedExecution=true. Only leave the sandbox entirely when the command also needs non-network access that the sandbox blocks.',
-			'- When a command fails due to sandbox restrictions, immediately re-run it with requestUnsandboxedExecution=true. Do NOT ask the user for permission — setting this flag automatically shows a confirmation prompt to the user',
-			'- Set requestUnsandboxedExecution=true either proactively (the command clearly needs non-network access the sandbox blocks, see above) or reactively when there is evidence of failures caused by the sandbox, e.g. \'Operation not permitted\' errors or file access errors',
-			'- When setting requestUnsandboxedExecution=true, also provide requestUnsandboxedExecutionReason explaining why the command needs unsandboxed access',
-		);
-	} else {
-		lines.push('- Running commands outside the sandbox is disabled by the current chat.agent.sandbox.allowUnsandboxedCommands setting. Do not set requestUnsandboxedExecution=true.');
+	if (!sandboxingOptions.allowToRunUnsandboxedCommands) {
+		lines.push('- Running commands outside the sandbox is disabled by chat.agent.sandbox.allowUnsandboxedCommands. Do not set requestUnsandboxedExecution=true.');
 	}
 
 	return lines;
@@ -396,14 +398,16 @@ export async function createRunInTerminalToolData(
 			type: 'string',
 			description: 'A short explanation of why this command must run outside the terminal sandbox. Only provide this when requestUnsandboxedExecution is true.'
 		},
-		requestAllowNetwork: {
-			type: 'boolean',
-			description: 'Request that this command remain in the terminal sandbox but run with unrestricted network access. Only set this when the command clearly needs network access but the required network access was blocked. The user will be prompted before network restrictions are relaxed.'
-		},
-		requestAllowNetworkReason: {
-			type: 'string',
-			description: 'A short explanation of why this sandboxed command needs unrestricted network access. Only provide this when requestAllowNetwork is true.'
-		}
+		...(isSandboxAllowNetworkEnabled || !retryWithAllowNetworkRequestsSetting ? {} : {
+			requestAllowNetwork: {
+				type: 'boolean',
+				description: 'Request that this command remain in the terminal sandbox but run with unrestricted network access. Only set this when the command clearly needs network access but the required network access was blocked. The user will be prompted before network restrictions are relaxed.'
+			},
+			requestAllowNetworkReason: {
+				type: 'string',
+				description: 'A short explanation of why this sandboxed command needs unrestricted network access. Only provide this when requestAllowNetwork is true.'
+			}
+		})
 	} : {};
 
 	return {
