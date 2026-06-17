@@ -94,6 +94,10 @@ export class AgentHostChangesetOperationContributionService extends Disposable i
 		if (!op) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Unknown operation '${params.operationId}' on changeset ${params.channel}`);
 		}
+		if (op.status === ChangesetOperationStatus.Disabled) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Operation '${params.operationId}' is disabled on changeset ${params.channel}`);
+		}
+
 		const targetKind: ChangesetOperationScope = params.target?.kind === ChangesetOperationTargetKind.Resource
 			? ChangesetOperationScope.Resource
 			: params.target?.kind === ChangesetOperationTargetKind.Range
@@ -102,6 +106,7 @@ export class AgentHostChangesetOperationContributionService extends Disposable i
 		if (!op.scopes.includes(targetKind)) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Operation '${params.operationId}' does not support scope '${targetKind}' (allowed: ${op.scopes.join(', ')})`);
 		}
+
 		const handler = this._changesetOperationHandlers.get(params.operationId);
 		if (!handler) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `No operation handler registered for '${params.operationId}' on changeset ${params.channel}`);

@@ -115,6 +115,30 @@ suite('AgentHostChangesetOperationContributionService', () => {
 		assert.strictEqual(stateManager.getChangesetState(changesetUri)?.operations?.[0].status, ChangesetOperationStatus.Idle);
 	});
 
+	test('rejects invocation of a disabled changeset operation without calling the handler', async () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionKey = 'agent:/session';
+		const changesetUri = buildUncommittedChangesetUri(sessionKey);
+		stateManager.registerChangeset(changesetUri);
+		stateManager.dispatchServerAction(changesetUri, {
+			type: ActionType.ChangesetOperationsChanged,
+			operations: [{ id: 'commit', label: 'Commit', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Disabled }],
+		});
+
+		const service = disposables.add(new AgentHostChangesetOperationContributionService(
+			stateManager,
+			{ refreshSessionGitState: async () => undefined } as unknown as AgentHostSessionGitStateService,
+		));
+		const handler = new TestHandler();
+		disposables.add(service.registerContribution(new TestContribution(handler)));
+
+		const error = await service.invokeChangesetOperation({ channel: changesetUri, operationId: 'commit' }).then(undefined, error => error);
+
+		assert.match(error.message, /is disabled/);
+		assert.strictEqual(handler.calls, 0);
+		assert.strictEqual(stateManager.getChangesetState(changesetUri)?.operations?.[0].status, ChangesetOperationStatus.Disabled);
+	});
+
 	test('publishes running and error state when a changeset operation fails', async () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const sessionKey = 'agent:/session';
