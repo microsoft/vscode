@@ -137,7 +137,6 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 			transparent: false,
 			disableFullscreen: true,
 			nativeTitlebar: false,
-			notResizable: true,
 			noBackgroundThrottling: true,
 			backgroundColor: this.themeService.getColorTheme().getColor(editorBackground)?.toString() ?? '#1e1e1e',
 		});
@@ -350,13 +349,17 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		const targetHeight = Math.ceil(pillHeight * zoomFactor);
 		const currentWidth = auxiliaryWindow.window.outerWidth;
 		const currentHeight = auxiliaryWindow.window.outerHeight;
-		if (targetWidth !== currentWidth || targetHeight !== currentHeight) {
+		// Only resize width unconditionally; for height, only grow (never
+		// shrink) so that manual vertical resizing by the user is preserved.
+		const newWidth = targetWidth !== currentWidth ? targetWidth : currentWidth;
+		const newHeight = targetHeight > currentHeight ? targetHeight : currentHeight;
+		if (newWidth !== currentWidth || newHeight !== currentHeight) {
 			// Capture position before resize — resizeTo can shift the window
 			// on some platforms (macOS), causing accumulated drift.
 			const preX = auxiliaryWindow.window.screenX;
 			const preY = auxiliaryWindow.window.screenY;
 			try {
-				auxiliaryWindow.window.resizeTo(targetWidth, targetHeight);
+				auxiliaryWindow.window.resizeTo(newWidth, newHeight);
 				// Restore position if it drifted
 				const postX = auxiliaryWindow.window.screenX;
 				const postY = auxiliaryWindow.window.screenY;
