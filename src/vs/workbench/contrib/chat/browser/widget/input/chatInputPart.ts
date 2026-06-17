@@ -65,7 +65,7 @@ import { IKeybindingService } from '../../../../../../platform/keybinding/common
 import { WorkbenchList } from '../../../../../../platform/list/browser/listService.js';
 import { canLog, ILogService, LogLevel } from '../../../../../../platform/log/common/log.js';
 import { ObservableMemento, observableMemento } from '../../../../../../platform/observable/common/observableMemento.js';
-import { bindContextKey } from '../../../../../../platform/observable/common/platformObservableUtils.js';
+import { bindContextKey, observableContextKey } from '../../../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { ISharedWebContentExtractorService } from '../../../../../../platform/webContentExtractor/common/webContentExtractor.js';
@@ -670,7 +670,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this._attachmentModel = this._register(this.instantiationService.createInstance(ChatAttachmentModel));
 		this._register(this._attachmentModel.onDidChange(() => this._syncInputStateToModel()));
-		this.selectedToolsModel = this._register(this.instantiationService.createInstance(ChatSelectedTools, this.currentModeObs, this._currentLanguageModel));
+		// True while this widget is bound to an agent-host coding agent (agent-host-* / remote-*). The lock is applied
+		// asynchronously, so observe the context key rather than capturing a value at construction time.
+		const lockedCodingAgentIdObs = observableContextKey<string>(ChatContextKeys.lockedCodingAgentId.key, contextKeyService);
+		const isAgentHostSessionObs = derived(r => {
+			const id = lockedCodingAgentIdObs.read(r);
+			return !!id && isAgentHostTarget(id);
+		});
+		this.selectedToolsModel = this._register(this.instantiationService.createInstance(ChatSelectedTools, this.currentModeObs, this._currentLanguageModel, isAgentHostSessionObs));
 		this.dnd = this._register(this.instantiationService.createInstance(ChatDragAndDrop, () => this._widget, this._attachmentModel, styles));
 
 		this.inputEditorMaxHeight = this.options.renderStyle === 'compact' ? INPUT_EDITOR_MAX_HEIGHT / 3 : INPUT_EDITOR_MAX_HEIGHT;

@@ -12,6 +12,7 @@ import { IChatService } from '../../../../common/chatService/chatService.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource, ToolSet } from '../../../../common/tools/languageModelToolsService.js';
 import { MockChatService } from '../../../common/chatService/mockChatService.js';
 import { ChatSelectedTools } from '../../../../browser/widget/input/chatSelectedTools.js';
+import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { constObservable } from '../../../../../../../base/common/observable.js';
 import { Iterable } from '../../../../../../../base/common/iterator.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
@@ -25,6 +26,7 @@ suite('ChatSelectedTools', () => {
 
 	let store: DisposableStore;
 
+	let instaService: TestInstantiationService;
 	let toolsService: ILanguageModelToolsService;
 	let selectedTools: ChatSelectedTools;
 
@@ -32,7 +34,7 @@ suite('ChatSelectedTools', () => {
 
 		store = new DisposableStore();
 
-		const instaService = workbenchInstantiationService({
+		instaService = workbenchInstantiationService({
 			contextKeyService: () => store.add(new ContextKeyService(new TestConfigurationService)),
 		}, store);
 		instaService.stub(IChatService, new MockChatService());
@@ -40,7 +42,7 @@ suite('ChatSelectedTools', () => {
 
 		store.add(instaService);
 		toolsService = instaService.get(ILanguageModelToolsService);
-		selectedTools = store.add(instaService.createInstance(ChatSelectedTools, constObservable(ChatMode.Agent), constObservable(undefined)));
+		selectedTools = store.add(instaService.createInstance(ChatSelectedTools, constObservable(ChatMode.Agent), constObservable(undefined), constObservable(false)));
 	});
 
 	teardown(function () {
@@ -113,6 +115,37 @@ suite('ChatSelectedTools', () => {
 			assert.strictEqual(userSelectedTools[toolData1.id], true);
 			assert.strictEqual(userSelectedTools[toolData2.id], false);
 			assert.strictEqual(userSelectedTools[toolData3.id], false);
+		});
+	});
+
+	test('agent-host sessions default backend-provided tools off', () => {
+		return runWithFakedTimers({}, async () => {
+			const agentHostTools = store.add(instaService.createInstance(ChatSelectedTools, constObservable(ChatMode.Agent), constObservable(undefined), constObservable(true)));
+
+			const overlapTool: IToolData = {
+				id: 'agentHost.readFile',
+				toolReferenceName: 'readFile', // provided natively by the agent-host backend
+				displayName: 'Read File',
+				modelDescription: 'reads a file',
+				canBeReferencedInPrompt: true,
+				source: ToolDataSource.Internal,
+			};
+			const normalTool: IToolData = {
+				id: 'agentHost.normal',
+				toolReferenceName: 'agentHostNormal',
+				displayName: 'Normal',
+				modelDescription: 'a normal tool',
+				canBeReferencedInPrompt: true,
+				source: ToolDataSource.Internal,
+			};
+			store.add(toolsService.registerToolData(overlapTool));
+			store.add(toolsService.registerToolData(normalTool));
+
+			await timeout(1000); // tools service emits its change event asynchronously
+
+			const selected = agentHostTools.userSelectedTools.get();
+			assert.strictEqual(selected[overlapTool.id], false, 'backend-provided tools default off');
+			assert.strictEqual(selected[normalTool.id], true, 'other tools default on');
 		});
 	});
 

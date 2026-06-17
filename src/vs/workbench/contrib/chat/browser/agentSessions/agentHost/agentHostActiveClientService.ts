@@ -9,19 +9,17 @@ import { onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { equals } from '../../../../../../base/common/objects.js';
 import { autorun, derived, IObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import type { SessionActiveClient, ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { ChatConfiguration } from '../../../common/constants.js';
 import { ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
-import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, isToolSet } from '../../../common/tools/languageModelToolsService.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
+import { computeAgentHostToolEnablement, observableAgentHostToolsState } from '../../widget/input/chatSelectedTools.js';
 import { AgentCustomizationSyncProvider } from './agentCustomizationSyncProvider.js';
 import { resolveCustomizationRefs } from './agentHostLocalCustomizations.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
@@ -65,7 +63,6 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 
 	constructor(
 		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
-		@IConfigurationService configurationService: IConfigurationService,
 		@IPromptsService private readonly _promptsService: IPromptsService,
 		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
 		@IStorageService private readonly _storageService: IStorageService,
@@ -76,14 +73,20 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		super();
 		this._customizationsByType = observableValue('agentHostCustomizationsByType', new Map());
 
-		// Pass `undefined` for the model: agent-host sessions use server-side model selection.
+		// Pass `undefined` for the model: agent-host sessions use server-side model selection. The exposed tool set
+		// mirrors the user's agent-host tool selection (shared with the picker), with backend-provided tools defaulting off.
 		const allToolsObs = toolsService.observeTools(undefined);
-		const allowlistObs = observableConfigValue<string[]>(ChatConfiguration.AgentHostClientTools, [], configurationService);
+		const agentHostToolsState = observableAgentHostToolsState(this._storageService, this._store);
 		this.clientTools = derived(reader => {
-			const allowlist = new Set(allowlistObs.read(reader));
-			return allToolsObs.read(reader)
-				.filter(t => t.toolReferenceName !== undefined && allowlist.has(t.toolReferenceName))
-				.map(toolDataToDefinition);
+			const state = agentHostToolsState.read(reader);
+			const enablement = computeAgentHostToolEnablement(toolsService, state, allToolsObs.read(reader), undefined, reader);
+			const defs: ToolDefinition[] = [];
+			for (const [item, enabled] of enablement) {
+				if (enabled && !isToolSet(item) && item.canBeReferencedInPrompt !== false) {
+					defs.push(toolDataToDefinition(item));
+				}
+			}
+			return defs;
 		});
 	}
 

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { derived, IObservable, ObservableMap } from '../../../../../../base/common/observable.js';
+import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { derived, IObservable, IReader, observableFromEvent, ObservableMap } from '../../../../../../base/common/observable.js';
 import { isObject } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -13,7 +13,7 @@ import { ObservableMemento, observableMemento } from '../../../../../../platform
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IChatMode } from '../../../common/chatModes.js';
 import { ChatModeKind } from '../../../common/constants.js';
-import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
 import { UserSelectedTools } from '../../../common/participants/chatAgents.js';
 import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { ILanguageModelToolsService, IToolAndToolSetEnablementMap, IToolData, IToolSet, isToolSet } from '../../../common/tools/languageModelToolsService.js';
@@ -22,7 +22,7 @@ import { PromptFileRewriter } from '../../promptSyntax/promptFileRewriter.js';
 
 // todo@connor4312/bhavyaus: make tools key off displayName so model-specific tool
 // enablement can stick between models with different underlying tool definitions
-type ToolEnablementStates = {
+export type ToolEnablementStates = {
 	readonly toolSets: ReadonlyMap<string, boolean>;
 	readonly tools: ReadonlyMap<string, boolean>;
 };
@@ -89,16 +89,116 @@ namespace ToolEnablementStates {
 	}
 }
 
+const agentHostSelectedToolsStorageKey = 'chat/agentHost/selectedTools';
+
+/**
+ * Dedicated agent-host tool selection, kept separate from the global ("Local") selection so agent-host sessions can
+ * default backend-provided tools off without affecting the default agent's selection.
+ */
+const chatSelectedToolsAgentHostMemento = observableMemento<ToolEnablementStates>({
+	key: agentHostSelectedToolsStorageKey,
+	defaultValue: { toolSets: new Map(), tools: new Map() },
+	fromStorage: ToolEnablementStates.fromStorage,
+	toStorage: ToolEnablementStates.toStorage
+});
+
+/**
+ * Read-only observable over the agent-host tool selection that reacts to *all* storage writes (local and external).
+ *
+ * {@link chatSelectedToolsAgentHostMemento} (like every {@link observableMemento}) only refreshes from storage on
+ * external changes, so two memento instances in the same window do not see each other's writes. Long-lived consumers
+ * that must reflect the picker's edits live (e.g. the agent-host active client service) should use this instead.
+ */
+export function observableAgentHostToolsState(storageService: IStorageService, store: DisposableStore): IObservable<ToolEnablementStates> {
+	const read = (): ToolEnablementStates => {
+		const raw = storageService.get(agentHostSelectedToolsStorageKey, StorageScope.PROFILE);
+		return raw !== undefined ? ToolEnablementStates.fromStorage(raw) : { toolSets: new Map(), tools: new Map() };
+	};
+	return observableFromEvent(
+		storageService.onDidChangeValue(StorageScope.PROFILE, agentHostSelectedToolsStorageKey, store),
+		() => read()
+	);
+}
+
+/**
+ * Tool reference names whose capability an agent-host backend (Copilot SDK / Claude / Codex) already provides natively
+ * (file read/edit, literal file/text search, shell execution, web fetch). They stay available in the picker but default
+ * OFF for agent-host sessions so the model isn't offered the same capability twice.
+ *
+ * VS Code tools with no backend equivalent are intentionally excluded so they stay on by default — notably `codebase`
+ * (semantic/embeddings search, which the backend's literal grep/glob cannot replace) and the integrated-terminal
+ * context tools `terminalLastCommand` / `terminalSelection` (the backend's shell tool only executes commands).
+ */
+const agentHostBackendToolReferenceNames: ReadonlySet<string> = new Set([
+	// File read / navigation
+	'readFile', 'listDirectory',
+	// File edit / create
+	'applyPatch', 'insertEdit', 'replaceString', 'multiReplaceString', 'createFile', 'createDirectory', 'editFiles',
+	// Literal file / text search
+	'fileSearch', 'textSearch',
+	// Terminal / shell execution
+	'runInTerminal', 'getTerminalOutput', 'sendToTerminal', 'killTerminal',
+	// Web fetch
+	'fetch',
+]);
+
+function isAgentHostDefaultDisabled(tool: IToolData): boolean {
+	return tool.toolReferenceName !== undefined && agentHostBackendToolReferenceNames.has(tool.toolReferenceName);
+}
+
+/**
+ * Computes tool/tool-set enablement for an agent-host session. Like the standard resolution but backend-provided tools
+ * default OFF (opt-in). The result is kept consistent with the chat tool picker's `setChecked || perToolTrue` rendering:
+ * a tool-set's value is the AND of its members, and a member is enabled only by an explicit choice (its own, or its set
+ * being explicitly enabled) — a set being on by default does not force its backend-provided members on.
+ */
+export function computeAgentHostToolEnablement(toolsService: ILanguageModelToolsService, state: ToolEnablementStates, tools: readonly IToolData[], model: ILanguageModelChatMetadata | undefined, reader: IReader | undefined): IToolAndToolSetEnablementMap {
+	const map = new Map<IToolData | IToolSet, boolean>();
+	const isEnabled = (tool: IToolData, toolSetId: string | undefined): boolean => {
+		if (toolSetId !== undefined) {
+			const toolSetState = state.toolSets.get(toolSetId);
+			if (toolSetState === true) {
+				return true; // an explicitly enabled tool set turns on all of its members
+			}
+			if (toolSetState === false) {
+				return state.tools.get(tool.id) === true; // an explicitly disabled tool set hides all members unless opted in
+			}
+		}
+		const stored = state.tools.get(tool.id);
+		if (stored !== undefined) {
+			return stored;
+		}
+		return !isAgentHostDefaultDisabled(tool);
+	};
+	for (const tool of tools) {
+		if (tool.canBeReferencedInPrompt) {
+			map.set(tool, isEnabled(tool, undefined));
+		}
+	}
+	for (const toolSet of toolsService.getToolSetsForModel(model, reader)) {
+		let allEnabled = true;
+		for (const member of toolSet.getTools(reader)) {
+			const enabled = isEnabled(member, toolSet.id);
+			map.set(member, enabled);
+			allEnabled &&= enabled;
+		}
+		map.set(toolSet, allEnabled);
+	}
+	return map;
+}
+
 export enum ToolsScope {
 	Global,
 	Session,
 	Agent,
 	Agent_ReadOnly,
+	AgentHost,
 }
 
 export class ChatSelectedTools extends Disposable {
 
 	private readonly _globalState: ObservableMemento<ToolEnablementStates>;
+	private readonly _agentHostState: ObservableMemento<ToolEnablementStates>;
 
 	private readonly _sessionStates = new ObservableMap<string, ToolEnablementStates | undefined>();
 	private readonly _currentTools: IObservable<readonly IToolData[]>;
@@ -106,6 +206,7 @@ export class ChatSelectedTools extends Disposable {
 	constructor(
 		private readonly _mode: IObservable<IChatMode>,
 		private readonly languageModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>,
+		private readonly _isAgentHostSession: IObservable<boolean>,
 		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
 		@IStorageService _storageService: IStorageService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -120,6 +221,7 @@ export class ChatSelectedTools extends Disposable {
 		});
 
 		this._globalState = this._store.add(globalStateMemento(StorageScope.PROFILE, StorageTarget.MACHINE, _storageService));
+		this._agentHostState = this._store.add(chatSelectedToolsAgentHostMemento(StorageScope.PROFILE, StorageTarget.MACHINE, _storageService));
 		this._currentTools = languageModel.map(lm =>
 			_toolsService.observeTools(lm?.metadata)).map((o, r) => o.read(r));
 	}
@@ -131,19 +233,27 @@ export class ChatSelectedTools extends Disposable {
 	public readonly entriesMap: IObservable<IToolAndToolSetEnablementMap> = derived(r => {
 		const map = new Map<IToolData | IToolSet, boolean>();
 		const lm = this.languageModel.read(r)?.metadata;
+		const isAgentHost = this._isAgentHostSession.read(r);
 
 		// look up the tools in the hierarchy: session > mode > global
 		const currentMode = this._mode.read(r);
 		let currentMap = this._sessionStates.observable.read(r).get(currentMode.id);
-		if (!currentMap && currentMode.kind === ChatModeKind.Agent) {
+		if (!currentMap && !isAgentHost && currentMode.kind === ChatModeKind.Agent) {
 			const modeTools = currentMode.customTools?.read(r);
 			if (modeTools) {
 				currentMap = ToolEnablementStates.fromMap(this._toolsService.toToolAndToolSetEnablementMap(modeTools, lm));
 			}
 		}
 		if (!currentMap) {
-			currentMap = this._globalState.read(r);
+			currentMap = isAgentHost ? this._agentHostState.read(r) : this._globalState.read(r);
 		}
+
+		if (isAgentHost) {
+			// Agent-host sessions default backend-provided tools off; resolution lives in a shared helper so the
+			// exposed client tools stay in sync with what the picker shows.
+			return computeAgentHostToolEnablement(this._toolsService, currentMap, this._currentTools.read(r), lm, r);
+		}
+
 		// Use getTools with contextKeyService to filter tools by current model
 		for (const tool of this._currentTools.read(r)) {
 			if (tool.canBeReferencedInPrompt) {
@@ -177,6 +287,9 @@ export class ChatSelectedTools extends Disposable {
 		if (this._sessionStates.has(mode.id)) {
 			return ToolsScope.Session;
 		}
+		if (this._isAgentHostSession.get()) {
+			return ToolsScope.AgentHost;
+		}
 		if (mode.kind === ChatModeKind.Agent && mode.customTools?.get() && mode.uri) {
 			return mode.source?.storage !== PromptsStorage.extension ? ToolsScope.Agent : ToolsScope.Agent_ReadOnly;
 		}
@@ -196,6 +309,10 @@ export class ChatSelectedTools extends Disposable {
 		const mode = this._mode.get();
 		if (sessionOnly || this._sessionStates.has(mode.id)) {
 			this._sessionStates.set(mode.id, ToolEnablementStates.fromMap(enablementMap));
+			return;
+		}
+		if (this._isAgentHostSession.get()) {
+			this._agentHostState.set(ToolEnablementStates.fromMap(enablementMap), undefined);
 			return;
 		}
 		if (mode.kind === ChatModeKind.Agent && mode.customTools?.get() && mode.uri) {

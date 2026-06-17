@@ -14,7 +14,7 @@ import { observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { AgentSession, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { isChatAction, isSessionAction, type ActionEnvelope, type ChatAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { buildDefaultChatUri, buildSubagentSessionUri, createChatState, createDefaultChatSummary, MessageKind, SessionLifecycle, SessionStatus, createSessionState, StateComponents, type ChatState, type SessionState, type SessionSummary, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -36,12 +36,12 @@ import { TestFileService } from '../../../../../test/common/workbenchTestService
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { MockLabelService } from '../../../../../services/label/test/common/mockLabelService.js';
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
-import { IStorageService, InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
-import { ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult, IToolSet, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
@@ -239,11 +239,12 @@ suite('AgentHostClientTools', () => {
 
 	suite('client tools registration', () => {
 
-		function createMockToolsService(disposables: DisposableStore, tools: IToolData[], options?: { requireConfirmation?: boolean }) {
+		function createMockToolsService(disposables: DisposableStore, tools: IToolData[], options?: { requireConfirmation?: boolean; toolSets?: { id: string; getTools: () => IToolData[] }[] }) {
 			const onDidChangeTools = disposables.add(new Emitter<void>());
 			const pendingToolCalls = new Map<string, ChatToolInvocation>();
 			const begunToolCalls: ChatToolInvocation[] = [];
 			const invokedToolCalls: IToolInvocation[] = [];
+			const toolSets = (options?.toolSets ?? []) as unknown as Iterable<IToolSet>;
 			return {
 				onDidChangeTools: onDidChangeTools.event,
 				getToolByName: (name: string) => tools.find(t => t.toolReferenceName === name),
@@ -292,7 +293,7 @@ suite('AgentHostClientTools', () => {
 				cancelToolCallsForRequest: () => { },
 				flushToolUpdates: () => { },
 				toolSets: observableValue('sets', []),
-				getToolSetsForModel: () => [],
+				getToolSetsForModel: () => toolSets,
 				getToolSet: () => undefined,
 				getToolSetByName: () => undefined,
 				createToolSet: () => { throw new Error('not impl'); },
@@ -407,20 +408,16 @@ suite('AgentHostClientTools', () => {
 		function createHandlerWithMocks(
 			disposables: DisposableStore,
 			tools: IToolData[],
-			configOverrides?: { clientTools?: string[] },
-			toolServiceOptions?: { requireConfirmation?: boolean },
+			toolSelection?: { tools?: Record<string, boolean>; toolSets?: Record<string, boolean> },
+			toolServiceOptions?: { requireConfirmation?: boolean; toolSets?: { id: string; getTools: () => IToolData[] }[] },
 		) {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			const connection = new MockAgentHostConnection();
 
 			const toolsService = createMockToolsService(disposables, tools, toolServiceOptions);
-			const configValues: Record<string, unknown> = {
-				'chat.agentHost.clientTools': configOverrides?.clientTools ?? ['runTask', 'runTests'],
-			};
-			const onDidChangeConfig = disposables.add(new Emitter<IConfigurationChangeEvent>());
 			const configService: Partial<IConfigurationService> = {
-				getValue: (key: string) => configValues[key],
-				onDidChangeConfiguration: onDidChangeConfig.event,
+				getValue: () => undefined,
+				onDidChangeConfiguration: Event.None,
 			} as Partial<IConfigurationService>;
 
 			instantiationService.stub(ILogService, new NullLogService());
@@ -457,7 +454,15 @@ suite('AgentHostClientTools', () => {
 				registerAuthority: () => toDisposable(() => { }),
 				ensureSyncedCustomizationProvider: () => { },
 			});
-			instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
+			const storageService = disposables.add(new InMemoryStorageService());
+			if (toolSelection) {
+				storageService.store('chat/agentHost/selectedTools', JSON.stringify({
+					version: 2,
+					toolSetEntries: Object.entries(toolSelection.toolSets ?? {}),
+					toolEntries: Object.entries(toolSelection.tools ?? {}),
+				}), StorageScope.PROFILE, StorageTarget.MACHINE);
+			}
+			instantiationService.stub(IStorageService, storageService);
 			instantiationService.stub(ICustomizationHarnessService, {
 				registerExternalHarness: () => toDisposable(() => { }),
 			});
@@ -494,7 +499,7 @@ suite('AgentHostClientTools', () => {
 			instantiationService.stub(ILanguageModelToolsService, toolsService);
 
 			// Use the real active-client service so the handler's tools autorun
-			// observes the mocked ILanguageModelToolsService + allowlist setting.
+			// observes the mocked ILanguageModelToolsService and the user's global tool selection.
 			const activeClientService = disposables.add(instantiationService.createInstance(AgentHostActiveClientService));
 			instantiationService.stub(IAgentHostActiveClientService, activeClientService);
 
@@ -508,7 +513,7 @@ suite('AgentHostClientTools', () => {
 				connectionAuthority: 'local',
 			}));
 
-			return { handler, connection, toolsService, configValues, onDidChangeConfig };
+			return { handler, connection, toolsService, activeClientService, storageService };
 		}
 
 		const testRunTestsTool: IToolData = {
@@ -517,6 +522,7 @@ suite('AgentHostClientTools', () => {
 			displayName: 'Run Tests',
 			modelDescription: 'Runs unit tests',
 			source: ToolDataSource.Internal,
+			canBeReferencedInPrompt: true,
 			inputSchema: { type: 'object', properties: { files: { type: 'array' } } },
 		};
 
@@ -526,6 +532,7 @@ suite('AgentHostClientTools', () => {
 			displayName: 'Run Task',
 			modelDescription: 'Runs a VS Code task',
 			source: ToolDataSource.Internal,
+			canBeReferencedInPrompt: true,
 			inputSchema: { type: 'object', properties: { task: { type: 'string' } } },
 		};
 
@@ -535,9 +542,10 @@ suite('AgentHostClientTools', () => {
 			displayName: 'Read File',
 			modelDescription: 'Reads a file',
 			source: ToolDataSource.Internal,
+			canBeReferencedInPrompt: true,
 		};
 
-		test('maps allowlisted tool data to protocol definitions', async () => {
+		test('maps tool data to protocol definitions', async () => {
 			const { connection } = createHandlerWithMocks(disposables, [testRunTestsTool, testRunTaskTool, testUnlistedTool]);
 
 			// The handler dispatches activeClientChanged in the constructor when
@@ -545,42 +553,123 @@ suite('AgentHostClientTools', () => {
 			// Verify tools are built correctly by checking what would be dispatched.
 			assert.ok(connection);
 
-			// Verify that the tool conversion works correctly for the allowlisted tools
+			// Verify that the tool conversion works correctly.
 			const runTestsDef = toolDataToDefinition(testRunTestsTool);
 			assert.strictEqual(runTestsDef.name, 'runTests');
 			assert.strictEqual(runTestsDef.title, 'Run Tests');
 			assert.strictEqual(runTestsDef.description, 'Runs unit tests');
 		});
 
-		test('filters tool data to entries in configured allowlist', () => {
-			createHandlerWithMocks(disposables, [testRunTestsTool, testRunTaskTool, testUnlistedTool], {
-				clientTools: ['runTests'],
-			});
+		test('exposes non-backend tools by default and defaults backend-provided tools off', () => {
+			const { activeClientService } = createHandlerWithMocks(disposables, [testRunTestsTool, testRunTaskTool, testUnlistedTool]);
 
-			// Validate the filtering logic: only 'runTests' should match the allowlist.
-			const filteredTools = [testRunTestsTool, testRunTaskTool, testUnlistedTool]
-				.filter(t => t.toolReferenceName !== undefined && ['runTests'].includes(t.toolReferenceName));
-			assert.strictEqual(filteredTools.length, 1);
-			assert.strictEqual(filteredTools[0].toolReferenceName, 'runTests');
+			// readFile duplicates a backend-native capability, so it defaults off.
+			const names = activeClientService.clientTools.get().map(t => t.name);
+			assert.deepStrictEqual(names, ['runTests', 'runTask']);
 		});
 
-		test('dispatches activeClientToolsChanged when config changes', () => {
-			const { connection, configValues, onDidChangeConfig } = createHandlerWithMocks(
+		test('respects explicit global tool selection', () => {
+			const { activeClientService } = createHandlerWithMocks(disposables, [testRunTestsTool, testRunTaskTool, testUnlistedTool], {
+				tools: { 'vscode.readFile': true, 'vscode.runTests': false },
+			});
+
+			// Explicit choices win: readFile opted in, runTests opted out, runTask stays on by default.
+			const names = activeClientService.clientTools.get().map(t => t.name);
+			assert.deepStrictEqual(names, ['runTask', 'readFile']);
+		});
+
+		test('reflects tool selection changes written after construction', () => {
+			const { activeClientService, storageService } = createHandlerWithMocks(disposables, [testRunTestsTool, testRunTaskTool, testUnlistedTool]);
+
+			// Initially: backend-provided readFile is off by default; runTests and runTask are on.
+			assert.deepStrictEqual(activeClientService.clientTools.get().map(t => t.name), ['runTests', 'runTask']);
+
+			// Simulate the picker persisting a new selection after the service was constructed (a local,
+			// same-window write): opt readFile in and opt runTests out. The exposed tools must update live.
+			storageService.store('chat/agentHost/selectedTools', JSON.stringify({
+				version: 2,
+				toolSetEntries: [],
+				toolEntries: [['vscode.readFile', true], ['vscode.runTests', false]],
+			}), StorageScope.PROFILE, StorageTarget.MACHINE);
+
+			assert.deepStrictEqual(activeClientService.clientTools.get().map(t => t.name), ['runTask', 'readFile']);
+		});
+
+		test('excludes tools whose tool set (e.g. an MCP server) is disabled', () => {
+			const mcpToolA: IToolData = {
+				id: 'mcp.server.toolA',
+				toolReferenceName: 'mcp_toolA',
+				displayName: 'MCP Tool A',
+				modelDescription: 'an MCP tool',
+				source: ToolDataSource.Internal,
+				canBeReferencedInPrompt: true,
+			};
+			const mcpToolB: IToolData = {
+				id: 'mcp.server.toolB',
+				toolReferenceName: 'mcp_toolB',
+				displayName: 'MCP Tool B',
+				modelDescription: 'another MCP tool',
+				source: ToolDataSource.Internal,
+				canBeReferencedInPrompt: true,
+			};
+			const { activeClientService } = createHandlerWithMocks(
+				disposables,
+				[testRunTaskTool, mcpToolA, mcpToolB],
+				{ toolSets: { 'mcp.server': false } },
+				{ toolSets: [{ id: 'mcp.server', getTools: () => [mcpToolA, mcpToolB] }] },
+			);
+
+			// The MCP server tool set is disabled, so its member tools must not be exposed,
+			// even though they have no explicit per-tool selection. runTask is unaffected.
+			const names = activeClientService.clientTools.get().map(t => t.name);
+			assert.deepStrictEqual(names, ['runTask']);
+		});
+
+		test('includes tool set members without canBeReferencedInPrompt but excludes hidden tools', () => {
+			// Built-in tools (e.g. runTask) are surfaced via tool sets and do not set
+			// `canBeReferencedInPrompt`; they must still propagate as tool set members.
+			// Standalone tools that set it to `false` are internal agent-loop tools and must be excluded.
+			const toolWithoutFlag: IToolData = {
+				id: 'vscode.runTaskNoFlag',
+				toolReferenceName: 'runTaskNoFlag',
+				displayName: 'Run Task No Flag',
+				modelDescription: 'a tool set member without the flag set',
+				source: ToolDataSource.Internal,
+			};
+			const hiddenTool: IToolData = {
+				id: 'vscode.internalHidden',
+				toolReferenceName: 'internalHidden',
+				displayName: 'Hidden',
+				modelDescription: 'an internal hidden tool',
+				source: ToolDataSource.Internal,
+				canBeReferencedInPrompt: false,
+			};
+			const { activeClientService } = createHandlerWithMocks(
+				disposables,
+				[toolWithoutFlag, hiddenTool],
+				undefined,
+				{ toolSets: [{ id: 'vscode.set', getTools: () => [toolWithoutFlag] }] },
+			);
+
+			const names = activeClientService.clientTools.get().map(t => t.name);
+			assert.deepStrictEqual(names, ['runTaskNoFlag']);
+		});
+
+		test('does not dispatch activeClientToolsChanged without an active session', () => {
+			const { connection, storageService } = createHandlerWithMocks(
 				disposables,
 				[testRunTestsTool, testRunTaskTool],
 			);
 
-			// Simulate config change
-			configValues['chat.agentHost.clientTools'] = ['runTests'];
-			onDidChangeConfig.fire({ affectsConfiguration: (key: string) => key === 'chat.agentHost.clientTools' } as unknown as IConfigurationChangeEvent);
+			// Change the global tool selection.
+			storageService.store('chat/agentHost/selectedTools', JSON.stringify({
+				version: 2, toolSetEntries: [], toolEntries: [['vscode.runTests', false]],
+			}), StorageScope.PROFILE, StorageTarget.MACHINE);
 
-			// Since no session is active,
-			// no activeClientToolsChanged should be dispatched.
-			// But the observable should now reflect the new tools.
+			// Since no session is active, no activeClientToolsChanged should be dispatched.
 			const toolsChangedActions = connection.dispatchedActions.filter(
 				a => isSessionAction(a.action) && a.action.type === 'session/activeClientToolsChanged'
 			);
-			// No sessions active = no dispatches
 			assert.strictEqual(toolsChangedActions.length, 0);
 		});
 
@@ -590,7 +679,7 @@ suite('AgentHostClientTools', () => {
 			// appear in the observable, and thus won't be included.
 			// Our mock observeTools returns all tools directly, but in
 			// production, tools with non-matching when clauses are excluded
-			// before reaching the allowlist filter.
+			// before reaching the selection filter.
 			const def = toolDataToDefinition(testRunTestsTool);
 			assert.strictEqual(def.name, 'runTests');
 		});

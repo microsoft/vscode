@@ -90,7 +90,6 @@ export enum ChatConfiguration {
 	ToolRiskAssessmentEnabled = 'chat.tools.riskAssessment.enabled',
 	ToolRiskAssessmentModel = 'chat.tools.riskAssessment.model',
 	DefaultNewSessionMode = 'chat.newSession.defaultMode',
-	AgentHostClientTools = 'chat.agentHost.clientTools',
 	CopilotCliHideExtensionHostAgents = 'chat.agents.copilotCli.hideExtensionHost',
 	EditorDefaultProvider = 'chat.editor.defaultProvider',
 	EditorLocalAgentEnabled = 'chat.editor.localAgent.enabled',

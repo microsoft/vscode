@@ -205,7 +205,6 @@ import { ExploreAgentDefaultModel } from './exploreAgentDefaultModel.js';
 import { PlanAgentDefaultModel } from './planAgentDefaultModel.js';
 import { UtilityModelContribution, UtilitySmallModelContribution } from './utilityModelContribution.js';
 import { ChatImageCarouselService, IChatImageCarouselService } from './chatImageCarouselService.js';
-import { browserChatToolReferenceNames } from '../../browserView/common/browserChatToolReferenceNames.js';
 
 CommandsRegistry.registerCommand('_chat.notifyQuestionCarouselAnswer', (accessor: ServicesAccessor, resolveId: string, answers?: import('../common/chatService/chatService.js').IChatQuestionAnswers) => {
 	accessor.get(IChatService).notifyQuestionCarouselAnswer('', resolveId, answers);
@@ -1167,19 +1166,6 @@ configurationRegistry.registerConfiguration({
 			experiment: {
 				mode: 'auto'
 			},
-		},
-		[ChatConfiguration.AgentHostClientTools]: {
-			type: 'array',
-			items: { type: 'string' },
-			description: nls.localize('chat.agentHost.clientTools', "Tool reference names to expose as client-provided tools in agent host sessions."),
-			default: [
-				'runTask', 'getTaskOutput', 'problems', 'runTests',
-				// These are always present in the {@link ChatConfiguration.AgentHostClientTools} default but
-				// out of these, only the tools that are actually registered/enabled are seen by the agent.
-				...browserChatToolReferenceNames,
-			],
-			agentsWindow: { default: ['runTask', 'getTaskOutput', ...browserChatToolReferenceNames] },
-			tags: ['experimental', 'advanced'],
 		},
 		[ChatConfiguration.ToolConfirmationCarousel]: {
 			type: 'boolean',

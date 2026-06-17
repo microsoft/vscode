@@ -17,7 +17,7 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { ChatContextKeyExprs, ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ConfirmedReason, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService/chatService.js';
 import { isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatModeKind } from '../../common/constants.js';
@@ -129,7 +129,10 @@ export class ConfigureToolsAction extends Action2 {
 			menu: [{
 				when: ContextKeyExpr.and(
 					ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
-					ChatContextKeys.lockedToCodingAgent.negate(),
+					ContextKeyExpr.or(
+						ChatContextKeys.lockedToCodingAgent.negate(),
+						ChatContextKeyExprs.isAgentHostSession,
+					),
 				),
 				id: MenuId.ChatInput,
 				group: 'navigation',
@@ -174,6 +177,10 @@ export class ConfigureToolsAction extends Action2 {
 			case ToolsScope.Global:
 				placeholder = localize('chat.tools.placeholder.global', "Select tools that are available to chat.");
 				description = localize('chat.tools.description.global', "The selected tools will be applied globally for all chat sessions that use the default agent.");
+				break;
+			case ToolsScope.AgentHost:
+				placeholder = localize('chat.tools.placeholder.agentHost', "Select tools that are available to agent sessions.");
+				description = localize('chat.tools.description.agentHost', "The selected tools will be applied to all agent sessions. Tools already provided by the agent are off by default.");
 				break;
 
 		}

@@ -803,6 +803,9 @@ export class CopilotAgentSession extends Disposable {
 			name: def.name,
 			description: def.description ?? '',
 			parameters: def.inputSchema ?? { type: 'object' as const, properties: {} },
+			// A client tool may share a name with an SDK built-in (e.g. when the user opts a VS Code tool that duplicates a
+			// backend capability into the session). Declare the override so the SDK uses the client tool instead of erroring.
+			overridesBuiltInTool: true,
 			handler: async (_args: Record<string, unknown>, { toolCallId }) => {
 				try {
 					// The completion may legitimately arrive before this handler

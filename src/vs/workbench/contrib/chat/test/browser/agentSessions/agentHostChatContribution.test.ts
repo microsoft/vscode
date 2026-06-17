@@ -503,7 +503,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	});
 	instantiationService.stub(IConfigurationService, {
 		onDidChangeConfiguration: Event.None,
-		getValue: (...args: any[]) => typeof args[0] === 'string' && args[0] === 'chat.agentHost.clientTools' ? [] : true,
+		getValue: () => true,
 	});
 	instantiationService.stub(ILanguageModelToolsService, {
 		observeTools: () => observableValue('tools', []),
