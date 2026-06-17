@@ -5,13 +5,14 @@ parameters:
 jobs:
   - job: Alpine_${{ parameters.VSCODE_ARCH }}
     displayName: Alpine (${{ upper(parameters.VSCODE_ARCH) }})
-    timeoutInMinutes: 30
+    timeoutInMinutes: 60
     pool:
       name: 1es-ubuntu-22.04-x64
       os: linux
     variables:
       NPM_ARCH: ${{ parameters.VSCODE_ARCH }}
       VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
+      BUILDS_API_URL: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
     templateContext:
       outputParentDirectory: $(Build.ArtifactStagingDirectory)/out
       outputs:
@@ -47,6 +48,12 @@ jobs:
             sbomBuildDropPath: $(WEB_DIR_PATH)
             sbomPackageName: "VS Code Alpine $(VSCODE_ARCH) Web"
             sbomPackageVersion: $(Build.SourceVersion)
+        - output: pipelineArtifact
+          targetPath: $(Build.SourcesDirectory)/.build/agent-sdk/tarballs
+          artifactName: agent_sdk_alpine_$(VSCODE_ARCH)_tarballs
+          displayName: Publish agent SDK tarballs
+          sbomEnabled: false
+          condition: and(succeededOrFailed(), eq(variables['AGENT_SDK_TARBALLS_PRODUCED'], 'true'))
     steps:
       - template: ../common/checkout.yml@self
 
@@ -63,15 +70,6 @@ jobs:
           azureSubscription: vscode
           KeyVaultName: vscode-build-secrets
           SecretsFilter: "github-distro-mixin-password"
-
-      - task: DownloadPipelineArtifact@2
-        inputs:
-          artifact: Compilation
-          path: $(Build.ArtifactStagingDirectory)
-        displayName: Download compilation output
-
-      - script: tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
-        displayName: Extract compilation output
 
       - script: node build/setup-npm-registry.ts $NPM_REGISTRY
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
@@ -116,6 +114,16 @@ jobs:
           containerCommand: uname
         displayName: "Pull image"
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+      - task: Docker@1
+        inputs:
+          azureSubscriptionEndpoint: vscode
+          azureContainerRegistry: vscodehub.azurecr.io
+          command: "Run an image"
+          imageName: "multiarch/qemu-user-static@sha256:fe60359c92e86a43cc87b3d906006245f77bfc0565676b80004cc666e4feb9f0"
+          containerCommand: uname
+        displayName: "Pull qemu-user-static image"
+        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['NPM_ARCH'], 'arm64'))
 
       - script: sudo apt-get update && sudo apt-get install -y libkrb5-dev
         displayName: Install build dependencies
@@ -172,6 +180,25 @@ jobs:
         displayName: Mixin distro quality
 
       - template: ../common/install-builtin-extensions.yml@self
+
+      - template: ../common/agent-sdk-produce.yml@self
+        parameters:
+          vscodePlatform: alpine
+
+      - script: npx deemon --detach --wait -- node build/azure-pipelines/common/downloadCopilotVsix.ts
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+        displayName: Download Copilot VSIX (background)
+
+      - script: npm run gulp core-ci
+        env:
+          GITHUB_TOKEN: "$(github-distro-mixin-password)"
+        displayName: Compile
+
+      - script: npx deemon --attach -- node build/azure-pipelines/common/downloadCopilotVsix.ts
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+        displayName: Download Copilot VSIX
 
       - script: |
           set -e

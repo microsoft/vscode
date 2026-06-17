@@ -720,7 +720,7 @@ export class AsyncReferenceCollection<T> {
 
 	constructor(private referenceCollection: ReferenceCollection<Promise<T>>) { }
 
-	async acquire(key: string, ...args: any[]): Promise<IReference<T>> {
+	async acquire(key: string, ...args: unknown[]): Promise<IReference<T>> {
 		const ref = this.referenceCollection.acquire(key, ...args);
 
 		try {

@@ -143,11 +143,8 @@ const logger = createLogger();
 const loggerWarn = logger.warn;
 
 logger.warn = (msg, options) => {
-	// amdX and the baseUrl code cannot be analyzed by vite.
-	// However, they are not needed, so it is okay to silence the warning.
-	if (msg.indexOf('vs/amdX.ts') !== -1) {
-		return;
-	}
+	// the baseUrl code cannot be analyzed by vite.
+	// However, it is not needed, so it is okay to silence the warning.
 	if (msg.indexOf('await import(new URL(`vs/workbench/workbench.desktop.main.js`, baseUrl).href)') !== -1) {
 		return;
 	}

@@ -35,9 +35,10 @@ suite('Workbench - MCP - ResourceFilesystem', () => {
 	let fs: McpResourceFilesystem;
 
 	setup(() => {
+		const storageService = ds.add(new TestStorageService());
 		const services = new ServiceCollection(
 			[IFileService, { registerProvider: () => { } }],
-			[IStorageService, ds.add(new TestStorageService())],
+			[IStorageService, storageService],
 			[ILoggerService, ds.add(new TestLoggerService())],
 			[IWorkspaceContextService, new TestContextService()],
 			[IWorkbenchEnvironmentService, {}],
@@ -49,7 +50,7 @@ suite('Workbench - MCP - ResourceFilesystem', () => {
 		const registry = new TestMcpRegistry(parentInsta1);
 
 		const parentInsta2 = ds.add(parentInsta1.createChild(new ServiceCollection([IMcpRegistry, registry])));
-		const mcpService = ds.add(new McpService(parentInsta2, registry, new NullLogService(), new TestConfigurationService()));
+		const mcpService = ds.add(new McpService(parentInsta2, registry, new NullLogService(), new TestConfigurationService(), storageService));
 		mcpService.updateCollectedServers();
 
 		const instaService = ds.add(parentInsta2.createChild(new ServiceCollection(

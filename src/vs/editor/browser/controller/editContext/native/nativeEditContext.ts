@@ -58,6 +58,7 @@ export class NativeEditContext extends AbstractEditContext {
 	private readonly _editContext: EditContext;
 	private readonly _screenReaderSupport: ScreenReaderSupport;
 	private _previousEditContextSelection: OffsetRange = new OffsetRange(0, 0);
+	private _previousEditContextText: string = '';
 	private _editContextPrimarySelection: Selection = new Selection(1, 1, 1, 1);
 
 	// Overflow guard container
@@ -247,6 +248,19 @@ export class NativeEditContext extends AbstractEditContext {
 			}
 		}));
 		this._register(NativeEditContextRegistry.register(ownerID, this));
+		this._register(context.viewModel.model.onDidChangeContent((e) => {
+			let doChange = false;
+			for (const change of e.changes) {
+				if (change.range.startLineNumber <= this._editContextPrimarySelection.endLineNumber
+					&& change.range.endLineNumber >= this._editContextPrimarySelection.startLineNumber) {
+					doChange = true;
+					break;
+				}
+			}
+			if (doChange) {
+				this._updateEditContext();
+			}
+		}));
 	}
 
 	// --- Public methods ---
@@ -310,25 +324,15 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	public override onLinesChanged(e: ViewLinesChangedEvent): boolean {
-		this._updateEditContextOnLineChange(e.fromLineNumber, e.fromLineNumber + e.count - 1);
 		return true;
 	}
 
 	public override onLinesDeleted(e: ViewLinesDeletedEvent): boolean {
-		this._updateEditContextOnLineChange(e.fromLineNumber, e.toLineNumber);
 		return true;
 	}
 
 	public override onLinesInserted(e: ViewLinesInsertedEvent): boolean {
-		this._updateEditContextOnLineChange(e.fromLineNumber, e.toLineNumber);
 		return true;
-	}
-
-	private _updateEditContextOnLineChange(fromLineNumber: number, toLineNumber: number): void {
-		if (this._editContextPrimarySelection.endLineNumber < fromLineNumber || this._editContextPrimarySelection.startLineNumber > toLineNumber) {
-			return;
-		}
-		this._updateEditContext();
 	}
 
 	public override onScrollChanged(e: ViewScrollChangedEvent): boolean {
@@ -412,8 +416,15 @@ export class NativeEditContext extends AbstractEditContext {
 		if (!editContextState) {
 			return;
 		}
-		this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, editContextState.text ?? ' ');
-		this._editContext.updateSelection(editContextState.selectionStartOffset, editContextState.selectionEndOffset);
+		const newText = editContextState.text ?? ' ';
+		if (newText !== this._previousEditContextText) {
+			this._editContext.updateText(0, this._previousEditContextText.length, newText);
+			this._previousEditContextText = newText;
+		}
+		if (editContextState.selectionStartOffset !== this._previousEditContextSelection.start ||
+			editContextState.selectionEndOffset !== this._previousEditContextSelection.endExclusive) {
+			this._editContext.updateSelection(editContextState.selectionStartOffset, editContextState.selectionEndOffset);
+		}
 		this._editContextPrimarySelection = editContextState.editContextPrimarySelection;
 		this._previousEditContextSelection = new OffsetRange(editContextState.selectionStartOffset, editContextState.selectionEndOffset);
 	}

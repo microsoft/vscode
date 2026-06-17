@@ -14,8 +14,8 @@ import { ActionRunner, IAction, IActionRunner, Separator, toAction } from '../..
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { dispose, DisposableStore, Disposable } from '../../../../base/common/lifecycle.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { INotificationViewItem, NotificationViewItem, NotificationViewItemContentChangeKind, INotificationMessage, ChoiceAction } from '../../../common/notifications.js';
-import { ClearNotificationAction, ExpandNotificationAction, CollapseNotificationAction, ConfigureNotificationAction } from './notificationsActions.js';
+import { INotificationViewItem, NotificationViewItem, NotificationViewItemContentChangeKind, INotificationMessage, ChoiceAction, NotificationsSettings, getNotificationsPosition } from '../../../common/notifications.js';
+import { ClearNotificationAction, ExpandNotificationAction, CollapseNotificationAction, ConfigureNotificationAction, getNotificationExpandIcon, getNotificationCollapseIcon } from './notificationsActions.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
 import { INotificationService, NotificationsFilter, Severity, isNotificationSource } from '../../../../platform/notification/common/notification.js';
@@ -32,6 +32,7 @@ import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import type { IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 export class NotificationsListDelegate implements IListVirtualDelegate<INotificationViewItem> {
 
@@ -316,6 +317,16 @@ export class NotificationTemplateRenderer extends Disposable {
 	private static expandNotificationAction: ExpandNotificationAction;
 	private static collapseNotificationAction: CollapseNotificationAction;
 
+	private static updateExpandCollapseIcons(configurationService: IConfigurationService): void {
+		if (!NotificationTemplateRenderer.expandNotificationAction) {
+			return;
+		}
+
+		const position = getNotificationsPosition(configurationService);
+		NotificationTemplateRenderer.expandNotificationAction.class = ThemeIcon.asClassName(getNotificationExpandIcon(position));
+		NotificationTemplateRenderer.collapseNotificationAction.class = ThemeIcon.asClassName(getNotificationCollapseIcon(position));
+	}
+
 	private static readonly SEVERITIES = [Severity.Info, Severity.Warning, Severity.Error];
 
 	private readonly inputDisposables = this._register(new DisposableStore());
@@ -328,6 +339,7 @@ export class NotificationTemplateRenderer extends Disposable {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -335,7 +347,14 @@ export class NotificationTemplateRenderer extends Disposable {
 			NotificationTemplateRenderer.closeNotificationAction = instantiationService.createInstance(ClearNotificationAction, ClearNotificationAction.ID, ClearNotificationAction.LABEL);
 			NotificationTemplateRenderer.expandNotificationAction = instantiationService.createInstance(ExpandNotificationAction, ExpandNotificationAction.ID, ExpandNotificationAction.LABEL);
 			NotificationTemplateRenderer.collapseNotificationAction = instantiationService.createInstance(CollapseNotificationAction, CollapseNotificationAction.ID, CollapseNotificationAction.LABEL);
+			NotificationTemplateRenderer.updateExpandCollapseIcons(configurationService);
 		}
+
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(NotificationsSettings.NOTIFICATIONS_POSITION)) {
+				NotificationTemplateRenderer.updateExpandCollapseIcons(configurationService);
+			}
+		}));
 	}
 
 	setInput(notification: INotificationViewItem): void {

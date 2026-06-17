@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Uri } from 'vscode';
-import { Change, Status } from './api/git';
+import type { Change } from './api/git';
+import { Status } from './api/git.constants';
 
 export interface GitUriParams {
 	path: string;

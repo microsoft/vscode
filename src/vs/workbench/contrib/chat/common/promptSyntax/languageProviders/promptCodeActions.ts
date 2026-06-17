@@ -16,9 +16,10 @@ import { Selection } from '../../../../../../editor/common/core/selection.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { LEGACY_MODE_FILE_EXTENSION } from '../config/promptFileLocations.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { getTarget, isVSCodeOrDefaultTarget, MARKERS_OWNER_ID } from './promptValidator.js';
+import { MARKERS_OWNER_ID } from './promptValidator.js';
 import { IMarkerData, IMarkerService } from '../../../../../../platform/markers/common/markers.js';
 import { CodeActionKind } from '../../../../../../editor/contrib/codeAction/common/types.js';
+import { getTarget, isVSCodeOrDefaultTarget } from './promptFileAttributes.js';
 
 export class PromptCodeActionProvider implements CodeActionProvider {
 	/**

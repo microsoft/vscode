@@ -39,7 +39,7 @@ suite('JsonRpcProtocol', () => {
 		const requestPromise = protocol.sendRequest<string>({ method: 'echo', params: { value: 'ok' } });
 		const outgoingRequest = sentMessages[0] as IJsonRpcRequest;
 
-		await protocol.handleMessage({
+		const replies = await protocol.handleMessage({
 			jsonrpc: '2.0',
 			id: outgoingRequest.id,
 			result: 'done'
@@ -47,6 +47,7 @@ suite('JsonRpcProtocol', () => {
 
 		const result = await requestPromise;
 		assert.strictEqual(result, 'done');
+		assert.deepStrictEqual(replies, []);
 	});
 
 	test('sendRequest rejects on error response', async () => {
@@ -107,20 +108,22 @@ suite('JsonRpcProtocol', () => {
 	test('handleRequest responds with method not found without handler', async () => {
 		const { protocol, sentMessages } = createProtocol();
 
-		await protocol.handleMessage({
+		const replies = await protocol.handleMessage({
 			jsonrpc: '2.0',
 			id: 7,
 			method: 'unknown'
 		});
 
-		assert.deepStrictEqual(sentMessages, [{
+		const expected = [{
 			jsonrpc: '2.0',
 			id: 7,
 			error: {
 				code: -32601,
 				message: 'Method not found: unknown'
 			}
-		}]);
+		}];
+		assert.deepStrictEqual(sentMessages, expected);
+		assert.deepStrictEqual(replies, expected);
 	});
 
 	test('handleRequest responds with result and passes cancellation token', async () => {
@@ -134,7 +137,7 @@ suite('JsonRpcProtocol', () => {
 			}
 		});
 
-		await protocol.handleMessage({
+		const replies = await protocol.handleMessage({
 			jsonrpc: '2.0',
 			id: 9,
 			method: 'compute'
@@ -142,27 +145,29 @@ suite('JsonRpcProtocol', () => {
 
 		assert.ok(receivedToken);
 		assert.strictEqual(wasCanceledDuringHandler, false);
-		assert.deepStrictEqual(sentMessages, [{
+		const expected = [{
 			jsonrpc: '2.0',
 			id: 9,
 			result: 'compute:ok'
-		}]);
+		}];
+		assert.deepStrictEqual(sentMessages, expected);
+		assert.deepStrictEqual(replies, expected);
 	});
 
-	test('handleRequest serializes JsonRpcError', async () => {
+	test('handleRequest serializes JsonRpcError and returns it', async () => {
 		const { protocol, sentMessages } = createProtocol({
 			handleRequest: () => {
 				throw new JsonRpcError(88, 'bad request', { detail: true });
 			}
 		});
 
-		await protocol.handleMessage({
+		const replies = await protocol.handleMessage({
 			jsonrpc: '2.0',
 			id: 'a',
 			method: 'boom'
 		});
 
-		assert.deepStrictEqual(sentMessages, [{
+		const expected = [{
 			jsonrpc: '2.0',
 			id: 'a',
 			error: {
@@ -170,30 +175,34 @@ suite('JsonRpcProtocol', () => {
 				message: 'bad request',
 				data: { detail: true }
 			}
-		}]);
+		}];
+		assert.deepStrictEqual(sentMessages, expected);
+		assert.deepStrictEqual(replies, expected);
 	});
 
-	test('handleRequest maps unknown errors to internal error', async () => {
+	test('handleRequest maps unknown errors to internal error and returns it', async () => {
 		const { protocol, sentMessages } = createProtocol({
 			handleRequest: () => {
 				throw new Error('unexpected');
 			}
 		});
 
-		await protocol.handleMessage({
+		const replies = await protocol.handleMessage({
 			jsonrpc: '2.0',
 			id: 'b',
 			method: 'explode'
 		});
 
-		assert.deepStrictEqual(sentMessages, [{
+		const expected = [{
 			jsonrpc: '2.0',
 			id: 'b',
 			error: {
 				code: -32603,
 				message: 'unexpected'
 			}
-		}]);
+		}];
+		assert.deepStrictEqual(sentMessages, expected);
+		assert.deepStrictEqual(replies, expected);
 	});
 
 	test('handleMessage processes batch sequentially', async () => {
@@ -225,8 +234,9 @@ suite('JsonRpcProtocol', () => {
 		assert.deepStrictEqual(sequence, ['request:start']);
 
 		gate.complete();
-		await handlingPromise;
+		const replies = await handlingPromise;
 
 		assert.deepStrictEqual(sequence, ['request:start', 'request:end', 'notification']);
+		assert.deepStrictEqual(replies, [{ jsonrpc: '2.0', id: 1, result: true }]);
 	});
 });

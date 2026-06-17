@@ -7,11 +7,13 @@ import * as esbuild from 'esbuild';
 import * as fs from 'fs';
 import * as path from 'path';
 import { promisify } from 'util';
+
 import glob from 'glob';
 import gulpWatch from '../lib/watch/index.ts';
 import { nlsPlugin, createNLSCollector, finalizeNLS, postProcessNLS } from './nls-plugin.ts';
 import { convertPrivateFields, adjustSourceMap, type ConvertPrivateFieldsResult } from './private-to-property.ts';
 import { getVersion } from '../lib/getVersion.ts';
+import { getGitCommitDate } from '../lib/date.ts';
 import product from '../../product.json' with { type: 'json' };
 import packageJson from '../../package.json' with { type: 'json' };
 import { useEsbuildTranspile } from '../buildConfig.ts';
@@ -72,7 +74,8 @@ const extensionHostEntryPoints = [
 ];
 
 function isExtensionHostBundle(filePath: string): boolean {
-	return extensionHostEntryPoints.some(ep => filePath.endsWith(`${ep}.js`));
+	const normalized = filePath.replaceAll('\\', '/');
+	return extensionHostEntryPoints.some(ep => normalized.endsWith(`${ep}.js`));
 }
 
 // Workers - shared between targets
@@ -98,6 +101,8 @@ const desktopEntryPoints = [
 	'vs/workbench/contrib/debug/node/telemetryApp',
 	'vs/platform/files/node/watcher/watcherMain',
 	'vs/platform/terminal/node/ptyHostMain',
+	'vs/platform/agentHost/node/agentHostMain',
+	'vs/platform/agentHost/node/diffWorkerMain',
 	'vs/workbench/api/node/extensionHostProcess',
 ];
 
@@ -114,6 +119,11 @@ const webEntryPoints = [
 	'vs/code/browser/workbench/workbench',
 ];
 
+// Additional web-only entry points (CDN build only, not in server-web)
+const webOnlyEntryPoints = [
+	'vs/sessions/sessions.web.main.internal',
+];
+
 const keyboardMapEntryPoints = [
 	'vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.linux',
 	'vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.darwin',
@@ -125,6 +135,8 @@ const serverEntryPoints = [
 	'vs/workbench/api/node/extensionHostProcess',
 	'vs/platform/files/node/watcher/watcherMain',
 	'vs/platform/terminal/node/ptyHostMain',
+	'vs/platform/agentHost/node/agentHostMain',
+	'vs/platform/agentHost/node/diffWorkerMain',
 ];
 
 // Bootstrap files per target
@@ -166,6 +178,7 @@ function getEntryPointsForTarget(target: BuildTarget): string[] {
 		case 'web':
 			return [
 				...workerEntryPoints,
+				...webOnlyEntryPoints,
 				'vs/workbench/workbench.web.main.internal', // web workbench only (no browser shell)
 				...keyboardMapEntryPoints,
 			];
@@ -213,6 +226,7 @@ function getCssBundleEntryPointsForTarget(target: BuildTarget): Set<string> {
 		case 'web':
 			return new Set([
 				'vs/workbench/workbench.web.main.internal',
+				'vs/sessions/sessions.web.main.internal',
 			]);
 		default:
 			throw new Error(`Unknown target: ${target}`);
@@ -232,7 +246,8 @@ const commonResourcePatterns = [
 	// SVGs referenced from CSS (needed for transpile/dev builds where CSS is copied as-is)
 	'vs/workbench/browser/media/code-icon.svg',
 	'vs/workbench/browser/parts/editor/media/letterpress*.svg',
-	'vs/sessions/contrib/chat/browser/media/*.svg'
+	'vs/sessions/contrib/chat/browser/media/*.svg',
+	'vs/sessions/contrib/welcome/browser/media/themePreviews/*.svg'
 ];
 
 // Resources for desktop target
@@ -257,6 +272,12 @@ const desktopResourcePatterns = [
 	'vs/workbench/contrib/terminal/common/scripts/*.psm1',
 	'vs/workbench/contrib/terminal/common/scripts/*.fish',
 	'vs/workbench/contrib/terminal/common/scripts/*.zsh',
+	'vs/workbench/contrib/terminal/common/scripts/psreadline/*.psd1',
+	'vs/workbench/contrib/terminal/common/scripts/psreadline/*.psm1',
+	'vs/workbench/contrib/terminal/common/scripts/psreadline/*.dll',
+	'vs/workbench/contrib/terminal/common/scripts/psreadline/*.ps1xml',
+	'vs/workbench/contrib/terminal/common/scripts/psreadline/net6plus/*.dll',
+	'vs/workbench/contrib/terminal/common/scripts/psreadline/netstd/*.dll',
 	'vs/workbench/contrib/externalTerminal/**/*.scpt',
 
 	// Media - audio
@@ -265,11 +286,16 @@ const desktopResourcePatterns = [
 	// Media - images
 	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.svg',
 	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.png',
+	'vs/workbench/contrib/welcomeOnboarding/browser/media/*.svg',
 	'vs/workbench/contrib/extensions/browser/media/{theme-icon.png,language-icon.svg}',
 	'vs/workbench/services/extensionManagement/common/media/*.svg',
 	'vs/workbench/services/extensionManagement/common/media/*.png',
 	'vs/workbench/browser/parts/editor/media/*.png',
 	'vs/workbench/contrib/debug/browser/media/*.png',
+
+	// Sessions - built-in prompts and skills
+	'vs/sessions/prompts/*.prompt.md',
+	'vs/sessions/skills/**/SKILL.md',
 ];
 
 // Resources for server target (minimal - no UI)
@@ -291,6 +317,12 @@ const serverResourcePatterns = [
 	'vs/workbench/contrib/terminal/common/scripts/shellIntegration-rc.zsh',
 	'vs/workbench/contrib/terminal/common/scripts/shellIntegration-login.zsh',
 	'vs/workbench/contrib/terminal/common/scripts/shellIntegration.fish',
+	'vs/workbench/contrib/terminal/common/scripts/psreadline/*.psd1',
+	'vs/workbench/contrib/terminal/common/scripts/psreadline/*.psm1',
+	'vs/workbench/contrib/terminal/common/scripts/psreadline/*.dll',
+	'vs/workbench/contrib/terminal/common/scripts/psreadline/*.ps1xml',
+	'vs/workbench/contrib/terminal/common/scripts/psreadline/net6plus/*.dll',
+	'vs/workbench/contrib/terminal/common/scripts/psreadline/netstd/*.dll',
 ];
 
 // Resources for server-web target (server + web UI)
@@ -314,6 +346,7 @@ const serverWebResourcePatterns = [
 	// Media - images
 	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.svg',
 	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.png',
+	'vs/workbench/contrib/welcomeOnboarding/browser/media/*.svg',
 	'vs/workbench/contrib/extensions/browser/media/*.svg',
 	'vs/workbench/contrib/extensions/browser/media/*.png',
 	'vs/workbench/services/extensionManagement/common/media/*.svg',
@@ -340,6 +373,7 @@ const webResourcePatterns = [
 	// Media - images
 	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.svg',
 	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.png',
+	'vs/workbench/contrib/welcomeOnboarding/browser/media/*.svg',
 	'vs/workbench/contrib/extensions/browser/media/*.svg',
 	'vs/workbench/contrib/extensions/browser/media/*.png',
 	'vs/workbench/services/extensionManagement/common/media/*.svg',
@@ -419,13 +453,13 @@ function scanBuiltinExtensions(extensionsRoot: string): Array<IScannedBuiltinExt
 }
 
 /**
- * Get the date from the out directory date file, or return current date.
+ * Get the date from the out directory date file, or return the git commit date.
  */
 function readISODate(outDir: string): string {
 	try {
 		return fs.readFileSync(path.join(REPO_ROOT, outDir, 'date'), 'utf8');
 	} catch {
-		return new Date().toISOString();
+		return getGitCommitDate();
 	}
 }
 
@@ -691,7 +725,22 @@ async function transpileFile(srcPath: string, destPath: string): Promise<void> {
 	});
 
 	await fs.promises.mkdir(path.dirname(destPath), { recursive: true });
-	await fs.promises.writeFile(destPath, result.code);
+
+	const adjustedCode = adjustEsmUrl(result.code);
+	await fs.promises.writeFile(destPath, adjustedCode);
+}
+
+/*
+ * This enables https://github.com/microsoft/esm-url-bundler-plugins to work on both original and transpiled sources.
+ * Usees regex to only replace `.ts?esm` inside quoted URL strings, avoiding false positives.
+ *
+ * E.g.:
+ * -  esmModuleLocationBundler: () => new URL("../../../api/worker/extensionHostWorkerMain.ts?esm", import.meta.url)
+ * +  esmModuleLocationBundler: () => new URL("../../../api/worker/extensionHostWorkerMain.js?esm", import.meta.url)
+ */
+function adjustEsmUrl(code: string): string {
+	const fixedCode = code.replace(/\.ts(\?esm['"])/g, '.js$1');
+	return fixedCode;
 }
 
 async function transpile(outDir: string, excludeTests: boolean): Promise<void> {
@@ -723,10 +772,19 @@ async function transpile(outDir: string, excludeTests: boolean): Promise<void> {
 async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doManglePrivates: boolean, target: BuildTarget, sourceMapBaseUrl?: string): Promise<void> {
 	await cleanDir(outDir);
 
-	// Write build date file (used by packaging to embed in product.json)
+	// Write build date file (used by packaging to embed in product.json).
+	// Reuse the date from out-build/date if it exists (written by the gulp
+	// writeISODate task) so that all parallel bundle outputs share the same
+	// timestamp - this is required for deterministic builds (e.g. macOS Universal).
 	const outDirPath = path.join(REPO_ROOT, outDir);
 	await fs.promises.mkdir(outDirPath, { recursive: true });
-	await fs.promises.writeFile(path.join(outDirPath, 'date'), new Date().toISOString(), 'utf8');
+	let buildDate: string;
+	try {
+		buildDate = await fs.promises.readFile(path.join(REPO_ROOT, 'out-build', 'date'), 'utf8');
+	} catch {
+		buildDate = getGitCommitDate();
+	}
+	await fs.promises.writeFile(path.join(outDirPath, 'date'), buildDate, 'utf8');
 
 	console.log(`[bundle] ${SRC_DIR} → ${outDir} (target: ${target})${doMinify ? ' (minify)' : ''}${doNls ? ' (nls)' : ''}${doManglePrivates ? ' (mangle-privates)' : ''}`);
 	const t1 = Date.now();
@@ -885,6 +943,13 @@ ${tslib}`,
 	const mangleStats: { file: string; result: ConvertPrivateFieldsResult }[] = [];
 	// Map from JS file path to pre-mangle content + edits, for source map adjustment
 	const mangleEdits = new Map<string, { preMangleCode: string; edits: readonly import('./private-to-property.ts').TextEdit[] }>();
+	// Map from JS file path to pre-NLS content + edits, for source map adjustment
+	const nlsEdits = new Map<string, { preNLSCode: string; edits: readonly import('./private-to-property.ts').TextEdit[] }>();
+	// Defer .map files until all .js files are processed, because esbuild may
+	// emit the .map file in a different build result than the .js file (e.g.
+	// code-split chunks), and we need the NLS/mangle edits from the .js pass
+	// to be available when adjusting the .map.
+	const deferredMaps: { path: string; text: string; contents: Uint8Array }[] = [];
 	for (const { result } of buildResults) {
 		if (!result.outputFiles) {
 			continue;
@@ -913,7 +978,12 @@ ${tslib}`,
 
 				// Apply NLS post-processing if enabled (JS only)
 				if (file.path.endsWith('.js') && doNls && indexMap.size > 0) {
-					content = postProcessNLS(content, indexMap, preserveEnglish);
+					const preNLSCode = content;
+					const nlsResult = postProcessNLS(content, indexMap, preserveEnglish);
+					content = nlsResult.code;
+					if (nlsResult.edits.length > 0) {
+						nlsEdits.set(file.path, { preNLSCode, edits: nlsResult.edits });
+					}
 				}
 
 				// Rewrite sourceMappingURL to CDN URL if configured
@@ -931,22 +1001,58 @@ ${tslib}`,
 
 				await fs.promises.writeFile(file.path, content);
 			} else if (file.path.endsWith('.map')) {
-				// Source maps may need adjustment if private fields were mangled
-				const jsPath = file.path.replace(/\.map$/, '');
-				const editInfo = mangleEdits.get(jsPath);
-				if (editInfo) {
-					const mapJson = JSON.parse(file.text);
-					const adjusted = adjustSourceMap(mapJson, editInfo.preMangleCode, editInfo.edits);
-					await fs.promises.writeFile(file.path, JSON.stringify(adjusted));
-				} else {
-					await fs.promises.writeFile(file.path, file.contents);
-				}
+				// Defer .map processing until all .js files have been handled
+				deferredMaps.push({ path: file.path, text: file.text, contents: file.contents });
 			} else {
 				// Write other files (assets, etc.) as-is
 				await fs.promises.writeFile(file.path, file.contents);
 			}
 		}
 		bundled++;
+	}
+
+	// Second pass: process deferred .map files now that all mangle/NLS edits
+	// have been collected from .js processing above.
+	for (const mapFile of deferredMaps) {
+		const jsPath = mapFile.path.replace(/\.map$/, '');
+		const mangle = mangleEdits.get(jsPath);
+		const nls = nlsEdits.get(jsPath);
+
+		if (mangle || nls) {
+			let mapJson = JSON.parse(mapFile.text);
+			if (mangle) {
+				mapJson = adjustSourceMap(mapJson, mangle.preMangleCode, mangle.edits);
+			}
+			if (nls) {
+				mapJson = adjustSourceMap(mapJson, nls.preNLSCode, nls.edits);
+			}
+			await fs.promises.writeFile(mapFile.path, JSON.stringify(mapJson));
+		} else {
+			await fs.promises.writeFile(mapFile.path, mapFile.contents);
+		}
+	}
+
+	// Syntax-check JS files that were post-processed (mangle-privates, NLS).
+	// These steps do raw string surgery on bundled JS so a bug could silently
+	// produce syntactically broken output. Catch it here at build time.
+	// Uses esbuild.transform() as a parser since the bundles are ESM.
+	const postProcessedFiles = new Set([...mangleEdits.keys(), ...nlsEdits.keys()]);
+	if (postProcessedFiles.size > 0) {
+		const errors = (await Promise.all([...postProcessedFiles].map(async jsPath => {
+			try {
+				const src = await fs.promises.readFile(jsPath, 'utf-8');
+				await esbuild.transform(src, { loader: 'js', format: 'esm' });
+				return undefined;
+			} catch (e: unknown) {
+				const rel = path.relative(path.join(REPO_ROOT, outDir), jsPath);
+				const message = e instanceof Error ? e.message : String(e);
+				return { rel, message };
+			}
+		}))).filter(error => error !== undefined).sort((a, b) => a.rel.localeCompare(b.rel));
+		if (errors.length > 0) {
+			throw new Error(`[bundle] Syntax errors in post-processed JS files:\n${errors.map(e => `${e.rel}: ${e.message}`).join('\n')}`);
+		}
+		console.log(`[bundle] Syntax check passed for ${postProcessedFiles.size} post-processed JS files`);
 	}
 
 	// Log mangle-privates stats
@@ -1128,7 +1234,7 @@ async function main(): Promise<void> {
 					// Write build date file (used by packaging to embed in product.json)
 					const outDirPath = path.join(REPO_ROOT, outDir);
 					await fs.promises.mkdir(outDirPath, { recursive: true });
-					await fs.promises.writeFile(path.join(outDirPath, 'date'), new Date().toISOString(), 'utf8');
+					await fs.promises.writeFile(path.join(outDirPath, 'date'), getGitCommitDate(), 'utf8');
 
 					console.log(`[transpile] ${SRC_DIR} → ${outDir}${options.excludeTests ? ' (excluding tests)' : ''}`);
 					const t1 = Date.now();

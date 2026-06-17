@@ -15,7 +15,6 @@ import { INotificationsCenterController, NotificationActionRunner } from './noti
 import { NotificationsList } from './notificationsList.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { $, Dimension, isAncestorOfActiveElement } from '../../../../base/browser/dom.js';
-import { widgetShadow } from '../../../../platform/theme/common/colorRegistry.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { localize } from '../../../../nls.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
@@ -390,8 +389,6 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 
 	override updateStyles(): void {
 		if (this.notificationsCenterContainer && this.notificationsCenterHeader) {
-			const widgetShadowColor = this.getColor(widgetShadow);
-			this.notificationsCenterContainer.style.boxShadow = widgetShadowColor ? `0 0 8px 2px ${widgetShadowColor}` : '';
 
 			const borderColor = this.getColor(NOTIFICATIONS_CENTER_BORDER);
 			this.notificationsCenterContainer.style.border = borderColor ? `1px solid ${borderColor}` : '';

@@ -1006,7 +1006,7 @@ suite('Event utils', () => {
 			const result: number[] = [];
 			const emitter = ds.add(new Emitter<number>());
 			const event = emitter.event;
-			const bufferedEvent = Event.buffer(event);
+			const bufferedEvent = Event.buffer(event, 'test');
 
 			emitter.fire(1);
 			emitter.fire(2);
@@ -1028,7 +1028,7 @@ suite('Event utils', () => {
 			const result: number[] = [];
 			const emitter = ds.add(new Emitter<number>());
 			const event = emitter.event;
-			const bufferedEvent = Event.buffer(event, true);
+			const bufferedEvent = Event.buffer(event, 'test', true);
 
 			emitter.fire(1);
 			emitter.fire(2);
@@ -1050,7 +1050,7 @@ suite('Event utils', () => {
 			const result: number[] = [];
 			const emitter = ds.add(new Emitter<number>());
 			const event = emitter.event;
-			const bufferedEvent = Event.buffer(event, false, [-2, -1, 0]);
+			const bufferedEvent = Event.buffer(event, 'test', false, [-2, -1, 0]);
 
 			emitter.fire(1);
 			emitter.fire(2);

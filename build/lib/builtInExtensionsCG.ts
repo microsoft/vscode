@@ -21,9 +21,14 @@ const contentFileNames = ['package.json', 'package-lock.json'];
 
 async function downloadExtensionDetails(extension: IExtensionDefinition): Promise<void> {
 	const extensionLabel = `${extension.name}@${extension.version}`;
+
+	if (!extension.repo) {
+		console.log(`Skipping CG for ${extensionLabel} because no repository is defined`);
+		return;
+	}
+
 	const repository = url.parse(extension.repo).path!.substr(1);
 	const repositoryContentBaseUrl = `https://${token ? `${token}@` : ''}${contentBasePath}/${repository}/v${extension.version}`;
-
 
 	async function getContent(fileName: string): Promise<{ fileName: string; body: Buffer | undefined | null }> {
 		try {

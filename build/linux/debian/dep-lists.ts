@@ -17,7 +17,9 @@ export const additionalDeps = [
 // Dependencies that we can only recommend
 // for now since some of the older distros don't support them.
 export const recommendedDeps = [
-	'libvulkan1' // Move to additionalDeps once support for Trusty and Jessie are dropped.
+	'libvulkan1', // Move to additionalDeps once support for Trusty and Jessie are dropped.
+	'bubblewrap', // agent command sandboxing
+	'socat', // agent command sandboxing
 ];
 
 export const referenceGeneratedDepsByArch = {
@@ -27,7 +29,6 @@ export const referenceGeneratedDepsByArch = {
 		'libatk-bridge2.0-0 (>= 2.5.3)',
 		'libatk1.0-0 (>= 2.11.90)',
 		'libatspi2.0-0 (>= 2.9.90)',
-		'libc6 (>= 2.14)',
 		'libc6 (>= 2.16)',
 		'libc6 (>= 2.17)',
 		'libc6 (>= 2.2.5)',
@@ -46,6 +47,7 @@ export const referenceGeneratedDepsByArch = {
 		'libnss3 (>= 2:3.30)',
 		'libnss3 (>= 3.26)',
 		'libpango-1.0-0 (>= 1.14.0)',
+		'libstdc++6 (>= 6)',
 		'libudev1 (>= 183)',
 		'libx11-6',
 		'libx11-6 (>= 2:1.4.99.1)',

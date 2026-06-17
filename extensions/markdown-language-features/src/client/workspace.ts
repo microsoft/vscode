@@ -17,47 +17,47 @@ import { ResourceMap } from '../util/resourceMap';
  */
 export class VsCodeMdWorkspace extends Disposable {
 
-	private readonly _watcher: vscode.FileSystemWatcher | undefined;
+	readonly #watcher: vscode.FileSystemWatcher | undefined;
 
-	private readonly _documentCache = new ResourceMap<ITextDocument>();
+	readonly #documentCache = new ResourceMap<ITextDocument>();
 
-	private readonly _utf8Decoder = new TextDecoder('utf-8');
+	readonly #utf8Decoder = new TextDecoder('utf-8');
 
 	constructor() {
 		super();
 
-		this._watcher = this._register(vscode.workspace.createFileSystemWatcher('**/*.md'));
+		this.#watcher = this._register(vscode.workspace.createFileSystemWatcher('**/*.md'));
 
-		this._register(this._watcher.onDidChange(async resource => {
-			this._documentCache.delete(resource);
+		this._register(this.#watcher.onDidChange(async resource => {
+			this.#documentCache.delete(resource);
 		}));
 
-		this._register(this._watcher.onDidDelete(resource => {
-			this._documentCache.delete(resource);
+		this._register(this.#watcher.onDidDelete(resource => {
+			this.#documentCache.delete(resource);
 		}));
 
 		this._register(vscode.workspace.onDidOpenTextDocument(e => {
-			this._documentCache.delete(e.uri);
+			this.#documentCache.delete(e.uri);
 		}));
 
 		this._register(vscode.workspace.onDidCloseTextDocument(e => {
-			this._documentCache.delete(e.uri);
+			this.#documentCache.delete(e.uri);
 		}));
 	}
 
-	private _isRelevantMarkdownDocument(doc: vscode.TextDocument) {
+	#isRelevantMarkdownDocument(doc: vscode.TextDocument) {
 		return isMarkdownFile(doc) && doc.uri.scheme !== 'vscode-bulkeditpreview';
 	}
 
 	public async getOrLoadMarkdownDocument(resource: vscode.Uri): Promise<ITextDocument | undefined> {
-		const existing = this._documentCache.get(resource);
+		const existing = this.#documentCache.get(resource);
 		if (existing) {
 			return existing;
 		}
 
-		const matchingDocument = vscode.workspace.textDocuments.find((doc) => this._isRelevantMarkdownDocument(doc) && doc.uri.toString() === resource.toString());
+		const matchingDocument = vscode.workspace.textDocuments.find((doc) => this.#isRelevantMarkdownDocument(doc) && doc.uri.toString() === resource.toString());
 		if (matchingDocument) {
-			this._documentCache.set(resource, matchingDocument);
+			this.#documentCache.set(resource, matchingDocument);
 			return matchingDocument;
 		}
 
@@ -69,9 +69,9 @@ export class VsCodeMdWorkspace extends Disposable {
 			const bytes = await vscode.workspace.fs.readFile(resource);
 
 			// We assume that markdown is in UTF-8
-			const text = this._utf8Decoder.decode(bytes);
+			const text = this.#utf8Decoder.decode(bytes);
 			const doc = new InMemoryDocument(resource, text, 0);
-			this._documentCache.set(resource, doc);
+			this.#documentCache.set(resource, doc);
 			return doc;
 		} catch {
 			return undefined;

@@ -44,7 +44,14 @@ export async function awaitStatsForSession(model: IChatModel): Promise<IChatSess
 	}
 
 	await chatEditingSessionIsReady(model.editingSession);
+	if (!model.editingSession) {
+		return undefined;
+	}
+
 	await Promise.all(model.editingSession.entries.get().map(entry => entry.getDiffInfo?.()));
+	if (!model.editingSession) {
+		return undefined;
+	}
 
 	const diffs = model.editingSession.entries.get();
 	const reduceResult = diffs.reduce((acc, diff) => {

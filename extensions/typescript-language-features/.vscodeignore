@@ -5,6 +5,7 @@ test/**
 test-workspace/**
 out/**
 tsconfig*.json
+**/*.tsbuildinfo
 esbuild*.mts
 cgmanifest.json
 package-lock.json

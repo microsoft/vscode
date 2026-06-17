@@ -7,7 +7,7 @@ import { FileType, l10n, LogOutputChannel, QuickDiffProvider, Uri, workspace } f
 import { IRepositoryResolver, Repository } from './repository';
 import { isDescendant, pathEquals } from './util';
 import { toGitUri } from './uri';
-import { Status } from './api/git';
+import { Status } from './api/git.constants';
 
 export class GitQuickDiffProvider implements QuickDiffProvider {
 	readonly label = l10n.t('Git Local Changes (Working Tree)');

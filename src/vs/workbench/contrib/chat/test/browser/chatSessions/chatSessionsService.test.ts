@@ -4,8 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { IContextKey, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ChatSessionsService } from '../../../browser/chatSessions/chatSessions.contribution.js';
+import { ChatSessionOptionsMap, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionsExtensionPoint, ReadonlyChatSessionOptionsMap } from '../../../common/chatSessionsService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 
 suite.skip('ChatSessionsService', () => {
@@ -102,6 +109,153 @@ suite.skip('ChatSessionsService', () => {
 			const input = '   Check [](file:///test.js)   ';
 			const result = callExtractFileNameFromLink(input);
 			assert.strictEqual(result, '   Check test.js   ');
+		});
+	});
+});
+
+suite('ChatSessionsService - getChatSessionItems availability', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const GATED_TYPE = 'gated-type';
+	const UNGATED_TYPE = 'ungated-type';
+	const gatedKey = new RawContextKey<boolean>('test.gatedTypeEnabled', false);
+
+	let service: ChatSessionsService;
+	let contextKeyService: ContextKeyService;
+	let gatedEnabled: IContextKey<boolean>;
+
+	/**
+	 * A minimal item controller that immediately exposes a single session item.
+	 * This stands in for an extension-host-registered controller, which is
+	 * registered independently of the contribution's `when` clause.
+	 */
+	class FakeItemController implements IChatSessionItemController {
+		private readonly _onDidChange = store.add(new Emitter<IChatSessionItemsDelta>());
+		readonly onDidChangeChatSessionItems: Event<IChatSessionItemsDelta> = this._onDidChange.event;
+
+		constructor(private readonly _type: string) { }
+
+		get items(): readonly IChatSessionItem[] {
+			return [{
+				resource: URI.from({ scheme: this._type, path: `/session-1` }),
+				label: `${this._type} session`,
+				timing: { created: 0, lastRequestStarted: undefined, lastRequestEnded: undefined },
+			}];
+		}
+
+		async refresh(): Promise<void> { }
+	}
+
+	function registerType(type: string, when: string | undefined): void {
+		const contribution: IChatSessionsExtensionPoint = { type, name: type, displayName: type, description: '', when };
+		store.add(service.registerChatSessionContribution(contribution));
+		store.add(service.registerChatSessionItemController(type, new FakeItemController(type)));
+	}
+
+	async function resolvedTypes(): Promise<string[]> {
+		const types: string[] = [];
+		for await (const { chatSessionType, items } of service.getChatSessionItems(undefined, CancellationToken.None)) {
+			if (items.length > 0) {
+				types.push(chatSessionType);
+			}
+		}
+		return types.sort();
+	}
+
+	setup(() => {
+		const configurationService = new TestConfigurationService();
+		contextKeyService = store.add(new ContextKeyService(configurationService));
+		gatedEnabled = gatedKey.bindTo(contextKeyService);
+
+		const instantiationService = store.add(workbenchInstantiationService({
+			contextKeyService: () => contextKeyService,
+			configurationService: () => configurationService,
+		}, store));
+		service = store.add(instantiationService.createInstance(ChatSessionsService));
+
+		registerType(GATED_TYPE, `${gatedKey.key}`);
+		registerType(UNGATED_TYPE, undefined);
+	});
+
+	test('excludes a type whose contribution `when` is false', async () => {
+		gatedEnabled.set(false);
+		assert.deepStrictEqual(await resolvedTypes(), [UNGATED_TYPE]);
+	});
+
+	test('includes a type whose contribution `when` is true', async () => {
+		gatedEnabled.set(true);
+		assert.deepStrictEqual(await resolvedTypes(), [GATED_TYPE, UNGATED_TYPE]);
+	});
+
+	test('reflects a runtime `when` flip without re-registration', async () => {
+		gatedEnabled.set(true);
+		assert.deepStrictEqual(await resolvedTypes(), [GATED_TYPE, UNGATED_TYPE]);
+
+		gatedEnabled.set(false);
+		assert.deepStrictEqual(await resolvedTypes(), [UNGATED_TYPE]);
+	});
+});
+
+suite('ChatSessionOptionsMap', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('toStrValueArray', () => {
+
+		test('should return undefined for undefined input', () => {
+			assert.strictEqual(ChatSessionOptionsMap.toStrValueArray(undefined), undefined);
+		});
+
+		test('should convert a Map to an array of {optionId, value}', () => {
+			const map = new Map([['models', 'gpt-4'], ['repo', 'my-repo']]);
+			assert.deepStrictEqual(ChatSessionOptionsMap.toStrValueArray(map), [
+				{ optionId: 'models', value: 'gpt-4' },
+				{ optionId: 'repo', value: 'my-repo' },
+			]);
+		});
+
+		test('should extract .id from IChatSessionProviderOptionItem values', () => {
+			const map: ReadonlyChatSessionOptionsMap = new Map([
+				['agent', { id: 'copilot', name: 'Copilot' }],
+			]);
+			assert.deepStrictEqual(ChatSessionOptionsMap.toStrValueArray(map), [
+				{ optionId: 'agent', value: 'copilot' },
+			]);
+		});
+
+		test('should handle a plain object as if it were a record (defensive fallback)', () => {
+			// Simulates a Map that lost its prototype during serialization
+			const plainObject = { models: 'gpt-4', repo: 'my-repo' } as unknown as ReadonlyChatSessionOptionsMap;
+			assert.deepStrictEqual(ChatSessionOptionsMap.toStrValueArray(plainObject), [
+				{ optionId: 'models', value: 'gpt-4' },
+				{ optionId: 'repo', value: 'my-repo' },
+			]);
+		});
+	});
+
+	suite('toRecord', () => {
+
+		test('should convert a Map to a record', () => {
+			const map = new Map([['models', 'gpt-4']]);
+			const record = ChatSessionOptionsMap.toRecord(map);
+			assert.strictEqual(record['models'], 'gpt-4');
+		});
+
+		test('should handle a plain object as if it were a record (defensive fallback)', () => {
+			const plainObject = { models: 'gpt-4' } as unknown as ReadonlyChatSessionOptionsMap;
+			const record = ChatSessionOptionsMap.toRecord(plainObject);
+			assert.strictEqual(record['models'], 'gpt-4');
+		});
+	});
+
+	suite('fromRecord', () => {
+
+		test('should convert a record to a Map', () => {
+			const map = ChatSessionOptionsMap.fromRecord({ models: 'gpt-4', repo: 'my-repo' });
+			assert.strictEqual(map.get('models'), 'gpt-4');
+			assert.strictEqual(map.get('repo'), 'my-repo');
+			assert.strictEqual(map.size, 2);
 		});
 	});
 });

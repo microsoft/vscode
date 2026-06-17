@@ -60,9 +60,11 @@ export function setup(context: TestContext) {
 			return;
 		}
 
+		const wslEntryPoint = context.toWslPath(entryPoint);
+
 		await context.runCliApp('WSL Server', 'wsl',
 			[
-				context.toWslPath(entryPoint),
+				wslEntryPoint,
 				'--accept-server-license-terms',
 				'--connection-token', context.getRandomToken(),
 				'--host', '0.0.0.0',
@@ -98,9 +100,11 @@ export function setup(context: TestContext) {
 		const token = context.getRandomToken();
 		const test = new WslUITest(context, undefined, wslWorkspaceDir, wslExtensionsDir);
 
+		const wslEntryPoint = context.toWslPath(entryPoint);
+
 		await context.runCliApp('WSL Server', 'wsl',
 			[
-				context.toWslPath(entryPoint),
+				wslEntryPoint,
 				'--accept-server-license-terms',
 				'--connection-token', token,
 				'--host', '0.0.0.0',
@@ -117,18 +121,20 @@ export function setup(context: TestContext) {
 
 				const url = context.getWebServerUrl(port, token, wslWorkspaceDir).toString();
 				const browser = await context.launchBrowser();
-				const page = await context.getPage(browser.newPage());
+				try {
+					const page = await context.getPage(browser.newPage());
 
-				context.log(`Navigating to ${url}`);
-				await page.goto(url, { waitUntil: 'networkidle' });
+					context.log(`Navigating to ${url}`);
+					await page.goto(url, { waitUntil: 'networkidle' });
 
-				context.log('Waiting for the workbench to load');
-				await page.waitForSelector('.monaco-workbench');
+					context.log('Waiting for the workbench to load');
+					await page.waitForSelector('.monaco-workbench');
 
-				await test.run(page);
-
-				context.log('Closing browser');
-				await browser.close();
+					await test.run(page);
+				} finally {
+					context.log('Closing browser');
+					await browser.close();
+				}
 
 				test.validate();
 				return true;
@@ -149,21 +155,33 @@ export function setup(context: TestContext) {
 			'--user-data-dir', test.userDataDir,
 			'--folder-uri', `vscode-remote://wsl+${wslDistro}${wslWorkspaceDir}`,
 		];
+		const crashDumpsDir = context.getCrashDumpsDir();
+		if (crashDumpsDir) {
+			args.push('--crash-reporter-directory', crashDumpsDir);
+		}
 
 		context.log(`Starting VS Code ${entryPoint} with args ${args.join(' ')}`);
 		const app = await _electron.launch({ executablePath: entryPoint, args });
-		const window = await context.getPage(app.firstWindow());
+		try {
+			const window = await context.getPage(app.firstWindow());
 
-		context.log('Installing WSL extension');
-		await window.getByRole('button', { name: 'Install and Reload' }).click();
+			try {
+				await test.dismissWelcomeDialog(window);
 
-		context.log('Waiting for WSL connection');
-		await window.getByText(/WSL/).waitFor();
+				context.log('Installing WSL extension');
+				await window.getByRole('button', { name: 'Install and Reload' }).click();
 
-		await test.run(window);
+				context.log('Waiting for WSL connection');
+				await window.getByText(/WSL/).waitFor();
+			} catch (error) {
+				await context.captureScreenshot(window);
+				throw error;
+			}
 
-		context.log('Closing the application');
-		await app.close();
+			await test.run(window);
+		} finally {
+			await context.closeElectronApp(app);
+		}
 
 		test.validate();
 	}

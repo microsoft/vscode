@@ -6,7 +6,7 @@
 import { workspace, Disposable, EventEmitter, Memento, window, MessageItem, ConfigurationTarget, Uri, ConfigurationChangeEvent, l10n, env } from 'vscode';
 import { Repository } from './repository';
 import { eventToPromise, filterEvent, onceEvent } from './util';
-import { GitErrorCodes } from './api/git';
+import { GitErrorCodes } from './api/git.constants';
 
 export class AutoFetcher {
 

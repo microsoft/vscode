@@ -41,7 +41,7 @@ export interface IWindowsMainService {
 	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string[], openConfig: IOpenConfiguration): Promise<ICodeWindow[]>;
 	openExistingWindow(window: ICodeWindow, openConfig: IOpenConfiguration): void;
 
-	openSessionsWindow(openConfig: IBaseOpenConfiguration): Promise<ICodeWindow[]>;
+	openAgentsWindow(openConfig: IOpenConfiguration, folderUri?: URI, sessionResource?: URI): Promise<ICodeWindow[]>;
 
 	sendToFocused(channel: string, ...args: unknown[]): void;
 	sendToOpeningWindow(channel: string, ...args: unknown[]): void;
@@ -124,6 +124,11 @@ export interface IDefaultBrowserWindowOptionsOverrides {
 	forceNativeTitlebar?: boolean;
 	disableFullscreen?: boolean;
 	alwaysOnTop?: boolean;
+	frameless?: boolean;
+	transparent?: boolean;
+	notResizable?: boolean;
+	noBackgroundThrottling?: boolean;
+	backgroundColor?: string;
 }
 
 export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowState: IWindowState, overrides?: IDefaultBrowserWindowOptionsOverrides, webPreferences?: electron.WebPreferences): electron.BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } {
@@ -177,8 +182,10 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 
 	if (isLinux) {
 		options.icon = join(environmentMainService.appRoot, 'resources/linux/code.png'); // always on Linux
-	} else if (isWindows && !environmentMainService.isBuilt) {
-		options.icon = join(environmentMainService.appRoot, 'resources/win32/code_150x150.png'); // only when running out of sources on Windows
+	} else if (isWindows) {
+		if (!environmentMainService.isBuilt) {
+			options.icon = join(environmentMainService.appRoot, 'resources/win32/code_150x150.png'); // only when running out of sources on Windows
+		}
 	}
 
 	if (isMacintosh) {
@@ -230,6 +237,34 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 
 	if (overrides?.alwaysOnTop) {
 		options.alwaysOnTop = true;
+	}
+
+	if (overrides?.frameless) {
+		options.frame = false;
+		options.titleBarStyle = undefined;
+		options.titleBarOverlay = undefined;
+		options.minWidth = undefined;
+		options.minHeight = undefined;
+	}
+
+	if (overrides?.backgroundColor) {
+		options.backgroundColor = overrides.backgroundColor;
+	}
+
+	if (overrides?.transparent) {
+		options.transparent = true;
+		options.backgroundColor = undefined!; // transparent requires no background color
+	}
+
+	if (overrides?.notResizable) {
+		options.resizable = false;
+	}
+
+	if (overrides?.noBackgroundThrottling) {
+		options.webPreferences = {
+			...options.webPreferences,
+			backgroundThrottling: false,
+		};
 	}
 
 	return options;

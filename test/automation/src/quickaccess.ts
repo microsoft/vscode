@@ -98,6 +98,13 @@ export class QuickAccess {
 			}
 
 			await this.quickInput.closeQuickInput();
+
+			// Back off between retries so that slow file search
+			// indexing (e.g. browser/remote on CI) has a chance to
+			// catch up before we hammer it again.
+			if (retries < 9) {
+				await this.code.wait(250 * retries);
+			}
 		}
 
 		if (!success) {
@@ -217,8 +224,32 @@ export class QuickAccess {
 			}
 		}
 
-		// wait and click on best choice
-		await this.quickInput.selectQuickInputElement(0, keepOpen);
+		// Wait and click on best choice. Focus can be stolen away from the
+		// quick input between opening the palette and now (e.g. by an async
+		// UI event from a previously opened editor), which causes the
+		// `waitForQuickInputOpened` inside `selectQuickInputElement` to time
+		// out. Retry the open+type+select sequence in that case.
+		let selectRetries = 0;
+		while (true) {
+			try {
+				await this.quickInput.selectQuickInputElement(0, keepOpen);
+				break;
+			} catch (err) {
+				if (++selectRetries > 3) {
+					throw err;
+				}
+				this.code.logger.log(`QuickAccess.runCommand(commandId: ${commandId}): selectQuickInputElement failed (${err}), will retry...`);
+				try {
+					await this.quickInput.closeQuickInput();
+				} catch {
+					// ignore - the quick input may already be closed or in a weird state
+				}
+				const found = await openCommandPalletteAndTypeCommand();
+				if (!found) {
+					throw new Error(`QuickAccess.runCommand(commandId: ${commandId}) failed to find command on retry.`);
+				}
+			}
+		}
 	}
 
 	async openQuickOutline(): Promise<void> {

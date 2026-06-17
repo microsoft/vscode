@@ -7,6 +7,7 @@ import { mapFindFirst } from '../../../../base/common/arraysFind.js';
 import { assertNever } from '../../../../base/common/assert.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { parse as parseJsonc } from '../../../../base/common/jsonc.js';
+import { mnemonicButtonLabel } from '../../../../base/common/labels.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { autorun } from '../../../../base/common/observable.js';
@@ -616,7 +617,7 @@ export class McpInstallFromManifestCommand {
 			filters: [{ name: localize('mcp.installFromManifest.filter', "MCP Manifest"), extensions: ['json'] }],
 			canSelectFiles: true,
 			canSelectMany: false,
-			openLabel: localize({ key: 'mcp.installFromManifest.openLabel', comment: ['&& denotes a mnemonic'] }, "&&Install")
+			openLabel: mnemonicButtonLabel(localize({ key: 'mcp.installFromManifest.openLabel', comment: ['&& denotes a mnemonic'] }, "&&Install"))
 		});
 
 		if (!result?.[0]) {

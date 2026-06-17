@@ -46,6 +46,7 @@ import { IDefaultAccountService } from '../../../platform/defaultAccount/common/
 import { IAuthenticationService } from '../../services/authentication/common/authentication.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
 import { IPolicyService } from '../../../platform/policy/common/policy.js';
+import { APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME, IAccountPolicyGateService } from '../../services/policies/common/accountPolicyService.js';
 
 class InspectContextKeysAction extends Action2 {
 
@@ -683,6 +684,7 @@ class PolicyDiagnosticsAction extends Action2 {
 		const authenticationService = accessor.get(IAuthenticationService);
 		const authenticationAccessService = accessor.get(IAuthenticationAccessService);
 		const policyService = accessor.get(IPolicyService);
+		const accountPolicyGateService = accessor.get(IAccountPolicyGateService);
 
 		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
@@ -754,19 +756,67 @@ class PolicyDiagnosticsAction extends Action2 {
 			content += `*Error retrieving account information: ${error}*\n\n`;
 		}
 
+		// Account Policy Gate (forces AI features off until an admin-approved
+		// GitHub account is signed in AND its account-side policy data has resolved).
+		content += '## Account Policy Gate\n\n';
+		try {
+			const gateInfo = accountPolicyGateService.gateInfo;
+			const approvedOrgsRaw = policyService.getPolicyValue(APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME);
+			content += '| Property | Value |\n';
+			content += '|----------|-------|\n';
+			content += `| State | \`${gateInfo.state}\` |\n`;
+			content += `| Reason | ${gateInfo.reason ? `\`${gateInfo.reason}\`` : '*n/a*'} |\n`;
+			content += `| ${APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME} | ${approvedOrgsRaw !== undefined ? `\`${String(approvedOrgsRaw)}\`` : '*not set*'} |\n`;
+			content += '\n';
+			content += '**Legend**\n\n';
+			content += '- `inactive`: gate disabled (no approved orgs configured) — policies behave as account data dictates.\n';
+			content += '- `satisfied`: gate active and approved — account policy values flow normally.\n';
+			content += '- `restricted`: gate active and not satisfied — opted-in policies forced to their restricted value.\n';
+			content += '  - `noAccount`: no default account signed in.\n';
+			content += '  - `wrongProvider`: signed in with a non-GitHub provider.\n';
+			content += '  - `orgNotApproved`: signed in but account is not a member of any approved organization.\n';
+			content += '  - `policyNotResolved`: signed in to an approved org but account-side policy data has not yet been fetched.\n\n';
+		} catch (error) {
+			content += `*Error retrieving account policy gate info: ${error}*\n\n`;
+		}
+
+		content += '## Managed Settings\n\n';
+		try {
+			const policyData = defaultAccountService.policyData;
+
+			content += '| Property | Value |\n';
+			content += '|----------|-------|\n';
+			const fetchStatus = defaultAccountService.managedSettingsFetchStatus;
+			const fetchStatusDisplay = fetchStatus === null ? '*not yet fetched*' : `\`${fetchStatus}\``;
+			content += `| Last fetch | ${fetchStatusDisplay} |\n`;
+			const fetchedAt = defaultAccountService.managedSettingsFetchedAt;
+			content += `| Fetched at | ${fetchedAt ? new Date(fetchedAt).toLocaleString() : '*n/a*'} |\n`;
+			content += '\n';
+
+			const managedSettingsData = {
+				managedSettings: policyData?.managedSettings,
+			};
+			content += '```json\n';
+			content += JSON.stringify(managedSettingsData, null, 2);
+			content += '\n```\n\n';
+		} catch (error) {
+			content += `*Error rendering managed settings diagnostics: ${error}*\n\n`;
+		}
+
 		content += '## Policy-Controlled Settings\n\n';
 
 		const policyConfigurations = configurationRegistry.getPolicyConfigurations();
+		const policyReferenceConfigurations = configurationRegistry.getPolicyReferenceConfigurations();
 		const configurationProperties = configurationRegistry.getConfigurationProperties();
 		const excludedProperties = configurationRegistry.getExcludedConfigurationProperties();
 
-		if (policyConfigurations.size > 0) {
+		if (policyConfigurations.size > 0 || policyReferenceConfigurations.size > 0) {
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			const appliedPolicy: Array<{ name: string; key: string; property: any; inspection: any }> = [];
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			const notAppliedPolicy: Array<{ name: string; key: string; property: any; inspection: any }> = [];
 
-			for (const [policyName, settingKey] of policyConfigurations) {
+			const collectPolicySetting = (policyName: string, settingKey: string) => {
 				const property = configurationProperties[settingKey] ?? excludedProperties[settingKey];
 				if (property) {
 					const inspectValue = configurationService.inspect(settingKey);
@@ -782,6 +832,15 @@ class PolicyDiagnosticsAction extends Action2 {
 					} else {
 						notAppliedPolicy.push(settingInfo);
 					}
+				}
+			};
+
+			for (const [policyName, settingKey] of policyConfigurations) {
+				collectPolicySetting(policyName, settingKey);
+			}
+			for (const [policyName, settingKeys] of policyReferenceConfigurations) {
+				for (const settingKey of settingKeys) {
+					collectPolicySetting(policyName, settingKey);
 				}
 			}
 
@@ -816,16 +875,17 @@ class PolicyDiagnosticsAction extends Action2 {
 			content += '### Applied Policy\n\n';
 			appliedPolicy.sort((a, b) => getPolicySource(a.name).localeCompare(getPolicySource(b.name)) || a.name.localeCompare(b.name));
 			if (appliedPolicy.length > 0) {
-				content += '| Setting Key | Policy Name | Policy Source | Default Value | Current Value | Policy Value |\n';
-				content += '|-------------|-------------|---------------|---------------|---------------|-------------|\n';
+				content += '| Setting Key | Policy Name | Policy Source | Managed Settings | Default Value | Current Value | Policy Value |\n';
+				content += '|-------------|-------------|---------------|------------------|---------------|---------------|-------------|\n';
 
 				for (const setting of appliedPolicy) {
 					const defaultValue = JSON.stringify(setting.property.default);
 					const currentValue = JSON.stringify(setting.inspection.value);
 					const policyValue = JSON.stringify(setting.inspection.policyValue);
 					const policySource = getPolicySource(setting.name);
+					const managedSettingsKeys = setting.property.policy?.managedSettings ? Object.keys(setting.property.policy.managedSettings).join(', ') : '';
 
-					content += `| ${setting.key} | ${setting.name} | ${policySource} | \`${defaultValue}\` | \`${currentValue}\` | \`${policyValue}\` |\n`;
+					content += `| ${setting.key} | ${setting.name} | ${policySource} | ${managedSettingsKeys || '*n/a*'} | \`${defaultValue}\` | \`${currentValue}\` | \`${policyValue}\` |\n`;
 				}
 				content += '\n';
 			} else {
@@ -922,6 +982,36 @@ class PolicyDiagnosticsAction extends Action2 {
 	}
 }
 
+class SyncAccountPolicyAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.syncAccountPolicy',
+			title: localize2('syncAccountPolicy', 'Sync Account Policy'),
+			category: Categories.Developer,
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const defaultAccountService = accessor.get(IDefaultAccountService);
+		const dialogService = accessor.get(IDialogService);
+		const logService = accessor.get(ILogService);
+
+		try {
+			logService.info('[DefaultAccount] Manually syncing account policy');
+			await defaultAccountService.refresh({ forceRefresh: true });
+			await dialogService.info(localize('syncAccountPolicy.success', "Account policy has been synced."));
+		} catch (error) {
+			logService.error('[DefaultAccount] Failed to sync account policy', error);
+			await dialogService.error(
+				localize('syncAccountPolicy.error', "Failed to sync account policy."),
+				error instanceof Error ? error.message : String(error)
+			);
+		}
+	}
+}
+
 // --- Actions Registration
 registerAction2(InspectContextKeysAction);
 registerAction2(ToggleScreencastModeAction);
@@ -929,6 +1019,7 @@ registerAction2(LogStorageAction);
 registerAction2(LogWorkingCopiesAction);
 registerAction2(RemoveLargeStorageEntriesAction);
 registerAction2(PolicyDiagnosticsAction);
+registerAction2(SyncAccountPolicyAction);
 if (!product.commit) {
 	registerAction2(StartTrackDisposables);
 	registerAction2(SnapshotTrackedDisposables);

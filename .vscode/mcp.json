@@ -11,16 +11,17 @@
 		},
 		"component-explorer": {
 			"type": "stdio",
-			"command": "npx",
-			"cwd": "${workspaceFolder}",
+			"command": "npm",
 			"args": [
+				"exec",
+				"--no",
+				"--",
 				"component-explorer",
 				"mcp",
-				"-c",
+				"-p",
 				"./test/componentFixtures/component-explorer.json",
-				"--no-daemon-autostart",
-				"--no-daemon-hint",
-				"Start the daemon by running the 'Launch Component Explorer' VS Code task (use the run_task tool). When you start the task, try up to 4 times to give the daemon enough time to start."
+				"--use-daemon",
+				"-vv"
 			]
 		}
 	},

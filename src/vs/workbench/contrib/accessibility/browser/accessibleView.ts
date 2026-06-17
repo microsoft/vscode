@@ -53,7 +53,9 @@ import { AccessibilityVerbositySettingId, AccessibilityWorkbenchSettingId, acces
 import { resolveContentAndKeybindingItems } from './accessibleViewKeybindingResolver.js';
 
 const enum DIMENSIONS {
-	MAX_WIDTH = 600
+	MAX_WIDTH = 900,
+	WIDTH_RATIO = 0.75,
+	MAX_HEIGHT_RATIO = 0.6
 }
 
 export type AccesibleViewContentProvider = AccessibleContentProvider | ExtensionContentProvider;
@@ -291,7 +293,7 @@ export class AccessibleView extends Disposable {
 		}
 		provider.onOpen?.();
 		const delegate: IContextViewDelegate = {
-			getAnchor: () => { return { x: (getActiveWindow().innerWidth / 2) - ((Math.min(this._layoutService.activeContainerDimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH)) / 2), y: this._layoutService.activeContainerOffset.quickPickTop }; },
+			getAnchor: () => { return { x: (getActiveWindow().innerWidth / 2) - ((Math.min(this._layoutService.activeContainerDimension.width * DIMENSIONS.WIDTH_RATIO, DIMENSIONS.MAX_WIDTH)) / 2), y: this._layoutService.activeContainerOffset.quickPickTop }; },
 			render: (container) => {
 				this._viewContainer = container;
 				this._viewContainer.classList.add('accessible-view-container');
@@ -741,9 +743,9 @@ export class AccessibleView extends Disposable {
 
 	private _layout(): void {
 		const dimension = this._layoutService.activeContainerDimension;
-		const maxHeight = dimension.height && dimension.height * .4;
+		const maxHeight = dimension.height && dimension.height * DIMENSIONS.MAX_HEIGHT_RATIO;
 		const height = Math.min(maxHeight, this._editorWidget.getContentHeight());
-		const width = Math.min(dimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH);
+		const width = Math.min(dimension.width * DIMENSIONS.WIDTH_RATIO, DIMENSIONS.MAX_WIDTH);
 		this._editorWidget.layout({ width, height });
 	}
 

@@ -7,7 +7,7 @@ import assert from 'assert';
 import { setUnexpectedErrorHandler } from '../../../common/errors.js';
 import { Emitter, Event } from '../../../common/event.js';
 import { DisposableStore, toDisposable } from '../../../common/lifecycle.js';
-import { IDerivedReader, IObservableWithChange, autorun, autorunHandleChanges, autorunWithStoreHandleChanges, derived, derivedDisposable, IObservable, IObserver, ISettableObservable, ITransaction, keepObserved, observableFromEvent, observableSignal, observableValue, recordChanges, transaction, waitForState, derivedHandleChanges, runOnChange, DebugLocation } from '../../../common/observable.js';
+import { IDerivedReader, IObservableWithChange, autorun, autorunHandleChanges, autorunPerKeyedItem, autorunWithStoreHandleChanges, derived, derivedDisposable, IObservable, IObserver, ISettableObservable, ITransaction, keepObserved, observableFromEvent, observableSignal, observableValue, recordChanges, transaction, waitForState, derivedHandleChanges, runOnChange, DebugLocation } from '../../../common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../utils.js';
 // eslint-disable-next-line local/code-no-deep-import-of-internal
 import { observableReducer } from '../../../common/observableInternal/experimental/reducer.js';
@@ -1737,6 +1737,156 @@ suite('observables', () => {
 		]));
 
 		disp.dispose();
+	});
+
+	suite('autorunPerKeyedItem', () => {
+		test('runs setup once per key, fires per-key observable on in-place value change, disposes on removal', () => {
+			const log = new Log();
+			const items = observableValue<readonly { id: string; v: number }[]>('items', []);
+
+			const d = ds.add(autorunPerKeyedItem(
+				items,
+				it => it.id,
+				(key, value, store) => {
+					log.log(`setup(${key})`);
+					store.add(toDisposable(() => log.log(`dispose(${key})`)));
+					store.add(autorun(reader => {
+						const v = value.read(reader);
+						log.log(`autorun(${key}): v=${v.v}`);
+					}));
+				}
+			));
+			assert.deepStrictEqual(log.getAndClearEntries(), []);
+
+			items.set([{ id: 'a', v: 1 }, { id: 'b', v: 1 }], undefined);
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				'setup(a)',
+				'autorun(a): v=1',
+				'setup(b)',
+				'autorun(b): v=1',
+			]);
+
+			// In-place value change on `a` (same key, new immutable object) → its
+			// per-key observable fires. `b` is also a new object literal here, so
+			// its observable fires too: identity comparison, not deep-equality.
+			items.set([{ id: 'a', v: 2 }, { id: 'b', v: 1 }], undefined);
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				'autorun(a): v=2',
+				'autorun(b): v=1',
+			]);
+
+			// Remove `a`: its store is disposed; `b` survives (its observable
+			// also fires because the new array contains a fresh object literal
+			// for `b`).
+			items.set([{ id: 'b', v: 1 }], undefined);
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				'dispose(a)',
+				'autorun(b): v=1',
+			]);
+
+			// Add `a` back: setup runs again from scratch. `b` fires once more
+			// because the new array literal contains a fresh `b` object.
+			items.set([{ id: 'b', v: 1 }, { id: 'a', v: 9 }], undefined);
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				'autorun(b): v=1',
+				'setup(a)',
+				'autorun(a): v=9',
+			]);
+
+			d.dispose();
+			// Disposing the autorun disposes all remaining per-key stores.
+			assert.deepStrictEqual(log.getAndClearEntries().sort(), [
+				'dispose(a)',
+				'dispose(b)',
+			]);
+		});
+
+		test('batches per-key value updates atomically across one items change', () => {
+			const log = new Log();
+			const items = observableValue<readonly { id: string; v: number }[]>('items', [
+				{ id: 'a', v: 0 },
+				{ id: 'b', v: 0 },
+			]);
+
+			ds.add(autorunPerKeyedItem(
+				items,
+				it => it.id,
+				(key, value, store) => {
+					store.add(autorun(reader => {
+						log.log(`${key}=${value.read(reader).v}`);
+					}));
+				}
+			));
+			assert.deepStrictEqual(log.getAndClearEntries(), ['a=0', 'b=0']);
+
+			// Single upstream change updates both keys; per-key autoruns each fire
+			// once with the post-change values.
+			items.set([{ id: 'a', v: 1 }, { id: 'b', v: 2 }], undefined);
+			assert.deepStrictEqual(log.getAndClearEntries(), ['a=1', 'b=2']);
+		});
+
+		test('does not fire per-key observable when same item identity is reused', () => {
+			const log = new Log();
+			const a = { id: 'a', v: 1 };
+			const items = observableValue<readonly { id: string; v: number }[]>('items', [a]);
+
+			ds.add(autorunPerKeyedItem(
+				items,
+				it => it.id,
+				(_key, value, store) => {
+					store.add(autorun(reader => log.log(`v=${value.read(reader).v}`)));
+				}
+			));
+			assert.deepStrictEqual(log.getAndClearEntries(), ['v=1']);
+
+			// Same array shape, same item identity → no value change, no autorun fire.
+			items.set([a], undefined);
+			assert.deepStrictEqual(log.getAndClearEntries(), []);
+		});
+
+		test('per-key setup fires when items derived through observableFromEvent chain updates', () => {
+			// Mirrors how agentHostSessionHandler uses observableFromEvent →
+			// derived(activeTurn) → derived(responseParts) → autorunPerKeyedItem.
+			// Verifies that incremental upstream Event fires propagate through
+			// the chain and the per-key setup observes the new items.
+			const log = new Log();
+			interface Part { readonly id: string; readonly content: string }
+			interface State { readonly active?: { readonly id: string; readonly parts: readonly Part[] } }
+
+			let current: State | undefined = undefined;
+			const onChange = ds.add(new Emitter<State>());
+			const fakeSub = { value: undefined as State | undefined, onDidChange: onChange.event };
+			const sessionState$ = observableFromEvent(undefined, fakeSub.onDidChange, () => fakeSub.value);
+			const fire = (s: State) => { current = s; fakeSub.value = s; onChange.fire(s); };
+
+			const turn$ = derived(reader => sessionState$.read(reader)?.active);
+			const parts$ = derived(reader => turn$.read(reader)?.parts ?? []);
+
+			ds.add(autorunPerKeyedItem(
+				parts$,
+				p => p.id,
+				(key, p$, store) => {
+					log.log(`setup(${key})`);
+					store.add(autorun(reader => log.log(`${key}=${p$.read(reader).content.length}`)));
+				}
+			));
+			assert.deepStrictEqual(log.getAndClearEntries(), []);
+
+			// First state with one part — same shape as a turn starting with content.
+			fire({ active: { id: 't1', parts: [{ id: 'p1', content: 'hello' }] } });
+			assert.deepStrictEqual(log.getAndClearEntries(), ['setup(p1)', 'p1=5']);
+
+			// Append more content to p1.
+			fire({ active: { id: 't1', parts: [{ id: 'p1', content: 'hello world' }] } });
+			assert.deepStrictEqual(log.getAndClearEntries(), ['p1=11']);
+
+			// Add a new part p2. p1 also fires because the new array literal
+			// allocates a fresh object for it (identity differs even though
+			// content is the same).
+			fire({ active: { id: 't1', parts: [{ id: 'p1', content: 'hello world' }, { id: 'p2', content: 'reasoning' }] } });
+			assert.deepStrictEqual(log.getAndClearEntries(), ['p1=11', 'setup(p2)', 'p2=9']);
+			void current;
+		});
 	});
 });
 

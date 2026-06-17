@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
-import { IMcpGatewayService, McpGatewayChannelName } from '../../../../platform/mcp/common/mcpGateway.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IMcpGatewayServerInfo, McpGatewayChannelName } from '../../../../platform/mcp/common/mcpGateway.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
-import { IMcpGatewayResult, IWorkbenchMcpGatewayService } from '../common/mcpGatewayService.js';
+import { IMcpGatewayResult, IMcpGatewayResultServer, IWorkbenchMcpGatewayService } from '../common/mcpGatewayService.js';
 
 /**
  * Browser implementation of the MCP Gateway Service.
@@ -23,31 +24,56 @@ export class BrowserMcpGatewayService implements IWorkbenchMcpGatewayService {
 
 	constructor(
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
+		@ILogService private readonly _logService: ILogService,
 	) { }
 
-	async createGateway(inRemote: boolean): Promise<IMcpGatewayResult | undefined> {
+	async createGateway(inRemote: boolean, chatSessionResource?: URI): Promise<IMcpGatewayResult | undefined> {
+		this._logService.debug(`[McpGateway][BrowserWorkbench] createGateway requested (inRemote=${inRemote})`);
+
 		// Browser can only create gateways in remote environment
 		if (!inRemote) {
+			this._logService.info('[McpGateway][BrowserWorkbench] Cannot create local gateway in browser environment');
 			return undefined;
 		}
 
 		const connection = this._remoteAgentService.getConnection();
 		if (!connection) {
-			// Serverless web environment - no gateway available
+			this._logService.info('[McpGateway][BrowserWorkbench] No remote connection available (serverless web)');
 			return undefined;
 		}
 
+		this._logService.info('[McpGateway][BrowserWorkbench] Creating remote gateway via remote server');
 		// Use the remote server's gateway service
 		return connection.withChannel(McpGatewayChannelName, async channel => {
-			const service = ProxyChannel.toService<IMcpGatewayService>(channel);
-			const info = await service.createGateway(undefined);
+			const info = await channel.call<{ gatewayId: string; servers: readonly IMcpGatewayServerInfo[] }>(
+				'createGateway',
+				chatSessionResource ? { chatSessionResource: chatSessionResource.toString() } : undefined
+			);
+			const servers = reviveServers(info.servers);
+			this._logService.info(`[McpGateway][BrowserWorkbench] Remote gateway created with ${servers.length} server(s)`);
+
+			const onDidChangeServers = Event.map(
+				Event.filter(
+					channel.listen<{ gatewayId: string; servers: readonly IMcpGatewayServerInfo[] }>('onDidChangeGatewayServers'),
+					e => e.gatewayId === info.gatewayId,
+				),
+				e => reviveServers(e.servers),
+			);
 
 			return {
-				address: URI.revive(info.address),
+				servers,
+				onDidChangeServers,
 				dispose: () => {
-					service.disposeGateway(info.gatewayId);
+					this._logService.info(`[McpGateway][BrowserWorkbench] Disposing remote gateway: ${info.gatewayId}`);
+					void channel.call('disposeGateway', info.gatewayId).then(undefined, error => {
+						this._logService.warn(`[McpGateway][BrowserWorkbench] Failed to dispose remote gateway: ${info.gatewayId}`, error);
+					});
 				}
 			};
 		});
 	}
+}
+
+function reviveServers(servers: readonly IMcpGatewayServerInfo[]): IMcpGatewayResultServer[] {
+	return servers.map(s => ({ label: s.label, address: URI.revive(s.address) }));
 }

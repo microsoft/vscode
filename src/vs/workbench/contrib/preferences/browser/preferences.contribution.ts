@@ -43,7 +43,7 @@ import { PreferencesEditorInput, SettingsEditor2Input } from '../../../services/
 import { SettingsEditorModel } from '../../../services/preferences/common/preferencesModels.js';
 import { CURRENT_PROFILE_CONTEXT, IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { ExplorerFolderContext, ExplorerRootContext } from '../../files/common/files.js';
-import { CONTEXT_AI_SETTING_RESULTS_AVAILABLE, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, CONTEXT_KEYBINDINGS_SEARCH_HAS_VALUE, CONTEXT_KEYBINDING_FOCUS, CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_JSON_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, CONTEXT_WHEN_FOCUS, KEYBINDINGS_EDITOR_COMMAND_ACCEPT_WHEN, KEYBINDINGS_EDITOR_COMMAND_ADD, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_HISTORY, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND_TITLE, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN, KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS, KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_REJECT_WHEN, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_SEARCH, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_EXTENSION_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU, SETTINGS_EDITOR_COMMAND_TOGGLE_AI_SEARCH } from '../common/preferences.js';
+import { CONTEXT_AI_SETTING_RESULTS_AVAILABLE, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, CONTEXT_KEYBINDINGS_SEARCH_HAS_VALUE, CONTEXT_KEYBINDING_FOCUS, CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_FIRST_ROW_FOCUS, CONTEXT_SETTINGS_JSON_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, CONTEXT_WHEN_FOCUS, KEYBINDINGS_EDITOR_COMMAND_ACCEPT_WHEN, KEYBINDINGS_EDITOR_COMMAND_ADD, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_HISTORY, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND_TITLE, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN, KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS, KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_REJECT_WHEN, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_SEARCH, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_EXTENSION_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU, SETTINGS_EDITOR_COMMAND_TOGGLE_AI_SEARCH } from '../common/preferences.js';
 import { PreferencesContribution } from '../common/preferencesContribution.js';
 import { KeybindingsEditor } from './keybindingsEditor.js';
 import { ConfigureLanguageBasedSettingsAction } from './preferencesActions.js';
@@ -56,6 +56,9 @@ const SETTINGS_EDITOR_COMMAND_SEARCH = 'settings.action.search';
 
 const SETTINGS_EDITOR_COMMAND_FOCUS_FILE = 'settings.action.focusSettingsFile';
 const SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_FROM_SEARCH = 'settings.action.focusSettingsFromSearch';
+const SETTINGS_EDITOR_COMMAND_SHOW_PREVIOUS_SEARCH = 'settings.action.showPreviousSearch';
+const SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_FROM_SEARCH_ON_ENTER = 'settings.action.focusSettingsFromSearchOnEnter';
+const SETTINGS_EDITOR_COMMAND_FOCUS_SEARCH_FROM_SETTINGS = 'settings.action.focusSearchFromSettings';
 const SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_LIST = 'settings.action.focusSettingsList';
 const SETTINGS_EDITOR_COMMAND_FOCUS_TOC = 'settings.action.focusTOC';
 const SETTINGS_EDITOR_COMMAND_FOCUS_CONTROL = 'settings.action.focusSettingControl';
@@ -654,7 +657,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 
 			run(accessor: ServicesAccessor): void {
 				const preferencesEditor = getPreferencesEditor(accessor);
-				preferencesEditor?.focusSettings();
+				preferencesEditor?.navigateSearchHistoryNextOrFocusSettings();
 			}
 		}));
 
@@ -674,7 +677,68 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 
 			run(accessor: ServicesAccessor): void {
 				const preferencesEditor = getPreferencesEditor(accessor);
-				preferencesEditor?.focusSettings();
+				preferencesEditor?.navigateSearchHistoryNextOrFocusSettings();
+			}
+		}));
+
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: SETTINGS_EDITOR_COMMAND_SHOW_PREVIOUS_SEARCH,
+					precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_SEARCH_FOCUS, SuggestContext.Visible.toNegated()),
+					keybinding: {
+						primary: KeyCode.UpArrow,
+						weight: KeybindingWeight.WorkbenchContrib,
+						when: null
+					},
+					title: nls.localize('settings.showPreviousSearch', "Show Previous Search in Settings")
+				});
+			}
+
+			run(accessor: ServicesAccessor): void {
+				const preferencesEditor = getPreferencesEditor(accessor);
+				preferencesEditor?.navigateSearchHistoryPrevious();
+			}
+		}));
+
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_FROM_SEARCH_ON_ENTER,
+					precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_SEARCH_FOCUS, SuggestContext.Visible.toNegated()),
+					keybinding: {
+						primary: KeyCode.Enter,
+						weight: KeybindingWeight.WorkbenchContrib,
+						when: null
+					},
+					title: nls.localize('settings.focusSettingsFromSearchOnEnter', "Focus First Setting from Search")
+				});
+			}
+
+			run(accessor: ServicesAccessor): void {
+				const preferencesEditor = getPreferencesEditor(accessor);
+				preferencesEditor?.focusFirstSettingFromSearch();
+			}
+		}));
+
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: SETTINGS_EDITOR_COMMAND_FOCUS_SEARCH_FROM_SETTINGS,
+					precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_FIRST_ROW_FOCUS),
+					keybinding: {
+						primary: KeyCode.UpArrow,
+						// Win over the list's own `list.focusUp` command so the first row moves focus back to search.
+						weight: KeybindingWeight.WorkbenchContrib + 1,
+						when: null
+					},
+					title: nls.localize('settings.focusSearchFromSettings', "Focus Settings Search from Settings")
+				});
+			}
+
+			run(accessor: ServicesAccessor): void {
+				const preferencesEditor = getPreferencesEditor(accessor);
+				preferencesEditor?.focusSearch();
 			}
 		}));
 
@@ -836,6 +900,12 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 							order: 1,
 						},
 						{
+							id: MenuId.ModalEditorEditorTitle,
+							when: ResourceContextKey.Resource.isEqualTo(that.userDataProfileService.currentProfile.keybindingsResource.toString()),
+							group: 'navigation',
+							order: 1,
+						},
+						{
 							id: MenuId.GlobalActivity,
 							group: '2_configuration',
 							order: 4
@@ -881,6 +951,11 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 						{ id: MenuId.CommandPalette },
 						{
 							id: MenuId.EditorTitle,
+							when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR),
+							group: 'navigation',
+						},
+						{
+							id: MenuId.ModalEditorEditorTitle,
 							when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR),
 							group: 'navigation',
 						}
@@ -1246,13 +1321,24 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 		const commandId = '_workbench.openWorkspaceSettingsEditor';
 		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE && !CommandsRegistry.getCommand(commandId)) {
 			CommandsRegistry.registerCommand(commandId, () => this.preferencesService.openWorkspaceSettings({ jsonEditor: false }));
+			const when = ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.workspaceSettingsResource!.toString()), WorkbenchStateContext.isEqualTo('workspace'), ContextKeyExpr.not('isInDiffEditor'));
 			MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 				command: {
 					id: commandId,
 					title: OPEN_USER_SETTINGS_UI_TITLE,
 					icon: preferencesOpenSettingsIcon
 				},
-				when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.workspaceSettingsResource!.toString()), WorkbenchStateContext.isEqualTo('workspace'), ContextKeyExpr.not('isInDiffEditor')),
+				when,
+				group: 'navigation',
+				order: 1
+			});
+			MenuRegistry.appendMenuItem(MenuId.ModalEditorEditorTitle, {
+				command: {
+					id: commandId,
+					title: OPEN_USER_SETTINGS_UI_TITLE,
+					icon: preferencesOpenSettingsIcon
+				},
+				when,
 				group: 'navigation',
 				order: 1
 			});
@@ -1272,13 +1358,24 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 						return this.preferencesService.openFolderSettings({ folderUri: folder.uri, jsonEditor: false, groupId });
 					}
 				});
+				const when = ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.getFolderSettingsResource(folder.uri)!.toString()), ContextKeyExpr.not('isInDiffEditor'));
 				MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 					command: {
 						id: commandId,
 						title: OPEN_USER_SETTINGS_UI_TITLE,
 						icon: preferencesOpenSettingsIcon
 					},
-					when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.getFolderSettingsResource(folder.uri)!.toString()), ContextKeyExpr.not('isInDiffEditor')),
+					when,
+					group: 'navigation',
+					order: 1
+				});
+				MenuRegistry.appendMenuItem(MenuId.ModalEditorEditorTitle, {
+					command: {
+						id: commandId,
+						title: OPEN_USER_SETTINGS_UI_TITLE,
+						icon: preferencesOpenSettingsIcon
+					},
+					when,
 					group: 'navigation',
 					order: 1
 				});
@@ -1320,6 +1417,11 @@ class SettingsEditorTitleContribution extends Disposable implements IWorkbenchCo
 							when: openUserSettingsEditorWhen,
 							group: 'navigation',
 							order: 1
+						}, {
+							id: MenuId.ModalEditorEditorTitle,
+							when: openUserSettingsEditorWhen,
+							group: 'navigation',
+							order: 1
 						}]
 					});
 				}
@@ -1346,6 +1448,11 @@ class SettingsEditorTitleContribution extends Disposable implements IWorkbenchCo
 					icon: preferencesOpenSettingsIcon,
 					menu: [{
 						id: MenuId.EditorTitle,
+						when: openSettingsJsonWhen,
+						group: 'navigation',
+						order: 1
+					}, {
+						id: MenuId.ModalEditorEditorTitle,
 						when: openSettingsJsonWhen,
 						group: 'navigation',
 						order: 1

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { HookType } from '../../../common/promptSyntax/hookSchema.js';
+import { HookType } from '../../../common/promptSyntax/hookTypes.js';
 import { parseClaudeHooks, resolveClaudeHookType, getClaudeHookTypeName, extractHookCommandsFromItem } from '../../../common/promptSyntax/hookClaudeCompat.js';
 import { getHookSourceFormat, HookSourceFormat, buildNewHookEntry } from '../../../common/promptSyntax/hookCompatibility.js';
 import { URI } from '../../../../../../base/common/uri.js';

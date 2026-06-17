@@ -86,7 +86,7 @@ Type: files; Name: "{app}\updating_version"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 Name: "quicklaunchicon"; Description: "{cm:CreateQuickLaunchIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked; OnlyBelowVersion: 0,6.1
 Name: "addcontextmenufiles"; Description: "{cm:AddContextMenuFiles,{#NameShort}}"; GroupDescription: "{cm:Other}"; Flags: unchecked
-Name: "addcontextmenufolders"; Description: "{cm:AddContextMenuFolders,{#NameShort}}"; GroupDescription: "{cm:Other}"; Flags: unchecked; Check: not ShouldUseWindows11ContextMenu
+Name: "addcontextmenufolders"; Description: "{cm:AddContextMenuFolders,{#NameShort}}"; GroupDescription: "{cm:Other}"; Flags: unchecked
 Name: "associatewithfiles"; Description: "{cm:AssociateWithFiles,{#NameShort}}"; GroupDescription: "{cm:Other}"
 Name: "addtopath"; Description: "{cm:AddToPath}"; GroupDescription: "{cm:Other}"
 Name: "runcode"; Description: "{cm:RunAfter,{#NameShort}}"; GroupDescription: "{cm:Other}"; Check: WizardSilent
@@ -1276,15 +1276,15 @@ Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}Contex
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\*\shell\{#RegValueName}"; ValueType: expandsz; ValueName: ""; ValueData: "{cm:OpenWithCodeContextMenu,{#ShellNameShort}}"; Tasks: addcontextmenufiles; Flags: uninsdeletekey; Check: not ShouldUseWindows11ContextMenu
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\*\shell\{#RegValueName}"; ValueType: expandsz; ValueName: "Icon"; ValueData: "{app}\{#ExeBasename}.exe"; Tasks: addcontextmenufiles; Check: not ShouldUseWindows11ContextMenu
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\*\shell\{#RegValueName}\command"; ValueType: expandsz; ValueName: ""; ValueData: """{app}\{#ExeBasename}.exe"" ""%1"""; Tasks: addcontextmenufiles; Check: not ShouldUseWindows11ContextMenu
-Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\directory\shell\{#RegValueName}"; ValueType: expandsz; ValueName: ""; ValueData: "{cm:OpenWithCodeContextMenu,{#ShellNameShort}}"; Tasks: addcontextmenufolders; Flags: uninsdeletekey; Check: not ShouldUseWindows11ContextMenu
-Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\directory\shell\{#RegValueName}"; ValueType: expandsz; ValueName: "Icon"; ValueData: "{app}\{#ExeBasename}.exe"; Tasks: addcontextmenufolders; Check: not ShouldUseWindows11ContextMenu
-Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\directory\shell\{#RegValueName}\command"; ValueType: expandsz; ValueName: ""; ValueData: """{app}\{#ExeBasename}.exe"" ""%V"""; Tasks: addcontextmenufolders; Check: not ShouldUseWindows11ContextMenu
-Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\directory\background\shell\{#RegValueName}"; ValueType: expandsz; ValueName: ""; ValueData: "{cm:OpenWithCodeContextMenu,{#ShellNameShort}}"; Tasks: addcontextmenufolders; Flags: uninsdeletekey; Check: not ShouldUseWindows11ContextMenu
-Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\directory\background\shell\{#RegValueName}"; ValueType: expandsz; ValueName: "Icon"; ValueData: "{app}\{#ExeBasename}.exe"; Tasks: addcontextmenufolders; Check: not ShouldUseWindows11ContextMenu
-Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\directory\background\shell\{#RegValueName}\command"; ValueType: expandsz; ValueName: ""; ValueData: """{app}\{#ExeBasename}.exe"" ""%V"""; Tasks: addcontextmenufolders; Check: not ShouldUseWindows11ContextMenu
-Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\Drive\shell\{#RegValueName}"; ValueType: expandsz; ValueName: ""; ValueData: "{cm:OpenWithCodeContextMenu,{#ShellNameShort}}"; Tasks: addcontextmenufolders; Flags: uninsdeletekey; Check: not ShouldUseWindows11ContextMenu
-Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\Drive\shell\{#RegValueName}"; ValueType: expandsz; ValueName: "Icon"; ValueData: "{app}\{#ExeBasename}.exe"; Tasks: addcontextmenufolders; Check: not ShouldUseWindows11ContextMenu
-Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\Drive\shell\{#RegValueName}\command"; ValueType: expandsz; ValueName: ""; ValueData: """{app}\{#ExeBasename}.exe"" ""%V"""; Tasks: addcontextmenufolders; Check: not ShouldUseWindows11ContextMenu
+Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\directory\shell\{#RegValueName}"; ValueType: expandsz; ValueName: ""; ValueData: "{cm:OpenWithCodeContextMenu,{#ShellNameShort}}"; Flags: uninsdeletekey; Check: ShouldInstallLegacyFolderContextMenu
+Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\directory\shell\{#RegValueName}"; ValueType: expandsz; ValueName: "Icon"; ValueData: "{app}\{#ExeBasename}.exe"; Check: ShouldInstallLegacyFolderContextMenu
+Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\directory\shell\{#RegValueName}\command"; ValueType: expandsz; ValueName: ""; ValueData: """{app}\{#ExeBasename}.exe"" ""%V"""; Check: ShouldInstallLegacyFolderContextMenu
+Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\directory\background\shell\{#RegValueName}"; ValueType: expandsz; ValueName: ""; ValueData: "{cm:OpenWithCodeContextMenu,{#ShellNameShort}}"; Flags: uninsdeletekey; Check: ShouldInstallLegacyFolderContextMenu
+Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\directory\background\shell\{#RegValueName}"; ValueType: expandsz; ValueName: "Icon"; ValueData: "{app}\{#ExeBasename}.exe"; Check: ShouldInstallLegacyFolderContextMenu
+Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\directory\background\shell\{#RegValueName}\command"; ValueType: expandsz; ValueName: ""; ValueData: """{app}\{#ExeBasename}.exe"" ""%V"""; Check: ShouldInstallLegacyFolderContextMenu
+Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\Drive\shell\{#RegValueName}"; ValueType: expandsz; ValueName: ""; ValueData: "{cm:OpenWithCodeContextMenu,{#ShellNameShort}}"; Flags: uninsdeletekey; Check: ShouldInstallLegacyFolderContextMenu
+Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\Drive\shell\{#RegValueName}"; ValueType: expandsz; ValueName: "Icon"; ValueData: "{app}\{#ExeBasename}.exe"; Check: ShouldInstallLegacyFolderContextMenu
+Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\Drive\shell\{#RegValueName}\command"; ValueType: expandsz; ValueName: ""; ValueData: """{app}\{#ExeBasename}.exe"" ""%V"""; Check: ShouldInstallLegacyFolderContextMenu
 
 ; Environment
 #if "user" == InstallTarget
@@ -1303,7 +1303,8 @@ Root: {#EnvironmentRootKey}; Subkey: "{#EnvironmentKey}"; ValueType: expandsz; V
 
 ; App Paths - allows running code from Explorer address bar
 Root: {#EnvironmentRootKey}; Subkey: "Software\Microsoft\Windows\CurrentVersion\App Paths\{#ApplicationName}.exe"; ValueType: string; ValueName: ""; ValueData: "{app}\{#ExeBasename}.exe"; Flags: uninsdeletekey
-Root: {#EnvironmentRootKey}; Subkey: "Software\Microsoft\Windows\CurrentVersion\App Paths\{#ApplicationName}.exe"; ValueType: string; ValueName: "Path"; ValueData: "{app}"; Flags: uninsdeletekey
+; Remove the "Path" value previously written here; ShellExecute appends it to the launched process PATH, polluting the env. Default value above is enough to resolve `code` from Explorer/Run.
+Root: {#EnvironmentRootKey}; Subkey: "Software\Microsoft\Windows\CurrentVersion\App Paths\{#ApplicationName}.exe"; ValueType: none; ValueName: "Path"; Flags: deletevalue
 
 [Code]
 function IsBackgroundUpdate(): Boolean;
@@ -1519,6 +1520,68 @@ begin
   Result := IsWindows11OrLater() and not IsWindows10ContextMenuForced();
 end;
 
+function HasLegacyFileContextMenu(): Boolean;
+begin
+  Result := RegKeyExists({#EnvironmentRootKey}, 'Software\Classes\*\shell\{#RegValueName}\command');
+end;
+
+function HasLegacyFolderContextMenu(): Boolean;
+begin
+  Result := RegKeyExists({#EnvironmentRootKey}, 'Software\Classes\directory\shell\{#RegValueName}\command');
+end;
+
+function ShouldRepairFolderContextMenu(): Boolean;
+begin
+  // Repair folder context menu during updates if:
+  // 1. This is a background update (not a fresh install or manual re-install)
+  // 2. Windows 11+ with forced classic context menu
+  // 3. Legacy file context menu exists (user previously selected it)
+  // 4. Legacy folder context menu is MISSING
+  Result := IsBackgroundUpdate()
+    and IsWindows11OrLater()
+    and IsWindows10ContextMenuForced()
+    and HasLegacyFileContextMenu()
+    and not HasLegacyFolderContextMenu();
+end;
+
+function ShouldInstallLegacyFolderContextMenu(): Boolean;
+begin
+  Result := (WizardIsTaskSelected('addcontextmenufolders') and not ShouldUseWindows11ContextMenu()) or ShouldRepairFolderContextMenu();
+end;
+
+function BoolToStr(Value: Boolean): String;
+begin
+  if Value then
+    Result := 'true'
+  else
+    Result := 'false';
+end;
+
+procedure LogContextMenuInstallState();
+begin
+  Log(
+    'Context menu state: '
+    + 'isBackgroundUpdate=' + BoolToStr(IsBackgroundUpdate())
+    + ', isWindows11OrLater=' + BoolToStr(IsWindows11OrLater())
+    + ', isWindows10ContextMenuForced=' + BoolToStr(IsWindows10ContextMenuForced())
+    + ', shouldUseWindows11ContextMenu=' + BoolToStr(ShouldUseWindows11ContextMenu())
+    + ', hasLegacyFileContextMenu=' + BoolToStr(HasLegacyFileContextMenu())
+    + ', hasLegacyFolderContextMenu=' + BoolToStr(HasLegacyFolderContextMenu())
+    + ', shouldRepairFolderContextMenu=' + BoolToStr(ShouldRepairFolderContextMenu())
+    + ', shouldInstallLegacyFolderContextMenu=' + BoolToStr(ShouldInstallLegacyFolderContextMenu())
+    + ', addcontextmenufiles=' + BoolToStr(WizardIsTaskSelected('addcontextmenufiles'))
+    + ', addcontextmenufolders=' + BoolToStr(WizardIsTaskSelected('addcontextmenufolders'))
+  );
+end;
+
+procedure DeleteLegacyContextMenuRegistryKeys();
+begin
+  RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\*\shell\{#RegValueName}');
+  RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\directory\shell\{#RegValueName}');
+  RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\directory\background\shell\{#RegValueName}');
+  RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\Drive\shell\{#RegValueName}');
+end;
+
 function GetAppMutex(Value: string): string;
 begin
   if IsBackgroundUpdate() then
@@ -1586,20 +1649,38 @@ begin
     Result := ExpandConstant('{#ApplicationName}.cmd');
 end;
 
-function BoolToStr(Value: Boolean): String;
-begin
-  if Value then
-    Result := 'true'
-  else
-    Result := 'false';
-end;
-
 function QualityIsInsiders(): boolean;
 begin
   if '{#Quality}' = 'insider' then
     Result := True
   else
     Result := False;
+end;
+
+// Unblock inno_updater --gc when our context-menu COM surrogate keeps a
+// handle on the orphan commit folder. See https://github.com/microsoft/vscode/issues/294546.
+// No-op when FileExplorerContextMenuCLSID is not defined (e.g. OSS builds).
+procedure KillContextMenuComSurrogate();
+var
+  KillErrorCode: Integer;
+  Command: String;
+begin
+#ifdef FileExplorerContextMenuCLSID
+  Log('KillContextMenuComSurrogate: stopping COM surrogate(s) hosting context-menu DLL ({#FileExplorerContextMenuCLSID})');
+
+  Command :=
+    '-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command "' +
+    'Get-CimInstance Win32_Process -Filter ""Name = ''dllhost.exe''"" | ' +
+    'Where-Object { $_.CommandLine -like ''*/Processid:{#FileExplorerContextMenuCLSID}*'' } | ' +
+    'ForEach-Object { try { Stop-Process -Id $_.ProcessId -Force -ErrorAction Stop } catch {} }"';
+
+  if not ShellExec('', 'powershell.exe', Command, '', SW_HIDE, ewWaitUntilTerminated, KillErrorCode) then
+    Log('KillContextMenuComSurrogate: ShellExec failed with error code ' + IntToStr(KillErrorCode))
+  else if KillErrorCode <> 0 then
+    Log('KillContextMenuComSurrogate: PowerShell exited with non-zero code ' + IntToStr(KillErrorCode))
+  else
+    Log('KillContextMenuComSurrogate: complete');
+#endif
 end;
 
 #ifdef AppxPackageName
@@ -1616,30 +1697,43 @@ end;
 function AppxPackageInstalled(const name: String; var ResultCode: Integer): Boolean;
 begin
   AppxPackageFullname := '';
+  ResultCode := -1;
   try
     Log('Get-AppxPackage for package with name: ' + name);
     ExecAndLogOutput('powershell.exe', '-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command ' + AddQuotes('Get-AppxPackage -Name ''' + name + ''' | Select-Object -ExpandProperty PackageFullName'), '', SW_HIDE, ewWaitUntilTerminated, ResultCode, @ExecAndGetFirstLineLog);
   except
     Log(GetExceptionMessage);
+    ResultCode := -1;
   end;
   if (AppxPackageFullname <> '') then
     Result := True
   else
-    Result := False
+    Result := False;
+
+  Log('Get-AppxPackage result: name=' + name + ', installed=' + BoolToStr(Result) + ', resultCode=' + IntToStr(ResultCode) + ', packageFullName=' + AppxPackageFullname);
 end;
 
 procedure AddAppxPackage();
 var
   AddAppxPackageResultCode: Integer;
+  IsCurrentAppxInstalled: Boolean;
 begin
-  if not SessionEndFileExists() and not AppxPackageInstalled(ExpandConstant('{#AppxPackageName}'), AddAppxPackageResultCode) then begin
+  if SessionEndFileExists() then begin
+    Log('Skipping Add-AppxPackage because session end was detected.');
+    exit;
+  end;
+
+  IsCurrentAppxInstalled := AppxPackageInstalled(ExpandConstant('{#AppxPackageName}'), AddAppxPackageResultCode);
+  if not IsCurrentAppxInstalled then begin
     Log('Installing appx ' + AppxPackageFullname + ' ...');
 #if "user" == InstallTarget
     ShellExec('', 'powershell.exe', '-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command ' + AddQuotes('Add-AppxPackage -Path ''' + ExpandConstant('{app}\{#VersionedResourcesFolder}\appx\{#AppxPackage}') + ''' -ExternalLocation ''' + ExpandConstant('{app}\{#VersionedResourcesFolder}\appx') + ''''), '', SW_HIDE, ewWaitUntilTerminated, AddAppxPackageResultCode);
 #else
     ShellExec('', 'powershell.exe', '-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command ' + AddQuotes('Add-AppxPackage -Stage ''' + ExpandConstant('{app}\{#VersionedResourcesFolder}\appx\{#AppxPackage}') + ''' -ExternalLocation ''' + ExpandConstant('{app}\{#VersionedResourcesFolder}\appx') + '''; Add-AppxProvisionedPackage -Online -SkipLicense -PackagePath ''' + ExpandConstant('{app}\{#VersionedResourcesFolder}\appx\{#AppxPackage}') + ''''), '', SW_HIDE, ewWaitUntilTerminated, AddAppxPackageResultCode);
 #endif
-    Log('Add-AppxPackage complete.');
+    Log('Add-AppxPackage complete with result code ' + IntToStr(AddAppxPackageResultCode) + '.');
+  end else begin
+    Log('Skipping Add-AppxPackage because package is already installed.');
   end;
 end;
 
@@ -1647,11 +1741,13 @@ procedure RemoveAppxPackage();
 var
   RemoveAppxPackageResultCode: Integer;
 begin
+  KillContextMenuComSurrogate();
   // Remove the old context menu package
   // Following condition can be removed in v1.111.
   if QualityIsInsiders() and not SessionEndFileExists() and AppxPackageInstalled('Microsoft.VSCodeInsiders', RemoveAppxPackageResultCode) then begin
     Log('Deleting old appx ' + AppxPackageFullname + ' installation...');
     ShellExec('', 'powershell.exe', '-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command ' + AddQuotes('Remove-AppxPackage -Package ''' + AppxPackageFullname + ''''), '', SW_HIDE, ewWaitUntilTerminated, RemoveAppxPackageResultCode);
+    Log('Remove-AppxPackage for old appx completed with result code ' + IntToStr(RemoveAppxPackageResultCode) + '.');
     DeleteFile(ExpandConstant('{app}\appx\code_insiders_explorer_{#Arch}.appx'));
     DeleteFile(ExpandConstant('{app}\appx\code_insiders_explorer_command.dll'));
   end;
@@ -1662,7 +1758,9 @@ begin
 #else
     ShellExec('', 'powershell.exe', '-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command ' + AddQuotes('$packages = Get-AppxPackage ''' + ExpandConstant('{#AppxPackageName}') + '''; foreach ($package in $packages) { Remove-AppxProvisionedPackage -PackageName $package.PackageFullName -Online }; foreach ($package in $packages) { Remove-AppxPackage -Package $package.PackageFullName -AllUsers }'), '', SW_HIDE, ewWaitUntilTerminated, RemoveAppxPackageResultCode);
 #endif
-    Log('Remove-AppxPackage for current appx installation complete.');
+    Log('Remove-AppxPackage for current appx installation complete with result code ' + IntToStr(RemoveAppxPackageResultCode) + '.');
+  end else if not SessionEndFileExists() then begin
+    Log('Skipping Remove-AppxPackage for current appx because package is not installed.');
   end;
 end;
 #endif
@@ -1674,6 +1772,8 @@ var
 begin
   if CurStep = ssPostInstall then
   begin
+    LogContextMenuInstallState();
+
 #ifdef AppxPackageName
     // Remove the appx package when user has forced Windows 10 context menus via
     // registry. This handles the case where the user previously had the appx
@@ -1683,10 +1783,7 @@ begin
     end;
     // Remove the old context menu registry keys
     if ShouldUseWindows11ContextMenu() then begin
-      RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\*\shell\{#RegValueName}');
-      RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\directory\shell\{#RegValueName}');
-      RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\directory\background\shell\{#RegValueName}');
-      RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\Drive\shell\{#RegValueName}');
+      DeleteLegacyContextMenuRegistryKeys();
     end;
 #endif
 
@@ -1717,8 +1814,9 @@ begin
         Log('inno_updater completed successfully');
         #if "system" == InstallTarget
           if IsVersionedUpdate() then begin
+            KillContextMenuComSurrogate();
             Log('Invoking inno_updater to remove previous installation folder');
-            Exec(ExpandConstant('{app}\{#VersionedResourcesFolder}\tools\inno_updater.exe'), ExpandConstant('"--gc" "{app}\{#ExeBasename}.exe" "{#VersionedResourcesFolder}"'), '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
+            Exec(ExpandConstant('{app}\{#VersionedResourcesFolder}\tools\inno_updater.exe'), ExpandConstant('"--gc" "{app}\{#ExeBasename}.exe" "{#VersionedResourcesFolder}" "{#ExeBasename}.exe"'), '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
             Log('inno_updater completed gc successfully');
           end;
         #endif
@@ -1727,8 +1825,9 @@ begin
       end;
     end else begin
       if IsVersionedUpdate() then begin
+        KillContextMenuComSurrogate();
         Log('Invoking inno_updater to remove previous installation folder');
-        Exec(ExpandConstant('{app}\{#VersionedResourcesFolder}\tools\inno_updater.exe'), ExpandConstant('"--gc" "{app}\{#ExeBasename}.exe" "{#VersionedResourcesFolder}"'), '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
+        Exec(ExpandConstant('{app}\{#VersionedResourcesFolder}\tools\inno_updater.exe'), ExpandConstant('"--gc" "{app}\{#ExeBasename}.exe" "{#VersionedResourcesFolder}" "{#ExeBasename}.exe"'), '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
         Log('inno_updater completed gc successfully');
       end;
     end;
@@ -1799,6 +1898,7 @@ begin
   if not CurUninstallStep = usUninstall then begin
     exit;
   end;
+
 #ifdef AppxPackageName
   RemoveAppxPackage();
 #endif

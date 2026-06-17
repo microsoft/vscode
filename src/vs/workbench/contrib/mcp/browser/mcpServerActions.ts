@@ -37,6 +37,7 @@ import { ExtensionAction } from '../../extensions/browser/extensionsActions.js';
 import { ActionWithDropdownActionViewItem, IActionWithDropdownActionViewItemOptions } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { IContextMenuProvider } from '../../../../base/browser/contextmenu.js';
 import Severity from '../../../../base/common/severity.js';
+import { ContributionEnablementState, isContributionDisabled, isContributionEnabled } from '../../chat/common/enablement.js';
 
 export interface IMcpServerActionChangeEvent extends IActionChangeEvent {
 	readonly hidden?: boolean;
@@ -133,10 +134,12 @@ export class ButtonWithDropDownExtensionAction extends McpServerAction {
 		this._onDidChange.fire({ menuActions: this._menuActions });
 
 		if (this.primaryAction) {
+			this.hidden = false;
 			this.enabled = this.primaryAction.enabled;
 			this.label = this.getLabel(this.primaryAction as ExtensionAction);
 			this.tooltip = this.primaryAction.tooltip;
 		} else {
+			this.hidden = true;
 			this.enabled = false;
 		}
 	}
@@ -508,6 +511,174 @@ export class UninstallAction extends McpServerAction {
 	}
 }
 
+export class EnableMcpServerGloballyAction extends McpServerAction {
+
+	static readonly ID = 'mcpServer.enableGlobally';
+
+	constructor(
+		@IMcpService private readonly mcpService: IMcpService,
+	) {
+		super(EnableMcpServerGloballyAction.ID, localize('enableGlobally', "Enable"), McpServerAction.LABEL_ACTION_CLASS);
+		this.tooltip = localize('enableGloballyTooltip', "Enable this MCP server");
+		this.update();
+	}
+
+	update(): void {
+		this.enabled = false;
+		if (!this.mcpServer?.local) {
+			return;
+		}
+		const server = this.mcpService.servers.get().find(s => s.definition.id === this.mcpServer?.id);
+		if (!server) {
+			return;
+		}
+		const enablement = server.enablement.get();
+		this.enabled = isContributionDisabled(enablement);
+	}
+
+	override async run(): Promise<void> {
+		if (!this.mcpServer) {
+			return;
+		}
+		this.mcpService.enablementModel.setEnabled(this.mcpServer.id, ContributionEnablementState.EnabledProfile);
+	}
+}
+
+export class EnableMcpServerForWorkspaceAction extends McpServerAction {
+
+	static readonly ID = 'mcpServer.enableForWorkspace';
+
+	constructor(
+		@IMcpService private readonly mcpService: IMcpService,
+		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
+	) {
+		super(EnableMcpServerForWorkspaceAction.ID, localize('enableForWorkspace', "Enable (Workspace)"), McpServerAction.LABEL_ACTION_CLASS);
+		this.tooltip = localize('enableForWorkspaceTooltip', "Enable this MCP server only in this workspace");
+		this.update();
+	}
+
+	update(): void {
+		this.enabled = false;
+		if (!this.mcpServer?.local) {
+			return;
+		}
+		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
+			return;
+		}
+		const server = this.mcpService.servers.get().find(s => s.definition.id === this.mcpServer?.id);
+		if (!server) {
+			return;
+		}
+		const enablement = server.enablement.get();
+		this.enabled = isContributionDisabled(enablement);
+	}
+
+	override async run(): Promise<void> {
+		if (!this.mcpServer) {
+			return;
+		}
+		this.mcpService.enablementModel.setEnabled(this.mcpServer.id, ContributionEnablementState.EnabledWorkspace);
+	}
+}
+
+export class DisableMcpServerGloballyAction extends McpServerAction {
+
+	static readonly ID = 'mcpServer.disableGlobally';
+
+	constructor(
+		@IMcpService private readonly mcpService: IMcpService,
+	) {
+		super(DisableMcpServerGloballyAction.ID, localize('disableGlobally', "Disable"), McpServerAction.LABEL_ACTION_CLASS);
+		this.tooltip = localize('disableGloballyTooltip', "Disable this MCP server");
+		this.update();
+	}
+
+	update(): void {
+		this.enabled = false;
+		if (!this.mcpServer?.local) {
+			return;
+		}
+		const server = this.mcpService.servers.get().find(s => s.definition.id === this.mcpServer?.id);
+		if (!server) {
+			return;
+		}
+		const enablement = server.enablement.get();
+		this.enabled = isContributionEnabled(enablement);
+	}
+
+	override async run(): Promise<void> {
+		if (!this.mcpServer) {
+			return;
+		}
+		this.mcpService.enablementModel.setEnabled(this.mcpServer.id, ContributionEnablementState.DisabledProfile);
+	}
+}
+
+export class DisableMcpServerForWorkspaceAction extends McpServerAction {
+
+	static readonly ID = 'mcpServer.disableForWorkspace';
+
+	constructor(
+		@IMcpService private readonly mcpService: IMcpService,
+		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
+	) {
+		super(DisableMcpServerForWorkspaceAction.ID, localize('disableForWorkspace', "Disable (Workspace)"), McpServerAction.LABEL_ACTION_CLASS);
+		this.tooltip = localize('disableForWorkspaceTooltip', "Disable this MCP server only in this workspace");
+		this.update();
+	}
+
+	update(): void {
+		this.enabled = false;
+		if (!this.mcpServer?.local) {
+			return;
+		}
+		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
+			return;
+		}
+		const server = this.mcpService.servers.get().find(s => s.definition.id === this.mcpServer?.id);
+		if (!server) {
+			return;
+		}
+		const enablement = server.enablement.get();
+		this.enabled = isContributionEnabled(enablement);
+	}
+
+	override async run(): Promise<void> {
+		if (!this.mcpServer) {
+			return;
+		}
+		this.mcpService.enablementModel.setEnabled(this.mcpServer.id, ContributionEnablementState.DisabledWorkspace);
+	}
+}
+
+export class EnableMcpDropDownAction extends ButtonWithDropDownExtensionAction {
+
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super('mcpServer.enable', McpServerAction.LABEL_ACTION_CLASS, [
+			[
+				instantiationService.createInstance(EnableMcpServerGloballyAction),
+				instantiationService.createInstance(EnableMcpServerForWorkspaceAction),
+			]
+		]);
+	}
+}
+
+export class DisableMcpDropDownAction extends ButtonWithDropDownExtensionAction {
+
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super('mcpServer.disable', McpServerAction.LABEL_ACTION_CLASS, [
+			[
+				instantiationService.createInstance(DisableMcpServerGloballyAction),
+				instantiationService.createInstance(DisableMcpServerForWorkspaceAction),
+			]
+		]);
+	}
+}
+
 export function getContextMenuActions(mcpServer: IWorkbenchMcpServer, isEditorAction: boolean, instantiationService: IInstantiationService): IAction[][] {
 	return instantiationService.invokeFunction(accessor => {
 		const workspaceService = accessor.get(IWorkspaceContextService);
@@ -523,6 +694,12 @@ export function getContextMenuActions(mcpServer: IWorkbenchMcpServer, isEditorAc
 			groups.push([
 				instantiationService.createInstance(StopServerAction),
 				instantiationService.createInstance(RestartServerAction),
+			]);
+			groups.push([
+				instantiationService.createInstance(EnableMcpServerGloballyAction),
+				instantiationService.createInstance(EnableMcpServerForWorkspaceAction),
+				instantiationService.createInstance(DisableMcpServerGloballyAction),
+				instantiationService.createInstance(DisableMcpServerForWorkspaceAction),
 			]);
 			groups.push([
 				instantiationService.createInstance(AuthServerAction),

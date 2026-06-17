@@ -181,6 +181,9 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 					case 'comment':
 						tokenTypes[scope] = StandardTokenType.Comment;
 						break;
+					case 'regex':
+						tokenTypes[scope] = StandardTokenType.RegEx;
+						break;
 				}
 			}
 		}

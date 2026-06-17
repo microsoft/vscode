@@ -110,6 +110,12 @@ export class ImplicitProjectConfiguration {
 	}
 }
 
+export interface TsServerHeapProfileConfiguration {
+	readonly enabled: boolean;
+	readonly dir: string | undefined;
+	readonly interval: number | undefined;
+}
+
 export interface TypeScriptServiceConfiguration {
 	readonly locale: string | null;
 	readonly globalTsdk: string | null;
@@ -126,6 +132,9 @@ export interface TypeScriptServiceConfiguration {
 	readonly enableDiagnosticsTelemetry: boolean;
 	readonly enableProjectDiagnostics: boolean;
 	readonly maxTsServerMemory: number;
+	readonly diagnosticDir: string | undefined;
+	readonly heapSnapshot: number;
+	readonly heapProfile: TsServerHeapProfileConfiguration;
 	readonly enablePromptUseWorkspaceTsdk: boolean;
 	readonly useVsCodeWatcher: boolean;
 	readonly watchOptions: Proto.WatchOptions | undefined;
@@ -168,6 +177,9 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 			enableDiagnosticsTelemetry: this.readEnableDiagnosticsTelemetry(),
 			enableProjectDiagnostics: this.readEnableProjectDiagnostics(),
 			maxTsServerMemory: this.readMaxTsServerMemory(),
+			diagnosticDir: this.readDiagnosticDir(),
+			heapSnapshot: this.readHeapSnapshot(),
+			heapProfile: this.readHeapProfileConfiguration(),
 			enablePromptUseWorkspaceTsdk: this.readEnablePromptUseWorkspaceTsdk(),
 			useVsCodeWatcher: this.readUseVsCodeWatcher(configuration),
 			watchOptions: this.readWatchOptions(),
@@ -286,6 +298,42 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 			return defaultMaxMemory;
 		}
 		return Math.max(memoryInMB, minimumMaxMemory);
+	}
+
+	protected readDiagnosticDir(): string | undefined {
+		const diagnosticDir = readUnifiedConfig<string | undefined>('tsserver.diagnosticDir', undefined, { fallbackSection: 'typescript' });
+		return typeof diagnosticDir === 'string' && diagnosticDir.length > 0 ? diagnosticDir : undefined;
+	}
+
+	protected readHeapSnapshot(): number {
+		const defaultNearHeapLimitSnapshotCount = 0;
+		const nearHeapLimitSnapshotCount = readUnifiedConfig<number>('tsserver.heapSnapshot', defaultNearHeapLimitSnapshotCount, { fallbackSection: 'typescript' });
+		if (!Number.isSafeInteger(nearHeapLimitSnapshotCount)) {
+			return defaultNearHeapLimitSnapshotCount;
+		}
+		return Math.max(nearHeapLimitSnapshotCount, 0);
+	}
+
+	private readHeapProfileConfiguration(): TsServerHeapProfileConfiguration {
+		const defaultHeapProfileConfiguration: TsServerHeapProfileConfiguration = {
+			enabled: false,
+			dir: undefined,
+			interval: undefined,
+		};
+
+		const rawConfig = readUnifiedConfig<{ enabled?: unknown; dir?: unknown; interval?: unknown }>('tsserver.heapProfile', defaultHeapProfileConfiguration, { fallbackSection: 'typescript' });
+
+		const enabled = typeof rawConfig.enabled === 'boolean' ? rawConfig.enabled : false;
+		const dir = typeof rawConfig.dir === 'string' && rawConfig.dir.length > 0 ? rawConfig.dir : undefined;
+		const interval = typeof rawConfig.interval === 'number' && Number.isSafeInteger(rawConfig.interval) && rawConfig.interval > 0
+			? rawConfig.interval
+			: undefined;
+
+		return {
+			enabled,
+			dir,
+			interval,
+		};
 	}
 
 	protected readEnablePromptUseWorkspaceTsdk(): boolean {

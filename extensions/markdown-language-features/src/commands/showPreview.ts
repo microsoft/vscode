@@ -53,14 +53,20 @@ async function showPreview(
 export class ShowPreviewCommand implements Command {
 	public readonly id = 'markdown.showPreview';
 
+	readonly #webviewManager: MarkdownPreviewManager;
+	readonly #telemetryReporter: TelemetryReporter;
+
 	public constructor(
-		private readonly _webviewManager: MarkdownPreviewManager,
-		private readonly _telemetryReporter: TelemetryReporter
-	) { }
+		webviewManager: MarkdownPreviewManager,
+		telemetryReporter: TelemetryReporter
+	) {
+		this.#webviewManager = webviewManager;
+		this.#telemetryReporter = telemetryReporter;
+	}
 
 	public execute(mainUri?: vscode.Uri, allUris?: vscode.Uri[], previewSettings?: DynamicPreviewSettings) {
 		for (const uri of Array.isArray(allUris) ? allUris : [mainUri]) {
-			showPreview(this._webviewManager, this._telemetryReporter, uri, {
+			showPreview(this.#webviewManager, this.#telemetryReporter, uri, {
 				sideBySide: false,
 				locked: previewSettings?.locked
 			});
@@ -71,13 +77,19 @@ export class ShowPreviewCommand implements Command {
 export class ShowPreviewToSideCommand implements Command {
 	public readonly id = 'markdown.showPreviewToSide';
 
+	readonly #webviewManager: MarkdownPreviewManager;
+	readonly #telemetryReporter: TelemetryReporter;
+
 	public constructor(
-		private readonly _webviewManager: MarkdownPreviewManager,
-		private readonly _telemetryReporter: TelemetryReporter
-	) { }
+		webviewManager: MarkdownPreviewManager,
+		telemetryReporter: TelemetryReporter
+	) {
+		this.#webviewManager = webviewManager;
+		this.#telemetryReporter = telemetryReporter;
+	}
 
 	public execute(uri?: vscode.Uri, previewSettings?: DynamicPreviewSettings) {
-		showPreview(this._webviewManager, this._telemetryReporter, uri, {
+		showPreview(this.#webviewManager, this.#telemetryReporter, uri, {
 			sideBySide: true,
 			locked: previewSettings?.locked
 		});
@@ -88,13 +100,19 @@ export class ShowPreviewToSideCommand implements Command {
 export class ShowLockedPreviewToSideCommand implements Command {
 	public readonly id = 'markdown.showLockedPreviewToSide';
 
+	readonly #webviewManager: MarkdownPreviewManager;
+	readonly #telemetryReporter: TelemetryReporter;
+
 	public constructor(
-		private readonly _webviewManager: MarkdownPreviewManager,
-		private readonly _telemetryReporter: TelemetryReporter
-	) { }
+		webviewManager: MarkdownPreviewManager,
+		telemetryReporter: TelemetryReporter
+	) {
+		this.#webviewManager = webviewManager;
+		this.#telemetryReporter = telemetryReporter;
+	}
 
 	public execute(uri?: vscode.Uri) {
-		showPreview(this._webviewManager, this._telemetryReporter, uri, {
+		showPreview(this.#webviewManager, this.#telemetryReporter, uri, {
 			sideBySide: true,
 			locked: true
 		});

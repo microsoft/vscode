@@ -5,19 +5,78 @@
 
 import './agentFeedbackEditorInputContribution.js';
 import './agentFeedbackEditorWidgetContribution.js';
-import './agentFeedbackLineDecorationContribution.js';
 import './agentFeedbackOverviewRulerContribution.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun, observableFromEvent } from '../../../../base/common/observable.js';
+import { localize } from '../../../../nls.js';
+import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { AgentFeedbackService, IAgentFeedbackService } from './agentFeedbackService.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
+import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { AgentFeedbackService, AgentFeedbackState, IAgentFeedbackService } from './agentFeedbackService.js';
 import { AgentFeedbackAttachmentContribution } from './agentFeedbackAttachment.js';
 import { AgentFeedbackAttachmentWidget } from './agentFeedbackAttachmentWidget.js';
 import { AgentFeedbackEditorOverlay } from './agentFeedbackEditorOverlay.js';
-import { registerAgentFeedbackEditorActions } from './agentFeedbackEditorActions.js';
+import { hasActiveSessionAgentFeedback, registerAgentFeedbackEditorActions, submitActiveSessionFeedbackActionId } from './agentFeedbackEditorActions.js';
 import { IChatAttachmentWidgetRegistry } from '../../../../workbench/contrib/chat/browser/attachments/chatAttachmentWidgetRegistry.js';
 import { IAgentFeedbackVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+/**
+ * Sets the `hasActiveSessionAgentFeedback` context key to true when the
+ * currently active session has pending agent feedback items.
+ */
+class ActiveSessionFeedbackContextContribution extends Disposable implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.activeSessionFeedbackContext';
+
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IAgentFeedbackService agentFeedbackService: IAgentFeedbackService,
+		@ISessionsService sessionsService: ISessionsService,
+	) {
+		super();
+
+		const contextKey = hasActiveSessionAgentFeedback.bindTo(contextKeyService);
+		const menuRegistration = this._register(new MutableDisposable());
+
+		const feedbackChanged = observableFromEvent(
+			this,
+			agentFeedbackService.onDidChangeFeedback,
+			e => e,
+		);
+
+		this._register(autorun(reader => {
+			feedbackChanged.read(reader);
+			const activeSession = sessionsService.activeSession.read(reader);
+			menuRegistration.clear();
+			if (!activeSession) {
+				contextKey.set(false);
+				return;
+			}
+			const feedback = agentFeedbackService.getFeedback(activeSession.resource);
+			const count = feedback.filter(item => item.state === AgentFeedbackState.Accepted).length;
+			contextKey.set(count > 0);
+
+			if (count > 0) {
+				menuRegistration.value = MenuRegistry.appendMenuItem(MenuId.AgentsChangesPrimaryActionSubMenu, {
+					command: {
+						id: submitActiveSessionFeedbackActionId,
+						icon: Codicon.comment,
+						title: localize('agentFeedback.submitFeedbackCount', "Submit Feedback ({0})", count),
+					},
+					group: 'navigation',
+					order: 3,
+					when: ContextKeyExpr.and(IsSessionsWindowContext, hasActiveSessionAgentFeedback),
+				});
+			}
+		}));
+	}
+}
+
+registerWorkbenchContribution2(ActiveSessionFeedbackContextContribution.ID, ActiveSessionFeedbackContextContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentFeedbackEditorOverlay.ID, AgentFeedbackEditorOverlay, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentFeedbackAttachmentContribution.ID, AgentFeedbackAttachmentContribution, WorkbenchPhase.AfterRestored);
 

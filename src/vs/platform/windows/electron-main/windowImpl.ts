@@ -52,6 +52,7 @@ export interface IWindowCreationOptions {
 	readonly state: IWindowState;
 	readonly extensionDevelopmentPath?: string[];
 	readonly isExtensionTestHost?: boolean;
+	readonly isSessionsWindow?: boolean;
 }
 
 interface ITouchBarSegment extends electron.SegmentedControlSegment {
@@ -461,15 +462,15 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 	private dimColor(color: string): string {
 
-		// Blend a CSS color with black at 30% opacity to match the
-		// dimming overlay of `rgba(0, 0, 0, 0.3)` used by modals.
+		// Blend a CSS color with black at 50% opacity to match the
+		// dimming overlay of `rgba(0, 0, 0, 0.5)` used by modals.
 
 		const parsed = Color.Format.CSS.parse(color);
 		if (!parsed) {
 			return color;
 		}
 
-		const dimFactor = 0.7; // 1 - 0.3 opacity of black overlay
+		const dimFactor = 0.5; // 1 - 0.5 opacity of black overlay
 		const r = Math.round(parsed.rgba.r * dimFactor);
 		const g = Math.round(parsed.rgba.g * dimFactor);
 		const b = Math.round(parsed.rgba.b * dimFactor);
@@ -702,11 +703,16 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			this.windowState = state;
 			this.logService.trace('window#ctor: using window state', state);
 
-			const options = instantiationService.invokeFunction(defaultBrowserWindowOptions, this.windowState, undefined, {
+			const webPreferences: electron.WebPreferences = {
 				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js').fsPath,
 				additionalArguments: [`--vscode-window-config=${this.configObjectUrl.resource.toString()}`],
-				v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
-			});
+				v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none'
+			};
+			if (config.isSessionsWindow) {
+				webPreferences.backgroundThrottling = false; // keep agents window responsive when in background
+			}
+
+			const options = instantiationService.invokeFunction(defaultBrowserWindowOptions, this.windowState, undefined, webPreferences);
 
 			// Create the browser window
 			mark('code/willCreateCodeBrowserWindow');

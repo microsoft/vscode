@@ -300,6 +300,7 @@ class EditorFindAccessibilityHelpProvider extends Disposable implements IAccessi
 			content.push(localize('find.settingSeed', "- `editor.find.seedSearchStringFromSelection`: Controls when selection text is used to seed Find."));
 			content.push(localize('find.settingAutoSelection', "- `editor.find.autoFindInSelection`: Automatically enables Find in Selection based on selection type."));
 			content.push(localize('find.settingLoop', "- `editor.find.loop`: Wraps search at the beginning or end of the file."));
+			content.push(localize('find.settingCloseOnResult', "- `editor.find.closeOnResult`: Closes the Find dialog after an explicit find navigation command lands on a match."));
 			content.push(localize('find.settingExtraSpace', "- `editor.find.addExtraSpaceOnTop`: Adds extra scroll space so matches are not hidden behind the Find dialog."));
 			content.push(localize('find.settingHistory', "- `editor.find.history`: Controls whether Find search history is stored."));
 			content.push(localize('find.settingOccurrences', "- `editor.occurrencesHighlight`: Highlights other occurrences of the current symbol."));
