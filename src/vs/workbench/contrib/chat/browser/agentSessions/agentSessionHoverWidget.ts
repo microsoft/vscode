@@ -153,7 +153,7 @@ export class AgentSessionHoverWidget extends Disposable {
 			}
 		}, 500));
 		this._register(viewModel.onDidChange(() => {
-			if (!viewModelScheduler.isScheduled()) {
+			if (this.domNode.isConnected && !viewModelScheduler.isScheduled()) {
 				viewModelScheduler.schedule();
 			}
 		}));
