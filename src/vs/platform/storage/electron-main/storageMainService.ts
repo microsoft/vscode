@@ -128,7 +128,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		})();
 
 		this._register(this.lifecycleMainService.onWillLoadWindow(e => {
-			this.registerWindowStorageRelease(e.window);
+			this.registerWindowStorageWarmup(e.window);
 		}));
 
 		// All Storage: Close when shutting down
@@ -145,13 +145,13 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 			e.join('applicationSharedStorage', this.applicationSharedStorage.close());
 
 			// Profile Storage(s)
-			for (const profileStorageClose of this.profileStorageMap.closeAll()) {
-				e.join('profileStorage', profileStorageClose);
+			for (const profileStorageClosePromise of this.profileStorageMap.closeAll()) {
+				e.join('profileStorage', profileStorageClosePromise);
 			}
 
 			// Workspace Storage(s)
-			for (const workspaceStorageClose of this.workspaceStorageMap.closeAll()) {
-				e.join('workspaceStorage', workspaceStorageClose);
+			for (const workspaceStorageClosePromise of this.workspaceStorageMap.closeAll()) {
+				e.join('workspaceStorage', workspaceStorageClosePromise);
 			}
 		}));
 
@@ -166,14 +166,14 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 		// Close the storage of the profile that is being removed
 		this._register(this.userDataProfilesService.onWillRemoveProfile(e => {
-			const storageClose = this.profileStorageMap.close(e.profile.id);
-			if (storageClose) {
-				e.join(storageClose);
+			const storageClosePromise = this.profileStorageMap.close(e.profile.id);
+			if (storageClosePromise) {
+				e.join(storageClosePromise);
 			}
 		}));
 	}
 
-	private registerWindowStorageRelease(window: ICodeWindow): void {
+	private registerWindowStorageWarmup(window: ICodeWindow): void {
 		if (this.mapWindowIdToStorageReleaseListener.has(window.id)) {
 			return;
 		}
