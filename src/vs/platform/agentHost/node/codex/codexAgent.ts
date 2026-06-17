@@ -27,7 +27,8 @@ import type { ISyncedCustomization } from '../../common/agentPluginManager.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { McpCustomizationController } from '../shared/mcpCustomizationController.js';
 import { buildCodexMcpReadResult, codexMcpListToInventory, codexMcpToolsChanged, inventoryToSdkServers, translateCodexMcpStartupState, type ICodexMcpServerEntry } from './codexMcpServers.js';
-import type { Customization } from '../../common/state/protocol/channels-session/state.js';
+import { buildElicitationRequest, cancelledElicitationResponse, declinedElicitationResponse, elicitationResponseFromAnswers } from './codexElicitationMapper.js';
+import type { AhpMcpUiHostCapabilities, Customization } from '../../common/state/protocol/channels-session/state.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { extractForwardedErrorInfo } from '../shared/forwardedChatError.js';
@@ -76,6 +77,8 @@ import type { ListMcpServerStatusResponse } from './protocol/generated/v2/ListMc
 import type { McpServerToolCallResponse } from './protocol/generated/v2/McpServerToolCallResponse.js';
 import type { McpResourceReadResponse } from './protocol/generated/v2/McpResourceReadResponse.js';
 import type { McpServerStartupState } from './protocol/generated/v2/McpServerStartupState.js';
+import type { McpServerElicitationRequestParams } from './protocol/generated/v2/McpServerElicitationRequestParams.js';
+import type { McpServerElicitationRequestResponse } from './protocol/generated/v2/McpServerElicitationRequestResponse.js';
 
 const CLIENT_INFO = {
 	name: 'vscode_agent_host',
@@ -87,7 +90,20 @@ const CLIENT_INFO = {
 };
 
 const CODEX_THINKING_LEVEL_KEY = 'thinkingLevel';
+
 const CODEX_REASONING_EFFORTS: readonly ReasoningEffort[] = ['minimal', 'low', 'medium', 'high'];
+
+/**
+ * MCP App capabilities advertised on every codex MCP server. Mirrors
+ * {@link DEFAULT_MCP_APP_CAPABILITIES} but omits `sampling`: codex owns
+ * the model connection (through the `vscode-proxy` provider) and exposes
+ * no app-server RPC for App-initiated `sampling/createMessage`, so the
+ * host cannot serve that capability for codex.
+ */
+const CODEX_MCP_APP_CAPABILITIES: AhpMcpUiHostCapabilities = {
+	serverTools: { listChanged: true },
+	serverResources: {},
+};
 
 const codexSessionConfigSchema = createSchema({
 	[CodexSessionConfigKey.ApprovalPolicy]: schemaProperty<CodexApprovalPolicy>({
@@ -901,6 +917,14 @@ export class CodexAgent extends Disposable implements IAgent {
 			params => this._handleUserInputRequestRpc(params),
 		));
 
+		// MCP elicitation requests. An MCP server (relayed by codex) asks the
+		// user for structured input mid-tool-call. Surface it through the same
+		// chat-input flow as `ask_user` and answer codex with accept/decline/cancel.
+		this._register(client.onRequest<'mcpServer/elicitation/request'>(
+			'mcpServer/elicitation/request',
+			params => this._handleElicitationRequestRpc(params),
+		));
+
 		// Seed the MCP server inventory from the freshly-connected app-server.
 		// Best-effort and fire-and-forget: failures leave the inventory empty
 		// until the next `mcpServer/startupStatus/updated` notification.
@@ -1006,6 +1030,30 @@ export class CodexAgent extends Disposable implements IAgent {
 			// Session disposed / connection lost while awaiting; answer codex
 			// with empty answers so the turn unwinds instead of hanging.
 			return { result: emptyUserInputResponse(params.questions) };
+		}
+	}
+
+	private async _handleElicitationRequestRpc(params: McpServerElicitationRequestParams): Promise<ServerRequestHandlerResult<McpServerElicitationRequestResponse>> {
+		const sessionId = this._sessionIdByThreadId.get(params.threadId);
+		const session = sessionId ? this._sessions.get(sessionId) : undefined;
+		this._logService.info(`[Codex] elicitation request threadId=${params.threadId} mode=${params.mode} server=${params.serverName} session=${session ? session.sessionId : 'NONE'}`);
+		if (!session) {
+			this._logService.warn(`[Codex] elicitation request for unknown threadId=${params.threadId}; declining`);
+			return { result: declinedElicitationResponse() };
+		}
+		const requestId = generateUuid();
+		const request = buildElicitationRequest(requestId, params);
+		try {
+			const result = await session.pendingUserInputs.registerAndFire(requestId, () => {
+				this._fire(session.sessionUri, { type: ActionType.ChatInputRequested, request });
+			});
+			this._logService.info(`[Codex] elicitation resolved requestId=${requestId} response=${result.response}`);
+			return { result: elicitationResponseFromAnswers(params, result.response, result.answers) };
+		} catch (err) {
+			// Session disposed / connection lost while awaiting; cancel the
+			// elicitation so the MCP server's request unwinds.
+			this._logService.info(`[Codex] elicitation cancelled requestId=${requestId}: ${err instanceof Error ? err.message : String(err)}`);
+			return { result: cancelledElicitationResponse() };
 		}
 	}
 
@@ -2191,6 +2239,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				sessionId: session.sessionId,
 				resolveChildId: () => undefined,
 				emit: action => this._fire(session.sessionUri, action),
+				capabilities: CODEX_MCP_APP_CAPABILITIES,
 			});
 		}
 		return session.mcpController;
