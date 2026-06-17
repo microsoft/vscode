@@ -22,5 +22,5 @@ Sandboxing:
 - Use $TMPDIR for temporary files; /tmp may not be writable. The TMPDIR env var is always set to a writable path.
 - Network: blocked in the sandbox; commands that need the network fail unless requestAllowNetwork=true is set.
 - To get more access (each prompts the user — never ask the user for permission yourself):
-  - Need a blocked domain? Set requestAllowNetwork=true and provide requestAllowNetworkReason. This keeps the filesystem sandbox in place and only relaxes the network, so prefer it for network-only needs. Do this proactively when network use is obvious (git fetch/pull/push/clone; npm/yarn/pnpm/pip/cargo/go/brew installs; curl; wget), or reactively after a network failure (e.g. 'Network request failed').
+  - Need a blocked domain? Set requestAllowNetwork=true and provide requestAllowNetworkReason. This keeps the filesystem sandbox in place and only relaxes the network, so prefer it for network-only needs. Do this proactively when network use is obvious (git fetch/pull/push/clone; npm/yarn/pnpm/pip/cargo/go/brew installs; curl; wget), or reactively after a network failure (e.g. 'Network request failed', HTTP code 403).
 - Running commands outside the sandbox is disabled by chat.agent.sandbox.allowUnsandboxedCommands. Do not set requestUnsandboxedExecution=true.

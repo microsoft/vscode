@@ -10,15 +10,15 @@ import { createSandboxLines, createSandboxProperties, type ISandboxingOnOptions 
 suite('createSandboxLines', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function assertLines(name: string, options: ISandboxingOnOptions) {
+	async function assertLines(options: ISandboxingOnOptions) {
 		const properties = JSON.stringify(createSandboxProperties(options), undefined, 2);
 		const snapshot = `${JSON.stringify(options, undefined, 2)}\n----\n${properties}\n----\n${createSandboxLines(options).join('\n')}`;
-		await assertSnapshot(snapshot, { name });
+		await assertSnapshot(snapshot);
 	}
 
-	suite('on-network-available', () => {
-		test('unsandboxed disallowed', async () => {
-			await assertLines('on-network-available_unsandboxed-disallowed', {
+	suite('available', () => {
+		test('disallowed', async () => {
+			await assertLines({
 				sandboxMode: 'on-network-available',
 				allowToRunUnsandboxedCommands: false,
 				retryWithAllowNetworkRequests: false,
@@ -26,8 +26,8 @@ suite('createSandboxLines', () => {
 			});
 		});
 
-		test('unsandboxed allowed', async () => {
-			await assertLines('on-network-available_unsandboxed-allowed', {
+		test('allowed', async () => {
+			await assertLines({
 				sandboxMode: 'on-network-available',
 				allowToRunUnsandboxedCommands: true,
 				retryWithAllowNetworkRequests: false,
@@ -36,9 +36,9 @@ suite('createSandboxLines', () => {
 		});
 	});
 
-	suite('on-network-restricted', () => {
-		test('no domains, no retry, unsandboxed disallowed', async () => {
-			await assertLines('on-network-restricted_no-domains_no-retry_unsandboxed-disallowed', {
+	suite('restricted', () => {
+		test('no retry, disallowed', async () => {
+			await assertLines({
 				sandboxMode: 'on-network-restricted',
 				allowToRunUnsandboxedCommands: false,
 				retryWithAllowNetworkRequests: false,
@@ -46,8 +46,8 @@ suite('createSandboxLines', () => {
 			});
 		});
 
-		test('no domains, no retry, unsandboxed allowed', async () => {
-			await assertLines('on-network-restricted_no-domains_no-retry_unsandboxed-allowed', {
+		test('no retry, allowed', async () => {
+			await assertLines({
 				sandboxMode: 'on-network-restricted',
 				allowToRunUnsandboxedCommands: true,
 				retryWithAllowNetworkRequests: false,
@@ -55,8 +55,8 @@ suite('createSandboxLines', () => {
 			});
 		});
 
-		test('no domains, retry, unsandboxed disallowed', async () => {
-			await assertLines('on-network-restricted_no-domains_retry_unsandboxed-disallowed', {
+		test('retry, disallowed', async () => {
+			await assertLines({
 				sandboxMode: 'on-network-restricted',
 				allowToRunUnsandboxedCommands: false,
 				retryWithAllowNetworkRequests: true,
@@ -64,8 +64,8 @@ suite('createSandboxLines', () => {
 			});
 		});
 
-		test('no domains, retry, unsandboxed allowed', async () => {
-			await assertLines('on-network-restricted_no-domains_retry_unsandboxed-allowed', {
+		test('retry, allowed', async () => {
+			await assertLines({
 				sandboxMode: 'on-network-restricted',
 				allowToRunUnsandboxedCommands: true,
 				retryWithAllowNetworkRequests: true,
@@ -74,7 +74,7 @@ suite('createSandboxLines', () => {
 		});
 
 		test('empty domains', async () => {
-			await assertLines('on-network-restricted_empty-domains', {
+			await assertLines({
 				sandboxMode: 'on-network-restricted',
 				allowToRunUnsandboxedCommands: true,
 				retryWithAllowNetworkRequests: true,
@@ -82,8 +82,8 @@ suite('createSandboxLines', () => {
 			});
 		});
 
-		test('allowed domains only', async () => {
-			await assertLines('on-network-restricted_allowed-domains-only', {
+		test('allowed domains', async () => {
+			await assertLines({
 				sandboxMode: 'on-network-restricted',
 				allowToRunUnsandboxedCommands: true,
 				retryWithAllowNetworkRequests: true,
@@ -91,8 +91,8 @@ suite('createSandboxLines', () => {
 			});
 		});
 
-		test('denied domains only', async () => {
-			await assertLines('on-network-restricted_denied-domains-only', {
+		test('denied domains', async () => {
+			await assertLines({
 				sandboxMode: 'on-network-restricted',
 				allowToRunUnsandboxedCommands: true,
 				retryWithAllowNetworkRequests: true,
@@ -101,7 +101,7 @@ suite('createSandboxLines', () => {
 		});
 
 		test('allowed and denied domains', async () => {
-			await assertLines('on-network-restricted_allowed-and-denied-domains', {
+			await assertLines({
 				sandboxMode: 'on-network-restricted',
 				allowToRunUnsandboxedCommands: true,
 				retryWithAllowNetworkRequests: true,
@@ -109,8 +109,8 @@ suite('createSandboxLines', () => {
 			});
 		});
 
-		test('overlapping allowed and denied domains', async () => {
-			await assertLines('on-network-restricted_overlapping-domains', {
+		test('overlapping domains', async () => {
+			await assertLines({
 				sandboxMode: 'on-network-restricted',
 				allowToRunUnsandboxedCommands: true,
 				retryWithAllowNetworkRequests: true,
@@ -118,8 +118,8 @@ suite('createSandboxLines', () => {
 			});
 		});
 
-		test('domains with retry disabled', async () => {
-			await assertLines('on-network-restricted_allowed-domains_no-retry', {
+		test('domains, retry disabled', async () => {
+			await assertLines({
 				sandboxMode: 'on-network-restricted',
 				allowToRunUnsandboxedCommands: false,
 				retryWithAllowNetworkRequests: false,
