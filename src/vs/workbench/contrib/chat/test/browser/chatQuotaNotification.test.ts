@@ -655,7 +655,7 @@ suite('ChatQuotaNotificationContribution', () => {
 					resetDate: makeResetDate(24),
 					canUpgradePlan: true,
 					usageBasedBilling: true,
-					premiumChat: makeQuotaSnapshot(75),
+					premiumChat: makeQuotaSnapshot(72),
 				},
 			});
 
@@ -690,7 +690,7 @@ suite('ChatQuotaNotificationContribution', () => {
 				quotas: {
 					resetDate: makeResetDate(24),
 					usageBasedBilling: true,
-					premiumChat: makeQuotaSnapshot(78),
+					premiumChat: makeQuotaSnapshot(72),
 				},
 			}, { trajectoryTreatment: 'enabled' });
 
@@ -717,13 +717,48 @@ suite('ChatQuotaNotificationContribution', () => {
 			});
 		});
 
+		test('shows for Edu and Pro+ users', async () => {
+			const results = [];
+			for (const entitlement of [ChatEntitlement.EDU, ChatEntitlement.ProPlus]) {
+				const { notificationMock } = createContribution({
+					entitlement,
+					quotas: {
+						resetDate: makeResetDate(24),
+						usageBasedBilling: true,
+						premiumChat: makeQuotaSnapshot(72),
+					},
+				}, { trajectoryTreatment: 'enabled' });
+
+				await flushPromises();
+
+				results.push(!!notificationMock.getNotification());
+			}
+
+			assert.deepStrictEqual(results, [true, true]);
+		});
+
+		test('does not show when projected daily usage is below threshold', async () => {
+			const { notificationMock } = createContribution({
+				entitlement: ChatEntitlement.Pro,
+				quotas: {
+					resetDate: makeResetDate(24),
+					usageBasedBilling: true,
+					premiumChat: makeQuotaSnapshot(78),
+				},
+			}, { trajectoryTreatment: 'enabled' });
+
+			await flushPromises();
+
+			assert.strictEqual(notificationMock.getNotification(), undefined);
+		});
+
 		test('does not show when reset date implies no elapsed billing days', async () => {
 			const { notificationMock } = createContribution({
 				entitlement: ChatEntitlement.Pro,
 				quotas: {
 					resetDate: makeResetDate(31),
 					usageBasedBilling: true,
-					premiumChat: makeQuotaSnapshot(78),
+					premiumChat: makeQuotaSnapshot(72),
 				},
 			}, { trajectoryTreatment: 'enabled' });
 
@@ -739,7 +774,7 @@ suite('ChatQuotaNotificationContribution', () => {
 				quotas: {
 					resetDate: makeResetDate(24),
 					usageBasedBilling: true,
-					premiumChat: makeQuotaSnapshot(78),
+					premiumChat: makeQuotaSnapshot(72),
 				},
 			}, { trajectoryTreatment: 'enabled', telemetryService });
 
@@ -751,8 +786,8 @@ suite('ChatQuotaNotificationContribution', () => {
 				data: {
 					severity: 'info',
 					entitlement: 'Pro',
-					averageDailyUsage: 3.67,
-					percentUsed: 22,
+					averageDailyUsage: 4.67,
+					percentUsed: 28,
 				},
 			}]);
 		});
@@ -764,7 +799,7 @@ suite('ChatQuotaNotificationContribution', () => {
 				quotas: {
 					resetDate: makeResetDate(24),
 					usageBasedBilling: true,
-					premiumChat: makeQuotaSnapshot(78),
+					premiumChat: makeQuotaSnapshot(72),
 				},
 			}, { trajectoryTreatment: 'enabled', telemetryService });
 
@@ -781,8 +816,8 @@ suite('ChatQuotaNotificationContribution', () => {
 						data: {
 							severity: 'info',
 							entitlement: 'Pro',
-							averageDailyUsage: 3.67,
-							percentUsed: 22,
+							averageDailyUsage: 4.67,
+							percentUsed: 28,
 						},
 					},
 					{
@@ -790,8 +825,8 @@ suite('ChatQuotaNotificationContribution', () => {
 						data: {
 							severity: 'info',
 							entitlement: 'Pro',
-							averageDailyUsage: 3.67,
-							percentUsed: 22,
+							averageDailyUsage: 4.67,
+							percentUsed: 28,
 							action: 'learnMore',
 						},
 					},
@@ -806,7 +841,7 @@ suite('ChatQuotaNotificationContribution', () => {
 				quotas: {
 					resetDate: makeResetDate(24),
 					usageBasedBilling: true,
-					premiumChat: makeQuotaSnapshot(78),
+					premiumChat: makeQuotaSnapshot(72),
 				},
 			}, { trajectoryTreatment: 'enabled' });
 
@@ -824,9 +859,9 @@ suite('ChatQuotaNotificationContribution', () => {
 			assert.strictEqual(notificationMock.getNotification(), undefined);
 		});
 
-		test('remembers trajectory dismissal for the quota period', async () => {
+		test('remembers trajectory display for the quota period', async () => {
 			const { entitlementMock, notificationMock } = createContribution({
-				entitlement: ChatEntitlement.EDU,
+				entitlement: ChatEntitlement.ProPlus,
 				quotas: {
 					resetDate: makeResetDate(24),
 					usageBasedBilling: true,
@@ -837,7 +872,6 @@ suite('ChatQuotaNotificationContribution', () => {
 			await flushPromises();
 			assert.ok(notificationMock.getNotification());
 
-			notificationMock.dismiss();
 			notificationMock.reset();
 			entitlementMock.onDidChangeQuotaRemaining.fire();
 

@@ -23,11 +23,11 @@ import { ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotifi
 
 const QUOTA_NOTIFICATION_ID = 'copilot.quotaStatus';
 const THRESHOLDS = [50, 75, 90, 95];
-const TRAJECTORY_DAILY_USAGE_THRESHOLD = 3.5;
+const TRAJECTORY_DAILY_USAGE_THRESHOLD = 4.5;
 const TRAJECTORY_MINIMUM_PERCENT_USED = 10;
 const TRAJECTORY_MAXIMUM_PERCENT_USED = 35;
 const TRAJECTORY_TREATMENT = 'chatQuotaTrajectoryNudge';
-const TRAJECTORY_DISMISSED_STORAGE_KEY = 'chat.quotaTrajectory.dismissedPeriod';
+const TRAJECTORY_SHOWN_STORAGE_KEY = 'chat.quotaTrajectory.shownPeriod';
 const CREDIT_EFFICIENCY_LEARN_MORE_URL = 'https://aka.ms/token-usage-tips';
 const CREDIT_EFFICIENCY_LEARN_MORE_COMMAND_ID = 'workbench.action.chat.learnMoreAboutCreditUsage';
 
@@ -117,7 +117,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 				return;
 			}
 			if (this._activeQuotaNotificationKind === QuotaNotificationKind.Trajectory) {
-				this._storeTrajectoryDismissal();
+				this._storeTrajectoryShown();
 			}
 			this._activeQuotaNotificationKind = QuotaNotificationKind.None;
 			this._activeTrajectoryWarning = undefined;
@@ -293,7 +293,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	}
 
 	private _computeQuotaTrajectoryWarning(): { averageDailyUsage: number; percentUsed: number } | undefined {
-		if (!this._trajectoryNudgeEnabled || !this._isTrajectoryEligibleEntitlement() || this._isTrajectoryDismissed()) {
+		if (!this._trajectoryNudgeEnabled || !this._isTrajectoryEligibleEntitlement() || this._isTrajectoryShownInCurrentPeriod()) {
 			return undefined;
 		}
 
@@ -335,6 +335,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		this._activeQuotaNotificationKind = QuotaNotificationKind.Trajectory;
 		this._activeTrajectoryWarning = warning;
 		this._logQuotaTrajectoryNudgeShown(warning);
+		this._storeTrajectoryShown();
 		const learnMoreLink = createMarkdownCommandLink({
 			text: localize('quota.trajectory.learnMore', "Learn more about managing credits"),
 			id: CREDIT_EFFICIENCY_LEARN_MORE_COMMAND_ID,
@@ -361,7 +362,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	private _handleQuotaTrajectoryNudgeAction(warning: { averageDailyUsage: number; percentUsed: number }, action: ChatQuotaTrajectoryNudgeAction): void {
 		this._logQuotaTrajectoryNudgeActionClicked(warning, action);
-		this._storeTrajectoryDismissal();
+		this._storeTrajectoryShown();
 		queueMicrotask(() => this._hideNotification());
 	}
 
@@ -634,15 +635,15 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		return `${date.getUTCFullYear()}-${date.getUTCMonth() + 1}`;
 	}
 
-	private _isTrajectoryDismissed(): boolean {
+	private _isTrajectoryShownInCurrentPeriod(): boolean {
 		const periodKey = this._getTrajectoryPeriodKey();
-		return !!periodKey && this._storageService.get(TRAJECTORY_DISMISSED_STORAGE_KEY, StorageScope.APPLICATION) === periodKey;
+		return !!periodKey && this._storageService.get(TRAJECTORY_SHOWN_STORAGE_KEY, StorageScope.APPLICATION) === periodKey;
 	}
 
-	private _storeTrajectoryDismissal(): void {
+	private _storeTrajectoryShown(): void {
 		const periodKey = this._getTrajectoryPeriodKey();
 		if (periodKey) {
-			this._storageService.store(TRAJECTORY_DISMISSED_STORAGE_KEY, periodKey, StorageScope.APPLICATION, StorageTarget.USER);
+			this._storageService.store(TRAJECTORY_SHOWN_STORAGE_KEY, periodKey, StorageScope.APPLICATION, StorageTarget.USER);
 		}
 	}
 
