@@ -66,16 +66,8 @@ export class LayoutController extends Disposable {
 	private readonly _workingSets: ResourceMap<IEditorWorkingSet>;
 	private readonly _workingSetSequencer = new Sequencer();
 	private readonly _useModalConfigObs;
-
-	/**
-	 * Set while a working set is being restored on session switch. The editor
-	 * part is revealed programmatically in this case, so the "editor implies
-	 * auxiliary bar" invariant is suppressed to honor the session's saved
-	 * auxiliary bar visibility (e.g. the user hid it for this session).
-	 */
-	private _suppressAuxiliaryBarEnforcement = false;
-
 	constructor(
+
 		@IAgentWorkbenchLayoutService private readonly _layoutService: IAgentWorkbenchLayoutService,
 		@ISessionsManagementService private readonly _sessionManagementService: ISessionsManagementService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
@@ -244,14 +236,6 @@ export class LayoutController extends Disposable {
 			}
 		}));
 
-		// Invariant: the editor part must never be visible without the auxiliary bar.
-		this._enforceAuxiliaryBarWhenEditorVisible();
-		this._register(this._layoutService.onDidChangePartVisibility(e => {
-			if (e.partId === Parts.EDITOR_PART && e.visible) {
-				this._enforceAuxiliaryBarWhenEditorVisible();
-			}
-		}));
-
 		// --- Editor working sets ---
 
 		this._useModalConfigObs = observableConfigValue<'off' | 'some' | 'all'>('workbench.editor.useModal', 'all', this._configurationService);
@@ -316,30 +300,13 @@ export class LayoutController extends Disposable {
 
 	// --- Auxiliary bar ---
 
-	private _enforceAuxiliaryBarWhenEditorVisible(): void {
-		if (this._suppressAuxiliaryBarEnforcement) {
-			return;
-		}
-		if (
-			this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow) &&
-			!this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)
-		) {
-			this._layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
-		}
-	}
-
 	/**
-	 * Reveals the editor part without triggering the "editor implies auxiliary
-	 * bar" invariant. Used when restoring a session's working set so the
-	 * session's saved auxiliary bar visibility is respected.
+	 * Reveals the editor part. Editor working sets are restored into the shared
+	 * editor area on session switch, which requires the editor part to be
+	 * visible.
 	 */
 	private _revealEditorPartForWorkingSet(): void {
-		this._suppressAuxiliaryBarEnforcement = true;
-		try {
-			this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
-		} finally {
-			this._suppressAuxiliaryBarEnforcement = false;
-		}
+		this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
 	}
 
 	private _captureViewState(sessionResource: URI): void {
