@@ -388,7 +388,6 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 		id: generateUuid(),
 		name: attachment.label,
 		value: modelRepresentation || attachment.label,
-		tooltip: modelRepresentation ? new MarkdownString(`\`\`\`text\n${modelRepresentation}\n\`\`\``) : undefined,
 		_meta: attachment._meta,
 	};
 }
