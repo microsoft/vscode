@@ -125,7 +125,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 			this.applicationSharedStorage.init();
 		})();
 
-		this._register(this.lifecycleMainService.onBeforeCloseWindow(window => {
+		this._register(Event.any(this.lifecycleMainService.onBeforeCloseWindow, this.lifecycleMainService.onDidDestroyWindow)(window => {
 			void Promise.all([
 				this.profileStorageMap.releaseWindowStorage(window.id),
 				this.workspaceStorageMap.releaseWindowStorage(window.id)

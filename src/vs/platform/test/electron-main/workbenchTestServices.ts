@@ -37,9 +37,16 @@ export class TestLifecycleMainService implements ILifecycleMainService {
 		this._onBeforeCloseWindow.fire(window);
 	}
 
+	fireOnDidDestroyWindow(window: ICodeWindow): void {
+		this._onDidDestroyWindow.fire(window);
+	}
+
 	onWillLoadWindow = Event.None;
 	private readonly _onBeforeCloseWindow = new Emitter<ICodeWindow>();
 	readonly onBeforeCloseWindow = this._onBeforeCloseWindow.event;
+
+	private readonly _onDidDestroyWindow = new Emitter<ICodeWindow>();
+	readonly onDidDestroyWindow = this._onDidDestroyWindow.event;
 
 	wasRestarted = false;
 	quitRequested = false;

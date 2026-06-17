@@ -364,6 +364,19 @@ suite('StorageMainService', function () {
 		await Promise.all([closed1, closed2]);
 	});
 
+	test('workspace storage closes when requesting owner window is destroyed', async function () {
+		const lifecycleMainService = new TestLifecycleMainService();
+		const window = disposables.add(new TestCodeWindow(1));
+		const storageMainService = createStorageService(lifecycleMainService);
+		const workspace = { id: generateUuid() };
+
+		const workspaceStorage = storageMainService.workspaceStorage(workspace, window.id);
+
+		const closed = Event.toPromise(workspaceStorage.onDidCloseStorage);
+		lifecycleMainService.fireOnDidDestroyWindow(window.asCodeWindow());
+		await closed;
+	});
+
 	test('non-window profile storage requests do not acquire owner refs', async function () {
 		const lifecycleMainService = new TestLifecycleMainService();
 		const window = disposables.add(new TestCodeWindow(1));
