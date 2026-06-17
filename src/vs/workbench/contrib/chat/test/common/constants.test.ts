@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ChatConfiguration, getDefaultNewChatSessionType, isVisibleEditorChatSessionType } from '../../common/constants.js';
+import { ChatConfiguration, getDefaultNewChatSessionType, isVisibleEditorChatSessionType, shouldAutoDelegateLocalSessionToAgentHostCopilot } from '../../common/constants.js';
 import { localChatSessionType, SessionType, IChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
 import { MockChatSessionsService } from './mockChatSessionsService.js';
 
@@ -75,5 +75,64 @@ suite('ChatConfiguration defaults', () => {
 
 		assert.strictEqual(getDefaultNewChatSessionType(configurationService, chatSessionsService), localChatSessionType);
 		assert.strictEqual(isVisibleEditorChatSessionType(localChatSessionType, configurationService, chatSessionsService), true);
+	});
+
+	test('auto-delegates non-empty local session to agent host Copilot when configured', () => {
+		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.EditorLocalAgentEnabled]: false,
+			[ChatConfiguration.EditorDefaultProvider]: 'copilotAh',
+		});
+		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot);
+
+		assert.strictEqual(shouldAutoDelegateLocalSessionToAgentHostCopilot(localChatSessionType, true, configurationService, chatSessionsService), true);
+	});
+
+	test('does not auto-delegate empty local session', () => {
+		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.EditorLocalAgentEnabled]: false,
+			[ChatConfiguration.EditorDefaultProvider]: 'copilotAh',
+		});
+		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot);
+
+		assert.strictEqual(shouldAutoDelegateLocalSessionToAgentHostCopilot(localChatSessionType, false, configurationService, chatSessionsService), false);
+	});
+
+	test('does not auto-delegate when local is enabled', () => {
+		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.EditorDefaultProvider]: 'copilotAh',
+		});
+		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot);
+
+		assert.strictEqual(shouldAutoDelegateLocalSessionToAgentHostCopilot(localChatSessionType, true, configurationService, chatSessionsService), false);
+	});
+
+	test('does not auto-delegate when default provider is not agent host Copilot', () => {
+		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.EditorLocalAgentEnabled]: false,
+			[ChatConfiguration.EditorDefaultProvider]: 'copilotEh',
+		});
+		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot);
+
+		assert.strictEqual(shouldAutoDelegateLocalSessionToAgentHostCopilot(localChatSessionType, true, configurationService, chatSessionsService), false);
+	});
+
+	test('does not auto-delegate non-local session', () => {
+		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.EditorLocalAgentEnabled]: false,
+			[ChatConfiguration.EditorDefaultProvider]: 'copilotAh',
+		});
+		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot);
+
+		assert.strictEqual(shouldAutoDelegateLocalSessionToAgentHostCopilot(SessionType.CopilotCLI, true, configurationService, chatSessionsService), false);
+	});
+
+	test('does not auto-delegate before agent host Copilot contribution registers', () => {
+		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.EditorLocalAgentEnabled]: false,
+			[ChatConfiguration.EditorDefaultProvider]: 'copilotAh',
+		});
+		const chatSessionsService = createChatSessionsService(SessionType.CopilotCLI);
+
+		assert.strictEqual(shouldAutoDelegateLocalSessionToAgentHostCopilot(localChatSessionType, true, configurationService, chatSessionsService), false);
 	});
 });

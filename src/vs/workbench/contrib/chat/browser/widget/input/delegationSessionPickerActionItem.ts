@@ -20,6 +20,7 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { isVisibleEditorChatSessionType } from '../../../common/constants.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
 import { AgentSessionProviders, AgentSessionTarget, getAgentCanContinueIn, getAgentSessionProvider, isAgentHostTarget, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
@@ -114,6 +115,9 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 		// In the sessions window, never offer the plain Local (in-place) target;
 		// agent host and remote targets remain available via getAgentCanContinueIn.
 		if (this._isSessionsWindow && type === AgentSessionProviders.Local) {
+			return false;
+		}
+		if (!this._isSessionsWindow && type === AgentSessionProviders.Local && !isVisibleEditorChatSessionType(type, this.configurationService, this.chatSessionsService)) {
 			return false;
 		}
 

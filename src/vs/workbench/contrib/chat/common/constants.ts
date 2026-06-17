@@ -292,6 +292,19 @@ export function isVisibleEditorChatSessionType(
 	return !!chatSessionsService.getChatSessionContribution(sessionType);
 }
 
+export function shouldAutoDelegateLocalSessionToAgentHostCopilot(
+	sessionType: string,
+	hasRequests: boolean,
+	configurationService: IConfigurationService,
+	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution'>
+): boolean {
+	return sessionType === localChatSessionType
+		&& hasRequests
+		&& !isEditorLocalAgentEnabled(configurationService)
+		&& configurationService.getValue<string>(ChatConfiguration.EditorDefaultProvider) === 'copilotAh'
+		&& !!chatSessionsService.getChatSessionContribution(SessionType.AgentHostCopilot);
+}
+
 function getConfiguredEditorDefaultSessionType(defaultProvider: string | undefined): string | undefined {
 	switch (defaultProvider) {
 		case 'local':

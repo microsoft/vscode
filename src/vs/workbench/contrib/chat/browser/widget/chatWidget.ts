@@ -60,12 +60,12 @@ import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, 
 import { ChatRequestParser } from '../../common/requestParser/chatRequestParser.js';
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../attachments/chatVariables.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatLocationData, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
-import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { IChatSessionsService, localChatSessionType, SessionType } from '../../common/chatSessionsService.js';
 import { IChatSlashCommandService } from '../../common/participants/chatSlashCommands.js';
 import { IChatTodoListService } from '../../common/tools/chatTodoListService.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isWorkspaceVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, ThinkingDisplayMode } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, shouldAutoDelegateLocalSessionToAgentHostCopilot, ThinkingDisplayMode } from '../../common/constants.js';
 import { IChatGoalSummaryService } from '../chatGoalSummaryService.js';
 import { ILanguageModelToolsService, isToolSet } from '../../common/tools/languageModelToolsService.js';
 import { IHandOff, PromptHeader } from '../../common/promptSyntax/promptFileParser.js';
@@ -2146,6 +2146,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.viewModel = this.instantiationService.createInstance(ChatViewModel, model, undefined);
 
 		this.listWidget.setViewModel(this.viewModel);
+		this.maybeAutoDelegateLocalSessionToAgentHostCopilot();
 
 		if (this._lockedAgent) {
 			let placeholder = this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id)?.inputPlaceholder;
@@ -2197,7 +2198,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.listWidget?.updateRendererOptions({ supportsFork });
 		};
 		updateSupportsFork();
-		this.viewModelDisposables.add(this.chatSessionsService.onDidChangeAvailability(() => updateSupportsFork()));
+		this.viewModelDisposables.add(this.chatSessionsService.onDidChangeAvailability(() => {
+			updateSupportsFork();
+			this.maybeAutoDelegateLocalSessionToAgentHostCopilot();
+		}));
 		this._sessionHasDebugDataContextKey.set(this.chatDebugService.getEvents(model.sessionResource).length > 0);
 		let lastSteeringCount = 0;
 		const updatePendingRequestKeys = (announceSteering: boolean) => {
@@ -2291,6 +2295,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	getInput(): string {
 		return this.input.inputEditor.getValue();
+	}
+
+	private maybeAutoDelegateLocalSessionToAgentHostCopilot(): void {
+		const model = this.viewModel?.model;
+		if (!model || this.inputPart.pendingDelegationTarget || isQuickChat(this) || isInlineChat(this) || IsSessionsWindowContext.getValue(this.contextKeyService)) {
+			return;
+		}
+
+		if (shouldAutoDelegateLocalSessionToAgentHostCopilot(getChatSessionType(model.sessionResource), model.hasRequests, this.configurationService, this.chatSessionsService)) {
+			this.inputPart.setPendingDelegationTarget(SessionType.AgentHostCopilot);
+		}
 	}
 
 	getContrib<T extends IChatWidgetContrib>(id: string): T | undefined {
