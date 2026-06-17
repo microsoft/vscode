@@ -16,7 +16,7 @@ import { StringText } from '../../../../util/vs/editor/common/core/text/abstract
 import { ensureDependenciesAreSet } from '../../../../util/vs/editor/common/core/text/positionToOffset';
 import { FetchStreamError } from '../../common/fetchStreamError';
 import { CurrentDocument } from '../../common/xtabCurrentDocument';
-import { DuplicateAdditionRemoval, DuplicateAdditionRemovalSummary, OnDuplicateRemovedCallback, tryRemoveDuplicateAdditions, XtabPatchResponseHandler } from '../../node/xtabPatchResponseHandler';
+import { DuplicateAdditionRemoval, tryRemoveDuplicateAdditions, XtabPatchResponseHandler } from '../../node/xtabPatchResponseHandler';
 import { DuplicateAdditionsMode } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 
 async function consumeHandleResponse(
@@ -592,9 +592,6 @@ another_file.js:
 				yield '+    let x = 1;';
 			}
 
-			const seen: DuplicateAdditionRemovalSummary[] = [];
-			const onDuplicateRemoved: OnDuplicateRemovedCallback = info => seen.push(info.summary);
-
 			const { edits, returnValue } = await consumeHandleResponse(
 				makeStream(),
 				documentBeforeEdits,
@@ -603,14 +600,11 @@ another_file.js:
 				undefined,
 				new TestLogService(),
 				DuplicateAdditionsMode.TrimDuplicate,
-				onDuplicateRemoved,
 			);
 
 			expect(edits).toHaveLength(0);
 			// No more FilteredOut: cache and cursor-jump retry are preserved.
 			expect(returnValue).toBeInstanceOf(NoNextEditReason.NoSuggestions);
-			// The dedup signal is still observable via the callback.
-			expect(seen).toHaveLength(1);
 		});
 
 		it('returns NoSuggestions when the model produces no edits at all', async () => {
@@ -710,9 +704,6 @@ another_file.js:
 				yield '+    let y = 42;';
 			}
 
-			const seen: DuplicateAdditionRemovalSummary[] = [];
-			const onDuplicateRemoved: OnDuplicateRemovedCallback = info => seen.push(info.summary);
-
 			const { edits, returnValue } = await consumeHandleResponse(
 				makeStream(),
 				documentBeforeEdits,
@@ -721,13 +712,11 @@ another_file.js:
 				undefined,
 				new TestLogService(),
 				DuplicateAdditionsMode.DropPatch,
-				onDuplicateRemoved,
 			);
 
 			expect(edits).toHaveLength(1);
 			const lineReplacement = edits[0].edit as LineReplacement;
 			expect(lineReplacement.newLines).toEqual(['    let y = 42;']);
-			expect(seen).toHaveLength(1);
 			expect(returnValue).toBeInstanceOf(NoNextEditReason.NoSuggestions);
 		});
 
@@ -752,9 +741,6 @@ another_file.js:
 				yield '+    let y = 42;';
 			}
 
-			const seen: DuplicateAdditionRemovalSummary[] = [];
-			const onDuplicateRemoved: OnDuplicateRemovedCallback = info => seen.push(info.summary);
-
 			const { edits, returnValue } = await consumeHandleResponse(
 				makeStream(),
 				documentBeforeEdits,
@@ -763,7 +749,6 @@ another_file.js:
 				undefined,
 				new TestLogService(),
 				DuplicateAdditionsMode.DropAllRemaining,
-				onDuplicateRemoved,
 			);
 
 			// Only the patch yielded before the detection survives. The
@@ -771,8 +756,6 @@ another_file.js:
 			expect(edits).toHaveLength(1);
 			const lineReplacement = edits[0].edit as LineReplacement;
 			expect(lineReplacement.newLines).toEqual(['function fooRenamed() {']);
-			// Callback fires exactly once — for the triggering detection.
-			expect(seen).toHaveLength(1);
 			expect(returnValue).toBeInstanceOf(NoNextEditReason.NoSuggestions);
 		});
 	});

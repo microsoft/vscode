@@ -81,33 +81,6 @@ export interface DuplicateAdditionRemoval {
 	readonly removedLines: readonly string[];
 }
 
-/**
- * Telemetry-safe summary of a single duplicate-addition detection.
- *
- * Deliberately excludes raw line content (`newAdditions` / `removedLines`)
- * to keep `OnDuplicateRemovedCallback` from accidentally surfacing user
- * source code through telemetry pipelines. Use the internal
- * {@link DuplicateAdditionRemoval} returned by
- * {@link tryRemoveDuplicateAdditions} when you legitimately need the
- * content (e.g. to apply the trim).
- */
-export interface DuplicateAdditionRemovalSummary {
-	readonly kind: 'suffix' | 'prefix' | 'middle';
-	readonly removedLineCount: number;
-	readonly remainingAdditionCount: number;
-}
-
-/**
- * Callback invoked once per duplicate-addition detection. Receives only
- * redacted, telemetry-safe metadata (counts and shape). The callback fires
- * for every action mode (DropPatch / DropAllRemaining / TrimDuplicate).
- */
-export type OnDuplicateRemovedCallback = (info: {
-	readonly summary: DuplicateAdditionRemovalSummary;
-	readonly mode: Exclude<DuplicateAdditionsMode, DuplicateAdditionsMode.Off>;
-	readonly filePath: string;
-	readonly lineNumZeroBased: number;
-}) => void;
 
 /**
  * A heuristic line is "meaningful" enough to base a duplicate detection on
@@ -268,7 +241,6 @@ function applyDuplicatePolicy(
 	content: AbstractText,
 	mode: Exclude<DuplicateAdditionsMode, DuplicateAdditionsMode.Off>,
 	tracer: ILogger,
-	onDuplicateRemoved?: OnDuplicateRemovedCallback,
 ): EditDecision {
 	const removal = tryRemoveDuplicateAdditions(lineReplacement, content);
 	if (removal === undefined) {
@@ -278,16 +250,6 @@ function applyDuplicatePolicy(
 	// Log only metadata (kind / counts / location) — do NOT include raw line
 	// content. The tracer output may end up in user-visible diagnostics.
 	tracer.trace(`Detected duplicate addition(s) (kind=${removal.kind}, count=${removal.removedLines.length}, mode=${mode}) for edit at ${edit.filePath}:${edit.lineNumZeroBased}`);
-	onDuplicateRemoved?.({
-		summary: {
-			kind: removal.kind,
-			removedLineCount: removal.removedLines.length,
-			remainingAdditionCount: removal.newAdditions.length,
-		},
-		mode,
-		filePath: edit.filePath,
-		lineNumZeroBased: edit.lineNumZeroBased,
-	});
 
 	switch (mode) {
 		case DuplicateAdditionsMode.DropPatch:
@@ -318,7 +280,6 @@ export namespace XtabPatchResponseHandler {
 		window: OffsetRange | undefined,
 		parentTracer: ILogger,
 		duplicateAdditionsMode: DuplicateAdditionsMode = DuplicateAdditionsMode.Off,
-		onDuplicateRemoved?: OnDuplicateRemovedCallback,
 	): AsyncGenerator<StreamedEdit, NoNextEditReason, void> {
 		const tracer = parentTracer.createSubLogger(['XtabCustomDiffPatchResponseHandler', 'handleResponse']);
 		const activeDocRelativePath = toUniquePath(activeDocumentId, workspaceRoot?.path);
@@ -344,7 +305,7 @@ export namespace XtabPatchResponseHandler {
 				// Only attempt dedup for the active document — other files'
 				// content is not directly available here.
 				if (duplicateAdditionsMode !== DuplicateAdditionsMode.Off && isActiveDoc) {
-					const decision = applyDuplicatePolicy(edit, lineReplacement, currentDocument.content, duplicateAdditionsMode, tracer, onDuplicateRemoved);
+					const decision = applyDuplicatePolicy(edit, lineReplacement, currentDocument.content, duplicateAdditionsMode, tracer);
 					switch (decision.kind) {
 						case 'skip':
 							continue;
