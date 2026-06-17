@@ -9,7 +9,7 @@ import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { URI } from '../../../../base/common/uri.js';
 import { getWindow } from '../../../../base/browser/dom.js';
-import { AGENTS_VOICE_WINDOW_DEFAULT_WIDTH, AGENTS_VOICE_WINDOW_DEFAULT_HEIGHT } from '../common/agentsVoice.js';
+import { AGENTS_VOICE_WINDOW_DEFAULT_WIDTH } from '../common/agentsVoice.js';
 import { createHeader } from './components/headerComponent.js';
 import { createStatusRows } from './components/statusRowsComponent.js';
 import { createTranscript, updateTranscriptOverflowState } from './components/transcriptComponent.js';
@@ -176,7 +176,7 @@ export class AgentsVoiceWidget extends Disposable {
 		const opts = this._options;
 		const widthStyle = opts.width === 'auto'
 			? 'width:100%;position:relative;'
-			: `position:absolute;top:0;left:0;width:${opts.width}px;min-height:${AGENTS_VOICE_WINDOW_DEFAULT_HEIGHT}px;`;
+			: `position:absolute;top:0;left:0;width:${opts.width}px;`;
 
 		this._rootDiv = dom.$('div');
 		this._rootDiv.style.cssText = `${widthStyle}display:flex;flex-direction:column;user-select:none;font-family:inherit;font-size:${FONT_SIZE.base};color:var(--vscode-foreground);box-sizing:border-box;margin:0;`;
