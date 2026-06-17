@@ -6,7 +6,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as vscode from 'vscode';
 import type { AgentTask, AgentTaskCreateRequest, AgentTaskGetResponse, AgentTaskListEventsResponse, AgentTaskListResponse, AgentTaskSessionEvent, AgentTaskSteerRequest, AgentTaskCreatePullRequestResponse } from '@vscode/copilot-api';
-import { IGitService } from '../../../../platform/git/common/gitService';
+import { GithubRepoId, IGitService } from '../../../../platform/git/common/gitService';
 import { PullRequestSearchItem, SessionInfo } from '../../../../platform/github/common/githubAPI';
 import { TestLogService } from '../../../../platform/testing/common/testLogService';
 import { mock } from '../../../../util/common/test/simpleMock';
@@ -325,10 +325,13 @@ describe('ChatSessionContentBuilder Task API history', () => {
 class FakeTaskApiClient implements ITaskApiClient {
 	public lastCreateRequest: AgentTaskCreateRequest | undefined;
 	public createPRCalls: Array<{ owner: string; repo: string; taskId: string }> = [];
+	public listForRepoCalls: Array<{ owner: string; repo: string; options?: ListTasksOptions }> = [];
+	public listCalls: Array<{ options?: ListTasksOptions }> = [];
 	private readonly _createPRResult: AgentTaskCreatePullRequestResponse;
 	private readonly _createResult: AgentTask;
+	private readonly _repoTasks: readonly AgentTask[];
 
-	constructor(opts?: { createResult?: AgentTask; createPRResult?: AgentTaskCreatePullRequestResponse }) {
+	constructor(opts?: { createResult?: AgentTask; createPRResult?: AgentTaskCreatePullRequestResponse; repoTasks?: readonly AgentTask[] }) {
 		this._createResult = opts?.createResult ?? ({
 			id: 'task-created',
 			state: 'queued',
@@ -336,16 +339,19 @@ class FakeTaskApiClient implements ITaskApiClient {
 			html_url: 'https://github.com/octocat/hello-world/agents/tasks/task-created',
 		} as unknown as AgentTask);
 		this._createPRResult = opts?.createPRResult ?? { id: 1, number: 42, repository_id: 1 };
+		this._repoTasks = opts?.repoTasks ?? [];
 	}
 
 	async createTask(_owner: string, _repo: string, request: AgentTaskCreateRequest): Promise<AgentTask> {
 		this.lastCreateRequest = request;
 		return this._createResult;
 	}
-	async listTasksForRepo(_owner: string, _repo: string, _options?: ListTasksOptions): Promise<AgentTaskListResponse> {
-		return { tasks: [] } as unknown as AgentTaskListResponse;
+	async listTasksForRepo(owner: string, repo: string, options?: ListTasksOptions): Promise<AgentTaskListResponse> {
+		this.listForRepoCalls.push({ owner, repo, options });
+		return { tasks: this._repoTasks } as unknown as AgentTaskListResponse;
 	}
-	async listTasks(_options?: ListTasksOptions): Promise<AgentTaskListResponse> {
+	async listTasks(options?: ListTasksOptions): Promise<AgentTaskListResponse> {
+		this.listCalls.push({ options });
 		return { tasks: [] } as unknown as AgentTaskListResponse;
 	}
 	async getTask(_taskId: string): Promise<AgentTaskGetResponse> {
@@ -415,6 +421,41 @@ describe('TaskApiBackend', () => {
 
 		await expect(backend.createPullRequestForTask({ id: 'task-3' } as AgentTaskGetResponse)).rejects.toThrow();
 		expect(client.createPRCalls).toEqual([]);
+	});
+
+	it('fetchSessionList scopes the repo task list to the current user via creator_id', async () => {
+		const client = new FakeTaskApiClient();
+		const octoKitService = new MockOctoKitService();
+		octoKitService.getCurrentAuthedUser = async () => ({ id: 4242, login: 'octocat', name: 'The Octocat', avatar_url: '' });
+		const backend = new TaskApiBackend(client, new TestLogService(), octoKitService);
+
+		await backend.fetchSessionList([new GithubRepoId('octocat', 'hello-world')], false, false);
+
+		expect(client.listForRepoCalls).toEqual([
+			{ owner: 'octocat', repo: 'hello-world', options: { per_page: 100, creator_id: 4242 } },
+		]);
+	});
+
+	it('fetchSessionList fails closed (no repo fetch, empty result) when the current user id cannot be resolved', async () => {
+		const client = new FakeTaskApiClient({ repoTasks: [{ id: 't1', state: 'completed', created_at: '2026-03-27T00:00:00Z', creator: { id: 999 } } as unknown as AgentTask] });
+		const octoKitService = new MockOctoKitService();
+		octoKitService.getCurrentAuthedUser = async () => undefined;
+		const backend = new TaskApiBackend(client, new TestLogService(), octoKitService);
+
+		const result = await backend.fetchSessionList([new GithubRepoId('octocat', 'hello-world')], false, false);
+
+		expect(client.listForRepoCalls).toEqual([]);
+		expect(result).toEqual([]);
+	});
+
+	it('fetchSessionList does not send creator_id on the user-scoped global list', async () => {
+		const client = new FakeTaskApiClient();
+		const backend = new TaskApiBackend(client, new TestLogService(), new MockOctoKitService());
+
+		await backend.fetchSessionList(undefined, false, false);
+
+		expect(client.listForRepoCalls).toEqual([]);
+		expect(client.listCalls).toEqual([{ options: { per_page: 100 } }]);
 	});
 });
 

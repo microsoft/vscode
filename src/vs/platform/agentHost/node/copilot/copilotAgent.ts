@@ -28,11 +28,13 @@ import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
+import { createAgentModelPricingMeta } from '../../common/agentModelPricing.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostSessionSyncEnabledConfigKey, AutoApproveLevel, ISchemaProperty, SessionMode, createSchema, platformRootSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IMcpNotification } from '../../common/agentService.js';
 import { getEffectiveAgents } from '../../common/customAgents.js';
+import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../common/reasoningEffort.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -129,11 +131,21 @@ interface ISerializedModelSelection {
  * payload already carries but the SDK type doesn't yet declare. Mirror of `IClaudeModelSupports` in `claudeAgent.ts`.
  */
 interface ICopilotModelBilling {
+	readonly multiplier?: number;
+	/** Coarse price bucket surfaced as a tag in the model picker hover. */
+	readonly priceCategory?: string;
 	readonly tokenPrices?: {
+		/** Default-tier prices, expressed as credits per 1M tokens. */
 		readonly contextMax?: number;
+		readonly inputPrice?: number;
+		readonly cachePrice?: number;
+		readonly cacheWritePrice?: number;
+		readonly outputPrice?: number;
 		readonly longContext?: {
 			readonly contextMax?: number;
 			readonly inputPrice?: number;
+			readonly cachePrice?: number;
+			readonly cacheWritePrice?: number;
 			readonly outputPrice?: number;
 		};
 	};
@@ -592,6 +604,23 @@ export class CopilotAgent extends Disposable implements IAgent {
 			env['USE_BUILTIN_RIPGREP'] = 'false';
 			env['COPILOT_MCP_APPS'] = 'true';
 
+			// On Linux the MXC bubblewrap sandbox backend does not forward a PTY into
+			// the container, so the CLI's default PTY-backed interactive shell can
+			// never start bash under the sandbox: the inner shell sees a non-tty
+			// stdin, runs non-interactively, reads EOF and exits immediately, which
+			// surfaces as "Failed to start bash process". Force the CLI's pipe-based
+			// spawn shell backend (`SHELL_SPAWN_BACKEND`), which runs each command as
+			// a one-shot child process and works correctly under bubblewrap. The CLI
+			// already force-enables this on Alpine/musl; glibc Linux needs it too for
+			// sandboxed shells. This becomes a no-op once the bundled CLI defaults the
+			// spawn backend on for all of Linux.
+			if (process.platform === 'linux') {
+				const enabledFlags = env['COPILOT_CLI_ENABLED_FEATURE_FLAGS'];
+				const flags = new Set((enabledFlags ?? '').split(',').map(f => f.trim()).filter(Boolean));
+				flags.add('SHELL_SPAWN_BACKEND');
+				env['COPILOT_CLI_ENABLED_FEATURE_FLAGS'] = [...flags].join(',');
+			}
+
 			// Enable the rubber duck critic subagent in the CLI when the agent host
 			// config opts in. `RUBBER_DUCK_AGENT` is the SDK's required interface for
 			// gating this experimental feature
@@ -665,23 +694,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return undefined;
 		}
 
-		const enumLabels = supportedReasoningEfforts.map(value => {
-			switch (value) {
-				case 'low': return localize('copilot.modelThinkingLevel.low', "Low");
-				case 'medium': return localize('copilot.modelThinkingLevel.medium', "Medium");
-				case 'high': return localize('copilot.modelThinkingLevel.high', "High");
-				case 'xhigh': return localize('copilot.modelThinkingLevel.xhigh', "Extra High");
-				default: return value;
-			}
-		});
-
 		return {
 			type: 'string',
 			title: localize('copilot.modelThinkingLevel.title', "Thinking Level"),
 			description: localize('copilot.modelThinkingLevel.description', "Controls how much reasoning effort the model uses."),
 			default: defaultReasoningEffort,
 			enum: [...supportedReasoningEfforts],
-			enumLabels,
+			enumLabels: supportedReasoningEfforts.map(getReasoningEffortLabel),
+			enumDescriptions: supportedReasoningEfforts.map(value => getReasoningEffortDescription(value) ?? ''),
 		};
 	}
 
@@ -718,6 +738,38 @@ export class CopilotAgent extends Disposable implements IAgent {
 					: localize('copilot.modelContextTier.longerSessionsNoCompaction', "Longer sessions without compaction"),
 			],
 		};
+	}
+
+	/**
+	 * Builds the open `_meta` pricing bag for a model from its billing info so the chat model picker can render its
+	 * cost hover. Cost values are credits per 1M tokens.
+	 *
+	 * Long-context costs are only emitted when they differ from the default tier, mirroring `normalizeTokenPrices` in
+	 * `extensions/copilot/src/extension/conversation/common/languageModelAccess.ts`.
+	 *
+	 * `billing.tokenPrices` / `billing.priceCategory` are present on the runtime CAPI `/models` payload but not yet
+	 * declared on the published SDK `ModelBilling` type — narrow through {@link ICopilotModelBilling}.
+	 */
+	private _createModelPricingMeta(billing: ModelInfo['billing'] | undefined): Record<string, unknown> | undefined {
+		const typedBilling = billing as ICopilotModelBilling | undefined;
+		const tokenPrices = typedBilling?.tokenPrices;
+		const longContext = tokenPrices?.longContext;
+
+		const differsFromDefault = (longValue: number | undefined, defaultValue: number | undefined): number | undefined =>
+			longValue !== undefined && longValue !== defaultValue ? longValue : undefined;
+
+		return createAgentModelPricingMeta({
+			multiplierNumeric: typeof typedBilling?.multiplier === 'number' ? typedBilling.multiplier : undefined,
+			inputCost: tokenPrices?.inputPrice,
+			cacheCost: tokenPrices?.cachePrice,
+			cacheWriteCost: tokenPrices?.cacheWritePrice,
+			outputCost: tokenPrices?.outputPrice,
+			longContextInputCost: differsFromDefault(longContext?.inputPrice, tokenPrices?.inputPrice),
+			longContextCacheCost: differsFromDefault(longContext?.cachePrice, tokenPrices?.cachePrice),
+			longContextCacheWriteCost: differsFromDefault(longContext?.cacheWritePrice, tokenPrices?.cacheWritePrice),
+			longContextOutputCost: differsFromDefault(longContext?.outputPrice, tokenPrices?.outputPrice),
+			priceCategory: typeof typedBilling?.priceCategory === 'string' ? typedBilling.priceCategory : undefined,
+		});
 	}
 
 	private _createModelConfigSchema(m: ModelInfo): ConfigSchema | undefined {
@@ -893,9 +945,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			supportsVision: !!m.capabilities?.supports?.vision,
 			configSchema: this._createModelConfigSchema(m),
 			policyState: m.policy?.state as PolicyState | undefined,
-			_meta: typeof m.billing?.multiplier === 'number' ? {
-				multiplierNumeric: m.billing.multiplier,
-			} : undefined,
+			_meta: this._createModelPricingMeta(m.billing),
 		}));
 		this._logService.info(`[Copilot] Found ${result.length} models`);
 		return result;

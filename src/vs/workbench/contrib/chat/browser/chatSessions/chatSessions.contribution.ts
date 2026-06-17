@@ -1503,7 +1503,24 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 			if (promptFile) {
 				attachedContext = [promptFile, ...(attachedContext ?? [])];
 			}
-			await chatService.sendRequest(sessionResource, chatSendOptions.prompt, { agentIdSilent: openOptions.type, attachedContext });
+			const result = await chatService.sendRequest(sessionResource, chatSendOptions.prompt, { agentIdSilent: openOptions.type, attachedContext });
+			if (result.kind === 'sent' && result.newSessionResource && !resources.isEqual(result.newSessionResource, sessionResource)) {
+				switch (openOptions.position) {
+					case ChatSessionPosition.Sidebar: {
+						const view = await viewsService.openView(ChatViewId) as ChatViewPane;
+						await view.loadSession(result.newSessionResource);
+						break;
+					}
+					case ChatSessionPosition.Editor: {
+						const activeEditor = editorGroupService.activeGroup.activeEditor;
+						if (activeEditor instanceof ChatEditorInput && resources.isEqual(activeEditor.sessionResource, sessionResource)) {
+							await editorService.replaceEditors([{ editor: activeEditor, replacement: { resource: result.newSessionResource, options: { override: ChatEditorInput.EditorID, pinned: true } } }], editorGroupService.activeGroup);
+						}
+						break;
+					}
+					default: assertNever(openOptions.position, `Unknown chat session position: ${openOptions.position}`);
+				}
+			}
 		} catch (e) {
 			logService.error(`Failed to send initial request to '${openOptions.type}' chat session with contextOptions: ${JSON.stringify(chatSendOptions)}`, e);
 		}

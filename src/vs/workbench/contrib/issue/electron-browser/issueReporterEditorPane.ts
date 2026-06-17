@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/issueReporterOverlay.css';
+import '../browser/media/issueReporterOverlay.css';
 import { $, append, clearNode, Dimension } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -19,15 +19,15 @@ import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/com
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { EditorActivation, IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { decodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { URI } from '../../../../base/common/uri.js';
 import { FileAccess } from '../../../../base/common/network.js';
-import { IssueReporterEditorInput } from './issueReporterEditorInput.js';
-import { IssueReporterOverlay } from './issueReporterOverlay.js';
-import { IRecordingService, IRecordingData, RecordingState } from './recordingService.js';
-import { IScreenshotService } from './screenshotService.js';
+import { IssueReporterEditorInput } from '../browser/issueReporterEditorInput.js';
+import { IssueReporterOverlay } from '../browser/issueReporterOverlay.js';
+import { IRecordingService, IRecordingData, RecordingState } from '../browser/recordingService.js';
+import { IScreenshotService } from '../browser/screenshotService.js';
 import { IIssueFormService } from '../common/issue.js';
 import { IProcessService } from '../../../../platform/process/common/process.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
@@ -83,7 +83,7 @@ export class IssueReporterEditorPane extends EditorPane {
 		@IScreenshotService private readonly screenshotService: IScreenshotService,
 		@ILogService private readonly logService: ILogService,
 		@IFileService private readonly fileService: IFileService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IIssueFormService private readonly issueFormService: IIssueFormService,
 		@IProcessService private readonly processService: IProcessService,
@@ -153,6 +153,10 @@ export class IssueReporterEditorPane extends EditorPane {
 			this.wizard.reparentFloatingBar();
 			this.wizard.showFloatingBar();
 			this.wizard.setUpdateAvailable(this.shouldShowUpdateBanner());
+			// Restore attachments captured before the editor was moved back into
+			// this pane from a modal editor part. The input is the source of truth;
+			// the existing onDidChangeAttachments subscription keeps it in sync.
+			this.restoreAttachmentsFromInput(input);
 			return;
 		}
 
@@ -199,6 +203,16 @@ export class IssueReporterEditorPane extends EditorPane {
 		}));
 
 		this.wizard.show();
+
+		// Restore attachments mirrored onto the input before a move, and keep the
+		// input in sync as attachments change so they survive the wizard being
+		// rebuilt when the editor moves between the main editor area and a modal
+		// editor part in the Agents Window.
+		this.restoreAttachmentsFromInput(input);
+		this.inputDisposables.add(this.wizard.onDidChangeAttachments(() => {
+			input.savedScreenshots = this.wizard?.getScreenshots().slice();
+			input.savedRecordings = this.wizard?.getRecordings().slice();
+		}));
 
 		// Populate system info in background (non-blocking)
 		void this.populateSystemInfo();
@@ -319,7 +333,8 @@ export class IssueReporterEditorPane extends EditorPane {
 				// Screenshots are either annotated (always PNG via canvas.toDataURL)
 				// or raw native captures (always JPEG); fall back to PNG.
 				const extension = dataUrl.startsWith('data:image/jpeg') ? 'jpg' : 'png';
-				const folder = URI.joinPath(this.environmentService.userRoamingDataHome, 'issue-screenshots');
+				// Write to the OS temp folder so artifacts are cleaned up automatically.
+				const folder = URI.joinPath(this.environmentService.tmpDir, 'issue-screenshots');
 				const target = URI.joinPath(folder, `screenshot-${Date.now()}.${extension}`);
 				await this.fileService.createFolder(folder);
 				await this.fileService.writeFile(target, decodeBase64(dataUrl.substring(commaIndex + 1)));
@@ -485,6 +500,15 @@ export class IssueReporterEditorPane extends EditorPane {
 		}
 	}
 
+	private restoreAttachmentsFromInput(input: IssueReporterEditorInput): void {
+		if (!this.wizard) {
+			return;
+		}
+		if (input.savedScreenshots?.length || input.savedRecordings?.length) {
+			this.wizard.restoreAttachments(input.savedScreenshots ?? [], input.savedRecordings ?? []);
+		}
+	}
+
 	private destroyWizard(): void {
 		// Stop any active recording to avoid memory leaks
 		if (this.recordingService.state === RecordingState.Recording) {
@@ -532,7 +556,8 @@ export class IssueReporterEditorPane extends EditorPane {
 		try {
 			const extension = data.mimeType.startsWith('video/mp4') ? 'mp4' : 'webm';
 			const fileName = `vscode-recording-${new Date().toISOString().replace(/[:.]/g, '-')}.${extension}`;
-			const folder = URI.joinPath(this.environmentService.userRoamingDataHome, 'issue-recordings');
+			// Write to the OS temp folder so artifacts are cleaned up automatically.
+			const folder = URI.joinPath(this.environmentService.tmpDir, 'issue-recordings');
 			const target = URI.joinPath(folder, fileName);
 
 			const arrayBuffer = await data.blob.arrayBuffer();

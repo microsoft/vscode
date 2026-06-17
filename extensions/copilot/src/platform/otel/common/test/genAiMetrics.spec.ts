@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 import { Event } from '../../../../util/vs/base/common/event';
 import { GenAiAttr, GenAiOperationName, GenAiProviderName, GenAiTokenType, GitHubCopilotAttr, StdAttr } from '../genAiAttributes';
 import { GenAiMetrics } from '../genAiMetrics';
 import { resolveOTelConfig } from '../otelConfig';
 import type { IOTelService } from '../otelService';
 
-function createMockOTelService(): IOTelService & { recordMetric: ReturnType<typeof vi.fn>; incrementCounter: ReturnType<typeof vi.fn> } {
+function createMockOTelService(): IOTelService & { recordMetric: Mock; incrementCounter: Mock } {
 	const config = resolveOTelConfig({ env: {}, extensionVersion: '1.0.0', sessionId: 'test' });
 	return {
 		_serviceBrand: undefined!,

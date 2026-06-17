@@ -2334,6 +2334,21 @@ suite('AgentSessions', () => {
 			const result = getAgentCanContinueIn(AgentSessionProviders.Growth);
 			assert.strictEqual(result, false);
 		});
+
+		test('should return true for the Copilot agent host provider', () => {
+			const result = getAgentCanContinueIn(AgentSessionProviders.AgentHostCopilot);
+			assert.strictEqual(result, true);
+		});
+
+		test('should return true for dynamically registered agent host session types', () => {
+			assert.strictEqual(getAgentCanContinueIn('agent-host-codex'), true);
+			assert.strictEqual(getAgentCanContinueIn('agent-host-claude'), true);
+			assert.strictEqual(getAgentCanContinueIn('remote-myauthority-copilot'), true);
+		});
+
+		test('should return false for unknown extension-host session types', () => {
+			assert.strictEqual(getAgentCanContinueIn('some-extension-session'), false);
+		});
 	});
 
 	suite('AgentSessionsViewModel - Cancellation and Lifecycle', () => {
