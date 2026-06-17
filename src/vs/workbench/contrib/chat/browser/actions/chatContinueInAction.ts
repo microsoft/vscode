@@ -550,13 +550,6 @@ export class CreateRemoteAgentJobAction {
 					}
 				}
 
-				// Extract repository info from the source session to pass to the target session
-				const initialSessionOptions = new Map<string, string>();
-				const repoNwo = await this.extractRepoNwoFromSession(agentSessionsService, chatSessionsService, fileService, sessionResource, chatModel);
-				if (repoNwo) {
-					initialSessionOptions.set('repositories', repoNwo);
-				}
-
 				// Agent host targets are delegated generically (no per-session-type
 				// command). In the Agents window a single registered command creates
 				// the target session through the session management service; in the
@@ -571,21 +564,32 @@ export class CreateRemoteAgentJobAction {
 							attachedContext: continuationContext,
 						};
 						await commandService.executeCommand(CHAT_DELEGATE_TO_AGENT_HOST_SESSION_COMMAND_ID, delegationRequest);
-					} else {
-						await instantiationService.invokeFunction(innerAccessor => openChatSession(
-							innerAccessor,
-							{
-								type: continuationTargetType,
-								displayName: continuationTarget.displayName,
-								position: isSidebar ? ChatSessionPosition.Sidebar : ChatSessionPosition.Editor,
-							},
-							{
-								prompt: handoffPrompt,
-								attachedContext: continuationContext,
-								initialSessionOptions: initialSessionOptions.size > 0 ? initialSessionOptions : undefined,
-							}
-						));
+						return;
 					}
+				}
+
+				// Extract repository info from the source session to pass to target
+				// session paths that consume chat initial session options.
+				const initialSessionOptions = new Map<string, string>();
+				const repoNwo = await this.extractRepoNwoFromSession(agentSessionsService, chatSessionsService, fileService, sessionResource, chatModel);
+				if (repoNwo) {
+					initialSessionOptions.set('repositories', repoNwo);
+				}
+
+				if (isAgentHostTarget(continuationTargetType)) {
+					await instantiationService.invokeFunction(innerAccessor => openChatSession(
+						innerAccessor,
+						{
+							type: continuationTargetType,
+							displayName: continuationTarget.displayName,
+							position: isSidebar ? ChatSessionPosition.Sidebar : ChatSessionPosition.Editor,
+						},
+						{
+							prompt: handoffPrompt,
+							attachedContext: continuationContext,
+							initialSessionOptions: initialSessionOptions.size > 0 ? initialSessionOptions : undefined,
+						}
+					));
 					return;
 				}
 
