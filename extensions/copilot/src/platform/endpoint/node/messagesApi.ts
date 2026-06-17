@@ -611,7 +611,7 @@ function markLastCacheableBlock(msg: MessageParam, cacheTtl?: '1h'): void {
  * the stream is aborted and the iterable rejects so the request fails fast
  * instead of hanging indefinitely.
  */
-const ANTHROPIC_STREAM_MAX_DURATION_MS = 5 * 60 * 1000;
+const ANTHROPIC_STREAM_MAX_DURATION_MS = 20 * 60 * 1000;
 
 export async function processResponseFromMessagesEndpoint(
 	instantiationService: IInstantiationService,
