@@ -8,6 +8,7 @@ import { safeIntl } from '../../../../base/common/date.js';
 import { localize } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ChatEntitlement, IChatEntitlementService, IQuotaSnapshot, IRateLimitSnapshot } from '../../../services/chat/common/chatEntitlementService.js';
 import { isSelectedModelCopilot, SELECTED_MODEL_STORAGE_KEY_PREFIX } from '../common/chatSelectedModel.js';
@@ -16,6 +17,42 @@ import { ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotifi
 
 const QUOTA_NOTIFICATION_ID = 'copilot.quotaStatus';
 const THRESHOLDS = [50, 75, 90, 95];
+
+type ChatQuotaNotificationType = 'quotaExhausted' | 'quotaApproaching' | 'overageActivation' | 'rateLimitWarning' | 'managedPlanBlocked';
+type ChatQuotaNotificationLimitType = 'quota' | 'sessionRateLimit' | 'weeklyRateLimit' | 'managedPlan';
+
+type ChatQuotaNotificationTelemetryEvent = {
+	notificationType: ChatQuotaNotificationType;
+	limitType: ChatQuotaNotificationLimitType;
+	entitlement: string;
+	additionalUsageEnabled: boolean;
+	hasActions: boolean;
+	percentUsed?: number;
+};
+
+type ChatQuotaNotificationActionTelemetryEvent = ChatQuotaNotificationTelemetryEvent & {
+	commandId: string;
+};
+
+type ChatQuotaNotificationTelemetryClassificationProperties = {
+	notificationType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The quota notification variant associated with the event.' };
+	limitType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of quota or rate limit represented by the notification.' };
+	entitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The current Copilot entitlement associated with the notification.' };
+	additionalUsageEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether additional usage is enabled for the notification.' };
+	hasActions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the notification includes one or more action buttons.' };
+	percentUsed?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The percentage of the quota or rate limit used, if available.' };
+};
+
+type ChatQuotaNotificationTelemetryClassification = ChatQuotaNotificationTelemetryClassificationProperties & {
+	owner: 'rfeltis';
+	comment: 'Tracks Copilot quota notification visibility and user dismissals.';
+};
+
+type ChatQuotaNotificationActionTelemetryClassification = ChatQuotaNotificationTelemetryClassificationProperties & {
+	commandId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The command invoked from the quota notification action.' };
+	owner: 'rfeltis';
+	comment: 'Tracks actions invoked from Copilot quota notifications.';
+};
 
 /**
  * Core-side workbench contribution that shows chat input notifications for
@@ -45,6 +82,8 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	private _prevAdditionalUsageEnabled: boolean | undefined;
 	private _prevSessionPercentUsed: number | undefined;
 	private _prevWeeklyPercentUsed: number | undefined;
+	private _activeNotificationTelemetryData: ChatQuotaNotificationTelemetryEvent | undefined;
+	private _lastShownTelemetrySignature: string | undefined;
 
 	constructor(
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
@@ -52,12 +91,21 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 
 		this._register(this._chatEntitlementService.onDidChangeQuotaRemaining(() => this._update()));
 		this._register(this._chatEntitlementService.onDidChangeQuotaExceeded(() => this._update()));
 		this._register(this._chatEntitlementService.onDidChangeEntitlement(() => this._update()));
+		this._register(this._chatInputNotificationService.onDidShow(id => this._onDidShowNotification(id)));
+		this._register(this._chatInputNotificationService.onDidDismiss(id => this._onDidDismissNotification(id)));
+		this._register(this._chatInputNotificationService.onDidAction(e => this._onDidActionNotification(e.notificationId, e.commandId)));
+		this._register(this._chatInputNotificationService.onDidChange(() => {
+			if (!this._chatInputNotificationService.getActiveNotification(notification => notification.id === QUOTA_NOTIFICATION_ID)) {
+				this._clearTelemetryState();
+			}
+		}));
 
 		// Re-evaluate when the selected model changes (e.g. switching between Copilot and BYOK).
 		// The chatModelId context key is widget-scoped and may not bubble to the global
@@ -239,7 +287,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			actions,
 			dismissible: true,
 			autoDismissOnMessage: true,
-		});
+		}, this._createTelemetryData('quotaExhausted', 'quota', 100, actions));
 	}
 
 	// --- Overage notification -----------------------------------------------
@@ -255,7 +303,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			actions: [],
 			dismissible: true,
 			autoDismissOnMessage: true,
-		});
+		}, this._createTelemetryData('overageActivation', 'quota', 100, []));
 	}
 
 	// --- Quota approaching --------------------------------------------------
@@ -291,7 +339,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			actions,
 			dismissible: true,
 			autoDismissOnMessage: true,
-		});
+		}, this._createTelemetryData('quotaApproaching', 'quota', warning.percentUsed, actions));
 	}
 
 	// --- Rate-limit warning -------------------------------------------------
@@ -350,7 +398,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			actions: [],
 			dismissible: true,
 			autoDismissOnMessage: true,
-		});
+		}, this._createTelemetryData('rateLimitWarning', warning.type === 'session' ? 'sessionRateLimit' : 'weeklyRateLimit', warning.percentUsed, []));
 	}
 
 	// --- Helpers ------------------------------------------------------------
@@ -384,7 +432,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			actions: [],
 			dismissible: true,
 			autoDismissOnMessage: true,
-		});
+		}, this._createTelemetryData('managedPlanBlocked', 'managedPlan', undefined, []));
 	}
 
 	private _formatResetDate(isoDate: string): string {
@@ -397,12 +445,77 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		).value.format(resetDate);
 	}
 
-	private _setNotification(notification: IChatInputNotification): void {
+	private _setNotification(notification: IChatInputNotification, telemetryData: ChatQuotaNotificationTelemetryEvent): void {
+		this._activeNotificationTelemetryData = telemetryData;
 		this._chatInputNotificationService.setNotification(notification);
 	}
 
 	private _hideNotification(): void {
 		this._showingExhausted = false;
+		this._clearTelemetryState();
 		this._chatInputNotificationService.deleteNotification(QUOTA_NOTIFICATION_ID);
+	}
+
+	private _createTelemetryData(
+		notificationType: ChatQuotaNotificationType,
+		limitType: ChatQuotaNotificationLimitType,
+		percentUsed: number | undefined,
+		actions: IChatInputNotification['actions'],
+	): ChatQuotaNotificationTelemetryEvent {
+		return {
+			notificationType,
+			limitType,
+			entitlement: this._getEntitlementTelemetryValue(),
+			additionalUsageEnabled: this._chatEntitlementService.quotas.additionalUsageEnabled === true,
+			hasActions: actions.length > 0,
+			percentUsed,
+		};
+	}
+
+	private _getEntitlementTelemetryValue(): string {
+		return ChatEntitlement[this._chatEntitlementService.entitlement] ?? String(this._chatEntitlementService.entitlement);
+	}
+
+	private _logShownTelemetry(data: ChatQuotaNotificationTelemetryEvent): void {
+		const signature = this._getTelemetrySignature(data);
+		if (signature === this._lastShownTelemetrySignature) {
+			return;
+		}
+		this._lastShownTelemetrySignature = signature;
+		this._telemetryService.publicLog2<ChatQuotaNotificationTelemetryEvent, ChatQuotaNotificationTelemetryClassification>('chat.quotaNotificationShown', data);
+	}
+
+	private _onDidShowNotification(id: string): void {
+		if (id !== QUOTA_NOTIFICATION_ID || !this._activeNotificationTelemetryData) {
+			return;
+		}
+		this._logShownTelemetry(this._activeNotificationTelemetryData);
+	}
+
+	private _onDidActionNotification(id: string, commandId: string): void {
+		if (id !== QUOTA_NOTIFICATION_ID || !this._activeNotificationTelemetryData) {
+			return;
+		}
+		this._telemetryService.publicLog2<ChatQuotaNotificationActionTelemetryEvent, ChatQuotaNotificationActionTelemetryClassification>('chat.quotaNotificationActionInvoked', {
+			...this._activeNotificationTelemetryData,
+			commandId,
+		});
+	}
+
+	private _onDidDismissNotification(id: string): void {
+		if (id !== QUOTA_NOTIFICATION_ID || !this._activeNotificationTelemetryData) {
+			return;
+		}
+		this._telemetryService.publicLog2<ChatQuotaNotificationTelemetryEvent, ChatQuotaNotificationTelemetryClassification>('chat.quotaNotificationDismissed', this._activeNotificationTelemetryData);
+		this._clearTelemetryState();
+	}
+
+	private _clearTelemetryState(): void {
+		this._activeNotificationTelemetryData = undefined;
+		this._lastShownTelemetrySignature = undefined;
+	}
+
+	private _getTelemetrySignature(data: ChatQuotaNotificationTelemetryEvent): string {
+		return `${data.notificationType}\u0000${data.limitType}\u0000${data.entitlement}\u0000${data.additionalUsageEnabled}\u0000${data.hasActions}\u0000${data.percentUsed ?? ''}`;
 	}
 }

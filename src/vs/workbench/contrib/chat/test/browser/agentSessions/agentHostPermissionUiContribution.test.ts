@@ -50,6 +50,8 @@ class FakeNotificationService implements IChatInputNotificationService {
 	declare readonly _serviceBrand: undefined;
 	readonly onDidChange: Event<void> = Event.None;
 	readonly onDidDismiss: Event<string> = Event.None;
+	readonly onDidShow: Event<string> = Event.None;
+	readonly onDidAction: Event<{ notificationId: string; commandId: string }> = Event.None;
 	readonly setCalls: IChatInputNotification[] = [];
 	readonly deleteCalls: string[] = [];
 
@@ -60,6 +62,8 @@ class FakeNotificationService implements IChatInputNotificationService {
 		this.deleteCalls.push(id);
 	}
 	dismissNotification(_id: string): void { /* */ }
+	showNotification(_id: string): void { /* */ }
+	actionNotification(_id: string, _commandId: string): void { /* */ }
 	getActiveNotification(): IChatInputNotification | undefined { return undefined; }
 	handleMessageSent(): void { /* */ }
 }

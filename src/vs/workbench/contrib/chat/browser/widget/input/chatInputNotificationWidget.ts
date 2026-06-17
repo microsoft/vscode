@@ -87,6 +87,7 @@ export class ChatInputNotificationWidget extends Disposable {
 
 		this.domNode.parentElement?.classList.add('has-notification');
 		this._renderNotification(notification);
+		this._notificationService.showNotification(notification.id);
 	}
 
 	private _matchesSession(notification: IChatInputNotification): boolean {
@@ -208,6 +209,7 @@ export class ChatInputNotificationWidget extends Disposable {
 					button.element.ariaLabel = `${ariaTitle} ${action.label}`;
 
 					this._contentDisposables.add(button.onDidClick(async () => {
+						this._notificationService.actionNotification(notification.id, action.commandId);
 						this._telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
 							id: action.commandId,
 							from: 'chatInputNotification',
