@@ -848,7 +848,7 @@ suite('ClaudeProxyService', () => {
 			fake.messagesResult = { kind: 'stream', events };
 			const service = createProxyService(fake);
 			const reports: { sessionId: string; totalNanoAiu: number }[] = [];
-			service.onDidReportCredits(e => reports.push(e));
+			const sub = service.onDidReportCredits(e => reports.push(e));
 			const handle = await service.start(TOKEN);
 			try {
 				await fetchSse(`${handle.baseUrl}/v1/messages`, {
@@ -861,6 +861,7 @@ suite('ClaudeProxyService', () => {
 				});
 				assert.deepStrictEqual(reports, [{ sessionId: 'sess-42', totalNanoAiu: 750_000_000 }]);
 			} finally {
+				sub.dispose();
 				handle.dispose();
 				service.dispose();
 			}
@@ -873,7 +874,7 @@ suite('ClaudeProxyService', () => {
 			fake.messagesResult = { kind: 'message', message };
 			const service = createProxyService(fake);
 			const reports: { sessionId: string; totalNanoAiu: number }[] = [];
-			service.onDidReportCredits(e => reports.push(e));
+			const sub = service.onDidReportCredits(e => reports.push(e));
 			const handle = await service.start(TOKEN);
 			try {
 				await fetchJson(`${handle.baseUrl}/v1/messages`, {
@@ -886,6 +887,7 @@ suite('ClaudeProxyService', () => {
 				});
 				assert.deepStrictEqual(reports, [{ sessionId: 'sess-7', totalNanoAiu: 250_000_000 }]);
 			} finally {
+				sub.dispose();
 				handle.dispose();
 				service.dispose();
 			}
@@ -896,7 +898,7 @@ suite('ClaudeProxyService', () => {
 			fake.messagesResult = { kind: 'message', message: makeMessage('claude-opus-4.6', 'hi') };
 			const service = createProxyService(fake);
 			const reports: { sessionId: string; totalNanoAiu: number }[] = [];
-			service.onDidReportCredits(e => reports.push(e));
+			const sub = service.onDidReportCredits(e => reports.push(e));
 			const handle = await service.start(TOKEN);
 			try {
 				await fetchJson(`${handle.baseUrl}/v1/messages`, {
@@ -909,6 +911,7 @@ suite('ClaudeProxyService', () => {
 				});
 				assert.deepStrictEqual(reports, []);
 			} finally {
+				sub.dispose();
 				handle.dispose();
 				service.dispose();
 			}
