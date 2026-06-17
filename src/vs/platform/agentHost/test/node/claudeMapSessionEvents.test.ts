@@ -591,11 +591,24 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 						inputTokens: 12,
 						outputTokens: 34,
 						cacheReadTokens: 5,
-						model: 'claude-test'
+						model: 'claude-test',
+						_meta: { cost: 0 },
 					},
 				},
 			},
 		]);
+	});
+
+	test('result success forwards total_cost_usd as usage._meta.cost', () => {
+		const result = makeResultSuccess(SESSION_ID);
+		result.total_cost_usd = 0.1234;
+
+		const signals = mapSDKMessageToAgentSignals(result, SESSION, TURN_ID, new ClaudeMapperState(), new NullLogService(), r());
+
+		assert.strictEqual(signals.length, 1);
+		const usage = signals[0];
+		assert.ok(usage.kind === 'action' && usage.action.type === ActionType.ChatUsage);
+		assert.deepStrictEqual(usage.action.usage._meta, { cost: 0.1234 });
 	});
 
 	test('result success without modelUsage omits the model field on ChatUsage', () => {
