@@ -611,6 +611,20 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		assert.deepStrictEqual(usage.action.usage._meta, { cost: 0.1234 });
 	});
 
+	test('result success omits _meta when total_cost_usd is negative or non-finite', () => {
+		for (const bogus of [-1, NaN, Infinity, -Infinity]) {
+			const result = makeResultSuccess(SESSION_ID);
+			result.total_cost_usd = bogus;
+
+			const signals = mapSDKMessageToAgentSignals(result, SESSION, TURN_ID, new ClaudeMapperState(), new NullLogService(), r());
+
+			assert.strictEqual(signals.length, 1);
+			const usage = signals[0];
+			assert.ok(usage.kind === 'action' && usage.action.type === ActionType.ChatUsage);
+			assert.strictEqual(usage.action.usage._meta, undefined, `expected _meta omitted for total_cost_usd=${bogus}`);
+		}
+	});
+
 	test('result success without modelUsage omits the model field on ChatUsage', () => {
 		const result = makeResultSuccess(SESSION_ID);
 		result.modelUsage = {};
