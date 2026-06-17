@@ -30,7 +30,7 @@ const ReasoningEfforts = ['low', 'medium', 'high', 'xhigh'] as const;
 type ReasoningEffort = NonNullable<SessionConfig['reasoningEffort']>;
 
 const ContextTiers = ['default', 'long_context'] as const;
-type ContextTier = NonNullable<SessionConfig['contextTier']>;
+export type CopilotContextTier = typeof ContextTiers[number];
 
 type UserInputHandler = NonNullable<SessionConfig['onUserInputRequest']>;
 type UserInputRequest = Parameters<UserInputHandler>[0];
@@ -129,7 +129,7 @@ function isReasoningEffort(value: string | undefined): value is ReasoningEffort 
 	return ReasoningEfforts.some(reasoningEffort => reasoningEffort === value);
 }
 
-function isContextTier(value: string | undefined): value is ContextTier {
+function isContextTier(value: string | undefined): value is CopilotContextTier {
 	return ContextTiers.some(contextTier => contextTier === value);
 }
 
@@ -182,7 +182,7 @@ export function getCopilotReasoningEffort(model: ModelSelection | undefined): Se
 	return isReasoningEffort(thinkingLevel) ? thinkingLevel : undefined;
 }
 
-export function getCopilotContextTier(model: ModelSelection | undefined): SessionConfig['contextTier'] {
+export function getCopilotContextTier(model: ModelSelection | undefined): CopilotContextTier | undefined {
 	const contextTier = model?.config?.[ContextTierConfigKey];
 	return isContextTier(contextTier) ? contextTier : undefined;
 }
@@ -242,12 +242,21 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			streaming: true,
 			model: plan.model?.id,
 			reasoningEffort: getCopilotReasoningEffort(plan.model),
-			contextTier: getCopilotContextTier(plan.model),
 			...(plan.resolvedAgentName ? { agent: plan.resolvedAgentName } : {}),
 			workingDirectory: plan.workingDirectory?.fsPath,
 		});
 		await this._applySandboxConfig(raw, sandboxConfig, plan.sessionId);
 		return new CopilotSessionWrapper(raw);
+	}
+
+	private _toSdkSandboxConfigBag(sandboxConfig: ISdkSandboxConfig): Record<string, unknown> {
+		return {
+			enabled: sandboxConfig.enabled,
+			userPolicy: {
+				filesystem: { ...sandboxConfig.userPolicy.filesystem },
+				network: { ...sandboxConfig.userPolicy.network },
+			},
+		};
 	}
 
 	/**
@@ -285,7 +294,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			return;
 		}
 		try {
-			await session.rpc.options.update({ sandboxConfig });
+			await session.rpc.options.update({ sandboxConfig: this._toSdkSandboxConfigBag(sandboxConfig) });
 			this._logService.info(`[Copilot:${sessionId}] Applied SDK sandboxConfig via session.options.update`);
 		} catch (err) {
 			this._logService.warn(`[Copilot:${sessionId}] Failed to apply SDK sandboxConfig`, err);
@@ -310,7 +319,6 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const instructionDirectories = toSdkInstructionDirectories(plugins.flatMap(p => p.instructions));
 		return {
 			clientName: 'vscode',
-			enableMcpApps: true,
 			onPermissionRequest: request => runtime.handlePermissionRequest(request),
 			onUserInputRequest: (request, invocation) => runtime.handleUserInputRequest(request, invocation),
 			onElicitationRequest: context => runtime.handleElicitationRequest(context),

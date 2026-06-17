@@ -17,7 +17,7 @@ import { DetailedLineRangeMapping } from '../../../../../../editor/common/diff/r
 import { IEditorWorkerService } from '../../../../../../editor/common/services/editorWorker.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { fromAgentHostUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { ToolCallState, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { ToolCallCompletedState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IFileContent, IFileService } from '../../../../../../platform/files/common/files.js';
@@ -98,7 +98,12 @@ function makeMockFileService(contentMap: Map<string, string>): IFileService {
 	return new class extends mock<IFileService>() {
 		override async readFile(uri: URI) {
 			const key = uri.toString();
-			const data = contentMap.get(key);
+			const candidateKeys = [
+				key,
+				fromAgentHostUri(uri).toString(),
+				toAgentHostUri(uri, 'local').toString(),
+			];
+			const data = candidateKeys.reduce<string | undefined>((value, candidateKey) => value ?? contentMap.get(candidateKey), undefined);
 			if (data === undefined) {
 				throw new Error(`Content not found: ${key}`);
 			}
@@ -320,7 +325,10 @@ suite('AgentHostEditingSession', () => {
 
 	test('addToolCallEdits delegates ai contribution commands through command service', async () => {
 		const recordedCommands: RecordedCommand[] = [];
-		const session = createSession(store, new Map(), { recordedCommands });
+		const contentMap = new Map<string, string>();
+		contentMap.set(toAgentHostUri(URI.parse('content://before-1'), 'local').toString(), 'before-content');
+		contentMap.set(toAgentHostUri(URI.parse('content://after-1'), 'local').toString(), 'after-content');
+		const session = createSession(store, contentMap, { recordedCommands });
 
 		session.addToolCallEdits('req-1', makeToolCall({
 			toolCallId: 'tc-1',
@@ -935,6 +943,7 @@ suite('AgentHostEditingSession', () => {
 		test('disables requests after undo', async () => {
 			const contentMap = new Map<string, string>();
 			contentMap.set(toAgentHostUri(URI.file('/workspace/file.ts'), 'local').toString(), 'before');
+			contentMap.set(toAgentHostUri(URI.parse('content://after-1'), 'local').toString(), 'after-1');
 			const session = createSession(store, contentMap);
 
 			session.addToolCallEdits('req-1', makeToolCall({
@@ -964,6 +973,7 @@ suite('AgentHostEditingSession', () => {
 		test('clears disablement after redo', async () => {
 			const contentMap = new Map<string, string>();
 			contentMap.set(toAgentHostUri(URI.file('/workspace/file.ts'), 'local').toString(), 'before');
+			contentMap.set(toAgentHostUri(URI.parse('content://after-1'), 'local').toString(), 'after-1');
 			contentMap.set(toAgentHostUri(URI.parse('content://after-2'), 'local').toString(), 'after-2');
 			const session = createSession(store, contentMap);
 
@@ -1168,6 +1178,7 @@ suite('AgentHostEditingSession', () => {
 		test('new edits after undo remove stale checkpoints', async () => {
 			const contentMap = new Map<string, string>();
 			contentMap.set(toAgentHostUri(URI.file('/workspace/file.ts'), 'local').toString(), 'before');
+			contentMap.set(toAgentHostUri(URI.parse('content://after-1'), 'local').toString(), 'after-1');
 			const session = createSession(store, contentMap);
 
 			session.addToolCallEdits('req-1', makeToolCall({

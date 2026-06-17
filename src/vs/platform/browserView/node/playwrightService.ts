@@ -17,13 +17,20 @@ import { CDPRequest, CDPResponse } from '../common/cdp/types.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 
 // eslint-disable-next-line local/code-import-patterns
-import type { Browser, BrowserContext, ConnectOverCDPTransport, Page } from 'playwright-core';
+import type { Browser, BrowserContext, Page } from 'playwright-core';
 
 /**
  * Tracks whether a caller-initiated Playwright action is currently in flight.
  */
 export interface IPlaywrightActionScope {
 	activeCalls: number;
+}
+
+interface IConnectOverCDPTransport {
+	close(): void;
+	send(message: object): void;
+	onclose?: () => void;
+	onmessage?: (message: object) => void;
 }
 
 const DEFERRED_RESULT_CLEANUP_MS = 5 * 60_000; // 5 minutes
@@ -126,12 +133,12 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 		try {
 			const playwright = await import('playwright-core');
 			const sub = group.onCDPMessage(msg => transport.onmessage?.(msg));
-			const transport: ConnectOverCDPTransport = {
+			const transport: IConnectOverCDPTransport = {
 				close() {
 					sub.dispose();
 					this.onclose?.();
 				},
-				send: (rawMessage) => {
+				send: (rawMessage: object) => {
 					if (!isCDPRequest(rawMessage)) {
 						// Fail loudly: returning silently would leave Playwright
 						// waiting for a response and surface later as an opaque hang.
@@ -154,7 +161,7 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 					void group.sendCDPMessage(message);
 				}
 			};
-			browser = await playwright.chromium.connectOverCDP(transport);
+			browser = await playwright.chromium.connectOverCDP(transport as unknown as Parameters<typeof playwright.chromium.connectOverCDP>[0]);
 		} catch (e) {
 			group.dispose();
 			throw e;
