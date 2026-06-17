@@ -102,8 +102,8 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 	) {
 		super();
 
-		this.profileStorageMap = new StorageMap(this.windowsMainService, this.logService, () => !this.shutdownReason);
-		this.workspaceStorageMap = new StorageMap(this.windowsMainService, this.logService, () => !this.shutdownReason);
+		this.profileStorageMap = this._register(new StorageMap(this.windowsMainService, this.logService, () => !this.shutdownReason));
+		this.workspaceStorageMap = this._register(new StorageMap(this.windowsMainService, this.logService, () => !this.shutdownReason));
 
 		this.applicationStorage = this._register(this.createApplicationStorage());
 		this.applicationSharedStorage = this._register(this.createApplicationSharedStorage());
@@ -311,17 +311,11 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		return false;
 	}
 
-	override dispose(): void {
-		this.profileStorageMap.dispose();
-		this.workspaceStorageMap.dispose();
-
-		super.dispose();
-	}
 }
 
 //#endregion
 
-class StorageMap implements IDisposable {
+class StorageMap extends Disposable {
 
 	private readonly mapStorage = new Map<string /* storage ID */, RefCountedStorage>();
 	private readonly mapWindowIdToStorageIds = new Map<number /* window ID */, Set<string /* storage ID */>>();
@@ -331,7 +325,9 @@ class StorageMap implements IDisposable {
 		private readonly windowsMainService: IWindowsMainService,
 		private readonly logService: ILogService,
 		private readonly shouldReleaseOnWindowClose: () => boolean
-	) { }
+	) {
+		super();
+	}
 
 	get storages(): IStorageMain[] {
 		return Array.from(this.mapStorage.values(), storage => storage.storage);
@@ -341,6 +337,7 @@ class StorageMap implements IDisposable {
 		let storage = this.mapStorage.get(storageId);
 		if (!storage) {
 			const result = create();
+			this._register(result.storage);
 			storage = new RefCountedStorage(result.storage);
 			this.mapStorage.set(storageId, storage);
 
@@ -349,6 +346,7 @@ class StorageMap implements IDisposable {
 				this.mapStorage.delete(storageId);
 				this.clearStorageReferences(storageId);
 				result.onDidClose();
+				this._store.delete(result.storage);
 			});
 		}
 
@@ -440,8 +438,10 @@ class StorageMap implements IDisposable {
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.clearWindowReferences();
+
+		super.dispose();
 	}
 }
 
