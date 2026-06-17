@@ -155,9 +155,8 @@ export class IssueReporterEditorPane extends EditorPane {
 			this.wizard.showFloatingBar();
 			this.wizard.setUpdateAvailable(this.shouldShowUpdateBanner());
 			// Restore attachments captured before the editor was moved back into
-			// this pane from a modal editor part (#318376). The input is the source
-			// of truth; the existing onDidChangeAttachments subscription keeps it in
-			// sync.
+			// this pane from a modal editor part. The input is the source of truth;
+			// the existing onDidChangeAttachments subscription keeps it in sync.
 			this.restoreAttachmentsFromInput(input);
 			return;
 		}
@@ -209,7 +208,7 @@ export class IssueReporterEditorPane extends EditorPane {
 		// Restore attachments mirrored onto the input before a move, and keep the
 		// input in sync as attachments change so they survive the wizard being
 		// rebuilt when the editor moves between the main editor area and a modal
-		// editor part in the Agents Window (#318376).
+		// editor part in the Agents Window.
 		this.restoreAttachmentsFromInput(input);
 		this.inputDisposables.add(this.wizard.onDidChangeAttachments(() => {
 			input.savedScreenshots = this.wizard?.getScreenshots().slice();
@@ -335,8 +334,7 @@ export class IssueReporterEditorPane extends EditorPane {
 				// Screenshots are either annotated (always PNG via canvas.toDataURL)
 				// or raw native captures (always JPEG); fall back to PNG.
 				const extension = dataUrl.startsWith('data:image/jpeg') ? 'jpg' : 'png';
-				// Save to the OS temp folder (#318309) so artifacts don't bloat the
-				// user data folder and get cleaned up automatically.
+				// Write to the OS temp folder so artifacts are cleaned up automatically.
 				const folder = URI.joinPath(this.environmentService.tmpDir, 'issue-screenshots');
 				const target = URI.joinPath(folder, `screenshot-${Date.now()}.${extension}`);
 				await this.fileService.createFolder(folder);
@@ -559,8 +557,7 @@ export class IssueReporterEditorPane extends EditorPane {
 		try {
 			const extension = data.mimeType.startsWith('video/mp4') ? 'mp4' : 'webm';
 			const fileName = `vscode-recording-${new Date().toISOString().replace(/[:.]/g, '-')}.${extension}`;
-			// Save to the OS temp folder (#318309) so artifacts don't bloat the
-			// user data folder and get cleaned up automatically.
+			// Write to the OS temp folder so artifacts are cleaned up automatically.
 			const folder = URI.joinPath(this.environmentService.tmpDir, 'issue-recordings');
 			const target = URI.joinPath(folder, fileName);
 

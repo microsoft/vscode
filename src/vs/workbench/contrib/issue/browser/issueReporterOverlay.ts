@@ -77,7 +77,7 @@ export class IssueReporterOverlay {
 	private readonly _onDidRequestOpenScreenshot = new Emitter<IScreenshot>();
 	readonly onDidRequestOpenScreenshot: Event<IScreenshot> = this._onDidRequestOpenScreenshot.event;
 	private readonly _onDidChangeAttachments = new Emitter<void>();
-	/** Fires whenever the screenshot/recording collection changes so the host can persist it (#318376). */
+	/** Fires whenever the screenshot/recording collection changes so the host can persist it. */
 	readonly onDidChangeAttachments: Event<void> = this._onDidChangeAttachments.event;
 
 	private wizardPanel!: HTMLElement;
@@ -128,6 +128,7 @@ export class IssueReporterOverlay {
 	private reviewThumbCards: HTMLElement[] = [];
 	private readonly reviewRenderDisposables = new DisposableStore();
 	private readonly similarIssuesDisposables = new DisposableStore();
+	private readonly descriptionGuidanceDisposables = new DisposableStore();
 	private uploading = false;
 	private includeSystemInfo = true;
 	private includeProcessInfo = true;
@@ -199,7 +200,7 @@ export class IssueReporterOverlay {
 
 		// Toolbar with progress indicator and navigation buttons. The nav buttons
 		// sit in their own row directly beneath the step indicator, aligned to the
-		// start, so they read as part of the step UI (#318305).
+		// start, so they read as part of the step UI.
 		const toolbar = append(this.wizardPanel, $('div.wizard-toolbar'));
 
 		// Progress indicator area
@@ -214,7 +215,7 @@ export class IssueReporterOverlay {
 		this.stepLabel = append(progressArea, $('span.wizard-step-label'));
 
 		// Navigation buttons placed in their own row directly under the step
-		// indicator, aligned to the start (#318305).
+		// indicator, aligned to the start.
 		const nav = append(toolbar, $('div.wizard-nav'));
 
 		this.backButton = this.disposables.add(new Button(nav, { ...defaultButtonStyles, secondary: true }));
@@ -523,7 +524,7 @@ export class IssueReporterOverlay {
 		const heading = append(page, $('h2.wizard-heading'));
 		heading.textContent = localize('describeHeading', "Describe your feedback");
 
-		// Issue guidance link — keep the same wording as the classic reporter (#318333).
+		// Issue guidance link — keep the same wording as the classic reporter.
 		if (this.markdownRendererService) {
 			const guidanceContainer = append(page, $('div.wizard-issue-guidance'));
 			const guidanceMd = new MarkdownString(localize(
@@ -550,7 +551,10 @@ export class IssueReporterOverlay {
 		sourceLabel.textContent = localize('target', "Target");
 		this.appendRequiredMarker(sourceLabel);
 		this.sourceButtonGroup = append(sourceField, $('div.wizard-type-buttons.wizard-source-buttons'));
-		for (const option of this.getSourceOptions()) {
+		// Create a button for every source up front so async-loaded extensions can
+		// reveal the Extension target later; updateIssueSourceButtons() controls
+		// which buttons are visible.
+		for (const option of this.getAllSourceOptions()) {
 			const btn = this.disposables.add(new Button(this.sourceButtonGroup, { ...defaultButtonStyles, secondary: true }));
 			btn.element.classList.add('wizard-type-btn', 'wizard-source-btn');
 			btn.element.setAttribute('data-source', option.value);
@@ -592,7 +596,7 @@ export class IssueReporterOverlay {
 		// Default the target to the most likely option when the reporter opens.
 		// In the Agents Window we preselect Agents Window; otherwise default to
 		// VS Code (the most common target). Extension is preselected only when an
-		// extension id was already provided. The user can always override (#318311).
+		// extension id was already provided. The user can always override.
 		if (!this.selectedIssueSource) {
 			if (this.data.extensionId) {
 				this.selectedIssueSource = IssueSource.Extension;
@@ -715,9 +719,9 @@ export class IssueReporterOverlay {
 		this.updateIssueSourceFlags();
 		this.updateTargetStatus();
 
-		// Default the category to Bug (most common). Users can switch to Feature
-		// Request or Performance Issue (#318311). Must run after descriptionGuidance
-		// is initialized because selectType -> updateDescriptionGuidance touches it.
+		// Default the category to Bug (most common). Must run after
+		// descriptionGuidance is initialized because selectType ->
+		// updateDescriptionGuidance touches it.
 		if (this.selectedIssueType === undefined) {
 			selectType(IssueType.Bug);
 		} else {
@@ -737,25 +741,27 @@ export class IssueReporterOverlay {
 			{ type: IssueType.FeatureRequest, label: localize('featureRequest', "Feature Request"), icon: Codicon.lightbulb },
 			{ type: IssueType.PerformanceIssue, label: localize('performanceIssue', "Performance Issue"), icon: Codicon.dashboard },
 		];
-		// Marketplace target is for issues with the marketplace site/service itself,
-		// where performance metrics from a single VS Code instance aren't useful (#318318).
+		// The Marketplace target is for issues with the marketplace site/service
+		// itself, where performance metrics from a single VS Code instance aren't useful.
 		if (this.selectedIssueSource === IssueSource.Marketplace) {
 			return options.filter(o => o.type !== IssueType.PerformanceIssue);
 		}
 		return options;
 	}
 
-	private getSourceOptions(): { label: string; value: IssueSource }[] {
-		const options: { label: string; value: IssueSource }[] = [
+	private getAllSourceOptions(): { label: string; value: IssueSource }[] {
+		return [
 			{ label: product.nameLong || localize('vscode', "Visual Studio Code"), value: IssueSource.VSCode },
 			{ label: localize('agentsWindow', "Agents Window"), value: IssueSource.AgentsWindow },
 			{ label: localize('extensionSource', "A VS Code extension"), value: IssueSource.Extension },
 			{ label: localize('marketplace', "Extensions Marketplace"), value: IssueSource.Marketplace },
 		];
-		// Hide the Extension target when it can't apply: extensions can't run in
-		// the Agents Window so the picker would always be empty there (#318451),
-		// and in any window there is nothing to report against when no non-builtin,
-		// non-theme extensions are installed (#318315).
+	}
+
+	private getSourceOptions(): { label: string; value: IssueSource }[] {
+		const options = this.getAllSourceOptions();
+		// The Extension target only applies when there are non-builtin, non-theme
+		// extensions to report against, which never happens in the Agents Window.
 		if (this.data.isSessionsWindow || !this.hasReportableExtensions()) {
 			return options.filter(o => o.value !== IssueSource.Extension);
 		}
@@ -804,7 +810,7 @@ export class IssueReporterOverlay {
 	/**
 	 * Hide or restore issue type buttons based on the current source. The Marketplace
 	 * source does not support reporting performance issues, so the button is hidden
-	 * and the selection falls back to Bug when it was the Performance option (#318318).
+	 * and the selection falls back to Bug when it was the Performance option.
 	 */
 	private updateIssueTypeButtons(): void {
 		if (!this.issueTypeButtons.length) {
@@ -1214,6 +1220,7 @@ export class IssueReporterOverlay {
 		const perfWikiUrl = 'https://github.com/microsoft/vscode/wiki/Performance-Issues';
 
 		// Reset before updating
+		this.descriptionGuidanceDisposables.clear();
 		this.descriptionGuidance.textContent = '';
 		this.descriptionGuidance.classList.remove('wizard-description-guidance-with-link');
 
@@ -1231,12 +1238,10 @@ export class IssueReporterOverlay {
 				break;
 			case IssueType.PerformanceIssue: {
 				appendText(`${localize('perfGuidance', "Describe what is slow, when it happens, whether it's consistent or intermittent, and any patterns you've noticed.")} `);
-				// Insert the wiki link as a real anchor so users can follow the
-				// guidance for reporting performance issues (#318332).
 				const link = $('a.wizard-description-guidance-link') as HTMLAnchorElement;
 				link.href = perfWikiUrl;
 				link.textContent = localize('perfWikiLink', "See the performance issue reporting guide.");
-				this.disposables.add(addDisposableListener(link, EventType.CLICK, e => {
+				this.descriptionGuidanceDisposables.add(addDisposableListener(link, EventType.CLICK, e => {
 					e.preventDefault();
 					this.openExternalLink?.(perfWikiUrl);
 				}));
@@ -1736,10 +1741,9 @@ export class IssueReporterOverlay {
 			heading.className = 'review-diag-heading';
 
 			// Master checkbox before "Additional Information" shows/hides and
-			// includes/excludes the whole block (#318313). It is an explicit
-			// toggle controlled only by the user: clicking a per-section checkbox
-			// affects that section alone and never changes the master or hides the
-			// other sections (#318312).
+			// includes/excludes the whole block. It is an explicit toggle
+			// controlled only by the user: clicking a per-section checkbox affects
+			// that section alone and never changes the master or hides the others.
 			const masterWrap = append(heading, $('div.review-diag-master-wrap'));
 			const masterCheckbox = this.disposables.add(new Checkbox(localize('additionalInformation', "Additional Information"), !this.diagnosticsCollapsed, defaultCheckboxStyles));
 			masterCheckbox.domNode.classList.add('review-diag-master-checkbox');
@@ -1751,7 +1755,7 @@ export class IssueReporterOverlay {
 				this.setAllDiagnosticSectionsIncluded(masterCheckbox.checked);
 			}));
 
-			// Hide all sections only when the user turns the master off (#318313).
+			// Hide all sections only when the user turns the master off.
 			diagContainer.classList.toggle('all-excluded', this.diagnosticsCollapsed);
 
 			diagContainer.prepend(heading);
@@ -1802,9 +1806,8 @@ export class IssueReporterOverlay {
 		const group = append(parent, $('div.review-diag-group'));
 		group.classList.toggle('excluded', !opts.checked);
 
-		// Header layout (#318313 + #318312): [Checkbox] [Chevron+Title (toggle area)].
-		// The whole title area is clickable to expand/collapse — no separate text
-		// "Expand"/"Collapse" button.
+		// Header layout: [Checkbox] [Chevron + Title (toggle area)]. The whole
+		// title area is clickable to expand/collapse.
 		const header = append(group, $('div.review-diag-header'));
 
 		const checkWrap = append(header, $('div.review-diag-check-wrap'));
@@ -1957,8 +1960,7 @@ export class IssueReporterOverlay {
 		}
 		this.screenshots.push(screenshot);
 		// Navigate to the Attachments step so the user sees where the screenshot
-		// was saved instead of staying on whatever step they were composing on
-		// (#318317).
+		// was saved instead of staying on whatever step they were composing on.
 		if (this.currentStep !== WizardStep.Attachments) {
 			this.setStep(WizardStep.Attachments);
 		}
@@ -2151,7 +2153,7 @@ export class IssueReporterOverlay {
 	 * Replace the current attachments with a previously-captured set. Used when the
 	 * issue reporter editor is moved between the main editor area and a modal editor
 	 * part in the Agents Window, which rebuilds the wizard and would otherwise drop
-	 * the in-memory screenshots and recordings (#318376). Does not fire
+	 * the in-memory screenshots and recordings. Does not fire
 	 * `onDidChangeAttachments` since the host is the source of this state.
 	 */
 	restoreAttachments(screenshots: readonly IScreenshot[], recordings: readonly { filePath: string; durationMs: number; thumbnailDataUrl?: string }[]): void {
@@ -2413,6 +2415,7 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 			this.data.enabledExtensions = newData.allExtensions as IssueReporterExtensionData[];
 			this.updateExtensionOptions();
 			this.updateIssueSourceFlags();
+			this.updateIssueSourceButtons();
 		}
 		// Refresh review details if we're on the review step (async data may have arrived)
 		if (this.currentStep === WizardStep.Review) {
@@ -2550,7 +2553,7 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 
 	addRecording(filePath: string, durationMs: number, thumbnailDataUrl?: string): void {
 		this.recordings.push({ filePath, durationMs, thumbnailDataUrl });
-		// Navigate to the Attachments step so the user sees the saved recording (#318317).
+		// Navigate to the Attachments step so the user sees the saved recording.
 		if (this.currentStep !== WizardStep.Attachments) {
 			this.setStep(WizardStep.Attachments);
 		}
@@ -2613,6 +2616,7 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 		}
 		this.reviewRenderDisposables.dispose();
 		this.similarIssuesDisposables.dispose();
+		this.descriptionGuidanceDisposables.dispose();
 		this.disposables.dispose();
 		this._onDidClose.dispose();
 		this._onDidSubmit.dispose();
