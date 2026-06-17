@@ -54,7 +54,7 @@ export class UITest {
 	public async run(page: Page) {
 		try {
 			await this.dismissWelcomeDialog(page);
-			await this.dismissWorkspaceTrustDialog(page);
+			await this.grantWorkspaceTrust(page);
 			await this.createTextFile(page);
 			await this.searchInWorkspace(page);
 			await this.installExtension(page);
@@ -89,11 +89,17 @@ export class UITest {
 	}
 
 	/**
-	 * Dismiss the workspace trust dialog.
+	 * Grant trust to the workspace.
+	 *
+	 * Untrusted workspaces now open directly in Restricted Mode instead of
+	 * prompting a modal dialog on startup, so trust is granted via the
+	 * "Manage Workspace Trust" editor.
 	 */
-	private async dismissWorkspaceTrustDialog(page: Page) {
-		this.context.log('Dismissing workspace trust dialog');
-		await page.getByText('Yes, I trust the authors').click();
+	private async grantWorkspaceTrust(page: Page) {
+		this.context.log('Granting workspace trust');
+		await this.runCommand(page, 'Workspaces: Manage Workspace Trust');
+		const trustButton = page.locator('.workspace-trust-buttons .monaco-button', { hasText: /^Trust$/ }).first();
+		await trustButton.click();
 		await page.waitForTimeout(500);
 	}
 
