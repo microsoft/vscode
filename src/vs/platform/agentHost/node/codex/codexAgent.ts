@@ -458,7 +458,12 @@ function dynamicToolResponseFromResult(result: ToolCallResult): DynamicToolCallR
 		}
 	}
 	if (contentItems.length === 0) {
-		const summary = typeof result.pastTenseMessage === 'string' ? result.pastTenseMessage : '';
+		// Codex rejects an empty tool body, so always send a non-empty
+		// `inputText`: prefer the tool's past-tense summary, otherwise a
+		// generic completion marker keyed off success.
+		const summary = typeof result.pastTenseMessage === 'string' && result.pastTenseMessage.length > 0
+			? result.pastTenseMessage
+			: (result.success ? 'Tool completed with no output.' : 'Tool failed with no output.');
 		contentItems.push({ type: 'inputText', text: summary });
 	}
 	return { contentItems, success: result.success };
