@@ -95,6 +95,13 @@ export class RewindConversationAction extends Action2 {
 			return;
 		}
 
+		// Defensive guard: removing requests while a turn is streaming would corrupt
+		// session state. The menu and slash command are gated on `requestInProgress`,
+		// but `executeCommand` bypasses an action's precondition, so re-check here.
+		if (chatModel.requestInProgress.get()) {
+			return;
+		}
+
 		const orderedRequestIds = chatModel.getRequests().map(request => request.id);
 		const idsToRewind = getRequestIdsToRewind(orderedRequestIds, targetRequestId);
 		if (idsToRewind.length === 0) {

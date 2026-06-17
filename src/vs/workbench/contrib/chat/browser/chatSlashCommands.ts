@@ -213,9 +213,12 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
-			when: ContextKeyExpr.or(
-				ChatContextKeys.lockedToCodingAgent.negate(),
-				ChatContextKeys.chatSessionSupportsFork
+			when: ContextKeyExpr.and(
+				ContextKeyExpr.or(
+					ChatContextKeys.lockedToCodingAgent.negate(),
+					ChatContextKeys.chatSessionSupportsFork
+				),
+				ChatContextKeys.requestInProgress.negate()
 			),
 		}, async (_prompt, _progress, _history, _location, sessionResource) => {
 			await commandService.executeCommand('workbench.action.chat.rewindConversation', sessionResource);
