@@ -16,6 +16,7 @@ import { IEditorOptions } from '../common/editor.js';
 export interface IOpenEditorOptions {
 	readonly editorOptions: IEditorOptions;
 	readonly openToSide: boolean;
+	readonly altKey?: boolean;
 }
 
 export function registerOpenEditorListeners(element: HTMLElement, onOpenEditor: (options: IOpenEditorOptions) => void): IDisposable {
@@ -55,7 +56,7 @@ export function toOpenEditorOptions(event: StandardMouseEvent | StandardKeyboard
 export function toOpenEditorOptions(event: StandardMouseEvent | StandardKeyboardEvent, isDoubleClick?: boolean): IOpenEditorOptions | undefined {
 	if (event instanceof StandardKeyboardEvent) {
 		let preserveFocus: boolean | undefined = undefined;
-		if (event.equals(KeyCode.Enter) || (isMacintosh && event.equals(KeyMod.CtrlCmd | KeyCode.DownArrow))) {
+		if (event.equals(KeyCode.Enter) || event.equals(KeyMod.Alt | KeyCode.Enter) || (isMacintosh && event.equals(KeyMod.CtrlCmd | KeyCode.DownArrow))) {
 			preserveFocus = false;
 		} else if (event.equals(KeyCode.Space)) {
 			preserveFocus = true;
@@ -65,9 +66,9 @@ export function toOpenEditorOptions(event: StandardMouseEvent | StandardKeyboard
 			return;
 		}
 
-		return { editorOptions: { preserveFocus, pinned: !preserveFocus }, openToSide: false };
+		return { editorOptions: { preserveFocus, pinned: !preserveFocus }, openToSide: false, altKey: event.altKey };
 	} else {
-		return { editorOptions: { preserveFocus: !isDoubleClick, pinned: isDoubleClick || event.middleButton }, openToSide: event.ctrlKey || event.metaKey || event.altKey };
+		return { editorOptions: { preserveFocus: !isDoubleClick, pinned: isDoubleClick || event.middleButton }, openToSide: event.ctrlKey || event.metaKey, altKey: event.altKey };
 	}
 }
 
