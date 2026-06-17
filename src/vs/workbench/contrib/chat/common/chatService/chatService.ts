@@ -165,7 +165,15 @@ export interface IChatUsage {
 	completionTokens: number;
 	outputBuffer?: number;
 	promptTokenDetails?: readonly IChatUsagePromptTokenDetail[];
+	copilotCredits?: number;
 	kind: 'usage';
+}
+
+/**
+ * Formats a copilot credit value for display.
+ */
+export function formatCopilotCredits(credits: number): string {
+	return parseFloat(credits.toFixed(1)).toString();
 }
 
 export interface IChatContentInlineReference {

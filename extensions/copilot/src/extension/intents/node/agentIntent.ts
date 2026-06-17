@@ -21,7 +21,7 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { IEditLogService } from '../../../platform/multiFileEdit/common/editLogService';
 import { CUSTOM_TOOL_SEARCH_NAME, isAnthropicContextEditingEnabled } from '../../../platform/networking/common/anthropic';
 import { IChatEndpoint, isCAPIEndpoint } from '../../../platform/networking/common/networking';
-import { APIUsage, modelsWithoutResponsesContextManagement } from '../../../platform/networking/common/openai';
+import { APIUsage, modelsWithoutResponsesContextManagement, nanoAiuToCredits } from '../../../platform/networking/common/openai';
 import { INotebookService } from '../../../platform/notebook/common/notebookService';
 import { GenAiMetrics } from '../../../platform/otel/common/genAiMetrics';
 import { IOTelService } from '../../../platform/otel/common/otelService';
@@ -523,6 +523,7 @@ export class AgentIntent extends EditCodeIntent {
 				stream.usage({
 					promptTokens: summaryMetadata.usage.prompt_tokens,
 					completionTokens: summaryMetadata.usage.completion_tokens,
+					copilotCredits: nanoAiuToCredits(summaryMetadata.usage.copilot_usage?.total_nano_aiu),
 					promptTokenDetails: summaryMetadata.promptTokenDetails,
 				});
 			}

@@ -89,6 +89,21 @@ export {
 	type Message
 } from './protocol/state.js';
 
+/**
+ * Well-known keys that may appear on {@link UsageInfo._meta}.
+ * Clients MAY read these to provide enhanced UI (e.g. credit cost display).
+ */
+export interface UsageInfoMeta {
+	/** Per-turn credit cost reported by the backend. */
+	cost?: number;
+	/** Copilot-specific usage breakdown, including nano-AIU totals. */
+	copilotUsage?: {
+		totalNanoAiu?: number;
+		[key: string]: unknown;
+	};
+	[key: string]: unknown;
+}
+
 export {
 	ChangesetOperationTargetKind, type ChangesetOperationFollowUp, type ChangesetOperationTarget
 } from './protocol/commands.js';
