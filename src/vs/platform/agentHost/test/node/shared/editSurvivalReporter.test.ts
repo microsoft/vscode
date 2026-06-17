@@ -54,6 +54,8 @@ suite('agentHost editSurvivalReporter', () => {
 			beforeText: 'before-text',
 			afterText: 'after-text',
 			isCreate: false,
+			modelId: 'claude-sonnet-4.5',
+			aiChunks: ['after-text'],
 		});
 		disposables.add(reporter);
 
@@ -65,6 +67,7 @@ suite('agentHost editSurvivalReporter', () => {
 		assert.strictEqual(first.name, 'agentHost.trackEditSurvival');
 		const data = first.data as Record<string, unknown>;
 		assert.strictEqual(data.provider, 'claude');
+		assert.strictEqual(data.modelId, 'claude-sonnet-4.5');
 		assert.strictEqual(data.agentSessionId, 'session-1');
 		assert.strictEqual(data.turnId, 'turn-1');
 		assert.strictEqual(data.toolCallId, 'tc-1');
@@ -74,6 +77,8 @@ suite('agentHost editSurvivalReporter', () => {
 		assert.strictEqual(data.isCreate, 0);
 		assert.strictEqual(data.survivalRateFourGram, 1);
 		assert.strictEqual(data.survivalRateNoRevert, 1);
+		assert.strictEqual(data.scoringMode, 'chunked');
+		assert.strictEqual(data.aiCharCount, 'after-text'.length);
 	});
 
 	test('emits a delete event when the file is missing', async () => {

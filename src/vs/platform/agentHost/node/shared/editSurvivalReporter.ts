@@ -40,10 +40,18 @@ export interface IEditSurvivalReporterLaunchParams {
 	/** Whether the tool created a new file (no prior content existed). */
 	readonly isCreate: boolean;
 	/**
+	 * The model that produced this edit (e.g. `claude-sonnet-4.5`,
+	 * `gpt-5-mini`). Used to slice survival telemetry by model in
+	 * dashboards. Empty / undefined when the host couldn't determine
+	 * the per-message model -- the event is still emitted with
+	 * `modelId=''` so the rest of the telemetry is preserved.
+	 */
+	readonly modelId?: string;
+	/**
 	 * The explicit text chunks the AI wrote, extracted from the tool
 	 * input (e.g. `Edit.new_string`, each `MultiEdit.edits[*].new_string`,
 	 * or `Write.content`). When provided, the reporter computes
-	 * `survivalRateFourGram` with the chunked, search-within math — so
+	 * `survivalRateFourGram` with the chunked, search-within math -- so
 	 * the score does not decay as the file grows around the chunks.
 	 *
 	 * In practice every known file-edit tool produces chunks (see the
@@ -81,6 +89,7 @@ export class NullEditSurvivalReporterFactory implements IEditSurvivalReporterFac
 
 interface IEditSurvivalTelemetryEvent {
 	provider: string;
+	modelId: string;
 	agentSessionId: string;
 	turnId: string;
 	toolCallId: string;
@@ -89,6 +98,7 @@ interface IEditSurvivalTelemetryEvent {
 	survivalRateNoRevert: number;
 	scoringMode: string;
 	aiChunkCount: number;
+	aiCharCount: number;
 	timeDelayMs: number;
 	didFileGetDeleted: number;
 	isCreate: number;
@@ -99,6 +109,7 @@ interface IEditSurvivalTelemetryEvent {
 
 type IEditSurvivalTelemetryClassification = {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
+	modelId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model that produced the edit, e.g. "claude-sonnet-4.5" or "gpt-5-mini". Empty if the host could not determine the per-edit model.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
 	turnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host turn identifier this edit belongs to.' };
 	toolCallId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The tool call identifier that produced the edit.' };
@@ -107,6 +118,7 @@ type IEditSurvivalTelemetryClassification = {
 	survivalRateNoRevert: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'A number between 0 and 1; 1 means the user kept the AI edit and 0 means the user fully reverted it.' };
 	scoringMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How survivalRateFourGram was computed: "chunked" (asymmetric, denominator bounded by the AI-written text) or "whole-file" (symmetric, denominator includes the whole file).' };
 	aiChunkCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of distinct AI-written text chunks contributing to chunked scoring (0 when scoringMode is "whole-file").' };
+	aiCharCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Sum of character lengths of the AI-written chunks (suitable for char-weighted dashboard rollups). Always 0 when scoringMode is "whole-file" because we cannot accurately determine the AI char count from a whole-file snapshot.' };
 	timeDelayMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds since the edit completed when this sample was taken.' };
 	didFileGetDeleted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: '1 if the file could not be read when the sample was taken (deleted or moved), otherwise 0.' };
 	isCreate: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: '1 if the tool call created a new file, otherwise 0.' };
@@ -177,6 +189,7 @@ class SessionEditSurvivalReporter extends Disposable {
 
 			const aiChunks = this._params.aiChunks ?? [];
 			const useChunked = aiChunks.length > 0;
+			const aiCharCount = useChunked ? aiChunks.reduce((sum, c) => sum + c.length, 0) : 0;
 			const scores = didFileGetDeleted
 				? { fourGram: 0, noRevert: 0 }
 				: useChunked
@@ -187,6 +200,7 @@ class SessionEditSurvivalReporter extends Disposable {
 				'agentHost.trackEditSurvival',
 				{
 					provider: AgentSession.provider(this._params.sessionUri) ?? 'unknown',
+					modelId: this._params.modelId ?? '',
 					agentSessionId: AgentSession.id(this._params.sessionUri),
 					turnId: this._params.turnId,
 					toolCallId: this._params.toolCallId,
@@ -195,6 +209,7 @@ class SessionEditSurvivalReporter extends Disposable {
 					survivalRateNoRevert: scores.noRevert,
 					scoringMode: useChunked ? 'chunked' : 'whole-file',
 					aiChunkCount: aiChunks.length,
+					aiCharCount,
 					timeDelayMs,
 					didFileGetDeleted: didFileGetDeleted ? 1 : 0,
 					isCreate: this._params.isCreate ? 1 : 0,

@@ -155,8 +155,9 @@ export class FileEditTracker {
 	 * @param toolInput - The raw tool input, as received from the
 	 *   agent. Parsed by {@link extractAiChunks} -- unknown shapes are
 	 *   tolerated and yield an empty chunk list (whole-file fallback).
+	 * @param modelId - The model that produced this edit 
 	 */
-	async takeCompletedEdit(turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown): Promise<ToolResultFileEditContent | undefined> {
+	async takeCompletedEdit(turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined): Promise<ToolResultFileEditContent | undefined> {
 		const edit = this._completedEdits.get(filePath);
 		if (!edit) {
 			return undefined;
@@ -203,6 +204,7 @@ export class FileEditTracker {
 			beforeText,
 			afterText,
 			isCreate,
+			modelId,
 			aiChunks: extractAiChunks(toolName, toolInput, filePath),
 		});
 

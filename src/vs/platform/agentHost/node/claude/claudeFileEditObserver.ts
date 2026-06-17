@@ -43,15 +43,18 @@ export class ClaudeFileEditObserver extends Disposable {
 	private readonly _editTracker: FileEditTracker;
 
 	/**
-	 * Maps SDK `tool_use_id` → file path + raw tool input captured when
-	 * the SDK yields the assistant `tool_use` block in
+	 * Maps SDK `tool_use_id` → file path + raw tool input + model
+	 * captured when the SDK yields the assistant `tool_use` block in
 	 * {@link observeAssistant}. Consumed (and removed) by
 	 * {@link observeUser} when the matching `tool_result` arrives.
 	 * The raw input is forwarded to
 	 * {@link FileEditTracker.takeCompletedEdit} so it can extract the
-	 * AI-written text chunks for the edit-survival reporter.
+	 * AI-written text chunks for the edit-survival reporter. The
+	 * model is read off the assistant message body and is naturally
+	 * per-subagent: when a subagent emits the `tool_use`, its model
+	 * (not the parent's) is what we record.
 	 */
-	private readonly _editToolPaths = new Map<string, { readonly filePath: string; readonly toolName: string; readonly toolInput: unknown }>();
+	private readonly _editToolPaths = new Map<string, { readonly filePath: string; readonly toolName: string; readonly toolInput: unknown; readonly modelId: string | undefined }>();
 
 	constructor(
 		sessionUri: string,
@@ -84,6 +87,7 @@ export class ClaudeFileEditObserver extends Disposable {
 		if (!Array.isArray(content)) {
 			return;
 		}
+		const modelId = typeof message.message.model === 'string' ? message.message.model : undefined;
 		for (const block of content) {
 			if (block.type !== 'tool_use' || !isClaudeFileEditTool(block.name)) {
 				continue;
@@ -92,7 +96,7 @@ export class ClaudeFileEditObserver extends Disposable {
 			if (!filePath) {
 				continue;
 			}
-			this._editToolPaths.set(block.id, { filePath, toolName: block.name, toolInput: block.input });
+			this._editToolPaths.set(block.id, { filePath, toolName: block.name, toolInput: block.input, modelId });
 			void this._editTracker.trackEditStart(filePath).catch(err =>
 				this._logService.warn(`[ClaudeFileEditObserver] trackEditStart failed for ${filePath}: ${err}`));
 		}
@@ -126,7 +130,7 @@ export class ClaudeFileEditObserver extends Disposable {
 			this._editToolPaths.delete(block.tool_use_id);
 			try {
 				await this._editTracker.completeEdit(tracked.filePath);
-				const fileEdit = await this._editTracker.takeCompletedEdit(turnId, block.tool_use_id, tracked.filePath, tracked.toolName, tracked.toolInput);
+				const fileEdit = await this._editTracker.takeCompletedEdit(turnId, block.tool_use_id, tracked.filePath, tracked.toolName, tracked.toolInput, tracked.modelId);
 				if (fileEdit) {
 					mapperState.cacheFileEdit(block.tool_use_id, fileEdit);
 				}
