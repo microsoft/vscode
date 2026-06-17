@@ -338,6 +338,14 @@ export interface ICopilotAgentSessionOptions {
 	 * the future) and exposes SDK tool handlers that execute them in-process.
 	 */
 	readonly serverToolHost?: IAgentServerToolHost;
+	/**
+	 * Fetches the user's current Copilot quota snapshots (keyed by quota type,
+	 * e.g. `chat` / `premium_interactions`) via the SDK's `account.getQuota`
+	 * RPC. The SDK exposes this only on the top-level client, so the agent
+	 * passes a bound callback. Used to forward per-response quota to the client
+	 * so the core can update `IChatEntitlementService`.
+	 */
+	readonly fetchQuotaSnapshots?: () => Promise<Record<string, unknown> | undefined>;
 }
 
 /**
@@ -446,6 +454,16 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _workingDirectory: URI | undefined;
 	private readonly _customizationDirectory: URI | undefined;
 	private readonly _serverToolHost: IAgentServerToolHost | undefined;
+	/** Fetches the user's current quota snapshots via the SDK `account.getQuota` RPC. */
+	private readonly _fetchQuotaSnapshots: (() => Promise<Record<string, unknown> | undefined>) | undefined;
+	/**
+	 * Most recent usage emitted for the active turn (token totals + `_meta`),
+	 * and its turn id. The out-of-band quota fetch re-emits this latest usage
+	 * with quota attached, so a quota update never regresses the token meter
+	 * even if a newer usage event lands while `account.getQuota` is in flight.
+	 */
+	private _latestUsage: UsageInfo | undefined;
+	private _latestUsageTurnId = '';
 	/** Bridges SDK-reported MCP server state into AHP customization actions. */
 	private readonly _mcpCustomizations: McpCustomizationController;
 
@@ -499,6 +517,7 @@ export class CopilotAgentSession extends Disposable {
 		this._workingDirectory = options.workingDirectory;
 		this._customizationDirectory = options.customizationDirectory;
 		this._serverToolHost = options.serverToolHost;
+		this._fetchQuotaSnapshots = options.fetchQuotaSnapshots;
 
 		this._appliedSnapshot = options.clientSnapshot ?? { tools: [], plugins: [] };
 		this._clientToolNames = new Set(this._appliedSnapshot.tools.map(t => t.name));
@@ -569,6 +588,44 @@ export class CopilotAgentSession extends Disposable {
 			session: this.sessionUri,
 			action,
 			parentToolCallId,
+		});
+	}
+
+	/**
+	 * Out-of-band quota update: fetches the user's current quota snapshots via
+	 * `account.getQuota` and forwards them on a follow-up {@link ActionType.ChatUsage}
+	 * action. The SDK does not carry quota on the (public) usage event, so we fetch
+	 * it separately; the fetch is fire-and-forget so it never delays the token /
+	 * credit meter. To avoid regressing the meter if a newer usage event lands while
+	 * the RPC is in flight, the follow-up re-emits the {@link _latestUsage} (current
+	 * token totals) with quota attached — the consumer applies quota from `_meta`
+	 * and dedupes the unchanged token totals.
+	 */
+	private async _fetchAndEmitQuota(sessionId: string): Promise<void> {
+		let quotaSnapshots: Record<string, unknown> | undefined;
+		try {
+			quotaSnapshots = await this._fetchQuotaSnapshots?.();
+		} catch (error) {
+			this._logService.warn(`[Copilot:${sessionId}] account.getQuota failed: ${error}`);
+		}
+
+		// TEMP(quota): log the quota snapshots we got back from the server so we
+		// can confirm the shape. Remove once quota plumbing is verified.
+		this._logService.info(`[Copilot:${sessionId}] account.getQuota snapshots: ${quotaSnapshots ? safeJsonStringify(quotaSnapshots) : '<none>'}`);
+
+		const latest = this._latestUsage;
+		if (!quotaSnapshots || Object.keys(quotaSnapshots).length === 0 || !latest) {
+			return;
+		}
+
+		const usage: UsageInfo = {
+			...latest,
+			_meta: { ...(latest._meta ?? {}), quotaSnapshots },
+		};
+		this._emitAction({
+			type: ActionType.ChatUsage,
+			turnId: this._latestUsageTurnId,
+			usage,
 		});
 	}
 
@@ -2374,21 +2431,6 @@ export class CopilotAgentSession extends Disposable {
 				};
 			}
 
-			// `quotaSnapshots` is likewise marked `asInternal` in the SDK schema (so it is
-			// absent from the generated `AssistantUsageData` type) but is present at runtime:
-			// the runtime rides the user's current quota along on each usage event, mirroring
-			// the Copilot Chat extension's `copilot_quota_snapshots` response field. Read it
-			// dynamically and forward it on the usage `_meta` so the core can update
-			// `IChatEntitlementService` per response — no extra `account.getQuota` round-trip.
-			const quotaSnapshots = rawUsage.quotaSnapshots as Record<string, unknown> | undefined;
-			if (quotaSnapshots && Object.keys(quotaSnapshots).length > 0) {
-				metadata.quotaSnapshots = quotaSnapshots;
-			}
-
-			// TEMP(quota): log the quota snapshots carried on the usage event so we
-			// can confirm the shape. Remove once quota plumbing is verified.
-			this._logService.info(`[Copilot:${sessionId}] usage quota snapshots: ${quotaSnapshots ? safeJsonStringify(quotaSnapshots) : '<none>'}`);
-
 			this._logService.trace(`[Copilot:${sessionId}] Usage: model=${e.data.model}, in=${e.data.inputTokens ?? '?'}, out=${e.data.outputTokens ?? '?'}, cacheRead=${e.data.cacheReadTokens ?? '?'}, cost=${e.data.cost ?? '?'}, totalNanoAiu=${metadata.copilotUsage ? this._turnCopilotUsageTotalNanoAiu : '?'}`);
 			if (typeof e.data.model === 'string' && e.data.model) {
 				this._lastSeenModelId = e.data.model;
@@ -2400,11 +2442,21 @@ export class CopilotAgentSession extends Disposable {
 				cacheReadTokens: e.data.cacheReadTokens,
 				...(Object.keys(metadata).length > 0 ? { _meta: metadata } : {}),
 			};
+			// Emit the token/credit usage immediately so the live meter is not
+			// delayed by the quota fetch below.
+			this._latestUsage = usage;
+			this._latestUsageTurnId = this._turnId;
 			this._emitAction({
 				type: ActionType.ChatUsage,
 				turnId: this._turnId,
 				usage,
 			});
+
+			// The SDK's (public) `assistant.usage` event does not carry quota snapshots,
+			// so we fetch them out-of-band via `account.getQuota` and forward them on a
+			// follow-up usage action (mirrors the Copilot Chat extension's per-response
+			// quota update). Fire-and-forget so the meter above is never blocked.
+			void this._fetchAndEmitQuota(sessionId);
 		}));
 
 		this._register(wrapper.onReasoningDelta(e => {
