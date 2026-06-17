@@ -817,6 +817,10 @@ function setupAgentHostSuite(logger: Logger, config: {
 				COPILOT_API_URL: mockServer.url,
 				COPILOT_DEBUG_GITHUB_API_URL: mockServer.url,
 				GITHUB_COPILOT_API_TOKEN: 'smoketest-fake-agent-host-token',
+				// Route the agent host's shared CAPI client (used by the Codex /
+				// agent-host harnesses for model discovery + requests) at the mock
+				// instead of api.github.com, which would 401 with the fake token.
+				VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE: mockServer.url,
 			},
 		}));
 

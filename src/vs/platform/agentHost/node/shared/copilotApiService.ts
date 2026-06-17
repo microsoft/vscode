@@ -149,6 +149,17 @@ const CAPI_CONTEXT_TTL_SECONDS = 30 * 60;
 const USER_API_VERSION = '2025-04-01';
 
 /**
+ * Test/debug override for the CAPI base URL. When set, {@link CopilotApiService}
+ * skips the `api.github.com/copilot_internal/user` endpoint-discovery round-trip
+ * (which requires a real GitHub token) and routes every CAPI request — `models`,
+ * `responses`, `messages` — straight at this URL instead. Only ever set by the
+ * smoke-test harness (see `setupAgentHostSuite`) so the agent host's shared CAPI
+ * client can talk to the mock LLM server; never set in production, so normal
+ * per-token discovery is unchanged.
+ */
+const CAPI_URL_OVERRIDE_ENV = 'VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE';
+
+/**
  * Re-mint the Copilot session token this many seconds before its
  * server-reported `expires_at`, mirroring the Copilot Chat extension's
  * `RefreshableCopilotTokenManager` 5-minute refresh buffer.
@@ -810,6 +821,19 @@ export class CopilotApiService implements ICopilotApiService {
 		});
 
 		this._logService.debug('[CopilotApiService] Discovering CAPI endpoints via /copilot_internal/user');
+
+		// Test/debug override: when an explicit CAPI base URL is provided, skip
+		// the api.github.com discovery (which needs a real GitHub token) and route
+		// CAPI straight at the override. Only ever set by the smoke harness.
+		const overrideApi = process.env[CAPI_URL_OVERRIDE_ENV];
+		if (overrideApi) {
+			this._logService.info(`[CopilotApiService] Using CAPI URL override ${overrideApi}; skipping endpoint discovery`);
+			capiClient.updateDomains({ endpoints: { api: overrideApi, proxy: overrideApi }, sku: '' }, undefined);
+			return {
+				capiClient,
+				expiresAt: Date.now() / 1000 + CAPI_CONTEXT_TTL_SECONDS,
+			};
+		}
 
 		const response = await this._fetch(userUrl, {
 			method: 'GET',
