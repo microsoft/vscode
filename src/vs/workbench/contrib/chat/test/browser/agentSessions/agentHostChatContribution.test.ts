@@ -904,10 +904,9 @@ suite('AgentHostChatContribution', () => {
 				type: MessageAttachmentKind.Simple,
 				label: 'Previous conversation',
 				modelRepresentation: 'Transcript text',
-				displayKind: 'paste',
 			}]);
 
-			fire({ type: 'session/turnComplete', session: session!, turnId: turnId! } as SessionAction);
+			fire({ type: 'session/turnComplete', session: session!, turnId: turnId! } as unknown as SessionAction);
 			await turnPromise;
 		});
 
@@ -943,7 +942,7 @@ suite('AgentHostChatContribution', () => {
 			}]);
 		});
 
-		test('restores paste displayKind simple attachments as paste variable entries', () => {
+		test('restores paste displayKind simple attachments as generic variable entries', () => {
 			const variableData = messageAttachmentsToVariableData([{
 				type: MessageAttachmentKind.Simple,
 				label: 'Previous conversation',
@@ -960,13 +959,13 @@ suite('AgentHostChatContribution', () => {
 				pastedLines: variable.kind === 'paste' ? variable.pastedLines : undefined,
 				fileName: variable.kind === 'paste' ? variable.fileName : undefined,
 			})), [{
-				kind: 'paste',
+				kind: 'generic',
 				name: 'Previous conversation',
 				value: 'conversation transcript',
-				code: 'conversation transcript',
-				language: 'markdown',
-				pastedLines: 'Previous conversation',
-				fileName: 'Previous conversation',
+				code: undefined,
+				language: undefined,
+				pastedLines: undefined,
+				fileName: undefined,
 			}]);
 		});
 	});

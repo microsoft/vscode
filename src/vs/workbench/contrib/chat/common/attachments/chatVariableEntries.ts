@@ -286,7 +286,7 @@ export function toPasteVariableEntry(
 
 export function restorePasteVariableEntryFromAttachment(attachment: IRestorablePasteAttachment): IChatRequestPasteVariableEntry | undefined {
 	const modelRepresentation = attachment.modelRepresentation;
-	if (typeof modelRepresentation !== 'string' || (attachment.displayKind !== 'paste' && attachment._meta?.[ChatPasteAttachmentMetadata.Kind] !== 'paste')) {
+	if (typeof modelRepresentation !== 'string' || attachment._meta?.[ChatPasteAttachmentMetadata.Kind] !== 'paste') {
 		return undefined;
 	}
 
