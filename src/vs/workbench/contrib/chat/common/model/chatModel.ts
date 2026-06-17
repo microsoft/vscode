@@ -1869,6 +1869,13 @@ export interface IChatModelInputState {
 	/** Currently selected language model, if any */
 	selectedModel: ILanguageModelChatMetadataAndIdentifier | undefined;
 
+	/**
+	 * Configuration (e.g. context size, thinking effort) for the selected
+	 * model, captured so it can be restored alongside the model when the
+	 * session is reopened.
+	 */
+	modelConfiguration?: IStringDictionary<unknown>;
+
 	/** Current input text */
 	inputText: string;
 
@@ -1895,6 +1902,7 @@ export interface ISerializableChatModelInputState {
 		identifier: string;
 		metadata: ILanguageModelChatMetadata;
 	} | undefined;
+	modelConfiguration?: IStringDictionary<unknown>;
 	inputText: string;
 	selections: ISelection[];
 	permissionLevel?: ChatPermissionLevel;
@@ -2120,6 +2128,7 @@ class InputModel implements IInputModel {
 				identifier: value.selectedModel.identifier,
 				metadata: value.selectedModel.metadata
 			} : undefined,
+			modelConfiguration: value.modelConfiguration,
 			inputText: value.inputText,
 			selections: value.selections,
 			permissionLevel: value.permissionLevel,
@@ -2432,6 +2441,7 @@ export class ChatModel extends Disposable implements IChatModel {
 				identifier: serializedInputState.selectedModel.identifier,
 				metadata: serializedInputState.selectedModel.metadata
 			},
+			modelConfiguration: serializedInputState.modelConfiguration,
 			contrib: serializedInputState.contrib,
 			inputText: serializedInputState.inputText,
 			selections: serializedInputState.selections,
