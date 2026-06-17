@@ -588,7 +588,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	private _isTrajectoryEligibleEntitlement(): boolean {
 		const entitlement = this._chatEntitlementService.entitlement;
-		return entitlement === ChatEntitlement.EDU || entitlement === ChatEntitlement.Pro || entitlement === ChatEntitlement.ProPlus;
+		return entitlement === ChatEntitlement.Pro || entitlement === ChatEntitlement.ProPlus;
 	}
 
 	private _isManagedPlanBlocked(): boolean {
