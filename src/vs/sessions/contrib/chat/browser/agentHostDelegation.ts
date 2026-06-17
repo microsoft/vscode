@@ -30,8 +30,12 @@ CommandsRegistry.registerCommand(CHAT_DELEGATE_TO_AGENT_HOST_SESSION_COMMAND_ID,
 	const sessionsManagementService = accessor.get(ISessionsManagementService);
 
 	const sourceSession = sessionsService.activeSession.get();
+	if (!sourceSession) {
+		logService.warn('[Sessions] Agent host delegation skipped: no active session');
+		return;
+	}
 	// Reuse the source (active) session's workspace folder for the new session.
-	const folderUri = sourceSession?.workspace.get()?.folders.at(0)?.root;
+	const folderUri = sourceSession.workspace.get()?.folders.at(0)?.root;
 	if (!folderUri) {
 		logService.warn('[Sessions] Agent host delegation skipped: no active session workspace folder');
 		return;
