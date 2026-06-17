@@ -62,6 +62,7 @@ import type { DynamicToolCallParams } from './protocol/generated/v2/DynamicToolC
 import type { DynamicToolCallResponse } from './protocol/generated/v2/DynamicToolCallResponse.js';
 import type { DynamicToolCallOutputContentItem } from './protocol/generated/v2/DynamicToolCallOutputContentItem.js';
 import type { ToolRequestUserInputParams } from './protocol/generated/v2/ToolRequestUserInputParams.js';
+import type { ToolRequestUserInputQuestion } from './protocol/generated/v2/ToolRequestUserInputQuestion.js';
 import type { ToolRequestUserInputResponse } from './protocol/generated/v2/ToolRequestUserInputResponse.js';
 import type { JsonValue } from './protocol/generated/serde_json/JsonValue.js';
 import type { GetAccountResponse } from './protocol/generated/v2/GetAccountResponse.js';
@@ -104,6 +105,22 @@ const CODEX_MCP_APP_CAPABILITIES: AhpMcpUiHostCapabilities = {
 	serverTools: { listChanged: true },
 	serverResources: {},
 };
+
+/**
+ * Codex surfaces an MCP tool-call approval as a `request_user_input`
+ * question whose id is `mcp_tool_call_approval_<callId>` (the `<callId>`
+ * matches the `mcpToolCall` item id). The host intercepts these and renders
+ * them on the normal tool-approval card instead of a chat-input question;
+ * see {@link CodexAgent._handleMcpToolApprovalViaCard}.
+ *
+ * Codex decodes the answer string back into a decision: `Allow` accepts the
+ * call, the synthetic `__codex_mcp_decline__` rejects it (anything else is
+ * treated as a cancel). These mirror the constants in codex
+ * `core/src/mcp_tool_call.rs`.
+ */
+const MCP_TOOL_APPROVAL_QUESTION_ID_PREFIX = 'mcp_tool_call_approval_';
+const MCP_TOOL_APPROVAL_ANSWER_ALLOW = 'Allow';
+const MCP_TOOL_APPROVAL_ANSWER_DECLINE = '__codex_mcp_decline__';
 
 const codexSessionConfigSchema = createSchema({
 	[CodexSessionConfigKey.ApprovalPolicy]: schemaProperty<CodexApprovalPolicy>({
@@ -1028,6 +1045,21 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!session) {
 			return { result: emptyUserInputResponse(params.questions) };
 		}
+		// MCP tool-call approvals arrive as a single `request_user_input`
+		// question id'd `mcp_tool_call_approval_<callId>`. Render them on the
+		// normal tool-approval card (mirroring shell/file approvals) instead of
+		// a chat-input question, when the originating `mcpToolCall` item's host
+		// tool call is known. Falls through to the chat-input path otherwise.
+		const approvalQuestion = params.questions.length === 1 && params.questions[0].id.startsWith(MCP_TOOL_APPROVAL_QUESTION_ID_PREFIX)
+			? params.questions[0]
+			: undefined;
+		if (approvalQuestion) {
+			const callId = approvalQuestion.id.slice(MCP_TOOL_APPROVAL_QUESTION_ID_PREFIX.length);
+			const entry = session.mapState.itemToToolCall.get(callId);
+			if (entry) {
+				return this._handleMcpToolApprovalViaCard(session, approvalQuestion, entry);
+			}
+		}
 		const requestId = generateUuid();
 		const request = buildUserInputRequest(requestId, params.questions);
 		try {
@@ -1040,6 +1072,42 @@ export class CodexAgent extends Disposable implements IAgent {
 			// with empty answers so the turn unwinds instead of hanging.
 			return { result: emptyUserInputResponse(params.questions) };
 		}
+	}
+
+	/**
+	 * Renders an MCP tool-call approval on the normal tool-approval card
+	 * (a pending-confirmation `ChatToolCallReady` on the originating
+	 * `mcpToolCall` host tool call) rather than as a chat-input question.
+	 * The user's Allow/Deny decision is mapped back to the answer string
+	 * codex expects (`Allow` / `__codex_mcp_decline__`). Mirrors the shell
+	 * command approval flow ({@link CodexAgent._handleCommandApprovalRequest}).
+	 */
+	private async _handleMcpToolApprovalViaCard(
+		session: ICodexSession,
+		question: ToolRequestUserInputQuestion,
+		entry: { readonly toolCallId: string; readonly turnId: string },
+	): Promise<{ readonly result: ToolRequestUserInputResponse }> {
+		const confirmationTitle = question.question || question.header || 'Run MCP tool';
+		let decision: CommandExecutionApprovalDecision;
+		try {
+			decision = await session.pendingCommandApprovals.registerAndFire(entry.toolCallId, () => {
+				this._fire(session.sessionUri, {
+					type: ActionType.ChatToolCallReady,
+					turnId: entry.turnId,
+					toolCallId: entry.toolCallId,
+					invocationMessage: confirmationTitle,
+					toolInput: confirmationTitle,
+					confirmationTitle,
+				});
+			});
+		} catch (err) {
+			// Session disposed / connection lost while awaiting; decline so the
+			// codex-side MCP tool call unwinds instead of hanging.
+			decision = 'decline';
+		}
+		const allow = decision === 'accept' || decision === 'acceptForSession';
+		const answer = allow ? MCP_TOOL_APPROVAL_ANSWER_ALLOW : MCP_TOOL_APPROVAL_ANSWER_DECLINE;
+		return { result: { answers: { [question.id]: { answers: [answer] } } } };
 	}
 
 	private async _handleElicitationRequestRpc(params: McpServerElicitationRequestParams): Promise<ServerRequestHandlerResult<McpServerElicitationRequestResponse>> {
