@@ -84,7 +84,7 @@ import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatRequestVariableSet, getImageAttachmentLimit, IChatRequestVariableEntry, isBrowserViewVariableEntry, isElementVariableEntry, isExplicitFileOrImageVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isStringVariableEntry, OmittedState } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatMode, getModeNameForTelemetry, IChatMode, IChatModes, IChatModeService } from '../../../common/chatModes.js';
 import { IChatFollowup, IChatPlanReview, IChatQuestionCarousel, IChatToolInvocation } from '../../../common/chatService/chatService.js';
-import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, isIChatSessionFileChange2, localChatSessionType, SessionType } from '../../../common/chatSessionsService.js';
+import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, isAgentHostTarget, isIChatSessionFileChange2, localChatSessionType, SessionType } from '../../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../common/constants.js';
 import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
@@ -1015,8 +1015,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			},
 			getModels: () => this.getModels(),
 			useGroupedModelPicker: () => {
+				// Agent-host session types (local and remote) reuse the same
+				// grouped/featured model picker as the default chat session, so
+				// the editor matches the agents window experience.
 				const sessionType = this.getCurrentSessionType();
-				return !sessionType || sessionType === localChatSessionType;
+				return !sessionType || sessionType === localChatSessionType || isAgentHostTarget(sessionType);
 			},
 			showManageModelsAction: () => {
 				const sessionType = this.getCurrentSessionType();
@@ -1028,7 +1031,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			},
 			showFeatured: () => {
 				const sessionType = this.getCurrentSessionType();
-				return !sessionType || sessionType === localChatSessionType;
+				return !sessionType || sessionType === localChatSessionType || isAgentHostTarget(sessionType);
 			},
 			showAutoModel: () => this._showAutoModel(),
 			modelConfiguration: this._modelConfigStore,
