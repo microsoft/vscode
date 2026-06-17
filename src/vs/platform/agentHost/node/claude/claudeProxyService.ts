@@ -446,6 +446,9 @@ export class ClaudeProxyService implements IClaudeProxyService {
 			writeJsonError(res, 404, 'not_found_error', `Unknown model: ${sdkModelId}`);
 			return;
 		}
+		// The SDK/CLI sends the model in SDK format (dashed, `claude-haiku-4-5`);
+		// CAPI's `/v1/messages` expects the endpoint format (dotted,
+		// `claude-haiku-4.5`). Rewrite on the way out.
 		const endpointModelId = parsedModel.toEndpointModelId();
 		body.model = endpointModelId;
 
