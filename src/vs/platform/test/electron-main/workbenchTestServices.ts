@@ -33,8 +33,13 @@ export class TestLifecycleMainService implements ILifecycleMainService {
 		await Promises.settled(joiners);
 	}
 
+	fireOnBeforeCloseWindow(window: ICodeWindow): void {
+		this._onBeforeCloseWindow.fire(window);
+	}
+
 	onWillLoadWindow = Event.None;
-	onBeforeCloseWindow = Event.None;
+	private readonly _onBeforeCloseWindow = new Emitter<ICodeWindow>();
+	readonly onBeforeCloseWindow = this._onBeforeCloseWindow.event;
 
 	wasRestarted = false;
 	quitRequested = false;

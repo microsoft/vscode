@@ -5,7 +5,7 @@
 
 import { URI } from '../../../base/common/uri.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { join } from '../../../base/common/path.js';
 import { IStorage } from '../../../base/parts/storage/common/storage.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
@@ -20,7 +20,6 @@ import { IUserDataProfilesMainService } from '../../userDataProfile/electron-mai
 import { IAnyWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { Schemas } from '../../../base/common/network.js';
-import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 
 //#region Storage Main Service (intent: make application, profile and workspace storage accessible to windows from main process)
 
@@ -98,12 +97,11 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IFileService private readonly fileService: IFileService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 	) {
 		super();
 
-		this.profileStorageMap = this._register(new StorageMap(this.windowsMainService, this.logService, () => !this.shutdownReason));
-		this.workspaceStorageMap = this._register(new StorageMap(this.windowsMainService, this.logService, () => !this.shutdownReason));
+		this.profileStorageMap = this._register(new StorageMap());
+		this.workspaceStorageMap = this._register(new StorageMap());
 
 		this.applicationStorage = this._register(this.createApplicationStorage());
 		this.applicationSharedStorage = this._register(this.createApplicationSharedStorage());
@@ -126,6 +124,13 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 			this.applicationStorage.init();
 			this.applicationSharedStorage.init();
 		})();
+
+		this._register(this.lifecycleMainService.onBeforeCloseWindow(window => {
+			void Promise.all([
+				this.profileStorageMap.releaseWindowStorage(window.id),
+				this.workspaceStorageMap.releaseWindowStorage(window.id)
+			]).catch(error => this.logService.error(error));
+		}));
 
 		// All Storage: Close when shutting down
 		this._register(this.lifecycleMainService.onWillShutdown(e => {
@@ -319,15 +324,6 @@ class StorageMap extends Disposable {
 
 	private readonly mapStorage = new Map<string /* storage ID */, RefCountedStorage>();
 	private readonly mapWindowIdToStorageIds = new Map<number /* window ID */, Set<string /* storage ID */>>();
-	private readonly mapWindowIdToCloseListener = new Map<number /* window ID */, IDisposable>();
-
-	constructor(
-		private readonly windowsMainService: IWindowsMainService,
-		private readonly logService: ILogService,
-		private readonly shouldReleaseOnWindowClose: () => boolean
-	) {
-		super();
-	}
 
 	get storages(): IStorageMain[] {
 		return Array.from(this.mapStorage.values(), storage => storage.storage);
@@ -374,13 +370,6 @@ class StorageMap extends Disposable {
 			return;
 		}
 
-		const ownerWindow = this.windowsMainService.getWindowById(ownerWindowId);
-		if (!ownerWindow) {
-			return;
-		}
-
-		this.registerWindowStorageRelease(ownerWindowId, ownerWindow.onDidClose, ownerWindow.onDidDestroy);
-
 		let storageIds = this.mapWindowIdToStorageIds.get(ownerWindowId);
 		if (!storageIds) {
 			storageIds = new Set();
@@ -391,26 +380,7 @@ class StorageMap extends Disposable {
 		storage.increment(ownerWindowId);
 	}
 
-	private registerWindowStorageRelease(ownerWindowId: number, onDidClose: Event<void>, onDidDestroy: Event<void>): void {
-		if (this.mapWindowIdToCloseListener.has(ownerWindowId)) {
-			return;
-		}
-
-		const listener = Event.once(Event.any(onDidClose, onDidDestroy))(() => {
-			if (!this.shouldReleaseOnWindowClose()) {
-				return;
-			}
-
-			void this.releaseWindowStorage(ownerWindowId).catch(error => this.logService.error(error));
-		});
-
-		this.mapWindowIdToCloseListener.set(ownerWindowId, listener);
-	}
-
-	private async releaseWindowStorage(ownerWindowId: number): Promise<void> {
-		this.mapWindowIdToCloseListener.get(ownerWindowId)?.dispose();
-		this.mapWindowIdToCloseListener.delete(ownerWindowId);
-
+	async releaseWindowStorage(ownerWindowId: number): Promise<void> {
 		const storageIds = this.mapWindowIdToStorageIds.get(ownerWindowId);
 		this.mapWindowIdToStorageIds.delete(ownerWindowId);
 		if (!storageIds) {
@@ -423,11 +393,6 @@ class StorageMap extends Disposable {
 	}
 
 	private clearWindowReferences(): void {
-		for (const listener of this.mapWindowIdToCloseListener.values()) {
-			listener.dispose();
-		}
-
-		this.mapWindowIdToCloseListener.clear();
 		this.mapWindowIdToStorageIds.clear();
 	}
 
@@ -436,8 +401,6 @@ class StorageMap extends Disposable {
 			storageIds.delete(storageId);
 			if (storageIds.size === 0) {
 				this.mapWindowIdToStorageIds.delete(ownerWindowId);
-				this.mapWindowIdToCloseListener.get(ownerWindowId)?.dispose();
-				this.mapWindowIdToCloseListener.delete(ownerWindowId);
 			}
 		}
 	}
