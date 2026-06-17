@@ -252,15 +252,22 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 		const tasksWithRepo: { task: AgentTask; repo: { owner: string; name: string } | undefined }[] = [];
 
 		if (!repoIds || repoIds.length === 0) {
+			// The global `agents/tasks` endpoint is already scoped to the authenticated user, so
+			// no creator filter is needed here.
 			const response = await this._taskApiClient.listTasks(listOpts);
 			for (const task of response.tasks) {
 				tasksWithRepo.push({ task, repo: undefined });
 			}
 		} else {
+			// The repo-scoped endpoint returns every collaborator's tasks by default. Scope it to
+			// the current user's own tasks via `creator_id`, matching the github.com/copilot/agents
+			// repo page. If the user id can't be resolved, fall back to the unfiltered list.
+			const creatorId = await this._resolveCurrentUserId();
+			const repoListOpts: ListTasksOptions = creatorId !== undefined ? { ...listOpts, creator_id: creatorId } : listOpts;
 			const responses = await Promise.all(
 				repoIds.map(async repo => {
 					try {
-						const r = await this._taskApiClient.listTasksForRepo(repo.org, repo.repo, listOpts);
+						const r = await this._taskApiClient.listTasksForRepo(repo.org, repo.repo, repoListOpts);
 						return { repo: { owner: repo.org, name: repo.repo }, response: r };
 					} catch (e: unknown) {
 						this._logService.warn(`Failed to fetch tasks for ${repo.org}/${repo.repo}: ${e}`);
@@ -282,6 +289,20 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 				pullArtifact: taskToPullArtifactRef(task, repo),
 				diffRefs: taskToDiffRefs(task, repo),
 			}));
+	}
+
+	/**
+	 * Resolve the authenticated user's numeric GitHub id for the repo task `creator_id` filter.
+	 * Returns undefined (and logs) on failure so listing can proceed unfiltered.
+	 */
+	private async _resolveCurrentUserId(): Promise<number | undefined> {
+		try {
+			const user = await this._octoKitService.getCurrentAuthedUser();
+			return user?.id;
+		} catch (e: unknown) {
+			this._logService.warn(`Failed to resolve current user id for task creator filter: ${e}`);
+			return undefined;
+		}
 	}
 
 	async fetchTaskContent(taskId: string): Promise<TaskContent | undefined> {
