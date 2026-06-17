@@ -22,6 +22,53 @@ interface NoticeEntry {
 	lineNumber: number;
 }
 
+/**
+ * Heuristic: does this line look like a package header rather than license prose?
+ *
+ * Real headers:  "@scope/pkg 1.2.3 - MIT", "pkg - Apache-2.0", "@scope/pkg"
+ *                "org/repo abc123...def - Apache-2.0" (git SHA)
+ * False positives after decorative dashes inside license text:
+ *   "END OF TERMS AND CONDITIONS", "Apache License", "The MIT License (MIT)",
+ *   "Copyright (c) 2020 Author", "PYTHON SOFTWARE FOUNDATION LICENSE VERSION 2"
+ *
+ * Key signals: real package names are lowercase (or git org/repo), never start
+ * with common license-prose words, and never contain parentheses.
+ */
+const LICENSE_PROSE_STARTS = /^(copyright|license|licen[cs]e|permission|the |this |all |end |terms|conditions|disclaimer|granted|redistribution|neither|no |software|unless|provided|except|in |of |for |under |above|note|#|\*|\(|\d+[\.\)]\s)/i;
+
+function isPackageHeader(line: string): boolean {
+	// License prose almost always starts with a common English/legal word
+	if (LICENSE_PROSE_STARTS.test(line)) {
+		return false;
+	}
+
+	// Real package names: @scope/name, org/repo, plain-name
+	// They start with @, a lowercase letter, or a digit (for rare cases)
+	// and consist of [a-z0-9@/._-]
+	// CG git entries use Org/Repo (mixed case) — handle separately
+	const firstWord = line.split(/\s/)[0];
+	if (!firstWord) {
+		return false;
+	}
+
+	// Standard npm-style package name (lowercase, may start with @)
+	const npmNameRe = /^@?[a-z0-9][a-z0-9\-\./@_]*$/;
+	// CG git-style: Org/Repo (e.g., "nickel-org/rust-mustache")
+	const gitRepoRe = /^[a-zA-Z0-9_\-]+\/[a-zA-Z0-9_\-\.]+$/;
+
+	if (npmNameRe.test(firstWord) || gitRepoRe.test(firstWord)) {
+		return true;
+	}
+
+	// Some entries have names with mixed case (rare but legitimate)
+	// Accept if the line matches "name version - license" pattern strictly
+	if (/^.+?\s+[\d][^\s]*\s+-\s+.+$/.test(line)) {
+		return true;
+	}
+
+	return false;
+}
+
 function parseNoticeFile(filePath: string): NoticeEntry[] {
 	const content = fs.readFileSync(filePath, 'utf8');
 	const lines = content.split('\n');
@@ -33,7 +80,7 @@ function parseNoticeFile(filePath: string): NoticeEntry[] {
 			continue;
 		}
 
-		// Find first non-empty line after separator — that's the header
+		// Find first non-empty line after separator — that's the header candidate
 		let headerLine = '';
 		let headerIdx = -1;
 		for (let j = i + 1; j < lines.length; j++) {
@@ -55,6 +102,15 @@ function parseNoticeFile(filePath: string): NoticeEntry[] {
 
 		// Skip if the "header" is actually another separator (double-separator pattern)
 		if (sepRe.test(headerLine)) {
+			continue;
+		}
+
+		// Validate that this looks like a real package header, not license
+		// prose that happens to follow a decorative dash line.
+		// Real headers: "name version - license", "name - license", or "name"
+		// False positives: "END OF TERMS AND CONDITIONS", "Apache License",
+		//   "The MIT License (MIT)", "Copyright (c) ...", etc.
+		if (!isPackageHeader(headerLine)) {
 			continue;
 		}
 
