@@ -111,12 +111,8 @@ export function observableAgentHostToolsState(storageService: IStorageService, s
 
 /**
  * Tool reference names whose capability an agent-host backend (Copilot SDK / Claude / Codex) already provides natively
- * (file read/edit, literal file/text search, shell execution, web fetch). They stay available in the picker but default
- * OFF for agent-host sessions so the model isn't offered the same capability twice.
- *
- * VS Code tools with no backend equivalent are intentionally excluded so they stay on by default — notably `codebase`
- * (semantic/embeddings search, which the backend's literal grep/glob cannot replace) and the integrated-terminal
- * context tools `terminalLastCommand` / `terminalSelection` (the backend's shell tool only executes commands).
+ * (file read/edit, literal file/text search, shell execution, web fetch, sub-agent orchestration). These are hidden
+ * from the agent-host tool picker and never sent to the backend, so the model isn't offered the same capability twice.
  */
 const agentHostBackendToolReferenceNames: ReadonlySet<string> = new Set([
 	// File read / navigation
@@ -129,17 +125,20 @@ const agentHostBackendToolReferenceNames: ReadonlySet<string> = new Set([
 	'runInTerminal', 'getTerminalOutput', 'sendToTerminal', 'killTerminal',
 	// Web fetch
 	'fetch',
+	// Sub-agent orchestration
+	'runSubagent',
 ]);
 
-function isAgentHostDefaultDisabled(tool: IToolData): boolean {
+export function isAgentHostBackendProvidedTool(tool: IToolData): boolean {
 	return tool.toolReferenceName !== undefined && agentHostBackendToolReferenceNames.has(tool.toolReferenceName);
 }
 
 /**
- * Computes tool/tool-set enablement for an agent-host session. Like the standard resolution but backend-provided tools
- * default OFF (opt-in). The result is kept consistent with the chat tool picker's `setChecked || perToolTrue` rendering:
- * a tool-set's value is the AND of its members, and a member is enabled only by an explicit choice (its own, or its set
- * being explicitly enabled) — a set being on by default does not force its backend-provided members on.
+ * Computes tool/tool-set enablement for an agent-host session. Tools whose capability the backend already provides
+ * ({@link agentHostBackendToolReferenceNames}) are omitted entirely — they are neither shown in the picker nor sent to
+ * the backend, even if a stored selection or an enabled tool set would otherwise include them. Remaining tools default
+ * on. The result is kept consistent with the chat tool picker's `setChecked || perToolTrue` rendering: a tool-set's
+ * value is the AND of its visible members, and a tool set with no visible members is omitted as well.
  */
 export function computeAgentHostToolEnablement(toolsService: ILanguageModelToolsService, state: ToolEnablementStates, tools: readonly IToolData[], model: ILanguageModelChatMetadata | undefined, reader: IReader | undefined): IToolAndToolSetEnablementMap {
 	const map = new Map<IToolData | IToolSet, boolean>();
@@ -157,21 +156,28 @@ export function computeAgentHostToolEnablement(toolsService: ILanguageModelTools
 		if (stored !== undefined) {
 			return stored;
 		}
-		return !isAgentHostDefaultDisabled(tool);
+		return true; // tools that reach here have no backend equivalent, so they are on by default
 	};
 	for (const tool of tools) {
-		if (tool.canBeReferencedInPrompt) {
+		if (tool.canBeReferencedInPrompt && !isAgentHostBackendProvidedTool(tool)) {
 			map.set(tool, isEnabled(tool, undefined));
 		}
 	}
 	for (const toolSet of toolsService.getToolSetsForModel(model, reader)) {
 		let allEnabled = true;
+		let hasVisibleMember = false;
 		for (const member of toolSet.getTools(reader)) {
+			if (isAgentHostBackendProvidedTool(member)) {
+				continue; // backend-provided members are hidden and never sent, regardless of the tool set's state
+			}
+			hasVisibleMember = true;
 			const enabled = isEnabled(member, toolSet.id);
 			map.set(member, enabled);
 			allEnabled &&= enabled;
 		}
-		map.set(toolSet, allEnabled);
+		if (hasVisibleMember) {
+			map.set(toolSet, allEnabled);
+		}
 	}
 	return map;
 }

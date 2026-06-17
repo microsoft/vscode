@@ -118,7 +118,7 @@ suite('ChatSelectedTools', () => {
 		});
 	});
 
-	test('agent-host sessions default backend-provided tools off', () => {
+	test('agent-host sessions hide backend-provided tools', () => {
 		return runWithFakedTimers({}, async () => {
 			const agentHostTools = store.add(instaService.createInstance(ChatSelectedTools, constObservable(ChatMode.Agent), constObservable(undefined), constObservable(true)));
 
@@ -144,7 +144,7 @@ suite('ChatSelectedTools', () => {
 			await timeout(1000); // tools service emits its change event asynchronously
 
 			const selected = agentHostTools.userSelectedTools.get();
-			assert.strictEqual(selected[overlapTool.id], false, 'backend-provided tools default off');
+			assert.strictEqual(selected[overlapTool.id], undefined, 'backend-provided tools are hidden entirely');
 			assert.strictEqual(selected[normalTool.id], true, 'other tools default on');
 		});
 	});

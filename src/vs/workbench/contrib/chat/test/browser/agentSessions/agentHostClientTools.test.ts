@@ -560,39 +560,40 @@ suite('AgentHostClientTools', () => {
 			assert.strictEqual(runTestsDef.description, 'Runs unit tests');
 		});
 
-		test('exposes non-backend tools by default and defaults backend-provided tools off', () => {
+		test('hides backend-provided tools and exposes the rest by default', () => {
 			const { activeClientService } = createHandlerWithMocks(disposables, [testRunTestsTool, testRunTaskTool, testUnlistedTool]);
 
-			// readFile duplicates a backend-native capability, so it defaults off.
+			// readFile duplicates a backend-native capability, so it is hidden and never sent.
 			const names = activeClientService.clientTools.get().map(t => t.name);
 			assert.deepStrictEqual(names, ['runTests', 'runTask']);
 		});
 
-		test('respects explicit global tool selection', () => {
+		test('never exposes backend-provided tools even when explicitly selected', () => {
 			const { activeClientService } = createHandlerWithMocks(disposables, [testRunTestsTool, testRunTaskTool, testUnlistedTool], {
 				tools: { 'vscode.readFile': true, 'vscode.runTests': false },
 			});
 
-			// Explicit choices win: readFile opted in, runTests opted out, runTask stays on by default.
+			// readFile is backend-provided, so an explicit opt-in cannot bring it back; runTests is opted out;
+			// runTask stays on by default.
 			const names = activeClientService.clientTools.get().map(t => t.name);
-			assert.deepStrictEqual(names, ['runTask', 'readFile']);
+			assert.deepStrictEqual(names, ['runTask']);
 		});
 
 		test('reflects tool selection changes written after construction', () => {
 			const { activeClientService, storageService } = createHandlerWithMocks(disposables, [testRunTestsTool, testRunTaskTool, testUnlistedTool]);
 
-			// Initially: backend-provided readFile is off by default; runTests and runTask are on.
+			// Initially: backend-provided readFile is hidden; runTests and runTask are on.
 			assert.deepStrictEqual(activeClientService.clientTools.get().map(t => t.name), ['runTests', 'runTask']);
 
 			// Simulate the picker persisting a new selection after the service was constructed (a local,
-			// same-window write): opt readFile in and opt runTests out. The exposed tools must update live.
+			// same-window write): opt runTests out. The exposed tools must update live.
 			storageService.store('chat/agentHost/selectedTools', JSON.stringify({
 				version: 2,
 				toolSetEntries: [],
-				toolEntries: [['vscode.readFile', true], ['vscode.runTests', false]],
+				toolEntries: [['vscode.runTests', false]],
 			}), StorageScope.PROFILE, StorageTarget.MACHINE);
 
-			assert.deepStrictEqual(activeClientService.clientTools.get().map(t => t.name), ['runTask', 'readFile']);
+			assert.deepStrictEqual(activeClientService.clientTools.get().map(t => t.name), ['runTask']);
 		});
 
 		test('excludes tools whose tool set (e.g. an MCP server) is disabled', () => {

@@ -196,6 +196,8 @@ function createToolSetTreeItem(toolset: IToolSet, checked: boolean, editorServic
  * @param modelId - Optional model ID to filter tools by supported models
  * @param onUpdate - Optional callback fired when the selection changes
  * @param token - Optional cancellation token to close the picker when cancelled
+ * @param excludeTool - Optional predicate; tools for which it returns true are hidden entirely (e.g. tools an
+ *                     agent-host backend already provides natively), including when they appear as tool-set members
  * @returns Promise resolving to the final selection map, or undefined if cancelled
  */
 export async function showToolsPicker(
@@ -205,7 +207,8 @@ export async function showToolsPicker(
 	description?: string,
 	getToolsEntries?: () => ReadonlyMap<IToolSet | IToolData, boolean>,
 	model?: ILanguageModelChatMetadata | undefined,
-	token?: CancellationToken
+	token?: CancellationToken,
+	excludeTool?: (tool: IToolData) => boolean
 ): Promise<ReadonlyMap<IToolSet | IToolData, boolean> | undefined> {
 
 	const quickPickService = accessor.get(IQuickInputService);
@@ -454,6 +457,9 @@ export async function showToolsPicker(
 				bucket.children.push(treeItem);
 				const children = [];
 				for (const tool of toolSet.getTools()) {
+					if (excludeTool?.(tool)) {
+						continue;
+					}
 					const toolChecked = toolSetChecked || toolsEntries.get(tool.id) === true;
 					const toolTreeItem = createToolTreeItemFromData(tool, toolChecked);
 					children.push(toolTreeItem);
@@ -465,7 +471,7 @@ export async function showToolsPicker(
 		}
 		// getting potentially disabled tools is fine here because we filter `toolsEntries.has`
 		for (const tool of toolsService.getAllToolsIncludingDisabled()) {
-			if (!tool.canBeReferencedInPrompt || !toolsEntries.has(tool.id)) {
+			if (!tool.canBeReferencedInPrompt || !toolsEntries.has(tool.id) || excludeTool?.(tool)) {
 				continue;
 			}
 			const bucket = getBucket(tool.source);

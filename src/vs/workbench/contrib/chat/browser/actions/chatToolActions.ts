@@ -22,7 +22,7 @@ import { ConfirmedReason, IChatToolInvocation, ToolConfirmKind } from '../../com
 import { isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatModeKind } from '../../common/constants.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
-import { ToolsScope } from '../widget/input/chatSelectedTools.js';
+import { isAgentHostBackendProvidedTool, ToolsScope } from '../widget/input/chatSelectedTools.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { showToolsPicker } from './chatToolPicker.js';
 
@@ -180,7 +180,7 @@ export class ConfigureToolsAction extends Action2 {
 				break;
 			case ToolsScope.AgentHost:
 				placeholder = localize('chat.tools.placeholder.agentHost', "Select tools that are available to agent sessions.");
-				description = localize('chat.tools.description.agentHost', "The selected tools will be applied to all agent sessions. Tools already provided by the agent are off by default.");
+				description = localize('chat.tools.description.agentHost', "The selected tools will be applied to all agent sessions.");
 				break;
 
 		}
@@ -195,7 +195,9 @@ export class ConfigureToolsAction extends Action2 {
 		});
 
 		try {
-			const result = await instaService.invokeFunction(showToolsPicker, placeholder, source, description, () => entriesMap.get(), widget.input.selectedLanguageModel.get()?.metadata, cts.token);
+			// Agent-host sessions hide tools the backend already provides natively — also as tool-set members.
+			const excludeTool = entriesScope === ToolsScope.AgentHost ? isAgentHostBackendProvidedTool : undefined;
+			const result = await instaService.invokeFunction(showToolsPicker, placeholder, source, description, () => entriesMap.get(), widget.input.selectedLanguageModel.get()?.metadata, cts.token, excludeTool);
 			if (result) {
 				widget.input.selectedToolsModel.set(result, false);
 			}
