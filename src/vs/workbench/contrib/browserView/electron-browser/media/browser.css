@@ -607,6 +607,8 @@
 		&.hint {
 			color: var(--vscode-descriptionForeground);
 			font-style: italic;
+			white-space: pre-wrap;
+			margin-top: 6px;
 		}
 	}
 

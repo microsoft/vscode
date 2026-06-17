@@ -66,6 +66,15 @@ function getConfigIcon(property: string, value: unknown | undefined): ThemeIcon 
 		}
 		return Codicon.shield;
 	}
+	if (property === ClaudeSessionConfigKey.PermissionMode && typeof value === 'string') {
+		switch (value) {
+			case 'default': return Codicon.shield;
+			case 'acceptEdits': return Codicon.edit;
+			case 'plan': return Codicon.lightbulb;
+			case 'auto': return Codicon.sparkle;
+			case 'bypassPermissions': return Codicon.warning;
+		}
+	}
 	return undefined;
 }
 
