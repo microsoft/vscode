@@ -249,6 +249,8 @@ read `policyData.managedSettings?.[KEY]` in `value` (the real `ChatToolsAutoAppr
 ORs in `chat_preview_features_enabled === false`):
 
 ```typescript
+// Existing policy shown verbatim; `minimumVersion: '1.99'` is its historical value —
+// a NEW policy derives minimumVersion from package.json major.minor (see Step 1).
 policy: {
     name: 'ChatToolsAutoApprove',
     category: PolicyCategory.InteractiveSession,
@@ -274,7 +276,8 @@ window and the Agents window). The **owner** declares the full `policy: { name, 
 other settings declare `policyReference: { name }` pointing at the owner's policy name.
 
 ```typescript
-// Owner setting
+// Owner setting (existing policy; `minimumVersion: '1.126'` is its historical value —
+// a NEW policy uses package.json major.minor, see Step 1)
 policy: { name: 'Codex3PIntegration', category: PolicyCategory.InteractiveSession, minimumVersion: '1.126', /* ... */ }
 
 // Subordinate setting (no type/value/localization of its own)

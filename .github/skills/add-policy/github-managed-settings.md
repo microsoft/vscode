@@ -118,11 +118,11 @@ import {
     COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY,
 } from '../../../../platform/policy/common/copilotManagedSettings.js';
 
-// chat.tools.global.autoApprove — owns ChatToolsAutoApprove
+// chat.tools.global.autoApprove — owns ChatToolsAutoApprove (existing policy, shown verbatim)
 policy: {
     name: 'ChatToolsAutoApprove',
     category: PolicyCategory.InteractiveSession,
-    minimumVersion: '1.99',
+    minimumVersion: '1.99', // existing value — for a NEW policy use package.json major.minor (see SKILL.md Step 1)
     value: (policyData) =>
         policyData.managedSettings?.[COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY] === 'disable'
             || policyData.chat_preview_features_enabled === false
@@ -256,7 +256,8 @@ both the editor window and the Agents window. This is the `policyReference` mech
   processes where the owner module isn't loaded.
 
 ```ts
-// Owner: chat.agentHost.codexAgent.enabled
+// Owner: chat.agentHost.codexAgent.enabled (existing policy, shown verbatim;
+// `minimumVersion: '1.126'` is its historical value — a NEW policy uses package.json major.minor)
 policy: { name: 'Codex3PIntegration', category: PolicyCategory.InteractiveSession,
           minimumVersion: '1.126', value: (d) => d.chat_preview_features_enabled === false ? false : undefined,
           localization: { /* ... */ } }
