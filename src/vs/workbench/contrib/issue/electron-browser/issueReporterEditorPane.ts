@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/issueReporterOverlay.css';
+import '../browser/media/issueReporterOverlay.css';
 import { $, append, clearNode, Dimension } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -19,16 +19,15 @@ import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/com
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { EditorActivation, IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-// eslint-disable-next-line local/code-import-patterns, local/code-layering
 import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { decodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { URI } from '../../../../base/common/uri.js';
 import { FileAccess } from '../../../../base/common/network.js';
-import { IssueReporterEditorInput } from './issueReporterEditorInput.js';
-import { IssueReporterOverlay } from './issueReporterOverlay.js';
-import { IRecordingService, IRecordingData, RecordingState } from './recordingService.js';
-import { IScreenshotService } from './screenshotService.js';
+import { IssueReporterEditorInput } from '../browser/issueReporterEditorInput.js';
+import { IssueReporterOverlay } from '../browser/issueReporterOverlay.js';
+import { IRecordingService, IRecordingData, RecordingState } from '../browser/recordingService.js';
+import { IScreenshotService } from '../browser/screenshotService.js';
 import { IIssueFormService } from '../common/issue.js';
 import { IProcessService } from '../../../../platform/process/common/process.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
