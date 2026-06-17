@@ -155,7 +155,13 @@ export class FileEditTracker {
 	 * @param toolInput - The raw tool input, as received from the
 	 *   agent. Parsed by {@link extractAiChunks} -- unknown shapes are
 	 *   tolerated and yield an empty chunk list (whole-file fallback).
-	 * @param modelId - The model that produced this edit 
+	 * @param modelId - The model that produced this edit (e.g.
+	 *   `claude-sonnet-4.5`). Forwarded to the survival reporter so the
+	 *   resulting telemetry can be sliced by model. Expected to always
+	 *   be populated in practice; the parameter is typed `undefined`-
+	 *   tolerant so a missing model can't suppress the edit-survival
+	 *   sample, but `undefined` here is a bug and is logged as a warning
+	 *   (and surfaces as an empty `modelId` string in telemetry).
 	 */
 	async takeCompletedEdit(turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined): Promise<ToolResultFileEditContent | undefined> {
 		const edit = this._completedEdits.get(filePath);
@@ -163,6 +169,10 @@ export class FileEditTracker {
 			return undefined;
 		}
 		this._completedEdits.delete(filePath);
+
+		if (!modelId) {
+			this._logService.warn(`[FileEditTracker] No modelId for completed edit: ${filePath} (turn=${turnId}, toolCall=${toolCallId}, tool=${toolName || '<unknown>'}). Edit-survival telemetry will be emitted with an empty modelId.`);
+		}
 
 		const beforeBytes = edit.beforeContent.buffer;
 		const afterBytes = edit.afterContent.buffer;

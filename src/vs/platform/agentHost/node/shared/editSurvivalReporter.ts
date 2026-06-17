@@ -42,9 +42,12 @@ export interface IEditSurvivalReporterLaunchParams {
 	/**
 	 * The model that produced this edit (e.g. `claude-sonnet-4.5`,
 	 * `gpt-5-mini`). Used to slice survival telemetry by model in
-	 * dashboards. Empty / undefined when the host couldn't determine
-	 * the per-message model -- the event is still emitted with
-	 * `modelId=''` so the rest of the telemetry is preserved.
+	 * dashboards. Expected to always be populated in practice (Claude
+	 * reads it off every assistant message; Copilot tracks the session's
+	 * last-seen model via setModel and onUsage). The field is optional
+	 * so a missing model can't suppress the survival sample, but
+	 * `undefined` here is a bug -- the resulting event is emitted with
+	 * `modelId=''` and the caller is expected to log a warning.
 	 */
 	readonly modelId?: string;
 	/**
