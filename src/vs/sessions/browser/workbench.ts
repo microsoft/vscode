@@ -306,6 +306,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	private _editorLastNonMaximizedVisibility: IPartVisibilityState | undefined;
 	private _restoreAttachedEditorMaximizedOnShow = false;
 	private _editorPartAutoVisibilitySuppressionCount = 0;
+	private _hasAppliedInitialEditorSplit = false;
 
 	private readonly restoredPromise = new DeferredPromise<void>();
 	readonly whenRestored = this.restoredPromise.p;
@@ -1157,6 +1158,10 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.workbenchGrid = workbenchGrid;
 		this.workbenchGrid.edgeSnapping = this.mainWindowFullscreen;
 
+		// If the editor is restored visible, it already has an established
+		// width, so a later reveal must not force an even split over it.
+		this._hasAppliedInitialEditorSplit = this.partVisibility.editor;
+
 		// Listen for part visibility changes (for parts in grid)
 		for (const part of [titleBar, panelPart, sideBar, auxiliaryBarPart, sessionsPart, editorPart]) {
 			this._register(part.onDidVisibilityChange(visible => {
@@ -1711,11 +1716,13 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.mainContainer.classList.toggle(LayoutClasses.MAIN_EDITOR_AREA_HIDDEN, hidden);
 
 		if (this.editorPartView) {
-			// Only force an even split on the *first* reveal, when the grid has
-			// no cached editor width yet. On subsequent show/hide cycles the grid
-			// caches/restores the user-adjusted width via `getViewCachedVisibleSize`,
-			// so we must not overwrite it.
-			const shouldApplyEvenSplit = !hidden && this.workbenchGrid.getViewCachedVisibleSize(this.editorPartView) === undefined;
+			// Force an even 50/50 split only the *first* time the editor is
+			// revealed in this workbench instance. On later show/hide cycles the
+			// grid caches and restores the user-adjusted width, so we must not
+			// override it. The grid always seeds a cached visible size from the
+			// serialized descriptor, so it can't be used to detect the first
+			// reveal — a runtime flag is needed instead.
+			const shouldApplyEvenSplit = !hidden && !this._hasAppliedInitialEditorSplit;
 
 			// Capture the sessions part width *before* revealing the editor. The
 			// editor is hidden (0px) right now, so the sessions part spans the
@@ -1730,6 +1737,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			this.workbenchGrid.setViewVisible(this.editorPartView, !hidden);
 
 			if (shouldApplyEvenSplit) {
+				this._hasAppliedInitialEditorSplit = true;
 				this._applyEditorSplitSize(mainAreaWidthBeforeReveal);
 			}
 		}
