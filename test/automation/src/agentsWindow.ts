@@ -81,6 +81,37 @@ export class AgentsWindow {
 	}
 
 	/**
+	 * Returns whether the given session type appears in the new-session
+	 * picker. Opens the picker, polls its async-populated rows for up to
+	 * `timeoutMs`, then dismisses the dropdown (Escape) so it does not block
+	 * subsequent interactions. Use this to gate tests on optionally-registered
+	 * providers (e.g. Codex, which only registers when its SDK is available)
+	 * instead of relying on {@link selectSessionType} throwing.
+	 */
+	async isSessionTypeAvailable(label: string, timeoutMs: number = 10_000): Promise<boolean> {
+		await this.code.waitForElement(SESSION_TYPE_PICKER_VISIBLE);
+		await this.code.waitAndClick(SESSION_TYPE_PICKER_VISIBLE);
+
+		const itemSel = `.action-widget .monaco-list-row`;
+		const needle = label.toLowerCase();
+		const deadline = Date.now() + timeoutMs;
+		let found = false;
+		while (Date.now() < deadline) {
+			const items = await this.code.getElements(itemSel, /* recursive */ true);
+			const labels = (items ?? []).map(i => (i.textContent ?? '').trim());
+			if (labels.some(t => t.toLowerCase().includes(needle))) {
+				found = true;
+				break;
+			}
+			await new Promise(r => setTimeout(r, 250));
+		}
+
+		// Dismiss the dropdown so it does not intercept later clicks.
+		await this.code.dispatchKeybinding('escape', async () => { await this.code.waitForElement(itemSel, el => !el, 20); });
+		return found;
+	}
+
+	/**
 	 * Select the given session type from the new-session picker.
 	 *
 	 * The picker trigger is the `.action-label` inside
