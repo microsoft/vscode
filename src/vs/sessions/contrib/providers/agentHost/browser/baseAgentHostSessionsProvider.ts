@@ -11,9 +11,10 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
-import { constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, ISettableObservable, observableFromEvent, observableFromPromise, observableValue, observableValueOpts, transaction } from '../../../../../base/common/observable.js';
+import { constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, ISettableObservable, mapObservableArrayCached, observableFromEvent, observableFromPromise, observableValue, observableValueOpts, throttledObservable, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
@@ -24,7 +25,7 @@ import { getEffectiveAgents } from '../../../../../platform/agentHost/common/cus
 import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentCustomization, AgentSelection, ChangesSummary, Customization, CustomizationType, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AgentCustomization, AgentSelection, ChangesSummary, type ChangesetFile, Customization, CustomizationType, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AgentInfo, readSessionGitState, ROOT_STATE_URI, SessionMeta, StateComponents, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -45,11 +46,19 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computePullRequestIcon } from '../../../github/common/types.js';
-import { changesetFilesToChanges, mapProtocolStatus } from './agentHostDiffs.js';
+import { changesetFileToChange, mapProtocolStatus } from './agentHostDiffs.js';
 import { createChangesets } from './agentHostSessionChangesets.js';
 
 const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.sessionConfigPicker.selectedValues';
 const UNSAFE_SESSION_CONFIG_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+/**
+ * Minimum interval between changeset-driven UI recomputes. While an agent
+ * edits, the host streams many changeset envelopes per second; coalescing them
+ * to ~10 updates/second keeps the Changes view responsive without perceptible
+ * lag, and stops every envelope from forcing a full list relayout.
+ */
+export const CHANGESET_UPDATE_THROTTLE_MS = 100;
 
 function isSafeSessionConfigKey(property: string): boolean {
 	return !UNSAFE_SESSION_CONFIG_KEYS.has(property);
@@ -373,28 +382,45 @@ export class AgentHostSessionAdapter implements ISession {
 			return observableFromEvent(subscriptionRef.object.onDidChange, () => subscriptionRef.object.value);
 		});
 
-		const changesetChangesObs = derivedObservableWithCache<readonly (IChatSessionFileChange | IChatSessionFileChange2)[] | undefined>(this, (reader, lastValue) => {
+		const mapDiffUri = this._options.mapDiffUri;
+
+		// Coalesce the per-envelope changeset stream. `sessionChangesetStateObs`
+		// is a nested observable (which-subscription → value); flatten it to the
+		// value stream, then throttle. Throttle (not debounce) so a continuous
+		// stream keeps updating ~10x/s instead of starving until edits stop; the
+		// trailing read always delivers the final state.
+		const throttledChangesetValueObs = throttledObservable(sessionChangesetStateObs.flatten(), CHANGESET_UPDATE_THROTTLE_MS);
+
+		// Hold the raw `ChangesetFile[]` (with last-value semantics) rather than
+		// the mapped changes. The changeset reducer preserves the reference of
+		// every file that didn't change, so keeping the raw list lets the
+		// per-file cache below skip rebuilding them.
+		const changesetFilesObs = derivedObservableWithCache<readonly ChangesetFile[] | undefined>(this, (reader, lastValue) => {
 			const isActiveSession = this.isActiveSessionObs.read(reader);
 			if (!isActiveSession) {
 				return lastValue;
 			}
 
-			const branchChangesState = sessionChangesetStateObs.read(reader)?.read(reader);
+			const branchChangesState = throttledChangesetValueObs.read(reader);
 			if (!branchChangesState || branchChangesState instanceof Error || branchChangesState.status !== 'ready') {
 				return lastValue;
 			}
 
-			const mapDiffUri = this._options.mapDiffUri;
-			const files = changesetFilesToChanges(branchChangesState.files);
+			return branchChangesState.files;
+		});
 
-			const mapped = mapDiffUri ? files.map(f => ({
-				...f,
-				uri: mapDiffUri(f.uri),
-				originalUri: f.originalUri ? mapDiffUri(f.originalUri) : undefined,
-				modifiedUri: f.modifiedUri ? mapDiffUri(f.modifiedUri) : undefined,
-			})) : files;
+		// Build one change per file, reusing the cached result for files whose
+		// `ChangesetFile` reference is unchanged. Only the file(s) that actually
+		// changed get re-parsed and re-mapped, turning the previous O(all files)
+		// URI work per update into O(changed files).
+		const mappedChangesObs = mapObservableArrayCached(this, changesetFilesObs.map(files => files ?? []), file => changesetFileToChange(file, mapDiffUri));
 
-			return mapped;
+		const changesetChangesObs = derived<readonly (IChatSessionFileChange | IChatSessionFileChange2)[] | undefined>(this, reader => {
+			const files = changesetFilesObs.read(reader);
+			if (files === undefined) {
+				return undefined;
+			}
+			return mappedChangesObs.read(reader).filter(isDefined);
 		});
 
 		const changesetSummaryObs = derivedOpts<ISessionChangesSummary | undefined>({ equalsFn: structuralEquals }, reader => {

@@ -4,19 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, mapObservableArrayCached, observableFromEvent, observableValue, throttledObservable } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { format } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { ChangesetOperationTargetKind } from '../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
-import { ChangesetOperation, ChangesetOperationScope } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ChangesetOperation, ChangesetOperationScope, type ChangesetFile } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { buildDefaultChatUri, ChangesetStatus, Changeset, StateComponents, type ChangesetState, type ChatState, type ChatSummary, type SessionState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ISessionChangeset, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, SessionChangesetOperationScope, sessionFileChangesEqual } from '../../../../services/sessions/common/session.js';
-import { changesetFilesToChanges } from './agentHostDiffs.js';
-import { IAgentHostAdapterOptions } from './baseAgentHostSessionsProvider.js';
+import { changesetFileToChange } from './agentHostDiffs.js';
+import { CHANGESET_UPDATE_THROTTLE_MS, IAgentHostAdapterOptions } from './baseAgentHostSessionsProvider.js';
 
 const enum ChangesetKind {
 	Branch = 'branch',
@@ -165,8 +166,21 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 			return changesetState.status === ChangesetStatus.Computing && changesetState.files.length === 0;
 		});
 
-		const changesObs = derivedObservableWithCache<readonly ISessionFileChange[] | undefined>(this, (reader, lastValue) => {
-			const changesetState = this.changesetStateObs.read(reader).read(reader);
+		const mapDiffUri = this._options.mapDiffUri;
+
+		// Throttle only the changes path; `isLoadingChanges` and `operations`
+		// keep reading `this.changesetStateObs` directly so spinners/buttons stay
+		// responsive. Throttle (not debounce) so a continuous stream keeps
+		// updating instead of starving until edits stop. The `derived` wrapper
+		// defers reading the abstract `changesetStateObs` until the observable is
+		// actually observed (it isn't assigned yet during base construction).
+		const throttledChangesetValueObs = throttledObservable(derived(reader => this.changesetStateObs.read(reader).read(reader)), CHANGESET_UPDATE_THROTTLE_MS);
+
+		// Hold the raw `ChangesetFile[]` (with last-value semantics) so unchanged
+		// files keep their reference across reducer updates, enabling the
+		// per-file cache below to skip rebuilding them.
+		const changesetFilesObs = derivedObservableWithCache<readonly ChangesetFile[] | undefined>(this, (reader, lastValue) => {
+			const changesetState = throttledChangesetValueObs.read(reader);
 			if (changesetState === null || changesetState instanceof Error) {
 				return [];
 			}
@@ -182,15 +196,20 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 				return lastValue;
 			}
 
-			const files = changesetFilesToChanges(changesetState.files);
-			return this._options.mapDiffUri
-				? files.map(f => ({
-					...f,
-					uri: this._options.mapDiffUri!(f.uri),
-					originalUri: f.originalUri ? this._options.mapDiffUri!(f.originalUri) : undefined,
-					modifiedUri: f.modifiedUri ? this._options.mapDiffUri!(f.modifiedUri) : undefined,
-				}))
-				: files;
+			return changesetState.files;
+		});
+
+		// Build one change per file, reusing the cached result for files whose
+		// `ChangesetFile` reference is unchanged so only changed files are
+		// re-parsed and re-mapped.
+		const mappedChangesObs = mapObservableArrayCached(this, changesetFilesObs.map(files => files ?? []), file => changesetFileToChange(file, mapDiffUri));
+
+		const changesObs = derived<readonly ISessionFileChange[] | undefined>(this, reader => {
+			const files = changesetFilesObs.read(reader);
+			if (files === undefined) {
+				return undefined;
+			}
+			return mappedChangesObs.read(reader).filter(isDefined);
 		});
 
 		this.changes = derivedOpts({ equalsFn: sessionFileChangesEqual }, reader => {
