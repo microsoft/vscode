@@ -995,8 +995,11 @@ export class CopilotAgentSession extends Disposable {
 		const sdkAttachments = attachments?.length
 			? (await Promise.all(attachments.map(a => this._toSdkAttachment(a)))).filter(isDefined)
 			: undefined;
+		if (attachments?.length) {
+			this._logService.info(`[Copilot:${this.sessionId}] AHP attachments: ${JSON.stringify(attachments.map(a => this._summarizeProtocolAttachment(a)))}`);
+		}
 		if (sdkAttachments?.length) {
-			this._logService.trace(`[Copilot:${this.sessionId}] Attachments: ${JSON.stringify(sdkAttachments.map(a => ({ type: a.type })))}`);
+			this._logService.info(`[Copilot:${this.sessionId}] SDK attachments: ${JSON.stringify(sdkAttachments.map(a => this._summarizeSdkAttachment(a)))}`);
 		}
 
 		await this.applyMode(mode);
@@ -1083,6 +1086,61 @@ export class CopilotAgentSession extends Disposable {
 		}
 		const type = attachment.displayKind === 'directory' ? 'directory' : 'file';
 		return { type, path, displayName };
+	}
+
+	private _summarizeProtocolAttachment(attachment: MessageAttachment): object {
+		if (attachment.type === MessageAttachmentKind.Simple) {
+			return {
+				type: attachment.type,
+				label: attachment.label,
+				displayKind: attachment.displayKind,
+				hasModelRepresentation: typeof attachment.modelRepresentation === 'string',
+				modelRepresentationLength: attachment.modelRepresentation?.length,
+				metaKeys: attachment._meta ? Object.keys(attachment._meta).sort() : [],
+			};
+		}
+		if (attachment.type === MessageAttachmentKind.EmbeddedResource) {
+			return {
+				type: attachment.type,
+				label: attachment.label,
+				displayKind: attachment.displayKind,
+				contentType: attachment.contentType,
+				dataLength: attachment.data.length,
+				metaKeys: attachment._meta ? Object.keys(attachment._meta).sort() : [],
+			};
+		}
+		return {
+			type: attachment.type,
+			label: attachment.label,
+			displayKind: attachment.displayKind,
+			hasSelection: attachment.displayKind === 'selection',
+			metaKeys: attachment._meta ? Object.keys(attachment._meta).sort() : [],
+		};
+	}
+
+	private _summarizeSdkAttachment(attachment: CopilotSdkAttachment): object {
+		switch (attachment.type) {
+			case 'blob':
+				return {
+					type: attachment.type,
+					mimeType: attachment.mimeType,
+					displayName: attachment.displayName,
+					dataLength: attachment.data.length,
+				};
+			case 'selection':
+				return {
+					type: attachment.type,
+					displayName: attachment.displayName,
+					hasSelection: !!attachment.selection,
+					hasText: typeof attachment.text === 'string',
+					textLength: attachment.text?.length,
+				};
+			default:
+				return {
+					type: attachment.type,
+					displayName: attachment.displayName,
+				};
+		}
 	}
 
 	private async _readSelectedText(uri: URI, range: { readonly start: { readonly line: number; readonly character: number }; readonly end: { readonly line: number; readonly character: number } }): Promise<string> {

@@ -2063,6 +2063,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const selectedAgent = newSession.getSelectedAgent();
 
 		const { query, attachedContext } = options;
+		const attachedContextSummary = (attachedContext ?? []).map(v => `${v.kind}:${v.name}`).join(', ') || 'none';
+		this._logService.trace(`[AgentHostSessionsProvider] sendRequest chatId=${chatId} type=${chatResource.scheme} attachedContext=${attachedContext?.length ?? 0} [${attachedContextSummary}]`);
 
 		const sessionType = chatResource.scheme;
 		const contribution = this._chatSessionsService.getChatSessionContribution(sessionType);

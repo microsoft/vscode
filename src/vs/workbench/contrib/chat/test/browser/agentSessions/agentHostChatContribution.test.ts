@@ -70,7 +70,8 @@ import { ChatQuestionCarouselData } from '../../../common/model/chatProgressType
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import type { IChatModel, IChatPendingRequest, IChatRequestModel } from '../../../common/model/chatModel.js';
 import { convertBufferToScreenshotVariable } from '../../../browser/attachments/chatScreenshotContext.js';
-import { AgentHostCompletionReferenceKind, toAgentHostCompletionVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { AgentHostCompletionReferenceKind, ChatPasteAttachmentMetadata, toAgentHostCompletionVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { messageAttachmentsToVariableData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
 // ---- Mock agent host service ------------------------------------------------
 
@@ -877,6 +878,96 @@ suite('AgentHostChatContribution', () => {
 
 			fire({ type: 'chat/turnComplete', session: session!, turnId: turnId! } as ChatAction);
 			await turnPromise;
+		});
+
+		test('sends paste variables as paste simple attachments', async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'continue',
+				variables: {
+					variables: [{
+						kind: 'paste',
+						id: 'transcript',
+						name: 'Previous conversation',
+						value: 'Transcript text',
+						code: 'Transcript text',
+						language: 'markdown',
+						pastedLines: 'Previous conversation',
+						fileName: 'Previous conversation',
+						copiedFrom: undefined,
+					}],
+				},
+			});
+
+			const turnStarted = agentHostService.turnActions[0].action as ITurnStartedAction;
+			assert.deepStrictEqual(turnStarted.message.attachments, [{
+				type: MessageAttachmentKind.Simple,
+				label: 'Previous conversation',
+				modelRepresentation: 'Transcript text',
+				displayKind: 'paste',
+			}]);
+
+			fire({ type: 'session/turnComplete', session: session!, turnId: turnId! } as SessionAction);
+			await turnPromise;
+		});
+
+		test('restores tagged simple paste attachments as paste variable entries', () => {
+			const variableData = messageAttachmentsToVariableData([{
+				type: MessageAttachmentKind.Simple,
+				label: 'Previous conversation',
+				modelRepresentation: 'conversation transcript',
+				_meta: {
+					[ChatPasteAttachmentMetadata.Kind]: 'paste',
+					[ChatPasteAttachmentMetadata.Language]: 'markdown',
+					[ChatPasteAttachmentMetadata.FileName]: 'Previous conversation',
+					[ChatPasteAttachmentMetadata.PastedLines]: 'Previous conversation',
+				},
+			}], 'test');
+
+			assert.deepStrictEqual(variableData?.variables.map(variable => ({
+				kind: variable.kind,
+				name: variable.name,
+				value: variable.value,
+				code: variable.kind === 'paste' ? variable.code : undefined,
+				language: variable.kind === 'paste' ? variable.language : undefined,
+				pastedLines: variable.kind === 'paste' ? variable.pastedLines : undefined,
+				fileName: variable.kind === 'paste' ? variable.fileName : undefined,
+			})), [{
+				kind: 'paste',
+				name: 'Previous conversation',
+				value: 'conversation transcript',
+				code: 'conversation transcript',
+				language: 'markdown',
+				pastedLines: 'Previous conversation',
+				fileName: 'Previous conversation',
+			}]);
+		});
+
+		test('restores paste displayKind simple attachments as paste variable entries', () => {
+			const variableData = messageAttachmentsToVariableData([{
+				type: MessageAttachmentKind.Simple,
+				label: 'Previous conversation',
+				displayKind: 'paste',
+				modelRepresentation: 'conversation transcript',
+			}], 'test');
+
+			assert.deepStrictEqual(variableData?.variables.map(variable => ({
+				kind: variable.kind,
+				name: variable.name,
+				value: variable.value,
+				code: variable.kind === 'paste' ? variable.code : undefined,
+				language: variable.kind === 'paste' ? variable.language : undefined,
+				pastedLines: variable.kind === 'paste' ? variable.pastedLines : undefined,
+				fileName: variable.kind === 'paste' ? variable.fileName : undefined,
+			})), [{
+				kind: 'paste',
+				name: 'Previous conversation',
+				value: 'conversation transcript',
+				code: 'conversation transcript',
+				language: 'markdown',
+				pastedLines: 'Previous conversation',
+				fileName: 'Previous conversation',
+			}]);
 		});
 	});
 

@@ -18,7 +18,7 @@ import { type ChatExternalEditKind, type ChatMcpAppData, type IChatExternalEdit,
 import { type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { type IChatRequestVariableData } from '../../../common/model/chatModel.js';
-import { AgentHostCompletionReferenceKind, toAgentHostCompletionVariableEntryFromMetadata, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { AgentHostCompletionReferenceKind, restorePasteVariableEntryFromAttachment, toAgentHostCompletionVariableEntryFromMetadata, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { type IToolConfirmationMessages, type IToolData, type IToolResult, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
 import { basename, isEqual } from '../../../../../../base/common/resources.js';
@@ -374,11 +374,21 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 	}
 
 	const modelRepresentation = attachment.type === MessageAttachmentKind.Simple ? attachment.modelRepresentation : undefined;
+	const pasteEntry = restorePasteVariableEntryFromAttachment({
+		label: attachment.label,
+		displayKind: attachment.displayKind,
+		modelRepresentation,
+		_meta: attachment._meta,
+	});
+	if (pasteEntry) {
+		return pasteEntry;
+	}
 	return {
 		kind: 'generic',
 		id: generateUuid(),
 		name: attachment.label,
 		value: modelRepresentation || attachment.label,
+		tooltip: modelRepresentation ? new MarkdownString(`\`\`\`text\n${modelRepresentation}\n\`\`\``) : undefined,
 		_meta: attachment._meta,
 	};
 }
