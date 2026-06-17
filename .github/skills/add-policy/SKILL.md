@@ -26,7 +26,7 @@ Policies allow enterprise administrators to lock configuration settings via OS-l
 | **Linux file** | `FilePolicyService` | Reads `/etc/vscode/policy.json` |
 | **Account/GitHub** | `AccountPolicyService` | Reads `IPolicyData` from `IDefaultAccountService.policyData`, applies `value()` function. Server-delivered managed settings arrive on `policyData.managedSettings`; native MDM is a **separate** input (`ICopilotManagedSettingsService`) that `AccountPolicyService` merges in `getPolicyData()` |
 | **Copilot managed settings (native MDM)** | `CopilotManagedSettingsService` via `@vscode/policy-watcher` | Watches `SOFTWARE\Policies\GitHubCopilot` (Windows) / `com.github.copilot` prefs (macOS); feeds the canonical `managedSettings` bag — see [github-managed-settings.md](./github-managed-settings.md) |
-| **Multiplex** | `MultiplexPolicyService` | Combines OS-level + account policy services; used in desktop main |
+| **Multiplex** | `MultiplexPolicyService` | In the main process, combines multiple OS/file policy readers; in desktop and Agents-window renderers, combines the main-process `PolicyChannelClient` with `AccountPolicyService` |
 
 ### Key Files
 
