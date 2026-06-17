@@ -906,7 +906,7 @@ suite('AgentHostChatContribution', () => {
 				modelRepresentation: 'Transcript text',
 			}]);
 
-			fire({ type: 'session/turnComplete', session: session!, turnId: turnId! } as unknown as SessionAction);
+			fire({ type: 'chat/turnComplete', session: session!, turnId: turnId! } as ChatAction);
 			await turnPromise;
 		});
 
