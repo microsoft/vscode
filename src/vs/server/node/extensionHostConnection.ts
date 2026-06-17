@@ -22,7 +22,7 @@ import { getNLSConfiguration } from './remoteLanguagePacks.js';
 import { IServerEnvironmentService } from './serverEnvironmentService.js';
 import { IPCExtHostConnection, SocketExtHostConnection, writeExtHostConnection } from '../../workbench/services/extensions/common/extensionHostEnv.js';
 import { IExtHostReadyMessage, IExtHostReduceGraceTimeMessage, IExtHostSocketMessage } from '../../workbench/services/extensions/common/extensionHostProtocol.js';
-import { dispose } from '../../base/node/ports.js';
+import { disposeSocket } from '../../base/node/ports.js';
 
 export async function buildUserEnvironment(startParamsEnv: { [key: string]: string | null } = {}, withUserShellEnvironment: boolean, language: string, environmentService: IServerEnvironmentService, logService: ILogService, configurationService: IConfigurationService): Promise<IProcessEnvironment> {
 	const nlsConfig = await getNLSConfiguration(language, environmentService.userDataPath);
@@ -165,7 +165,7 @@ export class ExtensionHostConnection extends Disposable {
 		disposables.add(connectionData.socket);
 		disposables.add(toDisposable(() => {
 			const allowSendingQueuedMessages = true;
-			dispose(extHostSocket, allowSendingQueuedMessages);
+			disposeSocket(extHostSocket, allowSendingQueuedMessages);
 		}));
 
 		const stopAndCleanup = () => {
