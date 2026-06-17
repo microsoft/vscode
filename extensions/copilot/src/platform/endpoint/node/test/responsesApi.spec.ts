@@ -1140,7 +1140,7 @@ describe('createResponsesRequestBody cache_control markers', () => {
 		expect(body.input?.[1]).not.toHaveProperty('cache_control');
 	});
 
-	it('falls back to a whitespace text block when the marked message has no other content', () => {
+	it('does not synthesize a whitespace text block when the marked message has no other content', () => {
 		const messages: Raw.ChatMessage[] = [{
 			role: Raw.ChatRole.User,
 			content: [cacheBreakpoint()],
@@ -1150,7 +1150,7 @@ describe('createResponsesRequestBody cache_control markers', () => {
 
 		expect(body.input?.[0]).toMatchObject({
 			role: 'user',
-			content: [{ type: 'input_text', text: ' ', cache_control: { type: CacheType } }],
+			content: [],
 		});
 	});
 

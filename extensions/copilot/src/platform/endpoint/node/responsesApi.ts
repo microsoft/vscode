@@ -599,20 +599,20 @@ function hasCacheBreakpoint(message: Raw.ChatMessage): boolean {
  * Attaches a prompt-cache marker (`cache_control: { type: 'ephemeral' }`) to a single Responses API
  * input item, mirroring the Anthropic Messages API converter.
  *
- * Items that carry a `content` array (user/system/assistant messages) receive the marker on their
- * last content block; an empty content array gets a whitespace text block to carry it (an empty
- * string is invalid). Items without a content array (`function_call`, `function_call_output`,
- * `tool_search_*`) receive the marker at the item level. Returns whether a marker was applied.
+ * Items that carry a non-empty `content` array (user/system/assistant messages) receive the marker
+ * on their last content block. Items without a content array (`function_call`,
+ * `function_call_output`, `tool_search_*`) receive the marker at the item level. Returns whether a
+ * marker was applied.
  */
 function tryApplyCacheControl(item: OpenAI.Responses.ResponseInputItem): boolean {
 	const content = (item as { content?: unknown }).content;
 	if (Array.isArray(content)) {
 		const lastContentBlock = content.at(-1) as { cache_control?: ResponsesCacheControl } | undefined;
-		if (lastContentBlock) {
-			lastContentBlock.cache_control = { type: CacheType };
-		} else {
-			content.push({ type: 'input_text', text: ' ', cache_control: { type: CacheType } });
+		if (!lastContentBlock) {
+			return false;
 		}
+
+		lastContentBlock.cache_control = { type: CacheType };
 		return true;
 	}
 
