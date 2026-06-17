@@ -99,18 +99,18 @@ function slugify(fixtureId: string): string {
 }
 
 /**
- * A Markdown link (not an embedded image) to a captured render.
- * When `--image-base-url` is set, links point to `<base>/<hash>`. Otherwise,
- * links stay relative to the report directory.
+ * An embedded Markdown image (`![]()`) of a captured render.
+ * When `--image-base-url` is set, the image source is `<base>/<hash>`. Otherwise,
+ * it stays relative to the report directory.
  */
 async function imageLink(args: Args, label: string, hash: string, relativePath: string | undefined): Promise<string | undefined> {
 	if (!relativePath) {
 		return undefined;
 	}
 	if (args.imageBaseUrl) {
-		return `[${label}](${args.imageBaseUrl.replace(/\/$/, '')}/${hash})`;
+		return `![${label}](${args.imageBaseUrl.replace(/\/$/, '')}/${hash})`;
 	}
-	return `[${label}](${relativePath})`;
+	return `![${label}](${relativePath})`;
 }
 
 async function renderMarkdown(args: Args, problems: readonly Problem[], totals: { scanned: number; errored: number }): Promise<string> {
