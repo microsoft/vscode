@@ -33,7 +33,6 @@ export const referenceGeneratedDepsByArch = {
 		'libc6 (>= 2.17)',
 		'libc6 (>= 2.2.5)',
 		'libc6 (>= 2.25)',
-		'libc6 (>= 2.27)',
 		'libc6 (>= 2.28)',
 		'libc6 (>= 2.4)',
 		'libcairo2 (>= 1.6.0)',
