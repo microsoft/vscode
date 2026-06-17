@@ -55,6 +55,56 @@ function setupCurrentWorkingDirectory(): void {
 setupCurrentWorkingDirectory();
 
 /**
+ * Add ASAR support to Node's CommonJS module resolution.
+ *
+ * Production builds bundle our `node_modules` into a `node_modules.asar`
+ * archive that sits next to the (now mostly empty) `node_modules` folder.
+ * Node does not look into `.asar` archives on its own, so we splice the
+ * archive into the lookup paths right before the real `node_modules` folder.
+ *
+ * The archive keeps the same top-level layout as `node_modules`
+ * (`node_modules.asar/<module>`), so bare `require('<module>')` calls resolve
+ * exactly like they did before ASAR was introduced. This keeps extensions and
+ * tooling that reach into `${appRoot}/node_modules.asar/<module>` working.
+ *
+ * Note: only applies to the packaged app running on Electron (incl.
+ * `ELECTRON_RUN_AS_NODE` forks), never when running out of sources.
+ */
+function enableASARSupport(): void {
+	if (!process.env['ELECTRON_RUN_AS_NODE'] && !process.versions['electron']) {
+		return; // only on Electron / Electron-as-node
+	}
+
+	if (process.env['VSCODE_DEV']) {
+		return; // no ASAR when running out of sources
+	}
+
+	const NODE_MODULES_PATH = path.join(import.meta.dirname, '../node_modules');
+	const NODE_MODULES_ASAR_PATH = `${NODE_MODULES_PATH}.asar`;
+
+	const Module = require('node:module') as typeof import('node:module') & {
+		_resolveLookupPaths: (request: string, parent: unknown) => string[] | null;
+	};
+
+	const originalResolveLookupPaths = Module._resolveLookupPaths;
+	Module._resolveLookupPaths = function (request: string, parent: unknown): string[] | null {
+		const paths = originalResolveLookupPaths(request, parent);
+		if (Array.isArray(paths)) {
+			for (let i = 0, len = paths.length; i < len; i++) {
+				if (paths[i] === NODE_MODULES_PATH) {
+					paths.splice(i, 0, NODE_MODULES_ASAR_PATH);
+					break;
+				}
+			}
+		}
+
+		return paths;
+	};
+}
+
+enableASARSupport();
+
+/**
  * Add support for redirecting the loading of node modules
  *
  * Note: only applies when running out of sources.
