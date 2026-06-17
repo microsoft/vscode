@@ -541,6 +541,86 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(provider.sessionTypes.map(t => t.id), ['copilotcli', 'claude']);
 	});
 
+	test('getSessions hides agent-host Claude sessions when extension-host Claude is preferred', () => {
+		agentHost.setAgents([
+			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
+			{ provider: 'claude', displayName: 'Claude', description: '', models: [] } as AgentInfo,
+		]);
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration(ClaudePreferAgentHostAgentsSettingId, false);
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService, isSessionsWindow: true });
+		fireSessionAdded(agentHost, 'cli-sess', { title: 'CLI', provider: 'copilotcli' });
+		fireSessionAdded(agentHost, 'claude-sess', { title: 'Claude', provider: 'claude' });
+
+		assert.deepStrictEqual(provider.getSessions().map(s => s.sessionType), ['copilotcli']);
+	});
+
+	test('getSessions shows agent-host Claude sessions when agent-host Claude is preferred', () => {
+		agentHost.setAgents([
+			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
+			{ provider: 'claude', displayName: 'Claude', description: '', models: [] } as AgentInfo,
+		]);
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration(ClaudePreferAgentHostAgentsSettingId, true);
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService, isSessionsWindow: true });
+		fireSessionAdded(agentHost, 'cli-sess', { title: 'CLI', provider: 'copilotcli' });
+		fireSessionAdded(agentHost, 'claude-sess', { title: 'Claude', provider: 'claude' });
+
+		assert.deepStrictEqual(
+			provider.getSessions().map(s => s.sessionType).sort(),
+			['claude', 'copilotcli'],
+		);
+	});
+
+	test('flipping preferAgentHost reveals agent-host Claude sessions and fires a refresh', () => {
+		agentHost.setAgents([
+			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
+			{ provider: 'claude', displayName: 'Claude', description: '', models: [] } as AgentInfo,
+		]);
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration(ClaudePreferAgentHostAgentsSettingId, false);
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService, isSessionsWindow: true });
+		fireSessionAdded(agentHost, 'cli-sess', { title: 'CLI', provider: 'copilotcli' });
+		fireSessionAdded(agentHost, 'claude-sess', { title: 'Claude', provider: 'claude' });
+		assert.deepStrictEqual(provider.getSessions().map(s => s.sessionType), ['copilotcli']);
+
+		let fired = false;
+		disposables.add(provider.onDidChangeSessions(() => { fired = true; }));
+
+		configService.setUserConfiguration(ClaudePreferAgentHostAgentsSettingId, true);
+		fireConfigChange(configService, ClaudePreferAgentHostAgentsSettingId);
+
+		assert.ok(fired, 'onDidChangeSessions should fire so the open list re-queries');
+		assert.deepStrictEqual(
+			provider.getSessions().map(s => s.sessionType).sort(),
+			['claude', 'copilotcli'],
+		);
+	});
+
+	test('flipping preferAgentHost off does not announce hidden sessions as removed', () => {
+		// The list refresh fires an empty-payload change: hidden Claude sessions
+		// are filtered out at read time, not reported as `removed` (which the
+		// sessions telemetry contribution would misread as a remote deletion).
+		agentHost.setAgents([
+			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
+			{ provider: 'claude', displayName: 'Claude', description: '', models: [] } as AgentInfo,
+		]);
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration(ClaudePreferAgentHostAgentsSettingId, true);
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService, isSessionsWindow: true });
+		fireSessionAdded(agentHost, 'claude-sess', { title: 'Claude', provider: 'claude' });
+		assert.deepStrictEqual(provider.getSessions().map(s => s.sessionType), ['claude']);
+
+		const removed: string[] = [];
+		disposables.add(provider.onDidChangeSessions(e => removed.push(...e.removed.map(s => s.sessionType))));
+
+		configService.setUserConfiguration(ClaudePreferAgentHostAgentsSettingId, false);
+		fireConfigChange(configService, ClaudePreferAgentHostAgentsSettingId);
+
+		assert.deepStrictEqual(removed, [], 'hidden sessions must not be reported as removed');
+		assert.deepStrictEqual(provider.getSessions().map(s => s.sessionType), []);
+	});
+
 	test('session icons match the session type icon', () => {
 		agentHost.setAgents([
 			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,

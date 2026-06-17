@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerSharedProcessRemoteService } from '../../ipc/electron-browser/services.js';
-import { ISharedProcessTunnelProxyService, ipcSharedProcessTunnelProxyChannelName } from '../common/sharedProcessTunnelProxyService.js';
-
-registerSharedProcessRemoteService(ISharedProcessTunnelProxyService, ipcSharedProcessTunnelProxyChannelName);
+// Re-export jsx as jsxDEV for compatibility with vitest/vite dev mode
+// which resolves @jsxRuntime automatic to jsx-dev-runtime in development.
+export { Fragment, jsx as jsxDEV, jsxs } from './jsx-runtime';
