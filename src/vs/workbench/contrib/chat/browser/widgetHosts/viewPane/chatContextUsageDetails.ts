@@ -158,7 +158,7 @@ export class ChatContextUsageDetails extends Disposable {
 		// Update session cost — hide section when no cost data is available
 		if (typeof sessionCost === 'number' && sessionCost > 0) {
 			const formatted = formatCopilotCredits(sessionCost);
-			this.sessionCostValue.textContent = sessionCost === 1
+			this.sessionCostValue.textContent = formatted === '1'
 				? localize('sessionCostCredit', "{0} credit", formatted)
 				: localize('sessionCostCredits', "{0} credits", formatted);
 			this.sessionCostSection.style.display = '';

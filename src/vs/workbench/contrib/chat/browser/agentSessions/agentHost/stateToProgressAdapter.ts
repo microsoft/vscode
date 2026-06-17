@@ -167,14 +167,16 @@ export interface TurnModelLookup {
 }
 
 export function usageInfoToChatUsage(usage: UsageInfo | undefined): IChatUsage | undefined {
-	if (typeof usage?.inputTokens !== 'number' && typeof usage?.outputTokens !== 'number') {
+	const hasTokens = typeof usage?.inputTokens === 'number' || typeof usage?.outputTokens === 'number';
+	const copilotCredits = getCopilotCredits(usage);
+	if (!hasTokens && copilotCredits === undefined) {
 		return undefined;
 	}
 	return {
 		kind: 'usage',
-		promptTokens: usage.inputTokens ?? 0,
-		completionTokens: usage.outputTokens ?? 0,
-		copilotCredits: getCopilotCredits(usage),
+		promptTokens: usage?.inputTokens ?? 0,
+		completionTokens: usage?.outputTokens ?? 0,
+		copilotCredits,
 	};
 }
 

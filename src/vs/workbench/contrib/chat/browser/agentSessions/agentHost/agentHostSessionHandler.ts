@@ -2883,7 +2883,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				const credits = usageInfoToChatUsage(usage)?.copilotCredits;
 				if (credits !== undefined) {
 					const formatted = formatCopilotCredits(credits);
-					const creditDetails = credits === 1
+					const creditDetails = formatted === '1'
 						? localize('agentHost.responseDetails.credit', "{0} credit", formatted)
 						: localize('agentHost.responseDetails.credits', "{0} credits", formatted);
 					return [model.name, creditDetails].join(' • ');
