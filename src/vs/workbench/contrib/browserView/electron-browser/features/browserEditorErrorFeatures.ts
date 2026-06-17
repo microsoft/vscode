@@ -148,7 +148,7 @@ class BrowserEditorErrorFeatures extends BrowserEditorContribution {
 		// We add a readable label in these cases as a hint to the user.
 		if (this.editor.model?.isRemoteSession) {
 			const remoteWarning = error.errorCode === -111 || error.errorCode === -324
-				? localize('browser.remoteErrorExtraWarning', "This usually means the host is not available or could not be reached from the remote.")
+				? localize('browser.remoteErrorExtraWarning', "This usually means the host could not be found.\nEnsure the URL is correct and the server is accessible from the remote machine.")
 				: '';
 			if (remoteWarning) {
 				const remoteWarningEl = $('.browser-error-detail.hint');

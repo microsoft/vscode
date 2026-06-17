@@ -200,6 +200,20 @@ export const enum SessionChangesetOperationScope {
 	Range = 'range',
 }
 
+/**
+ * Execution status of a changeset operation.
+ */
+export const enum SessionChangesetOperationStatus {
+	/** The operation is ready to be invoked. */
+	Idle = 'idle',
+	/** An invocation is currently in flight. */
+	Running = 'running',
+	/** The most recent invocation failed. */
+	Error = 'error',
+	/** The operation is currently disabled and cannot be invoked. */
+	Disabled = 'disabled',
+}
+
 export interface ISessionChangesetOperation {
 	/** Unique identifier for the operation. */
 	readonly id: string;
@@ -211,6 +225,8 @@ export interface ISessionChangesetOperation {
 	readonly icon?: ThemeIcon;
 	/** The scopes to which this operation applies. */
 	readonly scopes: SessionChangesetOperationScope[];
+	/** Current execution status for this operation. */
+	readonly status: SessionChangesetOperationStatus;
 	/**
 	 * Optional confirmation prompt to display before invoking the operation.
 	 * When present, callers MUST show this message to the user (typically in
