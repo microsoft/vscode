@@ -5,7 +5,6 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/documentId';
-import { DuplicateAdditionsMode } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { NoNextEditReason, StreamedEdit } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { TestLogService } from '../../../../platform/testing/common/testLogService';
 import { AsyncIterUtils } from '../../../../util/common/asyncIterableUtils';
@@ -18,6 +17,7 @@ import { ensureDependenciesAreSet } from '../../../../util/vs/editor/common/core
 import { FetchStreamError } from '../../common/fetchStreamError';
 import { CurrentDocument } from '../../common/xtabCurrentDocument';
 import { DuplicateAdditionRemoval, DuplicateAdditionRemovalSummary, OnDuplicateRemovedCallback, tryRemoveDuplicateAdditions, XtabPatchResponseHandler } from '../../node/xtabPatchResponseHandler';
+import { DuplicateAdditionsMode } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 
 async function consumeHandleResponse(
 	...args: Parameters<typeof XtabPatchResponseHandler.handleResponse>
@@ -578,45 +578,6 @@ another_file.js:
 			expect(edits).toHaveLength(1);
 			const lineReplacement = edits[0].edit as LineReplacement;
 			expect(lineReplacement.newLines).toEqual(['    let x = 1;', '    let y = 2;', '}']);
-		});
-
-		it('Log mode reports detection but does not modify additions', async () => {
-			const docId = DocumentId.create('file:///test.ts');
-			const docContent = 'function foo() {\n    let x = 1;\n}\n';
-			const documentBeforeEdits = new CurrentDocument(new StringText(docContent), new Position(2, 1));
-
-			async function* makeStream(): AsyncGenerator<string> {
-				yield '/test.ts:1';
-				yield '-    let x = 1;';
-				yield '+    let x = 1;';
-				yield '+    let y = 2;';
-				yield '+}';
-			}
-
-			const seen: DuplicateAdditionRemovalSummary[] = [];
-			const onDuplicateRemoved: OnDuplicateRemovedCallback = info => seen.push(info.summary);
-
-			const { edits } = await consumeHandleResponse(
-				makeStream(),
-				documentBeforeEdits,
-				docId,
-				undefined,
-				undefined,
-				new TestLogService(),
-				DuplicateAdditionsMode.Log,
-				onDuplicateRemoved,
-			);
-
-			expect(edits).toHaveLength(1);
-			// Additions are NOT modified in Log mode — the trailing `}` is kept.
-			const lineReplacement = edits[0].edit as LineReplacement;
-			expect(lineReplacement.newLines).toEqual(['    let x = 1;', '    let y = 2;', '}']);
-			// Detection is reported via the callback. Payload is redacted —
-			// only metadata (kind + counts), no raw line content.
-			expect(seen).toHaveLength(1);
-			expect(seen[0].kind).toBe('suffix');
-			expect(seen[0].removedLineCount).toBe(1);
-			expect(seen[0].remainingAdditionCount).toBe(2);
 		});
 
 		it('returns NoSuggestions (not FilteredOut) when every patch is dropped by TrimDuplicate dedup', async () => {

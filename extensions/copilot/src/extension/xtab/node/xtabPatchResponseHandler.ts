@@ -20,9 +20,6 @@ import { toUniquePath } from '../common/promptCraftingUtils';
 import { ResponseTags } from '../common/tags';
 import { CurrentDocument } from '../common/xtabCurrentDocument';
 
-export { DuplicateAdditionsMode };
-
-
 class Patch {
 	public removedLines: string[] = [];
 	public addedLines: string[] = [];
@@ -103,8 +100,7 @@ export interface DuplicateAdditionRemovalSummary {
 /**
  * Callback invoked once per duplicate-addition detection. Receives only
  * redacted, telemetry-safe metadata (counts and shape). The callback fires
- * for every action mode (Log / DropPatch / DropAllRemaining / TrimDuplicate),
- * including `Log` where the patch is not actually modified.
+ * for every action mode (DropPatch / DropAllRemaining / TrimDuplicate).
  */
 export type OnDuplicateRemovedCallback = (info: {
 	readonly summary: DuplicateAdditionRemovalSummary;
@@ -294,9 +290,6 @@ function applyDuplicatePolicy(
 	});
 
 	switch (mode) {
-		case DuplicateAdditionsMode.Log:
-			// Yield the patch unchanged.
-			return { kind: 'emit', lineReplacement };
 		case DuplicateAdditionsMode.DropPatch:
 			return { kind: 'skip' };
 		case DuplicateAdditionsMode.DropAllRemaining:
