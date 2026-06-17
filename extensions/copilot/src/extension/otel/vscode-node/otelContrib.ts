@@ -16,6 +16,8 @@ import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import type { IExtensionContribution } from '../../common/contributions';
 
 const OPEN_OTEL_SETTINGS_COMMAND = 'github.copilot.chat.otel.openSettings';
+const STATUS_ACTIVE_COMMAND = 'github.copilot.chat.otel.statusActive';
+const OTEL_ENABLED_EXPLICITLY_CONTEXT_KEY = 'github.copilot.otel.enabledExplicitly';
 const CHAT_STATUS_ITEM_ID = 'copilot.otelStatus';
 const DOCS_URL = 'https://code.visualstudio.com/docs/copilot/guides/monitoring-agents';
 
@@ -151,9 +153,12 @@ export class OTelContrib extends Disposable implements IExtensionContribution {
 
 	/**
 	 * Surfaces the active OTel configuration as a row in the Copilot Chat
-	 * status dashboard (no pill in the chat input — see PM feedback re: UI noise).
+	 * status dashboard. Agents Window also uses this context to show its status pill,
+	 * because it does not have the dashboard surface yet.
 	 */
 	private _installVisibilityIndicators(): void {
+		void vscode.commands.executeCommand('setContext', OTEL_ENABLED_EXPLICITLY_CONTEXT_KEY, this._otelService.config.enabledExplicitly);
+
 		// Only show indicators when the user explicitly opted in;
 		// db-only / debug-panel modes don't send data off-machine.
 		if (!this._otelService.config.enabledExplicitly) {
@@ -242,6 +247,12 @@ export class OTelContrib extends Disposable implements IExtensionContribution {
 			// OTel settings are user-scope only (`scope: application` in
 			// package.json), so always open the user settings editor.
 			await vscode.commands.executeCommand('workbench.action.openSettings', 'github.copilot.chat.otel');
+		}));
+
+		// Agents Window does not have the chat status dashboard yet, so the legacy
+		// chat-input status pill opens the same settings surface from there only.
+		this._register(vscode.commands.registerCommand(STATUS_ACTIVE_COMMAND, async () => {
+			await vscode.commands.executeCommand(OPEN_OTEL_SETTINGS_COMMAND);
 		}));
 	}
 
