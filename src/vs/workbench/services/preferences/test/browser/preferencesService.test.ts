@@ -19,7 +19,7 @@ import { IEditorGroupsService, IModalEditorPart } from '../../../editor/common/e
 import { PreferencesService } from '../../browser/preferencesService.js';
 import { IPreferencesService, ISettingsEditorOptions } from '../../common/preferences.js';
 import { IRemoteAgentService } from '../../../remote/common/remoteAgentService.js';
-import { TestRemoteAgentService, workbenchInstantiationService, TestEditorService, TestEditorGroupsService, TestEditorGroupView } from '../../../../test/browser/workbenchTestServices.js';
+import { TestRemoteAgentService, ITestInstantiationService, workbenchInstantiationService, TestEditorService, TestEditorGroupsService, TestEditorGroupView } from '../../../../test/browser/workbenchTestServices.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 
@@ -32,7 +32,7 @@ suite('PreferencesService', () => {
 		lastOpenEditorOptions = undefined;
 		lastOpenEditorGroup = undefined;
 
-		const testInstantiationService = workbenchInstantiationService(
+		const testInstantiationService: ITestInstantiationService = workbenchInstantiationService(
 			configurationService ? { configurationService: () => configurationService } : {},
 			disposables
 		);
