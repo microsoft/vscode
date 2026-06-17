@@ -135,32 +135,13 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	/**
 	 * Subscriber probe set by {@link ChangesetSessionCoordinator}. Returns
-	 * `true` when at least one client is subscribed to
-	 * `<session>/changeset/turn/<turnId>`. Per-turn URIs carry no catalogue
-	 * chip aggregates, so recomputing for an unobserved turn is pure waste
-	 * — the service consults this probe in {@link onToolCallEditsApplied}
-	 * and {@link onTurnComplete} before scheduling a per-turn recompute.
+	 * `true` when at least one client is subscribed to the given changeset.
+	 * The service consults this probe before scheduling any changeset recompute.
 	 *
 	 * Defaults to `() => false` so unwired test instances don't accidentally
-	 * fire per-turn computes; the coordinator overrides this in its
-	 * constructor.
+	 * fire recomputes; the coordinator overrides this in its constructor.
 	 */
-	private _hasTurnSubscribers: (session: ProtocolURI, turnId: string) => boolean = () => false;
-
-	/**
-	 * Subscriber probe set by {@link ChangesetSessionCoordinator}. Returns
-	 * `true` when at least one client is subscribed to
-	 * `<session>/changeset/uncommitted`. Uncommitted computes hit git on
-	 * every recompute and produce no catalogue-chip aggregate, so the
-	 * service consults this probe in {@link onTurnComplete} before
-	 * triggering one — the next subscriber will get a fresh snapshot from
-	 * the coordinator's `_triggerUncommittedRefresh`.
-	 *
-	 * Defaults to `() => false` so unwired test instances don't accidentally
-	 * fire uncommitted computes; the coordinator overrides this in its
-	 * constructor.
-	 */
-	private _hasUncommittedSubscribers: (session: ProtocolURI) => boolean = () => false;
+	private _hasSubscription: (session: ProtocolURI, changeset: ProtocolURI) => boolean = () => false;
 
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
@@ -173,12 +154,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		this._diffComputeService = this._register(new NodeWorkerDiffComputeService(this._logService));
 	}
 
-	setTurnSubscriberProbe(probe: (session: ProtocolURI, turnId: string) => boolean): void {
-		this._hasTurnSubscribers = probe;
-	}
-
-	setUncommittedSubscriberProbe(probe: (session: ProtocolURI) => boolean): void {
-		this._hasUncommittedSubscribers = probe;
+	setSubscriberProbe(probe: (session: ProtocolURI, changeset: ProtocolURI) => boolean): void {
+		this._hasSubscription = probe;
 	}
 
 	registerStaticChangesets(session: ProtocolURI): void {
@@ -368,7 +345,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	async computeUncommittedChangeset(session: ProtocolURI): Promise<ProtocolURI> {
 		const uncommittedUri = this._stateManager.registerChangeset(buildUncommittedChangesetUri(session));
-		if (!this._hasUncommittedSubscribers(session)) {
+		if (!this._hasSubscription(session, uncommittedUri)) {
 			return uncommittedUri;
 		}
 
@@ -467,7 +444,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		// recompute entirely when no client is observing this turn. The
 		// next subscriber will get a fresh snapshot from
 		// `tryHandleSubscribe → computeTurnChangeset`.
-		if (this._hasTurnSubscribers(session, turnId)) {
+		if (this._hasSubscription(session, buildTurnChangesetUri(session, turnId))) {
 			this._scheduleDebouncedTurnDiffComputation(session, turnId);
 		}
 	}
@@ -481,12 +458,12 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		this._cancelDebouncedDiffComputation(session);
 		if (turnId !== undefined) {
 			this._cancelDebouncedTurnDiffComputation(session, turnId);
-			if (this._hasTurnSubscribers(session, turnId)) {
+			if (this._hasSubscription(session, buildTurnChangesetUri(session, turnId))) {
 				this._scheduleTurnRecompute(session, turnId);
 			}
 		}
 
-		if (this._hasUncommittedSubscribers(session)) {
+		if (this._hasSubscription(session, buildUncommittedChangesetUri(session))) {
 			this._scheduleUncommittedRecompute(session);
 		}
 

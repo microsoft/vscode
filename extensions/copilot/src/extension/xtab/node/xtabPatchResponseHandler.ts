@@ -5,6 +5,7 @@
 
 import { DocumentId } from '../../../platform/inlineEdits/common/dataTypes/documentId';
 import { DuplicateAdditionsMode } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { ResponseProcessor } from '../../../platform/inlineEdits/common/responseProcessor';
 import { NoNextEditReason, StreamedEdit } from '../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { ILogger } from '../../../platform/log/common/logService';
 import { ErrorUtils } from '../../../util/common/errors';
@@ -19,9 +20,6 @@ import { FetchStreamError } from '../common/fetchStreamError';
 import { toUniquePath } from '../common/promptCraftingUtils';
 import { ResponseTags } from '../common/tags';
 import { CurrentDocument } from '../common/xtabCurrentDocument';
-
-export { DuplicateAdditionsMode };
-
 
 class Patch {
 	public removedLines: string[] = [];
@@ -44,17 +42,25 @@ class Patch {
 		return new Patch(filename, parseInt(lineNumber, 10));
 	}
 
-	addLine(line: string) {
+	/**
+	 * Creates a pure-insertion patch (no removed lines) at the given line.
+	 * Used for the continuation portion of a ghost-text progressive reveal.
+	 */
+	public static insertion(filePath: string, lineNumZeroBased: number): Patch {
+		return new Patch(filePath, lineNumZeroBased);
+	}
+
+	addLine(line: string): boolean {
 		const contentLine = line.slice(1);
 		if (line.startsWith('-')) {
 			this.removedLines.push(contentLine);
 			return true;
-		} else if (line.startsWith('+')) {
+		}
+		if (line.startsWith('+')) {
 			this.addedLines.push(contentLine);
 			return true;
-		} else {
-			return false;
 		}
+		return false;
 	}
 
 	public toString(): string {
@@ -84,34 +90,6 @@ export interface DuplicateAdditionRemoval {
 	readonly removedLines: readonly string[];
 }
 
-/**
- * Telemetry-safe summary of a single duplicate-addition detection.
- *
- * Deliberately excludes raw line content (`newAdditions` / `removedLines`)
- * to keep `OnDuplicateRemovedCallback` from accidentally surfacing user
- * source code through telemetry pipelines. Use the internal
- * {@link DuplicateAdditionRemoval} returned by
- * {@link tryRemoveDuplicateAdditions} when you legitimately need the
- * content (e.g. to apply the trim).
- */
-export interface DuplicateAdditionRemovalSummary {
-	readonly kind: 'suffix' | 'prefix' | 'middle';
-	readonly removedLineCount: number;
-	readonly remainingAdditionCount: number;
-}
-
-/**
- * Callback invoked once per duplicate-addition detection. Receives only
- * redacted, telemetry-safe metadata (counts and shape). The callback fires
- * for every action mode (Log / DropPatch / DropAllRemaining / TrimDuplicate),
- * including `Log` where the patch is not actually modified.
- */
-export type OnDuplicateRemovedCallback = (info: {
-	readonly summary: DuplicateAdditionRemovalSummary;
-	readonly mode: Exclude<DuplicateAdditionsMode, DuplicateAdditionsMode.Off>;
-	readonly filePath: string;
-	readonly lineNumZeroBased: number;
-}) => void;
 
 /**
  * A heuristic line is "meaningful" enough to base a duplicate detection on
@@ -247,9 +225,63 @@ export function tryRemoveDuplicateAdditions(
 }
 
 
-export class XtabCustomDiffPatchResponseHandler {
+/**
+ * The outcome of evaluating the duplicate-additions policy for a single patch.
+ * Controls what the stream loop does next:
+ *   - `emit`       — yield the (possibly trimmed) replacement and continue
+ *   - `skip`       — drop this patch and continue to the next
+ *   - `skipAndStop` — drop this patch and all remaining patches in the stream
+ */
+type EditDecision =
+	| { kind: 'emit'; lineReplacement: LineReplacement }
+	| { kind: 'skip' }
+	| { kind: 'skipAndStop' };
 
-	public static async *handleResponse(
+/**
+ * Runs duplicate-addition detection on `lineReplacement` and applies the
+ * configured `mode` policy, returning an `EditDecision` for the caller to act on.
+ *
+ * Logs only telemetry-safe metadata (no raw line content) via `tracer` and
+ * fires `onDuplicateRemoved` for every detected duplicate regardless of mode.
+ */
+function applyDuplicatePolicy(
+	edit: Patch,
+	lineReplacement: LineReplacement,
+	content: AbstractText,
+	mode: Exclude<DuplicateAdditionsMode, DuplicateAdditionsMode.Off>,
+	tracer: ILogger,
+): EditDecision {
+	const removal = tryRemoveDuplicateAdditions(lineReplacement, content);
+	if (removal === undefined) {
+		return { kind: 'emit', lineReplacement };
+	}
+
+	// Log only metadata (kind / counts / location) — do NOT include raw line
+	// content. The tracer output may end up in user-visible diagnostics.
+	tracer.trace(`Detected duplicate addition(s) (kind=${removal.kind}, count=${removal.removedLines.length}, mode=${mode}) for edit at ${edit.filePath}:${edit.lineNumZeroBased}`);
+
+	switch (mode) {
+		case DuplicateAdditionsMode.DropPatch:
+			return { kind: 'skip' };
+		case DuplicateAdditionsMode.DropAllRemaining:
+			// Drop this patch and skip every subsequent patch in the stream.
+			// We still consume the stream to completion so the underlying
+			// fetch is allowed to finalize cleanly.
+			return { kind: 'skipAndStop' };
+		case DuplicateAdditionsMode.TrimDuplicate: {
+			const newLines = removal.newAdditions;
+			if (newLines.length === 0 && lineReplacement.lineRange.length === 0) {
+				// Trim left a no-op patch — drop it.
+				return { kind: 'skip' };
+			}
+			return { kind: 'emit', lineReplacement: new LineReplacement(lineReplacement.lineRange, newLines) };
+		}
+	}
+}
+
+export namespace XtabPatchResponseHandler {
+
+	export async function* handleResponse(
 		linesStream: AsyncIterable<string>,
 		currentDocument: CurrentDocument,
 		activeDocumentId: DocumentId,
@@ -257,14 +289,16 @@ export class XtabCustomDiffPatchResponseHandler {
 		window: OffsetRange | undefined,
 		parentTracer: ILogger,
 		duplicateAdditionsMode: DuplicateAdditionsMode = DuplicateAdditionsMode.Off,
-		onDuplicateRemoved?: OnDuplicateRemovedCallback,
+		enableProgressiveGhostText: boolean = false,
 	): AsyncGenerator<StreamedEdit, NoNextEditReason, void> {
 		const tracer = parentTracer.createSubLogger(['XtabCustomDiffPatchResponseHandler', 'handleResponse']);
 		const activeDocRelativePath = toUniquePath(activeDocumentId, workspaceRoot?.path);
 
 		try {
 			let dropAllRemaining = false;
-			for await (const edit of XtabCustomDiffPatchResponseHandler.extractEdits(linesStream)) {
+			const cursorLine = enableProgressiveGhostText ? currentDocument.cursorLineOffset : undefined;
+			const progressiveDocPath = enableProgressiveGhostText ? activeDocRelativePath : undefined;
+			for await (const edit of extractEdits(linesStream, cursorLine, progressiveDocPath)) {
 				if (dropAllRemaining) {
 					continue;
 				}
@@ -272,57 +306,27 @@ export class XtabCustomDiffPatchResponseHandler {
 				const isActiveDoc = edit.filePath === activeDocRelativePath;
 				const targetDocument = isActiveDoc
 					? activeDocumentId
-					: XtabCustomDiffPatchResponseHandler.resolveTargetDocument(edit.filePath, workspaceRoot);
+					: resolveTargetDocument(edit.filePath, workspaceRoot);
 				if (!targetDocument) {
 					tracer.error(`Could not resolve target document for edit: ${edit.toString()}`);
 					continue;
 				}
 
-				let lineReplacement = XtabCustomDiffPatchResponseHandler.resolveEdit(edit);
+				let lineReplacement = resolveEdit(edit);
 
 				// Only attempt dedup for the active document — other files'
 				// content is not directly available here.
 				if (duplicateAdditionsMode !== DuplicateAdditionsMode.Off && isActiveDoc) {
-					const removal = tryRemoveDuplicateAdditions(lineReplacement, currentDocument.content);
-					if (removal !== undefined) {
-						// Log only metadata (kind / counts / location) — do
-						// NOT include raw line content. The tracer output
-						// may end up in user-visible diagnostics.
-						tracer.trace(`Detected duplicate addition(s) (kind=${removal.kind}, count=${removal.removedLines.length}, mode=${duplicateAdditionsMode}) for edit at ${edit.filePath}:${edit.lineNumZeroBased}`);
-						onDuplicateRemoved?.({
-							summary: {
-								kind: removal.kind,
-								removedLineCount: removal.removedLines.length,
-								remainingAdditionCount: removal.newAdditions.length,
-							},
-							mode: duplicateAdditionsMode,
-							filePath: edit.filePath,
-							lineNumZeroBased: edit.lineNumZeroBased,
-						});
-
-						switch (duplicateAdditionsMode) {
-							case DuplicateAdditionsMode.Log:
-								// Yield the patch unchanged.
-								break;
-							case DuplicateAdditionsMode.DropPatch:
-								continue;
-							case DuplicateAdditionsMode.DropAllRemaining:
-								// Drop this patch and skip every subsequent
-								// patch in the stream. We still consume the
-								// stream to completion so the underlying
-								// fetch is allowed to finalize cleanly.
-								dropAllRemaining = true;
-								continue;
-							case DuplicateAdditionsMode.TrimDuplicate: {
-								const newAdditions = removal.newAdditions;
-								if (newAdditions.length === 0 && lineReplacement.lineRange.length === 0) {
-									// Trim left a no-op patch — drop it.
-									continue;
-								}
-								lineReplacement = new LineReplacement(lineReplacement.lineRange, newAdditions);
-								break;
-							}
-						}
+					const decision = applyDuplicatePolicy(edit, lineReplacement, currentDocument.content, duplicateAdditionsMode, tracer);
+					switch (decision.kind) {
+						case 'skip':
+							continue;
+						case 'skipAndStop':
+							dropAllRemaining = true;
+							continue;
+						case 'emit':
+							lineReplacement = decision.lineReplacement;
+							break;
 					}
 				}
 
@@ -344,11 +348,11 @@ export class XtabCustomDiffPatchResponseHandler {
 		return new NoNextEditReason.NoSuggestions(currentDocument.content, window, undefined);
 	}
 
-	private static resolveEdit(patch: Patch): LineReplacement {
+	function resolveEdit(patch: Patch): LineReplacement {
 		return new LineReplacement(new LineRange(patch.lineNumZeroBased + 1, patch.lineNumZeroBased + 1 + patch.removedLines.length), patch.addedLines);
 	}
 
-	private static resolveTargetDocument(filePath: string, workspaceRoot: URI | undefined): DocumentId | undefined {
+	function resolveTargetDocument(filePath: string, workspaceRoot: URI | undefined): DocumentId | undefined {
 		if (isAbsolute(filePath)) {
 			return DocumentId.create(URI.file(filePath).toString());
 		}
@@ -359,10 +363,33 @@ export class XtabCustomDiffPatchResponseHandler {
 		return undefined;
 	}
 
-	public static async *extractEdits(linesStream: AsyncIterable<string>): AsyncGenerator<Patch> {
+	/**
+	 * Checks whether the first patch qualifies for ghost-text progressive reveal.
+	 * A patch qualifies if it has exactly one removed line, at least one added line,
+	 * targets the cursor line in the active document, and the edit on the first
+	 * line is additive (the removed line is a subsequence of the first added line).
+	 */
+	export function isGhostTextPatch(patch: Patch, cursorLineZeroBased: number, activeDocRelativePath: string): boolean {
+		return patch.removedLines.length === 1
+			&& patch.addedLines.length >= 1
+			&& patch.lineNumZeroBased === cursorLineZeroBased
+			&& patch.filePath === activeDocRelativePath
+			&& ResponseProcessor.isAdditiveEdit(patch.removedLines[0], patch.addedLines[0]);
+	}
+
+	/**
+	 * @param cursorLineZeroBased When provided (along with activeDocRelativePath),
+	 * enables ghost-text progressive reveal for the first patch: if the first patch
+	 * is a ghost-text (single removed line at the cursor that is additively edited),
+	 * the cursor-line replacement is yielded immediately and any further added lines
+	 * are collected into a separate pure-insertion patch.
+	 */
+	export async function* extractEdits(linesStream: AsyncIterable<string>, cursorLineZeroBased?: number, activeDocRelativePath?: string): AsyncGenerator<Patch> {
 		let currentPatch: Patch | null = null;
+		let isFirstPatch = true;
+		// Tracks whether we've already attempted progressive reveal (succeeds or fails only once).
+		let progressiveRevealDone = false;
 		for await (const line of linesStream) {
-			// if no current patch, try to parse a new one
 			if (line.trim() === ResponseTags.NO_EDIT) {
 				break;
 			}
@@ -370,17 +397,36 @@ export class XtabCustomDiffPatchResponseHandler {
 				currentPatch = Patch.ofLine(line);
 				continue;
 			}
-			// try to add line to current patch
 			if (currentPatch.addLine(line)) {
-				continue;
-			} else { // line does not belong to current patch, yield current and start new
-				if (currentPatch) {
-					yield currentPatch;
+				// For the first patch, check if we can do progressive reveal:
+				// once we have the `-` line and first `+` line, check ghost-text.
+				if (isFirstPatch && !progressiveRevealDone
+					&& cursorLineZeroBased !== undefined
+					&& activeDocRelativePath !== undefined
+					&& currentPatch.addedLines.length === 1
+					&& currentPatch.removedLines.length >= 1
+				) {
+					if (isGhostTextPatch(currentPatch, cursorLineZeroBased, activeDocRelativePath)) {
+						// Yield the cursor-line replacement immediately
+						const earlyPatch = Patch.insertion(currentPatch.filePath, currentPatch.lineNumZeroBased);
+						earlyPatch.removedLines = [...currentPatch.removedLines];
+						earlyPatch.addedLines = [...currentPatch.addedLines];
+						yield earlyPatch;
+						// Replace currentPatch with a continuation pure-insertion patch
+						currentPatch = Patch.insertion(currentPatch.filePath, currentPatch.lineNumZeroBased + 1);
+					}
+					progressiveRevealDone = true;
 				}
-				currentPatch = Patch.ofLine(line);
+				continue;
 			}
+			// line does not belong to current patch, yield current and start new
+			if (currentPatch.removedLines.length > 0 || currentPatch.addedLines.length > 0) {
+				yield currentPatch;
+			}
+			currentPatch = Patch.ofLine(line);
+			isFirstPatch = false;
 		}
-		if (currentPatch) {
+		if (currentPatch && (currentPatch.removedLines.length > 0 || currentPatch.addedLines.length > 0)) {
 			yield currentPatch;
 		}
 	}

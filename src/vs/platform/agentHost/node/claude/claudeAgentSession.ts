@@ -411,7 +411,14 @@ export class ClaudeAgentSession extends Disposable {
 				...(clientServers ?? {}),
 				...(serverToolServer ? { [CLAUDE_SERVER_TOOL_MCP_SERVER_NAME]: serverToolServer } : {}),
 			};
-		return { mcpServers, allowedTools: serverToolHost ? serverToolAllowList(serverToolHost.toolNames) : undefined };
+		// Exclude server tools that require user confirmation from the
+		// auto-approve allow-list so the SDK surfaces them via `canUseTool`
+		// (the host then renders a custom confirmation) instead of running them
+		// silently.
+		const autoApproveToolNames = serverToolHost
+			? serverToolHost.toolNames.filter(name => !serverToolHost.requiresConfirmation(name))
+			: undefined;
+		return { mcpServers, allowedTools: autoApproveToolNames ? serverToolAllowList(autoApproveToolNames) : undefined };
 	}
 
 	/** True once {@link materialize} has installed the SDK pipeline. */

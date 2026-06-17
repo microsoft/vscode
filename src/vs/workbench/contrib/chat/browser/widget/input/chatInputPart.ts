@@ -2487,12 +2487,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		store.add(model.onDidChange(e => {
 			if (e.kind === 'addRequest' || e.kind === 'completedRequest') {
-				this.contextUsageWidget?.update(model.lastRequest);
+				this.contextUsageWidget?.update(model.lastRequest, model.sessionCost);
+			}
+		}));
+
+		// Re-render when language models arrive (needed on reload — model
+		// metadata providing context window size may not be registered yet).
+		store.add(this.languageModelsService.onDidChangeLanguageModels(() => {
+			const lastRequest = model.lastRequest;
+			if (lastRequest?.modelId) {
+				this.contextUsageWidget?.update(lastRequest, model.sessionCost);
 			}
 		}));
 
 		// Initial update
-		this.contextUsageWidget.update(model.lastRequest);
+		this.contextUsageWidget.update(model.lastRequest, model.sessionCost);
 	}
 
 	render(container: HTMLElement, initialValue: string, widget: IChatWidget) {

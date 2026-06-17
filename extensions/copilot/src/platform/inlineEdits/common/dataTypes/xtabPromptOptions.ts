@@ -745,7 +745,6 @@ export namespace SpeculativeRequestsEnablement {
  */
 export enum DuplicateAdditionsMode {
 	Off = 'off',
-	Log = 'log',
 	DropPatch = 'dropPatch',
 	DropAllRemaining = 'dropAllRemaining',
 	TrimDuplicate = 'trimDuplicate',
@@ -754,7 +753,6 @@ export enum DuplicateAdditionsMode {
 export namespace DuplicateAdditionsMode {
 	export const VALIDATOR = vEnum(
 		DuplicateAdditionsMode.Off,
-		DuplicateAdditionsMode.Log,
 		DuplicateAdditionsMode.DropPatch,
 		DuplicateAdditionsMode.DropAllRemaining,
 		DuplicateAdditionsMode.TrimDuplicate,

@@ -45,7 +45,7 @@ import { IChat, IGitHubInfo, ISession, ISessionAgentRef, ISessionChangeset, ISes
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
-import { computePullRequestIcon } from '../../../github/common/types.js';
+import { computePullRequestIcon, GitHubCIOverallStatus, GitHubPullRequestState } from '../../../github/common/types.js';
 import { CHANGESET_UPDATE_THROTTLE_MS } from './agentHostChangesetConstants.js';
 import { changesetFileToChange, mapProtocolStatus } from './agentHostDiffs.js';
 import { createChangesets } from './agentHostSessionChangesets.js';
@@ -277,15 +277,19 @@ export class AgentHostSessionAdapter implements ISession {
 			const uri = URI.parse(`https://github.com/${coords.owner}/${coords.repo}/pull/${prNumber}`);
 			let icon: ThemeIcon | undefined;
 			if (gitHubService) {
-				// Read the last-seen PR state from the shared cache rather than
-				// holding a live model reference here. This keeps the icon
-				// rendering even when the session is inactive/invisible (the cache
-				// retains the last value and is seeded from storage on reload),
-				// while polling is driven centrally for only a limited set of
-				// sessions (see GitHubPullRequestPollingContribution).
-				const cached = gitHubService.getCachedPullRequestState(coords.owner, coords.repo, prNumber).read(reader);
-				if (cached) {
-					icon = computePullRequestIcon(cached.iconState);
+				const ref = reader.store.add(gitHubService.createPullRequestModelReference(coords.owner, coords.repo, prNumber));
+				const livePR = ref.object.pullRequest.read(reader);
+				if (livePR) {
+					let hasFailingChecks = false;
+					let hasUnresolvedComments = false;
+					if (!livePR.isDraft && livePR.state === GitHubPullRequestState.Open) {
+						const ciRef = reader.store.add(gitHubService.createPullRequestCIModelReference(coords.owner, coords.repo, prNumber, livePR.headSha));
+						hasFailingChecks = ciRef.object.overallStatus.read(reader) === GitHubCIOverallStatus.Failure;
+
+						const reviewThreadsRef = reader.store.add(gitHubService.createPullRequestReviewThreadsModelReference(coords.owner, coords.repo, prNumber));
+						hasUnresolvedComments = reviewThreadsRef.object.reviewThreads.read(reader).some(thread => !thread.isResolved);
+					}
+					icon = computePullRequestIcon(livePR.isDraft ? 'draft' : livePR.state, { hasFailingChecks, hasUnresolvedComments });
 				}
 			}
 			return {
