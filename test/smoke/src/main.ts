@@ -134,7 +134,19 @@ function getTestTypeSuffix(): string {
 	}
 }
 
-const testDataPath = path.join(os.tmpdir(), `vscsmoke-${getTestTypeSuffix()}`);
+function getTmpDir(): string {
+	const tmpDir = os.tmpdir();
+	if (process.platform === 'win32') {
+		try {
+			return fs.realpathSync.native(tmpDir);
+		} catch {
+			// ignore and fall back to the short path
+		}
+	}
+	return tmpDir;
+}
+
+const testDataPath = path.join(getTmpDir(), `vscsmoke-${getTestTypeSuffix()}`);
 if (fs.existsSync(testDataPath)) {
 	fs.rmSync(testDataPath, { recursive: true, force: true, maxRetries: 10, retryDelay: 1000 });
 }
