@@ -30,7 +30,7 @@ suite('AgentFeedbackServerTools', () => {
 	const sessionResource = 'copilot:/test-session';
 	const fileUri = 'file:///workspace/app.ts';
 
-	function annotation(id: string, state: string, resolved = false, text = 'comment', kind = 'codeReview'): Annotation {
+	function annotation(id: string, state: string, resolved = false, text = 'comment', kind = 'codeReview', pendingAgentReveal = false): Annotation {
 		return {
 			id,
 			turnId: '',
@@ -38,7 +38,7 @@ suite('AgentFeedbackServerTools', () => {
 			range: { start: { line: 0, character: 0 }, end: { line: 0, character: 4 } },
 			resolved,
 			entries: [{ id: `${id}:0`, text }],
-			_meta: { [FEEDBACK_ANNOTATION_META_KEY]: { kind, state, sessionResource } },
+			_meta: { [FEEDBACK_ANNOTATION_META_KEY]: { kind, state, sessionResource, ...(pendingAgentReveal ? { pendingAgentReveal: true } : {}) } },
 		};
 	}
 
@@ -144,17 +144,28 @@ suite('AgentFeedbackServerTools', () => {
 		);
 	});
 
-	test('viewUnreviewedComments returns the accepted reviewable comments and no actions', () => {
+	test('viewUnreviewedComments returns the comments flagged for reveal and clears the flag', () => {
 		const state = stateWith(
 			annotation('pr1', 'created', false, 'still hidden', 'prReview'),
-			annotation('pr2', 'accepted', false, 'revealed pr', 'prReview'),
-			annotation('cr1', 'accepted', false, 'revealed code review', 'codeReview'),
-			// user-authored accepted comment is not reviewable -> excluded
-			annotation('u1', 'accepted', false, 'user comment', 'user'),
+			annotation('pr2', 'accepted', false, 'revealed pr', 'prReview', true),
+			annotation('cr1', 'accepted', false, 'revealed code review', 'codeReview', true),
+			// previously-accepted reviewable comment without the flag -> excluded
+			annotation('pr3', 'accepted', false, 'old accepted pr', 'prReview'),
+			// user-authored comment is not reviewable -> excluded even when flagged
+			annotation('u1', 'accepted', false, 'user comment', 'user', true),
 		);
 		const outcome = applyFeedbackTool(state, sessionResource, viewUnreviewedCommentsToolName, {});
-		assert.strictEqual(outcome.actions.length, 0);
-		assert.deepStrictEqual(JSON.parse(outcome.result).comments.map((c: { id: string }) => c.id), ['pr2', 'cr1']);
+		const clearedIds = outcome.actions.map(a => (a as Extract<typeof a, { type: ActionType.AnnotationsSet }>).annotation.id);
+		const clearedFlags = outcome.actions.map(a => (a as Extract<typeof a, { type: ActionType.AnnotationsSet }>).annotation._meta?.[FEEDBACK_ANNOTATION_META_KEY] as { pendingAgentReveal?: boolean });
+		assert.deepStrictEqual({
+			returnedIds: JSON.parse(outcome.result).comments.map((c: { id: string }) => c.id),
+			clearedIds,
+			flagsCleared: clearedFlags.every(meta => meta.pendingAgentReveal === undefined),
+		}, {
+			returnedIds: ['pr2', 'cr1'],
+			clearedIds: ['pr2', 'cr1'],
+			flagsCleared: true,
+		});
 	});
 
 	test('viewUnreviewedComments requires confirmation; the read/mutate tools do not', () => {

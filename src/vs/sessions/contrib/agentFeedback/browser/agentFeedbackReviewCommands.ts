@@ -65,7 +65,7 @@ export function registerAgentFeedbackReviewCommands(): void {
 		const feedbackService = accessor.get(IAgentFeedbackService);
 		const resource = URI.revive(sessionResource);
 		for (const id of commentIds) {
-			feedbackService.acceptFeedback(resource, id);
+			feedbackService.acceptFeedback(resource, id, { revealToAgent: true });
 		}
 	});
 }

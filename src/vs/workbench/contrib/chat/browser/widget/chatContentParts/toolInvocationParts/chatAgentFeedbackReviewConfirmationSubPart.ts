@@ -71,7 +71,7 @@ export class ChatAgentFeedbackReviewConfirmationSubPart extends AbstractToolConf
 		}
 
 		const listElement = dom.$('.chat-agent-feedback-review-list');
-		this._populate(listElement);
+		void this._populate(listElement);
 
 		const revealLabel = data.options[0] ?? localize('agentFeedback.reveal', "Reveal Selected");
 		const buttons: IChatConfirmationButton<() => void>[] = [
@@ -228,7 +228,11 @@ export class ChatAgentFeedbackReviewConfirmationSubPart extends AbstractToolConf
 	}
 
 	protected createContentElement(): HTMLElement | string {
-		throw new Error('Not used');
+		// This confirmation builds its own widget content (the comment list) in
+		// the constructor and never goes through the base `render()` flow, so
+		// this is unused. Return an empty string rather than throwing so the
+		// class stays safe if a future refactor routes through `render()`.
+		return '';
 	}
 
 	protected getTitle(): string {

@@ -297,24 +297,46 @@ function listableAnnotations(state: AnnotationsState): Annotation[] {
 	});
 }
 
-/** The effective lifecycle state of a feedback annotation. */
-function getEffectiveState(annotation: Annotation, meta: IFeedbackAnnotationMeta): string {
-	return annotation.resolved ? 'resolved' : (meta.state ?? 'accepted');
-}
-
 /**
  * Feedback annotations of a {@link REVIEWABLE_FEEDBACK_KINDS reviewable kind}
- * whose effective state matches {@link lifecycleState}. Used to count/return the
- * pull-request and code-review comments the user has not reviewed (`created`)
- * or has just revealed (`accepted`).
+ * the user has flagged for reveal to the agent (via the confirmation of the
+ * {@link viewUnreviewedCommentsToolName} tool). These are exactly the comments
+ * the user chose to reveal for the current invocation; everything else
+ * (including review comments that happen to be accepted from a previous reveal
+ * or a manual accept) is excluded.
  */
-function reviewableAnnotationsInState(state: AnnotationsState, lifecycleState: string): Annotation[] {
+function pendingRevealAnnotations(state: AnnotationsState): Annotation[] {
 	return state.annotations.filter(annotation => {
 		const meta = readMeta(annotation);
 		if (!meta || !annotation.entries?.length) {
 			return false;
 		}
-		return REVIEWABLE_FEEDBACK_KINDS.has(meta.kind) && getEffectiveState(annotation, meta) === lifecycleState;
+		return REVIEWABLE_FEEDBACK_KINDS.has(meta.kind) && meta.pendingAgentReveal === true;
+	});
+}
+
+/** Returns a copy of {@link annotation} with the {@link IFeedbackAnnotationMeta.pendingAgentReveal} flag cleared. */
+function clearPendingReveal(annotation: Annotation): Annotation {
+	const meta = readMeta(annotation);
+	if (!meta) {
+		return annotation;
+	}
+	const nextMeta: IFeedbackAnnotationMeta = { ...meta, pendingAgentReveal: undefined };
+	return { ...annotation, _meta: { ...annotation._meta, [FEEDBACK_ANNOTATION_META_KEY]: nextMeta } };
+}
+
+/**
+ * Reviewable (PR / code review) feedback annotations the user has not reviewed
+ * yet, i.e. still in the `created` state. Used to build the
+ * {@link listCommentsToolName} note.
+ */
+function createdReviewableAnnotations(state: AnnotationsState): Annotation[] {
+	return state.annotations.filter(annotation => {
+		const meta = readMeta(annotation);
+		if (!meta || !annotation.entries?.length) {
+			return false;
+		}
+		return REVIEWABLE_FEEDBACK_KINDS.has(meta.kind) && !annotation.resolved && (meta.state ?? 'accepted') === 'created';
 	});
 }
 
@@ -325,7 +347,7 @@ function reviewableAnnotationsInState(state: AnnotationsState, lifecycleState: s
  * there are no such comments.
  */
 function buildUnreviewedCommentsNote(state: AnnotationsState): string | undefined {
-	const created = reviewableAnnotationsInState(state, 'created');
+	const created = createdReviewableAnnotations(state);
 	if (!created.length) {
 		return undefined;
 	}
@@ -402,14 +424,20 @@ export function applyFeedbackTool(state: AnnotationsState, sessionResource: stri
 			return { actions: [], result: JSON.stringify(payload, undefined, 2) };
 		}
 		case viewUnreviewedCommentsToolName: {
-			// The confirmation gate runs before this body: by the time the tool
-			// executes, the user has accepted the comments they chose to reveal
-			// (moving them out of the `created` state on the shared annotations
-			// channel), so reading the current state returns exactly those
-			// now-accepted reviewable comments. Comments the user left unchecked
-			// remain `created` and are not returned.
-			const revealed = reviewableAnnotationsInState(state, 'accepted').map(serializeComment);
-			return { actions: [], result: JSON.stringify({ comments: revealed }, undefined, 2) };
+			// The confirmation gate runs before this body. When the user accepts
+			// the confirmation, the client flags exactly the comments they chose
+			// to reveal with `pendingAgentReveal` on the shared annotations
+			// channel. Return those comments and clear the flag so a later
+			// invocation does not re-return them; comments the user left
+			// unchecked (and review comments accepted by other means) are not
+			// flagged and so are excluded.
+			const pending = pendingRevealAnnotations(state);
+			const comments = pending.map(serializeComment);
+			const actions: AnnotationsAction[] = pending.map(annotation => ({
+				type: ActionType.AnnotationsSet,
+				annotation: clearPendingReveal(annotation),
+			}));
+			return { actions, result: JSON.stringify({ comments }, undefined, 2) };
 		}
 		case deleteCommentsToolName: {
 			const ids = getUniqueCommentIds((rawArgs as IDeleteCommentsArgs)?.commentIds, deleteCommentsToolName);
