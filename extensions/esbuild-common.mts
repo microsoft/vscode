@@ -91,7 +91,10 @@ async function watchWithParcel(options: esbuild.BuildOptions, srcDir: string, di
 	// (which would cause an infinite rebuild loop when `outdir` lives inside `srcDir`).
 	const ignore = ['**/node_modules/**', '**/dist/**', '**/out/**'];
 	if (options.outdir) {
-		ignore.push(options.outdir);
+		// `@parcel/watcher` matches `ignore` entries as globs with forward slashes, so normalize the
+		// path separators and append `/**` so that every file emitted inside `outdir` is ignored too.
+		const outdirGlob = options.outdir.replace(/\\/g, '/').replace(/\/$/, '');
+		ignore.push(outdirGlob, `${outdirGlob}/**`);
 	}
 	await watcher.subscribe(srcDir, (_err, _events) => {
 		rebuild();
