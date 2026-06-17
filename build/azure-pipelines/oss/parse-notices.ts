@@ -13,7 +13,7 @@
 
 import * as fs from 'fs';
 
-interface NoticeEntry {
+export interface NoticeEntry {
 	name: string;
 	version: string;
 	license: string;
@@ -69,7 +69,7 @@ function isPackageHeader(line: string): boolean {
 	return false;
 }
 
-function parseNoticeFile(filePath: string): NoticeEntry[] {
+export function parseNoticeFile(filePath: string): NoticeEntry[] {
 	const content = fs.readFileSync(filePath, 'utf8');
 	const lines = content.split('\n');
 	const entries: NoticeEntry[] = [];
@@ -271,15 +271,19 @@ function diffMode(pathA: string, pathB: string): void {
 
 // -- CLI ----------------------------------------------------------------------
 
-const args = process.argv.slice(2);
+// Only run the CLI when parse-notices is the entry point — not when another
+// module (e.g. scan-licenses) imports parseNoticeFile.
+if (/parse-notices(\.[jt]s)?$/.test(process.argv[1] || '')) {
+	const args = process.argv.slice(2);
 
-if (args[0] === '--file' && args[1]) {
-	listMode(args[1]);
-} else if (args[0] === '--diff' && args[1] && args[2]) {
-	diffMode(args[1], args[2]);
-} else {
-	console.log('Usage:');
-	console.log('  node parse-notices.js --file <path>           List all packages in a NOTICE file');
-	console.log('  node parse-notices.js --diff <pathA> <pathB>  Compare two NOTICE files');
-	process.exit(1);
+	if (args[0] === '--file' && args[1]) {
+		listMode(args[1]);
+	} else if (args[0] === '--diff' && args[1] && args[2]) {
+		diffMode(args[1], args[2]);
+	} else {
+		console.log('Usage:');
+		console.log('  node parse-notices.js --file <path>           List all packages in a NOTICE file');
+		console.log('  node parse-notices.js --diff <pathA> <pathB>  Compare two NOTICE files');
+		process.exit(1);
+	}
 }

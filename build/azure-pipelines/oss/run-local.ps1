@@ -76,7 +76,13 @@ Remove-Item $runLog -ErrorAction SilentlyContinue
 
 # --- 1. scanner ------------------------------------------------------------
 if (-not $SkipScan) {
-    Invoke-OssScript -Script 'scan-licenses.ts' -ScriptArgs @('--repo', $RepoRoot, '--output', $extNotices)
+    $scanArgs = @('--repo', $RepoRoot, '--output', $extNotices)
+    # Pass CG's notice so Section 3 only fetches license text for cgmanifest
+    # git components CG did NOT already cover (avoids redundant network calls).
+    if ($CgNotice -and (Test-Path $CgNotice)) {
+        $scanArgs += @('--cg', $CgNotice)
+    }
+    Invoke-OssScript -Script 'scan-licenses.ts' -ScriptArgs $scanArgs
 }
 else {
     Write-Host "Skipping scan (reusing $extNotices)" -ForegroundColor Yellow

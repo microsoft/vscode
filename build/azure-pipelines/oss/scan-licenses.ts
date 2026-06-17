@@ -18,6 +18,8 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { fetchUriText } from './apply-overrides.js';
+import { parseNoticeFile } from './parse-notices.js';
 
 interface LicenseEntry {
 	name: string;
@@ -58,6 +60,57 @@ function findLicenseFile(pkgDir: string): string | undefined {
 	} catch {
 		return undefined;
 	}
+}
+
+/**
+ * Build candidate raw.githubusercontent.com URLs for a LICENSE file in a git
+ * component, pinned to the exact commit hash (NOT a branch — pinning avoids the
+ * symlink/branch-drift trap where raw.githubusercontent serves a moved or
+ * symlinked file's target string instead of real text).
+ *
+ * Only GitHub is handled: every git component CG fails to harvest in this repo
+ * is GitHub-hosted. Other hosts return [] and fall through to a warning.
+ */
+function githubRawLicenseCandidates(repositoryUrl: string, commitHash: string): string[] {
+	const m = repositoryUrl.match(/github\.com[/:]([^/]+)\/([^/#?]+?)(?:\.git)?(?:[/#?].*)?$/i);
+	if (!m) {
+		return [];
+	}
+	const owner = m[1];
+	const repo = m[2];
+	const fileNames = [
+		'LICENSE', 'LICENSE.md', 'LICENSE.txt', 'license', 'license.md', 'license.txt',
+		'LICENSE-MIT', 'LICENSE.MIT', 'LICENSE-APACHE', 'COPYING', 'LICENCE', 'LICENCE.md',
+		'LICENSE.markdown'
+	];
+	return fileNames.map(f => `https://raw.githubusercontent.com/${owner}/${repo}/${commitHash}/${f}`);
+}
+
+/**
+ * Fetch the real LICENSE text for a git component from its repo at the pinned
+ * commit. Tries common LICENSE filenames; returns the first that looks like a
+ * real license body. Returns undefined if none resolve.
+ *
+ * Guards against the symlink-stub trap: a fetched body that is a short relative
+ * path (e.g. "../../LICENSE-MIT") is rejected — raw.githubusercontent serves a
+ * symlink's target string, not the file it points at.
+ */
+async function fetchLicenseFromGitRepo(repositoryUrl: string, commitHash: string): Promise<string | undefined> {
+	if (!repositoryUrl || !commitHash) {
+		return undefined;
+	}
+	for (const uri of githubRawLicenseCandidates(repositoryUrl, commitHash)) {
+		const text = await fetchUriText(uri);
+		if (!text) {
+			continue;
+		}
+		const trimmed = text.trim();
+		// Reject symlink-target stubs (short relative paths) and empty bodies.
+		if (trimmed.length > 40 && !/^\.{1,2}\//.test(trimmed)) {
+			return trimmed;
+		}
+	}
+	return undefined;
 }
 
 /**
@@ -148,14 +201,31 @@ function findCgManifestFiles(repoRoot: string): string[] {
 	return results;
 }
 
-function main(): void {
+async function main(): Promise<void> {
 	const args = parseArgs(process.argv.slice(2));
 	const repoRoot = args['repo'];
 	const outputPath = args['output'];
 
 	if (!repoRoot || !outputPath) {
-		console.error('Usage: scan-licenses.js --repo <path> --output <path>');
+		console.error('Usage: scan-licenses.js --repo <path> --output <path> [--cg <ThirdPartyNotices.generated.txt>]');
 		process.exit(1);
+	}
+
+	// Optional: CG's generated NOTICE. When provided, Section 3 only fetches
+	// license text for cgmanifest git components that CG did NOT already cover
+	// (i.e. ClearlyDefined "not harvested"), avoiding redundant network calls
+	// for the components CG resolved itself.
+	const cgCovered = new Set<string>();
+	const cgNoticePath = args['cg'];
+	if (cgNoticePath && fs.existsSync(cgNoticePath)) {
+		try {
+			for (const e of parseNoticeFile(cgNoticePath)) {
+				cgCovered.add(e.name.toLowerCase());
+			}
+			console.log(`Loaded CG coverage set: ${cgCovered.size} packages from ${cgNoticePath}`);
+		} catch (err) {
+			console.warn(`  WARN: could not parse --cg notice (${cgNoticePath}): ${err}`);
+		}
 	}
 
 	// Step 1: Find all built-in extensions
@@ -366,66 +436,115 @@ function main(): void {
 
 	let cgManifestFound = 0;
 	let cgManifestNoDetail = 0;
+	let cgManifestFetched = 0;
+	let cgManifestFetchFailed = 0;
+	let cgManifestSkippedCgCovered = 0;
 
 	const cgManifestFiles = findCgManifestFiles(repoRoot);
 	console.log(`  Found ${cgManifestFiles.length} cgmanifest.json files`);
 
 	for (const manifestPath of cgManifestFiles) {
+		let data: { registrations?: unknown[]; Registrations?: unknown[] };
 		try {
-			const data = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-			const registrations = data.registrations || data.Registrations || [];
+			data = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+		} catch {
+			console.warn(`  WARN: Could not parse ${manifestPath}`);
+			continue;
+		}
+		const registrations = (data.registrations || data.Registrations || []) as Array<{
+			component?: { git?: { name?: string; repositoryUrl?: string; commitHash?: string }; npm?: { name?: string }; other?: { name?: string; downloadUrl?: string } };
+			licenseDetail?: unknown;
+			license?: unknown;
+			version?: string;
+		}>;
 
-			for (const reg of registrations) {
-				const comp = reg.component;
-				if (!comp) {
-					continue;
+		for (const reg of registrations) {
+			const comp = reg.component;
+			if (!comp) {
+				continue;
+			}
+
+			const inner = comp.git || comp.npm || comp.other || {};
+			const name = (inner as { name?: string }).name || '';
+			if (!name) {
+				continue;
+			}
+
+			const key = name.toLowerCase();
+
+			// Skip if already found from extension or root scan
+			if (entries.has(key)) {
+				continue;
+			}
+
+			// Extract licenseDetail if available
+			if (reg.licenseDetail && (reg.licenseDetail as unknown[]).length > 0) {
+				const detail = reg.licenseDetail as string[] | string[][];
+				let licenseText: string;
+				if (Array.isArray(detail[0])) {
+					// Nested array format
+					licenseText = (detail[0] as string[]).join('\n');
+				} else {
+					licenseText = (detail as string[]).join('\n');
 				}
 
-				const inner = comp.git || comp.npm || comp.other || {};
-				const name = (inner as { name?: string }).name || '';
-				if (!name) {
-					continue;
-				}
+				const url = comp.git?.repositoryUrl || comp.other?.downloadUrl || '';
+				const version = reg.version || comp.git?.commitHash?.substring(0, 7) || '';
+				const license = typeof reg.license === 'string' ? reg.license : '';
+				const relPath = path.relative(repoRoot, manifestPath);
+				validateCopyright(name, licenseText, `cgmanifest: ${relPath}`);
 
-				const key = name.toLowerCase();
+				entries.set(key, {
+					name,
+					version,
+					license,
+					url,
+					licenseText,
+					fromExtension: `(cgmanifest: ${relPath})`,
+				});
+				cgManifestFound++;
+				continue;
+			}
 
-				// Skip if already found from extension or root scan
-				if (entries.has(key)) {
-					continue;
-				}
+			// No inline licenseDetail. If CG already covered this component
+			// (ClearlyDefined harvested it), there's nothing to do — skip.
+			if (cgCovered.has(key)) {
+				cgManifestSkippedCgCovered++;
+				continue;
+			}
 
-				// Extract licenseDetail if available
-				if (reg.licenseDetail && reg.licenseDetail.length > 0) {
-					let licenseText: string;
-					if (Array.isArray(reg.licenseDetail[0])) {
-						// Nested array format
-						licenseText = (reg.licenseDetail[0] as string[]).join('\n');
-					} else {
-						licenseText = (reg.licenseDetail as string[]).join('\n');
-					}
-
-					const url = comp.git?.repositoryUrl || comp.other?.downloadUrl || '';
-					const version = reg.version || comp.git?.commitHash?.substring(0, 7) || '';
+			// CG did NOT cover it and there's no inline text. If it's a git
+			// component with a repo + pinned commit, fetch the LICENSE from the
+			// repo directly (this is what the legacy OSS tool did). Reading the
+			// real LICENSE file is CELA-clean — we never manufacture text.
+			const relPath = path.relative(repoRoot, manifestPath);
+			const repoUrl = comp.git?.repositoryUrl || '';
+			const commitHash = comp.git?.commitHash || '';
+			if (repoUrl && commitHash) {
+				const fetched = await fetchLicenseFromGitRepo(repoUrl, commitHash);
+				if (fetched) {
 					const license = typeof reg.license === 'string' ? reg.license : '';
-					const relPath = path.relative(repoRoot, manifestPath);
-					validateCopyright(name, licenseText, `cgmanifest: ${relPath}`);
-
+					const version = reg.version || commitHash.substring(0, 7);
+					validateCopyright(name, fetched, `cgmanifest-fetch: ${relPath}`);
 					entries.set(key, {
 						name,
 						version,
 						license,
-						url,
-						licenseText,
-						fromExtension: `(cgmanifest: ${relPath})`,
+						url: repoUrl,
+						licenseText: fetched,
+						fromExtension: `(cgmanifest-fetch: ${relPath})`,
 					});
-					cgManifestFound++;
-				} else {
-					cgManifestNoDetail++;
-					console.warn(`  NO LICENSE DETAIL: ${name} (${path.relative(repoRoot, manifestPath)})`);
+					cgManifestFetched++;
+					console.log(`  FETCHED LICENSE: ${name} (${repoUrl}@${commitHash.substring(0, 7)})`);
+					continue;
 				}
+				cgManifestFetchFailed++;
+				console.warn(`  FETCH FAILED: ${name} (${repoUrl}@${commitHash.substring(0, 7)}) — no LICENSE resolved`);
+				continue;
 			}
-		} catch {
-			console.warn(`  WARN: Could not parse ${manifestPath}`);
+
+			cgManifestNoDetail++;
+			console.warn(`  NO LICENSE DETAIL: ${name} (${relPath})`);
 		}
 	}
 
@@ -492,7 +611,10 @@ function main(): void {
 	console.log(`  Section 3 — cgmanifest.json:`);
 	console.log(`    Files scanned:             ${cgManifestFiles.length}`);
 	console.log(`    Entries with licenseDetail: ${cgManifestFound}`);
-	console.log(`    Entries without:           ${cgManifestNoDetail}`);
+	console.log(`    Fetched from git repo:     ${cgManifestFetched}`);
+	console.log(`    Fetch failed (no LICENSE): ${cgManifestFetchFailed}`);
+	console.log(`    Skipped (CG already covers): ${cgManifestSkippedCgCovered}`);
+	console.log(`    No detail, not fetchable:  ${cgManifestNoDetail}`);
 	console.log(`  Total entries in output:     ${entries.size}`);
 	console.log(`  Output: ${outputPath}`);
 	console.log(`  Presence index (present but unlicensed): ${presence.length}`);
@@ -510,4 +632,7 @@ function parseArgs(argv: string[]): Record<string, string> {
 	return args;
 }
 
-main();
+main().catch(err => {
+	console.error(err);
+	process.exit(1);
+});
