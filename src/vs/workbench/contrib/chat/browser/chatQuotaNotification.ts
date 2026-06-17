@@ -36,24 +36,20 @@ const enum QuotaNotificationKind {
 	Trajectory,
 }
 
-type ChatQuotaTrajectoryNudgeAction = 'learnMore';
-
 type ChatQuotaTrajectoryNudgeEvent = {
 	severity: 'info';
 	entitlement: string;
 	averageDailyUsage: number;
 	percentUsed: number;
-	action?: ChatQuotaTrajectoryNudgeAction;
 };
 
 type ChatQuotaTrajectoryNudgeClassification = {
 	owner: 'rfeltis';
-	comment: 'Tracks when the chat quota trajectory nudge is shown and when users interact with its call to action.';
-	severity: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The severity of the quota trajectory nudge shown to the user.' };
-	entitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The user entitlement when the quota trajectory nudge was shown.' };
+	comment: 'Tracks when the chat quota trajectory nudge is shown, closed, and when users click its learn more link.';
+	severity: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The severity of the quota trajectory nudge.' };
+	entitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The user entitlement when the quota trajectory nudge event was logged.' };
 	averageDailyUsage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The average daily monthly quota usage percentage that caused the nudge.' };
-	percentUsed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The monthly quota percentage used when the nudge was shown.' };
-	action?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The quota trajectory nudge action the user selected.' };
+	percentUsed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The monthly quota percentage used when the quota trajectory nudge event was logged.' };
 };
 
 /**
@@ -117,6 +113,9 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 				return;
 			}
 			if (this._activeQuotaNotificationKind === QuotaNotificationKind.Trajectory) {
+				if (this._activeTrajectoryWarning) {
+					this._logQuotaTrajectoryNudgeClosed(this._activeTrajectoryWarning);
+				}
 				this._storeTrajectoryShown();
 			}
 			this._activeQuotaNotificationKind = QuotaNotificationKind.None;
@@ -355,13 +354,13 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	private async _handleCreditEfficiencyLearnMoreCommand(accessor: ServicesAccessor): Promise<void> {
 		if (this._activeQuotaNotificationKind === QuotaNotificationKind.Trajectory && this._activeTrajectoryWarning) {
-			this._handleQuotaTrajectoryNudgeAction(this._activeTrajectoryWarning, 'learnMore');
+			this._handleQuotaTrajectoryNudgeLinkClicked(this._activeTrajectoryWarning);
 		}
 		await accessor.get(IOpenerService).open(URI.parse(CREDIT_EFFICIENCY_LEARN_MORE_URL));
 	}
 
-	private _handleQuotaTrajectoryNudgeAction(warning: { averageDailyUsage: number; percentUsed: number }, action: ChatQuotaTrajectoryNudgeAction): void {
-		this._logQuotaTrajectoryNudgeActionClicked(warning, action);
+	private _handleQuotaTrajectoryNudgeLinkClicked(warning: { averageDailyUsage: number; percentUsed: number }): void {
+		this._logQuotaTrajectoryNudgeLinkClicked(warning);
 		this._storeTrajectoryShown();
 		queueMicrotask(() => this._hideNotification());
 	}
@@ -376,11 +375,12 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		this._telemetryService.publicLog2<ChatQuotaTrajectoryNudgeEvent, ChatQuotaTrajectoryNudgeClassification>('chatQuotaTrajectoryNudgeShown', this._getQuotaTrajectoryNudgeTelemetryData(warning));
 	}
 
-	private _logQuotaTrajectoryNudgeActionClicked(warning: { averageDailyUsage: number; percentUsed: number }, action: ChatQuotaTrajectoryNudgeAction): void {
-		this._telemetryService.publicLog2<ChatQuotaTrajectoryNudgeEvent, ChatQuotaTrajectoryNudgeClassification>('chatQuotaTrajectoryNudgeActionClicked', {
-			...this._getQuotaTrajectoryNudgeTelemetryData(warning),
-			action,
-		});
+	private _logQuotaTrajectoryNudgeClosed(warning: { averageDailyUsage: number; percentUsed: number }): void {
+		this._telemetryService.publicLog2<ChatQuotaTrajectoryNudgeEvent, ChatQuotaTrajectoryNudgeClassification>('chatQuotaTrajectoryNudgeClosed', this._getQuotaTrajectoryNudgeTelemetryData(warning));
+	}
+
+	private _logQuotaTrajectoryNudgeLinkClicked(warning: { averageDailyUsage: number; percentUsed: number }): void {
+		this._telemetryService.publicLog2<ChatQuotaTrajectoryNudgeEvent, ChatQuotaTrajectoryNudgeClassification>('chatQuotaTrajectoryNudgeLinkClicked', this._getQuotaTrajectoryNudgeTelemetryData(warning));
 	}
 
 	private _getQuotaTrajectoryNudgeTelemetryData(warning: { averageDailyUsage: number; percentUsed: number }): ChatQuotaTrajectoryNudgeEvent {

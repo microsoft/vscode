@@ -787,7 +787,43 @@ suite('ChatQuotaNotificationContribution', () => {
 			}]);
 		});
 
-		test('logs action click telemetry', async () => {
+		test('logs close telemetry', async () => {
+			const telemetryService = new TestTelemetryService();
+			const { notificationMock } = createContribution({
+				entitlement: ChatEntitlement.Pro,
+				quotas: {
+					resetDate: makeResetDate(24),
+					usageBasedBilling: true,
+					premiumChat: makeQuotaSnapshot(72),
+				},
+			}, { trajectoryTreatment: 'enabled', telemetryService });
+
+			await flushPromises();
+			notificationMock.dismiss();
+
+			assert.deepStrictEqual(telemetryService.events, [
+				{
+					name: 'chatQuotaTrajectoryNudgeShown',
+					data: {
+						severity: 'info',
+						entitlement: 'Pro',
+						averageDailyUsage: 4.67,
+						percentUsed: 28,
+					},
+				},
+				{
+					name: 'chatQuotaTrajectoryNudgeClosed',
+					data: {
+						severity: 'info',
+						entitlement: 'Pro',
+						averageDailyUsage: 4.67,
+						percentUsed: 28,
+					},
+				},
+			]);
+		});
+
+		test('logs link click telemetry', async () => {
 			const telemetryService = new TestTelemetryService();
 			createContribution({
 				entitlement: ChatEntitlement.Pro,
@@ -816,13 +852,12 @@ suite('ChatQuotaNotificationContribution', () => {
 						},
 					},
 					{
-						name: 'chatQuotaTrajectoryNudgeActionClicked',
+						name: 'chatQuotaTrajectoryNudgeLinkClicked',
 						data: {
 							severity: 'info',
 							entitlement: 'Pro',
 							averageDailyUsage: 4.67,
 							percentUsed: 28,
-							action: 'learnMore',
 						},
 					},
 				],
