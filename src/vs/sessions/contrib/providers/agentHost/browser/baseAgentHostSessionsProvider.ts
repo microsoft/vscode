@@ -277,15 +277,10 @@ export class AgentHostSessionAdapter implements ISession {
 			const uri = URI.parse(`https://github.com/${coords.owner}/${coords.repo}/pull/${prNumber}`);
 			let icon: ThemeIcon | undefined;
 			if (gitHubService) {
-				// Read the last-seen PR state from the shared cache rather than
-				// holding a live model reference here. This keeps the icon
-				// rendering even when the session is inactive/invisible (the cache
-				// retains the last value and is seeded from storage on reload),
-				// while polling is driven centrally for only a limited set of
-				// sessions (see GitHubPullRequestPollingContribution).
-				const cached = gitHubService.getCachedPullRequestState(coords.owner, coords.repo, prNumber).read(reader);
-				if (cached) {
-					icon = computePullRequestIcon(cached.iconState);
+				const ref = reader.store.add(gitHubService.createPullRequestModelReference(coords.owner, coords.repo, prNumber));
+				const livePR = ref.object.pullRequest.read(reader);
+				if (livePR) {
+					icon = computePullRequestIcon(livePR.isDraft ? 'draft' : livePR.state);
 				}
 			}
 			return {
