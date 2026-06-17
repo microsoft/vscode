@@ -523,10 +523,10 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 	/**
 	 * Pull `permissionMode` out of the post-validation `IAgentCreateSessionConfig.config`
-	 * bag, narrowing the runtime `unknown` value to the SDK's six-value
-	 * `PermissionMode` union (sdk.d.ts:1560). Falls back to `'default'`
-	 * when the bag is absent or carries something the schema validator
-	 * shouldn't have accepted (defense-in-depth).
+	 * bag, narrowing the runtime `unknown` value to the SDK's `PermissionMode`
+	 * union (5/6 values, excluding `dontAsk`; sdk.d.ts:1560). Falls back to
+	 * `'default'` when the bag is absent or carries something the schema
+	 * validator shouldn't have accepted (defense-in-depth).
 	 */
 	private _resolvePermissionMode(config: Record<string, unknown> | undefined): ClaudePermissionMode {
 		return narrowClaudePermissionMode(config?.[ClaudeSessionConfigKey.PermissionMode]) ?? 'default';
@@ -705,22 +705,20 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				type: 'string',
 				title: localize('claude.sessionConfig.permissionMode', "Approvals"),
 				description: localize('claude.sessionConfig.permissionModeDescription', "How Claude handles tool approvals."),
-				enum: ['default', 'acceptEdits', 'bypassPermissions', 'plan', 'dontAsk', 'auto'],
+				enum: ['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions'],
 				enumLabels: [
-					localize('claude.sessionConfig.permissionMode.default', "Ask Each Time"),
-					localize('claude.sessionConfig.permissionMode.acceptEdits', "Auto-Approve Edits"),
-					localize('claude.sessionConfig.permissionMode.bypassPermissions', "Bypass Approvals"),
-					localize('claude.sessionConfig.permissionMode.plan', "Plan Only (Read-Only)"),
-					localize('claude.sessionConfig.permissionMode.dontAsk', "Don't Ask"),
-					localize('claude.sessionConfig.permissionMode.auto', "Auto"),
+					localize('claude.sessionConfig.permissionMode.default', "Ask Before Edits"),
+					localize('claude.sessionConfig.permissionMode.acceptEdits', "Edit Automatically"),
+					localize('claude.sessionConfig.permissionMode.plan', "Plan Mode"),
+					localize('claude.sessionConfig.permissionMode.auto', "Auto Mode"),
+					localize('claude.sessionConfig.permissionMode.bypassPermissions', "Bypass Permissions"),
 				],
 				enumDescriptions: [
-					localize('claude.sessionConfig.permissionMode.defaultDescription', "Prompt for every tool call."),
-					localize('claude.sessionConfig.permissionMode.acceptEditsDescription', "Auto-approve file edits; prompt for shell and other tools."),
-					localize('claude.sessionConfig.permissionMode.bypassPermissionsDescription', "Auto-approve every tool call."),
-					localize('claude.sessionConfig.permissionMode.planDescription', "Read-only research mode; no tool calls executed."),
-					localize('claude.sessionConfig.permissionMode.dontAskDescription', "Auto-approve every tool call without prompting."),
-					localize('claude.sessionConfig.permissionMode.autoDescription', "Let the model classifier choose between approve and prompt per call."),
+					localize('claude.sessionConfig.permissionMode.defaultDescription', "Claude asks before editing files."),
+					localize('claude.sessionConfig.permissionMode.acceptEditsDescription', "Claude edits files without asking, and asks before using other tools."),
+					localize('claude.sessionConfig.permissionMode.planDescription', "Claude creates a plan before making changes."),
+					localize('claude.sessionConfig.permissionMode.autoDescription', "Claude decides whether to ask for each tool operation."),
+					localize('claude.sessionConfig.permissionMode.bypassPermissionsDescription', "Claude runs all tools without asking."),
 				],
 				default: 'default',
 				sessionMutable: true,

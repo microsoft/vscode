@@ -16,14 +16,18 @@ export interface IAgentModelPricingMeta {
 	readonly multiplierNumeric?: number;
 	/** Default-tier input cost in credits per 1M tokens. */
 	readonly inputCost?: number;
-	/** Default-tier cached-input cost in credits per 1M tokens. */
+	/** Default-tier cached-input (read) cost in credits per 1M tokens. */
 	readonly cacheCost?: number;
+	/** Default-tier cache-write cost in credits per 1M tokens. */
+	readonly cacheWriteCost?: number;
 	/** Default-tier output cost in credits per 1M tokens. */
 	readonly outputCost?: number;
 	/** Long-context-tier input cost in credits per 1M tokens. */
 	readonly longContextInputCost?: number;
-	/** Long-context-tier cached-input cost in credits per 1M tokens. */
+	/** Long-context-tier cached-input (read) cost in credits per 1M tokens. */
 	readonly longContextCacheCost?: number;
+	/** Long-context-tier cache-write cost in credits per 1M tokens. */
+	readonly longContextCacheWriteCost?: number;
 	/** Long-context-tier output cost in credits per 1M tokens. */
 	readonly longContextOutputCost?: number;
 	/** Coarse price bucket (e.g. `low`, `medium`, `high`) for an at-a-glance tag. */
@@ -34,9 +38,11 @@ const NUMBER_KEYS = [
 	'multiplierNumeric',
 	'inputCost',
 	'cacheCost',
+	'cacheWriteCost',
 	'outputCost',
 	'longContextInputCost',
 	'longContextCacheCost',
+	'longContextCacheWriteCost',
 	'longContextOutputCost',
 ] as const satisfies readonly (keyof IAgentModelPricingMeta)[];
 
