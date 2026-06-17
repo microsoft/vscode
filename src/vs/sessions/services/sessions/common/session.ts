@@ -19,6 +19,15 @@ export interface ISessionType {
 	readonly label: string;
 	/** Icon for this session type. */
 	readonly icon: ThemeIcon;
+	/**
+	 * The workbench chat session type (contribution id) this session type maps
+	 * to, when it differs from {@link id}. Agent-host providers use a bare agent
+	 * provider name as {@link id} (e.g. `claude`) but register their chat session
+	 * contribution and models under `agent-host-<provider>`, so they set this to
+	 * bridge the two (e.g. for entitlement/model availability lookups). Defaults
+	 * to {@link id} when omitted.
+	 */
+	readonly chatSessionType?: string;
 }
 
 export const GITHUB_REMOTE_FILE_SCHEME = 'github-remote-file';
@@ -167,10 +176,51 @@ export interface ISessionChangeset {
 	readonly isLoadingChanges: IObservable<boolean>;
 	/** Observable for the file changes in this changeset. */
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
+	/** Observable for the operations in this changeset. */
+	readonly operations: IObservable<readonly ISessionChangesetOperation[]>;
 	/** Reference to the original checkpoint for this changeset. */
 	readonly originalCheckpointRef: IObservable<string | undefined>;
 	/** Reference to the modified checkpoint for this changeset. */
 	readonly modifiedCheckpointRef: IObservable<string | undefined>;
+	/**
+	 * Invoke an operation declared in {@link operations}. `target` must be
+	 * provided for resource-scoped operations and omitted for changeset-
+	 * scoped ones — implementations are expected to validate this against
+	 * the corresponding {@link ISessionChangesetOperation.scopes}.
+	 */
+	invokeOperation(operationId: string, target?: ISessionChangesetOperationTarget): Promise<void>;
+}
+
+export type ISessionChangesetOperationTarget =
+	| { readonly kind: 'resource'; readonly resource: URI };
+
+export const enum SessionChangesetOperationScope {
+	Changeset = 'changeset',
+	Resource = 'resource',
+	Range = 'range',
+}
+
+export interface ISessionChangesetOperation {
+	/** Unique identifier for the operation. */
+	readonly id: string;
+	/** Display label for the operation. */
+	readonly label: string;
+	/** Optional description for the operation. */
+	readonly description?: string;
+	/** Optional icon for the operation. */
+	readonly icon?: ThemeIcon;
+	/** The scopes to which this operation applies. */
+	readonly scopes: SessionChangesetOperationScope[];
+	/**
+	 * Optional confirmation prompt to display before invoking the operation.
+	 * When present, callers MUST show this message to the user (typically in
+	 * a confirmation dialog) and only invoke the operation after the user
+	 * accepts. The presence of this field also signals that the operation
+	 * is destructive — callers SHOULD style the affirmative button
+	 * accordingly. The message may contain `{0}` which will be substituted
+	 * with the target resource's basename when applicable.
+	 */
+	readonly confirmation?: string | IMarkdownString;
 }
 
 /**

@@ -28,7 +28,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import type { SessionConfigPropertySchema, SessionConfigValueItem } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
-import { ChatContextKeyExprs } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { ChatContextKeyExprs, ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { type IChatInputPickerOptions } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { Menus } from '../../../../browser/menus.js';
@@ -986,7 +986,8 @@ registerAction2(class extends Action2 {
 				// in the same menu — sit just before it so the mode pill renders
 				// to the left of "Pick Model".
 				order: 2,
-				when: ChatContextKeyExprs.isAgentHostSession,
+				// Hide the agent mode picker while a delegation (continue in) target is pending.
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, ChatContextKeys.hasPendingDelegationTarget.negate()),
 			}],
 		});
 	}

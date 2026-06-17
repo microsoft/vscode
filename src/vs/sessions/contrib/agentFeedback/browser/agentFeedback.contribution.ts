@@ -22,11 +22,8 @@ import { AgentFeedbackEditorOverlay } from './agentFeedbackEditorOverlay.js';
 import { hasActiveSessionAgentFeedback, registerAgentFeedbackEditorActions, submitActiveSessionFeedbackActionId } from './agentFeedbackEditorActions.js';
 import { IChatAttachmentWidgetRegistry } from '../../../../workbench/contrib/chat/browser/attachments/chatAttachmentWidgetRegistry.js';
 import { IAgentFeedbackVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { registerAgentFeedbackTools } from './agentFeedbackTools.js';
-
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 /**
  * Sets the `hasActiveSessionAgentFeedback` context key to true when the
  * currently active session has pending agent feedback items.
@@ -38,7 +35,7 @@ class ActiveSessionFeedbackContextContribution extends Disposable implements IWo
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IAgentFeedbackService agentFeedbackService: IAgentFeedbackService,
-		@ISessionsManagementService sessionManagementService: ISessionsManagementService,
+		@ISessionsService sessionsService: ISessionsService,
 	) {
 		super();
 
@@ -53,7 +50,7 @@ class ActiveSessionFeedbackContextContribution extends Disposable implements IWo
 
 		this._register(autorun(reader => {
 			feedbackChanged.read(reader);
-			const activeSession = sessionManagementService.activeSession.read(reader);
+			const activeSession = sessionsService.activeSession.read(reader);
 			menuRegistration.clear();
 			if (!activeSession) {
 				contextKey.set(false);
@@ -82,20 +79,6 @@ class ActiveSessionFeedbackContextContribution extends Disposable implements IWo
 registerWorkbenchContribution2(ActiveSessionFeedbackContextContribution.ID, ActiveSessionFeedbackContextContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentFeedbackEditorOverlay.ID, AgentFeedbackEditorOverlay, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentFeedbackAttachmentContribution.ID, AgentFeedbackAttachmentContribution, WorkbenchPhase.AfterRestored);
-
-class AgentFeedbackToolsContribution extends Disposable implements IWorkbenchContribution {
-	static readonly ID = 'workbench.contrib.agentFeedbackTools';
-
-	constructor(
-		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
-		@IAgentFeedbackService agentFeedbackService: IAgentFeedbackService,
-		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
-	) {
-		super();
-		this._register(registerAgentFeedbackTools(toolsService, agentFeedbackService, sessionsManagementService));
-	}
-}
-registerWorkbenchContribution2(AgentFeedbackToolsContribution.ID, AgentFeedbackToolsContribution, WorkbenchPhase.AfterRestored);
 
 registerAgentFeedbackEditorActions();
 

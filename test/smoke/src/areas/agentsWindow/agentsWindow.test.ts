@@ -32,6 +32,13 @@ const LOCAL_REPLY = 'MOCKED_LOCAL_RESPONSE';
 const CLAUDE_SCENARIO_ID = 'smoke-hello-claude';
 const CLAUDE_REPLY = 'MOCKED_CLAUDE_RESPONSE';
 
+// Lightweight throwaway scenario used by {@link warmUpClaudeModel} to
+// pre-pay the Claude session cold-start cost (bundled SDK import, language
+// model server startup, SDK subprocess spawn, plugin loading) before the
+// real assertion runs.
+const CLAUDE_WARMUP_SCENARIO_ID = 'smoke-hello-claude-warmup';
+const CLAUDE_WARMUP_REPLY = 'MOCKED_CLAUDE_WARMUP_RESPONSE';
+
 const AGENT_HOST_SCENARIO_ID = 'smoke-hello-agent-host';
 const AGENT_HOST_REPLY = 'MOCKED_AGENT_HOST_RESPONSE';
 
@@ -49,7 +56,7 @@ const AGENT_HOST_WARMUP_REPLY = 'MOCKED_AGENT_HOST_WARMUP_RESPONSE';
 
 export function setup(logger: Logger) {
 
-	describe.skip('Agents Window' /* #321072: flaky .agent-sessions-workbench timeout */, () => {
+	describe('Agents Window', () => {
 
 		let mockServer: MockLlmServer;
 
@@ -68,6 +75,7 @@ export function setup(logger: Logger) {
 			registerScenario(COPILOT_SANDBOX_SCENARIO_ID, shellEchoScenario(COPILOT_SANDBOX_REPLY));
 			registerScenario(LOCAL_SCENARIO_ID, new ScenarioBuilder().emit(LOCAL_REPLY).build());
 			registerScenario(CLAUDE_SCENARIO_ID, new ScenarioBuilder().emit(CLAUDE_REPLY).build());
+			registerScenario(CLAUDE_WARMUP_SCENARIO_ID, new ScenarioBuilder().emit(CLAUDE_WARMUP_REPLY).build());
 
 			mockServer = await startServer(0, { logger: (msg: string) => logger.log(`[mock-llm] ${msg}`), verbose: true });
 			logger.log(`[Agents Window] mock LLM server started at ${mockServer.url} (platform=${process.platform}, arch=${process.arch}, node=${process.version})`);
@@ -168,11 +176,6 @@ export function setup(logger: Logger) {
 		});
 
 		it('Test Copilot CLI session (sandbox)', async function () {
-			// Sandbox-backed shell tool currently only runs cleanly on macOS
-			// in CI. On Linux the bubblewrap policy fails to start bash inside
-			// the sandbox; on Windows AppContainer cold-start usually exceeds
-			// the 120s budget. Re-enable here once both backends are fixed.
-			//
 			// To debug a CI run, download the per-platform logs artifact from
 			// the Azure DevOps build:
 			//
@@ -199,7 +202,7 @@ export function setup(logger: Logger) {
 			//   *-Test_Copilot_CLI_session*.png` — last-frame screenshot of
 			//   the Agents Window when a test fails; the JSON dump in the
 			//   chat usually surfaces the raw `tool_result` payload.
-			if (process.platform !== 'darwin') {
+			if (process.platform === 'win32') {
 				this.skip();
 			}
 
@@ -244,8 +247,14 @@ export function setup(logger: Logger) {
 				await app.workbench.agentsWindow.startNewSession();
 				logger.log(`[Agents Window/Claude] waiting for new session view`);
 				await app.workbench.agentsWindow.waitForNewSessionView();
-				logger.log(`[Agents Window/Claude] selecting session type 'Claude'`);
-				await app.workbench.agentsWindow.selectSessionType('Claude');
+
+				// Pre-pay the Claude session cold-start cost (#321072): the first
+				// Claude session in the Agents Window's extension host has to
+				// bundle-load the SDK, start the localhost language model server,
+				// spawn the SDK subprocess and load plugins — collectively often
+				// >60s on macOS arm64 CI. A throwaway prompt absorbs that cost so
+				// the real assertion below runs against a warm pipeline.
+				await warmUpClaudeModel(app, logger, 'Agents Window/Claude');
 
 				const requestsBefore = mockServer.requestCount();
 				logger.log(`[Agents Window/Claude] submitting prompt; requestCount=${requestsBefore}`);
@@ -302,7 +311,7 @@ export function setup(logger: Logger) {
 		});
 	});
 
-	describe.skip('Agents Window (local AgentHost)' /* #321072: flaky .agent-sessions-workbench timeout */, () => {
+	describe('Agents Window (local AgentHost)', () => {
 
 		const agentHost = setupAgentHostSuite(logger, {
 			serverLabel: 'AgentHost',
@@ -340,15 +349,17 @@ export function setup(logger: Logger) {
 
 				// Confirm the request flowed through the AgentHost process (not
 				// the renderer-side Copilot Chat extension fallback) by checking
-				// for a `session/turnStarted` frame in the AHP JSONL transcript.
-				// The transcript is written through an async queue (see
-				// AhpJsonlLogger), so the frame may not be on disk yet even
-				// after the assistant reply has rendered — poll briefly.
+				// for a `chat/turnStarted` frame in the AHP JSONL transcript.
+				// In the multi-chat protocol turns are dispatched as chat
+				// actions on the session's default chat channel. The transcript
+				// is written through an async queue (see AhpJsonlLogger), so the
+				// frame may not be on disk yet even after the assistant reply has
+				// rendered — poll briefly.
 				const ahpLogDir = path.join(agentHost.logsPath, 'ahp');
-				const ahpFrames = await waitForLogContent(() => readAhpFrames(ahpLogDir), '"type":"session/turnStarted"');
+				const ahpFrames = await waitForLogContent(() => readAhpFrames(ahpLogDir), '"type":"chat/turnStarted"');
 				assert.ok(
-					ahpFrames.includes('"type":"session/turnStarted"'),
-					`expected the AgentHost process to have received a session/turnStarted dispatchAction (checked ${ahpJsonlFiles(ahpLogDir).length} jsonl files under ${ahpLogDir}); if missing, the renderer-side extension likely served the reply instead`
+					ahpFrames.includes('"type":"chat/turnStarted"'),
+					`expected the AgentHost process to have received a chat/turnStarted dispatchAction (checked ${ahpJsonlFiles(ahpLogDir).length} jsonl files under ${ahpLogDir}); if missing, the renderer-side extension likely served the reply instead`
 				);
 			} catch (error) {
 				logger.log(`Agents Window (AgentHost) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
@@ -363,7 +374,7 @@ export function setup(logger: Logger) {
 			// The AgentHost-side sandbox log we assert on is
 			// `<logsPath>/agenthost.log` (the utility-process log), produced by
 			// CopilotAgentSession when it auto-approves a sandboxed shell call.
-			if (process.platform !== 'darwin') {
+			if (process.platform === 'win32') {
 				this.skip();
 			}
 
@@ -427,7 +438,7 @@ export function setup(logger: Logger) {
 		});
 	});
 
-	describe.skip('Agents Window (local AgentHost, SDK sandbox)' /* #321072: flaky .agent-sessions-workbench timeout */, () => {
+	describe('Agents Window (local AgentHost, SDK sandbox)', () => {
 
 		// Variant of the AgentHost suite that leaves
 		// `chat.agentHost.customTerminalTool.enabled` at its default (false), so
@@ -461,7 +472,7 @@ export function setup(logger: Logger) {
 			// The AgentHost-side sandbox log we assert on is
 			// `<logsPath>/agenthost.log` (the utility-process log), produced by
 			// CopilotAgentSession when it auto-approves a sandboxed shell call.
-			if (process.platform !== 'darwin') {
+			if (process.platform === 'win32') {
 				this.skip();
 			}
 
@@ -598,6 +609,40 @@ async function warmUpAgentHostModel(app: Application, logger: Logger, label: str
 	await app.workbench.agentsWindow.startNewSession();
 	await app.workbench.agentsWindow.waitForNewSessionView();
 	await app.workbench.agentsWindow.selectSessionType('Local Agent Host');
+}
+
+/**
+ * Pre-pays the Claude session cold-start cost (#321072): the first Claude
+ * session in a fresh Agents Window extension host has to first-import the
+ * bundled `@anthropic-ai/claude-agent-sdk`, start a localhost
+ * `ClaudeLanguageModelServer`, spawn the SDK subprocess and load plugins
+ * (8 from skill locations) before the first /messages request can complete.
+ * On a busy macOS arm64 CI runner this can collectively exceed the default
+ * 60s {@link AgentsWindow.waitForAssistantText} timeout, surfacing as a
+ * `:not(.chat-response-loading)` selector timeout.
+ *
+ * Assumes the Agents Window is showing a new-session view. Sends a throwaway
+ * prompt to a 'Claude' session, ignores its outcome (the warm-up itself may
+ * hit the cold start), then leaves a fresh new-session view with 'Claude'
+ * selected so the caller can submit the real prompt against a warm pipeline.
+ */
+async function warmUpClaudeModel(app: Application, logger: Logger, label: string): Promise<void> {
+	await app.workbench.agentsWindow.waitForNewSessionView();
+	await app.workbench.agentsWindow.selectSessionType('Claude');
+	await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${CLAUDE_WARMUP_SCENARIO_ID}]`);
+	try {
+		// 60s mirrors the default response wait — long enough to absorb the
+		// cold-start observed at ~60s in #321072, but not so long that a hung
+		// pipeline blocks the test from making forward progress.
+		await app.workbench.agentsWindow.waitForAssistantText(CLAUDE_WARMUP_REPLY, 60_000);
+	} catch (error) {
+		// Ignore — the warm-up itself may hit the cold-start race; the
+		// caller's real attempt runs against an already-warmed pipeline.
+		logger.log(`${label} warm-up attempt did not produce the expected reply (likely the cold-start race); proceeding with the real attempt. Reason: ${error instanceof Error ? error.message : String(error)}`);
+	}
+	await app.workbench.agentsWindow.startNewSession();
+	await app.workbench.agentsWindow.waitForNewSessionView();
+	await app.workbench.agentsWindow.selectSessionType('Claude');
 }
 
 /**

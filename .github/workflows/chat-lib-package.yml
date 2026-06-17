@@ -28,7 +28,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 22.x
+          node-version-file: extensions/copilot/.nvmrc
           cache: npm
           cache-dependency-path: |
             extensions/copilot/package-lock.json

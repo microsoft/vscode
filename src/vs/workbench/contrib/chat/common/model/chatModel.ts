@@ -6,6 +6,7 @@
 import { asArray } from '../../../../../base/common/arrays.js';
 import { softAssertNever } from '../../../../../base/common/assert.js';
 import { VSBuffer, decodeHex, encodeHex } from '../../../../../base/common/buffer.js';
+import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, isMarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -64,6 +65,7 @@ export interface IChatPendingRequest {
 export interface ISerializableSendOptions {
 	modeInfo?: IChatRequestModeInfo;
 	userSelectedModelId?: string;
+	userSelectedModelConfiguration?: IStringDictionary<unknown>;
 	/** Static snapshot of user-selected tools (not an observable) */
 	userSelectedTools?: UserSelectedTools;
 	location?: ChatAgentLocation;
@@ -346,6 +348,7 @@ export interface IChatRequestModeInstructions {
 	readonly name: string;
 	readonly content: string;
 	readonly toolReferences: readonly ChatRequestToolReferenceEntry[];
+	readonly allowedSubagents?: readonly string[];
 	readonly metadata?: Record<string, boolean | string | number>;
 	readonly isBuiltin?: boolean;
 }
@@ -3029,6 +3032,7 @@ export function serializeSendOptions(options: IChatSendRequestOptions): ISeriali
 	return {
 		modeInfo: options.modeInfo,
 		userSelectedModelId: options.userSelectedModelId,
+		userSelectedModelConfiguration: options.userSelectedModelConfiguration,
 		userSelectedTools: options.userSelectedTools?.get(),
 		location: options.location,
 		locationData: options.locationData,

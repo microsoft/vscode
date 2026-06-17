@@ -11,7 +11,7 @@ import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { ICopilotManagedSettingsService } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { ICopilotManagedSettingsService, collectManagedSettingsDefinitions, projectManagedSettings } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import { AbstractPolicyService, getRestrictedPolicyValue, IPolicyService, PolicyDefinition, PolicyValue } from '../../../../platform/policy/common/policy.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 
@@ -185,12 +185,24 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 			return undefined;
 		}
 
-		return {
-			...accountPolicyData,
-			managedSettings: {
+		// Managed settings arrive from two delivery channels: the server `managed_settings`
+		// endpoint (carried on `accountPolicyData`) and native MDM (the Copilot managed-settings
+		// service). Merge them — MDM overrides server — then project the result onto the schema
+		// declared by policy definitions so both channels honor the same declaration-driven keys
+		// and value types.
+		const declaredManagedSettings = collectManagedSettingsDefinitions(this.policyDefinitions);
+		const managedSettingsData = projectManagedSettings(
+			{
 				...accountPolicyData?.managedSettings,
 				...managedPolicyData,
-			}
+			},
+			declaredManagedSettings,
+			msg => this.logService.warn(`[AccountPolicy] ${msg}`)
+		);
+
+		return {
+			...accountPolicyData,
+			managedSettings: managedSettingsData,
 		};
 	}
 
@@ -237,11 +249,11 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 
 function hasManagedSettingsPolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): boolean {
 	for (const policyName in policyDefinitions) {
-		if (policyDefinitions[policyName].managedSettings) {
+		const policyManagedSettings = policyDefinitions[policyName].managedSettings;
+		if (policyManagedSettings && Object.keys(policyManagedSettings).length > 0) {
 			return true;
 		}
 	}
-
 	return false;
 }
 
