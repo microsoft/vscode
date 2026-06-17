@@ -423,13 +423,12 @@ function mapResult(
 		// reported model. Phase 6 turns are single-model; multi-model
 		// attribution is a Phase 7+ concern.
 		const modelKey = Object.keys(message.modelUsage)[0];
-		// `total_cost_usd` is the SDK's per-turn cost. Surface it under the
-		// well-known `_meta.cost` key the workbench reads to render per-turn
-		// cost (mirrors the Copilot agent at `copilotAgentSession.ts`).
-		// Guarded with `Number.isFinite` + non-negative so a `NaN` /
-		// `Infinity` / negative value never produces a bogus `_meta` (matches
-		// the renderer-side `cost >= 0` check in `getCopilotCredits`).
-		const cost = message.total_cost_usd;
+		// Per-turn credits are deliberately NOT derived from
+		// `total_cost_usd`: that is the SDK's Anthropic-list-price USD
+		// estimate, not what CAPI actually bills. Real Copilot credits come
+		// from CAPI's `copilot_usage.total_nano_aiu`, which the proxy
+		// captures and `ClaudeAgentSession` attaches to this action as
+		// `_meta.copilotUsage.totalNanoAiu` (the key the workbench reads).
 		signals.push({
 			kind: 'action',
 			session,
@@ -441,7 +440,6 @@ function mapResult(
 					outputTokens: message.usage.output_tokens,
 					cacheReadTokens: message.usage.cache_read_input_tokens,
 					...(modelKey ? { model: modelKey } : {}),
-					...(Number.isFinite(cost) && cost >= 0 ? { _meta: { cost } } : {}),
 				},
 			},
 		});

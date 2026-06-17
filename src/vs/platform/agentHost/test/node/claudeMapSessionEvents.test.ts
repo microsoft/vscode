@@ -592,14 +592,16 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 						outputTokens: 34,
 						cacheReadTokens: 5,
 						model: 'claude-test',
-						_meta: { cost: 0 },
 					},
 				},
 			},
 		]);
 	});
 
-	test('result success forwards total_cost_usd as usage._meta.cost', () => {
+	test('result success does not derive credits from total_cost_usd', () => {
+		// Per-turn credits come from CAPI `copilot_usage` via the proxy, not
+		// from the SDK's Anthropic-list-price `total_cost_usd`. The mapper
+		// must never attach a `_meta.cost` (it would mislabel USD as credits).
 		const result = makeResultSuccess(SESSION_ID);
 		result.total_cost_usd = 0.1234;
 
@@ -608,21 +610,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		assert.strictEqual(signals.length, 1);
 		const usage = signals[0];
 		assert.ok(usage.kind === 'action' && usage.action.type === ActionType.ChatUsage);
-		assert.deepStrictEqual(usage.action.usage._meta, { cost: 0.1234 });
-	});
-
-	test('result success omits _meta when total_cost_usd is negative or non-finite', () => {
-		for (const bogus of [-1, NaN, Infinity, -Infinity]) {
-			const result = makeResultSuccess(SESSION_ID);
-			result.total_cost_usd = bogus;
-
-			const signals = mapSDKMessageToAgentSignals(result, SESSION, TURN_ID, new ClaudeMapperState(), new NullLogService(), r());
-
-			assert.strictEqual(signals.length, 1);
-			const usage = signals[0];
-			assert.ok(usage.kind === 'action' && usage.action.type === ActionType.ChatUsage);
-			assert.strictEqual(usage.action.usage._meta, undefined, `expected _meta omitted for total_cost_usd=${bogus}`);
-		}
+		assert.strictEqual(usage.action.usage._meta, undefined);
 	});
 
 	test('result success without modelUsage omits the model field on ChatUsage', () => {
