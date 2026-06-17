@@ -116,8 +116,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 	onToolCallEditsApplied(_session: string, _turnId: string): void { }
 	onTurnComplete(_session: string, _turnId: string | undefined): void { }
 	onSessionTruncated(_session: string): void { }
-	setTurnSubscriberProbe(_probe: (session: string, turnId: string) => boolean): void { }
-	setUncommittedSubscriberProbe(_probe: (session: string) => boolean): void { }
+	setSubscriberProbe(_probe: (session: string, changeset: string) => boolean): void { }
 }
 
 function createAgentService(token: string | undefined): IAgentService {

@@ -30,14 +30,14 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		const key = this._key(event.sessionKey, event.branchName);
 		this._optimisticCreatedPullRequests.set(key, disposableTimeout(() => {
 			this._optimisticCreatedPullRequests.deleteAndDispose(key);
-			this._registry?.onDidChangeOperations(event.sessionKey);
+			this._registry?.onDidChangeOperations(event.sessionKey, event.changeset);
 		}, OPTIMISTIC_PR_CREATED_CACHE_TTL));
 
-		this._registry?.onDidChangeOperations(event.sessionKey);
-		this._registry?.refreshSessionGitState(event.sessionKey).finally(() => {
+		this._registry?.onDidChangeOperations(event.sessionKey, event.changeset);
+		this._registry?.refreshSessionGitState(event.sessionKey, event.changeset).finally(() => {
 			if (this._optimisticCreatedPullRequests.has(key)) {
 				this._optimisticCreatedPullRequests.deleteAndDispose(key);
-				this._registry?.onDidChangeOperations(event.sessionKey);
+				this._registry?.onDidChangeOperations(event.sessionKey, event.changeset);
 			}
 		});
 	};

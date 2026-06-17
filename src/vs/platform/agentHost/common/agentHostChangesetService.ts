@@ -218,24 +218,7 @@ export interface IAgentHostChangesetService {
 	onSessionTruncated(session: ProtocolURI): void;
 
 	/**
-	 * Installs a predicate the service consults before scheduling a
-	 * per-turn changeset recompute. Owned by {@link ChangesetSessionCoordinator},
-	 * which tracks per-turn subscribers via `onFirstSubscriber` /
-	 * `onLastSubscriber`. Called exactly once at coordinator construction.
+	 * Installs a predicate the service consults before scheduling any changeset recompute.
 	 */
-	setTurnSubscriberProbe(probe: (session: ProtocolURI, turnId: string) => boolean): void;
-
-	/**
-	 * Installs a predicate the service consults before scheduling an
-	 * uncommitted-changeset recompute on turn complete. Owned by
-	 * {@link ChangesetSessionCoordinator}, which tracks per-session
-	 * uncommitted subscribers via `onFirstSubscriber` / `onLastSubscriber`.
-	 * Called exactly once at coordinator construction.
-	 *
-	 * Uncommitted computes hit git on every recompute and produce no
-	 * catalogue-chip aggregate, so the cost of recomputing for an
-	 * unobserved session has no upside; the next subscriber will get a
-	 * fresh snapshot from the coordinator's `_triggerUncommittedRefresh`.
-	 */
-	setUncommittedSubscriberProbe(probe: (session: ProtocolURI) => boolean): void;
+	setSubscriberProbe(probe: (session: ProtocolURI, changeset: ProtocolURI) => boolean): void;
 }
