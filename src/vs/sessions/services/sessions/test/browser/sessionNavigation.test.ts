@@ -211,6 +211,7 @@ class MockSessionStore implements ISessionsManagementService {
 	deleteSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	deleteChat(_session: ISession, _chatUri: URI): Promise<void> { throw new Error('not implemented'); }
 	renameChat(_session: ISession, _chatUri: URI, _title: string): Promise<void> { throw new Error('not implemented'); }
+	renameSession(_session: ISession, _title: string): Promise<void> { throw new Error('not implemented'); }
 }
 
 suite('SessionsNavigation', () => {

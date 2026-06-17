@@ -18,9 +18,8 @@ import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/k
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../../browser/workbench.js';
 import { EditorsVisibleContext, EditorAreaFocusContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
-import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
 import { SessionsCategories } from '../../../../common/categories.js';
-import { ChatSessionProviderIdContext, IsActiveSessionArchivedContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
+import { ChatSessionSupportsRenameContext, IsActiveSessionArchivedContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
 import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection } from './sessionsList.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IsWorkspaceGroupCappedContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext, openSessionToTheSide } from './sessionsView.js';
@@ -718,7 +717,7 @@ registerAction2(class RenameSessionAction extends Action2 {
 				id: SessionItemContextMenuId,
 				group: '1_edit',
 				order: 1,
-				when: ContextKeyExpr.regex(ChatSessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
+				when: ChatSessionSupportsRenameContext,
 			}]
 		});
 	}
@@ -742,7 +741,7 @@ registerAction2(class RenameSessionAction extends Action2 {
 		if (newTitle) {
 			const trimmedTitle = newTitle.trim();
 			if (trimmedTitle) {
-				await sessionsManagementService.renameChat(session, session.mainChat.get().resource, trimmedTitle);
+				await sessionsManagementService.renameSession(session, trimmedTitle);
 			}
 		}
 	}

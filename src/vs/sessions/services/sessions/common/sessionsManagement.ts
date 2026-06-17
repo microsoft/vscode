@@ -283,6 +283,9 @@ export interface ISessionsManagementService {
 
 	/** Rename a chat within a session. */
 	renameChat(session: ISession, chatUri: URI, title: string): Promise<void>;
+
+	/** Rename a session, independently of its chats. */
+	renameSession(session: ISession, title: string): Promise<void>;
 }
 
 export const ISessionsManagementService = createDecorator<ISessionsManagementService>('sessionsManagementService');

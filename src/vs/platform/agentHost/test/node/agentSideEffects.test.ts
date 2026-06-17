@@ -23,7 +23,7 @@ import { ISessionDataService } from '../../common/sessionDataService.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
 import { ChangesSummary, CustomizationType } from '../../common/state/protocol/state.js';
 import { ActionType, ActionEnvelope, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
-import { buildSubagentSessionUri, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, customizationId, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
+import { buildSubagentSessionUri, buildChatUri, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, customizationId, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
@@ -916,6 +916,43 @@ suite('AgentSideEffects', () => {
 			const state = stateManager.getSessionState(sessionUri.toString());
 			assert.strictEqual(state?.queuedMessages, undefined);
 			assert.strictEqual(state?.summary.title, 'Queued Title');
+		});
+
+		test('drains a peer chat queued message to the owning session with the chat arg', () => {
+			setupSession();
+			const chatUri = URI.parse(buildChatUri(sessionUri, 'peer-q'));
+			stateManager.addChat(sessionUri.toString(), chatUri.toString());
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			// Start a turn on the peer chat, then queue a message behind it.
+			stateManager.dispatchClientAction(chatUri.toString(),
+				{ type: ActionType.ChatTurnStarted, turnId: 'pturn-1', message: { text: 'hi', origin: { kind: MessageKind.User } } },
+				{ clientId: 'test', clientSeq: 1 });
+			const setAction = {
+				type: ActionType.ChatPendingMessageSet as const,
+				kind: PendingMessageKind.Queued,
+				id: 'pq-1',
+				message: { text: 'peer queued', origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(chatUri.toString(), setAction, { clientId: 'test', clientSeq: 2 });
+			sideEffects.handleAction(chatUri.toString(), setAction);
+
+			assert.strictEqual(agent.sendMessageCalls.length, 0);
+
+			// Idle on the peer chat → the queued message drains to the parent
+			// session URI with the chat channel passed as the `chat` argument
+			// so the harness routes it to the right peer SDK conversation.
+			agent.fireProgress({
+				kind: 'action', session: chatUri,
+				action: { type: ActionType.ChatTurnComplete, turnId: 'pturn-1' },
+			});
+
+			assert.deepStrictEqual(agent.sendMessageCalls, [{
+				session: URI.parse(sessionUri.toString()),
+				prompt: 'peer queued',
+				attachments: undefined,
+				chat: URI.parse(chatUri.toString()),
+			}]);
 		});
 
 		test('does not consume queued message while a turn is active', () => {

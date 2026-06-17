@@ -26,7 +26,7 @@ import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/to
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
-import { ChatSessionProviderIdContext, ChatSessionTypeContext, IsPhoneLayoutContext, SessionIsArchivedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
+import { ChatSessionProviderIdContext, ChatSessionSupportsRenameContext, ChatSessionTypeContext, IsPhoneLayoutContext, SessionIsArchivedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -1475,6 +1475,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[SessionItemHasBranchNameContext.key, !!element.workspace.get()?.folders[0]?.gitRepository?.branchName?.trim()],
 			[ChatSessionTypeContext.key, element.sessionType],
 			[ChatSessionProviderIdContext.key, element.providerId],
+			[ChatSessionSupportsRenameContext.key, element.capabilities.supportsRename ?? false],
 		];
 
 		const menu = this.menuService.createMenu(SessionItemContextMenuId, this.contextKeyService.createOverlay(contextOverlay));

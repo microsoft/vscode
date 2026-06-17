@@ -356,6 +356,14 @@ export interface ISessionCapabilities {
 	/** Whether this session supports multiple chats. */
 	readonly supportsMultipleChats: boolean;
 	/**
+	 * Whether this session's title can be renamed. The agents-window UI
+	 * (session header inline edit, sessions-list `Rename...` action) gates
+	 * editing on this flag rather than on the provider id, so that rename is
+	 * offered exactly where the backing provider actually supports it.
+	 * Defaults to falsy (not renameable) when omitted.
+	 */
+	readonly supportsRename?: boolean;
+	/**
 	 * Whether the session's underlying runtime (e.g. a cloud agent host)
 	 * already runs `runOptions.runOn === 'worktreeCreated'` tasks during
 	 * environment provisioning. When `true`, the agents-window

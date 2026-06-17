@@ -508,6 +508,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		await this._getProvider(session)?.renameChat(session.sessionId, chatUri, title);
 		this._onDidRenameChat.fire(session);
 	}
+
+	async renameSession(session: ISession, title: string): Promise<void> {
+		await this._getProvider(session)?.renameSession(session.sessionId, title);
+		this._onDidRenameChat.fire(session);
+	}
 }
 
 registerSingleton(ISessionsManagementService, SessionsManagementService, InstantiationType.Eager);

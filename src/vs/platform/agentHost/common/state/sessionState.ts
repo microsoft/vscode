@@ -493,35 +493,50 @@ export type ComponentToState = {
 /** Scheme used by chat channel URIs (`ahp-chat://...`). */
 export const AHP_CHAT_SCHEME = 'ahp-chat';
 
+/** Chat id of the default chat that every session owns. */
+export const DEFAULT_CHAT_ID = 'default';
+
 /**
- * Derives the deterministic default-chat channel URI for a session. While the
- * protocol allows a session to contain many chats, VS Code currently models
- * every session as having exactly one chat — its default chat — whose URI is
- * derived from the owning session URI so producers and consumers can compute
- * it without a lookup table.
+ * Derives the deterministic channel URI for a chat within a session. Every chat
+ * — the default chat and any additional peer chats — encodes its owning session
+ * URI into the path so producers and consumers can recover the session without a
+ * lookup table (see {@link parseChatUri}). The chat id is carried in the URI
+ * authority.
  *
- * The session URI is encoded into the path so {@link parseDefaultChatUri} can
- * recover it.
+ * `ahp-chat://<chatId>/<base64(sessionUri)>`
  */
-export function buildDefaultChatUri(sessionUri: ProtocolURI | ResourceURI): string {
+export function buildChatUri(sessionUri: ProtocolURI | ResourceURI, chatId: string): string {
 	const session = typeof sessionUri === 'string' ? sessionUri : sessionUri.toString();
 	const encoded = encodeBase64(VSBuffer.fromString(session), false, true);
-	return `${AHP_CHAT_SCHEME}://default/${encoded}`;
+	return `${AHP_CHAT_SCHEME}://${chatId}/${encoded}`;
 }
 
 /**
- * Inverse of {@link buildDefaultChatUri}: recovers the owning session URI from
- * a default-chat channel URI. Returns `undefined` when `uri` is not a
- * well-formed default-chat URI.
+ * Derives the deterministic default-chat channel URI for a session. While the
+ * protocol allows a session to contain many chats, every session always owns a
+ * default chat whose URI is derived from the owning session URI so producers and
+ * consumers can compute it without a lookup table.
+ *
+ * The session URI is encoded into the path so {@link parseChatUri} can recover
+ * it.
  */
-export function parseDefaultChatUri(uri: ProtocolURI | ResourceURI): string | undefined {
+export function buildDefaultChatUri(sessionUri: ProtocolURI | ResourceURI): string {
+	return buildChatUri(sessionUri, DEFAULT_CHAT_ID);
+}
+
+/**
+ * Inverse of {@link buildChatUri}: recovers the owning session URI and chat id
+ * from any chat channel URI. Returns `undefined` when `uri` is not a well-formed
+ * chat URI.
+ */
+export function parseChatUri(uri: ProtocolURI | ResourceURI): { session: string; chatId: string } | undefined {
 	let parsed: ResourceURI;
 	try {
 		parsed = typeof uri === 'string' ? ResourceURI.parse(uri) : uri;
 	} catch {
 		return undefined;
 	}
-	if (parsed.scheme !== AHP_CHAT_SCHEME || parsed.authority !== 'default') {
+	if (parsed.scheme !== AHP_CHAT_SCHEME || !parsed.authority) {
 		return undefined;
 	}
 	const encoded = parsed.path.replace(/^\//, '');
@@ -529,10 +544,25 @@ export function parseDefaultChatUri(uri: ProtocolURI | ResourceURI): string | un
 		return undefined;
 	}
 	try {
-		return decodeBase64(encoded).toString();
+		return { session: decodeBase64(encoded).toString(), chatId: parsed.authority };
 	} catch {
 		return undefined;
 	}
+}
+
+/**
+ * Inverse of {@link buildDefaultChatUri}: recovers the owning session URI from a
+ * chat channel URI. Returns `undefined` when `uri` is not a well-formed chat URI.
+ * Accepts any chat URI (default or additional) so callers that only need the
+ * parent session can use it uniformly.
+ */
+export function parseDefaultChatUri(uri: ProtocolURI | ResourceURI): string | undefined {
+	return parseChatUri(uri)?.session;
+}
+
+/** Returns `true` when `uri` is the default chat of its session. */
+export function isDefaultChatUri(uri: ProtocolURI | ResourceURI): boolean {
+	return parseChatUri(uri)?.chatId === DEFAULT_CHAT_ID;
 }
 
 /** Returns `true` when `uri` identifies a chat channel. */
