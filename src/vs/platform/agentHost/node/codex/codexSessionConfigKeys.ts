@@ -43,6 +43,11 @@ export function normalizeCodexModelId(id: string): string | undefined {
 	return isCodexSupportedModel(rawId) ? rawId : undefined;
 }
 
+export function getCodexModelCatalogId(id: string): string {
+	const normalizedId = normalizeCodexModelId(id);
+	return normalizedId && normalizedId !== id ? normalizedId : id;
+}
+
 export function narrowApprovalPolicy(value: unknown): CodexApprovalPolicy | undefined {
 	switch (value) {
 		case 'never':
