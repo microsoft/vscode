@@ -154,6 +154,11 @@
 	border-color: transparent !important;
 }
 
+/* Panel title composite receives an inline border-top color; suppress it in floating mode. */
+.monaco-workbench.floating-panels .part.panel > .title {
+	border-top-color: transparent !important;
+}
+
 /* Activity bar (default position) gets a left and bottom gutter to match the cards. */
 .monaco-workbench.floating-panels .part.activitybar {
 	margin-left: var(--vscode-spacing-size60);
