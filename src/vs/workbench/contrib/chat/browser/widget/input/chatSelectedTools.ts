@@ -92,17 +92,6 @@ namespace ToolEnablementStates {
 const agentHostSelectedToolsStorageKey = 'chat/agentHost/selectedTools';
 
 /**
- * Dedicated agent-host tool selection, kept separate from the global ("Local") selection so agent-host sessions can
- * default backend-provided tools off without affecting the default agent's selection.
- */
-const chatSelectedToolsAgentHostMemento = observableMemento<ToolEnablementStates>({
-	key: agentHostSelectedToolsStorageKey,
-	defaultValue: { toolSets: new Map(), tools: new Map() },
-	fromStorage: ToolEnablementStates.fromStorage,
-	toStorage: ToolEnablementStates.toStorage
-});
-
-/**
  * Read-only observable over the agent-host tool selection that reacts to *all* storage writes (local and external).
  *
  * {@link chatSelectedToolsAgentHostMemento} (like every {@link observableMemento}) only refreshes from storage on
@@ -219,9 +208,15 @@ export class ChatSelectedTools extends Disposable {
 			fromStorage: ToolEnablementStates.fromStorage,
 			toStorage: ToolEnablementStates.toStorage
 		});
+		const agentHostStateMemento = observableMemento<ToolEnablementStates>({
+			key: agentHostSelectedToolsStorageKey,
+			defaultValue: { toolSets: new Map(), tools: new Map() },
+			fromStorage: ToolEnablementStates.fromStorage,
+			toStorage: ToolEnablementStates.toStorage
+		});
 
 		this._globalState = this._store.add(globalStateMemento(StorageScope.PROFILE, StorageTarget.MACHINE, _storageService));
-		this._agentHostState = this._store.add(chatSelectedToolsAgentHostMemento(StorageScope.PROFILE, StorageTarget.MACHINE, _storageService));
+		this._agentHostState = this._store.add(agentHostStateMemento(StorageScope.PROFILE, StorageTarget.MACHINE, _storageService));
 		this._currentTools = languageModel.map(lm =>
 			_toolsService.observeTools(lm?.metadata)).map((o, r) => o.read(r));
 	}
