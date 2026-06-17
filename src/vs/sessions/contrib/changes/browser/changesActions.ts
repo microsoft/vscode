@@ -84,7 +84,7 @@ interface IDiffStats {
  * The stats are read from the {@link ISessionContext} so the correct per-session changes
  * are shown even when several session views are visible at once.
  */
-class ViewAllChangesActionViewItem extends ActionViewItem {
+export class ViewAllChangesActionViewItem extends ActionViewItem {
 
 	private readonly _diffStatsObs: IObservable<IDiffStats>;
 
