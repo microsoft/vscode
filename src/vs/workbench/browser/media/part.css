@@ -104,10 +104,8 @@
  * margin, border and rounded corners — echoing the agents window design. The
  * matching content dimensions are reduced in code (AbstractPaneCompositePart) so
  * the inner layout stays in sync with this CSS. The margins and the 1px border
- * must match `FLOATING_PANEL_MARGIN`, `FLOATING_AUXBAR_EXTRA_RIGHT` and the border
- * inset used there. The border / foreground colors mirror the agents window
- * (`agentsPanel.*` tokens); the card fill uses each part's native content
- * background (see the per-part rules below).
+ * must match `FLOATING_PANEL_MARGIN`, `FLOATING_AUXBAR_EXTRA_RIGHT` and the border inset
+ * used there. Colors mirror the agents window (`agentsPanel.*` tokens).
  */
 .monaco-workbench.floating-panels .part.sidebar,
 .monaco-workbench.floating-panels .part.auxiliarybar,
@@ -115,24 +113,8 @@
 	margin: 6px;
 	border: 1px solid var(--vscode-agentsPanel-border, var(--vscode-widget-border, transparent)) !important;
 	border-radius: var(--vscode-cornerRadius-large);
+	background-color: var(--vscode-agentsPanel-background) !important;
 	color: var(--vscode-agentsPanel-foreground);
-}
-
-/*
- * Card fill must match the background the inner content paints, otherwise the
- * card frame and its content diverge. `agentsPanel.background` only equals the
- * side bar / panel background in dark themes; in light themes it resolves to the
- * (white) editor background while the content stays side-bar grey, leaving a
- * mismatched frame. Use each part's native content background so the card and
- * its content always agree, in every theme.
- */
-.monaco-workbench.floating-panels .part.sidebar,
-.monaco-workbench.floating-panels .part.auxiliarybar {
-	background-color: var(--vscode-sideBar-background) !important;
-}
-
-.monaco-workbench.floating-panels .part.panel {
-	background-color: var(--vscode-panel-background) !important;
 }
 
 /* Side bars sit directly under the title bar — keep them flush (no top margin). */
@@ -141,21 +123,9 @@
 	margin-top: 0;
 }
 
-/*
- * Secondary side bar sits at the window edge — give it a doubled right gutter
- * (2 × the 6px base margin, matching `FLOATING_AUXBAR_EXTRA_RIGHT` in code).
- */
+/* Secondary side bar sits at the window edge — give it a doubled right gutter. */
 .monaco-workbench.floating-panels .part.auxiliarybar {
 	margin-right: 12px;
-}
-
-/*
- * The bottom panel's title draws a 1px top border (a separator from the editor
- * area). The floating card already has its own border, so this internal line is
- * redundant — drop it.
- */
-.monaco-workbench.floating-panels .part.panel.bottom .composite.title {
-	border-top-width: 0 !important;
 }
 
 /* Main editor: float like the other cards, but stay flush with the title bar. */
@@ -196,31 +166,5 @@
 	padding-left: 6px;
 	padding-right: 6px;
 	padding-bottom: 6px;
-}
-
-/*
- * Round the status bar items so their hover / active backgrounds read as pills
- * that match the rounded floating cards.
- */
-.monaco-workbench.floating-panels .part.statusbar > .items-container > .statusbar-item > a {
-	border-radius: var(--vscode-cornerRadius-small);
-}
-
-/*
- * Compact items are segments of a single joined pill that sit flush against a
- * neighbour. Keep the seam edges square so two adjacent segments don't each
- * round where they meet (which leaves a dip in the middle): `compact-left`
- * attaches to the item on its left, so flatten its left corners; `compact-right`
- * attaches to the item on its right, so flatten its right corners. An item with
- * both classes (a middle segment) ends up square on both seams.
- */
-.monaco-workbench.floating-panels .part.statusbar > .items-container > .statusbar-item.compact-left > a {
-	border-top-left-radius: 0;
-	border-bottom-left-radius: 0;
-}
-
-.monaco-workbench.floating-panels .part.statusbar > .items-container > .statusbar-item.compact-right > a {
-	border-top-right-radius: 0;
-	border-bottom-right-radius: 0;
 }
 

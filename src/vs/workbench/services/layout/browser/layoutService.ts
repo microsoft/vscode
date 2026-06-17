@@ -50,7 +50,7 @@ export const enum LayoutSettings {
 	COMMAND_CENTER = 'window.commandCenter',
 	LAYOUT_ACTIONS = 'workbench.layoutControl.enabled',
 	SHADOWS = 'workbench.shadows',
-	FLOATING_PANELS = 'workbench.experimental.floatingPanels.enabled'
+	FLOATING_PANELS = 'workbench.experimental.floatingPanels'
 }
 
 /**
