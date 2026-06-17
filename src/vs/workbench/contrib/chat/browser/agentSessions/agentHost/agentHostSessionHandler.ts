@@ -649,11 +649,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					sessionTitle = sessionState.summary.title;
 					const fallbackRawModelId = sessionState.summary.model?.id;
 					const lookup = this._createTurnModelLookup(sessionResource, fallbackRawModelId);
-					const restoredTurnAttachmentSummary = sessionState.turns
-						.filter(turn => turn.message.attachments?.length)
-						.map(turn => `${turn.id}:${this._summarizeMessageAttachments(turn.message.attachments)}`)
-						.join('; ') || 'none';
-					this._logService.trace(`[AgentHost] Restoring session ${resolvedSession.toString()}: turns=${sessionState.turns.length}, attachments=${restoredTurnAttachmentSummary}`);
 					history.push(...turnsToHistory(resolvedSession, sessionState.turns, this._config.agentId, this._config.connectionAuthority, lookup, this._chatErrorContext()));
 
 					// Enrich history with inner tool calls from subagent
@@ -678,7 +673,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					if (sessionState.activeTurn) {
 						activeTurnId = sessionState.activeTurn.id;
 						const activeRawModelId = sessionState.activeTurn.usage?.model ?? fallbackRawModelId;
-						this._logService.trace(`[AgentHost] Restoring active turn ${activeTurnId}: attachments=${this._summarizeMessageAttachments(sessionState.activeTurn.message.attachments)}`);
 						history.push({
 							type: 'request',
 							prompt: sessionState.activeTurn.message.text,
@@ -1198,7 +1192,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			previousQueuedIds = currentQueuedIds;
 
 			// Signal the session to create a new request+response pair
-			this._logService.trace(`[AgentHost] Server-initiated turn ${activeTurn.id}: attachments=${this._summarizeMessageAttachments(activeTurn.message.attachments)}`);
 			chatSession.startServerRequest(
 				activeTurn.message.text,
 				messageToVariableData(activeTurn.message, this._config.connectionAuthority),
@@ -2921,9 +2914,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	private _convertVariablesToAttachments(request: IChatAgentRequest): MessageAttachment[] {
-		const attachments = this._variableEntriesToAttachments(request.variables.variables, request.sessionResource, request.message);
-		this._logService.trace(`[AgentHost] Request ${request.requestId}: variables=${this._summarizeVariableEntries(request.variables.variables)} -> attachments=${this._summarizeMessageAttachments(attachments)}`);
-		return attachments;
+		return this._variableEntriesToAttachments(request.variables.variables, request.sessionResource, request.message);
 	}
 
 	private _variableEntriesToAttachments(variables: readonly IChatRequestVariableEntry[], sessionResource: URI, messageText?: string): MessageAttachment[] {
@@ -2938,28 +2929,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._logService.trace(`[AgentHost] Converted ${attachments.length} attachments from ${variables.length} variables`);
 		}
 		return attachments;
-	}
-
-	private _summarizeVariableEntries(variables: readonly IChatRequestVariableEntry[]): string {
-		return variables.map(v => {
-			if (v.kind === 'paste') {
-				return `${v.kind}:${v.name}(code=${v.code.length > 0})`;
-			}
-			return `${v.kind}:${v.name}`;
-		}).join(', ') || 'none';
-	}
-
-	private _summarizeMessageAttachments(attachments: readonly MessageAttachment[] | undefined): string {
-		if (!attachments?.length) {
-			return 'none';
-		}
-		return attachments.map(attachment => {
-			const displayKind = attachment.displayKind ? `:${attachment.displayKind}` : '';
-			if (attachment.type === MessageAttachmentKind.Simple) {
-				return `${attachment.type}${displayKind}:${attachment.label}(model=${!!attachment.modelRepresentation})`;
-			}
-			return `${attachment.type}${displayKind}:${attachment.label}`;
-		}).join(', ');
 	}
 
 	private _convertVariableToAttachment(v: IChatRequestVariableEntry, sessionResource: URI, messageText?: string): MessageAttachment | undefined {

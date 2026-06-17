@@ -53,7 +53,6 @@ CommandsRegistry.registerCommand(CHAT_DELEGATE_TO_AGENT_HOST_SESSION_COMMAND_ID,
 	try {
 		const session = sessionsManagementService.createNewSession(folderUri, { providerId, sessionTypeId });
 		sessionsService.insertAt(session, sourceSession.sessionId, 'right', true);
-		logService.trace(`[Sessions] Agent host delegation: created '${sessionTypeId}' session via provider '${providerId ?? '(auto)'}', sending request (attachments=${request.attachedContext?.length ?? 0})`);
 		await sessionsManagementService.sendNewChatRequest(session, { query: request.prompt, attachedContext: request.attachedContext });
 	} catch (e) {
 		logService.error(`[Sessions] Agent host delegation to '${sessionTypeId}' failed`, e);

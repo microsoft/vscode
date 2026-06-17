@@ -21,7 +21,6 @@ import { Action2, MenuId, MenuItemAction } from '../../../../../platform/actions
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider } from '../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -458,7 +457,6 @@ export class CreateRemoteAgentJobAction {
 		const chatSessionsService = accessor.get(IChatSessionsService);
 		const fileService = accessor.get(IFileService);
 		const instantiationService = accessor.get(IInstantiationService);
-		const logService = accessor.get(ILogService);
 
 		const remoteJobCreatingKey = ChatContextKeys.remoteJobCreating.bindTo(contextKeyService);
 
@@ -572,10 +570,8 @@ export class CreateRemoteAgentJobAction {
 							prompt: handoffPrompt,
 							attachedContext: continuationContext,
 						};
-						logService.trace(`[Delegation] Agent host target '${continuationTargetType}' in Agents window: invoking ${CHAT_DELEGATE_TO_AGENT_HOST_SESSION_COMMAND_ID} (attachments=${continuationContext.length})`);
 						await commandService.executeCommand(CHAT_DELEGATE_TO_AGENT_HOST_SESSION_COMMAND_ID, delegationRequest);
 					} else {
-						logService.trace(`[Delegation] Agent host target '${continuationTargetType}' in main window: opening chat session (sidebar=${isSidebar}, attachments=${continuationContext.length})`);
 						await instantiationService.invokeFunction(innerAccessor => openChatSession(
 							innerAccessor,
 							{
