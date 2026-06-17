@@ -374,6 +374,23 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	private getEditorGroupFromOptions(options: { groupId?: number; openToSide?: boolean }): PreferredGroup {
+
+		// When the caller knows the source editor group (e.g. the editor title actions
+		// and their keyboard shortcuts that switch between the settings UI and JSON editor),
+		// always open in that same group so the editor stays in the editor part (main, modal
+		// or auxiliary window) it was invoked from. If that group lives in the modal editor
+		// part, request the modal group so it stays modal; otherwise open in that exact group.
+		if (options?.groupId !== undefined) {
+			const group = this.editorGroupService.getGroup(options.groupId);
+			if (group) {
+				const modalEditorPart = this.editorGroupService.activeModalEditorPart;
+				if (modalEditorPart?.groups.some(modalGroup => modalGroup.id === group.id)) {
+					return MODAL_GROUP;
+				}
+				return group;
+			}
+		}
+
 		if (
 			this.configurationService.getValue<string>('workbench.editor.useModal') !== 'off' &&					// modal editors enabled in settings
 			!this.environmentService.enableSmokeTestDriver && !this.environmentService.extensionTestsLocationURI	// but not in smoke test or extension test environments to reduce flakiness
