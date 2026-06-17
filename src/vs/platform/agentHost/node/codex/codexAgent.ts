@@ -802,6 +802,15 @@ export class CodexAgent extends Disposable implements IAgent {
 			`model_providers.vscode-proxy.env_key="OPENAI_API_KEY"`,
 			`model_providers.vscode-proxy.requires_openai_auth=false`,
 			`model_providers.vscode-proxy.supports_websockets=false`,
+			// Route MCP tool-call approvals through codex's `request_user_input`
+			// path (a proper Allow / Allow-and-remember / Cancel options
+			// question the agent host already renders) instead of the
+			// `tool_call_mcp_elicitation` path, which surfaces them as an
+			// empty-schema `mcpServer/elicitation/request` that would render as
+			// a bare free-text prompt. With this off, the host's MCP
+			// elicitation handler is reserved for genuine server-to-user
+			// elicitations.
+			`features.tool_call_mcp_elicitation=false`,
 		];
 
 		// Extra args forwarded as JSON from the workbench setting.
