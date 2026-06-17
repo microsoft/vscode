@@ -410,7 +410,7 @@ export async function createRunInTerminalToolData(
 			description: 'A short description of the goal or purpose of the command (e.g., "Install dependencies", "Start development server").'
 		},
 	};
-	const sandboxProperties: IJSONSchemaMap = isSandboxEnabled ? createSandboxProperties(sandboxingOptions as ISandboxingOnOptions) : {};
+	const sandboxProperties: IJSONSchemaMap = sandboxingOptions.sandboxMode === 'off' ? {} : createSandboxProperties(sandboxingOptions);
 
 	return {
 		id: TerminalToolId.RunInTerminal,
