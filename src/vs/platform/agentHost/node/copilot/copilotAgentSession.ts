@@ -1363,9 +1363,11 @@ export class CopilotAgentSession extends Disposable {
 			// Auto-approve the agent host's server tools. They only read or
 			// mutate the session's own server-held state and never touch the
 			// workspace, shell, or network, so prompting for them is redundant
-			// noise.
+			// noise. Tools that explicitly require confirmation (e.g. revealing
+			// unreviewed review comments) are excluded so the user is prompted.
 			if (request.kind === 'custom-tool' && typeof request.toolName === 'string'
 				&& this._serverToolHost?.toolNames.includes(request.toolName)
+				&& !this._serverToolHost.requiresConfirmation(request.toolName)
 			) {
 				this._logService.info(`[Copilot:${this.sessionId}] Auto-approving server tool ${request.toolName}`);
 				return { kind: 'approve-once' };
