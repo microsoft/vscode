@@ -3601,7 +3601,8 @@
             ],
             "markdownDescription": "%github.copilot.config.cloudAgentBackend.version%",
             "tags": [
-              "experimental"
+              "experimental",
+              "onExp"
             ]
           },
           "github.copilot.chat.switchAgent.enabled": {
