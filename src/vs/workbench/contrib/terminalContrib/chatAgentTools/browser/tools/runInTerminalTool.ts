@@ -182,9 +182,25 @@ function createSandboxLines(sandboxingOptions: ISandboxingOnOptions): string[] {
 	const lines = [
 		'',
 		'Sandboxing:',
-		'- ATTENTION: Terminal sandboxing is enabled, commands run in a sandbox BY DEFAULT. This means that commands do not have network access and the file system is mounted as read-only and certain paths are not fully accessible (like the $HOME directory). Just the workspace directory and $TMPDIR are mounted as read-write.',
+		'- ATTENTION: Terminal sandboxing is enabled, commands run in a sandbox BY DEFAULT.',
+		'- Most of the file system is read-only and certain paths are not fully accessible for privacy reasons (like the $HOME directory). However, the workspace directory and $TMPDIR are mounted as read-write.',
 		'- When executing commands, all operations requiring a temporary directory must utilize the $TMPDIR environment variable. The /tmp directory is not guaranteed to be accessible or writable and must be avoided. Tools and scripts should respect the TMPDIR environment variable, which is always defined and set to an appropriate read-write path',
 	];
+
+	const deniedDomains = sandboxingOptions.networkDomains?.deniedDomains || [];
+	const allowedDomains = sandboxingOptions.networkDomains?.allowedDomains || [];
+	const deniedSet = new Set(deniedDomains);
+	const effectiveAllowed = allowedDomains.filter(d => !deniedSet.has(d)) || [];
+
+	if (effectiveAllowed.length === 0) {
+		lines.push('- All network access is blocked in the sandbox. Commands that require network access will fail unless requestAllowNetwork=true is set.');
+	} else {
+		lines.push(`- Only the following domains are accessible in the sandbox: ${effectiveAllowed.join(', ')}. Commands that require network access to other domains will fail unless requestAllowNetwork=true is set.`);
+	}
+	if (deniedDomains.length > 0) {
+		lines.push(`- The following domains are explicitly blocked in the sandbox: ${deniedDomains.join(', ')}`);
+	}
+
 	if (sandboxingOptions.retryWithAllowNetworkRequests) {
 		lines.push(
 			'- Proactively set requestAllowNetwork=true on the FIRST attempt when the command clearly requires network access, instead of waiting for it to fail. This includes git operations that contact a remote (git fetch, git pull, git push, git clone, git ls-remote, git remote update), package manager operations that download (npm install/ci, yarn, pnpm, pip install, cargo fetch/build, go mod download, brew install), and downloaders (curl, wget). Provide requestAllowNetworkReason.',
@@ -204,18 +220,7 @@ function createSandboxLines(sandboxingOptions: ISandboxingOnOptions): string[] {
 	} else {
 		lines.push('- Running commands outside the sandbox is disabled by the current chat.agent.sandbox.allowUnsandboxedCommands setting. Do not set requestUnsandboxedExecution=true.');
 	}
-	if (sandboxingOptions.networkDomains) {
-		const deniedSet = new Set(sandboxingOptions.networkDomains.deniedDomains);
-		const effectiveAllowed = sandboxingOptions.networkDomains.allowedDomains.filter(d => !deniedSet.has(d));
-		if (effectiveAllowed.length === 0) {
-			lines.push('- All network access is blocked in the sandbox');
-		} else {
-			lines.push(`- Only the following domains are accessible in the sandbox (all other network access is blocked): ${effectiveAllowed.join(', ')}`);
-		}
-		if (sandboxingOptions.networkDomains.deniedDomains.length > 0) {
-			lines.push(`- The following domains are explicitly blocked in the sandbox: ${sandboxingOptions.networkDomains.deniedDomains.join(', ')}`);
-		}
-	}
+
 	return lines;
 }
 
