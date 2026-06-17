@@ -291,12 +291,17 @@ export class AgentsWindow {
 		const retryCount = Math.ceil(timeoutMs / 100);
 		await this.code.waitForElement(RESPONSE, undefined, retryCount);
 
-		const responseSelector = `${RESPONSE} .rendered-markdown`;
+		const activeResponseSelector = `${ACTIVE_SESSION} .interactive-item-container.interactive-response`;
+		const markdownResponseSelector = `${RESPONSE} .rendered-markdown`;
 		const deadline = Date.now() + timeoutMs;
 		let lastTexts: string[] = [];
 		while (Date.now() < deadline) {
-			const elements = await this.code.getElements(responseSelector, /* recursive */ true);
-			lastTexts = (elements ?? []).map(el => el.textContent || '');
+			const activeResponseElements = await this.code.getElements(activeResponseSelector, /* recursive */ true);
+			lastTexts = (activeResponseElements ?? []).map(el => el.textContent || '');
+			if (lastTexts.length === 0) {
+				const markdownElements = await this.code.getElements(markdownResponseSelector, /* recursive */ true);
+				lastTexts = (markdownElements ?? []).map(el => el.textContent || '');
+			}
 			for (const text of lastTexts) {
 				if (typeof predicate === 'string' ? text.includes(predicate) : predicate.test(text)) {
 					// Give the chat session a grace period to transition out of the

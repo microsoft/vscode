@@ -1380,7 +1380,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			const id = existingSessionId ?? parsedId;
 			// Mirror the guard in `getOrCreateSession`: only count as a new
 			// session when the resource is actually an untitled placeholder.
-			const isNewSession = chatSessionContext.isUntitled && parsedId.startsWith('untitled-') && !existingSessionId;
+			const isNewSession = chatSessionContext.isUntitled && isUntitledSessionId(parsedId) && !existingSessionId;
 			// isolationMode mode will be initialized only for new sessions.
 			const isolationMode = _sessionIsolation.get(id);
 			isolation = isNewSession ? isolationMode : undefined;
@@ -1953,7 +1953,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		// flag combined with a swap-mapping that has already been cleaned up
 		// (see `scheduleUntitledSessionSwap`) causes a follow-up turn against
 		// a real session id to spawn a brand-new SDK session.
-		const isResourceUntitled = parsedId.startsWith('untitled-');
+		const isResourceUntitled = isUntitledSessionId(parsedId);
 		const isNewSession = chatSessionContext.isUntitled && isResourceUntitled && !existingSessionId;
 
 		const { workspaceInfo, cancelled, trusted } = await this.getOrInitializeWorkingDirectory(chatSessionContext, stream, request.toolInvocationToken, token, options.newBranch);
@@ -2066,7 +2066,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			const id = existingSessionId ?? parsedId;
 			// Mirror the guard in `getOrCreateSession`: only count as a new
 			// session when the resource is actually an untitled placeholder.
-			const isNewSession = chatSessionContext.isUntitled && parsedId.startsWith('untitled-') && !existingSessionId;
+			const isNewSession = chatSessionContext.isUntitled && isUntitledSessionId(parsedId) && !existingSessionId;
 
 			if (isNewSession) {
 				// Use FolderRepositoryManager to initialize folder/repository with worktree creation
