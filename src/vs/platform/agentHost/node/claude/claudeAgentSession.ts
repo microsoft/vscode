@@ -24,6 +24,7 @@ import { PendingMessage, ChatInputAnswer, ChatInputRequest, ChatInputResponseKin
 import type { Customization, ToolCallResult } from '../../common/state/sessionState.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
 import { buildClientMcpServers, buildOptions } from './claudeSdkOptions.js';
+import { toSdkModelId } from './claudeModelId.js';
 import { buildServerToolMcpServer, CLAUDE_SERVER_TOOL_MCP_SERVER_NAME, serverToolAllowList } from './claudeServerToolMcpServer.js';
 import { ClaudeSessionMetadataStore } from './claudeSessionMetadataStore.js';
 import { convertToolCallResult } from './clientTools/claudeClientToolResult.js';
@@ -305,7 +306,7 @@ export class ClaudeAgentSession extends Disposable {
 		// the user's last-chosen model / effort without losing the picker
 		// config. Read provisional state directly off the session.
 		pipeline.seedCurrentConfig(
-			this._provisionalModel?.id,
+			toSdkModelId(this._provisionalModel?.id),
 			clampEffortForRuntime(resolveClaudeEffort(this._provisionalModel)),
 			permissionMode,
 		);
@@ -526,10 +527,14 @@ export class ClaudeAgentSession extends Disposable {
 			if (requestedEffort === 'max') {
 				this._logService.warn(`[Claude:${this.sessionId}] setModel: 'max' effort clamped to 'xhigh' (Copilot CAPI has no 'max' model yet)`);
 			}
-			await this._pipeline.setModel(model.id);
-			if (runtimeEffort !== undefined) {
-				await this._pipeline.setEffort(runtimeEffort);
-			}
+			await this._pipeline.setModel(toSdkModelId(model.id));
+			// Always push the resolved effort, including `undefined`. Switching
+			// to a model that does not support reasoning effort (e.g. Haiku)
+			// resolves to `undefined`, which must actively CLEAR any effort the
+			// SDK is still applying from a prior effort-capable model — otherwise
+			// the next turn replays e.g. `'high'` onto Haiku and the API 400s
+			// (`output_config.effort ... does not support reasoning effort`).
+			await this._pipeline.setEffort(runtimeEffort);
 		}
 		await this._metadataStore.write(this.sessionUri, { model });
 	}

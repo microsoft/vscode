@@ -16,6 +16,7 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../log/common/log.js';
 import { createSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
+import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../common/reasoningEffort.js';
 import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentSdkRootEnvVar, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, type AgentProvider } from '../../common/agentService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -122,12 +123,8 @@ const codexSessionConfigSchema = createSchema({
 		title: localize('codex.sessionConfig.modelReasoningEffort', "Reasoning Effort"),
 		description: localize('codex.sessionConfig.modelReasoningEffortDescription', "Controls how much reasoning effort Codex uses."),
 		enum: [...CODEX_REASONING_EFFORTS],
-		enumLabels: [
-			localize('codex.sessionConfig.modelReasoningEffort.minimal', "Minimal"),
-			localize('codex.sessionConfig.modelReasoningEffort.low', "Low"),
-			localize('codex.sessionConfig.modelReasoningEffort.medium', "Medium"),
-			localize('codex.sessionConfig.modelReasoningEffort.high', "High"),
-		],
+		enumLabels: CODEX_REASONING_EFFORTS.map(getReasoningEffortLabel),
+		enumDescriptions: CODEX_REASONING_EFFORTS.map(effort => getReasoningEffortDescription(effort) ?? ''),
 		default: 'medium',
 		sessionMutable: true,
 	}),
@@ -404,12 +401,8 @@ export class CodexAgent extends Disposable implements IAgent {
 					description: localize('codex.modelThinkingLevel.description', "Controls how much reasoning effort Codex uses."),
 					default: 'medium',
 					enum: [...CODEX_REASONING_EFFORTS],
-					enumLabels: [
-						localize('codex.modelThinkingLevel.minimal', "Minimal"),
-						localize('codex.modelThinkingLevel.low', "Low"),
-						localize('codex.modelThinkingLevel.medium', "Medium"),
-						localize('codex.modelThinkingLevel.high', "High"),
-					],
+					enumLabels: CODEX_REASONING_EFFORTS.map(getReasoningEffortLabel),
+					enumDescriptions: CODEX_REASONING_EFFORTS.map(effort => getReasoningEffortDescription(effort) ?? ''),
 				},
 			},
 		};
