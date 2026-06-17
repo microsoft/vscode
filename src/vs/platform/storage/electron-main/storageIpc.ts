@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { ILogService } from '../../log/common/log.js';
@@ -21,7 +21,7 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 	private readonly onDidChangeApplicationStorageEmitter = this._register(new Emitter<ISerializableItemsChangeEvent>());
 	private readonly onDidChangeApplicationSharedStorageEmitter = this._register(new Emitter<ISerializableItemsChangeEvent>());
 
-	private readonly mapProfileToOnDidChangeProfileStorageEmitter = new Map<string /* profile ID */, Emitter<ISerializableItemsChangeEvent>>();
+	private readonly mapProfileToOnDidChangeProfileStorageEmitter = new Map<string /* profile ID */, { readonly emitter: Emitter<ISerializableItemsChangeEvent>; readonly store: DisposableStore }>();
 
 	constructor(
 		private readonly logService: ILogService,
@@ -29,18 +29,18 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 	) {
 		super();
 
-		this.registerStorageChangeListeners(storageMainService.applicationStorage, this.onDidChangeApplicationStorageEmitter);
-		this.registerStorageChangeListeners(storageMainService.applicationSharedStorage, this.onDidChangeApplicationSharedStorageEmitter);
+		this._register(this.registerStorageChangeListeners(storageMainService.applicationStorage, this.onDidChangeApplicationStorageEmitter));
+		this._register(this.registerStorageChangeListeners(storageMainService.applicationSharedStorage, this.onDidChangeApplicationSharedStorageEmitter));
 	}
 
 	//#region Storage Change Events
 
-	private registerStorageChangeListeners(storage: IStorageMain, emitter: Emitter<ISerializableItemsChangeEvent>): void {
+	private registerStorageChangeListeners(storage: IStorageMain, emitter: Emitter<ISerializableItemsChangeEvent>): IDisposable {
 
 		// Listen for changes in provided storage to send to listeners
 		// that are listening. Use a debouncer to reduce IPC traffic.
 
-		this._register(Event.debounce(storage.onDidChangeStorage, (prev: IStorageChangeEvent[] | undefined, cur: IStorageChangeEvent) => {
+		return Event.debounce(storage.onDidChangeStorage, (prev: IStorageChangeEvent[] | undefined, cur: IStorageChangeEvent) => {
 			if (!prev) {
 				prev = [cur];
 			} else {
@@ -52,7 +52,7 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 			if (events.length) {
 				emitter.fire(this.serializeStorageChangeEvents(events, storage));
 			}
-		}));
+		});
 	}
 
 	private serializeStorageChangeEvents(events: IStorageChangeEvent[], storage: IStorageMain): ISerializableItemsChangeEvent {
@@ -74,10 +74,11 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 	}
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	listen(_: unknown, event: string, arg: IBaseSerializableStorageRequest): Event<any> {
+	listen(ctx: string, event: string, arg: IBaseSerializableStorageRequest): Event<any> {
 		switch (event) {
 			case 'onDidChangeStorage': {
 				const profile = arg.profile ? revive<IUserDataProfile>(arg.profile) : undefined;
+				const ownerWindowId = this.getOwnerWindowId(ctx);
 
 				// Without profile: application or application-shared scope
 				if (!profile) {
@@ -89,14 +90,21 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 				}
 
 				// With profile: profile scope for the profile
+				const storage = this.storageMainService.profileStorage(profile, ownerWindowId);
 				let profileStorageChangeEmitter = this.mapProfileToOnDidChangeProfileStorageEmitter.get(profile.id);
 				if (!profileStorageChangeEmitter) {
-					profileStorageChangeEmitter = this._register(new Emitter<ISerializableItemsChangeEvent>());
-					this.registerStorageChangeListeners(this.storageMainService.profileStorage(profile), profileStorageChangeEmitter);
+					const store = new DisposableStore();
+					const emitter = store.add(new Emitter<ISerializableItemsChangeEvent>());
+					store.add(this.registerStorageChangeListeners(storage, emitter));
+					store.add(Event.once(storage.onDidCloseStorage)(() => {
+						this.mapProfileToOnDidChangeProfileStorageEmitter.delete(profile.id);
+						store.dispose();
+					}));
+					profileStorageChangeEmitter = { emitter, store };
 					this.mapProfileToOnDidChangeProfileStorageEmitter.set(profile.id, profileStorageChangeEmitter);
 				}
 
-				return profileStorageChangeEmitter.event;
+				return profileStorageChangeEmitter.emitter.event;
 			}
 		}
 
@@ -106,13 +114,14 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 	//#endregion
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	async call(_: unknown, command: string, arg: IBaseSerializableStorageRequest): Promise<any> {
+	async call(ctx: string, command: string, arg: IBaseSerializableStorageRequest): Promise<any> {
 		const profile = arg.profile ? revive<IUserDataProfile>(arg.profile) : undefined;
 		const workspace = reviveIdentifier(arg.workspace);
 		const applicationShared = arg.applicationShared;
+		const ownerWindowId = this.getOwnerWindowId(ctx);
 
 		// Get storage to be ready
-		const storage = await this.withStorageInitialized(profile, workspace, applicationShared);
+		const storage = await this.withStorageInitialized(profile, workspace, applicationShared, ownerWindowId);
 
 		// handle call
 		switch (command) {
@@ -159,12 +168,25 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 		}
 	}
 
-	private async withStorageInitialized(profile: IUserDataProfile | undefined, workspace: IAnyWorkspaceIdentifier | undefined, applicationShared?: boolean): Promise<IStorageMain> {
+	private getOwnerWindowId(ctx: string): number | undefined {
+		if (!ctx.startsWith('window:')) {
+			return undefined;
+		}
+
+		const windowId = Number(ctx.substring('window:'.length));
+		if (!Number.isInteger(windowId)) {
+			return undefined;
+		}
+
+		return windowId;
+	}
+
+	private async withStorageInitialized(profile: IUserDataProfile | undefined, workspace: IAnyWorkspaceIdentifier | undefined, applicationShared: boolean | undefined, ownerWindowId: number | undefined): Promise<IStorageMain> {
 		let storage: IStorageMain;
 		if (workspace) {
-			storage = this.storageMainService.workspaceStorage(workspace);
+			storage = this.storageMainService.workspaceStorage(workspace, ownerWindowId);
 		} else if (profile) {
-			storage = this.storageMainService.profileStorage(profile);
+			storage = this.storageMainService.profileStorage(profile, ownerWindowId);
 		} else if (applicationShared) {
 			storage = this.storageMainService.applicationSharedStorage;
 		} else {
@@ -178,5 +200,14 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 		}
 
 		return storage;
+	}
+
+	override dispose(): void {
+		for (const profileStorageChangeEmitter of this.mapProfileToOnDidChangeProfileStorageEmitter.values()) {
+			profileStorageChangeEmitter.store.dispose();
+		}
+		this.mapProfileToOnDidChangeProfileStorageEmitter.clear();
+
+		super.dispose();
 	}
 }

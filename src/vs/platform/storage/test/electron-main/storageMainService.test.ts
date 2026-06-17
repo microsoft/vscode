@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { notStrictEqual, strictEqual } from 'assert';
+import { timeout } from '../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -26,6 +28,9 @@ import { UserDataProfilesMainService } from '../../../userDataProfile/electron-m
 import { TestLifecycleMainService } from '../../../test/electron-main/workbenchTestServices.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IWindowsMainService } from '../../../windows/electron-main/windows.js';
+import { ICodeWindow } from '../../../window/electron-main/window.js';
+import { StorageDatabaseChannel } from '../../electron-main/storageIpc.js';
 
 suite('StorageMainService', function () {
 
@@ -58,6 +63,60 @@ suite('StorageMainService', function () {
 			return {
 				useInMemoryStorage: true
 			};
+		}
+	}
+
+	class TestCodeWindow {
+
+		private readonly _onDidClose = new Emitter<void>();
+		readonly onDidClose = this._onDidClose.event;
+
+		private readonly _onDidDestroy = new Emitter<void>();
+		readonly onDidDestroy = this._onDidDestroy.event;
+
+		constructor(
+			readonly id: number
+		) { }
+
+		close(): void {
+			this._onDidClose.fire();
+		}
+
+		destroy(): void {
+			this._onDidDestroy.fire();
+		}
+
+		dispose(): void {
+			this._onDidClose.dispose();
+			this._onDidDestroy.dispose();
+		}
+
+		asCodeWindow(): ICodeWindow {
+			return this as Partial<ICodeWindow> as ICodeWindow;
+		}
+	}
+
+	class TestWindowsMainService {
+
+		private readonly windows = new Map<number, TestCodeWindow>();
+
+		addWindow(window: TestCodeWindow): void {
+			this.windows.set(window.id, window);
+		}
+
+		getWindowById(windowId: number): ICodeWindow | undefined {
+			return this.windows.get(windowId)?.asCodeWindow();
+		}
+
+		dispose(): void {
+			for (const window of this.windows.values()) {
+				window.dispose();
+			}
+			this.windows.clear();
+		}
+
+		asService(): IWindowsMainService {
+			return this as Partial<IWindowsMainService> as IWindowsMainService;
 		}
 	}
 
@@ -114,15 +173,24 @@ suite('StorageMainService', function () {
 		disposables.clear();
 	});
 
-	function createStorageService(lifecycleMainService: ILifecycleMainService = new TestLifecycleMainService()): TestStorageMainService {
+	function createStorageService(lifecycleMainService: ILifecycleMainService = new TestLifecycleMainService(), windowsMainService: IWindowsMainService = new TestWindowsMainService().asService()): TestStorageMainService {
 		const environmentService = new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), productService);
 		const fileService = disposables.add(new FileService(new NullLogService()));
 		const uriIdentityService = disposables.add(new UriIdentityService(fileService));
-		const testStorageService = disposables.add(new TestStorageMainService(new NullLogService(), environmentService, disposables.add(new UserDataProfilesMainService(disposables.add(new StateService(SaveStrategy.DELAYED, environmentService, new NullLogService(), fileService)), disposables.add(uriIdentityService), environmentService, fileService, new NullLogService(), productService)), lifecycleMainService, fileService, uriIdentityService));
+		const testStorageService = disposables.add(new TestStorageMainService(new NullLogService(), environmentService, disposables.add(new UserDataProfilesMainService(disposables.add(new StateService(SaveStrategy.DELAYED, environmentService, new NullLogService(), fileService)), disposables.add(uriIdentityService), environmentService, fileService, new NullLogService(), productService)), lifecycleMainService, fileService, uriIdentityService, windowsMainService));
 
 		disposables.add(testStorageService.applicationStorage);
 
 		return testStorageService;
+	}
+
+	function createProfile(id: string, isDefault = false): IUserDataProfile {
+		return {
+			...inMemoryProfile,
+			id,
+			name: id,
+			isDefault
+		};
 	}
 
 	test('basics (application)', function () {
@@ -266,6 +334,149 @@ suite('StorageMainService', function () {
 		strictEqual(didCloseApplicationStorage, true);
 		strictEqual(didCloseProfileStorage, true);
 		strictEqual(didCloseWorkspaceStorage, true);
+	});
+
+	test('profile storage closes when requesting owner window closes', async function () {
+		const windowsMainService = disposables.add(new TestWindowsMainService());
+		const window = disposables.add(new TestCodeWindow(1));
+		windowsMainService.addWindow(window);
+		const storageMainService = createStorageService(new TestLifecycleMainService(), windowsMainService.asService());
+		const profile = createProfile('profile-owner');
+
+		const profileStorage = storageMainService.profileStorage(profile, window.id);
+		strictEqual(profileStorage, storageMainService.profileStorage(profile, window.id)); // repeated requests from the same window do not double count
+
+		const closed = Event.toPromise(profileStorage.onDidCloseStorage);
+		window.close();
+		await closed;
+	});
+
+	test('profile storage stays open until all requesting owner windows close', async function () {
+		const windowsMainService = disposables.add(new TestWindowsMainService());
+		const window1 = disposables.add(new TestCodeWindow(1));
+		const window2 = disposables.add(new TestCodeWindow(2));
+		windowsMainService.addWindow(window1);
+		windowsMainService.addWindow(window2);
+		const storageMainService = createStorageService(new TestLifecycleMainService(), windowsMainService.asService());
+		const profile = createProfile('shared-profile');
+
+		const profileStorage = storageMainService.profileStorage(profile, window1.id);
+		strictEqual(profileStorage, storageMainService.profileStorage(profile, window2.id));
+
+		let didClose = false;
+		disposables.add(profileStorage.onDidCloseStorage(() => didClose = true));
+
+		window1.close();
+		await timeout(0);
+		strictEqual(didClose, false);
+
+		const closed = Event.toPromise(profileStorage.onDidCloseStorage);
+		window2.close();
+		await closed;
+		strictEqual(didClose, true);
+	});
+
+	test('workspace storages requested by one window close with that window', async function () {
+		const windowsMainService = disposables.add(new TestWindowsMainService());
+		const window = disposables.add(new TestCodeWindow(1));
+		windowsMainService.addWindow(window);
+		const storageMainService = createStorageService(new TestLifecycleMainService(), windowsMainService.asService());
+		const workspace1 = { id: generateUuid() };
+		const workspace2 = { id: generateUuid() };
+
+		const workspaceStorage1 = storageMainService.workspaceStorage(workspace1, window.id);
+		const workspaceStorage2 = storageMainService.workspaceStorage(workspace2, window.id);
+
+		const closed1 = Event.toPromise(workspaceStorage1.onDidCloseStorage);
+		const closed2 = Event.toPromise(workspaceStorage2.onDidCloseStorage);
+		window.destroy();
+		await Promise.all([closed1, closed2]);
+	});
+
+	test('non-window profile storage requests do not acquire owner refs', async function () {
+		const windowsMainService = disposables.add(new TestWindowsMainService());
+		const window = disposables.add(new TestCodeWindow(1));
+		windowsMainService.addWindow(window);
+		const storageMainService = createStorageService(new TestLifecycleMainService(), windowsMainService.asService());
+		const profile = createProfile('anonymous-profile');
+
+		const profileStorage = storageMainService.profileStorage(profile);
+		let didClose = false;
+		disposables.add(profileStorage.onDidCloseStorage(() => didClose = true));
+
+		window.close();
+		await timeout(0);
+		strictEqual(didClose, false);
+
+		await profileStorage.close();
+	});
+
+	test('default profile storage does not close application storage with owner window', async function () {
+		const windowsMainService = disposables.add(new TestWindowsMainService());
+		const window = disposables.add(new TestCodeWindow(1));
+		windowsMainService.addWindow(window);
+		const storageMainService = createStorageService(new TestLifecycleMainService(), windowsMainService.asService());
+		const defaultProfile = createProfile('default-profile', true);
+
+		const profileStorage = storageMainService.profileStorage(defaultProfile, window.id);
+		strictEqual(profileStorage, storageMainService.applicationStorage);
+
+		let didClose = false;
+		disposables.add(profileStorage.onDidCloseStorage(() => didClose = true));
+
+		window.close();
+		await timeout(0);
+		strictEqual(didClose, false);
+	});
+
+	test('storage closed onWillShutdown with owner refs', async function () {
+		const lifecycleMainService = new TestLifecycleMainService();
+		const windowsMainService = disposables.add(new TestWindowsMainService());
+		const window = disposables.add(new TestCodeWindow(1));
+		windowsMainService.addWindow(window);
+		const storageMainService = createStorageService(lifecycleMainService, windowsMainService.asService());
+		const profile = createProfile('shutdown-profile');
+		const workspace = { id: generateUuid() };
+
+		const profileStorage = storageMainService.profileStorage(profile, window.id);
+		const workspaceStorage = storageMainService.workspaceStorage(workspace, window.id);
+
+		let didCloseProfileStorage = false;
+		disposables.add(profileStorage.onDidCloseStorage(() => didCloseProfileStorage = true));
+
+		let didCloseWorkspaceStorage = false;
+		disposables.add(workspaceStorage.onDidCloseStorage(() => didCloseWorkspaceStorage = true));
+
+		await lifecycleMainService.fireOnWillShutdown();
+
+		strictEqual(didCloseProfileStorage, true);
+		strictEqual(didCloseWorkspaceStorage, true);
+	});
+
+	test('storage channel reattaches profile listener after storage closes', async function () {
+		const windowsMainService = disposables.add(new TestWindowsMainService());
+		const window1 = disposables.add(new TestCodeWindow(1));
+		const window2 = disposables.add(new TestCodeWindow(2));
+		windowsMainService.addWindow(window1);
+		windowsMainService.addWindow(window2);
+		const storageMainService = createStorageService(new TestLifecycleMainService(), windowsMainService.asService());
+		const storageChannel = disposables.add(new StorageDatabaseChannel(new NullLogService(), storageMainService));
+		const profile = createProfile('channel-profile');
+
+		storageChannel.listen('window:1', 'onDidChangeStorage', { profile, workspace: undefined });
+		const profileStorage = storageMainService.profileStorage(profile);
+		const closed = Event.toPromise(profileStorage.onDidCloseStorage);
+		window1.close();
+		await closed;
+
+		let didChange = false;
+		disposables.add(storageChannel.listen('window:2', 'onDidChangeStorage', { profile, workspace: undefined })(() => didChange = true));
+
+		const profileStorage2 = storageMainService.profileStorage(profile);
+		profileStorage2.set('foo', 'bar');
+		await timeout(150);
+
+		strictEqual(didChange, true);
 	});
 
 	test('application shared storage closed onWillShutdown', async function () {
