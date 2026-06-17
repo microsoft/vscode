@@ -34,7 +34,8 @@ export class RemoteStorageService extends AbstractStorageService {
 		initialWorkspace: IAnyWorkspaceIdentifier | undefined,
 		initialProfiles: { defaultProfile: IUserDataProfile; currentProfile: IUserDataProfile },
 		protected readonly remoteService: IRemoteService,
-		private readonly environmentService: IEnvironmentService
+		private readonly environmentService: IEnvironmentService,
+		private readonly ownerWindowId: number | undefined = undefined
 	) {
 		super();
 
@@ -85,7 +86,7 @@ export class RemoteStorageService extends AbstractStorageService {
 
 			profileStorage = this.applicationStorage;
 		} else {
-			const storageDataBaseClient = this.profileStorageDisposables.add(new ProfileStorageDatabaseClient(this.remoteService.getChannel('storage'), profile));
+			const storageDataBaseClient = this.profileStorageDisposables.add(new ProfileStorageDatabaseClient(this.remoteService.getChannel('storage'), profile, this.ownerWindowId));
 			profileStorage = this.profileStorageDisposables.add(new Storage(storageDataBaseClient));
 		}
 
@@ -106,7 +107,7 @@ export class RemoteStorageService extends AbstractStorageService {
 
 		let workspaceStorage: IStorage | undefined = undefined;
 		if (workspace) {
-			const storageDataBaseClient = this.workspaceStorageDisposables.add(new WorkspaceStorageDatabaseClient(this.remoteService.getChannel('storage'), workspace));
+			const storageDataBaseClient = this.workspaceStorageDisposables.add(new WorkspaceStorageDatabaseClient(this.remoteService.getChannel('storage'), workspace, this.ownerWindowId));
 			workspaceStorage = this.workspaceStorageDisposables.add(new Storage(storageDataBaseClient));
 
 			this.workspaceStorageDisposables.add(workspaceStorage.onDidChangeStorage(e => this.emitDidChangeValue(StorageScope.WORKSPACE, e)));

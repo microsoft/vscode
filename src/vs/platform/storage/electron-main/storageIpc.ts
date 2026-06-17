@@ -74,11 +74,10 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 	}
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	listen(ctx: string, event: string, arg: IBaseSerializableStorageRequest): Event<any> {
+	listen(_ctx: string, event: string, arg: IBaseSerializableStorageRequest): Event<any> {
 		switch (event) {
 			case 'onDidChangeStorage': {
 				const profile = arg.profile ? revive<IUserDataProfile>(arg.profile) : undefined;
-				const ownerWindowId = this.getOwnerWindowId(ctx);
 
 				// Without profile: application or application-shared scope
 				if (!profile) {
@@ -90,6 +89,7 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 				}
 
 				// With profile: profile scope for the profile
+				const ownerWindowId = this.getOwnerWindowId(arg);
 				const storage = this.storageMainService.profileStorage(profile, ownerWindowId);
 				let profileStorageChangeEmitter = this.mapProfileToOnDidChangeProfileStorageEmitter.get(profile.id);
 				if (!profileStorageChangeEmitter) {
@@ -114,11 +114,11 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 	//#endregion
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	async call(ctx: string, command: string, arg: IBaseSerializableStorageRequest): Promise<any> {
+	async call(_ctx: string, command: string, arg: IBaseSerializableStorageRequest): Promise<any> {
 		const profile = arg.profile ? revive<IUserDataProfile>(arg.profile) : undefined;
 		const workspace = reviveIdentifier(arg.workspace);
 		const applicationShared = arg.applicationShared;
-		const ownerWindowId = this.getOwnerWindowId(ctx);
+		const ownerWindowId = this.getOwnerWindowId(arg);
 
 		// Get storage to be ready
 		const storage = await this.withStorageInitialized(profile, workspace, applicationShared, ownerWindowId);
@@ -168,18 +168,8 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 		}
 	}
 
-	private getOwnerWindowId(ctx: string): number | undefined {
-		const windowContextMatch = /^window:(\d+)(?:,|$)/.exec(ctx);
-		if (!windowContextMatch) {
-			return undefined;
-		}
-
-		const windowId = Number(windowContextMatch[1]);
-		if (!Number.isInteger(windowId)) {
-			return undefined;
-		}
-
-		return windowId;
+	private getOwnerWindowId(arg: IBaseSerializableStorageRequest): number | undefined {
+		return Number.isInteger(arg.ownerWindowId) ? arg.ownerWindowId : undefined;
 	}
 
 	private async withStorageInitialized(profile: IUserDataProfile | undefined, workspace: IAnyWorkspaceIdentifier | undefined, applicationShared: boolean | undefined, ownerWindowId: number | undefined): Promise<IStorageMain> {

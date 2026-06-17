@@ -37,6 +37,12 @@ export interface IBaseSerializableStorageRequest {
 	readonly applicationShared?: boolean;
 
 	/**
+	 * Window owning this request, if any. Only profile and workspace
+	 * storage requests with an owner participate in main process ref counting.
+	 */
+	readonly ownerWindowId?: number;
+
+	/**
 	 * Additional payload for the request to perform.
 	 */
 	readonly payload?: unknown;
@@ -63,20 +69,25 @@ abstract class BaseStorageDatabaseClient extends Disposable implements IStorageD
 	constructor(
 		protected channel: IChannel,
 		protected profile: UriDto<IUserDataProfile> | undefined,
-		protected workspace: IAnyWorkspaceIdentifier | undefined
+		protected workspace: IAnyWorkspaceIdentifier | undefined,
+		protected readonly ownerWindowId: number | undefined = undefined
 	) {
 		super();
 	}
 
+	protected toSerializableRequest(): IBaseSerializableStorageRequest {
+		return { profile: this.profile, workspace: this.workspace, applicationShared: this.applicationShared, ownerWindowId: this.ownerWindowId };
+	}
+
 	async getItems(): Promise<Map<string, string>> {
-		const serializableRequest: IBaseSerializableStorageRequest = { profile: this.profile, workspace: this.workspace, applicationShared: this.applicationShared };
+		const serializableRequest = this.toSerializableRequest();
 		const items: Item[] = await this.channel.call('getItems', serializableRequest);
 
 		return new Map(items);
 	}
 
 	updateItems(request: IUpdateRequest): Promise<void> {
-		const serializableRequest: ISerializableUpdateRequest = { profile: this.profile, workspace: this.workspace, applicationShared: this.applicationShared };
+		const serializableRequest: ISerializableUpdateRequest = this.toSerializableRequest();
 
 		if (request.insert) {
 			serializableRequest.insert = Array.from(request.insert.entries());
@@ -90,7 +101,7 @@ abstract class BaseStorageDatabaseClient extends Disposable implements IStorageD
 	}
 
 	optimize(): Promise<void> {
-		const serializableRequest: IBaseSerializableStorageRequest = { profile: this.profile, workspace: this.workspace, applicationShared: this.applicationShared };
+		const serializableRequest = this.toSerializableRequest();
 
 		return this.channel.call('optimize', serializableRequest);
 	}
@@ -103,14 +114,14 @@ abstract class BaseProfileAwareStorageDatabaseClient extends BaseStorageDatabase
 	private readonly _onDidChangeItemsExternal = this._register(new Emitter<IStorageItemsChangeEvent>());
 	readonly onDidChangeItemsExternal = this._onDidChangeItemsExternal.event;
 
-	constructor(channel: IChannel, profile: UriDto<IUserDataProfile> | undefined) {
-		super(channel, profile, undefined);
+	constructor(channel: IChannel, profile: UriDto<IUserDataProfile> | undefined, ownerWindowId: number | undefined = undefined) {
+		super(channel, profile, undefined, ownerWindowId);
 
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
-		this._register(this.channel.listen<ISerializableItemsChangeEvent>('onDidChangeStorage', { profile: this.profile, applicationShared: this.applicationShared })((e: ISerializableItemsChangeEvent) => this.onDidChangeStorage(e)));
+		this._register(this.channel.listen<ISerializableItemsChangeEvent>('onDidChangeStorage', this.toSerializableRequest())((e: ISerializableItemsChangeEvent) => this.onDidChangeStorage(e)));
 	}
 
 	private onDidChangeStorage(e: ISerializableItemsChangeEvent): void {
@@ -161,6 +172,10 @@ export class ApplicationSharedStorageDatabaseClient extends BaseProfileAwareStor
 
 export class ProfileStorageDatabaseClient extends BaseProfileAwareStorageDatabaseClient {
 
+	constructor(channel: IChannel, profile: UriDto<IUserDataProfile> | undefined, ownerWindowId: number | undefined = undefined) {
+		super(channel, profile, ownerWindowId);
+	}
+
 	async close(): Promise<void> {
 
 		// The profile storage database is shared across all instances of
@@ -176,8 +191,8 @@ export class WorkspaceStorageDatabaseClient extends BaseStorageDatabaseClient im
 
 	readonly onDidChangeItemsExternal = Event.None; // unsupported for workspace storage because we only ever write from one window
 
-	constructor(channel: IChannel, workspace: IAnyWorkspaceIdentifier) {
-		super(channel, undefined, workspace);
+	constructor(channel: IChannel, workspace: IAnyWorkspaceIdentifier, ownerWindowId: number | undefined = undefined) {
+		super(channel, undefined, workspace, ownerWindowId);
 	}
 
 	async close(): Promise<void> {
