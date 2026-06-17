@@ -103,10 +103,9 @@ export interface IChangesetOperationContributionService extends IDisposable {
 	 */
 	registerContribution(contribution: IChangesetOperationContribution): IDisposable;
 	/**
-	 * Collects all operations advertised by registered contributions for a
-	 * changeset context.
+	 * Refreshes the operations for the given session based on the current git state.
 	 */
-	getOperations(context: IChangesetOperationContext): readonly ChangesetOperation[] | undefined;
+	refreshOperationsFromCurrentState(sessionKey: string): void;
 	/**
 	 * Recomputes and publishes operations for the session and uncommitted static
 	 * changesets using the supplied git state.
