@@ -6,8 +6,8 @@
 import { IObservable } from '../../../../base/common/observable.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-
+import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 export const ISessionInputContext = createDecorator<ISessionInputContext>('sessionInputContext');
 
 /**
@@ -58,9 +58,9 @@ class ActiveSessionInputContext implements ISessionInputContext {
 	readonly session: IObservable<IActiveSession | undefined>;
 
 	constructor(
-		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+		@ISessionsService sessionsService: ISessionsService,
 	) {
-		this.session = sessionsManagementService.activeSession;
+		this.session = sessionsService.activeSession;
 	}
 }
 

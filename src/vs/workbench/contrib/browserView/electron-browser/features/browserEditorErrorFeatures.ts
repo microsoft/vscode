@@ -144,6 +144,19 @@ class BrowserEditorErrorFeatures extends BrowserEditorContribution {
 			errorMessage.appendChild(extraWarning);
 		}
 
+		// Failures to connect via remote proxy can surface as unusual errors.
+		// We add a readable label in these cases as a hint to the user.
+		if (this.editor.model?.isRemoteSession) {
+			const remoteWarning = error.errorCode === -111 || error.errorCode === -324
+				? localize('browser.remoteErrorExtraWarning', "This usually means the host is not available or could not be reached from the remote.")
+				: '';
+			if (remoteWarning) {
+				const remoteWarningEl = $('.browser-error-detail.hint');
+				remoteWarningEl.textContent = remoteWarning;
+				errorMessage.appendChild(remoteWarningEl);
+			}
+		}
+
 		const errorUrl = $('.browser-error-detail');
 		const urlLabel = $('strong');
 		urlLabel.textContent = localize('browser.errorUrlLabel', "URL:");

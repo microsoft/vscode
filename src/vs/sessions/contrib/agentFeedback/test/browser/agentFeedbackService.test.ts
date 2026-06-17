@@ -18,7 +18,11 @@ import { NullTelemetryService } from '../../../../../platform/telemetry/common/t
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IEditorService, IVisibleEditorsChangeEvent } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 
 function r(startLine: number, endLine: number = startLine): Range {
 	return new Range(startLine, 1, endLine, 1);
@@ -47,8 +51,9 @@ suite('AgentFeedbackService - Ordering', () => {
 			override visibleEditorPanes = [];
 		});
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
-			override activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+			override getSession(_resource: URI) { return undefined; }
 		});
+		instantiationService.stub(ISessionsService, { activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined) } as unknown as ISessionsService);
 
 		service = store.add(instantiationService.createInstance(AgentFeedbackService));
 		session = URI.parse('test://session/1');
@@ -303,9 +308,9 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 			override get visibleEditorPanes() { return visiblePanes; }
 		});
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
-			override activeSession = activeSessionObs;
 			override getSession(resource: URI) { return sessions.get(resource.toString()); }
 		});
+		instantiationService.stub(ISessionsService, { activeSession: activeSessionObs } as unknown as ISessionsService);
 
 		service = store.add(instantiationService.createInstance(AgentFeedbackService));
 
@@ -404,8 +409,11 @@ suite('AgentFeedbackService - State', () => {
 	let service: IAgentFeedbackService;
 	let session: URI;
 	let fileA: URI;
+	/** When set, getSession reports the session under this provider id. */
+	let sessionProviderId: string | undefined;
 
 	setup(() => {
+		sessionProviderId = undefined;
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() { });
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
@@ -413,9 +421,18 @@ suite('AgentFeedbackService - State', () => {
 			override onDidVisibleEditorsChange = Event.None;
 			override visibleEditorPanes = [];
 		});
-		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
-			override activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+			override getProvider<T extends ISessionsProvider>(_providerId: string): T | undefined { return undefined; }
 		});
+		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override onDidDeleteSession = Event.None;
+			override getSession(_resource: URI) {
+				return sessionProviderId
+					? { providerId: sessionProviderId, sessionId: 'session-1' } as unknown as ISession
+					: undefined;
+			}
+		});
+		instantiationService.stub(ISessionsService, { activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined) } as unknown as ISessionsService);
 
 		service = store.add(instantiationService.createInstance(AgentFeedbackService));
 		session = URI.parse('test://session/1');
@@ -439,7 +456,7 @@ suite('AgentFeedbackService - State', () => {
 		assert.strictEqual(service.getFeedback(session)[0].state, AgentFeedbackState.Accepted);
 	});
 
-	test('markFeedbackSubmitted only submits accepted items', () => {
+	test('markFeedbackSubmitted resolves accepted items directly for non-agent-host sessions', () => {
 		const accepted = service.addFeedback(session, fileA, r(10), 'accepted');
 		const created = service.addFeedback(session, fileA, r(20), 'created', undefined, undefined, undefined, AgentFeedbackKind.AgentReview, AgentFeedbackState.Created);
 
@@ -450,19 +467,30 @@ suite('AgentFeedbackService - State', () => {
 			accepted: stateById.get(accepted.id),
 			created: stateById.get(created.id),
 		}, {
-			accepted: AgentFeedbackState.Submitted,
+			accepted: AgentFeedbackState.Resolved,
 			created: AgentFeedbackState.Created,
 		});
 	});
 
-	test('resolving and un-resolving moves between resolved and submitted', () => {
-		const feedback = service.addFeedback(session, fileA, r(10), 'feedback');
+	test('markFeedbackSubmitted keeps accepted items submitted for agent-host sessions', () => {
+		sessionProviderId = LOCAL_AGENT_HOST_PROVIDER_ID;
+		service.addFeedback(session, fileA, r(10), 'accepted');
+
 		service.markFeedbackSubmitted(session);
 
-		service.setFeedbackResolved(session, feedback.id, true);
+		assert.strictEqual(service.getFeedback(session)[0].state, AgentFeedbackState.Submitted);
+	});
+
+	test('resolving and un-resolving moves between resolved and submitted', () => {
+		const feedback = service.addFeedback(session, fileA, r(10), 'feedback');
+		// Non-agent-host submit resolves the comment directly.
+		service.markFeedbackSubmitted(session);
 		assert.strictEqual(service.getFeedback(session)[0].state, AgentFeedbackState.Resolved);
 
 		service.setFeedbackResolved(session, feedback.id, false);
 		assert.strictEqual(service.getFeedback(session)[0].state, AgentFeedbackState.Submitted);
+
+		service.setFeedbackResolved(session, feedback.id, true);
+		assert.strictEqual(service.getFeedback(session)[0].state, AgentFeedbackState.Resolved);
 	});
 });

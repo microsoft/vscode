@@ -113,7 +113,7 @@ function callBuild(
 		showFeatured?: boolean;
 		isUBB?: boolean;
 		languageModelsService?: ILanguageModelsService;
-		autoModelUnavailable?: boolean;
+		showAutoModel?: boolean;
 	} = {},
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const onSelect = () => { };
@@ -138,9 +138,10 @@ function callBuild(
 		opts.showUnavailableFeatured ?? true,
 		opts.showFeatured ?? true,
 		opts.languageModelsService ?? stubLanguageModelsService,
+		opts.languageModelsService ?? stubLanguageModelsService,
 		undefined,
 		opts.isUBB,
-		opts.autoModelUnavailable ?? false,
+		opts.showAutoModel ?? true,
 	);
 }
 
@@ -202,8 +203,8 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(actions[1].item?.id, 'manageModels');
 	});
 
-	test('autoModelUnavailable shows a disabled no-models entry instead of auto', () => {
-		const items = callBuild([], { autoModelUnavailable: true });
+	test('showAutoModel=false shows a disabled no-models entry instead of auto', () => {
+		const items = callBuild([], { showAutoModel: false });
 		const actions = getActionItems(items);
 		// Exactly one entry: the early return must suppress Auto and the
 		// standalone "Manage Models" action (the helper always passes one).
@@ -213,24 +214,24 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(actions[0].item?.enabled, false);
 	});
 
-	test('autoModelUnavailable attaches inline upgrade link for Free users', () => {
-		const items = callBuild([], { autoModelUnavailable: true, entitlement: ChatEntitlement.Free });
+	test('showAutoModel=false attaches inline upgrade link for Free users', () => {
+		const items = callBuild([], { showAutoModel: false, entitlement: ChatEntitlement.Free });
 		const actions = getActionItems(items);
 		const noModels = actions.find(a => a.item?.id === 'noModels');
 		assert.ok(noModels, 'expected a no-models entry');
 		assert.ok(noModels!.description, 'expected an upgrade description for Free users');
 	});
 
-	test('autoModelUnavailable omits upgrade link for paid users', () => {
-		const items = callBuild([], { autoModelUnavailable: true, entitlement: ChatEntitlement.Pro });
+	test('showAutoModel=false omits upgrade link for paid users', () => {
+		const items = callBuild([], { showAutoModel: false, entitlement: ChatEntitlement.Pro });
 		const actions = getActionItems(items);
 		const noModels = actions.find(a => a.item?.id === 'noModels');
 		assert.ok(noModels, 'expected a no-models entry');
 		assert.strictEqual(noModels!.description, undefined);
 	});
 
-	test('autoModelUnavailable with available models shows the models, not the empty state', () => {
-		const items = callBuild([createModel('gpt-4o', 'GPT-4o')], { autoModelUnavailable: true });
+	test('showAutoModel=false with available models shows the models, not the empty state', () => {
+		const items = callBuild([createModel('gpt-4o', 'GPT-4o')], { showAutoModel: false });
 		const actions = getActionItems(items);
 		assert.strictEqual(actions.some(a => a.item?.id === 'noModels'), false);
 		assert.strictEqual(actions.some(a => a.label === 'GPT-4o'), true);
@@ -670,6 +671,7 @@ suite('buildModelPickerItems', () => {
 			true,
 			true,
 			stubLanguageModelsService,
+			stubLanguageModelsService,
 		);
 		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
 		assert.ok(gptItem?.item);
@@ -758,6 +760,7 @@ suite('buildModelPickerItems', () => {
 			true,
 			true,
 			stubLanguageModelsService,
+			stubLanguageModelsService,
 		);
 
 		const adminItem = getActionItems(items).find(a => a.label === 'Missing Model');
@@ -845,6 +848,7 @@ suite('buildModelPickerItems', () => {
 			anonymousEntitlementService,
 			true,
 			true,
+			stubLanguageModelsService,
 			stubLanguageModelsService,
 		);
 		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');

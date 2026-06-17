@@ -17,7 +17,7 @@ export class BaseTelemetryService implements ITelemetryService {
 	private _sharedProperties: Record<string, string | TelemetryTrustedValue<string>> = {};
 	private _originalExpAssignments: string | undefined;
 	private _additionalExpAssignments: string[] = [];
-	private _disposables: IDisposable[] = [];
+	protected _disposables: IDisposable[] = [];
 	constructor(
 		protected readonly _tokenStore: ICopilotTokenStore,
 		private readonly _capiClientService: ICAPIClientService,

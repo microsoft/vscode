@@ -10,9 +10,29 @@ import type { TLSSocket } from 'tls';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ITunnelConnectFn, TunnelProxy } from '../../node/tunnelProxy.js';
-import { ITunnelProxyInfo } from '../../common/sharedProcessTunnelProxyService.js';
+import { ITunnelProxyInfo } from '../../common/tunnelProxy.js';
 import { NodeSocket } from '../../../../base/parts/ipc/node/ipc.net.js';
+import { ISocket, SocketCloseEvent, SocketCloseEventType } from '../../../../base/parts/ipc/common/ipc.net.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+
+/**
+ * Wrap a raw `net.Socket` in the protocol-like shape that `TunnelProxy`
+ * expects, emulating the remote agent. The tunnel handshake (the remote
+ * confirming the target is reachable) happens inside the real connect
+ * function, which the proxy tests replace; reaching this helper therefore
+ * always represents a successfully established tunnel, so no status is
+ * delivered here. A failed tunnel is simulated by a connect function that
+ * rejects instead.
+ */
+function mockTunnelProtocol(socket: import('net').Socket) {
+	return {
+		getSocket: () => new NodeSocket(socket),
+		readEntireBuffer: () => VSBuffer.alloc(0),
+		dispose: () => { /* NodeSocket owns the underlying socket */ },
+	};
+}
 
 /**
  * Create a mock {@link ITunnelConnectFn} that connects to a local TCP
@@ -28,10 +48,70 @@ function createMockConnectFn(targetPort: number): ITunnelConnectFn {
 			socket.once('connect', resolve);
 			socket.once('error', reject);
 		});
+		return mockTunnelProtocol(socket);
+	};
+}
+
+/**
+ * A generic {@link ISocket} that is **not** a {@link NodeSocket}, backed by a
+ * raw `net.Socket`, used to emulate a managed / exec-server transport. Reaching
+ * `TunnelProxy` through this shape exercises the `RemoteSocketStream` adapter
+ * (the proxy never sees a `net.Socket`) rather than the raw-socket fast path.
+ */
+class ManagedTestSocket extends Disposable implements ISocket {
+
+	private readonly _onData = this._register(new Emitter<VSBuffer>());
+	private readonly _onClose = this._register(new Emitter<SocketCloseEvent>());
+	private readonly _onEnd = this._register(new Emitter<void>());
+
+	private _isDisposed = false;
+	get isDisposed(): boolean { return this._isDisposed; }
+
+	constructor(private readonly _socket: import('net').Socket) {
+		super();
+		this._socket.on('data', d => this._onData.fire(VSBuffer.wrap(d)));
+		this._socket.on('end', () => this._onEnd.fire());
+		this._socket.on('close', hadError => this._onClose.fire({ type: SocketCloseEventType.NodeSocketCloseEvent, hadError, error: undefined }));
+		// Swallow transport errors; they surface to the proxy as a close event.
+		this._socket.on('error', () => { });
+	}
+
+	onData(listener: (e: VSBuffer) => void): IDisposable { return this._onData.event(listener); }
+	onClose(listener: (e: SocketCloseEvent) => void): IDisposable { return this._onClose.event(listener); }
+	onEnd(listener: () => void): IDisposable { return this._onEnd.event(listener); }
+	write(buffer: VSBuffer): void { this._socket.write(buffer.buffer); }
+	end(): void { this._socket.end(); }
+	drain(): Promise<void> { return Promise.resolve(); }
+	traceSocketEvent(): void { }
+
+	override dispose(): void {
+		this._isDisposed = true;
+		this._socket.destroy();
+		super.dispose();
+	}
+}
+
+/**
+ * Like {@link createMockConnectFn}, but presents the tunnel as a generic
+ * {@link ISocket} (managed / exec-server transport) instead of a
+ * {@link NodeSocket}, so the proxy routes it through its `RemoteSocketStream`
+ * adapter. The protocol's `dispose` is a no-op because the adapter owns the
+ * managed socket and disposes it when the stream is destroyed.
+ */
+function createManagedConnectFn(targetPort: number, onSocket?: (socket: ManagedTestSocket) => void): ITunnelConnectFn {
+	return async () => {
+		const net = await import('net');
+		const socket = net.createConnection({ host: '127.0.0.1', port: targetPort });
+		await new Promise<void>((resolve, reject) => {
+			socket.once('connect', resolve);
+			socket.once('error', reject);
+		});
+		const managed = new ManagedTestSocket(socket);
+		onSocket?.(managed);
 		return {
-			getSocket: () => new NodeSocket(socket),
+			getSocket: () => managed,
 			readEntireBuffer: () => VSBuffer.alloc(0),
-			dispose: () => { /* NodeSocket owns the underlying socket */ },
+			dispose: () => { /* the adapter owns and disposes the managed socket */ },
 		};
 	};
 }
@@ -297,11 +377,7 @@ suite('TunnelProxy', () => {
 				socket.once('connect', resolve);
 				socket.once('error', reject);
 			});
-			return {
-				getSocket: () => new NodeSocket(socket),
-				readEntireBuffer: () => VSBuffer.alloc(0),
-				dispose: () => { },
-			};
+			return mockTunnelProtocol(socket);
 		};
 		const poolProxy = ds.add(new TunnelProxy(countingConnect, new NullLogService()));
 		const poolInfo = await poolProxy.start();
@@ -334,11 +410,7 @@ suite('TunnelProxy', () => {
 				socket.once('error', reject);
 			});
 			remoteSockets.push(socket);
-			return {
-				getSocket: () => new NodeSocket(socket),
-				readEntireBuffer: () => VSBuffer.alloc(0),
-				dispose: () => { /* NodeSocket owns the underlying socket */ },
-			};
+			return mockTunnelProtocol(socket);
 		};
 		const p = ds.add(new TunnelProxy(connectFn, new NullLogService()));
 		const info = await p.start();
@@ -372,11 +444,7 @@ suite('TunnelProxy', () => {
 				socket.once('error', reject);
 			});
 			remoteSockets.push(socket);
-			return {
-				getSocket: () => new NodeSocket(socket),
-				readEntireBuffer: () => VSBuffer.alloc(0),
-				dispose: () => { /* NodeSocket owns the underlying socket */ },
-			};
+			return mockTunnelProtocol(socket);
 		};
 		const p = ds.add(new TunnelProxy(connectFn, new NullLogService()));
 		const info = await p.start();
@@ -431,21 +499,25 @@ suite('TunnelProxy', () => {
 
 	// --- Error handling ---
 
-	test('returns 502 when upstream tunnel connection fails', async () => {
+	test('fails the request when the tunnel connection fails', async () => {
+		// A failed tunnel - whether the remote agent itself is unreachable or
+		// the remote reports (via the handshake) that the target host:port is
+		// unreachable - surfaces here as a rejected connect function.
 		const failingConnect: ITunnelConnectFn = async () => {
-			throw new Error('simulated upstream failure');
+			throw new Error('connect ECONNREFUSED 127.0.0.1:9999');
 		};
 		const failProxy = ds.add(new TunnelProxy(failingConnect, new NullLogService()));
 		const failInfo = await failProxy.start();
 
-		// Plain HTTP request should get 502
-		const res = await proxyRequest(failInfo, {
+		// Plain HTTP request: the client connection is reset (no HTTP
+		// response) so the browser shows its native error page.
+		await assert.rejects(() => proxyRequest(failInfo, {
 			path: 'http://unreachable.example.com/path',
 			auth: true,
-		});
-		assert.strictEqual(res.statusCode, 502);
+		}));
 
-		// CONNECT should also get 502
+		// CONNECT should fail with a 502 (which the browser surfaces as a
+		// native tunnel error page).
 		const { statusCode, socket } = await proxyConnect(failInfo, 'unreachable.example.com:443', true);
 		assert.strictEqual(statusCode, 502);
 		socket.end();
@@ -501,11 +573,7 @@ suite('TunnelProxy', () => {
 				socket.once('error', reject);
 			});
 			remoteSockets.push(socket);
-			return {
-				getSocket: () => new NodeSocket(socket),
-				readEntireBuffer: () => VSBuffer.alloc(0),
-				dispose: () => { /* NodeSocket owns the underlying socket */ },
-			};
+			return mockTunnelProtocol(socket);
 		};
 		const p = ds.add(new TunnelProxy(connectFn, new NullLogService()));
 		const info = await p.start();
@@ -597,5 +665,68 @@ suite('TunnelProxy', () => {
 		agent.destroy();
 
 		await closed;
+	});
+
+	// --- Managed (non-NodeSocket) transport ---
+	//
+	// Exec-server / managed connections yield a generic ISocket with no
+	// underlying net.Socket, so the proxy bridges them through its
+	// RemoteSocketStream Duplex adapter instead of the raw-socket fast path.
+	suite('managed (non-NodeSocket) transport', () => {
+
+		let managedProxy: TunnelProxy;
+		let managedInfo: ITunnelProxyInfo;
+
+		setup(async () => {
+			managedProxy = ds.add(new TunnelProxy(createManagedConnectFn(targetPort), new NullLogService()));
+			managedInfo = await managedProxy.start();
+		});
+
+		teardown(() => {
+			managedProxy.dispose();
+		});
+
+		test('forwards an authenticated HTTP GET through a managed socket', async () => {
+			const res = await proxyRequest(managedInfo, {
+				path: `http://127.0.0.1:${targetPort}/managed/path`,
+				auth: true,
+			});
+			assert.strictEqual(res.statusCode, 200);
+			assert.strictEqual(res.body, 'ECHO GET /managed/path');
+		});
+
+		test('CONNECT tunnels bidirectional data through a managed socket', async () => {
+			const { statusCode, socket } = await proxyConnect(managedInfo, `127.0.0.1:${targetPort}`, true);
+			assert.strictEqual(statusCode, 200);
+
+			// Write a request up the tunnel and read the echoed response back
+			// down it, proving the adapter bridges both directions.
+			socket.write(`GET /managed-tunnel HTTP/1.1\r\nHost: 127.0.0.1:${targetPort}\r\nConnection: close\r\n\r\n`);
+			const body = await new Promise<string>((resolve, reject) => {
+				const chunks: Buffer[] = [];
+				socket.on('data', c => chunks.push(c));
+				socket.on('end', () => resolve(Buffer.concat(chunks).toString()));
+				socket.on('error', reject);
+			});
+			assert.ok(body.includes('ECHO GET /managed-tunnel'), `Expected tunneled echo, got: ${body}`);
+		});
+
+		test('dispose disposes the managed remote socket via the adapter', async () => {
+			let captured: ManagedTestSocket | undefined;
+			const p = ds.add(new TunnelProxy(createManagedConnectFn(targetPort, s => { captured = s; }), new NullLogService()));
+			const info = await p.start();
+
+			const { statusCode, socket } = await proxyConnect(info, `127.0.0.1:${targetPort}`, true);
+			assert.strictEqual(statusCode, 200);
+			assert.ok(captured);
+
+			p.dispose();
+
+			// Destroying the adapter (RemoteSocketStream) on dispose must dispose
+			// the underlying managed socket, mirroring how the NodeSocket path
+			// destroys the raw net.Socket.
+			assert.strictEqual(captured.isDisposed, true);
+			socket.end();
+		});
 	});
 });

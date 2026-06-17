@@ -14,6 +14,7 @@ import { IIgnoreService } from '../../../platform/ignore/common/ignoreService';
 import { Copilot } from '../../../platform/inlineCompletions/common/api';
 import { DocumentId } from '../../../platform/inlineEdits/common/dataTypes/documentId';
 import { Edits } from '../../../platform/inlineEdits/common/dataTypes/edit';
+import { ImportChanges } from '../../../platform/inlineEdits/common/dataTypes/importFilteringOptions';
 import { LanguageContextEntry, LanguageContextResponse } from '../../../platform/inlineEdits/common/dataTypes/languageContext';
 import { LanguageId } from '../../../platform/inlineEdits/common/dataTypes/languageId';
 import { NextCursorLinePrediction } from '../../../platform/inlineEdits/common/dataTypes/nextCursorLinePrediction';
@@ -98,7 +99,7 @@ export interface ModelConfig extends xtabPromptOptions.PromptOptions {
 	modelName: string | undefined;
 }
 
-interface RequestTracingContext {
+export interface RequestTracingContext {
 	tracer: ILogger;
 	logContext: InlineEditRequestLogContext;
 	telemetry: StatelessNextEditTelemetryBuilder;
@@ -688,7 +689,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 
 		while (!r.done) {
 			const edit = r.value.edit;
-			const [filteredEdits, filterNames] = this.filterEdit(request.getActiveDocument(), [edit]);
+			const [filteredEdits, filterNames] = this.filterEdit(request.getActiveDocument(), [edit], editStreamCtx.modelServiceConfig.allowImportChanges ?? ImportChanges.None);
 			const isFilteredOut = filteredEdits.length === 0;
 			if (isFilteredOut) {
 				tracer.trace(`Filtered out an edit: ${edit.toString()} using ${filterNames.join(', ')} filter(s)`);
@@ -1155,7 +1156,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			return new NoNextEditReason.GotCancelled('beforeNextCursorPredictionFetchUserTyped');
 		}
 
-		const nextCursorLineR = await this.nextCursorPredictor.predictNextCursorPosition(promptPieces, tracer, telemetry, cancellationToken);
+		const nextCursorLineR = await this.nextCursorPredictor.predictNextCursorPosition(promptPieces, tracing, cancellationToken);
 
 		if (cancellationToken.isCancellationRequested) {
 			return new NoNextEditReason.GotCancelled('afterNextCursorPredictionFetch');
@@ -1531,10 +1532,9 @@ export class XtabProvider implements IStatelessNextEditProvider {
 	}
 
 
-	private filterEdit(activeDoc: StatelessNextEditDocument, edits: readonly LineReplacement[]): [filteredEdits: readonly LineReplacement[], filterNames: string[]] {
+	private filterEdit(activeDoc: StatelessNextEditDocument, edits: readonly LineReplacement[], allowImportChanges: ImportChanges): [filteredEdits: readonly LineReplacement[], filterNames: string[]] {
 		type EditFilter = (edits: readonly LineReplacement[]) => { filterName: string; filteredEdits: readonly LineReplacement[] };
 
-		const allowImportChanges = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsAllowImportChanges, this.expService);
 		const filters: EditFilter[] = [
 			(edits) => ({ filterName: 'IgnoreImportChangesAspect', filteredEdits: IgnoreImportChangesAspect.filterEdit(activeDoc, edits, allowImportChanges) }),
 			(edits) => ({ filterName: 'IgnoreEmptyLineAndLeadingTrailingWhitespaceChanges', filteredEdits: IgnoreEmptyLineAndLeadingTrailingWhitespaceChanges.filterEdit(activeDoc, edits) }),
