@@ -5,6 +5,8 @@
 
 import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import * as fs from 'fs';
+import { type CCAModel } from '@vscode/copilot-api';
+import { timeout } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -240,6 +242,15 @@ const codexSessionConfigDefaults: ICodexSessionConfigDefaults = {
 };
 
 const CodexPrewarmTtlMs = 60_000;
+
+/**
+ * The Copilot CAPI `/models` endpoint can return an incomplete catalog while
+ * its backend cache is warming up, intermittently omitting the GPT-5 / Codex
+ * models. These bound a short retry of the catalog fetch until it includes at
+ * least one Codex-supported model.
+ */
+const CODEX_MODEL_REFRESH_MAX_ATTEMPTS = 3;
+const CODEX_MODEL_REFRESH_RETRY_DELAY_MS = 500;
 
 /**
  * Per-session bookkeeping. The codex thread is owned by the shared
@@ -641,7 +652,6 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	private async _refreshModels(token: string): Promise<void> {
 		try {
-			const all = await this._copilotApiService.models(token);
 			const conn = await this._ensureConnection();
 			const codexModelDefaults = new Map<string, boolean>();
 			let cursor: string | null | undefined = null;
@@ -654,6 +664,29 @@ export class CodexAgent extends Disposable implements IAgent {
 				}
 				cursor = response.nextCursor;
 			} while (cursor);
+
+			// The Copilot models catalog (CAPI `/models`) can return an
+			// incomplete result on a cold backend cache — sometimes omitting the
+			// GPT-5 / Codex models entirely. Codex performs a one-shot refresh, so
+			// caching that partial result leaves the session showing "No models
+			// available". Re-fetch the catalog a few times until it contains at
+			// least one model Codex actually supports (the Codex-side `model/list`
+			// above is authoritative and stable).
+			let all: CCAModel[] = [];
+			for (let attempt = 0; attempt < CODEX_MODEL_REFRESH_MAX_ATTEMPTS; attempt++) {
+				if (this._githubToken !== token) {
+					return;
+				}
+				all = await this._copilotApiService.models(token, { suppressIntegrationId: true });
+				const hasCodexModel = all.some(m => codexModelDefaults.has(getCodexModelCatalogId(m.id)));
+				if (hasCodexModel) {
+					break;
+				}
+				if (attempt < CODEX_MODEL_REFRESH_MAX_ATTEMPTS - 1) {
+					this._logService.info(`[Codex] Copilot catalog missing Codex models (attempt ${attempt + 1}/${CODEX_MODEL_REFRESH_MAX_ATTEMPTS}, got ${all.length} models); retrying`);
+					await timeout(CODEX_MODEL_REFRESH_RETRY_DELAY_MS);
+				}
+			}
 			if (this._githubToken !== token) {
 				return;
 			}
@@ -670,6 +703,9 @@ export class CodexAgent extends Disposable implements IAgent {
 					supportsVision: !!model.capabilities?.supports?.vision,
 					configSchema,
 				}));
+			if (filtered.length === 0) {
+				this._logService.warn(`[Codex] Refresh produced no models (copilot catalog size=${all.length}, codex defaults=${codexModelDefaults.size})`);
+			}
 			this._models.set(filtered, undefined);
 		} catch (err) {
 			this._logService.warn(`[Codex] Failed to refresh models: ${err instanceof Error ? err.message : String(err)}`);
