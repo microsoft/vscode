@@ -4,25 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isWeb } from '../../../base/common/platform.js';
-import { PolicyCategory } from '../../../base/common/policy.js';
 import * as nls from '../../../nls.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
 import product from '../../product/common/product.js';
 import { Registry } from '../../registry/common/platform.js';
 import { AgentHostEnabledSettingId } from './agentService.js';
 
-// `chat.agentHost.enabled` is read in the desktop main process
-// (`src/vs/code/electron-main/app.ts`) to decide whether to spawn the agent
-// host, and in the renderer for various gating decisions. The remote server
-// does **not** consume this key — it spawns the agent host based on its own
-// `--agent-host-port` / `--agent-host-path` CLI args — so this registration
-// is intentionally not imported there.
-//
 // Side-effect imports of this file:
 //   - `src/vs/platform/agentHost/electron-main/electronAgentHostStarter.ts`
 //     (loaded transitively from `app.ts`).
 //   - `src/vs/workbench/contrib/chat/browser/chat.shared.contribution.ts`
 //     (renderer registration for the settings UI).
+//
+// The `policy` block for `chat.agentHost.enabled` is added in the browser
+// layer (`agentHost/browser/agentHost.config.contribution.ts`) via
+// `updateConfigurations` because the `value` callback cannot be
+// structured-cloned over Electron IPC.
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
@@ -35,18 +32,6 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.agentHost.enabled', "When enabled, some agents run in a separate agent host process."),
 			default: !isWeb && product.quality !== 'stable',
 			tags: ['experimental', 'advanced'],
-			policy: {
-				name: 'ChatAgentHostEnabled',
-				category: PolicyCategory.InteractiveSession,
-				minimumVersion: '1.126',
-				value: (policyData) => policyData.chat_preview_features_enabled === false ? false : undefined,
-				localization: {
-					description: {
-						key: 'chat.agentHost.enabled',
-						value: nls.localize('chat.agentHost.enabled', "When enabled, some agents run in a separate agent host process.")
-					}
-				},
-			}
 		},
 		'chat.agents.copilotCli.hideExtensionHost': {
 			type: 'boolean',
