@@ -670,6 +670,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this._attachmentModel = this._register(this.instantiationService.createInstance(ChatAttachmentModel));
 		this._register(this._attachmentModel.onDidChange(() => this._syncInputStateToModel()));
+		// Capture model-configuration changes into the draft input state immediately,
+		// mirroring how a model selection is synced in `setCurrentLanguageModel`. Without
+		// this, a config-only change would not reach the draft state until some other
+		// sync-triggering event, so an autosave/serialize in between could persist a stale
+		// snapshot that overwrites the newer config on reopen. The `_syncFromModel` guard
+		// and the store's redundant-update short-circuit prevent feedback loops on restore.
+		this._register(this._modelConfigStore.onDidChange(() => this._syncInputStateToModel()));
 		this.selectedToolsModel = this._register(this.instantiationService.createInstance(ChatSelectedTools, this.currentModeObs, this._currentLanguageModel));
 		this.dnd = this._register(this.instantiationService.createInstance(ChatDragAndDrop, () => this._widget, this._attachmentModel, styles));
 
