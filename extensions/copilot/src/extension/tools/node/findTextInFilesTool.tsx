@@ -19,11 +19,10 @@ import { raceTimeoutAndCancellationError } from '../../../util/common/racePromis
 import { asArray } from '../../../util/vs/base/common/arrays';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { isAbsolute } from '../../../util/vs/base/common/path';
-import { count } from '../../../util/vs/base/common/strings';
 import { URI } from '../../../util/vs/base/common/uri';
 import { Position as EditorPosition } from '../../../util/vs/editor/common/core/position';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { ExcludeSettingOptions, ExtendedLanguageModelToolResult, LanguageModelPromptTsxPart, LanguageModelTextPart, Location, MarkdownString, Range } from '../../../vscodeTypes';
+import { ExcludeSettingOptions, ExtendedLanguageModelToolResult, LanguageModelPromptTsxPart, Location, MarkdownString, Range } from '../../../vscodeTypes';
 import { IBuildPromptContext } from '../../prompt/common/intents';
 import { renderPromptElementJSON } from '../../prompts/node/base/promptRenderer';
 import { Tag } from '../../prompts/node/base/tag';
@@ -46,10 +45,13 @@ const MaxResultsCap = 200;
 interface LineMatch {
 	line: number;
 	text: string;
+	rangeInDocument: Range;
+	rangeInPreview: Range;
 }
 
 interface FileMatch {
 	path: string;
+	uri: URI;
 	matches: LineMatch[];
 	elidedMatches?: number;
 }
@@ -185,37 +187,17 @@ Then if you want to include those files you can call the tool again by setting "
 		return result;
 	}
 
-	private renderGrepStyle(results: vscode.TextSearchResult2[], options: vscode.LanguageModelToolInvocationOptions<IFindTextInFilesToolParams>, maxResults: number, globResult: InputGlobResult | undefined, isRegExp: boolean, noMatchInstructions: string | undefined, token: CancellationToken): vscode.ExtendedLanguageModelToolResult {
+	private async renderGrepStyle(results: vscode.TextSearchResult2[], options: vscode.LanguageModelToolInvocationOptions<IFindTextInFilesToolParams>, maxResults: number, globResult: InputGlobResult | undefined, isRegExp: boolean, noMatchInstructions: string | undefined, token: CancellationToken): Promise<vscode.ExtendedLanguageModelToolResult> {
 		const groupedMatches = this.createGroupedFileMatches(results, maxResults);
 		if (!groupedMatches) {
 			return this.errorResult(noMatchInstructions ? `No matches found. ${noMatchInstructions}` : 'No matches found.');
 		}
-		const totalMatches = groupedMatches.stats.total;
-		const totalFiles = groupedMatches.stats.filesElided + groupedMatches.files.length;
-		const match = totalMatches === 1 ? `1 match` : `${totalMatches} matches`;
-		const files = totalFiles === 1 ? `1 file` : `${totalFiles} files`;
-		let elided: string = '';
-		if (groupedMatches.stats.elided > 0) {
-			const shownMatches = groupedMatches.stats.total - groupedMatches.stats.elided;
-			const match = shownMatches === 1 ? `1 match` : `${shownMatches} matches`;
-			const files = groupedMatches.files.length === 1 ? `1 file` : `${groupedMatches.files.length} files`;
-			elided = ` (showing ${match} in ${files})`;
-		}
-		const buffer: string[] = [`Found ${match} in ${files} for "${options.input.query}"${elided}`, ''];
-		groupedMatches.files.forEach((f, i) => {
-			buffer.push(f.path);
-			for (const match of f.matches) {
-				buffer.push(`${match.line}:${match.text}`);
-			}
-			if (f.elidedMatches && f.elidedMatches > 0) {
-				const match = f.elidedMatches === 1 ? `1 more match` : `${f.elidedMatches} more matches`;
-				buffer.push(`... (${match} in this file)`);
-			}
-			if (i < groupedMatches.files.length - 1) {
-				buffer.push('');
-			}
-		});
-		const result = new ExtendedLanguageModelToolResult([new LanguageModelTextPart(buffer.join('\n'))]);
+		const prompt = await renderPromptElementJSON(this.instantiationService,
+			FindTextInFilesGrepResult,
+			{ grouped: groupedMatches, query: options.input.query },
+			options.tokenizationOptions,
+			token);
+		const result = new ExtendedLanguageModelToolResult([new LanguageModelPromptTsxPart(prompt)]);
 		const query = this.formatQueryString(options.input, globResult);
 		result.toolResultMessage = this.getResultMessage(isRegExp, query, groupedMatches.stats.total);
 		return result;
@@ -231,12 +213,16 @@ Then if you want to include those files you can call the tool again by setting "
 			const path = this.promptPathRepresentationService.getFilePath(textMatch.uri, true);
 			let fileMatch = groupedByFile.get(path);
 			if (fileMatch === undefined) {
-				fileMatch = { path, matches: [] };
+				fileMatch = { path, uri: textMatch.uri, matches: [] };
 				groupedByFile.set(path, fileMatch);
 			}
+			const sourceRange = textMatch.ranges[0].sourceRange;
+			const previewRange = textMatch.ranges[0].previewRange;
 			fileMatch.matches.push({
-				line: textMatch.ranges[0].sourceRange.start.line + 1,
-				text: textMatch.previewText.replace(/\n$/, '').trimEnd()
+				line: sourceRange.start.line + 1,
+				text: textMatch.previewText.replace(/\n$/, '').trimEnd(),
+				rangeInDocument: sourceRange,
+				rangeInPreview: previewRange
 			});
 		}
 		let fileMatches = Array.from(groupedByFile.values()).sort((a, b) => a.path.localeCompare(b.path));
@@ -495,6 +481,65 @@ const MAX_CHARS_BETWEEN_MATCHES = 500;
 /** Start priority for findFiles lines so that context is gradually trimmed. */
 const FIND_FILES_START_PRIORITY = 1000;
 
+/**
+ * Max number of characters of the matched span itself to include before eliding its
+ * middle. Prevents a single match (e.g. a greedy regex matching a multi-megabyte minified
+ * line) from contributing an unbounded amount of text.
+ */
+const MAX_MATCH_PREVIEW_CHARS = 2000;
+
+/**
+ * Bounds a match preview so a single match cannot contribute an unbounded amount of text.
+ *
+ * - Trims surrounding context to {@link MAX_CHARS_BETWEEN_MATCHES} characters on each side.
+ * - If the matched span itself exceeds {@link MAX_MATCH_PREVIEW_CHARS}, elides the middle of
+ *   the match while keeping its head and tail, so the matched characters at both boundaries
+ *   remain visible rather than being cut off.
+ *
+ * For matches within these limits the surrounding window is returned unchanged.
+ *
+ * @param preview The full preview text (may span multiple lines and be very large).
+ * @param start Offset of the match start within `preview`.
+ * @param end Offset of the match end within `preview`.
+ */
+function boundMatchPreview(preview: string, start: number, end: number): string {
+	start = Math.max(0, Math.min(start, preview.length));
+	end = Math.max(start, Math.min(end, preview.length));
+
+	let matchText = preview.slice(start, end);
+	if (matchText.length > MAX_MATCH_PREVIEW_CHARS) {
+		const head = Math.ceil(MAX_MATCH_PREVIEW_CHARS / 2);
+		const tail = MAX_MATCH_PREVIEW_CHARS - head;
+		const elided = matchText.length - head - tail;
+		matchText = `${matchText.slice(0, head)}[... ${elided} characters elided ...]${matchText.slice(matchText.length - tail)}`;
+	}
+
+	const before = preview.slice(Math.max(0, start - MAX_CHARS_BETWEEN_MATCHES), start);
+	const after = preview.slice(end, end + MAX_CHARS_BETWEEN_MATCHES);
+	const prefix = start > MAX_CHARS_BETWEEN_MATCHES ? '...' : '';
+	const suffix = preview.length - end > MAX_CHARS_BETWEEN_MATCHES ? '...' : '';
+
+	return `${prefix}${before}${matchText}${after}${suffix}`;
+}
+
+/**
+ * Returns the grep-style preview text for a match, bounding its length via
+ * {@link boundMatchPreview} so a single match cannot contribute an unbounded amount of text.
+ * Short previews are returned unchanged so normal results are unaffected.
+ */
+function boundGrepMatchText(textMatch: vscode.TextSearchMatch2): string {
+	const previewText = textMatch.previewText;
+	// Fast path: previews short enough that they never need bounding.
+	if (previewText.length <= MAX_MATCH_PREVIEW_CHARS + 2 * MAX_CHARS_BETWEEN_MATCHES) {
+		return previewText;
+	}
+	const previewRange = textMatch.ranges[0].previewRange;
+	const convert = new OffsetLineColumnConverter(previewText);
+	const start = convert.positionToOffset(new EditorPosition(previewRange.start.line + 1, previewRange.start.character + 1));
+	const end = convert.positionToOffset(new EditorPosition(previewRange.end.line + 1, previewRange.end.character + 1));
+	return boundMatchPreview(previewText, start, end);
+}
+
 export class FindTextInFilesResult extends PromptElement<FindTextInFilesResultProps> {
 	override async render(state: void, sizing: PromptSizing): Promise<PromptPiece> {
 		const textMatches = this.props.textResults.filter(isTextSearchMatch);
@@ -556,16 +601,7 @@ export class FindMatch extends PromptElement<IFindMatchProps> {
 		const start = convert.positionToOffset(new EditorPosition(rangeInPreview.start.line + 1, rangeInPreview.start.character + 1));
 		const end = convert.positionToOffset(new EditorPosition(rangeInPreview.end.line + 1, rangeInPreview.end.character + 1));
 
-		let toPreview = preview;
-		let lineStartsAt = (rangeInDocument.start.line + 1) - count(preview.slice(0, start), '\n');
-		if (preview.length - end > MAX_CHARS_BETWEEN_MATCHES) {
-			toPreview = preview.slice(0, end + MAX_CHARS_BETWEEN_MATCHES) + '...';
-		}
-
-		if (start > MAX_CHARS_BETWEEN_MATCHES) {
-			lineStartsAt += count(preview.slice(0, start - MAX_CHARS_BETWEEN_MATCHES), '\n');
-			toPreview = '...' + toPreview.slice(start - MAX_CHARS_BETWEEN_MATCHES);
-		}
+		const toPreview = boundMatchPreview(preview, start, end);
 
 		const toPreviewLines = toPreview.split('\n');
 		const center = Math.floor(toPreviewLines.length / 2);
@@ -583,6 +619,57 @@ export class FindMatch extends PromptElement<IFindMatchProps> {
 	}
 }
 
+export interface FindTextInFilesGrepResultProps extends BasePromptElementProps {
+	grouped: MatchResult;
+	query: string;
+}
+
+/**
+ * Renders grep-style search results as plain text (no XML tags) through prompt-tsx, so the
+ * output participates in token-budget pruning and carries editor references instead of being
+ * emitted as a single unprunable text blob.
+ *
+ * Each file is rendered as its own {@link TextChunk}, prefixed with a blank line to match the
+ * grep output format. Earlier files are given a higher priority so that, when the budget is
+ * exceeded, later files are dropped first.
+ */
+export class FindTextInFilesGrepResult extends PromptElement<FindTextInFilesGrepResultProps> {
+	override render(): PromptPiece {
+		const { grouped, query } = this.props;
+
+		const totalMatches = grouped.stats.total;
+		const totalFiles = grouped.stats.filesElided + grouped.files.length;
+		const matchText = totalMatches === 1 ? `1 match` : `${totalMatches} matches`;
+		const filesText = totalFiles === 1 ? `1 file` : `${totalFiles} files`;
+		let elided = '';
+		if (grouped.stats.elided > 0) {
+			const shownMatches = totalMatches - grouped.stats.elided;
+			const shownMatchText = shownMatches === 1 ? `1 match` : `${shownMatches} matches`;
+			const shownFilesText = grouped.files.length === 1 ? `1 file` : `${grouped.files.length} files`;
+			elided = ` (showing ${shownMatchText} in ${shownFilesText})`;
+		}
+		const header = `Found ${matchText} in ${filesText} for "${query}"${elided}`;
+
+
+		return <>
+			<TextChunk priority={20}>{header}</TextChunk>
+			{grouped.files.map((file, fileIndex) => {
+				const lines = [file.path, ...file.matches.map(match => `${match.line}:${match.text}`)];
+				if (file.elidedMatches && file.elidedMatches > 0) {
+					const more = file.elidedMatches === 1 ? `1 more match` : `${file.elidedMatches} more matches`;
+					lines.push(`... (${more} in this file)`);
+				}
+				const references = file.matches.map(match => new PromptReference(new Location(file.uri, match.rangeInDocument), undefined, { isFromTool: true }));
+				// The leading newline renders as a blank line separating this file block from the
+				// previous chunk, matching the plain-text grep format.
+				return <>
+					<references value={references} />
+					<TextChunk priority={FIND_FILES_START_PRIORITY - fileIndex}>{`\n${lines.join('\n')}`}</TextChunk>;
+				</>;
+			})}
+		</>;
+	}
+}
 
 export function isTextSearchMatch(obj: vscode.TextSearchResult2): obj is vscode.TextSearchMatch2 {
 	return 'ranges' in obj;
