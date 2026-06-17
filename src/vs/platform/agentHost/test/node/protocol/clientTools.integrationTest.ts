@@ -62,8 +62,8 @@ suite('Protocol WebSocket — Client Tools', function () {
 
 		// Wait for toolCallStart
 		const [toolStartNotif, toolReadyNotif] = await Promise.all([
-			client.waitForNotification(n => isActionNotification(n, 'session/toolCallStart')),
-			client.waitForNotification(n => isActionNotification(n, 'session/toolCallReady')),
+			client.waitForNotification(n => isActionNotification(n, 'chat/toolCallStart')),
+			client.waitForNotification(n => isActionNotification(n, 'chat/toolCallReady')),
 		]);
 		const toolStartAction = getActionEnvelope(toolStartNotif).action as {
 			toolCallId: string;
@@ -84,7 +84,7 @@ suite('Protocol WebSocket — Client Tools', function () {
 			clientSeq: 2,
 			channel: sessionUri,
 			action: {
-				type: 'session/toolCallComplete',
+				type: 'chat/toolCallComplete',
 				turnId: 'turn-ct',
 				toolCallId: 'tc-client-1',
 				result: {
@@ -97,7 +97,7 @@ suite('Protocol WebSocket — Client Tools', function () {
 
 		// Wait for turn completion
 		await client.waitForNotification(
-			n => isActionNotification(n, 'session/turnComplete'),
+			n => isActionNotification(n, 'chat/turnComplete'),
 		);
 	});
 
@@ -111,7 +111,7 @@ suite('Protocol WebSocket — Client Tools', function () {
 
 		// Wait for toolCallStart (should have client contributor)
 		const toolStartNotif = await client.waitForNotification(
-			n => isActionNotification(n, 'session/toolCallStart'),
+			n => isActionNotification(n, 'chat/toolCallStart'),
 		);
 		const toolStartAction = getActionEnvelope(toolStartNotif).action as {
 			toolCallId: string;
@@ -122,7 +122,7 @@ suite('Protocol WebSocket — Client Tools', function () {
 
 		// Wait for toolCallReady with confirmationTitle (permission flow)
 		const toolReadyNotif = await client.waitForNotification(
-			n => isActionNotification(n, 'session/toolCallReady'),
+			n => isActionNotification(n, 'chat/toolCallReady'),
 		);
 		const toolReadyAction = getActionEnvelope(toolReadyNotif).action as {
 			toolCallId: string;
@@ -139,7 +139,7 @@ suite('Protocol WebSocket — Client Tools', function () {
 			clientSeq: 2,
 			channel: sessionUri,
 			action: {
-				type: 'session/toolCallConfirmed',
+				type: 'chat/toolCallConfirmed',
 				turnId: 'turn-cp',
 				toolCallId: 'tc-client-perm-1',
 				approved: true,
@@ -148,7 +148,7 @@ suite('Protocol WebSocket — Client Tools', function () {
 
 		// Wait for turn completion
 		await client.waitForNotification(
-			n => isActionNotification(n, 'session/turnComplete'),
+			n => isActionNotification(n, 'chat/turnComplete'),
 		);
 	});
 
@@ -162,7 +162,7 @@ suite('Protocol WebSocket — Client Tools', function () {
 
 		// Wait for toolCallStart
 		await client.waitForNotification(
-			n => isActionNotification(n, 'session/toolCallStart'),
+			n => isActionNotification(n, 'chat/toolCallStart'),
 		);
 
 		// Dispatch a synthetic tool_ready without confirmationTitle via
@@ -172,7 +172,7 @@ suite('Protocol WebSocket — Client Tools', function () {
 			clientSeq: 2,
 			channel: sessionUri,
 			action: {
-				type: 'session/toolCallComplete',
+				type: 'chat/toolCallComplete',
 				turnId: 'turn-ra',
 				toolCallId: 'tc-client-1',
 				result: {
@@ -184,7 +184,7 @@ suite('Protocol WebSocket — Client Tools', function () {
 		});
 
 		await client.waitForNotification(
-			n => isActionNotification(n, 'session/turnComplete'),
+			n => isActionNotification(n, 'chat/turnComplete'),
 		);
 	});
 });

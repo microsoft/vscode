@@ -25,7 +25,8 @@ import { IChatPhoneInputPresenter } from '../../../../../../workbench/contrib/ch
 import { Menus } from '../../../../../browser/menus.js';
 import { ActiveSessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext } from '../../../../../common/contextkeys.js';
 import { type IAgentHostSessionsProvider, isAgentHostProvider, isAgentHostProviderId } from '../../../../../common/agentHostSessionsProvider.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { type ISession } from '../../../../../services/sessions/common/session.js';
 import { ISessionInputContext } from '../../../../chat/browser/sessionInputContext.js';
@@ -412,7 +413,7 @@ class MobileChatInputConfigPickerContribution extends Disposable implements IWor
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+		@ISessionsService sessionsService: ISessionsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
@@ -423,7 +424,7 @@ class MobileChatInputConfigPickerContribution extends Disposable implements IWor
 		// picker can gate itself out without depending on agent-host identity.
 		const usesCombinedPicker = ActiveSessionUsesCombinedConfigPickerContext.bindTo(contextKeyService);
 		this._register(autorun(reader => {
-			const session = sessionsManagementService.activeSession.read(reader);
+			const session = sessionsService.activeSession.read(reader);
 			usesCombinedPicker.set(!!session && isAgentHostProviderId(session.providerId));
 		}));
 

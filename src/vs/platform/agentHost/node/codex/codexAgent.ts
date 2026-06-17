@@ -16,16 +16,18 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../log/common/log.js';
 import { createSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
+import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../common/reasoningEffort.js';
 import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentSdkRootEnvVar, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, type AgentProvider } from '../../common/agentService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
+import { ActionType, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
 import type { ConfigSchema, ModelSelection, ProtectedResourceMetadata, ToolDefinition } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
-import { type ClientPluginCustomization, type MessageAttachment, type PendingMessage, type SessionInputAnswer, SessionInputResponseKind, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { type ClientPluginCustomization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, ChatInputResponseKind, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import type { ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
+import { extractForwardedErrorInfo } from '../shared/forwardedChatError.js';
 import { IAgentSdkDownloader, IAgentSdkPackage } from '../agentSdkDownloader.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
@@ -121,12 +123,8 @@ const codexSessionConfigSchema = createSchema({
 		title: localize('codex.sessionConfig.modelReasoningEffort', "Reasoning Effort"),
 		description: localize('codex.sessionConfig.modelReasoningEffortDescription', "Controls how much reasoning effort Codex uses."),
 		enum: [...CODEX_REASONING_EFFORTS],
-		enumLabels: [
-			localize('codex.sessionConfig.modelReasoningEffort.minimal', "Minimal"),
-			localize('codex.sessionConfig.modelReasoningEffort.low', "Low"),
-			localize('codex.sessionConfig.modelReasoningEffort.medium', "Medium"),
-			localize('codex.sessionConfig.modelReasoningEffort.high', "High"),
-		],
+		enumLabels: CODEX_REASONING_EFFORTS.map(getReasoningEffortLabel),
+		enumDescriptions: CODEX_REASONING_EFFORTS.map(effort => getReasoningEffortDescription(effort) ?? ''),
 		default: 'medium',
 		sessionMutable: true,
 	}),
@@ -403,12 +401,8 @@ export class CodexAgent extends Disposable implements IAgent {
 					description: localize('codex.modelThinkingLevel.description', "Controls how much reasoning effort Codex uses."),
 					default: 'medium',
 					enum: [...CODEX_REASONING_EFFORTS],
-					enumLabels: [
-						localize('codex.modelThinkingLevel.minimal', "Minimal"),
-						localize('codex.modelThinkingLevel.low', "Low"),
-						localize('codex.modelThinkingLevel.medium', "Medium"),
-						localize('codex.modelThinkingLevel.high', "High"),
-					],
+					enumLabels: CODEX_REASONING_EFFORTS.map(getReasoningEffortLabel),
+					enumDescriptions: CODEX_REASONING_EFFORTS.map(effort => getReasoningEffortDescription(effort) ?? ''),
 				},
 			},
 		};
@@ -657,7 +651,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._register(client.onNotification('turn/completed', params => this._dispatchByThread(params.threadId, s => this._handleTurnCompletedNotification(s, params))));
 
 		// Phase 4: command-execution approval requests. Park on a
-		// per-session deferred, emit `SessionToolCallReady` in the
+		// per-session deferred, emit `ChatToolCallReady` in the
 		// PendingConfirmation state, and answer codex when the user
 		// (or accept-for-session memoization) decides.
 		this._register(client.onRequest<'item/commandExecution/requestApproval'>(
@@ -685,14 +679,14 @@ export class CodexAgent extends Disposable implements IAgent {
 		return hostTurnId === appTurnId ? params : { ...params, turn: { ...params.turn, id: hostTurnId } };
 	}
 
-	private _handleTurnStartedNotification(session: ICodexSession, params: TurnStartedNotification): SessionAction[] {
+	private _handleTurnStartedNotification(session: ICodexSession, params: TurnStartedNotification): (SessionAction | ChatAction)[] {
 		// The workbench already dispatched the canonical turn start before sendMessage.
 		// Codex's event only establishes app-server turn id correlation for later items.
 		mapTurnStarted(session.mapState, this._withHostTurn(session, params), session.lastPromptText);
 		return [];
 	}
 
-	private _handleTurnCompletedNotification(session: ICodexSession, params: TurnCompletedNotification): SessionAction[] {
+	private _handleTurnCompletedNotification(session: ICodexSession, params: TurnCompletedNotification): (SessionAction | ChatAction)[] {
 		const appTurnId = params.turn.id;
 		const out = mapTurnCompleted(session.mapState, this._withHostTurn(session, params));
 		// Codex reports app-server turn ids, while the workbench owns host turn ids.
@@ -750,7 +744,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	/**
 	 * Phase 4: handle `item/commandExecution/requestApproval` from
 	 * codex. Look up the host-side tool call for the item, emit a
-	 * `SessionToolCallReady` in PendingConfirmation, park on a deferred
+	 * `ChatToolCallReady` in PendingConfirmation, park on a deferred
 	 * keyed by toolCallId, and resolve when the user (or the
 	 * accept-for-session memo) decides. Unknown sessions / items
 	 * decline silently so codex stops blocking.
@@ -792,7 +786,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		// miss the registration.
 		const decision = await session.pendingCommandApprovals.registerAndFire(entry.toolCallId, () => {
 			this._fire(session.sessionUri, {
-				type: ActionType.SessionToolCallReady,
+				type: ActionType.ChatToolCallReady,
 				turnId: entry.turnId,
 				toolCallId: entry.toolCallId,
 				invocationMessage: command,
@@ -813,7 +807,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			return;
 		}
 		this._connection = { kind: 'idle' };
-		// Notify every known session with a single SessionError + complete
+		// Notify every known session with a single ChatError + complete
 		// pair so the UI surfaces "agent disconnected" cleanly.
 		for (const session of this._sessions.values()) {
 			// Unpark any pending approvals so awaiters unwind.
@@ -830,7 +824,7 @@ export class CodexAgent extends Disposable implements IAgent {
 					kind: 'action',
 					session: session.sessionUri,
 					action: {
-						type: ActionType.SessionError,
+						type: ActionType.ChatError,
 						turnId,
 						error: { errorType: 'CodexDisconnected', message: 'Codex app-server disconnected; session must restart.' },
 					},
@@ -838,7 +832,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				this._onDidSessionProgress.fire({
 					kind: 'action',
 					session: session.sessionUri,
-					action: { type: ActionType.SessionTurnComplete, turnId },
+					action: { type: ActionType.ChatTurnComplete, turnId },
 				});
 			}
 		}
@@ -1083,11 +1077,11 @@ export class CodexAgent extends Disposable implements IAgent {
 			const message = err instanceof Error ? err.message : String(err);
 			this._logService.error(`[Codex:${sessionId}] materialize failed: ${message}`);
 			this._fire(sessionUri, {
-				type: ActionType.SessionError,
+				type: ActionType.ChatError,
 				turnId: effectiveTurnId,
 				error: { errorType: 'CodexMaterializeFailed', message },
 			});
-			this._fire(sessionUri, { type: ActionType.SessionTurnComplete, turnId: effectiveTurnId });
+			this._fire(sessionUri, { type: ActionType.ChatTurnComplete, turnId: effectiveTurnId });
 			return;
 		}
 		const threadId = session.threadId!;
@@ -1102,14 +1096,14 @@ export class CodexAgent extends Disposable implements IAgent {
 				session.needsResume = false;
 			} catch (err) {
 				this._fire(sessionUri, {
-					type: ActionType.SessionError,
+					type: ActionType.ChatError,
 					turnId: effectiveTurnId,
 					error: {
 						errorType: 'CodexResumeFailed',
 						message: err instanceof Error ? err.message : String(err),
 					},
 				});
-				this._fire(sessionUri, { type: ActionType.SessionTurnComplete, turnId: effectiveTurnId });
+				this._fire(sessionUri, { type: ActionType.ChatTurnComplete, turnId: effectiveTurnId });
 				return;
 			}
 		}
@@ -1128,20 +1122,20 @@ export class CodexAgent extends Disposable implements IAgent {
 				...turnOptions,
 			});
 			// We don't await turn completion here — the notification
-			// stream emits SessionTurnComplete asynchronously.
+			// stream emits ChatTurnComplete asynchronously.
 		} catch (err) {
 			if (err instanceof CancellationError) {
-				this._fire(sessionUri, { type: ActionType.SessionTurnCancelled, turnId: effectiveTurnId });
+				this._fire(sessionUri, { type: ActionType.ChatTurnCancelled, turnId: effectiveTurnId });
 				return;
 			}
 			const message = err instanceof Error ? err.message : String(err);
 			this._logService.error(`[Codex:${sessionId}] turn/start error: ${message}`);
 			this._fire(sessionUri, {
-				type: ActionType.SessionError,
+				type: ActionType.ChatError,
 				turnId: effectiveTurnId,
-				error: { errorType: 'CodexTurnError', message },
+				error: { errorType: 'CodexTurnError', ...extractForwardedErrorInfo(message) },
 			});
-			this._fire(sessionUri, { type: ActionType.SessionTurnComplete, turnId: effectiveTurnId });
+			this._fire(sessionUri, { type: ActionType.ChatTurnComplete, turnId: effectiveTurnId });
 		} finally {
 			// Best-effort temp-file cleanup. Image-on-localImage will be
 			// re-read by codex synchronously during the turn so this is
@@ -1268,7 +1262,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._logService.info(`[Codex] respondToPermissionRequest: unknown requestId=${requestId}`);
 	}
 
-	respondToUserInputRequest(_requestId: string, _response: SessionInputResponseKind, _answers?: Record<string, SessionInputAnswer>): void {
+	respondToUserInputRequest(_requestId: string, _response: ChatInputResponseKind, _answers?: Record<string, ChatInputAnswer>): void {
 		// Phase 4 wires this.
 		this._logService.info('[Codex] respondToUserInputRequest called (Phase 4 stub)');
 	}
@@ -1470,7 +1464,7 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	// #endregion
 
-	private _fire(sessionUri: URI, action: SessionAction): void {
+	private _fire(sessionUri: URI, action: SessionAction | ChatAction): void {
 		this._onDidSessionProgress.fire({ kind: 'action', session: sessionUri, action });
 	}
 
