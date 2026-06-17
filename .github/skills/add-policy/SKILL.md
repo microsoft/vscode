@@ -40,7 +40,7 @@ Policies allow enterprise administrators to lock configuration settings via OS-l
 | `src/vs/platform/configuration/common/configurationRegistry.ts` | `policy` / `policyReference` registration; `getPolicyReferenceConfigurations()` (name → subordinate settings) |
 | `src/vs/workbench/services/policies/common/accountPolicyService.ts` | Account/GitHub-based policy evaluation; merges + projects managed settings (MDM over server) |
 | `src/vs/workbench/services/accounts/browser/managedSettings.ts` | `adaptManagedSettings` — normalizes the server `managed_settings` response into the canonical bag |
-| `src/vs/workbench/services/policies/common/multiplexPolicyService.ts` | Combines multiple policy services |
+| `src/vs/platform/policy/common/multiplexPolicyService.ts` | Combines multiple policy services |
 | `src/vs/workbench/contrib/policyExport/electron-browser/policyExport.contribution.ts` | `--export-policy-data` CLI handler |
 | `src/vs/base/common/defaultAccount.ts` | `IPolicyData` interface (incl. `managedSettings`) for account-level policy fields |
 | `build/lib/policies/policyData.jsonc` | Auto-generated policy catalog incl. `referencedSettings` (DO NOT edit manually) |
