@@ -19,7 +19,7 @@ import { IAgentPluginService } from '../../../common/plugins/agentPluginService.
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { ILanguageModelToolsService, isToolSet } from '../../../common/tools/languageModelToolsService.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
-import { computeAgentHostToolEnablement, observableAgentHostToolsState } from '../../widget/input/chatSelectedTools.js';
+import { computeAgentHostToolEnablement, observableAgentHostToolsState } from '../../../common/tools/chatToolSelectionState.js';
 import { AgentCustomizationSyncProvider } from './agentCustomizationSyncProvider.js';
 import { resolveCustomizationRefs } from './agentHostLocalCustomizations.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
