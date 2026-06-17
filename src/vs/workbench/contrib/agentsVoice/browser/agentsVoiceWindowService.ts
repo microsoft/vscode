@@ -161,9 +161,6 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		void minimizeMain();
 		auxiliaryWindow.whenStylesHaveLoaded.then(() => {
 			void minimizeMain();
-			// Resize to fit content once styles are applied — the initial
-			// window bounds use a small default height that may clip content.
-			this._resizeWindow(auxiliaryWindow);
 			setTimeout(() => { void minimizeMain(); }, 250);
 		});
 
