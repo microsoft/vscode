@@ -47,9 +47,11 @@ export interface CopilotCLIModelInfo {
 	readonly inputCost?: number;
 	readonly outputCost?: number;
 	readonly cacheCost?: number;
+	readonly cacheWriteCost?: number;
 	readonly longContextInputCost?: number;
 	readonly longContextOutputCost?: number;
 	readonly longContextCacheCost?: number;
+	readonly longContextCacheWriteCost?: number;
 	readonly defaultContextMax?: number;
 	readonly maxInputTokens?: number;
 	readonly maxOutputTokens?: number;
@@ -173,9 +175,11 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 					inputCost: pricing?.default.inputPrice,
 					outputCost: pricing?.default.outputPrice,
 					cacheCost: pricing?.default.cachePrice,
+					cacheWriteCost: pricing?.default.cacheWritePrice,
 					longContextInputCost: pricing?.longContext?.inputPrice,
 					longContextOutputCost: pricing?.longContext?.outputPrice,
 					longContextCacheCost: pricing?.longContext?.cachePrice,
+					longContextCacheWriteCost: pricing?.longContext?.cacheWritePrice,
 					defaultContextMax: pricing?.default.contextMax,
 					maxInputTokens: model.capabilities.limits.max_prompt_tokens,
 					maxOutputTokens: model.capabilities.limits.max_output_tokens,
@@ -235,9 +239,11 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 				inputCost: model.inputCost,
 				outputCost: model.outputCost,
 				cacheCost: model.cacheCost,
+				cacheWriteCost: model.cacheWriteCost,
 				longContextInputCost: model.longContextInputCost,
 				longContextOutputCost: model.longContextOutputCost,
 				longContextCacheCost: model.longContextCacheCost,
+				longContextCacheWriteCost: model.longContextCacheWriteCost,
 				multiplierNumeric: model.multiplier,
 				isUserSelectable: true,
 				...buildConfigurationSchema(model, isReasoningEffortEnabled),

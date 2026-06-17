@@ -293,6 +293,8 @@ export interface ITokenPriceTier {
 	readonly outputPrice: number;
 	/** Cost in AICs per million cached (read) tokens */
 	readonly cacheReadTokenPrice: number;
+	/** Cost in AICs per million cache-write tokens */
+	readonly cacheWriteTokenPrice: number;
 	/**
 	 * The largest prompt size (in tokens) billed at this tier's rates.
 	 * Derived from CAPI `billing.token_prices.<tier>.context_max`.

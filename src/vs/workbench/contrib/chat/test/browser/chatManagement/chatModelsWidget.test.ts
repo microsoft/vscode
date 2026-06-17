@@ -61,7 +61,7 @@ suite('ChatModelsWidget', () => {
 			assert.ok(value.includes('4 credits per 1M tokens'));
 			assert.ok(value.includes('Output Cost'));
 			assert.ok(value.includes('14 credits per 1M tokens'));
-			assert.ok(value.includes('Cache Cost'));
+			assert.ok(value.includes('Cache Read Cost'));
 			assert.ok(value.includes('1 credit per 1M tokens'));
 		});
 
@@ -79,7 +79,7 @@ suite('ChatModelsWidget', () => {
 			assert.ok(value.includes('3 credits per 1M tokens'));
 			assert.ok(value.includes('Output Cost'));
 			assert.ok(value.includes('12 credits per 1M tokens'));
-			assert.ok(!value.includes('Cache Cost'));
+			assert.ok(!value.includes('Cache Read Cost'));
 		});
 
 		test('omits cost section when no cost fields are set', () => {
@@ -90,7 +90,7 @@ suite('ChatModelsWidget', () => {
 
 			assert.ok(!value.includes('Input Cost'));
 			assert.ok(!value.includes('Output Cost'));
-			assert.ok(!value.includes('Cache Cost'));
+			assert.ok(!value.includes('Cache Read Cost'));
 			assert.ok(!value.includes('credits per 1M tokens'));
 			assert.ok(!value.includes('credit per 1M tokens'));
 		});

@@ -139,11 +139,13 @@ interface ICopilotModelBilling {
 		readonly contextMax?: number;
 		readonly inputPrice?: number;
 		readonly cachePrice?: number;
+		readonly cacheWritePrice?: number;
 		readonly outputPrice?: number;
 		readonly longContext?: {
 			readonly contextMax?: number;
 			readonly inputPrice?: number;
 			readonly cachePrice?: number;
+			readonly cacheWritePrice?: number;
 			readonly outputPrice?: number;
 		};
 	};
@@ -743,9 +745,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 			multiplierNumeric: typeof typedBilling?.multiplier === 'number' ? typedBilling.multiplier : undefined,
 			inputCost: tokenPrices?.inputPrice,
 			cacheCost: tokenPrices?.cachePrice,
+			cacheWriteCost: tokenPrices?.cacheWritePrice,
 			outputCost: tokenPrices?.outputPrice,
 			longContextInputCost: differsFromDefault(longContext?.inputPrice, tokenPrices?.inputPrice),
 			longContextCacheCost: differsFromDefault(longContext?.cachePrice, tokenPrices?.cachePrice),
+			longContextCacheWriteCost: differsFromDefault(longContext?.cacheWritePrice, tokenPrices?.cacheWritePrice),
 			longContextOutputCost: differsFromDefault(longContext?.outputPrice, tokenPrices?.outputPrice),
 			priceCategory: typeof typedBilling?.priceCategory === 'string' ? typedBilling.priceCategory : undefined,
 		});

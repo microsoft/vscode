@@ -174,8 +174,9 @@ interface ITestCopilotModelInfo {
 			readonly contextMax?: number;
 			readonly inputPrice?: number;
 			readonly cachePrice?: number;
+			readonly cacheWritePrice?: number;
 			readonly outputPrice?: number;
-			readonly longContext?: { readonly contextMax?: number; readonly inputPrice?: number; readonly cachePrice?: number; readonly outputPrice?: number };
+			readonly longContext?: { readonly contextMax?: number; readonly inputPrice?: number; readonly cachePrice?: number; readonly cacheWritePrice?: number; readonly outputPrice?: number };
 		};
 	};
 	readonly supportedReasoningEfforts?: ModelInfo['supportedReasoningEfforts'];
