@@ -427,7 +427,7 @@ describe('TaskApiBackend', () => {
 		const client = new FakeTaskApiClient();
 		const octoKitService = new MockOctoKitService();
 		octoKitService.getCurrentAuthedUser = async () => ({ id: 4242, login: 'octocat', name: 'The Octocat', avatar_url: '' });
-		const backend = new TaskApiBackend(client, new TestLogService(), octoKitService);
+		const backend = new TaskApiBackend(client, new TestLogService(), octoKitService, NullCloudBackendInstrumentation);
 
 		await backend.fetchSessionList([new GithubRepoId('octocat', 'hello-world')], false, false);
 
@@ -440,7 +440,7 @@ describe('TaskApiBackend', () => {
 		const client = new FakeTaskApiClient({ repoTasks: [{ id: 't1', state: 'completed', created_at: '2026-03-27T00:00:00Z', creator: { id: 999 } } as unknown as AgentTask] });
 		const octoKitService = new MockOctoKitService();
 		octoKitService.getCurrentAuthedUser = async () => undefined;
-		const backend = new TaskApiBackend(client, new TestLogService(), octoKitService);
+		const backend = new TaskApiBackend(client, new TestLogService(), octoKitService, NullCloudBackendInstrumentation);
 
 		const result = await backend.fetchSessionList([new GithubRepoId('octocat', 'hello-world')], false, false);
 
@@ -450,7 +450,7 @@ describe('TaskApiBackend', () => {
 
 	it('fetchSessionList does not send creator_id on the user-scoped global list', async () => {
 		const client = new FakeTaskApiClient();
-		const backend = new TaskApiBackend(client, new TestLogService(), new MockOctoKitService());
+		const backend = new TaskApiBackend(client, new TestLogService(), new MockOctoKitService(), NullCloudBackendInstrumentation);
 
 		await backend.fetchSessionList(undefined, false, false);
 
