@@ -656,14 +656,19 @@ class CombinedCostColumnRenderer extends ModelsTableColumnRenderer<ICombinedCost
 		if (hasCost) {
 			templateData.inputCell.textContent = inputCost !== undefined ? localize('cost.input', "In: {0}", inputCost) : '';
 			templateData.outputCell.textContent = outputCost !== undefined ? localize('cost.output', "Out: {0}", outputCost) : '';
-			templateData.cacheReadCell.textContent = cacheCost !== undefined ? localize('cost.cacheRead', "CR: {0}", cacheCost) : '';
-			templateData.cacheWriteCell.textContent = cacheWriteCost !== undefined ? localize('cost.cacheWrite', "CW: {0}", cacheWriteCost) : '';
+			templateData.cacheReadCell.textContent = cacheCost !== undefined ? localize('cost.cacheRead', "Cache Read: {0}", cacheCost) : '';
+			templateData.cacheWriteCell.textContent = cacheWriteCost !== undefined ? localize('cost.cacheWrite', "Cache Write: {0}", cacheWriteCost) : '';
 
 			const parts: string[] = [];
 			if (inputCost !== undefined) {
 				parts.push(inputCost === 1
 					? localize('cost.inputHover.singular', "Input: {0} credit per 1M tokens", inputCost)
 					: localize('cost.inputHover.plural', "Input: {0} credits per 1M tokens", inputCost));
+			}
+			if (outputCost !== undefined) {
+				parts.push(outputCost === 1
+					? localize('cost.outputHover.singular', "Output: {0} credit per 1M tokens", outputCost)
+					: localize('cost.outputHover.plural', "Output: {0} credits per 1M tokens", outputCost));
 			}
 			if (cacheCost !== undefined) {
 				parts.push(cacheCost === 1
@@ -674,11 +679,6 @@ class CombinedCostColumnRenderer extends ModelsTableColumnRenderer<ICombinedCost
 				parts.push(cacheWriteCost === 1
 					? localize('cost.cacheWriteHover.singular', "Cache Write: {0} credit per 1M tokens", cacheWriteCost)
 					: localize('cost.cacheWriteHover.plural', "Cache Write: {0} credits per 1M tokens", cacheWriteCost));
-			}
-			if (outputCost !== undefined) {
-				parts.push(outputCost === 1
-					? localize('cost.outputHover.singular', "Output: {0} credit per 1M tokens", outputCost)
-					: localize('cost.outputHover.plural', "Output: {0} credits per 1M tokens", outputCost));
 			}
 			templateData.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(templateData.container, () => ({
 				content: parts.join('\n'),
