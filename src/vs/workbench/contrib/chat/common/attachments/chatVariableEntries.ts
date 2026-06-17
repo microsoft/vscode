@@ -54,6 +54,20 @@ export interface IGenericChatRequestVariableEntry extends IBaseChatRequestVariab
 	tooltip?: IMarkdownString;
 }
 
+export const ChatPasteAttachmentMetadata = {
+	Kind: 'vscode.chat.attachment.kind',
+	Language: 'vscode.chat.attachment.language',
+	FileName: 'vscode.chat.attachment.fileName',
+	PastedLines: 'vscode.chat.attachment.pastedLines',
+} as const;
+
+export interface IRestorablePasteAttachment {
+	readonly label: string;
+	readonly displayKind?: string;
+	readonly modelRepresentation?: string;
+	readonly _meta?: Record<string, unknown>;
+}
+
 export const enum AgentHostCompletionReferenceKind {
 	Skill = 'skill',
 	Command = 'command',
@@ -232,6 +246,60 @@ export interface IChatRequestPasteVariableEntry extends IBaseChatRequestVariable
 		readonly uri: URI;
 		readonly range: IRange;
 	} | undefined;
+}
+
+export function toPasteVariableEntry(
+	name: string,
+	code: string,
+	options?: {
+		readonly id?: string;
+		readonly icon?: ThemeIcon;
+		readonly language?: string;
+		readonly fileName?: string;
+		readonly pastedLines?: string;
+		readonly _meta?: Record<string, unknown>;
+	}
+): IChatRequestPasteVariableEntry {
+	const language = options?.language ?? 'markdown';
+	const fileName = options?.fileName ?? name;
+	const pastedLines = options?.pastedLines ?? name;
+	return {
+		kind: 'paste',
+		id: options?.id ?? `chat-paste-${generateUuid()}`,
+		name,
+		icon: options?.icon,
+		value: code,
+		code,
+		language,
+		pastedLines,
+		fileName,
+		copiedFrom: undefined,
+		_meta: {
+			...options?._meta,
+			[ChatPasteAttachmentMetadata.Kind]: 'paste',
+			[ChatPasteAttachmentMetadata.Language]: language,
+			[ChatPasteAttachmentMetadata.FileName]: fileName,
+			[ChatPasteAttachmentMetadata.PastedLines]: pastedLines,
+		},
+	};
+}
+
+export function restorePasteVariableEntryFromAttachment(attachment: IRestorablePasteAttachment): IChatRequestPasteVariableEntry | undefined {
+	const modelRepresentation = attachment.modelRepresentation;
+	if (typeof modelRepresentation !== 'string' || attachment._meta?.[ChatPasteAttachmentMetadata.Kind] !== 'paste') {
+		return undefined;
+	}
+
+	const stringMetadata = (key: string, fallback: string): string => {
+		const value = attachment._meta?.[key];
+		return typeof value === 'string' ? value : fallback;
+	};
+	return toPasteVariableEntry(attachment.label, modelRepresentation, {
+		language: stringMetadata(ChatPasteAttachmentMetadata.Language, 'markdown'),
+		fileName: stringMetadata(ChatPasteAttachmentMetadata.FileName, attachment.label),
+		pastedLines: stringMetadata(ChatPasteAttachmentMetadata.PastedLines, attachment.label),
+		_meta: attachment._meta,
+	});
 }
 
 export interface ISymbolVariableEntry extends IBaseChatRequestVariableEntry {

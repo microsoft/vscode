@@ -543,6 +543,50 @@ suite('CopilotAgentSession', () => {
 		}]);
 	});
 
+	test('sends paste simple attachments as text blobs', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+
+		await session.send('continue', [{
+			type: MessageAttachmentKind.Simple,
+			label: 'Previous conversation',
+			displayKind: 'paste',
+			modelRepresentation: 'Transcript text',
+		}]);
+
+		assert.deepStrictEqual(mockSession.sendRequests, [{
+			prompt: 'continue',
+			attachments: [{
+				type: 'blob',
+				data: encodeBase64(VSBuffer.fromString('Transcript text')),
+				mimeType: 'text/plain',
+				displayName: 'Previous conversation',
+			}],
+		}]);
+
+		mockSession.messages = [{
+			type: 'user.message',
+			id: 'event-1',
+			parentId: null,
+			timestamp: new Date().toISOString(),
+			data: {
+				interactionId: 'message-1',
+				content: 'continue',
+				attachments: [{
+					type: 'blob',
+					data: encodeBase64(VSBuffer.fromString('Transcript text')),
+					mimeType: 'text/plain',
+					displayName: 'Previous conversation',
+				}],
+			},
+		}];
+
+		assert.deepStrictEqual((await session.getMessages())[0].message.attachments, [{
+			type: MessageAttachmentKind.Simple,
+			label: 'Previous conversation',
+			modelRepresentation: 'Transcript text',
+		}]);
+	});
+
 	test('`/compact` runs the history compact RPC and completes the turn with output', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 
