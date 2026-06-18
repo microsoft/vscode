@@ -502,6 +502,43 @@ suite('Multicursor selection', () => {
 		});
 	});
 
+	test('issue #107090: AddSelectionToNextFindMatchAction respects regex find mode', () => {
+		const text = [
+			'foo1 foo\\d+',
+			'foo2',
+			'foo3',
+			'foo4 foo\\d+',
+		];
+		testAddSelectionToNextFindMatchAction(text, (editor, action, findController) => {
+			editor.setSelections([
+				new Selection(1, 1, 1, 5),
+			]);
+			findController.getState().change({ searchString: 'foo\\d+', isRegex: true, isRevealed: true }, false);
+			editor.setHasTextFocus(false);
+
+			action.run(null!, editor);
+			assert.deepStrictEqual(editor.getSelections(), [
+				new Selection(1, 1, 1, 5),
+				new Selection(2, 1, 2, 5),
+			]);
+
+			action.run(null!, editor);
+			assert.deepStrictEqual(editor.getSelections(), [
+				new Selection(1, 1, 1, 5),
+				new Selection(2, 1, 2, 5),
+				new Selection(3, 1, 3, 5),
+			]);
+
+			action.run(null!, editor);
+			assert.deepStrictEqual(editor.getSelections(), [
+				new Selection(1, 1, 1, 5),
+				new Selection(2, 1, 2, 5),
+				new Selection(3, 1, 3, 5),
+				new Selection(4, 1, 4, 5),
+			]);
+		});
+	});
+
 	suite('Find state disassociation', () => {
 
 		const text = [
