@@ -19,9 +19,9 @@ import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
 import { ProtectedResourceMetadata, type Changeset, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
-import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction, ClientAnnotationsAction } from './state/sessionActions.js';
+import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction } from './state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
-import { ComponentToState, SessionInputResponseKind, SessionStatus, StateComponents, type ClientPluginCustomization, type Customization, type PendingMessage, type RootState, type SessionInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
+import { ComponentToState, ChatInputResponseKind, SessionStatus, StateComponents, type ClientPluginCustomization, type Customization, type PendingMessage, type RootState, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
 
 // IPC contract between the renderer and the agent host utility process.
 // Defines all serializable event types, the IAgent provider interface,
@@ -170,6 +170,49 @@ export const ClaudePreferAgentHostAgentsSettingId = 'chat.agents.claude.preferAg
  * surface scope.
  */
 export const ClaudePreferAgentHostEditorSettingId = 'chat.editor.claude.preferAgentHost';
+
+/**
+ * The per-window setting that selects which Claude implementation surfaces:
+ * the Agents Window reads {@link ClaudePreferAgentHostAgentsSettingId}, every
+ * other window reads {@link ClaudePreferAgentHostEditorSettingId}. Callers that
+ * observe the gate (to react to live flips) watch the id returned here; callers
+ * that evaluate it use {@link shouldSurfaceLocalAgentHostProvider}.
+ */
+export function claudePreferAgentHostSettingId(isSessionsWindow: boolean): string {
+	return isSessionsWindow
+		? ClaudePreferAgentHostAgentsSettingId
+		: ClaudePreferAgentHostEditorSettingId;
+}
+
+/**
+ * Whether this window should surface the agent host's implementation of
+ * `provider`, given the per-window AH/EH preference settings. Today only the
+ * `claude` provider has dual implementations (the GitHub Copilot Chat
+ * extension's extension-host provider vs. the agent host's in-process
+ * provider) and a corresponding preference; every other provider is AH-only
+ * and unconditionally surfaced.
+ *
+ * Mirrors the EH-side gate declared in the extension's `chatSessions`
+ * contribution `when` clause:
+ *   - Agents Window  → {@link ClaudePreferAgentHostAgentsSettingId}
+ *   - Editor Window  → {@link ClaudePreferAgentHostEditorSettingId}
+ *
+ * When the relevant setting is `false`, the extension-host Claude is the one
+ * that surfaces in this window, so every agent-host surface (the chat session
+ * contribution and the sessions-window picker) suppresses its own Claude to
+ * avoid two identical entries.
+ *
+ * TODO: Remove this gate (and the `claude` special-case below) once the
+ * extension-host Claude implementation is retired. With only the agent host
+ * providing Claude there is no dual implementation to disambiguate, so this
+ * should unconditionally return `true` and callers can drop the gate entirely.
+ */
+export function shouldSurfaceLocalAgentHostProvider(provider: AgentProvider, configurationService: IConfigurationService, isSessionsWindow: boolean): boolean {
+	if (provider !== 'claude') {
+		return true;
+	}
+	return configurationService.getValue<boolean>(claudePreferAgentHostSettingId(isSessionsWindow)) === true;
+}
 
 // -- Codex agent settings --------------------------------------------------------
 //
@@ -652,7 +695,7 @@ export interface IAgentActionSignal {
 	/** Top-level session URI. For inner subagent events this is the parent session — see {@link parentToolCallId}. */
 	readonly session: URI;
 	/** Protocol action to dispatch. */
-	readonly action: SessionAction;
+	readonly action: SessionAction | ChatAction;
 	/** If set, route the action to the subagent session belonging to this tool call. */
 	readonly parentToolCallId?: string;
 }
@@ -662,7 +705,7 @@ export interface IAgentActionSignal {
  * whether it should run (or, mid-execution, re-confirm). The host applies
  * auto-approval logic over {@link permissionKind} / {@link permissionPath}
  * (see `SessionPermissionManager.getAutoApproval`) and then dispatches the
- * appropriate `SessionToolCallReady` action — with confirmation options
+ * appropriate `ChatToolCallReady` action — with confirmation options
  * baked in when the user must approve, or with `confirmed: NotNeeded` when
  * the host auto-approved.
  *
@@ -674,7 +717,7 @@ export interface IAgentActionSignal {
 export interface IAgentToolPendingConfirmationSignal {
 	readonly kind: 'pending_confirmation';
 	readonly session: URI;
-	/** Protocol-shaped pending-confirmation state, dispatched verbatim into `SessionToolCallReady`. */
+	/** Protocol-shaped pending-confirmation state, dispatched verbatim into `ChatToolCallReady`. */
 	readonly state: ToolCallPendingConfirmationState;
 	/** Host-only auto-approval kind (not part of the dispatched action). */
 	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'custom-tool' | 'hook' | 'memory' | 'extension-management' | 'extension-permission-access';
@@ -683,9 +726,9 @@ export interface IAgentToolPendingConfirmationSignal {
 	/**
 	 * If set, the tool call belongs to the subagent rooted at this
 	 * parent tool call. Used by the host to route the resulting
-	 * `SessionToolCallReady` to the subagent session — otherwise the
+	 * `ChatToolCallReady` to the subagent session — otherwise the
 	 * action would land on the parent session, where there is no
-	 * matching `SessionToolCallStart`.
+	 * matching `ChatToolCallStart`.
 	 */
 	readonly parentToolCallId?: string;
 }
@@ -857,7 +900,7 @@ export interface IAgent {
 	respondToPermissionRequest(requestId: string, approved: boolean): void;
 
 	/** Respond to a pending user input request from the SDK's ask_user tool. */
-	respondToUserInputRequest(requestId: string, response: SessionInputResponseKind, answers?: Record<string, SessionInputAnswer>): void;
+	respondToUserInputRequest(requestId: string, response: ChatInputResponseKind, answers?: Record<string, ChatInputAnswer>): void;
 
 	/** Return the descriptor for this agent. */
 	getDescriptor(): IAgentDescriptor;
@@ -1147,7 +1190,7 @@ export interface IAgentService {
 	 * rather than {@link URI} objects so that authority-less scheme URIs
 	 * like `ahp-root://` survive the wire format without normalization.
 	 */
-	dispatchAction(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void;
+	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void;
 
 	/**
 	 * List the contents of a directory on the agent host's filesystem.
@@ -1244,6 +1287,13 @@ export interface IAgentConnection {
 	getSubscriptionUnmanaged<T extends StateComponents>(kind: T, resource: URI): IAgentSubscription<ComponentToState[T]> | undefined;
 
 	/**
+	 * Returns the in-flight `createSession` Promise for `resource`, or `undefined` if no create is pending. Callers
+	 * that need to gate work on a racing eager `createSession` (e.g. before deciding whether to fall through to a
+	 * duplicate create) should await this first.
+	 */
+	getInflightSessionCreate(resource: URI): Promise<unknown> | undefined;
+
+	/**
 	 * Read-only descriptors of every active resource subscription on this
 	 * connection, for inspection/debug surfaces. Excludes the always-live
 	 * {@link rootState}.
@@ -1259,7 +1309,7 @@ export interface IAgentConnection {
 	 * than {@link URI} objects so authority-less scheme URIs like
 	 * `ahp-root://` survive the wire format without normalization.
 	 */
-	dispatch(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void;
+	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void;
 
 	// ---- Events (connection-level) ------------------------------------------
 	readonly onDidNotification: Event<INotification>;

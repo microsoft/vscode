@@ -14,6 +14,7 @@ import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import type { ModelSelection } from '../../common/state/protocol/state.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
 import { buildClientToolMcpServer } from './clientTools/claudeClientToolMcpServer.js';
+import { toSdkModelId } from './claudeModelId.js';
 import { IClaudeProxyHandle } from './claudeProxyService.js';
 import { SessionClientToolsDiff } from './clientTools/claudeSessionClientToolsModel.js';
 
@@ -106,7 +107,7 @@ export async function buildOptions(
 		includePartialMessages: true,
 		forwardSubagentText: true,
 		enableFileCheckpointing: true,
-		model: input.model?.id,
+		model: toSdkModelId(input.model?.id),
 		effort: resolveClaudeEffort(input.model),
 		permissionMode: input.permissionMode,
 		...(input.isResume

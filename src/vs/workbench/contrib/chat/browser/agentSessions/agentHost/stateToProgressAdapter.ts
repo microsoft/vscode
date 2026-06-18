@@ -8,17 +8,18 @@ import { escapeMarkdownLinkLabel, IMarkdownString, MarkdownString } from '../../
 import { marked, type Token, type Tokens, type TokensList } from '../../../../../../base/common/marked/marked.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { MessageKind, ToolCallContributorKind, ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, getToolSubagentContent, type ActiveTurn, type ICompletedToolCall, type Message, type ToolCallState, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { MessageKind, ToolCallContributorKind, ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, getToolSubagentContent, type ActiveTurn, type ICompletedToolCall, type Message, type ToolCallState, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo, type UsageInfoMeta } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { getChatErrorDetailsFromMeta, IChatErrorContext } from '../../../common/chatErrorMessages.js';
 import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAttachment } from '../../../../../../platform/agentHost/common/agentFeedbackAttachments.js';
+import { isViewUnreviewedCommentsTool } from '../../../../../../platform/agentHost/common/agentFeedbackAnnotations.js';
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { type ChatExternalEditKind, type ChatMcpAppData, type IChatExternalEdit, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatExternalEdit, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { type IChatRequestVariableData } from '../../../common/model/chatModel.js';
-import { AgentHostCompletionReferenceKind, toAgentHostCompletionVariableEntryFromMetadata, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { AgentHostCompletionReferenceKind, restorePasteVariableEntryFromAttachment, toAgentHostCompletionVariableEntryFromMetadata, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { type IToolConfirmationMessages, type IToolData, type IToolResult, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
 import { basename, isEqual } from '../../../../../../base/common/resources.js';
@@ -167,14 +168,29 @@ export interface TurnModelLookup {
 }
 
 export function usageInfoToChatUsage(usage: UsageInfo | undefined): IChatUsage | undefined {
-	if (typeof usage?.inputTokens !== 'number' && typeof usage?.outputTokens !== 'number') {
+	const hasTokens = typeof usage?.inputTokens === 'number' || typeof usage?.outputTokens === 'number';
+	const copilotCredits = getCopilotCredits(usage);
+	if (!hasTokens && copilotCredits === undefined) {
 		return undefined;
 	}
 	return {
 		kind: 'usage',
-		promptTokens: usage.inputTokens ?? 0,
-		completionTokens: usage.outputTokens ?? 0,
+		promptTokens: usage?.inputTokens ?? 0,
+		completionTokens: usage?.outputTokens ?? 0,
+		copilotCredits,
 	};
+}
+
+function getCopilotCredits(usage: UsageInfo | undefined): number | undefined {
+	const meta = usage?._meta as UsageInfoMeta | undefined;
+	const totalNanoAiu = meta?.copilotUsage?.totalNanoAiu;
+	if (typeof totalNanoAiu === 'number' && totalNanoAiu >= 0) {
+		return totalNanoAiu / 1_000_000_000;
+	}
+	const cost = meta?.cost;
+	return typeof cost === 'number' && cost >= 0
+		? cost
+		: undefined;
 }
 
 /**
@@ -374,6 +390,15 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 	}
 
 	const modelRepresentation = attachment.type === MessageAttachmentKind.Simple ? attachment.modelRepresentation : undefined;
+	const pasteEntry = restorePasteVariableEntryFromAttachment({
+		label: attachment.label,
+		displayKind: attachment.displayKind,
+		modelRepresentation,
+		_meta: attachment._meta,
+	});
+	if (pasteEntry) {
+		return pasteEntry;
+	}
 	return {
 		kind: 'generic',
 		id: generateUuid(),
@@ -1032,16 +1057,30 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 		// mapper auto-emits `tool_ready` with `confirmed: NotNeeded` paired
 		// with `tool_start`. So no special-case for subagents is needed here.)
 		const confirmationMessages: IToolConfirmationMessages = {
-			title: stringOrMarkdownToString(tc.confirmationTitle, connectionAuthority) ?? tc.displayName,
-			message: stringOrMarkdownToString(tc.invocationMessage, connectionAuthority),
+			title: isViewUnreviewedCommentsTool(tc.toolName)
+				? localize('agentFeedback.reviewTitle', "Reveal unreviewed comments?")
+				: stringOrMarkdownToString(tc.confirmationTitle, connectionAuthority) ?? tc.displayName,
+			message: isViewUnreviewedCommentsTool(tc.toolName)
+				? localize('agentFeedback.reviewMessage', "Choose which comments to reveal to the agent. Unchecked comments stay hidden.")
+				: stringOrMarkdownToString(tc.invocationMessage, connectionAuthority),
 		};
 		if (tc.options) {
 			confirmationMessages.customOptions = tc.options;
 		}
 
-		let toolSpecificData: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatModifiedFilesConfirmationData | undefined;
+		let toolSpecificData: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | undefined;
 		const pendingEdits = tc.edits?.items;
-		if (pendingEdits?.length) {
+		if (isViewUnreviewedCommentsTool(tc.toolName)) {
+			// The agent host surfaces this server tool as a confirmation (it is
+			// excluded from auto-approve). Render a custom confirmation that lets
+			// the user pick which unreviewed comments to reveal; the renderer
+			// fetches the comments and applies the selection via feedback
+			// commands, so this layer carries only the button labels.
+			toolSpecificData = {
+				kind: 'agentFeedbackReviewConfirmation',
+				options: [localize('agentFeedback.reveal', "Reveal Selected")],
+			};
+		} else if (pendingEdits?.length) {
 			const wrap = (uri: URI) => connectionAuthority ? toAgentHostUri(uri, connectionAuthority) : uri;
 			const mapped = mapFileEdits(pendingEdits, tc.toolCallId);
 			toolSpecificData = {

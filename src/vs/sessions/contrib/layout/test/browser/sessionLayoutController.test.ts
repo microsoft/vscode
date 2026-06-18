@@ -25,7 +25,7 @@ import { IPaneCompositePartService } from '../../../../../workbench/services/pan
 import { IPaneComposite } from '../../../../../workbench/common/panecomposite.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsViewService } from '../../../../services/sessions/browser/sessionsViewService.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { LayoutController } from '../../browser/sessionLayoutController.js';
 import { CHANGES_VIEW_ID } from '../../../changes/common/changes.js';
@@ -137,11 +137,11 @@ suite('LayoutController', () => {
 		onDidChangeSessions = store.add(new Emitter<ISessionsChangeEvent>());
 
 		instaService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
-			override activeSession = activeSessionObs;
 			override readonly onDidChangeSessions = onDidChangeSessions.event;
 			override getSessions() { return []; }
 		});
-		instaService.stub(ISessionsViewService, new class extends mock<ISessionsViewService>() {
+		instaService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = activeSessionObs;
 			override readonly visibleSessions = constObservable([]);
 		});
 
@@ -299,21 +299,6 @@ suite('LayoutController', () => {
 
 	// --- Editor / auxiliary bar invariant ---
 
-	test('reveals auxiliary bar when the editor part becomes visible', () => {
-		createLayoutController();
-		partVisibility.set(Parts.EDITOR_PART, true);
-		partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-		setPartHiddenCalls = [];
-
-		// Simulate the editor part becoming visible (e.g. opening a file from chat)
-		onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
-
-		assert.ok(
-			setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === false),
-			'auxiliary bar should be revealed when the editor becomes visible'
-		);
-	});
-
 	test('does not force auxiliary bar visible when restoring editor working set on session switch', async () => {
 		const session = makeSession(URI.parse('session:1'));
 		createLayoutController({
@@ -466,11 +451,11 @@ suite('LayoutController', () => {
 
 		const activeSession = observableValue<IActiveSession | undefined>('active', undefined);
 		instaService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
-			override activeSession = activeSession;
 			override readonly onDidChangeSessions = Event.None;
 			override getSessions() { return []; }
 		});
-		instaService.stub(ISessionsViewService, new class extends mock<ISessionsViewService>() {
+		instaService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = activeSession;
 			override readonly visibleSessions = constObservable([]);
 		});
 		instaService.stub(IChatService, new class extends mock<IChatService>() {

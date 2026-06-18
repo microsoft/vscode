@@ -8,7 +8,7 @@ import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
-import { AgentHostEnabledSettingId, ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHostEditorSettingId, IAgentHostService, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostEnabledSettingId, claudePreferAgentHostSettingId, IAgentHostService, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -58,7 +58,7 @@ async function waitForLocalAgentHostActivation(accessor: ServicesAccessor, sessi
 			return false;
 		}
 		if (rootState) {
-			return rootState.agents.some(agent => agent.provider === provider && shouldRegisterAgent(agent.provider, configurationService, environmentService.isSessionsWindow));
+			return rootState.agents.some(agent => agent.provider === provider && shouldSurfaceLocalAgentHostProvider(agent.provider, configurationService, environmentService.isSessionsWindow));
 		}
 
 		const changed = await Promise.race([
@@ -76,16 +76,6 @@ function getLocalAgentHostProviderForSessionType(sessionType: string): AgentProv
 		return undefined;
 	}
 	return sessionType.slice(LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX.length) || undefined;
-}
-
-function shouldRegisterAgent(provider: AgentProvider, configurationService: IConfigurationService, isSessionsWindow: boolean): boolean {
-	if (provider !== 'claude') {
-		return true;
-	}
-	const settingId = isSessionsWindow
-		? ClaudePreferAgentHostAgentsSettingId
-		: ClaudePreferAgentHostEditorSettingId;
-	return configurationService.getValue<boolean>(settingId) === true;
 }
 
 export { AgentHostSessionHandler } from './agentHostSessionHandler.js';
@@ -167,9 +157,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		// registration of the `claude` provider inside this window. Flipping
 		// the relevant setting unregisters / re-registers Claude live.
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			const relevantSetting = this._isSessionsWindow
-				? ClaudePreferAgentHostAgentsSettingId
-				: ClaudePreferAgentHostEditorSettingId;
+			const relevantSetting = claudePreferAgentHostSettingId(this._isSessionsWindow);
 			if (!e.affectsConfiguration(relevantSetting)) {
 				return;
 			}
@@ -197,7 +185,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	 * to avoid Claude appearing twice in the same window.
 	 */
 	private _shouldRegisterAgent(provider: AgentProvider): boolean {
-		return shouldRegisterAgent(provider, this._configurationService, this._isSessionsWindow);
+		return shouldSurfaceLocalAgentHostProvider(provider, this._configurationService, this._isSessionsWindow);
 	}
 
 	private _handleRootStateChange(rootState: RootState): void {
@@ -247,9 +235,9 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			: localize('agentHost.displayName', "{0} - Agent Host", agent.displayName);
 
 		// Chat session contribution.
-		// In the Agents app, hide the delegation picker for local agent host
-		// sessions (matches behavior of remote agent host sessions). In VS Code,
-		// keep the picker available so users can hand off to other targets.
+		// Keep the delegation picker available for local agent host sessions in
+		// both VS Code and the Agents app so users can hand off (continue) their
+		// conversation to any other agent host session or remote target.
 		store.add(this._chatSessionsService.registerChatSessionContribution({
 			type: sessionType,
 			name: agentId,
@@ -259,7 +247,8 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			canDelegate: true,
 			requiresCustomModels: true,
 			supportsAutoModel: agentHostProviderSupportsAutoModel(agent.provider),
-			supportsDelegation: !this._isSessionsWindow,
+			agentHostProviderId: agent.provider,
+			supportsDelegation: true,
 			capabilities: {
 				supportsCheckpoints: true,
 				supportsPromptAttachments: true,

@@ -179,6 +179,10 @@ export class MockLanguageModelToolsService extends Disposable implements ILangua
 		throw new Error('Method not implemented.');
 	}
 
+	getFullReferenceNameMap(): Map<IToolData | IToolSet, string> {
+		throw new Error('Method not implemented.');
+	}
+
 	toFullReferenceNames(map: IToolAndToolSetEnablementMap): string[] {
 		throw new Error('Method not implemented.');
 	}
