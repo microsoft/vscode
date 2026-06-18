@@ -782,11 +782,16 @@ export class AgentSubscriptionManager extends Disposable {
 	 */
 	trackSessionCreate(resource: URI, promise: Promise<unknown>): void {
 		this._inflightCreates.set(resource, promise);
+		// This branch only observes settlement to evict the inflight entry; the
+		// `createSession` caller (and the server, via logService.error) owns the
+		// result. `finally` re-raises a rejection, so without this trailing
+		// `catch` an expected create failure (e.g. AHP_AUTH_REQUIRED) would be
+		// reported a second time as an unhandled rejection.
 		void promise.finally(() => {
 			if (this._inflightCreates.get(resource) === promise) {
 				this._inflightCreates.delete(resource);
 			}
-		});
+		}).catch(() => { });
 	}
 
 	/**
