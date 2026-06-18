@@ -36,6 +36,10 @@ export async function getSession(): Promise<AuthenticationSession> {
 
 let _octokit: Promise<Octokit> | undefined;
 
+export function clearOctokitCache(): void {
+	_octokit = undefined;
+}
+
 export function getOctokit(): Promise<Octokit> {
 	if (!_octokit) {
 		_octokit = getSession().then(async session => {
@@ -71,6 +75,7 @@ export class OctokitService {
 		this._disposables.add(authentication.onDidChangeSessions(e => {
 			if (e.provider.id === 'github') {
 				this._octokitGraphql = undefined;
+				clearOctokitCache();
 				this._onDidChangeSessions.fire();
 			}
 		}));
