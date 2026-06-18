@@ -454,6 +454,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 */
 	private readonly _additionalChatSubscriptions = new Map<string, IReference<IAgentSubscription<ChatState>>>();
 
+	/**
+	 * Backend session URIs with an in-flight {@link provideChatSessionContent}
+	 * call, keyed by session URI string with a refcount value. While a chat is
+	 * still hydrating its subscriptions, a sibling chat of the same session
+	 * closing must not tear down the shared session subscription out from under
+	 * it (see {@link _releaseChatSessionSubscriptions} / {@link _hasOtherSessionHold}).
+	 */
+	private readonly _hydratingChatSessions = new Map<string, number>();
+
 	constructor(
 		config: IAgentHostSessionHandlerConfig,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
@@ -705,68 +714,82 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		let initialProgress: IChatProgress[] | undefined;
 		let activeTurnId: string | undefined;
 		let sessionTitle: string | undefined;
-		if (!isNewSession) {
-			try {
-				const sub = this._ensureSessionSubscription(resolvedSession.toString());
-				const chatSub = this._ensureChatSubscription(resolvedSession.toString(), chatKey);
-				// Wait for both the session summary and its default-chat
-				// conversation state to hydrate from the server. After the
-				// multi-chat protocol adoption, turns/activeTurn live on the
-				// separate chat channel, so reading them before the chat
-				// subscription lands would yield an empty history.
-				await Promise.all([
-					this._whenSubscriptionHydrated(sub, token),
-					this._whenSubscriptionHydrated(chatSub, token),
-				]);
-				const sessionState = this._getSessionState(resolvedSession.toString(), chatKey);
-				if (sessionState) {
-					sessionTitle = sessionState.summary.title;
-					const fallbackRawModelId = sessionState.summary.model?.id;
-					const lookup = this._createTurnModelLookup(sessionResource, fallbackRawModelId);
-					history.push(...turnsToHistory(resolvedSession, sessionState.turns, this._config.agentId, this._config.connectionAuthority, lookup, this._chatErrorContext()));
+		// Mark this session as hydrating so that a sibling chat of the same
+		// session closing while we await our subscriptions does not tear down
+		// the shared session subscription (which would strand us forever).
+		const hydrationKey = resolvedSession.toString();
+		this._hydratingChatSessions.set(hydrationKey, (this._hydratingChatSessions.get(hydrationKey) ?? 0) + 1);
+		try {
+			if (!isNewSession) {
+				try {
+					const sub = this._ensureSessionSubscription(resolvedSession.toString());
+					const chatSub = this._ensureChatSubscription(resolvedSession.toString(), chatKey);
+					// Wait for both the session summary and its default-chat
+					// conversation state to hydrate from the server. After the
+					// multi-chat protocol adoption, turns/activeTurn live on the
+					// separate chat channel, so reading them before the chat
+					// subscription lands would yield an empty history.
+					await Promise.all([
+						this._whenSubscriptionHydrated(sub, token),
+						this._whenSubscriptionHydrated(chatSub, token),
+					]);
+					const sessionState = this._getSessionState(resolvedSession.toString(), chatKey);
+					if (sessionState) {
+						sessionTitle = sessionState.summary.title;
+						const fallbackRawModelId = sessionState.summary.model?.id;
+						const lookup = this._createTurnModelLookup(sessionResource, fallbackRawModelId);
+						history.push(...turnsToHistory(resolvedSession, sessionState.turns, this._config.agentId, this._config.connectionAuthority, lookup, this._chatErrorContext()));
 
-					// Enrich history with inner tool calls from subagent
-					// child sessions. Subscribes to each child session so
-					// its tool calls appear grouped under the parent widget.
-					await this._enrichHistoryWithSubagentCalls(history, resolvedSession);
+						// Enrich history with inner tool calls from subagent
+						// child sessions. Subscribes to each child session so
+						// its tool calls appear grouped under the parent widget.
+						await this._enrichHistoryWithSubagentCalls(history, resolvedSession);
 
-					// Store historical turns so the editing session can seed a
-					// request-level checkpoint for each turn (with file edits
-					// folded in) when the controller is created lazily. We seed
-					// for every turn — not just those with edits — so "Restore
-					// Checkpoint" on any historical request can find a boundary
-					// to navigate to.
-					if (sessionState.turns.length > 0) {
-						this._pendingHistoryTurns.set(sessionResource, sessionState.turns);
+						// Store historical turns so the editing session can seed a
+						// request-level checkpoint for each turn (with file edits
+						// folded in) when the controller is created lazily. We seed
+						// for every turn — not just those with edits — so "Restore
+						// Checkpoint" on any historical request can find a boundary
+						// to navigate to.
+						if (sessionState.turns.length > 0) {
+							this._pendingHistoryTurns.set(sessionResource, sessionState.turns);
+						}
+
+						// If there's an active turn, include its request in history
+						// with an empty response so the chat service creates a
+						// pending request, then provide accumulated progress via
+						// progressObs for live streaming.
+						if (sessionState.activeTurn) {
+							activeTurnId = sessionState.activeTurn.id;
+							const activeRawModelId = sessionState.activeTurn.usage?.model ?? fallbackRawModelId;
+							history.push({
+								type: 'request',
+								prompt: sessionState.activeTurn.message.text,
+								participant: this._config.agentId,
+								modelId: lookup.toLanguageModelId(activeRawModelId),
+								variableData: messageToVariableData(sessionState.activeTurn.message, this._config.connectionAuthority),
+								isSystemInitiated: sessionState.activeTurn.message.origin.kind === MessageKind.SystemNotification,
+							});
+							history.push({
+								type: 'response',
+								parts: [],
+								participant: this._config.agentId,
+								details: lookup.toResponseDetails(activeRawModelId, sessionState.activeTurn.usage),
+							});
+							initialProgress = activeTurnToProgress(resolvedSession, sessionState.activeTurn, this._config.connectionAuthority);
+							this._logService.info(`[AgentHost] Reconnecting to active turn ${activeTurnId} for session ${resolvedSession.toString()}`);
+						}
 					}
-
-					// If there's an active turn, include its request in history
-					// with an empty response so the chat service creates a
-					// pending request, then provide accumulated progress via
-					// progressObs for live streaming.
-					if (sessionState.activeTurn) {
-						activeTurnId = sessionState.activeTurn.id;
-						const activeRawModelId = sessionState.activeTurn.usage?.model ?? fallbackRawModelId;
-						history.push({
-							type: 'request',
-							prompt: sessionState.activeTurn.message.text,
-							participant: this._config.agentId,
-							modelId: lookup.toLanguageModelId(activeRawModelId),
-							variableData: messageToVariableData(sessionState.activeTurn.message, this._config.connectionAuthority),
-							isSystemInitiated: sessionState.activeTurn.message.origin.kind === MessageKind.SystemNotification,
-						});
-						history.push({
-							type: 'response',
-							parts: [],
-							participant: this._config.agentId,
-							details: lookup.toResponseDetails(activeRawModelId, sessionState.activeTurn.usage),
-						});
-						initialProgress = activeTurnToProgress(resolvedSession, sessionState.activeTurn, this._config.connectionAuthority);
-						this._logService.info(`[AgentHost] Reconnecting to active turn ${activeTurnId} for session ${resolvedSession.toString()}`);
-					}
+				} catch (err) {
+					this._logService.warn(`[AgentHost] Failed to subscribe to existing session: ${resolvedSession.toString()}`, err);
 				}
-			} catch (err) {
-				this._logService.warn(`[AgentHost] Failed to subscribe to existing session: ${resolvedSession.toString()}`, err);
+			}
+		} finally {
+			const remaining = (this._hydratingChatSessions.get(hydrationKey) ?? 1) - 1;
+			if (remaining > 0) {
+				this._hydratingChatSessions.set(hydrationKey, remaining);
+			} else {
+				this._hydratingChatSessions.delete(hydrationKey);
 			}
 		}
 		const session = this._instantiationService.createInstance(
@@ -794,7 +817,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				this._pendingMessageSubscriptions.deleteAndDispose(sessionResource);
 				this._serverTurnWatchers.deleteAndDispose(sessionResource);
 				this._pendingHistoryTurns.delete(sessionResource);
-				this._releaseSessionSubscription(resolvedSession.toString());
+				this._releaseChatSessionSubscriptions(resolvedSession.toString(), chatKey);
 			},
 			() => {
 				const sessionKey = resolvedSession.toString();
@@ -3380,6 +3403,65 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				ref.dispose();
 			}
 		}
+	}
+
+	/**
+	 * Release the subscriptions held by a single chat session on dispose.
+	 *
+	 * Unlike {@link _releaseSessionSubscription} (which tears down every chat
+	 * of a session at once), this only releases the disposed chat's own
+	 * conversation subscription and never touches sibling peer chats: closing
+	 * one chat of a multi-chat session must not strand another chat — including
+	 * one that is concurrently hydrating in {@link provideChatSessionContent} —
+	 * on a disposed subscription. The session summary subscription (and its
+	 * lockstep default-chat subscription) is shared by every chat of the
+	 * session, so it is only torn down once no sibling chat session is still
+	 * active or mid-hydration for the same backend session.
+	 */
+	private _releaseChatSessionSubscriptions(sessionUri: string, chatUri: string): void {
+		// Release this chat's own conversation subscription. The default chat's
+		// subscription is keyed by session URI and torn down together with the
+		// shared session subscription below; peer chats own a dedicated entry.
+		if (chatUri !== this._resolveDefaultChatUri(sessionUri)) {
+			const chatRef = this._additionalChatSubscriptions.get(chatUri);
+			if (chatRef) {
+				this._additionalChatSubscriptions.delete(chatUri);
+				chatRef.dispose();
+			}
+		}
+		// Keep the shared session subscription alive while any sibling chat of
+		// the same backend session is still active or hydrating.
+		if (this._hasOtherSessionHold(sessionUri)) {
+			return;
+		}
+		const ref = this._sessionSubscriptions.get(sessionUri);
+		if (ref) {
+			this._sessionSubscriptions.delete(sessionUri);
+			ref.dispose();
+		}
+		const chatRef = this._defaultChatSubscriptions.get(sessionUri);
+		if (chatRef) {
+			this._defaultChatSubscriptions.delete(sessionUri);
+			chatRef.dispose();
+		}
+	}
+
+	/**
+	 * Returns whether another chat session for the given backend session URI is
+	 * still active or in the middle of hydrating its subscriptions, so the
+	 * shared session subscription must be kept alive. Callers invoke this after
+	 * removing their own entry from {@link _activeSessions}.
+	 */
+	private _hasOtherSessionHold(sessionUri: string): boolean {
+		if ((this._hydratingChatSessions.get(sessionUri) ?? 0) > 0) {
+			return true;
+		}
+		for (const resource of this._activeSessions.keys()) {
+			if (this._resolveSessionUri(resource).toString() === sessionUri) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**

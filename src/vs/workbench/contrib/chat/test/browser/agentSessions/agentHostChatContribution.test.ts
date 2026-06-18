@@ -22,7 +22,7 @@ import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey 
 import { ActionType, isSessionAction, isChatAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { CustomizationType, type ClientPluginCustomization, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, createSessionState, createChatState, createDefaultChatSummary, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, StateComponents, buildSubagentSessionUri, ToolResultContentType, MessageAttachmentKind, MessageKind, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, createSessionState, createChatState, createDefaultChatSummary, buildChatUri, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, StateComponents, buildSubagentSessionUri, ToolResultContentType, MessageAttachmentKind, MessageKind, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -1125,6 +1125,31 @@ suite('AgentHostChatContribution', () => {
 			chatSession.dispose();
 
 			assert.strictEqual(fired, 1, 'onWillDispose should fire exactly once when the session is disposed');
+		});
+
+		test('disposing one chat does not tear down a sibling peer chat subscription (peer chat never loads after reload)', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/multi' });
+			const backendSession = AgentSession.uri('copilot', 'multi');
+			const peerResource = URI.from({ scheme: 'agent-host-copilot', path: '/multi', fragment: 'peer-1' });
+			const peerChatUri = URI.parse(buildChatUri(backendSession.toString(), 'peer-1'));
+
+			// Open the session's default chat and an additional peer chat.
+			const defaultSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			const peerSession = await sessionHandler.provideChatSessionContent(peerResource, CancellationToken.None);
+			disposables.add(toDisposable(() => peerSession.dispose()));
+
+			assert.ok(agentHostService.getSubscriptionUnmanaged(StateComponents.Chat, peerChatUri), 'peer chat subscription should be live after it is opened');
+
+			// Closing the default chat must NOT dispose the still-open peer
+			// chat's subscription. The regression left the peer chat's
+			// `provideChatSessionContent` awaiting a dead subscription, so it
+			// never resolved and the chat stayed stuck on a loading spinner.
+			defaultSession.dispose();
+
+			assert.ok(agentHostService.getSubscriptionUnmanaged(StateComponents.Chat, peerChatUri), 'peer chat subscription must stay live after the sibling default chat is disposed');
+			assert.ok(agentHostService.getSubscriptionUnmanaged(StateComponents.Session, backendSession), 'shared session subscription must stay live while the peer chat is still open');
 		});
 	});
 
