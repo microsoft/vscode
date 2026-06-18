@@ -155,7 +155,11 @@ export class ChangesViewModel extends Disposable {
 	private _getActiveSessionState(): { isLoading: IObservable<boolean>; state: IObservable<ActiveSessionState | undefined> } {
 		const isLoadingObs = derived(reader => {
 			const changeset = this.activeSessionChangesetObs.read(reader);
-			return changeset?.isLoadingChanges.read(reader) ?? false;
+			if (changeset === undefined) {
+				return true;
+			}
+
+			return changeset.isLoadingChanges.read(reader);
 		});
 
 		const activeSessionStateObs = derivedObservableWithCache<ActiveSessionState | undefined>(this, (reader, lastValue) => {

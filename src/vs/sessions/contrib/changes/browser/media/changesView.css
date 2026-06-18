@@ -115,6 +115,7 @@
 
 /* Actions container outside the card - new layout experiment */
 .changes-view-body .chat-editing-session-actions.outside-card {
+	height: 26px;
 	margin-bottom: 8px;
 	justify-content: flex-end;
 }

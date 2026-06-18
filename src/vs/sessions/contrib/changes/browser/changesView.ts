@@ -14,14 +14,14 @@ import { ActionRunner, IAction, Separator, SubmenuAction, toAction } from '../..
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
-import { autorun, derived, derivedObservableWithCache, derivedOpts, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, derivedObservableWithCache, derivedOpts, IObservable, observableFromEvent, observableFromEventOpts, observableValue } from '../../../../base/common/observable.js';
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { MenuWorkbenchButtonBar, WorkbenchButtonBar } from '../../../../platform/actions/browser/buttonbar.js';
-import { getActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getActionBarActions, PrimaryAndSecondaryActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { MenuId, Action2, MenuItemAction, registerAction2, IMenuService } from '../../../../platform/actions/common/actions.js';
@@ -74,7 +74,7 @@ import { ActiveSessionContextKeys, CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, C
 import { buildTreeChildren, ChangesTreeElement, ChangesTreeRenderer, IChangesFileItem, IChangesTreeRootInfo, isChangesFileItem, toIChangesFileItem } from './changesViewRenderer.js';
 import { ChangesViewModel } from './changesViewModel.js';
 import { ResourceTree } from '../../../../base/common/resourceTree.js';
-import { structuralEquals } from '../../../../base/common/equals.js';
+import { arrayEqualsC, structuralEquals } from '../../../../base/common/equals.js';
 import { compareFileNames, comparePaths } from '../../../../base/common/comparers.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
@@ -247,9 +247,24 @@ class ChangesWorkbenchButtonBarWidget extends Disposable {
 			}
 		));
 
-		const menuActionsObs = observableFromEvent(menu.onDidChange, () => {
-			return getActionBarActions(menu.getActions({ shouldForwardArgs: true }));
-		});
+		const menuActionsEquals = (a: PrimaryAndSecondaryActions, b: PrimaryAndSecondaryActions) => {
+			const actionEquals = (a: IAction, b: IAction) => {
+				return a.id === b.id &&
+					a.label === b.label &&
+					a.tooltip === b.tooltip &&
+					a.class === b.class &&
+					a.enabled === b.enabled &&
+					a.checked === b.checked;
+			};
+
+			return arrayEqualsC(actionEquals)(a.primary, b.primary) &&
+				arrayEqualsC(actionEquals)(a.secondary, b.secondary);
+		};
+
+		const menuActionsObs = observableFromEventOpts({ equalsFn: menuActionsEquals },
+			menu.onDidChange, () => {
+				return getActionBarActions(menu.getActions({ shouldForwardArgs: true }));
+			});
 
 		const operationActionGroupsObs = derived<IAction[][]>(reader => {
 			const changeset = viewModel.activeSessionChangesetObs.read(reader);
@@ -309,6 +324,11 @@ class ChangesWorkbenchButtonBarWidget extends Disposable {
 		});
 
 		this._register(autorun(reader => {
+			const isLoading = viewModel.activeSessionIsLoadingObs.read(reader);
+			if (isLoading) {
+				return;
+			}
+
 			const operationActionGroups = operationActionGroupsObs.read(reader);
 			const menuActions = menuActionsObs.read(reader);
 
