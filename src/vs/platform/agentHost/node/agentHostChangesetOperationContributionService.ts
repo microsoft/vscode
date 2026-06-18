@@ -13,8 +13,8 @@ import { ActionType } from '../common/state/sessionActions.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, readSessionGitState, type ChangesetOperation, type ErrorInfo, type ISessionGitState } from '../common/state/sessionState.js';
 import type { IChangesetOperationContribution, IChangesetOperationContributionService, IChangesetOperationContext, IChangesetOperationHandler, IChangesetOperationRegistry } from '../common/agentHostChangesetOperation.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
-import { AgentHostSessionGitStateService } from './agentHostSessionGitStateService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
+import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 
 export class AgentHostChangesetOperationContributionService extends Disposable implements IChangesetOperationContributionService {
 
@@ -25,7 +25,7 @@ export class AgentHostChangesetOperationContributionService extends Disposable i
 
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
-		private readonly _sessionGitStateService: AgentHostSessionGitStateService,
+		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
 		@IAgentHostChangesetSubscriptionService private readonly _changesetSubscriptions: IAgentHostChangesetSubscriptionService,
 	) {
 		super();
@@ -92,7 +92,7 @@ export class AgentHostChangesetOperationContributionService extends Disposable i
 	}
 
 	private async _refreshSessionGitStateAndOperations(sessionKey: string): Promise<void> {
-		const gitState = await this._sessionGitStateService.refreshSessionGitState(sessionKey);
+		const gitState = await this._gitStateService.refreshSessionGitState(sessionKey);
 		if (!gitState) {
 			return;
 		}

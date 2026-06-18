@@ -54,7 +54,7 @@ import { parseMcpChannelUri } from './shared/mcpCustomizationController.js';
 import { toAgentClientUri } from '../common/agentClientUri.js';
 import { AgentHostChangesetOperationContributionService } from './agentHostChangesetOperationContributionService.js';
 import { registerDefaultChangesetOperationContributions } from './agentHostChangesetOperationContributions.js';
-import { AgentHostSessionGitStateService } from './agentHostSessionGitStateService.js';
+import { AgentHostGitStateService } from './agentHostGitStateService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostAuthenticationService } from './agentHostAuthenticationService.js';
@@ -63,6 +63,7 @@ import { AgentHostOctoKitService, IAgentHostOctoKitService } from './shared/agen
 import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { AgentHostChangesetSubscriptionService } from './agentHostChangesetSubscriptionService.js';
+import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 
 /**
  * Grace period before an empty, unsubscribed session is garbage-collected
@@ -131,7 +132,7 @@ export class AgentService extends Disposable implements IAgentService {
 	/** Owns AgentService-side orchestration of the changeset feature. */
 	private readonly _changesetCoordinator: AgentHostChangesetSessionCoordinator;
 	/** Owns session git-state probing and git-backed catalogue decoration. */
-	private readonly _sessionGitStateService: AgentHostSessionGitStateService;
+	private readonly _gitStateService: IAgentHostGitStateService;
 	/** Owns changeset operation contributions and handler activation. */
 	private readonly _changesetOperationContributionService: AgentHostChangesetOperationContributionService;
 	/** Manages PTY-backed terminals for the agent host protocol. */
@@ -252,7 +253,8 @@ export class AgentService extends Disposable implements IAgentService {
 		const effectiveCopilotApiService = copilotApiService ?? instantiationService.createInstance(CopilotApiService, undefined);
 		services.set(ICopilotApiService, effectiveCopilotApiService);
 
-		this._sessionGitStateService = this._register(instantiationService.createInstance(AgentHostSessionGitStateService, this._stateManager));
+		this._gitStateService = instantiationService.createInstance(AgentHostGitStateService, this._stateManager);
+		services.set(IAgentHostGitStateService, this._gitStateService);
 
 		// The checkpoint service is constructed in the outer agent-host
 		// DI scope and passed via {@link _checkpointService}; register it
@@ -266,7 +268,7 @@ export class AgentService extends Disposable implements IAgentService {
 		services.set(IAgentHostChangesetSubscriptionService, this._changesetSubscriptions);
 
 		// The operation contribution service manages the lifecycle of changeset operations.
-		this._changesetOperationContributionService = this._register(instantiationService.createInstance(AgentHostChangesetOperationContributionService, this._stateManager, this._sessionGitStateService));
+		this._changesetOperationContributionService = this._register(instantiationService.createInstance(AgentHostChangesetOperationContributionService, this._stateManager));
 
 		// The changeset service is responsible for computing, publishing, and persisting changesets.
 		this._changesets = this._register(instantiationService.createInstance(AgentHostChangesetService, this._stateManager));
@@ -771,7 +773,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private _attachGitState(session: URI, workingDirectory: URI | undefined): void {
 		const sessionKey = session.toString();
-		this._sessionGitStateService.attachGitState(session, workingDirectory).then(
+		this._gitStateService.refreshSessionGitState(sessionKey, workingDirectory).then(
 			gitState => {
 				if (!gitState) {
 					return;
