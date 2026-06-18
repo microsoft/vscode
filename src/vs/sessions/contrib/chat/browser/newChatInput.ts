@@ -92,6 +92,7 @@ class NewChatInputStatusActionViewItem extends MenuEntryActionViewItem {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IChatStatusItemService private readonly chatStatusItemService: IChatStatusItemService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super(action, options, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, accessibilityService);
 	}
@@ -108,6 +109,17 @@ class NewChatInputStatusActionViewItem extends MenuEntryActionViewItem {
 				this.updateTooltip();
 			}
 		}));
+	}
+
+	override async onClick(event: MouseEvent): Promise<void> {
+		if (this._commandAction.id === OTEL_STATUS_COMMAND && this.element) {
+			event.preventDefault();
+			event.stopPropagation();
+			this.hoverService.showManagedHover(this.element);
+			return;
+		}
+
+		await super.onClick(event);
 	}
 
 	protected override getTooltip(): string {
@@ -346,6 +358,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		const statusContainer = dom.append(repoConfigContainer, dom.$('.new-chat-status-toolbar'));
 		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, statusContainer, MenuId.ChatInputStatus, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			toolbarOptions: { primaryGroup: () => true },
 			actionViewItemProvider: (action, options) => {
 				if (action.id === OTEL_STATUS_COMMAND && action instanceof MenuItemAction) {
 					return this.instantiationService.createInstance(NewChatInputStatusActionViewItem, action, options);
