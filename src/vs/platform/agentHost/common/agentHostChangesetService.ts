@@ -24,6 +24,21 @@ export const META_LEGACY_DIFFS = 'diffs';
  */
 export const META_CHANGES_SUMMARY = 'agentHost.changes';
 
+/**
+ * The set of session-DB metadata keys the changeset service needs in a
+ * batched read to synthesise the `summary.changes` aggregate for the
+ * session-list overlay. {@link IAgentHostChangesetService.getListMetadataKeys}
+ * returns this (or `undefined` when live state already answers the question);
+ * `AgentService` merges the returned keys into its own metadata key set so the
+ * DB is hit exactly once per session.
+ */
+export const CHANGESET_DB_METADATA_KEYS: Record<string, true> = {
+	[META_CHANGESET_BRANCH]: true,
+	[META_CHANGESET_SESSION]: true,
+	[META_CHANGES_SUMMARY]: true,
+	[META_LEGACY_DIFFS]: true,
+};
+
 /** The two static changeset kinds we publish by default. */
 export type StaticChangesetKind = 'branch' | 'session';
 
@@ -42,9 +57,8 @@ export interface IPersistedChangesetMetadata {
 
 /**
  * The parsed diffs returned from {@link IAgentHostChangesetService.restorePersistedStaticChangesets},
- * suitable for passing into {@link computeChangesSummaryFromPersistedDiffs}
- * when the caller needs to synthesise a `summary.changes` aggregate for
- * the session-list overlay.
+ * suitable for synthesising a `summary.changes` aggregate for the
+ * session-list overlay (see {@link IAgentHostChangesetService.computeListEntryChanges}).
  */
 export interface IRestoredChangesetDiffs {
 	readonly branch?: readonly ISessionFileDiff[];
@@ -52,6 +66,24 @@ export interface IRestoredChangesetDiffs {
 }
 
 export const IAgentHostChangesetService = createDecorator<IAgentHostChangesetService>('agentHostChangesetService');
+
+/**
+ * Read-only view of the changeset subscriptions a session currently has.
+ *
+ * Implemented by {@link ChangesetSessionCoordinator} (which owns the
+ * subscription bookkeeping) and consulted by {@link IAgentHostChangesetService}
+ * to decide which changesets to (re)compute. This replaces the previous
+ * opaque per-changeset boolean probe: the coordinator exposes the set of
+ * subscribed changeset URIs for a session, and the service reads that list
+ * and recomputes the subscribed changesets itself.
+ */
+export interface IChangesetSubscriptionReader {
+	/**
+	 * Returns the set of changeset URIs currently subscribed for `session`.
+	 * Empty when the session has no active changeset subscribers.
+	 */
+	getSessionSubscriptions(session: ProtocolURI): ReadonlySet<ProtocolURI>;
+}
 
 /**
  * Owns the lifecycle of static and per-turn changesets for the agent host:
@@ -137,6 +169,30 @@ export interface IAgentHostChangesetService {
 	persistChangesSummary(sessionUri: ProtocolURI, summary: ChangesSummary): void;
 
 	/**
+	 * Returns the session-DB metadata keys to merge into a batched read for
+	 * `sessionUri` (so the session-list overlay can synthesise the `changes`
+	 * aggregate), OR `undefined` when live state already answers the
+	 * aggregate-counts question (loaded session or a ready live
+	 * `changeKind: 'session'` changeset state) so the caller can skip loading
+	 * the potentially-large persisted diff blobs.
+	 */
+	getListMetadataKeys(sessionUri: ProtocolURI): Record<string, true> | undefined;
+
+	/**
+	 * Computes the `summary.changes` aggregate (additions / deletions / files
+	 * for the session-wide changeset) for a single session-list entry, using
+	 * the already-batched DB `metadata` read. Returns `undefined` when no
+	 * aggregate should be advertised (loaded session whose `summary.changes`
+	 * the caller already projected, or no live/persisted source).
+	 *
+	 * Precedence: live session (caller owns projection) > persisted
+	 * `META_CHANGES_SUMMARY` blob > ready live `changeKind: 'session'`
+	 * changeset state > parsed persisted session-wide diff blob. The latter
+	 * two paths also migrate the result forward to {@link META_CHANGES_SUMMARY}.
+	 */
+	computeListEntryChanges(sessionUri: ProtocolURI, metadata: Record<string, string | undefined>): ChangesSummary | undefined;
+
+	/**
 	 * Returns true when the static changeset identified by `changesetUri` is
 	 * currently being recomputed. Used by cache eviction to avoid dropping a
 	 * slot while its producer is mid-flight.
@@ -145,7 +201,9 @@ export interface IAgentHostChangesetService {
 
 	/**
 	 * Lazy refresh of the branch changeset, kicked off when a client
-	 * first subscribes to `<session>/changeset/branch`.
+	 * first subscribes to `<session>/changeset/branch`. Self-defers when the
+	 * session's working directory is not yet known; the deferred refresh is
+	 * drained by {@link onWorkingDirectoryAvailable}.
 	 */
 	refreshBranchChangeset(session: ProtocolURI): void;
 
@@ -154,9 +212,38 @@ export interface IAgentHostChangesetService {
 	 * client first subscribes to `<session>/changeset/session` or the
 	 * session URI itself (e.g. Agents Window observing the session). The
 	 * recompute keeps the catalogue chip fresh across session opens even
-	 * when no turn has run since process start.
+	 * when no turn has run since process start. Self-defers when the
+	 * session's working directory is not yet known.
 	 */
 	refreshSessionChangeset(session: ProtocolURI): void;
+
+	/**
+	 * Drains static changeset refreshes (`branch` / `session` /
+	 * `uncommitted`) that were deferred because the session's working
+	 * directory was not yet known. Called when a session is materialized or
+	 * restored. Recomputes every changeset currently subscribed for the
+	 * session via {@link recomputeSubscribedChangesets}; subscriptions that
+	 * dropped while the working directory was unknown are naturally skipped.
+	 * Idempotent.
+	 */
+	onWorkingDirectoryAvailable(session: ProtocolURI): void;
+
+	/**
+	 * Recomputes every changeset currently subscribed for `session`, read
+	 * from the {@link IChangesetSubscriptionReader} installed via
+	 * {@link setSubscriptionReader}. Each subscribed changeset is dispatched
+	 * to its kind-specific recompute (branch / session / uncommitted / turn);
+	 * the individual recomputes self-defer when the working directory is not
+	 * yet known. Used as the session-level refresh entry point (drain on
+	 * materialization, git-state change).
+	 */
+	recomputeSubscribedChangesets(session: ProtocolURI): void;
+
+	/**
+	 * Forgets any deferred static changeset refreshes queued for a session
+	 * that is being disposed.
+	 */
+	onSessionDisposed(session: ProtocolURI): void;
 
 	/**
 	 * Computes and publishes the per-turn changeset for `turnId` on `session`.
@@ -218,7 +305,10 @@ export interface IAgentHostChangesetService {
 	onSessionTruncated(session: ProtocolURI): void;
 
 	/**
-	 * Installs a predicate the service consults before scheduling any changeset recompute.
+	 * Installs the read-only subscription view the service consults before
+	 * scheduling any changeset recompute (and to drive
+	 * {@link recomputeSubscribedChangesets}). Implemented by the
+	 * {@link ChangesetSessionCoordinator}, which owns the subscription set.
 	 */
-	setSubscriberProbe(probe: (session: ProtocolURI, changeset: ProtocolURI) => boolean): void;
+	setSubscriptionReader(reader: IChangesetSubscriptionReader): void;
 }

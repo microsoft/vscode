@@ -9,13 +9,13 @@ import { Disposable, IDisposable, toDisposable } from '../../../../base/common/l
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { AgentSession, IAgentSessionMetadata } from '../../common/agentService.js';
+import { AgentSession } from '../../common/agentService.js';
 import { buildDefaultChangesetCatalogue, buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildSubagentSessionUri, SessionStatus, type ISessionFileDiff } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
-import { ChangesetSessionCoordinator, IChangesetSessionMetadata } from '../../node/agentHostChangesetCoordinator.js';
-import { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs, StaticChangesetKind } from '../../common/agentHostChangesetService.js';
+import { ChangesetSessionCoordinator } from '../../node/agentHostChangesetCoordinator.js';
+import { IAgentHostChangesetService, IChangesetSubscriptionReader, IPersistedChangesetMetadata, IRestoredChangesetDiffs, StaticChangesetKind } from '../../common/agentHostChangesetService.js';
 import { IChangesetOperationContributionService } from '../../common/changesetOperation.js';
 import { IAgentHostFileMonitorOptions, IAgentHostFileMonitorService } from '../../node/agentHostFileMonitorService.js';
 import { IAgentHostGitService } from '../../node/agentHostGitService.js';
@@ -135,7 +135,7 @@ suite('ChangesetSessionCoordinator', () => {
 		});
 	});
 
-	test('defers session changeset refresh until the working directory is known', async () => {
+	test('forwards session changeset refresh to the changeset service and drains pending work on materialization', async () => {
 		const session = AgentSession.uri('mock', 'session-1').toString();
 		const environment = createEnvironment();
 		createSession(environment.stateManager, session, undefined, false);
@@ -148,23 +148,41 @@ suite('ChangesetSessionCoordinator', () => {
 		environment.coordinator.onSessionMaterialized(session);
 		await tick();
 
-		assert.deepStrictEqual(environment.changesets.sessionRefreshes, [session]);
+		assert.deepStrictEqual({
+			sessionRefreshes: environment.changesets.sessionRefreshes,
+			workingDirectoryAvailable: environment.changesets.workingDirectoryAvailable,
+		}, {
+			sessionRefreshes: [session],
+			workingDirectoryAvailable: [session],
+		});
 	});
 
-	test('drops pending session changeset refresh when the last subscriber leaves', async () => {
+	test('exposes subscriptions and drops them when the last subscriber leaves', async () => {
 		const session = AgentSession.uri('mock', 'session-1').toString();
 		const environment = createEnvironment();
 		const changeset = buildSessionChangesetUri(session);
 		createSession(environment.stateManager, session, undefined, false);
 
 		environment.coordinator.onFirstSubscriber(URI.parse(changeset));
-		environment.coordinator.onLastSubscriber(URI.parse(changeset));
-		const summary = environment.stateManager.getSessionState(session)!.summary;
-		environment.stateManager.markSessionPersisted(session, { ...summary, workingDirectory: 'file:///repo/worktree' });
-		environment.coordinator.onSessionMaterialized(session);
-		await tick();
+		const subscribed = [...environment.coordinator.getSessionSubscriptions(session)];
 
-		assert.deepStrictEqual(environment.changesets.sessionRefreshes, []);
+		environment.coordinator.onLastSubscriber(URI.parse(changeset));
+		const afterUnsubscribe = [...environment.coordinator.getSessionSubscriptions(session)];
+
+		assert.deepStrictEqual({ subscribed, afterUnsubscribe }, {
+			subscribed: [changeset],
+			afterUnsubscribe: [],
+		});
+	});
+
+	test('routes git-state changes through the service subscription-driven recompute', async () => {
+		const session = AgentSession.uri('mock', 'session-1').toString();
+		const environment = createEnvironment();
+		createSession(environment.stateManager, session, 'file:///repo/worktree');
+
+		environment.coordinator.onSessionGitStateChanged(session, { baseBranchName: 'main' });
+
+		assert.deepStrictEqual(environment.changesets.recomputed, [session]);
 	});
 
 	test('does not attach root state when watcher acquisition fails', async () => {
@@ -385,8 +403,11 @@ class TestChangesetService implements IAgentHostChangesetService {
 	readonly branchRefreshes: string[] = [];
 	readonly uncommittedRefreshes: string[] = [];
 	readonly sessionRefreshes: string[] = [];
+	readonly workingDirectoryAvailable: string[] = [];
+	readonly recomputed: string[] = [];
+	readonly disposed: string[] = [];
 
-	private _hasSubscription: (session: string, changeset: string) => boolean = () => false;
+	private _subscriptionReader: IChangesetSubscriptionReader | undefined;
 
 	registerStaticChangesets(_session: string): void { }
 	restoreStaticChangeset(_session: string, _kind: StaticChangesetKind, _diffs: readonly ISessionFileDiff[]): void { }
@@ -401,8 +422,17 @@ class TestChangesetService implements IAgentHostChangesetService {
 	refreshSessionChangeset(session: string): void {
 		this.sessionRefreshes.push(session);
 	}
+	onWorkingDirectoryAvailable(session: string): void {
+		this.workingDirectoryAvailable.push(session);
+	}
+	recomputeSubscribedChangesets(session: string): void {
+		this.recomputed.push(session);
+	}
+	onSessionDisposed(session: string): void {
+		this.disposed.push(session);
+	}
 	async computeUncommittedChangeset(session: string): Promise<string> {
-		if (this._hasSubscription(session, URI.parse(buildUncommittedChangesetUri(session)).toString())) {
+		if (this._subscriptionReader?.getSessionSubscriptions(session).has(URI.parse(buildUncommittedChangesetUri(session)).toString())) {
 			this.uncommittedRefreshes.push(session);
 		}
 		return `${session}/changeset/uncommitted`;
@@ -412,8 +442,8 @@ class TestChangesetService implements IAgentHostChangesetService {
 	onToolCallEditsApplied(_session: string, _turnId: string): void { }
 	onTurnComplete(_session: string, _turnId: string | undefined): void { }
 	onSessionTruncated(_session: string): void { }
-	setSubscriberProbe(probe: (session: string, changeset: string) => boolean): void {
-		this._hasSubscription = probe;
+	setSubscriptionReader(reader: IChangesetSubscriptionReader): void {
+		this._subscriptionReader = reader;
 	}
 
 	clearRefreshes(): void {
@@ -423,7 +453,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 	}
 
 	getListMetadataKeys(_sessionStr: string): Record<string, true> | undefined { return undefined; }
-	decorateListEntry(entry: IAgentSessionMetadata, _metadata: IChangesetSessionMetadata): IAgentSessionMetadata { return entry; }
+	computeListEntryChanges(_sessionUri: string, _metadata: Record<string, string | undefined>): ChangesSummary | undefined { return undefined; }
 }
 
 function tick(): Promise<void> {

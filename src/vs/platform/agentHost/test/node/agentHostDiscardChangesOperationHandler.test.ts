@@ -67,8 +67,13 @@ class TestChangesetService implements IAgentHostChangesetService {
 	restorePersistedStaticChangesets(_sessionUri: string, _metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs { return {}; }
 	persistChangesSummary(_sessionUri: string, _summary: ChangesSummary): void { }
 	isStaticChangesetComputeActive(): boolean { return false; }
+	getListMetadataKeys(_sessionUri: string): Record<string, true> | undefined { return undefined; }
+	computeListEntryChanges(_sessionUri: string, _metadata: Record<string, string | undefined>): ChangesSummary | undefined { return undefined; }
 	refreshBranchChangeset(): void { }
 	refreshSessionChangeset(): void { }
+	onWorkingDirectoryAvailable(): void { }
+	recomputeSubscribedChangesets(): void { }
+	onSessionDisposed(): void { }
 	async computeUncommittedChangeset(session: string): Promise<string> {
 		this.calls.push(`computeUncommitted:${session}`);
 		return `${session}/changeset/uncommitted`;
@@ -78,7 +83,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 	onToolCallEditsApplied(): void { }
 	onTurnComplete(): void { }
 	onSessionTruncated(): void { }
-	setSubscriberProbe(): void { }
+	setSubscriptionReader(): void { }
 }
 
 function setup(disposables: Pick<DisposableStore, 'add'>, opts?: { readonly withWorkingDirectory?: boolean; readonly registerSession?: boolean }): { handler: AgentHostDiscardChangesOperationHandler; gitService: TestGitService; changesets: TestChangesetService; session: URI } {
