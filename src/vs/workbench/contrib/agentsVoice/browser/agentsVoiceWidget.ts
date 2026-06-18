@@ -44,6 +44,12 @@ export interface VoiceWidgetCallbacks {
 	submitFeedback(feedbackText: string): Promise<{ ok: boolean; error?: string }>;
 	/** Called when the user dismisses the onboarding card. */
 	onOnboardingCompleted?(): void;
+	/**
+	 * Optional — when provided, the expand chevron opens this picker instead of
+	 * the inline session list. Used by the floating window to show the agent
+	 * sessions quickpick with a "set as voice target" action.
+	 */
+	showSessionsPicker?(): void;
 }
 
 /**
@@ -221,7 +227,14 @@ export class AgentsVoiceWidget extends Disposable {
 		this._chevronIcon.addEventListener('mouseenter', () => { this._chevronIcon.style.color = 'var(--vscode-foreground)'; });
 		this._chevronIcon.addEventListener('mouseleave', () => { this._chevronIcon.style.color = 'var(--vscode-descriptionForeground)'; });
 		this._chevronWrapper.append(this._chevronIcon);
-		this._chevronWrapper.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); this._expanded.set(!this._expanded.get(), undefined); });
+		this._chevronWrapper.addEventListener('click', (e) => {
+			e.preventDefault(); e.stopPropagation();
+			if (this.callbacks.showSessionsPicker) {
+				this.callbacks.showSessionsPicker();
+			} else {
+				this._expanded.set(!this._expanded.get(), undefined);
+			}
+		});
 		this._chevronWrapper.addEventListener('keydown', (e) => {
 			if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this._chevronWrapper.click(); }
 		});

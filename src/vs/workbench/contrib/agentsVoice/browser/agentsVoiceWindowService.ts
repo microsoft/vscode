@@ -31,6 +31,8 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { AgentsVoiceWidget } from './agentsVoiceWidget.js';
 import { bindWidgetToController } from './agentsVoiceWidgetBinding.js';
+import { AgentsVoiceSessionsPicker } from './agentsVoiceSessionsPicker.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 
 export class AgentsVoiceWindowService extends Disposable implements IAgentsVoiceWindowService {
 
@@ -77,6 +79,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -203,6 +206,13 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 			onResize: () => this._resizeWindow(auxiliaryWindow),
 			openPttKeySettings: () => this.commandService.executeCommand('workbench.action.openGlobalKeybindings', 'agentsVoice.pushToTalk'),
 			submitFeedback: (text) => this.voiceSessionController.submitFeedback(text),
+			showSessionsPicker: () => {
+				const picker = this.instantiationService.createInstance(
+					AgentsVoiceSessionsPicker,
+					(resource) => this.voiceSessionController.setTargetSession(resource),
+				);
+				picker.show();
+			},
 		}, {
 			defaultExpanded: false,
 		});
