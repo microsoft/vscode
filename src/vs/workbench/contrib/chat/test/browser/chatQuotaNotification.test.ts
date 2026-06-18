@@ -34,7 +34,6 @@ const CREDIT_EFFICIENCY_LEARN_MORE_URL = 'https://aka.ms/token-usage-tips';
 interface IMockQuotas {
 	resetDate?: string;
 	usageBasedBilling?: boolean;
-	canUpgradePlan?: boolean;
 	chat?: IQuotaSnapshot;
 	completions?: IQuotaSnapshot;
 	premiumChat?: IQuotaSnapshot;
@@ -63,7 +62,6 @@ function createMockEntitlementService(opts?: {
 		quotas: {
 			resetDate: opts?.quotas?.resetDate,
 			usageBasedBilling: opts?.quotas?.usageBasedBilling ?? true,
-			canUpgradePlan: opts?.quotas?.canUpgradePlan,
 			chat: opts?.quotas?.chat,
 			completions: opts?.quotas?.completions,
 			premiumChat: opts?.quotas?.premiumChat,
@@ -671,7 +669,6 @@ suite('ChatQuotaNotificationContribution', () => {
 			const { notificationMock } = createContribution({
 				quotas: {
 					resetDate: makeResetDate(24),
-					canUpgradePlan: true,
 					usageBasedBilling: true,
 					premiumChat: makeQuotaSnapshot(72),
 				},
