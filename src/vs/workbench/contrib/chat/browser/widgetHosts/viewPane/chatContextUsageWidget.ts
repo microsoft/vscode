@@ -20,7 +20,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
-import { ILanguageModelsService } from '../../../common/languageModels.js';
+import { ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatContextUsageDetails, IChatContextUsageData } from './chatContextUsageDetails.js';
 import type { IChatWidget } from '../../chat.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
@@ -79,6 +79,51 @@ export class CircularProgressIndicator {
 		const offset = this.circumference - (clamped / 100) * this.circumference;
 		this.progressCircle.setAttribute('stroke-dashoffset', String(offset));
 	}
+}
+
+/**
+ * Resolves the configured context-window size (in tokens) from a model's
+ * configuration, so a user-selected context size is reflected by the widget.
+ *
+ * The `'tokens'` configuration group comes in two shapes:
+ *  - A numeric enum value (e.g. Copilot's `contextSize`) is the token count itself.
+ *  - A string-tier enum (e.g. Copilot CLI's `contextTier` = `'default'` |
+ *    `'long_context'`) maps to its token count via the schema's parallel
+ *    `enumItemTokenCounts` array.
+ *
+ * Returns `undefined` when no context-window override is configured, so callers
+ * fall back to the model's static `maxInputTokens`.
+ */
+function resolveConfiguredContextTokens(
+	modelConfiguration: IStringDictionary<unknown> | undefined,
+	schema: ILanguageModelConfigurationSchema | undefined,
+): number | undefined {
+	if (!modelConfiguration) {
+		return undefined;
+	}
+	const properties = schema?.properties;
+	if (properties) {
+		for (const [key, propSchema] of Object.entries(properties)) {
+			if (propSchema.group !== 'tokens') {
+				continue;
+			}
+			const value = modelConfiguration[key];
+			if (typeof value === 'number') {
+				return value;
+			}
+			const tokenCounts = propSchema.enumItemTokenCounts;
+			if (Array.isArray(propSchema.enum) && Array.isArray(tokenCounts)) {
+				const index = propSchema.enum.indexOf(value);
+				const tokens = index >= 0 ? tokenCounts[index] : undefined;
+				if (typeof tokens === 'number') {
+					return tokens;
+				}
+			}
+			return undefined;
+		}
+	}
+	// No schema available: a numeric `contextSize` is the token count directly.
+	return typeof modelConfiguration.contextSize === 'number' ? modelConfiguration.contextSize : undefined;
 }
 
 /**
@@ -309,7 +354,7 @@ export class ChatContextUsageWidget extends Disposable {
 		const usage = response.usage;
 		const modelMetadata = this.languageModelsService.lookupLanguageModel(modelId);
 		const modelConfiguration = this._modelConfigurationResolver?.(modelId) ?? this.languageModelsService.getModelConfiguration(modelId);
-		const configuredContextSize = typeof modelConfiguration?.contextSize === 'number' ? modelConfiguration.contextSize : undefined;
+		const configuredContextSize = resolveConfiguredContextTokens(modelConfiguration, modelMetadata?.configurationSchema);
 		const maxInputTokens = configuredContextSize ?? modelMetadata?.maxInputTokens;
 		const maxOutputTokens = modelMetadata?.maxOutputTokens;
 

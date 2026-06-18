@@ -731,6 +731,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			default: 'default',
 			enum: ['default', 'long_context'],
 			enumLabels: [formatTokenCount(defaultMax), formatTokenCount(longContextMax)],
+			enumTokenCounts: [defaultMax, longContextMax],
 			enumDescriptions: [
 				localize('copilot.modelContextTier.default', "Default"),
 				hasLongContextSurcharge

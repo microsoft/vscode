@@ -716,6 +716,7 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual(contextTier?.enum, ['default', 'long_context']);
 			assert.strictEqual(contextTier?.default, 'default');
 			assert.deepStrictEqual(contextTier?.enumLabels, ['200K', '1M']);
+			assert.deepStrictEqual(contextTier?.enumTokenCounts, [200_000, 1_000_000]);
 		} finally {
 			await disposeAgent(agent);
 		}

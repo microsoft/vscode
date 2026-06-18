@@ -112,6 +112,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				default: property.default,
 				enum: property.enum,
 				enumItemLabels: property.enumLabels,
+				enumItemTokenCounts: property.enumTokenCounts,
 				enumDescriptions: property.enumDescriptions,
 				readOnly: property.readOnly,
 				group: AgentHostLanguageModelProvider._groupForConfigKey(key),
