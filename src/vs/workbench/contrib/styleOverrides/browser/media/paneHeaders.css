@@ -57,6 +57,18 @@
 	border-radius: var(--vscode-cornerRadius-medium);
 }
 
+/*
+ * Add vertical breathing room to the headers. `--pane-header-size` drives both
+ * the CSS header height (paneview.css) and the size the split view reserves for
+ * the header during layout (Pane.resolveHeaderSize in paneview.ts), so the
+ * taller header is reserved correctly even when a section is collapsed. The
+ * StyleOverridesContribution triggers a relayout when this setting changes so
+ * the new reservation is picked up immediately.
+ */
+.style-override-paneHeaders .monaco-pane-view {
+	--pane-header-size: 30px;
+}
+
 /* Tint the header background on hover (overrides the inline header background). */
 .style-override-paneHeaders .monaco-pane-view .pane > .pane-header:hover {
 	background-color: var(--vscode-list-hoverBackground) !important;
@@ -69,4 +81,13 @@
  */
 .style-override-paneHeaders .monaco-pane-view .pane > .pane-header:focus:not(:focus-visible) {
 	outline: none !important;
+}
+
+/*
+ * The global focus rule uses `outline-offset: -1px`, which puts the ring's top
+ * stroke right on the 1px section separator so it looks clipped. Inset it a bit
+ * more so the keyboard focus ring clears the separator.
+ */
+.style-override-paneHeaders .monaco-pane-view .pane > .pane-header:focus {
+	outline-offset: -2px;
 }

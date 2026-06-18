@@ -48,6 +48,10 @@ export interface IPaneStyles {
  */
 export abstract class Pane extends Disposable implements IView {
 
+	/**
+	 * Fallback header size (in px) used when the `--pane-header-size` CSS variable
+	 * is not resolvable (e.g. before the element is attached to the document).
+	 */
 	private static readonly HEADER_SIZE = 22;
 
 	readonly element: HTMLElement;
@@ -118,8 +122,19 @@ export abstract class Pane extends Disposable implements IView {
 		this._onDidChange.fire(undefined);
 	}
 
+	/**
+	 * Resolves the header size from the `--pane-header-size` CSS variable so it can
+	 * be overridden via CSS (e.g. by the `paneHeaders` style-override) without a
+	 * hard-coded constant. Falls back to {@link Pane.HEADER_SIZE} when the variable
+	 * is absent or unparseable.
+	 */
+	private resolveHeaderSize(): number {
+		const size = parseInt(getWindow(this.element).getComputedStyle(this.element).getPropertyValue('--pane-header-size'), 10);
+		return isNaN(size) ? Pane.HEADER_SIZE : size;
+	}
+
 	private get headerSize(): number {
-		return this.headerVisible ? Pane.HEADER_SIZE : 0;
+		return this.headerVisible ? this.resolveHeaderSize() : 0;
 	}
 
 	get minimumSize(): number {
@@ -298,7 +313,7 @@ export abstract class Pane extends Disposable implements IView {
 	}
 
 	layout(size: number): void {
-		const headerSize = this.headerVisible ? Pane.HEADER_SIZE : 0;
+		const headerSize = this.headerSize;
 
 		const width = this._orientation === Orientation.VERTICAL ? this.orthogonalSize : size;
 		const height = this._orientation === Orientation.VERTICAL ? size - headerSize : this.orthogonalSize - headerSize;

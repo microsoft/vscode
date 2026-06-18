@@ -8,7 +8,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
@@ -97,7 +97,7 @@ export class StyleOverridesContribution extends Disposable implements IWorkbench
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ILayoutService private readonly layoutService: ILayoutService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super();
 
@@ -106,6 +106,9 @@ export class StyleOverridesContribution extends Disposable implements IWorkbench
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(SETTING_ID)) {
 				this.update();
+				// Some modules drive layout-affecting CSS variables (e.g. the
+				// `paneHeaders` header size). Relayout so the new values are read.
+				this.layoutService.layout();
 			}
 		}));
 
