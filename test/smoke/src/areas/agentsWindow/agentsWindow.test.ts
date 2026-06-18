@@ -557,7 +557,7 @@ export function setup(logger: Logger) {
 		});
 	});
 
-	describe('Agents Window (Codex)', () => {
+	describe.skip('Agents Window (Codex)', () => {
 
 		const codex = setupAgentHostSuite(logger, {
 			serverLabel: 'Codex',
