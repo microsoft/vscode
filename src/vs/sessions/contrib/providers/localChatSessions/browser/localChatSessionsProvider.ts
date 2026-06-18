@@ -17,7 +17,7 @@ import { ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspa
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
 import { ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
-import { isBuiltinChatMode, IChatMode } from '../../../../../workbench/contrib/chat/common/chatModes.js';
+import { isBuiltinChatMode, ChatMode, IChatMode } from '../../../../../workbench/contrib/chat/common/chatModes.js';
 import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
 import { localize } from '../../../../../nls.js';
@@ -29,6 +29,8 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ILanguageModelToolsService } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
+import { ChatSelectedTools } from '../../../../../workbench/contrib/chat/browser/widget/input/chatSelectedTools.js';
+import { UserSelectedTools } from '../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { createChangesets } from '../../copilotChatSessions/browser/copilotChatSessionsChangesets.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -1034,6 +1036,7 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 				permissionLevel,
 			},
 			attachedContext,
+			userSelectedTools: this._computeUserSelectedTools(session),
 		};
 
 		// Set model/mode/permission state on the chat model before sending
@@ -1042,6 +1045,34 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 			return await this.chatService.sendRequest(chatResource, query, sendOptions);
 		} finally {
 			modelRef?.dispose();
+		}
+	}
+
+	/**
+	 * Computes the tool enablement snapshot for a headless send, matching what
+	 * the chat widget would pass on a normal turn. Without this, the first
+	 * request to a new session reaches the agent with no tools, because
+	 * `extHostChatAgents2.getToolsForRequest` maps an undefined selection to an
+	 * empty tool set. Reuses {@link ChatSelectedTools} so the session > mode >
+	 * global precedence stays identical to the widget.
+	 *
+	 * Falls back to the builtin Agent mode when the session has no explicit
+	 * mode, mirroring the `?? ChatModeKind.Agent` default used for `modeInfo`
+	 * in {@link _dispatchSend} — local sessions never have their mode set.
+	 */
+	private _computeUserSelectedTools(session: LocalSession): IObservable<UserSelectedTools> {
+		const mode = session.chatMode ?? ChatMode.Agent;
+		const metadata = session.selectedModelId
+			? this.languageModelsService.lookupLanguageModel(session.selectedModelId)
+			: undefined;
+		const modelObs = constObservable<ILanguageModelChatMetadataAndIdentifier | undefined>(
+			metadata && session.selectedModelId ? { identifier: session.selectedModelId, metadata } : undefined
+		);
+		const selectedTools = this.instantiationService.createInstance(ChatSelectedTools, constObservable(mode), modelObs);
+		try {
+			return constObservable(selectedTools.userSelectedTools.get());
+		} finally {
+			selectedTools.dispose();
 		}
 	}
 
