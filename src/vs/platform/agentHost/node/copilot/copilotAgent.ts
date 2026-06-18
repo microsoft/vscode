@@ -48,7 +48,9 @@ import { ActiveClientState } from '../activeClientState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../agentHostGitService.js';
+import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { findMcpChildId } from '../shared/mcpCustomizationController.js';
+import { CopilotBranchNameGenerator } from './copilotBranchNameGenerator.js';
 import { CopilotAgentSession, type CopilotSdkMode } from './copilotAgentSession.js';
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
 import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
@@ -193,32 +195,6 @@ export function getCopilotWorktreeName(branchName: string): string {
 	return branchName.replace(/\//g, '-');
 }
 
-export function getCopilotWorktreeBranchName(sessionId: string, branchNameHint: string | undefined): string {
-	return `agents/${branchNameHint ? `${branchNameHint}-${sessionId.substring(0, 8)}` : sessionId}`;
-}
-
-/**
- * Derive a slug-style branch-name hint from the user's first message. Used
- * by the worktree isolation flow so the generated branch name reflects the
- * intent of the session instead of being just a session id.
- *
- * Returns `undefined` if the message has no slug-able content (e.g. only
- * punctuation), in which case the caller falls back to a session-id-only
- * branch name.
- */
-export function getCopilotBranchNameHintFromMessage(message: string): string | undefined {
-	const words = message
-		.toLowerCase()
-		.normalize('NFKD')
-		.replace(/[^a-z0-9]+/g, '-')
-		.replace(/^-+|-+$/g, '')
-		.split('-')
-		.filter(word => word.length > 0)
-		.slice(0, 8);
-	const hint = words.join('-').slice(0, 48).replace(/-+$/g, '');
-	return hint.length > 0 ? hint : undefined;
-}
-
 /**
  * Builds the localized "Created isolated worktree for branch X" markdown
  * shown at the top of the first response in worktree-isolated sessions.
@@ -343,6 +319,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _shutdownPromise: Promise<void> | undefined;
 	private readonly _plugins: PluginController;
 	private readonly _sessionLauncher: CopilotSessionLauncher;
+	private readonly _branchNameGenerator: CopilotBranchNameGenerator;
 	readonly onDidCustomizationsChange: Event<void>;
 	/** Per-session active client state for tools + plugin snapshot tracking. */
 	private readonly _activeClients = new ResourceMap<ActiveClient>();
@@ -354,12 +331,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
+		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
 		@IAgentHostCompletions completions: IAgentHostCompletions,
 		@IAgentHostCheckpointService private readonly _checkpointService: IAgentHostCheckpointService,
 	) {
 		super();
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController));
 		this._sessionLauncher = this._instantiationService.createInstance(CopilotSessionLauncher);
+		this._branchNameGenerator = new CopilotBranchNameGenerator(this._copilotApiService, this._logService);
 		this.onDidCustomizationsChange = this._plugins.onDidChange;
 		this._register(completions.registerProvider(new CopilotSlashCommandCompletionProvider(this.id, {
 			hasHistory: (sessionId) => !this._provisionalSessions.has(sessionId) && this._sessions.has(sessionId),
@@ -1865,8 +1844,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 
 		const worktreesRoot = getCopilotWorktreesRoot(repositoryRoot);
-		const branchNameHint = prompt ? getCopilotBranchNameHintFromMessage(prompt) : undefined;
-		const branchName = getCopilotWorktreeBranchName(sessionId, branchNameHint);
+		const branchName = await this._branchNameGenerator.generateBranchName({ sessionId, message: prompt, githubToken: this._githubToken });
 		const worktree = URI.joinPath(worktreesRoot, getCopilotWorktreeName(branchName));
 		await fs.mkdir(worktreesRoot.fsPath, { recursive: true });
 		const baseBranch = typeof config.config[SessionConfigKey.Branch] === 'string' ? config.config[SessionConfigKey.Branch] as string : undefined;
