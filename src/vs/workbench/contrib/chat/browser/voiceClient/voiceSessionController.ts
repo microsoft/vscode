@@ -1161,26 +1161,27 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private async _sendTranscriptionToChat(text: string): Promise<void> {
 		const target = this._targetSession.get();
 		if (target) {
-			// Try switching to the session via the workbench chat pane first
-			const switched = await this.commandService.executeCommand<boolean>('_chat.voice.switchToSession', target.toString()).catch(() => false);
-			if (switched) {
-				// Small delay to let the widget load the session model
-				await new Promise(resolve => setTimeout(resolve, 200));
+			// Check if target is the currently visible session
+			const currentSession = await this.commandService.executeCommand<string | undefined>('_chat.voice.getCurrentSession').catch(() => undefined);
+			const isTargetVisible = currentSession === target.toString();
+
+			if (isTargetVisible) {
+				// Target is visible — send via the chat pane directly
 				await this.commandService.executeCommand('_chat.voice.acceptInput', text).catch(err => {
-					this.logService.warn('[voice] acceptInput failed after switch:', err);
+					this.logService.warn('[voice] acceptInput failed for visible target:', err);
 				});
 			} else {
-				// Not in workbench chat — try agents window openAndSend
-				const handled = await this.commandService.executeCommand<boolean>('_sessions.voice.openAndSend', target.toString(), text).catch(() => false);
-				if (!handled) {
-					// Last resort: try sendRequest directly
-					this.chatService.sendRequest(target, text).then(result => {
-						if (result.kind === 'rejected') {
-							this.logService.warn('[voice] Failed to send transcription to target session:', result.reason);
-						}
-					}).catch(err => {
-						this.logService.warn('[voice] Error sending transcription to target session:', err);
-					});
+				// Target is NOT visible — send directly and watch for response
+				// in the floating window
+				const result = await this.chatService.sendRequest(target, text).catch(err => {
+					this.logService.warn('[voice] Error sending transcription to target session:', err);
+					return undefined;
+				});
+				if (result && result.kind !== 'rejected') {
+					// Surface response in floating window
+					this._watchResponseForFloatingWindow(target);
+					// Open the floating window so user can see the response
+					this.commandService.executeCommand('_agentsVoice.openWindow').catch(() => { /* ignore */ });
 				}
 			}
 		} else {
@@ -1224,10 +1225,67 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					});
 				}
 			}
+
+			// Ensure the chat view is visible so the user sees/hears the response
+			this.commandService.executeCommand('workbench.panel.chat.view.copilot.focus').catch(() => { /* ignore */ });
+		}
+	}
+
+	/**
+	 * Watch a session's latest response and surface it in the floating window
+	 * transcript. Called when voice sends to a non-visible session so the user
+	 * can see the reply without switching the chat panel.
+	 */
+	private _watchResponseForFloatingWindow(sessionResource: URI): void {
+		const model = this.chatService.getSession(sessionResource);
+		if (!model) {
+			return;
 		}
 
-		// Ensure the chat view is visible so the user sees/hears the response
-		this.commandService.executeCommand('workbench.panel.chat.view.copilot.focus').catch(() => { /* ignore */ });
+		const disposables = new DisposableStore();
+		let lastText = '';
+
+		const updateFromResponse = () => {
+			const lastReq = model.lastRequest;
+			const response = lastReq?.response;
+			if (!response) {
+				return;
+			}
+
+			const markdown = response.response.getMarkdown();
+			// Only first ~200 chars for the floating window transcript preview
+			const previewText = markdown.length > 200 ? markdown.slice(0, 200) + '…' : markdown;
+			if (previewText && previewText !== lastText) {
+				const isFirst = lastText === '';
+				lastText = previewText;
+				this._setAssistantTurn(previewText, { startNewTurn: isFirst });
+			}
+
+			if (response.isComplete || response.isCanceled) {
+				disposables.dispose();
+			}
+		};
+
+		// Listen for response changes
+		const checkResponse = () => {
+			const lastReq = model.lastRequest;
+			if (lastReq?.response) {
+				disposables.add(lastReq.response.onDidChange(() => updateFromResponse()));
+				updateFromResponse();
+			}
+		};
+
+		// The response may not exist yet — listen for model changes
+		disposables.add(model.onDidChange(e => {
+			if (e.kind === 'addResponse') {
+				checkResponse();
+			}
+		}));
+		checkResponse();
+
+		// Safety: dispose after 5 minutes in case the response never completes
+		const timeout = setTimeout(() => disposables.dispose(), 5 * 60 * 1000);
+		disposables.add({ dispose: () => clearTimeout(timeout) });
 	}
 
 	// --- Transcript buffer helpers ---

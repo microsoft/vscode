@@ -24,6 +24,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import * as nls from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -120,6 +121,15 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const service = accessor.get(IAgentsVoiceWindowService);
 		await service.toggleWindow();
+	}
+});
+
+// Internal command: open the floating window without toggling (used by voice
+// controller to surface responses for non-visible sessions).
+CommandsRegistry.registerCommand('_agentsVoice.openWindow', async (accessor) => {
+	const service = accessor.get(IAgentsVoiceWindowService);
+	if (!service.isOpen) {
+		await service.openWindow();
 	}
 });
 
