@@ -163,7 +163,7 @@ class NewChatInputStatusActionViewItem extends MenuEntryActionViewItem {
 		this.hoverContentDisposables.value = store;
 
 		const root = dom.$('.new-chat-input-status-hover');
-		root.appendChild(dom.$('.new-chat-input-status-hover-title', undefined, localize('newChatInput.status.otel.title', "Monitoring Enabled")));
+		root.appendChild(dom.$('.new-chat-input-status-hover-title', undefined, localize('newChatInput.status.otel.title', "Monitoring with OpenTelemetry enabled")));
 		root.appendChild(dom.$('.new-chat-input-status-hover-detail', undefined, this._getStatusEntryTooltip() ?? super.getTooltip()));
 
 		const actions = root.appendChild(dom.$('.new-chat-input-status-hover-actions'));
