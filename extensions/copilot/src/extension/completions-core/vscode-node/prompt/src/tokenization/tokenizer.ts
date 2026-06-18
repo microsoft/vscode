@@ -467,3 +467,16 @@ function loadTokenizers(): Promise<void> {
 export function ensureTokenizersLoaded(): Promise<void> {
 	return loadTokenizers();
 }
+
+/**
+ * Test-only: restores this module's tokenizer state to its initial values so a
+ * suite that installs a fake {@link ExternalTokenizerProvider} does not leak
+ * into other suites that share the same process. Not part of the public API.
+ */
+export function resetTokenizersForTest(): void {
+	externalProvider = undefined;
+	ownLoadPromise = undefined;
+	externalLoadPromise = undefined;
+	tokenizers.clear();
+	tokenizers.set(TokenizerName.mock, new MockTokenizer());
+}
