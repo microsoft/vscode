@@ -23,6 +23,7 @@ import './media/keyboardFocusOnly.css';
 import './media/padding.css';
 import './media/paneHeaders.css';
 import './media/roundedCorners.css';
+import './media/scrollShadows.css';
 import './media/tabs.css';
 
 const SETTING_ID = 'workbench.experimental.styleOverrides';
@@ -74,6 +75,11 @@ const STYLE_OVERRIDE_MODULES: readonly IStyleOverrideModule[] = [
 		id: 'roundedCorners',
 		label: localize('styleOverrides.roundedCorners', "Rounded Corners"),
 		description: localize('styleOverrides.roundedCorners.description', "Applies a three-tier corner radius system: 8px for overlays (quick input, hovers, menus, dialogs), 6px for non-control containers and 4px for interactable controls (inputs, lists).")
+	},
+	{
+		id: 'scrollShadows',
+		label: localize('styleOverrides.scrollShadows', "Scroll Shadows"),
+		description: localize('styleOverrides.scrollShadows.description', "Adds soft inset shadows to the top and bottom of lists, trees and the editor so content reads as scrolling under a fixed frame.")
 	},
 	{
 		id: 'tabs',

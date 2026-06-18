@@ -1000,6 +1000,7 @@
 		"--part-background",
 		"--part-border-color",
 		"--pane-header-size",
+		"--scroll-shadow-surface",
 		"--vscode-chat-list-background",
 		"--vscode-editorCodeLens-fontFamily",
 		"--vscode-editorCodeLens-fontFamilyDefault",
