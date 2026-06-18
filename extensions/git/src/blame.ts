@@ -379,7 +379,11 @@ export class GitBlameController {
 	@throttle
 	private async _updateTextEditorBlameInformation(textEditor: TextEditor | undefined, reason?: 'selection'): Promise<void> {
 		if (textEditor) {
-			if (!textEditor.diffInformation || textEditor !== window.activeTextEditor) {
+			if (textEditor !== window.activeTextEditor) {
+				return;
+			}
+			if (!textEditor.diffInformation) {
+				this.textEditorBlameInformation = undefined;
 				return;
 			}
 		} else {
