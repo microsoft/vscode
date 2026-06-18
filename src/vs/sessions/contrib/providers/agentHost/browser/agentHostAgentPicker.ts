@@ -27,7 +27,7 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { ISession, ISessionAgentRef, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ModePicker, ModePickerModel } from '../../copilotChatSessions/browser/modePicker.js';
-import { ISessionInputContext } from '../../../chat/browser/sessionInputContext.js';
+import { ISessionContext } from '../../../../services/sessions/browser/sessionContext.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IAction } from '../../../../../base/common/actions.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -140,7 +140,7 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 		}));
 
 		const factory = (_action: IAction, _options: IActionViewItemOptions, scopedInstantiationService: IInstantiationService) => {
-			const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionInputContext));
+			const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
 			const picker = scopedInstantiationService.createInstance(ModePicker, modePickerModel);
 			const disposableStore = new DisposableStore();
 

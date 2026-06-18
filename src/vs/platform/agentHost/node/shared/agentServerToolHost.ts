@@ -26,6 +26,14 @@ export interface IServerToolGroup {
 	/** Tool definitions this group advertises on the session's `serverTools`. */
 	readonly definitions: readonly ToolDefinition[];
 	/**
+	 * Whether {@link toolName} (one of this group's {@link definitions}) must be
+	 * confirmed by the user before it runs. Providers exclude such tools from
+	 * their server-tool auto-approve lists so the call surfaces a confirmation.
+	 * Absent or `false` means the tool is auto-approved like every other server
+	 * tool.
+	 */
+	requiresConfirmation?(toolName: string): boolean;
+	/**
 	 * Executes {@link toolName} (one of this group's {@link definitions})
 	 * against the session's state, dispatching any resulting actions through
 	 * the state manager (the single writer), and returns the textual tool
@@ -77,6 +85,10 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 			type: ActionType.SessionServerToolsChanged,
 			tools: [...this.definitions],
 		});
+	}
+
+	requiresConfirmation(toolName: string): boolean {
+		return this._groupByToolName.get(toolName)?.requiresConfirmation?.(toolName) ?? false;
 	}
 
 	executeTool(sessionUri: URI, toolName: string, rawArgs: unknown): string {

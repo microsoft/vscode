@@ -105,21 +105,13 @@ User Settings:
 			const nodeFetchCurrent = !electronCurrent && !nodeCurrent && nodeFetchConfig;
 			const nodeCurrentFallback = !electronCurrent && !nodeFetchCurrent;
 			const activeFetcher = this.fetcherService.getUserAgentLibrary();
-			const nodeFetcher = new NodeFetcher(this.envService);
-			const fetchers = {
-				['Electron fetch']: {
-					fetcher: electronFetcher,
-					current: electronCurrent,
-				},
-				['Node.js https']: {
-					fetcher: nodeFetcher,
-					current: nodeCurrent || nodeCurrentFallback,
-				},
-				['Node.js fetch']: {
-					fetcher: new NodeFetchFetcher(this.envService),
-					current: nodeFetchCurrent,
-				},
-			};
+			const nodeFetcher = { name: 'Node.js https', fetcher: new NodeFetcher(this.envService), current: nodeCurrent || nodeCurrentFallback };
+			const nodeFetchFetcher = { name: 'Node.js fetch', fetcher: new NodeFetchFetcher(this.envService), current: nodeFetchCurrent };
+			const fetchers = [
+				{ name: 'Electron fetch', fetcher: electronFetcher, current: electronCurrent },
+				nodeFetcher,
+				nodeFetchFetcher,
+			];
 			const dnsLookup = util.promisify(dns.lookup);
 			for (const url of urls) {
 				const authHeaders = await this.getAuthHeaders(isGHEnterprise, url);
@@ -194,12 +186,12 @@ User Settings:
 						}
 					}
 				}
-				for (const [name, fetcher] of Object.entries(fetchers)) {
-					await appendText(editor, `- ${name}${fetcher.current ? ' (configured)' : fetcher.fetcher?.getUserAgentLibrary() === activeFetcher ? ' (active)' : ''}: `);
-					if (fetcher.fetcher) {
+				for (const { name, fetcher, current } of fetchers) {
+					await appendText(editor, `- ${name}${current ? ' (configured)' : fetcher?.getUserAgentLibrary() === activeFetcher ? ' (active)' : ''}: `);
+					if (fetcher) {
 						const start = Date.now();
 						try {
-							const response = await Promise.race([fetcher.fetcher.fetch(url, { headers: authHeaders, callSite: 'diagnostics-fetcher-probe' }), timeout(timeoutSeconds * 1000)]);
+							const response = await Promise.race([fetcher.fetch(url, { headers: authHeaders, callSite: 'diagnostics-fetcher-probe' }), timeout(timeoutSeconds * 1000)]);
 							if (response) {
 								await appendText(editor, `HTTP ${response.status} (${Date.now() - start} ms)\n`);
 							} else {
@@ -214,21 +206,27 @@ User Settings:
 				}
 			}
 
-			const currentFetcher = Object.values(fetchers).find(fetcher => fetcher.current)?.fetcher || nodeFetcher;
+			const currentFetcher = fetchers.find((entry): entry is typeof entry & { fetcher: IFetcher } => entry.current && !!entry.fetcher) ?? nodeFetcher;
+			const useVSCodeTelemetryLibForGH = this.configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.UseVSCodeTelemetryLibForGH, this.experimentationService);
+			const githubTelemetryFetcher = useVSCodeTelemetryLibForGH ? currentFetcher : nodeFetcher;
+			const microsoftAIKey = (this._context.extension.packageJSON as { ariaKey?: string }).ariaKey ?? '';
+			const microsoftTelemetryUrl = !microsoftAIKey || isOneDataSystemKey(microsoftAIKey)
+				? 'https://mobile.events.data.microsoft.com' // Microsoft 1DS/OneCollector telemetry endpoint (newer).
+				: 'https://dc.services.visualstudio.com'; // Azure Application Insights telemetry endpoint (older).
 			const secondaryUrls = [
-				{ url: 'https://mobile.events.data.microsoft.com', fetcher: currentFetcher },
-				{ url: 'https://dc.services.visualstudio.com', fetcher: currentFetcher },
-				{ url: 'https://copilot-telemetry.githubusercontent.com/_ping', fetcher: nodeFetcher },
-				{ url: vscode.Uri.parse(this.capiClientService.copilotTelemetryURL).with({ path: '/_ping' }).toString(), fetcher: nodeFetcher },
-				{ url: 'https://default.exp-tas.com', fetcher: nodeFetcher },
+				{ url: microsoftTelemetryUrl, fetcher: currentFetcher },
+				// GitHub Copilot telemetry endpoint (configured/effective host).
+				{ url: vscode.Uri.parse(this.capiClientService.copilotTelemetryURL).with({ path: '/_ping' }).toString(), fetcher: githubTelemetryFetcher },
+				// Experimentation (ExP/TAS) service endpoint.
+				{ url: 'https://default.exp-tas.com', fetcher: nodeFetchFetcher },
 			];
 			await appendText(editor, `\n`);
 			for (const { url, fetcher } of secondaryUrls) {
 				const authHeaders = await this.getAuthHeaders(isGHEnterprise, url);
-				await appendText(editor, `Connecting to ${url}: `);
+				await appendText(editor, `Connecting to ${url} (${fetcher.name}): `);
 				const start = Date.now();
 				try {
-					const response = await Promise.race([fetcher.fetch(url, { headers: authHeaders, callSite: 'diagnostics-secondary-probe' }), timeout(timeoutSeconds * 1000)]);
+					const response = await Promise.race([fetcher.fetcher.fetch(url, { headers: authHeaders, callSite: 'diagnostics-secondary-probe' }), timeout(timeoutSeconds * 1000)]);
 					if (response) {
 						await appendText(editor, `HTTP ${response.status} (${Date.now() - start} ms)\n`);
 					} else {
@@ -239,10 +237,21 @@ User Settings:
 				}
 			}
 			await appendText(editor, `\nNumber of system certificates: ${osCertificates?.length ?? 'failed to load'}\n`);
-			await appendText(editor, `
-## Documentation
 
-In corporate networks: [Troubleshooting firewall settings for GitHub Copilot](https://docs.github.com/en/copilot/troubleshooting-github-copilot/troubleshooting-firewall-settings-for-github-copilot).`);
+			const activeFetcherName = fetchers.find(entry => entry.fetcher?.getUserAgentLibrary() === activeFetcher)?.name ?? activeFetcher;
+			const notes = [`- Active fetcher: ${activeFetcherName}.`];
+			if (currentFetcher.fetcher.getUserAgentLibrary() !== activeFetcher) {
+				notes.push(`- The active fetcher differs from the configured fetcher (${currentFetcher.name}). This can happen after a recent configuration change or an automatic fallback; reload the window or restart VS Code to apply the configured fetcher.`);
+			}
+			const proxySupport = vscode.workspace.getConfiguration().get<string>('http.proxySupport');
+			if (proxySupport !== 'override') {
+				notes.push(`- The \`"http.proxySupport"\` setting is set to \`"${proxySupport}"\`. The recommended default is \`"override"\`, which generally works best.`);
+			}
+			notes.push(`- For corporate networks also see: [Troubleshooting firewall settings for GitHub Copilot](https://docs.github.com/en/copilot/troubleshooting-github-copilot/troubleshooting-firewall-settings-for-github-copilot).`);
+			await appendText(editor, `
+## Notes
+
+${notes.join('\n')}`);
 
 			return document.getText();
 		};
@@ -281,6 +290,21 @@ async function appendText(editor: vscode.TextEditor, string: string) {
 
 function timeoutAfter(ms: number) {
 	return new Promise<'timeout'>(resolve => setTimeout(() => resolve('timeout'), ms));
+}
+
+/**
+ * Returns `true` when the given telemetry key is a 1DS (One Data System) key, which is sent to the
+ * OneCollector endpoint. Otherwise it is a classic Application Insights key sent to the Application
+ * Insights endpoint. Mirrors the check in `@vscode/extension-telemetry`.
+ */
+function isOneDataSystemKey(key: string): boolean {
+	return key.length === 74
+		&& key[32] === '-'
+		&& key[41] === '-'
+		&& key[46] === '-'
+		&& key[51] === '-'
+		&& key[56] === '-'
+		&& key[69] === '-';
 }
 
 function loadVSCodeModule<T>(moduleName: string): T | undefined {
