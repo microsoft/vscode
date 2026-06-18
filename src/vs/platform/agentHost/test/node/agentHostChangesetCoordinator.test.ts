@@ -56,7 +56,6 @@ suite('ChangesetSessionCoordinator', () => {
 		const gitService = createGitService(root);
 		const operationContributionService: IChangesetOperationContributionService = {
 			registerContribution: () => Disposable.None,
-			refreshOperationsFromCurrentState: () => { },
 			updateOperations: () => { },
 			invokeChangesetOperation: async () => ({}),
 			dispose: () => { },
@@ -166,34 +165,6 @@ suite('ChangesetSessionCoordinator', () => {
 		await tick();
 
 		assert.deepStrictEqual(environment.changesets.sessionRefreshes, []);
-	});
-
-	test('git state changes refresh uncommitted only while uncommitted subscribers exist', () => {
-		const session = AgentSession.uri('mock', 'session-1').toString();
-		const environment = createEnvironment();
-		createSession(environment.stateManager, session, 'file:///repo/worktree');
-
-		environment.coordinator.onFirstSubscriber(URI.parse(session));
-		environment.changesets.clearRefreshes();
-		environment.coordinator.onSessionGitStateChanged(session);
-		assert.deepStrictEqual({
-			sessionRefreshes: environment.changesets.sessionRefreshes,
-			uncommittedRefreshes: environment.changesets.uncommittedRefreshes,
-		}, {
-			sessionRefreshes: [session],
-			uncommittedRefreshes: [],
-		});
-
-		environment.coordinator.onFirstSubscriber(URI.parse(buildUncommittedChangesetUri(session)));
-		environment.changesets.clearRefreshes();
-		environment.coordinator.onSessionGitStateChanged(session);
-		assert.deepStrictEqual({
-			sessionRefreshes: environment.changesets.sessionRefreshes,
-			uncommittedRefreshes: environment.changesets.uncommittedRefreshes,
-		}, {
-			sessionRefreshes: [session],
-			uncommittedRefreshes: [session],
-		});
 	});
 
 	test('does not attach root state when watcher acquisition fails', async () => {
@@ -415,7 +386,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 	readonly uncommittedRefreshes: string[] = [];
 	readonly sessionRefreshes: string[] = [];
 
-	private _hasUncommittedSubscribers: (session: string) => boolean = () => false;
+	private _hasSubscription: (session: string, changeset: string) => boolean = () => false;
 
 	registerStaticChangesets(_session: string): void { }
 	restoreStaticChangeset(_session: string, _kind: StaticChangesetKind, _diffs: readonly ISessionFileDiff[]): void { }
@@ -431,7 +402,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 		this.sessionRefreshes.push(session);
 	}
 	async computeUncommittedChangeset(session: string): Promise<string> {
-		if (this._hasUncommittedSubscribers(session)) {
+		if (this._hasSubscription(session, URI.parse(buildUncommittedChangesetUri(session)).toString())) {
 			this.uncommittedRefreshes.push(session);
 		}
 		return `${session}/changeset/uncommitted`;
@@ -441,9 +412,8 @@ class TestChangesetService implements IAgentHostChangesetService {
 	onToolCallEditsApplied(_session: string, _turnId: string): void { }
 	onTurnComplete(_session: string, _turnId: string | undefined): void { }
 	onSessionTruncated(_session: string): void { }
-	setTurnSubscriberProbe(_probe: (session: string, turnId: string) => boolean): void { }
-	setUncommittedSubscriberProbe(probe: (session: string) => boolean): void {
-		this._hasUncommittedSubscribers = probe;
+	setSubscriberProbe(probe: (session: string, changeset: string) => boolean): void {
+		this._hasSubscription = probe;
 	}
 
 	clearRefreshes(): void {

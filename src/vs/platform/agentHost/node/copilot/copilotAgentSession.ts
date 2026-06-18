@@ -34,7 +34,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type Turn, type UsageInfo, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import type { IExitPlanModeResponse } from './copilotAgent.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
@@ -1416,9 +1416,11 @@ export class CopilotAgentSession extends Disposable {
 			// Auto-approve the agent host's server tools. They only read or
 			// mutate the session's own server-held state and never touch the
 			// workspace, shell, or network, so prompting for them is redundant
-			// noise.
+			// noise. Tools that explicitly require confirmation (e.g. revealing
+			// unreviewed review comments) are excluded so the user is prompted.
 			if (request.kind === 'custom-tool' && typeof request.toolName === 'string'
 				&& this._serverToolHost?.toolNames.includes(request.toolName)
+				&& !this._serverToolHost.requiresConfirmation(request.toolName)
 			) {
 				this._logService.info(`[Copilot:${this.sessionId}] Auto-approving server tool ${request.toolName}`);
 				return { kind: 'approve-once' };
@@ -2399,7 +2401,7 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		this._register(wrapper.onUsage(e => {
-			const metadata: Record<string, unknown> = {};
+			const metadata: UsageInfoMeta = {};
 			if (typeof e.data.cost === 'number') {
 				metadata.cost = e.data.cost;
 			}

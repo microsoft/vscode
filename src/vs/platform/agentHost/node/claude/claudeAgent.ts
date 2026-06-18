@@ -241,6 +241,13 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	) {
 		super();
 		this._metadataStore = _instantiationService.createInstance(ClaudeSessionMetadataStore, this.id);
+		// CAPI reports each request's billed credits via the proxy (the SDK
+		// strips `copilot_usage` from its `result`). Route every report to
+		// the originating session by the session id the proxy decoded from
+		// the Bearer token, so the session can surface real per-turn credits.
+		this._register(this._claudeProxyService.onDidReportCredits(e => {
+			this._findAnySession(e.sessionId)?.recordTurnCredits(e.totalNanoAiu);
+		}));
 	}
 
 	// #region Descriptor + auth
@@ -308,7 +315,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		}
 		try {
 			const userAgent = `${USER_AGENT_PREFIX}/${this._productService.version}`;
-			const all = await this._copilotApiService.models(tokenAtStart, { headers: { 'User-Agent': userAgent } });
+			const all = await this._copilotApiService.models(tokenAtStart, { headers: { 'User-Agent': userAgent }, suppressIntegrationId: true });
 			// Stale-write guard: if `authenticate()` rotated the token
 			// while we were awaiting the model list, a newer refresh has
 			// already published the right value — don't overwrite it.

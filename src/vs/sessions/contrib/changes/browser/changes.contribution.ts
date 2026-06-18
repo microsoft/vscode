@@ -14,6 +14,7 @@ import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, SESSIONS_CHANGES_OPEN_SINGL
 import { ChangesViewPane, ChangesViewPaneContainer } from './changesView.js';
 import { ChangesTitleBarContribution } from './changesTitleBarWidget.js';
 import { IsPhoneLayoutContext } from '../../../common/contextkeys.js';
+import './changesActions.js';
 import './changesViewActions.js';
 import './checksActions.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';

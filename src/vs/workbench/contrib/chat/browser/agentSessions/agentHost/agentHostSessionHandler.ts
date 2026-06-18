@@ -15,7 +15,7 @@ import { ResourceMap } from '../../../../../../base/common/map.js';
 import { equals } from '../../../../../../base/common/objects.js';
 import { autorun, autorunPerKeyedItem, derived, IObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
-import { hasKey, Mutable } from '../../../../../../base/common/types.js';
+import { Mutable } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IPosition } from '../../../../../../editor/common/core/position.js';
 import { isLocation, type Location } from '../../../../../../editor/common/languages.js';
@@ -28,7 +28,7 @@ import { CompletionItemKind as AhpCompletionItemKind, type CompletionItem as Ahp
 import { ConfirmationOptionKind, TerminalClaimKind, ToolCallContributorKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, ChatTurnStartedAction, isChatAction, type ChatAction, type ClientChatAction, type ClientSessionAction, type ChatInputCompletedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { buildSubagentSessionUri, getToolSubagentContent, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, buildDefaultChatUri, mergeSessionWithDefaultChat, type ChatState, type ISessionWithDefaultChat, type ClientPluginCustomization, type ICompletedToolCall, type MarkdownResponsePart, type Message, type MessageAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputRequest, type SessionState, type ToolCallResponsePart, type ToolCallState, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentSessionUri, getToolSubagentContent, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, buildDefaultChatUri, mergeSessionWithDefaultChat, type ChatState, type ISessionWithDefaultChat, type ClientPluginCustomization, type ICompletedToolCall, type MarkdownResponsePart, type Message, type MessageAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputRequest, type SessionState, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -44,7 +44,7 @@ import {
 	type IImageVariableEntry
 } from '../../../common/attachments/chatVariableEntries.js';
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
-import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestion, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind, type IChatMultiSelectAnswer, type IChatQuestionAnswerValue, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestion, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind, formatCopilotCredits, type IChatMultiSelectAnswer, type IChatQuestionAnswerValue, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
 import { ChatEntitlement, IChatEntitlementService, type IQuotaSnapshot } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
@@ -145,21 +145,6 @@ interface IRawQuotaSnapshot {
 	readonly usageAllowedWithExhaustedQuota?: boolean;
 	readonly resetDate?: string;
 }
-
-function getCopilotCredits(usage: UsageInfo | undefined): number | undefined {
-	const copilotUsage = usage?._meta?.copilotUsage;
-	if (copilotUsage && typeof copilotUsage === 'object' && hasKey(copilotUsage, { totalNanoAiu: true })) {
-		const totalNanoAiu = Object.getOwnPropertyDescriptor(copilotUsage, 'totalNanoAiu')?.value;
-		if (typeof totalNanoAiu === 'number' && totalNanoAiu >= 0) {
-			return totalNanoAiu / 1_000_000_000;
-		}
-	}
-	const cost = usage?._meta?.cost;
-	return typeof cost === 'number' && cost >= 0
-		? cost
-		: undefined;
-}
-
 /**
  * Map a local {@link ConfirmedReason} (how the {@link ChatToolInvocation}
  * resolved its confirmation gate) to the protocol's
@@ -1595,6 +1580,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					&& lastUsage.promptTokens === usage.promptTokens
 					&& lastUsage.completionTokens === usage.completionTokens
 					&& lastUsage.outputBuffer === usage.outputBuffer
+					&& lastUsage.copilotCredits === usage.copilotCredits
 					&& equals(lastUsage.promptTokenDetails, usage.promptTokenDetails)) {
 					return;
 				}
@@ -2949,21 +2935,38 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 */
 	private _createTurnModelLookup(sessionResource: URI, fallbackRawModelId: string | undefined): TurnModelLookup {
 		const resolveRaw = (rawModelId: string | undefined): string | undefined => rawModelId ?? fallbackRawModelId;
+		// Resolve the registered language model for a turn, trying the
+		// turn's own reported model id first and then the session's
+		// fallback model id. The turn-reported id can differ from the
+		// registered id (e.g. the Claude SDK reports the raw provider
+		// slug `claude-sonnet-4-6` while models are registered under the
+		// CAPI id `claude-sonnet-4.6`); without this fallback the lookup
+		// fails and the entire response-detail footer — including
+		// per-turn credits — is dropped.
+		const lookupModel = (rawModelId: string | undefined) => {
+			for (const candidate of [rawModelId, fallbackRawModelId]) {
+				const modelId = this._toLanguageModelId(sessionResource, candidate);
+				if (!modelId) {
+					continue;
+				}
+				const model = this._languageModelsService.lookupLanguageModel(modelId);
+				if (model) {
+					return model;
+				}
+			}
+			return undefined;
+		};
 		return {
 			toLanguageModelId: (rawModelId) => this._toLanguageModelId(sessionResource, resolveRaw(rawModelId)),
 			toResponseDetails: (rawModelId, usage) => {
-				const modelId = this._toLanguageModelId(sessionResource, resolveRaw(rawModelId));
-				if (!modelId) {
-					return undefined;
-				}
-				const model = this._languageModelsService.lookupLanguageModel(modelId);
+				const model = lookupModel(rawModelId);
 				if (!model) {
 					return undefined;
 				}
-				const credits = getCopilotCredits(usage);
+				const credits = usageInfoToChatUsage(usage)?.copilotCredits;
 				if (credits !== undefined) {
-					const formatted = credits % 1 === 0 ? credits.toString() : credits.toFixed(1);
-					const creditDetails = credits === 1
+					const formatted = formatCopilotCredits(credits);
+					const creditDetails = formatted === '1'
 						? localize('agentHost.responseDetails.credit', "{0} credit", formatted)
 						: localize('agentHost.responseDetails.credits', "{0} credits", formatted);
 					return [model.name, creditDetails].join(' • ');
