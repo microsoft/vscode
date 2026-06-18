@@ -8,16 +8,14 @@
 (function () {
 	'use strict';
 
-	const $ = (/** @type {string} */ id) => /** @type {HTMLElement} */ (document.getElementById(id));
+	const $ = (/** @type {string} */ id) => /** @type {HTMLElement} */(document.getElementById(id));
 	const tabs = $('tabs');
 	const editor = /** @type {HTMLTextAreaElement} */ ($('editor'));
 	const presetSelect = /** @type {HTMLSelectElement} */ ($('preset'));
-	const presetDescription = $('preset-description');
 	const endpointMeta = $('endpoint-meta');
 	const endpointUrlEl = $('endpoint-url');
 	const editorStatus = $('editor-status');
 	const wiredStatusEl = $('wired-status');
-	const overridesPathEl = $('overrides-path');
 
 	/** @type {any[]} */
 	let endpoints = [];
@@ -25,6 +23,21 @@
 	let activeId = '';
 	/** Working copy of each endpoint body as edited in the GUI (string). */
 	const drafts = {};
+
+	/** Restore drafts from localStorage. */
+	function loadDrafts() {
+		try {
+			const saved = localStorage.getItem('mock-policy-drafts');
+			if (saved) {
+				Object.assign(drafts, JSON.parse(saved));
+			}
+		} catch { /* ignore */ }
+	}
+
+	/** Persist drafts to localStorage. */
+	function saveDrafts() {
+		try { localStorage.setItem('mock-policy-drafts', JSON.stringify(drafts)); } catch { /* quota */ }
+	}
 	/** Loaded managed-settings schema (or null if unavailable). */
 	let schema = null;
 
@@ -57,6 +70,12 @@
 		} else {
 			setStatus('Valid JSON.', 'ok');
 		}
+		// Update the validation table live if schema is loaded and we're on managed settings.
+		if (activeId === 'managedSettings' && schema && typeof parsed === 'object' && parsed && !Array.isArray(parsed)) {
+			renderValidationResults(parsed);
+		} else {
+			$('validation-results').hidden = true;
+		}
 		return parsed;
 	}
 
@@ -76,6 +95,47 @@
 		}
 		const unknown = Object.keys(parsed).filter(key => !(key in properties));
 		return unknown.length ? `Keys not in schema (will be dropped): ${unknown.join(', ')}.` : '';
+	}
+
+	/**
+	 * Walk a JSON schema and produce a representative example object.
+	 * Handles object/string/boolean/number/array/enum and nested properties.
+	 */
+	function hydrateFromSchema(s) {
+		if (!s || typeof s !== 'object') {
+			return null;
+		}
+		if (s.enum && s.enum.length) {
+			return s.enum[0];
+		}
+		if (s.const !== undefined) {
+			return s.const;
+		}
+		switch (s.type) {
+			case 'object': {
+				const obj = {};
+				if (s.properties) {
+					for (const [key, sub] of Object.entries(s.properties)) {
+						obj[key] = hydrateFromSchema(sub);
+					}
+				}
+				if (Object.keys(obj).length === 0 && s.additionalProperties && typeof s.additionalProperties === 'object') {
+					obj['example-key'] = hydrateFromSchema(s.additionalProperties);
+				}
+				return obj;
+			}
+			case 'array':
+				return s.items ? [hydrateFromSchema(s.items)] : [];
+			case 'string':
+				return s.default ?? 'example';
+			case 'boolean':
+				return s.default ?? true;
+			case 'number':
+			case 'integer':
+				return s.default ?? 0;
+			default:
+				return null;
+		}
 	}
 
 	async function api(path, options) {
@@ -102,6 +162,38 @@
 		}
 	}
 
+	function selectEndpoint(id) {
+		// Stash the current draft before switching.
+		if (activeId) {
+			drafts[activeId] = editor.value;
+		}
+		activeId = id;
+		const endpoint = activeEndpoint();
+
+		// Build two-line description: route + product key on line 1, description on line 2
+		const routeSpan = document.createElement('span');
+		routeSpan.className = 'meta-route';
+		const codePath = document.createElement('code');
+		codePath.textContent = `GET ${endpoint.path}`;
+		const codeKey = document.createElement('code');
+		codeKey.textContent = endpoint.productKey;
+		routeSpan.append(codePath, ' · ', codeKey);
+
+		const descSpan = document.createElement('span');
+		descSpan.className = 'meta-desc';
+		descSpan.textContent = endpoint.description;
+
+		endpointMeta.replaceChildren(routeSpan, descSpan);
+		endpointUrlEl.textContent = endpoint.url;
+		editor.value = drafts[id] ?? JSON.stringify(endpoint.body ?? {}, null, '\t');
+		renderTabs();
+		renderPresets();
+		// Show schema section only on the Managed Settings tab.
+		$('schema-section').hidden = (id !== 'managedSettings');
+		$('validation-results').hidden = true;
+		parseEditor();
+	}
+
 	function renderPresets() {
 		const endpoint = activeEndpoint();
 		presetSelect.textContent = '';
@@ -111,18 +203,11 @@
 			option.textContent = preset.label;
 			presetSelect.appendChild(option);
 		});
-		updatePresetDescription();
-	}
-
-	function updatePresetDescription() {
-		const endpoint = activeEndpoint();
-		const preset = endpoint?.presets[Number(presetSelect.value)];
-		presetDescription.textContent = preset ? preset.description : '';
 	}
 
 	function applyPreset() {
 		const endpoint = activeEndpoint();
-		const preset = endpoint?.presets[Number(presetSelect.value)];
+		const preset = endpoint?.presets?.[Number(presetSelect.value)];
 		if (preset) {
 			editor.value = JSON.stringify(preset.body, null, '\t');
 			drafts[activeId] = editor.value;
@@ -130,29 +215,15 @@
 		}
 	}
 
-	function selectEndpoint(id) {
-		// Stash the current draft before switching.
-		if (activeId) {
-			drafts[activeId] = editor.value;
-		}
-		activeId = id;
-		const endpoint = activeEndpoint();
-		const codePath = document.createElement('code');
-		codePath.textContent = `GET ${endpoint.path}`;
-		const codeKey = document.createElement('code');
-		codeKey.textContent = `defaultChatAgent.${endpoint.productKey}`;
-		endpointMeta.replaceChildren(codePath, ' \u00b7 product.json ', codeKey, document.createElement('br'), endpoint.description);
-		endpointUrlEl.textContent = endpoint.url;
-		editor.value = drafts[id] ?? JSON.stringify(endpoint.body ?? {}, null, '\t');
-		renderTabs();
-		renderPresets();
-		parseEditor();
-	}
+	/** Latest overrides snippet for copy-to-clipboard. */
+	let overridesSnippet = '';
 
 	function renderWired(state) {
-		wiredStatusEl.textContent = state.wired ? 'Wired ✓' : 'Not wired';
+		wiredStatusEl.textContent = state.wired ? 'Wired \u2713' : 'Not wired';
 		wiredStatusEl.dataset.kind = state.wired ? 'ok' : '';
-		overridesPathEl.textContent = state.overridesPath;
+		if (state.overridesSnippet) {
+			overridesSnippet = state.overridesSnippet;
+		}
 	}
 
 	async function save() {
@@ -168,6 +239,8 @@
 			});
 			endpoints = state.endpoints;
 			renderWired(state);
+			drafts[activeId] = editor.value;
+			saveDrafts();
 			setStatus(`Saved. ${activeEndpoint().path} now returns this body.`, 'ok');
 		} catch (e) {
 			setStatus(`Save failed: ${e instanceof Error ? e.message : String(e)}`, 'error');
@@ -193,49 +266,129 @@
 	}
 
 	async function loadSchema() {
-		const sourceEl = $('schema-source');
-		const statusEl = $('schema-status');
+		const sourceEl = /** @type {HTMLInputElement} */ ($('schema-source'));
+		const badgeEl = $('schema-badge');
 		const viewEl = $('schema-view');
+
+		const customSource = sourceEl.value.trim();
+		const url = customSource ? '/api/schema?source=' + encodeURIComponent(customSource) : '/api/schema';
+
 		try {
-			const result = await api('/api/schema');
-			sourceEl.textContent = result.resolved || result.source || '(unknown)';
+			const result = await api(url);
+			if (!customSource) {
+				sourceEl.value = result.resolved || result.source || '';
+			}
 			if (result.ok) {
 				schema = result.schema;
-				statusEl.textContent = 'Loaded ✓';
-				statusEl.dataset.kind = 'ok';
+				badgeEl.textContent = 'Loaded ✓';
+				badgeEl.dataset.kind = 'ok';
+				badgeEl.dataset.tooltip = result.resolved || 'Schema loaded';
 				viewEl.textContent = JSON.stringify(result.schema, null, '\t');
+				if (customSource) {
+					try { localStorage.setItem('mock-policy-schema-source', customSource); } catch { /* quota */ }
+				}
 			} else {
 				schema = null;
-				statusEl.textContent = `Not loaded — ${result.error || 'unavailable'}`;
-				statusEl.dataset.kind = 'error';
+				badgeEl.textContent = 'Not loaded';
+				badgeEl.dataset.kind = 'error';
+				badgeEl.dataset.tooltip = result.error || 'Schema unavailable';
 				viewEl.textContent = '';
 			}
 		} catch (e) {
 			schema = null;
-			statusEl.textContent = `Not loaded — ${e instanceof Error ? e.message : String(e)}`;
-			statusEl.dataset.kind = 'error';
+			badgeEl.textContent = 'Not loaded';
+			badgeEl.dataset.kind = 'error';
+			badgeEl.dataset.tooltip = e instanceof Error ? e.message : String(e);
 		}
-		// Re-validate the current editor now that schema availability changed.
+		const toggleEl = $('schema-toggle');
+		const chevronEl = $('schema-chevron');
+		const detailsEl = $('schema-details');
+		toggleEl.onclick = () => {
+			detailsEl.hidden = !detailsEl.hidden;
+			chevronEl.classList.toggle('open', !detailsEl.hidden);
+		};
 		parseEditor();
+	}
+
+	function renderValidationResults(parsed) {
+		const container = $('validation-results');
+		const properties = schema?.properties ?? {};
+		const schemaKeys = Object.keys(properties);
+		const bodyKeys = typeof parsed === 'object' && parsed && !Array.isArray(parsed) ? Object.keys(parsed) : [];
+		const allKeys = [...new Set([...schemaKeys, ...bodyKeys])].sort();
+
+		if (allKeys.length === 0) {
+			container.hidden = true;
+			setStatus('Schema has no properties to validate against.', 'warn');
+			return;
+		}
+
+		const rows = allKeys.map(key => {
+			const inSchema = key in properties;
+			const inBody = bodyKeys.includes(key);
+			let status, cls;
+			if (inSchema && inBody) { status = '✓ Present'; cls = 'validation-ok'; }
+			else if (inSchema && !inBody) { status = '— Missing'; cls = ''; }
+			else { status = '⚠ Unknown (will be dropped)'; cls = 'validation-warn'; }
+			const desc = properties[key]?.description || '';
+			return `<tr><td><code>${key}</code></td><td class="${cls}">${status}</td><td>${desc ? desc.split('.')[0] : ''}</td></tr>`;
+		});
+
+		const unknownCount = bodyKeys.filter(k => !(k in properties)).length;
+		const presentCount = bodyKeys.filter(k => k in properties).length;
+
+		container.innerHTML = `<table class="validation-table"><thead><tr><th>Key</th><th>Status</th><th>Description</th></tr></thead><tbody>${rows.join('')}</tbody></table>`
+			+ `<p class="validation-summary">${presentCount} of ${schemaKeys.length} schema keys present`
+			+ (unknownCount ? `, <span class="validation-warn">${unknownCount} unknown</span>` : '')
+			+ `</p>`;
+		container.hidden = false;
+		setStatus(unknownCount ? `${unknownCount} key${unknownCount > 1 ? 's' : ''} not in schema.` : 'All keys match the schema.', unknownCount ? 'warn' : 'ok');
 	}
 
 	function toggleSchemaView() {
 		const viewEl = $('schema-view');
 		viewEl.hidden = !viewEl.hidden;
-		$('toggle-schema').textContent = viewEl.hidden ? 'View schema' : 'Hide schema';
+		$('toggle-schema').textContent = viewEl.hidden ? 'View' : 'Hide';
 	}
 
 	async function init() {
-		editor.addEventListener('input', () => { drafts[activeId] = editor.value; parseEditor(); });
-		presetSelect.addEventListener('change', updatePresetDescription);
-		$('load-preset').addEventListener('click', applyPreset);
+		// Restore saved schema source and drafts from localStorage.
+		const savedSource = localStorage.getItem('mock-policy-schema-source');
+		if (savedSource) {
+			/** @type {HTMLInputElement} */ ($('schema-source')).value = savedSource;
+		}
+		loadDrafts();
+
+		editor.addEventListener('input', () => { drafts[activeId] = editor.value; saveDrafts(); parseEditor(); });
+		$('apply-preset').addEventListener('click', applyPreset);
 		$('save').addEventListener('click', save);
 		$('format').addEventListener('click', formatJson);
 		$('wire').addEventListener('click', () => wire(true));
 		$('unwire').addEventListener('click', () => wire(false));
+		$('copy-overrides').addEventListener('click', async () => {
+			try {
+				await navigator.clipboard.writeText(overridesSnippet);
+				const btn = $('copy-overrides');
+				const orig = btn.textContent;
+				btn.textContent = 'Copied \u2713';
+				setTimeout(() => { btn.textContent = orig; }, 1500);
+			} catch {
+				setStatus('Copy failed \u2014 check clipboard permissions', 'error');
+			}
+		});
 		$('toggle-schema').addEventListener('click', toggleSchemaView);
 		$('refresh-schema').addEventListener('click', loadSchema);
-
+		$('hydrate-schema').addEventListener('click', () => {
+			if (!schema) {
+				setStatus('Load a schema first.', 'error');
+				return;
+			}
+			editor.value = JSON.stringify(hydrateFromSchema(schema), null, '\t');
+			drafts[activeId] = editor.value;
+			saveDrafts();
+			parseEditor();
+			setStatus('Generated example from schema.', 'ok');
+		});
 		try {
 			const state = await api('/api/state');
 			endpoints = state.endpoints;

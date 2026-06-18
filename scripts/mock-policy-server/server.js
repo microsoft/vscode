@@ -30,6 +30,7 @@ const endpoints = require('./endpoints');
 const ROOT = path.resolve(__dirname, '..', '..');
 const PRODUCT_JSON = path.join(ROOT, 'product.json');
 const PRODUCT_OVERRIDES_JSON = path.join(ROOT, 'product.overrides.json');
+const PRODUCT_OVERRIDES_BACKUP = path.join(ROOT, 'product.overrides.json.pre-mock-server');
 const PUBLIC_DIR = path.join(__dirname, 'public');
 
 /**
@@ -91,7 +92,9 @@ const server = http.createServer((req, res) => {
 		}
 
 		if (pathname === '/api/schema' && req.method === 'GET') {
-			return loadSchema()
+			const url = new URL(req.url, `http://${req.headers.host}`);
+			const sourceParam = url.searchParams.get('source') || undefined;
+			return loadSchema(sourceParam)
 				.then(result => sendJson(res, 200, result))
 				.catch(e => sendJson(res, 500, { error: e instanceof Error ? e.message : String(e) }));
 		}
@@ -174,8 +177,8 @@ function endpointUrl(endpoint) {
  *
  * @returns {Promise<{ source: string; resolved: string; ok: boolean; schema?: unknown; error?: string }>}
  */
-async function loadSchema() {
-	const source = SCHEMA_SOURCE;
+async function loadSchema(sourceOverride) {
+	const source = sourceOverride || SCHEMA_SOURCE;
 	try {
 		if (/^https?:\/\//i.test(source)) {
 			const res = await fetch(source);
@@ -188,6 +191,11 @@ async function loadSchema() {
 		const filePath = source.startsWith('file://')
 			? fileURLToPath(source)
 			: path.resolve(process.cwd(), source);
+
+		// Guard against relative path traversal.
+		if (!path.isAbsolute(source) && filePath.includes('..')) {
+			return { source, resolved: filePath, ok: false, error: 'Relative paths must not contain ".."' };
+		}
 
 		if (!fs.existsSync(filePath)) {
 			return { source, resolved: filePath, ok: false, error: `Schema file not found at ${filePath}` };
@@ -213,8 +221,16 @@ function getState() {
 			body: currentBodies[e.id]
 		})),
 		wired: isWired(),
-		overridesPath: PRODUCT_OVERRIDES_JSON
+		overridesPath: PRODUCT_OVERRIDES_JSON,
+		overridesSnippet: buildOverridesSnippet()
 	};
+}
+
+/** Build the full overrides JSON a user would paste into product.overrides.json. */
+function buildOverridesSnippet() {
+	const product = JSON.parse(fs.readFileSync(PRODUCT_JSON, 'utf8'));
+	const baseAgent = product?.defaultChatAgent ?? {};
+	return JSON.stringify({ defaultChatAgent: { ...baseAgent, ...overrideUrls() } }, null, '\t');
 }
 
 /** The `defaultChatAgent` URL overrides this server provides. */
@@ -257,6 +273,12 @@ function wireOverrides() {
 	const product = JSON.parse(fs.readFileSync(PRODUCT_JSON, 'utf8'));
 	const baseAgent = product?.defaultChatAgent ?? {};
 
+	// Back up existing overrides before touching them.
+	if (fs.existsSync(PRODUCT_OVERRIDES_JSON)) {
+		fs.copyFileSync(PRODUCT_OVERRIDES_JSON, PRODUCT_OVERRIDES_BACKUP);
+		console.log(`  Backed up ${PRODUCT_OVERRIDES_JSON} -> ${PRODUCT_OVERRIDES_BACKUP}`);
+	}
+
 	let overrides = {};
 	try {
 		overrides = JSON.parse(fs.readFileSync(PRODUCT_OVERRIDES_JSON, 'utf8'));
@@ -281,6 +303,14 @@ function wireOverrides() {
  * `product.json`, drop it; if the overrides file ends up empty, remove it.
  */
 function unwireOverrides() {
+	// If we have a backup, restore it wholesale instead of surgically reverting.
+	if (fs.existsSync(PRODUCT_OVERRIDES_BACKUP)) {
+		fs.copyFileSync(PRODUCT_OVERRIDES_BACKUP, PRODUCT_OVERRIDES_JSON);
+		fs.rmSync(PRODUCT_OVERRIDES_BACKUP, { force: true });
+		console.log(`  Restored ${PRODUCT_OVERRIDES_JSON} from backup`);
+		return;
+	}
+
 	let overrides;
 	try {
 		overrides = JSON.parse(fs.readFileSync(PRODUCT_OVERRIDES_JSON, 'utf8'));

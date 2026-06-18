@@ -8,80 +8,108 @@
 <head>
 	<meta charset="utf-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
-	<title>Mock Copilot policy endpoints</title>
+	<title>Policy Server</title>
 	<link rel="stylesheet" href="./style.css" />
 </head>
 
 <body>
 	<header>
-		<h1>Mock Copilot <span class="accent">policy</span> endpoints</h1>
-		<p class="sub">Author the responses Code OSS receives from the
-			<code>copilot_internal</code> policy endpoints, then wire them into
-			<code>product.overrides.json</code>.</p>
+		<div class="header-content">
+			<div>
+				<h1>Policy Server</h1>
+				<p class="sub">Mock Copilot policy endpoints</p>
+			</div>
+		</div>
 	</header>
 
 	<main>
-		<section class="panel">
-			<nav id="tabs" class="tabs" aria-label="Policy endpoints"></nav>
-
-			<p id="endpoint-meta" class="hint"></p>
-
-			<div class="row">
-				<label for="preset" class="inline">Preset</label>
-				<select id="preset"></select>
-				<button id="load-preset" type="button">Load</button>
+		<section class="editor-panel">
+			<div class="tabs-header">
+				<nav id="tabs" class="tabs" aria-label="Policy endpoints"></nav>
 			</div>
-			<p id="preset-description" class="hint"></p>
 
-			<label for="editor">Response body (JSON)</label>
-			<textarea id="editor" spellcheck="false" autocomplete="off"></textarea>
-			<p id="editor-status" class="status" aria-live="polite"></p>
+			<div class="content-section">
+				<p id="endpoint-meta" class="endpoint-description"></p>
 
-			<div class="row">
-				<button id="save" type="button" class="primary">Save</button>
-				<button id="format" type="button">Format JSON</button>
-				<span id="endpoint-url" class="code endpoint-url"></span>
+				<div class="form-group">
+					<div class="label-row">
+						<label for="preset">Preset</label>
+					</div>
+					<div class="row">
+						<select id="preset"></select>
+						<button id="apply-preset" type="button" class="btn-secondary">Apply</button>
+					</div>
+				</div>
+
+				<div id="schema-section" class="section-block" hidden>
+					<div class="section-header section-header-toggle" id="schema-toggle">
+						<span class="chevron" id="schema-chevron">&#9654;</span>
+						<h2>Schema</h2>
+						<span id="schema-badge" class="schema-badge" data-tooltip="">&hellip;</span>
+						<span class="info-icon" data-tooltip="Clone github/copilot-agent-runtime for the schema">&#9432;</span>
+					</div>
+					<div id="schema-details" class="schema-details" hidden>
+						<input id="schema-source" type="text" class="schema-source-input" placeholder="Path or URL to schema JSON">
+						<div class="button-group">
+							<button id="refresh-schema" type="button" class="btn-secondary">Load</button>
+							<button id="hydrate-schema" type="button" class="btn-secondary">Generate example</button>
+							<button id="toggle-schema" type="button" class="btn-secondary">View</button>
+						</div>
+						<pre id="schema-view" class="code schema-view" hidden></pre>
+					</div>
+				</div>
+
+				<div class="form-group">
+					<div class="label-row">
+						<label for="editor">Response body (JSON)</label>
+					</div>
+					<textarea id="editor" spellcheck="false" autocomplete="off"></textarea>
+					<p id="editor-status" class="status" aria-live="polite"></p>
+					<div id="validation-results" hidden></div>
+				</div>
+
+				<div class="button-group">
+					<button id="save" type="button" class="btn-primary">&#128190; Save</button>
+					<button id="format" type="button" class="btn-secondary">Format JSON</button>
+				</div>
+
+				<div class="endpoint-url-box">
+					<span class="label-small">Endpoint URL</span>
+					<span id="endpoint-url" class="code endpoint-url"></span>
+				</div>
 			</div>
 		</section>
 
-		<aside class="panel">
-			<h2>Wiring</h2>
-			<p>Status: <strong id="wired-status">…</strong></p>
-			<div class="row">
-				<button id="wire" type="button" class="primary">Wire all endpoints</button>
-				<button id="unwire" type="button">Unwire</button>
+		<aside class="sidebar-panel">
+			<div class="section-block">
+				<div class="section-header">
+					<h2>Wiring</h2>
+					<span class="info-icon" data-tooltip="Wire writes product.overrides.json to redirect Copilot URLs to this server. Unwire restores the original file. Reload Code OSS after.">&#9432;</span>
+				</div>
+				<div class="status-box">
+					<span class="label-small">Status</span>
+					<strong id="wired-status">&#8230;</strong>
+				</div>
+				<div class="button-group-vertical">
+					<button id="wire" type="button" class="btn-primary btn-full">&#128279; Wire all endpoints</button>
+					<button id="unwire" type="button" class="btn-secondary btn-full">Unwire</button>
+					<button id="copy-overrides" type="button" class="btn-secondary btn-full">&#128203; Copy overrides JSON</button>
+				</div>
 			</div>
-			<p class="hint">Writes <code id="overrides-path"></code>, pointing every
-				<code>defaultChatAgent</code> policy URL at this server and preserving
-				all other keys. Overrides only apply with <code>VSCODE_DEV</code> set
-				(running from sources) and after a reload.</p>
 
-			<h2>Apply in Code OSS</h2>
-			<ol class="hint">
-				<li>Reload the window.</li>
-				<li>Sign in with the Copilot/GitHub account.</li>
-				<li>Run <strong>Developer: Sync Account Policy</strong>.</li>
-				<li>Run <strong>Developer: Policy Diagnostics</strong> to inspect applied values.</li>
-			</ol>
-
-			<h2>Managed settings schema</h2>
-			<p class="hint">Source: <code id="schema-source">…</code></p>
-			<p>Status: <strong id="schema-status">…</strong></p>
-			<div class="row">
-				<button id="toggle-schema" type="button">View schema</button>
-				<button id="refresh-schema" type="button">Refresh</button>
+			<div class="section-block">
+				<div class="section-header">
+					<h2>Apply changes</h2>
+				</div>
+				<ol class="steps">
+					<li>Reload Code OSS window</li>
+					<li>Sign in with GitHub account</li>
+					<li>Run <strong>Developer: Sync Account Policy</strong></li>
+					<li>Run <strong>Developer: Policy Diagnostics</strong></li>
+				</ol>
 			</div>
-			<pre id="schema-view" class="code schema-view" hidden></pre>
-			<p class="hint">Set the source with <code>--schema &lt;url|file-uri|path&gt;</code> or
-				<code>MANAGED_SETTINGS_SCHEMA</code>. Default is
-				<code>./copilot-agent-runtime/schema/managed-settings-schema.json</code>
-				relative to the cwd. When loaded, the Managed Settings tab warns about
-				top-level keys not declared in the schema.</p>
 
-			<h2>Flow</h2>
-			<p class="hint">Entitlements gate everything: the token and managed_settings
-				are only fetched when <code>chat_enabled</code> is true, and the MCP
-				registry only when the token enables <code>mcp</code>.</p>
+
 		</aside>
 	</main>
 
