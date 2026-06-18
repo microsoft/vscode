@@ -18,7 +18,7 @@ import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsWindowAlwaysOnT
 import { IWorkbenchLayoutService, Parts } from '../../workbench/services/layout/browser/layoutService.js';
 import { IEditorGroupsService } from '../../workbench/services/editor/common/editorGroupsService.js';
 import { SessionsWelcomeVisibleContext } from '../common/contextkeys.js';
-import { logChangesViewToggle } from '../common/sessionsTelemetry.js';
+import { logSidePanelToggle } from '../common/sessionsTelemetry.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
 import { mainWindow } from '../../base/browser/window.js';
 
@@ -94,7 +94,7 @@ class ToggleSidePanelAction extends Action2 {
 				icon: secondarySidebarToggleOpenIcon,
 			},
 			metadata: {
-				description: localize('openAndCloseSecondarySidebar', 'Open/Show and Close/Hide Secondary Side Bar'),
+				description: localize('openAndCloseSidePanel', 'Open/Show and Close/Hide the Side Panel (editor area and auxiliary bar)'),
 			},
 			category: Categories.View,
 			f1: true,
@@ -151,12 +151,12 @@ class ToggleSidePanelAction extends Action2 {
 			}
 		}
 
-		logChangesViewToggle(telemetryService, !isCurrentlyVisible);
+		logSidePanelToggle(telemetryService, !isCurrentlyVisible);
 
 		// Announce visibility change to screen readers
 		const alertMessage = isCurrentlyVisible
-			? localize('secondarySidebarHidden', "Secondary Side Bar hidden")
-			: localize('secondarySidebarVisible', "Secondary Side Bar shown");
+			? localize('sidePanelHidden', "Side Panel hidden")
+			: localize('sidePanelVisible', "Side Panel shown");
 		alert(alertMessage);
 	}
 }
