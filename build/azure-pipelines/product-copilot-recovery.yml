@@ -16,6 +16,10 @@ parameters:
     displayName: Custom NPM Registry (Terrapin)
     type: boolean
     default: true
+  - name: NPM_REGISTRY
+    displayName: Custom NPM Registry URL
+    type: string
+    default: 'https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/'
   - name: publishExtension
     displayName: Publish Stable Recovery Extension
     type: boolean
@@ -31,6 +35,7 @@ extends:
     workingDirectory: ./extensions/copilot
     l10nSourcePaths: ./extensions/copilot/src
     nodeVersion: 22.21.x
+    NPM_REGISTRY: ${{ parameters.NPM_REGISTRY }}
 
     cgIgnoreDirectories: $(Build.SourcesDirectory)/extensions/copilot/script
 
@@ -80,6 +85,7 @@ extends:
 
     ${{ if eq(parameters.customNPMRegistry, false) }}:
       customNPMRegistry: ''
+      NPM_REGISTRY: none
 
     generateNotice: true
 
