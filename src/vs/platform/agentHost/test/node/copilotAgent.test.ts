@@ -1784,6 +1784,56 @@ suite('CopilotAgent', () => {
 				await disposeAgent(agent);
 			}
 		});
+
+		test('getChats returns the persisted peer chat catalog', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: new TestCopilotClient([]) });
+			try {
+				const session = AgentSession.uri('copilotcli', 'session-getchats');
+				const db = sessionDataService.openDatabase(session);
+				await db.object.setMetadata('copilot.chats', JSON.stringify({
+					'peer-a': { sdkSessionId: 'sdk-a' },
+					'peer-b': { sdkSessionId: 'sdk-b' },
+				}));
+
+				const chats = await agent.getChats(session);
+
+				assert.deepStrictEqual(
+					chats.map(c => c.toString()).sort(),
+					[buildChatUri(session, 'peer-a'), buildChatUri(session, 'peer-b')].sort(),
+				);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('disposeChat removes the persisted entry and deletes its SDK conversation', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const session = AgentSession.uri('copilotcli', 'session-dispose-chat');
+				const db = sessionDataService.openDatabase(session);
+				await db.object.setMetadata('copilot.chats', JSON.stringify({
+					'peer-a': { sdkSessionId: 'sdk-a' },
+				}));
+				const chatUri = URI.parse(buildChatUri(session, 'peer-a'));
+
+				await agent.disposeChat(session, chatUri);
+
+				const remaining = await db.object.getMetadata('copilot.chats');
+				assert.deepStrictEqual({
+					remaining: remaining ? JSON.parse(remaining) : {},
+					deleted: client.deletedSessionIds,
+				}, {
+					remaining: {},
+					deleted: ['sdk-a'],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
 	});
 
 	// Regression for the #319516 incident: a window reload reconnects with a
