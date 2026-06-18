@@ -15,7 +15,7 @@ import { AHP_AUTH_REQUIRED, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolEr
 import { readSessionGitState, type ISessionFileDiff, type SessionState } from '../common/state/sessionState.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostGitService } from './agentHostGitService.js';
-import { IAgentHostChangesetService } from './agentHostChangesetService.js';
+import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
 import { CopilotApiError, ICopilotApiService } from './shared/copilotApiService.js';
 
 const MAX_CHANGE_SUMMARY_PROMPT_CHARS = 20_000;
@@ -26,7 +26,7 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 
 	constructor(
 		private readonly _getSessionState: (sessionKey: string) => SessionState | undefined,
-		private readonly _onCommitted: (sessionKey: string) => Promise<void>,
+		private readonly _onCommitted: (sessionKey: string, changeset: string) => Promise<void>,
 		@IAgentService private readonly _agentService: IAgentService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
@@ -125,13 +125,14 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 		}
 
 		try {
-			await this._onCommitted(sessionUri);
+			await this._onCommitted(sessionUri, params.channel);
 		} catch (err) {
 			this._logService.warn(`[AgentHostCommitOperationHandler] Post-commit refresh failed for session ${sessionUri}: ${err instanceof Error ? err.message : String(err)}`);
 		}
 		this._changesets.refreshBranchChangeset(sessionUri);
-		this._changesets.refreshUncommittedChangeset(sessionUri);
 		this._changesets.refreshSessionChangeset(sessionUri);
+
+		void this._changesets.computeUncommittedChangeset(sessionUri);
 
 		return { message: { markdown: localize('agentHost.changeset.commit.committed', "Committed changes with message: `{0}`", message.split('\n')[0]) } };
 	}

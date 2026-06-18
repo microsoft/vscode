@@ -38,12 +38,12 @@ import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SessionStatus }
 import { AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
-import { Action, IAction, Separator } from '../../../../../base/common/actions.js';
+import { Action, ActionRunner, IAction, Separator } from '../../../../../base/common/actions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { ISessionsManagementService, IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsViewService } from '../../../../browser/sessionsViewService.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
 // =============================================================================
@@ -179,6 +179,27 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 
 //#region Session Item Renderer
 
+/**
+ * Resolves the inline toolbar action context to the current multi-selection so
+ * that session item actions (e.g. Restore) operate on all selected sessions
+ * when the clicked session is part of the selection, and on just the clicked
+ * session otherwise.
+ */
+class SessionItemActionRunner extends ActionRunner {
+
+	constructor(private readonly getMultiSelectedSessions: (session: ISession) => ISession[]) {
+		super();
+	}
+
+	protected override async runAction(action: IAction, context?: unknown): Promise<void> {
+		if (context && !Array.isArray(context)) {
+			await super.runAction(action, this.getMultiSelectedSessions(context as ISession));
+			return;
+		}
+		await super.runAction(action, context);
+	}
+}
+
 interface ISessionItemTemplate {
 	readonly container: HTMLElement;
 	readonly statusIcon: SessionStatusIcon;
@@ -210,7 +231,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	readonly onDidChangeItemHeight: Event<ISession> = this._onDidChangeItemHeight.event;
 
 	constructor(
-		private readonly options: { grouping: () => SessionsGrouping; sorting: () => SessionsSorting; isPinned: (session: ISession) => boolean; isRead: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> },
+		private readonly options: { grouping: () => SessionsGrouping; sorting: () => SessionsSorting; isPinned: (session: ISession) => boolean; isRead: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[] },
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly instantiationService: IInstantiationService,
 		private readonly contextKeyService: IContextKeyService,
@@ -253,8 +274,10 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 		const contextKeyService = disposables.add(this.contextKeyService.createScoped(container));
 		const scopedInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
+		const actionRunner = disposables.add(new SessionItemActionRunner(this.options.getMultiSelectedSessions));
 		const titleToolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, titleToolbarContainer, SessionItemToolbarMenuId, {
 			menuOptions: { shouldForwardArgs: true },
+			actionRunner,
 		}));
 
 		return { container, statusIcon, title, titleToolbar, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, contextKeyService, disposables, elementDisposables };
@@ -894,7 +917,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		container: HTMLElement,
 		private readonly options: ISessionsListControlOptions,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
-		@ISessionsViewService private readonly _sessionsViewService: ISessionsViewService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@ISessionsListModelService private readonly _sessionsListModelService: ISessionsListModelService,
 		@IAgentHostFilterService private readonly _agentHostFilterService: IAgentHostFilterService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -934,7 +957,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// TEMPORARY (#320480): see the note on the `IAgentSessionsService` import.
 		const agentSessionsService = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
 		const sessionRenderer = new SessionItemRenderer(
-			{ grouping: this.options.grouping, sorting: this.options.sorting, isPinned: s => this.isSessionPinned(s), isRead: s => this.isSessionRead(s), visibleSessions: this._sessionsViewService.visibleSessions },
+			{ grouping: this.options.grouping, sorting: this.options.sorting, isPinned: s => this.isSessionPinned(s), isRead: s => this.isSessionRead(s), visibleSessions: this._sessionsService.visibleSessions, getMultiSelectedSessions: s => this.getMultiSelectedSessions(s) },
 			approvalModel,
 			instantiationService,
 			contextKeyService,
@@ -983,7 +1006,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 						if (isSessionShowMore(element)) {
 							return NotSelectableGroupId;
 						}
-						return 1;
+						// Use a distinct group for archived (done) sessions so that
+						// multi-selection cannot span the workspace and done sections.
+						return element.isArchived.get() ? 2 : 1;
 					}
 				},
 				horizontalScrolling: false,
@@ -1124,7 +1149,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// session becomes visible while active and hides again when unselected.
 		// Also mark the newly active session as read.
 		this._register(autorun(reader => {
-			const activeSession = this._sessionsManagementService.activeSession.read(reader);
+			const activeSession = this._sessionsService.activeSession.read(reader);
 			if (activeSession) {
 				this._sessionsListModelService.markRead(activeSession);
 			}
@@ -1166,7 +1191,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	update(expandAll?: boolean): void {
-		const activeSession = this._sessionsManagementService.activeSession.get();
+		const activeSession = this._sessionsService.activeSession.get();
 
 		// Filter by session type and status
 		let filtered = this.sessions;
@@ -1424,14 +1449,24 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	// Context menu
 
+	/**
+	 * Resolves the sessions an action should operate on for a given clicked
+	 * session: when the clicked session is part of the current multi-selection
+	 * the full selection is returned (clicked session first), otherwise just the
+	 * clicked session.
+	 */
+	private getMultiSelectedSessions(session: ISession): ISession[] {
+		const selection = this.tree.getSelection().filter((s): s is ISession => !!s && !isSessionSection(s) && !isSessionShowMore(s));
+		return selection.includes(session) ? [session, ...selection.filter(s => s !== session)] : [session];
+	}
+
 	private onContextMenu(e: ITreeContextMenuEvent<SessionListItem | null>): void {
 		const element = e.element;
 		if (!element || isSessionSection(element) || isSessionShowMore(element)) {
 			return;
 		}
 
-		const selection = this.tree.getSelection().filter((s): s is ISession => !!s && !isSessionSection(s) && !isSessionShowMore(s));
-		const selectedSessions = selection.includes(element) ? [element, ...selection.filter(s => s !== element)] : [element];
+		const selectedSessions = this.getMultiSelectedSessions(element);
 
 		const contextOverlay: [string, boolean | string][] = [
 			[IsSessionPinnedContext.key, this.isSessionPinned(element)],

@@ -10,14 +10,16 @@ import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { resolveCustomizationRefs } from '../../../browser/agentSessions/agentHost/agentHostLocalCustomizations.js';
-import { type SyncedCustomizationBundler } from '../../../browser/agentSessions/agentHost/syncedCustomizationBundler.js';
+import { type ISyncableMcpServer, type SyncedCustomizationBundler } from '../../../browser/agentSessions/agentHost/syncedCustomizationBundler.js';
 import { BUILTIN_STORAGE } from '../../../common/aiCustomizationWorkspaceService.js';
 import { type ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { type IAgentPlugin, type IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { type IPromptPath, type IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { type IMcpServer, type IMcpService, McpServerLaunch, McpServerTransportType } from '../../../../mcp/common/mcpTypes.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
 
 function makePromptPath(uri: URI, type: PromptsType, storage: PromptsStorage): IPromptPath {
@@ -70,13 +72,43 @@ function makeFileService(stats: ReadonlyMap<string, { mtime: number }> = new Map
 	} as unknown as IFileService;
 }
 
+function makeMcpServer(options: { id: string; collectionId: string; label?: string; enabled?: boolean; launch?: McpServerLaunch | undefined }): IMcpServer {
+	const { id, collectionId, label = id, enabled = true, launch } = options;
+	const definitions = observableValue('definitions', { server: launch ? { launch } : undefined, collection: undefined });
+	return {
+		definition: { id, label },
+		collection: { id: collectionId, label: collectionId, order: 0 },
+		enablement: observableValue('enablement', enabled ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile),
+		readDefinitions: () => definitions,
+	} as unknown as IMcpServer;
+}
+
+function makeMcpService(servers: readonly IMcpServer[] = []): IMcpService {
+	return {
+		_serviceBrand: undefined,
+		servers: observableValue('servers', servers),
+	} as unknown as IMcpService;
+}
+
+const stdioLaunch: McpServerLaunch = {
+	type: McpServerTransportType.Stdio,
+	command: 'my-server',
+	args: ['--flag'],
+	env: {},
+	envFile: undefined,
+	cwd: undefined,
+	sandbox: undefined,
+};
+
 type LocalSyncableFile = { readonly uri: URI; readonly type: PromptsType };
 
 class FakeBundler {
 	readonly received: LocalSyncableFile[][] = [];
+	readonly receivedMcp: ISyncableMcpServer[][] = [];
 	constructor(private readonly _result: { uri: string; name: string } | undefined = { uri: 'open-plugin://bundle', name: 'Open Plugin' }) { }
-	async bundle(files: readonly LocalSyncableFile[]) {
+	async bundle(files: readonly LocalSyncableFile[], mcpServers: readonly ISyncableMcpServer[] = []) {
 		this.received.push([...files]);
+		this.receivedMcp.push([...mcpServers]);
 		if (!this._result) {
 			return undefined;
 		}
@@ -100,6 +132,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			promptsService,
 			new FakeSyncProvider(),
 			makeAgentPluginService(),
+			makeMcpService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
 		);
@@ -128,6 +161,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			promptsService,
 			new FakeSyncProvider(new Set([disabled.toString()])),
 			makeAgentPluginService(),
+			makeMcpService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
 		);
@@ -149,6 +183,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			promptsService,
 			new FakeSyncProvider(),
 			makeAgentPluginService(),
+			makeMcpService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
 		);
@@ -175,6 +210,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			promptsService,
 			new FakeSyncProvider(new Set([builtin.toString()])),
 			makeAgentPluginService(),
+			makeMcpService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
 		);
@@ -193,6 +229,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			promptsService,
 			new FakeSyncProvider(),
 			makeAgentPluginService([makePlugin(pluginUri, { label: 'MCP Only', mcpServers: 1 })]),
+			makeMcpService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
 		);
@@ -210,6 +247,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makePromptsService(new Map()),
 			new FakeSyncProvider(),
 			makeAgentPluginService([makePlugin(pluginUri, { enabled: false, mcpServers: 1 })]),
+			makeMcpService(),
 			new FakeBundler() as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
 		);
@@ -223,6 +261,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makePromptsService(new Map()),
 			new FakeSyncProvider(new Set([pluginUri.toString()])),
 			makeAgentPluginService([makePlugin(pluginUri, { mcpServers: 1 })]),
+			makeMcpService(),
 			new FakeBundler() as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
 		);
@@ -240,6 +279,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			promptsService,
 			new FakeSyncProvider(),
 			makeAgentPluginService([makePlugin(pluginUri, { label: 'Combined', mcpServers: 2 })]),
+			makeMcpService(),
 			new FakeBundler() as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
 		);
@@ -255,11 +295,76 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			promptsService,
 			new FakeSyncProvider(),
 			makeAgentPluginService(),
+			makeMcpService(),
 			new FakeBundler() as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
 		);
 		assert.deepStrictEqual(refs, []);
 		// Use CancellationToken so the import isn't dead in the bundle.
 		assert.ok(CancellationToken.None.isCancellationRequested === false);
+	});
+
+	test('bundles MCP servers configured directly in VS Code', async () => {
+		const bundler = new FakeBundler();
+		const mcpService = makeMcpService([
+			makeMcpServer({ id: 'user.my-server', collectionId: 'user', label: 'my-server', launch: stdioLaunch }),
+		]);
+
+		const refs = await resolveCustomizationRefs(
+			makeFileService(),
+			makePromptsService(new Map()),
+			new FakeSyncProvider(),
+			makeAgentPluginService(),
+			mcpService,
+			bundler as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
+		);
+
+		assert.strictEqual(bundler.received.length, 1);
+		assert.deepStrictEqual(bundler.receivedMcp[0], [
+			{ name: 'my-server', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'], env: undefined, envFile: undefined, cwd: undefined } },
+		]);
+		assert.strictEqual(refs.length, 1);
+		assert.strictEqual(refs[0].name, 'Open Plugin');
+	});
+
+	test('excludes plugin-sourced MCP servers from the bundle', async () => {
+		const bundler = new FakeBundler();
+		const mcpService = makeMcpService([
+			makeMcpServer({ id: 'plugin.foo.srv', collectionId: 'plugin.file:///plugins/foo', label: 'srv', launch: stdioLaunch }),
+		]);
+
+		const refs = await resolveCustomizationRefs(
+			makeFileService(),
+			makePromptsService(new Map()),
+			new FakeSyncProvider(),
+			makeAgentPluginService(),
+			mcpService,
+			bundler as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
+		);
+
+		// No loose files and no non-plugin MCP servers: bundler is never called.
+		assert.strictEqual(bundler.received.length, 0);
+		assert.deepStrictEqual(refs, []);
+	});
+
+	test('excludes disabled MCP servers from the bundle', async () => {
+		const bundler = new FakeBundler();
+		const mcpService = makeMcpService([
+			makeMcpServer({ id: 'user.off', collectionId: 'user', label: 'off', enabled: false, launch: stdioLaunch }),
+		]);
+
+		await resolveCustomizationRefs(
+			makeFileService(),
+			makePromptsService(new Map()),
+			new FakeSyncProvider(),
+			makeAgentPluginService(),
+			mcpService,
+			bundler as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
+		);
+
+		assert.strictEqual(bundler.received.length, 0);
 	});
 });

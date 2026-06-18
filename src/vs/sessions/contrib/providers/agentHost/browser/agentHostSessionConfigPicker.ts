@@ -28,7 +28,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import type { SessionConfigPropertySchema, SessionConfigValueItem } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
-import { ChatContextKeyExprs } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { ChatContextKeyExprs, ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { type IChatInputPickerOptions } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { Menus } from '../../../../browser/menus.js';
@@ -37,7 +37,7 @@ import { IWorkbenchLayoutService } from '../../../../../workbench/services/layou
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionInputContext } from '../../../chat/browser/sessionInputContext.js';
+import { ISessionContext } from '../../../../services/sessions/browser/sessionContext.js';
 import type { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { type IAgentHostSessionsProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
 import { PermissionPicker } from '../../copilotChatSessions/browser/permissionPicker.js';
@@ -47,9 +47,10 @@ import { showMobilePickerSheet, IMobilePickerSheetItem, IMobilePickerSheetSearch
 import { AgentHostModePicker } from './agentHostModePicker.js';
 import { MobileAgentHostModePicker } from './mobile/mobileAgentHostModePicker.js';
 import { AgentHostPermissionPickerActionItem } from './agentHostPermissionPickerActionItem.js';
-import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema, isWellKnownModeSchema } from './agentHostPermissionPickerDelegate.js';
+import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema, isWellKnownClaudePermissionModeSchema, isWellKnownModeSchema } from './agentHostPermissionPickerDelegate.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { AgentHostClaudePermissionModePicker } from './agentHostClaudePermissionModePicker.js';
+import { ClaudeSessionConfigKey } from '../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 
 const IsActiveSessionRemoteAgentHost = ContextKeyExpr.regex(ActiveSessionProviderIdContext.key, REMOTE_AGENT_HOST_PROVIDER_RE);
 const IsActiveSessionLocalAgentHost = ContextKeyExpr.equals(ActiveSessionProviderIdContext.key, LOCAL_AGENT_HOST_PROVIDER_ID);
@@ -337,6 +338,11 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			// `Menus.NewSessionConfig`) handles it. Non-conforming schemas
 			// still fall through to the generic per-property picker below.
 			if (property === SessionConfigKey.Mode && isWellKnownModeSchema(schema)) {
+				continue;
+			}
+			// Claude's permissionMode has a dedicated Claude-native picker so
+			// it doesn't render as a generic enum chip.
+			if (property === ClaudeSessionConfigKey.PermissionMode && isWellKnownClaudePermissionModeSchema(schema)) {
 				continue;
 			}
 			const value = resolvedConfig.values[property] ?? schema.default;
@@ -792,7 +798,7 @@ class AgentHostSessionConfigPickerContribution extends Disposable implements IWo
 			Menus.NewSessionRepositoryConfig,
 			'sessions.agentHost.sessionConfigPicker',
 			(_action, _options, scopedInstantiationService) => {
-				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionInputContext));
+				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
 				return new PickerActionViewItem(scopedInstantiationService.createInstance(MobileAgentHostSessionConfigPicker, session));
 			},
 		));
@@ -800,7 +806,7 @@ class AgentHostSessionConfigPickerContribution extends Disposable implements IWo
 			Menus.NewSessionConfig,
 			NEW_SESSION_MODE_PICKER_ID,
 			(_action, _options, scopedInstantiationService) => {
-				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionInputContext));
+				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
 				return new PickerActionViewItem(scopedInstantiationService.createInstance(
 					isPhoneLayout(this._layoutService) ? MobileAgentHostModePicker : AgentHostModePicker,
 					session,
@@ -811,7 +817,7 @@ class AgentHostSessionConfigPickerContribution extends Disposable implements IWo
 			MenuId.ChatInput,
 			RUNNING_SESSION_MODE_PICKER_ID,
 			(_action, _options, scopedInstantiationService) => {
-				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionInputContext));
+				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
 				return new PickerActionViewItem(scopedInstantiationService.createInstance(
 					isPhoneLayout(this._layoutService) ? MobileAgentHostModePicker : AgentHostModePicker,
 					session,
@@ -824,6 +830,14 @@ class AgentHostSessionConfigPickerContribution extends Disposable implements IWo
 			(_action, _options, scopedInstantiationService) => this._createNewSessionPermissionPicker(scopedInstantiationService),
 		));
 		this._register(actionViewItemService.register(
+			Menus.NewSessionControl,
+			NEW_SESSION_PERMISSION_MODE_PICKER_ID,
+			(_action, _options, scopedInstantiationService) => {
+				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
+				return new PickerActionViewItem(scopedInstantiationService.createInstance(AgentHostClaudePermissionModePicker, session));
+			},
+		));
+		this._register(actionViewItemService.register(
 			MenuId.ChatInputSecondary,
 			RUNNING_SESSION_CONFIG_PICKER_ID,
 			this._createRunningSessionPermissionPickerFactory(),
@@ -832,7 +846,7 @@ class AgentHostSessionConfigPickerContribution extends Disposable implements IWo
 			MenuId.ChatInputSecondary,
 			RUNNING_SESSION_PERMISSION_MODE_PICKER_ID,
 			(_action, _options, scopedInstantiationService) => {
-				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionInputContext));
+				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
 				return new PickerActionViewItem(scopedInstantiationService.createInstance(AgentHostClaudePermissionModePicker, session));
 			},
 		));
@@ -844,7 +858,7 @@ class AgentHostSessionConfigPickerContribution extends Disposable implements IWo
 	 * pickers (font size, padding, icon size).
 	 */
 	private _createNewSessionPermissionPicker(instantiationService: IInstantiationService): PickerActionViewItem {
-		const { session } = instantiationService.invokeFunction(accessor => accessor.get(ISessionInputContext));
+		const { session } = instantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
 		const delegate = instantiationService.createInstance(AgentHostPermissionPickerDelegate, session);
 		const picker = instantiationService.createInstance(MobilePermissionPicker, delegate);
 		return new PickerActionViewItem(picker, delegate);
@@ -861,7 +875,7 @@ class AgentHostSessionConfigPickerContribution extends Disposable implements IWo
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
-			const { session } = instantiationService.invokeFunction(accessor => accessor.get(ISessionInputContext));
+			const { session } = instantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
 			const pickerOptions: IChatInputPickerOptions = {
 				compact: constObservable(true),
 			};
@@ -889,6 +903,26 @@ registerAction2(class extends Action2 {
 				id: Menus.NewSessionControl,
 				group: 'navigation',
 				order: 1,
+				when: ContextKeyExpr.or(IsActiveSessionLocalAgentHost, IsActiveSessionRemoteAgentHost),
+			}],
+		});
+	}
+
+	override async run(): Promise<void> { }
+});
+
+const NEW_SESSION_PERMISSION_MODE_PICKER_ID = 'sessions.agentHost.newSessionPermissionModePicker';
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: NEW_SESSION_PERMISSION_MODE_PICKER_ID,
+			title: localize2('agentHostNewSessionPermissionModePicker', "Approvals"),
+			f1: false,
+			menu: [{
+				id: Menus.NewSessionControl,
+				group: 'navigation',
+				order: 2,
 				when: ContextKeyExpr.or(IsActiveSessionLocalAgentHost, IsActiveSessionRemoteAgentHost),
 			}],
 		});
@@ -986,7 +1020,8 @@ registerAction2(class extends Action2 {
 				// in the same menu — sit just before it so the mode pill renders
 				// to the left of "Pick Model".
 				order: 2,
-				when: ChatContextKeyExprs.isAgentHostSession,
+				// Hide the agent mode picker while a delegation (continue in) target is pending.
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, ChatContextKeys.hasPendingDelegationTarget.negate()),
 			}],
 		});
 	}

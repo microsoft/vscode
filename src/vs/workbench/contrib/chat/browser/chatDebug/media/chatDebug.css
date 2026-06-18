@@ -1061,8 +1061,152 @@
 	flex-direction: column;
 	gap: 4px;
 }
-.chat-debug-cache-card.break {
+/* Performance card border tracks the worst finding severity: red only for
+	an avoidable break, yellow for suspected expiration, green for healthy
+	growth — a permanent red border made every request look broken. */
+.chat-debug-cache-card.break.is-critical {
 	border-color: var(--vscode-charts-red);
+}
+.chat-debug-cache-card.break.is-warning {
+	border-color: var(--vscode-charts-yellow);
+}
+.chat-debug-cache-card.break.is-ok,
+.chat-debug-cache-card.break.is-info {
+	border-color: var(--vscode-charts-green);
+}
+.chat-debug-cache-findings {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+.chat-debug-cache-finding {
+	display: grid;
+	grid-template-columns: 16px 1fr;
+	gap: 8px;
+	align-items: start;
+	margin: 0;
+	padding: 0;
+	background: transparent;
+	border: none;
+	text-align: left;
+	color: inherit;
+	font-family: inherit;
+	font-size: inherit;
+}
+button.chat-debug-cache-finding.is-clickable {
+	cursor: pointer;
+	border-radius: 4px;
+}
+button.chat-debug-cache-finding.is-clickable:hover .chat-debug-cache-finding-title {
+	text-decoration: underline;
+}
+button.chat-debug-cache-finding.is-clickable:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+.chat-debug-cache-finding-icon {
+	font-size: 14px;
+	padding-top: 1px;
+}
+.chat-debug-cache-finding-icon.is-ok {
+	color: var(--vscode-charts-green);
+}
+.chat-debug-cache-finding-icon.is-info {
+	color: var(--vscode-charts-blue);
+}
+.chat-debug-cache-finding-icon.is-warning {
+	color: var(--vscode-charts-yellow);
+}
+.chat-debug-cache-finding-icon.is-critical {
+	color: var(--vscode-charts-red);
+}
+.chat-debug-cache-finding-body {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+}
+.chat-debug-cache-finding-title {
+	font-size: 11.5px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+.chat-debug-cache-finding-detail {
+	font-family: var(--monaco-monospace-font);
+	font-size: 11px;
+	line-height: 1.5;
+	color: var(--vscode-foreground);
+}
+.chat-debug-cache-finding-hint {
+	font-size: 11px;
+	line-height: 1.5;
+	color: var(--vscode-descriptionForeground);
+}
+/* ---- Session cache health (cross-turn report) ---- */
+.chat-debug-cache-session-health {
+	background: var(--vscode-editorWidget-background);
+	border: 1px solid var(--vscode-widget-border, var(--vscode-editorWidget-border));
+	border-radius: 6px;
+	padding: 10px 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+.chat-debug-cache-session-health-stats {
+	font-family: var(--monaco-monospace-font);
+	font-size: 11.5px;
+	color: var(--vscode-foreground);
+}
+.chat-debug-cache-session-health-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+.chat-debug-cache-session-health-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	font-family: var(--monaco-monospace-font);
+	font-size: 10.5px;
+	padding: 2px 8px;
+	border-radius: 10px;
+	border: 1px solid var(--vscode-widget-border, transparent);
+	color: var(--vscode-descriptionForeground);
+}
+.chat-debug-cache-session-health-chip .codicon {
+	font-size: 12px;
+}
+.chat-debug-cache-session-health-chip.cause-tools,
+.chat-debug-cache-session-health-chip.cause-system,
+.chat-debug-cache-session-health-chip.cause-model,
+.chat-debug-cache-session-health-chip.cause-options,
+.chat-debug-cache-session-health-chip.cause-history {
+	color: var(--vscode-charts-red);
+	border-color: var(--vscode-charts-red);
+}
+.chat-debug-cache-session-health-chip.cause-expiration {
+	color: var(--vscode-charts-yellow);
+	border-color: var(--vscode-charts-yellow);
+}
+/* ---- Rail: idle-gap separators ---- */
+.chat-debug-cache-rail-gap {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 3px 10px;
+	font-family: var(--monaco-monospace-font);
+	font-size: 10px;
+	color: var(--vscode-charts-yellow);
+	opacity: 0.9;
+}
+.chat-debug-cache-rail-gap .codicon {
+	font-size: 11px;
+}
+.chat-debug-cache-rail-gap::before,
+.chat-debug-cache-rail-gap::after {
+	content: "";
+	flex: 1 1 auto;
+	border-top: 1px dashed color-mix(in srgb, var(--vscode-charts-yellow) 50%, transparent);
 }
 .chat-debug-cache-card-h {
 	display: flex;
@@ -1299,6 +1443,13 @@
 	outline: 2px solid var(--vscode-charts-red);
 	outline-offset: -2px;
 	filter: brightness(0.85);
+	/* A drifted sliver must stay visible and clickable even when its share
+	of the bar rounds to nothing. */
+	min-width: 4px;
+}
+.chat-debug-cache-sig-seg.role-coalesced,
+.chat-debug-cache-sig-swatch.role-coalesced {
+	background: color-mix(in srgb, var(--vscode-descriptionForeground) 30%, transparent);
 }
 .chat-debug-cache-sig-break {
 	position: absolute;
@@ -1306,6 +1457,34 @@
 	bottom: -2px;
 	border-left: 2px dashed var(--vscode-charts-red);
 	pointer-events: none;
+}
+.chat-debug-cache-sig-seg.is-clickable {
+	cursor: pointer;
+}
+.chat-debug-cache-sig-seg.is-clickable:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+/* Prefix-match rail: thin reused/recomputed split under the lanes. */
+.chat-debug-cache-sig-lane-row.reuse {
+	margin-top: 2px;
+}
+.chat-debug-cache-sig-reuse-rail {
+	height: 6px;
+	border-radius: 3px;
+	overflow: hidden;
+	display: flex;
+	background: var(--vscode-input-background, #2a2a2a);
+}
+.chat-debug-cache-sig-reuse-seg {
+	height: 100%;
+}
+.chat-debug-cache-sig-reuse-seg.is-reused {
+	background: var(--vscode-charts-green);
+}
+.chat-debug-cache-sig-reuse-seg.is-recomputed {
+	background: var(--vscode-charts-red);
+	opacity: 0.8;
 }
 .chat-debug-cache-sig-summary {
 	font-family: var(--monaco-monospace-font);
@@ -1349,7 +1528,7 @@
 }
 .chat-debug-cache-sig-breakdown-row {
 	display: grid;
-	grid-template-columns: 36px 1fr 90px 90px 96px;
+	grid-template-columns: 36px 1fr 90px 90px 70px 96px;
 	gap: 8px;
 	align-items: center;
 	padding: 4px 10px;
@@ -1438,6 +1617,10 @@
 .chat-debug-cache-acc-head:hover {
 	background: var(--vscode-list-hoverBackground);
 }
+.chat-debug-cache-acc-head:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
 .chat-debug-cache-chev::before {
 	content: "\25B6";
 	display: inline-block;
@@ -1459,6 +1642,10 @@
 .chat-debug-cache-acc-name .role {
 	color: var(--vscode-descriptionForeground);
 	margin-right: 6px;
+}
+.chat-debug-cache-acc-name .chat-debug-cache-sig-swatch {
+	margin-right: 6px;
+	vertical-align: text-bottom;
 }
 .chat-debug-cache-acc-badge {
 	font-family: var(--monaco-monospace-font);
@@ -1519,6 +1706,32 @@
 	flex-shrink: 0;
 	font-size: 12px;
 	line-height: 1;
+}
+/* Flash a component item after a finding / signature segment reveals it. */
+.chat-debug-cache-acc-item.flash {
+	animation: chat-debug-cache-flash 1.2s ease-out;
+}
+@keyframes chat-debug-cache-flash {
+	0% {
+		background: color-mix(in srgb, var(--vscode-focusBorder) 30%, var(--vscode-editorWidget-background));
+	}
+	100% {
+		background: var(--vscode-editorWidget-background);
+	}
+}
+.chat-debug-cache-acc-change-note {
+	padding: 6px 12px;
+	font-family: var(--monaco-monospace-font);
+	font-size: 11px;
+	line-height: 1.5;
+	color: var(--vscode-foreground);
+	background: color-mix(in srgb, var(--vscode-charts-yellow) 8%, transparent);
+	border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-editorWidget-border));
+}
+.chat-debug-cache-acc-identical-note {
+	margin-top: 6px;
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
 }
 .chat-debug-cache-diff {
 	display: grid;

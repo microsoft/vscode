@@ -5,6 +5,7 @@
 
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { parseRemoteAgentHostSessionTypeAuthority } from '../../../../platform/agentHost/common/agentHostSessionType.js';
 import { agentHostAuthority, toAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IRemoteAgentHostConnectionInfo } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 
@@ -15,8 +16,6 @@ import { IRemoteAgentHostConnectionInfo } from '../../../../platform/agentHost/c
 const COPILOT_CLI_PROVIDER = 'copilotcli';
 export const COPILOT_CLI_LOCAL_AH_SCHEME = `agent-host-${COPILOT_CLI_PROVIDER}`;
 export const COPILOT_CLI_EH_SCHEME = COPILOT_CLI_PROVIDER;
-const REMOTE_PROVIDER_PREFIX = 'remote-';
-const REMOTE_PROVIDER_SUFFIX = `-${COPILOT_CLI_PROVIDER}`;
 
 /**
  * Builds the local `events.jsonl` URI under `~/.copilot/session-state/<rawId>/`.
@@ -86,11 +85,7 @@ export function buildRemoteCopilotLogsUri(connection: IRemoteAgentHostConnection
  * any other scheme, including the local `copilotcli` scheme.
  */
 export function parseRemoteAuthorityFromScheme(scheme: string): string | undefined {
-	if (!scheme.startsWith(REMOTE_PROVIDER_PREFIX) || !scheme.endsWith(REMOTE_PROVIDER_SUFFIX)) {
-		return undefined;
-	}
-	const authority = scheme.slice(REMOTE_PROVIDER_PREFIX.length, scheme.length - REMOTE_PROVIDER_SUFFIX.length);
-	return authority || undefined;
+	return parseRemoteAgentHostSessionTypeAuthority(scheme, COPILOT_CLI_PROVIDER);
 }
 
 /**

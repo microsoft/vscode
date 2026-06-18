@@ -13,7 +13,7 @@ import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type Message, type ResponsePart, type StringOrMarkdown, type ToolCallCompletedState, type ToolResultContent, type Turn } from '../../common/state/sessionState.js';
-import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, getToolMarkdownContent, isEditTool, isHiddenTool, isMarkdownRenderedTool, synthesizeSkillToolCall } from './copilotToolDisplay.js';
+import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getSubagentMetadata, getTaskCompleteSummary, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall } from './copilotToolDisplay.js';
 import { buildSessionDbUri } from '../shared/fileEditTracker.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 
@@ -435,15 +435,12 @@ export async function mapSessionEvents(
 					continue;
 				}
 				toolInfoByCallId.delete(d.toolCallId);
-				const builder = targetBuilderFor(d.parentToolCallId);
-				if (!builder) {
-					// No active turn to attach this completion to.
-					continue;
-				}
-				// `task_complete` renders `summary` as a
-				// markdown response part rather than a tool-call entry
-				if (isMarkdownRenderedTool(info.toolName)) {
-					const summary = getToolMarkdownContent(info.toolName, info.parameters);
+				if (isTaskCompleteTool(info.toolName)) {
+					const builder = targetBuilderFor(d.parentToolCallId);
+					if (!builder) {
+						continue;
+					}
+					const summary = getTaskCompleteSummary(info.parameters, d.error?.message ?? d.result?.content);
 					if (summary) {
 						builder.responseParts.push({
 							kind: ResponsePartKind.Markdown,
@@ -451,7 +448,16 @@ export async function mapSessionEvents(
 							content: summary,
 						});
 					}
-					break;
+					if (!d.parentToolCallId && d.success && builder === parentBuilder) {
+						turns.push(finalizeTurn(parentBuilder, TurnState.Complete));
+						parentBuilder = undefined;
+					}
+					continue;
+				}
+				const builder = targetBuilderFor(d.parentToolCallId);
+				if (!builder) {
+					// No active turn to attach this completion to.
+					continue;
 				}
 				const completedPart = makeCompletedToolCallPart(d, info, sessionUriStr, storedEdits, subagentInfoByToolCallId.get(d.toolCallId));
 				builder.responseParts.push(completedPart);
@@ -508,8 +514,8 @@ export async function mapSessionEvents(
 			if (!info) {
 				continue;
 			}
-			if (isMarkdownRenderedTool(info.toolName)) {
-				const summary = getToolMarkdownContent(info.toolName, info.parameters);
+			if (isTaskCompleteTool(info.toolName)) {
+				const summary = getTaskCompleteSummary(info.parameters, completion?.error?.message ?? completion?.result?.content);
 				if (summary) {
 					builder.responseParts.push({
 						kind: ResponsePartKind.Markdown,
