@@ -799,6 +799,95 @@ describe('CopilotCLISessionService', () => {
 		});
 	});
 
+	describe('CopilotCLISessionService.getAllSessions disk-list cache', () => {
+		it('reuses the cached disk list across repeated calls without re-scanning', async () => {
+			const s1 = new MockCliSdkSession('s1', new Date(0));
+			s1.events.push({ type: 'user.message', data: { content: 'hello' }, timestamp: '2024-01-01T00:00:00.000Z' });
+			manager.sessions.set(s1.sessionId, s1);
+
+			const listSpy = vi.spyOn(manager, 'listSessions');
+
+			await service.getAllSessions(CancellationToken.None);
+			await service.getAllSessions(CancellationToken.None);
+			await service.getAllSessions(CancellationToken.None);
+
+			expect(listSpy).toHaveBeenCalledTimes(1);
+		});
+
+		it('re-scans after deleteSession invalidates the cache', async () => {
+			const s1 = new MockCliSdkSession('s1', new Date(0));
+			s1.events.push({ type: 'user.message', data: { content: 'hello' }, timestamp: '2024-01-01T00:00:00.000Z' });
+			manager.sessions.set(s1.sessionId, s1);
+
+			const listSpy = vi.spyOn(manager, 'listSessions');
+
+			await service.getAllSessions(CancellationToken.None);
+			await service.deleteSession('s1');
+			await service.getAllSessions(CancellationToken.None);
+
+			expect(listSpy).toHaveBeenCalledTimes(2);
+		});
+
+		it('re-scans after renameSession invalidates the cache', async () => {
+			const session = await service.createSession({ ...sessionOptionsFor() }, CancellationToken.None);
+			disposables.add(session);
+			const sessionId = session!.object.sessionId;
+			// Seed disk metadata for the wrapper-backed session so listSessions surfaces it.
+			manager.sessions.get(sessionId)!.events.push({ type: 'user.message', data: { content: 'first prompt' }, timestamp: '2024-01-01T00:00:00.000Z' });
+
+			const listSpy = vi.spyOn(manager, 'listSessions');
+
+			await service.getAllSessions(CancellationToken.None);
+			await service.renameSession(sessionId, 'renamed');
+			await service.getAllSessions(CancellationToken.None);
+
+			expect(listSpy).toHaveBeenCalledTimes(2);
+		});
+
+		it('re-scans after updateSessionSummary invalidates the cache', async () => {
+			const session = await service.createSession({ ...sessionOptionsFor() }, CancellationToken.None);
+			disposables.add(session);
+			const sessionId = session!.object.sessionId;
+			manager.sessions.get(sessionId)!.events.push({ type: 'user.message', data: { content: 'first prompt' }, timestamp: '2024-01-01T00:00:00.000Z' });
+
+			const listSpy = vi.spyOn(manager, 'listSessions');
+
+			await service.getAllSessions(CancellationToken.None);
+			await service.updateSessionSummary(sessionId, 'new summary');
+			await service.getAllSessions(CancellationToken.None);
+
+			expect(listSpy).toHaveBeenCalledTimes(2);
+		});
+
+		it('does not pin a stale cache when invalidated mid-scan', async () => {
+			const s1 = new MockCliSdkSession('s1', new Date(0));
+			s1.events.push({ type: 'user.message', data: { content: 'hello' }, timestamp: '2024-01-01T00:00:00.000Z' });
+			manager.sessions.set(s1.sessionId, s1);
+
+			// First call: hook listSessions so it invalidates the cache mid-scan
+			// (simulating a file-watcher event firing while the scan is in flight).
+			const realListSessions = manager.listSessions.bind(manager);
+			let raceTriggered = false;
+			const listSpy = vi.spyOn(manager, 'listSessions').mockImplementation(async () => {
+				const result = await realListSessions();
+				if (!raceTriggered) {
+					raceTriggered = true;
+					// Trigger an invalidation that races with the in-flight scan.
+					await service.deleteSession('s1');
+				}
+				return result;
+			});
+
+			await service.getAllSessions(CancellationToken.None);
+			// Second call must re-scan because the first scan's result was invalidated mid-flight.
+			await service.getAllSessions(CancellationToken.None);
+
+			// Once for the initial call, once for the deleteSession-triggered re-scan,
+			// once for the second getAllSessions call.
+			expect(listSpy.mock.calls.length).toBeGreaterThanOrEqual(2);
+		});
+	});
+
 	describe('CopilotCLISessionService.deleteSession', () => {
 		it('disposes active wrapper, removes from manager and fires change event', async () => {
 			const session = await service.createSession({ ...sessionOptionsFor() }, CancellationToken.None);
