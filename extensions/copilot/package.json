@@ -151,12 +151,6 @@
     "toolInvocationApproveCombination",
     "chatSessionCustomizationProvider"
   ],
-  "capabilities": {
-    "untrustedWorkspaces": {
-      "supported": "limited",
-      "description": "%workspaceTrust%"
-    }
-  },
   "contributes": {
     "languageModelTools": [
       {
