@@ -60,6 +60,20 @@ suite('AgentHostPromptRegistry', () => {
 		);
 	});
 
+	test('treats empty section overrides as no override (falls back to default)', () => {
+		const registry = new AgentHostPromptRegistry();
+		registry.registerPrompt(class {
+			static readonly familyPrefixes = ['claude'];
+			resolveSectionOverrides(): Partial<Record<SystemMessageSection, SectionOverride>> {
+				return {};
+			}
+		});
+		assert.deepStrictEqual(
+			registry.resolveSystemMessageConfig({ id: 'claude-sonnet' }, context()),
+			COPILOT_AGENT_HOST_SYSTEM_MESSAGE
+		);
+	});
+
 	test('matchesModel takes precedence over family prefixes', () => {
 		const registry = new AgentHostPromptRegistry();
 		registry.registerPrompt(class {

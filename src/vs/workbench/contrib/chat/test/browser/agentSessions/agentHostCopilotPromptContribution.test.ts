@@ -15,7 +15,7 @@ import { AgentHostEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, IAgen
 import { AgentHostConfigKey } from '../../../../../../platform/agentHost/common/agentHostCustomizationConfig.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ClientAnnotationsAction, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import type { RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import type { ConfigPropertySchema, RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { AgentHostCopilotPromptContribution } from '../../../browser/agentSessions/agentHost/agentHostCopilotPromptContribution.js';
 
 class MockAgentHostService extends mock<IAgentHostService>() {
@@ -57,11 +57,11 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	}
 }
 
-function makeRootStateWithSchema(properties: Record<string, unknown>): RootState {
+function makeRootStateWithSchema(properties: Record<string, ConfigPropertySchema>): RootState {
 	return {
 		agents: [],
 		config: {
-			schema: { type: 'object', properties: properties as Record<string, never> },
+			schema: { type: 'object', properties },
 			values: {},
 		},
 	};

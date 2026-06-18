@@ -131,7 +131,10 @@ export class AgentHostPromptRegistry {
 			return fullSystemPrompt(fullPrompt);
 		}
 		const sections = contributor.resolveSectionOverrides?.(model, context);
-		if (sections) {
+		// An empty overrides object is treated as "no override" so we keep the
+		// default identity customization rather than emitting a
+		// `{ mode: 'customize', sections: {} }` that drops it.
+		if (sections && Object.keys(sections).length > 0) {
 			return sectionOverrides(sections);
 		}
 		return COPILOT_AGENT_HOST_SYSTEM_MESSAGE;

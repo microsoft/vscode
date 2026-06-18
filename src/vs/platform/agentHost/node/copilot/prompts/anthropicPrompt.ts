@@ -33,7 +33,9 @@ function opus48SectionOverrides(): Partial<Record<SystemMessageSection, SectionO
 		},
 		tone: {
 			action: 'append',
-			content: 'Provide concise, focused responses. Skip non-essential context, and keep examples minimal. Use a direct style and use emojis sparingly.',
+			// Leading newline so the appended text starts on its own line rather
+			// than running on from the SDK foundation tone section's last sentence.
+			content: '\nProvide concise, focused responses. Skip non-essential context, and keep examples minimal. Use a direct style and use emojis sparingly.',
 		},
 		guidelines: {
 			action: 'append',
