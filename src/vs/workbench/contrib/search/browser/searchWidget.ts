@@ -40,7 +40,6 @@ import { NotebookFindFilters } from '../../notebook/browser/contrib/find/findFil
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { NotebookEditorInput } from '../../notebook/common/notebookEditorInput.js';
-import { GroupModelChangeKind } from '../../../common/editor.js';
 import { SearchFindInput } from './searchFindInput.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
@@ -222,10 +221,8 @@ export class SearchWidget extends Widget {
 					this.searchInput.updateFilterStyles();
 				}
 			}));
-		this._register(this.editorService.onDidEditorsChange((e) => {
-			if (this.searchInput &&
-				e.event.editor instanceof NotebookEditorInput &&
-				(e.event.kind === GroupModelChangeKind.EDITOR_OPEN || e.event.kind === GroupModelChangeKind.EDITOR_CLOSE)) {
+		this._register(this.editorService.onDidVisibleEditorsChange(() => {
+			if (this.searchInput) {
 				this.searchInput.filterVisible = this._hasNotebookOpen();
 			}
 		}));
@@ -246,8 +243,7 @@ export class SearchWidget extends Widget {
 	}
 
 	private _hasNotebookOpen(): boolean {
-		const editors = this.editorService.editors;
-		return editors.some(editor => editor instanceof NotebookEditorInput);
+		return this.editorService.visibleEditors.some(editor => editor instanceof NotebookEditorInput);
 	}
 
 	getNotebookFilters() {
