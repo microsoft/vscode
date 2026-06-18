@@ -1247,26 +1247,6 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.requestQueuing.defaultAction.description', "Controls which action is the default for the queue button when a request is in progress."),
 			default: 'steer',
 		},
-		[ChatConfiguration.EditModeHidden]: {
-			type: 'boolean',
-			description: nls.localize('chat.editMode.hidden', "When enabled, hides the Edit mode from the chat mode picker."),
-			default: true,
-			tags: ['experimental'],
-			experiment: {
-				mode: 'auto'
-			},
-			policy: {
-				name: 'DeprecatedEditModeHidden',
-				category: PolicyCategory.InteractiveSession,
-				minimumVersion: '1.112',
-				localization: {
-					description: {
-						key: 'chat.editMode.hidden',
-						value: nls.localize('chat.editMode.hidden', "When enabled, hides the Edit mode from the chat mode picker."),
-					}
-				}
-			}
-		},
 		[ChatConfiguration.EnableMath]: {
 			type: 'boolean',
 			description: nls.localize('chat.mathEnabled.description', "Enable math rendering in chat responses using KaTeX."),
