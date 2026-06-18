@@ -185,7 +185,8 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 	 * turn. Each fetch reports the credits for that single call, but the context
 	 * usage widget and `IChatModel.sessionCost` treat the per-request value as the
 	 * whole turn, so we accumulate here and emit the running total — mirroring the
-	 * cumulative credits the agent host reports. Reset at the start of {@link run}.
+	 * cumulative credits the agent host reports. Reset on the first iteration of a
+	 * turn ({@link runOne} with `iterationNumber === 0`).
 	 */
 	private _accumulatedCopilotCredits: number | undefined;
 
@@ -931,7 +932,6 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 	}
 
 	public async run(outputStream: ChatResponseStream | undefined, token: CancellationToken): Promise<IToolCallLoopResult> {
-		this._accumulatedCopilotCredits = undefined;
 		const agentName = this.agentName ?? 'GitHub Copilot Chat';
 
 		// Extract custom mode name for debug logging (kept separate from agentName to avoid metric cardinality)
@@ -1406,6 +1406,11 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 
 	/** Runs a single iteration of the tool calling loop. */
 	public async runOne(outputStream: ChatResponseStream | undefined, iterationNumber: number, token: CancellationToken): Promise<IToolCallSingleResult> {
+		// The first iteration of a turn starts a fresh credit total. Resetting here
+		// (rather than only in run()) keeps runOne() correct when called standalone.
+		if (iterationNumber === 0) {
+			this._accumulatedCopilotCredits = undefined;
+		}
 		let availableTools = await this.getAvailableTools(outputStream, token);
 
 		// Emit tools_available on the agent span once, before the first CHAT span

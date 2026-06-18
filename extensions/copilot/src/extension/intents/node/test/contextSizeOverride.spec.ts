@@ -45,4 +45,13 @@ describe('applyContextSizeOverride', () => {
 		expect(applyContextSizeOverride(endpoint, createRequest('big'))).toBe(endpoint);
 		expect(clonedWith).toEqual([]);
 	});
+
+	test('does not clamp for non-positive or non-finite selections', () => {
+		const { endpoint, clonedWith } = createEndpoint(400_000);
+		expect(applyContextSizeOverride(endpoint, createRequest(0))).toBe(endpoint);
+		expect(applyContextSizeOverride(endpoint, createRequest(-1))).toBe(endpoint);
+		expect(applyContextSizeOverride(endpoint, createRequest(Number.NaN))).toBe(endpoint);
+		expect(applyContextSizeOverride(endpoint, createRequest(Number.POSITIVE_INFINITY))).toBe(endpoint);
+		expect(clonedWith).toEqual([]);
+	});
 });

@@ -102,7 +102,9 @@ function isResponsesCompactionContextManagementEnabled(endpoint: IChatEndpoint, 
  */
 export function applyContextSizeOverride(endpoint: IChatEndpoint, request: vscode.ChatRequest): IChatEndpoint {
 	const contextSize = request.modelConfiguration?.contextSize;
-	if (typeof contextSize === 'number' && contextSize < endpoint.modelMaxPromptTokens) {
+	// Guard against non-positive / non-finite selections (e.g. 0, -1, NaN, Infinity):
+	// a non-positive token budget would produce an invalid endpoint configuration.
+	if (typeof contextSize === 'number' && Number.isFinite(contextSize) && contextSize > 0 && contextSize < endpoint.modelMaxPromptTokens) {
 		return endpoint.cloneWithTokenOverride(contextSize);
 	}
 	return endpoint;
