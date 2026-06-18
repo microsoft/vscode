@@ -814,22 +814,21 @@ suite('ChatQuotaNotificationContribution', () => {
 			assert.strictEqual(notificationMock.getNotification(), undefined);
 		});
 
-		test('does not show lower priority warnings before treatment resolves', async () => {
+		test('shows trajectory nudge only after treatment resolves', async () => {
 			let resolveTreatment: ((value: string | undefined) => void) | undefined;
 			const trajectoryTreatment = new Promise<string | undefined>(resolve => {
 				resolveTreatment = resolve;
 			});
-			const { entitlementMock, notificationMock } = createContribution({
+			const { notificationMock } = createContribution({
 				entitlement: ChatEntitlement.Pro,
 				quotas: {
 					resetDate: makeResetDate(24),
 					usageBasedBilling: true,
 					premiumChat: makeQuotaSnapshot(72),
-					sessionRateLimit: makeRateLimitSnapshot(60),
 				},
 			}, { trajectoryTreatment });
 
-			updateQuotas(entitlementMock, { sessionRateLimit: makeRateLimitSnapshot(25) });
+			await flushPromises();
 			assert.strictEqual(notificationMock.getNotification(), undefined);
 
 			assert.ok(resolveTreatment);

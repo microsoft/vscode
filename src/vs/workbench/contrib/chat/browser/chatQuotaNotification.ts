@@ -236,21 +236,10 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 		// Priority 2: Quota approaching threshold
 		if (isQuotaNotificationEligible) {
-			const trajectoryCandidate = this._computeQuotaTrajectoryCandidate();
-			if (trajectoryCandidate) {
-				// Enroll only now that every render condition is met, so the
-				// treatment and control cohorts are assigned at the same point.
-				if (!this._trajectoryAssignmentRequested) {
-					this._trajectoryAssignmentRequested = true;
-					void this._resolveTrajectoryTreatment();
-				}
-				if (this._trajectoryTreatment === undefined) {
-					return; // assignment pending — don't show lower-priority notifications yet
-				}
-				if (this._trajectoryTreatment === 'enabled') {
-					this._showQuotaTrajectoryWarning(trajectoryCandidate);
-					return;
-				}
+			const trajectoryWarning = this._computeQuotaTrajectoryWarning();
+			if (trajectoryWarning) {
+				this._showQuotaTrajectoryWarning(trajectoryWarning);
+				return;
 			}
 
 			const quotaWarning = this._computeQuotaWarning();
@@ -291,7 +280,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		return undefined;
 	}
 
-	private _computeQuotaTrajectoryCandidate(): { averageDailyUsage: number; percentUsed: number } | undefined {
+	private _computeQuotaTrajectoryWarning(): { averageDailyUsage: number; percentUsed: number } | undefined {
 		if (!Language.isDefaultVariant() || !this._isTrajectoryEligibleEntitlement() || this._isTrajectoryShownInCurrentPeriod()) {
 			return undefined;
 		}
@@ -323,10 +312,20 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		}
 
 		const averageDailyUsage = percentUsed / elapsedDays;
-		if (averageDailyUsage >= TRAJECTORY_DAILY_USAGE_THRESHOLD) {
-			return { averageDailyUsage, percentUsed };
+		if (averageDailyUsage < TRAJECTORY_DAILY_USAGE_THRESHOLD) {
+			return undefined;
 		}
-		return undefined;
+
+		// Every render condition is met. Enroll in the experiment now
+		// (just-in-time) so treatment and control cohorts are assigned at the
+		// same point and users who would never see the nudge are not exposed.
+		// While assignment is pending, fall through; _update re-runs once it
+		// resolves and only the treatment cohort then renders the nudge.
+		if (!this._trajectoryAssignmentRequested) {
+			this._trajectoryAssignmentRequested = true;
+			void this._resolveTrajectoryTreatment();
+		}
+		return this._trajectoryTreatment === 'enabled' ? { averageDailyUsage, percentUsed } : undefined;
 	}
 
 	private _showQuotaTrajectoryWarning(warning: { averageDailyUsage: number; percentUsed: number }): void {
