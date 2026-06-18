@@ -28,6 +28,11 @@ parameters:
 variables:
   - name: VSCODE_QUALITY
     value: stable
+  - name: NPM_REGISTRY
+    ${{ if eq(parameters.customNPMRegistry, true) }}:
+      value: ${{ parameters.NPM_REGISTRY }}
+    ${{ else }}:
+      value: none
 
 extends:
   template: azure-pipelines/extension/stable.yml@templates
@@ -35,7 +40,6 @@ extends:
     workingDirectory: ./extensions/copilot
     l10nSourcePaths: ./extensions/copilot/src
     nodeVersion: 22.21.x
-    NPM_REGISTRY: ${{ parameters.NPM_REGISTRY }}
 
     cgIgnoreDirectories: $(Build.SourcesDirectory)/extensions/copilot/script
 
@@ -85,7 +89,6 @@ extends:
 
     ${{ if eq(parameters.customNPMRegistry, false) }}:
       customNPMRegistry: ''
-      NPM_REGISTRY: none
 
     generateNotice: true
 
