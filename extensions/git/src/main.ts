@@ -25,7 +25,7 @@ import { createIPCServer, IPCServer } from './ipc/ipcServer';
 import { GitEditor, GitEditorDocumentLinkProvider } from './gitEditor';
 import { GitPostCommitCommandsProvider } from './postCommitCommands';
 import { GitEditSessionIdentityProvider } from './editSessionIdentityProvider';
-import { GitCommitInputBoxCodeActionsProvider, GitCommitInputBoxDiagnosticsManager } from './diagnostics';
+import { GitCommitEditorCodeActionsProvider, GitCommitEditorDiagnosticsManager, GitCommitInputBoxCodeActionsProvider, GitCommitInputBoxDiagnosticsManager } from './diagnostics';
 import { GitBlameController } from './blame';
 import { CloneManager } from './cloneManager';
 import { getAskpassPaths } from './askpassManager';
@@ -131,6 +131,12 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 
 	const codeActionsProvider = new GitCommitInputBoxCodeActionsProvider(diagnosticsManager);
 	disposables.push(codeActionsProvider);
+
+	const editorDiagnosticsManager = new GitCommitEditorDiagnosticsManager();
+	disposables.push(editorDiagnosticsManager);
+
+	const editorCodeActionsProvider = new GitCommitEditorCodeActionsProvider(editorDiagnosticsManager);
+	disposables.push(editorCodeActionsProvider);
 
 	const gitEditorDocumentLinkProvider = languages.registerDocumentLinkProvider('git-commit', new GitEditorDocumentLinkProvider(model));
 	disposables.push(gitEditorDocumentLinkProvider);
