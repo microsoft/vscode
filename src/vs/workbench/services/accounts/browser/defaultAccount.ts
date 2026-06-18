@@ -68,6 +68,18 @@ const CACHED_POLICY_DATA_KEY = 'defaultAccount.cachedPolicyData';
 const ACCOUNT_DATA_POLL_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 const MANAGED_SETTINGS_REQUEST_TIMEOUT_MS = 5000;
 
+/** Per-call options for {@link DefaultAccountProvider.request}. */
+interface IRequestOptions {
+	/** Per-call request timeout in milliseconds. */
+	readonly timeoutMs?: number;
+	/**
+	 * Retry the URL on the next authenticated GitHub session when the response is `404`.
+	 * Defaults to `true`; pass `false` for endpoints where 404 means "no policy for this account" so a
+	 * single call does not fan out into N sequential 404s.
+	 */
+	readonly retryOn404?: boolean;
+}
+
 interface ITokenEntitlementsResponse {
 	token: string;
 }
@@ -820,8 +832,10 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		return { data: undefined, fetchedAt: Date.now() };
 	}
 
-	private async getMcpRegistryProvider(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined, options?: { forceRefresh?: boolean }): Promise<{ data: IMcpRegistryProvider | null; fetchedAt: number } | undefined> {
-		if (!options?.forceRefresh && accountPolicyData?.mcpRegistryDataFetchedAt && !this.isDataStale(accountPolicyData.mcpRegistryDataFetchedAt)) {
+	private async getMcpRegistryProvider(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined, _options?: { forceRefresh?: boolean }): Promise<{ data: IMcpRegistryProvider | null; fetchedAt: number } | undefined> {
+		// Static enterprise config; ignore `forceRefresh` so chat status dashboard hovers don't re-fetch
+		// on every render. Periodic 1h refresh still applies.
+		if (accountPolicyData?.mcpRegistryDataFetchedAt && !this.isDataStale(accountPolicyData.mcpRegistryDataFetchedAt)) {
 			this.logService.debug('[DefaultAccount] Using last fetched MCP registry data');
 			const data = accountPolicyData.policyData.mcpRegistryUrl && accountPolicyData.policyData.mcpAccess ? { url: accountPolicyData.policyData.mcpRegistryUrl, registry_access: accountPolicyData.policyData.mcpAccess } : null;
 			return { data, fetchedAt: accountPolicyData.mcpRegistryDataFetchedAt };
@@ -838,7 +852,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		}
 
 		this.logService.debug('[DefaultAccount] Fetching MCP registry data from:', mcpRegistryDataUrl);
-		const response = await this.request(mcpRegistryDataUrl, 'GET', undefined, sessions, CancellationToken.None, 'defaultAccount.mcpRegistryProvider');
+		const response = await this.request(mcpRegistryDataUrl, 'GET', undefined, sessions, CancellationToken.None, 'defaultAccount.mcpRegistryProvider', { retryOn404: false });
 		if (!response) {
 			return undefined;
 		}
@@ -866,8 +880,11 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		}
 	}
 
-	private async getManagedSettings(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined, options?: { forceRefresh?: boolean }): Promise<{ data: Partial<IPolicyData> | undefined; fetchedAt: number }> {
-		if (!options?.forceRefresh && accountPolicyData?.managedSettingsFetchedAt && !this.isDataStale(accountPolicyData.managedSettingsFetchedAt)) {
+	private async getManagedSettings(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined, _options?: { forceRefresh?: boolean }): Promise<{ data: Partial<IPolicyData> | undefined; fetchedAt: number }> {
+		// Static enterprise admin policy; ignore `forceRefresh` so chat status dashboard hovers don't re-fetch
+		// on every render (each call has a 5s timeout and stacks sequentially through the update throttler).
+		// Periodic 1h refresh still applies.
+		if (accountPolicyData?.managedSettingsFetchedAt && !this.isDataStale(accountPolicyData.managedSettingsFetchedAt)) {
 			this.logService.debug('[DefaultAccount] Using last fetched managed settings data');
 			// Seed status so Policy Diagnostics reflects "applied" rather than
 			// "not yet fetched" after a process restart that warm-starts from
@@ -894,7 +911,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 
 		this.logService.debug('[DefaultAccount] Fetching managed settings from:', managedSettingsUrl);
 		const rateLimitBackoffActive = Date.now() < this._rateLimitBackoffUntil;
-		const response = await this.request(managedSettingsUrl, 'GET', undefined, sessions, CancellationToken.None, 'defaultAccount.managedSettings', MANAGED_SETTINGS_REQUEST_TIMEOUT_MS);
+		const response = await this.request(managedSettingsUrl, 'GET', undefined, sessions, CancellationToken.None, 'defaultAccount.managedSettings', { timeoutMs: MANAGED_SETTINGS_REQUEST_TIMEOUT_MS, retryOn404: false });
 		if (!response) {
 			this.logService.debug('[DefaultAccount] Managed settings fetch returned no response (network error, all sessions rejected, or active rate-limit backoff); falling back to local-only policy');
 			this.reportManagedSettingsOutcome('no-response', rateLimitBackoffActive);
@@ -966,9 +983,9 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 
 	private _rateLimitBackoffUntil = 0;
 
-	private async request(url: string, type: 'GET', body: undefined, sessions: AuthenticationSession[], token: CancellationToken, callSite: string, requestTimeoutMs?: number): Promise<IRequestContext | undefined>;
-	private async request(url: string, type: 'POST', body: object, sessions: AuthenticationSession[], token: CancellationToken, callSite: string, requestTimeoutMs?: number): Promise<IRequestContext | undefined>;
-	private async request(url: string, type: 'GET' | 'POST', body: object | undefined, sessions: AuthenticationSession[], token: CancellationToken, callSite: string, requestTimeoutMs?: number): Promise<IRequestContext | undefined> {
+	private async request(url: string, type: 'GET', body: undefined, sessions: AuthenticationSession[], token: CancellationToken, callSite: string, options?: IRequestOptions): Promise<IRequestContext | undefined>;
+	private async request(url: string, type: 'POST', body: object, sessions: AuthenticationSession[], token: CancellationToken, callSite: string, options?: IRequestOptions): Promise<IRequestContext | undefined>;
+	private async request(url: string, type: 'GET' | 'POST', body: object | undefined, sessions: AuthenticationSession[], token: CancellationToken, callSite: string, options?: IRequestOptions): Promise<IRequestContext | undefined> {
 		// Rate-limit backoff: when any prior `/copilot_internal/*` request was
 		// throttled (429 or 403 + `X-RateLimit-Remaining: 0`), every subsequent
 		// request is short-circuited until the parsed `Retry-After` elapses.
@@ -983,6 +1000,10 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		}
 
 		let lastResponse: IRequestContext | undefined;
+		// For endpoints where 404 means "no policy for this account" (managed_settings, mcp_registry), retrying
+		// every other session just adds latency — at 500ms-5s per session, one call would fan out into a
+		// multi-second storm for users with multiple GitHub accounts.
+		const retryOn404 = options?.retryOn404 !== false;
 
 		for (const session of sessions) {
 			if (token.isCancellationRequested) {
@@ -995,7 +1016,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 					url,
 					data: type === 'POST' ? JSON.stringify(body) : undefined,
 					disableCache: true,
-					timeout: requestTimeoutMs,
+					timeout: options?.timeoutMs,
 					headers: {
 						'Authorization': `Bearer ${session.accessToken}`
 					},
@@ -1009,7 +1030,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 					this.logService.warn(`[DefaultAccount] Rate limited by ${url} (status ${status}); backing off for ${retryAfterSec}s`);
 					return response;
 				}
-				if (status === 401 || status === 404) {
+				if (status === 401 || (status === 404 && retryOn404)) {
 					this.logService.debug(`[DefaultAccount] Received ${status} for URL ${url} with session ${session.id}, likely due to expired/revoked token or insufficient permissions.`, 'Trying next session if available.');
 					lastResponse = response;
 					continue; // try next session
