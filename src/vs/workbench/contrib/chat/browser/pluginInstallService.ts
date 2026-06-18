@@ -423,6 +423,17 @@ export class PluginInstallService implements IPluginInstallService {
 			return true;
 		}
 
+		// Under the strict-marketplace enterprise policy, a marketplace that is not
+		// on the allowlist is blocked outright — the user cannot grant trust to
+		// bypass it. Surface a non-actionable enterprise-policy notification.
+		if (this._pluginMarketplaceService.isStrictMarketplacePolicyActive()) {
+			this._notificationService.notify({
+				severity: Severity.Error,
+				message: localize('strictMarketplaceBlockedInstall', "Plugins from '{0}' are blocked by your organization's policy.", plugin.marketplaceReference.displayLabel),
+			});
+			return false;
+		}
+
 		const { confirmed } = await this._dialogService.confirm({
 			type: 'question',
 			message: localize('trustMarketplace', "Trust Plugins from '{0}'?", plugin.marketplaceReference.displayLabel),
