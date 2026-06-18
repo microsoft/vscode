@@ -56,14 +56,14 @@ export interface IPermissionPickerDelegate {
 	 * The ordered set of permission levels the picker should offer. When
 	 * omitted, the picker offers the default Copilot set
 	 * (`Default` / `Bypass` / `Autopilot`). Agent-host sessions override this
-	 * to offer `Default` / `Assisted` / `Bypass`.
+	 * to offer `Default` / `Bypass`.
 	 */
 	readonly availableLevels?: readonly ChatPermissionLevel[];
 
 	/**
 	 * The setting id the elevated-level warning dialog links to as "make this
 	 * the default". Defaults to `chat.permissions.default`; agent-host sessions
-	 * pass `chat.agentSessions.defaultApprovals`.
+	 * pass `chat.agentSessions.defaultConfiguration`.
 	 */
 	readonly defaultSettingKey?: string;
 
@@ -90,13 +90,6 @@ export const DEFAULT_PERMISSION_LEVELS: readonly ChatPermissionLevel[] = [
 
 export function getPermissionLevelMeta(level: ChatPermissionLevel): IPermissionLevelMeta {
 	switch (level) {
-		case ChatPermissionLevel.Assisted:
-			return {
-				label: localize('permissions.assisted', "Assisted Approvals"),
-				detail: localize('permissions.assisted.subtext', "Delegate approvals to the model"),
-				icon: Codicon.wand,
-				hover: localize('permissions.assisted.description', "A model assesses each tool call and auto-approves low-risk ones; risky calls still ask for your confirmation."),
-			};
 		case ChatPermissionLevel.AutoApprove:
 			return {
 				label: localize('permissions.autoApprove', "Bypass Approvals"),

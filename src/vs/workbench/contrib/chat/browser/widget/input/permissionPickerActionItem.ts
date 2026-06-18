@@ -42,14 +42,14 @@ export interface IPermissionPickerDelegate {
 	/**
 	 * The ordered set of permission levels the picker should offer. When
 	 * omitted, the built-in Default/Bypass/Autopilot set is used. Agent-host
-	 * sessions override this to Default/Assisted/Bypass (Autopilot lives on
-	 * the orthogonal mode axis there).
+	 * sessions override this to Default/Bypass (Autopilot lives on the
+	 * orthogonal mode axis there).
 	 */
 	readonly availableLevels?: readonly ChatPermissionLevel[];
 	/**
 	 * The setting id the elevated-level warning dialog links to as "make this
 	 * the default". Defaults to `chat.permissions.default`; agent-host sessions
-	 * pass `chat.agentSessions.defaultApprovals`.
+	 * pass `chat.agentSessions.defaultConfiguration`.
 	 */
 	readonly defaultSettingKey?: string;
 	/**
@@ -80,16 +80,6 @@ interface IPermissionLevelMeta {
 
 function getPermissionLevelMeta(level: ChatPermissionLevel): IPermissionLevelMeta {
 	switch (level) {
-		case ChatPermissionLevel.Assisted:
-			return {
-				id: 'chat.permissions.assisted',
-				label: localize('permissions.assisted', "Assisted Approvals"),
-				shortLabel: localize('permissions.assisted.label', "Assisted Approvals"),
-				detail: localize('permissions.assisted.subtext', "Delegate approvals to the model"),
-				icon: ThemeIcon.fromId(Codicon.wand.id),
-				description: localize('permissions.assisted.description', "A model assesses each tool call and auto-approves low-risk ones; risky calls still ask for your confirmation."),
-				elevated: true,
-			};
 		case ChatPermissionLevel.AutoApprove:
 			return {
 				id: 'chat.permissions.autoApprove',

@@ -37,7 +37,7 @@ import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatSendRequestOptions, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, type IAgentSessionDefaultConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
@@ -63,7 +63,7 @@ function normalizeAutoApproveValue(value: unknown, policyRestricted: boolean): C
 		return undefined;
 	}
 	const normalized = value as ChatPermissionLevel;
-	// Assisted, Bypass, and (legacy) Autopilot all auto-approve at least some
+	// Bypass and (legacy) Autopilot auto-approve at least some
 	// tool calls, so clamp them to Default when enterprise policy disables
 	// global auto-approval.
 	if (policyRestricted && normalized !== ChatPermissionLevel.Default) {
@@ -1563,11 +1563,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * remembered session-config map (plus legacy isolation fallback) and then
 	 * normalized against policy/feature constraints.
 	 *
-	 * The agent-host defaults are controlled by their own settings —
-	 * `chat.agentSessions.defaultMode` (mode axis) and
-	 * `chat.agentSessions.defaultApprovals` (approval axis) — which take
-	 * precedence over remembered values. The local-only
-	 * `chat.permissions.default` setting is intentionally NOT consulted here.
+	 * The agent-host defaults are controlled by the single
+	 * `chat.agentSessions.defaultConfiguration` object setting (with `mode` and
+	 * `approvals` properties), which takes precedence over remembered values.
+	 * The local-only `chat.permissions.default` setting is intentionally NOT
+	 * consulted here.
 	 *
 	 * If enterprise policy disables global auto-approval
 	 * (`chat.tools.global.autoApprove` policy value `false`), the approval seed
@@ -1578,39 +1578,41 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const config = Object.create(null) as Record<string, unknown>;
 		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService);
 
-		// Seed session config values from the last user picks.
+		// Seed session config values from the last user picks, then migrate any
+		// legacy `autoApprove='autopilot'` remembered value into the new
+		// `mode='autopilot'` shape *first*, so the configured agent-host
+		// defaults applied below cleanly take precedence over it (rather than
+		// the migration overwriting a configured mode afterwards).
 		const rememberedValues = this._storageService.getObject<Record<string, unknown>>(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {});
 		for (const [property, value] of Object.entries(rememberedValues)) {
 			if (typeof value === 'string' && isSafeSessionConfigKey(property)) {
 				config[property] = value;
 			}
 		}
+		const remembered = migrateLegacyAutopilotConfig(config);
 
-		// Approval axis: configured agent-host default wins over remembered.
-		const configuredApprovals = this._baseConfigurationService.getValue<string>(ChatConfiguration.AgentSessionDefaultApprovals);
-		const normalizedConfiguredAutoApprove = normalizeAutoApproveValue(configuredApprovals, policyRestricted);
-		const normalizedRememberedAutoApprove = normalizeAutoApproveValue(config[SessionConfigKey.AutoApprove], policyRestricted);
+		// Configured agent-host defaults (a single object setting controlling
+		// both axes) win over remembered values.
+		const configuredDefaults = this._baseConfigurationService.getValue<IAgentSessionDefaultConfiguration>(ChatConfiguration.AgentSessionDefaultConfiguration);
+
+		// Approval axis.
+		const normalizedConfiguredAutoApprove = normalizeAutoApproveValue(configuredDefaults?.approvals, policyRestricted);
+		const normalizedRememberedAutoApprove = normalizeAutoApproveValue(remembered[SessionConfigKey.AutoApprove], policyRestricted);
 		if (normalizedConfiguredAutoApprove) {
-			config[SessionConfigKey.AutoApprove] = normalizedConfiguredAutoApprove;
+			remembered[SessionConfigKey.AutoApprove] = normalizedConfiguredAutoApprove;
 		} else if (normalizedRememberedAutoApprove) {
-			config[SessionConfigKey.AutoApprove] = normalizedRememberedAutoApprove;
+			remembered[SessionConfigKey.AutoApprove] = normalizedRememberedAutoApprove;
 		} else {
-			delete config[SessionConfigKey.AutoApprove];
+			delete remembered[SessionConfigKey.AutoApprove];
 		}
 
-		// Mode axis: configured agent-host default wins over remembered.
-		const configuredMode = this._baseConfigurationService.getValue<string>(ChatConfiguration.AgentSessionDefaultMode);
+		// Mode axis.
+		const configuredMode = configuredDefaults?.mode;
 		if (typeof configuredMode === 'string' && KNOWN_MODE_VALUES.has(configuredMode)) {
-			config[SessionConfigKey.Mode] = configuredMode;
+			remembered[SessionConfigKey.Mode] = configuredMode;
 		}
 
-		// Translate a legacy `autoApprove='autopilot'` pick (remembered from
-		// before Autopilot moved onto the `mode` axis) into the new
-		// `mode='autopilot'` shape so the seeded session starts in Autopilot
-		// rather than silently dropping to manual approvals.
-		const migrated = migrateLegacyAutopilotConfig(config);
-
-		return Object.keys(migrated).length > 0 ? migrated : undefined;
+		return Object.keys(remembered).length > 0 ? remembered : undefined;
 	}
 
 	// -- Dynamic session config ----------------------------------------------

@@ -95,9 +95,6 @@ export function getConfigIcon(property: string, value: unknown | undefined): The
 		if (value === 'autopilot') {
 			return Codicon.rocket;
 		}
-		if (value === 'assisted') {
-			return Codicon.wand;
-		}
 		if (value === 'autoApprove') {
 			return Codicon.warning;
 		}
@@ -169,8 +166,8 @@ function applyAutoApproveFiltering(
 }
 
 /**
- * Shows a confirmation dialog for elevated auto-approve levels (Assisted,
- * Bypass, or legacy Autopilot). Delegates to the shared
+ * Shows a confirmation dialog for elevated auto-approve levels (Bypass
+ * or legacy Autopilot). Delegates to the shared
  * {@link maybeConfirmElevatedPermissionLevel} so the copy, icons, and
  * "Don't show again" persistence stay consistent across every permission
  * picker. Returns `true` when confirmed (or not elevated), `false` when the
@@ -180,7 +177,7 @@ async function confirmAutoApproveLevel(value: string, dialogService: IDialogServ
 	if (!isChatPermissionLevel(value)) {
 		return true;
 	}
-	return maybeConfirmElevatedPermissionLevel(value, dialogService, storageService, { defaultSettingKey: ChatConfiguration.AgentSessionDefaultApprovals });
+	return maybeConfirmElevatedPermissionLevel(value, dialogService, storageService, { defaultSettingKey: ChatConfiguration.AgentSessionDefaultConfiguration });
 }
 
 /**
@@ -428,7 +425,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 					isPII: !!schema.enumDynamic,
 				});
 
-				if (isAutoApproveProperty && (item.value === 'assisted' || item.value === 'autoApprove' || item.value === 'autopilot')) {
+				if (isAutoApproveProperty && (item.value === 'autoApprove' || item.value === 'autopilot')) {
 					const confirmed = await confirmAutoApproveLevel(item.value, this._dialogService, this._storageService);
 					if (!confirmed) {
 						return;

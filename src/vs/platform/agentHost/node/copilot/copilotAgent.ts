@@ -1376,7 +1376,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 *  - `mode='interactive'` → SDK `interactive`.
 	 *
 	 * Tool auto-approval is governed independently by the orthogonal
-	 * `autoApprove` axis (Default / Assisted / Bypass), enforced by the agent
+	 * `autoApprove` axis (Default / Bypass), enforced by the agent
 	 * host's own permission handler — which the SDK still invokes even under
 	 * autopilot mode.
 	 *

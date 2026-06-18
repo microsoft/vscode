@@ -66,17 +66,15 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 
 	/**
 	 * Agent-host sessions expose Autopilot on the orthogonal `mode` axis, so
-	 * the permissions picker offers `Default` / `Assisted` / `Bypass` here
-	 * (Assisted is backed by the renderer risk-assessment gate).
+	 * the permissions picker offers `Default` / `Bypass` here.
 	 */
 	readonly availableLevels: readonly ChatPermissionLevel[] = [
 		ChatPermissionLevel.Default,
-		ChatPermissionLevel.Assisted,
 		ChatPermissionLevel.AutoApprove,
 	];
 
 	/** Agent-host sessions seed their default approval level from this setting. */
-	readonly defaultSettingKey = ChatConfiguration.AgentSessionDefaultApprovals;
+	readonly defaultSettingKey = ChatConfiguration.AgentSessionDefaultConfiguration;
 
 	constructor(
 		private readonly _session: IObservable<IActiveSession | undefined>,

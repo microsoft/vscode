@@ -3433,8 +3433,8 @@ suite('CopilotAgentSession', () => {
 			await responsePromise;
 		});
 
-		test('completing the input request with autopilot resolves with approved + autopilot + autoApproveEdits', async () => {
-			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
+		test('completing the input request with autopilot resolves with approved + autopilot + autoApproveEdits and syncs mode=autopilot', async () => {
+			const { session, runtime, waitForSignal, sessionConfigUpdates } = await createAgentSession(disposables);
 
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'autopilot' }), { sessionId: 'test-session-1' });
 			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
@@ -3450,10 +3450,14 @@ suite('CopilotAgentSession', () => {
 			});
 
 			assert.deepStrictEqual(await responsePromise, { approved: true, selectedAction: 'autopilot', autoApproveEdits: true });
+			// Picking "Implement with Autopilot" flips the AHP mode immediately.
+			assert.deepStrictEqual(sessionConfigUpdates, [
+				{ session: 'copilot:/test-session-1', patch: { mode: 'autopilot' } },
+			]);
 		});
 
-		test('completing the input request with interactive resolves with approved + interactive (no autoApprove)', async () => {
-			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
+		test('completing the input request with interactive resolves with approved + interactive (no autoApprove) and syncs mode=interactive', async () => {
+			const { session, runtime, waitForSignal, sessionConfigUpdates } = await createAgentSession(disposables);
 
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'interactive' }), { sessionId: 'test-session-1' });
 			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
@@ -3469,6 +3473,9 @@ suite('CopilotAgentSession', () => {
 			});
 
 			assert.deepStrictEqual(await responsePromise, { approved: true, selectedAction: 'interactive' });
+			assert.deepStrictEqual(sessionConfigUpdates, [
+				{ session: 'copilot:/test-session-1', patch: { mode: 'interactive' } },
+			]);
 		});
 
 		test('declining the input request resolves with approved=false', async () => {

@@ -81,8 +81,7 @@ export enum ChatConfiguration {
 	AutopilotAdvancedEnabled = 'chat.autopilot.advanced.enabled',
 	PlanReviewInlineEditorEnabled = 'chat.planReview.inlineEditor.enabled',
 	DefaultPermissionLevel = 'chat.permissions.default',
-	AgentSessionDefaultMode = 'chat.agentSessions.defaultMode',
-	AgentSessionDefaultApprovals = 'chat.agentSessions.defaultApprovals',
+	AgentSessionDefaultConfiguration = 'chat.agentSessions.defaultConfiguration',
 	ImageCarouselEnabled = 'imageCarousel.chat.enabled',
 	ArtifactsEnabled = 'chat.artifacts.enabled',
 	ArtifactsRulesByMimeType = 'chat.artifacts.rules.byMimeType',
@@ -121,8 +120,6 @@ export enum ChatModeKind {
 export enum ChatPermissionLevel {
 	/** Use existing auto-approve settings */
 	Default = 'default',
-	/** Low-risk tool calls are auto-approved via risk assessment; risky ones still prompt */
-	Assisted = 'assisted',
 	/** Auto-approve all tool calls, auto-retry on error */
 	AutoApprove = 'autoApprove',
 	/** Everything AutoApprove does plus an internal stop hook that continues until the task is done */
@@ -133,6 +130,19 @@ const chatPermissionLevels = new Set<string>(Object.values(ChatPermissionLevel))
 
 export function isChatPermissionLevel(level: unknown | undefined): level is ChatPermissionLevel {
 	return chatPermissionLevels.has(level as string);
+}
+
+/**
+ * Shape of the {@link ChatConfiguration.AgentSessionDefaultConfiguration}
+ * object setting. Controls the starting `mode` and `approvals` for new
+ * agent-host sessions (such as Copilot CLI). Both properties are optional —
+ * a missing property falls back to the per-axis default.
+ */
+export interface IAgentSessionDefaultConfiguration {
+	/** Starting agent mode: `interactive` / `plan` / `autopilot`. */
+	readonly mode?: string;
+	/** Starting approval level: `default` / `autoApprove`. */
+	readonly approvals?: string;
 }
 
 /**

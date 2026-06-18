@@ -742,12 +742,6 @@ export class AgentSideEffects extends Disposable {
 		} else if (effective.state.confirmationTitle) {
 			// Make sure the agent is registered for the eventual `ChatToolCallConfirmed` response.
 			this._toolCallAgents.set(`${sessionKey}:${e.state.toolCallId}`, agent.id);
-			// Under "Assisted Approvals", flag the action so the renderer can
-			// run its risk-assessment gate: low-risk calls are auto-approved
-			// there, high-risk calls fall back to this confirmation prompt.
-			if (this._permissionManager.isSessionAssistedApprovalEnabled(sessionKey)) {
-				effective = { ...effective, state: { ...effective.state, _meta: { ...toolCall?._meta, ...effective.state._meta, assistedApproval: true } } };
-			}
 		}
 		this._stateManager.dispatchServerAction(
 			sessionKey,

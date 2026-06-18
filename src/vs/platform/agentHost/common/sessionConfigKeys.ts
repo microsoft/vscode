@@ -29,13 +29,17 @@ export const enum SessionConfigKey {
 }
 
 /**
- * The set of enum values the unified permission picker understands for the
- * {@link SessionConfigKey.AutoApprove} property.
+ * The set of enum values the unified permission picker *tolerates* for the
+ * {@link SessionConfigKey.AutoApprove} property when deciding whether a
+ * session's schema is "well-known" (and therefore handled by the dedicated
+ * permission picker rather than the generic per-property fallback).
  *
- * `default` is the required baseline level; `assisted` and `autoApprove`
- * are optional (an agent may choose to advertise a subset). `autopilot` is
- * retained for backward-compatibility with sessions persisted before
- * Autopilot moved onto the orthogonal `mode` axis.
+ * `default` is the required baseline level; `autoApprove` is the offered
+ * elevated level. `assisted` and `autopilot` are retained here purely for
+ * backward/forward compatibility so a session whose schema was resolved by an
+ * older or newer agent host (advertising those values) still renders the
+ * dedicated picker rather than disappearing. The picker itself only ever
+ * *offers* `default` / `autoApprove` (see the delegate's `availableLevels`).
  */
 export const KNOWN_AUTO_APPROVE_VALUES: ReadonlySet<string> = new Set(['default', 'assisted', 'autoApprove', 'autopilot']);
 

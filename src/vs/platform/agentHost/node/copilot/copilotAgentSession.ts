@@ -1883,12 +1883,40 @@ export class CopilotAgentSession extends Disposable {
 			return { approved: false };
 		}
 
+		// Reflect the chosen implementation path on the AHP `mode` axis right
+		// away so the mode picker updates as soon as the user approves the
+		// plan (e.g. Plan → Autopilot when they pick "Implement with
+		// Autopilot"). The SDK also fires `session.mode_changed`, but that is
+		// async; writing here makes the UI update deterministic. The patch is
+		// idempotent, so the later event is a no-op.
+		this._syncAhpModeFromExitPlanAction(selectedAction);
+
 		const isAutopilot = selectedAction === 'autopilot' || selectedAction === 'autopilot_fleet';
 		return {
 			approved: true,
 			selectedAction,
 			...(isAutopilot ? { autoApproveEdits: true } : {}),
 		};
+	}
+
+	/**
+	 * Translates an approved `exit_plan_mode` action into the AHP `mode` axis
+	 * and writes it so the mode picker reflects the choice immediately:
+	 *
+	 *  - `autopilot` / `autopilot_fleet` → `mode='autopilot'`.
+	 *  - `interactive` → `mode='interactive'`.
+	 *  - `exit_only` (approve plan without executing) leaves the mode untouched.
+	 */
+	private _syncAhpModeFromExitPlanAction(selectedAction: string): void {
+		switch (selectedAction) {
+			case 'autopilot':
+			case 'autopilot_fleet':
+				this._syncAhpConfigFromSdkMode('autopilot');
+				break;
+			case 'interactive':
+				this._syncAhpConfigFromSdkMode('interactive');
+				break;
+		}
 	}
 
 	private async _handlePreToolUse(input: PreToolUseHookInput): Promise<void> {
@@ -2538,7 +2566,7 @@ export class CopilotAgentSession extends Disposable {
 	 *  - SDK `autopilot` → AHP `mode='autopilot'`.
 	 *
 	 * Autopilot lives on the `mode` axis; the orthogonal `autoApprove` axis
-	 * (Default / Assisted / Bypass) is left untouched so the user's chosen
+	 * (Default / Bypass) is left untouched so the user's chosen
 	 * approval level is preserved across SDK mode transitions.
 	 *
 	 * Patches that already match the current AHP values are still

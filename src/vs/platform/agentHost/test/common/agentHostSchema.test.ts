@@ -283,11 +283,12 @@ suite('agentHostSchema', () => {
 
 	suite('platformSessionSchema', () => {
 
-		test('validates the three autoApprove levels', () => {
-			const levels: AutoApproveLevel[] = ['default', 'assisted', 'autoApprove'];
+		test('validates the autoApprove levels', () => {
+			const levels: AutoApproveLevel[] = ['default', 'autoApprove'];
 			for (const level of levels) {
 				assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.AutoApprove, level), true, level);
 			}
+			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.AutoApprove, 'assisted'), false);
 			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.AutoApprove, 'autopilot'), false);
 			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.AutoApprove, 'bogus'), false);
 		});

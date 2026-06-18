@@ -168,22 +168,8 @@ export class SessionPermissionManager extends Disposable {
 	}
 
 	isSessionAutoApproveEnabled(sessionKey: ProtocolURI): boolean {
-		const autoApproveLevel = this._configService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.AutoApprove);
-		// Only `autoApprove` (Bypass Approvals) unconditionally auto-approves
-		// every tool call. `assisted` is evaluated by the renderer-side risk
-		// gate (it must run a model), so it is intentionally NOT treated as a
-		// blanket auto-approve here.
-		return autoApproveLevel === 'autoApprove';
-	}
-
-	/**
-	 * `true` when the session's effective approval level is `assisted`. Tool
-	 * calls that would otherwise require confirmation are deferred to the
-	 * renderer's risk-assessment gate, which auto-approves low-risk calls and
-	 * surfaces high-risk ones to the user.
-	 */
-	isSessionAssistedApprovalEnabled(sessionKey: ProtocolURI): boolean {
-		return this._configService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.AutoApprove) === 'assisted';
+		// `autoApprove` (Bypass Approvals) auto-approves every tool call.
+		return this._configService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.AutoApprove) === 'autoApprove';
 	}
 
 	// ---- Action construction (analogous to getPreConfirmActions) -------------

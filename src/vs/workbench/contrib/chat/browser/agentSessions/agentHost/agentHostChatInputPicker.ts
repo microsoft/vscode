@@ -64,9 +64,6 @@ function getConfigIcon(property: string, value: unknown | undefined): ThemeIcon 
 		if (value === 'autopilot') {
 			return Codicon.rocket;
 		}
-		if (value === 'assisted') {
-			return Codicon.wand;
-		}
 		if (value === 'autoApprove') {
 			return Codicon.warning;
 		}
@@ -192,6 +189,26 @@ export function isClaimedByDedicatedPicker(property: string, schema: SessionConf
 		return isWellKnownAutoApproveSchema(schema);
 	}
 	return WELL_KNOWN_PICKER_PROPERTIES.has(property);
+}
+
+/**
+ * Resolves which config value a chat-input chip should display, given the
+ * server's session-state value and the workbench overlay value.
+ *
+ * Precedence depends on the session lifecycle:
+ *  - Untitled (pre-send): the workbench overlay is authoritative — it reflects
+ *    synchronous chip edits before the provisional backend echoes them, so it
+ *    wins over server state.
+ *  - Running (titled): the *server* is authoritative. The overlay is only
+ *    refreshed on manual chip edits, so server-driven changes (e.g. Plan →
+ *    Autopilot when the user approves a plan) must win, otherwise a stale
+ *    overlay value would shadow them.
+ */
+export function resolveConfigChipValue(isUntitled: boolean, serverValue: unknown, overlayValue: unknown, schemaDefault: unknown): unknown {
+	const preferred = isUntitled
+		? (overlayValue ?? serverValue)
+		: (serverValue ?? overlayValue);
+	return preferred ?? schemaDefault;
 }
 
 /**
@@ -428,9 +445,9 @@ export class AgentHostChatInputPicker extends Disposable {
 			if (!schema) {
 				return undefined;
 			}
-			const value = overlay?.values?.[this._property]
-				?? state.config?.values?.[this._property]
-				?? schema.default;
+			const serverValue = state.config?.values?.[this._property];
+			const overlayValue = overlay?.values?.[this._property];
+			const value = resolveConfigChipValue(isUntitledChatSession(sessionResource), serverValue, overlayValue, schema.default);
 			return { backendSession: this._subRef.value.backendSession, schema, value };
 		}
 
@@ -583,7 +600,7 @@ export class AgentHostChatInputPicker extends Disposable {
 	 */
 	private async _confirmAndSetValue(backendSession: URI, value: string): Promise<void> {
 		if (this._property === SessionConfigKey.AutoApprove && isChatPermissionLevel(value)) {
-			const confirmed = await maybeConfirmElevatedPermissionLevel(value, this._dialogService, this._storageService, { defaultSettingKey: ChatConfiguration.AgentSessionDefaultApprovals });
+			const confirmed = await maybeConfirmElevatedPermissionLevel(value, this._dialogService, this._storageService, { defaultSettingKey: ChatConfiguration.AgentSessionDefaultConfiguration });
 			if (!confirmed) {
 				return;
 			}

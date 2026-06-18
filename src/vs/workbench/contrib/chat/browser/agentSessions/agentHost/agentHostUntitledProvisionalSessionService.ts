@@ -64,7 +64,7 @@ import { InstantiationType, registerSingleton } from '../../../../../../platform
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
-import { ChatConfiguration } from '../../../common/constants.js';
+import { ChatConfiguration, type IAgentSessionDefaultConfiguration } from '../../../common/constants.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 
@@ -603,10 +603,11 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	 * drops the workbench defaults.
 	 *
 	 * - `isolation`: workbench has no isolation picker, so always `'folder'`.
-	 * - `mode`: seeded from `chat.agentSessions.defaultMode`.
-	 * - `autoApprove`: seeded from `chat.agentSessions.defaultApprovals`,
-	 *   clamped to `'default'` when the `chat.tools.global.autoApprove` policy
-	 *   is off. The local-only `chat.permissions.default` setting is NOT used.
+	 * - `mode` / `autoApprove`: seeded from the single
+	 *   `chat.agentSessions.defaultConfiguration` object setting (`mode` and
+	 *   `approvals` properties). The approval seed is clamped to `'default'`
+	 *   when the `chat.tools.global.autoApprove` policy is off. The local-only
+	 *   `chat.permissions.default` setting is NOT used.
 	 *
 	 * Skipped entirely in the Agents window, where the sessions provider
 	 * supplies config via `request.agentHostSessionConfig` instead.
@@ -617,16 +618,18 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		}
 		const config: Record<string, unknown> = { [SessionConfigKey.Isolation]: 'folder' };
 
-		const configuredApprovals = this._configurationService.getValue<string>(ChatConfiguration.AgentSessionDefaultApprovals);
+		const configuredDefaults = this._configurationService.getValue<IAgentSessionDefaultConfiguration>(ChatConfiguration.AgentSessionDefaultConfiguration);
 		const policyValue = this._configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue;
+
+		const configuredApprovals = configuredDefaults?.approvals;
 		if (typeof configuredApprovals === 'string' && KNOWN_AUTO_APPROVE_VALUES.has(configuredApprovals)) {
 			const policyRestricted = policyValue === false;
-			// Assisted, Bypass, and (legacy) Autopilot all auto-approve at
-			// least some tool calls, so clamp anything but Default under policy.
+			// Bypass and (legacy) Autopilot auto-approve at least some tool
+			// calls, so clamp anything but Default under policy.
 			config[SessionConfigKey.AutoApprove] = policyRestricted && configuredApprovals !== 'default' ? 'default' : configuredApprovals;
 		}
 
-		const configuredMode = this._configurationService.getValue<string>(ChatConfiguration.AgentSessionDefaultMode);
+		const configuredMode = configuredDefaults?.mode;
 		if (typeof configuredMode === 'string' && KNOWN_MODE_VALUES.has(configuredMode)) {
 			config[SessionConfigKey.Mode] = configuredMode;
 		}

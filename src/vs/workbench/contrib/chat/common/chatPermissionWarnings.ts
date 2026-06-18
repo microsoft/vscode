@@ -10,7 +10,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ASSISTED_DONT_SHOW_AGAIN_KEY, AUTO_APPROVE_DONT_SHOW_AGAIN_KEY, AUTOPILOT_DONT_SHOW_AGAIN_KEY } from './chatPermissionStorageKeys.js';
+import { AUTO_APPROVE_DONT_SHOW_AGAIN_KEY, AUTOPILOT_DONT_SHOW_AGAIN_KEY } from './chatPermissionStorageKeys.js';
 import { ChatConfiguration, ChatPermissionLevel } from './constants.js';
 
 /**
@@ -31,9 +31,6 @@ function dontShowAgainKey(level: ChatPermissionLevel): string | undefined {
 	if (level === ChatPermissionLevel.AutoApprove) {
 		return AUTO_APPROVE_DONT_SHOW_AGAIN_KEY;
 	}
-	if (level === ChatPermissionLevel.Assisted) {
-		return ASSISTED_DONT_SHOW_AGAIN_KEY;
-	}
 	return undefined;
 }
 
@@ -47,13 +44,36 @@ export function resetShownWarnings(): void {
 	shownWarnings.clear();
 }
 
+/**
+ * Relative "auto-approval reach" of each elevated level, used to suppress
+ * lower-level warnings once a stronger one has been accepted. Bypass Approvals
+ * and Autopilot both auto-approve *every* tool call, so confirming either in
+ * this session (or persistently) implies acceptance of the other — the user is
+ * not warned again when stepping between them (e.g. Autopilot → Bypass).
+ */
+const ELEVATION_RANK: ReadonlyMap<ChatPermissionLevel, number> = new Map([
+	[ChatPermissionLevel.AutoApprove, 1],
+	[ChatPermissionLevel.Autopilot, 1],
+]);
+
 export function hasShownElevatedWarning(level: ChatPermissionLevel, storageService: IStorageService): boolean {
-	if (shownWarnings.has(level)) {
-		return true;
+	const rank = ELEVATION_RANK.get(level);
+	if (rank === undefined) {
+		return false;
 	}
-	const key = dontShowAgainKey(level);
-	if (key && storageService.getBoolean(key, StorageScope.PROFILE, false)) {
-		return true;
+	// Accepting any elevated level whose reach is >= this one (in this session
+	// or persistently) suppresses the warning.
+	for (const [candidate, candidateRank] of ELEVATION_RANK) {
+		if (candidateRank < rank) {
+			continue;
+		}
+		if (shownWarnings.has(candidate)) {
+			return true;
+		}
+		const key = dontShowAgainKey(candidate);
+		if (key && storageService.getBoolean(key, StorageScope.PROFILE, false)) {
+			return true;
+		}
 	}
 	return false;
 }
@@ -81,22 +101,15 @@ function getElevatedWarningCopy(level: ChatPermissionLevel, defaultSettingKey: s
 				icon: Codicon.warning,
 				detail: localize('permissions.autoApprove.warning.detail', "Bypass Approvals will auto-approve all tool calls without asking for confirmation. This includes file edits, terminal commands, and external tool calls.\n\nTo make this the starting permission level for new chat sessions, change the [{0}](command:workbench.action.openSettings?%5B%22{0}%22%5D) setting.", defaultSettingKey),
 			};
-		case ChatPermissionLevel.Assisted:
-			return {
-				title: localize('permissions.assisted.warning.title', "Enable Assisted Approvals?"),
-				confirm: localize('permissions.assisted.warning.confirm', "Enable"),
-				icon: Codicon.wand,
-				detail: localize('permissions.assisted.warning.detail', "Assisted Approvals delegates approvals to a model: it assesses each tool call and auto-approves the ones it considers low-risk, without asking for your confirmation. Risky tool calls still ask. This includes file edits, terminal commands, and external tool calls.\n\nTo make this the starting permission level for new chat sessions, change the [{0}](command:workbench.action.openSettings?%5B%22{0}%22%5D) setting.", defaultSettingKey),
-			};
 		default:
 			return undefined;
 	}
 }
 
 /**
- * If `level` is an elevated permission level (Assisted Approvals, Bypass
- * Approvals, or Autopilot) that hasn't already been confirmed in this session
- * or persistently dismissed, show the corresponding warning dialog. Returns:
+ * If `level` is an elevated permission level (Bypass Approvals or Autopilot)
+ * that hasn't already been confirmed in this session or persistently
+ * dismissed, show the corresponding warning dialog. Returns:
  *
  * - `true` if the level is not elevated, has already been confirmed, or the
  *   user accepts the dialog. In these cases the caller should proceed to apply
@@ -111,7 +124,7 @@ function getElevatedWarningCopy(level: ChatPermissionLevel, defaultSettingKey: s
  * `options.defaultSettingKey` controls which "make this the default" setting
  * the dialog links to — local chat uses `chat.permissions.default` (the
  * default), while agent-host sessions pass
- * `chat.agentSessions.defaultApprovals`.
+ * `chat.agentSessions.defaultConfiguration`.
  */
 export async function maybeConfirmElevatedPermissionLevel(
 	level: ChatPermissionLevel,
