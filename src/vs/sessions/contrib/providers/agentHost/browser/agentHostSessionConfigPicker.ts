@@ -77,6 +77,7 @@ export interface IConfigPickerItem {
 	readonly value: string;
 	readonly label: string;
 	readonly description?: string;
+	readonly checked?: boolean;
 }
 
 export function getConfigIcon(property: string, value: unknown | undefined): ThemeIcon | undefined {
@@ -104,14 +105,17 @@ export function getConfigIcon(property: string, value: unknown | undefined): The
 }
 
 function toActionItems(property: string, items: readonly IConfigPickerItem[], currentValue: unknown | undefined, policyRestricted?: boolean): IActionListItem<IConfigPickerItem>[] {
-	return items.map(item => ({
-		kind: ActionListItemKind.Action,
-		label: item.label,
-		detail: item.description,
-		group: { title: '', icon: getConfigIcon(property, item.value) },
-		disabled: policyRestricted && (item.value === 'autoApprove' || item.value === 'autopilot'),
-		item: { ...item, label: isSelectedValue(currentValue, item.value) ? `${item.label} ${localize('selected', "(Selected)")}` : item.label },
-	}));
+	return items.map(item => {
+		const selected = isSelectedValue(currentValue, item.value);
+		return {
+			kind: ActionListItemKind.Action,
+			label: item.label,
+			detail: item.description,
+			group: { title: '', icon: getConfigIcon(property, item.value) },
+			disabled: policyRestricted && (item.value === 'autoApprove' || item.value === 'autopilot'),
+			item: { ...item, checked: selected, label: selected ? `${item.label} ${localize('selected', "(Selected)")}` : item.label },
+		};
+	});
 }
 
 function isSelectedValue(currentValue: unknown | undefined, itemValue: string): boolean {
@@ -455,7 +459,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		}
 
 		const isAutoApproveProperty = property === SessionConfigKey.AutoApprove;
-		const currentValue = provider.getSessionConfig(sessionId)?.values[property];
+		const currentValue = provider.getSessionConfig(sessionId)?.values[property] ?? schema.default;
 		const currentItem = items.find(i => i.value === currentValue);
 		const actionItems = toActionItems(property, items, currentValue, policyRestricted);
 
@@ -487,7 +491,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				? query => this._filterDelayer.trigger(async () => {
 					const filteredRawItems = await this._getItems(provider, sessionId, property, schema, query);
 					const { items: filteredItems, policyRestricted: filteredPolicyRestricted } = applyAutoApproveFiltering(filteredRawItems, property, this._configurationService);
-					return toActionItems(property, filteredItems, provider.getSessionConfig(sessionId)?.values[property], filteredPolicyRestricted);
+					return toActionItems(property, filteredItems, provider.getSessionConfig(sessionId)?.values[property] ?? schema.default, filteredPolicyRestricted);
 				})
 				: undefined,
 			onHide: () => trigger.focus(),
