@@ -23,6 +23,10 @@ import { ILanguageModelsService } from '../common/languageModels.js';
 import { ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from './widget/input/chatInputNotificationService.js';
 
 const QUOTA_NOTIFICATION_ID = 'copilot.quotaStatus';
+const THRESHOLDS = [50, 75, 90, 95];
+const TRAJECTORY_DAILY_USAGE_THRESHOLD = 4.5;
+const TRAJECTORY_MINIMUM_PERCENT_USED = 10;
+const TRAJECTORY_MAXIMUM_PERCENT_USED = 35;
 const BILLING_PERIOD_DAYS = 30;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const TRAJECTORY_TREATMENT = 'chatQuotaTrajectoryNudge';
@@ -30,47 +34,10 @@ const TRAJECTORY_SHOWN_STORAGE_KEY = 'chat.quotaTrajectory.shownPeriod';
 const CREDIT_EFFICIENCY_LEARN_MORE_URL = 'https://aka.ms/token-usage-tips';
 const CREDIT_EFFICIENCY_LEARN_MORE_COMMAND_ID = 'workbench.action.chat.learnMoreAboutCreditUsage';
 
-type QuotaTrajectoryNotificationLevel = {
-	readonly kind: 'trajectory';
-	readonly dailyUsageThreshold: number;
-	readonly minimumPercentUsed: number;
-	readonly maximumPercentUsed: number;
-};
-
-type QuotaApproachingNotificationLevel = {
-	readonly kind: 'approaching';
-	readonly percentUsed: number;
-};
-
-type QuotaNotificationLevel = QuotaTrajectoryNotificationLevel | QuotaApproachingNotificationLevel;
-
-const QUOTA_NOTIFICATION_LEVELS: readonly QuotaNotificationLevel[] = [
-	{ kind: 'trajectory', dailyUsageThreshold: 4.5, minimumPercentUsed: 10, maximumPercentUsed: 35 },
-	{ kind: 'approaching', percentUsed: 95 },
-	{ kind: 'approaching', percentUsed: 90 },
-	{ kind: 'approaching', percentUsed: 75 },
-	{ kind: 'approaching', percentUsed: 50 },
-];
-
 const enum QuotaNotificationKind {
 	None,
 	Trajectory,
 }
-
-type QuotaApproachingWarning = {
-	readonly kind: 'approaching';
-	readonly level: QuotaApproachingNotificationLevel;
-	readonly percentUsed: number;
-};
-
-type QuotaTrajectoryWarning = {
-	readonly kind: 'trajectory';
-	readonly level: QuotaTrajectoryNotificationLevel;
-	readonly averageDailyUsage: number;
-	readonly percentUsed: number;
-};
-
-type QuotaWarning = QuotaApproachingWarning | QuotaTrajectoryWarning;
 
 type ChatQuotaTrajectoryNudgeEvent = {
 	severity: 'info';
@@ -98,7 +65,7 @@ const QUOTA_EXHAUSTED_DISMISSED_STORAGE_KEY = 'chat.quotaNotification.exhaustedD
 
 /**
  * Core-side workbench contribution that shows chat input notifications for
- * quota exhaustion and quota-related warning levels.
+ * quota exhaustion and quota-approaching thresholds.
  *
  * Listens to `IChatEntitlementService` quota change events and determines
  * whether a new threshold has been crossed, then shows the highest-priority
@@ -128,7 +95,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	private _trajectoryTreatmentInitialized = false;
 	private _activeQuotaNotificationKind = QuotaNotificationKind.None;
 	private _lastLoggedTrajectoryShownSignature: string | undefined;
-	private _activeTrajectoryWarning: QuotaTrajectoryWarning | undefined;
+	private _activeTrajectoryWarning: { averageDailyUsage: number; percentUsed: number } | undefined;
 
 	constructor(
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
@@ -302,11 +269,17 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			return;
 		}
 
-		// Priority 2: Quota warning levels
+		// Priority 2: Quota approaching threshold
 		if (isQuotaNotificationEligible) {
+			const trajectoryWarning = this._computeQuotaTrajectoryWarning();
+			if (trajectoryWarning) {
+				this._showQuotaTrajectoryWarning(trajectoryWarning);
+				return;
+			}
+
 			const quotaWarning = this._computeQuotaWarning();
 			if (quotaWarning) {
-				this._showQuotaWarning(quotaWarning);
+				this._showQuotaApproachingWarning(quotaWarning);
 				return;
 			}
 		}
@@ -321,7 +294,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		this._captureNotificationBaselines();
 	}
 
-	// --- Quota warning levels -----------------------------------------------
+	// --- Threshold crossing detection ----------------------------------------
 
 	private _captureNotificationBaselines(): void {
 		const snapshot = this._getRelevantSnapshot();
@@ -337,7 +310,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		return 100 - snapshot.percentRemaining;
 	}
 
-	private _computeQuotaWarning(): QuotaWarning | undefined {
+	private _computeQuotaWarning(): { percentUsed: number } | undefined {
 		const snapshot = this._getRelevantSnapshot();
 		if (!snapshot || snapshot.unlimited) {
 			this._prevQuotaPercentUsed = undefined;
@@ -345,27 +318,21 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		}
 
 		const percentUsed = 100 - snapshot.percentRemaining;
-		const warning = this._findQuotaWarning(percentUsed);
+		const crossed = this._findCrossedThreshold(percentUsed, this._prevQuotaPercentUsed);
 		this._prevQuotaPercentUsed = percentUsed;
-		return warning;
-	}
-
-	private _findQuotaWarning(percentUsed: number): QuotaWarning | undefined {
-		for (const level of QUOTA_NOTIFICATION_LEVELS) {
-			if (level.kind === 'trajectory') {
-				const warning = this._computeQuotaTrajectoryWarning(level, percentUsed);
-				if (warning) {
-					return warning;
-				}
-			} else if (this._hasCrossedThresholdLevel(level, percentUsed, this._prevQuotaPercentUsed)) {
-				return { kind: 'approaching', level, percentUsed: Math.floor(percentUsed) };
-			}
+		if (crossed !== undefined) {
+			return { percentUsed: Math.floor(percentUsed) };
 		}
 		return undefined;
 	}
 
-	private _computeQuotaTrajectoryWarning(level: QuotaTrajectoryNotificationLevel, percentUsed: number): QuotaTrajectoryWarning | undefined {
+	private _computeQuotaTrajectoryWarning(): { averageDailyUsage: number; percentUsed: number } | undefined {
 		if (!this._trajectoryNudgeEnabled || !this._isTrajectoryEligibleEntitlement() || this._isTrajectoryShownInCurrentPeriod()) {
+			return undefined;
+		}
+
+		const snapshot = this._getRelevantSnapshot();
+		if (!snapshot || snapshot.unlimited || snapshot.percentRemaining <= 0) {
 			return undefined;
 		}
 
@@ -385,26 +352,19 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			return undefined;
 		}
 
-		if (percentUsed <= 0 || percentUsed < level.minimumPercentUsed || percentUsed > level.maximumPercentUsed) {
+		const percentUsed = 100 - snapshot.percentRemaining;
+		if (percentUsed < TRAJECTORY_MINIMUM_PERCENT_USED || percentUsed > TRAJECTORY_MAXIMUM_PERCENT_USED) {
 			return undefined;
 		}
 
 		const averageDailyUsage = percentUsed / elapsedDays;
-		if (averageDailyUsage >= level.dailyUsageThreshold) {
-			return { kind: 'trajectory', level, averageDailyUsage, percentUsed };
+		if (averageDailyUsage >= TRAJECTORY_DAILY_USAGE_THRESHOLD) {
+			return { averageDailyUsage, percentUsed };
 		}
 		return undefined;
 	}
 
-	private _showQuotaWarning(warning: QuotaWarning): void {
-		if (warning.kind === 'trajectory') {
-			this._showQuotaTrajectoryWarning(warning);
-		} else {
-			this._showQuotaApproachingWarning(warning);
-		}
-	}
-
-	private _showQuotaTrajectoryWarning(warning: QuotaTrajectoryWarning): void {
+	private _showQuotaTrajectoryWarning(warning: { averageDailyUsage: number; percentUsed: number }): void {
 		this._showingExhausted = false;
 		this._activeQuotaNotificationKind = QuotaNotificationKind.Trajectory;
 		this._activeTrajectoryWarning = warning;
@@ -434,13 +394,13 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		await accessor.get(IOpenerService).open(URI.parse(CREDIT_EFFICIENCY_LEARN_MORE_URL));
 	}
 
-	private _handleQuotaTrajectoryNudgeLinkClicked(warning: QuotaTrajectoryWarning): void {
+	private _handleQuotaTrajectoryNudgeLinkClicked(warning: { averageDailyUsage: number; percentUsed: number }): void {
 		this._logQuotaTrajectoryNudgeLinkClicked(warning);
 		this._storeTrajectoryShown();
 		queueMicrotask(() => this._hideNotification());
 	}
 
-	private _logQuotaTrajectoryNudgeShown(warning: QuotaTrajectoryWarning): void {
+	private _logQuotaTrajectoryNudgeShown(warning: { averageDailyUsage: number; percentUsed: number }): void {
 		const resetPeriod = this._getTrajectoryPeriodKey();
 		const signature = resetPeriod ?? 'unknown';
 		if (signature === this._lastLoggedTrajectoryShownSignature) {
@@ -450,15 +410,15 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		this._telemetryService.publicLog2<ChatQuotaTrajectoryNudgeEvent, ChatQuotaTrajectoryNudgeClassification>('chatQuotaTrajectoryNudgeShown', this._getQuotaTrajectoryNudgeTelemetryData(warning));
 	}
 
-	private _logQuotaTrajectoryNudgeClosed(warning: QuotaTrajectoryWarning): void {
+	private _logQuotaTrajectoryNudgeClosed(warning: { averageDailyUsage: number; percentUsed: number }): void {
 		this._telemetryService.publicLog2<ChatQuotaTrajectoryNudgeEvent, ChatQuotaTrajectoryNudgeClassification>('chatQuotaTrajectoryNudgeClosed', this._getQuotaTrajectoryNudgeTelemetryData(warning));
 	}
 
-	private _logQuotaTrajectoryNudgeLinkClicked(warning: QuotaTrajectoryWarning): void {
+	private _logQuotaTrajectoryNudgeLinkClicked(warning: { averageDailyUsage: number; percentUsed: number }): void {
 		this._telemetryService.publicLog2<ChatQuotaTrajectoryNudgeEvent, ChatQuotaTrajectoryNudgeClassification>('chatQuotaTrajectoryNudgeLinkClicked', this._getQuotaTrajectoryNudgeTelemetryData(warning));
 	}
 
-	private _getQuotaTrajectoryNudgeTelemetryData(warning: QuotaTrajectoryWarning): ChatQuotaTrajectoryNudgeEvent {
+	private _getQuotaTrajectoryNudgeTelemetryData(warning: { averageDailyUsage: number; percentUsed: number }): ChatQuotaTrajectoryNudgeEvent {
 		return {
 			severity: 'info',
 			entitlement: ChatEntitlement[this._chatEntitlementService.entitlement],
@@ -470,17 +430,17 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	/**
 	 * Returns the highest threshold that was newly crossed, or `undefined`.
 	 */
-	private _findCrossedThresholdLevel(current: number, previous: number | undefined): QuotaApproachingNotificationLevel | undefined {
-		for (const level of QUOTA_NOTIFICATION_LEVELS) {
-			if (level.kind === 'approaching' && this._hasCrossedThresholdLevel(level, current, previous)) {
-				return level;
+	private _findCrossedThreshold(current: number, previous: number | undefined): number | undefined {
+		if (previous === undefined) {
+			return undefined;
+		}
+		for (let i = THRESHOLDS.length - 1; i >= 0; i--) {
+			const threshold = THRESHOLDS[i];
+			if (previous < threshold && current >= threshold) {
+				return threshold;
 			}
 		}
 		return undefined;
-	}
-
-	private _hasCrossedThresholdLevel(level: QuotaApproachingNotificationLevel, current: number, previous: number | undefined): boolean {
-		return previous !== undefined && previous < level.percentUsed && current >= level.percentUsed;
 	}
 
 	// --- Quota exhausted ---------------------------------------------------
@@ -547,7 +507,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	// --- Quota approaching --------------------------------------------------
 
-	private _showQuotaApproachingWarning(warning: QuotaApproachingWarning): void {
+	private _showQuotaApproachingWarning(warning: { percentUsed: number }): void {
 		this._showingExhausted = false;
 		this._activeQuotaNotificationKind = QuotaNotificationKind.None;
 		this._activeTrajectoryWarning = undefined;
@@ -612,7 +572,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			return { newPrev: undefined };
 		}
 		const percentUsed = 100 - snapshot.percentRemaining;
-		const crossed = this._findCrossedThresholdLevel(percentUsed, prevPercentUsed);
+		const crossed = this._findCrossedThreshold(percentUsed, prevPercentUsed);
 		return {
 			newPrev: percentUsed,
 			warning: crossed !== undefined
