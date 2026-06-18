@@ -192,7 +192,7 @@
 		"statusBarItem.prominentBackground": "#0069CCDD",
 		"statusBarItem.prominentForeground": "#FFFFFF",
 		"statusBarItem.prominentHoverBackground": "#0069CC",
-		"toolbar.hoverBackground": "#E3E3E5",
+		"toolbar.hoverBackground": "#0000001F",
 		"toolbar.activeBackground": "#D6D6D8",
 		"tab.activeBackground": "#FFFFFF",
 		"tab.activeForeground": "#202020",
