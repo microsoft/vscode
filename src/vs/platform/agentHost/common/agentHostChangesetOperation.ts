@@ -5,7 +5,6 @@
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import type { IDisposable } from '../../../base/common/lifecycle.js';
-import { IChangesetSubscriptionReader } from './agentHostChangesetService.js';
 import type { ChangesetKind } from './changesetUri.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
 import type { ChangesetOperation, ISessionGitState, URI } from './state/sessionState.js';
@@ -103,11 +102,6 @@ export interface IChangesetOperationContributionService extends IDisposable {
 	 * unregisters the handlers and disposes the contribution.
 	 */
 	registerContribution(contribution: IChangesetOperationContribution): IDisposable;
-	/**
-	 * Installs the read-only subscription view the service consults before computing
-	 * advertised operations.
-	 */
-	setSubscriptionReader(reader: IChangesetSubscriptionReader): void;
 	/**
 	 * Recomputes and publishes operations for the changesets for a given
 	 * session. If `gitState` is not provided, the current git state will

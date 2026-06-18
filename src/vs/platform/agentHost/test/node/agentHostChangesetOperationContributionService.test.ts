@@ -8,7 +8,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore, type IDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationHandler, IChangesetOperationRegistry } from '../../common/changesetOperation.js';
+import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationHandler, IChangesetOperationRegistry } from '../../common/agentHostChangesetOperation.js';
 import { buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../common/state/protocol/channels-changeset/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
@@ -16,6 +16,7 @@ import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetOperat
 import { AgentHostChangesetOperationContributionService } from '../../node/agentHostChangesetOperationContributionService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import type { AgentHostSessionGitStateService } from '../../node/agentHostSessionGitStateService.js';
+import { AgentHostChangesetSubscriptionService } from '../../node/agentHostChangesetSubscriptionService.js';
 
 class TestHandler implements IChangesetOperationHandler {
 	calls = 0;
@@ -72,6 +73,7 @@ suite('AgentHostChangesetOperationContributionService', () => {
 		const service = disposables.add(new AgentHostChangesetOperationContributionService(
 			stateManager,
 			{ refreshSessionGitState: async () => undefined } as unknown as AgentHostSessionGitStateService,
+			new AgentHostChangesetSubscriptionService(),
 		));
 		const handler = new TestHandler();
 		disposables.add(service.registerContribution(new TestContribution(handler)));
@@ -104,6 +106,7 @@ suite('AgentHostChangesetOperationContributionService', () => {
 		const service = disposables.add(new AgentHostChangesetOperationContributionService(
 			stateManager,
 			{ refreshSessionGitState: async () => undefined } as unknown as AgentHostSessionGitStateService,
+			new AgentHostChangesetSubscriptionService(),
 		));
 		const handler = new TestHandler();
 		disposables.add(service.registerContribution(new TestContribution(handler)));
@@ -128,6 +131,7 @@ suite('AgentHostChangesetOperationContributionService', () => {
 		const service = disposables.add(new AgentHostChangesetOperationContributionService(
 			stateManager,
 			{ refreshSessionGitState: async () => undefined } as unknown as AgentHostSessionGitStateService,
+			new AgentHostChangesetSubscriptionService(),
 		));
 		const handler = new TestHandler();
 		disposables.add(service.registerContribution(new TestContribution(handler)));
@@ -152,6 +156,7 @@ suite('AgentHostChangesetOperationContributionService', () => {
 		const service = disposables.add(new AgentHostChangesetOperationContributionService(
 			stateManager,
 			{ refreshSessionGitState: async () => undefined } as unknown as AgentHostSessionGitStateService,
+			new AgentHostChangesetSubscriptionService(),
 		));
 		const handler = new TestHandler();
 		disposables.add(service.registerContribution(new TestContribution(handler)));

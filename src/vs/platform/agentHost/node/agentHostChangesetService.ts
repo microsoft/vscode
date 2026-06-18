@@ -35,7 +35,8 @@ import { IAgentHostCheckpointService } from '../common/agentHostCheckpointServic
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
 import { computeSessionDiffs, computeTurnDiffs, type IIncrementalDiffOptions } from './sessionDiffAggregator.js';
 import { META_CHECKPOINT_WORKING_DIR } from './agentHostCheckpointService.js';
-import { IAgentHostChangesetService, IChangesetSubscriptionReader, IPersistedChangesetMetadata, IRestoredChangesetDiffs, CHANGESET_DB_METADATA_KEYS, META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS, StaticChangesetKind } from '../common/agentHostChangesetService.js';
+import { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs, CHANGESET_DB_METADATA_KEYS, META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS, StaticChangesetKind } from '../common/agentHostChangesetService.js';
+import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 
 function staticChangesetUri(session: ProtocolURI, kind: StaticChangesetKind): ProtocolURI {
 	return kind === 'branch'
@@ -137,17 +138,6 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	private static readonly _DIFF_DEBOUNCE_MS = 5000;
 
 	/**
-	 * Read-only view of changeset subscriptions, installed by
-	 * {@link ChangesetSessionCoordinator} via {@link setSubscriptionReader}.
-	 * The service consults it before scheduling any changeset recompute and
-	 * to drive {@link recomputeSubscribedChangesets}.
-	 *
-	 * Undefined until the coordinator wires it up; unwired test instances
-	 * therefore report no subscriptions and never fire recomputes.
-	 */
-	private _subscriptionReader: IChangesetSubscriptionReader | undefined;
-
-	/**
 	 * Sessions whose static changeset refresh was requested before the
 	 * working directory was known (provisional / not-yet-materialized
 	 * sessions). Drained from {@link onWorkingDirectoryAvailable} once the
@@ -167,23 +157,18 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IAgentHostCheckpointService private readonly _checkpointService: IAgentHostCheckpointService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+		@IAgentHostChangesetSubscriptionService private readonly _changesetSubscriptions: IAgentHostChangesetSubscriptionService,
 	) {
 		super();
 		this._diffComputeService = this._register(new NodeWorkerDiffComputeService(this._logService));
 	}
 
-	setSubscriptionReader(reader: IChangesetSubscriptionReader): void {
-		this._subscriptionReader = reader;
-	}
-
 	/**
 	 * Returns true when at least one client is subscribed to `changeset`
-	 * under `session`, read from the installed
-	 * {@link IChangesetSubscriptionReader}. Defaults to false when no reader
-	 * is wired up.
+	 * under `session`.
 	 */
 	private _hasSubscription(session: ProtocolURI, changeset: ProtocolURI): boolean {
-		return this._subscriptionReader?.getSessionSubscriptions(session).has(changeset) ?? false;
+		return this._changesetSubscriptions.getSessionSubscriptions(session).has(changeset);
 	}
 
 	private _hasWorkingDirectory(session: ProtocolURI): boolean {
@@ -346,14 +331,13 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	/**
-	 * Recomputes every changeset currently subscribed for `session`, read
-	 * from the installed {@link IChangesetSubscriptionReader}. Each
+	 * Recomputes every changeset currently subscribed for `session`. Each
 	 * subscribed changeset is dispatched to its kind-specific recompute; the
 	 * recomputes self-defer when the working directory is still unknown.
 	 */
 	recomputeSubscribedChangesets(session: ProtocolURI): void {
-		const subscriptions = this._subscriptionReader?.getSessionSubscriptions(session);
-		if (!subscriptions || subscriptions.size === 0) {
+		const subscriptions = this._changesetSubscriptions.getSessionSubscriptions(session);
+		if (subscriptions.size === 0) {
 			return;
 		}
 		for (const changeset of subscriptions) {

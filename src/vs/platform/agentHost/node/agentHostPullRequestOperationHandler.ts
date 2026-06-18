@@ -12,7 +12,7 @@ import { AHP_AUTH_REQUIRED, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolEr
 import { readSessionGitState, type ChangesetOperationFollowUp, type SessionState } from '../common/state/sessionState.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostGitService } from './agentHostGitService.js';
-import { type IChangesetOperationHandler } from '../common/changesetOperation.js';
+import { type IChangesetOperationHandler } from '../common/agentHostChangesetOperation.js';
 import { IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 

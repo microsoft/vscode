@@ -64,7 +64,6 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	onWorkingDirectoryAvailable(): void { /* no-op */ }
 	recomputeSubscribedChangesets(): void { /* no-op */ }
 	onSessionDisposed(): void { /* no-op */ }
-	setSubscriptionReader(): void { /* no-op */ }
 	async computeUncommittedChangeset(session: string): Promise<string> { return `${session}/changeset/uncommitted`; }
 	async computeTurnChangeset(session: string): Promise<string> { return `${session}/changeset/turn/x`; }
 	async computeCompareTurnsChangeset(session: string, originalTurnId: string, modifiedTurnId: string): Promise<string> {

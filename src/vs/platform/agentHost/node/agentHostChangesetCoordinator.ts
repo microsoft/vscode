@@ -17,8 +17,9 @@ import { IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { IAgentHostGitService } from './agentHostGitService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { ILogService } from '../../log/common/log.js';
-import { IAgentHostChangesetService, IChangesetSubscriptionReader, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS } from '../common/agentHostChangesetService.js';
-import { IChangesetOperationContributionService } from '../common/changesetOperation.js';
+import { IAgentHostChangesetService, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS } from '../common/agentHostChangesetService.js';
+import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
+import { IChangesetOperationContributionService } from '../common/agentHostChangesetOperation.js';
 
 /**
  * Raw metadata blob values for the session DB, batch-read by the caller.
@@ -28,9 +29,6 @@ import { IChangesetOperationContributionService } from '../common/changesetOpera
  */
 export type IChangesetSessionMetadata = Record<string, string | undefined>;
 
-/** Shared empty set returned for sessions with no active subscriptions. */
-const EMPTY_SUBSCRIPTIONS: ReadonlySet<string> = new Set<string>();
-
 /**
  * Coordinator that encapsulates all `AgentService`-side orchestration of
  * the changeset feature. Sits between `AgentService` (which owns session
@@ -38,29 +36,23 @@ const EMPTY_SUBSCRIPTIONS: ReadonlySet<string> = new Set<string>();
  * {@link IAgentHostChangesetService} (which owns compute / publish /
  * persist primitives).
  *
- * Owns only the subscription bookkeeping and URI routing — it exposes the
- * per-session subscription set via {@link IChangesetSubscriptionReader} and
- * forwards lifecycle signals. All computation, working-directory gating, and
- * the deferred-refresh state machine live in {@link IAgentHostChangesetService}.
+ * Owns only URI routing and forwards lifecycle signals. Subscription state is
+ * recorded in the shared changeset subscription service. All computation,
+ * working-directory gating, and the deferred-refresh state machine live in
+ * {@link IAgentHostChangesetService}.
  *
  * No per-session controllers — the cross-cutting concerns (listSessions
  * overlay, subscribe URI routing) inherently span sessions, so a single
  * coordinator with internal maps is simpler than per-session RAII.
  */
-export class ChangesetSessionCoordinator extends Disposable implements IChangesetSubscriptionReader {
-
-	/**
-	 * A map of session URIs to the set of changeset URIs for which they
-	 * have subscribers. We are using the map to track and manage these
-	 * subscriptions.
-	 */
-	private readonly _subscriptions = new Map<string, Set<string>>();
+export class AgentHostChangesetSessionCoordinator extends Disposable {
 	private readonly _changesetFileMonitor: ChangesetFileMonitorCoordinator;
 
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
 		private readonly _changesetOperationContributionService: IChangesetOperationContributionService,
 		@IAgentHostChangesetService private readonly _changesets: IAgentHostChangesetService,
+		@IAgentHostChangesetSubscriptionService private readonly _changesetSubscriptions: IAgentHostChangesetSubscriptionService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostFileMonitorService fileMonitorService: IAgentHostFileMonitorService,
 		@IAgentHostGitService gitService: IAgentHostGitService,
@@ -68,9 +60,6 @@ export class ChangesetSessionCoordinator extends Disposable implements IChangese
 	) {
 		super();
 		this._changesetFileMonitor = this._register(new ChangesetFileMonitorCoordinator(this._stateManager, this._changesets, this._configurationService, fileMonitorService, gitService, this._logService));
-
-		this._changesets.setSubscriptionReader(this);
-		this._changesetOperationContributionService.setSubscriptionReader(this);
 	}
 
 	// ---- Lifecycle hooks ----------------------------------------------------
@@ -145,7 +134,7 @@ export class ChangesetSessionCoordinator extends Disposable implements IChangese
 		this._changesets.onSessionDisposed(sessionStr);
 		this._changesetFileMonitor.onSessionDisposed(sessionStr);
 
-		this._subscriptions.delete(sessionStr);
+		this._changesetSubscriptions.clearSessionSubscriptions(sessionStr);
 	}
 
 	onSessionTurnActiveChanged(sessionStr: string, active: boolean): void {
@@ -318,34 +307,11 @@ export class ChangesetSessionCoordinator extends Disposable implements IChangese
 	}
 
 	private _addSubscription(sessionStr: string, changesetStr: string) {
-		let subscriptions = this._subscriptions.get(sessionStr);
-		if (!subscriptions) {
-			subscriptions = new Set();
-			this._subscriptions.set(sessionStr, subscriptions);
-		}
-		subscriptions.add(changesetStr);
+		this._changesetSubscriptions.addSubscription(sessionStr, changesetStr);
 	}
 
 	private _removeSubscription(sessionStr: string, changesetStr: string) {
-		const subscriptions = this._subscriptions.get(sessionStr);
-		if (!subscriptions) {
-			return;
-		}
-
-		subscriptions.delete(changesetStr);
-		if (subscriptions.size === 0) {
-			this._subscriptions.delete(sessionStr);
-		}
-	}
-
-	/**
-	 * {@link IChangesetSubscriptionReader} — exposes the set of changeset
-	 * URIs currently subscribed for `sessionStr` so the changeset service can
-	 * read the list and recompute the subscribed changesets itself. Returns
-	 * the live set (read-only view); callers must not mutate it.
-	 */
-	getSessionSubscriptions(sessionStr: string): ReadonlySet<string> {
-		return this._subscriptions.get(sessionStr) ?? EMPTY_SUBSCRIPTIONS;
+		this._changesetSubscriptions.removeSubscription(sessionStr, changesetStr);
 	}
 
 	// ---- listSessions overlay ----------------------------------------------

@@ -68,24 +68,6 @@ export interface IRestoredChangesetDiffs {
 export const IAgentHostChangesetService = createDecorator<IAgentHostChangesetService>('agentHostChangesetService');
 
 /**
- * Read-only view of the changeset subscriptions a session currently has.
- *
- * Implemented by {@link ChangesetSessionCoordinator} (which owns the
- * subscription bookkeeping) and consulted by {@link IAgentHostChangesetService}
- * to decide which changesets to (re)compute. This replaces the previous
- * opaque per-changeset boolean probe: the coordinator exposes the set of
- * subscribed changeset URIs for a session, and the service reads that list
- * and recomputes the subscribed changesets itself.
- */
-export interface IChangesetSubscriptionReader {
-	/**
-	 * Returns the set of changeset URIs currently subscribed for `session`.
-	 * Empty when the session has no active changeset subscribers.
-	 */
-	getSessionSubscriptions(session: ProtocolURI): ReadonlySet<ProtocolURI>;
-}
-
-/**
  * Owns the lifecycle of static and per-turn changesets for the agent host:
  * registers the `<session>/changeset/{uncommitted,session,turn/<id>}` URIs
  * on the state manager, runs git-driven and edit-tracker-driven diff
@@ -230,11 +212,10 @@ export interface IAgentHostChangesetService {
 
 	/**
 	 * Recomputes every changeset currently subscribed for `session`, read
-	 * from the {@link IChangesetSubscriptionReader} installed via
-	 * {@link setSubscriptionReader}. Each subscribed changeset is dispatched
-	 * to its kind-specific recompute (branch / session / uncommitted / turn);
-	 * the individual recomputes self-defer when the working directory is not
-	 * yet known. Used as the session-level refresh entry point (drain on
+	 * from the shared changeset subscription service. Each subscribed changeset
+	 * is dispatched to its kind-specific recompute (branch / session / uncommitted
+	 * / turn); the individual recomputes self-defer when the working directory is
+	 * not yet known. Used as the session-level refresh entry point (drain on
 	 * materialization, git-state change).
 	 */
 	recomputeSubscribedChangesets(session: ProtocolURI): void;
@@ -304,11 +285,4 @@ export interface IAgentHostChangesetService {
 	 */
 	onSessionTruncated(session: ProtocolURI): void;
 
-	/**
-	 * Installs the read-only subscription view the service consults before
-	 * scheduling any changeset recompute (and to drive
-	 * {@link recomputeSubscribedChangesets}). Implemented by the
-	 * {@link ChangesetSessionCoordinator}, which owns the subscription set.
-	 */
-	setSubscriptionReader(reader: IChangesetSubscriptionReader): void;
 }

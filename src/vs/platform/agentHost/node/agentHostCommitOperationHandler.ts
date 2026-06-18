@@ -9,7 +9,7 @@ import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { GITHUB_COPILOT_PROTECTED_RESOURCE, IAgentService } from '../common/agentService.js';
 import { ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
-import { type IChangesetOperationHandler } from '../common/changesetOperation.js';
+import { type IChangesetOperationHandler } from '../common/agentHostChangesetOperation.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AHP_AUTH_REQUIRED, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { readSessionGitState, type ISessionFileDiff, type SessionState } from '../common/state/sessionState.js';

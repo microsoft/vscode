@@ -20,7 +20,7 @@ import { CopilotApiError, type ICopilotApiService, type ICopilotApiServiceReques
 import { GITHUB_COPILOT_PROTECTED_RESOURCE, IAgentService } from '../../common/agentService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ChangesSummary } from '../../common/state/protocol/state.js';
-import type { IAgentHostChangesetService, IChangesetSubscriptionReader, IPersistedChangesetMetadata, IRestoredChangesetDiffs, StaticChangesetKind } from '../../common/agentHostChangesetService.js';
+import type { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs, StaticChangesetKind } from '../../common/agentHostChangesetService.js';
 
 class TestGitService implements IAgentHostGitService {
 	declare readonly _serviceBrand: undefined;
@@ -121,7 +121,6 @@ class TestChangesetService implements IAgentHostChangesetService {
 	onToolCallEditsApplied(_session: string, _turnId: string): void { }
 	onTurnComplete(_session: string, _turnId: string | undefined): void { }
 	onSessionTruncated(_session: string): void { }
-	setSubscriptionReader(_reader: IChangesetSubscriptionReader): void { }
 }
 
 function createAgentService(token: string | undefined): IAgentService {

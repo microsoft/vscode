@@ -7,7 +7,7 @@ import { disposableTimeout } from '../../../base/common/async.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
-import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationRegistry } from '../common/changesetOperation.js';
+import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationRegistry } from '../common/agentHostChangesetOperation.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetOperation } from '../common/state/sessionState.js';
 import { AgentHostPullRequestOperationHandler, type PullRequestCreatedEvent } from './agentHostPullRequestOperationHandler.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';

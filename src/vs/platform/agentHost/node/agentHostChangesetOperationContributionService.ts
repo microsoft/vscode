@@ -11,22 +11,22 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, readSessionGitState, type ChangesetOperation, type ErrorInfo, type ISessionGitState } from '../common/state/sessionState.js';
-import type { IChangesetOperationContribution, IChangesetOperationContributionService, IChangesetOperationContext, IChangesetOperationHandler, IChangesetOperationRegistry } from '../common/changesetOperation.js';
+import type { IChangesetOperationContribution, IChangesetOperationContributionService, IChangesetOperationContext, IChangesetOperationHandler, IChangesetOperationRegistry } from '../common/agentHostChangesetOperation.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { AgentHostSessionGitStateService } from './agentHostSessionGitStateService.js';
-import { IChangesetSubscriptionReader } from '../common/agentHostChangesetService.js';
+import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 
 export class AgentHostChangesetOperationContributionService extends Disposable implements IChangesetOperationContributionService {
 
 	private readonly _handlerRegistrations = this._register(new DisposableMap<IChangesetOperationContribution>());
 	private readonly _changesetOperationHandlers = new Map<string, IChangesetOperationHandler>();
 	private readonly _inFlightOperations = new Map<string, Promise<InvokeChangesetOperationResult>>();
-	private _subscriptionReader: IChangesetSubscriptionReader | undefined;
 	private readonly _registry: IChangesetOperationRegistry;
 
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
 		private readonly _sessionGitStateService: AgentHostSessionGitStateService,
+		@IAgentHostChangesetSubscriptionService private readonly _changesetSubscriptions: IAgentHostChangesetSubscriptionService,
 	) {
 		super();
 		this._registry = {
@@ -47,10 +47,6 @@ export class AgentHostChangesetOperationContributionService extends Disposable i
 		});
 	}
 
-	setSubscriptionReader(reader: IChangesetSubscriptionReader): void {
-		this._subscriptionReader = reader;
-	}
-
 	updateOperations(sessionKey: string, changeset?: string, gitState?: ISessionGitState): void {
 		if (!gitState) {
 			const sessionState = this._stateManager.getSessionState(sessionKey);
@@ -62,7 +58,7 @@ export class AgentHostChangesetOperationContributionService extends Disposable i
 
 		const changesets = changeset
 			? [changeset]
-			: this._subscriptionReader?.getSessionSubscriptions(sessionKey) ?? [];
+			: this._changesetSubscriptions.getSessionSubscriptions(sessionKey);
 
 		for (const changeset of changesets) {
 			const parsed = parseChangesetUri(changeset);
