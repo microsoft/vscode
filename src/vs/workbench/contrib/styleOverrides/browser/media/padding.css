@@ -46,6 +46,6 @@
 
 /* Tighten the part title bar gutters: flush-left, small right inset. */
 .style-override-padding.monaco-workbench .part > .title {
-	padding-left: 0;
+	padding-left: var(--vscode-spacing-size40, 4px);
 	padding-right: var(--vscode-spacing-size80, 8px);
 }

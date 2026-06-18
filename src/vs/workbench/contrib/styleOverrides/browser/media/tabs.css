@@ -113,6 +113,54 @@
 	border-bottom-width: 0 !important;
 }
 
+/*
+ * Auxiliary bar (secondary side bar) composite tabs (e.g. CHAT, EXTENSIONS).
+ * Same composite-bar action items as the panel tabs, but the active view
+ * switcher can live under `.title` or the activity-bar `.header-or-footer`
+ * depending on the activity bar position, so both locations are covered. Give
+ * them the rounded-pill look: normal case, 12px/600 type, a subtle background
+ * on the active tab and no underline indicator.
+ */
+.style-override-tabs .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item,
+.style-override-tabs .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item {
+	text-transform: none !important;
+	padding: 0 8px;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+/*
+ * The text lives in `.action-label`, which carries its own `font-size: 11px`
+ * from the base action bar styles, so the type must be set on the label itself.
+ */
+.style-override-tabs .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label,
+.style-override-tabs .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label {
+	font-size: 12px;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	line-height: 22px; /* keep consistent with other 22px title/control heights */
+}
+
+.style-override-tabs .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked,
+.style-override-tabs .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked {
+	background-color: color-mix(in srgb, var(--vscode-foreground) 10%, transparent) !important;
+}
+
+/*
+ * Drop the underline active indicator in favour of the pill background. The
+ * base rules (auxiliaryBarPart.css / paneCompositePart.css) paint the indicator
+ * with `!important` from `.part.auxiliarybar` selectors, so match their
+ * specificity (with the extra `.style-override-tabs` class winning) across the
+ * `.title` and `.header-or-footer` checked and focused states.
+ */
+.style-override-tabs .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .active-item-indicator:before,
+.style-override-tabs .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .active-item-indicator:before,
+.style-override-tabs .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .active-item-indicator:before,
+.style-override-tabs .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .active-item-indicator:before {
+	border-top-color: transparent !important;
+	border-top-width: 0 !important;
+	border-bottom-color: transparent !important;
+	border-bottom-width: 0 !important;
+}
+
 .style-override-tabs .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label a {
 	font-size: 12px;
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
