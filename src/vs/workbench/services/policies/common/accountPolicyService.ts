@@ -179,23 +179,28 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 
 	private getPolicyData(managedSettings?: ManagedSettingsData): IPolicyData | undefined {
 		const accountPolicyData = this.defaultAccountService.policyData ?? undefined;
-		const managedPolicyData = managedSettings ?? this.copilotManagedSettingsService?.managedSettings;
-		const hasManagedPolicyData = managedPolicyData && Object.keys(managedPolicyData).length > 0;
-		if (!accountPolicyData && !hasManagedPolicyData) {
+		const nativeManagedSettings = managedSettings ?? this.copilotManagedSettingsService?.managedSettings;
+		const hasNativeManagedSettings = nativeManagedSettings && Object.keys(nativeManagedSettings).length > 0;
+		if (!accountPolicyData && !hasNativeManagedSettings) {
 			return undefined;
 		}
 
 		// Managed settings arrive from two delivery channels: the server `managed_settings`
 		// endpoint (carried on `accountPolicyData`) and native MDM (the Copilot managed-settings
-		// service). Merge them — MDM overrides server — then project the result onto the schema
-		// declared by policy definitions so both channels honor the same declaration-driven keys
-		// and value types.
+		// service). These are NOT merged: at any point in time there is a single authoritative
+		// source. The server is harder to bypass than local MDM/file policies, so when the server
+		// delivers managed settings it wins outright and native MDM is ignored entirely. Native
+		// MDM only applies when the server provides no managed settings. Client-side merging still
+		// happens *within* the winning layer (e.g. enabledPlugins, extraKnownMarketplaces).
+		const serverManagedSettings = accountPolicyData?.managedSettings;
+		const hasServerManagedSettings = serverManagedSettings && Object.keys(serverManagedSettings).length > 0;
+		const winningManagedSettings = hasServerManagedSettings ? serverManagedSettings : nativeManagedSettings;
+
+		// Project the winning layer onto the schema declared by policy definitions so both
+		// channels honor the same declaration-driven keys and value types.
 		const declaredManagedSettings = collectManagedSettingsDefinitions(this.policyDefinitions);
 		const managedSettingsData = projectManagedSettings(
-			{
-				...accountPolicyData?.managedSettings,
-				...managedPolicyData,
-			},
+			{ ...winningManagedSettings },
 			declaredManagedSettings,
 			msg => this.logService.warn(`[AccountPolicy] ${msg}`)
 		);

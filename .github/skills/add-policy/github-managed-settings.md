@@ -54,18 +54,28 @@ does **not** read today (no `managed-settings.json` reader exists in `src/`).
 Both VS Code channels converge in `AccountPolicyService.getPolicyData()`:
 
 ```ts
-// MDM overrides server; then project onto the declared schema.
+// Server is authoritative when present: server managed settings win outright and
+// native MDM is ignored entirely (no merging between layers). Native MDM only applies
+// when the server provides no managed settings. Then project onto the declared schema.
+const serverManagedSettings = accountPolicyData?.managedSettings;
+const hasServerManagedSettings = serverManagedSettings && Object.keys(serverManagedSettings).length > 0;
+const winningManagedSettings = hasServerManagedSettings ? serverManagedSettings : nativeManagedSettings;
 const managedSettingsData = projectManagedSettings(
-    { ...accountPolicyData?.managedSettings, ...managedPolicyData },
+    { ...winningManagedSettings },
     collectManagedSettingsDefinitions(this.policyDefinitions),
     msg => this.logService.warn(`[AccountPolicy] ${msg}`)
 );
 return { ...accountPolicyData, managedSettings: managedSettingsData };
 ```
 
-**Merge order: native MDM (`managedPolicyData`) wins over server-delivered
-(`accountPolicyData?.managedSettings`)** — it is spread last. Then everything is
-projected onto the declared schema (see below).
+**Precedence: server-delivered managed settings win over native MDM.** There is a
+single authoritative source at any point in time — the two layers are **not** merged.
+When the server delivers managed settings, native MDM (`nativeManagedSettings`) is
+ignored entirely; native MDM applies only when the server provides no managed settings.
+Rationale: the server is harder to bypass than local MDM/file policies, and admins need
+one authoritative source to reason about. The winning layer is then projected onto the
+declared schema (see below). Client-side merging still happens *within* the winning
+layer (e.g. `enabledPlugins`, `extraKnownMarketplaces`).
 
 ## Schema source of truth
 
