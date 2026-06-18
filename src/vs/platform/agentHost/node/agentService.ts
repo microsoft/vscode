@@ -43,7 +43,7 @@ import { feedbackServerToolGroup } from './shared/agentFeedbackServerTools.js';
 import { AgentHostChangesetService } from './agentHostChangesetService.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../common/agentHostCheckpointService.js';
-import { CHANGESET_DB_METADATA_KEYS, ChangesetSessionCoordinator } from './agentHostChangesetCoordinator.js';
+import { AgentHostChangesetSessionCoordinator } from './agentHostChangesetCoordinator.js';
 import { AgentHostCompletions, IAgentHostCompletions } from './agentHostCompletions.js';
 import { AgentHostFileCompletionProvider } from './agentHostFileCompletionProvider.js';
 import { AgentHostRenameCompletionProvider } from './agentHostRenameCommand.js';
@@ -60,7 +60,9 @@ import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import { AgentHostOctoKitService, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
-import { IAgentHostChangesetService, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
+import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
+import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
+import { AgentHostChangesetSubscriptionService } from './agentHostChangesetSubscriptionService.js';
 
 /**
  * Grace period before an empty, unsubscribed session is garbage-collected
@@ -124,8 +126,10 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _sideEffects: AgentSideEffects;
 	/** Owns static / per-turn changeset compute, publish, persist, restore. */
 	private readonly _changesets: IAgentHostChangesetService;
+	/** Shared active changeset subscription registry. */
+	private readonly _changesetSubscriptions: IAgentHostChangesetSubscriptionService;
 	/** Owns AgentService-side orchestration of the changeset feature. */
-	private readonly _changesetCoordinator: ChangesetSessionCoordinator;
+	private readonly _changesetCoordinator: AgentHostChangesetSessionCoordinator;
 	/** Owns session git-state probing and git-backed catalogue decoration. */
 	private readonly _sessionGitStateService: AgentHostSessionGitStateService;
 	/** Owns changeset operation contributions and handler activation. */
@@ -247,8 +251,8 @@ export class AgentService extends Disposable implements IAgentService {
 		services.set(IAgentHostOctoKitService, agentHostOctoKitService);
 		const effectiveCopilotApiService = copilotApiService ?? instantiationService.createInstance(CopilotApiService, undefined);
 		services.set(ICopilotApiService, effectiveCopilotApiService);
+
 		this._sessionGitStateService = this._register(instantiationService.createInstance(AgentHostSessionGitStateService, this._stateManager));
-		this._changesetOperationContributionService = this._register(instantiationService.createInstance(AgentHostChangesetOperationContributionService, this._stateManager, this._sessionGitStateService));
 
 		// The checkpoint service is constructed in the outer agent-host
 		// DI scope and passed via {@link _checkpointService}; register it
@@ -256,24 +260,22 @@ export class AgentService extends Disposable implements IAgentService {
 		// side effects can resolve it via DI.
 		services.set(IAgentHostCheckpointService, this._checkpointService);
 
-		// The changeset service owns the entire static / per-turn changeset
-		// pipeline (compute, publish, persist, restore). Constructed locally
-		// rather than via `registerSingleton` to match the construction
-		// model of the rest of the agent-host node services
-		// (`AgentHostStateManager` is similarly owned by `AgentService`).
-		// `AgentHostStateManager` is passed as a plain ctor argument because
-		// it has no decorator today; the git / log / session-data services
-		// are DI-injected. Registered in the local collection BEFORE
-		// `AgentSideEffects` is constructed so its `@IAgentHostChangesetService`
-		// constructor injection resolves naturally.
+		// The subscription service manages the lifecycle of changeset subscriptions. The service
+		// is also consulted by other services when refreshing changesets and changeset operations.
+		this._changesetSubscriptions = instantiationService.createInstance(AgentHostChangesetSubscriptionService);
+		services.set(IAgentHostChangesetSubscriptionService, this._changesetSubscriptions);
+
+		// The operation contribution service manages the lifecycle of changeset operations.
+		this._changesetOperationContributionService = this._register(instantiationService.createInstance(AgentHostChangesetOperationContributionService, this._stateManager, this._sessionGitStateService));
+
+		// The changeset service is responsible for computing, publishing, and persisting changesets.
 		this._changesets = this._register(instantiationService.createInstance(AgentHostChangesetService, this._stateManager));
 		services.set(IAgentHostChangesetService, this._changesets);
 		this._register(registerDefaultChangesetOperationContributions(this._changesetOperationContributionService, instantiationService, this._stateManager));
 
-		// The coordinator owns all AgentService-side orchestration of the
-		// changeset feature: lifecycle hooks, listSessions overlay,
-		// subscription URI routing, and the deferred-refresh state machine.
-		this._changesetCoordinator = this._register(instantiationService.createInstance(ChangesetSessionCoordinator, this._stateManager, this._changesetOperationContributionService));
+		// The coordinator owns all AgentService-side orchestration of the changeset feature: lifecycle
+		// hooks, listSessions overlay, subscription URI routing, and the deferred-refresh state machine.
+		this._changesetCoordinator = this._register(instantiationService.createInstance(AgentHostChangesetSessionCoordinator, this._stateManager, this._changesetOperationContributionService));
 		this._register(this._stateManager.onDidChangeSessionActiveTurn(e => this._changesetCoordinator.onSessionTurnActiveChanged(e.session, e.active)));
 
 		this._completions = this._register(instantiationService.createInstance(AgentHostCompletions));

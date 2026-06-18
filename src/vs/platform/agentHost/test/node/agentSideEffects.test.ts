@@ -57,9 +57,13 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	restorePersistedStaticChangesets(): { session?: undefined } { return {}; }
 	persistChangesSummary(session: string, changesSummary: ChangesSummary): void { /* no-op */ }
 	isStaticChangesetComputeActive(): boolean { return false; }
+	getListMetadataKeys(_sessionUri: string): Record<string, true> | undefined { return undefined; }
+	computeListEntryChanges(_sessionUri: string, _metadata: Record<string, string | undefined>): ChangesSummary | undefined { return undefined; }
 	refreshBranchChangeset(): void { /* no-op */ }
 	refreshSessionChangeset(): void { /* no-op */ }
-	setSubscriberProbe(): void { /* no-op */ }
+	onWorkingDirectoryAvailable(): void { /* no-op */ }
+	recomputeSubscribedChangesets(): void { /* no-op */ }
+	onSessionDisposed(): void { /* no-op */ }
 	async computeUncommittedChangeset(session: string): Promise<string> { return `${session}/changeset/uncommitted`; }
 	async computeTurnChangeset(session: string): Promise<string> { return `${session}/changeset/turn/x`; }
 	async computeCompareTurnsChangeset(session: string, originalTurnId: string, modifiedTurnId: string): Promise<string> {
