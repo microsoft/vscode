@@ -252,13 +252,45 @@ export class AgentsWindow {
 	 * Send a follow-up prompt to the currently active session (after the
 	 * new-session view has been dismissed by {@link submitNewSessionPrompt}).
 	 * Waits for the send button to be enabled before clicking it.
+	 *
+	 * Pass `expectedActiveLabel` (typically the first response text of the
+	 * session you just activated via {@link activateSessionByLabel}) to also
+	 * re-verify, immediately before clicking send, that the active session
+	 * view still contains a response bubble matching that label. The Agents
+	 * Window can auto-swap the active slot to a fresh untitled session
+	 * after `activateSessionByLabel` returns; without re-checking, the send
+	 * would land in the untitled session and the follow-up never reaches
+	 * the intended conversation. When the check fails the active session is
+	 * re-activated and the prompt is re-typed before sending.
 	 */
-	async sendFollowUpMessage(prompt: string, sendButtonRetryCount: number = 600): Promise<void> {
-		await this.code.waitForElement(ACTIVE_SESSION_INPUT_EDITOR);
-		await this.code.waitAndClick(ACTIVE_SESSION_INPUT_EDITOR);
-		await this.code.waitForTypeInEditor(this.activeSessionInputSelector, prompt);
-		await this.code.waitForElement(ACTIVE_SESSION_SEND_BUTTON_ENABLED, undefined, sendButtonRetryCount);
+	async sendFollowUpMessage(prompt: string, sendButtonRetryCount: number = 600, expectedActiveLabel?: string): Promise<void> {
+		const typeAndSend = async () => {
+			await this.code.waitForElement(ACTIVE_SESSION_INPUT_EDITOR);
+			await this.code.waitAndClick(ACTIVE_SESSION_INPUT_EDITOR);
+			await this.code.waitForTypeInEditor(this.activeSessionInputSelector, prompt);
+			await this.code.waitForElement(ACTIVE_SESSION_SEND_BUTTON_ENABLED, undefined, sendButtonRetryCount);
+		};
+
+		await typeAndSend();
+
+		if (expectedActiveLabel) {
+			const stillActive = await this._activeSessionContainsResponse(expectedActiveLabel);
+			if (!stillActive) {
+				// The active slot swapped between activation and send. Re-bind
+				// and re-type the prompt before sending.
+				await this.activateSessionByLabel(expectedActiveLabel);
+				await typeAndSend();
+			}
+		}
+
 		await this.code.waitAndClick(ACTIVE_SESSION_SEND_BUTTON_ENABLED);
+	}
+
+	private async _activeSessionContainsResponse(label: string): Promise<boolean> {
+		const activeResponseSelector = `${ACTIVE_SESSION} .interactive-item-container.interactive-response .rendered-markdown`;
+		const responses = await this.code.getElements(activeResponseSelector, /* recursive */ true);
+		const needle = label.toLowerCase();
+		return (responses ?? []).some(r => (r.textContent ?? '').toLowerCase().includes(needle));
 	}
 
 	/**
@@ -364,13 +396,23 @@ export class AgentsWindow {
 		const deadline = Date.now() + timeoutMs;
 		let lastTexts: string[] = [];
 		while (Date.now() < deadline) {
+			// Look in BOTH the active session view and the broader workbench
+			// scope. The Agents Window can auto-swap the active slot to a
+			// fresh untitled session immediately after a follow-up commits,
+			// which leaves the just-arrived assistant reply visible only in
+			// the previous session's DOM (the rows haven't been recycled yet
+			// or the session lives in another non-active slot). Scoping
+			// strictly to `.session-view.is-active` would then miss the
+			// match even though the response did render. The wider scope
+			// also covers the case where the active slot is still bound to
+			// the originating session but multiple slots are present.
 			const activeResponseElements = await this.code.getElements(activeResponseSelector, /* recursive */ true);
-			lastTexts = (activeResponseElements ?? []).map(el => el.textContent || '');
-			if (lastTexts.length === 0) {
-				const markdownElements = await this.code.getElements(markdownResponseSelector, /* recursive */ true);
-				lastTexts = (markdownElements ?? []).map(el => el.textContent || '');
-			}
-			for (const text of lastTexts) {
+			const activeTexts = (activeResponseElements ?? []).map(el => el.textContent || '');
+			const markdownElements = await this.code.getElements(markdownResponseSelector, /* recursive */ true);
+			const markdownTexts = (markdownElements ?? []).map(el => el.textContent || '');
+			lastTexts = activeTexts.length ? activeTexts : markdownTexts;
+			const candidates = [...activeTexts, ...markdownTexts];
+			for (const text of candidates) {
 				if (typeof predicate === 'string' ? text.includes(predicate) : predicate.test(text)) {
 					// Give the chat session a grace period to transition out of the
 					// in-progress state before returning. The chat-request lifecycle
