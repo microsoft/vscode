@@ -47,6 +47,7 @@ interface IConfigPickerItem {
 	readonly value: string;
 	readonly label: string;
 	readonly description?: string;
+	readonly checked?: boolean;
 }
 
 function getConfigIcon(property: string, value: unknown | undefined): ThemeIcon | undefined {
@@ -96,7 +97,7 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 		detail: item.description,
 		group: { title: '', icon: getConfigIcon(property, item.value) },
 		disabled: policyRestricted && property === SessionConfigKey.AutoApprove && (item.value === 'autoApprove' || item.value === 'autopilot'),
-		item: { ...item, label: isSelectedValue(currentValue, item.value) ? `${item.label} ${localize('selected', "(Selected)")}` : item.label },
+		item: { ...item, checked: isSelectedValue(currentValue, item.value) },
 	}));
 }
 
