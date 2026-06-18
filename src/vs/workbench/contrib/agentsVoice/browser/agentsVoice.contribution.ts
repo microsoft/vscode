@@ -40,6 +40,9 @@ import {
 	VoiceDisabledClassification, VoiceDisabledEvent,
 } from '../../chat/browser/voiceClient/voiceTelemetry.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
+import { ChatAgentLocation } from '../../chat/common/constants.js';
 
 // --- Context Keys ---
 
@@ -130,6 +133,36 @@ CommandsRegistry.registerCommand('_agentsVoice.openWindow', async (accessor) => 
 	const service = accessor.get(IAgentsVoiceWindowService);
 	if (!service.isOpen) {
 		await service.openWindow();
+	}
+});
+
+// --- Mic button in Chat toolbar ---
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'agentsVoice.startVoiceInChat',
+			title: nls.localize2('agentsVoice.startVoiceInChat', "Voice Mode"),
+			icon: Codicon.mic,
+			precondition: ContextKeyExpr.equals('config.agents.voice.enabled', true),
+			menu: {
+				id: MenuId.ChatExecute,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+				),
+				group: 'navigation',
+				order: 4
+			}
+		});
+	}
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const voiceController = accessor.get(IVoiceSessionController);
+		if (voiceController.isConnected.get()) {
+			voiceController.disconnect();
+		} else {
+			await voiceController.connect(mainWindow);
+		}
 	}
 });
 

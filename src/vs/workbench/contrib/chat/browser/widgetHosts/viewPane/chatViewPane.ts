@@ -332,31 +332,21 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const controlsWrapper = append(parent, $('.voice-agent-controls-wrapper'));
 		this.createControls(controlsWrapper);
 
-		// Voice bar — integrated inside the chat input container above attachments
+		// Voice bar — hidden by default, voice is activated via mic button in toolbar.
+		// The widget is still created for PTT keybinding support and session binding.
 		this._voiceBarContainer = $('.voice-agent-bar');
-		const inputContainer = this._widget.inputPart.inputContainerElement;
-		if (inputContainer) {
-			inputContainer.prepend(this._voiceBarContainer);
-		}
+		this._voiceBarContainer.style.display = 'none';
 		this._updateVoiceBar(this._voiceBarContainer);
 
-		// Watch for size changes so we relayout when content changes
-		// (e.g. onboarding → connected, confirmations added/removed)
-		const resizeObserver = new ResizeObserver(() => {
-			if (this.lastDimensions) {
-				this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
-			}
-		});
-		resizeObserver.observe(this._voiceBarContainer);
-		this._voiceBarResizeObserver = resizeObserver;
-		this._register({ dispose: () => resizeObserver.disconnect() });
+		// Transcript overlay — shown inside the input container when voice is active
+		const inputContainerEl = this._widget.inputPart.inputContainerElement;
+		if (inputContainerEl) {
+			this._setupVoiceTranscriptOverlay(inputContainerEl);
+		}
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('agents.voice.enabled')) {
 				this._updateVoiceBar(this._voiceBarContainer!);
-				if (this.lastDimensions) {
-					this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
-				}
 			}
 		}));
 
@@ -386,7 +376,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	//#region Voice Agent Bar
 
 	private _voiceBarContainer: HTMLElement | undefined;
-	private _voiceBarResizeObserver: ResizeObserver | undefined;
 	private readonly _voiceBarDisposables = this._register(new DisposableStore());
 
 	private _updateVoiceBar(container: HTMLElement): void {
@@ -427,10 +416,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private createVoiceAgentBar(parent: HTMLElement): void {
 		const bar = append(parent, $('.voice-agent-bar'));
 		const win = getWindow(bar) as Window & typeof globalThis;
-
-		// Also observe the inner bar — its content changes (onboarding →
-		// connected) before the outer wrapper resizes.
-		this._voiceBarResizeObserver?.observe(bar);
 
 		const widget = new AgentsVoiceWidget(bar, {
 			copilotIconSrc: FileAccess.asBrowserUri('vs/sessions/browser/media/sessions-icon.svg').toString(true),
@@ -536,73 +521,69 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			chatService: this.chatService,
 		}));
 
-		// Transcript overlay — rendered inside the input container, covering the
-		// editor when voice is actively transcribing.
-		const inputContainerEl = this._widget.inputPart.inputContainerElement;
-		if (inputContainerEl) {
-			inputContainerEl.style.position = 'relative';
-			const transcriptOverlay = $('.voice-transcript-overlay');
-			transcriptOverlay.style.cssText = 'display:none;position:absolute;inset:0;z-index:10;padding:6px 12px;font-size:13px;line-height:1.4;word-break:break-word;overflow:hidden;pointer-events:none;background:var(--vscode-input-background, transparent);';
-			inputContainerEl.append(transcriptOverlay);
-
-			const style = document.createElement('style');
-			style.textContent = `
-				@keyframes voiceTextPulse { 0%,100%{opacity:0.9} 50%{opacity:0.4} }
-				.voice-transcript-overlay .committed { color: var(--vscode-foreground); }
-				.voice-transcript-overlay .partial { color: var(--vscode-foreground); opacity:0.6; font-style:italic; animation: voiceTextPulse 1.5s ease-in-out infinite; }
-				.voice-transcript-overlay .assistant-text { color: var(--vscode-descriptionForeground); display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
-			`;
-			transcriptOverlay.append(style);
-
-			this._voiceBarDisposables.add(autorun(reader => {
-				const turns = this.voiceSessionController.transcriptTurns.read(reader);
-				const connected = this.voiceSessionController.isConnected.read(reader);
-				const visible = turns.filter(t => t.text.length > 0 || (t.speaker === 'user' && t.isPartial));
-
-				if (!connected || visible.length === 0) {
-					transcriptOverlay.style.display = 'none';
-					return;
-				}
-
-				transcriptOverlay.style.display = '';
-				// Clear and rebuild content
-				const contentElements: HTMLElement[] = [];
-				for (const turn of visible) {
-					if (turn.speaker === 'user') {
-						const span = $('span');
-						if (turn.isPartial) {
-							const committedPart = turn.committed || '';
-							const unsurePart = turn.text.slice(committedPart.length);
-							if (committedPart) {
-								const c = $('span.committed');
-								c.textContent = committedPart;
-								span.append(c);
-							}
-							const u = $('span.partial');
-							u.textContent = unsurePart + '\u2589';
-							span.append(u);
-						} else {
-							span.className = 'committed';
-							span.textContent = turn.text;
-						}
-						contentElements.push(span);
-					} else {
-						const div = $('div.assistant-text');
-						div.textContent = turn.text;
-						contentElements.push(div);
-					}
-				}
-				// Keep the style element, replace content
-				while (transcriptOverlay.childNodes.length > 1) {
-					transcriptOverlay.removeChild(transcriptOverlay.lastChild!);
-				}
-				for (const el of contentElements) {
-					transcriptOverlay.append(el);
-				}
-			}));
-		}
-
 		this._voiceBarDisposables.add({ dispose: () => { this.voiceSessionController.disconnect(); } });
+	}
+
+	private _setupVoiceTranscriptOverlay(inputContainerEl: HTMLElement): void {
+		inputContainerEl.style.position = 'relative';
+		const transcriptOverlay = $('.voice-transcript-overlay');
+		transcriptOverlay.style.cssText = 'display:none;position:absolute;inset:0;z-index:10;padding:6px 12px;font-size:13px;line-height:1.4;word-break:break-word;overflow:hidden;pointer-events:none;background:var(--vscode-input-background, transparent);border-radius:inherit;';
+		inputContainerEl.append(transcriptOverlay);
+
+		const style = document.createElement('style');
+		style.textContent = `
+			@keyframes voiceTextPulse { 0%,100%{opacity:0.9} 50%{opacity:0.4} }
+			.voice-transcript-overlay .committed { color: var(--vscode-foreground); }
+			.voice-transcript-overlay .partial { color: var(--vscode-foreground); opacity:0.6; font-style:italic; animation: voiceTextPulse 1.5s ease-in-out infinite; }
+			.voice-transcript-overlay .assistant-text { color: var(--vscode-descriptionForeground); display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+		`;
+		transcriptOverlay.append(style);
+
+		this._register(autorun(reader => {
+			const turns = this.voiceSessionController.transcriptTurns.read(reader);
+			const connected = this.voiceSessionController.isConnected.read(reader);
+			const visible = turns.filter(t => t.text.length > 0 || (t.speaker === 'user' && t.isPartial));
+
+			if (!connected || visible.length === 0) {
+				transcriptOverlay.style.display = 'none';
+				return;
+			}
+
+			transcriptOverlay.style.display = '';
+			const contentElements: HTMLElement[] = [];
+			for (const turn of visible) {
+				if (turn.speaker === 'user') {
+					const span = $('span');
+					if (turn.isPartial) {
+						const committedPart = turn.committed || '';
+						const unsurePart = turn.text.slice(committedPart.length);
+						if (committedPart) {
+							const c = $('span.committed');
+							c.textContent = committedPart;
+							span.append(c);
+						}
+						const u = $('span.partial');
+						u.textContent = unsurePart + '\u2589';
+						span.append(u);
+					} else {
+						span.className = 'committed';
+						span.textContent = turn.text;
+					}
+					contentElements.push(span);
+				} else {
+					const div = $('div.assistant-text');
+					div.textContent = turn.text;
+					contentElements.push(div);
+				}
+			}
+			// Keep the style element, replace content
+			while (transcriptOverlay.childNodes.length > 1) {
+				transcriptOverlay.removeChild(transcriptOverlay.lastChild!);
+			}
+			for (const el of contentElements) {
+				transcriptOverlay.append(el);
+			}
+		}));
 	}
 
 	//#endregion
