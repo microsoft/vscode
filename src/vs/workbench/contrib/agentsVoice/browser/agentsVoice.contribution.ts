@@ -163,13 +163,8 @@ registerAction2(class extends Action2 {
 			console.log('[AgentsVoice] disconnecting...');
 			voiceController.disconnect();
 		} else {
-			console.log('[AgentsVoice] connecting...');
-			try {
-				await voiceController.connect(mainWindow);
-				console.log('[AgentsVoice] connect resolved, isConnected:', voiceController.isConnected.get());
-			} catch (e) {
-				console.error('[AgentsVoice] connect failed:', e);
-			}
+			console.log('[AgentsVoice] simulating connection (backend down)...');
+			voiceController.simulateConnection();
 		}
 	}
 });

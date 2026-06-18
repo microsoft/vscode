@@ -103,6 +103,9 @@ export interface IVoiceSessionController {
 	 * client state, environment info). Returns success/failure.
 	 */
 	submitFeedback(feedbackText: string): Promise<{ ok: boolean; error?: string }>;
+
+	/** DEV ONLY: Simulate a connected session with fake transcript for UI testing. */
+	simulateConnection(): void;
 }
 
 export const IVoiceSessionController = createDecorator<IVoiceSessionController>('voiceSessionController');
@@ -1015,6 +1018,43 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._pendingPriorTimeline = [];
 		this._stopReplay();
 		this._sessionAudioCache.clear();
+	}
+
+	/** DEV ONLY: Simulate a connected session with fake transcript for UI testing. */
+	simulateConnection(): void {
+		this._isConnected.set(true, undefined);
+		this._isConnecting.set(false, undefined);
+		this._voiceState.set('idle', undefined);
+		this._statusText.set('Hold to speak...', undefined);
+
+		// Simulate a user speaking after 1s
+		setTimeout(() => {
+			if (!this._isConnected.get()) { return; }
+			this._voiceState.set('listening', undefined);
+			this._transcriptTurns.set([{ speaker: 'user', text: 'Create a', committed: '', isPartial: true }], undefined);
+		}, 1000);
+
+		// Partial grows
+		setTimeout(() => {
+			if (!this._isConnected.get()) { return; }
+			this._transcriptTurns.set([{ speaker: 'user', text: 'Create a new React component', committed: 'Create a ', isPartial: true }], undefined);
+		}, 2000);
+
+		// Final user turn
+		setTimeout(() => {
+			if (!this._isConnected.get()) { return; }
+			this._transcriptTurns.set([{ speaker: 'user', text: 'Create a new React component for the dashboard', committed: 'Create a new React component for the dashboard', isPartial: false }], undefined);
+			this._voiceState.set('idle', undefined);
+		}, 3000);
+
+		// Assistant response
+		setTimeout(() => {
+			if (!this._isConnected.get()) { return; }
+			this._transcriptTurns.set([
+				{ speaker: 'user', text: 'Create a new React component for the dashboard', committed: 'Create a new React component for the dashboard', isPartial: false },
+				{ speaker: 'assistant', text: 'I\'ll create a Dashboard component with some widgets...', committed: '', isPartial: false },
+			], undefined);
+		}, 4500);
 	}
 
 	private _onConnectionLost(): void {
