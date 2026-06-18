@@ -63,11 +63,6 @@
 	z-index: 10;
 }
 
-.style-override-scrollShadows .monaco-list > .monaco-scrollable-element::before {
-	top: 0;
-	background: linear-gradient(to bottom, var(--scroll-shadow-surface), transparent);
-}
-
 .style-override-scrollShadows .monaco-list > .monaco-scrollable-element::after {
 	bottom: 0;
 	background: linear-gradient(to top, var(--scroll-shadow-surface), transparent);
