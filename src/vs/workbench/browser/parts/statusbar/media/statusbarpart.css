@@ -98,6 +98,7 @@
 	cursor: pointer;
 	display: flex;
 	height: 100%;
+	line-height: 1; /* override inherited 22px so that align-items:center can vertically center text alongside codicons */
 	margin-right: 3px;
 	margin-left: 3px;
 	padding: 0 5px;
