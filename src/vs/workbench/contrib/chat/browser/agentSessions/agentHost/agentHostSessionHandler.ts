@@ -46,7 +46,7 @@ import {
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
 import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestion, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind, formatCopilotCredits, type IChatMultiSelectAnswer, type IChatQuestionAnswerValue, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
-import { ChatEntitlement, IChatEntitlementService, type IQuotaSnapshot } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { IChatEntitlementService, isProUser, type IQuotaSnapshot } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
@@ -143,6 +143,7 @@ interface IRawQuotaSnapshot {
 	readonly overage?: number;
 	readonly overageAllowedWithExhaustedQuota?: boolean;
 	readonly usageAllowedWithExhaustedQuota?: boolean;
+	readonly hasQuota?: boolean;
 	readonly resetDate?: string;
 }
 /**
@@ -550,17 +551,24 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		const record = snapshots as Record<string, IRawQuotaSnapshot | undefined>;
 		const entitlement = this._chatEntitlementService.entitlement;
-		const isFree = entitlement === ChatEntitlement.Unknown || entitlement === ChatEntitlement.Free;
+		// Paid plans draw down premium interactions; everyone else (signed out,
+		// unresolved, Free-eligible, or signed-up Free) is tracked under `chat`.
+		const isFree = !isProUser(entitlement);
 		const raw = isFree ? record['chat'] : (record['premium_interactions'] ?? record['premium_models']);
 		if (!raw) {
 			return;
 		}
 
 		const entitlementCount = raw.entitlementRequests;
+		const unlimited = raw.isUnlimitedEntitlement ?? entitlementCount === -1;
+		const percentRemaining = Math.max(0, Math.min(100, raw.remainingPercentage ?? 0));
 		const snapshot: IQuotaSnapshot = {
-			percentRemaining: raw.remainingPercentage ?? 0,
-			unlimited: raw.isUnlimitedEntitlement ?? entitlementCount === -1,
-			hasQuota: (raw.isUnlimitedEntitlement ?? false) || (raw.remainingPercentage ?? 0) > 0,
+			percentRemaining,
+			unlimited,
+			// Prefer the server's authoritative `hasQuota` (an "unlimited" plan can
+			// still be blocked, e.g. exhausted Business/Enterprise); fall back to a
+			// derivation only when it is absent.
+			hasQuota: raw.hasQuota ?? (unlimited || percentRemaining > 0),
 			entitlement: typeof entitlementCount === 'number' && Number.isFinite(entitlementCount) ? entitlementCount : undefined,
 		};
 

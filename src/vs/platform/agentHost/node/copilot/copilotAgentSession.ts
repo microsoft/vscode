@@ -452,6 +452,13 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private _latestUsage: UsageInfo | undefined;
 	private _latestUsageTurnId = '';
+	/**
+	 * Guards against overlapping {@link _fetchAndEmitQuota} calls: `assistant.usage`
+	 * can fire multiple times per turn (e.g. per model call / sub-agent), so we
+	 * collapse concurrent `account.getQuota` fetches into one. The follow-up emit
+	 * always re-reads {@link _latestUsage}, so a skipped fetch loses no data.
+	 */
+	private _quotaFetchInFlight = false;
 	/** Bridges SDK-reported MCP server state into AHP customization actions. */
 	private readonly _mcpCustomizations: McpCustomizationController;
 
@@ -590,11 +597,18 @@ export class CopilotAgentSession extends Disposable {
 	 * and dedupes the unchanged token totals.
 	 */
 	private async _fetchAndEmitQuota(sessionId: string): Promise<void> {
+		// Collapse bursts of usage events into a single in-flight fetch.
+		if (this._quotaFetchInFlight) {
+			return;
+		}
+		this._quotaFetchInFlight = true;
 		let quotaSnapshots: Record<string, unknown> | undefined;
 		try {
 			quotaSnapshots = await this._fetchQuotaSnapshots?.();
 		} catch (error) {
-			this._logService.warn(`[Copilot:${sessionId}] account.getQuota failed: ${error}`);
+			this._logService.warn(`[Copilot:${sessionId}] account.getQuota failed`, error);
+		} finally {
+			this._quotaFetchInFlight = false;
 		}
 
 		const latest = this._latestUsage;
