@@ -1142,5 +1142,38 @@
 			"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE",
 			"SOFTWARE"
 		]
+	},
+	{
+		// Reason: linux-keyutils@0.2.4 declares "Apache-2.0 OR MIT" but its repo
+		// (github.com/landhb/linux-keyutils) ships NO license file — only Cargo.toml
+		// declares the SPDX expression. CG emits the SPDX string as the body (a stub)
+		// and the Cargo scanner can't fetch real text (no LICENSE at any ref). OR =
+		// our choice; we supply the canonical MIT text (the shortest option). Author
+		// is "landhb" (no real name documented); no explicit copyright holder exists
+		// in any upstream license file, so we credit the documented crate author.
+		"name": "linux-keyutils",
+		"fullLicenseText": [
+			"MIT License",
+			"",
+			"Copyright (c) landhb",
+			"",
+			"Permission is hereby granted, free of charge, to any person obtaining a copy",
+			"of this software and associated documentation files (the \"Software\"), to deal",
+			"in the Software without restriction, including without limitation the rights",
+			"to use, copy, modify, merge, publish, distribute, sublicense, and/or sell",
+			"copies of the Software, and to permit persons to whom the Software is",
+			"furnished to do so, subject to the following conditions:",
+			"",
+			"The above copyright notice and this permission notice shall be included in all",
+			"copies or substantial portions of the Software.",
+			"",
+			"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR",
+			"IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,",
+			"FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE",
+			"AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER",
+			"LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,",
+			"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE",
+			"SOFTWARE"
+		]
 	}
 ]

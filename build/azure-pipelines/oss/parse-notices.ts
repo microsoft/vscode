@@ -20,6 +20,15 @@ export interface NoticeEntry {
 	licenseTextLength: number;
 	/** 1-indexed line number in the source file where this entry's header appears */
 	lineNumber: number;
+	/**
+	 * The license body text, captured between this entry's header and the next
+	 * separator, with a single leading URL line stripped (matching how the merge
+	 * step splits url vs. body). Used by Section 4 of scan-licenses.ts to detect
+	 * CG "stub" bodies (where CG emitted the SPDX expression as the body instead
+	 * of the real license text). Optional so existing callers that only need
+	 * names/lengths are unaffected.
+	 */
+	licenseText?: string;
 }
 
 /**
@@ -135,14 +144,31 @@ export function parseNoticeFile(filePath: string): NoticeEntry[] {
 			}
 		}
 
-		// Measure license text length (everything until next separator)
+		// Measure license text length (everything until next separator) and
+		// capture the body slice. The body strips a single leading URL line so
+		// stub detection sees the license text, not the repo link (mirrors how
+		// merge-notices.ts splits url vs. licenseText).
 		let textLength = 0;
+		const bodyLines: string[] = [];
 		for (let j = headerIdx + 1; j < lines.length; j++) {
 			if (sepRe.test(lines[j].trim())) {
 				break;
 			}
 			textLength += lines[j].length + 1;
+			bodyLines.push(lines[j]);
 		}
+
+		// Drop leading blank lines, then a single leading URL line if present.
+		while (bodyLines.length > 0 && !bodyLines[0].trim()) {
+			bodyLines.shift();
+		}
+		if (bodyLines.length > 0) {
+			const first = bodyLines[0].trim();
+			if (first.startsWith('http://') || first.startsWith('https://')) {
+				bodyLines.shift();
+			}
+		}
+		const licenseText = bodyLines.join('\n').trim();
 
 		entries.push({
 			name,
@@ -150,6 +176,7 @@ export function parseNoticeFile(filePath: string): NoticeEntry[] {
 			license,
 			licenseTextLength: textLength,
 			lineNumber: headerIdx + 1, // 1-indexed
+			licenseText,
 		});
 	}
 

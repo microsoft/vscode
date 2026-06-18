@@ -18,6 +18,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import * as https from 'https';
 import { fetchUriText } from './apply-overrides.js';
 import { parseNoticeFile } from './parse-notices.js';
 
@@ -95,7 +96,7 @@ function githubRawLicenseCandidates(repositoryUrl: string, commitHash: string): 
  * path (e.g. "../../LICENSE-MIT") is rejected — raw.githubusercontent serves a
  * symlink's target string, not the file it points at.
  */
-async function fetchLicenseFromGitRepo(repositoryUrl: string, commitHash: string): Promise<string | undefined> {
+export async function fetchLicenseFromGitRepo(repositoryUrl: string, commitHash: string): Promise<string | undefined> {
 	if (!repositoryUrl || !commitHash) {
 		return undefined;
 	}
@@ -108,6 +109,337 @@ async function fetchLicenseFromGitRepo(repositoryUrl: string, commitHash: string
 		// Reject symlink-target stubs (short relative paths) and empty bodies.
 		if (trimmed.length > 40 && !/^\.{1,2}\//.test(trimmed)) {
 			return trimmed;
+		}
+	}
+	return undefined;
+}
+
+// =============================================================================
+// SECTION 4 helpers: Rust crate (Cargo.lock) harvesting.
+//
+// These are exported so they can be unit-tested without running main() (see the
+// entry-point guard at the bottom of this file, mirroring parse-notices.ts).
+// =============================================================================
+
+/** The User-Agent crates.io requires — it rejects requests without a descriptive one. */
+const CRATES_IO_USER_AGENT = 'vscode-oss-scanner';
+
+export interface CrateInfo {
+	crate: { id: string; repository: string };
+	versions: Array<{ num: string; license: string }>;
+}
+
+export interface CargoPackage {
+	name: string;
+	version: string;
+	source?: string;
+}
+
+/**
+ * Hand-rolled parser for Cargo.lock `[[package]]` blocks. We only need three
+ * fields (name, version, source), the format is stable, and the `oss/` dir has
+ * no package.json — so we avoid adding a `toml` dependency (spec Q4).
+ *
+ * Packages with no `source` are first-party workspace crates (e.g. the CLI
+ * itself), not third-party OSS — callers skip those.
+ */
+export function parseCargoLock(content: string): CargoPackage[] {
+	const packages: CargoPackage[] = [];
+	// Split on the [[package]] table header. Each block holds key = "value" lines.
+	const blocks = content.split(/^\s*\[\[package\]\]\s*$/m);
+	// blocks[0] is the file preamble (version = 3, etc.) — skip it.
+	for (let i = 1; i < blocks.length; i++) {
+		const block = blocks[i];
+		let name = '';
+		let version = '';
+		let source: string | undefined;
+		for (const rawLine of block.split('\n')) {
+			const line = rawLine.trim();
+			// Stop at the start of the next table (e.g. [[patch]] or [metadata]).
+			if (line.startsWith('[')) {
+				break;
+			}
+			const m = line.match(/^(name|version|source)\s*=\s*"([^"]*)"/);
+			if (!m) {
+				continue;
+			}
+			if (m[1] === 'name') {
+				name = m[2];
+			} else if (m[1] === 'version') {
+				version = m[2];
+			} else {
+				source = m[2];
+			}
+		}
+		if (name && version) {
+			packages.push({ name, version, source });
+		}
+	}
+	return packages;
+}
+
+/**
+ * Resolve a crate's canonical GitHub repo URL. Some crates.io `repository`
+ * fields are wrong or point at non-GitHub mirrors; this ports the legacy
+ * override map (distro-tools/lib/cargo.ts getRepository) verbatim and falls
+ * back to the crates.io-reported repository otherwise.
+ */
+export function getCrateRepository(info: CrateInfo): string {
+	switch (info.crate.id) {
+		case 'isatty': return 'https://github.com/dtolnay/isatty';
+		case 'redox_syscall': return 'https://github.com/redox-os/syscall';
+		case 'redox_termios': return 'https://github.com/redox-os/termios';
+		case 'termion': return 'https://github.com/redox-os/termion';
+		default: return info.crate.repository || '';
+	}
+}
+
+/**
+ * Ordered list of git refs to try when pinning a crate's license fetch. Tag
+ * conventions vary across crates, so we try the common version-tag shapes first
+ * (reproducible, immutable), then fall back to the repo default branch
+ * (parity-acceptable — the legacy tool fetched unpinned from the default
+ * branch). See spec Q1.
+ */
+export function crateLicenseRefs(name: string, version: string): string[] {
+	return [
+		`v${version}`,
+		`${version}`,
+		`${name}-v${version}`,
+		`${name}-${version}`,
+		'main',
+		'master',
+	];
+}
+
+/**
+ * Detect a CG "stub" license body: a body that is just an SPDX license
+ * expression (e.g. "Zlib OR Apache-2.0 OR MIT" or the deprecated slash form
+ * "MIT/Apache-2.0") rather than real license text. Five gates, ALL must pass —
+ * the combination makes a false positive require a body that is simultaneously
+ * tiny, single-line, SPDX-shaped, and prose-free, which is the definition of a
+ * stub. See spec section 4.
+ */
+export function isSpdxStub(body: string): boolean {
+	const trimmed = (body || '').trim();
+	if (!trimmed) {
+		return false;
+	}
+	// Gate 1: length — SPDX expressions are tiny; real licenses are long.
+	if (trimmed.length > 120) {
+		return false;
+	}
+	// Gate 2: single logical line — real license texts are multi-line.
+	if (trimmed.split(/\n/).filter(l => l.trim()).length > 1) {
+		return false;
+	}
+	// Gate 4 (checked before the regex): no license-prose words. A real license
+	// always has at least one; an SPDX stub never does. (Case-insensitive.)
+	// allow-any-unicode-next-line
+	if (/copyright|permission|redistribution|warranty|\(c\)|©/i.test(trimmed)) {
+		return false;
+	}
+	// Gate 3: SPDX-expression shape. Tokens separated by uppercase OR/AND/WITH
+	// operators OR the deprecated "/" disjunction (e.g. winapi's "MIT/Apache-2.0").
+	// Operators are case-sensitive (uppercase) — this is what separates an SPDX
+	// expression from prose like "Permission is granted...". Parens are stripped
+	// first (mirroring gate 5) so compound expressions with INTERNAL parens like
+	// "(MIT OR Apache-2.0) AND BSD-3-Clause" (e.g. encoding_rs) are still detected.
+	const deparen = trimmed.replace(/[()]/g, ' ').replace(/\s+/g, ' ').trim();
+	const spdxShape = /^[A-Za-z0-9.+-]+(?:\s*(?:\/|\s+(?:OR|AND|WITH)\s+)\s*[A-Za-z0-9.+-]+)*$/;
+	if (!spdxShape.test(deparen)) {
+		return false;
+	}
+	// Gate 5: token sanity — every non-operator/non-separator token must contain
+	// a letter (guards against a punctuation-only body sneaking through).
+	const tokens = trimmed
+		.replace(/[()]/g, ' ')
+		.split(/\s*\/\s*|\s+(?:OR|AND|WITH)\s+/)
+		.map(t => t.trim())
+		.filter(t => t.length > 0);
+	if (tokens.length === 0 || !tokens.every(t => /[A-Za-z]/.test(t))) {
+		return false;
+	}
+	return true;
+}
+
+/**
+ * GET https://crates.io/api/v1/crates/<name> with the required User-Agent.
+ * fetchUriText() can't set headers, so we use a small dedicated fetcher here.
+ * Resolves undefined on any failure (caller logs + continues — never crashes).
+ */
+export function fetchCratesIoJson(name: string, timeoutMs = 10_000): Promise<CrateInfo | undefined> {
+	return new Promise(resolve => {
+		const options: https.RequestOptions = {
+			host: 'crates.io',
+			path: `/api/v1/crates/${encodeURIComponent(name)}`,
+			headers: { 'User-Agent': CRATES_IO_USER_AGENT, 'Accept': 'application/json' },
+			timeout: timeoutMs,
+		};
+		const req = https.get(options, res => {
+			if (res.statusCode !== 200) {
+				res.resume();
+				resolve(undefined);
+				return;
+			}
+			let data = '';
+			res.setEncoding('utf8');
+			res.on('data', chunk => data += chunk);
+			res.on('end', () => {
+				try {
+					resolve(JSON.parse(data) as CrateInfo);
+				} catch {
+					resolve(undefined);
+				}
+			});
+		});
+		req.on('error', () => resolve(undefined));
+		req.on('timeout', () => { req.destroy(); resolve(undefined); });
+	});
+}
+
+/**
+ * Run async tasks with a small concurrency cap (crates.io asks crawlers to be
+ * gentle). Order of results is not significant — each task mutates shared state.
+ */
+async function runWithConcurrency(tasks: Array<() => Promise<void>>, limit: number): Promise<void> {
+	let next = 0;
+	const workers: Promise<void>[] = [];
+	const worker = async (): Promise<void> => {
+		while (next < tasks.length) {
+			const idx = next++;
+			await tasks[idx]();
+		}
+	};
+	for (let i = 0; i < Math.min(limit, tasks.length); i++) {
+		workers.push(worker());
+	}
+	await Promise.all(workers);
+}
+
+/** Extract {owner, repo} from a GitHub repository URL, or undefined if not GitHub. */
+function githubOwnerRepo(repositoryUrl: string): { owner: string; repo: string } | undefined {
+	const m = repositoryUrl.match(/github\.com[/:]([^/]+)\/([^/#?]+?)(?:\.git)?(?:[/#?].*)?$/i);
+	return m ? { owner: m[1], repo: m[2] } : undefined;
+}
+
+/**
+ * A fetched body counts as a real license only if it is long enough, is not a
+ * symlink-target stub (a short relative path), and is not an aggregate "pointer"
+ * doc — e.g. objc2's LICENSE.md which just links to ./LICENSE-MIT.txt etc.
+ * rather than containing actual license text.
+ */
+function isRealLicenseBody(text: string): boolean {
+	const t = text.trim();
+	if (t.length <= 40) {
+		return false;
+	}
+	if (/^\.{1,2}\//.test(t)) {
+		return false;
+	}
+	// Pointer/aggregate docs reference other license files by relative path.
+	if (/\.\/LICENSE/i.test(t)) {
+		return false;
+	}
+	// Aggregate "# License" pointer docs (e.g. objc2's LICENSE.md) start with a
+	// markdown License heading and explain a multi-license choice / link to the
+	// real per-license files, rather than being actual license text. Real
+	// licenses start with "MIT License", "Copyright", "Apache License",
+	// "Permission...", etc. — never a "# License" heading — so this is safe.
+	if (/^#+\s*licen[sc]e\b/i.test(t) && /at your option|licensing (of|in)|\bLICENSE-[A-Z]/i.test(t)) {
+		return false;
+	}
+	return true;
+}
+
+/** Common `LICENSE-<X>` filename stems for well-known SPDX ids. */
+const SPDX_LICENSE_FILENAMES: { [id: string]: string[] } = {
+	'MIT': ['LICENSE-MIT', 'LICENSE-MIT.txt', 'LICENSE-MIT.md'],
+	'APACHE-2.0': ['LICENSE-APACHE', 'LICENSE-APACHE.txt', 'LICENSE-APACHE.md'],
+	'ZLIB': ['LICENSE-ZLIB', 'LICENSE-ZLIB.txt'],
+	'UNLICENSE': ['UNLICENSE', 'UNLICENSE.txt', 'LICENSE-UNLICENSE'],
+	'BSD-3-CLAUSE': ['LICENSE-BSD', 'LICENSE-BSD3', 'LICENSE-BSD-3-Clause'],
+	'BSD-2-CLAUSE': ['LICENSE-BSD', 'LICENSE-BSD2'],
+	'MPL-2.0': ['LICENSE-MPL', 'LICENSE-MPL-2.0', 'LICENSE-MPL2'],
+};
+
+/** Split an SPDX expression into its license ids (drop OR/AND/WITH and `/`). */
+export function spdxLicenseIds(expr: string): string[] {
+	const ids: string[] = [];
+	for (const raw of (expr || '').split(/\s*\/\s*|\s+(?:OR|AND|WITH)\s+/)) {
+		const id = raw.replace(/[()]/g, '').trim();
+		if (id.length > 0 && /[A-Za-z]/.test(id) && ids.indexOf(id) === -1) {
+			ids.push(id);
+		}
+	}
+	return ids;
+}
+
+/**
+ * Detect a conjunctive (`AND`) SPDX expression — one where ALL named licenses
+ * are legally required, not the licensee's choice. For `OR` it's fine to emit a
+ * single license's text (we pick one); for `AND` emitting only one produces a
+ * legally deficient notice. We tokenize on the `AND` operator (case-sensitive,
+ * matching the SPDX grammar and isSpdxStub gate 3). Parens are irrelevant to
+ * presence detection — an `AND` anywhere makes at least one conjunction.
+ */
+export function hasSpdxAnd(expr: string): boolean {
+	return /\bAND\b/.test(expr || '');
+}
+
+/** Candidate file paths (relative to repo root) for a given SPDX license id. */
+function licenseFileCandidates(id: string): string[] {
+	const up = id.toUpperCase();
+	const out: string[] = [];
+	if (SPDX_LICENSE_FILENAMES[up]) {
+		out.push(...SPDX_LICENSE_FILENAMES[up]);
+	}
+	// REUSE-style LICENSES/ directory uses the exact SPDX id (case-sensitive).
+	out.push(`LICENSES/${id}.txt`, `LICENSES/${id}`, `LICENSE-${up}`, `LICENSE-${up}.txt`);
+	return out;
+}
+
+/**
+ * Fetch the real license text for a Rust crate. Unlike the generic Section 3
+ * fetcher, this is SPDX-id-driven: it uses the crate's license expression to
+ * target the per-license files (LICENSE-MIT, LICENSES/Apache-2.0.txt, …) so it
+ * gets the ACTUAL license text for the chosen license instead of an aggregate
+ * pointer doc (e.g. objc2's LICENSE.md).
+ *
+ * IMPORTANT — disjunctive vs conjunctive: this returns the FIRST SPDX id that
+ * yields a real file. For `OR` expressions that is legally correct (the
+ * licensee chooses one license). For `AND` expressions ALL named licenses are
+ * legally required, so a single body is an INCOMPLETE notice — we do NOT yet
+ * concatenate all of them, so the caller must warn loudly (see hasSpdxAnd at
+ * the call site) until proper multi-text concatenation lands. None of today's
+ * target crates use `AND`. Falls back to the generic LICENSE/COPYING fetcher
+ * (pointer-rejected) for single-file-licensed crates.
+ *
+ * Tries the tag-pin refs in order, then the default-branch fallbacks. Returns
+ * the first real body found, with the ref it came from. Returns undefined if no
+ * license file exists in the repo (caller logs + continues; such crates need a
+ * cglicenses.json override).
+ */
+export async function fetchCargoLicense(repoUrl: string, name: string, version: string, license: string): Promise<{ text: string; ref: string } | undefined> {
+	const or = githubOwnerRepo(repoUrl);
+	const ids = spdxLicenseIds(license);
+	for (const ref of crateLicenseRefs(name, version)) {
+		// SPDX-driven: first license id that yields a real per-license file wins.
+		if (or) {
+			for (const id of ids) {
+				for (const file of licenseFileCandidates(id)) {
+					const url = `https://raw.githubusercontent.com/${or.owner}/${or.repo}/${ref}/${file}`;
+					const text = await fetchUriText(url);
+					if (text && isRealLicenseBody(text)) {
+						return { text: text.trim(), ref };
+					}
+				}
+			}
+		}
+		// Generic fallback (plain LICENSE/COPYING), pointer-doc rejected.
+		const generic = await fetchLicenseFromGitRepo(repoUrl, ref);
+		if (generic && isRealLicenseBody(generic)) {
+			return { text: generic, ref };
 		}
 	}
 	return undefined;
@@ -201,6 +533,34 @@ function findCgManifestFiles(repoRoot: string): string[] {
 	return results;
 }
 
+/**
+ * Recursively find all Cargo.lock files in the repo, excluding the same dirs as
+ * the cgmanifest walk (node_modules, .git, out, test). Known files in this repo:
+ * cli/Cargo.lock and build/win32/Cargo.lock.
+ */
+function findCargoLockFiles(repoRoot: string): string[] {
+	const results: string[] = [];
+
+	function walk(dir: string): void {
+		try {
+			for (const entry of fs.readdirSync(dir)) {
+				if (entry === 'node_modules' || entry === '.git' || entry === 'out' || entry === 'test') {
+					continue;
+				}
+				const full = path.join(dir, entry);
+				if (entry === 'Cargo.lock') {
+					results.push(full);
+				} else if (fs.statSync(full).isDirectory() && !fs.lstatSync(full).isSymbolicLink()) {
+					walk(full);
+				}
+			}
+		} catch { /* skip */ }
+	}
+
+	walk(repoRoot);
+	return results;
+}
+
 async function main(): Promise<void> {
 	const args = parseArgs(process.argv.slice(2));
 	const repoRoot = args['repo'];
@@ -216,11 +576,18 @@ async function main(): Promise<void> {
 	// (i.e. ClearlyDefined "not harvested"), avoiding redundant network calls
 	// for the components CG resolved itself.
 	const cgCovered = new Set<string>();
+	// CG license bodies keyed by lowercased name. Section 4 uses these to detect
+	// "stub" bodies (CG emitted the SPDX expression instead of real text) and to
+	// gate fetches (don't re-fetch crates CG already covered with real text).
+	const cgBodies = new Map<string, string>();
 	const cgNoticePath = args['cg'];
 	if (cgNoticePath && fs.existsSync(cgNoticePath)) {
 		try {
 			for (const e of parseNoticeFile(cgNoticePath)) {
 				cgCovered.add(e.name.toLowerCase());
+				if (typeof e.licenseText !== 'undefined' && !cgBodies.has(e.name.toLowerCase())) {
+					cgBodies.set(e.name.toLowerCase(), e.licenseText);
+				}
 			}
 			console.log(`Loaded CG coverage set: ${cgCovered.size} packages from ${cgNoticePath}`);
 		} catch (err) {
@@ -294,6 +661,11 @@ async function main(): Promise<void> {
 	// "present but unlicensed" (an override should INJECT) apart from "not shipped"
 	// (an override is stale and should be deleted). Keyed by lowercased name.
 	const noLicenseSeen = new Map<string, { name: string; version: string }>();
+	// Section 4 stub-override signal: `<name>@<version>` keys whose CG entry is a
+	// stub (SPDX-as-body) that the scanner is replacing. Written as a sibling
+	// *.stuboverride.json file that merge-notices.ts consumes to let the scanner
+	// entry beat CG on collision (mirrors the presence.json sibling pattern).
+	const stubOverrideKeys = new Set<string>();
 	let scanned = 0;
 	let noLicense = 0;
 
@@ -551,6 +923,198 @@ async function main(): Promise<void> {
 	console.log(`  Entries with licenseDetail: ${cgManifestFound}`);
 	console.log(`  Entries without licenseDetail: ${cgManifestNoDetail}`);
 
+	// =========================================================================
+	// SECTION 4: Harvest Rust crate licenses from Cargo.lock files
+	//
+	// Rust crates reach the product via Cargo.lock (cli/, build/win32/) but CG
+	// handles them imperfectly, leaving two gaps Section 4 closes:
+	//   (a) Coverage gap: ~17 crates ship but appear in NO cgmanifest and are
+	//       absent from CG entirely (the scanner doesn't walk Cargo today).
+	//   (b) Stub-defect gap: ~17 crates ARE in CG, but CG emitted the SPDX
+	//       expression as the license BODY (e.g. "Zlib OR Apache-2.0 OR MIT")
+	//       instead of the real license text.
+	//
+	// Both are closed by the same pipeline: parse Cargo.lock -> crates.io API ->
+	// resolve repo URL -> fetch the REAL license text from the repo (tag-pinned).
+	// CG-coverage gating bounds network calls to ~34 crates, not all ~419.
+	//
+	// We never manufacture license text — the SPDX id is used only as the
+	// `license` field label; the body is always the real upstream LICENSE file.
+	// =========================================================================
+	console.log('');
+	console.log('=========================================================================');
+	console.log('SECTION 4: Harvesting Rust crate licenses from Cargo.lock');
+	console.log('  Why: CG misses some Rust crates entirely and emits the SPDX expression');
+	console.log('  as the license body for others. We fetch the real LICENSE text from');
+	console.log('  each crate\'s repo (tag-pinned), gated by CG coverage to bound fetches.');
+	console.log('=========================================================================');
+	console.log('');
+
+	let cargoCratesSeen = 0;
+	let cargoNoSource = 0;
+	let cargoGitSource = 0;
+	let cargoSkippedCgCovered = 0;
+	let cargoSkippedAlready = 0;
+	let cargoFetched = 0;
+	let cargoStubOverride = 0;
+	let cargoFetchFailed = 0;
+	let cargoApiFailed = 0;
+	// Crates with a conjunctive (AND) SPDX expression where we emitted only one
+	// license's text — a legally incomplete notice that needs a cglicenses.json
+	// override with the full combined text. See hasSpdxAnd. (0 for today's set.)
+	let cargoAndIncomplete = 0;
+
+	const cargoLockFiles = findCargoLockFiles(repoRoot);
+	console.log(`  Found ${cargoLockFiles.length} Cargo.lock files`);
+
+	// Collect the crates to resolve first (dedupe by lowercased name, gated by CG
+	// coverage), then fetch with a small concurrency cap.
+	interface PendingCrate {
+		name: string;
+		version: string;
+		relPath: string;
+		isStubOverride: boolean;
+	}
+	const pending: PendingCrate[] = [];
+	const seenCargoKeys = new Set<string>();
+
+	for (const lockPath of cargoLockFiles) {
+		const relPath = path.relative(repoRoot, lockPath);
+		let pkgs: CargoPackage[];
+		try {
+			pkgs = parseCargoLock(fs.readFileSync(lockPath, 'utf8'));
+		} catch (err) {
+			console.warn(`  WARN: could not parse ${relPath}: ${err}`);
+			continue;
+		}
+		console.log(`  ${relPath}: ${pkgs.length} packages`);
+
+		for (const pkg of pkgs) {
+			cargoCratesSeen++;
+			// Skip first-party workspace crates (no source) — not third-party OSS.
+			if (!pkg.source) {
+				cargoNoSource++;
+				continue;
+			}
+			// git+ sources embed their own commit; none of our targets use this.
+			// Log-and-skip (spec Q3) — cheap to add later, no current consumer.
+			if (pkg.source.startsWith('git+')) {
+				cargoGitSource++;
+				console.log(`  SKIP (git source, TODO): ${pkg.name}@${pkg.version}`);
+				continue;
+			}
+
+			const key = pkg.name.toLowerCase();
+			// Already resolved by another section, or an earlier lock file.
+			if (entries.has(key) || seenCargoKeys.has(key)) {
+				cargoSkippedAlready++;
+				continue;
+			}
+
+			const cgBody = cgBodies.get(key);
+			const cgHasIt = cgCovered.has(key);
+			if (cgHasIt && (typeof cgBody === 'undefined' || !isSpdxStub(cgBody))) {
+				// CG covered it with real text — nothing to do, do NOT fetch.
+				cargoSkippedCgCovered++;
+				continue;
+			}
+
+			seenCargoKeys.add(key);
+			pending.push({
+				name: pkg.name,
+				version: pkg.version,
+				relPath,
+				// Stub-override only when CG actually has it AND its body is a stub.
+				isStubOverride: cgHasIt && typeof cgBody !== 'undefined' && isSpdxStub(cgBody),
+			});
+		}
+	}
+
+	console.log(`  Resolving ${pending.length} crates via crates.io (coverage-gated)`);
+
+	const cargoTasks = pending.map(p => async (): Promise<void> => {
+		try {
+		const info = await fetchCratesIoJson(p.name);
+		if (!info) {
+			cargoApiFailed++;
+			console.warn(`  CRATES.IO FAILED: ${p.name}@${p.version} — no crate info`);
+			return;
+		}
+		// Shape guard: fetchCratesIoJson only guarantees "HTTP 200 + JSON.parse
+		// succeeded" — NOT object shape. A 200 with an unexpected body (error
+		// envelope `{errors:[…]}`, schema drift, missing `versions`/`crate`)
+		// would make the dereferences below throw a TypeError, rejecting the
+		// task → Promise.all → main() → process.exit(1), crashing the build.
+		// Spec sec. 6.6: a failed crates.io call must log and continue, never crash.
+		if (!Array.isArray(info.versions) || !info.crate || typeof info.crate.id !== 'string') {
+			cargoApiFailed++;
+			console.warn(`  CRATES.IO FAILED: ${p.name}@${p.version} — unexpected response shape (no versions/crate)`);
+			return;
+		}
+		const versionInfo = info.versions.find(v => v.num === p.version);
+		const license = versionInfo?.license || '';
+		if (!versionInfo) {
+			console.warn(`  WARN: version ${p.version} not found for crate ${p.name} — using repo default`);
+		}
+		const repoUrl = getCrateRepository(info);
+		if (!repoUrl) {
+			cargoFetchFailed++;
+			console.warn(`  FETCH FAILED: ${p.name}@${p.version} — no repository URL`);
+			return;
+		}
+
+		// SPDX-id-driven, tag-pinned fetch. For OR expressions, fetching the
+		// first available license's text is correct (licensee's choice). For AND
+		// expressions, ALL named licenses are legally required but we currently
+		// emit only the first — warn loudly so an AND-licensed crate can never
+		// silently ship a one-sided (deficient) notice. See hasSpdxAnd / spec sec. 6.
+		const result = await fetchCargoLicense(repoUrl, p.name, p.version, license);
+		if (!result) {
+			cargoFetchFailed++;
+			console.warn(`  FETCH FAILED: ${p.name}@${p.version} (${repoUrl}) — no LICENSE resolved at any ref (needs cglicenses.json override)`);
+			return;
+		}
+		if (hasSpdxAnd(license)) {
+			cargoAndIncomplete++;
+			console.warn(`  AND-LICENSE INCOMPLETE: ${p.name}@${p.version} — SPDX "${license}" is conjunctive (AND); only one license's text was fetched. ALL named licenses are legally required — add a cglicenses.json override with the full combined text.`);
+		}
+		const fetched = result.text;
+		const usedRef = result.ref;
+
+		const key = p.name.toLowerCase();
+		// Relaxed copyright validation for Cargo source: many crates ship license
+		// files with no copyright line. Per CELA this is acceptable for cargo
+		// components (legacy item.ts:286 skips the check for ItemSource.CARGO_LOCK),
+		// so we deliberately do NOT call validateCopyright() here.
+		entries.set(key, {
+			name: p.name,
+			version: p.version,
+			license,
+			url: repoUrl,
+			licenseText: fetched,
+			fromExtension: p.isStubOverride ? `(cargo-stub-override: ${p.relPath})` : `(cargo: ${p.relPath})`,
+		});
+		if (p.isStubOverride) {
+			cargoStubOverride++;
+			stubOverrideKeys.add(`${key}@${p.version}`);
+			console.log(`  STUB OVERRIDE: ${p.name}@${p.version} (${repoUrl}@${usedRef})`);
+		} else {
+			cargoFetched++;
+			console.log(`  FETCHED LICENSE: ${p.name}@${p.version} (${repoUrl}@${usedRef})`);
+		}
+		} catch (err) {
+			// Defense-in-depth: any unexpected throw in this task must log and
+			// continue, never reject (which would crash the build per sec. 6.6).
+			cargoApiFailed++;
+			console.warn(`  CRATES.IO FAILED: ${p.name}@${p.version} — unexpected error: ${(err as Error).message}`);
+		}
+	});
+
+	await runWithConcurrency(cargoTasks, 4);
+
+	console.log(`  Crates added (coverage gap): ${cargoFetched}`);
+	console.log(`  Crates stub-overridden: ${cargoStubOverride}`);
+
 	// Step 4: Sort and write output
 	const sorted = [...entries.values()].sort((a, b) =>
 		a.name.toLowerCase().localeCompare(b.name.toLowerCase())
@@ -596,6 +1160,13 @@ async function main(): Promise<void> {
 		.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
 	fs.writeFileSync(presencePath, JSON.stringify(presence, null, '\t'), 'utf8');
 
+	// Write the stub-override index as a sibling file. merge-notices.ts reads it
+	// to let these cargo entries beat CG on `<name>@<version>` collision (CG
+	// otherwise always wins). Mirrors the presence.json sibling pattern.
+	const stubOverridePath = args['stuboverride'] || (outputPath + '.stuboverride.json');
+	const stubOverrideList = [...stubOverrideKeys].sort();
+	fs.writeFileSync(stubOverridePath, JSON.stringify(stubOverrideList, null, '\t'), 'utf8');
+
 	// Summary
 	console.log('');
 	console.log('=== License Scan Summary ===');
@@ -615,10 +1186,24 @@ async function main(): Promise<void> {
 	console.log(`    Fetch failed (no LICENSE): ${cgManifestFetchFailed}`);
 	console.log(`    Skipped (CG already covers): ${cgManifestSkippedCgCovered}`);
 	console.log(`    No detail, not fetchable:  ${cgManifestNoDetail}`);
+	console.log(`  Section 4 — Cargo.lock crates:`);
+	console.log(`    Lock files scanned:        ${cargoLockFiles.length}`);
+	console.log(`    Crates seen:               ${cargoCratesSeen}`);
+	console.log(`    Workspace crates skipped:  ${cargoNoSource}`);
+	console.log(`    git-source crates skipped: ${cargoGitSource}`);
+	console.log(`    Skipped (already resolved): ${cargoSkippedAlready}`);
+	console.log(`    Skipped (CG covers w/ text): ${cargoSkippedCgCovered}`);
+	console.log(`    Added (coverage gap):      ${cargoFetched}`);
+	console.log(`    Stub-overridden:           ${cargoStubOverride}`);
+	console.log(`    crates.io API failed:      ${cargoApiFailed}`);
+	console.log(`    Fetch failed (no LICENSE): ${cargoFetchFailed}`);
+	console.log(`    AND-license incomplete:    ${cargoAndIncomplete}`);
 	console.log(`  Total entries in output:     ${entries.size}`);
 	console.log(`  Output: ${outputPath}`);
 	console.log(`  Presence index (present but unlicensed): ${presence.length}`);
 	console.log(`  Presence output: ${presencePath}`);
+	console.log(`  Stub-override index: ${stubOverrideList.length}`);
+	console.log(`  Stub-override output: ${stubOverridePath}`);
 }
 
 function parseArgs(argv: string[]): Record<string, string> {
@@ -632,7 +1217,11 @@ function parseArgs(argv: string[]): Record<string, string> {
 	return args;
 }
 
-main().catch(err => {
-	console.error(err);
-	process.exit(1);
-});
+// Only run main() when scan-licenses is the entry point — not when a test or
+// another module imports the exported helpers (mirrors parse-notices.ts).
+if (/scan-licenses(\.[jt]s)?$/.test(process.argv[1] || '')) {
+	main().catch(err => {
+		console.error(err);
+		process.exit(1);
+	});
+}

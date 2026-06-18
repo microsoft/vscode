@@ -153,22 +153,73 @@ async function mainAsync(): Promise<void> {
 
 	const cgCount = merged.size;
 
+	// Load the scanner's stub-override index (sibling of the --extensions file).
+	// These `<name>@<version>` keys identify CG entries whose body is a stub (the
+	// SPDX expression instead of real license text); for them the scanner entry
+	// must WIN the collision, overriding CG's stub with the real fetched text.
+	const stubOverrideKeys = new Set<string>();
+	const stubOverridePath = args['stuboverride'] || (extPath ? extPath + '.stuboverride.json' : '');
+	if (stubOverridePath && fs.existsSync(stubOverridePath)) {
+		try {
+			const raw: unknown = JSON.parse(fs.readFileSync(stubOverridePath, 'utf8'));
+			if (Array.isArray(raw)) {
+				for (const k of raw) {
+					if (typeof k === 'string') {
+						stubOverrideKeys.add(k.toLowerCase());
+					}
+				}
+			}
+			console.log(`Stub-override index: ${stubOverrideKeys.size} cargo entries override CG (${stubOverridePath})`);
+			console.log('');
+		} catch (err) {
+			console.warn(`  WARN: could not read stub-override index ${stubOverridePath}: ${(err as Error).message}`);
+		}
+	}
+
 	// Add extension entries (only if same name+version not already covered by CG)
 	let extAdded = 0;
 	let extSkipped = 0;
+	let extStubOverridden = 0;
 	const extAddedNames: string[] = [];
 	const extSkippedNames: string[] = [];
+	// Override keys that actually collided with a CG entry (so the override took
+	// effect). Used after the loop to surface keys that never collided.
+	const collidedOverrideKeys = new Set<string>();
 
 	for (const entry of extEntries) {
 		const key = mergeKey(entry);
 		if (merged.has(key)) {
-			extSkipped++;
-			extSkippedNames.push(`${entry.name}@${entry.version || '(no version)'}`);
+			// Normally CG wins the collision. Exception: cargo stub-override keys —
+			// the scanner replaces CG's SPDX-as-body stub with real fetched text.
+			if (stubOverrideKeys.has(key)) {
+				merged.set(key, { ...entry, source: 'cargo-stub-override' });
+				extStubOverridden++;
+				collidedOverrideKeys.add(key);
+				extAddedNames.push(`${entry.name} ${entry.version} - ${entry.license} (stub-override)`);
+			} else {
+				extSkipped++;
+				extSkippedNames.push(`${entry.name}@${entry.version || '(no version)'}`);
+			}
 		} else {
 			merged.set(key, { ...entry, source: 'extension-scanner' });
 			extAdded++;
 			extAddedNames.push(`${entry.name} ${entry.version} - ${entry.license}`);
 		}
+	}
+
+	// Stub-override only flips priority on a `name@version` collision. If CG
+	// recorded a crate at a DIFFERENT version than Cargo.lock resolved, there is
+	// no collision: the scanner entry is added as a separate record and CG's stub
+	// SURVIVES — a silent divergence (the scanner's cargoStubOverride counter
+	// still claimed success). Warn loudly for any override key that never
+	// collided so the mismatch is visible to the operator.
+	const uncollidedOverrideKeys = [...stubOverrideKeys].filter(k => !collidedOverrideKeys.has(k)).sort();
+	if (uncollidedOverrideKeys.length > 0) {
+		console.warn(`  WARN: ${uncollidedOverrideKeys.length} stub-override key(s) never collided with a CG entry — CG's stub may survive at a different version. Verify these crates' notice text:`);
+		for (const k of uncollidedOverrideKeys) {
+			console.warn(`    - ${k}`);
+		}
+		console.log('');
 	}
 
 	// Log what happened
@@ -328,6 +379,8 @@ required to debug changes to any libraries licensed under the GNU Lesser General
 		// this points reviewers at the package's installed copy.
 		if (entry.source === 'extension-scanner') {
 			output += '(license text obtained directly from package LICENSE file)\n';
+		} else if (entry.source === 'cargo-stub-override') {
+			output += '(license text fetched from the crate repository — replaces CG SPDX-expression stub)\n';
 		} else if (entry.source === 'cglicenses-override') {
 			output += '(license text supplied by cglicenses.json manual override)\n';
 		}
@@ -347,6 +400,7 @@ required to debug changes to any libraries licensed under the GNU Lesser General
 	console.log(`  Total packages: ${sorted.length}`);
 	console.log(`    From CG: ${cgCount}`);
 	console.log(`    From extension scanner: ${extAdded}`);
+	console.log(`    Cargo stub-overrides (beat CG): ${extStubOverridden}`);
 	console.log(`    Extension duplicates skipped: ${extSkipped}`);
 	if (cglicensesPath) {
 		console.log(`    cglicenses overrides applied: ${overridesApplied} (${overrideEntryCount} merged entries updated)`);
