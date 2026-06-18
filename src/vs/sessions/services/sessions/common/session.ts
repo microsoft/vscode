@@ -508,3 +508,64 @@ export function gitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | und
 		a.pullRequest?.baseRefOid === b.pullRequest?.baseRefOid &&
 		a.pullRequest?.headRefOid === b.pullRequest?.headRefOid;
 }
+
+/**
+ * Structural equality for {@link ISessionWorkspace}.
+ */
+export function sessionWorkspaceEqual(a: ISessionWorkspace | undefined, b: ISessionWorkspace | undefined): boolean {
+	if (a === b) {
+		return true;
+	}
+	if (!a || !b
+		|| !isEqual(a.uri, b.uri)
+		|| a.label !== b.label
+		|| a.description !== b.description
+		|| a.group !== b.group
+		|| !ThemeIcon.isEqual(a.icon, b.icon)
+		|| a.requiresWorkspaceTrust !== b.requiresWorkspaceTrust
+		|| a.isVirtualWorkspace !== b.isVirtualWorkspace
+		|| a.folders.length !== b.folders.length) {
+		return false;
+	}
+	for (let i = 0; i < a.folders.length; i++) {
+		if (!sessionFolderEqual(a.folders[i], b.folders[i])) {
+			return false;
+		}
+	}
+	return true;
+}
+
+/**
+ * Structural equality for {@link ISessionFolder}.
+ */
+export function sessionFolderEqual(a: ISessionFolder, b: ISessionFolder): boolean {
+	return isEqual(a.root, b.root)
+		&& isEqual(a.workingDirectory, b.workingDirectory)
+		&& a.name === b.name
+		&& a.description === b.description
+		&& sessionGitRepositoryEqual(a.gitRepository, b.gitRepository);
+}
+
+/**
+ * Structural equality for {@link ISessionGitRepository}.
+ */
+export function sessionGitRepositoryEqual(a: ISessionGitRepository | undefined, b: ISessionGitRepository | undefined): boolean {
+	if (a === b) {
+		return true;
+	}
+	if (!a || !b) {
+		return false;
+	}
+	return isEqual(a.uri, b.uri)
+		&& isEqual(a.workTreeUri, b.workTreeUri)
+		&& a.branchName === b.branchName
+		&& a.baseBranchName === b.baseBranchName
+		&& a.baseBranchProtected === b.baseBranchProtected
+		&& a.hasGitHubRemote === b.hasGitHubRemote
+		&& a.upstreamBranchName === b.upstreamBranchName
+		&& a.incomingChanges === b.incomingChanges
+		&& a.outgoingChanges === b.outgoingChanges
+		&& a.uncommittedChanges === b.uncommittedChanges
+		&& a.hasGitOperationInProgress === b.hasGitOperationInProgress
+		&& gitHubInfoEqual(a.gitHubInfo.get(), b.gitHubInfo.get());
+}
