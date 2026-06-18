@@ -10,6 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IWorkspace, IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
 import { IChatToolRiskAssessmentService } from '../../../../contrib/chat/browser/tools/chatToolRiskAssessmentService.js';
 import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../contrib/chat/browser/widget/chatContentParts/chatContentParts.js';
@@ -19,6 +20,9 @@ import { AgentFeedbackReviewCommandId, IChatAgentFeedbackReviewComment, IChatAge
 import { ChatToolInvocation } from '../../../../contrib/chat/common/model/chatProgressTypes/chatToolInvocation.js';
 import { IChatResponseViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
+import { IDecorationsService } from '../../../../services/decorations/common/decorations.js';
+import { INotebookDocumentService } from '../../../../services/notebook/common/notebookDocumentService.js';
+import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
 import '../../../../contrib/chat/browser/widget/media/chat.css';
@@ -100,6 +104,10 @@ function renderConfirmation(context: ComponentFixtureContext, comments: readonly
 		additionalServices: (reg) => {
 			registerWorkbenchServices(reg);
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
+			reg.defineInstance(IDecorationsService, new class extends mock<IDecorationsService>() { override onDidChangeDecorations = Event.None; }());
+			reg.defineInstance(ITextFileService, new class extends mock<ITextFileService>() { override readonly untitled = new class extends mock<ITextFileService['untitled']>() { override readonly onDidChangeLabel = Event.None; }(); }());
+			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return { id: '', folders: [], configuration: undefined }; } }());
+			reg.defineInstance(INotebookDocumentService, new class extends mock<INotebookDocumentService>() { }());
 			reg.defineInstance(ICommandService, createCommandService(comments));
 			reg.defineInstance(IChatMarkdownAnchorService, new class extends mock<IChatMarkdownAnchorService>() {
 				override register() { return { dispose() { } }; }
@@ -143,9 +151,9 @@ const prComment: IChatAgentFeedbackReviewComment = {
 	fileUri: URI.file('/workspace/src/utils/array.ts'),
 };
 
-const codeReviewComment: IChatAgentFeedbackReviewComment = {
+const agentReviewComment: IChatAgentFeedbackReviewComment = {
 	id: 'cr-1',
-	kindLabel: 'Code Review',
+	kindLabel: 'Agent Review',
 	text: 'Consider extracting this into a shared helper — it is duplicated in three places.',
 	fileUri: URI.file('/workspace/src/services/userService.ts'),
 };
@@ -169,12 +177,12 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 
 	MixedKinds: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: (ctx) => renderConfirmation(ctx, [prComment, codeReviewComment]),
+		render: (ctx) => renderConfirmation(ctx, [prComment, agentReviewComment]),
 	}),
 
 	ManyComments: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: (ctx) => renderConfirmation(ctx, [prComment, codeReviewComment, longComment]),
+		render: (ctx) => renderConfirmation(ctx, [prComment, agentReviewComment, longComment]),
 	}),
 
 	LongComment: defineComponentFixture({

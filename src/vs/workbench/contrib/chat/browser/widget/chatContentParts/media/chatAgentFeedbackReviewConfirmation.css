@@ -47,18 +47,16 @@
 	flex: 0 0 auto;
 	padding: 0 var(--vscode-spacing-size40);
 	border-radius: var(--vscode-cornerRadius-xSmall);
-	background-color: var(--vscode-badge-background);
-	color: var(--vscode-badge-foreground);
+	background: color-mix(in srgb, var(--vscode-charts-purple) 22%, var(--vscode-editorWidget-background));
+	color: var(--vscode-charts-purple);
 	font-size: var(--vscode-bodyFontSize-xSmall);
 	text-transform: uppercase;
 }
 
 .chat-agent-feedback-review-file {
 	flex: 1 1 auto;
+	min-width: 0;
 	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-bodyFontSize-small);
 }
 
@@ -73,4 +71,8 @@
 
 .chat-agent-feedback-review-actions .monaco-action-bar .action-label {
 	color: var(--vscode-icon-foreground);
+}
+
+.chat-confirmation-widget2 .chat-confirmation-widget-message:has(.chat-agent-feedback-review-list) {
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size120) var(--vscode-spacing-size60) var(--vscode-spacing-size60);
 }

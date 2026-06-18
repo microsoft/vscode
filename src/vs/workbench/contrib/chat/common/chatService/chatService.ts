@@ -1117,7 +1117,7 @@ export interface IChatAgentFeedbackReviewConfirmationData {
  */
 export interface IChatAgentFeedbackReviewComment {
 	readonly id: string;
-	/** Localized origin label, e.g. "PR Review" or "Code Review"; absent for user-authored comments. */
+	/** Localized origin label, e.g. "PR Review" or "Agent Review"; absent for user-authored comments. */
 	readonly kindLabel?: string;
 	/** The comment body. */
 	readonly text: string;

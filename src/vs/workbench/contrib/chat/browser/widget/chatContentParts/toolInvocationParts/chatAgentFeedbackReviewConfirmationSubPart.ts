@@ -15,10 +15,12 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../../nls.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
+import { FileKind } from '../../../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
 import { ILogService } from '../../../../../../../platform/log/common/log.js';
 import { defaultCheckboxStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
+import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../../../browser/labels.js';
 import { AgentFeedbackReviewCommandId, IChatAgentFeedbackReviewComment, IChatToolInvocation, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { ILanguageModelToolsService } from '../../../../common/tools/languageModelToolsService.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
@@ -50,6 +52,7 @@ export class ChatAgentFeedbackReviewConfirmationSubPart extends AbstractToolConf
 
 	private readonly _rows = new Map<string, ICommentRow>();
 	private readonly _rowStores = this._register(new DisposableMap<string, DisposableStore>());
+	private readonly _resourceLabels: ResourceLabels;
 
 	constructor(
 		toolInvocation: IChatToolInvocation,
@@ -69,6 +72,8 @@ export class ChatAgentFeedbackReviewConfirmationSubPart extends AbstractToolConf
 		if (!data || data.kind !== 'agentFeedbackReviewConfirmation') {
 			throw new Error('Agent feedback review confirmation data is missing');
 		}
+
+		this._resourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
 
 		const listElement = dom.$('.chat-agent-feedback-review-list');
 		void this._populate(listElement);
@@ -159,9 +164,12 @@ export class ChatAgentFeedbackReviewConfirmationSubPart extends AbstractToolConf
 			dom.append(header, dom.$('.chat-agent-feedback-review-kind', undefined, comment.kindLabel));
 		}
 		const fileUri = URI.revive(comment.fileUri);
-		const fileLabel = dom.append(header, dom.$('span.chat-agent-feedback-review-file'));
-		fileLabel.textContent = basename(fileUri);
-		fileLabel.title = fileUri.fsPath || fileUri.path;
+		const fileLabel = rowStore.add(this._resourceLabels.create(header, { supportIcons: true }));
+		fileLabel.element.classList.add('chat-agent-feedback-review-file');
+		fileLabel.setResource(
+			{ resource: fileUri, name: basename(fileUri) },
+			{ fileKind: FileKind.FILE, title: fileUri.fsPath || fileUri.path },
+		);
 
 		const textElement = dom.append(main, dom.$('.chat-agent-feedback-review-text'));
 		textElement.textContent = comment.text;
