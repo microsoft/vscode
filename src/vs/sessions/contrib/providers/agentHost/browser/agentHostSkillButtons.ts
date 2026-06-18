@@ -92,6 +92,7 @@ const AGENT_HOST_SKILL_BUTTONS: readonly IAgentHostSkillButtonSpec[] = [
 		group: 'merge',
 		order: 1,
 		extraWhen: ContextKeyExpr.and(
+			ContextKeyExpr.false(),
 			ActiveSessionContextKeys.IsolationMode.isEqualTo(IsolationMode.Worktree),
 			ActiveSessionContextKeys.IsMergeBaseBranchProtected.negate(),
 			ActiveSessionContextKeys.HasPullRequest.negate(),
@@ -106,6 +107,7 @@ const AGENT_HOST_SKILL_BUTTONS: readonly IAgentHostSkillButtonSpec[] = [
 		group: 'pull_request',
 		order: 1,
 		extraWhen: ContextKeyExpr.and(
+			ContextKeyExpr.false(),
 			ActiveSessionContextKeys.IsolationMode.isEqualTo(IsolationMode.Worktree),
 			ActiveSessionContextKeys.HasGitHubRemote,
 			ActiveSessionContextKeys.HasPullRequest.negate(),
@@ -120,6 +122,7 @@ const AGENT_HOST_SKILL_BUTTONS: readonly IAgentHostSkillButtonSpec[] = [
 		group: 'pull_request',
 		order: 2,
 		extraWhen: ContextKeyExpr.and(
+			ContextKeyExpr.false(),
 			ActiveSessionContextKeys.IsolationMode.isEqualTo(IsolationMode.Worktree),
 			ActiveSessionContextKeys.HasGitHubRemote,
 			ActiveSessionContextKeys.HasPullRequest.negate(),
@@ -134,6 +137,7 @@ const AGENT_HOST_SKILL_BUTTONS: readonly IAgentHostSkillButtonSpec[] = [
 		group: 'pull_request',
 		order: 1,
 		extraWhen: ContextKeyExpr.and(
+			ContextKeyExpr.false(),
 			ActiveSessionContextKeys.IsolationMode.isEqualTo(IsolationMode.Worktree),
 			ActiveSessionContextKeys.HasGitHubRemote,
 			ActiveSessionContextKeys.HasPullRequest,

@@ -35,13 +35,19 @@ function createMockChat(options: IMockChatOptions): IChat {
 	}();
 }
 
-function createMockDelegate(chats: readonly IChat[], activeChat: IChat): IChatCompositeBarDelegate {
+function createMockDelegate(chats: readonly IChat[], activeChat: IChat, sessionTitle = 'Session'): IChatCompositeBarDelegate {
 	return {
 		sessionId: 'mock:session',
 		chats: observableValue('chats', chats),
 		activeChatResource: observableValue('activeChatResource', activeChat.resource.toString()),
 		mainChatResource: observableValue('mainChatResource', chats[0].resource.toString()),
-		visible: derived(() => chats.length > 1),
+		visible: derived(reader => {
+			if (chats.length > 1) {
+				return true;
+			}
+			const title = chats[0].title.read(reader);
+			return !!title && title !== sessionTitle;
+		}),
 		openChat: () => { },
 		closeChat: () => { },
 		renameChat: () => { },
@@ -52,7 +58,7 @@ function createMockDelegate(chats: readonly IChat[], activeChat: IChat): IChatCo
 // Render helper
 // ============================================================================
 
-function renderBar(ctx: ComponentFixtureContext, chats: readonly IChat[], activeChat: IChat, startEditing = false): void {
+function renderBar(ctx: ComponentFixtureContext, chats: readonly IChat[], activeChat: IChat, startEditing = false, sessionTitle = 'Session'): void {
 	const { container, disposableStore } = ctx;
 
 	const instantiationService = createEditorServices(disposableStore, {
@@ -66,7 +72,7 @@ function renderBar(ctx: ComponentFixtureContext, chats: readonly IChat[], active
 	container.style.backgroundColor = 'var(--vscode-sideBar-background)';
 
 	const bar = disposableStore.add(instantiationService.createInstance(ChatCompositeBar));
-	bar.setGroup(createMockDelegate(chats, activeChat));
+	bar.setGroup(createMockDelegate(chats, activeChat, sessionTitle));
 	container.appendChild(bar.element);
 
 	if (startEditing) {
@@ -114,6 +120,16 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 			const main = createMockChat({ title: 'Main chat' });
 			const second = createMockChat({ title: 'Fix login bug' });
 			renderBar(ctx, [main, second], second, true);
+		},
+	}),
+
+	SingleDivergedTitle: defineComponentFixture({
+		render: (ctx) => {
+			// A session with a single (default) chat whose title differs from the
+			// session title keeps the tab strip visible so both independent titles
+			// stay discoverable.
+			const main = createMockChat({ title: 'Investigate flaky test' });
+			renderBar(ctx, [main], main, false, 'Session');
 		},
 	}),
 });

@@ -9,7 +9,7 @@ import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { ActionType } from '../common/state/sessionActions.js';
-import { type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { isAhpChatChannel, isDefaultChatUri, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { ICopilotApiService, type ICopilotUtilityChatMessage } from './shared/copilotApiService.js';
 
@@ -33,58 +33,102 @@ export class AgentHostSessionTitleController extends Disposable {
 		super();
 	}
 
-	seedTitleFromFirstMessage(channel: ProtocolURI, userPrompt: string): void {
-		const state = this._stateManager.getSessionState(channel);
+	seedTitleFromFirstMessage(channel: ProtocolURI, userPrompt: string, chatChannel?: ProtocolURI): void {
 		const fallbackTitle = userPrompt.trim().replace(/\s+/g, ' ').slice(0, MAX_TITLE_LENGTH);
-		if (!state || state.turns.length !== 0 || state.summary.title || fallbackTitle.length === 0) {
+		if (fallbackTitle.length === 0) {
 			return;
 		}
 
-		this._stateManager.dispatchServerAction(channel, {
+		const isAdditionalChat = !!chatChannel && isAhpChatChannel(chatChannel) && !isDefaultChatUri(chatChannel);
+		if (isAdditionalChat) {
+			// Auto-title the additional chat from its own first message,
+			// independently of the session title.
+			const chatState = this._stateManager.getChatState(chatChannel);
+			if (!chatState || chatState.turns.length !== 0 || chatState.title) {
+				return;
+			}
+			const apply = (title: string) => this._stateManager.updateChatTitle(channel, chatChannel, title);
+			apply(fallbackTitle);
+			this._generateTitleSoon(
+				chatChannel,
+				userPrompt,
+				fallbackTitle,
+				apply,
+				() => this._stateManager.getChatState(chatChannel)?.title === fallbackTitle,
+				title => this._persistSessionFlag(channel, `customChatTitle:${chatChannel}`, title),
+			);
+			return;
+		}
+
+		const state = this._stateManager.getSessionState(channel);
+		if (!state || state.turns.length !== 0 || state.summary.title) {
+			return;
+		}
+
+		const apply = (title: string) => this._stateManager.dispatchServerAction(channel, {
 			type: ActionType.SessionTitleChanged,
-			title: fallbackTitle,
+			title,
 		});
-		this._generateTitleSoon(channel, userPrompt, fallbackTitle);
+		apply(fallbackTitle);
+		this._generateTitleSoon(
+			channel,
+			userPrompt,
+			fallbackTitle,
+			apply,
+			() => this._stateManager.getSessionState(channel)?.summary.title === fallbackTitle,
+			title => this._persistSessionFlag(channel, 'customTitle', title),
+		);
 	}
 
 	cancelTitleGeneration(session: ProtocolURI): void {
 		this._cancelTitleGeneration(session);
 	}
 
-	private _generateTitleSoon(channel: ProtocolURI, userPrompt: string, fallbackTitle: string): void {
-		this._cancelTitleGeneration(channel);
+	private _generateTitleSoon(
+		key: ProtocolURI,
+		userPrompt: string,
+		fallbackTitle: string,
+		apply: (title: string) => void,
+		currentTitleMatchesFallback: () => boolean,
+		persist: (title: string) => void,
+	): void {
+		this._cancelTitleGeneration(key);
 		const source = new CancellationTokenSource();
-		this._titleGenerationCancellationSources.set(channel, source);
-		void this._generateTitle(channel, userPrompt, fallbackTitle, source.token).catch(err => {
+		this._titleGenerationCancellationSources.set(key, source);
+		void this._generateTitle(key, userPrompt, fallbackTitle, apply, currentTitleMatchesFallback, persist, source.token).catch(err => {
 			if (!source.token.isCancellationRequested) {
-				this._logService.warn(`[AgentHostSessionTitleController] Failed to apply generated title for ${channel}`, err);
+				this._logService.warn(`[AgentHostSessionTitleController] Failed to apply generated title for ${key}`, err);
 			}
 		}).finally(() => {
-			if (this._titleGenerationCancellationSources.get(channel) === source) {
-				this._titleGenerationCancellationSources.delete(channel);
+			if (this._titleGenerationCancellationSources.get(key) === source) {
+				this._titleGenerationCancellationSources.delete(key);
 				source.dispose();
 			}
 		});
 	}
 
-	private async _generateTitle(channel: ProtocolURI, userPrompt: string, fallbackTitle: string, token: CancellationToken): Promise<void> {
+	private async _generateTitle(
+		key: ProtocolURI,
+		userPrompt: string,
+		fallbackTitle: string,
+		apply: (title: string) => void,
+		currentTitleMatchesFallback: () => boolean,
+		persist: (title: string) => void,
+		token: CancellationToken,
+	): Promise<void> {
 		const generatedTitle = await this._generateTitleFromPrompt(userPrompt, token);
 		if (token.isCancellationRequested || !generatedTitle) {
 			return;
 		}
 
-		const state = this._stateManager.getSessionState(channel);
-		if (!state || state.summary.title !== fallbackTitle) {
+		if (!currentTitleMatchesFallback()) {
 			return;
 		}
 
 		if (generatedTitle !== fallbackTitle) {
-			this._stateManager.dispatchServerAction(channel, {
-				type: ActionType.SessionTitleChanged,
-				title: generatedTitle,
-			});
+			apply(generatedTitle);
 		}
-		this._persistCustomTitle(channel, generatedTitle);
+		persist(generatedTitle);
 	}
 
 	private async _generateTitleFromPrompt(userPrompt: string, token: CancellationToken): Promise<string | undefined> {
@@ -156,10 +200,10 @@ export class AgentHostSessionTitleController extends Disposable {
 		return title.slice(0, MAX_TITLE_LENGTH);
 	}
 
-	private _persistCustomTitle(session: ProtocolURI, title: string): void {
+	private _persistSessionFlag(session: ProtocolURI, key: string, value: string): void {
 		const ref = this._options.sessionDataService.openDatabase(URI.parse(session));
-		ref.object.setMetadata('customTitle', title).catch(err => {
-			this._logService.warn('[AgentHostSessionTitleController] Failed to persist customTitle', err);
+		ref.object.setMetadata(key, value).catch(err => {
+			this._logService.warn(`[AgentHostSessionTitleController] Failed to persist ${key}`, err);
 		}).finally(() => {
 			ref.dispose();
 		});

@@ -186,7 +186,9 @@ export class ChangesViewModel extends Disposable {
 			const hasPullRequest = gitHubInfo?.pullRequest?.uri !== undefined;
 			const hasOpenPullRequest = hasPullRequest &&
 				(gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequestDraft.id ||
-					gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequest.id);
+					gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequest.id ||
+					gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequestError.id ||
+					gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequestComment.id);
 
 			// Repository state
 			const hasGitHubRemote = gitRepository?.hasGitHubRemote ?? false;

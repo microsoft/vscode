@@ -29,43 +29,59 @@ export function mapProtocolStatus(protocol: ProtocolSessionStatus): SessionStatu
 }
 
 /**
+ * Converts a single agent host diff into the chat session file change
+ * format, or `undefined` when the diff carries no usable URI.
+ *
+ * @param mapUri Optional URI mapper applied after parsing. The remote agent
+ *   host provider uses this to rewrite `file:` URIs into agent-host URIs.
+ */
+export function diffToChange(d: ISessionFileDiff, mapUri?: (uri: URI) => URI): IChatSessionFileChange2 | undefined {
+	const rawUri = d.after?.uri ?? d.before?.uri;
+	if (!rawUri) {
+		return undefined;
+	}
+
+	const parseAndMap = (raw: string): URI => {
+		const parsed = URI.parse(raw);
+		return mapUri ? mapUri(parsed) : parsed;
+	};
+
+	const uri = parseAndMap(rawUri);
+
+	// For deletions (no `after`), `modifiedUri` is `undefined` so the
+	// renderer treats the entry as a deletion and doesn't try to open the
+	// (now-missing) file as the "modified" side of the diff editor.
+	const modifiedUri = d.after ? parseAndMap(d.after.uri) : undefined;
+
+	// Use the before-content reference URI so the diff editor can
+	// fetch the snapshot of the file *before* the session's edits.
+	const originalUri = d.before?.content?.uri ? parseAndMap(d.before.content.uri) : undefined;
+
+	return {
+		uri,
+		modifiedUri,
+		originalUri,
+		insertions: d.diff?.added ?? 0,
+		deletions: d.diff?.removed ?? 0,
+	} satisfies IChatSessionFileChange2;
+}
+
+/**
+ * Converts a single {@link ChangesetFile} into a {@link IChatSessionFileChange2},
+ * or `undefined` when the underlying diff has no usable URI.
+ */
+export function changesetFileToChange(file: ChangesetFile, mapUri?: (uri: URI) => URI): IChatSessionFileChange2 | undefined {
+	return diffToChange(file.edit, mapUri);
+}
+
+/**
  * Converts agent host diffs to the chat session file change format.
  *
  * @param mapUri Optional URI mapper applied after parsing. The remote agent
  *   host provider uses this to rewrite `file:` URIs into agent-host URIs.
  */
 export function diffsToChanges(diffs: readonly ISessionFileDiff[], mapUri?: (uri: URI) => URI): IChatSessionFileChange2[] {
-	return diffs.map(d => {
-		const rawUri = d.after?.uri ?? d.before?.uri;
-		if (!rawUri) {
-			return undefined;
-		}
-
-		const uri = mapUri ? mapUri(URI.parse(rawUri)) : URI.parse(rawUri);
-
-		// For deletions (no `after`), `modifiedUri` is `undefined` so the
-		// renderer treats the entry as a deletion and doesn't try to open the
-		// (now-missing) file as the "modified" side of the diff editor.
-		const modifiedUri = d.after
-			? (mapUri ? mapUri(URI.parse(d.after.uri)) : URI.parse(d.after.uri))
-			: undefined;
-
-		// Use the before-content reference URI so the diff editor can
-		// fetch the snapshot of the file *before* the session's edits.
-		let originalUri: URI | undefined;
-		if (d.before?.content?.uri) {
-			const parsed = URI.parse(d.before.content.uri);
-			originalUri = mapUri ? mapUri(parsed) : parsed;
-		}
-
-		return {
-			uri,
-			modifiedUri,
-			originalUri,
-			insertions: d.diff?.added ?? 0,
-			deletions: d.diff?.removed ?? 0,
-		} satisfies IChatSessionFileChange2;
-	}).filter(isDefined);
+	return diffs.map(d => diffToChange(d, mapUri)).filter(isDefined);
 }
 
 /**

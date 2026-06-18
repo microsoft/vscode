@@ -39,6 +39,16 @@ export interface INavigableSessionComment {
 	readonly id: string;
 }
 
+/** Options for {@link IAgentFeedbackService.acceptFeedback}. */
+export interface IAcceptFeedbackOptions {
+	/**
+	 * Flag the accepted item as pending reveal to the agent so the
+	 * `viewUnreviewedComments` server tool returns it (and only the items
+	 * revealed in the same invocation).
+	 */
+	readonly revealToAgent?: boolean;
+}
+
 export interface IAgentFeedbackChangeEvent {
 	readonly sessionResource: URI;
 	readonly feedbackItems: readonly IAgentFeedback[];
@@ -114,8 +124,13 @@ export interface IAgentFeedbackService {
 	 * {@link AgentFeedbackState.Created} state, transitioning it to
 	 * {@link AgentFeedbackState.Accepted} so it becomes submittable and is
 	 * attached to the chat input.
+	 *
+	 * When {@link IAcceptFeedbackOptions.revealToAgent} is set, the item is
+	 * additionally flagged as pending reveal to the agent so the
+	 * `viewUnreviewedComments` server tool returns exactly the comments the user
+	 * chose to reveal for that invocation.
 	 */
-	acceptFeedback(sessionResource: URI, feedbackId: string): void;
+	acceptFeedback(sessionResource: URI, feedbackId: string, options?: IAcceptFeedbackOptions): void;
 
 	/**
 	 * Remove a single feedback item.
@@ -358,7 +373,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		return feedback;
 	}
 
-	acceptFeedback(sessionResource: URI, feedbackId: string): void {
+	acceptFeedback(sessionResource: URI, feedbackId: string, options?: IAcceptFeedbackOptions): void {
 		const backend = this._backendForSession(sessionResource);
 		const feedbackItems = backend.getItems(sessionResource);
 		const existing = feedbackItems.find(f => f.id === feedbackId);
@@ -366,7 +381,11 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			return;
 		}
 
-		const accepted: IAgentFeedback = { ...existing, state: AgentFeedbackState.Accepted };
+		const accepted: IAgentFeedback = {
+			...existing,
+			state: AgentFeedbackState.Accepted,
+			...(options?.revealToAgent ? { pendingAgentReveal: true } : {}),
+		};
 		backend.upsert(accepted);
 
 		if (accepted.kind !== AgentFeedbackKind.UserReview) {

@@ -238,6 +238,21 @@
             "included": true
         },
         {
+            "key": "chat.agentHost.enabled",
+            "name": "ChatAgentHostEnabled",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.126",
+            "localization": {
+                "description": {
+                    "key": "chat.agentHost.enabled",
+                    "value": "When enabled, some agents run in a separate agent host process."
+                }
+            },
+            "type": "boolean",
+            "default": true,
+            "included": true
+        },
+        {
             "key": "chat.plugins.enabled",
             "name": "ChatPluginsEnabled",
             "category": "InteractiveSession",

@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType, NotificationType, type ActionEnvelope, type INotification } from '../../common/state/sessionActions.js';
-import { MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildSubagentSessionUri, buildSubagentSessionUriPrefix, isSubagentSession, parseSubagentSessionUri, readHostBuildInfo, type MarkdownResponsePart, type SessionState } from '../../common/state/sessionState.js';
+import { MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, isSubagentSession, parseSubagentSessionUri, readHostBuildInfo, type MarkdownResponsePart, type SessionState } from '../../common/state/sessionState.js';
 import { type SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { buildChangesetUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
@@ -752,6 +752,218 @@ suite('AgentHostStateManager', () => {
 		});
 		assert.strictEqual(envelopes.length, 1, 'registered changeset action should emit an envelope');
 		assert.strictEqual(manager.serverSeq - seqBefore, 1, 'serverSeq should advance for registered changeset action');
+	});
+
+	suite('multi-chat catalog', () => {
+		const peerChat = buildChatUri(sessionUri, 'peer-1');
+
+		test('addChat grows the catalog, creates chat state and emits SessionChatAdded', () => {
+			manager.createSession(makeSessionSummary());
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(manager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+			const summary = manager.addChat(sessionUri, peerChat, { title: 'Peer' });
+
+			assert.deepStrictEqual(
+				{
+					addedTitle: summary?.title,
+					chatResources: manager.getSessionState(sessionUri)?.chats.map(c => c.resource.toString()).sort(),
+					peerTurns: manager.getChatState(peerChat)?.turns.length,
+					chatAddedEvents: envelopes.filter(e => e.action.type === ActionType.SessionChatAdded).length,
+				},
+				{
+					addedTitle: 'Peer',
+					chatResources: [buildDefaultChatUri(sessionUri), peerChat].sort(),
+					peerTurns: 0,
+					chatAddedEvents: 1,
+				},
+			);
+		});
+
+		test('removeChat shrinks the catalog and refuses the default chat', () => {
+			manager.createSession(makeSessionSummary());
+			manager.addChat(sessionUri, peerChat);
+
+			manager.removeChat(sessionUri, buildDefaultChatUri(sessionUri));
+			const afterDefaultRemoval = manager.getSessionState(sessionUri)?.chats.length;
+
+			manager.removeChat(sessionUri, peerChat);
+
+			assert.deepStrictEqual(
+				{
+					afterDefaultRemoval,
+					afterPeerRemoval: manager.getSessionState(sessionUri)?.chats.map(c => c.resource.toString()),
+					peerState: manager.getChatState(peerChat),
+				},
+				{
+					afterDefaultRemoval: 2,
+					afterPeerRemoval: [buildDefaultChatUri(sessionUri)],
+					peerState: undefined,
+				},
+			);
+		});
+
+		test('session title and default chat title stay independent once multi-chat', () => {
+			manager.createSession(makeSessionSummary());
+			const defaultChat = buildDefaultChatUri(sessionUri);
+
+			// Becoming multi-chat snapshots the session title onto the default chat
+			// so it stops inheriting the session title.
+			manager.addChat(sessionUri, peerChat);
+			const afterAdd = manager.getSessionState(sessionUri)?.chats.find(c => c.resource === defaultChat)?.title;
+
+			// Rename each independently.
+			manager.updateChatTitle(sessionUri, defaultChat, 'Chat A');
+			manager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Session B' });
+
+			const state = manager.getSessionState(sessionUri);
+			assert.deepStrictEqual(
+				{
+					afterAdd,
+					sessionTitle: state?.summary.title,
+					defaultChatTitle: state?.chats.find(c => c.resource === defaultChat)?.title,
+				},
+				{
+					afterAdd: 'Test',
+					sessionTitle: 'Session B',
+					defaultChatTitle: 'Chat A',
+				},
+			);
+		});
+
+		test('addChat is idempotent for an existing chat URI', () => {
+			manager.createSession(makeSessionSummary());
+			const first = manager.addChat(sessionUri, peerChat, { title: 'Peer' });
+
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(manager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+			const second = manager.addChat(sessionUri, peerChat, { title: 'Ignored' });
+
+			assert.deepStrictEqual(
+				{
+					sameSummary: first === second,
+					title: second?.title,
+					chatCount: manager.getSessionState(sessionUri)?.chats.length,
+					chatAddedEvents: envelopes.filter(e => e.action.type === ActionType.SessionChatAdded).length,
+				},
+				{
+					sameSummary: true,
+					title: 'Peer',
+					chatCount: 2,
+					chatAddedEvents: 0,
+				},
+			);
+		});
+
+		test('addChat for an unknown session is a no-op', () => {
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(manager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+			const summary = manager.addChat('copilot:/missing', peerChat);
+
+			assert.deepStrictEqual(
+				{
+					summary,
+					events: envelopes.length,
+				},
+				{
+					summary: undefined,
+					events: 0,
+				},
+			);
+		});
+
+		test('addChat supports multiple peers and only snapshots the default title once', () => {
+			manager.createSession(makeSessionSummary());
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat2 = buildChatUri(sessionUri, 'peer-2');
+
+			manager.addChat(sessionUri, peerChat);
+			// Rename the default chat away from the snapshotted session title.
+			manager.updateChatTitle(sessionUri, defaultChat, 'Renamed Default');
+			// Adding a second peer must not re-snapshot / clobber the default title.
+			manager.addChat(sessionUri, peerChat2);
+
+			const state = manager.getSessionState(sessionUri);
+			assert.deepStrictEqual(
+				{
+					chatResources: state?.chats.map(c => c.resource.toString()).sort(),
+					defaultChatTitle: state?.chats.find(c => c.resource === defaultChat)?.title,
+				},
+				{
+					chatResources: [defaultChat, peerChat, peerChat2].sort(),
+					defaultChatTitle: 'Renamed Default',
+				},
+			);
+		});
+
+		test('updateChatTitle on a peer leaves the session and default titles untouched', () => {
+			manager.createSession(makeSessionSummary());
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			manager.addChat(sessionUri, peerChat, { title: 'Peer' });
+
+			manager.updateChatTitle(sessionUri, peerChat, 'Peer Renamed');
+
+			const state = manager.getSessionState(sessionUri);
+			assert.deepStrictEqual(
+				{
+					sessionTitle: state?.summary.title,
+					defaultChatTitle: state?.chats.find(c => c.resource === defaultChat)?.title,
+					peerTitle: state?.chats.find(c => c.resource === peerChat)?.title,
+					peerStateTitle: manager.getChatState(peerChat)?.title,
+				},
+				{
+					sessionTitle: 'Test',
+					defaultChatTitle: 'Test',
+					peerTitle: 'Peer Renamed',
+					peerStateTitle: 'Peer Renamed',
+				},
+			);
+		});
+
+		test('removeChat of an unknown chat is a no-op', () => {
+			manager.createSession(makeSessionSummary());
+
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(manager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+			manager.removeChat(sessionUri, buildChatUri(sessionUri, 'never-added'));
+
+			assert.deepStrictEqual(
+				{
+					chatCount: manager.getSessionState(sessionUri)?.chats.length,
+					removedEvents: envelopes.filter(e => e.action.type === ActionType.SessionChatRemoved).length,
+				},
+				{
+					chatCount: 1,
+					removedEvents: 0,
+				},
+			);
+		});
+
+		test('removeChat emits SessionChatRemoved for a peer', () => {
+			manager.createSession(makeSessionSummary());
+			manager.addChat(sessionUri, peerChat);
+
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(manager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+			manager.removeChat(sessionUri, peerChat);
+
+			assert.deepStrictEqual(
+				{
+					removed: envelopes
+						.filter(e => e.action.type === ActionType.SessionChatRemoved)
+						.map(e => (e.action as { chat: string }).chat),
+					chatState: manager.getChatState(peerChat),
+				},
+				{
+					removed: [peerChat],
+					chatState: undefined,
+				},
+			);
+		});
 	});
 });
 

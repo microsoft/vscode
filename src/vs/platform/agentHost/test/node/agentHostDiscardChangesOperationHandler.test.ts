@@ -78,8 +78,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 	onToolCallEditsApplied(): void { }
 	onTurnComplete(): void { }
 	onSessionTruncated(): void { }
-	setTurnSubscriberProbe(): void { }
-	setUncommittedSubscriberProbe(): void { }
+	setSubscriberProbe(): void { }
 }
 
 function setup(disposables: Pick<DisposableStore, 'add'>, opts?: { readonly withWorkingDirectory?: boolean; readonly registerSession?: boolean }): { handler: AgentHostDiscardChangesOperationHandler; gitService: TestGitService; changesets: TestChangesetService; session: URI } {

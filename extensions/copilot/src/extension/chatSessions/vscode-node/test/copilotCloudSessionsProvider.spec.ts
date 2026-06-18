@@ -15,6 +15,7 @@ import { ITaskApiClient, ListTaskEventsOptions, ListTasksOptions } from '../../c
 import { ChatSessionContentBuilder } from '../copilotCloudSessionContentBuilder';
 import { normalizeInitialSessionOptions, parseSessionLogChunksSafely } from '../copilotCloudSessionsProvider';
 import { TaskApiBackend, parseRepoFromTaskUrl } from '../taskApiBackend';
+import { NullCloudBackendInstrumentation } from '../cloudBackendTelemetry';
 import { MockOctoKitService } from '../../../agents/vscode-node/test/mockOctoKitService';
 
 vi.mock('vscode', async () => {
@@ -378,7 +379,7 @@ const noToken = { isCancellationRequested: false, onCancellationRequested: () =>
 describe('TaskApiBackend', () => {
 	it('createSession sends create_pull_request: false so the v2 backend no longer auto-creates PRs', async () => {
 		const client = new FakeTaskApiClient();
-		const backend = new TaskApiBackend(client, new TestLogService(), new MockOctoKitService());
+		const backend = new TaskApiBackend(client, new TestLogService(), new MockOctoKitService(), NullCloudBackendInstrumentation);
 
 		await backend.createSession({
 			owner: 'octocat',
@@ -395,7 +396,7 @@ describe('TaskApiBackend', () => {
 
 	it('createPullRequestForTask resolves owner/repo from the task html_url and delegates to createPRForTask', async () => {
 		const client = new FakeTaskApiClient();
-		const backend = new TaskApiBackend(client, new TestLogService(), new MockOctoKitService());
+		const backend = new TaskApiBackend(client, new TestLogService(), new MockOctoKitService(), NullCloudBackendInstrumentation);
 
 		const result = await backend.createPullRequestForTask({ id: 'task-1', html_url: 'https://github.com/octocat/hello-world/agents/tasks/task-1' } as AgentTaskGetResponse);
 
@@ -407,7 +408,7 @@ describe('TaskApiBackend', () => {
 		const client = new FakeTaskApiClient();
 		const octoKitService = new MockOctoKitService();
 		octoKitService.getRepositoryById = async () => ({ owner: 'octocat', name: 'hello-world' });
-		const backend = new TaskApiBackend(client, new TestLogService(), octoKitService);
+		const backend = new TaskApiBackend(client, new TestLogService(), octoKitService, NullCloudBackendInstrumentation);
 
 		await backend.createPullRequestForTask({ id: 'task-2', repository: { id: 123 } } as unknown as AgentTaskGetResponse);
 
@@ -416,7 +417,7 @@ describe('TaskApiBackend', () => {
 
 	it('createPullRequestForTask throws when the repository cannot be resolved', async () => {
 		const client = new FakeTaskApiClient();
-		const backend = new TaskApiBackend(client, new TestLogService(), new MockOctoKitService());
+		const backend = new TaskApiBackend(client, new TestLogService(), new MockOctoKitService(), NullCloudBackendInstrumentation);
 
 		await expect(backend.createPullRequestForTask({ id: 'task-3' } as AgentTaskGetResponse)).rejects.toThrow();
 		expect(client.createPRCalls).toEqual([]);
@@ -426,7 +427,7 @@ describe('TaskApiBackend', () => {
 		const client = new FakeTaskApiClient();
 		const octoKitService = new MockOctoKitService();
 		octoKitService.getCurrentAuthedUser = async () => ({ id: 4242, login: 'octocat', name: 'The Octocat', avatar_url: '' });
-		const backend = new TaskApiBackend(client, new TestLogService(), octoKitService);
+		const backend = new TaskApiBackend(client, new TestLogService(), octoKitService, NullCloudBackendInstrumentation);
 
 		await backend.fetchSessionList([new GithubRepoId('octocat', 'hello-world')], false, false);
 
@@ -439,7 +440,7 @@ describe('TaskApiBackend', () => {
 		const client = new FakeTaskApiClient({ repoTasks: [{ id: 't1', state: 'completed', created_at: '2026-03-27T00:00:00Z', creator: { id: 999 } } as unknown as AgentTask] });
 		const octoKitService = new MockOctoKitService();
 		octoKitService.getCurrentAuthedUser = async () => undefined;
-		const backend = new TaskApiBackend(client, new TestLogService(), octoKitService);
+		const backend = new TaskApiBackend(client, new TestLogService(), octoKitService, NullCloudBackendInstrumentation);
 
 		const result = await backend.fetchSessionList([new GithubRepoId('octocat', 'hello-world')], false, false);
 
@@ -449,7 +450,7 @@ describe('TaskApiBackend', () => {
 
 	it('fetchSessionList does not send creator_id on the user-scoped global list', async () => {
 		const client = new FakeTaskApiClient();
-		const backend = new TaskApiBackend(client, new TestLogService(), new MockOctoKitService());
+		const backend = new TaskApiBackend(client, new TestLogService(), new MockOctoKitService(), NullCloudBackendInstrumentation);
 
 		await backend.fetchSessionList(undefined, false, false);
 

@@ -74,9 +74,19 @@
 	font-weight: 600;
 }
 
-/* Part (sidebar / auxiliary bar / panel) title labels. */
+/* Part (sidebar / auxiliary bar / panel) title labels — section title, Strong. */
 .style-override-fontRamp.monaco-workbench .part > .title > .title-label h2 {
 	font-size: var(--vscode-bodyFontSize-small);
+	font-weight: 600;
+}
+
+/*
+ * Auxiliary bar single-composite header label (e.g. "Chat") — render it Strong
+ * like the part title-labels so it matches the primary side bar section header
+ * instead of looking like a lighter composite tab.
+ */
+.style-override-fontRamp.monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label {
+	font-weight: 600;
 }
 
 /* Editor tab labels. */
@@ -118,4 +128,21 @@
 .style-override-fontRamp .chat-viewpane.has-sessions-control .agent-sessions-container .agent-sessions-title-container {
 	text-transform: capitalize;
 	font-size: var(--vscode-bodyFontSize-small);
+}
+
+/*
+ * Drop the active-tab underline on the auxiliary bar composite header so a
+ * single-composite header (e.g. the secondary side bar "Chat") reads as a plain
+ * section title that matches the primary side bar, rather than a highlighted
+ * tab. The base rules (auxiliaryBarPart.css) paint the indicator with
+ * `!important` from a `.part.auxiliarybar` selector, so the override must mirror
+ * those exact selectors (including the `:not(:focus)` / `.clicked:focus` states)
+ * and rely on the extra `.style-override-fontRamp` class to win on specificity.
+ */
+.style-override-fontRamp.monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator:before,
+.style-override-fontRamp.monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked.clicked:focus .active-item-indicator:before,
+.style-override-fontRamp.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator:before,
+.style-override-fontRamp.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked.clicked:focus .active-item-indicator:before {
+	border-top-color: transparent !important;
+	border-bottom-color: transparent !important;
 }

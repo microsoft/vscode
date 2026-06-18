@@ -193,6 +193,8 @@ export class ChatCompositeBar extends Disposable {
 			return;
 		}
 
+		// Visibility is driven reactively by the owning group via `delegate.visible`.
+		this._setVisible(false);
 		store.add(autorun(reader => {
 			const chats = delegate.chats.read(reader);
 			const activeChatUri = delegate.activeChatResource.read(reader);

@@ -20,6 +20,24 @@
 export const FEEDBACK_ANNOTATION_META_KEY = 'vscode.agentFeedback';
 
 /**
+ * Name of the agent host server tool that reveals review comments the user has
+ * not accepted yet. Shared here (in the layer-neutral `common` module) so the
+ * node-side server tool implementation and the browser-side chat adapter that
+ * renders its confirmation agree on the name without drifting. The agent sees
+ * this name directly (Copilot) or prefixed as `mcp__host__<name>` (Claude).
+ */
+export const VIEW_UNREVIEWED_COMMENTS_TOOL_NAME = 'viewUnreviewedComments';
+
+/**
+ * Whether {@link toolName} (a tool name as seen on a tool call) refers to the
+ * {@link VIEW_UNREVIEWED_COMMENTS_TOOL_NAME} server tool. Accepts both the bare
+ * name and the Claude `mcp__<server>__<name>` prefixed form.
+ */
+export function isViewUnreviewedCommentsTool(toolName: string): boolean {
+	return toolName === VIEW_UNREVIEWED_COMMENTS_TOOL_NAME || toolName.endsWith(`__${VIEW_UNREVIEWED_COMMENTS_TOOL_NAME}`);
+}
+
+/**
  * Origin of a feedback item. String values match the client-side
  * `AgentFeedbackKind` enum so a value written by either side decodes on the
  * other without translation.
@@ -50,4 +68,13 @@ export interface IFeedbackAnnotationMeta {
 	readonly codeSelection?: string;
 	readonly diffHunks?: string;
 	readonly sourcePRReviewCommentId?: string;
+	/**
+	 * Transient marker set by the client when the user reveals this comment to
+	 * the agent via the `viewUnreviewedComments` tool. The server tool returns
+	 * exactly the comments carrying this flag (so the result is scoped to the
+	 * comments selected for that invocation rather than every accepted review
+	 * comment) and clears it once they have been delivered, so a later
+	 * invocation does not re-return them.
+	 */
+	readonly pendingAgentReveal?: boolean;
 }

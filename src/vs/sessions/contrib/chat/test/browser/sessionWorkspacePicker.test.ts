@@ -101,6 +101,7 @@ function createMockProvider(id: string, opts?: {
 		deleteNewSession: () => { },
 		getSessionTypes: () => [],
 		renameChat: async () => { },
+		renameSession: async () => { },
 		getModels: () => [],
 		getModelPickerOptions: () => ({ useGroupedModelPicker: true, showFeatured: true, showUnavailableFeatured: false, showManageModelsAction: false }),
 		onDidChangeModels: Event.None,

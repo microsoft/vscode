@@ -137,7 +137,6 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 			transparent: false,
 			disableFullscreen: true,
 			nativeTitlebar: false,
-			notResizable: true,
 			noBackgroundThrottling: true,
 			backgroundColor: this.themeService.getColorTheme().getColor(editorBackground)?.toString() ?? '#1e1e1e',
 		});
@@ -296,6 +295,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 
 		// Clean up when user closes window via OS controls
 		Event.once(auxiliaryWindow.onUnload)(() => {
+			this.voiceSessionController.setTargetSession(undefined);
 			this.voiceSessionController.disconnect();
 			this._window = undefined;
 			this._windowDisposables.clear();
@@ -315,6 +315,8 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		// Don't disconnect — closing the floating window minimizes the UI but
 		// keeps the voice session alive. The session ends on terminal disconnect
 		// (Disconnect button or app exit via onUnload).
+		// Clear target session selection so it doesn't silently persist.
+		this.voiceSessionController.setTargetSession(undefined);
 		this.storageService.store(AgentsVoiceStorageKeys.WindowOpen, false, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 
 		this._window = undefined;
@@ -347,8 +349,24 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		const targetHeight = Math.ceil(pillHeight * zoomFactor);
 		const currentWidth = auxiliaryWindow.window.outerWidth;
 		const currentHeight = auxiliaryWindow.window.outerHeight;
-		if (targetWidth !== currentWidth || targetHeight !== currentHeight) {
-			try { auxiliaryWindow.window.resizeTo(targetWidth, targetHeight); } catch { /* resize may not be supported */ }
+		// Only resize width unconditionally; for height, only grow (never
+		// shrink) so that manual vertical resizing by the user is preserved.
+		const newWidth = targetWidth !== currentWidth ? targetWidth : currentWidth;
+		const newHeight = targetHeight > currentHeight ? targetHeight : currentHeight;
+		if (newWidth !== currentWidth || newHeight !== currentHeight) {
+			// Capture position before resize — resizeTo can shift the window
+			// on some platforms (macOS), causing accumulated drift.
+			const preX = auxiliaryWindow.window.screenX;
+			const preY = auxiliaryWindow.window.screenY;
+			try {
+				auxiliaryWindow.window.resizeTo(newWidth, newHeight);
+				// Restore position if it drifted
+				const postX = auxiliaryWindow.window.screenX;
+				const postY = auxiliaryWindow.window.screenY;
+				if (postX !== preX || postY !== preY) {
+					auxiliaryWindow.window.moveTo(preX, preY);
+				}
+			} catch { /* resize may not be supported */ }
 		}
 	}
 

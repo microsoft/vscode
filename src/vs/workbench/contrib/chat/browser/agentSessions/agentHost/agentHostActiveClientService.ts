@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Delayer } from '../../../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { equals } from '../../../../../../base/common/objects.js';
@@ -107,13 +108,20 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 				onUnexpectedError(err);
 			}
 		};
-		store.add(syncProvider.onDidChange(() => updateCustomizations()));
+		// Many of the events below can fire in quick succession (e.g. during
+		// initialization or when a config change touches several providers at
+		// once), so debounce the re-resolution into a single update.
+		const updateDelayer = store.add(new Delayer<void>(CUSTOMIZATION_UPDATE_DEBOUNCE_DELAY));
+		const scheduleUpdate = () => {
+			updateDelayer.trigger(() => updateCustomizations()).catch(() => { /* delayer disposed */ });
+		};
+		store.add(syncProvider.onDidChange(() => scheduleUpdate()));
 		store.add(Event.any(
 			this._promptsService.onDidChangeCustomAgents,
 			this._promptsService.onDidChangeSlashCommands,
 			this._promptsService.onDidChangeSkills,
 			this._promptsService.onDidChangeInstructions,
-		)(() => updateCustomizations()));
+		)(() => scheduleUpdate()));
 		// Re-resolve when MCP servers configured in VS Code change (added,
 		// removed, enabled/disabled, or reconfigured) so they stay in sync.
 		store.add(autorun(reader => {
@@ -121,7 +129,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 				server.enablement.read(reader);
 				server.readDefinitions().read(reader);
 			}
-			updateCustomizations();
+			scheduleUpdate();
 		}));
 		store.add(this._setCustomizations(sessionType, customizations));
 		return {
@@ -159,5 +167,8 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 }
 
 const EMPTY_CUSTOMIZATIONS: readonly ClientPluginCustomization[] = Object.freeze([]);
+
+/** Debounce window (ms) used to coalesce bursts of customization change events into a single re-resolution. */
+const CUSTOMIZATION_UPDATE_DEBOUNCE_DELAY = 50;
 
 registerSingleton(IAgentHostActiveClientService, AgentHostActiveClientService, InstantiationType.Delayed);

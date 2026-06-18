@@ -10,6 +10,7 @@ import { ILanguageModelConfigurationSchema } from '../../../../common/languageMo
 import {
 	computeStoredConfiguration,
 	extractSchemaDefaults,
+	filterConfigurationToSchema,
 	resolveModelConfiguration,
 } from '../../../../browser/widget/input/chatModelConfigurationLogic.js';
 
@@ -73,6 +74,29 @@ suite('chatModelConfigurationLogic', () => {
 		test('merges new values over the current effective config', () => {
 			const current: IStringDictionary<unknown> = { thinkingEffort: 'high', contextSize: 1000 };
 			assert.deepStrictEqual(computeStoredConfiguration(current, { contextSize: 2000 }, defaults), { thinkingEffort: 'high', contextSize: 2000 });
+		});
+	});
+
+	suite('filterConfigurationToSchema', () => {
+		test('drops keys that are absent from the current schema (removed property)', () => {
+			const filtered = filterConfigurationToSchema({ thinkingEffort: 'high', removedProp: 42 }, effortSchema);
+			assert.deepStrictEqual(filtered, { thinkingEffort: 'high' });
+		});
+
+		test('drops values that violate the enum constraint, falling back to the live default', () => {
+			// 'extreme' was valid against an older schema but is no longer an enum member.
+			const filtered = filterConfigurationToSchema({ thinkingEffort: 'extreme' }, effortSchema);
+			assert.deepStrictEqual(filtered, {});
+		});
+
+		test('keeps values for non-enum properties (no constraint to validate)', () => {
+			const filtered = filterConfigurationToSchema({ contextSize: 2000 }, effortSchema);
+			assert.deepStrictEqual(filtered, { contextSize: 2000 });
+		});
+
+		test('returns empty when the schema (or its properties) is missing', () => {
+			assert.deepStrictEqual(filterConfigurationToSchema({ thinkingEffort: 'high' }, undefined), {});
+			assert.deepStrictEqual(filterConfigurationToSchema({ thinkingEffort: 'high' }, {}), {});
 		});
 	});
 

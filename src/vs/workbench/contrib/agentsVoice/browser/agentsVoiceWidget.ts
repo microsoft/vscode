@@ -16,6 +16,7 @@ import { createTranscript, updateTranscriptOverflowState } from './components/tr
 import { createSessionList, type SessionRowData, type SessionGroupData } from './components/sessionListComponent.js';
 import { createFeedbackDialog, type FeedbackDialogState } from './components/feedbackDialog.js';
 import { createOnboarding } from './components/onboardingComponent.js';
+import { createVoiceBar } from './components/voiceBarComponent.js';
 import { FONT_SIZE } from './components/tokens.js';
 import type { VoiceState, IPendingToolConfirmation, ITranscriptTurn } from '../../chat/browser/voiceClient/voiceSessionController.js';
 
@@ -142,6 +143,7 @@ export class AgentsVoiceWidget extends Disposable {
 	private readonly _headerComponent = createHeader();
 	private readonly _onboardingComponent = createOnboarding();
 	private readonly _feedbackDialogComponent = createFeedbackDialog();
+	private readonly _voiceBarComponent = createVoiceBar();
 	private readonly _transcriptComponent = createTranscript();
 	private readonly _statusRowsComponent = createStatusRows();
 	private readonly _sessionListComponent = createSessionList();
@@ -228,6 +230,7 @@ export class AgentsVoiceWidget extends Disposable {
 		this._contentDiv.append(
 			this._onboardingComponent.element,
 			this._headerComponent.element,
+			this._voiceBarComponent.element,
 			this._feedbackDialogComponent.element,
 			this._statusTextDiv,
 			this._transcriptComponent.element,
@@ -378,6 +381,7 @@ export class AgentsVoiceWidget extends Disposable {
 		if (onboarding) {
 			this._onboardingComponent.element.style.display = '';
 			this._headerComponent.element.style.display = 'none';
+			this._voiceBarComponent.element.style.display = 'none';
 			this._feedbackDialogComponent.element.style.display = 'none';
 			this._statusTextDiv.style.display = 'none';
 			this._transcriptComponent.element.style.display = 'none';
@@ -433,6 +437,7 @@ export class AgentsVoiceWidget extends Disposable {
 			});
 
 			if (feedbackState) {
+				this._voiceBarComponent.element.style.display = 'none';
 				this._feedbackDialogComponent.element.style.display = '';
 				this._feedbackDialogComponent.update({
 					onSubmit: (text) => this._submitFeedback(text),
@@ -448,11 +453,21 @@ export class AgentsVoiceWidget extends Disposable {
 			} else {
 				this._feedbackDialogComponent.element.style.display = 'none';
 
-				// Status text
+				// Voice bar (listening/speaking indicator with stop button)
+				this._voiceBarComponent.update({
+					voiceState,
+					speakingSessionLabel: this._speakingSessionLabel.read(reader),
+					speakingSession: this._speakingSession.read(reader),
+					onStopSpeech: () => this.callbacks.stopPlayback(),
+				});
+
+				// Status text — always show when in error state (e.g. mic denied)
 				const statusText = this._statusText.read(reader);
-				if (opts.showStatusText && statusText) {
+				const isError = voiceState === 'error';
+				if ((opts.showStatusText || isError) && statusText) {
 					this._statusTextDiv.style.display = '';
 					this._statusTextDiv.textContent = statusText;
+					this._statusTextDiv.style.color = isError ? 'var(--vscode-editorError-foreground)' : 'var(--vscode-foreground)';
 				} else {
 					this._statusTextDiv.style.display = 'none';
 				}

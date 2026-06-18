@@ -88,6 +88,7 @@ class RestoreMainEditorPartAction extends Action2 {
 			title: localize2('restoreMainEditorPart', "Restore Editor Area"),
 			icon: Codicon.screenNormal,
 			f1: false,
+			toggled: EditorMaximizedContext,
 			menu: {
 				id: MenuId.EditorTitleLayout,
 				group: 'navigation',
@@ -186,6 +187,7 @@ class PullEditorLeftAction extends Action2 {
 			title: localize2('pullEditorLeft', "Show Secondary Side Bar"),
 			icon: Codicon.chevronLeft,
 			f1: false,
+			toggled: AuxiliaryBarVisibleContext.toNegated(),
 			menu: {
 				id: MenuId.EditorTitleLayout,
 				group: 'navigation',

@@ -423,6 +423,12 @@ function mapResult(
 		// reported model. Phase 6 turns are single-model; multi-model
 		// attribution is a Phase 7+ concern.
 		const modelKey = Object.keys(message.modelUsage)[0];
+		// Per-turn credits are deliberately NOT derived from
+		// `total_cost_usd`: that is the SDK's Anthropic-list-price USD
+		// estimate, not what CAPI actually bills. Real Copilot credits come
+		// from CAPI's `copilot_usage.total_nano_aiu`, which the proxy
+		// captures and `ClaudeAgentSession` attaches to this action as
+		// `_meta.copilotUsage.totalNanoAiu` (the key the workbench reads).
 		signals.push({
 			kind: 'action',
 			session,

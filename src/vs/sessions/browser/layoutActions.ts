@@ -108,29 +108,18 @@ class ToggleSecondarySidebarVisibilityAction extends Action2 {
 	}
 }
 
-class TogglePanelVisibilityAction extends Action2 {
-
-	static readonly ID = 'workbench.action.agentTogglePanelVisibility';
-
-	constructor() {
-		super({
-			id: TogglePanelVisibilityAction.ID,
-			title: localize2('togglePanel', 'Toggle Panel Visibility'),
-			category: Categories.View,
-			f1: true,
-			icon: panelCloseIcon
-		});
-	}
-
-	run(accessor: ServicesAccessor): void {
-		const layoutService = accessor.get(IWorkbenchLayoutService);
-		layoutService.setPartHidden(layoutService.isVisible(Parts.PANEL_PART), Parts.PANEL_PART);
-	}
-}
-
 registerAction2(ToggleSidebarVisibilityAction);
 registerAction2(ToggleSecondarySidebarVisibilityAction);
-registerAction2(TogglePanelVisibilityAction);
+
+MenuRegistry.appendMenuItem(Menus.PanelTitle, {
+	command: {
+		id: 'workbench.action.closePanel',
+		title: localize('closePanel', "Hide Panel"),
+		icon: panelCloseIcon
+	},
+	group: 'navigation',
+	order: 2
+});
 
 // Floating window controls: always-on-top
 MenuRegistry.appendMenuItem(Menus.TitleBarRightLayout, {

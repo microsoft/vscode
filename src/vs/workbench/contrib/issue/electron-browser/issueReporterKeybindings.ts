@@ -15,9 +15,9 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { IssueReporterEditorInput } from './issueReporterEditorInput.js';
+import { IssueReporterEditorInput } from '../browser/issueReporterEditorInput.js';
 import { IssueReporterEditorPane, IssueReporterOpenContext } from './issueReporterEditorPane.js';
-import { IssueReporterOverlay } from './issueReporterOverlay.js';
+import { IssueReporterOverlay } from '../browser/issueReporterOverlay.js';
 
 export const ISSUE_REPORTER_CAPTURE_SCREENSHOT_COMMAND_ID = 'workbench.action.issueReporter.captureScreenshot';
 export const ISSUE_REPORTER_TOGGLE_RECORDING_COMMAND_ID = 'workbench.action.issueReporter.toggleRecording';

@@ -15,8 +15,8 @@ import { type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, 
 import { CompletionsParams, CompletionsResult, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
 import { ActionType, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type ClientAnnotationsAction } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
-import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, AHP_UNSUPPORTED_PROTOCOL_VERSION, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
-import { MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, type SessionSummary } from '../../common/state/sessionState.js';
+import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
+import { MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, type SessionSummary } from '../../common/state/sessionState.js';
 import type { SessionAddedParams } from '../../common/state/protocol/notifications.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
@@ -118,6 +118,16 @@ class MockAgentService implements IAgentService {
 	async completions(_params: CompletionsParams): Promise<CompletionsResult> { return { items: [] }; }
 	async getCompletionTriggerCharacters(): Promise<readonly string[]> { return []; }
 	async disposeSession(_session: URI): Promise<void> { }
+	readonly createdChats: { session: string; chat: string }[] = [];
+	readonly disposedChats: { session: string; chat: string }[] = [];
+	async createChat(session: URI, chat: URI): Promise<void> {
+		this.createdChats.push({ session: session.toString(), chat: chat.toString() });
+		this._stateManager.addChat(session.toString(), chat.toString());
+	}
+	async disposeChat(session: URI, chat: URI): Promise<void> {
+		this.disposedChats.push({ session: session.toString(), chat: chat.toString() });
+		this._stateManager.removeChat(session.toString(), chat.toString());
+	}
 	async listSessions(): Promise<IAgentSessionMetadata[]> { return this.listedSessions; }
 	async subscribe(resource: URI, _clientId: string): Promise<IStateSnapshot> {
 		const snapshot = this._stateManager.getSnapshot(resource.toString());
@@ -608,6 +618,80 @@ suite('ProtocolServerHandler', () => {
 		}, {
 			result: null,
 			project: { uri: 'file:///created-project', displayName: 'Created Project' },
+		});
+	});
+
+	suite('createChat / disposeChat', () => {
+		const peerChat = buildChatUri(sessionUri, 'peer-1');
+
+		test('createChat on the default chat URI is a no-op', async () => {
+			stateManager.createSession(makeSessionSummary());
+			const transport = connectClient('client-cc');
+			transport.sent.length = 0;
+			const responsePromise = waitForResponse(transport, 2);
+
+			transport.simulateMessage(request(2, 'createChat', { channel: sessionUri, chat: buildDefaultChatUri(sessionUri) }));
+			const resp = await responsePromise;
+
+			assert.deepStrictEqual({
+				result: (resp as { result: null }).result,
+				created: agentService.createdChats,
+			}, {
+				result: null,
+				created: [],
+			});
+		});
+
+		test('createChat for an additional chat forwards to the agent service and grows the catalog', async () => {
+			stateManager.createSession(makeSessionSummary());
+			const transport = connectClient('client-cc');
+			transport.sent.length = 0;
+			const responsePromise = waitForResponse(transport, 2);
+
+			transport.simulateMessage(request(2, 'createChat', { channel: sessionUri, chat: peerChat }));
+			const resp = await responsePromise;
+
+			assert.deepStrictEqual({
+				result: (resp as { result: null }).result,
+				created: agentService.createdChats,
+				inCatalog: stateManager.getSessionState(sessionUri)?.chats.some(c => c.resource === peerChat),
+			}, {
+				result: null,
+				created: [{ session: sessionUri, chat: peerChat }],
+				inCatalog: true,
+			});
+		});
+
+		test('createChat for an unknown session fails with SESSION_NOT_FOUND', async () => {
+			const transport = connectClient('client-cc');
+			transport.sent.length = 0;
+			const responsePromise = waitForResponse(transport, 2);
+
+			transport.simulateMessage(request(2, 'createChat', { channel: 'copilot:/missing', chat: buildChatUri('copilot:/missing', 'peer-1') }));
+			const resp = await responsePromise as { error?: { code: number } };
+
+			assert.strictEqual(resp.error?.code, AHP_SESSION_NOT_FOUND);
+		});
+
+		test('disposeChat forwards to the agent service and shrinks the catalog', async () => {
+			stateManager.createSession(makeSessionSummary());
+			stateManager.addChat(sessionUri, peerChat);
+			const transport = connectClient('client-cc');
+			transport.sent.length = 0;
+			const responsePromise = waitForResponse(transport, 2);
+
+			transport.simulateMessage(request(2, 'disposeChat', { channel: peerChat }));
+			const resp = await responsePromise;
+
+			assert.deepStrictEqual({
+				result: (resp as { result: null }).result,
+				disposed: agentService.disposedChats,
+				inCatalog: stateManager.getSessionState(sessionUri)?.chats.some(c => c.resource === peerChat),
+			}, {
+				result: null,
+				disposed: [{ session: sessionUri, chat: peerChat }],
+				inCatalog: false,
+			});
 		});
 	});
 

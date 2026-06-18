@@ -525,6 +525,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 						promptTokens: progress.promptTokens,
 						completionTokens: progress.completionTokens,
 						outputBuffer: progress.outputBuffer,
+						copilotCredits: progress.copilotCredits,
 						promptTokenDetails: progress.promptTokenDetails
 					});
 				}

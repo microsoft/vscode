@@ -40,6 +40,7 @@ import { CopilotCloudGitOperationsManager } from './copilotCloudGitOperationsMan
 import { ChatSessionContentBuilder, SessionResponseLogChunk } from './copilotCloudSessionContentBuilder';
 import { StreamBaseline, TaskTurnStreamer } from './taskTurnStreamer';
 import { JobsApiBackend } from './jobsApiBackend';
+import { CloudBackendInstrumentation, CloudBackendVersion } from './cloudBackendTelemetry';
 import { TaskApiBackend, TaskApiHttpClient } from './taskApiBackend';
 import { resolvePullArtifact } from './pullArtifactResolver';
 import { IPullRequestFileChangesService } from './pullRequestFileChangesService';
@@ -341,6 +342,9 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	// runtime "not supported" throws on the type surface.
 	private readonly _backend: CloudAgentBackend;
 
+	/** Resolved Cloud Agent backend version (`v1` Jobs API | `v2` Task API) for this provider instance. */
+	private readonly _backendVersion: CloudBackendVersion;
+
 	constructor(
 		@IOctoKitService private readonly _octoKitService: IOctoKitService,
 		@IGitService private readonly _gitService: IGitService,
@@ -362,15 +366,21 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	) {
 		super();
 
-		// Select Cloud Agent backend based on the `chat.cloudAgentBackend.version` setting.
-		// Default 'v1' keeps existing Jobs API behavior; 'v2' opts in to the experimental Task API backend.
+		// Select Cloud Agent backend based on the `chat.cloudAgentBackend.version` setting. This is an
+		// experiment-based setting, so the rollout can be ramped and instantly rolled back remotely via
+		// ExP without shipping a build. Default 'v1' keeps existing Jobs API behavior; 'v2' opts in to
+		// the Task API backend.
 		// Note: read once at construction — changes to the setting require an extension host reload to take effect.
-		const backendVersion = configurationService.getConfig(ConfigKey.CloudAgentBackendVersion);
+		const backendVersion = configurationService.getExperimentBasedConfig(ConfigKey.CloudAgentBackendVersion, this._experimentationService);
+		this._backendVersion = backendVersion;
+		// Shared, version-tagged telemetry/OTel surface so v1 and v2 emit identical funnel and guardrail
+		// signals — this is what makes the rollout observable and comparable apples-to-apples.
+		const instrumentation = new CloudBackendInstrumentation(backendVersion, this.telemetry, this._otelService);
 		if (backendVersion === 'v2') {
 			const taskApiClient = new TaskApiHttpClient(capiClientService, this._authenticationService, this.logService);
-			this._backend = new TaskApiBackend(taskApiClient, this.logService, this._octoKitService);
+			this._backend = new TaskApiBackend(taskApiClient, this.logService, this._octoKitService, instrumentation);
 		} else {
-			this._backend = new JobsApiBackend(this._octoKitService, this.logService, this.telemetry, this._otelService);
+			this._backend = new JobsApiBackend(this._octoKitService, this.logService, instrumentation);
 		}
 
 		this.registerCommands();
@@ -1043,9 +1053,11 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 							inputCost: pricing?.default.inputPrice,
 							outputCost: pricing?.default.outputPrice,
 							cacheCost: pricing?.default.cachePrice,
+							cacheWriteCost: pricing?.default.cacheWritePrice,
 							longContextInputCost: pricing?.longContext?.inputPrice,
 							longContextOutputCost: pricing?.longContext?.outputPrice,
 							longContextCacheCost: pricing?.longContext?.cachePrice,
+							longContextCacheWriteCost: pricing?.longContext?.cacheWritePrice,
 							priceCategory: model.model_picker_price_category,
 							capabilities: {
 								vision: model.capabilities?.supports?.vision ?? false,
@@ -2551,7 +2563,8 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				"hasChatSessionItem": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Invoked with a chat session item." },
 				"isUntitled": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Indicates if the chat session is untitled." },
 				"partnerAgent": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The partner agent name (e.g., Copilot, Claude, Codex)." },
-				"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The selected model ID." }
+				"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The selected model ID." },
+				"backendVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Cloud agent backend version: v1 (Jobs API) or v2 (Task API)." }
 			}
 		*/
 		this.telemetry.sendMSFTTelemetryEvent('copilotcloud.chat.invoke', {
@@ -2559,9 +2572,10 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			hasChatSessionItem: String(!!context.chatSessionContext?.chatSessionItem),
 			isUntitled: String(context.chatSessionContext?.isUntitled),
 			partnerAgent: partnerAgent?.name ?? 'unknown',
-			model: modelId ?? 'unknown'
+			model: modelId ?? 'unknown',
+			backendVersion: this._backendVersion
 		});
-		GenAiMetrics.incrementCloudSessionCount(this._otelService, partnerAgent?.name ?? 'unknown');
+		GenAiMetrics.incrementCloudSessionCount(this._otelService, partnerAgent?.name ?? 'unknown', this._backendVersion);
 		emitCloudSessionInvokeEvent(this._otelService, partnerAgent?.name ?? 'unknown', modelId ?? 'unknown', request.id);
 
 		// Follow up

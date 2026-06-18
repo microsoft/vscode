@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { describe, expect, it } from 'vitest';
-import { applyStrategyConfig, IncludeLineNumbersOption, ModelConfiguration, PromptingStrategy } from '../../common/dataTypes/xtabPromptOptions';
+import { ImportChanges } from '../../common/dataTypes/importFilteringOptions';
+import { applyStrategyConfig, IncludeLineNumbersOption, MODEL_CONFIGURATION_VALIDATOR, ModelConfiguration, PromptingStrategy } from '../../common/dataTypes/xtabPromptOptions';
 
 function baseConfig(overrides: Partial<ModelConfiguration> = {}): ModelConfiguration {
 	return {
@@ -71,5 +72,33 @@ describe('applyStrategyConfig', () => {
 		expect(result.currentFile).toBeUndefined();
 		expect(result.recentlyViewedDocuments).toBeUndefined();
 		expect(result.lintOptions).toBeUndefined();
+	});
+
+	it('preserves allowImportChanges through strategy application', () => {
+		const result = applyStrategyConfig(baseConfig({
+			promptingStrategy: PromptingStrategy.CopilotNesXtab,
+			allowImportChanges: ImportChanges.All,
+		}));
+		expect(result.allowImportChanges).toBe(ImportChanges.All);
+	});
+});
+
+describe('MODEL_CONFIGURATION_VALIDATOR', () => {
+
+	it('accepts a config with allowImportChanges', () => {
+		const result = MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig({ allowImportChanges: ImportChanges.All }));
+		expect(result.error).toBeUndefined();
+		expect(result.content?.allowImportChanges).toBe(ImportChanges.All);
+	});
+
+	it('accepts a config without allowImportChanges', () => {
+		const result = MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig());
+		expect(result.error).toBeUndefined();
+		expect(result.content?.allowImportChanges).toBeUndefined();
+	});
+
+	it('rejects an invalid allowImportChanges value', () => {
+		const result = MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig({ allowImportChanges: 'sometimes' as ImportChanges }));
+		expect(result.error).toBeDefined();
 	});
 });

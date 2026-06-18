@@ -26,7 +26,7 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 
 	constructor(
 		private readonly _getSessionState: (sessionKey: string) => SessionState | undefined,
-		private readonly _onCommitted: (sessionKey: string) => Promise<void>,
+		private readonly _onCommitted: (sessionKey: string, changeset: string) => Promise<void>,
 		@IAgentService private readonly _agentService: IAgentService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
@@ -125,7 +125,7 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 		}
 
 		try {
-			await this._onCommitted(sessionUri);
+			await this._onCommitted(sessionUri, params.channel);
 		} catch (err) {
 			this._logService.warn(`[AgentHostCommitOperationHandler] Post-commit refresh failed for session ${sessionUri}: ${err instanceof Error ? err.message : String(err)}`);
 		}

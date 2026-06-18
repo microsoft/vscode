@@ -453,6 +453,7 @@ export class ChatAgentResponseStream {
 						promptTokens: usage.promptTokens,
 						completionTokens: usage.completionTokens,
 						outputBuffer: usage.outputBuffer,
+						copilotCredits: usage.copilotCredits,
 						promptTokenDetails: usage.promptTokenDetails
 					};
 					_report(dto);

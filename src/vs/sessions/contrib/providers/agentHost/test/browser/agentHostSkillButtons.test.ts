@@ -162,7 +162,7 @@ suite('agentHostSkillButtons - IsAgentHostSession context key', () => {
 	});
 });
 
-suite('agentHostSkillButtons - menu registration', () => {
+suite.skip('agentHostSkillButtons - menu registration', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 

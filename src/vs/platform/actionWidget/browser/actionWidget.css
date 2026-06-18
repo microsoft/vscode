@@ -414,14 +414,14 @@
 	align-items: flex-start;
 	/* Match the row gap so the text aligns with the item labels. */
 	gap: 6px;
-	color: var(--vscode-banner-foreground);
+	color: var(--vscode-foreground);
 	font-size: 12px;
 	line-height: 16px;
 	/* Match the row padding so the icon sits in the item icon column and the text aligns with the item labels. Top padding matches the left so the icon is evenly inset. */
 	padding: 6px 12px 6px 6px;
 	/* No horizontal margin so the rounded box matches the item hover outline. */
 	margin-bottom: 2px;
-	background-color: var(--vscode-banner-background);
+	background-color: var(--vscode-chat-requestBubbleBackground);
 	border-radius: var(--vscode-cornerRadius-medium);
 }
 
@@ -437,7 +437,7 @@
 	text-align: center;
 	font-size: 12px !important;
 	line-height: 16px;
-	color: var(--vscode-banner-iconForeground);
+	color: var(--vscode-descriptionForeground);
 }
 
 .action-widget .action-list-header .action-list-header-text {

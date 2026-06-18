@@ -992,14 +992,12 @@ class AgentSessionAdapter implements ICopilotChatSession {
 			if (!base?.pullRequest || !this._gitHubService) {
 				return base;
 			}
-			// Prefer the last-seen PR state from the shared cache (retained while
-			// the session is inactive and seeded from storage on reload). Fall
-			// back to the metadata icon from `base` until the cache is populated.
-			const cached = this._gitHubService.getCachedPullRequestState(base.owner, base.repo, base.pullRequest.number).read(reader);
-			if (!cached) {
+			const prModelRef = reader.store.add(this._gitHubService.createPullRequestModelReference(base.owner, base.repo, base.pullRequest.number));
+			const livePR = prModelRef.object.pullRequest.read(reader);
+			if (!livePR) {
 				return base;
 			}
-			return { ...base, pullRequest: { ...base.pullRequest, icon: computePullRequestIcon(cached.iconState) } };
+			return { ...base, pullRequest: { ...base.pullRequest, icon: computePullRequestIcon(livePR.isDraft ? 'draft' : livePR.state) } };
 		});
 
 		this._workspace = observableValue(this, this._buildWorkspace(session));
@@ -1705,9 +1703,11 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				inputCost: modelMetadata?.inputCost,
 				outputCost: modelMetadata?.outputCost,
 				cacheCost: modelMetadata?.cacheCost,
+				cacheWriteCost: modelMetadata?.cacheWriteCost,
 				longContextInputCost: modelMetadata?.longContextInputCost,
 				longContextOutputCost: modelMetadata?.longContextOutputCost,
 				longContextCacheCost: modelMetadata?.longContextCacheCost,
+				longContextCacheWriteCost: modelMetadata?.longContextCacheWriteCost,
 				priceCategory: modelMetadata?.priceCategory,
 				maxInputTokens: modelMetadata?.maxInputTokens ?? 0,
 				maxOutputTokens: modelMetadata?.maxOutputTokens ?? 0,
@@ -1827,6 +1827,13 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			return;
 		}
 		throw new Error('Renaming is not supported for this session type');
+	}
+
+	async renameSession(sessionId: string, title: string): Promise<void> {
+		const session = this._findSession(sessionId);
+		if (session) {
+			await this.renameChat(sessionId, session.mainChat.get().resource, title);
+		}
 	}
 
 	async deleteChat(sessionId: string, chatUri: URI): Promise<void> {
@@ -2901,6 +2908,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			mainChat,
 			capabilities: {
 				supportsMultipleChats: primaryChat.sessionType === CopilotCLISessionType.id && this._isMultiChatEnabled(),
+				supportsRename: this._sessionTypeSupportsRename(primaryChat.sessionType),
 				// Cloud-agent sessions run worktreeCreated tasks server-side during
 				// environment provisioning, so the agents-window dispatcher must
 				// not re-run them. CLI / local sessions don't.
@@ -2940,9 +2948,18 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			mainChat,
 			capabilities: {
 				supportsMultipleChats: false,
+				supportsRename: this._sessionTypeSupportsRename(chat.sessionType),
 				runsWorktreeCreatedTasks: chat.sessionType === CopilotCloudSessionType.id,
 			},
 		};
+	}
+
+	/**
+	 * Whether {@link renameChat} can rename a session of the given type. Only
+	 * the CopilotCLI and Claude backends expose a rename command; others throw.
+	 */
+	private _sessionTypeSupportsRename(sessionType: string): boolean {
+		return sessionType === CopilotCLISessionType.id || sessionType === AgentSessionProviders.Claude;
 	}
 
 	private _toChat(chat: ICopilotChatSession, resource?: URI): IChat {
