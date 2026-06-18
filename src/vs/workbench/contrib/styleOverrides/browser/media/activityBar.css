@@ -30,3 +30,20 @@
 	border-radius: var(--vscode-cornerRadius-medium);
 	background-color: var(--vscode-activityBar-activeBackground, var(--vscode-list-inactiveSelectionBackground));
 }
+
+/*
+ * Some color themes pick the activity bar foreground to contrast a distinctly
+ * colored activity bar background. When that background is neutralized to match
+ * the window, the theme's foreground can become invisible. Force the item
+ * foreground (set inline by the part) to the general editor foreground so icons
+ * stay legible across all themes, keeping inactive items dimmed for hierarchy.
+ * Only codicon-based items use `color`; image (iconUrl) items use a background
+ * mask and are left untouched.
+ */
+.style-override-activityBar .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .action-label {
+	color: var(--vscode-foreground) !important;
+}
+
+.style-override-activityBar .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:not(.checked) .action-label {
+	color: var(--vscode-descriptionForeground) !important;
+}

@@ -1,0 +1,18 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Status Bar — keep the status bar foreground legible.
+ *
+ * Some color themes pick the status bar foreground to contrast a distinctly
+ * colored status bar background. When that background is neutralized to match
+ * the window, the theme's foreground can become invisible. Force the status bar
+ * text/icon color (set inline on the part by the workbench) to the general
+ * editor foreground so it stays readable across all themes. Items that set
+ * their own color (e.g. prominent, error or warning entries) keep theirs.
+ */
+.style-override-statusBar .part.statusbar {
+	color: var(--vscode-foreground) !important;
+}

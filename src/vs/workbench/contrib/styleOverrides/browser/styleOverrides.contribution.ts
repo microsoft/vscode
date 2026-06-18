@@ -24,6 +24,7 @@ import './media/padding.css';
 import './media/paneHeaders.css';
 import './media/roundedCorners.css';
 import './media/scrollShadows.css';
+import './media/statusBar.css';
 import './media/tabs.css';
 
 const SETTING_ID = 'workbench.experimental.styleOverrides';
@@ -44,7 +45,7 @@ const STYLE_OVERRIDE_MODULES: readonly IStyleOverrideModule[] = [
 	{
 		id: 'activityBar',
 		label: localize('styleOverrides.activityBar', "Activity Bar"),
-		description: localize('styleOverrides.activityBar.description', "Replaces the active activity bar item's left highlight border with a rounded background behind the icon.")
+		description: localize('styleOverrides.activityBar.description', "Replaces the active activity bar item's left highlight border with a rounded background behind the icon, and forces item foregrounds to the editor foreground so icons stay legible.")
 	},
 	{
 		id: 'commandCenter',
@@ -80,6 +81,11 @@ const STYLE_OVERRIDE_MODULES: readonly IStyleOverrideModule[] = [
 		id: 'scrollShadows',
 		label: localize('styleOverrides.scrollShadows', "Scroll Shadows"),
 		description: localize('styleOverrides.scrollShadows.description', "Adds soft inset shadows to the top and bottom of lists, trees and the editor so content reads as scrolling under a fixed frame.")
+	},
+	{
+		id: 'statusBar',
+		label: localize('styleOverrides.statusBar', "Status Bar"),
+		description: localize('styleOverrides.statusBar.description', "Forces the status bar foreground to the general editor foreground so its text and icons stay legible when the status bar background is neutralized.")
 	},
 	{
 		id: 'tabs',
