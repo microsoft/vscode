@@ -431,6 +431,10 @@ export const ACTIVITY_BAR_ACTIVE_FOCUS_BORDER = registerColor('activityBar.activ
 
 export const ACTIVITY_BAR_ACTIVE_BACKGROUND = registerColor('activityBar.activeBackground', null, localize('activityBarActiveBackground', "Activity bar background color for the active item. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
+export const ACTIVITY_BAR_HOVER_FOREGROUND = registerColor('activityBar.hoverForeground', ACTIVITY_BAR_FOREGROUND, localize('activityBarHoverForeground', "Activity bar item foreground color when hovering. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+
+export const ACTIVITY_BAR_HOVER_BACKGROUND = registerColor('activityBar.hoverBackground', null, localize('activityBarHoverBackground', "Activity bar item background color when hovering. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+
 export const ACTIVITY_BAR_DRAG_AND_DROP_BORDER = registerColor('activityBar.dropBorder', {
 	dark: ACTIVITY_BAR_FOREGROUND,
 	light: ACTIVITY_BAR_FOREGROUND,
@@ -462,6 +466,10 @@ export const ACTIVITY_BAR_TOP_ACTIVE_BORDER = registerColor('activityBarTop.acti
 }, localize('activityBarTopActiveFocusBorder', "Focus border color for the active item in the Activity bar when it is on top / bottom. The activity allows to switch between views of the side bar."));
 
 export const ACTIVITY_BAR_TOP_ACTIVE_BACKGROUND = registerColor('activityBarTop.activeBackground', null, localize('activityBarTopActiveBackground', "Background color for the active item in the Activity bar when it is on top / bottom. The activity allows to switch between views of the side bar."));
+
+export const ACTIVITY_BAR_TOP_HOVER_FOREGROUND = registerColor('activityBarTop.hoverForeground', ACTIVITY_BAR_TOP_FOREGROUND, localize('activityBarTopHoverForeground', "Hover foreground color of the item in the Activity bar when it is on top / bottom. The activity allows to switch between views of the side bar."));
+
+export const ACTIVITY_BAR_TOP_HOVER_BACKGROUND = registerColor('activityBarTop.hoverBackground', null, localize('activityBarTopHoverBackground', "Hover background color of the item in the Activity bar when it is on top / bottom. The activity allows to switch between views of the side bar."));
 
 export const ACTIVITY_BAR_TOP_INACTIVE_FOREGROUND = registerColor('activityBarTop.inactiveForeground', {
 	dark: transparent(ACTIVITY_BAR_TOP_FOREGROUND, 0.6),
