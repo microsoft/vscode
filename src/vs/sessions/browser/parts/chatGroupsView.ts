@@ -142,8 +142,22 @@ export class ChatGroupsView extends Themable {
 			return result;
 		});
 
-		const tabsVisible = derived(reader =>
-			session.isCreated.read(reader) && (chats.read(reader).length > 1 || this._groupCount.read(reader) > 1));
+		const tabsVisible = derived(reader => {
+			if (!session.isCreated.read(reader)) {
+				return false;
+			}
+			const groupChats = chats.read(reader);
+			if (groupChats.length > 1 || this._groupCount.read(reader) > 1) {
+				return true;
+			}
+			// Show the tab strip for a lone chat whose title diverges from the
+			// session title, so both independent titles stay visible.
+			if (groupChats.length === 1) {
+				const chatTitle = groupChats[0].title.read(reader);
+				return !!chatTitle && chatTitle !== session.title.read(reader);
+			}
+			return false;
+		});
 
 		const view = store.add(this._instantiationService.createInstance(ChatGroupView));
 		const entry: IGroupEntry = { id, view, resourceIds, activeResourceId, chats, tabsVisible };
