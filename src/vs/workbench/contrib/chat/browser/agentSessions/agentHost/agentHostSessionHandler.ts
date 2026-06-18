@@ -21,6 +21,7 @@ import { IPosition } from '../../../../../../editor/common/core/position.js';
 import { isLocation, type Location } from '../../../../../../editor/common/languages.js';
 import { localize } from '../../../../../../nls.js';
 import { AgentProvider, AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/agentFeedbackAttachments.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ChatTruncatedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
@@ -28,7 +29,7 @@ import { CompletionItemKind as AhpCompletionItemKind, type CompletionItem as Ahp
 import { ConfirmationOptionKind, TerminalClaimKind, ToolCallContributorKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, ChatTurnStartedAction, isChatAction, type ChatAction, type ClientChatAction, type ClientSessionAction, type ChatInputCompletedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { buildSubagentSessionUri, getToolSubagentContent, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, buildDefaultChatUri, mergeSessionWithDefaultChat, type ChatState, type ISessionWithDefaultChat, type ClientPluginCustomization, type ICompletedToolCall, type MarkdownResponsePart, type Message, type MessageAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputRequest, type SessionState, type ToolCallResponsePart, type ToolCallState, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentSessionUri, getToolSubagentContent, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, buildDefaultChatUri, mergeSessionWithDefaultChat, type ChatState, type ISessionWithDefaultChat, type ClientPluginCustomization, type ICompletedToolCall, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputRequest, type SessionState, type ToolCallResponsePart, type ToolCallState, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -39,7 +40,9 @@ import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import {
 	AgentHostCompletionReferenceKind,
 	getAgentHostCompletionReferenceKind,
+	isAgentFeedbackVariableEntry,
 	isImageVariableEntry,
+	type IAgentFeedbackVariableEntry,
 	type IChatRequestVariableEntry,
 	type IImageVariableEntry
 } from '../../../common/attachments/chatVariableEntries.js';
@@ -2999,7 +3002,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const attachments: MessageAttachment[] = [];
 		for (const v of variables) {
 			const attachment = this._convertVariableToAttachment(v, sessionResource, messageText);
-			if (attachment) {
+			if (Array.isArray(attachment)) {
+				attachments.push(...attachment);
+			} else if (attachment) {
 				attachments.push(attachment);
 			}
 		}
@@ -3009,7 +3014,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return attachments;
 	}
 
-	private _convertVariableToAttachment(v: IChatRequestVariableEntry, sessionResource: URI, messageText?: string): MessageAttachment | undefined {
+	private _convertVariableToAttachment(v: IChatRequestVariableEntry, sessionResource: URI, messageText?: string): MessageAttachment | MessageAttachment[] | undefined {
 		const referenceRange = this._toAttachmentReferenceRange(messageText, v.range);
 		// File / implicit attachments: a Location → selection, a URI → resource.
 		// Only the selection variant of an implicit attachment becomes a
@@ -3036,6 +3041,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// back to a file resource reference.
 		if (isImageVariableEntry(v)) {
 			return this._toImageAttachment(v, sessionResource, referenceRange);
+		}
+		if (isAgentFeedbackVariableEntry(v)) {
+			return this._toAgentFeedbackAttachment(v);
 		}
 		// Pasted code, prompt text, and free-form string entries: surface their
 		// textual representation as an opaque attachment.
@@ -3113,6 +3121,62 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return this._toResourceAttachment(refUri, v.name, 'image', sessionResource, v._meta, range);
 		}
 		return undefined;
+	}
+
+	private _toAgentFeedbackAttachment(v: IAgentFeedbackVariableEntry): MessageAttachment | MessageAttachment[] {
+		// Agent-host sessions back their feedback with annotations on the
+		// session's annotations channel. Emit one MessageAnnotationsAttachment
+		// per comment, referencing the specific annotation id, so the agent can
+		// read them via the `listComments` tool and act on exactly these
+		// comments. Each item id is the annotation id.
+		const annotationsResource = v.annotationsResource?.toString();
+		if (annotationsResource && v.feedbackItems.length > 0) {
+			return v.feedbackItems.map((item): MessageAnnotationsAttachment => {
+				const itemMeta = {
+					id: item.id,
+					text: item.text,
+					resourceUri: item.resourceUri.toString(),
+					range: this._toTextRange(item.range),
+					...(item.replies?.length ? { replies: [...item.replies] } : {}),
+				};
+				return {
+					type: MessageAttachmentKind.Annotations,
+					label: v.name,
+					displayKind: AgentFeedbackAttachmentDisplayKind,
+					resource: annotationsResource,
+					annotationIds: [item.id],
+					_meta: {
+						...(v._meta ?? {}),
+						[AgentFeedbackAttachmentMetadataKey]: {
+							sessionResource: v.sessionResource.toString(),
+							feedbackItems: [itemMeta],
+						},
+					},
+				};
+			});
+		}
+
+		// Fallback: no annotations channel resolved — send the feedback inline
+		// as a single simple attachment carrying the model representation.
+		const feedbackItems = v.feedbackItems.map(item => ({
+			id: item.id,
+			text: item.text,
+			resourceUri: item.resourceUri.toString(),
+			range: this._toTextRange(item.range),
+			...(item.replies?.length ? { replies: [...item.replies] } : {}),
+		}));
+		return this._toSimpleAttachment(
+			v.name,
+			typeof v.value === 'string' ? v.value : undefined,
+			{
+				...(v._meta ?? {}),
+				[AgentFeedbackAttachmentMetadataKey]: {
+					sessionResource: v.sessionResource.toString(),
+					feedbackItems,
+				},
+			},
+			AgentFeedbackAttachmentDisplayKind,
+		);
 	}
 
 	private _toSimpleAttachment(label: string, modelRepresentation: string | undefined, _meta: Record<string, unknown> | undefined, displayKind?: string, range?: MessageAttachment['range']): MessageAttachment {

@@ -31,6 +31,7 @@ import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmitter.js';
 import type { LanguageModelToolInvokedClassification, LanguageModelToolInvokedEvent } from '../../../telemetry/common/languageModelToolTelemetry.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { isAgentFeedbackAnnotationsAttachment, renderAgentFeedbackAnnotationsAttachment } from '../../common/agentFeedbackAttachments.js';
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
@@ -1124,6 +1125,18 @@ export class CopilotAgentSession extends Disposable {
 	 * selection downgrades to a plain file reference.
 	 */
 	private async _toSdkAttachment(attachment: MessageAttachment): Promise<CopilotSdkAttachment | undefined> {
+		if (isAgentFeedbackAnnotationsAttachment(attachment)) {
+			const rendered = renderAgentFeedbackAnnotationsAttachment(attachment);
+			if (!rendered) {
+				return undefined;
+			}
+			return {
+				type: 'blob' as const,
+				data: encodeBase64(VSBuffer.fromString(rendered)),
+				mimeType: 'text/plain',
+				displayName: attachment.label,
+			};
+		}
 		if (attachment.type === MessageAttachmentKind.Simple) {
 			if (attachment.modelRepresentation) {
 				return {

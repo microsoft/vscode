@@ -21,6 +21,7 @@ import type { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck 
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
+import { AgentFeedbackAttachmentDisplayKind } from '../../common/agentFeedbackAttachments.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction } from '../../common/state/sessionActions.js';
@@ -486,6 +487,32 @@ suite('CopilotAgentSession', () => {
 			attachments: [
 				{ type: 'file', path: symbolUri.fsPath, displayName: 'foo' },
 			],
+		}]);
+	});
+
+	test('sends agent feedback annotations attachments as text blobs', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+
+		await session.send('/act-on-feedback', [{
+			type: MessageAttachmentKind.Annotations,
+			label: '1 comment',
+			displayKind: AgentFeedbackAttachmentDisplayKind,
+			resource: 'ahp-session:/s/annotations',
+			annotationIds: ['feedback-1'],
+		}]);
+
+		const expectedText =
+			'The user attached specific feedback comments to act on (comment ids):\n' +
+			'- feedback-1\n\n' +
+			'Use the `listComments` tool to read their content and focus on these comments.';
+		assert.deepStrictEqual(mockSession.sendRequests, [{
+			prompt: '/act-on-feedback',
+			attachments: [{
+				type: 'blob',
+				data: encodeBase64(VSBuffer.fromString(expectedText)),
+				mimeType: 'text/plain',
+				displayName: '1 comment',
+			}],
 		}]);
 	});
 

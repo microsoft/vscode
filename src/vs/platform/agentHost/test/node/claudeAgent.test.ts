@@ -2532,6 +2532,36 @@ suite('ClaudeAgent', () => {
 		]);
 	});
 
+	test('agent feedback annotations attachments reference the attached comment ids', () => {
+		const blocks = resolvePromptToContentBlocks('/act-on-feedback', [{
+			type: MessageAttachmentKind.Annotations,
+			label: '2 comments',
+			displayKind: AgentFeedbackAttachmentDisplayKind,
+			resource: 'ahp-session:/s/annotations',
+			annotationIds: ['feedback-1'],
+		}, {
+			type: MessageAttachmentKind.Annotations,
+			label: '2 comments',
+			displayKind: AgentFeedbackAttachmentDisplayKind,
+			resource: 'ahp-session:/s/annotations',
+			annotationIds: ['feedback-2'],
+		}]);
+
+		assert.deepStrictEqual(blocks, [
+			{ type: 'text', text: '/act-on-feedback' },
+			{
+				type: 'text',
+				text:
+					'The user attached specific feedback comments to act on (comment ids):\n' +
+					'- feedback-1\n\n' +
+					'Use the `listComments` tool to read their content and focus on these comments.\n\n' +
+					'The user attached specific feedback comments to act on (comment ids):\n' +
+					'- feedback-2\n\n' +
+					'Use the `listComments` tool to read their content and focus on these comments.',
+			},
+		]);
+	});
+
 	test('shutdown resolves without throwing', async () => {
 		const { agent } = createTestContext(disposables);
 		await agent.shutdown();

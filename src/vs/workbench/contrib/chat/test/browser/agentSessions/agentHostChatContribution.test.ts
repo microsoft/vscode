@@ -910,6 +910,139 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 		});
 
+		test('sends agent feedback variables as annotations attachments referencing each comment', async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/feedback-send' });
+			const annotationsResource = URI.parse('ahp-session:/feedback-send/annotations');
+			const feedbackFile = URI.file('/workspace/foo.ts');
+			const feedbackFile2 = URI.file('/workspace/bar.ts');
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: '/act-on-feedback',
+				sessionResource,
+				variables: {
+					variables: [{
+						kind: 'agentFeedback',
+						id: 'agentFeedback:' + sessionResource.toString(),
+						name: '2 comments',
+						value: 'Feedback text for the model',
+						sessionResource,
+						annotationsResource,
+						feedbackItems: [{
+							id: 'feedback-1',
+							text: 'Please simplify this.',
+							resourceUri: feedbackFile,
+							range: { startLineNumber: 2, startColumn: 3, endLineNumber: 4, endColumn: 5 },
+							replies: ['Agreed'],
+						}, {
+							id: 'feedback-2',
+							text: 'Rename this.',
+							resourceUri: feedbackFile2,
+							range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 },
+						}],
+					}],
+				},
+			});
+
+			const turnStarted = agentHostService.turnActions[0].action as ITurnStartedAction;
+			assert.deepStrictEqual(turnStarted.message.attachments, [{
+				type: MessageAttachmentKind.Annotations,
+				label: '2 comments',
+				displayKind: AgentFeedbackAttachmentDisplayKind,
+				resource: annotationsResource.toString(),
+				annotationIds: ['feedback-1'],
+				_meta: {
+					[AgentFeedbackAttachmentMetadataKey]: {
+						sessionResource: sessionResource.toString(),
+						feedbackItems: [{
+							id: 'feedback-1',
+							text: 'Please simplify this.',
+							resourceUri: feedbackFile.toString(),
+							range: {
+								start: { line: 1, character: 2 },
+								end: { line: 3, character: 4 },
+							},
+							replies: ['Agreed'],
+						}],
+					},
+				},
+			}, {
+				type: MessageAttachmentKind.Annotations,
+				label: '2 comments',
+				displayKind: AgentFeedbackAttachmentDisplayKind,
+				resource: annotationsResource.toString(),
+				annotationIds: ['feedback-2'],
+				_meta: {
+					[AgentFeedbackAttachmentMetadataKey]: {
+						sessionResource: sessionResource.toString(),
+						feedbackItems: [{
+							id: 'feedback-2',
+							text: 'Rename this.',
+							resourceUri: feedbackFile2.toString(),
+							range: {
+								start: { line: 0, character: 0 },
+								end: { line: 0, character: 4 },
+							},
+						}],
+					},
+				},
+			}]);
+
+			fire({ type: 'chat/turnComplete', session: session!, turnId: turnId! } as ChatAction);
+			await turnPromise;
+		});
+
+		test('sends agent feedback variables as a simple attachment when no annotations channel is known', async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/feedback-send-fallback' });
+			const feedbackFile = URI.file('/workspace/foo.ts');
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: '/act-on-feedback',
+				sessionResource,
+				variables: {
+					variables: [{
+						kind: 'agentFeedback',
+						id: 'agentFeedback:' + sessionResource.toString(),
+						name: '1 comment',
+						value: 'Feedback text for the model',
+						sessionResource,
+						feedbackItems: [{
+							id: 'feedback-1',
+							text: 'Please simplify this.',
+							resourceUri: feedbackFile,
+							range: { startLineNumber: 2, startColumn: 3, endLineNumber: 4, endColumn: 5 },
+							replies: ['Agreed'],
+						}],
+					}],
+				},
+			});
+
+			const turnStarted = agentHostService.turnActions[0].action as ITurnStartedAction;
+			assert.deepStrictEqual(turnStarted.message.attachments, [{
+				type: MessageAttachmentKind.Simple,
+				label: '1 comment',
+				modelRepresentation: 'Feedback text for the model',
+				displayKind: AgentFeedbackAttachmentDisplayKind,
+				_meta: {
+					[AgentFeedbackAttachmentMetadataKey]: {
+						sessionResource: sessionResource.toString(),
+						feedbackItems: [{
+							id: 'feedback-1',
+							text: 'Please simplify this.',
+							resourceUri: feedbackFile.toString(),
+							range: {
+								start: { line: 1, character: 2 },
+								end: { line: 3, character: 4 },
+							},
+							replies: ['Agreed'],
+						}],
+					},
+				},
+			}]);
+
+			fire({ type: 'chat/turnComplete', session: session!, turnId: turnId! } as ChatAction);
+			await turnPromise;
+		});
+
 		test('restores tagged simple paste attachments as paste variable entries', () => {
 			const variableData = messageAttachmentsToVariableData([{
 				type: MessageAttachmentKind.Simple,
@@ -2722,6 +2855,92 @@ suite('AgentHostChatContribution', () => {
 							}],
 						},
 					},
+				});
+			}
+		});
+
+		test('restores agent feedback annotations attachments as one aggregated request variable', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/feedback-annotations-history' });
+			const annotationsResource = 'ahp-session:/feedback-annotations-history/annotations';
+			const feedbackFile = URI.file('/workspace/foo.ts');
+			const feedbackFile2 = URI.file('/workspace/bar.ts');
+			const sessionUri = AgentSession.uri('copilot', 'feedback-annotations-history');
+			const makeAnnotationAttachment = (id: string, text: string, resourceUri: string) => ({
+				type: MessageAttachmentKind.Annotations,
+				label: '2 comments',
+				displayKind: AgentFeedbackAttachmentDisplayKind,
+				resource: annotationsResource,
+				annotationIds: [id],
+				_meta: {
+					[AgentFeedbackAttachmentMetadataKey]: {
+						sessionResource: sessionResource.toString(),
+						feedbackItems: [{
+							id,
+							text,
+							resourceUri,
+							range: { start: { line: 1, character: 2 }, end: { line: 3, character: 4 } },
+						}],
+					},
+				},
+			});
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
+				lifecycle: SessionLifecycle.Ready,
+				turns: [{
+					id: 'turn-1',
+					message: {
+						text: '/act-on-feedback',
+						origin: { kind: MessageKind.User },
+						attachments: [
+							makeAnnotationAttachment('feedback-1', 'Please simplify this.', feedbackFile.toString()),
+							makeAnnotationAttachment('feedback-2', 'Rename this.', feedbackFile2.toString()),
+						],
+					},
+					responseParts: [],
+					usage: undefined,
+					state: TurnState.Complete,
+				}],
+			} as SessionState);
+
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+
+			const request = session.history[0];
+			assert.strictEqual(request.type, 'request');
+			if (request.type === 'request') {
+				assert.ok(request.variableData);
+				const variables = request.variableData.variables;
+				assert.strictEqual(variables.length, 1);
+				const feedbackVariable = variables[0];
+				assert.strictEqual(feedbackVariable.kind, 'agentFeedback');
+				assert.deepStrictEqual({
+					kind: feedbackVariable.kind,
+					name: feedbackVariable.name,
+					sessionResource: feedbackVariable.sessionResource.toString(),
+					annotationsResource: feedbackVariable.annotationsResource?.toString(),
+					feedbackItems: feedbackVariable.feedbackItems.map(item => ({
+						id: item.id,
+						text: item.text,
+						resourceUri: item.resourceUri.toString(),
+						range: item.range,
+					})),
+				}, {
+					kind: 'agentFeedback',
+					name: '2 comments',
+					sessionResource: sessionResource.toString(),
+					annotationsResource,
+					feedbackItems: [{
+						id: 'feedback-1',
+						text: 'Please simplify this.',
+						resourceUri: feedbackFile.toString(),
+						range: { startLineNumber: 2, startColumn: 3, endLineNumber: 4, endColumn: 5 },
+					}, {
+						id: 'feedback-2',
+						text: 'Rename this.',
+						resourceUri: feedbackFile2.toString(),
+						range: { startLineNumber: 2, startColumn: 3, endLineNumber: 4, endColumn: 5 },
+					}],
 				});
 			}
 		});
