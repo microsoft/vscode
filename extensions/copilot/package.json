@@ -5491,7 +5491,7 @@
         {
           "command": "github.copilot.chat.applyCopilotCLIAgentSessionChanges.apply",
           "when": "chatSessionType == copilotcli && workbenchState != empty && !isSessionsWindow",
-          "group": "navigation@0"
+          "group": "navigation@1"
         },
         {
           "command": "github.copilot.chat.checkoutPullRequestReroute",
@@ -5501,12 +5501,12 @@
         {
           "command": "github.copilot.chat.cloudSessions.createPullRequestForTask",
           "when": "chatSessionType == copilot-cloud-agent && github.copilot.chat.cloudTaskCanCreatePullRequest && !isSessionsWindow",
-          "group": "navigation@0"
+          "group": "navigation@2"
         },
         {
           "command": "github.copilot.chat.cloudSessions.openPullRequestForTask",
           "when": "chatSessionType == copilot-cloud-agent && github.copilot.chat.cloudTaskCanOpenPullRequest && !isSessionsWindow",
-          "group": "navigation@2"
+          "group": "navigation@3"
         }
       ],
       "agents/changes/actions/primary": [
