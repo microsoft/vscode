@@ -651,7 +651,7 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 		if (extraVars?.hasVariables()) {
 			return {
 				...context,
-				chatVariables: ChatVariablesCollection.merge(context.chatVariables, extraVars),
+				chatVariables: ChatVariablesCollection.mergeAndDedup(context.chatVariables, extraVars),
 			};
 		}
 

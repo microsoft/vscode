@@ -114,10 +114,16 @@ steps:
 
   - template: ../../common/install-builtin-extensions.yml@self
 
+  - template: ../../common/agent-sdk-produce.yml@self
+    parameters:
+      vscodePlatform: darwin
+
   - script: npx deemon --detach --wait -- node build/azure-pipelines/common/downloadCopilotVsix.ts
     env:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     displayName: Download Copilot VSIX (background)
+
+  - template: ../../common/mixin-vscode-capi.yml@self
 
   - script: npm run gulp core-ci
     env:

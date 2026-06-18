@@ -12,6 +12,12 @@ import { TerminalSettingId } from '../../../../../platform/terminal/common/termi
 import { terminalProfileBaseProperties } from '../../../../../platform/terminal/common/terminalPlatformConfiguration.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
 
+/**
+ * Default idle silence timeout in milliseconds. Used as both the configuration
+ * default and the runtime fallback when the setting is unavailable.
+ */
+export const DEFAULT_IDLE_SILENCE_TIMEOUT_MS = 300_000; // 5 minutes
+
 export const enum TerminalChatAgentToolsSettingId {
 	EnableAutoApprove = 'chat.tools.terminal.enableAutoApprove',
 	AutoApprove = 'chat.tools.terminal.autoApprove',
@@ -786,7 +792,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 	[TerminalChatAgentToolsSettingId.IdleSilenceTimeoutMs]: {
 		restricted: true,
 		type: 'number',
-		default: 60000,
+		default: DEFAULT_IDLE_SILENCE_TIMEOUT_MS,
 		minimum: 0,
 		tags: ['experimental'],
 		experiment: {

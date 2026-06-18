@@ -369,7 +369,22 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 									const questions = params?.['questions'];
 									let desc = '';
 									if (Array.isArray(questions) && questions.length > 0) {
-										desc = questions.map((q: Record<string, unknown>) => q['header'] || q['question']).filter(Boolean).join(', ');
+										desc = questions.map((q: Record<string, unknown>) => {
+											const title = q['header'] || q['question'];
+											if (!title) {
+												return '';
+											}
+											const options = q['options'];
+											if (Array.isArray(options) && options.length > 0) {
+												const labels = options
+													.map((o: Record<string, unknown>) => o['label'])
+													.filter(Boolean);
+												if (labels.length > 0) {
+													return `${title}: ${labels.join(', ')}`;
+												}
+											}
+											return title;
+										}).filter(Boolean).join('; ');
 									}
 									toolConfirmations.push({
 										type: 'input',

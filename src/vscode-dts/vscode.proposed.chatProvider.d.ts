@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 5
-
 declare module 'vscode' {
 
 	/**
@@ -46,6 +44,14 @@ declare module 'vscode' {
 		 * A numeric value for comparing model cost tiers.
 		 */
 		readonly multiplierNumeric?: number;
+
+		/**
+		 * Whether this model is a "bring your own key" (BYOK) model, i.e. it is
+		 * served using credentials the user supplied rather than through the
+		 * built-in Copilot (CAPI) service. When unset, the model is treated as
+		 * a non-BYOK / CAPI-served model.
+		 */
+		readonly isBYOK?: boolean;
 
 		/**
 		 * Whether or not this will be selected by default in the model picker

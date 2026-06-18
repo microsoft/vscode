@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CopilotClient, CopilotSession, ModelInfo, SessionEventPayload, SessionEventType, TypedSessionEventHandler } from '@github/copilot-sdk';
+import type Anthropic from '@anthropic-ai/sdk';
+import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import * as fs from 'fs/promises';
 import * as os from 'os';
@@ -33,7 +35,7 @@ import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { buildSubagentSessionUri, CustomizationLoadStatus, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, customizationId, type ClientPluginCustomization, type MarkdownResponsePart, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
 import { CustomizationType, type ToolDefinition } from '../../common/state/protocol/state.js';
-import { ActionType, type IDeltaAction, type SessionAction } from '../../common/state/sessionActions.js';
+import { ActionType, type ChatAction, type IDeltaAction, type SessionAction } from '../../common/state/sessionActions.js';
 
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -41,14 +43,16 @@ import { IAgentHostGitService } from '../../node/agentHostGitService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from '../../node/agentHostCompletions.js';
-import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, getCopilotBranchNameHintFromMessage, getCopilotWorktreeBranchName, getCopilotWorktreeName, getCopilotWorktreesRoot } from '../../node/copilot/copilotAgent.js';
+import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, getCopilotWorktreeName, getCopilotWorktreesRoot } from '../../node/copilot/copilotAgent.js';
 import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
+import { CopilotBranchNameGenerator, ICopilotBranchNameGenerator, getCopilotBranchNameHintFromMessage, normalizeCopilotBranchName } from '../../node/copilot/copilotBranchNameGenerator.js';
 import type { CopilotSessionLaunchPlan, IActiveClientSnapshot } from '../../node/copilot/copilotSessionLauncher.js';
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
 import { ActiveClientState } from '../../node/activeClientState.js';
+import { ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 
 class TestAgentPluginManager implements IAgentPluginManager {
 	declare readonly _serviceBrand: undefined;
@@ -93,6 +97,7 @@ class TestAgentHostGitService implements IAgentHostGitService {
 		return this.dirtyWorkingDirectories.has(workingDirectory.fsPath);
 	}
 	async commitAll(): Promise<void> { }
+	async restore(): Promise<void> { }
 	async hasUpstream(): Promise<boolean> { return false; }
 	async pushBranch(): Promise<void> { }
 	async getSessionGitState(): Promise<undefined> { return undefined; }
@@ -126,6 +131,30 @@ class TestAgentHostTerminalManager implements IAgentHostTerminalManager {
 	getTerminalInfos(): [] { return []; }
 	getTerminalState(): undefined { return undefined; }
 	async getDefaultShell(): Promise<string> { return '/bin/bash'; }
+}
+
+class TestCopilotApiService implements ICopilotApiService {
+	declare readonly _serviceBrand: undefined;
+
+	readonly utilityCalls: { token: string; request: ICopilotUtilityChatCompletionRequest; options?: ICopilotApiServiceRequestOptions }[] = [];
+	response = 'generated-branch-name';
+	error: Error | undefined;
+
+	messages(_githubToken: string, _request: Anthropic.MessageCreateParamsStreaming, _options?: ICopilotApiServiceRequestOptions): AsyncGenerator<Anthropic.MessageStreamEvent>;
+	messages(_githubToken: string, _request: Anthropic.MessageCreateParamsNonStreaming, _options?: ICopilotApiServiceRequestOptions): Promise<Anthropic.Message>;
+	messages(): AsyncGenerator<Anthropic.MessageStreamEvent> | Promise<Anthropic.Message> {
+		throw new Error('not used');
+	}
+	async countTokens(): Promise<Anthropic.MessageTokensCount> { throw new Error('not used'); }
+	async models(): Promise<CCAModel[]> { return []; }
+	async responses(): Promise<Response> { throw new Error('not used'); }
+	async utilityChatCompletion(githubToken: string, request: ICopilotUtilityChatCompletionRequest, options?: ICopilotApiServiceRequestOptions): Promise<string> {
+		this.utilityCalls.push({ token: githubToken, request, options });
+		if (this.error) {
+			throw this.error;
+		}
+		return this.response;
+	}
 }
 
 class TestSessionDataService extends Disposable implements ISessionDataService {
@@ -168,9 +197,14 @@ interface ITestCopilotModelInfo {
 	};
 	readonly policy?: { readonly state?: NonNullable<ModelInfo['policy']>['state'] };
 	readonly billing?: ModelInfo['billing'] & {
+		readonly priceCategory?: string;
 		readonly tokenPrices?: {
 			readonly contextMax?: number;
-			readonly longContext?: { readonly contextMax?: number; readonly inputPrice?: number; readonly outputPrice?: number };
+			readonly inputPrice?: number;
+			readonly cachePrice?: number;
+			readonly cacheWritePrice?: number;
+			readonly outputPrice?: number;
+			readonly longContext?: { readonly contextMax?: number; readonly inputPrice?: number; readonly cachePrice?: number; readonly cacheWritePrice?: number; readonly outputPrice?: number };
 		};
 	};
 	readonly supportedReasoningEfforts?: ModelInfo['supportedReasoningEfforts'];
@@ -278,9 +312,10 @@ class ResumePathCopilotAgent extends CopilotAgent {
 		@ISessionDataService sessionDataService: ISessionDataService,
 		@IAgentHostGitService gitService: IAgentHostGitService,
 		@IAgentConfigurationService configurationService: IAgentConfigurationService,
+		@ICopilotBranchNameGenerator branchNameGenerator: ICopilotBranchNameGenerator,
 		@IAgentHostCompletions completions: IAgentHostCompletions,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, new MockAgentHostOTelService(), completions, NULL_CHECKPOINT_SERVICE);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, new MockAgentHostOTelService(), branchNameGenerator, completions, NULL_CHECKPOINT_SERVICE);
 		this._enablePlanModeOnClient(this._copilotClient as CopilotClient);
 	}
 
@@ -300,9 +335,10 @@ class TestableCopilotAgent extends CopilotAgent {
 		@ISessionDataService sessionDataService: ISessionDataService,
 		@IAgentHostGitService gitService: IAgentHostGitService,
 		@IAgentConfigurationService configurationService: IAgentConfigurationService,
+		@ICopilotBranchNameGenerator branchNameGenerator: ICopilotBranchNameGenerator,
 		@IAgentHostCompletions completions: IAgentHostCompletions,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, new MockAgentHostOTelService(), completions, NULL_CHECKPOINT_SERVICE);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, new MockAgentHostOTelService(), branchNameGenerator, completions, NULL_CHECKPOINT_SERVICE);
 		this._enablePlanModeOnClient(this._copilotClient as CopilotClient);
 	}
 
@@ -337,7 +373,7 @@ class TestableCopilotAgent extends CopilotAgent {
 					kind: 'action',
 					session: sessionUri,
 					action: {
-						type: ActionType.SessionResponsePart,
+						type: ActionType.ChatResponsePart,
 						turnId,
 						part: { kind: ResponsePartKind.Markdown, id: `synth-${Date.now()}`, content },
 					},
@@ -352,7 +388,7 @@ class TestableCopilotAgent extends CopilotAgent {
 	}
 }
 
-function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService }): { agent: CopilotAgent; instantiationService: IInstantiationService; configurationService: IAgentConfigurationService; fileService: FileService } {
+function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService }): { agent: CopilotAgent; instantiationService: IInstantiationService; configurationService: IAgentConfigurationService; fileService: FileService } {
 	const services = new ServiceCollection();
 	const logService = new NullLogService();
 	const fileService = options?.fileService ?? disposables.add(new FileService(logService));
@@ -372,6 +408,9 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 		flush: async () => undefined,
 	});
 	services.set(IAgentHostCompletions, disposables.add(new AgentHostCompletions(logService)));
+	const copilotApiService = options?.copilotApiService ?? new TestCopilotApiService();
+	services.set(ICopilotApiService, copilotApiService);
+	services.set(ICopilotBranchNameGenerator, new CopilotBranchNameGenerator(copilotApiService, logService));
 	services.set(ITelemetryService, NullTelemetryService);
 	if (options?.environmentServiceRegistration !== 'none') {
 		const environmentService = {
@@ -388,7 +427,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	return { agent, instantiationService, configurationService: configService, fileService };
 }
 
-function createTestAgent(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager }): CopilotAgent {
+function createTestAgent(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; copilotApiService?: ICopilotApiService }): CopilotAgent {
 	return createTestAgentContext(disposables, options).agent;
 }
 
@@ -462,27 +501,104 @@ suite('CopilotAgent', () => {
 		);
 	});
 
-	test('uses Agents-window Copilot CLI branch prefix', () => {
-		assert.strictEqual(getCopilotWorktreeBranchName('12345678-aaaa-bbbb-cccc-123456789abc', 'add-agent-host-config'), 'agents/add-agent-host-config-12345678');
-		assert.strictEqual(getCopilotWorktreeBranchName('12345678-aaaa-bbbb-cccc-123456789abc', undefined), 'agents/12345678-aaaa-bbbb-cccc-123456789abc');
+	test('uses generated Agents-window Copilot CLI branch names', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		copilotApiService.response = 'add-agent-host-config';
+		const generator = new CopilotBranchNameGenerator(copilotApiService, new NullLogService());
+
+		assert.deepStrictEqual({
+			generated: await generator.generateBranchName({ sessionId: '12345678-aaaa-bbbb-cccc-123456789abc', message: 'Add agent host config', githubToken: 'token' }),
+			fallback: await generator.generateBranchName({ sessionId: '12345678-aaaa-bbbb-cccc-123456789abc', message: 'Add agent host config' }),
+			token: copilotApiService.utilityCalls[0]?.token,
+			promptIncludesUserText: copilotApiService.utilityCalls[0]?.request.messages.some(message => message.content.includes('Add agent host config')),
+		}, {
+			generated: 'agents/add-agent-host-config-12345678',
+			fallback: 'agents/add-agent-host-config-12345678',
+			token: 'token',
+			promptIncludesUserText: true,
+		});
 	});
 
 	test('uses Git extension branch-derived worktree folder names', () => {
 		assert.strictEqual(getCopilotWorktreeName('agents/add-agent-host-config-12345678'), 'agents-add-agent-host-config-12345678');
 	});
 
-	test('keeps hinted branch names short', () => {
-		assert.strictEqual(getCopilotWorktreeBranchName('12345678-aaaa-bbbb-cccc-123456789abc', 'a'.repeat(48)).length, 'agents/'.length + 48 + '-12345678'.length);
+	test('keeps generated branch names short', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		copilotApiService.response = 'a'.repeat(100);
+		const generator = new CopilotBranchNameGenerator(copilotApiService, new NullLogService());
+
+		assert.strictEqual(
+			(await generator.generateBranchName({ sessionId: '12345678-aaaa-bbbb-cccc-123456789abc', message: 'Add agent host config', githubToken: 'token' })).length,
+			'agents/'.length + 48 + '-12345678'.length,
+		);
 	});
 
-	test('derives slug branch hint from first message', () => {
-		assert.strictEqual(getCopilotBranchNameHintFromMessage('Add agent host config'), 'add-agent-host-config');
-		assert.strictEqual(getCopilotBranchNameHintFromMessage('  Fix: the bug!! '), 'fix-the-bug');
-		assert.strictEqual(getCopilotBranchNameHintFromMessage('Refactor café ☕ rendering'), 'refactor-cafe-rendering');
-		assert.strictEqual(getCopilotBranchNameHintFromMessage('one two three four five six seven eight nine ten'), 'one-two-three-four-five-six-seven-eight');
-		assert.strictEqual(getCopilotBranchNameHintFromMessage('a'.repeat(100))?.length, 48);
-		assert.strictEqual(getCopilotBranchNameHintFromMessage('!!! ??? ...'), undefined);
-		assert.strictEqual(getCopilotBranchNameHintFromMessage(''), undefined);
+	test('normalizes generated branch names', () => {
+		assert.deepStrictEqual({
+			simple: normalizeCopilotBranchName('feature-branch'),
+			uppercase: normalizeCopilotBranchName('Feature-Branch'),
+			special: normalizeCopilotBranchName('Fix: Add new feature! (#42)'),
+			unicode: normalizeCopilotBranchName('café-feature'),
+			empty: normalizeCopilotBranchName('🚀🎉'),
+		}, {
+			simple: 'feature-branch',
+			uppercase: 'feature-branch',
+			special: 'fixaddnewfeature42',
+			unicode: 'caf-feature',
+			empty: '',
+		});
+	});
+
+	test('derives slug branch hint from first message for fallback', () => {
+		assert.deepStrictEqual({
+			simple: getCopilotBranchNameHintFromMessage('Add agent host config'),
+			punctuation: getCopilotBranchNameHintFromMessage('  Fix: the bug!! '),
+			unicode: getCopilotBranchNameHintFromMessage('Refactor café ☕ rendering'),
+			words: getCopilotBranchNameHintFromMessage('one two three four five six seven eight nine ten'),
+			long: getCopilotBranchNameHintFromMessage('a'.repeat(100))?.length,
+			empty: getCopilotBranchNameHintFromMessage('!!! ??? ...'),
+		}, {
+			simple: 'add-agent-host-config',
+			punctuation: 'fix-the-bug',
+			unicode: 'refactor-cafe-rendering',
+			words: 'one-two-three-four-five-six-seven-eight',
+			long: 48,
+			empty: undefined,
+		});
+	});
+
+	test('falls back to first-message slug when generated branch name cannot be used', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		copilotApiService.response = '!!! ??? ...';
+		const generator = new CopilotBranchNameGenerator(copilotApiService, new NullLogService());
+
+		assert.strictEqual(
+			await generator.generateBranchName({ sessionId: '12345678-aaaa-bbbb-cccc-123456789abc', message: 'Add agent host config', githubToken: 'token' }),
+			'agents/add-agent-host-config-12345678',
+		);
+	});
+
+	test('falls back to first-message slug when branch name generation fails', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		copilotApiService.error = new Error('failed');
+		const generator = new CopilotBranchNameGenerator(copilotApiService, new NullLogService());
+
+		assert.strictEqual(
+			await generator.generateBranchName({ sessionId: '12345678-aaaa-bbbb-cccc-123456789abc', message: 'Add agent host config', githubToken: 'token' }),
+			'agents/add-agent-host-config-12345678',
+		);
+	});
+
+	test('falls back to session id when no branch name can be derived', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		copilotApiService.response = '!!! ??? ...';
+		const generator = new CopilotBranchNameGenerator(copilotApiService, new NullLogService());
+
+		assert.strictEqual(
+			await generator.generateBranchName({ sessionId: '12345678-aaaa-bbbb-cccc-123456789abc', message: '!!! ??? ...', githubToken: 'token' }),
+			'agents/12345678-aaaa-bbbb-cccc-123456789abc',
+		);
 	});
 
 	test('returns empty models and throws AuthRequired for sessions before authentication', async () => {
@@ -506,6 +622,30 @@ suite('CopilotAgent', () => {
 				(error: Error) => error instanceof ProtocolError && error.code === AHP_AUTH_REQUIRED,
 			);
 		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('createSession falls back to an empty temp directory when workingDirectory is omitted', async () => {
+		const agent = createTestAgent(disposables);
+		let createdWorkingDirectory: URI | undefined;
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+
+			const result = await agent.createSession({
+				session: AgentSession.uri('copilotcli', 'temp-fallback'),
+			});
+
+			assert.strictEqual(result.provisional, true);
+			assert.ok(result.workingDirectory);
+			createdWorkingDirectory = result.workingDirectory;
+			assert.strictEqual(createdWorkingDirectory.scheme, Schemas.file);
+			assert.strictEqual(createdWorkingDirectory.fsPath.toLowerCase().startsWith(os.tmpdir().toLowerCase()), true);
+			assert.deepStrictEqual(await fs.readdir(createdWorkingDirectory.fsPath), []);
+		} finally {
+			if (createdWorkingDirectory) {
+				await fs.rm(createdWorkingDirectory.fsPath, { recursive: true, force: true });
+			}
 			await disposeAgent(agent);
 		}
 	});
@@ -598,6 +738,43 @@ suite('CopilotAgent', () => {
 				policyState: undefined,
 				_meta: { multiplierNumeric: 1.5 },
 			}]);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('models include token-price and price-category metadata when billing provides it', async () => {
+		const agent = createTestAgent(disposables, {
+			copilotClient: new TestCopilotClient([], [{
+				id: 'claude-sonnet',
+				name: 'Claude Sonnet',
+				capabilities: { limits: { max_context_window_tokens: 200_000 } },
+				billing: {
+					multiplier: 1,
+					priceCategory: 'medium',
+					tokenPrices: {
+						contextMax: 200_000,
+						inputPrice: 3,
+						cachePrice: 1,
+						outputPrice: 15,
+						longContext: { contextMax: 1_000_000, inputPrice: 6, cachePrice: 1, outputPrice: 22.5 },
+					},
+				},
+			}]),
+		});
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			const models = await waitForState(agent.models, models => models.length > 0);
+
+			assert.deepStrictEqual(models[0]._meta, {
+				multiplierNumeric: 1,
+				inputCost: 3,
+				cacheCost: 1,
+				outputCost: 15,
+				longContextInputCost: 6,
+				longContextOutputCost: 22.5,
+				priceCategory: 'medium',
+			});
 		} finally {
 			await disposeAgent(agent);
 		}
@@ -903,7 +1080,7 @@ suite('CopilotAgent', () => {
 			const pluginManager = new PluginDirSpyManager();
 			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, pluginManager, fileService });
 
-			const actions: SessionAction[] = [];
+			const actions: (SessionAction | ChatAction)[] = [];
 			disposables.add(agent.onDidSessionProgress(s => {
 				if (s.kind === 'action') {
 					actions.push(s.action);
@@ -1082,7 +1259,7 @@ suite('CopilotAgent', () => {
 			const client = new TestCopilotClient([]);
 			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, fileService });
 
-			const actions: SessionAction[] = [];
+			const actions: (SessionAction | ChatAction)[] = [];
 			disposables.add(agent.onDidSessionProgress(progress => {
 				if (progress.kind === 'action') {
 					actions.push(progress.action);
@@ -1145,7 +1322,7 @@ suite('CopilotAgent', () => {
 			const client = new TestCopilotClient([]);
 			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, fileService });
 
-			const actions: SessionAction[] = [];
+			const actions: (SessionAction | ChatAction)[] = [];
 			disposables.add(agent.onDidSessionProgress(progress => {
 				if (progress.kind === 'action') {
 					actions.push(progress.action);
@@ -1792,11 +1969,14 @@ suite('CopilotAgent', () => {
 			const gitService = new TestAgentHostGitService();
 			gitService.repositoryRoot = repositoryRoot;
 
+			const copilotApiService = new TestCopilotApiService();
+			copilotApiService.response = 'add-feature';
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const agent = createTestAgent(disposables, {
 				sessionDataService,
 				copilotClient: new TestCopilotClient([]),
 				gitService,
+				copilotApiService,
 			}) as TestableCopilotAgent;
 
 			const fakeMessages: Turn[] = [
@@ -1837,8 +2017,7 @@ suite('CopilotAgent', () => {
 				//    before constructing the SDK session. Verifies that the
 				//    real production code path persists branch metadata and
 				//    queues the live announcement.
-				const branchHint = 'add-feature';
-				const expectedBranchName = getCopilotWorktreeBranchName(sessionId, branchHint);
+				const expectedBranchName = `agents/add-feature-${sessionId.substring(0, 8)}`;
 				const workingDir = await agent.resolveWorktreeForTest({
 					workingDirectory: repositoryRoot,
 					config: { isolation: 'worktree', branch: 'main' },
@@ -1861,13 +2040,13 @@ suite('CopilotAgent', () => {
 
 				const markdownSignals = signals.filter((s): s is IAgentActionSignal =>
 					s.kind === 'action' && (
-						(s.action.type === ActionType.SessionResponsePart && s.action.part.kind === ResponsePartKind.Markdown) ||
-						s.action.type === ActionType.SessionDelta
+						(s.action.type === ActionType.ChatResponsePart && s.action.part.kind === ResponsePartKind.Markdown) ||
+						s.action.type === ActionType.ChatDelta
 					)
 				);
 				assert.strictEqual(markdownSignals.length, 1, 'exactly one markdown announcement signal should be emitted for the worktree announcement');
 				const announcement = markdownSignals[0];
-				const announcementContent = announcement.action.type === ActionType.SessionResponsePart
+				const announcementContent = announcement.action.type === ActionType.ChatResponsePart
 					? (announcement.action.part as MarkdownResponsePart).content
 					: (announcement.action as IDeltaAction).content;
 				assert.ok(announcementContent.includes(expectedBranchName), `announcement should contain branch name '${expectedBranchName}', got '${announcementContent}'`);
@@ -1877,8 +2056,8 @@ suite('CopilotAgent', () => {
 				await agent.sendMessage(session, 'follow-up');
 				const reemittedMarkdown = signals.filter(s =>
 					s.kind === 'action' && (
-						(s.action.type === ActionType.SessionResponsePart && s.action.part.kind === ResponsePartKind.Markdown) ||
-						s.action.type === ActionType.SessionDelta
+						(s.action.type === ActionType.ChatResponsePart && s.action.part.kind === ResponsePartKind.Markdown) ||
+						s.action.type === ActionType.ChatDelta
 					)
 				);
 				assert.strictEqual(reemittedMarkdown.length, 0, 'announcement must not be re-emitted on subsequent sends');
@@ -1935,8 +2114,8 @@ suite('CopilotAgent', () => {
 				await agent.sendMessage(session, 'hello');
 				const markdownSignals = signals.filter(s =>
 					s.kind === 'action' && (
-						(s.action.type === ActionType.SessionResponsePart && s.action.part.kind === ResponsePartKind.Markdown) ||
-						s.action.type === ActionType.SessionDelta
+						(s.action.type === ActionType.ChatResponsePart && s.action.part.kind === ResponsePartKind.Markdown) ||
+						s.action.type === ActionType.ChatDelta
 					)
 				);
 				assert.deepStrictEqual(markdownSignals, [], 'no announcement should be emitted live');

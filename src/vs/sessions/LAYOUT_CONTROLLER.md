@@ -89,18 +89,13 @@ advances past `submittedAt`:
 This only applies to the single-visible-session case; the pending state is dropped when multiple
 sessions are visible.
 
-### 3.4 Editor / aux-bar invariant
+### 3.4 Editor reveal on session switch
 
-The editor part must not be left visible without the auxiliary bar
-(`_enforceAuxiliaryBarWhenEditorVisible`): when the editor part *becomes* visible the aux bar is
-revealed. So opening a file from chat reveals the editor **and** the secondary side bar.
-
-The one exception is **working-set restoration on session switch** (§5): that editor reveal is
-programmatic, so the invariant is suppressed (`_suppressAuxiliaryBarEnforcement`) and the
-session's saved aux-bar visibility wins. A side bar the user hid for a session therefore stays
-hidden when they return to it. The suppression is a synchronous re-entrancy guard around the
-`setPartHidden(false, EDITOR_PART)` call — the part-visibility event fires synchronously, so the
-guard reliably covers exactly that reveal.
+The editor part is revealed programmatically when a session's editor working set is restored on
+session switch (`_revealEditorPartForWorkingSet`, §5). The editor part visibility otherwise follows
+direct editor open/close events and the user's chevron toggle. Each session's saved aux-bar
+visibility wins on switch — a side bar the user hid for a session stays hidden when they return to
+it.
 
 ---
 
@@ -169,7 +164,4 @@ saved for the incoming session — it never applies `'empty'`, to avoid closing 
 - **Multiple visible sessions** disable per-session view/panel sync and clear that state (working
   sets preserved).
 - **Default visibility** (§3.2 step 4) only applies when a session has no saved aux-bar state.
-- The **editor part implies the auxiliary bar** when it *becomes* visible (e.g. opening a file from
-  chat), **except** during working-set restoration on session switch, where the session's saved
-  aux-bar visibility wins (so a hidden side bar is respected).
 - Working-set save/apply waits for **workspace folders** to catch up with the active session.

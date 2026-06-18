@@ -15,7 +15,8 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import { buildSubagentSessionUri, SessionStatus, type ISessionFileDiff } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { ChangesetSessionCoordinator, IChangesetSessionMetadata } from '../../node/agentHostChangesetCoordinator.js';
-import { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs, StaticChangesetKind } from '../../node/agentHostChangesetService.js';
+import { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs, StaticChangesetKind } from '../../common/agentHostChangesetService.js';
+import { IChangesetOperationContributionService } from '../../common/changesetOperation.js';
 import { IAgentHostFileMonitorOptions, IAgentHostFileMonitorService } from '../../node/agentHostFileMonitorService.js';
 import { IAgentHostGitService } from '../../node/agentHostGitService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -53,7 +54,13 @@ suite('ChangesetSessionCoordinator', () => {
 		const changesets = new TestChangesetService();
 		const monitor = disposables.add(new TestFileMonitorService());
 		const gitService = createGitService(root);
-		const coordinator = disposables.add(new ChangesetSessionCoordinator(stateManager, changesets, configurationService, monitor, gitService, new NullLogService()));
+		const operationContributionService: IChangesetOperationContributionService = {
+			registerContribution: () => Disposable.None,
+			updateOperations: () => { },
+			invokeChangesetOperation: async () => ({}),
+			dispose: () => { },
+		};
+		const coordinator = disposables.add(new ChangesetSessionCoordinator(stateManager, operationContributionService, changesets, configurationService, monitor, gitService, new NullLogService()));
 		return { stateManager, changesets, monitor, gitService, coordinator };
 	}
 
@@ -158,34 +165,6 @@ suite('ChangesetSessionCoordinator', () => {
 		await tick();
 
 		assert.deepStrictEqual(environment.changesets.sessionRefreshes, []);
-	});
-
-	test('git state changes refresh uncommitted only while uncommitted subscribers exist', () => {
-		const session = AgentSession.uri('mock', 'session-1').toString();
-		const environment = createEnvironment();
-		createSession(environment.stateManager, session, 'file:///repo/worktree');
-
-		environment.coordinator.onFirstSubscriber(URI.parse(session));
-		environment.changesets.clearRefreshes();
-		environment.coordinator.onSessionGitStateChanged(session);
-		assert.deepStrictEqual({
-			sessionRefreshes: environment.changesets.sessionRefreshes,
-			uncommittedRefreshes: environment.changesets.uncommittedRefreshes,
-		}, {
-			sessionRefreshes: [session],
-			uncommittedRefreshes: [],
-		});
-
-		environment.coordinator.onFirstSubscriber(URI.parse(buildUncommittedChangesetUri(session)));
-		environment.changesets.clearRefreshes();
-		environment.coordinator.onSessionGitStateChanged(session);
-		assert.deepStrictEqual({
-			sessionRefreshes: environment.changesets.sessionRefreshes,
-			uncommittedRefreshes: environment.changesets.uncommittedRefreshes,
-		}, {
-			sessionRefreshes: [session],
-			uncommittedRefreshes: [session],
-		});
 	});
 
 	test('does not attach root state when watcher acquisition fails', async () => {
@@ -407,7 +386,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 	readonly uncommittedRefreshes: string[] = [];
 	readonly sessionRefreshes: string[] = [];
 
-	private _hasUncommittedSubscribers: (session: string) => boolean = () => false;
+	private _hasSubscription: (session: string, changeset: string) => boolean = () => false;
 
 	registerStaticChangesets(_session: string): void { }
 	restoreStaticChangeset(_session: string, _kind: StaticChangesetKind, _diffs: readonly ISessionFileDiff[]): void { }
@@ -419,23 +398,22 @@ class TestChangesetService implements IAgentHostChangesetService {
 	refreshBranchChangeset(session: string): void {
 		this.branchRefreshes.push(session);
 	}
-	refreshUncommittedChangeset(session: string): void {
-		if (!this._hasUncommittedSubscribers(session)) {
-			return;
-		}
-		this.uncommittedRefreshes.push(session);
-	}
 	refreshSessionChangeset(session: string): void {
 		this.sessionRefreshes.push(session);
+	}
+	async computeUncommittedChangeset(session: string): Promise<string> {
+		if (this._hasSubscription(session, URI.parse(buildUncommittedChangesetUri(session)).toString())) {
+			this.uncommittedRefreshes.push(session);
+		}
+		return `${session}/changeset/uncommitted`;
 	}
 	async computeTurnChangeset(session: string, turnId: string): Promise<string> { return `${session}/changeset/turn/${turnId}`; }
 	async computeCompareTurnsChangeset(session: string, originalTurnId: string, modifiedTurnId: string): Promise<string> { return `${session}/changeset/compare/${originalTurnId}/${modifiedTurnId}`; }
 	onToolCallEditsApplied(_session: string, _turnId: string): void { }
 	onTurnComplete(_session: string, _turnId: string | undefined): void { }
 	onSessionTruncated(_session: string): void { }
-	setTurnSubscriberProbe(_probe: (session: string, turnId: string) => boolean): void { }
-	setUncommittedSubscriberProbe(probe: (session: string) => boolean): void {
-		this._hasUncommittedSubscribers = probe;
+	setSubscriberProbe(probe: (session: string, changeset: string) => boolean): void {
+		this._hasSubscription = probe;
 	}
 
 	clearRefreshes(): void {

@@ -1930,7 +1930,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 	}
 
 	private async getPromptInfoFromRequest(request: vscode.ChatRequest, token: vscode.CancellationToken): Promise<ParsedPromptFile | undefined> {
-		const promptFile = new ChatVariablesCollection(request.references).find(isPromptFile);
+		const promptFile = new ChatVariablesCollection(request.references).find(v => isPromptFile(v.reference));
 		if (!promptFile || !URI.isUri(promptFile.reference.value)) {
 			return undefined;
 		}

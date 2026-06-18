@@ -38,8 +38,19 @@ const SESSIONS: readonly SessionConfig[] = [
 const COPILOT_SANDBOX_SCENARIO_ID = 'smoke-hello-copilot-sandbox';
 const COPILOT_SANDBOX_REPLY = 'MOCKED_COPILOT_SANDBOX_RESPONSE';
 
-// Lightweight throwaway scenario kept registered so it can be referenced
-// for cold-start warm-up flows if reintroduced.
+const CODEX_SCENARIO_ID = 'smoke-hello-codex';
+const CODEX_REPLY = 'MOCKED_CODEX_RESPONSE';
+
+// Lightweight throwaway scenario used by {@link warmUpCodexModel} to pre-pay
+// the Codex session cold-start cost (native codex app-server spawn + model
+// list resolution) before the real assertion runs.
+const CODEX_WARMUP_SCENARIO_ID = 'smoke-hello-codex-warmup';
+const CODEX_WARMUP_REPLY = 'MOCKED_CODEX_WARMUP_RESPONSE';
+
+// Lightweight throwaway scenario used by {@link warmUpClaudeModel} to
+// pre-pay the Claude session cold-start cost (bundled SDK import, language
+// model server startup, SDK subprocess spawn, plugin loading) before the
+// real assertion runs.
 const CLAUDE_WARMUP_SCENARIO_ID = 'smoke-hello-claude-warmup';
 const CLAUDE_WARMUP_REPLY = 'MOCKED_CLAUDE_WARMUP_RESPONSE';
 
@@ -234,11 +245,6 @@ export function setup(logger: Logger) {
 		}
 
 		it('Test Copilot CLI session (sandbox)', async function () {
-			// Sandbox-backed shell tool currently only runs cleanly on macOS
-			// in CI. On Linux the bubblewrap policy fails to start bash inside
-			// the sandbox; on Windows AppContainer cold-start usually exceeds
-			// the 120s budget. Re-enable here once both backends are fixed.
-			//
 			// To debug a CI run, download the per-platform logs artifact from
 			// the Azure DevOps build:
 			//
@@ -265,7 +271,7 @@ export function setup(logger: Logger) {
 			//   *-Test_Copilot_CLI_session*.png` — last-frame screenshot of
 			//   the Agents Window when a test fails; the JSON dump in the
 			//   chat usually surfaces the raw `tool_result` payload.
-			if (process.platform !== 'darwin') {
+			if (process.platform === 'win32') {
 				this.skip();
 			}
 
@@ -340,15 +346,17 @@ export function setup(logger: Logger) {
 
 				// Confirm the request flowed through the AgentHost process (not
 				// the renderer-side Copilot Chat extension fallback) by checking
-				// for a `session/turnStarted` frame in the AHP JSONL transcript.
-				// The transcript is written through an async queue (see
-				// AhpJsonlLogger), so the frame may not be on disk yet even
-				// after the assistant reply has rendered — poll briefly.
+				// for a `chat/turnStarted` frame in the AHP JSONL transcript.
+				// In the multi-chat protocol turns are dispatched as chat
+				// actions on the session's default chat channel. The transcript
+				// is written through an async queue (see AhpJsonlLogger), so the
+				// frame may not be on disk yet even after the assistant reply has
+				// rendered — poll briefly.
 				const ahpLogDir = path.join(agentHost.logsPath, 'ahp');
-				const ahpFrames = await waitForLogContent(() => readAhpFrames(ahpLogDir), '"type":"session/turnStarted"');
+				const ahpFrames = await waitForLogContent(() => readAhpFrames(ahpLogDir), '"type":"chat/turnStarted"');
 				assert.ok(
-					ahpFrames.includes('"type":"session/turnStarted"'),
-					`expected the AgentHost process to have received a session/turnStarted dispatchAction (checked ${ahpJsonlFiles(ahpLogDir).length} jsonl files under ${ahpLogDir}); if missing, the renderer-side extension likely served the reply instead`
+					ahpFrames.includes('"type":"chat/turnStarted"'),
+					`expected the AgentHost process to have received a chat/turnStarted dispatchAction (checked ${ahpJsonlFiles(ahpLogDir).length} jsonl files under ${ahpLogDir}); if missing, the renderer-side extension likely served the reply instead`
 				);
 			} catch (error) {
 				logger.log(`Agents Window (AgentHost) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
@@ -363,7 +371,7 @@ export function setup(logger: Logger) {
 			// The AgentHost-side sandbox log we assert on is
 			// `<logsPath>/agenthost.log` (the utility-process log), produced by
 			// CopilotAgentSession when it auto-approves a sandboxed shell call.
-			if (process.platform !== 'darwin') {
+			if (process.platform === 'win32') {
 				this.skip();
 			}
 
@@ -461,7 +469,7 @@ export function setup(logger: Logger) {
 			// The AgentHost-side sandbox log we assert on is
 			// `<logsPath>/agenthost.log` (the utility-process log), produced by
 			// CopilotAgentSession when it auto-approves a sandboxed shell call.
-			if (process.platform !== 'darwin') {
+			if (process.platform === 'win32') {
 				this.skip();
 			}
 
@@ -518,6 +526,79 @@ export function setup(logger: Logger) {
 			} catch (error) {
 				logger.log(`Agents Window (AgentHost SDK sandbox) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
 				await dumpFailureDiagnostics(app, logger, 'Agents Window (AgentHost SDK sandbox)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
+				throw error;
+			}
+		});
+	});
+
+	describe('Agents Window (Codex)', () => {
+
+		const codex = setupAgentHostSuite(logger, {
+			serverLabel: 'Codex',
+			registerScenarios: ({ ScenarioBuilder, registerScenario }) => {
+				registerScenario(CODEX_SCENARIO_ID, new ScenarioBuilder().emit(CODEX_REPLY).build());
+				registerScenario(CODEX_WARMUP_SCENARIO_ID, new ScenarioBuilder().emit(CODEX_WARMUP_REPLY).build());
+			},
+			settings: {
+				// Register the Codex provider in the agent host process (it is
+				// off by default). The provider only actually appears if the
+				// codex SDK is resolvable (product.agentSdks.codex in packaged
+				// builds, or VSCODE_AGENT_HOST_CODEX_SDK_ROOT in dev) — the test
+				// skips gracefully when it is not.
+				'chat.agentHost.codexAgent.enabled': true,
+			},
+		});
+
+		it('Test Codex session', async function () {
+			this.timeout(5 * 60 * 1000);
+
+			const app = this.app as Application;
+
+			// Gate on Codex availability OUTSIDE the try/catch below so that the
+			// Pending thrown by `this.skip()` is not swallowed (and re-thrown as a
+			// failure) by the failure-diagnostics handler. Codex registers only
+			// when its native SDK is resolvable; until it ships in the build this
+			// keeps the suite green instead of red.
+			await app.workbench.agentsWindow.waitForNewSessionView();
+			const codexAvailable = await app.workbench.agentsWindow.isSessionTypeAvailable('Codex');
+			if (!codexAvailable) {
+				logger.log('[Agents Window/Codex] Codex session type not available (no product.agentSdks.codex / VSCODE_AGENT_HOST_CODEX_SDK_ROOT); skipping');
+				this.skip();
+			}
+
+			try {
+				// Pre-pay the Codex session cold-start cost: the first Codex session
+				// in a fresh agent host has to spawn the native codex app-server and
+				// resolve its model list before the first /responses request can
+				// complete. A throwaway prompt absorbs that so the real assertion
+				// runs against a warm pipeline.
+				await warmUpCodexModel(app, logger, 'Agents Window/Codex');
+
+				const requestsBefore = codex.mockServer.requestCount();
+				logger.log(`[Agents Window/Codex] submitting prompt; requestCount=${requestsBefore}`);
+				await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${CODEX_SCENARIO_ID}]`);
+
+				const text = await app.workbench.agentsWindow.waitForAssistantText(CODEX_REPLY);
+				logger.log(`[Agents Window/Codex] response (length=${text.length}): ${text}`);
+
+				assert.ok(
+					codex.mockServer.requestCount() > requestsBefore,
+					`expected the mock LLM server to have received a new request from the Codex session (before=${requestsBefore}, after=${codex.mockServer.requestCount()})`
+				);
+
+				// Confirm the request flowed through the AgentHost process (the codex
+				// harness) and not a renderer-side fallback by checking for a
+				// `chat/turnStarted` frame in the AHP JSONL transcript. The transcript
+				// is written through an async queue, so poll briefly.
+				const ahpLogDir = path.join(codex.logsPath, 'ahp');
+				const ahpFrames = await waitForLogContent(() => readAhpFrames(ahpLogDir), '"type":"chat/turnStarted"');
+				assert.ok(
+					ahpFrames.includes('"type":"chat/turnStarted"'),
+					`expected the AgentHost process to have received a chat/turnStarted dispatchAction (checked ${ahpJsonlFiles(ahpLogDir).length} jsonl files under ${ahpLogDir}); if missing, the renderer-side extension likely served the reply instead`
+				);
+			} catch (error) {
+				logger.log(`[Agents Window/Codex] FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+				await dumpFailureDiagnostics(app, logger, 'Agents Window/Codex', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
 				throw error;
 			}
 		});
@@ -600,6 +681,69 @@ async function warmUpAgentHostModel(app: Application, logger: Logger, label: str
 	await app.workbench.agentsWindow.selectSessionType('Local Agent Host');
 }
 
+
+/**
+ * Pre-pays the Claude session cold-start cost (#321072): the first Claude
+ * session in a fresh Agents Window extension host has to first-import the
+ * bundled `@anthropic-ai/claude-agent-sdk`, start a localhost
+ * `ClaudeLanguageModelServer`, spawn the SDK subprocess and load plugins
+ * (8 from skill locations) before the first /messages request can complete.
+ * On a busy macOS arm64 CI runner this can collectively exceed the default
+ * 60s {@link AgentsWindow.waitForAssistantText} timeout, surfacing as a
+ * `:not(.chat-response-loading)` selector timeout.
+ *
+ * Assumes the Agents Window is showing a new-session view. Sends a throwaway
+ * prompt to a 'Claude' session, ignores its outcome (the warm-up itself may
+ * hit the cold start), then leaves a fresh new-session view with 'Claude'
+ * selected so the caller can submit the real prompt against a warm pipeline.
+ */
+async function warmUpClaudeModel(app: Application, logger: Logger, label: string): Promise<void> {
+	await app.workbench.agentsWindow.waitForNewSessionView();
+	await app.workbench.agentsWindow.selectSessionType('Claude');
+	await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${CLAUDE_WARMUP_SCENARIO_ID}]`);
+	try {
+		// 60s mirrors the default response wait — long enough to absorb the
+		// cold-start observed at ~60s in #321072, but not so long that a hung
+		// pipeline blocks the test from making forward progress.
+		await app.workbench.agentsWindow.waitForAssistantText(CLAUDE_WARMUP_REPLY, 60_000);
+	} catch (error) {
+		// Ignore — the warm-up itself may hit the cold-start race; the
+		// caller's real attempt runs against an already-warmed pipeline.
+		logger.log(`${label} warm-up attempt did not produce the expected reply (likely the cold-start race); proceeding with the real attempt. Reason: ${error instanceof Error ? error.message : String(error)}`);
+	}
+	await app.workbench.agentsWindow.startNewSession();
+	await app.workbench.agentsWindow.waitForNewSessionView();
+	await app.workbench.agentsWindow.selectSessionType('Claude');
+}
+
+/**
+ * Pre-pays the Codex session cold-start cost: the first Codex session in a
+ * fresh agent host has to spawn the native `codex app-server` binary and
+ * resolve its model list before the first `/responses` request can complete.
+ *
+ * Assumes the Agents Window is showing a new-session view AND that the 'Codex'
+ * session type is available (callers gate on
+ * {@link AgentsWindow.isSessionTypeAvailable} first). Sends a throwaway prompt
+ * to a 'Codex' session, ignores its outcome (the warm-up itself may hit the
+ * cold start), then leaves a fresh new-session view with 'Codex' selected so
+ * the caller can submit the real prompt against a warm pipeline.
+ */
+async function warmUpCodexModel(app: Application, logger: Logger, label: string): Promise<void> {
+	await app.workbench.agentsWindow.waitForNewSessionView();
+	await app.workbench.agentsWindow.selectSessionType('Codex');
+	await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${CODEX_WARMUP_SCENARIO_ID}]`);
+	try {
+		await app.workbench.agentsWindow.waitForAssistantText(CODEX_WARMUP_REPLY, 60_000);
+	} catch (error) {
+		// Ignore — the warm-up itself may hit the cold-start race; the caller's
+		// real attempt runs against an already-warmed pipeline.
+		logger.log(`${label} warm-up attempt did not produce the expected reply (likely the cold-start race); proceeding with the real attempt. Reason: ${error instanceof Error ? error.message : String(error)}`);
+	}
+	await app.workbench.agentsWindow.startNewSession();
+	await app.workbench.agentsWindow.waitForNewSessionView();
+	await app.workbench.agentsWindow.selectSessionType('Codex');
+}
+
 /**
  * Accessors for the per-suite state owned by {@link setupAgentHostSuite}.
  * Implemented with getters so tests read the values populated by the
@@ -657,6 +801,10 @@ function setupAgentHostSuite(logger: Logger, config: {
 				COPILOT_API_URL: mockServer.url,
 				COPILOT_DEBUG_GITHUB_API_URL: mockServer.url,
 				GITHUB_COPILOT_API_TOKEN: 'smoketest-fake-agent-host-token',
+				// Route the agent host's shared CAPI client (used by the Codex /
+				// agent-host harnesses for model discovery + requests) at the mock
+				// instead of api.github.com, which would 401 with the fake token.
+				VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE: mockServer.url,
 			},
 		}));
 

@@ -197,12 +197,15 @@ export interface ILanguageModelChatMetadata {
 	readonly tooltip?: string;
 	readonly detail?: string;
 	readonly multiplierNumeric?: number;
+	readonly isBYOK?: boolean;
 	readonly pricing?: string;
 	readonly inputCost?: number;
 	readonly cacheCost?: number;
+	readonly cacheWriteCost?: number;
 	readonly outputCost?: number;
 	readonly longContextInputCost?: number;
 	readonly longContextCacheCost?: number;
+	readonly longContextCacheWriteCost?: number;
 	readonly longContextOutputCost?: number;
 	readonly priceCategory?: string;
 	readonly family: string;
