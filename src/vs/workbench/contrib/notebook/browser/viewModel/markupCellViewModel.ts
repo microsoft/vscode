@@ -73,6 +73,9 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 	readonly onDidChangeLayout = this._onDidChangeLayout.event;
 
 	get foldingState() {
+		if (this._store.isDisposed) {
+			return CellFoldingState.None;
+		}
 		return this.foldingDelegate.getFoldingState(this.foldingDelegate.getCellIndex(this));
 	}
 
