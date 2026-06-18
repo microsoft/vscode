@@ -83,7 +83,40 @@ suite('getSessionTypeAvailability', () => {
 		assert.strictEqual(availability(config, ChatEntitlement.Pro), SessionTypeAvailability.Available);
 	});
 
+	test('signed-out user must sign in even when the type supports the Auto fallback', () => {
+		// Copilot CLI: supportsAutoModel=true. The Auto model needs a Copilot
+		// account and BYOK is not supported here, so a signed-out user can't use it.
+		const config: ITypeConfig = { registered: true, supportsAutoModel: true, requiresCustomModels: true };
+		assert.strictEqual(availability(config, ChatEntitlement.Unknown), SessionTypeAvailability.SignInRequired);
+	});
+
+	test('signed-out user must sign in for a custom-model agent host type', () => {
+		// e.g. an agent host Claude harness: supportsAutoModel=false, requiresCustomModels=true.
+		const config: ITypeConfig = { registered: true, supportsAutoModel: false, requiresCustomModels: true };
+		assert.strictEqual(availability(config, ChatEntitlement.Unknown), SessionTypeAvailability.SignInRequired);
+	});
+
+	test('signed-out user must sign in for a delegation type (e.g. Cloud)', () => {
+		// The cloud agent delegates to a remote Copilot: supportsAutoModel=false,
+		// requiresCustomModels=false. It still needs a Copilot account, so a
+		// signed-out user is prompted to sign in rather than offered the type.
+		const config: ITypeConfig = { registered: true, supportsAutoModel: false, requiresCustomModels: false };
+		assert.strictEqual(availability(config, ChatEntitlement.Unknown), SessionTypeAvailability.SignInRequired);
+	});
+
 	test('available when a model targets the type, even without Auto', () => {
+		const config: ITypeConfig = { registered: true, supportsAutoModel: false, requiresCustomModels: true };
+		assert.strictEqual(availability(config, ChatEntitlement.Pro, [TYPE]), SessionTypeAvailability.Available);
+	});
+
+	test('a targeting model does NOT override sign-in for a contributed type', () => {
+		// BYOK is not supported in the agent host / Copilot CLI, so a stale/cached
+		// Copilot model still targeting the type must not unlock it when signed out.
+		const config: ITypeConfig = { registered: true, supportsAutoModel: true, requiresCustomModels: true };
+		assert.strictEqual(availability(config, ChatEntitlement.Unknown, [TYPE]), SessionTypeAvailability.SignInRequired);
+	});
+
+	test('a targeting model keeps the type available on a paid plan', () => {
 		const config: ITypeConfig = { registered: true, supportsAutoModel: false, requiresCustomModels: true };
 		assert.strictEqual(availability(config, ChatEntitlement.Pro, [TYPE]), SessionTypeAvailability.Available);
 	});
