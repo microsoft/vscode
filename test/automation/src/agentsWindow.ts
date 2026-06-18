@@ -148,58 +148,81 @@ export class AgentsWindow {
 	 * text content and click it. The dropdown is async-populated, so we
 	 * wait for at least the requested label to appear before committing.
 	 */
-	async selectSessionType(label: string): Promise<void> {
+	async selectSessionType(label: string, timeoutMs: number = 60_000): Promise<void> {
 		await this.code.waitForElement(SESSION_TYPE_PICKER_VISIBLE);
 
 		const itemSel = `.action-widget .monaco-list-row`;
-		const maxAttempts = 3;
 		const needle = label.toLowerCase();
+		const isActionRow = (el: { className: string }) => el.className.includes('action');
+		const rowText = (el: { textContent: string }) => (el.textContent ?? '').trim().toLowerCase();
+		const deadline = Date.now() + timeoutMs;
 
-		// The picker click can silently do nothing if the active session
-		// isn't fully initialized yet, and the dropdown is async-populated:
-		// providers (e.g. the AgentHost-backed Copilot CLI variant) can
-		// register a few seconds after the dropdown first renders. Retry
-		// opening the dropdown and poll its rows until the requested label
-		// appears, instead of just waiting for "any item".
+		// Outer loop: open dropdown, wait for the desired row, click it, then
+		// verify the picker label commits to the request. Each step can fail
+		// for reasons that resolve themselves shortly after — the dropdown is
+		// async-populated by providers that register a few seconds after page
+		// load (e.g. the AgentHost-backed Codex variant downloads its SDK and
+		// spawns a native app-server first), and a click landing while that's
+		// still in flight silently closes the dropdown without committing the
+		// active session type. Keep retrying the whole open→find→click→verify
+		// sequence until the picker label reflects `label` or the overall
+		// budget expires.
 		let lastSeen: string[] = [];
-		outer: for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+		let displayed = '';
+		while (Date.now() < deadline) {
+			// Open dropdown and wait for the requested row to appear.
 			await this.code.waitAndClick(SESSION_TYPE_PICKER_VISIBLE);
-			const deadline = Date.now() + 10_000;
-			while (Date.now() < deadline) {
-				const items = await this.code.getElements(itemSel, /* recursive */ true);
+			const openDeadline = Math.min(deadline, Date.now() + 10_000);
+			let items: { className: string; textContent: string; attributes: Record<string, string> }[] | undefined;
+			while (Date.now() < openDeadline) {
+				items = await this.code.getElements(itemSel, /* recursive */ true);
 				lastSeen = (items ?? []).map(i => (i.textContent ?? '').trim());
 				if (lastSeen.some(t => t.toLowerCase().includes(needle))) {
-					break outer;
+					break;
 				}
 				await new Promise(r => setTimeout(r, 250));
 			}
-			if (attempt === maxAttempts) {
-				throw new Error(`Session type "${label}" not found in picker. Available: ${lastSeen.join(', ')}`);
+			if (!items?.some(el => rowText(el).includes(needle))) {
+				// Row never showed in this dropdown pass — close and retry.
+				await new Promise(r => setTimeout(r, 1000));
+				continue;
 			}
-			await new Promise(r => setTimeout(r, 2000));
-		}
 
-		const items = await this.code.waitForElements(itemSel, /* recursive */ true);
-		const isActionRow = (el: { className: string }) => el.className.includes('action');
-		const rowText = (el: { textContent: string }) => (el.textContent ?? '').trim().toLowerCase();
-
-		// Prefer an actionable row whose label matches directly (e.g. a
-		// session type label like "Claude" or "Copilot CLI").
-		let matchIndex = items.findIndex(el => isActionRow(el) && rowText(el).includes(needle));
-		// Otherwise treat the label as a provider section header (e.g. "Local
-		// Agent Host"): headers are non-clickable rows rendered above their
-		// session types, so select the first actionable row beneath the header.
-		if (matchIndex < 0) {
-			const headerIndex = items.findIndex(el => !isActionRow(el) && rowText(el).includes(needle));
-			if (headerIndex >= 0) {
-				matchIndex = items.findIndex((el, index) => index > headerIndex && isActionRow(el));
+			// Prefer an actionable row whose label matches directly. Otherwise
+			// treat the label as a section header and pick the first action row
+			// beneath it.
+			let matchIndex = items.findIndex(el => isActionRow(el) && rowText(el).includes(needle));
+			if (matchIndex < 0) {
+				const headerIndex = items.findIndex(el => !isActionRow(el) && rowText(el).includes(needle));
+				if (headerIndex >= 0) {
+					matchIndex = items.findIndex((el, index) => index > headerIndex && isActionRow(el));
+				}
 			}
+			if (matchIndex < 0) {
+				await new Promise(r => setTimeout(r, 1000));
+				continue;
+			}
+
+			const dataIndex = items[matchIndex].attributes['data-index'] ?? String(matchIndex);
+			await this.code.waitAndClick(`.action-widget .monaco-list-row[data-index="${dataIndex}"]`);
+
+			// Verify the picker committed to the requested type. Poll briefly
+			// because the active label is updated asynchronously after the click.
+			const verifyDeadline = Math.min(deadline, Date.now() + 5_000);
+			while (Date.now() < verifyDeadline) {
+				const labels = await this.code.getElements(SESSION_TYPE_PICKER_VISIBLE, /* recursive */ true);
+				displayed = ((labels ?? [])[0]?.textContent ?? '').trim();
+				if (displayed.toLowerCase().includes(needle)) {
+					return;
+				}
+				await new Promise(r => setTimeout(r, 200));
+			}
+			// Click didn't commit — most likely the provider wasn't fully ready
+			// at click time. Loop around and re-open the dropdown after a short
+			// pause so the provider has a chance to finish registering.
+			await new Promise(r => setTimeout(r, 1000));
 		}
-		if (matchIndex < 0) {
-			throw new Error(`Session type "${label}" not found in picker. Available: ${items.map(i => (i.textContent ?? '').trim()).join(', ')}`);
-		}
-		const dataIndex = items[matchIndex].attributes['data-index'] ?? String(matchIndex);
-		await this.code.waitAndClick(`.action-widget .monaco-list-row[data-index="${dataIndex}"]`);
+		throw new Error(`Timed out (${timeoutMs}ms) selecting session type "${label}". Last picker label: "${displayed}". Last dropdown rows: ${lastSeen.join(', ')}`);
 	}
 
 	/**
