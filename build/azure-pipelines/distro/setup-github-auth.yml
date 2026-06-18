@@ -1,0 +1,34 @@
+steps:
+  # Derive a GitHub token from the Monaco GitHub App credentials that Azure
+  # Pipelines persisted into .git/config during checkout (persistCredentials: true).
+  # This replaces the github-distro-mixin-password PAT. The installation token is
+  # short-lived (~1h) and scoped to the repos the Monaco app can access in the org
+  # (which must include microsoft/vscode-distro for the distro download to work).
+  # The resulting secret variable keeps the historical name to avoid churn across
+  # the many GITHUB_TOKEN consumers.
+  - pwsh: |
+      $ErrorActionPreference = "Stop"
+      $header = (git config --get-all "http.https://github.com/.extraheader" | Select-Object -First 1)
+      if (-not $header) {
+        Write-Error "Could not find persisted GitHub credentials. Ensure checkout uses persistCredentials: true."
+        exit 1
+      }
+      $b64 = ($header -replace '.*basic ', '').Trim()
+      $decoded = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($b64))
+      $token = $decoded.Substring($decoded.IndexOf(':') + 1)
+      Write-Host "##vso[task.setvariable variable=github-distro-mixin-password;issecret=true]$token"
+    condition: and(succeeded(), contains(variables['Agent.OS'], 'windows'))
+    displayName: Setup GitHub auth (Windows)
+
+  - script: |
+      set -e
+      header="$(git config --get-all "http.https://github.com/.extraheader" | head -n1)"
+      if [ -z "$header" ]; then
+        echo "Could not find persisted GitHub credentials. Ensure checkout uses persistCredentials: true." >&2
+        exit 1
+      fi
+      b64="${header##*basic }"
+      token="$(printf '%s' "$b64" | base64 -d | cut -d: -f2-)"
+      echo "##vso[task.setvariable variable=github-distro-mixin-password;issecret=true]$token"
+    condition: and(succeeded(), not(contains(variables['Agent.OS'], 'windows')))
+    displayName: Setup GitHub auth (non-Windows)

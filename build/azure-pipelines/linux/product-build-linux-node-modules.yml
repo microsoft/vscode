@@ -24,13 +24,6 @@ jobs:
 
       - template: ../distro/download-distro.yml@self
 
-      - task: AzureKeyVault@2
-        displayName: "Azure Key Vault: Get Secrets"
-        inputs:
-          azureSubscription: vscode
-          KeyVaultName: vscode-build-secrets
-          SecretsFilter: "github-distro-mixin-password"
-
       - script: |
           set -e
           # Start X server

@@ -37,13 +37,6 @@ jobs:
         displayName: Mixin distro quality
 
       - task: AzureKeyVault@2
-        displayName: "Azure Key Vault: Get Secrets"
-        inputs:
-          azureSubscription: vscode
-          KeyVaultName: vscode-build-secrets
-          SecretsFilter: "github-distro-mixin-password"
-
-      - task: AzureKeyVault@2
         displayName: "Azure Key Vault: Get ESRP Secrets"
         inputs:
           azureSubscription: vscode-esrp

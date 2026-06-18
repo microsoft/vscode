@@ -1,14 +1,11 @@
 steps:
-  - task: AzureKeyVault@2
-    displayName: "Azure Key Vault: Get Secrets"
-    inputs:
-      azureSubscription: vscode
-      KeyVaultName: vscode-build-secrets
-      SecretsFilter: "github-distro-mixin-password"
+  # The github-distro-mixin-password variable is derived from the Monaco GitHub App
+  # token by common/checkout.yml (via distro/setup-github-auth.yml). The Monaco app
+  # installation must have read access to the private microsoft/vscode-distro repo.
 
   # TODO@joaomoreno: Keep pwsh once we move out of running entire jobs in containers
   - pwsh: |
-      "machine github.com`nlogin vscode`npassword $(github-distro-mixin-password)" | Out-File "$Home/_netrc" -Encoding ASCII
+      "machine github.com`nlogin x-access-token`npassword $(github-distro-mixin-password)" | Out-File "$Home/_netrc" -Encoding ASCII
     condition: and(succeeded(), contains(variables['Agent.OS'], 'windows'))
     displayName: Setup distro auth (Windows)
 
@@ -32,7 +29,7 @@ steps:
       mkdir -p .build
       cat << EOF | tee ~/.netrc .build/.netrc > /dev/null
       machine github.com
-      login vscode
+      login x-access-token
       password $(github-distro-mixin-password)
       EOF
     condition: and(succeeded(), not(contains(variables['Agent.OS'], 'windows')))
