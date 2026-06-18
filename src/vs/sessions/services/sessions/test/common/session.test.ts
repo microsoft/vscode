@@ -129,10 +129,11 @@ suite('sessionWorkspaceEqual', () => {
 		assert.strictEqual(sessionWorkspaceEqual(workspace('main', gitHubInfo), workspace('main', gitHubInfo)), true);
 	});
 
-	test('returns true for rebuilt workspace objects with equivalent GitHub info values', () => {
-		const gitHubInfo: IGitHubInfo = { owner: 'owner', repo: 'repo' };
-		assert.strictEqual(sessionWorkspaceEqual(workspace('main', constObservable(gitHubInfo)), workspace('main', constObservable(gitHubInfo))), true);
-	});
+		test('returns true for rebuilt workspace objects with equivalent GitHub info values', () => {
+			const gitHubInfoA: IGitHubInfo = { owner: 'owner', repo: 'repo' };
+			const gitHubInfoB: IGitHubInfo = { owner: 'owner', repo: 'repo' };
+			assert.strictEqual(sessionWorkspaceEqual(workspace('main', constObservable(gitHubInfoA)), workspace('main', constObservable(gitHubInfoB))), true);
+		});
 
 	test('returns false when folder repository metadata changes', () => {
 		assert.strictEqual(sessionWorkspaceEqual(workspace('main'), workspace('feature')), false);
