@@ -7,7 +7,7 @@ import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ISessionGitState } from './state/sessionState.js';
 
-export const IAgentHostGitStateService = createDecorator<IAgentHostGitStateService>('agentHostSessionGitStateService');
+export const IAgentHostGitStateService = createDecorator<IAgentHostGitStateService>('agentHostGitStateService');
 
 export interface IAgentHostGitStateService {
 	readonly _serviceBrand: undefined;
