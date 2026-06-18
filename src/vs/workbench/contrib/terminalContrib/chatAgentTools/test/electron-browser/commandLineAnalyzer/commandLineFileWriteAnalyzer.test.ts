@@ -164,6 +164,7 @@ suite('CommandLineFileWriteAnalyzer', () => {
 				// /tmp writes are allowed only when session auto-approval is enabled
 				test('/tmp - allow when auto-approval enabled', () => tWithAutoApproval('echo hello > /tmp/file.txt', 'outsideWorkspace', true, true));
 				test('/tmp subdirectory - allow when auto-approval enabled', () => tWithAutoApproval('echo hello > /tmp/sub/file.txt', 'outsideWorkspace', true, true));
+				test('triple-quoted /tmp - allow when auto-approval enabled', () => tWithAutoApproval('echo hello > \'\'\'/tmp/file.txt\'\'\'', 'outsideWorkspace', true, true));
 				test('/tmp - block when auto-approval disabled', () => tWithAutoApproval('echo hello > /tmp/file.txt', 'outsideWorkspace', false, false));
 
 				// Other outside-workspace paths remain blocked even with auto-approval enabled
