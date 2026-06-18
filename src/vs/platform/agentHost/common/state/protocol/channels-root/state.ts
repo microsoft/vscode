@@ -97,6 +97,8 @@ export interface SessionModelInfo {
 	name: string;
 	/** Maximum context window size */
 	maxContextWindow?: number;
+	/** Maximum context window size for the long-context tier, when the model exposes one */
+	maxLongContextWindow?: number;
 	/** Whether the model supports vision */
 	supportsVision?: boolean;
 	/** Policy configuration state */

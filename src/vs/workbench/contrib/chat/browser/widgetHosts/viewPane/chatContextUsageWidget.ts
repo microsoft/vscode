@@ -20,7 +20,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
-import { ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatContextUsageDetails, IChatContextUsageData } from './chatContextUsageDetails.js';
 import type { IChatWidget } from '../../chat.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
@@ -87,37 +87,39 @@ export class CircularProgressIndicator {
  *
  * The `'tokens'` configuration group comes in two shapes:
  *  - A numeric enum value (e.g. Copilot's `contextSize`) is the token count itself.
- *  - A string-tier enum (e.g. Copilot CLI's `contextTier` = `'default'` |
- *    `'long_context'`) maps to its token count via the schema's parallel
- *    `enumItemTokenCounts` array.
+ *  - A string tier (e.g. Copilot CLI's `contextTier` = `'default'` | `'long_context'`):
+ *    a non-default selection maps to the model's long-context window, carried as
+ *    metadata in `longContextMaxInputTokens`.
  *
  * Returns `undefined` when no context-window override is configured, so callers
  * fall back to the model's static `maxInputTokens`.
  */
 function resolveConfiguredContextTokens(
 	modelConfiguration: IStringDictionary<unknown> | undefined,
-	schema: ILanguageModelConfigurationSchema | undefined,
+	modelMetadata: ILanguageModelChatMetadata | undefined,
 ): number | undefined {
 	if (!modelConfiguration) {
 		return undefined;
 	}
-	const properties = schema?.properties;
+	const properties = modelMetadata?.configurationSchema?.properties;
 	if (properties) {
 		for (const [key, propSchema] of Object.entries(properties)) {
 			if (propSchema.group !== 'tokens') {
 				continue;
 			}
 			const value = modelConfiguration[key];
+			if (value === undefined) {
+				return undefined;
+			}
+			// Numeric enum (e.g. Copilot's `contextSize`): the value is the token count.
 			if (typeof value === 'number') {
 				return value;
 			}
-			const tokenCounts = propSchema.enumItemTokenCounts;
-			if (Array.isArray(propSchema.enum) && Array.isArray(tokenCounts)) {
-				const index = propSchema.enum.indexOf(value);
-				const tokens = index >= 0 ? tokenCounts[index] : undefined;
-				if (typeof tokens === 'number') {
-					return tokens;
-				}
+			// String tier (e.g. Copilot CLI's `contextTier`): a non-default selection
+			// uses the model's long-context window; the default tier falls back to
+			// `maxInputTokens`.
+			if (propSchema.default !== undefined && value !== propSchema.default) {
+				return modelMetadata?.longContextMaxInputTokens;
 			}
 			return undefined;
 		}
@@ -354,7 +356,7 @@ export class ChatContextUsageWidget extends Disposable {
 		const usage = response.usage;
 		const modelMetadata = this.languageModelsService.lookupLanguageModel(modelId);
 		const modelConfiguration = this._modelConfigurationResolver?.(modelId) ?? this.languageModelsService.getModelConfiguration(modelId);
-		const configuredContextSize = resolveConfiguredContextTokens(modelConfiguration, modelMetadata?.configurationSchema);
+		const configuredContextSize = resolveConfiguredContextTokens(modelConfiguration, modelMetadata);
 		const maxInputTokens = configuredContextSize ?? modelMetadata?.maxInputTokens;
 		const maxOutputTokens = modelMetadata?.maxOutputTokens;
 
