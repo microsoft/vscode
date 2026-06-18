@@ -59,7 +59,7 @@ import { getChangesEditorLabels } from './changesEditorLabels.js';
 import { getChangesMultiDiffSourceUri } from './changesMultiDiffSourceResolver.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { CIStatusWidget } from './checksWidget.js';
-import { GITHUB_REMOTE_FILE_SCHEME, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus } from '../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISessionChangesetOperation, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus } from '../../../services/sessions/common/session.js';
 import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
 import { IView, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
@@ -261,24 +261,31 @@ class ChangesWorkbenchButtonBarWidget extends Disposable {
 			const changesetOperations = operations
 				.filter(op => op.scopes.includes(SessionChangesetOperationScope.Changeset));
 
-			// Group the changeset-scoped operations by their group identifier,
-			// preserving the order in which groups are first encountered.
+			const toOperationAction = (op: ISessionChangesetOperation) => toAction({
+				id: op.id,
+				label: op.icon
+					? op.status === SessionChangesetOperationStatus.Running
+						? `$(loading) ${op.label}`
+						: `$(${op.icon.id}) ${op.label}`
+					: op.status === SessionChangesetOperationStatus.Running
+						? `$(loading) ${op.label}`
+						: op.label,
+				tooltip: op.description,
+				enabled: op.status !== SessionChangesetOperationStatus.Disabled && op.status !== SessionChangesetOperationStatus.Running,
+				run: () => changeset.invokeOperation(op.id),
+			});
+
+			// Group the remaining changeset-scoped operations by their
+			// group identifier, preserving the order in which groups
+			// are first encountered.
 			const groups = new Map<string | undefined, IAction[]>();
 			for (const op of changesetOperations) {
-				const action = toAction({
-					id: op.id,
-					label: op.icon
-						? op.status === SessionChangesetOperationStatus.Running
-							? `$(loading) ${op.label}`
-							: `$(${op.icon.id}) ${op.label}`
-						: op.status === SessionChangesetOperationStatus.Running
-							? `$(loading) ${op.label}`
-							: op.label,
-					tooltip: op.description,
-					enabled: op.status !== SessionChangesetOperationStatus.Disabled && op.status !== SessionChangesetOperationStatus.Running,
-					run: () => changeset.invokeOperation(op.id),
-				});
+				// Skip the running operations as they will be handled separately
+				if (op.status === SessionChangesetOperationStatus.Running) {
+					continue;
+				}
 
+				const action = toOperationAction(op);
 				const groupActions = groups.get(op.group);
 				if (groupActions) {
 					groupActions.push(action);
@@ -287,7 +294,18 @@ class ChangesWorkbenchButtonBarWidget extends Disposable {
 				}
 			}
 
-			return [...groups.values()];
+			// Running operations are extracted into a dedicated group that appears first
+			// so that the running operation acts as the primary action of the dropdown.
+			const runningActions = changesetOperations
+				.filter(op => op.status === SessionChangesetOperationStatus.Running)
+				.map(toOperationAction);
+
+			return [
+				...(runningActions.length > 0
+					? [runningActions]
+					: []),
+				...groups.values(),
+			];
 		});
 
 		this._register(autorun(reader => {
@@ -298,9 +316,9 @@ class ChangesWorkbenchButtonBarWidget extends Disposable {
 			const operationActions = operationActionGroups.flat();
 
 			if (operationActions.length > 1) {
-				// Prefer the running operation as the primary, otherwise the first.
-				const primaryAction = operationActions.find(action =>
-					action.label.startsWith('$(loading)') && !action.enabled) ?? operationActions[0];
+				// The action groups are build so that the
+				// running action(s) appear in the first group
+				const primaryAction = operationActions[0];
 
 				// Join the groups with separators to
 				// visually separate related operations.
