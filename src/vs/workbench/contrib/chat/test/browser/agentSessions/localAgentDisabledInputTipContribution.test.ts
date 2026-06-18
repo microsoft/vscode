@@ -156,7 +156,7 @@ suite('LocalAgentDisabledInputTipContribution', () => {
 		assert.strictEqual(notificationService.setCalls[0].id, 'chat.localAgentDisabled.continueInAgentHostCopilot');
 		assert.strictEqual(notificationService.setCalls[0].severity, ChatInputNotificationSeverity.Info);
 		assert.strictEqual(notificationService.setCalls[0].actions.length, 1);
-		assert.strictEqual(notificationService.setCalls[0].actions[0].label, 'Continue In Copilot CLI');
+		assert.strictEqual(notificationService.setCalls[0].actions[0].label, 'Continue In Agent Host');
 		assert.strictEqual(notificationService.setCalls[0].actions[0].commandId, LOCAL_AGENT_DISABLED_CONTINUE_IN_AGENT_HOST_COPILOT_COMMAND_ID);
 		assert.deepStrictEqual(notificationService.setCalls[0].sessionTypes, [localChatSessionType]);
 	});
