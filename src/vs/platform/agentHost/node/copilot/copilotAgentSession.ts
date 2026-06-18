@@ -7,7 +7,7 @@ import type { CopilotSession, ExitPlanModeRequest, MessageOptions, PermissionReq
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { CancellationError } from '../../../../base/common/errors.js';
+import { CancellationError, getErrorMessage } from '../../../../base/common/errors.js';
 import { escapeMarkdownSyntaxTokens } from '../../../../base/common/htmlContent.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -1000,6 +1000,11 @@ export class CopilotAgentSession extends Disposable {
 				await this._wrapper.session.rpc.history.compact();
 				this.emitInitialMarkdown(localize('copilotAgent.compactionCompleted', "Compaction completed"));
 			} catch (err) {
+				if (getErrorMessage(err).toLowerCase().includes('nothing to compact')) {
+					this.emitInitialMarkdown(localize('copilotAgent.compactionCompleted', "Compaction completed"));
+					this._completeActiveTurn();
+					return;
+				}
 				this._logService.error(err, `[Copilot:${this.sessionId}] rpc.history.compact failed`);
 				throw err;
 			}

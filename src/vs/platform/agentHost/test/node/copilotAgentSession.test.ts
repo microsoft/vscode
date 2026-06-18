@@ -50,6 +50,7 @@ class MockCopilotSession {
 	readonly commandListCalls: unknown[] = [];
 	readonly commandInvokeCalls: Array<{ name: string; input?: string }> = [];
 	compactResult: { success: boolean; tokensRemoved: number; messagesRemoved: number } = { success: true, tokensRemoved: 0, messagesRemoved: 0 };
+	compactError: unknown = undefined;
 	commandListResult: { commands: Array<{ name: string; kind: 'builtin' | 'skill' | 'client'; description: string; allowDuringAgentExecution: boolean }> } = { commands: [] };
 	commandInvokeResult: { kind: 'text'; text: string; markdown?: boolean } | { kind: 'completed'; message?: string } | { kind: 'agent-prompt'; prompt: string; displayPrompt: string; mode?: 'interactive' | 'plan' | 'autopilot' } = { kind: 'text', text: '' };
 	messages: SessionEvent[] = [];
@@ -103,6 +104,9 @@ class MockCopilotSession {
 		history: {
 			compact: async (params?: unknown) => {
 				this.compactCalls.push(params ?? null);
+				if (this.compactError !== undefined) {
+					throw this.compactError;
+				}
 				return this.compactResult;
 			},
 		},
@@ -631,6 +635,36 @@ suite('CopilotAgentSession', () => {
 		assert.deepStrictEqual(mockSession.sendRequests, []);
 		const turnComplete = getActions(signals).find(a => a.type === ActionType.ChatTurnComplete);
 		assert.ok(turnComplete, 'expected the turn to complete on a failed compaction');
+	});
+
+	test('`/compact` treats nothing-to-compact errors as completed', async () => {
+		const logService = new CapturingLogService();
+		const { session, mockSession, signals } = await createAgentSession(disposables, { logService });
+		mockSession.compactError = new Error('NOTHING TO COMPACT for this conversation');
+
+		await session.send('/compact', undefined, 'turn-compact');
+
+		const actions = getActions(signals);
+		assert.deepStrictEqual({
+			compactCalls: mockSession.compactCalls.length,
+			sendRequests: mockSession.sendRequests,
+			errors: logService.errors,
+			responseParts: actions
+				.filter(a => a.type === ActionType.ChatResponsePart)
+				.map(a => {
+					const part = (a as ChatResponsePartAction).part;
+					return part.kind === ResponsePartKind.Markdown ? { turnId: a.turnId, kind: part.kind, content: part.content } : { turnId: a.turnId, kind: part.kind };
+				}),
+			turnComplete: actions
+				.filter(a => a.type === ActionType.ChatTurnComplete)
+				.map(a => (a as ChatTurnCompleteAction).turnId),
+		}, {
+			compactCalls: 1,
+			sendRequests: [],
+			errors: [],
+			responseParts: [{ turnId: 'turn-compact', kind: ResponsePartKind.Markdown, content: 'Compaction completed' }],
+			turnComplete: ['turn-compact'],
+		});
 	});
 
 	test('`/env` runs the runtime command when listed and emits markdown output', async () => {
