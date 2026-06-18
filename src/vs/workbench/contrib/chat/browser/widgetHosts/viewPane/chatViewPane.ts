@@ -536,6 +536,72 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			chatService: this.chatService,
 		}));
 
+		// Transcript overlay — rendered inside the input container, covering the
+		// editor when voice is actively transcribing.
+		const inputContainerEl = this._widget.inputPart.inputContainerElement;
+		if (inputContainerEl) {
+			inputContainerEl.style.position = 'relative';
+			const transcriptOverlay = $('.voice-transcript-overlay');
+			transcriptOverlay.style.cssText = 'display:none;position:absolute;inset:0;z-index:10;padding:6px 12px;font-size:13px;line-height:1.4;word-break:break-word;overflow:hidden;pointer-events:none;background:var(--vscode-input-background, transparent);';
+			inputContainerEl.append(transcriptOverlay);
+
+			const style = document.createElement('style');
+			style.textContent = `
+				@keyframes voiceTextPulse { 0%,100%{opacity:0.9} 50%{opacity:0.4} }
+				.voice-transcript-overlay .committed { color: var(--vscode-foreground); }
+				.voice-transcript-overlay .partial { color: var(--vscode-foreground); opacity:0.6; font-style:italic; animation: voiceTextPulse 1.5s ease-in-out infinite; }
+				.voice-transcript-overlay .assistant-text { color: var(--vscode-descriptionForeground); display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+			`;
+			transcriptOverlay.append(style);
+
+			this._voiceBarDisposables.add(autorun(reader => {
+				const turns = this.voiceSessionController.transcriptTurns.read(reader);
+				const connected = this.voiceSessionController.isConnected.read(reader);
+				const visible = turns.filter(t => t.text.length > 0 || (t.speaker === 'user' && t.isPartial));
+
+				if (!connected || visible.length === 0) {
+					transcriptOverlay.style.display = 'none';
+					return;
+				}
+
+				transcriptOverlay.style.display = '';
+				// Clear and rebuild content
+				const contentElements: HTMLElement[] = [];
+				for (const turn of visible) {
+					if (turn.speaker === 'user') {
+						const span = $('span');
+						if (turn.isPartial) {
+							const committedPart = turn.committed || '';
+							const unsurePart = turn.text.slice(committedPart.length);
+							if (committedPart) {
+								const c = $('span.committed');
+								c.textContent = committedPart;
+								span.append(c);
+							}
+							const u = $('span.partial');
+							u.textContent = unsurePart + '\u2589';
+							span.append(u);
+						} else {
+							span.className = 'committed';
+							span.textContent = turn.text;
+						}
+						contentElements.push(span);
+					} else {
+						const div = $('div.assistant-text');
+						div.textContent = turn.text;
+						contentElements.push(div);
+					}
+				}
+				// Keep the style element, replace content
+				while (transcriptOverlay.childNodes.length > 1) {
+					transcriptOverlay.removeChild(transcriptOverlay.lastChild!);
+				}
+				for (const el of contentElements) {
+					transcriptOverlay.append(el);
+				}
+			}));
+		}
+
 		this._voiceBarDisposables.add({ dispose: () => { this.voiceSessionController.disconnect(); } });
 	}
 
