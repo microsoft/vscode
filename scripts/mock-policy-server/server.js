@@ -64,24 +64,28 @@ const server = http.createServer((req, res) => {
 	const url = new URL(req.url || '/', `http://${req.headers.host}`);
 	const pathname = url.pathname;
 
-	// CORS so the web build (browser) can also hit the endpoints during dev.
-	res.setHeader('Access-Control-Allow-Origin', '*');
-	res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-	res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
-	if (req.method === 'OPTIONS') {
-		res.writeHead(204);
-		res.end();
-		return;
-	}
-
 	try {
-		// Mocked Copilot endpoints.
+		// Mocked Copilot endpoints. Only these get permissive CORS, so the web
+		// build (browser) of Code OSS can call them cross-origin. The control API
+		// (/api/*) and static assets stay same-origin: that avoids a CSRF surface
+		// where an unrelated website could drive /api/wire and rewrite the local
+		// product.overrides.json.
 		const endpoint = endpointByPath.get(pathname);
-		if (endpoint && req.method === 'GET') {
-			return sendJson(res, 200, currentBodies[endpoint.id]);
+		if (endpoint) {
+			res.setHeader('Access-Control-Allow-Origin', '*');
+			res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+			res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+			if (req.method === 'OPTIONS') {
+				res.writeHead(204);
+				res.end();
+				return;
+			}
+			if (req.method === 'GET') {
+				return sendJson(res, 200, currentBodies[endpoint.id]);
+			}
 		}
 
-		// GUI control API.
+		// GUI control API (same-origin only — no CORS).
 		if (pathname === '/api/state' && req.method === 'GET') {
 			return sendJson(res, 200, getState());
 		}

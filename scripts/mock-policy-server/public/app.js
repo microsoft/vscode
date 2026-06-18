@@ -41,8 +41,8 @@
 	function parseEditor() {
 		const raw = editor.value.trim();
 		if (raw === '') {
-			setStatus('Empty body will be served as-is (treated as no JSON).', '');
-			return '';
+			setStatus('Empty body — will be served as {}.', '');
+			return {};
 		}
 		let parsed;
 		try {
@@ -94,7 +94,9 @@
 			tab.type = 'button';
 			tab.className = 'tab' + (endpoint.id === activeId ? ' active' : '');
 			tab.textContent = endpoint.label;
-			tab.setAttribute('role', 'tab');
+			if (endpoint.id === activeId) {
+				tab.setAttribute('aria-current', 'true');
+			}
 			tab.addEventListener('click', () => selectEndpoint(endpoint.id));
 			tabs.appendChild(tab);
 		}
@@ -135,7 +137,11 @@
 		}
 		activeId = id;
 		const endpoint = activeEndpoint();
-		endpointMeta.innerHTML = `<code>GET ${endpoint.path}</code> &middot; product.json <code>defaultChatAgent.${endpoint.productKey}</code><br>${endpoint.description}`;
+		const codePath = document.createElement('code');
+		codePath.textContent = `GET ${endpoint.path}`;
+		const codeKey = document.createElement('code');
+		codeKey.textContent = `defaultChatAgent.${endpoint.productKey}`;
+		endpointMeta.replaceChildren(codePath, ' \u00b7 product.json ', codeKey, document.createElement('br'), endpoint.description);
 		endpointUrlEl.textContent = endpoint.url;
 		editor.value = drafts[id] ?? JSON.stringify(endpoint.body ?? {}, null, '\t');
 		renderTabs();
@@ -181,7 +187,7 @@
 
 	function formatJson() {
 		const parsed = parseEditor();
-		if (parsed !== undefined && parsed !== '') {
+		if (parsed !== undefined) {
 			editor.value = JSON.stringify(parsed, null, '\t');
 		}
 	}
