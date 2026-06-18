@@ -5491,7 +5491,7 @@
         {
           "command": "github.copilot.chat.applyCopilotCLIAgentSessionChanges.apply",
           "when": "chatSessionType == copilotcli && workbenchState != empty && !isSessionsWindow",
-          "group": "navigation@1"
+          "group": "navigation@0"
         },
         {
           "command": "github.copilot.chat.checkoutPullRequestReroute",
