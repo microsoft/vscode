@@ -207,6 +207,23 @@ export class ChatSlashCommandsContribution extends Disposable {
 			await commandService.executeCommand('workbench.action.chat.forkConversation', sessionResource);
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
+			command: 'rewind',
+			detail: nls.localize('rewind', "Rewind conversation to a previous point"),
+			sortText: 'z2_rewind',
+			executeImmediately: true,
+			silent: true,
+			locations: [ChatAgentLocation.Chat],
+			when: ContextKeyExpr.and(
+				ContextKeyExpr.or(
+					ChatContextKeys.lockedToCodingAgent.negate(),
+					ChatContextKeys.chatSessionSupportsFork
+				),
+				ChatContextKeys.requestInProgress.negate()
+			),
+		}, async (_prompt, _progress, _history, _location, sessionResource) => {
+			await commandService.executeCommand('workbench.action.chat.rewindConversation', sessionResource);
+		}));
+		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'rename',
 			detail: nls.localize('rename', "Rename this chat"),
 			sortText: 'z2_rename',
