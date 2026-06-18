@@ -1,0 +1,27 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Style-override module: "Padding".
+ *
+ * Adjusts the internal padding of common workbench surfaces to give content
+ * more breathing room.
+ *
+ * All rules are gated behind the `.style-override-padding` class, which the
+ * StyleOverridesContribution toggles onto the workbench container(s) when the
+ * `workbench.experimental.styleOverrides` setting includes "padding".
+ * Without that class these rules never apply.
+ */
+
+/* Add horizontal breathing room to view pane (sidebar / panel) headers. */
+.style-override-padding .monaco-pane-view .pane > .pane-header {
+	padding-left: var(--vscode-spacing-size80, 8px);
+	padding-right: var(--vscode-spacing-size80, 8px);
+}
+
+/* Inset the contents of view panes. */
+.style-override-padding .monaco-pane-view .pane > .pane-body {
+	padding: var(--vscode-spacing-size80, 8px);
+}

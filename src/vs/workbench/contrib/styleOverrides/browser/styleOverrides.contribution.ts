@@ -18,6 +18,7 @@ import { workbenchConfigurationNodeBase } from '../../../common/configuration.js
 // until the matching class is toggled onto the workbench container(s) below.
 import './media/activityBar.css';
 import './media/fontRamp.css';
+import './media/padding.css';
 import './media/paneHeaders.css';
 import './media/roundedCorners.css';
 import './media/tabs.css';
@@ -46,6 +47,11 @@ const STYLE_OVERRIDE_MODULES: readonly IStyleOverrideModule[] = [
 		id: 'fontRamp',
 		label: localize('styleOverrides.fontRamp', "Font Ramp"),
 		description: localize('styleOverrides.fontRamp.description', "Applies a unified typographic ramp across the workbench: headings at 26/18px, 13px body, 12px section titles and tabs, 11px metadata and 10px badges.")
+	},
+	{
+		id: 'padding',
+		label: localize('styleOverrides.padding', "Padding"),
+		description: localize('styleOverrides.padding.description', "Adds extra padding to view pane headers and bodies for more breathing room around content.")
 	},
 	{
 		id: 'paneHeaders',
