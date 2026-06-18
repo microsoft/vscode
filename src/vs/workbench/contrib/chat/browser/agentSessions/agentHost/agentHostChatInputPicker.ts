@@ -91,17 +91,14 @@ function normalizeConfigValue(property: string, value: string, policyRestricted:
 }
 
 function toActionItems(property: string, items: readonly IConfigPickerItem[], currentValue: unknown | undefined, policyRestricted = false): IActionListItem<IConfigPickerItem>[] {
-	return items.map(item => {
-		const selected = isSelectedValue(currentValue, item.value);
-		return {
-			kind: ActionListItemKind.Action,
-			label: item.label,
-			detail: item.description,
-			group: { title: '', icon: getConfigIcon(property, item.value) },
-			disabled: policyRestricted && property === SessionConfigKey.AutoApprove && (item.value === 'autoApprove' || item.value === 'autopilot'),
-			item: { ...item, checked: selected, label: selected ? `${item.label} ${localize('selected', "(Selected)")}` : item.label },
-		};
-	});
+	return items.map(item => ({
+		kind: ActionListItemKind.Action,
+		label: item.label,
+		detail: item.description,
+		group: { title: '', icon: getConfigIcon(property, item.value) },
+		disabled: policyRestricted && property === SessionConfigKey.AutoApprove && (item.value === 'autoApprove' || item.value === 'autopilot'),
+		item: { ...item, checked: isSelectedValue(currentValue, item.value) },
+	}));
 }
 
 function isSelectedValue(currentValue: unknown | undefined, itemValue: string): boolean {

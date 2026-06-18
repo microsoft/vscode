@@ -105,17 +105,14 @@ export function getConfigIcon(property: string, value: unknown | undefined): The
 }
 
 function toActionItems(property: string, items: readonly IConfigPickerItem[], currentValue: unknown | undefined, policyRestricted?: boolean): IActionListItem<IConfigPickerItem>[] {
-	return items.map(item => {
-		const selected = isSelectedValue(currentValue, item.value);
-		return {
-			kind: ActionListItemKind.Action,
-			label: item.label,
-			detail: item.description,
-			group: { title: '', icon: getConfigIcon(property, item.value) },
-			disabled: policyRestricted && (item.value === 'autoApprove' || item.value === 'autopilot'),
-			item: { ...item, checked: selected, label: selected ? `${item.label} ${localize('selected', "(Selected)")}` : item.label },
-		};
-	});
+	return items.map(item => ({
+		kind: ActionListItemKind.Action,
+		label: item.label,
+		detail: item.description,
+		group: { title: '', icon: getConfigIcon(property, item.value) },
+		disabled: policyRestricted && (item.value === 'autoApprove' || item.value === 'autopilot'),
+		item: { ...item, checked: isSelectedValue(currentValue, item.value) },
+	}));
 }
 
 function isSelectedValue(currentValue: unknown | undefined, itemValue: string): boolean {
@@ -460,7 +457,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 
 		const isAutoApproveProperty = property === SessionConfigKey.AutoApprove;
 		const currentValue = provider.getSessionConfig(sessionId)?.values[property] ?? schema.default;
-		const currentItem = items.find(i => i.value === currentValue);
+		const currentItem = items.find(i => isSelectedValue(currentValue, i.value));
 		const actionItems = toActionItems(property, items, currentValue, policyRestricted);
 
 		const delegate: IActionListDelegate<IConfigPickerItem> = {
