@@ -289,18 +289,6 @@ function isCopilotSdkToolOutputTempFile(filePath: string, tmpDir: string): boole
 }
 
 /**
- * Best-effort `JSON.stringify` that never throws (e.g. on circular references),
- * used only for diagnostic logging.
- */
-function safeJsonStringify(value: unknown): string {
-	try {
-		return JSON.stringify(value);
-	} catch (error) {
-		return `<unserializable: ${error instanceof Error ? error.message : String(error)}>`;
-	}
-}
-
-/**
  * Options for constructing a {@link CopilotAgentSession}.
  */
 export interface ICopilotAgentSessionOptions {
@@ -608,10 +596,6 @@ export class CopilotAgentSession extends Disposable {
 		} catch (error) {
 			this._logService.warn(`[Copilot:${sessionId}] account.getQuota failed: ${error}`);
 		}
-
-		// TEMP(quota): log the quota snapshots we got back from the server so we
-		// can confirm the shape. Remove once quota plumbing is verified.
-		this._logService.info(`[Copilot:${sessionId}] account.getQuota snapshots: ${quotaSnapshots ? safeJsonStringify(quotaSnapshots) : '<none>'}`);
 
 		const latest = this._latestUsage;
 		if (!quotaSnapshots || Object.keys(quotaSnapshots).length === 0 || !latest) {

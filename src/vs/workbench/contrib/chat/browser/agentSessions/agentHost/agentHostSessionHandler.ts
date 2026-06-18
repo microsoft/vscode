@@ -559,12 +559,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 */
 	private _applyQuotaSnapshotsFromUsage(usage: UsageInfo | undefined): void {
 		const snapshots = usage?._meta?.quotaSnapshots;
-
-		// TEMP(quota): unconditional entry log so we can confirm the autorun fires
-		// and inspect exactly what `_meta` carries to the renderer. Remove once
-		// quota plumbing is verified.
-		this._logService.info(`[AgentHost][quota] usage observed: hasUsage=${!!usage}, hasQuotaSnapshots=${!!snapshots}, meta=${usage?._meta ? JSON.stringify(usage._meta) : '<no _meta>'}`);
-
 		if (!snapshots || typeof snapshots !== 'object') {
 			return;
 		}
@@ -573,11 +567,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const entitlement = this._chatEntitlementService.entitlement;
 		const isFree = entitlement === ChatEntitlement.Unknown || entitlement === ChatEntitlement.Free;
 		const raw = isFree ? record['chat'] : (record['premium_interactions'] ?? record['premium_models']);
-
-		// TEMP(quota): log what we received so we can confirm the server values.
-		// Remove once quota plumbing is verified.
-		this._logService.info(`[AgentHost][quota] received snapshots (isFree=${isFree}, keys=${JSON.stringify(Object.keys(record))}): ${JSON.stringify(snapshots)}`);
-
 		if (!raw) {
 			return;
 		}
@@ -600,7 +589,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			additionalUsageCount: raw.overage ?? existing.additionalUsageCount,
 		};
 
-		this._logService.info(`[AgentHost][quota] applying quotas (entitlement=${entitlement}): ${JSON.stringify(quotas)}`);
 		this._chatEntitlementService.acceptQuotas(quotas);
 	}
 
