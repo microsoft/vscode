@@ -157,16 +157,16 @@ export class OTelContrib extends Disposable implements IExtensionContribution {
 	 * because it does not have the dashboard surface yet.
 	 */
 	private _installVisibilityIndicators(): void {
-		void vscode.commands.executeCommand('setContext', OTEL_ENABLED_EXPLICITLY_CONTEXT_KEY, this._otelService.config.enabledExplicitly);
-
 		// Only show indicators when the user explicitly opted in;
 		// db-only / debug-panel modes don't send data off-machine.
 		if (!this._otelService.config.enabledExplicitly) {
+			void vscode.commands.executeCommand('setContext', OTEL_ENABLED_EXPLICITLY_CONTEXT_KEY, false);
 			return;
 		}
 
 		const chatStatusItem = this._register(vscode.window.createChatStatusItem(CHAT_STATUS_ITEM_ID));
 		this._refreshChatStatusItem(chatStatusItem);
+		void vscode.commands.executeCommand('setContext', OTEL_ENABLED_EXPLICITLY_CONTEXT_KEY, true);
 	}
 
 	private _refreshChatStatusItem(item: vscode.ChatStatusItem): void {
