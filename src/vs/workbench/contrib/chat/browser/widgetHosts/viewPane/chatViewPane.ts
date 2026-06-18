@@ -415,22 +415,31 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private _setupVoiceTranscriptOverlay(inputContainerEl: HTMLElement): void {
 		inputContainerEl.style.position = 'relative';
 		const transcriptOverlay = $('.voice-transcript-overlay');
-		transcriptOverlay.style.cssText = 'display:none;position:absolute;inset:0;z-index:10;padding:6px 12px;font-size:13px;line-height:1.4;word-break:break-word;overflow:hidden;pointer-events:none;background:var(--vscode-input-background, transparent);border-radius:inherit;';
+		// Leave bottom 36px for the toolbar (Agent, model picker, mic, send)
+		transcriptOverlay.style.cssText = 'display:none;position:absolute;top:0;left:0;right:0;bottom:36px;z-index:10;padding:8px 12px;font-size:13px;line-height:1.4;word-break:break-word;overflow:hidden;pointer-events:none;background:var(--vscode-input-background, transparent);border-radius:inherit;border-bottom-left-radius:0;border-bottom-right-radius:0;';
 		inputContainerEl.append(transcriptOverlay);
 
 		const style = document.createElement('style');
 		style.textContent = `
 			@keyframes voiceTextPulse { 0%,100%{opacity:0.9} 50%{opacity:0.4} }
+			@keyframes voiceGlowPulse { 0%,100%{opacity:0.6} 50%{opacity:1} }
 			.voice-transcript-overlay .committed { color: var(--vscode-foreground); }
 			.voice-transcript-overlay .partial { color: var(--vscode-foreground); opacity:0.6; font-style:italic; animation: voiceTextPulse 1.5s ease-in-out infinite; }
 			.voice-transcript-overlay .assistant-text { color: var(--vscode-descriptionForeground); display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+			.chat-input-container.voice-active { border-color: rgba(163,113,247,0.6) !important; box-shadow: 0 0 8px rgba(163,113,247,0.3), inset 0 0 4px rgba(163,113,247,0.1); }
+			.chat-input-container.voice-listening { border-color: rgba(88,166,255,0.7) !important; box-shadow: 0 0 10px rgba(88,166,255,0.35), inset 0 0 4px rgba(88,166,255,0.1); animation: voiceGlowPulse 1.4s ease-in-out infinite; }
 		`;
 		transcriptOverlay.append(style);
 
 		this._register(autorun(reader => {
 			const turns = this.voiceSessionController.transcriptTurns.read(reader);
 			const connected = this.voiceSessionController.isConnected.read(reader);
+			const voiceState = this.voiceSessionController.voiceState.read(reader);
 			const visible = turns.filter(t => t.text.length > 0 || (t.speaker === 'user' && t.isPartial));
+
+			// Toggle glow classes on input container
+			inputContainerEl.classList.toggle('voice-active', connected);
+			inputContainerEl.classList.toggle('voice-listening', connected && voiceState === 'listening');
 
 			if (!connected || visible.length === 0) {
 				transcriptOverlay.style.display = 'none';
