@@ -7,7 +7,7 @@ import type { CopilotSession, ExitPlanModeRequest, MessageOptions, PermissionReq
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { CancellationError } from '../../../../base/common/errors.js';
+import { CancellationError, getErrorMessage } from '../../../../base/common/errors.js';
 import { escapeMarkdownSyntaxTokens } from '../../../../base/common/htmlContent.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -31,10 +31,11 @@ import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmitter.js';
 import type { LanguageModelToolInvokedClassification, LanguageModelToolInvokedEvent } from '../../../telemetry/common/languageModelToolTelemetry.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { isAgentFeedbackAnnotationsAttachment, renderAgentFeedbackAnnotationsAttachment } from '../../common/agentFeedbackAttachments.js';
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type Turn, type UsageInfo, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import type { IExitPlanModeResponse } from './copilotAgent.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
@@ -338,6 +339,9 @@ export interface ICopilotAgentSessionOptions {
 export class CopilotAgentSession extends Disposable {
 	readonly sessionId: string;
 	readonly sessionUri: URI;
+
+	/** Working directory this session operates in, if any. */
+	get workingDirectory(): URI | undefined { return this._workingDirectory; }
 
 	/** Tracks active tool invocations so we can produce past-tense messages on completion. */
 	private readonly _activeToolCalls = new Map<string, { toolName: string; displayName: string; parameters: Record<string, unknown> | undefined; content: ToolResultContent[]; parentToolCallId: string | undefined; startTimeMs: number; mcpServerName: string | undefined; meta: Record<string, unknown> | undefined }>();
@@ -933,6 +937,11 @@ export class CopilotAgentSession extends Disposable {
 				await this._wrapper.session.rpc.history.compact();
 				this.emitInitialMarkdown(localize('copilotAgent.compactionCompleted', "Compaction completed"));
 			} catch (err) {
+				if (getErrorMessage(err).toLowerCase().includes('nothing to compact')) {
+					this.emitInitialMarkdown(localize('copilotAgent.compactionCompleted', "Compaction completed"));
+					this._completeActiveTurn();
+					return;
+				}
 				this._logService.error(err, `[Copilot:${this.sessionId}] rpc.history.compact failed`);
 				throw err;
 			}
@@ -1057,6 +1066,18 @@ export class CopilotAgentSession extends Disposable {
 	 * selection downgrades to a plain file reference.
 	 */
 	private async _toSdkAttachment(attachment: MessageAttachment): Promise<CopilotSdkAttachment | undefined> {
+		if (isAgentFeedbackAnnotationsAttachment(attachment)) {
+			const rendered = renderAgentFeedbackAnnotationsAttachment(attachment);
+			if (!rendered) {
+				return undefined;
+			}
+			return {
+				type: 'blob' as const,
+				data: encodeBase64(VSBuffer.fromString(rendered)),
+				mimeType: 'text/plain',
+				displayName: attachment.label,
+			};
+		}
 		if (attachment.type === MessageAttachmentKind.Simple) {
 			if (attachment.modelRepresentation) {
 				return {
@@ -1363,9 +1384,11 @@ export class CopilotAgentSession extends Disposable {
 			// Auto-approve the agent host's server tools. They only read or
 			// mutate the session's own server-held state and never touch the
 			// workspace, shell, or network, so prompting for them is redundant
-			// noise.
+			// noise. Tools that explicitly require confirmation (e.g. revealing
+			// unreviewed review comments) are excluded so the user is prompted.
 			if (request.kind === 'custom-tool' && typeof request.toolName === 'string'
 				&& this._serverToolHost?.toolNames.includes(request.toolName)
+				&& !this._serverToolHost.requiresConfirmation(request.toolName)
 			) {
 				this._logService.info(`[Copilot:${this.sessionId}] Auto-approving server tool ${request.toolName}`);
 				return { kind: 'approve-once' };
@@ -2346,7 +2369,7 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		this._register(wrapper.onUsage(e => {
-			const metadata: Record<string, unknown> = {};
+			const metadata: UsageInfoMeta = {};
 			if (typeof e.data.cost === 'number') {
 				metadata.cost = e.data.cost;
 			}

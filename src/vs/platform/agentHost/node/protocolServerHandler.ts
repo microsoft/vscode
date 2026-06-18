@@ -36,7 +36,7 @@ import {
 	type IStateSnapshot,
 	type SubscribeResult,
 } from '../common/state/sessionProtocol.js';
-import { isAhpResourceWatchChannel, isAhpRootChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, isAhpChatChannel, parseDefaultChatUri, type ISessionWithDefaultChat, type SessionState } from '../common/state/sessionState.js';
+import { isAhpResourceWatchChannel, isAhpRootChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, isAhpChatChannel, parseChatUri, parseDefaultChatUri, type ISessionWithDefaultChat, type SessionState } from '../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import {
@@ -1007,26 +1007,33 @@ export class ProtocolServerHandler extends Disposable {
 			await this._agentService.disposeSession(URI.parse(params.channel));
 			return null;
 		},
-		// Multi-chat is not yet surfaced: every session is served by a single
-		// implicit default chat created alongside it. Accept createChat for
-		// that default chat as a no-op and reject additional chats until the
-		// multi-chat surface lands.
 		createChat: async (_client, params) => {
 			const state = this._stateManager.getSessionState(params.channel);
 			if (!state) {
 				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${params.channel}`);
 			}
 			const defaultChat = state.defaultChat ?? buildDefaultChatUri(params.channel);
-			if (URI.parse(params.chat).toString() !== URI.parse(defaultChat).toString()) {
-				throw new ProtocolError(
-					JsonRpcErrorCodes.InvalidParams,
-					`createChat: additional chats are not yet supported (session ${params.channel}, chat ${params.chat})`,
-				);
+			// The default chat is created alongside its session; creating it
+			// again is a no-op. Any other chat URI spins up an additional chat.
+			if (URI.parse(params.chat).toString() === URI.parse(defaultChat).toString()) {
+				return null;
 			}
+			await this._agentService.createChat(
+				URI.parse(params.channel),
+				URI.parse(params.chat),
+				{
+					...(params.model ? { model: params.model } : {}),
+				},
+			);
 			return null;
 		},
-		disposeChat: async (_client, _params) => {
-			// The default chat lives and dies with its session; nothing to do.
+		disposeChat: async (_client, params) => {
+			const chat = URI.parse(params.channel);
+			const parsed = parseChatUri(chat);
+			if (!parsed) {
+				return null;
+			}
+			await this._agentService.disposeChat(URI.parse(parsed.session), chat);
 			return null;
 		},
 		resourceWrite: async (_client, params) => {
