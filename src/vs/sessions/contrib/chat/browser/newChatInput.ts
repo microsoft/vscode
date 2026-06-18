@@ -9,9 +9,10 @@ import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import type { IManagedHoverContent } from '../../../../base/browser/ui/hover/hover.js';
 import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
@@ -51,6 +52,8 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { SlashCommandHandler } from './slashCommands.js';
 import { VariableCompletionHandler } from './variableCompletions.js';
 import { AgentHostInputCompletionHandler } from './agentHostInputCompletions.js';
@@ -69,8 +72,10 @@ import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHisto
 import { IChatStatusItemService } from '../../../../workbench/contrib/chat/browser/chatStatus/chatStatusItemService.js';
 
 
+const OPEN_OTEL_SETTINGS_COMMAND = 'github.copilot.chat.otel.openSettings';
 const OTEL_STATUS_COMMAND = 'github.copilot.chat.otel.statusActive';
 const OTEL_STATUS_ENTRY_ID = 'copilot.otelStatus';
+const OTEL_DOCS_URL = 'https://code.visualstudio.com/docs/copilot/guides/monitoring-agents';
 const STORAGE_KEY_DRAFT_STATE = 'sessions.draftState';
 const MIN_EDITOR_HEIGHT = 50;
 const MAX_EDITOR_HEIGHT = 200;
@@ -81,6 +86,7 @@ interface IDraftState {
 }
 
 class NewChatInputStatusActionViewItem extends MenuEntryActionViewItem {
+	private readonly hoverContentDisposables = this._register(new MutableDisposable<DisposableStore>());
 
 	constructor(
 		action: MenuItemAction,
@@ -93,6 +99,7 @@ class NewChatInputStatusActionViewItem extends MenuEntryActionViewItem {
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IChatStatusItemService private readonly chatStatusItemService: IChatStatusItemService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(action, options, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, accessibilityService);
 	}
@@ -122,6 +129,14 @@ class NewChatInputStatusActionViewItem extends MenuEntryActionViewItem {
 		await super.onClick(event);
 	}
 
+	protected override getHoverContents(): IManagedHoverContent | undefined {
+		if (this._commandAction.id === OTEL_STATUS_COMMAND) {
+			return { element: () => this._renderStatusHover() };
+		}
+
+		return super.getHoverContents();
+	}
+
 	protected override getTooltip(): string {
 		if (this._commandAction.id === OTEL_STATUS_COMMAND) {
 			const tooltip = this._getStatusEntryTooltip();
@@ -141,6 +156,32 @@ class NewChatInputStatusActionViewItem extends MenuEntryActionViewItem {
 		}
 
 		return undefined;
+	}
+
+	private _renderStatusHover(): HTMLElement {
+		const store = new DisposableStore();
+		this.hoverContentDisposables.value = store;
+
+		const root = dom.$('.new-chat-input-status-hover');
+		root.appendChild(dom.$('.new-chat-input-status-hover-title', undefined, localize('newChatInput.status.otel.title', "Monitoring Enabled")));
+		root.appendChild(dom.$('.new-chat-input-status-hover-detail', undefined, this._getStatusEntryTooltip() ?? super.getTooltip()));
+
+		const actions = root.appendChild(dom.$('.new-chat-input-status-hover-actions'));
+		const learnMoreButton = store.add(new Button(actions, { ...defaultButtonStyles, secondary: true }));
+		learnMoreButton.label = localize('newChatInput.status.otel.learnMore', "Learn More");
+		store.add(learnMoreButton.onDidClick(() => {
+			void this.commandService.executeCommand('vscode.open', URI.parse(OTEL_DOCS_URL));
+			this.hoverService.hideHover(true);
+		}));
+
+		const manageButton = store.add(new Button(actions, { ...defaultButtonStyles, secondary: true }));
+		manageButton.label = localize('newChatInput.status.otel.manage', "Manage");
+		store.add(manageButton.onDidClick(() => {
+			void this.commandService.executeCommand(OPEN_OTEL_SETTINGS_COMMAND);
+			this.hoverService.hideHover(true);
+		}));
+
+		return root;
 	}
 }
 
