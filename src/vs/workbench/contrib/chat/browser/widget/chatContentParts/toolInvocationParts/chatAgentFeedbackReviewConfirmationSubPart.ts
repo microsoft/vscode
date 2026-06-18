@@ -207,9 +207,11 @@ export class ChatAgentFeedbackReviewConfirmationSubPart extends AbstractToolConf
 		const textElement = dom.append(container, dom.$('.chat-agent-feedback-review-text'));
 		textElement.textContent = text;
 
-		const toggle = dom.append(container, dom.$('button.chat-agent-feedback-review-expand-toggle'));
+		const toggle = dom.append(container, dom.$<HTMLButtonElement>('button.chat-agent-feedback-review-expand-toggle'));
+		toggle.type = 'button';
 		toggle.tabIndex = 0;
 		const toggleIcon = dom.append(toggle, dom.$('span.codicon'));
+		toggleIcon.setAttribute('aria-hidden', 'true');
 
 		const expandLabel = localize('agentFeedback.expandComment', "Show More");
 		const collapseLabel = localize('agentFeedback.collapseComment', "Show Less");

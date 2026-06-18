@@ -89,8 +89,9 @@ function createCommandService(commentsBySession: ReadonlyMap<string, readonly IC
 	return new class extends mock<ICommandService>() {
 		override readonly onWillExecuteCommand = Event.None;
 		override readonly onDidExecuteCommand = Event.None;
-		override async executeCommand<R = unknown>(commandId: string, sessionResource?: URI): Promise<R | undefined> {
+		override async executeCommand<R = unknown>(commandId: string, ...args: unknown[]): Promise<R | undefined> {
 			if (commandId === AgentFeedbackReviewCommandId.GetComments) {
+				const sessionResource = args[0] as URI | undefined;
 				const key = sessionResource?.toString();
 				return (key ? commentsBySession.get(key) : undefined) as unknown as R ?? ([] as unknown as R);
 			}
