@@ -242,6 +242,10 @@ Reference tests:
   (includes an end-to-end equivalence test: a server JSON string and a native MDM JSON
   string resolve to the **identical** typed object).
 
+**Manual/local testing:** use the mock policy server to serve arbitrary
+`managed_settings` (and entitlement/token) responses and apply them via
+**Developer: Sync Account Policy** — see [local-testing.md](./local-testing.md).
+
 ## Related: one policy governing many settings (`policyReference`)
 
 A single enterprise policy can lock **more than one setting** — e.g. gate an agent in
