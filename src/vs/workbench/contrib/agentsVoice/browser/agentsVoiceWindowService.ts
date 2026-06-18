@@ -60,17 +60,6 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		}
 	}
 
-	/**
-	 * Minimizes a window via a registered command (Electron only).
-	 */
-	private async tryMinimizeWindow(targetWindowId: number): Promise<void> {
-		try {
-			await this.commandService.executeCommand('_agentsVoice.minimizeWindow', targetWindowId);
-		} catch {
-			// Command not registered (e.g. web) — ignore
-		}
-	}
-
 	constructor(
 		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -144,25 +133,6 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		this._window = auxiliaryWindow;
 		this._auxiliaryWindowRef.value = auxiliaryWindow;
 
-		// Minimize the main VS Code window so the floating aux window is the
-		// primary surface the user interacts with. The aux window stays visible
-		// because it lives in a separate OS window. We minimize at three points
-		// to defeat any focus-restore behavior from Electron when the aux is
-		// shown: immediately, after styles load, and again after a short delay.
-		const minimizeMain = async () => {
-			try {
-				const mainWindowId = mainWindow.vscodeWindowId;
-				await this.tryMinimizeWindow(mainWindowId);
-			} catch {
-				// nativeHostService may not be available (e.g. web); ignore.
-			}
-		};
-		void minimizeMain();
-		auxiliaryWindow.whenStylesHaveLoaded.then(() => {
-			void minimizeMain();
-			setTimeout(() => { void minimizeMain(); }, 250);
-		});
-
 		const workspace = this.workspaceContextService.getWorkspace();
 		const projectName = workspace.folders.length > 0 ? workspace.folders[0].name : '';
 		auxiliaryWindow.window.document.title = projectName ? `Agents Voice — ${projectName}` : 'Agents Voice';
@@ -175,8 +145,8 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 
 		// Create the widget — aux window uses the default options (draggable, fixed
 		// width, close button, expand chevron, status rows, no status-text label,
-		// no popout button), but starts in the expanded view by default so the
-		// user immediately sees the session list when popping out.
+		// no popout button). Sessions are collapsed by default; the user can
+		// expand them via the chevron.
 		const widget = new AgentsVoiceWidget(auxiliaryWindow.container, {
 			copilotIconSrc: FileAccess.asBrowserUri('vs/sessions/browser/media/sessions-icon.svg').toString(true),
 			connect: () => {
@@ -234,7 +204,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 			openPttKeySettings: () => this.commandService.executeCommand('workbench.action.openGlobalKeybindings', 'agentsVoice.pushToTalk'),
 			submitFeedback: (text) => this.voiceSessionController.submitFeedback(text),
 		}, {
-			defaultExpanded: true,
+			defaultExpanded: false,
 		});
 		this._windowDisposables.add(widget);
 
@@ -374,9 +344,10 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 
 	private _defaultBounds(): IRectangle {
 		const screenWidth = mainWindow.screen?.availWidth ?? 1920;
+		const screenHeight = mainWindow.screen?.availHeight ?? 1080;
 		return {
-			x: screenWidth - AGENTS_VOICE_WINDOW_DEFAULT_WIDTH - 20,
-			y: 20,
+			x: Math.round((screenWidth - AGENTS_VOICE_WINDOW_DEFAULT_WIDTH) / 2),
+			y: screenHeight - AGENTS_VOICE_WINDOW_DEFAULT_HEIGHT - 80,
 			width: AGENTS_VOICE_WINDOW_DEFAULT_WIDTH,
 			height: AGENTS_VOICE_WINDOW_DEFAULT_HEIGHT,
 		};

@@ -332,10 +332,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const controlsWrapper = append(parent, $('.voice-agent-controls-wrapper'));
 		this.createControls(controlsWrapper);
 
-		// Bottom area for voice panel — always present, populated when enabled
-		const bottomArea = append(parent, $('.voice-bottom-area'));
-		this._voiceBottomArea = bottomArea;
-		this._updateVoiceBar(bottomArea);
+		// Voice bar — integrated inside the chat input container above attachments
+		this._voiceBarContainer = $('.voice-agent-bar');
+		const inputContainer = this._widget.inputPart.inputContainerElement;
+		if (inputContainer) {
+			inputContainer.prepend(this._voiceBarContainer);
+		}
+		this._updateVoiceBar(this._voiceBarContainer);
 
 		// Watch for size changes so we relayout when content changes
 		// (e.g. onboarding → connected, confirmations added/removed)
@@ -344,13 +347,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
 			}
 		});
-		resizeObserver.observe(bottomArea);
+		resizeObserver.observe(this._voiceBarContainer);
 		this._voiceBarResizeObserver = resizeObserver;
 		this._register({ dispose: () => resizeObserver.disconnect() });
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('agents.voice.enabled')) {
-				this._updateVoiceBar(bottomArea);
+				this._updateVoiceBar(this._voiceBarContainer!);
 				if (this.lastDimensions) {
 					this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
 				}
@@ -382,7 +385,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	//#region Voice Agent Bar
 
-	private _voiceBottomArea: HTMLElement | undefined;
+	private _voiceBarContainer: HTMLElement | undefined;
 	private _voiceBarResizeObserver: ResizeObserver | undefined;
 	private readonly _voiceBarDisposables = this._register(new DisposableStore());
 
@@ -1203,9 +1206,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		let remainingHeight = height;
 		const remainingWidth = width;
 
-		// Voice bottom area — read current height (ResizeObserver triggers
-		// relayout whenever the content changes size).
-		remainingHeight -= this._voiceBottomArea?.offsetHeight ?? 0;
+		// Voice bar is now inside the input container, no separate height deduction needed
 
 		// Title Control
 		const titleHeight = this.titleControl?.getHeight() ?? 0;
