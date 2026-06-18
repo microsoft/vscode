@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { isMacintosh } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isMousePositionWithinElement, isTriggerModifierPressed, shouldShowHover } from '../../browser/hoverUtils.js';
 import { IEditorMouseEvent } from '../../../../browser/editorBrowser.js';
@@ -37,10 +38,10 @@ suite('Hover Utils', () => {
 			assert.strictEqual(result, false);
 		});
 
-		test('returns true with ctrl pressed when multiCursorModifier is altKey', () => {
+		test('returns true with ctrl pressed when multiCursorModifier is altKey on Windows/Linux', () => {
 			const mouseEvent = createMockMouseEvent(true, false, false);
 			const result = shouldShowHover('onKeyboardModifier', 'altKey', mouseEvent);
-			assert.strictEqual(result, true);
+			assert.strictEqual(result, !isMacintosh);
 		});
 
 		test('returns false without ctrl pressed when multiCursorModifier is altKey', () => {
@@ -49,10 +50,10 @@ suite('Hover Utils', () => {
 			assert.strictEqual(result, false);
 		});
 
-		test('returns true with metaKey pressed when multiCursorModifier is altKey', () => {
+		test('returns true with metaKey pressed when multiCursorModifier is altKey on macOS', () => {
 			const mouseEvent = createMockMouseEvent(false, false, true);
 			const result = shouldShowHover('onKeyboardModifier', 'altKey', mouseEvent);
-			assert.strictEqual(result, true);
+			assert.strictEqual(result, isMacintosh);
 		});
 
 		test('returns true with alt pressed when multiCursorModifier is ctrlKey', () => {
@@ -166,18 +167,19 @@ suite('Hover Utils', () => {
 			return { ctrlKey, altKey, metaKey };
 		}
 
-		test('returns true with ctrl pressed when multiCursorModifier is altKey', () => {
+		test('returns true with ctrl pressed when multiCursorModifier is altKey on Windows/Linux', () => {
 			const event = createModifierEvent(true, false, false);
-			assert.strictEqual(isTriggerModifierPressed('altKey', event), true);
+			assert.strictEqual(isTriggerModifierPressed('altKey', event), !isMacintosh);
 		});
 
-		test('returns true with metaKey pressed when multiCursorModifier is altKey', () => {
+		test('returns true with metaKey pressed when multiCursorModifier is altKey on macOS', () => {
 			const event = createModifierEvent(false, false, true);
-			assert.strictEqual(isTriggerModifierPressed('altKey', event), true);
+			assert.strictEqual(isTriggerModifierPressed('altKey', event), isMacintosh);
 		});
 
 		test('returns true with both ctrl and metaKey pressed when multiCursorModifier is altKey', () => {
 			const event = createModifierEvent(true, false, true);
+			// One of the two always matches the platform's primary modifier
 			assert.strictEqual(isTriggerModifierPressed('altKey', event), true);
 		});
 
