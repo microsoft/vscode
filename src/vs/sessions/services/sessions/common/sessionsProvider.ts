@@ -168,6 +168,14 @@ export interface ISessionsProvider {
 	renameChat(sessionId: string, chatUri: URI, title: string): Promise<void>;
 
 	/**
+	 * Rename the session itself, independently of its chats. Single-chat
+	 * providers may implement this by renaming their main chat.
+	 * @param sessionId The ID of the session to rename.
+	 * @param title The new title for the session.
+	 */
+	renameSession(sessionId: string, title: string): Promise<void>;
+
+	/**
 	 * Get the language models that can be selected for a session. The sessions
 	 * core renders these in a single {@link ModelPickerActionItem}-based picker
 	 * and persists the user's choice per provider per session type. Returns an

@@ -1266,7 +1266,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 			// Switching to side-by-side, reveal the current session after elements have loaded
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
-				updatePromise.then(() => {
+				updatePromise.then(didUpdate => {
+					if (!didUpdate) {
+						return;
+					}
+
 					const sessionResource = this._widget?.viewModel?.sessionResource;
 					if (sessionResource) {
 						this.sessionsControl?.reveal(sessionResource);

@@ -84,7 +84,7 @@ import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatRequestVariableSet, getImageAttachmentLimit, IChatRequestVariableEntry, isBrowserViewVariableEntry, isElementVariableEntry, isExplicitFileOrImageVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isStringVariableEntry, OmittedState } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatMode, getModeNameForTelemetry, IChatMode, IChatModes, IChatModeService } from '../../../common/chatModes.js';
 import { IChatFollowup, IChatPlanReview, IChatQuestionCarousel, IChatToolInvocation } from '../../../common/chatService/chatService.js';
-import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, isIChatSessionFileChange2, localChatSessionType, SessionType } from '../../../common/chatSessionsService.js';
+import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, isAgentHostTarget, isIChatSessionFileChange2, localChatSessionType, SessionType } from '../../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../common/constants.js';
 import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
@@ -97,7 +97,7 @@ import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { ChatHistoryNavigator } from '../../../common/widget/chatWidgetHistoryService.js';
 import { ChatSessionPrimaryPickerAction, ChatSubmitAction, IChatExecuteActionContext, OpenDelegationPickerAction, OpenModelPickerAction, OpenModePickerAction, OpenPermissionPickerAction, OpenSessionTargetPickerAction, OpenWorkspacePickerAction } from '../../actions/chatExecuteActions.js';
-import { AgentSessionProviders, getAgentSessionProvider } from '../../agentSessions/agentSessions.js';
+import { AgentSessionProviders, AgentSessionTarget, getAgentSessionProvider } from '../../agentSessions/agentSessions.js';
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
 import { ChatAttachmentModel } from '../../attachments/chatAttachmentModel.js';
 import { IChatAttachmentWidgetRegistry } from '../../attachments/chatAttachmentWidgetRegistry.js';
@@ -416,6 +416,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatSessionOptionsValid: IContextKey<boolean>;
 	private agentSessionTypeKey: IContextKey<string>;
 	private chatSessionSupportsDelegationKey: IContextKey<boolean>;
+	private chatHasPendingDelegationTargetKey: IContextKey<boolean>;
 	private chatSessionHasCustomAgentTarget: IContextKey<boolean>;
 	private chatSessionHasTargetedModels: IContextKey<boolean>;
 	private modelWidget: ModelPickerActionItem | undefined;
@@ -554,7 +555,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * This is used when the user changes the session target picker to a different provider
 	 * but hasn't submitted yet, so the delegation will happen on submit.
 	 */
-	public get pendingDelegationTarget(): AgentSessionProviders | undefined {
+	public get pendingDelegationTarget(): AgentSessionTarget | undefined {
 		return this._pendingDelegationTarget;
 	}
 
@@ -565,7 +566,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private _emptyInputState: ObservableMemento<IChatModelInputState | undefined>;
 	private _chatSessionIsEmpty = false;
-	private _pendingDelegationTarget: AgentSessionProviders | undefined = undefined;
+	private _pendingDelegationTarget: AgentSessionTarget | undefined = undefined;
 	private _currentSessionType: string | undefined = undefined;
 
 	constructor(
@@ -669,6 +670,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this._attachmentModel = this._register(this.instantiationService.createInstance(ChatAttachmentModel));
 		this._register(this._attachmentModel.onDidChange(() => this._syncInputStateToModel()));
+		// Capture model-configuration changes into the draft input state immediately,
+		// mirroring how a model selection is synced in `setCurrentLanguageModel`. Without
+		// this, a config-only change would not reach the draft state until some other
+		// sync-triggering event, so an autosave/serialize in between could persist a stale
+		// snapshot that overwrites the newer config on reopen. The `_syncFromModel` guard
+		// and the store's redundant-update short-circuit prevent feedback loops on restore.
+		this._register(this._modelConfigStore.onDidChange(() => this._syncInputStateToModel()));
 		this.selectedToolsModel = this._register(this.instantiationService.createInstance(ChatSelectedTools, this.currentModeObs, this._currentLanguageModel));
 		this.dnd = this._register(this.instantiationService.createInstance(ChatDragAndDrop, () => this._widget, this._attachmentModel, styles));
 
@@ -692,6 +700,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatSessionOptionsValid = ChatContextKeys.chatSessionOptionsValid.bindTo(contextKeyService);
 		this.agentSessionTypeKey = ChatContextKeys.agentSessionType.bindTo(contextKeyService);
 		this.chatSessionSupportsDelegationKey = ChatContextKeys.chatSessionSupportsDelegation.bindTo(contextKeyService);
+		this.chatHasPendingDelegationTargetKey = ChatContextKeys.hasPendingDelegationTarget.bindTo(contextKeyService);
 
 		// Initialize agentSessionType from delegate if available
 		if (this.options.sessionTypePickerDelegate?.getActiveSessionProvider) {
@@ -1013,20 +1022,27 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			},
 			getModels: () => this.getModels(),
 			useGroupedModelPicker: () => {
+				// Agent-host session types (local and remote) reuse the same
+				// grouped/featured model picker as the default chat session, so
+				// the editor matches the agents window experience.
 				const sessionType = this.getCurrentSessionType();
-				return !sessionType || sessionType === localChatSessionType;
+				return !sessionType || sessionType === localChatSessionType || isAgentHostTarget(sessionType);
 			},
 			showManageModelsAction: () => {
 				const sessionType = this.getCurrentSessionType();
 				return !sessionType || sessionType === localChatSessionType;
 			},
 			showUnavailableFeatured: () => {
+				// Agent-host session types also surface unavailable featured
+				// models (upgrade/update/admin states) so the picker is as
+				// informative as the default chat session, matching the agents
+				// window experience.
 				const sessionType = this.getCurrentSessionType();
-				return !sessionType || sessionType === localChatSessionType;
+				return !sessionType || sessionType === localChatSessionType || isAgentHostTarget(sessionType);
 			},
 			showFeatured: () => {
 				const sessionType = this.getCurrentSessionType();
-				return !sessionType || sessionType === localChatSessionType;
+				return !sessionType || sessionType === localChatSessionType || isAgentHostTarget(sessionType);
 			},
 			showAutoModel: () => this._showAutoModel(),
 			modelConfiguration: this._modelConfigStore,
@@ -1041,6 +1057,18 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 */
 	getModelConfiguration(modelId: string): IStringDictionary<unknown> | undefined {
 		return this._modelConfigStore.getModelConfiguration(modelId);
+	}
+
+	/**
+	 * Restores a model's configuration captured in a session's persisted input
+	 * state. Called when the selected model is restored from session history so
+	 * the configuration follows the model through the same resolution hierarchy.
+	 * No-op for sessions that pre-date configuration capture (no value stored).
+	 */
+	private restoreModelConfiguration(modelId: string, modelConfiguration: IStringDictionary<unknown> | undefined): void {
+		if (modelConfiguration) {
+			this._modelConfigStore.restoreModelConfiguration(modelId, modelConfiguration);
+		}
 	}
 
 	private getModelConfigurationStorageKey(): string {
@@ -1327,7 +1355,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				// _syncFromModel actually ran for this session and what it decided.
 				logChangesToStateModel(this._inputModel, `[RESOLVE] _syncFromModel resolveModelFromSyncState for ${forSessionResource.toString()} in ${this._currentSessionKey}: stateModel=${state.selectedModel.identifier} currentLm=${currentLm?.identifier} sessionType=${sessionType} -> action=${syncResult.action}`, state, undefined, this.logService);
 				if (syncResult.action === 'apply') {
+					this.restoreModelConfiguration(state.selectedModel.identifier, state.modelConfiguration);
 					this.setCurrentLanguageModel(state.selectedModel);
+				} else if (syncResult.action === 'keep') {
+					// The resolved model already matches the session's stored model, so the
+					// selection is left untouched — but the captured configuration (e.g.
+					// context size, thinking effort) still needs to be restored for it.
+					this.restoreModelConfiguration(state.selectedModel.identifier, state.modelConfiguration);
 				} else if (syncResult.action === 'default') {
 					// Best-match across pools (e.g. local `claude-opus-4.7` → agent-host `claude-opus-4.7`) before defaulting.
 					// Use the incoming session's pool directly; the view model may still be on the old session here.
@@ -1728,6 +1762,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 */
 	public getCurrentInputState(): IChatModelInputState {
 		const mode = this._currentModeObservable.get();
+		const selectedModel = this._currentLanguageModel.get();
 		const state: IChatModelInputState = {
 			inputText: this._inputEditor?.getValue() ?? '',
 			attachments: this._attachmentModel.attachments,
@@ -1735,7 +1770,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				id: mode.id,
 				kind: mode.kind
 			},
-			selectedModel: this._currentLanguageModel.get(),
+			selectedModel,
+			modelConfiguration: selectedModel ? this._modelConfigStore.getModelConfiguration(selectedModel.identifier) : undefined,
 			selections: this._inputEditor?.getSelections() || [],
 			permissionLevel: this._currentPermissionLevel.get(),
 			contrib: {},
@@ -2378,6 +2414,30 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	/**
+	 * Resolves the session type of the active chat session for the delegation picker.
+	 */
+	private getActiveSessionTypeForDelegation(): AgentSessionTarget | undefined {
+		const sessionResource = this._widget?.viewModel?.sessionResource;
+		// TODO: Remove hardcoded providers from core
+		return sessionResource ? (getAgentSessionProvider(sessionResource) ?? getChatSessionType(sessionResource)) : undefined;
+	}
+
+	/**
+	 * Selects (or clears) the pending delegation target. While a target is pending, the widget
+	 * locks to the target agent and the `hasPendingDelegationTarget` context key hides the
+	 * agent and model pickers. Re-selecting the active session clears the pending target and
+	 * restores the pickers.
+	 */
+	private setPendingDelegationTarget(provider: AgentSessionTarget): void {
+		const isActive = this.getActiveSessionTypeForDelegation() === provider;
+		this._pendingDelegationTarget = isActive ? undefined : provider;
+		this.chatHasPendingDelegationTargetKey.set(!!this._pendingDelegationTarget);
+		this.updateWidgetLockStateFromSessionType(provider);
+		this.updateAgentSessionTypeContextKey();
+		this.refreshChatSessionPickers();
+	}
+
+	/**
 	 * Ensures the notification widget is instantiated and appended to the notification container.
 	 */
 	private ensureNotificationWidget(): void {
@@ -2447,12 +2507,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		store.add(model.onDidChange(e => {
 			if (e.kind === 'addRequest' || e.kind === 'completedRequest') {
-				this.contextUsageWidget?.update(model.lastRequest);
+				this.contextUsageWidget?.update(model.lastRequest, model.sessionCost);
+			}
+		}));
+
+		// Re-render when language models arrive (needed on reload — model
+		// metadata providing context window size may not be registered yet).
+		store.add(this.languageModelsService.onDidChangeLanguageModels(() => {
+			const lastRequest = model.lastRequest;
+			if (lastRequest?.modelId) {
+				this.contextUsageWidget?.update(lastRequest, model.sessionCost);
 			}
 		}));
 
 		// Initial update
-		this.contextUsageWidget.update(model.lastRequest);
+		this.contextUsageWidget.update(model.lastRequest, model.sessionCost);
 	}
 
 	render(container: HTMLElement, initialValue: string, widget: IChatWidget) {
@@ -2470,6 +2539,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this._register(widget.onDidChangeViewModel((e: IChatWidgetViewModelChangeEvent) => {
 			this._pendingDelegationTarget = undefined;
+			this.chatHasPendingDelegationTargetKey.set(false);
 			// Update agentSessionType when view model changes
 			this.updateAgentSessionTypeContextKey();
 			this.refreshChatSessionPickers();
@@ -2840,24 +2910,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					return this.modeWidget = this.instantiationService.createInstance(ModePickerActionItem, action, delegate, pickerOptions);
 				} else if ((action.id === OpenSessionTargetPickerAction.ID || action.id === OpenDelegationPickerAction.ID) && action instanceof MenuItemAction) {
 					// Use provided delegate if available, otherwise create default delegate
-					const getActiveSessionType = () => {
-						const sessionResource = this._widget?.viewModel?.sessionResource;
-						// TODO: Remove hardcoded providers from core
-						return sessionResource ? (getAgentSessionProvider(sessionResource) ?? getChatSessionType(sessionResource)) : undefined;
-					};
 					const delegate: ISessionTypePickerDelegate = this.options.sessionTypePickerDelegate ?? {
 						getActiveSessionProvider: () => {
-							return getActiveSessionType();
+							return this.getActiveSessionTypeForDelegation();
 						},
 						getPendingDelegationTarget: () => {
 							return this._pendingDelegationTarget;
 						},
-						setPendingDelegationTarget: (provider: AgentSessionProviders) => {
-							const isActive = getActiveSessionType() === provider;
-							this._pendingDelegationTarget = isActive ? undefined : provider;
-							this.updateWidgetLockStateFromSessionType(provider);
-							this.updateAgentSessionTypeContextKey();
-							this.refreshChatSessionPickers();
+						setPendingDelegationTarget: (provider: AgentSessionTarget) => {
+							this.setPendingDelegationTarget(provider);
 						},
 						hasGitRepository: () => this.hasWorkspaceScmRepository(),
 					};
@@ -2982,24 +3043,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			},
 			actionViewItemProvider: (action, options) => {
 				if ((action.id === OpenSessionTargetPickerAction.ID || action.id === OpenDelegationPickerAction.ID) && action instanceof MenuItemAction) {
-					const getActiveSessionType = () => {
-						const sessionResource = this._widget?.viewModel?.sessionResource;
-						// TODO: Remove hardcoded providers from core
-						return sessionResource ? (getAgentSessionProvider(sessionResource) ?? getChatSessionType(sessionResource)) : undefined;
-					};
 					const delegate: ISessionTypePickerDelegate = this.options.sessionTypePickerDelegate ?? {
 						getActiveSessionProvider: () => {
-							return getActiveSessionType();
+							return this.getActiveSessionTypeForDelegation();
 						},
 						getPendingDelegationTarget: () => {
 							return this._pendingDelegationTarget;
 						},
-						setPendingDelegationTarget: (provider: AgentSessionProviders) => {
-							const isActive = getActiveSessionType() === provider;
-							this._pendingDelegationTarget = isActive ? undefined : provider;
-							this.updateWidgetLockStateFromSessionType(provider);
-							this.updateAgentSessionTypeContextKey();
-							this.refreshChatSessionPickers();
+						setPendingDelegationTarget: (provider: AgentSessionTarget) => {
+							this.setPendingDelegationTarget(provider);
 						},
 						hasGitRepository: () => this.hasWorkspaceScmRepository(),
 					};

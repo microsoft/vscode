@@ -66,7 +66,7 @@
 	background-color: var(--vscode-list-hoverBackground) !important;
 	color: var(--vscode-list-hoverForeground);
 	outline: 1px solid var(--vscode-menu-selectionBorder, transparent);
-	outline-offset: -1px;
+	outline-offset: -2px;
 }
 
 .action-widget .monaco-list-row.group-header {
@@ -403,6 +403,8 @@
 	font-size: 11px;
 	/* Left padding matches the list row padding so the text aligns with the section headings. */
 	padding: 4px 10px 2px 6px;
+	/* Space between the last list item and the divider above the footer. */
+	margin-top: 4px;
 	border-top: 1px solid var(--vscode-editorHoverWidget-border);
 }
 
@@ -412,14 +414,14 @@
 	align-items: flex-start;
 	/* Match the row gap so the text aligns with the item labels. */
 	gap: 6px;
-	color: var(--vscode-banner-foreground);
+	color: var(--vscode-foreground);
 	font-size: 12px;
 	line-height: 16px;
 	/* Match the row padding so the icon sits in the item icon column and the text aligns with the item labels. Top padding matches the left so the icon is evenly inset. */
 	padding: 6px 12px 6px 6px;
 	/* No horizontal margin so the rounded box matches the item hover outline. */
 	margin-bottom: 2px;
-	background-color: var(--vscode-banner-background);
+	background-color: var(--vscode-chat-requestBubbleBackground);
 	border-radius: var(--vscode-cornerRadius-medium);
 }
 
@@ -435,7 +437,7 @@
 	text-align: center;
 	font-size: 12px !important;
 	line-height: 16px;
-	color: var(--vscode-banner-iconForeground);
+	color: var(--vscode-descriptionForeground);
 }
 
 .action-widget .action-list-header .action-list-header-text {

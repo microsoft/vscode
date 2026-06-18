@@ -25,7 +25,7 @@ import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/ag
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, customizationId, isSubagentSession, type ChangesetState, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart } from '../../common/state/sessionState.js';
+import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, type ChangesetState, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart } from '../../common/state/sessionState.js';
 import { type MessageResourceAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -1982,7 +1982,114 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
-	// ---- subscriber refcount + idle eviction ----------------------------
+	// ---- createChat (multi-chat) ----------------------------------------
+
+	suite('createChat', () => {
+
+		test('routes to the provider for a restored session not tracked in the provider map', async () => {
+			// A session restored after a host restart lives in the state manager
+			// but is not recorded in the session→provider map (only createSession
+			// records that). createChat must still resolve the provider via the
+			// scheme fallback instead of throwing `no provider for session`.
+			const created: { session: string; chat: string }[] = [];
+			class MultiChatAgent extends MockAgent {
+				async createChat(session: URI, chat: URI): Promise<void> {
+					created.push({ session: session.toString(), chat: chat.toString() });
+				}
+			}
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			service.registerProvider(agent);
+			const { session } = await agent.createSession();
+			// Drop any tracking so only the scheme fallback can resolve the agent.
+			service.stateManager.deleteSession(session.toString());
+			await service.restoreSession(session);
+
+			const chatUri = URI.parse(buildChatUri(session, 'peer-1'));
+			await service.createChat(session, chatUri);
+
+			const state = service.stateManager.getSessionState(session.toString());
+			assert.deepStrictEqual({
+				created,
+				inCatalog: !!state?.chats.some(c => c.resource.toString() === chatUri.toString()),
+			}, {
+				created: [{ session: session.toString(), chat: chatUri.toString() }],
+				inCatalog: true,
+			});
+		});
+
+		test('routes a tracked session and registers the chat with its title in the catalog', async () => {
+			class MultiChatAgent extends MockAgent {
+				async createChat(_session: URI, _chat: URI): Promise<void> { }
+			}
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			service.registerProvider(agent);
+			const session = await service.createSession({ provider: 'copilot' });
+
+			const chatUri = URI.parse(buildChatUri(session, 'peer-1'));
+			await service.createChat(session, chatUri, { title: 'Peer Chat' });
+
+			const state = service.stateManager.getSessionState(session.toString());
+			assert.deepStrictEqual(
+				state?.chats.find(c => c.resource.toString() === chatUri.toString())?.title,
+				'Peer Chat',
+			);
+		});
+
+		test('creates the backing conversation before registering the chat in the catalog', async () => {
+			let catalogHadChatDuringCreate: boolean | undefined;
+			class MultiChatAgent extends MockAgent {
+				async createChat(session: URI, chat: URI): Promise<void> {
+					const state = service.stateManager.getSessionState(session.toString());
+					catalogHadChatDuringCreate = !!state?.chats.some(c => c.resource.toString() === chat.toString());
+				}
+			}
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			service.registerProvider(agent);
+			const session = await service.createSession({ provider: 'copilot' });
+
+			const chatUri = URI.parse(buildChatUri(session, 'peer-1'));
+			await service.createChat(session, chatUri);
+
+			assert.strictEqual(catalogHadChatDuringCreate, false);
+		});
+
+		test('throws when the provider does not support multiple chats', async () => {
+			service.registerProvider(copilotAgent);
+			const session = await service.createSession({ provider: 'copilot' });
+			const chatUri = URI.parse(buildChatUri(session, 'peer-1'));
+
+			await assert.rejects(
+				() => service.createChat(session, chatUri),
+				/does not support multiple chats/,
+			);
+		});
+
+		test('disposeChat removes the chat from the catalog and tears down the conversation', async () => {
+			const disposed: string[] = [];
+			class MultiChatAgent extends MockAgent {
+				async createChat(_session: URI, _chat: URI): Promise<void> { }
+				async disposeChat(_session: URI, chat: URI): Promise<void> {
+					disposed.push(chat.toString());
+				}
+			}
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			service.registerProvider(agent);
+			const session = await service.createSession({ provider: 'copilot' });
+			const chatUri = URI.parse(buildChatUri(session, 'peer-1'));
+			await service.createChat(session, chatUri);
+
+			await service.disposeChat(session, chatUri);
+
+			const state = service.stateManager.getSessionState(session.toString());
+			assert.deepStrictEqual({
+				disposed,
+				inCatalog: !!state?.chats.some(c => c.resource.toString() === chatUri.toString()),
+			}, {
+				disposed: [chatUri.toString()],
+				inCatalog: false,
+			});
+		});
+	});
 
 	suite('subscriber refcount eviction', () => {
 

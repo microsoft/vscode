@@ -76,9 +76,11 @@ export interface IChatSessionProviderOptionModelMetadata {
 	readonly inputCost?: number;
 	readonly outputCost?: number;
 	readonly cacheCost?: number;
+	readonly cacheWriteCost?: number;
 	readonly longContextInputCost?: number;
 	readonly longContextOutputCost?: number;
 	readonly longContextCacheCost?: number;
+	readonly longContextCacheWriteCost?: number;
 	readonly priceCategory?: string;
 	readonly maxInputTokens?: number;
 	readonly maxOutputTokens?: number;
