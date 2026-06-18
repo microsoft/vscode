@@ -477,6 +477,34 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	/**
+	 * Re-registers an additional (non-default) peer chat when a session is
+	 * restored from persistent storage, seeding its {@link ChatState} with the
+	 * supplied turns. Unlike {@link addChat} this does not snapshot the session
+	 * title onto the default chat (the default chat's persisted title is
+	 * restored independently) and it seeds history. The catalog entry is added
+	 * in place so the object identity returned by {@link restoreSession} stays
+	 * live; no {@link ActionType.SessionChatAdded} is dispatched because restore
+	 * runs before clients subscribe.
+	 */
+	restoreChat(session: URI, chatUri: URI, options: { readonly title?: string; readonly turns: Turn[] }): void {
+		const sessionState = this._sessionStates.get(session);
+		if (!sessionState) {
+			this._logService.warn(`[AgentHostStateManager] restoreChat for unknown session: ${session}`);
+			return;
+		}
+		if (sessionState.chats.some(c => c.resource === chatUri)) {
+			return;
+		}
+		const chatSummary: ChatSummary = {
+			...createDefaultChatSummary(sessionState.summary, chatUri),
+			title: options.title ?? '',
+			status: SessionStatus.Idle,
+		};
+		this._chatStates.set(chatUri, { ...createChatState(chatSummary), turns: options.turns });
+		sessionState.chats = [...sessionState.chats, chatSummary];
+	}
+
+	/**
 	 * Removes an additional chat from a session. Deletes its
 	 * {@link ChatState}, dispatches {@link ActionType.SessionChatRemoved}, and
 	 * — if the removed chat was the default — repoints `defaultChat` to the

@@ -1499,6 +1499,11 @@ export class AgentService extends Disposable implements IAgentService {
 
 		this._stateManager.restoreSession(summary, [...turns]);
 
+		// Restore any additional (non-default) peer chats the provider has
+		// persisted for this session, seeding each with its own history and
+		// persisted title so they reappear after a process restart.
+		await this._restorePeerChats(agent, session);
+
 		const changesets = buildDefaultChangesetCatalogue(sessionStr);
 		this._stateManager.setSessionChangesets(sessionStr, changesets);
 
@@ -1538,6 +1543,54 @@ export class AgentService extends Disposable implements IAgentService {
 		// Lazily compute git state for sessions with a working directory;
 		// attaches under `state._meta.git` once ready.
 		this._attachGitState(session, meta.workingDirectory);
+	}
+
+	/**
+	 * Restores the additional (non-default) peer chats persisted for a session.
+	 * For each chat returned by the provider, loads its history and persisted
+	 * title and re-registers it in the state manager so it reappears in the
+	 * session's chat catalog after a process restart. Best-effort: a chat whose
+	 * history fails to load is restored with no turns rather than dropped.
+	 */
+	private async _restorePeerChats(agent: IAgent, session: URI): Promise<void> {
+		if (!agent.getChats) {
+			return;
+		}
+		let chats: readonly URI[];
+		try {
+			chats = await agent.getChats(session);
+		} catch (err) {
+			this._logService.warn(`[AgentService] Failed to enumerate peer chats for ${session.toString()}: ${toErrorMessage(err)}`);
+			return;
+		}
+		if (chats.length === 0) {
+			return;
+		}
+		for (const chatUri of chats) {
+			let turns: readonly Turn[] = [];
+			try {
+				turns = await agent.getSessionMessages(chatUri);
+			} catch (err) {
+				this._logService.warn(`[AgentService] Failed to load history for peer chat ${chatUri.toString()}: ${toErrorMessage(err)}`);
+			}
+			const title = await this._readPersistedChatTitle(session, chatUri);
+			this._stateManager.restoreChat(session.toString(), chatUri.toString(), { title, turns: [...turns] });
+		}
+	}
+
+	/** Reads a peer chat's persisted custom title, if any. */
+	private async _readPersistedChatTitle(session: URI, chatUri: URI): Promise<string | undefined> {
+		const ref = await this._sessionDataService.tryOpenDatabase?.(session);
+		if (!ref) {
+			return undefined;
+		}
+		try {
+			return (await ref.object.getMetadata(`customChatTitle:${chatUri.toString()}`)) ?? undefined;
+		} catch {
+			return undefined;
+		} finally {
+			ref.dispose();
+		}
 	}
 
 	private async _getSessionMetadataForRestore(agent: IAgent, session: URI): Promise<IAgentSessionMetadata | undefined> {
