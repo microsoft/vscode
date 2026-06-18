@@ -656,6 +656,14 @@ function sanitizeRemoteName(name: string) {
 	return name && name.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, '-');
 }
 
+function sortRemotes<T extends { name: string }>(remotes: T[]): T[] {
+	return remotes.slice().sort((a, b) => {
+		if (a.name === 'origin') { return -1; }
+		if (b.name === 'origin') { return 1; }
+		return a.name.localeCompare(b.name);
+	});
+}
+
 enum PushType {
 	Push,
 	PushTo,
@@ -3819,8 +3827,8 @@ export class CommandCenter {
 		const config = workspace.getConfiguration('git');
 		const commitShortHashLength = config.get<number>('commitShortHashLength') ?? 7;
 
-		const remotePicks = repository.remotes
-			.filter(r => r.pushUrl !== undefined)
+		const remotePicks = sortRemotes(repository.remotes
+			.filter(r => r.pushUrl !== undefined))
 			.map(r => new RemoteItem(repository, r));
 
 		if (remotePicks.length === 0) {
@@ -3880,7 +3888,7 @@ export class CommandCenter {
 			return;
 		}
 
-		const remoteItems: RemoteItem[] = repository.remotes.map(r => new RemoteItem(repository, r));
+		const remoteItems: RemoteItem[] = sortRemotes(repository.remotes).map(r => new RemoteItem(repository, r));
 
 		if (repository.HEAD?.upstream?.remote) {
 			// Move default remote to the top
@@ -3948,7 +3956,7 @@ export class CommandCenter {
 		const config = workspace.getConfiguration('git');
 		const commitShortHashLength = config.get<number>('commitShortHashLength') ?? 7;
 
-		const remotes = repository.remotes;
+		const remotes = sortRemotes(repository.remotes);
 
 		if (remotes.length === 0) {
 			window.showWarningMessage(l10n.t('Your repository has no remotes configured to pull from.'));
@@ -4020,7 +4028,7 @@ export class CommandCenter {
 	}
 
 	private async _push(repository: Repository, pushOptions: PushOptions) {
-		const remotes = repository.remotes;
+		const remotes = sortRemotes(repository.remotes);
 
 		if (remotes.length === 0) {
 			if (pushOptions.silent) {
@@ -4389,7 +4397,7 @@ export class CommandCenter {
 		}
 
 		const addRemote = new AddRemoteItem(this);
-		const picks = [...repository.remotes.map(r => ({ label: r.name, description: r.pushUrl })), addRemote];
+		const picks = [...sortRemotes(repository.remotes).map(r => ({ label: r.name, description: r.pushUrl })), addRemote];
 		const placeHolder = l10n.t('Pick a remote to publish the branch "{0}" to:', branchName);
 		const choice = await window.showQuickPick(picks, { placeHolder });
 
