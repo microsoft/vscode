@@ -110,6 +110,9 @@ suite('CommandLineFileWriteAnalyzer', () => {
 			test('absolute path - /home - block', () => t('echo hello > /home/user/file.txt', 'outsideWorkspace', false, 1));
 			test('absolute path - root - block', () => t('echo hello > /file.txt', 'outsideWorkspace', false, 1));
 			test('absolute path - /dev/null - allow (null device)', () => t('echo hello > /dev/null', 'outsideWorkspace', true, 1));
+			test('triple-quoted absolute path outside workspace - block', () => t('echo hello > \'\'\'/tmp/file.txt\'\'\'', 'outsideWorkspace', false, 1));
+			test('triple-quoted settings path outside workspace - block', () => t('echo "{}" > \'\'\'/home/user/.config/Code/User/settings.json\'\'\'', 'outsideWorkspace', false, 1));
+			test('triple double-quoted absolute path outside workspace - block', () => t('echo hello > """/tmp/file.txt"""', 'outsideWorkspace', false, 1));
 
 			// Special cases
 			test('no workspace folders - block', () => t('echo hello > file.txt', 'outsideWorkspace', false, 1, []));
