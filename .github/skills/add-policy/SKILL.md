@@ -24,7 +24,7 @@ Policies allow enterprise administrators to lock configuration settings via OS-l
 |--------|---------------|----------------------|
 | **OS-level** (Windows registry, macOS plist) | `NativePolicyService` via `@vscode/policy-watcher` | Watches `Software\Policies\Microsoft\{productName}` (Windows) or bundle identifier prefs (macOS) |
 | **Linux file** | `FilePolicyService` | Reads `/etc/vscode/policy.json` |
-| **Account/GitHub** | `AccountPolicyService` | Reads `IPolicyData` from `IDefaultAccountService.policyData`, applies `value()` function. Server-delivered managed settings arrive on `policyData.managedSettings`; native MDM is a **separate** input (`ICopilotManagedSettingsService`) that `AccountPolicyService` merges in `getPolicyData()` |
+| **Account/GitHub** | `AccountPolicyService` | Reads `IPolicyData` from `IDefaultAccountService.policyData`, applies `value()` function. Server-delivered managed settings arrive on `policyData.managedSettings`; native MDM is a **separate** input (`ICopilotManagedSettingsService`) that `AccountPolicyService` selects between in `getPolicyData()` (server wins when present; no merging between layers) |
 | **Copilot managed settings (native MDM)** | `CopilotManagedSettingsService` via `@vscode/policy-watcher` | Watches `SOFTWARE\Policies\GitHubCopilot` (Windows) / `com.github.copilot` prefs (macOS); feeds the canonical `managedSettings` bag — see [github-managed-settings.md](./github-managed-settings.md) |
 | **Multiplex** | `MultiplexPolicyService` | In the main process, combines multiple OS/file policy readers; in desktop and Agents-window renderers, combines the main-process `PolicyChannelClient` with `AccountPolicyService` |
 
@@ -38,7 +38,7 @@ Policies allow enterprise administrators to lock configuration settings via OS-l
 | `src/vs/platform/policy/node/copilotManagedSettingsService.ts` | Native MDM watcher (`@vscode/policy-watcher`) for Copilot managed settings |
 | `src/vs/platform/configuration/common/configurations.ts` | `PolicyConfiguration` — bridges policies to configuration values; parses JSON-string managed settings back to typed values; applies values to `policyReference` settings |
 | `src/vs/platform/configuration/common/configurationRegistry.ts` | `policy` / `policyReference` registration; `getPolicyReferenceConfigurations()` (name → subordinate settings) |
-| `src/vs/workbench/services/policies/common/accountPolicyService.ts` | Account/GitHub-based policy evaluation; merges + projects managed settings (MDM over server) |
+| `src/vs/workbench/services/policies/common/accountPolicyService.ts` | Account/GitHub-based policy evaluation; selects + projects managed settings (server over MDM; single authoritative layer) |
 | `src/vs/workbench/services/accounts/browser/managedSettings.ts` | `adaptManagedSettings` — normalizes the server `managed_settings` response into the canonical bag |
 | `src/vs/workbench/services/policies/common/multiplexPolicyService.ts` | Combines multiple policy services |
 | `src/vs/workbench/contrib/policyExport/electron-browser/policyExport.contribution.ts` | `--export-policy-data` CLI handler |
@@ -321,3 +321,4 @@ Search the codebase for `policy:` to find all the examples of different policy c
 ## Learnings
 
 * Never hand-edit `build/lib/policies/policyData.jsonc` (its header explicitly forbids it). If `npm run export-policy-data` is failing, fix the script — don't patch the JSON. Common cause: running it in the wrong working directory (e.g. main repo instead of a worktree), which silently exports the wrong source tree.
+* Document **behavior and business-logic expectations**, not copy-pasted implementation. Reproducing internal code (e.g. the `getPolicyData()` merge body) in the skill rots the moment the source changes and adds no information beyond the source itself. State the contract in prose (e.g. "server-delivered managed settings win over native MDM; the two layers are never merged") and point to the source for the implementation. Reserve code blocks for the **author-facing API contract** a contributor must follow — how to *declare* a `policy` / `managedSettings` / `value` callback — not for restating runtime plumbing.
