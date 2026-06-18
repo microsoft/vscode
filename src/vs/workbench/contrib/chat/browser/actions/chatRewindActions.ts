@@ -71,8 +71,8 @@ export class RewindConversationAction extends Action2 {
 						ChatContextKeys.isRequest,
 						ChatContextKeys.isFirstRequest.negate(),
 						ContextKeyExpr.or(
-							ChatContextKeys.lockedToCodingAgent.negate(),
-							ChatContextKeyExprs.isAgentHostSession,
+							ContextKeyExpr.or(ChatContextKeys.lockedToCodingAgent.negate(), ChatContextKeyExprs.isAgentHostSession),
+							ChatContextKeys.chatSessionSupportsFork
 						),
 					),
 				}

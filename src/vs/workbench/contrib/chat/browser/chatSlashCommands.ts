@@ -18,7 +18,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IChatAgentService } from '../common/participants/chatAgents.js';
-import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
+import { ChatContextKeyExprs, ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { IChatSlashCommandService } from '../common/participants/chatSlashCommands.js';
 import { IChatService } from '../common/chatService/chatService.js';
 import { IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, SessionType } from '../common/chatSessionsService.js';
@@ -215,7 +215,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			locations: [ChatAgentLocation.Chat],
 			when: ContextKeyExpr.and(
 				ContextKeyExpr.or(
-					ChatContextKeys.lockedToCodingAgent.negate(),
+					ContextKeyExpr.or(ChatContextKeys.lockedToCodingAgent.negate(), ChatContextKeyExprs.isAgentHostSession),
 					ChatContextKeys.chatSessionSupportsFork
 				),
 				ChatContextKeys.requestInProgress.negate()

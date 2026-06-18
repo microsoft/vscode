@@ -14,6 +14,9 @@ const CHAT_RESPONSE = `${CHAT_VIEW} .interactive-item-container.interactive-resp
 const CHAT_REQUEST = `${CHAT_VIEW} .interactive-item-container.interactive-request`;
 const CHAT_RESPONSE_COMPLETE = `${CHAT_RESPONSE}:not(.chat-response-loading)`;
 const DIALOG_PRIMARY_BUTTON = '.monaco-dialog-box .dialog-buttons .monaco-button';
+const CHAT_CHECKPOINT_TOOLBAR = `${CHAT_VIEW} .checkpoint-container .monaco-toolbar`;
+const CHAT_CHECKPOINT_FORK_BUTTON = `${CHAT_CHECKPOINT_TOOLBAR} .action-label.codicon-repo-forked`;
+const CHAT_CHECKPOINT_REWIND_BUTTON = `${CHAT_CHECKPOINT_TOOLBAR} .action-label.codicon-discard`;
 const CHAT_FOOTER_DETAILS = `${CHAT_VIEW} .chat-footer-details`;
 const CHAT_EDITOR_INPUT_EDITOR = `${CHAT_EDITOR} .interactive-input-part .monaco-editor[role="code"]`;
 const CHAT_EDITOR_INPUT_EDITOR_FOCUSED = `${CHAT_EDITOR} .interactive-input-part .monaco-editor.focused[role="code"]`;
@@ -142,5 +145,24 @@ export class Chat {
 		// Rewind is destructive, so confirm the warning dialog.
 		await this.code.waitForElement(DIALOG_PRIMARY_BUTTON);
 		await this.code.waitAndClick(DIALOG_PRIMARY_BUTTON);
+	}
+
+	/**
+	 * Whether the per-message checkpoint toolbar (where Fork lives) contributes both the Fork
+	 * and Rewind buttons. Checks DOM presence, so it holds even before the toolbar is revealed.
+	 * Used by the rewind smoke test to assert Rewind is offered as a button next to Fork.
+	 */
+	async checkpointToolbarHasForkAndRewind(): Promise<boolean> {
+		const forkCount = await this.code.driver.currentPage.locator(CHAT_CHECKPOINT_FORK_BUTTON).count();
+		const rewindCount = await this.code.driver.currentPage.locator(CHAT_CHECKPOINT_REWIND_BUTTON).count();
+		return forkCount > 0 && rewindCount > 0;
+	}
+
+	/**
+	 * Diagnostic helper: returns the outer HTML of every checkpoint container so a failing
+	 * rewind assertion can show what the toolbar actually rendered.
+	 */
+	async dumpCheckpointContainersHtml(): Promise<string> {
+		return await this.code.driver.currentPage.locator(`${CHAT_VIEW} .checkpoint-container`).evaluateAll(els => els.map(el => (el as HTMLElement).outerHTML).join('\n---\n'));
 	}
 }

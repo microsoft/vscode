@@ -61,26 +61,38 @@ export function setup(logger: Logger) {
 
 		it('rewinds the most recent turn out of the conversation', async function () {
 			const app = this.app as Application;
+			const requestSelector = '.interactive-item-container.interactive-request';
 
 			try {
 				await app.workbench.quickaccess.runCommand('workbench.action.chat.open');
 				await app.workbench.chat.waitForChatView();
 
-				// Turn 1
+				// Turn 1 — wait until its request row has rendered.
 				await app.workbench.chat.sendMessage(`first turn [scenario:${REWIND_SCENARIO_ID}]`);
-				await app.workbench.chat.waitForResponse(1500);
+				await app.code.waitForElements(requestSelector, false, els => els.length === 1, 600);
 
-				// Turn 2
+				// Turn 2 — sendMessage waits for the send button to re-enable (i.e. turn 1
+				// finished streaming) before submitting, so this can't race turn 1.
 				await app.workbench.chat.sendMessage(`second turn [scenario:${REWIND_SCENARIO_ID}]`);
-				await app.workbench.chat.waitForResponse(1500);
+				await app.code.waitForElements(requestSelector, false, els => els.length === 2, 600);
 
 				const countBefore = await app.workbench.chat.getRequestCount();
 				assert.strictEqual(countBefore, 2, `expected two request turns before rewind, saw ${countBefore}`);
 
-				// Rewind the most recent turn.
+				// Rewind is offered as a button in the per-message checkpoint toolbar, next to
+				// Fork (the discard icon sits beside the repo-forked icon on the same request).
+				const hasForkAndRewind = await app.workbench.chat.checkpointToolbarHasForkAndRewind();
+				if (!hasForkAndRewind) {
+					logger.log(`[Chat Rewind] checkpoint DOM:\n${await app.workbench.chat.dumpCheckpointContainersHtml()}`);
+				}
+				assert.ok(hasForkAndRewind, 'expected the checkpoint toolbar to show a Rewind button next to Fork');
+
+				// Rewind the most recent turn. The button and the slash command invoke the same
+				// action; drive it via the slash command, which waits for the turn to settle and
+				// confirms the destructive-action dialog deterministically.
 				await app.workbench.chat.rewindLastTurnViaSlashCommand();
 
-				await app.code.waitForElements('.interactive-item-container.interactive-request', false, els => els.length === 1);
+				await app.code.waitForElements(requestSelector, false, els => els.length === 1, 600);
 				const countAfter = await app.workbench.chat.getRequestCount();
 				assert.strictEqual(countAfter, 1, `expected one request turn after rewinding the last, saw ${countAfter}`);
 			} catch (error) {
