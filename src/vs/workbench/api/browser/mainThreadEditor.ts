@@ -545,24 +545,16 @@ export class MainThreadTextEditor {
 			clipboardText
 		};
 
-		if (ranges.length === 1) {
-			// When there is a single, contiguous snippet edit, route it through the string-based
-			// `insert` API instead of the array-based `apply` API. The `apply` path always cancels
-			// an active snippet session (see the `this.cancel()` guard in SnippetController2._doInsert),
-			// which destroys the outer snippet's remaining tabstops. The `insert` path instead merges
-			// (nests) the new snippet into the active placeholder, preserving the outer session.
-			// This restores the pre-1.86 behaviour and fixes microsoft/vscode#214757.
-			const range = Range.lift(ranges[0]);
-			this._codeEditor.setSelection(new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn));
-			snippetController.insert(template, insertOptions);
-			return true;
+		if (ranges.length > 0) {
+			const selections = ranges.map(r => {
+				const range = Range.lift(r);
+				return new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
+			});
+			this._codeEditor.setSelections(selections);
 		}
 
-		// Multi-range edits cannot be merged into a single active placeholder, so fall back to the
-		// array-based `apply` API.
-		const edits: ISnippetEdit[] = ranges.map(range => ({ range: Range.lift(range), template }));
-		snippetController.apply(edits, insertOptions);
-
+		// Route through the string-based `insert` API so an active snippet session can merge (nest) the new snippet.
+		snippetController.insert(template, insertOptions);
 		return true;
 	}
 }
