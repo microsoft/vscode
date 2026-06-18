@@ -17,6 +17,7 @@ import { workbenchConfigurationNodeBase } from '../../../common/configuration.js
 // rules behind a `.style-override-<id>` ancestor class, so the styles are inert
 // until the matching class is toggled onto the workbench container(s) below.
 import './media/activityBar.css';
+import './media/commandCenter.css';
 import './media/fontRamp.css';
 import './media/keyboardFocusOnly.css';
 import './media/padding.css';
@@ -43,6 +44,11 @@ const STYLE_OVERRIDE_MODULES: readonly IStyleOverrideModule[] = [
 		id: 'activityBar',
 		label: localize('styleOverrides.activityBar', "Activity Bar"),
 		description: localize('styleOverrides.activityBar.description', "Replaces the active activity bar item's left highlight border with a rounded background behind the icon.")
+	},
+	{
+		id: 'commandCenter',
+		label: localize('styleOverrides.commandCenter', "Agents Window Command Center"),
+		description: localize('styleOverrides.commandCenter.description', "Makes the command center and agent status input transparent at rest, revealing their background on hover to match the Agents window.")
 	},
 	{
 		id: 'fontRamp',
