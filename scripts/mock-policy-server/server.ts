@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-//@ts-check
-
 /**
  * Standalone dev tool: a local mock of the Copilot "policy" endpoints that
  * `DefaultAccountService` calls (entitlements, token, MCP registry, managed
@@ -20,12 +18,15 @@
  * "Developer: Policy Diagnostics".
  */
 
-const http = require('http');
-const fs = require('fs');
-const path = require('path');
-const { URL, fileURLToPath } = require('url');
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { EndpointDef } from './endpoints';
 
-const endpoints = require('./endpoints');
+const http = require('node:http') as typeof import('node:http');
+const fs = require('node:fs') as typeof import('node:fs');
+const path = require('node:path') as typeof import('node:path');
+const { fileURLToPath } = require('node:url') as typeof import('node:url');
+
+const endpoints: EndpointDef[] = require('./endpoints');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const PRODUCT_JSON = path.join(ROOT, 'product.json');
@@ -51,12 +52,7 @@ const SCHEMA_SOURCE = args.schema || process.env.MANAGED_SETTINGS_SCHEMA || DEFA
 /** Path -> endpoint definition. */
 const endpointByPath = new Map(endpoints.map(e => [e.path, e]));
 
-/**
- * Current response body served at each endpoint, keyed by endpoint id. Seeded
- * from each endpoint's first preset.
- * @type {Record<string, unknown>}
- */
-const currentBodies = {};
+const currentBodies: Record<string, unknown> = {};
 for (const endpoint of endpoints) {
 	currentBodies[endpoint.id] = endpoint.presets[0] ? clone(endpoint.presets[0].body) : {};
 }
@@ -165,7 +161,7 @@ server.listen(PORT, HOST, () => {
 });
 
 /** The URL Code OSS should call for a given endpoint. */
-function endpointUrl(endpoint) {
+function endpointUrl(endpoint: EndpointDef): string {
 	return `http://${HOST}:${PORT}${endpoint.path}`;
 }
 
@@ -174,10 +170,8 @@ function endpointUrl(endpoint) {
  * Accepts a web URL (`http(s)://`), a `file://` URI, or a filesystem path
  * (relative paths are resolved against the app's cwd). Re-reads on every call so
  * a dev can edit the schema and refresh the GUI without restarting the server.
- *
- * @returns {Promise<{ source: string; resolved: string; ok: boolean; schema?: unknown; error?: string }>}
  */
-async function loadSchema(sourceOverride) {
+async function loadSchema(sourceOverride?: string): Promise<{ source: string; resolved: string; ok: boolean; schema?: unknown; error?: string }> {
 	const source = sourceOverride || SCHEMA_SOURCE;
 	try {
 		if (/^https?:\/\//i.test(source)) {
@@ -234,9 +228,8 @@ function buildOverridesSnippet() {
 }
 
 /** The `defaultChatAgent` URL overrides this server provides. */
-function overrideUrls() {
-	/** @type {Record<string, string>} */
-	const urls = {};
+function overrideUrls(): Record<string, string> {
+	const urls: Record<string, string> = {};
 	for (const endpoint of endpoints) {
 		urls[endpoint.productKey] = endpointUrl(endpoint);
 	}
@@ -244,7 +237,7 @@ function overrideUrls() {
 }
 
 /** Whether `product.overrides.json` currently points every endpoint at this server. */
-function isWired() {
+function isWired(): boolean {
 	let overrides;
 	try {
 		overrides = JSON.parse(fs.readFileSync(PRODUCT_OVERRIDES_JSON, 'utf8'));
@@ -269,7 +262,7 @@ function isWired() {
  * endpoint URLs, preserving every other key. Any other top-level overrides
  * already present are kept untouched.
  */
-function wireOverrides() {
+function wireOverrides(): void {
 	const product = JSON.parse(fs.readFileSync(PRODUCT_JSON, 'utf8'));
 	const baseAgent = product?.defaultChatAgent ?? {};
 
@@ -302,7 +295,7 @@ function wireOverrides() {
  * (or drop the key if absent). If `defaultChatAgent` ends up identical to
  * `product.json`, drop it; if the overrides file ends up empty, remove it.
  */
-function unwireOverrides() {
+function unwireOverrides(): void {
 	// If we have a backup, restore it wholesale instead of surgically reverting.
 	if (fs.existsSync(PRODUCT_OVERRIDES_BACKUP)) {
 		fs.copyFileSync(PRODUCT_OVERRIDES_BACKUP, PRODUCT_OVERRIDES_JSON);
@@ -349,7 +342,7 @@ function unwireOverrides() {
 }
 
 /** Serve a file from the public/ directory (plus the shared endpoints.js). */
-function serveStatic(pathname, res) {
+function serveStatic(pathname: string, res: ServerResponse): void {
 	// The GUI loads the shared endpoints module that lives one level up.
 	if (pathname === '/endpoints.js') {
 		res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8' });
@@ -368,7 +361,7 @@ function serveStatic(pathname, res) {
 	fs.createReadStream(filePath).pipe(res);
 }
 
-function contentType(filePath) {
+function contentType(filePath: string): string {
 	switch (path.extname(filePath)) {
 		case '.html': return 'text/html; charset=utf-8';
 		case '.js': return 'text/javascript; charset=utf-8';
@@ -378,19 +371,19 @@ function contentType(filePath) {
 	}
 }
 
-function sendJson(res, status, obj) {
+function sendJson(res: ServerResponse, status: number, obj: unknown): void {
 	res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
 	res.end(JSON.stringify(obj, null, 2));
 }
 
-function readBody(req, cb) {
+function readBody(req: IncomingMessage, cb: (err: Error | null, raw: string) => void): void {
 	let raw = '';
 	req.on('data', chunk => { raw += chunk; if (raw.length > 1_000_000) { req.destroy(); } });
 	req.on('end', () => cb(null, raw));
 	req.on('error', err => cb(err, ''));
 }
 
-function shallowEqual(a, b) {
+function shallowEqual(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
 	const ak = Object.keys(a);
 	const bk = Object.keys(b);
 	if (ak.length !== bk.length) {
@@ -399,13 +392,12 @@ function shallowEqual(a, b) {
 	return ak.every(k => JSON.stringify(a[k]) === JSON.stringify(b[k]));
 }
 
-function clone(value) {
+function clone(value: unknown): unknown {
 	return JSON.parse(JSON.stringify(value));
 }
 
-function parseArgs(argv) {
-	/** @type {Record<string, string>} */
-	const out = {};
+function parseArgs(argv: string[]): Record<string, string> {
+	const out: Record<string, string> = {};
 	for (let i = 0; i < argv.length; i++) {
 		const a = argv[i];
 		if (a.startsWith('--')) {

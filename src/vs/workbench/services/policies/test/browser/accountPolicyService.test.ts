@@ -38,6 +38,7 @@ class DefaultAccountProvider implements IDefaultAccountProvider {
 	readonly onDidChangeCopilotTokenInfo = Event.None;
 	readonly managedSettingsFetchStatus: null = null;
 	readonly managedSettingsFetchedAt: null = null;
+	readonly managedSettingsRawResponse: unknown = null;
 
 	constructor(
 		readonly defaultAccount: IDefaultAccount,
