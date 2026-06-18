@@ -22,47 +22,30 @@
 }
 
 .style-override-tabs .part.editor .tabs-container > .tab {
-	background-color: transparent !important;
+	background-color: color-mix(in srgb, var(--vscode-foreground) 5%, transparent) !important;
 	border-right: none !important;
 	border-radius: var(--vscode-cornerRadius-small);
 	font-size: 12px !important;
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	box-shadow: none !important;
 	padding: 0 0 0 4px !important;
+	margin-right: 4px !important;
 	--tab-border-top-color: transparent !important;
 }
 
-/* Allow tabs to shrink when space is constrained so the close button stays
- * reachable, while still letting them grow to fit their label when there is
- * space. */
-.style-override-tabs .part.editor .tabs-container > .tab.sizing-fit {
-	width: auto !important;
-	min-width: 0 !important;
-	flex: 0 1 auto !important;
-}
-
-.style-override-tabs .part.editor .tabs-container > .tab.sizing-fit .monaco-icon-label,
-.style-override-tabs .part.editor .tabs-container > .tab.sizing-fit .monaco-icon-label > .monaco-icon-label-container {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	min-width: 0;
-}
-
-/* Keep the close button reserved within the tab so it remains accessible when
- * the tab shrinks. */
-.style-override-tabs .part.editor .tabs-container > .tab > .tab-actions {
-	flex: 0 0 auto;
-	overflow: visible;
-}
-
+/* Center tabs vertically and strip the bottom border so the pills float. */
 .style-override-tabs .part.editor .tabs-and-actions-container {
 	--tabs-border-bottom-color: transparent !important;
 	align-items: center;
-	padding: 4px;
+	padding: 4px 0;
 }
 
 .style-override-tabs .part.editor .tabs-container > .tab.active {
-	background-color: color-mix(in srgb, var(--vscode-foreground) 15%, transparent) !important;
+	background-color: color-mix(in srgb, var(--vscode-foreground) 10%, transparent) !important;
+}
+
+.style-override-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:not(.active):hover {
+	background-color: color-mix(in srgb, var(--vscode-foreground) 8%, transparent) !important;
 }
 
 .style-override-tabs .part.editor .tabs-container > .tab .tab-border-top-container,
