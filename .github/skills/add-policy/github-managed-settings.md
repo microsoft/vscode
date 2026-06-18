@@ -51,22 +51,7 @@ does **not** read today (no `managed-settings.json` reader exists in `src/`).
 | **Server-managed** (`/copilot_internal/managed_settings`) | GitHub endpoint; per the code comment in `managedSettings.ts`, it returns the enterprise's `.github/copilot/settings.json` content | `adaptManagedSettings` (`src/vs/workbench/services/accounts/browser/managedSettings.ts`) → `DefaultAccountService.policyData` | `accountPolicyData.managedSettings` |
 | **File-based** (`managed-settings.json`) | external schema only | *not implemented in VS Code* | — |
 
-Both VS Code channels converge in `AccountPolicyService.getPolicyData()`:
-
-```ts
-// Server is authoritative when present: server managed settings win outright and
-// native MDM is ignored entirely (no merging between layers). Native MDM only applies
-// when the server provides no managed settings. Then project onto the declared schema.
-const serverManagedSettings = accountPolicyData?.managedSettings;
-const hasServerManagedSettings = serverManagedSettings && Object.keys(serverManagedSettings).length > 0;
-const winningManagedSettings = hasServerManagedSettings ? serverManagedSettings : nativeManagedSettings;
-const managedSettingsData = projectManagedSettings(
-    { ...winningManagedSettings },
-    collectManagedSettingsDefinitions(this.policyDefinitions),
-    msg => this.logService.warn(`[AccountPolicy] ${msg}`)
-);
-return { ...accountPolicyData, managedSettings: managedSettingsData };
-```
+Both VS Code channels converge in `AccountPolicyService.getPolicyData()`.
 
 **Precedence: server-delivered managed settings win over native MDM.** There is a
 single authoritative source at any point in time — the two layers are **not** merged.
