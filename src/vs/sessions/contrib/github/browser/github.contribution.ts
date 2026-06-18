@@ -21,7 +21,7 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 	static readonly ID = 'sessions.contrib.githubPullRequestPolling';
 
 	/** Per-session pollers, keyed by `session.sessionId`. */
-	private readonly _sessionTrackers = new DisposableMap<string>();
+	private readonly _sessionTrackers = this._register(new DisposableMap<string>());
 
 	constructor(
 		@IGitHubService private readonly _gitHubService: IGitHubService,
@@ -200,12 +200,6 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 		}
 
 		return isEqual(activeSession.resource, session.resource);
-	}
-
-	override dispose(): void {
-		this._sessionTrackers.dispose();
-
-		super.dispose();
 	}
 }
 
