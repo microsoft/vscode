@@ -236,9 +236,6 @@ class CliMain extends Disposable {
 		services.set(IExtensionGalleryManifestService, new SyncDescriptor(ExtensionGalleryManifestService));
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryServiceWithNoStorageService, undefined, true));
 
-		// Localizations
-		services.set(ILanguagePackService, new SyncDescriptor(NativeLanguagePackService, undefined, false));
-
 		// MCP
 		services.set(IAllowedMcpServersService, new SyncDescriptor(AllowedMcpServersService, undefined, true));
 		services.set(IMcpResourceScannerService, new SyncDescriptor(McpResourceScannerService, undefined, true));
@@ -267,7 +264,10 @@ class CliMain extends Disposable {
 			services.set(ITelemetryService, NullTelemetryService);
 		}
 
-		return [new InstantiationService(services), appenders];
+		const instantiationService = new InstantiationService(services);
+		services.set(ILanguagePackService, instantiationService.createInstance(NativeLanguagePackService));
+
+		return [instantiationService, appenders];
 	}
 
 	private allowWindowsUNCPath(path: string): string {
