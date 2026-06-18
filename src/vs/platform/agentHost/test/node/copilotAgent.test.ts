@@ -1807,6 +1807,31 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('getChats drops corrupted or invalid persisted entries', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: new TestCopilotClient([]) });
+			try {
+				const session = AgentSession.uri('copilotcli', 'session-getchats-invalid');
+				const db = sessionDataService.openDatabase(session);
+				await db.object.setMetadata('copilot.chats', JSON.stringify({
+					'peer-ok': { sdkSessionId: 'sdk-ok' },
+					'peer-null': null,
+					'peer-missing-id': { model: { id: 'm' } },
+					'peer-nonstring-id': { sdkSessionId: 42 },
+					'peer-empty-id': { sdkSessionId: '' },
+				}));
+
+				const chats = await agent.getChats(session);
+
+				assert.deepStrictEqual(
+					chats.map(c => c.toString()),
+					[buildChatUri(session, 'peer-ok')],
+				);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('disposeChat removes the persisted entry and deletes its SDK conversation', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([]);

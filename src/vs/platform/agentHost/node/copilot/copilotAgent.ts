@@ -1673,11 +1673,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return;
 		}
 		const chatKey = chat.toString();
-		// Resume the chat's SDK conversation if it isn't in memory so we can
-		// delete it from the SDK's on-disk store; otherwise a fresh process
-		// would re-resume an orphaned conversation that no longer has a catalog
-		// entry. Best-effort: a missing/failed resume still drops the catalog
-		// entry below.
+		// Resolve the chat's backing SDK conversation id — from the in-memory
+		// session if present, otherwise from the persisted catalog — so we can
+		// delete it from the SDK's on-disk store. Without this a fresh process
+		// could re-resume an orphaned conversation that no longer has a catalog
+		// entry. Best-effort: a missing id still drops the catalog entry below.
 		const parsed = parseChatUri(chat);
 		let sdkSessionId = this._chatSessions.get(chatKey)?.sessionId;
 		if (parsed) {
@@ -2179,8 +2179,22 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (!raw) {
 				return new Map();
 			}
-			const parsed = JSON.parse(raw) as Record<string, IPersistedChat>;
-			return new Map(Object.entries(parsed));
+			const parsed = JSON.parse(raw) as Record<string, unknown>;
+			const result = new Map<string, IPersistedChat>();
+			for (const [chatId, value] of Object.entries(parsed)) {
+				// The metadata blob is client-influenced and may be corrupted or
+				// tampered: drop entries that don't carry a usable SDK session id
+				// rather than letting an invalid id reach `client.deleteSession`.
+				if (!value || typeof value !== 'object') {
+					continue;
+				}
+				const { sdkSessionId, model } = value as { sdkSessionId?: unknown; model?: unknown };
+				if (typeof sdkSessionId !== 'string' || !sdkSessionId) {
+					continue;
+				}
+				result.set(chatId, { sdkSessionId, ...(model ? { model: model as ModelSelection } : {}) });
+			}
+			return result;
 		} catch (err) {
 			this._logService.warn(`[Copilot] Failed to read persisted chats for ${session.toString()}: ${err instanceof Error ? err.message : String(err)}`);
 			return new Map();
@@ -2193,7 +2207,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private async _writePersistedChats(session: URI, chats: Map<string, IPersistedChat>): Promise<void> {
 		const dbRef = this._sessionDataService.openDatabase(session);
 		try {
-			const obj: Record<string, IPersistedChat> = {};
+			// Use a null-prototype object: chatIds derive from a client-chosen
+			// chat URI authority, so a value like `__proto__` would otherwise
+			// pollute the prototype / corrupt the serialized payload.
+			const obj: Record<string, IPersistedChat> = Object.create(null);
 			for (const [chatId, info] of chats) {
 				obj[chatId] = info;
 			}
