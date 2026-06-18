@@ -76,6 +76,7 @@ const NLS_TOGGLE_REPLACE_MODE_BTN_LABEL = nls.localize('label.toggleReplaceButto
 const NLS_MATCHES_COUNT_LIMIT_TITLE = nls.localize('title.matchesCountLimit', "Only the first {0} results are highlighted, but all find operations work on the entire text.", MATCHES_LIMIT);
 export const NLS_MATCHES_LOCATION = nls.localize('label.matchesLocation', "{0} of {1}");
 export const NLS_NO_RESULTS = nls.localize('label.noResults', "No results");
+const NLS_MATCHES_COUNT_TITLE = nls.localize('title.matchesCount', "Click to go to a specific match");
 
 const FIND_WIDGET_INITIAL_WIDTH = 419;
 const PART_WIDTH = 275;
@@ -460,6 +461,11 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			this._matchesCount.title = NLS_MATCHES_COUNT_LIMIT_TITLE;
 		} else {
 			this._matchesCount.title = '';
+		}
+
+		if (this._state.matchesCount > 0) {
+			const goToMatchLabel = this._keybindingLabelFor(FIND_IDS.GoToMatchFindAction);
+			this._matchesCount.title = NLS_MATCHES_COUNT_TITLE + (goToMatchLabel ? ` (${goToMatchLabel})` : '');
 		}
 
 		// remove previous content
@@ -1065,6 +1071,11 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._matchesCount = document.createElement('div');
 		this._matchesCount.className = 'matchesCount';
 		this._updateMatchesCount();
+		this._register(dom.addDisposableListener(this._matchesCount, dom.EventType.CLICK, () => {
+			if (this._state.matchesCount > 0) {
+				assertReturnsDefined(this._codeEditor.getAction(FIND_IDS.GoToMatchFindAction)).run().then(undefined, onUnexpectedError);
+			}
+		}));
 
 		const hoverLifecycleOptions: IHoverLifecycleOptions = { groupId: 'find-widget' };
 
