@@ -32,6 +32,7 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IAgentsVoiceWindowService, AgentsVoiceStorageKeys } from '../common/agentsVoice.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -158,14 +159,36 @@ registerAction2(class extends Action2 {
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const voiceController = accessor.get(IVoiceSessionController);
-		console.log('[AgentsVoice] mic button clicked, isConnected:', voiceController.isConnected.get(), 'isConnecting:', voiceController.isConnecting.get());
+		const notificationService = accessor.get(INotificationService);
 		if (voiceController.isConnected.get()) {
-			console.log('[AgentsVoice] disconnecting...');
 			voiceController.disconnect();
 		} else {
-			console.log('[AgentsVoice] simulating connection (backend down)...');
-			voiceController.simulateConnection();
+			try {
+				await voiceController.connect(mainWindow);
+				// If still not connected after connect resolves, the backend rejected
+				if (!voiceController.isConnected.get()) {
+					notificationService.error(nls.localize('agentsVoice.connectFailed', "Voice Mode: Could not connect to the voice backend. Please try again later."));
+				}
+			} catch (e) {
+				notificationService.error(nls.localize('agentsVoice.connectError', "Voice Mode: Connection failed — {0}", e instanceof Error ? e.message : String(e)));
+			}
 		}
+	}
+});
+
+// --- Simulate Voice Connection (dev utility, backend down) ---
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'agentsVoice.simulateConnection',
+			title: nls.localize2('agentsVoice.simulateConnection', "Voice: Simulate Connection (Dev)"),
+			f1: true,
+		});
+	}
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const voiceController = accessor.get(IVoiceSessionController);
+		voiceController.simulateConnection();
 	}
 });
 
