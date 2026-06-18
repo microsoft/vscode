@@ -4291,60 +4291,70 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-color: var(--vscode-notificationsWarningIcon-foreground, var(--vscode-editorWarning-foreground));
 }
 
-.chat-model-hover-separator {
-	border-top: 1px solid var(--vscode-menu-separatorBackground, var(--vscode-editorWidget-border));
-	margin: 2px 0;
+.chat-model-hover-title-tags {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex: 0 0 auto;
 }
 
-.chat-model-hover-description {
-	font-size: 12px;
-	line-height: 1.4;
-}
-
-.monaco-workbench .chat-model-hover-description .codicon[class*='codicon-'] {
-	vertical-align: middle;
-	font-size: 12px;
-}
-
-.chat-model-hover-description > div p {
-	margin: 0;
+.chat-model-hover-category {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
 }
 
 .chat-model-hover-cost-table {
-	display: grid;
-	grid-template-columns: auto auto;
-	column-gap: 16px;
-	row-gap: 2px;
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
 	font-size: 12px;
-	color: var(--vscode-descriptionForeground);
 }
 
-.chat-model-hover-cost-table.has-long-context {
-	grid-template-columns: auto auto auto;
+.chat-model-hover-cost-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
 }
 
-.chat-model-hover-cost-cell.value {
-	text-align: right;
-}
-
-.chat-model-hover-cost-count {
-	font-weight: 500;
+.chat-model-hover-cost-heading {
+	flex: 1 1 auto;
+	font-weight: 600;
 	color: var(--vscode-foreground);
+	white-space: nowrap;
 }
 
-.chat-model-hover-cost-unit {
+.chat-model-hover-cost-label {
+	flex: 0 0 auto;
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+}
+
+.chat-model-hover-cost-leader {
+	flex: 1 1 auto;
+	min-width: 8px;
+	height: 0;
+	border-bottom: 1px dotted var(--vscode-descriptionForeground);
+	opacity: 0.5;
+}
+
+.chat-model-hover-cost-value {
+	flex: 0 0 auto;
+	min-width: 48px;
+	text-align: right;
+	font-weight: bold;
+	color: var(--vscode-foreground);
+	white-space: nowrap;
+}
+
+.chat-model-hover-cost-table.has-long-context .chat-model-hover-cost-value {
+	width: 80px;
+	min-width: 80px;
+}
+
+.chat-model-hover-cost-value.subheader {
 	font-weight: normal;
 	color: var(--vscode-descriptionForeground);
-}
-
-.chat-model-hover-cost-cell.header {
-	color: var(--vscode-foreground);
-	font-weight: 600;
-}
-
-.chat-model-hover-cost-cell.subheader {
-	font-size: 11px;
-	padding-bottom: 4px;
 }
 
 .chat-model-hover-cost {
@@ -4369,18 +4379,26 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .chat-model-hover-configurable {
 	display: flex;
-	flex-wrap: wrap;
 	align-items: center;
-	gap: 6px;
+	gap: 8px;
 	font-size: 12px;
 }
 
-.chat-model-hover-configurable > .monaco-button {
+.chat-model-hover-configurable-label {
+	flex: 1 1 auto;
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+}
+
+.chat-model-hover-configurable-buttons {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: 6px;
+}
+
+.chat-model-hover-configurable-buttons > .monaco-button {
 	width: auto;
 	padding: 2px 8px;
 	font-size: 11px;
-}
-
-.monaco-workbench .chat-model-hover-configurable > .monaco-button .codicon[class*='codicon-'] {
-	font-size: var(--vscode-codiconFontSize-compact);
 }
