@@ -14,9 +14,9 @@ import { buildDefaultChangesetCatalogue, buildSessionChangesetUri, buildUncommit
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildSubagentSessionUri, SessionStatus, type ISessionFileDiff } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
-import { AgentHostChangesetSessionCoordinator } from '../../node/agentHostChangesetCoordinator.js';
+import { AgentHostChangesetCoordinator } from '../../node/agentHostChangesetCoordinator.js';
 import { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs, StaticChangesetKind } from '../../common/agentHostChangesetService.js';
-import { IChangesetOperationContributionService } from '../../common/agentHostChangesetOperation.js';
+import { IAgentHostChangesetOperationService } from '../../common/agentHostChangesetOperationService.js';
 import { IAgentHostFileMonitorOptions, IAgentHostFileMonitorService } from '../../node/agentHostFileMonitorService.js';
 import { IAgentHostGitService } from '../../node/agentHostGitService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -50,7 +50,7 @@ suite('ChangesetSessionCoordinator', () => {
 		subscriptions: IAgentHostChangesetSubscriptionService;
 		monitor: TestFileMonitorService;
 		gitService: IAgentHostGitService & { readonly rootLookupCalls: string[]; waitForRootLookups(count: number): Promise<void> };
-		coordinator: AgentHostChangesetSessionCoordinator;
+		coordinator: AgentHostChangesetCoordinator;
 	} {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const configurationService = disposables.add(new AgentConfigurationService(stateManager, new NullLogService()));
@@ -58,13 +58,14 @@ suite('ChangesetSessionCoordinator', () => {
 		const changesets = new TestChangesetService(subscriptions);
 		const monitor = disposables.add(new TestFileMonitorService());
 		const gitService = createGitService(root);
-		const operationContributionService: IChangesetOperationContributionService = {
+		const operationContributionService: IAgentHostChangesetOperationService = {
+			_serviceBrand: undefined,
 			registerContribution: () => Disposable.None,
 			updateOperations: () => { },
 			invokeChangesetOperation: async () => ({}),
 			dispose: () => { },
 		};
-		const coordinator = disposables.add(new AgentHostChangesetSessionCoordinator(stateManager, operationContributionService, changesets, subscriptions, configurationService, monitor, gitService, new NullLogService()));
+		const coordinator = disposables.add(new AgentHostChangesetCoordinator(stateManager, operationContributionService, changesets, subscriptions, configurationService, monitor, gitService, new NullLogService()));
 		return { stateManager, changesets, subscriptions, monitor, gitService, coordinator };
 	}
 

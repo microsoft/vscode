@@ -43,7 +43,7 @@ import { feedbackServerToolGroup } from './shared/agentFeedbackServerTools.js';
 import { AgentHostChangesetService } from './agentHostChangesetService.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../common/agentHostCheckpointService.js';
-import { AgentHostChangesetSessionCoordinator } from './agentHostChangesetCoordinator.js';
+import { AgentHostChangesetCoordinator } from './agentHostChangesetCoordinator.js';
 import { AgentHostCompletions, IAgentHostCompletions } from './agentHostCompletions.js';
 import { AgentHostFileCompletionProvider } from './agentHostFileCompletionProvider.js';
 import { AgentHostRenameCompletionProvider } from './agentHostRenameCommand.js';
@@ -52,8 +52,7 @@ import { AgentHostWorkspaceFiles } from './agentHostWorkspaceFiles.js';
 import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';
 import { parseMcpChannelUri } from './shared/mcpCustomizationController.js';
 import { toAgentClientUri } from '../common/agentClientUri.js';
-import { AgentHostChangesetOperationContributionService } from './agentHostChangesetOperationContributionService.js';
-import { registerDefaultChangesetOperationContributions } from './agentHostChangesetOperationContributions.js';
+import { AgentHostChangesetOperationService } from './agentHostChangesetOperationService.js';
 import { AgentHostGitStateService } from './agentHostGitStateService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
@@ -64,6 +63,7 @@ import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, META_CHANGES_SU
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { AgentHostChangesetSubscriptionService } from './agentHostChangesetSubscriptionService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
+import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
 
 /**
  * Grace period before an empty, unsubscribed session is garbage-collected
@@ -129,12 +129,12 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _changesets: IAgentHostChangesetService;
 	/** Shared active changeset subscription registry. */
 	private readonly _changesetSubscriptions: IAgentHostChangesetSubscriptionService;
+	/** Owns changeset operation contributions and handler activation. */
+	private readonly _changesetOperationService: IAgentHostChangesetOperationService;
 	/** Owns AgentService-side orchestration of the changeset feature. */
-	private readonly _changesetCoordinator: AgentHostChangesetSessionCoordinator;
+	private readonly _changesetCoordinator: AgentHostChangesetCoordinator;
 	/** Owns session git-state probing and git-backed catalogue decoration. */
 	private readonly _gitStateService: IAgentHostGitStateService;
-	/** Owns changeset operation contributions and handler activation. */
-	private readonly _changesetOperationContributionService: AgentHostChangesetOperationContributionService;
 	/** Manages PTY-backed terminals for the agent host protocol. */
 	private readonly _terminalManager: AgentHostTerminalManager;
 	/** Server-side host for the agent host's server tools. */
@@ -267,17 +267,17 @@ export class AgentService extends Disposable implements IAgentService {
 		this._changesetSubscriptions = instantiationService.createInstance(AgentHostChangesetSubscriptionService);
 		services.set(IAgentHostChangesetSubscriptionService, this._changesetSubscriptions);
 
-		// The operation contribution service manages the lifecycle of changeset operations.
-		this._changesetOperationContributionService = this._register(instantiationService.createInstance(AgentHostChangesetOperationContributionService, this._stateManager));
-
 		// The changeset service is responsible for computing, publishing, and persisting changesets.
 		this._changesets = this._register(instantiationService.createInstance(AgentHostChangesetService, this._stateManager));
 		services.set(IAgentHostChangesetService, this._changesets);
-		this._register(registerDefaultChangesetOperationContributions(this._changesetOperationContributionService, instantiationService, this._stateManager));
+
+		// The operation contribution service manages the lifecycle of changeset operations.
+		this._changesetOperationService = this._register(instantiationService.createInstance(AgentHostChangesetOperationService, this._stateManager));
+		services.set(IAgentHostChangesetOperationService, this._changesetOperationService);
 
 		// The coordinator owns all AgentService-side orchestration of the changeset feature: lifecycle
 		// hooks, listSessions overlay, subscription URI routing, and the deferred-refresh state machine.
-		this._changesetCoordinator = this._register(instantiationService.createInstance(AgentHostChangesetSessionCoordinator, this._stateManager, this._changesetOperationContributionService));
+		this._changesetCoordinator = this._register(instantiationService.createInstance(AgentHostChangesetCoordinator, this._stateManager));
 		this._register(this._stateManager.onDidChangeSessionActiveTurn(e => this._changesetCoordinator.onSessionTurnActiveChanged(e.session, e.active)));
 
 		this._completions = this._register(instantiationService.createInstance(AgentHostCompletions));
@@ -372,7 +372,7 @@ export class AgentService extends Disposable implements IAgentService {
 	// ---- Changeset operation handlers --------------------------------------
 
 	async invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
-		return this._changesetOperationContributionService.invokeChangesetOperation(params);
+		return this._changesetOperationService.invokeChangesetOperation(params);
 	}
 
 	// ---- MCP `mcp://` channel routing --------------------------------------

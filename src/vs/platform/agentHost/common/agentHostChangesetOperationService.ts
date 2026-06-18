@@ -5,9 +5,12 @@
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import type { IDisposable } from '../../../base/common/lifecycle.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { ChangesetKind } from './changesetUri.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
 import type { ChangesetOperation, ISessionGitState, URI } from './state/sessionState.js';
+
+export const IAgentHostChangesetOperationService = createDecorator<IAgentHostChangesetOperationService>('agentHostChangesetOperationService');
 
 /**
  * Server-side handler for a changeset operation advertised via
@@ -96,7 +99,9 @@ export interface IChangesetOperationContribution extends IDisposable {
  * Coordinates changeset operation contributions, advertised operation state,
  * and client-triggered invocation.
  */
-export interface IChangesetOperationContributionService extends IDisposable {
+export interface IAgentHostChangesetOperationService extends IDisposable {
+	readonly _serviceBrand: undefined;
+
 	/**
 	 * Adds a contribution and registers its handlers. Disposing the returned value
 	 * unregisters the handlers and disposes the contribution.

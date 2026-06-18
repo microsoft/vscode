@@ -19,7 +19,7 @@ import { AgentHostStateManager } from './agentHostStateManager.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostChangesetService, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
-import { IChangesetOperationContributionService } from '../common/agentHostChangesetOperation.js';
+import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
 
 /**
  * Raw metadata blob values for the session DB, batch-read by the caller.
@@ -45,12 +45,12 @@ export type IChangesetSessionMetadata = Record<string, string | undefined>;
  * overlay, subscribe URI routing) inherently span sessions, so a single
  * coordinator with internal maps is simpler than per-session RAII.
  */
-export class AgentHostChangesetSessionCoordinator extends Disposable {
+export class AgentHostChangesetCoordinator extends Disposable {
 	private readonly _changesetFileMonitor: ChangesetFileMonitorCoordinator;
 
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
-		private readonly _changesetOperationContributionService: IChangesetOperationContributionService,
+		@IAgentHostChangesetOperationService private readonly _changesetOperationService: IAgentHostChangesetOperationService,
 		@IAgentHostChangesetService private readonly _changesets: IAgentHostChangesetService,
 		@IAgentHostChangesetSubscriptionService private readonly _changesetSubscriptions: IAgentHostChangesetSubscriptionService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
@@ -123,7 +123,7 @@ export class AgentHostChangesetSessionCoordinator extends Disposable {
 		this._changesets.recomputeSubscribedChangesets(sessionStr);
 
 		// Update the operations for all subscribed changesets
-		this._changesetOperationContributionService.updateOperations(sessionStr, undefined, gitState);
+		this._changesetOperationService.updateOperations(sessionStr, undefined, gitState);
 	}
 
 	/**
@@ -160,21 +160,21 @@ export class AgentHostChangesetSessionCoordinator extends Disposable {
 		if (parsed?.kind === ChangesetKind.Branch) {
 			this._addSubscription(parsed.sessionUri, resourceStr);
 			this._changesets.refreshBranchChangeset(parsed.sessionUri);
-			this._changesetOperationContributionService.updateOperations(parsed.sessionUri, resourceStr);
+			this._changesetOperationService.updateOperations(parsed.sessionUri, resourceStr);
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
 			return;
 		}
 		if (parsed?.kind === ChangesetKind.Uncommitted) {
 			this._addSubscription(parsed.sessionUri, resourceStr);
 			void this._changesets.computeUncommittedChangeset(parsed.sessionUri);
-			this._changesetOperationContributionService.updateOperations(parsed.sessionUri, resourceStr);
+			this._changesetOperationService.updateOperations(parsed.sessionUri, resourceStr);
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
 			return;
 		}
 		if (parsed?.kind === ChangesetKind.Session) {
 			this._addSubscription(parsed.sessionUri, resourceStr);
 			this._changesets.refreshSessionChangeset(parsed.sessionUri);
-			this._changesetOperationContributionService.updateOperations(parsed.sessionUri, resourceStr);
+			this._changesetOperationService.updateOperations(parsed.sessionUri, resourceStr);
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
 			return;
 		}
@@ -185,7 +185,7 @@ export class AgentHostChangesetSessionCoordinator extends Disposable {
 			// subsequent deltas flow from `onToolCallEditsApplied` /
 			// `onTurnComplete` once we've added this turn id here.
 			this._addSubscription(parsed.sessionUri, resourceStr);
-			this._changesetOperationContributionService.updateOperations(parsed.sessionUri, resourceStr);
+			this._changesetOperationService.updateOperations(parsed.sessionUri, resourceStr);
 			return;
 		}
 		if (!parsed && this._stateManager.getSessionState(resourceStr)) {
