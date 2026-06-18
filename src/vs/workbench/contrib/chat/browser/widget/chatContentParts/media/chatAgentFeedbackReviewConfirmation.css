@@ -74,5 +74,5 @@
 }
 
 .chat-confirmation-widget2 .chat-confirmation-widget-message:has(.chat-agent-feedback-review-list) {
-	padding: 6px 11px 6px 6px;
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size120) var(--vscode-spacing-size60) var(--vscode-spacing-size60);
 }
