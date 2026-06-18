@@ -1,0 +1,247 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+:root {
+	color-scheme: light dark;
+	--bg: #1e1e1e;
+	--panel: #252526;
+	--border: #3c3c3c;
+	--text: #cccccc;
+	--muted: #9d9d9d;
+	--accent: #0e639c;
+	--accent-hover: #1177bb;
+	--ok: #4ec9b0;
+	--error: #f48771;
+	--code-bg: #1b1b1b;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+body {
+	margin: 0;
+	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+	font-size: 13px;
+	background: var(--bg);
+	color: var(--text);
+}
+
+header {
+	padding: 20px 24px 8px;
+}
+
+h1 {
+	font-size: 18px;
+	margin: 0 0 4px;
+}
+
+h2 {
+	font-size: 13px;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--muted);
+	margin: 20px 0 8px;
+}
+
+.sub {
+	color: var(--muted);
+	margin: 0;
+}
+
+main {
+	display: grid;
+	grid-template-columns: 1fr 340px;
+	gap: 16px;
+	padding: 12px 24px 32px;
+	align-items: start;
+}
+
+@media (max-width: 800px) {
+	main {
+		grid-template-columns: 1fr;
+	}
+}
+
+.panel {
+	background: var(--panel);
+	border: 1px solid var(--border);
+	border-radius: 6px;
+	padding: 16px;
+}
+
+label {
+	display: block;
+	margin: 12px 0 6px;
+	font-weight: 600;
+}
+
+.row {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	flex-wrap: wrap;
+	margin: 8px 0;
+}
+
+select,
+textarea,
+button {
+	font-family: inherit;
+	font-size: inherit;
+	color: var(--text);
+	background: var(--code-bg);
+	border: 1px solid var(--border);
+	border-radius: 4px;
+	padding: 6px 8px;
+}
+
+select {
+	flex: 1;
+	min-width: 160px;
+}
+
+textarea {
+	width: 100%;
+	min-height: 320px;
+	resize: vertical;
+	font-family: 'SF Mono', Menlo, Consolas, monospace;
+	font-size: 12px;
+	line-height: 1.5;
+	white-space: pre;
+	overflow-wrap: normal;
+	tab-size: 4;
+}
+
+button {
+	cursor: pointer;
+	background: #333334;
+}
+
+button:hover {
+	background: #3c3c3d;
+}
+
+button.primary {
+	background: var(--accent);
+	border-color: var(--accent);
+	color: #ffffff;
+}
+
+button.primary:hover {
+	background: var(--accent-hover);
+}
+
+.hint {
+	color: var(--muted);
+	font-size: 12px;
+	line-height: 1.5;
+}
+
+.status {
+	min-height: 18px;
+	margin: 6px 0;
+	font-size: 12px;
+}
+
+.status[data-kind='ok'] {
+	color: var(--ok);
+}
+
+.status[data-kind='error'] {
+	color: var(--error);
+}
+
+.status[data-kind='warn'] {
+	color: #d7ba7d;
+}
+
+strong[data-kind='error'] {
+	color: var(--error);
+}
+
+.schema-view {
+	max-height: 280px;
+	overflow: auto;
+	margin-top: 8px;
+}
+
+strong[data-kind='ok'] {
+	color: var(--ok);
+}
+
+pre.code,
+.code {
+	background: var(--code-bg);
+	border: 1px solid var(--border);
+	border-radius: 4px;
+	padding: 8px;
+	font-family: 'SF Mono', Menlo, Consolas, monospace;
+	font-size: 12px;
+	white-space: pre-wrap;
+	word-break: break-all;
+}
+
+code {
+	font-family: 'SF Mono', Menlo, Consolas, monospace;
+	background: rgba(255, 255, 255, 0.06);
+	padding: 1px 4px;
+	border-radius: 3px;
+}
+
+ol.hint {
+	padding-left: 18px;
+}
+
+ol.hint li {
+	margin: 4px 0;
+}
+
+.accent {
+	color: var(--accent-hover);
+}
+
+.tabs {
+	display: flex;
+	gap: 4px;
+	flex-wrap: wrap;
+	border-bottom: 1px solid var(--border);
+	margin-bottom: 12px;
+}
+
+.tab {
+	background: transparent;
+	border: 1px solid transparent;
+	border-bottom: none;
+	border-radius: 4px 4px 0 0;
+	padding: 6px 12px;
+	color: var(--muted);
+	margin-bottom: -1px;
+}
+
+.tab:hover {
+	background: #2d2d2e;
+	color: var(--text);
+}
+
+.tab.active {
+	background: var(--code-bg);
+	border-color: var(--border);
+	color: var(--text);
+}
+
+label.inline {
+	display: inline-block;
+	margin: 0;
+}
+
+.endpoint-url {
+	flex: 1;
+	min-width: 200px;
+	padding: 6px 8px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}

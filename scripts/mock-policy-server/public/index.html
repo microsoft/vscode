@@ -1,0 +1,92 @@
+<!--
+	Copyright (c) Microsoft Corporation. All rights reserved.
+	Licensed under the MIT License. See License.txt in the project root for license information.
+-->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Mock Copilot policy endpoints</title>
+	<link rel="stylesheet" href="./style.css" />
+</head>
+
+<body>
+	<header>
+		<h1>Mock Copilot <span class="accent">policy</span> endpoints</h1>
+		<p class="sub">Author the responses Code OSS receives from the
+			<code>copilot_internal</code> policy endpoints, then wire them into
+			<code>product.overrides.json</code>.</p>
+	</header>
+
+	<main>
+		<section class="panel">
+			<nav id="tabs" class="tabs" role="tablist"></nav>
+
+			<p id="endpoint-meta" class="hint"></p>
+
+			<div class="row">
+				<label for="preset" class="inline">Preset</label>
+				<select id="preset"></select>
+				<button id="load-preset" type="button">Load</button>
+			</div>
+			<p id="preset-description" class="hint"></p>
+
+			<label for="editor">Response body (JSON)</label>
+			<textarea id="editor" spellcheck="false" autocomplete="off"></textarea>
+			<p id="editor-status" class="status" aria-live="polite"></p>
+
+			<div class="row">
+				<button id="save" type="button" class="primary">Save</button>
+				<button id="format" type="button">Format JSON</button>
+				<span id="endpoint-url" class="code endpoint-url"></span>
+			</div>
+		</section>
+
+		<aside class="panel">
+			<h2>Wiring</h2>
+			<p>Status: <strong id="wired-status">…</strong></p>
+			<div class="row">
+				<button id="wire" type="button" class="primary">Wire all endpoints</button>
+				<button id="unwire" type="button">Unwire</button>
+			</div>
+			<p class="hint">Writes <code id="overrides-path"></code>, pointing every
+				<code>defaultChatAgent</code> policy URL at this server and preserving
+				all other keys. Overrides only apply with <code>VSCODE_DEV</code> set
+				(running from sources) and after a reload.</p>
+
+			<h2>Apply in Code OSS</h2>
+			<ol class="hint">
+				<li>Reload the window.</li>
+				<li>Sign in with the Copilot/GitHub account.</li>
+				<li>Run <strong>Developer: Sync Account Policy</strong>.</li>
+				<li>Run <strong>Developer: Policy Diagnostics</strong> to inspect applied values.</li>
+			</ol>
+
+			<h2>Managed settings schema</h2>
+			<p class="hint">Source: <code id="schema-source">…</code></p>
+			<p>Status: <strong id="schema-status">…</strong></p>
+			<div class="row">
+				<button id="toggle-schema" type="button">View schema</button>
+				<button id="refresh-schema" type="button">Refresh</button>
+			</div>
+			<pre id="schema-view" class="code schema-view" hidden></pre>
+			<p class="hint">Set the source with <code>--schema &lt;url|file-uri|path&gt;</code> or
+				<code>MANAGED_SETTINGS_SCHEMA</code>. Default is
+				<code>./copilot-agent-runtime/schema/managed-settings-schema.json</code>
+				relative to the cwd. When loaded, the Managed Settings tab warns about
+				top-level keys not declared in the schema.</p>
+
+			<h2>Flow</h2>
+			<p class="hint">Entitlements gate everything: the token and managed_settings
+				are only fetched when <code>chat_enabled</code> is true, and the MCP
+				registry only when the token enables <code>mcp</code>.</p>
+		</aside>
+	</main>
+
+	<script src="./endpoints.js"></script>
+	<script src="./app.js"></script>
+</body>
+
+</html>
