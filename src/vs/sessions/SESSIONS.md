@@ -190,9 +190,10 @@ Sessions produce file changes organized into **`ISessionChangeset`** groups — 
    → Provider creates the backend chat model and returns an IChat
    → Management fires onWillSendRequest(session); the view follows the send to
      keep the newest chat active in the visible slot
-  → ChatView locks the embedded ChatWidget to the contributed chat session type
-    (for example agent-host-codex) before setting the model, so follow-up turns
-    keep routing to the provider that owns the session; local chat sessions unlock
+  → ChatView clears the embedded ChatWidget before loading a different chat,
+    then locks it to the contributed chat session type (for example
+    agent-host-codex) before setting the model, so follow-up turns keep routing
+    to the provider that owns the session; local chat sessions unlock
    → Delegates to provider.sendRequest(sessionId, chatResource, options)
    → Provider sends request, returns committed session
    → Management fires onDidStartSession(committedSession) + onDidSendRequest(...)
