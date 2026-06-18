@@ -7,7 +7,7 @@ import { disposableTimeout } from '../../../base/common/async.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
-import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationRegistry } from '../common/changesetOperation.js';
+import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationRegistry } from '../common/agentHostChangesetOperation.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetOperation } from '../common/state/sessionState.js';
 import { AgentHostPullRequestOperationHandler, type PullRequestCreatedEvent } from './agentHostPullRequestOperationHandler.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
@@ -30,14 +30,14 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		const key = this._key(event.sessionKey, event.branchName);
 		this._optimisticCreatedPullRequests.set(key, disposableTimeout(() => {
 			this._optimisticCreatedPullRequests.deleteAndDispose(key);
-			this._registry?.onDidChangeOperations(event.sessionKey, event.changeset);
+			this._registry?.onDidChangeOperations(event.sessionKey);
 		}, OPTIMISTIC_PR_CREATED_CACHE_TTL));
 
-		this._registry?.onDidChangeOperations(event.sessionKey, event.changeset);
-		this._registry?.refreshSessionGitState(event.sessionKey, event.changeset).finally(() => {
+		this._registry?.onDidChangeOperations(event.sessionKey);
+		this._registry?.refreshSessionGitState(event.sessionKey).finally(() => {
 			if (this._optimisticCreatedPullRequests.has(key)) {
 				this._optimisticCreatedPullRequests.deleteAndDispose(key);
-				this._registry?.onDidChangeOperations(event.sessionKey, event.changeset);
+				this._registry?.onDidChangeOperations(event.sessionKey);
 			}
 		});
 	};

@@ -33,7 +33,7 @@ import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPlu
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentActionSignal, type IAgentSessionMetadata } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { buildSubagentSessionUri, CustomizationLoadStatus, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, customizationId, type ClientPluginCustomization, type MarkdownResponsePart, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
+import { buildSubagentSessionUri, buildChatUri, CustomizationLoadStatus, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, customizationId, type ClientPluginCustomization, type MarkdownResponsePart, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
 import { CustomizationType, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction, type IDeltaAction, type SessionAction } from '../../common/state/sessionActions.js';
 
@@ -1672,6 +1672,114 @@ suite('CopilotAgent', () => {
 				const sessionUri = AgentSession.uri('copilotcli', 'session-missing');
 				// No stub installed — the call should be silently ignored.
 				agent.onClientToolCallComplete(sessionUri, 'tc-x', { success: true, pastTenseMessage: 'noop' });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('routes a peer chat URI to its chat-session entry', async () => {
+			// Client-tool completions for tools running inside an additional
+			// (non-default) chat are dispatched against the chat channel URI.
+			// The agent must resolve that to the `_chatSessions` entry, which
+			// is keyed by the chat URI string rather than a session id.
+			const agent = createTestAgent(disposables);
+			try {
+				const sessionUri = AgentSession.uri('copilotcli', 'session-with-peer');
+				const chatUri = URI.parse(buildChatUri(sessionUri, 'peer-1'));
+				const calls: { toolCallId: string; result: ToolCallResult }[] = [];
+				const stub = {
+					handleClientToolCallComplete(toolCallId: string, result: ToolCallResult) { calls.push({ toolCallId, result }); },
+					dispose() { },
+				};
+				(agent as unknown as { _chatSessions: Map<string, unknown> })._chatSessions.set(chatUri.toString(), stub);
+
+				const result: ToolCallResult = { success: true, pastTenseMessage: 'peer done' };
+				agent.onClientToolCallComplete(chatUri, 'tc-peer', result);
+
+				assert.deepStrictEqual(calls, [{ toolCallId: 'tc-peer', result }]);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+	});
+
+	suite('peer chat routing and lifecycle', () => {
+
+		/** Installs a stub peer chat into `_chatSessions` keyed by the chat URI. */
+		function installStubChat(agent: CopilotAgent, chatUri: URI, options?: { permissionOwner?: string; inputOwner?: string }) {
+			const events: string[] = [];
+			let disposed = false;
+			const stub = {
+				respondToPermissionRequest(requestId: string, approved: boolean): boolean {
+					if (options?.permissionOwner === requestId) {
+						events.push(`perm:${requestId}:${approved}`);
+						return true;
+					}
+					return false;
+				},
+				respondToUserInputRequest(requestId: string, response: unknown): boolean {
+					if (options?.inputOwner === requestId) {
+						events.push(`input:${requestId}`);
+						return true;
+					}
+					return false;
+				},
+				handleClientToolCallComplete() { },
+				dispose() { disposed = true; },
+			};
+			(agent as unknown as { _chatSessions: Map<string, unknown> })._chatSessions.set(chatUri.toString(), stub);
+			return { events, isDisposed: () => disposed };
+		}
+
+		test('respondToPermissionRequest routes to a peer chat session', async () => {
+			const agent = createTestAgent(disposables);
+			try {
+				const sessionUri = AgentSession.uri('copilotcli', 'session-perm');
+				const chatUri = URI.parse(buildChatUri(sessionUri, 'peer-perm'));
+				const chat = installStubChat(agent, chatUri, { permissionOwner: 'req-1' });
+
+				agent.respondToPermissionRequest('req-1', true);
+
+				assert.deepStrictEqual(chat.events, ['perm:req-1:true']);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('respondToUserInputRequest routes to a peer chat session', async () => {
+			const agent = createTestAgent(disposables);
+			try {
+				const sessionUri = AgentSession.uri('copilotcli', 'session-input');
+				const chatUri = URI.parse(buildChatUri(sessionUri, 'peer-input'));
+				const chat = installStubChat(agent, chatUri, { inputOwner: 'req-2' });
+
+				agent.respondToUserInputRequest('req-2', 'submit' as never);
+
+				assert.deepStrictEqual(chat.events, ['input:req-2']);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('disposeSession disposes the session\'s peer chats', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+
+				const result = await agent.createSession({
+					session: AgentSession.uri('copilotcli', 'parent-with-peers'),
+					workingDirectory: URI.file('/workspace'),
+				});
+				const chatUri = URI.parse(buildChatUri(result.session, 'peer-x'));
+				const chat = installStubChat(agent, chatUri);
+
+				await agent.disposeSession(result.session);
+
+				assert.strictEqual(chat.isDisposed(), true, 'peer chat should be disposed with its parent session');
+				const chatSessions = (agent as unknown as { _chatSessions: Map<string, unknown> })._chatSessions;
+				assert.strictEqual(chatSessions.has(chatUri.toString()), false, 'peer chat entry should be removed');
 			} finally {
 				await disposeAgent(agent);
 			}

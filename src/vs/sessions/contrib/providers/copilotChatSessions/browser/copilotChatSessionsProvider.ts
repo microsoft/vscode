@@ -1829,6 +1829,13 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		throw new Error('Renaming is not supported for this session type');
 	}
 
+	async renameSession(sessionId: string, title: string): Promise<void> {
+		const session = this._findSession(sessionId);
+		if (session) {
+			await this.renameChat(sessionId, session.mainChat.get().resource, title);
+		}
+	}
+
 	async deleteChat(sessionId: string, chatUri: URI): Promise<void> {
 		const session = this._findSession(sessionId);
 
@@ -2389,11 +2396,21 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				}));
 			});
 
-			// The adapter should appear almost immediately after the commit
-			// event via _refreshSessionCache; use a short safety timeout.
+			// The adapter normally appears within a few hundred ms of the commit
+			// event via _refreshSessionCache, but the refresh is gated on the
+			// underlying provider's `provideChatSessionItems` call. Some legacy
+			// providers (notably Copilot CLI's V1 contribution) scan disk for
+			// session metadata on every refresh and can take 10+ seconds when
+			// the on-disk session list is large or cold. If we give up too
+			// early the chat widget never gets re-bound from the untitled URI
+			// to the committed SDK session URI, so a follow-up message would
+			// spawn a brand new SDK session instead of continuing the existing
+			// one. Use a generous timeout that covers the slowest realistic
+			// refresh while still failing loudly if something is genuinely
+			// stuck.
 			const result = await raceTimeout(
 				token ? raceCancellationError(sessionPromise, token) : sessionPromise,
-				5_000,
+				30_000,
 			);
 			if (!result) {
 				throw new Error('Timed out waiting for committed session in cache');
@@ -2901,6 +2918,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			mainChat,
 			capabilities: {
 				supportsMultipleChats: primaryChat.sessionType === CopilotCLISessionType.id && this._isMultiChatEnabled(),
+				supportsRename: this._sessionTypeSupportsRename(primaryChat.sessionType),
 				// Cloud-agent sessions run worktreeCreated tasks server-side during
 				// environment provisioning, so the agents-window dispatcher must
 				// not re-run them. CLI / local sessions don't.
@@ -2940,9 +2958,18 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			mainChat,
 			capabilities: {
 				supportsMultipleChats: false,
+				supportsRename: this._sessionTypeSupportsRename(chat.sessionType),
 				runsWorktreeCreatedTasks: chat.sessionType === CopilotCloudSessionType.id,
 			},
 		};
+	}
+
+	/**
+	 * Whether {@link renameChat} can rename a session of the given type. Only
+	 * the CopilotCLI and Claude backends expose a rename command; others throw.
+	 */
+	private _sessionTypeSupportsRename(sessionType: string): boolean {
+		return sessionType === CopilotCLISessionType.id || sessionType === AgentSessionProviders.Claude;
 	}
 
 	private _toChat(chat: ICopilotChatSession, resource?: URI): IChat {

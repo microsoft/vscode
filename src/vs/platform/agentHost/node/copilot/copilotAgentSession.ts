@@ -7,7 +7,7 @@ import type { CopilotSession, ExitPlanModeRequest, MessageOptions, PermissionReq
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { CancellationError } from '../../../../base/common/errors.js';
+import { CancellationError, getErrorMessage } from '../../../../base/common/errors.js';
 import { escapeMarkdownSyntaxTokens } from '../../../../base/common/htmlContent.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -347,6 +347,9 @@ export interface ICopilotAgentSessionOptions {
 export class CopilotAgentSession extends Disposable {
 	readonly sessionId: string;
 	readonly sessionUri: URI;
+
+	/** Working directory this session operates in, if any. */
+	get workingDirectory(): URI | undefined { return this._workingDirectory; }
 
 	/** Tracks active tool invocations so we can produce past-tense messages on completion. */
 	private readonly _activeToolCalls = new Map<string, { toolName: string; displayName: string; parameters: Record<string, unknown> | undefined; content: ToolResultContent[]; parentToolCallId: string | undefined; startTimeMs: number; mcpServerName: string | undefined; meta: Record<string, unknown> | undefined }>();
@@ -1001,6 +1004,11 @@ export class CopilotAgentSession extends Disposable {
 				await this._wrapper.session.rpc.history.compact();
 				this.emitInitialMarkdown(localize('copilotAgent.compactionCompleted', "Compaction completed"));
 			} catch (err) {
+				if (getErrorMessage(err).toLowerCase().includes('nothing to compact')) {
+					this.emitInitialMarkdown(localize('copilotAgent.compactionCompleted', "Compaction completed"));
+					this._completeActiveTurn();
+					return;
+				}
 				this._logService.error(err, `[Copilot:${this.sessionId}] rpc.history.compact failed`);
 				throw err;
 			}

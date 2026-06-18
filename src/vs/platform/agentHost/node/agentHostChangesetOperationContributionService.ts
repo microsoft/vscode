@@ -11,9 +11,10 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, readSessionGitState, type ChangesetOperation, type ErrorInfo, type ISessionGitState } from '../common/state/sessionState.js';
-import type { IChangesetOperationContribution, IChangesetOperationContributionService, IChangesetOperationContext, IChangesetOperationHandler, IChangesetOperationRegistry } from '../common/changesetOperation.js';
+import type { IChangesetOperationContribution, IChangesetOperationContributionService, IChangesetOperationContext, IChangesetOperationHandler, IChangesetOperationRegistry } from '../common/agentHostChangesetOperation.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { AgentHostSessionGitStateService } from './agentHostSessionGitStateService.js';
+import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 
 export class AgentHostChangesetOperationContributionService extends Disposable implements IChangesetOperationContributionService {
 
@@ -25,12 +26,13 @@ export class AgentHostChangesetOperationContributionService extends Disposable i
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
 		private readonly _sessionGitStateService: AgentHostSessionGitStateService,
+		@IAgentHostChangesetSubscriptionService private readonly _changesetSubscriptions: IAgentHostChangesetSubscriptionService,
 	) {
 		super();
 		this._registry = {
 			registerChangesetOperationHandler: (operationId, handler) => this._registerChangesetOperationHandler(operationId, handler),
-			onDidChangeOperations: (sessionKey, changeset) => this.updateOperations(sessionKey, [changeset]),
-			refreshSessionGitState: (sessionKey, changeset) => this._refreshSessionGitStateAndOperations(sessionKey, changeset),
+			onDidChangeOperations: sessionKey => this.updateOperations(sessionKey),
+			refreshSessionGitState: sessionKey => this._refreshSessionGitStateAndOperations(sessionKey),
 		};
 	}
 
@@ -45,7 +47,7 @@ export class AgentHostChangesetOperationContributionService extends Disposable i
 		});
 	}
 
-	updateOperations(sessionKey: string, changesets: Iterable<string>, gitState?: ISessionGitState): void {
+	updateOperations(sessionKey: string, changeset?: string, gitState?: ISessionGitState): void {
 		if (!gitState) {
 			const sessionState = this._stateManager.getSessionState(sessionKey);
 			gitState = readSessionGitState(sessionState?._meta);
@@ -53,6 +55,10 @@ export class AgentHostChangesetOperationContributionService extends Disposable i
 				return;
 			}
 		}
+
+		const changesets = changeset
+			? [changeset]
+			: this._changesetSubscriptions.getSessionSubscriptions(sessionKey);
 
 		for (const changeset of changesets) {
 			const parsed = parseChangesetUri(changeset);
@@ -85,13 +91,13 @@ export class AgentHostChangesetOperationContributionService extends Disposable i
 		return operations.length > 0 ? operations : undefined;
 	}
 
-	private async _refreshSessionGitStateAndOperations(sessionKey: string, changeset: string): Promise<void> {
+	private async _refreshSessionGitStateAndOperations(sessionKey: string): Promise<void> {
 		const gitState = await this._sessionGitStateService.refreshSessionGitState(sessionKey);
 		if (!gitState) {
 			return;
 		}
 
-		this.updateOperations(sessionKey, [changeset], gitState);
+		this.updateOperations(sessionKey, undefined, gitState);
 	}
 
 	async invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
