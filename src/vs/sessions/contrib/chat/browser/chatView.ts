@@ -186,15 +186,20 @@ export class ChatView extends AbstractChatView {
 			return;
 		}
 
+		const previousChatResource = this._currentChatResource;
 		this._currentChatResource = resource;
 
 		// Cancel any in-flight load for the previous chat and start a fresh one.
+		this._loadCts.value?.cancel();
+		if (previousChatResource) {
+			this._clearCurrentChat();
+		}
 		const cts = new CancellationTokenSource();
 		this._loadCts.value = cts;
 		const token = cts.token;
 
 		const loadPromise = this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatView').then(ref => {
-			if (token.isCancellationRequested || !ref) {
+			if (token.isCancellationRequested || !ref || !isEqual(this._currentChatResource, resource)) {
 				ref?.dispose();
 				return;
 			}
@@ -214,6 +219,12 @@ export class ChatView extends AbstractChatView {
 		// matching how each editor group shows progress independently. The short
 		// delay avoids flashing the bar for fast cached loads.
 		this.showProgressWhile(loadPromise, 800);
+	}
+
+	private _clearCurrentChat(): void {
+		void this._widget.clear();
+		this._widget.setModel(undefined);
+		this._modelRef.clear();
 	}
 
 	private _applyHistoryKey(): void {
