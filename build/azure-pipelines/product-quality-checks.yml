@@ -127,6 +127,8 @@ jobs:
         continueOnError: true
         condition: and(succeeded(), eq(lower(variables['VSCODE_PUBLISH']), 'true'))
 
+      - template: ./common/mixin-vscode-capi.yml@self
+
       - script: npm exec -- npm-run-all2 -lp core-ci hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
         env:
           GITHUB_TOKEN: "$(github-distro-mixin-password)"
