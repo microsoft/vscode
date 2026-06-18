@@ -27,6 +27,9 @@ import { IParsedAgent, IParsedPlugin, IParsedRule, IParsedSkill, parseAgentFile,
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
+import { IProductService } from '../../../product/common/productService.js';
+import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
+import { buildCopilotCorrelationIds, wireCopilotCorrelationIds } from './copilotCorrelationIds.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import { createAgentModelPricingMeta } from '../../common/agentModelPricing.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
@@ -656,6 +659,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 			};
 			const client = this._createCopilotClient(clientOptions);
 			await client.start();
+			this._instantiationService.invokeFunction(accessor => {
+				const telemetryService = accessor.get(ITelemetryService);
+				const productService = accessor.get(IProductService);
+				this._register(wireCopilotCorrelationIds(client, () => buildCopilotCorrelationIds(telemetryService, productService)));
+			});
 			if (this._isSessionSyncEnabled() !== sessionSyncAtStartup || this._isRubberDuckEnabled() !== rubberDuckAtStartup) {
 				await client.stop();
 				throw new Error('Copilot startup config changed while the client was starting');
