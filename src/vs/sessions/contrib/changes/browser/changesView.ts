@@ -291,7 +291,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable {
 		});
 
 		this._register(autorun(reader => {
-			const operationActionGroups = operationActionGroupssObs.read(reader);
+			const operationActionGroups = operationActionGroupsObs.read(reader);
 			const menuActions = menuActionsObs.read(reader);
 
 			const primaryActions: IAction[] = [];
