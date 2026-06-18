@@ -251,7 +251,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable {
 			return getActionBarActions(menu.getActions({ shouldForwardArgs: true }));
 		});
 
-		const operationActionGroupssObs = derived<IAction[][]>(reader => {
+		const operationActionGroupsObs = derived<IAction[][]>(reader => {
 			const changeset = viewModel.activeSessionChangesetObs.read(reader);
 			if (!changeset) {
 				return [];
