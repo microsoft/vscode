@@ -185,19 +185,12 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 			return undefined;
 		}
 
-		// Managed settings arrive from two delivery channels: the server `managed_settings`
-		// endpoint (carried on `accountPolicyData`) and native MDM (the Copilot managed-settings
-		// service). These are NOT merged: at any point in time there is a single authoritative
-		// source. The server is harder to bypass than local MDM/file policies, so when the server
-		// delivers managed settings it wins outright and native MDM is ignored entirely. Native
-		// MDM only applies when the server provides no managed settings. Client-side merging still
-		// happens *within* the winning layer (e.g. enabledPlugins, extraKnownMarketplaces).
+		// Single authoritative source: server-delivered managed settings win over native MDM.
+		// See `.github/skills/add-policy/github-managed-settings.md` for the precedence rationale.
 		const serverManagedSettings = accountPolicyData?.managedSettings;
 		const hasServerManagedSettings = serverManagedSettings && Object.keys(serverManagedSettings).length > 0;
 		const winningManagedSettings = hasServerManagedSettings ? serverManagedSettings : nativeManagedSettings;
 
-		// Project the winning layer onto the schema declared by policy definitions so both
-		// channels honor the same declaration-driven keys and value types.
 		const declaredManagedSettings = collectManagedSettingsDefinitions(this.policyDefinitions);
 		const managedSettingsData = projectManagedSettings(
 			{ ...winningManagedSettings },
