@@ -60,8 +60,8 @@ export class LocalAgentDisabledInputTipContribution extends Disposable implement
 		this.notificationService.setNotification({
 			id: LocalAgentDisabledInputTipContribution.NOTIFICATION_ID,
 			severity: ChatInputNotificationSeverity.Info,
-			message: localize('chat.localAgentDisabled.continueInAgentHostCopilot.message', "Copilot CLI [Agent Host] is available for use, continuing from this local session."),
-			description: localize('chat.localAgentDisabled.continueInAgentHostCopilot.description', "Select Copilot CLI [Agent Host] from Continue In to continue this local harness history there. To keep using local and turn off this notification, set \"chat.editor.localAgent.enabled\" to true."),
+			message: localize('chat.localAgentDisabled.continueInAgentHostCopilot.message', "Copilot CLI [Agent Host] can continue with this local chat history."),
+			description: localize('chat.localAgentDisabled.continueInAgentHostCopilot.description', "Use Continue In to move this local harness history to Copilot CLI [Agent Host]. To keep using local and turn off this notification, set \"chat.editor.localAgent.enabled\" to true."),
 			actions: [],
 			dismissible: true,
 			autoDismissOnMessage: false,
