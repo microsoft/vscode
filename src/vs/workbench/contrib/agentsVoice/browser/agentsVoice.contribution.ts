@@ -158,10 +158,18 @@ registerAction2(class extends Action2 {
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const voiceController = accessor.get(IVoiceSessionController);
+		console.log('[AgentsVoice] mic button clicked, isConnected:', voiceController.isConnected.get(), 'isConnecting:', voiceController.isConnecting.get());
 		if (voiceController.isConnected.get()) {
+			console.log('[AgentsVoice] disconnecting...');
 			voiceController.disconnect();
 		} else {
-			await voiceController.connect(mainWindow);
+			console.log('[AgentsVoice] connecting...');
+			try {
+				await voiceController.connect(mainWindow);
+				console.log('[AgentsVoice] connect resolved, isConnected:', voiceController.isConnected.get());
+			} catch (e) {
+				console.error('[AgentsVoice] connect failed:', e);
+			}
 		}
 	}
 });
