@@ -1,0 +1,7 @@
+services:
+  build-vsix:
+    build:
+      context: .
+      dockerfile: Dockerfile.build-vsix
+    volumes:
+      - ./dist-vsix:/dist
