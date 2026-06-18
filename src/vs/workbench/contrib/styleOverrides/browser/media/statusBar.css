@@ -16,3 +16,33 @@
 .style-override-statusBar .part.statusbar {
 	color: var(--vscode-foreground) !important;
 }
+
+/*
+ * Round the status bar item backgrounds to a control-sized pill. The interactive
+ * hover/active background lives on the label (`a.statusbar-item-label`); custom
+ * and kind (warning/error) backgrounds live on the item container. Round both so
+ * whichever surface paints a background reads as rounded.
+ *
+ * Compact combo controls — a left/right pair that visually merges into a single
+ * control — are flagged with `.compact-left` / `.compact-right` (an item can be
+ * both, when it sits in the middle of a 3+ combo). Only the combo's outer corners
+ * are rounded so the pair reads as one pill: `.compact-left` joins its neighbor on
+ * the left (square left, round right), `.compact-right` joins on the right (square
+ * right, round left), and a middle item stays square on both sides.
+ */
+.style-override-statusBar .part.statusbar > .items-container > .statusbar-item,
+.style-override-statusBar .part.statusbar > .items-container > .statusbar-item > .statusbar-item-label {
+	border-radius: var(--vscode-cornerRadius-small, 4px);
+}
+
+.style-override-statusBar .part.statusbar > .items-container > .statusbar-item.compact-left,
+.style-override-statusBar .part.statusbar > .items-container > .statusbar-item.compact-left > .statusbar-item-label {
+	border-top-left-radius: 0;
+	border-bottom-left-radius: 0;
+}
+
+.style-override-statusBar .part.statusbar > .items-container > .statusbar-item.compact-right,
+.style-override-statusBar .part.statusbar > .items-container > .statusbar-item.compact-right > .statusbar-item-label {
+	border-top-right-radius: 0;
+	border-bottom-right-radius: 0;
+}
