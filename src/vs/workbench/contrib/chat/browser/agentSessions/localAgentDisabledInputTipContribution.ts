@@ -5,7 +5,9 @@
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ChatConfiguration } from '../../common/constants.js';
@@ -14,11 +16,23 @@ import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IChatWidget, IChatWidgetService, isIChatResourceViewContext } from '../chat.js';
 import { ChatInputNotificationSeverity, IChatInputNotificationService } from '../widget/input/chatInputNotificationService.js';
 
+const LOCAL_AGENT_DISABLED_NOTIFICATION_ID = 'chat.localAgentDisabled.continueInAgentHostCopilot';
+export const LOCAL_AGENT_DISABLED_CONTINUE_IN_AGENT_HOST_COPILOT_COMMAND_ID = '_chat.localAgentDisabled.continueInAgentHostCopilot';
+
+CommandsRegistry.registerCommand(LOCAL_AGENT_DISABLED_CONTINUE_IN_AGENT_HOST_COPILOT_COMMAND_ID, async (accessor: ServicesAccessor) => {
+	const chatWidgetService = accessor.get(IChatWidgetService);
+	const chatSessionsService = accessor.get(IChatSessionsService);
+	const widget = chatWidgetService.lastFocusedWidget;
+	if (!widget || !chatSessionsService.getChatSessionContribution(SessionType.AgentHostCopilot)) {
+		return;
+	}
+
+	widget.input.continueInSession(SessionType.AgentHostCopilot);
+});
+
 export class LocalAgentDisabledInputTipContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.localAgentDisabledInputTip';
-
-	private static readonly NOTIFICATION_ID = 'chat.localAgentDisabled.continueInAgentHostCopilot';
 
 	private _lastPostedFor: string | undefined;
 
@@ -58,11 +72,14 @@ export class LocalAgentDisabledInputTipContribution extends Disposable implement
 
 		this._lastPostedFor = key;
 		this.notificationService.setNotification({
-			id: LocalAgentDisabledInputTipContribution.NOTIFICATION_ID,
+			id: LOCAL_AGENT_DISABLED_NOTIFICATION_ID,
 			severity: ChatInputNotificationSeverity.Info,
-			message: localize('chat.localAgentDisabled.continueInAgentHostCopilot.message', "Copilot CLI [Agent Host] can continue with this local chat history."),
-			description: localize('chat.localAgentDisabled.continueInAgentHostCopilot.description', "Use Continue In to move this local harness history to Copilot CLI [Agent Host]. To keep using local and turn off this notification, set \"chat.editor.localAgent.enabled\" to true."),
-			actions: [],
+			message: localize('chat.localAgentDisabled.continueInAgentHostCopilot.message', "Copilot CLI can continue with this local chat history."),
+			description: localize('chat.localAgentDisabled.continueInAgentHostCopilot.description', "Use Continue In to carry this local harness history forward. To keep using local and turn off this notification, set \"chat.editor.localAgent.enabled\" to true."),
+			actions: [{
+				label: localize('chat.localAgentDisabled.continueInAgentHostCopilot.action', "Continue In Copilot CLI"),
+				commandId: LOCAL_AGENT_DISABLED_CONTINUE_IN_AGENT_HOST_COPILOT_COMMAND_ID,
+			}],
 			dismissible: true,
 			autoDismissOnMessage: false,
 			sessionTypes: [localChatSessionType],
@@ -93,6 +110,6 @@ export class LocalAgentDisabledInputTipContribution extends Disposable implement
 			return;
 		}
 		this._lastPostedFor = undefined;
-		this.notificationService.deleteNotification(LocalAgentDisabledInputTipContribution.NOTIFICATION_ID);
+		this.notificationService.deleteNotification(LOCAL_AGENT_DISABLED_NOTIFICATION_ID);
 	}
 }

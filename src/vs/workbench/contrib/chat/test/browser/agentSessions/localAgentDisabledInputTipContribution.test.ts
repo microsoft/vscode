@@ -8,18 +8,20 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { IChatWidget, IChatWidgetService, IChatWidgetViewContext } from '../../../browser/chat.js';
-import { LocalAgentDisabledInputTipContribution } from '../../../browser/agentSessions/localAgentDisabledInputTipContribution.js';
+import { LocalAgentDisabledInputTipContribution, LOCAL_AGENT_DISABLED_CONTINUE_IN_AGENT_HOST_COPILOT_COMMAND_ID } from '../../../browser/agentSessions/localAgentDisabledInputTipContribution.js';
 import { ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from '../../../browser/widget/input/chatInputNotificationService.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { IChatViewModel } from '../../../common/model/chatViewModel.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { IChatSessionsExtensionPoint, localChatSessionType, SessionType } from '../../../common/chatSessionsService.js';
+import { IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType, SessionType } from '../../../common/chatSessionsService.js';
 import { MockChatSessionsService } from '../../common/mockChatSessionsService.js';
 
 class TestChatWidgetService implements IChatWidgetService {
@@ -153,8 +155,30 @@ suite('LocalAgentDisabledInputTipContribution', () => {
 		assert.strictEqual(notificationService.setCalls.length, 1);
 		assert.strictEqual(notificationService.setCalls[0].id, 'chat.localAgentDisabled.continueInAgentHostCopilot');
 		assert.strictEqual(notificationService.setCalls[0].severity, ChatInputNotificationSeverity.Info);
-		assert.strictEqual(notificationService.setCalls[0].actions.length, 0);
+		assert.strictEqual(notificationService.setCalls[0].actions.length, 1);
+		assert.strictEqual(notificationService.setCalls[0].actions[0].label, 'Continue In Copilot CLI');
+		assert.strictEqual(notificationService.setCalls[0].actions[0].commandId, LOCAL_AGENT_DISABLED_CONTINUE_IN_AGENT_HOST_COPILOT_COMMAND_ID);
 		assert.deepStrictEqual(notificationService.setCalls[0].sessionTypes, [localChatSessionType]);
+	});
+
+	test('continue action selects agent host Copilot as pending delegation target', async () => {
+		const instantiationService = new TestInstantiationService();
+		instantiationService.set(IChatWidgetService, widgetService);
+		instantiationService.set(IChatSessionsService, chatSessionsService);
+
+		let continuedInSession: string | undefined;
+		widgetService.setFocusedWidget(Object.assign(createWidget(), {
+			input: {
+				continueInSession: (provider: string) => continuedInSession = provider,
+			},
+		}) as unknown as IChatWidget);
+
+		const command = CommandsRegistry.getCommand(LOCAL_AGENT_DISABLED_CONTINUE_IN_AGENT_HOST_COPILOT_COMMAND_ID);
+		assert.ok(command);
+
+		await command.handler(instantiationService);
+
+		assert.strictEqual(continuedInSession, SessionType.AgentHostCopilot);
 	});
 
 	test('shows tip for normal Chat view sessions', () => {
