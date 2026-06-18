@@ -27,11 +27,14 @@ import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import type { IAction } from '../../../../../../base/common/actions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import type { IChatWidget } from '../../chat.js';
-import { ChatConfiguration } from '../../../common/constants.js';
+import { ChatConfiguration, isChatPermissionLevel } from '../../../common/constants.js';
+import { maybeConfirmElevatedPermissionLevel } from '../../../common/chatPermissionWarnings.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
@@ -219,6 +222,8 @@ export class AgentHostChatInputPicker extends Disposable {
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisional: IAgentHostUntitledProvisionalSessionService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
+		@IDialogService private readonly _dialogService: IDialogService,
+		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
 
@@ -482,7 +487,7 @@ export class AgentHostChatInputPicker extends Disposable {
 					void this._openerService.open(URI.parse(PERMISSION_MODE_LEARN_MORE_URL));
 					return;
 				}
-				void this._setValue(ctx.backendSession, item.value);
+				void this._confirmAndSetValue(ctx.backendSession, item.value);
 			},
 			onFilter: ctx.schema.enumDynamic
 				? query => this._filterDelayer.trigger(async () => {
@@ -569,6 +574,21 @@ export class AgentHostChatInputPicker extends Disposable {
 			return { ...(state.config?.values ?? {}), ...(overlay?.values ?? {}) };
 		}
 		return overlay?.values ?? this._initialResolved?.result.values;
+	}
+
+	/**
+	 * Surfaces the shared elevated-level warning for an Assisted / Bypass /
+	 * (legacy) Autopilot approval pick before applying it. Non-elevated levels
+	 * and non-approval properties apply directly.
+	 */
+	private async _confirmAndSetValue(backendSession: URI, value: string): Promise<void> {
+		if (this._property === SessionConfigKey.AutoApprove && isChatPermissionLevel(value)) {
+			const confirmed = await maybeConfirmElevatedPermissionLevel(value, this._dialogService, this._storageService, { defaultSettingKey: ChatConfiguration.AgentSessionDefaultApprovals });
+			if (!confirmed) {
+				return;
+			}
+		}
+		await this._setValue(backendSession, value);
 	}
 
 	private async _setValue(backendSession: URI, value: string): Promise<void> {

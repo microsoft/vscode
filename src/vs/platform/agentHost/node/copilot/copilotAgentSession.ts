@@ -2575,14 +2575,6 @@ export class CopilotAgentSession extends Disposable {
 		const questionId = generateUuid();
 		this._logService.info(`[Copilot:${this.sessionId}] exitPlanMode.request: rpcId=${requestId}, actions=[${data.actions.join(',')}], recommended=${data.recommendedAction}`);
 
-		// When the session is in `autopilot` mode, approve the plan
-		// automatically without surfacing a question to the user. Mirrors the
-		// "autopilot fast-path" in the Copilot CLI's own plan-mode handler.
-		if (this._isAutopilotMode()) {
-			const response = autoApproveExitPlanMode(data);
-			this._logService.info(`[Copilot:${this.sessionId}] exitPlanMode.request auto-accepted (mode=autopilot): selectedAction=${response.selectedAction ?? '(none)'}`);
-			return response;
-		}
 
 		// Resolve the plan file path so we can embed a markdown link.
 		let planPath: string | null = null;
@@ -2908,47 +2900,6 @@ export class CopilotAgentSession extends Disposable {
 	private _cancelPendingClientToolCalls(): void {
 		this._pendingClientToolCalls.denyAll({ textResultForLlm: 'Tool call cancelled: session ended', resultType: 'failure', error: 'Session ended' });
 	}
-}
-
-/**
- * Builds the {@link IExitPlanModeResponse} used when the session is in
- * autopilot and we approve the plan without user interaction.
- *
- * Selection priority mirrors the Copilot CLI's own autopilot handler.
- *
- * 1. If the SDK's `recommendedAction` is offered, take it.
- * 2. Otherwise fall back to `autopilot` → `autopilot_fleet` → `interactive`
- *    → `exit_only`.
- * 3. As a last resort, approve without picking a `selectedAction` (the SDK
- *    keeps `currentMode='interactive'` in that case).
- *
- * `autoApproveEdits: true` is set whenever the chosen action is one of the
- * autopilot variants, mirroring the CLI behavior.
- */
-function autoApproveExitPlanMode(data: ExitPlanModeRequest): IExitPlanModeResponse {
-	const choices = data.actions ?? [];
-	const isAutopilotAction = (action: string) => action === 'autopilot' || action === 'autopilot_fleet';
-
-	if (data.recommendedAction && choices.includes(data.recommendedAction)) {
-		const selectedAction = data.recommendedAction;
-		return {
-			approved: true,
-			selectedAction,
-			...(isAutopilotAction(selectedAction) ? { autoApproveEdits: true } : {}),
-		};
-	}
-
-	for (const action of ['autopilot', 'autopilot_fleet', 'interactive', 'exit_only']) {
-		if (choices.includes(action)) {
-			return {
-				approved: true,
-				selectedAction: action,
-				...(isAutopilotAction(action) ? { autoApproveEdits: true } : {}),
-			};
-		}
-	}
-
-	return { approved: true, autoApproveEdits: true };
 }
 
 /**

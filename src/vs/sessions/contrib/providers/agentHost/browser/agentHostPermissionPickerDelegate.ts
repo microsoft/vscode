@@ -8,7 +8,7 @@ import { derived, IObservable, IReader, observableSignal } from '../../../../../
 import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { narrowClaudePermissionMode } from '../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { IPermissionPickerDelegate } from '../../copilotChatSessions/browser/permissionPicker.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
@@ -74,6 +74,9 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		ChatPermissionLevel.Assisted,
 		ChatPermissionLevel.AutoApprove,
 	];
+
+	/** Agent-host sessions seed their default approval level from this setting. */
+	readonly defaultSettingKey = ChatConfiguration.AgentSessionDefaultApprovals;
 
 	constructor(
 		private readonly _session: IObservable<IActiveSession | undefined>,

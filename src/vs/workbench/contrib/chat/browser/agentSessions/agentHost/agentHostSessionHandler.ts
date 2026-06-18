@@ -28,6 +28,7 @@ import { CompletionItemKind as AhpCompletionItemKind, type CompletionItem as Ahp
 import { ConfirmationOptionKind, TerminalClaimKind, ToolCallContributorKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, ChatTurnStartedAction, isChatAction, type ChatAction, type ClientChatAction, type ClientSessionAction, type ChatInputCompletedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { buildSubagentSessionUri, getToolSubagentContent, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, buildDefaultChatUri, mergeSessionWithDefaultChat, type ChatState, type ISessionWithDefaultChat, type ClientPluginCustomization, type ICompletedToolCall, type MarkdownResponsePart, type Message, type MessageAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputRequest, type SessionState, type ToolCallResponsePart, type ToolCallState, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -58,7 +59,7 @@ import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { IChatWidgetService } from '../../chat.js';
-import { IChatToolRiskAssessmentService, ToolRiskLevel, type ToolRiskPromptKind } from '../../tools/chatToolRiskAssessmentService.js';
+import { IChatToolRiskAssessmentService, ToolRiskLevel, type IToolRiskAssessment, type ToolRiskPromptKind } from '../../tools/chatToolRiskAssessmentService.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
@@ -184,12 +185,58 @@ function parseToolInputParameters(toolInput: string | undefined): unknown {
 }
 
 /**
+ * Selects the risk rubric for an assisted-approval tool call. Shell/terminal
+ * tools MUST be assessed under the terminal rubric so dangerous commands (e.g.
+ * `rm -rf /`) are not misclassified as low-risk under the generic rubric. The
+ * `terminal` tool kind is authoritative; the parameter heuristic is only a
+ * fallback for tools that carry a `command` field without the kind metadata.
+ */
+export function resolveAssistedRiskKind(tc: ToolCallState, parameters: unknown): ToolRiskPromptKind {
+	if (getToolKind(tc) === 'terminal') {
+		return 'terminal';
+	}
+	return isLikelyTerminalParameters(parameters) ? 'terminal' : 'generic';
+}
+
+/**
+ * Builds the parameters object passed to the risk classifier. For terminal
+ * tools the classifier (and its cache key) expects a `command` field, so a raw
+ * shell command carried as a plain `toolInput` string is wrapped accordingly.
+ */
+export function buildAssistedRiskParameters(tc: ToolCallState, kind: ToolRiskPromptKind, parameters: unknown): unknown {
+	if (kind !== 'terminal') {
+		return parameters;
+	}
+	if (parameters && typeof parameters === 'object' && typeof (parameters as Record<string, unknown>).command === 'string') {
+		return parameters;
+	}
+	if (tc.status !== ToolCallStatus.Streaming && typeof tc.toolInput === 'string' && tc.toolInput) {
+		return { command: tc.toolInput };
+	}
+	return parameters;
+}
+
+/**
  * Heuristic for selecting the terminal risk rubric: agent-host shell tools
  * carry a `command` string in their parameters. Everything else is assessed
  * under the generic rubric.
  */
 function isLikelyTerminalParameters(parameters: unknown): boolean {
 	return !!parameters && typeof parameters === 'object' && typeof (parameters as Record<string, unknown>).command === 'string';
+}
+
+/**
+ * Fail-closed decision for the Assisted Approvals gate: a tool call is
+ * auto-approved only when the risk classifier returned a concrete, non-red
+ * assessment and the request was not cancelled. A missing assessment
+ * (model unavailable / unparseable) or a cancelled token surfaces the
+ * confirmation prompt instead.
+ */
+export function shouldAssistedAutoApprove(assessment: IToolRiskAssessment | undefined, cancelled: boolean): boolean {
+	if (cancelled) {
+		return false;
+	}
+	return !!assessment && assessment.risk !== ToolRiskLevel.Red;
 }
 
 /**
@@ -1520,8 +1567,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (tc.status !== ToolCallStatus.PendingConfirmation) {
 			return false;
 		}
-		const parameters = parseToolInputParameters(tc.toolInput);
-		const kind: ToolRiskPromptKind = isLikelyTerminalParameters(parameters) ? 'terminal' : 'generic';
+		const rawParameters = parseToolInputParameters(tc.toolInput);
+		const kind = resolveAssistedRiskKind(tc, rawParameters);
+		const parameters = buildAssistedRiskParameters(tc, kind, rawParameters);
 		const invocationText = stringOrMarkdownToString(tc.invocationMessage, this._config.connectionAuthority);
 		const modelDescription = typeof invocationText === 'string' ? invocationText : (invocationText?.value ?? tc.displayName);
 		const tool: IToolData = {
@@ -1532,11 +1580,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		};
 
 		const assessment = await this._riskAssessmentService.assess(tool, parameters, token, kind, { ignoreEnablement: true });
-		if (token.isCancellationRequested) {
-			return false;
-		}
-		// Fail closed: only auto-approve on a concrete low-risk result.
-		return !!assessment && assessment.risk !== ToolRiskLevel.Red;
+		// Fail closed: only auto-approve on a concrete low-risk result and when
+		// the request was not cancelled.
+		return shouldAssistedAutoApprove(assessment, token.isCancellationRequested);
 	}
 
 	// ---- Per-turn observable graph ------------------------------------------

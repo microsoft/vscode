@@ -3664,37 +3664,23 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(sessionConfigUpdates.length, 0);
 		});
 
-		// ---- autopilot fast-path -------------------------------------------
+		// ---- no automatic plan → implementation handoff -------------------
 
-		test('handleExitPlanModeRequest auto-accepts when mode=autopilot (recommended action)', async () => {
-			const { runtime, signals } = await createAgentSession(disposables, {
+		test('handleExitPlanModeRequest always surfaces the plan-review UI, even in autopilot mode', async () => {
+			const { session, runtime, waitForSignal } = await createAgentSession(disposables, {
 				configValues: { [SessionConfigKey.Mode]: 'autopilot' },
 			});
 
-			const response = await runtime.handleExitPlanModeRequest(planRequestParams({
+			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({
 				actions: ['autopilot', 'interactive', 'exit_only'],
 				recommendedAction: 'autopilot',
 			}), { sessionId: 'test-session-1' });
 
-			assert.deepStrictEqual(response, { approved: true, selectedAction: 'autopilot', autoApproveEdits: true });
-			// User-input request should NOT be surfaced to the client.
-			assert.strictEqual(signals.filter(s => isAction(s, ActionType.ChatInputRequested)).length, 0);
-		});
-
-		test('handleExitPlanModeRequest auto-accepts with priority order when no recommended action available', async () => {
-			const { runtime } = await createAgentSession(disposables, {
-				configValues: { [SessionConfigKey.Mode]: 'autopilot' },
-			});
-
-			// SDK proposes a recommended action that's NOT in the offered set —
-			// fall back to the priority order (autopilot > autopilot_fleet >
-			// interactive > exit_only).
-			const response = await runtime.handleExitPlanModeRequest(planRequestParams({
-				actions: ['interactive', 'exit_only'],
-				recommendedAction: 'autopilot_fleet',
-			}), { sessionId: 'test-session-1' });
-
-			assert.deepStrictEqual(response, { approved: true, selectedAction: 'interactive' });
+			// There is no automatic handoff from plan into implementation: the
+			// user must explicitly choose an action regardless of mode.
+			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
+			session.respondToUserInputRequest(getInputRequest(signal).id, ChatInputResponseKind.Decline);
+			await responsePromise;
 		});
 
 		test('handleExitPlanModeRequest does NOT auto-accept when autoApprove=default', async () => {

@@ -47,6 +47,12 @@ export interface IPermissionPickerDelegate {
 	 */
 	readonly availableLevels?: readonly ChatPermissionLevel[];
 	/**
+	 * The setting id the elevated-level warning dialog links to as "make this
+	 * the default". Defaults to `chat.permissions.default`; agent-host sessions
+	 * pass `chat.agentSessions.defaultApprovals`.
+	 */
+	readonly defaultSettingKey?: string;
+	/**
 	 * When defined and returns a non-empty state, the picker shows the extension-contributed
 	 * items in place of the built-in {@link ChatPermissionLevel} items.
 	 */
@@ -195,7 +201,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 						},
 						run: async () => {
 							// Elevated levels show a one-time confirmation warning.
-							if (meta.elevated && !await maybeConfirmElevatedPermissionLevel(level, this.dialogService, storageService)) {
+							if (meta.elevated && !await maybeConfirmElevatedPermissionLevel(level, this.dialogService, storageService, { defaultSettingKey: delegate.defaultSettingKey })) {
 								return;
 							}
 							delegate.setPermissionLevel(level);
