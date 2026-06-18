@@ -28,7 +28,7 @@ import { CompletionItemKind as AhpCompletionItemKind, type CompletionItem as Ahp
 import { ConfirmationOptionKind, TerminalClaimKind, ToolCallContributorKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, ChatTurnStartedAction, isChatAction, type ChatAction, type ClientChatAction, type ClientSessionAction, type ChatInputCompletedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { buildSubagentSessionUri, getToolSubagentContent, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, buildDefaultChatUri, mergeSessionWithDefaultChat, type ChatState, type ISessionWithDefaultChat, type ClientPluginCustomization, type ICompletedToolCall, type MarkdownResponsePart, type Message, type MessageAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputRequest, type SessionState, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentSessionUri, getToolSubagentContent, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, buildDefaultChatUri, mergeSessionWithDefaultChat, type ChatState, type ISessionWithDefaultChat, type ClientPluginCustomization, type ICompletedToolCall, type MarkdownResponsePart, type Message, type MessageAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputRequest, type SessionState, type ToolCallResponsePart, type ToolCallState, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -46,7 +46,7 @@ import {
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
 import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestion, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind, formatCopilotCredits, type IChatMultiSelectAnswer, type IChatQuestionAnswerValue, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
-import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { IChatEntitlementService, isProUser, type IQuotaSnapshot } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
@@ -128,6 +128,24 @@ function userOriginMessage(text: string, attachments: readonly MessageAttachment
 		: { text, origin: { kind: MessageKind.User } };
 }
 
+/**
+ * Shape of a single quota snapshot forwarded by the agent host under
+ * `UsageInfo._meta.quotaSnapshots` — the SDK's `account.getQuota` result
+ * (`AccountQuotaSnapshot`), keyed by quota type (`chat` / `completions` /
+ * `premium_interactions`). All fields are optional because they originate from
+ * a dynamically-read, server-controlled payload.
+ */
+interface IRawQuotaSnapshot {
+	readonly isUnlimitedEntitlement?: boolean;
+	readonly entitlementRequests?: number;
+	readonly usedRequests?: number;
+	readonly remainingPercentage?: number;
+	readonly overage?: number;
+	readonly overageAllowedWithExhaustedQuota?: boolean;
+	readonly usageAllowedWithExhaustedQuota?: boolean;
+	readonly hasQuota?: boolean;
+	readonly resetDate?: string;
+}
 /**
  * Map a local {@link ConfirmedReason} (how the {@link ChatToolInvocation}
  * resolved its confirmation gate) to the protocol's
@@ -515,6 +533,56 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			isUsageBasedBilling: quotas.usageBasedBilling,
 			quotaResetDate: quotas.resetDate,
 		};
+	}
+
+	/**
+	 * Pushes the per-response quota snapshots forwarded by the agent host
+	 * (under `UsageInfo._meta.quotaSnapshots`) into `IChatEntitlementService`,
+	 * mirroring the Copilot Chat extension's `chat.updateQuotas(...)` after each
+	 * response. Without this the chat input quota notification never renders in
+	 * the agent host because the entitlement service is only refreshed on a
+	 * slow background poll, never per-response.
+	 */
+	private _applyQuotaSnapshotsFromUsage(usage: UsageInfo | undefined): void {
+		const snapshots = usage?._meta?.quotaSnapshots;
+		if (!snapshots || typeof snapshots !== 'object') {
+			return;
+		}
+
+		const record = snapshots as Record<string, IRawQuotaSnapshot | undefined>;
+		const entitlement = this._chatEntitlementService.entitlement;
+		// Paid plans draw down premium interactions; everyone else (signed out,
+		// unresolved, Free-eligible, or signed-up Free) is tracked under `chat`.
+		const isFree = !isProUser(entitlement);
+		const raw = isFree ? record['chat'] : (record['premium_interactions'] ?? record['premium_models']);
+		if (!raw) {
+			return;
+		}
+
+		const entitlementCount = raw.entitlementRequests;
+		const unlimited = raw.isUnlimitedEntitlement ?? entitlementCount === -1;
+		const percentRemaining = Math.max(0, Math.min(100, raw.remainingPercentage ?? 0));
+		const snapshot: IQuotaSnapshot = {
+			percentRemaining,
+			unlimited,
+			// Prefer the server's authoritative `hasQuota` (an "unlimited" plan can
+			// still be blocked, e.g. exhausted Business/Enterprise); fall back to a
+			// derivation only when it is absent.
+			hasQuota: raw.hasQuota ?? (unlimited || percentRemaining > 0),
+			entitlement: typeof entitlementCount === 'number' && Number.isFinite(entitlementCount) ? entitlementCount : undefined,
+		};
+
+		const existing = this._chatEntitlementService.quotas;
+		const quotas = {
+			...existing,
+			resetDate: raw.resetDate ?? existing.resetDate,
+			chat: isFree ? snapshot : existing.chat,
+			premiumChat: isFree ? existing.premiumChat : snapshot,
+			additionalUsageEnabled: raw.overageAllowedWithExhaustedQuota ?? existing.additionalUsageEnabled,
+			additionalUsageCount: raw.overage ?? existing.additionalUsageCount,
+		};
+
+		this._chatEntitlementService.acceptQuotas(quotas);
 	}
 
 	async provideChatInputCompletions(sessionResource: URI, params: IChatInputCompletionsParams, token: CancellationToken): Promise<IChatInputCompletionsResult | undefined> {
@@ -1506,7 +1574,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (opts.subAgentInvocationId === undefined) {
 			let lastUsage: ReturnType<typeof usageInfoToChatUsage>;
 			store.add(autorun(reader => {
-				const usage = usageInfoToChatUsage(usage$.read(reader));
+				const rawUsage = usage$.read(reader);
+				// Update the core quota state (and thus the chat input quota
+				// notification) from the per-response quota snapshots forwarded
+				// by the agent host. Mirrors the Copilot Chat extension, which
+				// calls `chat.updateQuotas(...)` after each response.
+				this._applyQuotaSnapshotsFromUsage(rawUsage);
+				const usage = usageInfoToChatUsage(rawUsage);
 				if (!usage) {
 					return;
 				}
