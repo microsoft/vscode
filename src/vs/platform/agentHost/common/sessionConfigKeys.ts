@@ -24,7 +24,7 @@ export const enum SessionConfigKey {
 	Isolation = 'isolation',
 	/** `'branch'` — base branch to work from. */
 	Branch = 'branch',
-	/** `'mode'` — agent execution mode (interactive / plan). */
+	/** `'mode'` — agent execution mode (interactive / plan / autopilot). */
 	Mode = 'mode',
 }
 
@@ -32,7 +32,15 @@ export const enum SessionConfigKey {
  * The set of enum values the unified permission picker understands for the
  * {@link SessionConfigKey.AutoApprove} property.
  *
- * `default` is the required baseline level; `autoApprove` and `autopilot`
- * are optional (an agent may choose to advertise a subset).
+ * `default` is the required baseline level; `assisted` and `autoApprove`
+ * are optional (an agent may choose to advertise a subset). `autopilot` is
+ * retained for backward-compatibility with sessions persisted before
+ * Autopilot moved onto the orthogonal `mode` axis.
  */
-export const KNOWN_AUTO_APPROVE_VALUES: ReadonlySet<string> = new Set(['default', 'autoApprove', 'autopilot']);
+export const KNOWN_AUTO_APPROVE_VALUES: ReadonlySet<string> = new Set(['default', 'assisted', 'autoApprove', 'autopilot']);
+
+/**
+ * The set of enum values understood for the {@link SessionConfigKey.Mode}
+ * property: the agent execution mode axis.
+ */
+export const KNOWN_MODE_VALUES: ReadonlySet<string> = new Set(['interactive', 'plan', 'autopilot']);

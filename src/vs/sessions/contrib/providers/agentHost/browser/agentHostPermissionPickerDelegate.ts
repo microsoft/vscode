@@ -64,6 +64,17 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 	readonly currentPermissionLevel: IObservable<ChatPermissionLevel>;
 	readonly isApplicable: IObservable<boolean>;
 
+	/**
+	 * Agent-host sessions expose Autopilot on the orthogonal `mode` axis, so
+	 * the permissions picker offers `Default` / `Assisted` / `Bypass` here
+	 * (Assisted is backed by the renderer risk-assessment gate).
+	 */
+	readonly availableLevels: readonly ChatPermissionLevel[] = [
+		ChatPermissionLevel.Default,
+		ChatPermissionLevel.Assisted,
+		ChatPermissionLevel.AutoApprove,
+	];
+
 	constructor(
 		private readonly _session: IObservable<IActiveSession | undefined>,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
@@ -112,6 +123,13 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 			return ChatPermissionLevel.Default;
 		}
 		const value = provider.getSessionConfig(session.sessionId)?.values[SessionConfigKey.AutoApprove];
+		// Defensive: a legacy `autopilot` value on the autoApprove axis (from
+		// before Autopilot moved onto the mode axis) is no longer a valid
+		// approval level — surface it as Default rather than a level the picker
+		// doesn't offer.
+		if (value === ChatPermissionLevel.Autopilot) {
+			return ChatPermissionLevel.Default;
+		}
 		return isChatPermissionLevel(value) ? value : ChatPermissionLevel.Default;
 	}
 

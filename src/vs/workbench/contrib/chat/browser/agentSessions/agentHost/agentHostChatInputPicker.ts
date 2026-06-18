@@ -61,6 +61,9 @@ function getConfigIcon(property: string, value: unknown | undefined): ThemeIcon 
 		if (value === 'autopilot') {
 			return Codicon.rocket;
 		}
+		if (value === 'assisted') {
+			return Codicon.wand;
+		}
 		if (value === 'autoApprove') {
 			return Codicon.warning;
 		}
@@ -83,7 +86,9 @@ function isAutoApprovePolicyRestricted(configurationService: IConfigurationServi
 }
 
 function normalizeConfigValue(property: string, value: string, policyRestricted: boolean): string {
-	if (property === SessionConfigKey.AutoApprove && policyRestricted && (value === 'autoApprove' || value === 'autopilot')) {
+	// Assisted, Bypass, and (legacy) Autopilot all auto-approve at least some
+	// tool calls, so clamp anything but Default when policy disables auto-approve.
+	if (property === SessionConfigKey.AutoApprove && policyRestricted && value !== 'default') {
 		return 'default';
 	}
 	return value;
@@ -95,7 +100,7 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 		label: item.label,
 		detail: item.description,
 		group: { title: '', icon: getConfigIcon(property, item.value) },
-		disabled: policyRestricted && property === SessionConfigKey.AutoApprove && (item.value === 'autoApprove' || item.value === 'autopilot'),
+		disabled: policyRestricted && property === SessionConfigKey.AutoApprove && item.value !== 'default',
 		item: { ...item, label: isSelectedValue(currentValue, item.value) ? `${item.label} ${localize('selected', "(Selected)")}` : item.label },
 	}));
 }

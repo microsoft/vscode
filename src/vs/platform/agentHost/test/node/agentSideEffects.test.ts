@@ -1564,8 +1564,8 @@ suite('AgentSideEffects', () => {
 			]);
 		});
 
-		test('auto-approves shell commands when autoApprove is set to autopilot', () => {
-			setupSessionWithConfig('autopilot');
+		test('flags assisted approvals for the renderer risk gate without auto-responding', () => {
+			setupSessionWithConfig('assisted');
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
 
@@ -1573,7 +1573,7 @@ suite('AgentSideEffects', () => {
 				kind: 'action', session: sessionUri,
 				action: {
 					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
-					toolCallId: 'tc-ap-shell-1', toolName: 'shell', displayName: 'Shell', contributor: undefined,
+					toolCallId: 'tc-assisted-1', toolName: 'shell', displayName: 'Shell', contributor: undefined,
 					_meta: { toolKind: undefined, language: undefined },
 				},
 			});
@@ -1581,7 +1581,7 @@ suite('AgentSideEffects', () => {
 				kind: 'action', session: sessionUri,
 				action: {
 					type: ActionType.ChatToolCallReady, turnId: 'turn-1',
-					toolCallId: 'tc-ap-shell-1', invocationMessage: 'Run rm -rf /', toolInput: undefined,
+					toolCallId: 'tc-assisted-1', invocationMessage: 'Run rm -rf /', toolInput: undefined,
 					confirmed: ToolCallConfirmationReason.NotNeeded,
 				},
 			});
@@ -1590,17 +1590,26 @@ suite('AgentSideEffects', () => {
 				kind: 'pending_confirmation', session: sessionUri,
 				state: {
 					status: ToolCallStatus.PendingConfirmation,
-					toolCallId: 'tc-ap-shell-1', toolName: '', displayName: '',
+					toolCallId: 'tc-assisted-1', toolName: 'shell', displayName: 'Shell',
 					invocationMessage: 'Run rm -rf /', toolInput: 'rm -rf /',
-					confirmationTitle: undefined, edits: undefined,
+					confirmationTitle: 'Run command', edits: undefined,
 				},
 				permissionKind: 'shell', permissionPath: undefined,
 			});
 
-			// Dangerous command would normally be blocked, but session-level auto-approve overrides
-			assert.deepStrictEqual(agent.respondToPermissionCalls, [
-				{ requestId: 'tc-ap-shell-1', approved: true },
-			]);
+			// Assisted approvals defer to the renderer's risk gate: the node
+			// neither auto-approves nor denies; it flags the tool call so the
+			// renderer can assess and (for low-risk) auto-confirm.
+			const state = stateManager.getSessionState(sessionUri.toString());
+			const part = state?.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === 'tc-assisted-1');
+			assert.ok(part?.kind === ResponsePartKind.ToolCall);
+			assert.deepStrictEqual({
+				meta: part.toolCall._meta?.assistedApproval,
+				permissionCalls: agent.respondToPermissionCalls,
+			}, {
+				meta: true,
+				permissionCalls: [],
+			});
 		});
 
 		test('marks pending client tool approval for client-side auto-approval in bypass mode', () => {

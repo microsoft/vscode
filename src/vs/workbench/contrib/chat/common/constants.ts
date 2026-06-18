@@ -81,6 +81,8 @@ export enum ChatConfiguration {
 	AutopilotAdvancedEnabled = 'chat.autopilot.advanced.enabled',
 	PlanReviewInlineEditorEnabled = 'chat.planReview.inlineEditor.enabled',
 	DefaultPermissionLevel = 'chat.permissions.default',
+	AgentSessionDefaultMode = 'chat.agentSessions.defaultMode',
+	AgentSessionDefaultApprovals = 'chat.agentSessions.defaultApprovals',
 	ImageCarouselEnabled = 'imageCarousel.chat.enabled',
 	ArtifactsEnabled = 'chat.artifacts.enabled',
 	ArtifactsRulesByMimeType = 'chat.artifacts.rules.byMimeType',
@@ -119,6 +121,8 @@ export enum ChatModeKind {
 export enum ChatPermissionLevel {
 	/** Use existing auto-approve settings */
 	Default = 'default',
+	/** Low-risk tool calls are auto-approved via risk assessment; risky ones still prompt */
+	Assisted = 'assisted',
 	/** Auto-approve all tool calls, auto-retry on error */
 	AutoApprove = 'autoApprove',
 	/** Everything AutoApprove does plus an internal stop hook that continues until the task is done */

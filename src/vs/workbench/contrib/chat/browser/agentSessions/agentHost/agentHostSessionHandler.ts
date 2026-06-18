@@ -56,8 +56,9 @@ import { ChatQuestionCarouselData } from '../../../common/model/chatProgressType
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ILanguageModelToolsService, IToolInvocation, IToolResult, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { IChatWidgetService } from '../../chat.js';
+import { IChatToolRiskAssessmentService, ToolRiskLevel, type ToolRiskPromptKind } from '../../tools/chatToolRiskAssessmentService.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
@@ -163,6 +164,32 @@ function confirmedReasonToProtocol(reason: ConfirmedReason | undefined): ToolCal
 
 function shouldAutoApproveClientToolCall(toolCall: ToolCallState): boolean {
 	return toolCall._meta?.autoApproveBySetting === true;
+}
+
+/**
+ * Parses an agent-host tool call's raw `toolInput` string into a parameters
+ * object for risk assessment. Falls back to `{ input }` (or `{}`) when the
+ * input is absent or not valid JSON, so the risk model still receives the raw
+ * text.
+ */
+function parseToolInputParameters(toolInput: string | undefined): unknown {
+	if (!toolInput) {
+		return {};
+	}
+	try {
+		return JSON.parse(toolInput);
+	} catch {
+		return { input: toolInput };
+	}
+}
+
+/**
+ * Heuristic for selecting the terminal risk rubric: agent-host shell tools
+ * carry a `command` string in their parameters. Everything else is assessed
+ * under the generic rubric.
+ */
+function isLikelyTerminalParameters(parameters: unknown): boolean {
+	return !!parameters && typeof parameters === 'object' && typeof (parameters as Record<string, unknown>).command === 'string';
 }
 
 /**
@@ -451,6 +478,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
+		@IChatToolRiskAssessmentService private readonly _riskAssessmentService: IChatToolRiskAssessmentService,
 	) {
 		super();
 		this._config = config;
@@ -1419,6 +1447,98 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		});
 	}
 
+	/**
+	 * "Assisted Approvals" gate. Invoked for a pending-confirmation tool call
+	 * flagged with `_meta.assistedApproval`, whose {@link ChatToolInvocation}
+	 * was created in a *suppressed* (no confirmation UI) state so nothing
+	 * flashes on screen while we decide.
+	 *
+	 * Runs the renderer-side risk assessment, then:
+	 *  - low-risk (green/orange) → dispatch `ChatToolCallConfirmed(approved)`
+	 *    directly; the suppressed invocation simply transitions to running, so
+	 *    the user never sees an approval prompt.
+	 *  - high-risk (red), unavailable, unparseable, or token-cancelled → fail
+	 *    closed: settle the placeholder and surface a real confirmation prompt
+	 *    via a fresh invocation, calling {@link replaceInvocation} so the
+	 *    caller tracks the new instance.
+	 */
+	private _runAssistedApprovalGate(
+		suppressedInvocation: ChatToolInvocation,
+		tc: ToolCallState,
+		opts: IObserveTurnOptions,
+		subAgentInvocationId: string | undefined,
+		replaceInvocation: (next: ChatToolInvocation) => void,
+	): void {
+		if (tc.status !== ToolCallStatus.PendingConfirmation) {
+			return;
+		}
+		const toolCallId = tc.toolCallId;
+		const token = opts.cancellationToken;
+
+		const surfaceConfirmation = (reason: string) => {
+			if (token.isCancellationRequested || IChatToolInvocation.isComplete(suppressedInvocation)) {
+				return;
+			}
+			this._logService.info(`[AgentHost] Assisted approvals: prompting for ${toolCallId} (${reason})`);
+			suppressedInvocation.didExecuteTool(undefined);
+			const confirmInvocation = toolCallStateToInvocation(tc, subAgentInvocationId, opts.backendSession, this._config.connectionAuthority);
+			opts.sink([confirmInvocation]);
+			replaceInvocation(confirmInvocation);
+			this._awaitToolConfirmation(confirmInvocation, toolCallId, opts.backendSession, opts.turnId, opts.cancellationToken, tc.options);
+		};
+
+		this._assessAssistedRisk(tc, token).then(approve => {
+			if (token.isCancellationRequested || IChatToolInvocation.isComplete(suppressedInvocation)) {
+				return;
+			}
+			if (!approve) {
+				surfaceConfirmation('high-risk');
+				return;
+			}
+			this._logService.info(`[AgentHost] Assisted approvals: auto-approving ${toolCallId}`);
+			this._config.connection.dispatch(opts.backendSession.toString(), {
+				type: ActionType.ChatToolCallConfirmed,
+				turnId: opts.turnId,
+				toolCallId,
+				approved: true,
+				confirmed: ToolCallConfirmationReason.Setting,
+			});
+		}).catch(err => {
+			// Fail closed: a thrown assessment surfaces the confirmation.
+			this._logService.warn(`[AgentHost] Assisted approvals risk assessment failed for ${toolCallId}`, err);
+			surfaceConfirmation('assessment-failed');
+		});
+	}
+
+	/**
+	 * Runs the risk classifier for an assisted-approval tool call and returns
+	 * `true` when the call should be auto-approved (assessed green/orange),
+	 * `false` when it should fall back to a user prompt (red or no concrete
+	 * assessment). Fails closed.
+	 */
+	private async _assessAssistedRisk(tc: ToolCallState, token: CancellationToken): Promise<boolean> {
+		if (tc.status !== ToolCallStatus.PendingConfirmation) {
+			return false;
+		}
+		const parameters = parseToolInputParameters(tc.toolInput);
+		const kind: ToolRiskPromptKind = isLikelyTerminalParameters(parameters) ? 'terminal' : 'generic';
+		const invocationText = stringOrMarkdownToString(tc.invocationMessage, this._config.connectionAuthority);
+		const modelDescription = typeof invocationText === 'string' ? invocationText : (invocationText?.value ?? tc.displayName);
+		const tool: IToolData = {
+			id: tc.toolName,
+			source: ToolDataSource.Internal,
+			displayName: tc.displayName,
+			modelDescription: modelDescription || tc.displayName,
+		};
+
+		const assessment = await this._riskAssessmentService.assess(tool, parameters, token, kind, { ignoreEnablement: true });
+		if (token.isCancellationRequested) {
+			return false;
+		}
+		// Fail closed: only auto-approve on a concrete low-risk result.
+		return !!assessment && assessment.risk !== ToolRiskLevel.Red;
+	}
+
 	// ---- Per-turn observable graph ------------------------------------------
 
 	/**
@@ -1679,8 +1799,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const toolCallId = initial.toolCallId;
 		const subAgentInvocationId = opts.subAgentInvocationId;
 		const adopted = opts.adoptInvocations?.get(toolCallId);
+		const assistedPending = !adopted
+			&& initial.status === ToolCallStatus.PendingConfirmation
+			&& initial._meta?.assistedApproval === true;
 		let invocation = adopted
-			?? toolCallStateToInvocation(initial, subAgentInvocationId, opts.backendSession, this._config.connectionAuthority);
+			?? toolCallStateToInvocation(initial, subAgentInvocationId, opts.backendSession, this._config.connectionAuthority, { suppressConfirmation: assistedPending });
 		if (!adopted) {
 			opts.sink([invocation]);
 		}
@@ -1711,7 +1834,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// `WaitingForConfirmation`. Without this explicit call, no listener
 		// would observe the user's confirmation answer.
 		if (initial.status === ToolCallStatus.PendingConfirmation && !IChatToolInvocation.isComplete(invocation)) {
-			this._awaitToolConfirmation(invocation, toolCallId, opts.backendSession, opts.turnId, opts.cancellationToken, initial.options);
+			if (assistedPending) {
+				// Assisted Approvals: no confirmation UI was rendered (the
+				// invocation is in `Executing`/preparing state). Assess risk in
+				// the background, then silently approve low-risk calls or
+				// surface a real confirmation prompt for high-risk ones.
+				this._runAssistedApprovalGate(invocation, initial, opts, subAgentInvocationId, next => { invocation = next; });
+			} else {
+				this._awaitToolConfirmation(invocation, toolCallId, opts.backendSession, opts.turnId, opts.cancellationToken, initial.options);
+			}
 		}
 		tryObserveSubagent(initial);
 
@@ -1736,10 +1867,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				// invocation and replace it with a fresh one carrying the
 				// new confirmation messages.
 				invocation.didExecuteTool(undefined);
-				const confirmInvocation = toolCallStateToInvocation(tc, subAgentInvocationId, opts.backendSession, this._config.connectionAuthority);
+				const assistedReconfirm = tc._meta?.assistedApproval === true;
+				const confirmInvocation = toolCallStateToInvocation(tc, subAgentInvocationId, opts.backendSession, this._config.connectionAuthority, { suppressConfirmation: assistedReconfirm });
 				opts.sink([confirmInvocation]);
-				this._awaitToolConfirmation(confirmInvocation, toolCallId, opts.backendSession, opts.turnId, opts.cancellationToken, tc.options);
 				invocation = confirmInvocation;
+				if (assistedReconfirm) {
+					this._runAssistedApprovalGate(confirmInvocation, tc, opts, subAgentInvocationId, next => { invocation = next; });
+				} else {
+					this._awaitToolConfirmation(confirmInvocation, toolCallId, opts.backendSession, opts.turnId, opts.cancellationToken, tc.options);
+				}
 			} else if (status === ToolCallStatus.Running || status === ToolCallStatus.PendingResultConfirmation) {
 				invocation.invocationMessage = stringOrMarkdownToString(tc.invocationMessage, this._config.connectionAuthority);
 				this._reviveTerminalIfNeeded(invocation, tc, opts.backendSession);

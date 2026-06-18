@@ -485,7 +485,39 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.permissions.default.autoApprove.description', "Start new chat sessions in Bypass Approvals mode."),
 				nls.localize('chat.permissions.default.autopilot.description', "Start new chat sessions in Autopilot mode."),
 			],
-			description: nls.localize('chat.permissions.default.settingDescription', "Controls the default permissions picker mode for new chat sessions. You can still change the permission mode per session, and each session remembers the permission mode that was used. If enterprise policy disables auto approval, new sessions use Default Approvals."),
+			description: nls.localize('chat.permissions.default.settingDescription', "Controls the default permissions picker mode for new local chat sessions. You can still change the permission mode per session, and each session remembers the permission mode that was used. If enterprise policy disables auto approval, new sessions use Default Approvals."),
+			default: ChatPermissionLevel.Default,
+		},
+		[ChatConfiguration.AgentSessionDefaultMode]: {
+			type: 'string',
+			enum: ['interactive', 'plan', 'autopilot'],
+			enumItemLabels: [
+				nls.localize('chat.agentSessions.defaultMode.interactive.label', "Interactive"),
+				nls.localize('chat.agentSessions.defaultMode.plan.label', "Plan"),
+				nls.localize('chat.agentSessions.defaultMode.autopilot.label', "Autopilot (Preview)"),
+			],
+			enumDescriptions: [
+				nls.localize('chat.agentSessions.defaultMode.interactive.description', "Start new agent sessions in Interactive mode (step-by-step collaboration)."),
+				nls.localize('chat.agentSessions.defaultMode.plan.description', "Start new agent sessions in Plan mode (plan first, execute when ready)."),
+				nls.localize('chat.agentSessions.defaultMode.autopilot.description', "Start new agent sessions in Autopilot mode (autonomously iterate from start to finish)."),
+			],
+			description: nls.localize('chat.agentSessions.defaultMode.settingDescription', "Controls the default mode for new agent sessions (such as Copilot CLI). You can still change the mode per session, and each session remembers the mode that was used."),
+			default: 'interactive',
+		},
+		[ChatConfiguration.AgentSessionDefaultApprovals]: {
+			type: 'string',
+			enum: [ChatPermissionLevel.Default, ChatPermissionLevel.Assisted, ChatPermissionLevel.AutoApprove],
+			enumItemLabels: [
+				nls.localize('chat.agentSessions.defaultApprovals.default.label', "Default Approvals"),
+				nls.localize('chat.agentSessions.defaultApprovals.assisted.label', "Assisted Approvals"),
+				nls.localize('chat.agentSessions.defaultApprovals.autoApprove.label', "Bypass Approvals"),
+			],
+			enumDescriptions: [
+				nls.localize('chat.agentSessions.defaultApprovals.default.description', "Start new agent sessions with Default Approvals."),
+				nls.localize('chat.agentSessions.defaultApprovals.assisted.description', "Start new agent sessions with Assisted Approvals (a model auto-approves low-risk tool calls; risky ones still ask)."),
+				nls.localize('chat.agentSessions.defaultApprovals.autoApprove.description', "Start new agent sessions in Bypass Approvals mode (all tool calls are auto-approved)."),
+			],
+			description: nls.localize('chat.agentSessions.defaultApprovals.settingDescription', "Controls the default approval behavior for new agent sessions (such as Copilot CLI). You can still change the approval level per session, and each session remembers the level that was used. If enterprise policy disables auto approval, new sessions use Default Approvals."),
 			default: ChatPermissionLevel.Default,
 		},
 		[ChatConfiguration.GlobalAutoApprove]: {

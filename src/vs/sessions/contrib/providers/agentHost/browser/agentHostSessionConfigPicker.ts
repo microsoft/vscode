@@ -95,6 +95,9 @@ export function getConfigIcon(property: string, value: unknown | undefined): The
 		if (value === 'autopilot') {
 			return Codicon.rocket;
 		}
+		if (value === 'assisted') {
+			return Codicon.wand;
+		}
 		if (value === 'autoApprove') {
 			return Codicon.warning;
 		}
@@ -213,7 +216,7 @@ async function confirmAutoApproveLevel(value: string, dialogService: IDialogServ
 						isAutopilot
 							? localize('agentHostAutoApprove.autopilot.warning.detail', "Autopilot will auto-approve all tool calls and continue working autonomously until the task is complete. This includes terminal commands, file edits, and external tool calls. The agent will make decisions on your behalf without asking for confirmation.\n\nYou can stop the agent at any time by clicking the stop button. This applies to the current session only.")
 							: localize('agentHostAutoApprove.bypass.warning.detail', "Bypass Approvals will auto-approve all tool calls without asking for confirmation. This includes file edits, terminal commands, and external tool calls."),
-						ChatConfiguration.DefaultPermissionLevel,
+						ChatConfiguration.AgentSessionDefaultApprovals,
 					),
 					{ isTrusted: { enabledCommands: ['workbench.action.openSettings'] } },
 				),

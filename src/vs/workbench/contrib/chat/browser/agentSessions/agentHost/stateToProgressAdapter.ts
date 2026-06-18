@@ -1026,7 +1026,7 @@ export function stringOrMarkdownToString(value: StringOrMarkdown | undefined, co
  *   wrapping remote file URIs into `vscode-agent-host:` URIs. Omit to skip
  *   URI wrapping (e.g. in tests that don't exercise the confirmation UI).
  */
-export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationId: string | undefined, sessionResource: URI, connectionAuthority: string): ChatToolInvocation {
+export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationId: string | undefined, sessionResource: URI, connectionAuthority: string, options?: { readonly suppressConfirmation?: boolean }): ChatToolInvocation {
 	const toolData: IToolData = {
 		id: tc.toolName,
 		source: ToolDataSource.Internal,
@@ -1084,7 +1084,11 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 		return new ChatToolInvocation(
 			{
 				invocationMessage: stringOrMarkdownToString(tc.invocationMessage, connectionAuthority),
-				confirmationMessages,
+				// Omit confirmation messages when suppressed so the invocation
+				// starts in `Executing` (no approve/deny UI). Used by the
+				// Assisted Approvals gate to assess risk before deciding
+				// whether to surface a confirmation prompt at all.
+				...(options?.suppressConfirmation ? {} : { confirmationMessages }),
 				presentation: ToolInvocationPresentation.HiddenAfterComplete,
 				toolSpecificData,
 			},

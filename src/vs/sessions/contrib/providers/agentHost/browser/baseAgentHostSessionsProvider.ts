@@ -22,7 +22,8 @@ import { AgentSession, IAgentConnection, IAgentSessionMetadata } from '../../../
 import { buildSessionChangesetUri } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
-import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { KNOWN_AUTO_APPROVE_VALUES, KNOWN_MODE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/common/agentHostSchema.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, AgentSelection, ChangesSummary, type ChangesetFile, Customization, CustomizationType, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -62,7 +63,10 @@ function normalizeAutoApproveValue(value: unknown, policyRestricted: boolean): C
 		return undefined;
 	}
 	const normalized = value as ChatPermissionLevel;
-	if (policyRestricted && (normalized === ChatPermissionLevel.AutoApprove || normalized === ChatPermissionLevel.Autopilot)) {
+	// Assisted, Bypass, and (legacy) Autopilot all auto-approve at least some
+	// tool calls, so clamp them to Default when enterprise policy disables
+	// global auto-approval.
+	if (policyRestricted && normalized !== ChatPermissionLevel.Default) {
 		return ChatPermissionLevel.Default;
 	}
 	return normalized;
@@ -73,7 +77,7 @@ function isAutoApprovePolicyRestricted(configurationService: IConfigurationServi
 }
 
 function normalizeSessionConfigValue(property: string, value: unknown, policyRestricted: boolean): unknown {
-	if (property === SessionConfigKey.AutoApprove && policyRestricted && (value === ChatPermissionLevel.AutoApprove || value === ChatPermissionLevel.Autopilot)) {
+	if (property === SessionConfigKey.AutoApprove && policyRestricted && value !== ChatPermissionLevel.Default) {
 		return ChatPermissionLevel.Default;
 	}
 	return value;
@@ -1557,12 +1561,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * Initial session-config values applied to a brand-new agent-host session
 	 * before its schema is resolved. Values are seeded from the profile-scoped
 	 * remembered session-config map (plus legacy isolation fallback) and then
-	 * normalized against policy/feature constraints. For `autoApprove`,
-	 * `chat.permissions.default` takes precedence over remembered values.
+	 * normalized against policy/feature constraints.
+	 *
+	 * The agent-host defaults are controlled by their own settings —
+	 * `chat.agentSessions.defaultMode` (mode axis) and
+	 * `chat.agentSessions.defaultApprovals` (approval axis) — which take
+	 * precedence over remembered values. The local-only
+	 * `chat.permissions.default` setting is intentionally NOT consulted here.
 	 *
 	 * If enterprise policy disables global auto-approval
-	 * (`chat.tools.global.autoApprove` policy value `false`), the seed is
-	 * clamped to `default` so the agent host never starts in an elevated
+	 * (`chat.tools.global.autoApprove` policy value `false`), the approval seed
+	 * is clamped to `default` so the agent host never starts in an elevated
 	 * permission level the user is not allowed to pick.
 	 */
 	protected _initialNewSessionConfig(): Record<string, unknown> | undefined {
@@ -1577,8 +1586,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}
 		}
 
-		const configured = this._baseConfigurationService.getValue<string>(ChatConfiguration.DefaultPermissionLevel);
-		const normalizedConfiguredAutoApprove = normalizeAutoApproveValue(configured, policyRestricted);
+		// Approval axis: configured agent-host default wins over remembered.
+		const configuredApprovals = this._baseConfigurationService.getValue<string>(ChatConfiguration.AgentSessionDefaultApprovals);
+		const normalizedConfiguredAutoApprove = normalizeAutoApproveValue(configuredApprovals, policyRestricted);
 		const normalizedRememberedAutoApprove = normalizeAutoApproveValue(config[SessionConfigKey.AutoApprove], policyRestricted);
 		if (normalizedConfiguredAutoApprove) {
 			config[SessionConfigKey.AutoApprove] = normalizedConfiguredAutoApprove;
@@ -1588,7 +1598,19 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			delete config[SessionConfigKey.AutoApprove];
 		}
 
-		return Object.keys(config).length > 0 ? config : undefined;
+		// Mode axis: configured agent-host default wins over remembered.
+		const configuredMode = this._baseConfigurationService.getValue<string>(ChatConfiguration.AgentSessionDefaultMode);
+		if (typeof configuredMode === 'string' && KNOWN_MODE_VALUES.has(configuredMode)) {
+			config[SessionConfigKey.Mode] = configuredMode;
+		}
+
+		// Translate a legacy `autoApprove='autopilot'` pick (remembered from
+		// before Autopilot moved onto the `mode` axis) into the new
+		// `mode='autopilot'` shape so the seeded session starts in Autopilot
+		// rather than silently dropping to manual approvals.
+		const migrated = migrateLegacyAutopilotConfig(config);
+
+		return Object.keys(migrated).length > 0 ? migrated : undefined;
 	}
 
 	// -- Dynamic session config ----------------------------------------------

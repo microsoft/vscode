@@ -55,7 +55,8 @@ import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { equals } from '../../../../../../base/common/objects.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { KNOWN_AUTO_APPROVE_VALUES, KNOWN_MODE_VALUES, SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { migrateLegacyAutopilotConfig } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -602,8 +603,10 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	 * drops the workbench defaults.
 	 *
 	 * - `isolation`: workbench has no isolation picker, so always `'folder'`.
-	 * - `autoApprove`: seeded from `chat.permissions.default`, clamped to
-	 *   `'default'` when the `chat.tools.global.autoApprove` policy is off.
+	 * - `mode`: seeded from `chat.agentSessions.defaultMode`.
+	 * - `autoApprove`: seeded from `chat.agentSessions.defaultApprovals`,
+	 *   clamped to `'default'` when the `chat.tools.global.autoApprove` policy
+	 *   is off. The local-only `chat.permissions.default` setting is NOT used.
 	 *
 	 * Skipped entirely in the Agents window, where the sessions provider
 	 * supplies config via `request.agentHostSessionConfig` instead.
@@ -613,13 +616,22 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			return undefined;
 		}
 		const config: Record<string, unknown> = { [SessionConfigKey.Isolation]: 'folder' };
-		const configured = this._configurationService.getValue<string>(ChatConfiguration.DefaultPermissionLevel);
+
+		const configuredApprovals = this._configurationService.getValue<string>(ChatConfiguration.AgentSessionDefaultApprovals);
 		const policyValue = this._configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue;
-		if (typeof configured === 'string' && KNOWN_AUTO_APPROVE_VALUES.has(configured)) {
+		if (typeof configuredApprovals === 'string' && KNOWN_AUTO_APPROVE_VALUES.has(configuredApprovals)) {
 			const policyRestricted = policyValue === false;
-			config[SessionConfigKey.AutoApprove] = policyRestricted ? 'default' : configured;
+			// Assisted, Bypass, and (legacy) Autopilot all auto-approve at
+			// least some tool calls, so clamp anything but Default under policy.
+			config[SessionConfigKey.AutoApprove] = policyRestricted && configuredApprovals !== 'default' ? 'default' : configuredApprovals;
 		}
-		return config;
+
+		const configuredMode = this._configurationService.getValue<string>(ChatConfiguration.AgentSessionDefaultMode);
+		if (typeof configuredMode === 'string' && KNOWN_MODE_VALUES.has(configuredMode)) {
+			config[SessionConfigKey.Mode] = configuredMode;
+		}
+
+		return migrateLegacyAutopilotConfig(config);
 	}
 }
 
