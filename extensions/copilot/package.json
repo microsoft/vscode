@@ -5506,7 +5506,7 @@
         {
           "command": "github.copilot.chat.cloudSessions.openPullRequestForTask",
           "when": "chatSessionType == copilot-cloud-agent && github.copilot.chat.cloudTaskCanOpenPullRequest && !isSessionsWindow",
-          "group": "navigation@3"
+          "group": "navigation@2"
         }
       ],
       "agents/changes/actions/primary": [
