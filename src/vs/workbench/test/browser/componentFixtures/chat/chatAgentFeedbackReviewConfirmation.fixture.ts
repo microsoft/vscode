@@ -21,6 +21,7 @@ import { ChatToolInvocation } from '../../../../contrib/chat/common/model/chatPr
 import { IChatResponseViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
 import { IDecorationsService } from '../../../../services/decorations/common/decorations.js';
+import { INotebookDocumentService } from '../../../../services/notebook/common/notebookDocumentService.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
@@ -106,6 +107,7 @@ function renderConfirmation(context: ComponentFixtureContext, comments: readonly
 			reg.defineInstance(IDecorationsService, new class extends mock<IDecorationsService>() { override onDidChangeDecorations = Event.None; }());
 			reg.defineInstance(ITextFileService, new class extends mock<ITextFileService>() { override readonly untitled = new class extends mock<ITextFileService['untitled']>() { override readonly onDidChangeLabel = Event.None; }(); }());
 			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return { id: '', folders: [], configuration: undefined }; } }());
+			reg.defineInstance(INotebookDocumentService, new class extends mock<INotebookDocumentService>() { }());
 			reg.defineInstance(ICommandService, createCommandService(comments));
 			reg.defineInstance(IChatMarkdownAnchorService, new class extends mock<IChatMarkdownAnchorService>() {
 				override register() { return { dispose() { } }; }
