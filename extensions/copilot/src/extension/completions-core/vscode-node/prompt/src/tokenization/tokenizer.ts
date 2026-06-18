@@ -28,7 +28,7 @@ export interface ExternalTokenizerProvider {
 	getTokenizer(name: TokenizerName): Tokenizer;
 	/**
 	 * Ensures the host's dictionaries are loaded. Awaited by
-	 * {@link initializeTokenizers}, which callers use as the
+	 * {@link ensureTokenizersLoaded}, which callers use as the
 	 * exact-tokenization gate before token counting.
 	 */
 	ensureLoaded(): Promise<void>;
@@ -69,7 +69,7 @@ export function getTokenizer(name: TokenizerName = TokenizerName.o200k): Tokeniz
 	let tokenizer = tokenizers.get(name);
 	if (tokenizer !== undefined) { return tokenizer; }
 	// Kick the lazy dictionary load (fire-and-forget) so callers that never
-	// await initializeTokenizers still converge on exact tokenization.
+	// call ensureTokenizersLoaded() still converge on exact tokenization.
 	void loadTokenizers();
 	// Fallback to o200k
 	tokenizer = tokenizers.get(TokenizerName.o200k);
@@ -452,30 +452,16 @@ function loadTokenizers(): Promise<void> {
 }
 
 /**
- * Loads the tokenizers. This is a lazy thenable rather than an eagerly
- * started promise: the dictionary load starts the first time it is awaited
- * (callers like ghostText await it before token counting) instead of at
- * module evaluation. That gives an embedding host the chance to register an
- * {@link setExternalTokenizerProvider | external provider} first, in which
- * case awaiting this defers to the host's dictionaries and this module's own
- * dictionaries are never loaded. Like before, awaiting never rejects — load
- * failures (built-in or external) resolve and leave the approximate
- * tokenizer fallback in place.
+ * Ensures the tokenizers are loaded; resolves once tokenization is exact.
+ *
+ * Lazy: the dictionary load starts the first time this is called (callers like
+ * ghostText call it before token counting) instead of at module evaluation.
+ * That gives an embedding host the chance to register an
+ * {@link setExternalTokenizerProvider | external provider} first, in which case
+ * this defers to the host's dictionaries and this module's own dictionaries are
+ * never loaded. Never rejects — load failures (built-in or external) resolve
+ * and leave the approximate tokenizer fallback in place.
  */
-export const initializeTokenizers: Promise<void> = {
-	then<TResult1 = void, TResult2 = never>(
-		onfulfilled?: ((value: void) => TResult1 | PromiseLike<TResult1>) | null,
-		onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null
-	): Promise<TResult1 | TResult2> {
-		return loadTokenizers().then(onfulfilled, onrejected);
-	},
-	catch<TResult = never>(
-		onrejected?: ((reason: unknown) => TResult | PromiseLike<TResult>) | null
-	): Promise<void | TResult> {
-		return loadTokenizers().catch(onrejected);
-	},
-	finally(onfinally?: (() => void) | null): Promise<void> {
-		return loadTokenizers().finally(onfinally);
-	},
-	[Symbol.toStringTag]: 'Promise',
-} as Promise<void>;
+export function ensureTokenizersLoaded(): Promise<void> {
+	return loadTokenizers();
+}
