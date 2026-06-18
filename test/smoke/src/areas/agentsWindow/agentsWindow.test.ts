@@ -237,8 +237,17 @@ export function setup(logger: Logger) {
 					// active-session input path (not the new-session homepage).
 					await app.workbench.agentsWindow.sendFollowUpMessage(`hello again [scenario:${session.scenarioId2}]`);
 
-					const secondTurnTimeout = session.name === 'Copilot CLI' ? 180_000 : 60_000;
-					const text2 = await app.workbench.agentsWindow.waitForAssistantText(session.reply2, secondTurnTimeout);
+					// Copilot CLI: same auto-switch problem as above strikes again
+					// after msg2 completes. The agents window swaps the active
+					// view to a fresh untitled session, and msg2's response bubble
+					// gets torn down with the old session view. Re-activate the
+					// committed session (now labeled with reply2) so the response
+					// bubble is back in DOM by the time we assert on it.
+					if (session.name === 'Copilot CLI') {
+						await app.workbench.agentsWindow.activateSessionByLabel(session.reply2, 60_000);
+					}
+
+					const text2 = await app.workbench.agentsWindow.waitForAssistantText(session.reply2);
 					logger.log(`Agents Window (${session.name}) response 2: ${text2}`);
 
 					assert.ok(
