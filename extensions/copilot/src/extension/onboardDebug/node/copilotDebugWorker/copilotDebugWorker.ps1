@@ -48,6 +48,7 @@ function Watch-Client {
     $writer = [System.IO.StreamWriter]::new($pipe)
     $writer.AutoFlush = $true
 
+    $nonce = if ($env:COPILOT_DEBUG_NONCE) { $env:COPILOT_DEBUG_NONCE } else { "" }
     $request = @{
         id = 0
         method = "start"
@@ -58,6 +59,7 @@ function Watch-Client {
           printOnly = $flagConfig["--print"]
           save = $flagConfig["--save"]
           once = $flagConfig["--once"]
+          nonce = $nonce
       }
     }
     $writer.WriteLine((ConvertTo-Json -Compress $request))

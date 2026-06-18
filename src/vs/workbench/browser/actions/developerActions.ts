@@ -780,19 +780,43 @@ class PolicyDiagnosticsAction extends Action2 {
 			content += `*Error retrieving account policy gate info: ${error}*\n\n`;
 		}
 
+		content += '## Managed Settings\n\n';
+		try {
+			const policyData = defaultAccountService.policyData;
+
+			content += '| Property | Value |\n';
+			content += '|----------|-------|\n';
+			const fetchStatus = defaultAccountService.managedSettingsFetchStatus;
+			const fetchStatusDisplay = fetchStatus === null ? '*not yet fetched*' : `\`${fetchStatus}\``;
+			content += `| Last fetch | ${fetchStatusDisplay} |\n`;
+			const fetchedAt = defaultAccountService.managedSettingsFetchedAt;
+			content += `| Fetched at | ${fetchedAt ? new Date(fetchedAt).toLocaleString() : '*n/a*'} |\n`;
+			content += '\n';
+
+			const managedSettingsData = {
+				managedSettings: policyData?.managedSettings,
+			};
+			content += '```json\n';
+			content += JSON.stringify(managedSettingsData, null, 2);
+			content += '\n```\n\n';
+		} catch (error) {
+			content += `*Error rendering managed settings diagnostics: ${error}*\n\n`;
+		}
+
 		content += '## Policy-Controlled Settings\n\n';
 
 		const policyConfigurations = configurationRegistry.getPolicyConfigurations();
+		const policyReferenceConfigurations = configurationRegistry.getPolicyReferenceConfigurations();
 		const configurationProperties = configurationRegistry.getConfigurationProperties();
 		const excludedProperties = configurationRegistry.getExcludedConfigurationProperties();
 
-		if (policyConfigurations.size > 0) {
+		if (policyConfigurations.size > 0 || policyReferenceConfigurations.size > 0) {
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			const appliedPolicy: Array<{ name: string; key: string; property: any; inspection: any }> = [];
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			const notAppliedPolicy: Array<{ name: string; key: string; property: any; inspection: any }> = [];
 
-			for (const [policyName, settingKey] of policyConfigurations) {
+			const collectPolicySetting = (policyName: string, settingKey: string) => {
 				const property = configurationProperties[settingKey] ?? excludedProperties[settingKey];
 				if (property) {
 					const inspectValue = configurationService.inspect(settingKey);
@@ -808,6 +832,15 @@ class PolicyDiagnosticsAction extends Action2 {
 					} else {
 						notAppliedPolicy.push(settingInfo);
 					}
+				}
+			};
+
+			for (const [policyName, settingKey] of policyConfigurations) {
+				collectPolicySetting(policyName, settingKey);
+			}
+			for (const [policyName, settingKeys] of policyReferenceConfigurations) {
+				for (const settingKey of settingKeys) {
+					collectPolicySetting(policyName, settingKey);
 				}
 			}
 
@@ -842,16 +875,17 @@ class PolicyDiagnosticsAction extends Action2 {
 			content += '### Applied Policy\n\n';
 			appliedPolicy.sort((a, b) => getPolicySource(a.name).localeCompare(getPolicySource(b.name)) || a.name.localeCompare(b.name));
 			if (appliedPolicy.length > 0) {
-				content += '| Setting Key | Policy Name | Policy Source | Default Value | Current Value | Policy Value |\n';
-				content += '|-------------|-------------|---------------|---------------|---------------|-------------|\n';
+				content += '| Setting Key | Policy Name | Policy Source | Managed Settings | Default Value | Current Value | Policy Value |\n';
+				content += '|-------------|-------------|---------------|------------------|---------------|---------------|-------------|\n';
 
 				for (const setting of appliedPolicy) {
 					const defaultValue = JSON.stringify(setting.property.default);
 					const currentValue = JSON.stringify(setting.inspection.value);
 					const policyValue = JSON.stringify(setting.inspection.policyValue);
 					const policySource = getPolicySource(setting.name);
+					const managedSettingsKeys = setting.property.policy?.managedSettings ? Object.keys(setting.property.policy.managedSettings).join(', ') : '';
 
-					content += `| ${setting.key} | ${setting.name} | ${policySource} | \`${defaultValue}\` | \`${currentValue}\` | \`${policyValue}\` |\n`;
+					content += `| ${setting.key} | ${setting.name} | ${policySource} | ${managedSettingsKeys || '*n/a*'} | \`${defaultValue}\` | \`${currentValue}\` | \`${policyValue}\` |\n`;
 				}
 				content += '\n';
 			} else {

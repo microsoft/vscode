@@ -10,9 +10,9 @@ import { autorun } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
 import {
 	AgentHostPermissionMode,
-	IAgentHostPermissionService,
+	IAgentHostResourceService,
 	IPendingResourceRequest,
-} from '../../../../../../platform/agentHost/common/agentHostPermissionService.js';
+} from '../../../../../../platform/agentHost/common/agentHostResourceService.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
@@ -29,19 +29,19 @@ const ALLOW_ALWAYS_COMMAND = '_agentHost.permission.allowAlways';
 const DENY_COMMAND = '_agentHost.permission.deny';
 
 CommandsRegistry.registerCommand(ALLOW_COMMAND, (accessor: ServicesAccessor, requestId: string) => {
-	accessor.get(IAgentHostPermissionService).findPending(requestId)?.allow();
+	accessor.get(IAgentHostResourceService).findPending(requestId)?.allow();
 });
 
 CommandsRegistry.registerCommand(ALLOW_ALWAYS_COMMAND, (accessor: ServicesAccessor, requestId: string) => {
-	accessor.get(IAgentHostPermissionService).findPending(requestId)?.allowAlways();
+	accessor.get(IAgentHostResourceService).findPending(requestId)?.allowAlways();
 });
 
 CommandsRegistry.registerCommand(DENY_COMMAND, (accessor: ServicesAccessor, requestId: string) => {
-	accessor.get(IAgentHostPermissionService).findPending(requestId)?.deny();
+	accessor.get(IAgentHostResourceService).findPending(requestId)?.deny();
 });
 
 /**
- * Bridges {@link IAgentHostPermissionService} to the chat input notification
+ * Bridges {@link IAgentHostResourceService} to the chat input notification
  * banner. While there are pending permission requests, the oldest one is
  * shown above the chat input with three actions:
  *
@@ -60,7 +60,7 @@ export class AgentHostPermissionUiContribution extends Disposable implements IWo
 	private _lastRequestId: string | undefined;
 
 	constructor(
-		@IAgentHostPermissionService private readonly _permissionService: IAgentHostPermissionService,
+		@IAgentHostResourceService private readonly _permissionService: IAgentHostResourceService,
 		@IChatInputNotificationService private readonly _chatInputNotificationService: IChatInputNotificationService,
 		@ILabelService private readonly _labelService: ILabelService,
 	) {

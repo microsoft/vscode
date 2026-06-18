@@ -5,7 +5,6 @@
 
 import { registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { DebugAgentHostInDevToolsAction } from '../../../../../workbench/contrib/chat/electron-browser/actions/debugAgentHostAction.js';
-import { ExportAgentHostDebugLogsAction } from './exportDebugLogsAction.js';
+import '../../../../../workbench/contrib/chat/electron-browser/actions/exportAgentHostDebugLogsService.js';
 
 registerAction2(DebugAgentHostInDevToolsAction);
-registerAction2(ExportAgentHostDebugLogsAction);

@@ -74,6 +74,7 @@ ToolRegistry.registerModelSpecificTool(
 			},
 			required: ['query'],
 		},
+		fullReferenceName: `vscode/toolSearch`,
 		models: [
 			{ family: 'gpt-5.4' },
 			{ family: 'gpt-5.5' },
@@ -87,6 +88,7 @@ ToolRegistry.registerModelSpecificTool(
 			{ family: 'claude-opus-4.7-1m-internal' },
 			{ family: 'claude-opus-4.7-high' },
 			{ family: 'claude-opus-4.7-xhigh' },
+			{ family: 'claude-opus-4.8' },
 		],
 	},
 	ToolSearchTool,

@@ -123,6 +123,10 @@ export class SimulationCodeSearchChunkSearchService extends Disposable implement
 		throw new Error('Method not implemented.');
 	}
 
+	enableExternalIngest(): Promise<boolean> {
+		return Promise.resolve(false);
+	}
+
 	deleteExternalIngestWorkspaceIndex(): Promise<void> {
 		return Promise.resolve();
 	}

@@ -12,13 +12,14 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IAgentPluginRepositoryService } from '../../common/plugins/agentPluginRepositoryService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
-import { type IMarketplaceReference, MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences } from '../../common/plugins/pluginMarketplaceService.js';
+import { type IMarketplaceReference, MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from '../../common/plugins/pluginMarketplaceService.js';
 import { InstalledAgentPluginsViewId } from '../chat.js';
 import { CHAT_CATEGORY, CHAT_CONFIG_MENU_ID } from './chatActions.js';
 
@@ -139,6 +140,7 @@ class InstallFromSourceAction extends Action2 {
 
 interface IMarketplaceQuickPickItem extends IQuickPickItem {
 	readonly reference: IMarketplaceReference;
+	readonly managedByPolicy: boolean;
 }
 
 class ManagePluginMarketplacesAction extends Action2 {
@@ -172,9 +174,11 @@ class ManagePluginMarketplacesAction extends Action2 {
 		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 		const commandService = accessor.get(ICommandService);
 		const fileService = accessor.get(IFileService);
+		const notificationService = accessor.get(INotificationService);
 
-		const configuredRefs = configurationService.getValue<unknown[]>(ChatConfiguration.PluginMarketplaces) ?? [];
-		const refs = parseMarketplaceReferences(configuredRefs);
+		const { userValues, extraValues, effectiveValues } = readConfiguredMarketplaces(configurationService);
+		const refs = parseMarketplaceReferences(effectiveValues);
+		const policyCanonicalIds = new Set(parseMarketplaceReferences(extraValues).map(r => r.canonicalId));
 
 		if (refs.length === 0) {
 			quickInputService.pick([], { placeHolder: localize('noMarketplaces', "No plugin marketplaces configured") });
@@ -186,8 +190,11 @@ class ManagePluginMarketplacesAction extends Action2 {
 			label: ref.displayLabel,
 			description: ref.kind === MarketplaceReferenceKind.LocalFileUri
 				? localize('localMarketplace', "Local")
-				: ref.cloneUrl,
+				: policyCanonicalIds.has(ref.canonicalId)
+					? localize('managedMarketplace', "{0} (managed by enterprise policy)", ref.cloneUrl)
+					: ref.cloneUrl,
 			reference: ref,
+			managedByPolicy: policyCanonicalIds.has(ref.canonicalId),
 		}));
 
 		const selected = await quickInputService.pick(items, {
@@ -230,8 +237,15 @@ class ManagePluginMarketplacesAction extends Action2 {
 				await commandService.executeCommand('revealFileInOS', repoUri);
 				break;
 			case 'removeMarketplace': {
-				const currentValues = configurationService.getValue<unknown[]>(ChatConfiguration.PluginMarketplaces) ?? [];
-				const updated = currentValues.filter(v => typeof v === 'string' && v.trim() !== ref.rawValue);
+				if (selected.managedByPolicy) {
+					notificationService.notify({
+						severity: Severity.Warning,
+						message: localize('removeManagedMarketplace', "Enterprise policy manages '{0}', so it can't be removed here.", ref.displayLabel),
+					});
+					return;
+				}
+
+				const updated = userValues.filter(v => typeof v === 'string' && v.trim() !== ref.rawValue);
 				await configurationService.updateValue(ChatConfiguration.PluginMarketplaces, updated);
 				break;
 			}

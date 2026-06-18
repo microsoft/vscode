@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../nls.js';
+import { getReasoningEffortDescription, getReasoningEffortLabel } from './reasoningEffort.js';
 import type { ConfigSchema, ModelSelection } from './state/protocol/state.js';
 
 /**
@@ -26,6 +27,30 @@ export const CLAUDE_THINKING_LEVEL_KEY = 'thinkingLevel';
  * clamp lives at the hot-swap seam (Phase 9), not here.
  */
 export type ClaudeEffortLevel = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+
+/**
+ * Subset of {@link ClaudeEffortLevel} accepted by the SDK runtime hot-swap
+ * setter `Query.applyFlagSettings({ effortLevel })` (sdk.d.ts:4914) — the
+ * runtime union deliberately excludes `'max'` because Copilot CAPI does
+ * not yet route a `'max'` reasoning tier (no upstream model exposes it).
+ * {@link clampEffortForRuntime} is the single seam that maps the wider
+ * startup union onto this narrower runtime union.
+ */
+export type ClaudeRuntimeEffortLevel = 'low' | 'medium' | 'high' | 'xhigh';
+
+/**
+ * Clamp an effort level for the runtime SDK setter. `Options.effort`
+ * (startup) accepts `'max'`; `Query.applyFlagSettings({ effortLevel })`
+ * does not — Copilot CAPI does not currently expose a `'max'` reasoning
+ * tier, so mid-session `'max'` selections degrade to `'xhigh'` here. If
+ * CAPI later adds a `'max'` model, the SDK runtime union widens and this
+ * clamp becomes a passthrough (CONTEXT.md M11 effort-clamp; Phase 9 D7).
+ */
+export function clampEffortForRuntime(effort: ClaudeEffortLevel | undefined): ClaudeRuntimeEffortLevel | undefined {
+	if (effort === undefined) { return undefined; }
+	if (effort === 'max') { return 'xhigh'; }
+	return effort;
+}
 
 /**
  * Pull `thinkingLevel` out of `ModelSelection.config` and narrow it to
@@ -54,16 +79,6 @@ const CLAUDE_EFFORT_LEVELS: readonly ClaudeEffortLevel[] = ['low', 'medium', 'hi
 /** Type guard narrowing an arbitrary string to {@link ClaudeEffortLevel}. */
 export function isClaudeEffortLevel(value: string): value is ClaudeEffortLevel {
 	return (CLAUDE_EFFORT_LEVELS as readonly string[]).includes(value);
-}
-
-function labelForClaudeEffort(level: ClaudeEffortLevel): string {
-	switch (level) {
-		case 'low': return localize('claude.modelThinkingLevel.low', "Low");
-		case 'medium': return localize('claude.modelThinkingLevel.medium', "Medium");
-		case 'high': return localize('claude.modelThinkingLevel.high', "High");
-		case 'xhigh': return localize('claude.modelThinkingLevel.xhigh', "Extra High");
-		case 'max': return localize('claude.modelThinkingLevel.max', "Max");
-	}
 }
 
 /**
@@ -100,7 +115,8 @@ export function createClaudeThinkingLevelSchema(supportedEfforts: readonly Claud
 				title: localize('claude.modelThinkingLevel.title', "Thinking Level"),
 				description: localize('claude.modelThinkingLevel.description', "Controls how much reasoning effort Claude uses."),
 				enum: [...supportedEfforts],
-				enumLabels: supportedEfforts.map(labelForClaudeEffort),
+				enumLabels: supportedEfforts.map(getReasoningEffortLabel),
+				enumDescriptions: supportedEfforts.map(effort => getReasoningEffortDescription(effort) ?? ''),
 				...(defaultEffort !== undefined ? { default: defaultEffort } : {}),
 			},
 		},

@@ -7,6 +7,7 @@ import { DisposableMap } from '../../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { assertType } from '../../../../../../../base/common/types.js';
 import { URI } from '../../../../../../../base/common/uri.js';
+import { AgentHostCompletionReferenceKind, toAgentHostCompletionVariableEntry, type IAgentHostCompletionVariableValue } from '../../../../common/attachments/chatVariableEntries.js';
 import { Position } from '../../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { CompletionItem, CompletionItemKind } from '../../../../../../../editor/common/languages.js';
@@ -54,12 +55,12 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 		this._register(CommandsRegistry.registerCommand(AgentHostInputCompletions.addReferenceCommand, (_services, arg) => {
 			assertType(arg instanceof AgentHostReferenceArgument);
 			arg.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
-				id: arg.uri.toString(),
+				id: arg.id,
 				range: arg.range,
-				isFile: !arg.isDirectory,
+				isFile: arg.isFile,
 				isDirectory: arg.isDirectory,
 				fullName: arg.displayName,
-				data: arg.uri,
+				data: arg.data,
 				_meta: arg._meta,
 			});
 		}));
@@ -120,32 +121,92 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 
 	protected override _buildItem(position: Position, item: IChatInputCompletionItem, widget: IChatWidget): CompletionItem {
 		const replaceRange = AgentHostInputCompletions.computeRange(position, item);
-		const label = item.attachment.displayName ?? item.insertText;
-		const description = item.attachment.uri.path;
-		return {
-			label: { label, description },
-			insertText: item.insertText,
-			filterText: item.insertText,
-			range: replaceRange,
-			kind: item.attachment.isDirectory ? CompletionItemKind.Folder : CompletionItemKind.File,
-			command: {
-				id: AgentHostInputCompletions.addReferenceCommand,
-				title: '',
-				arguments: [new AgentHostReferenceArgument(widget, item.attachment.uri, item.attachment.displayName, !!item.attachment.isDirectory, replaceRange.replace.setEndPosition(replaceRange.replace.startLineNumber, replaceRange.replace.startColumn + item.insertText.length), item.attachment._meta)],
-			},
-		};
+		const attachment = item.attachment;
+		switch (attachment.kind) {
+			case 'command': {
+				return {
+					label: { label: item.insertText, description: attachment.description },
+					insertText: item.insertText,
+					filterText: item.insertText,
+					range: replaceRange,
+					kind: CompletionItemKind.Text,
+					detail: attachment.description,
+					command: {
+						id: AgentHostInputCompletions.addReferenceCommand,
+						title: '',
+						arguments: [AgentHostReferenceArgument.forCommand(widget, attachment.command, attachment.description, AgentHostInputCompletions._insertedTokenRange(replaceRange, item.insertText), attachment._meta)],
+					},
+				};
+			}
+			case 'skill': {
+				const label = attachment.displayName ? '/' + attachment.displayName : item.insertText.trimEnd();
+				return {
+					label: { label, description: attachment.description },
+					insertText: item.insertText,
+					filterText: item.insertText,
+					range: replaceRange,
+					kind: CompletionItemKind.Text,
+					detail: attachment.description,
+					command: {
+						id: AgentHostInputCompletions.addReferenceCommand,
+						title: '',
+						arguments: [AgentHostReferenceArgument.forSkill(widget, attachment.uri, attachment.displayName, AgentHostInputCompletions._insertedTokenRange(replaceRange, item.insertText), attachment._meta)],
+					},
+				};
+			}
+			default: {
+				const label = attachment.displayName ?? item.insertText;
+				const description = attachment.uri.path;
+				return {
+					label: { label, description },
+					insertText: item.insertText,
+					filterText: item.insertText,
+					range: replaceRange,
+					kind: attachment.isDirectory ? CompletionItemKind.Folder : CompletionItemKind.File,
+					command: {
+						id: AgentHostInputCompletions.addReferenceCommand,
+						title: '',
+						arguments: [AgentHostReferenceArgument.forResource(widget, attachment.uri, attachment.displayName, !!attachment.isDirectory, AgentHostInputCompletions._insertedRange(replaceRange, item.insertText), attachment._meta)],
+					},
+				};
+			}
+		}
+	}
+
+	private static _insertedRange(replaceRange: { replace: Range }, insertText: string): Range {
+		return replaceRange.replace.setEndPosition(replaceRange.replace.startLineNumber, replaceRange.replace.startColumn + insertText.length);
+	}
+
+	private static _insertedTokenRange(replaceRange: { replace: Range }, insertText: string): Range {
+		return this._insertedRange(replaceRange, insertText.trimEnd());
 	}
 }
 
 class AgentHostReferenceArgument {
-	constructor(
+	private constructor(
 		readonly widget: IChatWidget,
-		readonly uri: URI,
+		readonly id: string,
+		readonly data: URI | IAgentHostCompletionVariableValue,
 		readonly displayName: string | undefined,
+		readonly isFile: boolean,
 		readonly isDirectory: boolean,
 		readonly range: Range,
 		readonly _meta: Record<string, unknown> | undefined,
 	) { }
+
+	static forResource(widget: IChatWidget, uri: URI, displayName: string | undefined, isDirectory: boolean, range: Range, _meta: Record<string, unknown> | undefined): AgentHostReferenceArgument {
+		return new AgentHostReferenceArgument(widget, uri.toString(), uri, displayName, !isDirectory, isDirectory, range, _meta);
+	}
+
+	static forSkill(widget: IChatWidget, uri: URI, displayName: string | undefined, range: Range, _meta: Record<string, unknown> | undefined): AgentHostReferenceArgument {
+		const entry = toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Skill, displayName ?? uri.toString(), uri, _meta);
+		return new AgentHostReferenceArgument(widget, entry.id, entry.value, displayName, false, false, range, _meta);
+	}
+
+	static forCommand(widget: IChatWidget, command: string, description: string | undefined, range: Range, _meta: Record<string, unknown> | undefined): AgentHostReferenceArgument {
+		const entry = toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Command, description ?? command, command, _meta);
+		return new AgentHostReferenceArgument(widget, entry.id, entry.value, description, false, false, range, _meta);
+	}
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(AgentHostInputCompletions, LifecyclePhase.Eventually);

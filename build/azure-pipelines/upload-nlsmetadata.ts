@@ -6,12 +6,10 @@
 import es from 'event-stream';
 import Vinyl from 'vinyl';
 import vfs from 'vinyl-fs';
-import merge from 'gulp-merge-json';
-import gzip from 'gulp-gzip';
+import { mergeJson, gzip, azureStorage } from '../lib/gulp/facade.ts';
 import { ClientAssertionCredential } from '@azure/identity';
 import path from 'path';
 import { readFileSync } from 'fs';
-import azure from 'gulp-azure-storage';
 
 const commit = process.env['BUILD_SOURCEVERSION'];
 const credential = new ClientAssertionCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, () => Promise.resolve(process.env['AZURE_ID_TOKEN']!));
@@ -31,7 +29,7 @@ function main(): Promise<void> {
 			es.merge(
 				vfs.src('out-build/nls.keys.json', { base: 'out-build' }),
 				vfs.src('out-build/nls.messages.json', { base: 'out-build' }))
-				.pipe(merge({
+				.pipe(mergeJson({
 					fileName: 'vscode.json',
 					jsonSpace: '',
 					concatArrays: true,
@@ -50,7 +48,7 @@ function main(): Promise<void> {
 			vfs.src('.build/extensions/**/nls.metadata.json', { base: '.build/extensions' }),
 			vfs.src('.build/extensions/**/nls.metadata.header.json', { base: '.build/extensions' }),
 			vfs.src('.build/extensions/**/package.nls.json', { base: '.build/extensions' })
-		).pipe(merge({
+		).pipe(mergeJson({
 			fileName: 'combined.nls.metadata.json',
 			jsonSpace: '',
 			concatArrays: true,
@@ -123,7 +121,7 @@ function main(): Promise<void> {
 				console.log(`##vso[artifact.upload containerfolder=nlsmetadata;artifactname=${data.basename}]${data.path}`);
 				this.emit('data', data);
 			}))
-			.pipe(azure.upload({
+			.pipe(azureStorage.upload({
 				account: process.env.AZURE_STORAGE_ACCOUNT,
 				credential,
 				container: '$web',

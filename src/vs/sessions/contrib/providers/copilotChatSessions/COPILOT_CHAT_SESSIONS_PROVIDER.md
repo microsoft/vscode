@@ -78,18 +78,16 @@ The provider maintains a `Map<string, AgentSessionAdapter>` cache keyed by resou
 
 ## Send Flow
 
-1. Validate the session is a current new session (`CopilotCLISession`, `RemoteNewSession`, or `ClaudeCodeNewSession`)
-2. For the first chat, call `_sendFirstChat()`:
-   a. Resolve mode, permission level, and send options from session configuration
-   b. Open the chat widget via `IChatWidgetService.openSession()`
-   c. Load the session model and apply selected model, mode, and options
-   d. Send the request via `IChatService.sendRequest()`
-   e. Add temp session to cache and fire `onDidChangeSessions`
-   f. Wait for session commit (untitled → real URI)
-   g. Replace via `onDidReplaceSession` event with the committed session
-3. For subsequent chats (if `capabilities.supportsMultipleChats` enabled on the session), call `_sendSubsequentChat()`
-4. Wrap the new agent session as `AgentSessionAdapter` and return it
-5. Clear the current new session reference
+The provider exposes two entry points on `ISessionsProvider`:
+
+- **`createNewChat(sessionId, prompt?)`** — Creates the backend chat model and returns the resulting `IChat`. The management service uses the returned `chat.resource` to open the widget *before* sending. For new sessions the provider also swaps the session's `mainChat` observable with the committed chat so the cached `ISession` reflects the real backend resource.
+- **`sendRequest(sessionId, chatResource, options)`** — Sends a request for a chat that was already created via `createNewChat`. Internally it dispatches between:
+  - `_sendFirstChat()` when the session is the current new session — resolves mode/permission/send options, calls `IChatService.sendRequest`, adds the temp session to the cache, fires `onDidChangeSessions`, waits for commit (untitled → real URI for CLI sessions), and then fires `onDidReplaceSession` with the committed session.
+  - `_sendExistingChat()` when the session already has committed chats — sends to the existing chat resource.
+
+For multi-chat sessions (`capabilities.supportsMultipleChats === true`), `createNewChat()` on an existing session calls `_createNewSubsequentChat()`, which creates a fresh `CopilotCLISession` linked to the parent via the `parentSessionId` option, registers it in `_currentNewSession`, and returns its `IChat`. A subsequent `sendRequest(sessionId, chat.resource, options)` then routes through `_sendFirstChat`.
+
+The provider never opens the chat widget itself; widget opening is owned by the management service.
 
 ## New-Session Picker Contribution Model
 
@@ -101,13 +99,25 @@ The welcome/new-session view (`NewChatInputWidget`) renders three toolbar menus 
 2. **Action view item** — `actionViewItemService.register()` to provide a custom widget instead of a button
 3. **Picker widget** — A `Disposable` class with a `render(container)` method, wrapped in `PickerActionViewItem`
 
+Model picker widgets that back the new-chat `/models` slash command also inject `INewChatModelPickerService` and register their opener with it. `NewChatInputWidget` scopes that service per input, so action view item factories must instantiate those model picker widgets from the factory's `instantiationService` argument rather than a contribution-level service.
+
 ### Toolbar Menus
 
 | Menu | Purpose | Examples |
 |------|---------|----------|
-| `Menus.NewSessionConfig` | Session configuration (mode, model) | `ModePicker`, `CloudModelPicker`, unified model picker (CLI + Claude) |
+| `Menus.NewSessionConfig` | Session configuration (mode, model) | `ModePicker`; the model picker is the sessions-core `ModelPicker` (see below) |
 | `Menus.NewSessionControl` | Session controls (permissions) | `PermissionPicker`, `ClaudePermissionModePicker` |
 | `Menus.NewSessionRepositoryConfig` | Repository configuration | `IsolationPicker`, `BranchPicker` |
+
+### Model Picker
+
+The model picker is no longer contributed per provider. The sessions core contributes a single `ModelPicker` (`contrib/chat/browser/modelPicker.ts`) into `Menus.NewSessionConfig` that wraps the shared workbench `ModelPickerActionItem`. It reads the available models from the active session's provider via `ISessionsProvider.getModels(sessionId)`, the picker presentation options via `ISessionsProvider.getModelPickerOptions(sessionId)`, remembers the last used model per provider per session type, and applies the selection through `ISessionsProvider.setModel(sessionId, modelId)`.
+
+This provider returns models from `getModels` based on the active session:
+- **CLI / Claude** sessions return registered language models whose `targetChatSessionType` matches the session type.
+- **Cloud** sessions synthesize `ILanguageModelChatMetadataAndIdentifier` entries from the extension-host `models` option group; `setModel` additionally persists the choice as the option-group value so the extension host honours it.
+
+`getModelPickerOptions` returns grouped models with featured models shown and no "Manage Models" action (that action is offered only by the local provider).
 
 ### Context Key Gating
 
@@ -145,8 +155,8 @@ registerAction2(class extends Action2 {
 // 2. Register the action view item (in CopilotPickerActionViewItemContribution)
 this._register(actionViewItemService.register(
     Menus.NewSessionControl, 'sessions.defaultCopilot.myPicker',
-    () => {
-        const picker = instantiationService.createInstance(MyPicker);
+    (_action, _options, scopedInstantiationService) => {
+        const picker = scopedInstantiationService.createInstance(MyPicker);
         return new PickerActionViewItem(picker);
     },
 ));

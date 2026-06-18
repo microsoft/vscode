@@ -19,6 +19,15 @@ export interface ISessionType {
 	readonly label: string;
 	/** Icon for this session type. */
 	readonly icon: ThemeIcon;
+	/**
+	 * The workbench chat session type (contribution id) this session type maps
+	 * to, when it differs from {@link id}. Agent-host providers use a bare agent
+	 * provider name as {@link id} (e.g. `claude`) but register their chat session
+	 * contribution and models under `agent-host-<provider>`, so they set this to
+	 * bridge the two (e.g. for entitlement/model availability lookups). Defaults
+	 * to {@link id} when omitted.
+	 */
+	readonly chatSessionType?: string;
 }
 
 export const GITHUB_REMOTE_FILE_SCHEME = 'github-remote-file';
@@ -134,6 +143,12 @@ export interface IGitHubInfo {
 	};
 }
 
+export interface ISessionChangesSummary {
+	readonly files: number;
+	readonly additions: number;
+	readonly deletions: number;
+}
+
 export type ISessionFileChange = IChatSessionFileChange | IChatSessionFileChange2;
 
 export interface ISessionChangeset {
@@ -143,10 +158,98 @@ export interface ISessionChangeset {
 	readonly label: string;
 	/** Optional description for the changeset. */
 	readonly description?: string;
+	/** Optional category for the changeset. */
+	readonly category?: string;
 	/** Whether the changeset is enabled. */
-	readonly enabled: IObservable<boolean>;
-	/** File changes associated with this changeset. */
+	readonly isEnabled: IObservable<boolean>;
+	/**
+	 * Whether this changeset should be selected by default when the UI
+	 * switches to its session. May change with session state (e.g. an
+	 * archived session may default to a snapshot changeset rather than a
+	 * live one). Producers should ensure at most one changeset in a
+	 * session reports `true` at any time.
+	 */
+	readonly isDefault: IObservable<boolean>;
+	/**
+	 * Whether this changeset is currently loading its file changes.
+	 */
+	readonly isLoadingChanges: IObservable<boolean>;
+	/** Observable for the file changes in this changeset. */
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
+	/** Observable for the operations in this changeset. */
+	readonly operations: IObservable<readonly ISessionChangesetOperation[]>;
+	/** Reference to the original checkpoint for this changeset. */
+	readonly originalCheckpointRef: IObservable<string | undefined>;
+	/** Reference to the modified checkpoint for this changeset. */
+	readonly modifiedCheckpointRef: IObservable<string | undefined>;
+	/**
+	 * Invoke an operation declared in {@link operations}. `target` must be
+	 * provided for resource-scoped operations and omitted for changeset-
+	 * scoped ones — implementations are expected to validate this against
+	 * the corresponding {@link ISessionChangesetOperation.scopes}.
+	 */
+	invokeOperation(operationId: string, target?: ISessionChangesetOperationTarget): Promise<void>;
+}
+
+export type ISessionChangesetOperationTarget =
+	| { readonly kind: 'resource'; readonly resource: URI };
+
+export const enum SessionChangesetOperationScope {
+	Changeset = 'changeset',
+	Resource = 'resource',
+	Range = 'range',
+}
+
+/**
+ * Execution status of a changeset operation.
+ */
+export const enum SessionChangesetOperationStatus {
+	/** The operation is ready to be invoked. */
+	Idle = 'idle',
+	/** An invocation is currently in flight. */
+	Running = 'running',
+	/** The most recent invocation failed. */
+	Error = 'error',
+	/** The operation is currently disabled and cannot be invoked. */
+	Disabled = 'disabled',
+}
+
+export interface ISessionChangesetOperation {
+	/** Unique identifier for the operation. */
+	readonly id: string;
+	/** Display label for the operation. */
+	readonly label: string;
+	/** Optional description for the operation. */
+	readonly description?: string;
+	/** Optional icon for the operation. */
+	readonly icon?: ThemeIcon;
+	/** The scopes to which this operation applies. */
+	readonly scopes: SessionChangesetOperationScope[];
+	/** Current execution status for this operation. */
+	readonly status: SessionChangesetOperationStatus;
+	/**
+	 * Optional confirmation prompt to display before invoking the operation.
+	 * When present, callers MUST show this message to the user (typically in
+	 * a confirmation dialog) and only invoke the operation after the user
+	 * accepts. The presence of this field also signals that the operation
+	 * is destructive — callers SHOULD style the affirmative button
+	 * accordingly. The message may contain `{0}` which will be substituted
+	 * with the target resource's basename when applicable.
+	 */
+	readonly confirmation?: string | IMarkdownString;
+}
+
+/**
+ * A custom agent reference used by session-level selection. Mirrors the Agent
+ * Host protocol's `AgentSelection` shape but lives in the sessions layer so the
+ * sessions service API does not leak the protocol type to non-Agent-Host
+ * consumers.
+ */
+export interface ISessionAgentRef {
+	/** Stable agent URI (matches the contributing customization's agent ref). */
+	readonly uri: string;
+	/** Agent name. */
+	readonly name: string;
 }
 
 export interface IChatCheckpoints {
@@ -175,8 +278,6 @@ export interface IChat {
 	readonly status: IObservable<SessionStatus>;
 	/** File changes produced by the chat. */
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
-	/** Changesets produced by the chat. */
-	readonly changesets: IObservable<readonly ISessionChangeset[]>;
 	/** Checkpoints associated with the chat. */
 	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 	/** Currently selected model identifier. */
@@ -221,13 +322,14 @@ export interface ISession {
 	readonly updatedAt: IObservable<Date>;
 	/** Current session status. */
 	readonly status: IObservable<SessionStatus>;
+	/** Summary of file changes produced by the session. */
+	readonly changesSummary?: IObservable<ISessionChangesSummary | undefined>;
 	/** File changes produced by the session. */
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
 	/** Changesets produced by the session. */
 	readonly changesets: IObservable<readonly ISessionChangeset[]>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
-	/** Currently selected mode identifier and kind. */
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	/** Whether the session is still initializing (e.g., resolving git repository). */
 	readonly loading: IObservable<boolean>;
@@ -241,17 +343,10 @@ export interface ISession {
 	readonly lastTurnEnd: IObservable<Date | undefined>;
 	/** The chats belonging to this session group. */
 	readonly chats: IObservable<readonly IChat[]>;
-	/** The main (first) chat of this session. */
-	readonly mainChat: IChat;
+	/** The main (first) chat of this session. Providers may replace it for a new session via {@link ISessionsProvider.createNewChat}. */
+	readonly mainChat: IObservable<IChat>;
 	/** Capabilities of this session. */
 	readonly capabilities: ISessionCapabilities;
-	/**
-	 * Optional key used to deduplicate sessions across providers. When
-	 * multiple sessions share the same key, only one is kept by
-	 * {@link ISessionsManagementService.getSessions}. Local providers are
-	 * preferred over remote ones.
-	 */
-	readonly deduplicationKey?: string;
 }
 
 /**
@@ -276,6 +371,16 @@ export function toSessionId(providerId: string, resource: URI): string {
 export interface ISessionCapabilities {
 	/** Whether this session supports multiple chats. */
 	readonly supportsMultipleChats: boolean;
+	/**
+	 * Whether the session's underlying runtime (e.g. a cloud agent host)
+	 * already runs `runOptions.runOn === 'worktreeCreated'` tasks during
+	 * environment provisioning. When `true`, the agents-window
+	 * client-side dispatcher must NOT run those tasks itself to avoid
+	 * double-execution. Defaults to `false` for sessions backed by local
+	 * or remote agent hosts, where the client is the only thing that
+	 * could trigger them.
+	 */
+	readonly runsWorktreeCreatedTasks?: boolean;
 }
 
 /**

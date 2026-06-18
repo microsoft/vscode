@@ -6,17 +6,18 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ResolveSessionConfigResult, SessionConfigPropertySchema } from '../../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatPermissionLevel } from '../../../../../../../workbench/contrib/chat/common/constants.js';
-import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema, isWellKnownModeSchema } from '../../../browser/agentHostPermissionPickerDelegate.js';
+import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema, isWellKnownClaudePermissionModeSchema, isWellKnownModeSchema } from '../../../browser/agentHostPermissionPickerDelegate.js';
 import { IAgentHostSessionsProvider } from '../../../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../../../services/sessions/common/sessionsProvider.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../../../services/sessions/browser/sessionsService.js';
 
 const PROVIDER_ID = 'local-agent-host';
 const SESSION_ID = 'local-agent-host:s1';
@@ -39,7 +40,7 @@ function makeWellKnownConfig(value: string | undefined): ResolveSessionConfigRes
 	} as ResolveSessionConfigResult;
 }
 
-class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChangeSessionConfig' | 'getSessionConfig' | 'setSessionConfigValue'> {
+class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChangeSessionConfig' | 'getSessionConfig' | 'setSessionConfigValue' | 'isSessionConfigResolving'> {
 	readonly id: string = PROVIDER_ID;
 	private readonly _onDidChange = new Emitter<string>();
 	readonly onDidChangeSessionConfig: Event<string> = this._onDidChange.event;
@@ -49,6 +50,9 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 
 	getSessionConfig(_sessionId: string): ResolveSessionConfigResult | undefined {
 		return this.config;
+	}
+	isSessionConfigResolving(_sessionId: string) {
+		return constObservable(false);
 	}
 	async setSessionConfigValue(sessionId: string, property: string, value: string): Promise<void> {
 		this.setCalls.push([sessionId, property, value]);
@@ -82,15 +86,15 @@ function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSessio
 		}
 	})();
 	const activeSessionObs = observableValue<IActiveSession | undefined>('activeSession', activeSession);
-	const sessionsManagementService = new (class extends mock<ISessionsManagementService>() {
+	const sessionsManagementService = new (class extends mock<ISessionsService>() {
 		override readonly activeSession = activeSessionObs;
 	})();
 
 	const insta = store.add(new TestInstantiationService());
-	insta.set(ISessionsManagementService, sessionsManagementService);
+	insta.set(ISessionsService, sessionsManagementService);
 	insta.set(ISessionsProvidersService, sessionsProvidersService);
 
-	const delegate = store.add(insta.createInstance(AgentHostPermissionPickerDelegate));
+	const delegate = store.add(insta.createInstance(AgentHostPermissionPickerDelegate, activeSessionObs));
 	return { delegate, provider, activeSessionObs };
 }
 
@@ -240,5 +244,41 @@ suite('isWellKnownModeSchema', () => {
 		assert.strictEqual(isWellKnownModeSchema(schema({ type: 'number' as 'string' })), false);
 		assert.strictEqual(isWellKnownModeSchema(schema({ enum: undefined })), false);
 		assert.strictEqual(isWellKnownModeSchema(schema({ enum: [] })), false);
+	});
+});
+
+suite('isWellKnownClaudePermissionModeSchema', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function schema(overrides: Partial<SessionConfigPropertySchema> = {}): SessionConfigPropertySchema {
+		return {
+			title: 'Approvals',
+			description: 'desc',
+			type: 'string',
+			enum: ['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions'],
+			...overrides,
+		} as SessionConfigPropertySchema;
+	}
+
+	test('matches the canonical permission-mode enum', () => {
+		assert.strictEqual(isWellKnownClaudePermissionModeSchema(schema()), true);
+	});
+
+	test('matches a subset that still contains "default"', () => {
+		assert.strictEqual(isWellKnownClaudePermissionModeSchema(schema({ enum: ['default', 'acceptEdits'] })), true);
+	});
+
+	test('rejects schemas that include unsupported SDK-only values', () => {
+		assert.strictEqual(isWellKnownClaudePermissionModeSchema(schema({ enum: ['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions', 'dontAsk'] })), false);
+	});
+
+	test('rejects schemas missing "default" or containing custom values', () => {
+		assert.strictEqual(isWellKnownClaudePermissionModeSchema(schema({ enum: ['acceptEdits', 'plan'] })), false);
+		assert.strictEqual(isWellKnownClaudePermissionModeSchema(schema({ enum: ['default', 'custom'] })), false);
+	});
+
+	test('rejects non-string types and missing enums', () => {
+		assert.strictEqual(isWellKnownClaudePermissionModeSchema(schema({ type: 'number' as 'string' })), false);
+		assert.strictEqual(isWellKnownClaudePermissionModeSchema(schema({ enum: undefined })), false);
 	});
 });

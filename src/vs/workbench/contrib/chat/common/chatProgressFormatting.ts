@@ -19,23 +19,4 @@ export function formatElapsedTime(ms: number): string {
 	return localize('minutesSeconds', "{0}m {1}s", minutes, seconds);
 }
 
-/**
- * Format a token count as a human-readable string.
- * Examples: "500", "1.2k", "1.5m"
- */
-export function formatTokenCount(count: number): string {
-	if (count >= 1_000_000) {
-		return `${(count / 1_000_000).toFixed(1)}m`;
-	} else if (count >= 1000) {
-		const value = count / 1000;
-		if (value >= 10) {
-			const roundedValue = value.toFixed(0);
-			if (roundedValue === '1000') {
-				return `${(count / 1_000_000).toFixed(1)}m`;
-			}
-			return `${roundedValue}k`;
-		}
-		return `${value.toFixed(1)}k`;
-	}
-	return count.toString();
-}
+

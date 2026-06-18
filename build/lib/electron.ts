@@ -6,11 +6,10 @@
 import fs from 'fs';
 import path from 'path';
 import vfs from 'vinyl-fs';
-import filter from 'gulp-filter';
+import { filter, jsonEditor } from './gulp/facade.ts';
 import * as util from './util.ts';
 import { getVersion } from './getVersion.ts';
 import electron from '@vscode/gulp-electron';
-import json from 'gulp-json-editor';
 
 type DarwinDocumentSuffix = 'document' | 'script' | 'file' | 'source code';
 type DarwinDocumentType = {
@@ -101,7 +100,8 @@ function darwinBundleDocumentTypes(types: { [name: string]: string | string[] },
 	});
 }
 
-const { electronVersion, msBuildId } = util.getElectronVersion();
+const { msBuildId } = util.getElectronVersion();
+const electronVersion = '42.2.0';
 
 export const config = {
 	version: electronVersion,
@@ -221,7 +221,7 @@ function getElectron(arch: string): () => NodeJS.ReadWriteStream {
 		};
 
 		return vfs.src('package.json')
-			.pipe(json({ name: product.nameShort }))
+			.pipe(jsonEditor({ name: product.nameShort }))
 			.pipe(electron(electronOpts))
 			.pipe(filter(['**', '!**/app/package.json']))
 			.pipe(vfs.dest('.build/electron'));

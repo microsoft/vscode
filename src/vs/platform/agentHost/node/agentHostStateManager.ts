@@ -8,12 +8,28 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
 import { ILogService } from '../../log/common/log.js';
-import { ActionType, NotificationType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, RootAction, StateAction, TerminalAction, isRootAction, isSessionAction } from '../common/state/sessionActions.js';
+import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
+import { ActionType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, ChatAction, RootAction, StateAction, TerminalAction, ChangesetAction, AnnotationsAction, ClientAnnotationsAction, isRootAction, isSessionAction, isChatAction, isChangesetAction, isAnnotationsAction } from '../common/state/sessionActions.js';
 import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
-import { rootReducer, sessionReducer } from '../common/state/sessionReducers.js';
-import { createRootState, createSessionState, SessionLifecycle, type RootState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI } from '../common/state/sessionState.js';
-import { IPermissionsValue, platformRootSchema } from '../common/agentHostSchema.js';
+import { rootReducer, sessionReducer, chatReducer, changesetReducer, annotationsReducer } from '../common/state/sessionReducers.js';
+import { createRootState, createSessionState, createChatState, createDefaultChatSummary, chatSummaryFromState, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, mergeSessionWithDefaultChat, isAhpRootChannel, SessionLifecycle, withHostBuildInfo, type Changeset, type ChangesetState, type AnnotationsState, type ChatState, type ISessionWithDefaultChat, type RootState, type SessionConfigState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus, IHostBuildInfo, SessionStatus } from '../common/state/sessionState.js';
+import { AgentHostTelemetryLevelConfigKey, IPermissionsValue, platformRootSchema, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+import { parseChangesetUri } from '../common/changesetUri.js';
+import { buildAnnotationsUri, isAnnotationsUri } from '../common/annotationsUri.js';
+import { AgentHostChangesetStateCache, type IAgentHostChangesetStateRetentionOptions } from './agentHostChangesetStateCache.js';
+import { ChangesSummary } from '../common/state/protocol/state.js';
+import { arrayEquals, structuralEquals } from '../../../base/common/equals.js';
+
+export interface IAgentHostStateManagerOptions {
+	readonly changesetStateRetention?: IAgentHostChangesetStateRetentionOptions;
+	/**
+	 * Build information about the program hosting the agent host. When
+	 * provided, it is published on {@link RootState._meta} so clients can see
+	 * which build is hosting them.
+	 */
+	readonly hostBuildInfo?: IHostBuildInfo;
+}
 
 /**
  * Server-side state manager for the sessions process protocol.
@@ -28,6 +44,25 @@ export class AgentHostStateManager extends Disposable {
 
 	private _rootState: RootState;
 	private readonly _sessionStates = new Map<string, SessionState>();
+
+	/**
+	 * Authoritative per-chat conversation state, keyed by chat channel URI.
+	 * The protocol moved turns/activeTurn/pending state off the session and
+	 * onto a per-chat channel. VS Code currently models every session as
+	 * having exactly one chat — its default chat — whose URI is derived
+	 * deterministically from the session URI via {@link buildDefaultChatUri}.
+	 */
+	private readonly _chatStates = new Map<string, ChatState>();
+
+	/** Expanded changeset states, separated from protocol sequencing so cache policy stays local. */
+	private readonly _changesets: AgentHostChangesetStateCache;
+
+	/**
+	 * Per-channel annotation states for the `<session>/annotations` channel.
+	 * Unlike changesets (server-owned), annotation actions are
+	 * client-dispatchable and lazily create their state on first write.
+	 */
+	private readonly _annotations = new Map<string, AnnotationsState>();
 
 	/**
 	 * Sessions whose authoritative state has an active turn. Derived from
@@ -51,11 +86,15 @@ export class AgentHostStateManager extends Disposable {
 
 	private readonly _onDidEmitNotification = this._register(new Emitter<INotification>());
 	readonly onDidEmitNotification: Event<INotification> = this._onDidEmitNotification.event;
+	private readonly _onDidChangeSessionActiveTurn = this._register(new Emitter<{ session: string; active: boolean }>());
+	readonly onDidChangeSessionActiveTurn: Event<{ session: string; active: boolean }> = this._onDidChangeSessionActiveTurn.event;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
+		options: IAgentHostStateManagerOptions = {},
 	) {
 		super();
+		this._changesets = new AgentHostChangesetStateCache(options.changesetStateRetention);
 		this._rootState = createRootState();
 		// Seed the host-level configuration schema + default values so that
 		// RootConfigChanged actions can merge into it, and clients see the
@@ -67,8 +106,10 @@ export class AgentHostStateManager extends Disposable {
 				schema: platformRootSchema.toProtocol(),
 				values: platformRootSchema.validateOrDefault({}, {
 					[SessionConfigKey.Permissions]: { allow: [], deny: [] } satisfies IPermissionsValue,
+					[AgentHostTelemetryLevelConfigKey]: telemetryLevelToAgentHostConfigValue(TelemetryLevel.USAGE),
 				}),
 			},
+			_meta: withHostBuildInfo(this._rootState._meta, options.hostBuildInfo),
 		};
 	}
 	private readonly _log = (msg: string) => this._logService.warn(`[AgentHostStateManager] ${msg}`);
@@ -83,8 +124,39 @@ export class AgentHostStateManager extends Disposable {
 		return this._rootState;
 	}
 
-	getSessionState(session: URI): SessionState | undefined {
-		return this._sessionStates.get(session);
+	getSessionState(session: URI): ISessionWithDefaultChat | undefined {
+		const state = this._sessionStates.get(session);
+		if (!state) {
+			return undefined;
+		}
+		return mergeSessionWithDefaultChat(state, this._chatStates.get(buildDefaultChatUri(session)));
+	}
+
+	/**
+	 * Returns the authoritative {@link ChatState} for a session's default
+	 * chat, or `undefined` when the session is unknown. Use this when the
+	 * caller specifically needs conversation contents (turns, activeTurn,
+	 * pending/input state) rather than the session summary.
+	 */
+	getDefaultChatState(session: URI): ChatState | undefined {
+		return this._chatStates.get(buildDefaultChatUri(session));
+	}
+
+	/** Returns the authoritative {@link ChatState} for a chat channel URI. */
+	getChatState(chat: URI): ChatState | undefined {
+		return this._chatStates.get(chat);
+	}
+
+	/**
+	 * Seeds the conversation contents (turns) of a session's default chat.
+	 * Used by the fork flow, which materializes a new session pre-populated
+	 * with a slice of the source session's turns.
+	 */
+	seedDefaultChatTurns(session: URI, turns: Turn[]): void {
+		const chatState = this._chatStates.get(buildDefaultChatUri(session));
+		if (chatState) {
+			chatState.turns = turns;
+		}
 	}
 
 	get serverSeq(): number {
@@ -93,6 +165,33 @@ export class AgentHostStateManager extends Disposable {
 
 	getSessionUris(): string[] {
 		return [...this._sessionStates.keys()];
+	}
+
+	/**
+	 * Summaries eligible to be overlaid onto a provider's `listSessions`
+	 * snapshot when that snapshot is missing them. A session qualifies if it
+	 * has materialized (lifecycle !== {@link SessionLifecycle.Creating}) — this
+	 * covers the transient-drop case where a provider briefly omits a
+	 * just-materialized session — or if it is still provisional but has had any
+	 * turn activity (an in-flight turn, or a completed turn whose materialize
+	 * event has not landed yet; the first turn can start before materialization
+	 * completes). Idle provisional sessions (created but not yet materialized
+	 * and with no turn activity, e.g. the new-session composer's eagerly-created
+	 * session before its first message) are excluded so they don't leak into
+	 * the session list (#321269).
+	 */
+	getOverlaySessionSummaries(): SessionSummary[] {
+		const summaries: SessionSummary[] = [];
+		for (const state of this._sessionStates.values()) {
+			// Turn activity lives on the session's default chat after the
+			// multi-chat protocol move, so consult that chat's turns/activeTurn.
+			const chat = this._chatStates.get(buildDefaultChatUri(state.summary.resource));
+			if (state.lifecycle === SessionLifecycle.Creating && !chat?.activeTurn && (chat?.turns.length ?? 0) === 0) {
+				continue;
+			}
+			summaries.push(state.summary);
+		}
+		return summaries;
 	}
 
 	/**
@@ -117,10 +216,46 @@ export class AgentHostStateManager extends Disposable {
 	 * the client should process subsequent envelopes with serverSeq > fromSeq.
 	 */
 	getSnapshot(resource: URI): IStateSnapshot | undefined {
-		if (resource === ROOT_STATE_URI) {
+		if (isAhpRootChannel(resource)) {
+			return {
+				resource: ROOT_STATE_URI,
+				state: this._rootState,
+				fromSeq: this._serverSeq,
+			};
+		}
+
+		// Changeset URIs are nested under their session URI; check them
+		// before falling back to the session map so a session whose URI
+		// happens to share a prefix with a changeset never collides.
+		const changesetState = this._changesets.get(resource);
+		if (changesetState) {
 			return {
 				resource,
-				state: this._rootState,
+				state: changesetState,
+				fromSeq: this._serverSeq,
+			};
+		}
+
+		// Chat channel URIs resolve to per-chat conversation state.
+		if (isAhpChatChannel(resource)) {
+			const chatState = this._chatStates.get(resource);
+			if (!chatState) {
+				return undefined;
+			}
+			return {
+				resource,
+				state: chatState,
+				fromSeq: this._serverSeq,
+			};
+		}
+
+		// Annotation URIs are nested under their session URI as well. They are
+		// client-dispatchable and lazily created, so return an empty state for
+		// a well-formed annotations URI even before the first write.
+		if (isAnnotationsUri(resource)) {
+			return {
+				resource,
+				state: this._annotations.get(resource) ?? { annotations: [] },
 				fromSeq: this._serverSeq,
 			};
 		}
@@ -135,6 +270,16 @@ export class AgentHostStateManager extends Disposable {
 			state: sessionState,
 			fromSeq: this._serverSeq,
 		};
+	}
+
+	/** Read-only accessor for callers that only need to inspect a changeset (not subscribe). */
+	getChangesetState(changeset: URI): ChangesetState | undefined {
+		return this._changesets.get(changeset);
+	}
+
+	/** Reconsiders changeset state retention after subscribers or computes release their pins. */
+	onChangesetLivenessChanged(): void {
+		this._changesets.trimEvictableEntries();
 	}
 
 	// ---- Session lifecycle --------------------------------------------------
@@ -161,6 +306,7 @@ export class AgentHostStateManager extends Disposable {
 
 		const state = createSessionState(summary);
 		this._sessionStates.set(key, state);
+		this._ensureDefaultChat(key, summary);
 
 		this._logService.trace(`[AgentHostStateManager] Created session: ${key}`);
 
@@ -171,7 +317,8 @@ export class AgentHostStateManager extends Disposable {
 			// intentionally skip both until they are persisted.
 			this._lastNotifiedSummaries.set(key, summary);
 			this._onDidEmitNotification.fire({
-				type: NotificationType.SessionAdded,
+				type: 'root/sessionAdded',
+				channel: ROOT_STATE_URI,
 				summary,
 			});
 		}
@@ -210,7 +357,8 @@ export class AgentHostStateManager extends Disposable {
 		state.summary = summary;
 		this._lastNotifiedSummaries.set(key, summary);
 		this._onDidEmitNotification.fire({
-			type: NotificationType.SessionAdded,
+			type: 'root/sessionAdded',
+			channel: ROOT_STATE_URI,
 			summary,
 		});
 	}
@@ -234,14 +382,43 @@ export class AgentHostStateManager extends Disposable {
 		const state: SessionState = {
 			...createSessionState(summary),
 			lifecycle: SessionLifecycle.Ready,
-			turns,
 		};
 		this._sessionStates.set(key, state);
+		this._ensureDefaultChat(key, summary, turns);
 		this._lastNotifiedSummaries.set(key, summary);
 
 		this._logService.trace(`[AgentHostStateManager] Restored session: ${key} (${turns.length} turns)`);
 
 		return state;
+	}
+
+	/**
+	 * Creates the default {@link ChatState} for a session and records it as
+	 * the session's single chat. VS Code models every session as having
+	 * exactly one chat — its default chat — whose URI is derived
+	 * deterministically from the session URI. The chat is seeded with any
+	 * pre-populated `turns` (used by {@link restoreSession}).
+	 *
+	 * The session's `chats` catalog and `defaultChat` pointer are updated
+	 * in place rather than via dispatched actions: there are no subscribers
+	 * at creation/restore time, so the snapshot a client later receives on
+	 * subscribe already reflects the default chat.
+	 */
+	private _ensureDefaultChat(sessionKey: string, summary: SessionSummary, turns?: Turn[]): void {
+		const chatUri = buildDefaultChatUri(sessionKey);
+		const chatSummary = createDefaultChatSummary(summary, chatUri);
+		this._chatStates.set(chatUri, { ...createChatState(chatSummary), turns: turns ?? [] });
+		const sessionState = this._sessionStates.get(sessionKey);
+		if (sessionState) {
+			// Update the session's chat catalog in place so the object
+			// identity returned by `createSession`/`restoreSession` stays
+			// live in the map. Callers (e.g. `AgentService.createSession`)
+			// mutate the returned state directly (`state.config = …`), so
+			// replacing the map entry with a fresh clone here would strand
+			// those mutations on a detached object.
+			sessionState.chats = [chatSummary];
+			sessionState.defaultChat = chatUri;
+		}
 	}
 
 	/**
@@ -255,6 +432,15 @@ export class AgentHostStateManager extends Disposable {
 	 * completes) even when the session is evicted before the scheduler fires.
 	 * A {@link NotificationType.SessionSummaryChanged} notification may therefore
 	 * be emitted as a side-effect of this call.
+	 *
+	 * Per-session changesets are intentionally NOT torn down here: this method
+	 * is also used as an idle-eviction (LRU) hook (see
+	 * `AgentService._maybeEvictIdleSession`) and the session list view keeps a
+	 * changeset subscription open per visible row to render the diff chip.
+	 * Tearing down on eviction would clear the chip on the list while the row
+	 * is still on screen. Permanent-delete paths (`deleteSession`,
+	 * `removeSubagentSessions`) call `disposeSessionChangesets` explicitly
+	 * before invoking `removeSession`.
 	 */
 	removeSession(session: URI): void {
 		const state = this._sessionStates.get(session);
@@ -276,10 +462,12 @@ export class AgentHostStateManager extends Disposable {
 		// Without this, evicting a session that still has an active turn
 		// silently strands the active-sessions count above zero forever.
 		if (this._sessionsWithActiveTurn.delete(session)) {
-			this.dispatchServerAction({ type: ActionType.RootActiveSessionsChanged, activeSessions: this._sessionsWithActiveTurn.size });
+			this._onDidChangeSessionActiveTurn.fire({ session, active: false });
+			this.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootActiveSessionsChanged, activeSessions: this._sessionsWithActiveTurn.size });
 		}
 
 		this._sessionStates.delete(session);
+		this._chatStates.delete(buildDefaultChatUri(session));
 		this._lastNotifiedSummaries.delete(session);
 		this._dirtySummaries.delete(session);
 		this._logService.trace(`[AgentHostStateManager] Removed session: ${session}`);
@@ -302,10 +490,18 @@ export class AgentHostStateManager extends Disposable {
 		// supersedes it and we don't want to emit spurious SessionSummaryChanged
 		// events just before the session disappears from the client's view.
 		this._dirtySummaries.delete(session);
+		// Tear down per-session changesets first so subscribers see the
+		// final `changeset/cleared` envelope before the session itself goes
+		// away. The envelopes flow through the same emitter as everything
+		// else, so callers observing `onDidEmitEnvelope` get a deterministic
+		// order: changeset/cleared (per changeset) → session removal.
+		this.disposeSessionChangesets(session);
+		this.disposeSessionAnnotations(session);
 		this.removeSession(session);
 		if (wasAnnounced) {
 			this._onDidEmitNotification.fire({
-				type: NotificationType.SessionRemoved,
+				type: 'root/sessionRemoved',
+				channel: ROOT_STATE_URI,
 				session,
 			});
 		}
@@ -323,7 +519,172 @@ export class AgentHostStateManager extends Disposable {
 	 * helpers in `sessionState.ts` to combine slots.
 	 */
 	setSessionMeta(session: URI, meta: SessionMeta | undefined): void {
-		this.dispatchServerAction({ type: ActionType.SessionMetaChanged, session, _meta: meta });
+		this.dispatchServerAction(session, { type: ActionType.SessionMetaChanged, _meta: meta });
+	}
+
+	/**
+	 * Seeds or replaces a session's resolved {@link SessionConfigState} on the
+	 * live session state. Unlike mid-session {@link ActionType.SessionConfigChanged}
+	 * updates (which merge values onto an existing config), this establishes
+	 * the initial config and is therefore an in-place mutation of the
+	 * authoritative state object so the value is present in the first snapshot
+	 * a subscriber receives. Use this from create/restore flows where the
+	 * config is resolved asynchronously after the session state already exists
+	 * in the map — reading back through {@link getSessionState} would return a
+	 * detached composite copy and stranding the mutation there.
+	 */
+	setSessionConfig(session: URI, config: SessionConfigState | undefined): void {
+		const state = this._sessionStates.get(session);
+		if (!state) {
+			this._logService.warn(`[AgentHostStateManager] setSessionConfig: unknown session ${session}`);
+			return;
+		}
+		state.config = config;
+	}
+
+	// ---- Changeset registry -------------------------------------------------
+
+	/**
+	 * Registers a server-side changeset so that subscribers can attach to its
+	 * URI. The changeset is created with the supplied initial status (default
+	 * {@link ChangesetStatus.Computing}); subsequent file/operation/status
+	 * mutations flow through {@link dispatchChangesetAction} on the
+	 * canonical `<sessionUri>/changeset/<changesetId>` URI.
+	 *
+	 * Idempotent: a second call with the same URI is a no-op so producers
+	 * can safely re-register on session resume without double-creating
+	 * state.
+	 *
+	 * Callers construct `changesetUri` via {@link buildSessionChangesetUri}
+	 * for the session-wide entry, or {@link buildChangesetUri} for any
+	 * other catalogue entry.
+	 *
+	 * Returns the supplied changeset URI for caller convenience.
+	 */
+	registerChangeset(changesetUri: URI, initialStatus: ChangesetStatus = ChangesetStatus.Computing): URI {
+		this._changesets.register(changesetUri, initialStatus);
+		return changesetUri;
+	}
+
+	/**
+	 * Updates the aggregate `summary.changes` for a session.
+	 *
+	 * There is no dedicated action for this field: the value is purely
+	 * informational (chip rendering on the session list), so the write
+	 * piggybacks on the existing `sessionSummaryChanged` notification
+	 * path. We mutate `state.summary` in place, mark the session dirty,
+	 * and let {@link _flushSummaryNotificationFor} pick the new value up
+	 * via its `current.changes !== lastNotified.changes` diff.
+	 */
+	setSessionSummaryChanges(session: URI, changes: ChangesSummary | undefined): void {
+		const state = this._sessionStates.get(session);
+		if (!state) {
+			this._logService.warn(`[AgentHostStateManager] setSessionSummaryChanges: unknown session ${session}`);
+			return;
+		}
+		if (structuralEquals(state.summary.changes, changes)) {
+			return;
+		}
+
+		const newState = {
+			...state,
+			summary: { ...state.summary, changes },
+		};
+
+		this._sessionStates.set(session, newState);
+
+		this._dirtySummaries.add(session);
+		this._summaryNotifyScheduler.schedule();
+	}
+
+	/**
+	 * Replaces the catalogue entries on `state.changesets` for `session` by
+	 * dispatching a {@link ActionType.SessionChangesetsChanged} action.
+	 * Subscribers see the mutation in the standard session action stream —
+	 * the catalogue lives on session state and is not its own subscribable
+	 * resource. Aggregate `summary.changes` counts (additions / deletions /
+	 * files) are propagated separately via {@link setSessionSummaryChanges}.
+	 *
+	 * Producers call this after each compute pass to keep the list of
+	 * available changesets (with their `changeKind`) in sync so observers
+	 * can render the correct entries without subscribing to each one.
+	 */
+	setSessionChangesets(session: URI, changesets: readonly Changeset[] | undefined): void {
+		const state = this._sessionStates.get(session);
+		if (!state) {
+			this._logService.warn(`[AgentHostStateManager] setSessionChangesets: unknown session ${session}`);
+			return;
+		}
+
+		// Skip dispatch when the catalogue is field-equal to the existing one.
+		// Producers call this after every compute pass, so duplicate calls
+		// are common and would otherwise broadcast a redundant envelope to
+		// every subscriber.
+		if (arrayEquals(state.changesets ?? [], changesets ?? [], structuralEquals)) {
+			return;
+		}
+		// Take a defensive copy so callers can't mutate the catalogue array
+		// after dispatch; the reducer otherwise stores the reference as-is.
+		const next = changesets ? changesets.slice() : undefined;
+		this.dispatchServerAction(session, {
+			type: ActionType.SessionChangesetsChanged,
+			changesets: next,
+		});
+	}
+
+	/**
+	 * Tear down a changeset. Dispatches {@link ActionType.ChangesetCleared}
+	 * so subscribers see an empty file list, then deletes the local state
+	 * so a fresh `getChangesetState` returns `undefined` and forces the
+	 * producer to re-create the changeset on next subscribe.
+	 *
+	 * Per the spec, the server SHOULD also unsubscribe its clients after
+	 * dispatching this action; for VS Code-internal clients that happens
+	 * via the `notify/sessionRemoved` notification, which the workbench-side
+	 * provider correlates to release any held subscriptions.
+	 *
+	 * Safe to call for a URI that was never registered: producers typically
+	 * iterate over a candidate set on session disposal and emit dispose
+	 * actions defensively.
+	 */
+	disposeChangeset(changeset: URI): void {
+		if (!this._changesets.has(changeset)) {
+			return;
+		}
+		this.dispatchServerAction(changeset, {
+			type: ActionType.ChangesetCleared,
+		});
+		this._changesets.delete(changeset);
+	}
+
+	/**
+	 * Disposes every changeset whose URI is nested under `session` (i.e.
+	 * matches `<session>/changeset/...`). Used to cascade cleanup when a
+	 * session itself is removed.
+	 */
+	disposeSessionChangesets(session: URI): void {
+		// Collect first because `disposeChangeset` mutates the underlying
+		// map via its envelope handler.
+		const toDispose: URI[] = [];
+		for (const uri of this._changesets.keys()) {
+			const parsed = parseChangesetUri(uri);
+			if (parsed && parsed.sessionUri === session) {
+				toDispose.push(uri);
+			}
+		}
+		for (const uri of toDispose) {
+			this.disposeChangeset(uri);
+		}
+	}
+
+	/**
+	 * Drops the annotation state nested under `session` (i.e. the
+	 * `<session>/annotations` channel). Used to cascade cleanup when a
+	 * session itself is removed. Subscriptions are released via the
+	 * forthcoming `sessionRemoved` notification.
+	 */
+	disposeSessionAnnotations(session: URI): void {
+		this._annotations.delete(buildAnnotationsUri(session));
 	}
 
 	// ---- Turn tracking ------------------------------------------------------
@@ -334,8 +695,7 @@ export class AgentHostStateManager extends Disposable {
 	 * with the correct active turn.
 	 */
 	getActiveTurnId(session: URI): string | undefined {
-		const state = this._sessionStates.get(session);
-		return state?.activeTurn?.id;
+		return this._chatStates.get(buildDefaultChatUri(session))?.activeTurn?.id;
 	}
 
 	// ---- Action dispatch ----------------------------------------------------
@@ -344,9 +704,13 @@ export class AgentHostStateManager extends Disposable {
 	 * Dispatch a server-originated action (from the agent backend).
 	 * The action is applied to state via the reducer and emitted as an
 	 * envelope with no origin (server-produced).
+	 *
+	 * `channel` identifies the channel the action targets — `ROOT_STATE_URI`
+	 * for root actions, a session URI for session actions, a terminal URI
+	 * for terminal actions, an expanded changeset URI for changeset actions.
 	 */
-	dispatchServerAction(action: StateAction): void {
-		this._applyAndEmit(action, undefined);
+	dispatchServerAction(channel: URI, action: StateAction): void {
+		this._applyAndEmit(channel, action, undefined);
 	}
 
 	/**
@@ -354,14 +718,19 @@ export class AgentHostStateManager extends Disposable {
 	 * The action is applied to state and emitted with the client's origin
 	 * so the originating client can reconcile.
 	 */
-	dispatchClientAction(action: SessionAction | TerminalAction | IRootConfigChangedAction, origin: ActionOrigin): unknown {
-		return this._applyAndEmit(action, origin);
+	dispatchClientAction(channel: URI, action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, origin: ActionOrigin): unknown {
+		return this._applyAndEmit(channel, action, origin);
 	}
 
 	// ---- Internal -----------------------------------------------------------
 
-	private _applyAndEmit(action: StateAction, origin: ActionOrigin | undefined): unknown {
+	private _applyAndEmit(channel: URI, action: StateAction, origin: ActionOrigin | undefined): unknown {
 		let resultingState: unknown = undefined;
+		// Channel the resulting envelope is emitted on. Chat actions are
+		// dispatched by producers against the owning session URI for
+		// backward compatibility, but must be emitted on the chat channel
+		// URI so per-chat subscribers receive them.
+		let emitChannel = channel;
 		// Apply to state
 		if (isRootAction(action)) {
 			// `RootConfigChanged` can be a true no-op: the reducer merges/replaces
@@ -386,7 +755,7 @@ export class AgentHostStateManager extends Disposable {
 
 		if (isSessionAction(action)) {
 			const sessionAction = action as SessionAction;
-			const key = sessionAction.session;
+			const key = channel;
 			const state = this._sessionStates.get(key);
 			if (state) {
 				const newState = sessionReducer(state, sessionAction, this._log);
@@ -398,31 +767,67 @@ export class AgentHostStateManager extends Disposable {
 					this._summaryNotifyScheduler.schedule();
 				}
 
-				// Track active turn transitions off the reducer's view of state,
-				// not off the raw action's turn-ids. The reducer's `endTurn`
-				// no-ops on a stale turn-id and `SessionTurnStarted` overwrites
-				// a still-running turn, so deriving the count from `activeTurn`
-				// is the only way to keep `RootActiveSessionsChanged` in sync
-				// with reality.
-				const hadActive = !!state.activeTurn;
-				const hasActive = !!newState.activeTurn;
-				if (hadActive !== hasActive) {
-					if (hasActive) {
-						this._sessionsWithActiveTurn.add(key);
-					} else {
-						this._sessionsWithActiveTurn.delete(key);
-					}
-					this.dispatchServerAction({ type: ActionType.RootActiveSessionsChanged, activeSessions: this._sessionsWithActiveTurn.size });
-				}
-
 				resultingState = newState;
 			} else {
 				this._logService.warn(`[AgentHostStateManager] Action for unknown session: ${key}, type=${action.type}`);
 			}
 		}
 
+		if (isChatAction(action)) {
+			const chatAction = action as ChatAction;
+			// Producers dispatch chat actions against either the session URI
+			// (compat) or the chat channel URI. Resolve both so we can update
+			// the chat state, bridge status to the session summary, and emit
+			// on the chat channel.
+			const sessionKey = isAhpChatChannel(channel) ? parseDefaultChatUri(channel) : channel;
+			const chatUri = isAhpChatChannel(channel) ? channel : buildDefaultChatUri(channel);
+			emitChannel = chatUri;
+			const chat = this._chatStates.get(chatUri);
+			if (chat && sessionKey !== undefined) {
+				const newChat = chatReducer(chat, chatAction, this._log);
+				this._chatStates.set(chatUri, newChat);
+				this._onChatStateChanged(sessionKey, chatUri, chat, newChat);
+				resultingState = newChat;
+			} else {
+				this._logService.warn(`[AgentHostStateManager] Action for unknown chat: ${chatUri}, type=${action.type}`);
+			}
+		}
+
+		if (isChangesetAction(action)) {
+			const changesetAction = action as ChangesetAction;
+			const key = channel;
+			const state = this._changesets.get(key);
+			if (!state) {
+				// Unknown changeset: log and bail before envelope creation.
+				// Routing the action to subscribers (Issue 1) makes
+				// orphan envelopes client-visible, so we must drop them
+				// here rather than letting them advance `_serverSeq`.
+				this._logService.warn(`[AgentHostStateManager] Action for unknown changeset: ${key}, type=${action.type}`);
+				return undefined;
+			}
+			const newState = changesetReducer(state, changesetAction, this._log);
+			if (newState !== state) {
+				this._changesets.set(key, newState);
+			}
+			resultingState = newState;
+		}
+
+		if (isAnnotationsAction(action)) {
+			const annotationsAction = action as AnnotationsAction;
+			const key = channel;
+			// Annotations are client-dispatchable and lazily created: seed an
+			// empty state on first write rather than dropping the action.
+			const state = this._annotations.get(key) ?? { annotations: [] };
+			const newState = annotationsReducer(state, annotationsAction, this._log);
+			if (newState !== state) {
+				this._annotations.set(key, newState);
+			}
+			resultingState = newState;
+		}
+
 		// Emit envelope
 		const envelope: ActionEnvelope = {
+			channel: emitChannel,
 			action,
 			serverSeq: ++this._serverSeq,
 			origin,
@@ -432,6 +837,74 @@ export class AgentHostStateManager extends Disposable {
 		this._onDidEmitEnvelope.fire(envelope);
 
 		return resultingState;
+	}
+
+	/**
+	 * Bridges a default-chat state transition back onto its owning session.
+	 *
+	 * The protocol moved turn lifecycle (and therefore the derived
+	 * activity status) onto the chat channel. To preserve VS Code's
+	 * single-chat behaviour we:
+	 *  - track active-turn transitions (driving `RootActiveSessionsChanged`
+	 *    and `hasActiveSessions`, which gate `--enable-remote-auto-shutdown`),
+	 *    keyed by the owning session URI;
+	 *  - mirror the chat's denormalized `status`/`activity`/`modifiedAt`
+	 *    onto the session summary so the session list reflects progress; and
+	 *  - keep the session's `chats` catalog entry in sync.
+	 */
+	private _onChatStateChanged(sessionKey: string, chatUri: string, prev: ChatState, next: ChatState): void {
+		// Active turn tracking — derive from the reducer's view of state,
+		// never from raw action turn-ids, so out-of-order lifecycle actions
+		// can't desync the count from reality.
+		const hadActive = !!prev.activeTurn;
+		const hasActive = !!next.activeTurn;
+		if (hadActive !== hasActive) {
+			if (hasActive) {
+				this._sessionsWithActiveTurn.add(sessionKey);
+			} else {
+				this._sessionsWithActiveTurn.delete(sessionKey);
+			}
+			this._onDidChangeSessionActiveTurn.fire({ session: sessionKey, active: hasActive });
+			this.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootActiveSessionsChanged, activeSessions: this._sessionsWithActiveTurn.size });
+		}
+
+		const sessionState = this._sessionStates.get(sessionKey);
+		if (!sessionState) {
+			return;
+		}
+
+		// Mirror denormalized chat summary fields onto the session.
+		const statusChanged = prev.status !== next.status;
+		const activityChanged = prev.activity !== next.activity;
+		const modifiedAtChanged = prev.modifiedAt !== next.modifiedAt;
+		const summaryChanged = statusChanged || activityChanged || modifiedAtChanged;
+		// Keep the chats catalog entry in sync whenever any denormalized
+		// summary field changes.
+		const chats = sessionState.chats.map(c => c.resource === chatUri ? chatSummaryFromState(next) : c);
+		const newSummary = summaryChanged
+			? {
+				...sessionState.summary,
+				...(statusChanged ? { status: this._mergeSessionStatus(sessionState.summary.status, next.status) } : undefined),
+				...(activityChanged ? { activity: next.activity } : undefined),
+				...(modifiedAtChanged ? { modifiedAt: Date.parse(next.modifiedAt) } : undefined),
+			}
+			: sessionState.summary;
+		this._sessionStates.set(sessionKey, { ...sessionState, chats, summary: newSummary });
+		if (summaryChanged) {
+			this._dirtySummaries.add(sessionKey);
+			this._summaryNotifyScheduler.schedule();
+		}
+	}
+
+	/**
+	 * Combines the chat's activity status bits with the session summary's
+	 * own metadata flags (IsRead / IsArchived) which live in the high bits
+	 * of {@link SessionStatus} and are owned by the session, not the chat.
+	 */
+	private _mergeSessionStatus(sessionStatus: SessionStatus, chatStatus: SessionStatus): SessionStatus {
+		const metaFlags = sessionStatus & (SessionStatus.IsRead | SessionStatus.IsArchived);
+		const activityBits = chatStatus & ~(SessionStatus.IsRead | SessionStatus.IsArchived);
+		return activityBits | metaFlags;
 	}
 
 	private _flushSummaryNotifications(): void {
@@ -464,14 +937,15 @@ export class AgentHostStateManager extends Disposable {
 		if (current.modifiedAt !== lastNotified.modifiedAt) { changes.modifiedAt = current.modifiedAt; }
 		if (current.project !== lastNotified.project) { changes.project = current.project; }
 		if (current.model !== lastNotified.model) { changes.model = current.model; }
+		if (current.changes !== lastNotified.changes) { changes.changes = current.changes; }
 		if (current.workingDirectory !== lastNotified.workingDirectory) { changes.workingDirectory = current.workingDirectory; }
-		if (current.diffs !== lastNotified.diffs) { changes.diffs = current.diffs; }
 
 		this._lastNotifiedSummaries.set(session, current);
 
 		if (Object.keys(changes).length > 0) {
 			this._onDidEmitNotification.fire({
-				type: NotificationType.SessionSummaryChanged,
+				type: 'root/sessionSummaryChanged',
+				channel: ROOT_STATE_URI,
 				session,
 				changes,
 			});

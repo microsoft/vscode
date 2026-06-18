@@ -142,9 +142,12 @@ function patchGlobalFetch(params: ProxyAgentParams, configProvider: ExtHostConfi
 		const originalFetch = globalThis.fetch;
 		// eslint-disable-next-line local/code-no-any-casts
 		(globalThis as any).__vscodeOriginalFetch = originalFetch;
-		const patchedFetch = proxyAgent.createFetchPatch(params, originalFetch, resolveProxyURL);
+		const createPatchedFetch = (options?: proxyAgent.CreateFetchPatchOptions) => proxyAgent.createFetchPatch(params, originalFetch, resolveProxyURL, options);
+		const patchedFetch = createPatchedFetch();
 		// eslint-disable-next-line local/code-no-any-casts
 		(globalThis as any).__vscodePatchedFetch = patchedFetch;
+		// eslint-disable-next-line local/code-no-any-casts
+		(globalThis as any).__vscodeCreateFetchPatch = createPatchedFetch;
 		let useElectronFetch = false;
 		if (!initData.remote.isRemote) {
 			useElectronFetch = configProvider.getConfiguration('http').get<boolean>('electronFetch', useElectronFetchDefault);

@@ -8,7 +8,7 @@ import { CancellationToken } from '../../../../../../../base/common/cancellation
 import { localize } from '../../../../../../../nls.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../../chat/common/tools/languageModelToolsService.js';
-import { ITaskService, ITaskSummary, Task, TasksAvailableContext } from '../../../../../tasks/common/taskService.js';
+import { ITaskService, ITaskSummary, Task } from '../../../../../tasks/common/taskService.js';
 import { TaskRunSource } from '../../../../../tasks/common/tasks.js';
 import { ITerminalInstance, ITerminalService } from '../../../../../terminal/browser/terminal.js';
 import { collectTerminalResults, getTaskDefinition, getTaskForTool, resolveDependencyTasks, tasksMatch } from '../../taskHelpers.js';
@@ -173,7 +173,6 @@ export const RunTaskToolData: IToolData = {
 	userDescription: localize('runInTerminalTool.userDescription', 'Run tasks in the workspace'),
 	icon: Codicon.tools,
 	source: ToolDataSource.Internal,
-	when: TasksAvailableContext,
 	inputSchema: {
 		'type': 'object',
 		'properties': {
