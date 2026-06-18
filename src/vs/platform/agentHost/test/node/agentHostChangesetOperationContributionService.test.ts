@@ -12,11 +12,12 @@ import type { IChangesetOperationContribution, IChangesetOperationContext, IChan
 import { buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../common/state/protocol/channels-changeset/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetOperation } from '../../common/state/sessionState.js';
+import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetOperation, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostChangesetOperationContributionService } from '../../node/agentHostChangesetOperationContributionService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import type { AgentHostSessionGitStateService } from '../../node/agentHostSessionGitStateService.js';
+import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { AgentHostChangesetSubscriptionService } from '../../node/agentHostChangesetSubscriptionService.js';
+import { URI } from '../../../../base/common/uri.js';
 
 class TestHandler implements IChangesetOperationHandler {
 	calls = 0;
@@ -57,6 +58,14 @@ class TestContribution implements IChangesetOperationContribution {
 	dispose(): void { }
 }
 
+class TestGitStateService implements IAgentHostGitStateService {
+	declare readonly _serviceBrand: undefined;
+
+	async refreshSessionGitState(_sessionKey: string, _workingDirectory?: URI): Promise<ISessionGitState | undefined | null> {
+		return undefined;
+	}
+}
+
 suite('AgentHostChangesetOperationContributionService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -72,7 +81,7 @@ suite('AgentHostChangesetOperationContributionService', () => {
 
 		const service = disposables.add(new AgentHostChangesetOperationContributionService(
 			stateManager,
-			{ refreshSessionGitState: async () => undefined } as unknown as AgentHostSessionGitStateService,
+			new TestGitStateService(),
 			new AgentHostChangesetSubscriptionService(),
 		));
 		const handler = new TestHandler();
@@ -105,7 +114,7 @@ suite('AgentHostChangesetOperationContributionService', () => {
 
 		const service = disposables.add(new AgentHostChangesetOperationContributionService(
 			stateManager,
-			{ refreshSessionGitState: async () => undefined } as unknown as AgentHostSessionGitStateService,
+			new TestGitStateService(),
 			new AgentHostChangesetSubscriptionService(),
 		));
 		const handler = new TestHandler();
@@ -130,7 +139,7 @@ suite('AgentHostChangesetOperationContributionService', () => {
 
 		const service = disposables.add(new AgentHostChangesetOperationContributionService(
 			stateManager,
-			{ refreshSessionGitState: async () => undefined } as unknown as AgentHostSessionGitStateService,
+			new TestGitStateService(),
 			new AgentHostChangesetSubscriptionService(),
 		));
 		const handler = new TestHandler();
@@ -155,7 +164,7 @@ suite('AgentHostChangesetOperationContributionService', () => {
 
 		const service = disposables.add(new AgentHostChangesetOperationContributionService(
 			stateManager,
-			{ refreshSessionGitState: async () => undefined } as unknown as AgentHostSessionGitStateService,
+			new TestGitStateService(),
 			new AgentHostChangesetSubscriptionService(),
 		));
 		const handler = new TestHandler();
