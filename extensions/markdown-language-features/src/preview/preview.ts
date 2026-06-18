@@ -204,6 +204,15 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			}
 		}));
 
+		// Refresh when the panel becomes visible so that externally-changed files
+		// (e.g. via git checkout or an outside editor) are reflected even when no
+		// text document change event was fired while the preview was hidden.
+		this._register(this.#webviewPanel.onDidChangeViewState(() => {
+			if (this.#webviewPanel.visible) {
+				this.refresh();
+			}
+		}));
+
 		this.refresh();
 	}
 
