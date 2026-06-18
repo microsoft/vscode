@@ -211,18 +211,24 @@
 		if (preset) {
 			editor.value = JSON.stringify(preset.body, null, '\t');
 			drafts[activeId] = editor.value;
+			saveDrafts();
 			parseEditor();
+			debouncedSave();
 		}
 	}
 
 	/** Latest overrides snippet for copy-to-clipboard. */
 	let overridesSnippet = '';
+	let overridesPath = '';
 
 	function renderWired(state) {
-		wiredStatusEl.textContent = state.wired ? 'Wired \u2713' : 'Not wired';
+		wiredStatusEl.textContent = state.wired ? 'Applied \u2713' : 'Not applied';
 		wiredStatusEl.dataset.kind = state.wired ? 'ok' : '';
 		if (state.overridesSnippet) {
 			overridesSnippet = state.overridesSnippet;
+		}
+		if (state.overridesPath) {
+			overridesPath = state.overridesPath;
 		}
 	}
 
@@ -241,10 +247,13 @@
 			renderWired(state);
 			drafts[activeId] = editor.value;
 			saveDrafts();
-			setStatus(`Saved. ${activeEndpoint().path} now returns this body.`, 'ok');
-		} catch (e) {
-			setStatus(`Save failed: ${e instanceof Error ? e.message : String(e)}`, 'error');
-		}
+		} catch { /* auto-save failures are silent */ }
+	}
+
+	let saveTimer = 0;
+	function debouncedSave() {
+		clearTimeout(saveTimer);
+		saveTimer = setTimeout(save, 400);
 	}
 
 	async function wire(wireIt) {
@@ -252,10 +261,7 @@
 			const state = await api(wireIt ? '/api/wire' : '/api/unwire', { method: 'POST' });
 			endpoints = state.endpoints;
 			renderWired(state);
-			setStatus(wireIt ? 'Wired product.overrides.json. Reload Code OSS.' : 'Unwired product.overrides.json. Reload Code OSS.', 'ok');
-		} catch (e) {
-			setStatus(`${wireIt ? 'Wire' : 'Unwire'} failed: ${e instanceof Error ? e.message : String(e)}`, 'error');
-		}
+		} catch { /* status is shown via the wired-status element */ }
 	}
 
 	function formatJson() {
@@ -359,9 +365,8 @@
 		}
 		loadDrafts();
 
-		editor.addEventListener('input', () => { drafts[activeId] = editor.value; saveDrafts(); parseEditor(); });
+		editor.addEventListener('input', () => { drafts[activeId] = editor.value; saveDrafts(); parseEditor(); debouncedSave(); });
 		$('apply-preset').addEventListener('click', applyPreset);
-		$('save').addEventListener('click', save);
 		$('format').addEventListener('click', formatJson);
 		$('wire').addEventListener('click', () => wire(true));
 		$('unwire').addEventListener('click', () => wire(false));
@@ -375,6 +380,15 @@
 			} catch {
 				setStatus('Copy failed \u2014 check clipboard permissions', 'error');
 			}
+		});
+		$('copy-overrides-path').addEventListener('click', async () => {
+			try {
+				await navigator.clipboard.writeText(overridesPath);
+				const btn = $('copy-overrides-path');
+				const orig = btn.textContent;
+				btn.textContent = 'Copied \u2713';
+				setTimeout(() => { btn.textContent = orig; }, 1500);
+			} catch { /* clipboard error */ }
 		});
 		$('toggle-schema').addEventListener('click', toggleSchemaView);
 		$('refresh-schema').addEventListener('click', loadSchema);

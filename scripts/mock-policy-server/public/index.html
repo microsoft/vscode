@@ -69,7 +69,6 @@
 				</div>
 
 				<div class="button-group">
-					<button id="save" type="button" class="btn-primary">&#128190; Save</button>
 					<button id="format" type="button" class="btn-secondary">Format JSON</button>
 				</div>
 
@@ -83,17 +82,18 @@
 		<aside class="sidebar-panel">
 			<div class="section-block">
 				<div class="section-header">
-					<h2>Wiring</h2>
-					<span class="info-icon" data-tooltip="Wire writes product.overrides.json to redirect Copilot URLs to this server. Unwire restores the original file. Reload Code OSS after.">&#9432;</span>
+					<h2>product.overrides.json</h2>
+					<span class="info-icon" data-tooltip="Redirects Copilot policy URLs to this local server. Restore reverts to the original file. Reload Code OSS after.">&#9432;</span>
 				</div>
 				<div class="status-box">
 					<span class="label-small">Status</span>
 					<strong id="wired-status">&#8230;</strong>
 				</div>
 				<div class="button-group-vertical">
-					<button id="wire" type="button" class="btn-primary btn-full">&#128279; Wire all endpoints</button>
-					<button id="unwire" type="button" class="btn-secondary btn-full">Unwire</button>
-					<button id="copy-overrides" type="button" class="btn-secondary btn-full">&#128203; Copy overrides JSON</button>
+					<button id="wire" type="button" class="btn-primary btn-full">Apply overrides</button>
+					<button id="unwire" type="button" class="btn-secondary btn-full">Restore original</button>
+					<button id="copy-overrides" type="button" class="btn-secondary btn-full">&#128203; Copy JSON</button>
+					<button id="copy-overrides-path" type="button" class="btn-secondary btn-full">&#128203; Copy file path</button>
 				</div>
 			</div>
 
