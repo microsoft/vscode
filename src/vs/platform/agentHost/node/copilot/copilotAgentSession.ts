@@ -7,7 +7,7 @@ import type { CopilotSession, ExitPlanModeRequest, MessageOptions, PermissionReq
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { CancellationError } from '../../../../base/common/errors.js';
+import { CancellationError, getErrorMessage } from '../../../../base/common/errors.js';
 import { escapeMarkdownSyntaxTokens } from '../../../../base/common/htmlContent.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -31,10 +31,11 @@ import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmitter.js';
 import type { LanguageModelToolInvokedClassification, LanguageModelToolInvokedEvent } from '../../../telemetry/common/languageModelToolTelemetry.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { isAgentFeedbackAnnotationsAttachment, renderAgentFeedbackAnnotationsAttachment } from '../../common/agentFeedbackAttachments.js';
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type Turn, type UsageInfo, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import type { IExitPlanModeResponse } from './copilotAgent.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
@@ -326,6 +327,14 @@ export interface ICopilotAgentSessionOptions {
 	 * the future) and exposes SDK tool handlers that execute them in-process.
 	 */
 	readonly serverToolHost?: IAgentServerToolHost;
+	/**
+	 * Fetches the user's current Copilot quota snapshots (keyed by quota type,
+	 * e.g. `chat` / `premium_interactions`) via the SDK's `account.getQuota`
+	 * RPC. The SDK exposes this only on the top-level client, so the agent
+	 * passes a bound callback. Used to forward per-response quota to the client
+	 * so the core can update `IChatEntitlementService`.
+	 */
+	readonly fetchQuotaSnapshots?: () => Promise<Record<string, unknown> | undefined>;
 }
 
 /**
@@ -338,6 +347,9 @@ export interface ICopilotAgentSessionOptions {
 export class CopilotAgentSession extends Disposable {
 	readonly sessionId: string;
 	readonly sessionUri: URI;
+
+	/** Working directory this session operates in, if any. */
+	get workingDirectory(): URI | undefined { return this._workingDirectory; }
 
 	/** Tracks active tool invocations so we can produce past-tense messages on completion. */
 	private readonly _activeToolCalls = new Map<string, { toolName: string; displayName: string; parameters: Record<string, unknown> | undefined; content: ToolResultContent[]; parentToolCallId: string | undefined; startTimeMs: number; mcpServerName: string | undefined; meta: Record<string, unknown> | undefined }>();
@@ -434,6 +446,23 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _workingDirectory: URI | undefined;
 	private readonly _customizationDirectory: URI | undefined;
 	private readonly _serverToolHost: IAgentServerToolHost | undefined;
+	/** Fetches the user's current quota snapshots via the SDK `account.getQuota` RPC. */
+	private readonly _fetchQuotaSnapshots: (() => Promise<Record<string, unknown> | undefined>) | undefined;
+	/**
+	 * Most recent usage emitted for the active turn (token totals + `_meta`),
+	 * and its turn id. The out-of-band quota fetch re-emits this latest usage
+	 * with quota attached, so a quota update never regresses the token meter
+	 * even if a newer usage event lands while `account.getQuota` is in flight.
+	 */
+	private _latestUsage: UsageInfo | undefined;
+	private _latestUsageTurnId = '';
+	/**
+	 * Guards against overlapping {@link _fetchAndEmitQuota} calls: `assistant.usage`
+	 * can fire multiple times per turn (e.g. per model call / sub-agent), so we
+	 * collapse concurrent `account.getQuota` fetches into one. The follow-up emit
+	 * always re-reads {@link _latestUsage}, so a skipped fetch loses no data.
+	 */
+	private _quotaFetchInFlight = false;
 	/** Bridges SDK-reported MCP server state into AHP customization actions. */
 	private readonly _mcpCustomizations: McpCustomizationController;
 
@@ -487,6 +516,7 @@ export class CopilotAgentSession extends Disposable {
 		this._workingDirectory = options.workingDirectory;
 		this._customizationDirectory = options.customizationDirectory;
 		this._serverToolHost = options.serverToolHost;
+		this._fetchQuotaSnapshots = options.fetchQuotaSnapshots;
 
 		this._appliedSnapshot = options.clientSnapshot ?? { tools: [], plugins: [] };
 		this._clientToolNames = new Set(this._appliedSnapshot.tools.map(t => t.name));
@@ -557,6 +587,47 @@ export class CopilotAgentSession extends Disposable {
 			session: this.sessionUri,
 			action,
 			parentToolCallId,
+		});
+	}
+
+	/**
+	 * Out-of-band quota update: fetches the user's current quota snapshots via
+	 * `account.getQuota` and forwards them on a follow-up {@link ActionType.ChatUsage}
+	 * action. The SDK does not carry quota on the (public) usage event, so we fetch
+	 * it separately; the fetch is fire-and-forget so it never delays the token /
+	 * credit meter. To avoid regressing the meter if a newer usage event lands while
+	 * the RPC is in flight, the follow-up re-emits the {@link _latestUsage} (current
+	 * token totals) with quota attached — the consumer applies quota from `_meta`
+	 * and dedupes the unchanged token totals.
+	 */
+	private async _fetchAndEmitQuota(sessionId: string): Promise<void> {
+		// Collapse bursts of usage events into a single in-flight fetch.
+		if (this._quotaFetchInFlight) {
+			return;
+		}
+		this._quotaFetchInFlight = true;
+		let quotaSnapshots: Record<string, unknown> | undefined;
+		try {
+			quotaSnapshots = await this._fetchQuotaSnapshots?.();
+		} catch (error) {
+			this._logService.warn(`[Copilot:${sessionId}] account.getQuota failed`, error);
+		} finally {
+			this._quotaFetchInFlight = false;
+		}
+
+		const latest = this._latestUsage;
+		if (!quotaSnapshots || Object.keys(quotaSnapshots).length === 0 || !latest) {
+			return;
+		}
+
+		const usage: UsageInfo = {
+			...latest,
+			_meta: { ...(latest._meta ?? {}), quotaSnapshots },
+		};
+		this._emitAction({
+			type: ActionType.ChatUsage,
+			turnId: this._latestUsageTurnId,
+			usage,
 		});
 	}
 
@@ -933,6 +1004,11 @@ export class CopilotAgentSession extends Disposable {
 				await this._wrapper.session.rpc.history.compact();
 				this.emitInitialMarkdown(localize('copilotAgent.compactionCompleted', "Compaction completed"));
 			} catch (err) {
+				if (getErrorMessage(err).toLowerCase().includes('nothing to compact')) {
+					this.emitInitialMarkdown(localize('copilotAgent.compactionCompleted', "Compaction completed"));
+					this._completeActiveTurn();
+					return;
+				}
 				this._logService.error(err, `[Copilot:${this.sessionId}] rpc.history.compact failed`);
 				throw err;
 			}
@@ -1057,6 +1133,18 @@ export class CopilotAgentSession extends Disposable {
 	 * selection downgrades to a plain file reference.
 	 */
 	private async _toSdkAttachment(attachment: MessageAttachment): Promise<CopilotSdkAttachment | undefined> {
+		if (isAgentFeedbackAnnotationsAttachment(attachment)) {
+			const rendered = renderAgentFeedbackAnnotationsAttachment(attachment);
+			if (!rendered) {
+				return undefined;
+			}
+			return {
+				type: 'blob' as const,
+				data: encodeBase64(VSBuffer.fromString(rendered)),
+				mimeType: 'text/plain',
+				displayName: attachment.label,
+			};
+		}
 		if (attachment.type === MessageAttachmentKind.Simple) {
 			if (attachment.modelRepresentation) {
 				return {
@@ -1363,9 +1451,11 @@ export class CopilotAgentSession extends Disposable {
 			// Auto-approve the agent host's server tools. They only read or
 			// mutate the session's own server-held state and never touch the
 			// workspace, shell, or network, so prompting for them is redundant
-			// noise.
+			// noise. Tools that explicitly require confirmation (e.g. revealing
+			// unreviewed review comments) are excluded so the user is prompted.
 			if (request.kind === 'custom-tool' && typeof request.toolName === 'string'
 				&& this._serverToolHost?.toolNames.includes(request.toolName)
+				&& !this._serverToolHost.requiresConfirmation(request.toolName)
 			) {
 				this._logService.info(`[Copilot:${this.sessionId}] Auto-approving server tool ${request.toolName}`);
 				return { kind: 'approve-once' };
@@ -2346,13 +2436,14 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		this._register(wrapper.onUsage(e => {
-			const metadata: Record<string, unknown> = {};
+			const metadata: UsageInfoMeta = {};
 			if (typeof e.data.cost === 'number') {
 				metadata.cost = e.data.cost;
 			}
 			// TODO: `copilotUsage` is marked `asInternal` in the SDK schema so it is not exposed on the generated
 			// `AssistantUsageData` type, but it is present at runtime. Read it dynamically.
-			const copilotUsage = (e.data as unknown as Record<string, unknown>).copilotUsage as { totalNanoAiu?: number } | undefined;
+			const rawUsage = e.data as unknown as Record<string, unknown>;
+			const copilotUsage = rawUsage.copilotUsage as { totalNanoAiu?: number } | undefined;
 			if (typeof copilotUsage?.totalNanoAiu === 'number') {
 				this._turnCopilotUsageTotalNanoAiu += copilotUsage.totalNanoAiu;
 				metadata.copilotUsage = {
@@ -2360,6 +2451,7 @@ export class CopilotAgentSession extends Disposable {
 					totalNanoAiu: this._turnCopilotUsageTotalNanoAiu,
 				};
 			}
+
 			this._logService.trace(`[Copilot:${sessionId}] Usage: model=${e.data.model}, in=${e.data.inputTokens ?? '?'}, out=${e.data.outputTokens ?? '?'}, cacheRead=${e.data.cacheReadTokens ?? '?'}, cost=${e.data.cost ?? '?'}, totalNanoAiu=${metadata.copilotUsage ? this._turnCopilotUsageTotalNanoAiu : '?'}`);
 			if (typeof e.data.model === 'string' && e.data.model) {
 				this._lastSeenModelId = e.data.model;
@@ -2371,11 +2463,21 @@ export class CopilotAgentSession extends Disposable {
 				cacheReadTokens: e.data.cacheReadTokens,
 				...(Object.keys(metadata).length > 0 ? { _meta: metadata } : {}),
 			};
+			// Emit the token/credit usage immediately so the live meter is not
+			// delayed by the quota fetch below.
+			this._latestUsage = usage;
+			this._latestUsageTurnId = this._turnId;
 			this._emitAction({
 				type: ActionType.ChatUsage,
 				turnId: this._turnId,
 				usage,
 			});
+
+			// The SDK's (public) `assistant.usage` event does not carry quota snapshots,
+			// so we fetch them out-of-band via `account.getQuota` and forward them on a
+			// follow-up usage action (mirrors the Copilot Chat extension's per-response
+			// quota update). Fire-and-forget so the meter above is never blocked.
+			void this._fetchAndEmitQuota(sessionId);
 		}));
 
 		this._register(wrapper.onReasoningDelta(e => {

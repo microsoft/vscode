@@ -7,15 +7,20 @@ import assert from 'assert';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore, type IDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { NullLogService } from '../../../log/common/log.js';
-import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationHandler, IChangesetOperationRegistry } from '../../common/changesetOperation.js';
+import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationHandler, IChangesetOperationRegistry } from '../../common/agentHostChangesetOperationService.js';
 import { buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../common/state/protocol/channels-changeset/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetOperation } from '../../common/state/sessionState.js';
-import { AgentHostChangesetOperationContributionService } from '../../node/agentHostChangesetOperationContributionService.js';
+import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetOperation, type ISessionGitState } from '../../common/state/sessionState.js';
+import { AgentHostChangesetOperationService } from '../../node/agentHostChangesetOperationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import type { AgentHostSessionGitStateService } from '../../node/agentHostSessionGitStateService.js';
+import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
+import { AgentHostChangesetSubscriptionService } from '../../node/agentHostChangesetSubscriptionService.js';
+import { URI } from '../../../../base/common/uri.js';
+
+const testOperationId = 'test-operation';
 
 class TestHandler implements IChangesetOperationHandler {
 	calls = 0;
@@ -45,7 +50,7 @@ class TestContribution implements IChangesetOperationContribution {
 
 	registerHandlers(registry: IChangesetOperationRegistry): IDisposable {
 		const store = new DisposableStore();
-		store.add(registry.registerChangesetOperationHandler('commit', this.handler));
+		store.add(registry.registerChangesetOperationHandler(testOperationId, this.handler));
 		return store;
 	}
 
@@ -56,8 +61,25 @@ class TestContribution implements IChangesetOperationContribution {
 	dispose(): void { }
 }
 
-suite('AgentHostChangesetOperationContributionService', () => {
+class TestGitStateService implements IAgentHostGitStateService {
+	declare readonly _serviceBrand: undefined;
+
+	async refreshSessionGitState(_sessionKey: string, _workingDirectory?: URI): Promise<ISessionGitState | undefined | null> {
+		return undefined;
+	}
+}
+
+suite('AgentHostChangesetOperationService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createService(stateManager: AgentHostStateManager): AgentHostChangesetOperationService {
+		return disposables.add(new AgentHostChangesetOperationService(
+			stateManager,
+			new TestGitStateService(),
+			new AgentHostChangesetSubscriptionService(),
+			disposables.add(new InstantiationService()),
+		));
+	}
 
 	test('joins duplicate in-flight invocations for the same changeset operation', async () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
@@ -66,17 +88,14 @@ suite('AgentHostChangesetOperationContributionService', () => {
 		stateManager.registerChangeset(changesetUri);
 		stateManager.dispatchServerAction(changesetUri, {
 			type: ActionType.ChangesetOperationsChanged,
-			operations: [{ id: 'commit', label: 'Commit', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle }],
+			operations: [{ id: testOperationId, label: 'Commit', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle }],
 		});
 
-		const service = disposables.add(new AgentHostChangesetOperationContributionService(
-			stateManager,
-			{ refreshSessionGitState: async () => undefined } as unknown as AgentHostSessionGitStateService,
-		));
+		const service = createService(stateManager);
 		const handler = new TestHandler();
 		disposables.add(service.registerContribution(new TestContribution(handler)));
 
-		const params = { channel: changesetUri, operationId: 'commit' };
+		const params = { channel: changesetUri, operationId: testOperationId };
 		const first = service.invokeChangesetOperation(params);
 		assert.strictEqual(stateManager.getChangesetState(changesetUri)?.operations?.[0].status, ChangesetOperationStatus.Running);
 		const second = service.invokeChangesetOperation(params);
@@ -98,17 +117,14 @@ suite('AgentHostChangesetOperationContributionService', () => {
 		stateManager.registerChangeset(changesetUri);
 		stateManager.dispatchServerAction(changesetUri, {
 			type: ActionType.ChangesetOperationsChanged,
-			operations: [{ id: 'commit', label: 'Commit', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle }],
+			operations: [{ id: testOperationId, label: 'Commit', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle }],
 		});
 
-		const service = disposables.add(new AgentHostChangesetOperationContributionService(
-			stateManager,
-			{ refreshSessionGitState: async () => undefined } as unknown as AgentHostSessionGitStateService,
-		));
+		const service = createService(stateManager);
 		const handler = new TestHandler();
 		disposables.add(service.registerContribution(new TestContribution(handler)));
 
-		const invocation = service.invokeChangesetOperation({ channel: changesetUri, operationId: 'commit' });
+		const invocation = service.invokeChangesetOperation({ channel: changesetUri, operationId: testOperationId });
 		assert.strictEqual(stateManager.getChangesetState(changesetUri)?.operations?.[0].status, ChangesetOperationStatus.Running);
 		handler.complete({ message: { markdown: 'Committed' } });
 		await invocation;
@@ -122,17 +138,14 @@ suite('AgentHostChangesetOperationContributionService', () => {
 		stateManager.registerChangeset(changesetUri);
 		stateManager.dispatchServerAction(changesetUri, {
 			type: ActionType.ChangesetOperationsChanged,
-			operations: [{ id: 'commit', label: 'Commit', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Disabled }],
+			operations: [{ id: testOperationId, label: 'Commit', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Disabled }],
 		});
 
-		const service = disposables.add(new AgentHostChangesetOperationContributionService(
-			stateManager,
-			{ refreshSessionGitState: async () => undefined } as unknown as AgentHostSessionGitStateService,
-		));
+		const service = createService(stateManager);
 		const handler = new TestHandler();
 		disposables.add(service.registerContribution(new TestContribution(handler)));
 
-		const error = await service.invokeChangesetOperation({ channel: changesetUri, operationId: 'commit' }).then(undefined, error => error);
+		const error = await service.invokeChangesetOperation({ channel: changesetUri, operationId: testOperationId }).then(undefined, error => error);
 
 		assert.match(error.message, /is disabled/);
 		assert.strictEqual(handler.calls, 0);
@@ -146,17 +159,14 @@ suite('AgentHostChangesetOperationContributionService', () => {
 		stateManager.registerChangeset(changesetUri);
 		stateManager.dispatchServerAction(changesetUri, {
 			type: ActionType.ChangesetOperationsChanged,
-			operations: [{ id: 'commit', label: 'Commit', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle }],
+			operations: [{ id: testOperationId, label: 'Commit', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle }],
 		});
 
-		const service = disposables.add(new AgentHostChangesetOperationContributionService(
-			stateManager,
-			{ refreshSessionGitState: async () => undefined } as unknown as AgentHostSessionGitStateService,
-		));
+		const service = createService(stateManager);
 		const handler = new TestHandler();
 		disposables.add(service.registerContribution(new TestContribution(handler)));
 
-		const invocation = service.invokeChangesetOperation({ channel: changesetUri, operationId: 'commit' });
+		const invocation = service.invokeChangesetOperation({ channel: changesetUri, operationId: testOperationId });
 		assert.strictEqual(stateManager.getChangesetState(changesetUri)?.operations?.[0].status, ChangesetOperationStatus.Running);
 		const failure = invocation.then(undefined, error => error);
 		handler.fail(new Error('Boom'));

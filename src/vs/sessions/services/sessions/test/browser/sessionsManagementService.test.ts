@@ -23,7 +23,7 @@ import { IChatService } from '../../../../../workbench/contrib/chat/common/chatS
 import { IChatEditorOptions } from '../../../../../workbench/contrib/chat/browser/widgetHosts/editor/chatEditor.js';
 import { IChatWidgetHistoryService } from '../../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { PreferredGroup } from '../../../../../workbench/services/editor/common/editorService.js';
-import { IChat, ISession, ISessionType, ISessionWorkspace } from '../../common/session.js';
+import { IChat, ISession, ISessionType, ISessionWorkspace, SessionStatus } from '../../common/session.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ISessionChangeEvent, ISendRequestOptions, ISessionModelPickerOptions, ISessionsProvider } from '../../common/sessionsProvider.js';
 import { SessionsManagementService } from '../../browser/sessionsManagementService.js';
@@ -900,6 +900,68 @@ suite('SessionsManagementService', () => {
 		// `from` matches the active session: active is replaced with `to`.
 		onDidReplaceSession.fire({ from: a, to: b });
 		assert.strictEqual(view.activeSession.get()?.sessionId, 'b');
+	});
+
+	suite('createNewChatInSession', () => {
+
+		test('reuses an existing untitled chat instead of creating a new one', async () => {
+			const untitledChat: IChat = { ...stubChat, resource: URI.parse('test:///untitled'), status: constObservable(SessionStatus.Untitled) };
+			const session = stubSession({ sessionId: 'reuse', providerId: 'test', chats: constObservable([untitledChat]) });
+			let createNewChatCalls = 0;
+			const provider = new class extends TestSessionsProvider {
+				constructor() { super(session); }
+				override async createNewChat(): Promise<IChat> {
+					createNewChatCalls++;
+					return stubChat;
+				}
+			};
+			const { service } = createSessionsManagementService(session, disposables, provider);
+
+			const result = await service.createNewChatInSession(session);
+
+			assert.deepStrictEqual({
+				reused: result === untitledChat,
+				createNewChatCalls,
+			}, {
+				reused: true,
+				createNewChatCalls: 0,
+			});
+		});
+
+		test('asks the provider to create a chat when none are untitled', async () => {
+			const activeChat: IChat = { ...stubChat, resource: URI.parse('test:///active'), status: constObservable(SessionStatus.InProgress) };
+			const createdChat: IChat = { ...stubChat, resource: URI.parse('test:///created') };
+			const session = stubSession({ sessionId: 'create', providerId: 'test', chats: constObservable([activeChat]) });
+			let createNewChatCalls = 0;
+			const provider = new class extends TestSessionsProvider {
+				constructor() { super(session); }
+				override async createNewChat(): Promise<IChat> {
+					createNewChatCalls++;
+					return createdChat;
+				}
+			};
+			const { service } = createSessionsManagementService(session, disposables, provider);
+
+			const result = await service.createNewChatInSession(session);
+
+			assert.deepStrictEqual({
+				result: result?.resource.toString(),
+				createNewChatCalls,
+			}, {
+				result: createdChat.resource.toString(),
+				createNewChatCalls: 1,
+			});
+		});
+
+		test('returns undefined when the provider is not found', async () => {
+			const session = stubSession({ sessionId: 'orphan', providerId: 'missing-provider' });
+			const provider = new TestSessionsProvider(stubSession({ sessionId: 'other', providerId: 'test' }));
+			const { service } = createSessionsManagementService(session, disposables, provider);
+
+			const result = await service.createNewChatInSession(session);
+
+			assert.strictEqual(result, undefined);
+		});
 	});
 });
 

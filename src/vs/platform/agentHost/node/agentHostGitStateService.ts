@@ -3,64 +3,54 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../base/common/lifecycle.js';
 import { equals as objectEquals } from '../../../base/common/objects.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
+import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { buildBranchChangesetUri, buildSessionChangesetUri, buildUncommittedChangesetUri, formatSessionChangesetDescription } from '../common/changesetUri.js';
 import { readSessionGitState, withSessionGitState, type Changeset, type ISessionGitState } from '../common/state/sessionState.js';
 import { IAgentHostGitService } from './agentHostGitService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 
-export class AgentHostSessionGitStateService extends Disposable {
+export class AgentHostGitStateService implements IAgentHostGitStateService {
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@ILogService private readonly _logService: ILogService,
-	) {
-		super();
-	}
+	) { }
 
-	/**
-	 * Fire-and-forget friendly probe used during normal session lifecycle.
-	 * Returns `undefined` when there is no git state change to publish.
-	 */
-	async attachGitState(session: URI, workingDirectory: URI | undefined): Promise<ISessionGitState | undefined> {
+	async refreshSessionGitState(sessionKey: string, workingDirectory: URI | undefined): Promise<ISessionGitState | undefined | null> {
 		if (!workingDirectory) {
-			return undefined;
+			const workingDirectoryStr = this._stateManager.getSessionState(sessionKey)?.summary.workingDirectory;
+			if (workingDirectoryStr) {
+				workingDirectory = URI.parse(workingDirectoryStr);
+			}
 		}
-		const sessionKey = session.toString();
+
+		if (!workingDirectory) {
+			return null;
+		}
+
 		try {
 			const gitState = await this._gitService.getSessionGitState(workingDirectory);
 			if (!gitState) {
 				this._stripGitOnlyChangesetEntries(sessionKey);
-				return undefined;
+				return null;
 			}
+
 			const current = this._stateManager.getSessionState(sessionKey)?._meta;
 			if (objectEquals(readSessionGitState(current), gitState)) {
 				return undefined;
 			}
+
 			this._setSessionGitState(sessionKey, gitState);
 			return gitState;
 		} catch (e) {
-			this._logService.warn(`[AgentHostSessionGitStateService] Failed to compute git state for ${session}`, e);
-			return undefined;
+			this._logService.warn(`[AgentHostGitStateService][refreshSessionGitState] Failed to compute git state for ${sessionKey}`, e);
+			return null;
 		}
-	}
-
-	async refreshSessionGitState(sessionKey: string): Promise<ISessionGitState | undefined> {
-		const workingDirectoryStr = this._stateManager.getSessionState(sessionKey)?.summary.workingDirectory;
-		if (!workingDirectoryStr) {
-			return undefined;
-		}
-		const gitState = await this._gitService.getSessionGitState(URI.parse(workingDirectoryStr));
-		if (!gitState) {
-			this._stripGitOnlyChangesetEntries(sessionKey);
-			return undefined;
-		}
-		this._setSessionGitState(sessionKey, gitState);
-		return gitState;
 	}
 
 	private _setSessionGitState(sessionKey: string, gitState: ISessionGitState): void {

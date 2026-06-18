@@ -13,6 +13,8 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { mock } from '../../../../../base/test/common/mock.js';
 import { AgentFeedbackKind, AgentFeedbackService, AgentFeedbackState, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
 import { IChatEditingService } from '../../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
+import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { IAgentFeedbackVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -494,3 +496,84 @@ suite('AgentFeedbackService - State', () => {
 		assert.strictEqual(service.getFeedback(session)[0].state, AgentFeedbackState.Resolved);
 	});
 });
+
+suite('AgentFeedbackService - Submit (agent host)', () => {
+
+	const store = new DisposableStore();
+	let service: IAgentFeedbackService;
+	let session: URI;
+	let fileA: URI;
+	let widgetOps: string[];
+	let addedEntries: IAgentFeedbackVariableEntry[];
+
+	setup(() => {
+		widgetOps = [];
+		addedEntries = [];
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() { });
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+			override onDidVisibleEditorsChange = Event.None;
+			override visibleEditorPanes = [];
+		});
+		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+			override getProvider<T extends ISessionsProvider>(_providerId: string): T | undefined { return undefined; }
+		});
+		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override onDidDeleteSession = Event.None;
+			override getSession(_resource: URI) {
+				return { providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionId: 'session-1' } as unknown as ISession;
+			}
+		});
+		instantiationService.stub(ISessionsService, { activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined) } as unknown as ISessionsService);
+
+		const widget = {
+			attachmentModel: {
+				attachments: [],
+				delete: (id: string) => widgetOps.push(`delete:${id}`),
+				addContext: (...entries: IAgentFeedbackVariableEntry[]) => {
+					addedEntries.push(...entries);
+					widgetOps.push(`add:${entries[0]?.id}`);
+				},
+			},
+			acceptInput: async (query: string) => { widgetOps.push(`accept:${query}`); return undefined; },
+		} as unknown as IChatWidget;
+		instantiationService.stub(IChatWidgetService, new class extends mock<IChatWidgetService>() {
+			override getWidgetBySessionResource(_resource: URI): IChatWidget { return widget; }
+		});
+
+		service = store.add(instantiationService.createInstance(AgentFeedbackService));
+		session = URI.parse('test://session/1');
+		fileA = URI.parse('file:///a.ts');
+	});
+
+	teardown(() => store.clear());
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('attaches the just-submitted feedback to the request and clears the attachment afterwards', async () => {
+		service.addFeedback(session, fileA, r(10), 'Please simplify');
+
+		await service.submitFeedback(session);
+
+		const attachmentId = `agentFeedback:${session.toString()}`;
+		assert.deepStrictEqual(widgetOps, [
+			`delete:${attachmentId}`,
+			`add:${attachmentId}`,
+			'accept:/act-on-feedback',
+			`delete:${attachmentId}`,
+		]);
+		assert.deepStrictEqual({
+			count: addedEntries.length,
+			kind: addedEntries[0]?.kind,
+			texts: addedEntries[0]?.feedbackItems.map(item => item.text),
+			state: service.getFeedback(session)[0].state,
+		}, {
+			count: 1,
+			kind: 'agentFeedback',
+			texts: ['Please simplify'],
+			state: AgentFeedbackState.Submitted,
+		});
+	});
+});
+
