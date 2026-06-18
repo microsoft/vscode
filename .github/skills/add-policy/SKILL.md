@@ -15,6 +15,7 @@ Policies allow enterprise administrators to lock configuration settings via OS-l
 - Adding account-based policy support via `IPolicyData`
 - Wiring an enterprise **managed setting** (native MDM / GitHub server) — see **[github-managed-settings.md](./github-managed-settings.md)**
 - Having one policy govern **multiple** settings via `policyReference`
+- **Testing** account/managed-settings policies locally without the real backend — see **[local-testing.md](./local-testing.md)**
 
 ## Architecture Overview
 
@@ -268,6 +269,10 @@ policy: {
 **This is its own modality — full details, schema source of truth, helpers, wiring, and
 the new-key checklist are in [github-managed-settings.md](./github-managed-settings.md).**
 Read it before adding or reviewing any managed-settings key.
+
+**Testing locally:** to exercise the account/managed-settings flow without the real
+GitHub backend, use the mock policy server — see
+**[local-testing.md](./local-testing.md)**.
 
 ## One Policy for Many Settings (`policyReference`)
 
