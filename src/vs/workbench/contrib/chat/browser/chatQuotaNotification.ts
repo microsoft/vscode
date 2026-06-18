@@ -7,7 +7,7 @@ import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.j
 import { safeIntl } from '../../../../base/common/date.js';
 import { localize } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ChatEntitlement, IChatEntitlementService, IQuotaSnapshot, IRateLimitSnapshot } from '../../../services/chat/common/chatEntitlementService.js';
 import { isSelectedModelCopilot, SELECTED_MODEL_STORAGE_KEY_PREFIX } from '../common/chatSelectedModel.js';
@@ -16,6 +16,14 @@ import { ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotifi
 
 const QUOTA_NOTIFICATION_ID = 'copilot.quotaStatus';
 const THRESHOLDS = [50, 75, 90, 95];
+
+/**
+ * Persisted flag remembering that the user dismissed the quota-exceeded
+ * notification. Kept until quota recovers (credit becomes available again) so
+ * the banner does not re-appear on every window reload while quota is still
+ * exhausted.
+ */
+const QUOTA_EXHAUSTED_DISMISSED_STORAGE_KEY = 'chat.quotaNotification.exhaustedDismissed';
 
 /**
  * Core-side workbench contribution that shows chat input notifications for
@@ -69,6 +77,15 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			}
 		}));
 
+		// Remember when the user dismisses the quota-exceeded notification so it
+		// does not re-appear on the next window reload while quota is still
+		// exhausted. The flag is cleared from `_update` once quota recovers.
+		this._register(this._chatInputNotificationService.onDidDismiss(id => {
+			if (id === QUOTA_NOTIFICATION_ID && this._showingExhausted) {
+				this._setExhaustedDismissed();
+			}
+		}));
+
 		// Check initial state in case quota is already exhausted at startup
 		this._update();
 	}
@@ -108,6 +125,13 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			return;
 		}
 
+		// Once quota recovers (credit is available again) drop any persisted
+		// dismissal so the quota-exceeded notification can show the next time
+		// quota runs out.
+		if (!this._isExhaustedState()) {
+			this._clearExhaustedDismissed();
+		}
+
 		// Skip quota notifications for PRU users — only show for UBB.
 		const isQuotaNotificationEligible = entitlement === ChatEntitlement.Unknown || this._isUBBEligible();
 
@@ -115,7 +139,9 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		// authoritative signal that the org has exceeded its budget, regardless of
 		// overages or remaining quota.
 		if (this._isManagedPlan(entitlement) && this._isManagedPlanBlocked()) {
-			this._showManagedPlanBlockedNotification();
+			if (!this._isExhaustedDismissed()) {
+				this._showManagedPlanBlockedNotification();
+			}
 			return;
 		}
 
@@ -126,14 +152,16 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			const wasAdditionalUsageEnabled = this._prevAdditionalUsageEnabled;
 			this._prevAdditionalUsageEnabled = additionalUsageEnabled;
 
-			if (additionalUsageEnabled) {
-				// Show overage notification on a live transition to 100%,
-				// or when overages are enabled while already at 100%.
-				if (this._prevQuotaPercentUsed !== undefined || wasAdditionalUsageEnabled === false) {
-					this._showOverageActivationNotification();
+			if (!this._isExhaustedDismissed()) {
+				if (additionalUsageEnabled) {
+					// Show overage notification on a live transition to 100%,
+					// or when overages are enabled while already at 100%.
+					if (this._prevQuotaPercentUsed !== undefined || wasAdditionalUsageEnabled === false) {
+						this._showOverageActivationNotification();
+					}
+				} else {
+					this._showExhaustedNotification();
 				}
-			} else {
-				this._showExhaustedNotification();
 			}
 
 			// Keep the baseline up-to-date so that recovery from exhaustion
@@ -404,5 +432,33 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	private _hideNotification(): void {
 		this._showingExhausted = false;
 		this._chatInputNotificationService.deleteNotification(QUOTA_NOTIFICATION_ID);
+	}
+
+	// --- Exhausted dismissal persistence ------------------------------------
+
+	/**
+	 * Returns `true` when the account is in a quota-exceeded state — either a
+	 * managed plan whose org budget is blocked, or an eligible plan whose quota
+	 * is fully used up.
+	 */
+	private _isExhaustedState(): boolean {
+		const entitlement = this._chatEntitlementService.entitlement;
+		if (this._isManagedPlan(entitlement) && this._isManagedPlanBlocked()) {
+			return true;
+		}
+		const isEligible = entitlement === ChatEntitlement.Unknown || this._isUBBEligible();
+		return isEligible && this._isQuotaUsedUp();
+	}
+
+	private _isExhaustedDismissed(): boolean {
+		return this._storageService.getBoolean(QUOTA_EXHAUSTED_DISMISSED_STORAGE_KEY, StorageScope.APPLICATION, false);
+	}
+
+	private _setExhaustedDismissed(): void {
+		this._storageService.store(QUOTA_EXHAUSTED_DISMISSED_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+	}
+
+	private _clearExhaustedDismissed(): void {
+		this._storageService.remove(QUOTA_EXHAUSTED_DISMISSED_STORAGE_KEY, StorageScope.APPLICATION);
 	}
 }

@@ -100,7 +100,10 @@ function createMockNotificationService() {
 		deleteNotification(_id: string) {
 			deleted = true;
 		},
-		dismissNotification() { },
+		dismissNotification(id: string) {
+			deleted = true;
+			onDidDismiss.fire(id);
+		},
 		getActiveNotification() { return deleted ? undefined : lastNotification; },
 		handleMessageSent() { },
 	};
@@ -110,6 +113,7 @@ function createMockNotificationService() {
 		getNotification(): IChatInputNotification | undefined { return deleted ? undefined : lastNotification; },
 		get wasDeleted() { return deleted; },
 		get setCount() { return setCount; },
+		dismiss(id: string) { service.dismissNotification(id); },
 		reset() { lastNotification = undefined; deleted = false; setCount = 0; },
 	};
 }
@@ -139,11 +143,11 @@ suite('ChatQuotaNotificationContribution', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createContribution(entitlementOpts?: Parameters<typeof createMockEntitlementService>[0], modelOpts?: { vendor?: string }) {
+	function createContribution(entitlementOpts?: Parameters<typeof createMockEntitlementService>[0], modelOpts?: { vendor?: string }, sharedStorageService?: InMemoryStorageService) {
 		const entitlementMock = createMockEntitlementService(entitlementOpts);
 		const notificationMock = createMockNotificationService();
 		const contextKeyService = store.add(new MockContextKeyService());
-		const storageService = store.add(new InMemoryStorageService());
+		const storageService = sharedStorageService ?? store.add(new InMemoryStorageService());
 		const vendor = modelOpts?.vendor ?? 'copilot';
 		const isBYOK = vendor !== 'copilot';
 		// Persist model selection in storage (used by getSelectedModelVendor)
@@ -253,6 +257,56 @@ suite('ChatQuotaNotificationContribution', () => {
 
 			assert.ok(notificationMock.getNotification());
 			assert.strictEqual(notificationMock.getNotification()!.message, 'Credit Limit Reached');
+		});
+	});
+
+	// --- Exhausted dismissal persistence ------------------------------------
+
+	suite('exhausted dismissal persistence', () => {
+		test('does not re-show exhausted notification after reload when previously dismissed', () => {
+			const storageService = store.add(new InMemoryStorageService());
+
+			// First window: exhausted notification shown, then dismissed by the user.
+			const first = createContribution(
+				{ quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0) } },
+				undefined,
+				storageService,
+			);
+			const notification = first.notificationMock.getNotification();
+			assert.ok(notification);
+			first.notificationMock.dismiss(notification!.id);
+
+			// Reload: new contribution with the same (persisted) storage and still-exhausted quota.
+			const second = createContribution(
+				{ quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0) } },
+				undefined,
+				storageService,
+			);
+			assert.strictEqual(second.notificationMock.getNotification(), undefined);
+		});
+
+		test('re-shows exhausted notification after quota recovers and is exhausted again', () => {
+			const storageService = store.add(new InMemoryStorageService());
+
+			// Exhausted and dismissed.
+			const first = createContribution(
+				{ quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0) } },
+				undefined,
+				storageService,
+			);
+			first.notificationMock.dismiss(first.notificationMock.getNotification()!.id);
+
+			// Quota recovers — persisted dismissal is cleared.
+			updateQuotas(first.entitlementMock, { premiumChat: makeQuotaSnapshot(50) });
+
+			// Reload while exhausted again — notification shows because the flag was cleared.
+			const second = createContribution(
+				{ quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0) } },
+				undefined,
+				storageService,
+			);
+			assert.ok(second.notificationMock.getNotification());
+			assert.strictEqual(second.notificationMock.getNotification()!.message, 'Credit Limit Reached');
 		});
 	});
 
