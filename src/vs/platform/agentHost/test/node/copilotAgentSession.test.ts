@@ -21,6 +21,7 @@ import type { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck 
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
+import { AgentFeedbackAttachmentDisplayKind } from '../../common/agentFeedbackAttachments.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction } from '../../common/state/sessionActions.js';
@@ -50,6 +51,7 @@ class MockCopilotSession {
 	readonly commandListCalls: unknown[] = [];
 	readonly commandInvokeCalls: Array<{ name: string; input?: string }> = [];
 	compactResult: { success: boolean; tokensRemoved: number; messagesRemoved: number } = { success: true, tokensRemoved: 0, messagesRemoved: 0 };
+	compactError: unknown = undefined;
 	commandListResult: { commands: Array<{ name: string; kind: 'builtin' | 'skill' | 'client'; description: string; allowDuringAgentExecution: boolean }> } = { commands: [] };
 	commandInvokeResult: { kind: 'text'; text: string; markdown?: boolean } | { kind: 'completed'; message?: string } | { kind: 'agent-prompt'; prompt: string; displayPrompt: string; mode?: 'interactive' | 'plan' | 'autopilot' } = { kind: 'text', text: '' };
 	messages: SessionEvent[] = [];
@@ -103,6 +105,9 @@ class MockCopilotSession {
 		history: {
 			compact: async (params?: unknown) => {
 				this.compactCalls.push(params ?? null);
+				if (this.compactError !== undefined) {
+					throw this.compactError;
+				}
 				return this.compactResult;
 			},
 		},
@@ -489,6 +494,32 @@ suite('CopilotAgentSession', () => {
 		}]);
 	});
 
+	test('sends agent feedback annotations attachments as text blobs', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+
+		await session.send('/act-on-feedback', [{
+			type: MessageAttachmentKind.Annotations,
+			label: '1 comment',
+			displayKind: AgentFeedbackAttachmentDisplayKind,
+			resource: 'ahp-session:/s/annotations',
+			annotationIds: ['feedback-1'],
+		}]);
+
+		const expectedText =
+			'The user attached specific feedback comments to act on (comment ids):\n' +
+			'- feedback-1\n\n' +
+			'Use the `listComments` tool to read their content and focus on these comments.';
+		assert.deepStrictEqual(mockSession.sendRequests, [{
+			prompt: '/act-on-feedback',
+			attachments: [{
+				type: 'blob',
+				data: encodeBase64(VSBuffer.fromString(expectedText)),
+				mimeType: 'text/plain',
+				displayName: '1 comment',
+			}],
+		}]);
+	});
+
 	test('sends simple attachments as text blobs and restores them from SDK blobs', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
 
@@ -631,6 +662,36 @@ suite('CopilotAgentSession', () => {
 		assert.deepStrictEqual(mockSession.sendRequests, []);
 		const turnComplete = getActions(signals).find(a => a.type === ActionType.ChatTurnComplete);
 		assert.ok(turnComplete, 'expected the turn to complete on a failed compaction');
+	});
+
+	test('`/compact` treats nothing-to-compact errors as completed', async () => {
+		const logService = new CapturingLogService();
+		const { session, mockSession, signals } = await createAgentSession(disposables, { logService });
+		mockSession.compactError = new Error('NOTHING TO COMPACT for this conversation');
+
+		await session.send('/compact', undefined, 'turn-compact');
+
+		const actions = getActions(signals);
+		assert.deepStrictEqual({
+			compactCalls: mockSession.compactCalls.length,
+			sendRequests: mockSession.sendRequests,
+			errors: logService.errors,
+			responseParts: actions
+				.filter(a => a.type === ActionType.ChatResponsePart)
+				.map(a => {
+					const part = (a as ChatResponsePartAction).part;
+					return part.kind === ResponsePartKind.Markdown ? { turnId: a.turnId, kind: part.kind, content: part.content } : { turnId: a.turnId, kind: part.kind };
+				}),
+			turnComplete: actions
+				.filter(a => a.type === ActionType.ChatTurnComplete)
+				.map(a => (a as ChatTurnCompleteAction).turnId),
+		}, {
+			compactCalls: 1,
+			sendRequests: [],
+			errors: [],
+			responseParts: [{ turnId: 'turn-compact', kind: ResponsePartKind.Markdown, content: 'Compaction completed' }],
+			turnComplete: ['turn-compact'],
+		});
 	});
 
 	test('`/env` runs the runtime command when listed and emits markdown output', async () => {
@@ -3284,6 +3345,8 @@ suite('CopilotAgentSession', () => {
 			advertise(sessionUri: string): void {
 				this.advertised.push(sessionUri);
 			}
+
+			requiresConfirmation(_toolName: string): boolean { return false; }
 
 			executeTool(sessionUri: string, toolName: string, rawArgs: unknown): string {
 				this.executions.push({ sessionUri, toolName, rawArgs });

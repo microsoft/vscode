@@ -16,7 +16,7 @@ import { AgentSession, ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHo
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { CustomizationLoadStatus, CustomizationType, SessionLifecycle, type AgentInfo, type ChangesSummary, type Customization, type ModelSelection, type RootState, type SessionConfigState, type SessionState, type SessionSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { buildDefaultChatUri, ChangesetStatus, SessionStatus as ProtocolSessionStatus, StateComponents, type ChangesetState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, ChangesetStatus, SessionStatus as ProtocolSessionStatus, StateComponents, type ChangesetState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -1649,7 +1649,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	// ---- Rename -------
 
-	test('renameChat dispatches SessionTitleChanged action', async () => {
+	test('renameSession dispatches SessionTitleChanged on the session channel', async () => {
 		const provider = createProvider(disposables, agentHost);
 		fireSessionAdded(agentHost, 'rename-sess', { title: 'Old Title' });
 
@@ -1657,7 +1657,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const target = sessions.find(s => s.title.get() === 'Old Title');
 		assert.ok(target);
 
-		await provider.renameChat(target!.sessionId, target!.resource, 'New Title');
+		await provider.renameSession(target!.sessionId, 'New Title');
 
 		assert.strictEqual(agentHost.dispatchedActions.length, 1);
 		const dispatched = agentHost.dispatchedActions[0];
@@ -1669,7 +1669,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(dispatched.clientId, 'test-local-client');
 	});
 
-	test('renameChat updates local title optimistically', async () => {
+	test('renameSession updates the session title optimistically', async () => {
 		const provider = createProvider(disposables, agentHost);
 		fireSessionAdded(agentHost, 'rename-opt', { title: 'Before' });
 
@@ -1677,8 +1677,28 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const target = sessions.find(s => s.title.get() === 'Before');
 		assert.ok(target);
 
-		await provider.renameChat(target!.sessionId, target!.resource, 'After');
+		await provider.renameSession(target!.sessionId, 'After');
 		assert.strictEqual(target!.title.get(), 'After');
+	});
+
+	test('renameChat on the default chat renames the chat tab, not the session', async () => {
+		const provider = createProvider(disposables, agentHost);
+		fireSessionAdded(agentHost, 'rename-default-chat', { title: 'Session Title' });
+
+		const sessions = provider.getSessions();
+		const target = sessions.find(s => s.title.get() === 'Session Title');
+		assert.ok(target);
+
+		await provider.renameChat(target!.sessionId, target!.mainChat.get().resource, 'Chat Title');
+
+		// Session title is untouched; the default chat tab title changes.
+		assert.strictEqual(target!.title.get(), 'Session Title');
+		assert.strictEqual(target!.mainChat.get().title.get(), 'Chat Title');
+		// Dispatched on the default chat channel, not the session channel.
+		assert.strictEqual(agentHost.dispatchedActions.length, 1);
+		const dispatched = agentHost.dispatchedActions[0];
+		assert.strictEqual(dispatched.action.type, ActionType.SessionTitleChanged);
+		assert.strictEqual(dispatched.channel.toString(), buildDefaultChatUri(AgentSession.uri('copilotcli', 'rename-default-chat').toString()));
 	});
 
 	test('renameChat is no-op for unknown session', async () => {
@@ -1686,6 +1706,131 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await provider.renameChat('nonexistent-id', URI.parse('test://nonexistent'), 'Ignored');
 
 		assert.strictEqual(agentHost.dispatchedActions.length, 0);
+	});
+
+	// ---- Multi-chat catalog (applyChatCatalog reconciliation) ----------------
+
+	suite('multi-chat catalog', () => {
+		function makeChatSummary(resource: string, title: string, status = ProtocolSessionStatus.Idle): ChatSummary {
+			return { resource, title, status, modifiedAt: new Date(0).toISOString() };
+		}
+
+		function makeState(rawId: string, chats: ChatSummary[], opts?: { sessionTitle?: string; defaultChat?: string }): SessionState {
+			const sessionUri = AgentSession.uri('copilotcli', rawId).toString();
+			return {
+				summary: {
+					resource: sessionUri,
+					provider: 'copilotcli',
+					title: opts?.sessionTitle ?? 'Session',
+					status: ProtocolSessionStatus.Idle,
+					createdAt: 0,
+					modifiedAt: 0,
+				},
+				lifecycle: SessionLifecycle.Ready,
+				chats,
+				...(opts?.defaultChat ? { defaultChat: opts.defaultChat } : {}),
+			};
+		}
+
+		function setupMultiChatSession(provider: ReturnType<typeof createProvider>, rawId: string): ISession {
+			fireSessionAdded(agentHost, rawId, { title: 'Session' });
+			const session = provider.getSessions().find(s => AgentSession.id(s.resource.toString()) === rawId);
+			assert.ok(session);
+			// Force a session-state subscription so pushed states reach the adapter.
+			provider.getSessionConfig(session!.sessionId);
+			return session!;
+		}
+
+		test('default + peer catalog surfaces both chats with the default as mainChat', () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'multi-1');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-1').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+
+			agentHost.setSessionState('multi-1', 'copilotcli', makeState('multi-1', [
+				makeChatSummary(defaultChat, ''),
+				makeChatSummary(peerChat, 'Peer'),
+			], { defaultChat }));
+
+			assert.deepStrictEqual({
+				supportsMultipleChats: session.capabilities.supportsMultipleChats,
+				chatFragments: session.chats.get().map(c => c.resource.fragment),
+				mainIsDefault: session.mainChat.get() === session.chats.get()[0],
+				peerTitle: session.chats.get()[1].title.get(),
+			}, {
+				supportsMultipleChats: true,
+				chatFragments: ['', 'peer-1'],
+				mainIsDefault: true,
+				peerTitle: 'Peer',
+			});
+		});
+
+		test('single-chat catalog degrades to the default chat only', () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'multi-single');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-single').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+
+			agentHost.setSessionState('multi-single', 'copilotcli', makeState('multi-single', [
+				makeChatSummary(defaultChat, ''),
+			], { defaultChat }));
+
+			assert.deepStrictEqual({
+				chatCount: session.chats.get().length,
+				mainIsOnlyChat: session.mainChat.get() === session.chats.get()[0],
+			}, {
+				chatCount: 1,
+				mainIsOnlyChat: true,
+			});
+		});
+
+		test('removing a peer from the catalog drops it back to the default chat', () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'multi-remove');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-remove').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+
+			agentHost.setSessionState('multi-remove', 'copilotcli', makeState('multi-remove', [
+				makeChatSummary(defaultChat, ''),
+				makeChatSummary(peerChat, 'Peer'),
+			], { defaultChat }));
+			const afterAdd = session.chats.get().length;
+
+			agentHost.setSessionState('multi-remove', 'copilotcli', makeState('multi-remove', [
+				makeChatSummary(defaultChat, ''),
+			], { defaultChat }));
+
+			assert.deepStrictEqual({
+				afterAdd,
+				afterRemove: session.chats.get().map(c => c.resource.fragment),
+			}, {
+				afterAdd: 2,
+				afterRemove: [''],
+			});
+		});
+
+		test('default chat title diverges from the session title when renamed in the catalog', () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'multi-title');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-title').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+
+			agentHost.setSessionState('multi-title', 'copilotcli', makeState('multi-title', [
+				makeChatSummary(defaultChat, 'Renamed Default'),
+				makeChatSummary(peerChat, 'Peer'),
+			], { sessionTitle: 'Session', defaultChat }));
+
+			assert.deepStrictEqual({
+				sessionTitle: session.title.get(),
+				defaultChatTitle: session.mainChat.get().title.get(),
+			}, {
+				sessionTitle: 'Session',
+				defaultChatTitle: 'Renamed Default',
+			});
+		});
 	});
 
 	// ---- Title change from server -------

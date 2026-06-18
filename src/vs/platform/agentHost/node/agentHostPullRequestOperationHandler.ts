@@ -12,7 +12,7 @@ import { AHP_AUTH_REQUIRED, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolEr
 import { readSessionGitState, type ChangesetOperationFollowUp, type SessionState } from '../common/state/sessionState.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostGitService } from './agentHostGitService.js';
-import { type IChangesetOperationHandler } from '../common/changesetOperation.js';
+import { type IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 
@@ -25,7 +25,7 @@ export interface PullRequestCreatedEvent {
  * Server-side handler for the `create-pr` and `create-draft-pr` changeset
  * operations advertised on git-backed sessions whose working directory has
  * a GitHub remote. Operation availability is recomputed by
- * `AgentHostChangesetOperationContributionService.updateOperations`.
+ * `AgentHostChangesetOperationService.updateOperations`.
  *
  * The flow mirrors the Copilot CLI extension's `createPullRequest` helper
  * (`extensions/copilot/src/extension/chatSessions/vscode-node/copilotCLIChatSessionsContribution.ts`):
