@@ -130,7 +130,7 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 			this._logService.warn(`[AgentHostCommitOperationHandler] Post-commit refresh failed for session ${sessionUri}: ${err instanceof Error ? err.message : String(err)}`);
 		}
 
-		void this._changesets.recomputeSubscribedChangesets(sessionUri);
+		this._changesets.recomputeSubscribedChangesets(sessionUri);
 
 		return { message: { markdown: localize('agentHost.changeset.commit.committed', "Committed changes with message: `{0}`", message.split('\n')[0]) } };
 	}
