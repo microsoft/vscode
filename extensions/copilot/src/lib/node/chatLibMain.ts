@@ -48,7 +48,7 @@ import { ICompletionsTextDocumentManagerService, TextDocumentChangeEvent, TextDo
 import { Event } from '../../extension/completions-core/vscode-node/lib/src/util/event';
 import { ICompletionsPromiseQueueService, PromiseQueue } from '../../extension/completions-core/vscode-node/lib/src/util/promiseQueue';
 import { ICompletionsRuntimeModeService, RuntimeMode } from '../../extension/completions-core/vscode-node/lib/src/util/runtimeMode';
-import { setExternalTokenizerProvider, type ExternalTokenizerProvider } from '../../extension/completions-core/vscode-node/prompt/src/tokenization';
+import { setExternalTokenizerProvider, TokenizerName, type ExternalTokenizerProvider, type Tokenizer } from '../../extension/completions-core/vscode-node/prompt/src/tokenization';
 import { DocumentContext, WorkspaceFolder } from '../../extension/completions-core/vscode-node/types/src';
 import { DebugRecorder } from '../../extension/inlineEdits/node/debugRecorder';
 import { INextEditProvider, NESInlineCompletionContext, NextEditProvider } from '../../extension/inlineEdits/node/nextEditProvider';
@@ -128,8 +128,8 @@ import { IInstantiationService } from '../../util/vs/platform/instantiation/comm
 export {
 	IAuthenticationService, ICAPIClientService, IEndpointProvider, IExperimentationService, IIgnoreService, ILanguageContextProviderService
 };
-export { TokenizerName } from '../../extension/completions-core/vscode-node/prompt/src/tokenization';
-export type { ExternalTokenizerProvider, Tokenizer } from '../../extension/completions-core/vscode-node/prompt/src/tokenization';
+export { TokenizerName };
+export type { ExternalTokenizerProvider, Tokenizer };
 
 /**
  * Log levels (taken from vscode.d.ts)
