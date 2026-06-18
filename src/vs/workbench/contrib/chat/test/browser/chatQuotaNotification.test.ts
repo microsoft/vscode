@@ -155,7 +155,7 @@ function createMockNotificationService() {
 	};
 }
 
-function createMockAssignmentService(treatments?: Readonly<Record<string, string | undefined | Promise<string | undefined>>>) {
+function createMockAssignmentService(treatments?: Readonly<Record<string, boolean | undefined | Promise<boolean | undefined>>>) {
 	const onDidRefetchAssignments = new Emitter<void>();
 	const getTreatmentCalls: string[] = [];
 	const service: IWorkbenchAssignmentService = {
@@ -249,11 +249,11 @@ suite('ChatQuotaNotificationContribution', () => {
 		sinon.restore();
 	});
 
-	function createContribution(entitlementOpts?: Parameters<typeof createMockEntitlementService>[0], modelOpts?: { vendor?: string; trajectoryTreatment?: string | Promise<string | undefined>; telemetryService?: ITelemetryService }, sharedStorageService?: InMemoryStorageService) {
+	function createContribution(entitlementOpts?: Parameters<typeof createMockEntitlementService>[0], modelOpts?: { vendor?: string; trajectoryTreatment?: boolean | Promise<boolean | undefined>; telemetryService?: ITelemetryService }, sharedStorageService?: InMemoryStorageService) {
 		const entitlementMock = createMockEntitlementService(entitlementOpts);
 		const notificationMock = createMockNotificationService();
 		const assignmentMock = createMockAssignmentService({
-			chatQuotaTrajectoryNudge: modelOpts?.trajectoryTreatment,
+			'config.chatQuotaTrajectoryNudge': modelOpts?.trajectoryTreatment,
 		});
 		const contextKeyService = store.add(new MockContextKeyService());
 		const storageService = sharedStorageService ?? store.add(new InMemoryStorageService());
@@ -688,7 +688,7 @@ suite('ChatQuotaNotificationContribution', () => {
 					usageBasedBilling: true,
 					premiumChat: makeQuotaSnapshot(72),
 				},
-			}, { trajectoryTreatment: 'enabled' });
+			}, { trajectoryTreatment: true });
 
 			await flushPromises();
 
@@ -721,7 +721,7 @@ suite('ChatQuotaNotificationContribution', () => {
 				treatments: assignmentMock.getTreatmentCalls,
 				notification: notificationMock.getNotification(),
 			}, {
-				treatments: ['chatQuotaTrajectoryNudge'],
+				treatments: ['config.chatQuotaTrajectoryNudge'],
 				notification: undefined,
 			});
 		});
@@ -736,7 +736,7 @@ suite('ChatQuotaNotificationContribution', () => {
 						usageBasedBilling: true,
 						premiumChat: makeQuotaSnapshot(percentRemaining),
 					},
-				}, { trajectoryTreatment: 'enabled' });
+				}, { trajectoryTreatment: true });
 
 				await flushPromises();
 
@@ -754,7 +754,7 @@ suite('ChatQuotaNotificationContribution', () => {
 					usageBasedBilling: true,
 					premiumChat: makeQuotaSnapshot(72),
 				},
-			}, { trajectoryTreatment: 'enabled' });
+			}, { trajectoryTreatment: true });
 
 			await flushPromises();
 
@@ -787,7 +787,7 @@ suite('ChatQuotaNotificationContribution', () => {
 					usageBasedBilling: true,
 					premiumChat: makeQuotaSnapshot(72),
 				},
-			}, { trajectoryTreatment: 'enabled' });
+			}, { trajectoryTreatment: true });
 
 			await flushPromises();
 
@@ -802,7 +802,7 @@ suite('ChatQuotaNotificationContribution', () => {
 					usageBasedBilling: true,
 					premiumChat: makeQuotaSnapshot(72),
 				},
-			}, { trajectoryTreatment: 'enabled' });
+			}, { trajectoryTreatment: true });
 
 			await flushPromises();
 
@@ -817,7 +817,7 @@ suite('ChatQuotaNotificationContribution', () => {
 					usageBasedBilling: true,
 					premiumChat: makeQuotaSnapshot(78),
 				},
-			}, { trajectoryTreatment: 'enabled' });
+			}, { trajectoryTreatment: true });
 
 			await flushPromises();
 
@@ -832,7 +832,7 @@ suite('ChatQuotaNotificationContribution', () => {
 					usageBasedBilling: true,
 					premiumChat: makeQuotaSnapshot(72),
 				},
-			}, { trajectoryTreatment: 'enabled' });
+			}, { trajectoryTreatment: true });
 
 			await flushPromises();
 
@@ -840,8 +840,8 @@ suite('ChatQuotaNotificationContribution', () => {
 		});
 
 		test('shows trajectory nudge only after treatment resolves', async () => {
-			let resolveTreatment: ((value: string | undefined) => void) | undefined;
-			const trajectoryTreatment = new Promise<string | undefined>(resolve => {
+			let resolveTreatment: ((value: boolean | undefined) => void) | undefined;
+			const trajectoryTreatment = new Promise<boolean | undefined>(resolve => {
 				resolveTreatment = resolve;
 			});
 			const { notificationMock } = createContribution({
@@ -857,7 +857,7 @@ suite('ChatQuotaNotificationContribution', () => {
 			assert.strictEqual(notificationMock.getNotification(), undefined);
 
 			assert.ok(resolveTreatment);
-			resolveTreatment('enabled');
+			resolveTreatment(true);
 			await flushPromises();
 
 			const notification = notificationMock.getNotification();
@@ -875,7 +875,7 @@ suite('ChatQuotaNotificationContribution', () => {
 					usageBasedBilling: true,
 					premiumChat: makeQuotaSnapshot(72),
 				},
-			}, { trajectoryTreatment: 'enabled', telemetryService });
+			}, { trajectoryTreatment: true, telemetryService });
 
 			await flushPromises();
 			entitlementMock.onDidChangeQuotaRemaining.fire();
@@ -884,7 +884,7 @@ suite('ChatQuotaNotificationContribution', () => {
 				{
 					name: 'chatQuotaTrajectoryNudgeEnrolled',
 					data: {
-						treatment: 'enabled',
+						treatment: true,
 						entitlement: 'Pro',
 					},
 				},
@@ -909,7 +909,7 @@ suite('ChatQuotaNotificationContribution', () => {
 					usageBasedBilling: true,
 					premiumChat: makeQuotaSnapshot(72),
 				},
-			}, { trajectoryTreatment: 'enabled', telemetryService });
+			}, { trajectoryTreatment: true, telemetryService });
 
 			await flushPromises();
 			notificationMock.dismiss();
@@ -918,7 +918,7 @@ suite('ChatQuotaNotificationContribution', () => {
 				{
 					name: 'chatQuotaTrajectoryNudgeEnrolled',
 					data: {
-						treatment: 'enabled',
+						treatment: true,
 						entitlement: 'Pro',
 					},
 				},
@@ -952,7 +952,7 @@ suite('ChatQuotaNotificationContribution', () => {
 					usageBasedBilling: true,
 					premiumChat: makeQuotaSnapshot(72),
 				},
-			}, { trajectoryTreatment: 'enabled', telemetryService });
+			}, { trajectoryTreatment: true, telemetryService });
 
 			await flushPromises();
 			const opened = await runCreditEfficiencyLearnMoreCommand();
@@ -965,7 +965,7 @@ suite('ChatQuotaNotificationContribution', () => {
 					{
 						name: 'chatQuotaTrajectoryNudgeEnrolled',
 						data: {
-							treatment: 'enabled',
+							treatment: true,
 							entitlement: 'Pro',
 						},
 					},
@@ -1001,7 +1001,7 @@ suite('ChatQuotaNotificationContribution', () => {
 					usageBasedBilling: true,
 					premiumChat: makeQuotaSnapshot(72),
 				},
-			}, { trajectoryTreatment: 'control', telemetryService });
+			}, { trajectoryTreatment: false, telemetryService });
 
 			await flushPromises();
 
@@ -1011,7 +1011,7 @@ suite('ChatQuotaNotificationContribution', () => {
 			}, {
 				events: [{
 					name: 'chatQuotaTrajectoryNudgeEnrolled',
-					data: { treatment: 'control', entitlement: 'Pro' },
+					data: { treatment: false, entitlement: 'Pro' },
 				}],
 				notification: undefined,
 			});
@@ -1047,7 +1047,7 @@ suite('ChatQuotaNotificationContribution', () => {
 					usageBasedBilling: true,
 					premiumChat: makeQuotaSnapshot(72),
 				},
-			}, { trajectoryTreatment: 'enabled' });
+			}, { trajectoryTreatment: true });
 
 			await flushPromises();
 			assert.ok(notificationMock.getNotification());
@@ -1071,7 +1071,7 @@ suite('ChatQuotaNotificationContribution', () => {
 					usageBasedBilling: true,
 					premiumChat: makeQuotaSnapshot(72),
 				},
-			}, { trajectoryTreatment: 'enabled' });
+			}, { trajectoryTreatment: true });
 
 			await flushPromises();
 			assert.ok(notificationMock.getNotification());
@@ -1092,7 +1092,7 @@ suite('ChatQuotaNotificationContribution', () => {
 						premiumChat: makeQuotaSnapshot(72),
 						chat: makeQuotaSnapshot(72),
 					},
-				}, { trajectoryTreatment: 'enabled' });
+				}, { trajectoryTreatment: true });
 
 				await flushPromises();
 

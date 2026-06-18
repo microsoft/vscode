@@ -29,7 +29,7 @@ const TRAJECTORY_MINIMUM_PERCENT_USED = 10;
 const TRAJECTORY_MAXIMUM_PERCENT_USED = 35;
 const BILLING_PERIOD_DAYS = 30;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const TRAJECTORY_TREATMENT = 'chatQuotaTrajectoryNudge';
+const TRAJECTORY_TREATMENT = 'config.chatQuotaTrajectoryNudge';
 const TRAJECTORY_SHOWN_STORAGE_KEY = 'chat.quotaTrajectory.shownPeriod';
 const CREDIT_EFFICIENCY_LEARN_MORE_URL = 'https://aka.ms/token-usage-tips';
 const CREDIT_EFFICIENCY_LEARN_MORE_COMMAND_ID = 'workbench.action.chat.learnMoreAboutCreditUsage';
@@ -51,14 +51,14 @@ type ChatQuotaTrajectoryNudgeClassification = {
 };
 
 type ChatQuotaTrajectoryNudgeEnrollmentEvent = {
-	treatment: string;
+	treatment: boolean;
 	entitlement: string;
 };
 
 type ChatQuotaTrajectoryNudgeEnrollmentClassification = {
 	owner: 'rfeltis';
 	comment: 'Tracks when a user is assigned to a flight for the chat quota trajectory nudge experiment, to measure experiment exposure.';
-	treatment: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The treatment value assigned by the experiment service.' };
+	treatment: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The treatment value assigned by the experiment service (true for the treatment arm, false for control).' };
 	entitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The user entitlement when the user was assigned to the experiment flight.' };
 };
 
@@ -98,7 +98,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	private _prevAdditionalUsageEnabled: boolean | undefined;
 	private _prevSessionPercentUsed: number | undefined;
 	private _prevWeeklyPercentUsed: number | undefined;
-	private _trajectoryTreatment: string | undefined;
+	private _trajectoryTreatment: boolean | undefined;
 	private _trajectoryAssignmentRequested = false;
 	private _activeTrajectoryTelemetryData: ChatQuotaTrajectoryNudgeEvent | undefined;
 
@@ -156,14 +156,14 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	 * the experiment is not diluted with users who would never be exposed.
 	 *
 	 * Stores the raw treatment value. `undefined` means the user is not
-	 * assigned to the flight (or assignments are not available); only an
-	 * explicit `'enabled'` treatment renders the nudge. We deliberately do not
-	 * coerce a missing assignment into a synthetic "control" value, since that
-	 * would assume an enrollment that may not exist. Enrollment telemetry is
-	 * emitted only when the user is actually assigned to a flight.
+	 * assigned to the flight (or assignments are not available); only a `true`
+	 * treatment renders the nudge. We deliberately do not coerce a missing
+	 * assignment into a synthetic "control" value, since that would assume an
+	 * enrollment that may not exist. Enrollment telemetry is emitted only when
+	 * the user is actually assigned to a flight.
 	 */
 	private async _resolveTrajectoryTreatment(): Promise<void> {
-		const treatment = await this._assignmentService.getTreatment<string>(TRAJECTORY_TREATMENT);
+		const treatment = await this._assignmentService.getTreatment<boolean>(TRAJECTORY_TREATMENT);
 		this._trajectoryTreatment = treatment;
 		if (treatment !== undefined) {
 			this._logQuotaTrajectoryNudgeEnrolled(treatment);
@@ -349,7 +349,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			this._trajectoryAssignmentRequested = true;
 			void this._resolveTrajectoryTreatment();
 		}
-		return this._trajectoryTreatment === 'enabled' ? { averageDailyUsage, percentUsed } : undefined;
+		return this._trajectoryTreatment === true ? { averageDailyUsage, percentUsed } : undefined;
 	}
 
 	private _showQuotaTrajectoryWarning(warning: { averageDailyUsage: number; percentUsed: number }): void {
@@ -394,7 +394,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		this._telemetryService.publicLog2<ChatQuotaTrajectoryNudgeEvent, ChatQuotaTrajectoryNudgeClassification>('chatQuotaTrajectoryNudgeLinkClicked', data);
 	}
 
-	private _logQuotaTrajectoryNudgeEnrolled(treatment: string): void {
+	private _logQuotaTrajectoryNudgeEnrolled(treatment: boolean): void {
 		this._telemetryService.publicLog2<ChatQuotaTrajectoryNudgeEnrollmentEvent, ChatQuotaTrajectoryNudgeEnrollmentClassification>('chatQuotaTrajectoryNudgeEnrolled', {
 			treatment,
 			entitlement: ChatEntitlement[this._chatEntitlementService.entitlement],
