@@ -92,14 +92,14 @@ function getElevatedWarningCopy(level: ChatPermissionLevel, defaultSettingKey: s
 				title: localize('permissions.autopilot.warning.title', "Enable Autopilot?"),
 				confirm: localize('permissions.autopilot.warning.confirm', "Enable"),
 				icon: Codicon.rocket,
-				detail: localize('permissions.autopilot.warning.detail', "Autopilot will auto-approve all tool calls and continue working autonomously until the task is complete. This includes terminal commands, file edits, and external tool calls. The agent will make decisions on your behalf without asking for confirmation.\n\nYou can stop the agent at any time by clicking the stop button. This applies to the current session only.\n\nTo make this the starting permission level for new chat sessions, change the [{0}](command:workbench.action.openSettings?%5B%22{0}%22%5D) setting.", defaultSettingKey),
+				detail: localize('permissions.autopilot.warning.detail', "Autopilot will auto-approve all tool calls and continue working autonomously until the task is complete. This includes terminal commands, file edits, and external tool calls. The agent will make decisions on your behalf without asking for confirmation.\n\nYou can stop the agent at any time by clicking the stop button. This applies to the current session only.\n\nTo make this the starting permission level for new sessions, change the [{0}](command:workbench.action.openSettings?%5B%22{0}%22%5D) setting.", defaultSettingKey),
 			};
 		case ChatPermissionLevel.AutoApprove:
 			return {
 				title: localize('permissions.autoApprove.warning.title', "Enable Bypass Approvals?"),
 				confirm: localize('permissions.autoApprove.warning.confirm', "Enable"),
 				icon: Codicon.warning,
-				detail: localize('permissions.autoApprove.warning.detail', "Bypass Approvals will auto-approve all tool calls without asking for confirmation. This includes file edits, terminal commands, and external tool calls.\n\nTo make this the starting permission level for new chat sessions, change the [{0}](command:workbench.action.openSettings?%5B%22{0}%22%5D) setting.", defaultSettingKey),
+				detail: localize('permissions.autoApprove.warning.detail', "Bypass Approvals will auto-approve all tool calls without asking for confirmation. This includes file edits, terminal commands, and external tool calls.\n\nTo make this the starting permission level for new sessions, change the [{0}](command:workbench.action.openSettings?%5B%22{0}%22%5D) setting.", defaultSettingKey),
 			};
 		default:
 			return undefined;

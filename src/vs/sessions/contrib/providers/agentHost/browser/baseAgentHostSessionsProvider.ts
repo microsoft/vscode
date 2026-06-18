@@ -22,7 +22,7 @@ import { AgentSession, IAgentConnection, IAgentSessionMetadata } from '../../../
 import { buildSessionChangesetUri } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
-import { KNOWN_AUTO_APPROVE_VALUES, KNOWN_MODE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { KNOWN_MODE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/common/agentHostSchema.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -37,7 +37,7 @@ import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatSendRequestOptions, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, type IAgentSessionDefaultConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel, type IAgentSessionDefaultConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
@@ -59,10 +59,14 @@ function isSafeSessionConfigKey(property: string): boolean {
 }
 
 function normalizeAutoApproveValue(value: unknown, policyRestricted: boolean): ChatPermissionLevel | undefined {
-	if (typeof value !== 'string' || !KNOWN_AUTO_APPROVE_VALUES.has(value)) {
+	// `KNOWN_AUTO_APPROVE_VALUES` is intentionally tolerant of forward/legacy
+	// compatibility values (e.g. `assisted`) that are not real
+	// `ChatPermissionLevel`s. Validate against the enum here so this function
+	// never returns a value outside its declared contract.
+	if (!isChatPermissionLevel(value)) {
 		return undefined;
 	}
-	const normalized = value as ChatPermissionLevel;
+	const normalized = value;
 	// Bypass and (legacy) Autopilot auto-approve at least some
 	// tool calls, so clamp them to Default when enterprise policy disables
 	// global auto-approval.

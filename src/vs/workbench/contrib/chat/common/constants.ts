@@ -138,11 +138,13 @@ export function isChatPermissionLevel(level: unknown | undefined): level is Chat
  * agent-host sessions (such as Copilot CLI). Both properties are optional —
  * a missing property falls back to the per-axis default.
  */
+export type AgentSessionMode = 'interactive' | 'plan' | 'autopilot';
+
 export interface IAgentSessionDefaultConfiguration {
 	/** Starting agent mode: `interactive` / `plan` / `autopilot`. */
-	readonly mode?: string;
+	readonly mode?: AgentSessionMode;
 	/** Starting approval level: `default` / `autoApprove`. */
-	readonly approvals?: string;
+	readonly approvals?: ChatPermissionLevel.Default | ChatPermissionLevel.AutoApprove;
 }
 
 /**

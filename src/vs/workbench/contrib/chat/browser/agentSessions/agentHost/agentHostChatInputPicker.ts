@@ -33,7 +33,7 @@ import type { IAction } from '../../../../../../base/common/actions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import type { IChatWidget } from '../../chat.js';
-import { ChatConfiguration, isChatPermissionLevel } from '../../../common/constants.js';
+import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../common/constants.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../common/chatPermissionWarnings.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
@@ -594,15 +594,23 @@ export class AgentHostChatInputPicker extends Disposable {
 	}
 
 	/**
-	 * Surfaces the shared elevated-level warning for an Assisted / Bypass /
-	 * (legacy) Autopilot approval pick before applying it. Non-elevated levels
-	 * and non-approval properties apply directly.
+	 * Surfaces the shared elevated-level warning for a Bypass / (legacy)
+	 * Autopilot approval pick before applying it. Non-elevated levels and
+	 * non-approval properties apply directly. Tolerated forward/legacy
+	 * auto-approve values that are not recognized {@link ChatPermissionLevel}s
+	 * (e.g. `assisted`) are still treated as elevated and fall back to the
+	 * Bypass Approvals warning so they can never be selected silently.
 	 */
 	private async _confirmAndSetValue(backendSession: URI, value: string): Promise<void> {
-		if (this._property === SessionConfigKey.AutoApprove && isChatPermissionLevel(value)) {
-			const confirmed = await maybeConfirmElevatedPermissionLevel(value, this._dialogService, this._storageService, { defaultSettingKey: ChatConfiguration.AgentSessionDefaultConfiguration });
-			if (!confirmed) {
-				return;
+		if (this._property === SessionConfigKey.AutoApprove) {
+			const levelToConfirm = isChatPermissionLevel(value)
+				? value
+				: (value !== ChatPermissionLevel.Default ? ChatPermissionLevel.AutoApprove : undefined);
+			if (levelToConfirm) {
+				const confirmed = await maybeConfirmElevatedPermissionLevel(levelToConfirm, this._dialogService, this._storageService, { defaultSettingKey: ChatConfiguration.AgentSessionDefaultConfiguration });
+				if (!confirmed) {
+					return;
+				}
 			}
 		}
 		await this._setValue(backendSession, value);
