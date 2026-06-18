@@ -47,18 +47,3 @@
 	width: 100%;
 	margin: 0 auto;
 }
-
-/* Active/inactive group styling mirrors active/inactive sessions: the active
- * (focused) group uses the active session colors while the others use the
- * inactive ones, so the active chat stands out by treatment rather than a top
- * accent line. Only applies with more than one group; a lone group inherits the
- * session-level colors so it dims correctly when its session is inactive. */
-.chat-groups-view:not(.single-group) .chat-group-view.active-group {
-	--session-view-background: var(--vscode-activeSessionView-background);
-	--session-view-foreground: var(--vscode-activeSessionView-foreground);
-}
-
-.chat-groups-view:not(.single-group) .chat-group-view:not(.active-group) {
-	--session-view-background: var(--vscode-inactiveSessionView-background);
-	--session-view-foreground: var(--vscode-inactiveSessionView-foreground);
-}
