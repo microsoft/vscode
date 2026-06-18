@@ -56,7 +56,7 @@
 	position: relative;
 }
 
-.style-override-scrollShadows .monaco-list > .monaco-scrollable-element::before,
+/* .style-override-scrollShadows .monaco-list > .monaco-scrollable-element::before,
 .style-override-scrollShadows .monaco-list > .monaco-scrollable-element::after {
 	content: "";
 	position: absolute;
@@ -64,9 +64,8 @@
 	right: 0;
 	height: 12px;
 	pointer-events: none;
-	/* Below the scrollbar (z-index 11) so it is never obscured, above content. */
 	z-index: 10;
-}
+} */
 
 .style-override-scrollShadows .monaco-list > .monaco-scrollable-element::before {
 	top: 0;
@@ -85,9 +84,7 @@
  * fade never leaks onto inline editors such as the chat input.
  * ========================================================================== */
 .style-override-scrollShadows .part.editor .monaco-editor .editor-scrollable::before,
-.style-override-scrollShadows .part.editor .monaco-editor .editor-scrollable::after,
-.style-override-scrollShadows .part.panel .monaco-editor .editor-scrollable::before,
-.style-override-scrollShadows .part.panel .monaco-editor .editor-scrollable::after {
+.style-override-scrollShadows .part.editor .monaco-editor .editor-scrollable::after {
 	content: "";
 	position: absolute;
 	left: 0;

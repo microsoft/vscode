@@ -52,7 +52,7 @@
 	display: none;
 }
 
-.style-override-paneHeaders .monaco-pane-view .pane {
+.style-override-paneHeaders .monaco-pane-view .pane, .style-override-paneHeaders.floating-panels .part.sidebar, .style-override-paneHeaders.floating-panels .part.auxiliarybar {
 	background-color: var(--vscode-sideBar-background, var(--vscode-panel-background)) !important;
 }
 

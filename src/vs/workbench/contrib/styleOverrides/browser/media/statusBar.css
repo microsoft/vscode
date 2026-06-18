@@ -18,6 +18,19 @@
 }
 
 /*
+ * Keep the hover foreground identical to the item's resting foreground. By
+ * default hovering a status bar item swaps the text color (to
+ * `statusBarItem-hoverForeground`, or the warning/error hover foreground for
+ * kind items), which now clashes with the neutralized foreground above.
+ * Forcing the hovered anchor to `inherit` makes it pick up its item's resting
+ * color — `--vscode-foreground` for standard items, or the kind color for
+ * warning/error items — so only the background changes on hover.
+ */
+.style-override-statusBar .part.statusbar > .items-container > .statusbar-item > a:hover:not(.disabled) {
+	color: inherit !important;
+}
+
+/*
  * Round the status bar item backgrounds to a control-sized pill. The interactive
  * hover/active background lives on the label (`a.statusbar-item-label`); custom
  * and kind (warning/error) backgrounds live on the item container. Round both so
