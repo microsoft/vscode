@@ -68,7 +68,9 @@ export class ChangesetSessionCoordinator extends Disposable implements IChangese
 	) {
 		super();
 		this._changesetFileMonitor = this._register(new ChangesetFileMonitorCoordinator(this._stateManager, this._changesets, this._configurationService, fileMonitorService, gitService, this._logService));
+
 		this._changesets.setSubscriptionReader(this);
+		this._changesetOperationContributionService.setSubscriptionReader(this);
 	}
 
 	// ---- Lifecycle hooks ----------------------------------------------------
@@ -132,10 +134,7 @@ export class ChangesetSessionCoordinator extends Disposable implements IChangese
 		this._changesets.recomputeSubscribedChangesets(sessionStr);
 
 		// Update the operations for all subscribed changesets
-		const changesets = this._subscriptions.get(sessionStr);
-		if (changesets && changesets.size > 0) {
-			this._changesetOperationContributionService.updateOperations(sessionStr, changesets, gitState);
-		}
+		this._changesetOperationContributionService.updateOperations(sessionStr, undefined, gitState);
 	}
 
 	/**
@@ -172,21 +171,21 @@ export class ChangesetSessionCoordinator extends Disposable implements IChangese
 		if (parsed?.kind === ChangesetKind.Branch) {
 			this._addSubscription(parsed.sessionUri, resourceStr);
 			this._changesets.refreshBranchChangeset(parsed.sessionUri);
-			this._changesetOperationContributionService.updateOperations(parsed.sessionUri, [resourceStr]);
+			this._changesetOperationContributionService.updateOperations(parsed.sessionUri, resourceStr);
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
 			return;
 		}
 		if (parsed?.kind === ChangesetKind.Uncommitted) {
 			this._addSubscription(parsed.sessionUri, resourceStr);
 			void this._changesets.computeUncommittedChangeset(parsed.sessionUri);
-			this._changesetOperationContributionService.updateOperations(parsed.sessionUri, [resourceStr]);
+			this._changesetOperationContributionService.updateOperations(parsed.sessionUri, resourceStr);
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
 			return;
 		}
 		if (parsed?.kind === ChangesetKind.Session) {
 			this._addSubscription(parsed.sessionUri, resourceStr);
 			this._changesets.refreshSessionChangeset(parsed.sessionUri);
-			this._changesetOperationContributionService.updateOperations(parsed.sessionUri, [resourceStr]);
+			this._changesetOperationContributionService.updateOperations(parsed.sessionUri, resourceStr);
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
 			return;
 		}
@@ -197,7 +196,7 @@ export class ChangesetSessionCoordinator extends Disposable implements IChangese
 			// subsequent deltas flow from `onToolCallEditsApplied` /
 			// `onTurnComplete` once we've added this turn id here.
 			this._addSubscription(parsed.sessionUri, resourceStr);
-			this._changesetOperationContributionService.updateOperations(parsed.sessionUri, [resourceStr]);
+			this._changesetOperationContributionService.updateOperations(parsed.sessionUri, resourceStr);
 			return;
 		}
 		if (!parsed && this._stateManager.getSessionState(resourceStr)) {

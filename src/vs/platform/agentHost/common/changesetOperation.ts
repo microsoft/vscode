@@ -5,6 +5,7 @@
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import type { IDisposable } from '../../../base/common/lifecycle.js';
+import { IChangesetSubscriptionReader } from './agentHostChangesetService.js';
 import type { ChangesetKind } from './changesetUri.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
 import type { ChangesetOperation, ISessionGitState, URI } from './state/sessionState.js';
@@ -65,12 +66,12 @@ export interface IChangesetOperationRegistry {
 	 * Notifies the contribution service that advertised operations for all static
 	 * changesets in `sessionKey` should be recomputed from current session state.
 	 */
-	onDidChangeOperations(sessionKey: string, changeset: string): void;
+	onDidChangeOperations(sessionKey: string): void;
 	/**
 	 * Recomputes the session's git metadata and then refreshes advertised
 	 * operations if that metadata can be resolved.
 	 */
-	refreshSessionGitState(sessionKey: string, changeset: string): Promise<void>;
+	refreshSessionGitState(sessionKey: string): Promise<void>;
 }
 
 /**
@@ -103,11 +104,16 @@ export interface IChangesetOperationContributionService extends IDisposable {
 	 */
 	registerContribution(contribution: IChangesetOperationContribution): IDisposable;
 	/**
+	 * Installs the read-only subscription view the service consults before computing
+	 * advertised operations.
+	 */
+	setSubscriptionReader(reader: IChangesetSubscriptionReader): void;
+	/**
 	 * Recomputes and publishes operations for the changesets for a given
 	 * session. If `gitState` is not provided, the current git state will
 	 * be used.
 	 */
-	updateOperations(sessionKey: string, changesets: Iterable<string>, gitState?: ISessionGitState): void;
+	updateOperations(sessionKey: string, changeset?: string, gitState?: ISessionGitState): void;
 	/**
 	 * Invokes an advertised operation after validating the changeset, operation id,
 	 * and requested target scope.

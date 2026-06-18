@@ -14,12 +14,14 @@ import { ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTa
 import type { IChangesetOperationContribution, IChangesetOperationContributionService, IChangesetOperationContext, IChangesetOperationHandler, IChangesetOperationRegistry } from '../common/changesetOperation.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { AgentHostSessionGitStateService } from './agentHostSessionGitStateService.js';
+import { IChangesetSubscriptionReader } from '../common/agentHostChangesetService.js';
 
 export class AgentHostChangesetOperationContributionService extends Disposable implements IChangesetOperationContributionService {
 
 	private readonly _handlerRegistrations = this._register(new DisposableMap<IChangesetOperationContribution>());
 	private readonly _changesetOperationHandlers = new Map<string, IChangesetOperationHandler>();
 	private readonly _inFlightOperations = new Map<string, Promise<InvokeChangesetOperationResult>>();
+	private _subscriptionReader: IChangesetSubscriptionReader | undefined;
 	private readonly _registry: IChangesetOperationRegistry;
 
 	constructor(
@@ -29,8 +31,8 @@ export class AgentHostChangesetOperationContributionService extends Disposable i
 		super();
 		this._registry = {
 			registerChangesetOperationHandler: (operationId, handler) => this._registerChangesetOperationHandler(operationId, handler),
-			onDidChangeOperations: (sessionKey, changeset) => this.updateOperations(sessionKey, [changeset]),
-			refreshSessionGitState: (sessionKey, changeset) => this._refreshSessionGitStateAndOperations(sessionKey, changeset),
+			onDidChangeOperations: sessionKey => this.updateOperations(sessionKey),
+			refreshSessionGitState: sessionKey => this._refreshSessionGitStateAndOperations(sessionKey),
 		};
 	}
 
@@ -45,7 +47,11 @@ export class AgentHostChangesetOperationContributionService extends Disposable i
 		});
 	}
 
-	updateOperations(sessionKey: string, changesets: Iterable<string>, gitState?: ISessionGitState): void {
+	setSubscriptionReader(reader: IChangesetSubscriptionReader): void {
+		this._subscriptionReader = reader;
+	}
+
+	updateOperations(sessionKey: string, changeset?: string, gitState?: ISessionGitState): void {
 		if (!gitState) {
 			const sessionState = this._stateManager.getSessionState(sessionKey);
 			gitState = readSessionGitState(sessionState?._meta);
@@ -53,6 +59,10 @@ export class AgentHostChangesetOperationContributionService extends Disposable i
 				return;
 			}
 		}
+
+		const changesets = changeset
+			? [changeset]
+			: this._subscriptionReader?.getSessionSubscriptions(sessionKey) ?? [];
 
 		for (const changeset of changesets) {
 			const parsed = parseChangesetUri(changeset);
@@ -85,13 +95,13 @@ export class AgentHostChangesetOperationContributionService extends Disposable i
 		return operations.length > 0 ? operations : undefined;
 	}
 
-	private async _refreshSessionGitStateAndOperations(sessionKey: string, changeset: string): Promise<void> {
+	private async _refreshSessionGitStateAndOperations(sessionKey: string): Promise<void> {
 		const gitState = await this._sessionGitStateService.refreshSessionGitState(sessionKey);
 		if (!gitState) {
 			return;
 		}
 
-		this.updateOperations(sessionKey, [changeset], gitState);
+		this.updateOperations(sessionKey, undefined, gitState);
 	}
 
 	async invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {

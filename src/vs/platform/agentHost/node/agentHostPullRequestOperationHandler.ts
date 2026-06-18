@@ -18,7 +18,6 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 
 export interface PullRequestCreatedEvent {
 	readonly sessionKey: string;
-	readonly changeset: string;
 	readonly branchName: string;
 }
 
@@ -156,7 +155,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		const existing = await this._octoKitService.findPullRequestByHeadBranch(gitState.githubOwner, gitState.githubRepo, branchName, authToken, signal);
 		if (existing) {
 			this._throwIfCancelled(token);
-			this._onPullRequestCreated({ sessionKey: sessionUri, changeset: params.channel, branchName });
+			this._onPullRequestCreated({ sessionKey: sessionUri, branchName });
 			return this._createResult(existing, localize('agentHost.changeset.pr.existing', "Pull request [#{0}]({1}) already exists.", existing.number, existing.url));
 		}
 		this._throwIfCancelled(token);
@@ -186,7 +185,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			}
 			if (foundAfterFailure) {
 				this._throwIfCancelled(token);
-				this._onPullRequestCreated({ sessionKey: sessionUri, changeset: params.channel, branchName });
+				this._onPullRequestCreated({ sessionKey: sessionUri, branchName });
 				return this._createResult(foundAfterFailure, localize('agentHost.changeset.pr.existing', "Pull request [#{0}]({1}) already exists.", foundAfterFailure.number, foundAfterFailure.url));
 			}
 			throw err;
@@ -196,7 +195,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			? localize('agentHost.changeset.pr.createdDraft', "Created draft pull request [#{0}]({1}).", created.number, created.url)
 			: localize('agentHost.changeset.pr.created', "Created pull request [#{0}]({1}).", created.number, created.url);
 
-		this._onPullRequestCreated({ sessionKey: sessionUri, changeset: params.channel, branchName });
+		this._onPullRequestCreated({ sessionKey: sessionUri, branchName });
 		return this._createResult(created, message);
 	}
 

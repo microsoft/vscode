@@ -56,6 +56,7 @@ suite('ChangesetSessionCoordinator', () => {
 		const gitService = createGitService(root);
 		const operationContributionService: IChangesetOperationContributionService = {
 			registerContribution: () => Disposable.None,
+			setSubscriptionReader: () => { },
 			updateOperations: () => { },
 			invokeChangesetOperation: async () => ({}),
 			dispose: () => { },
