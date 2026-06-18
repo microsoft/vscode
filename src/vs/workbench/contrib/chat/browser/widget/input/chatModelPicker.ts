@@ -20,7 +20,6 @@ import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 import { formatTokenCount } from '../../../../../../base/common/numbers.js';
-import { isMacintosh } from '../../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
@@ -1480,20 +1479,16 @@ export class ModelPickerWidget extends Disposable {
 
 		const previouslyFocusedElement = dom.getActiveElement();
 		const delegate = {
-			onSelect: async (action: IActionWidgetDropdownAction, _preview?: boolean, keepOpen?: boolean) => {
-				if (keepOpen) {
-					// Focus the clicked item immediately so the focus highlight
-					// doesn't flicker while waiting for the async config write.
-					this._actionWidgetService.focusItemById(action.id);
-					// Wait for the (async) config write to resolve so the rebuilt
-					// items read back the new value, then refresh in place keeping
-					// focus on the item that was just selected.
-					await action.run();
-					this._actionWidgetService.updateItems(this._buildConfigItems(), action.id);
-				} else {
-					action.run();
-					this._actionWidgetService.hide();
-				}
+			onSelect: async (action: IActionWidgetDropdownAction) => {
+				// The config picker stays open until dismissed so users can adjust
+				// multiple options. Focus the clicked item immediately so the focus
+				// highlight doesn't flicker while waiting for the async config write,
+				// then refresh in place keeping focus on the just-selected item.
+				this._actionWidgetService.focusItemById(action.id);
+				// Wait for the (async) config write to resolve so the rebuilt items
+				// read back the new value before refreshing.
+				await action.run();
+				this._actionWidgetService.updateItems(this._buildConfigItems(), action.id);
 			},
 			onHide: () => {
 				this._configButton?.setAttribute('aria-expanded', 'false');
@@ -1523,7 +1518,6 @@ export class ModelPickerWidget extends Disposable {
 			{
 				headerText: localize('chat.config.costHint', "Non-default options may increase cost"),
 				headerIcon: Codicon.info,
-				footerText: localize('chat.config.keepOpenTip', "Tip: Hold {0} to keep open", isMacintosh ? '\u2318' : localize('chat.config.ctrlKey', "Ctrl")),
 			}
 		);
 

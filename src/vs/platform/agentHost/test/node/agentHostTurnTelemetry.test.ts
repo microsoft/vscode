@@ -34,8 +34,7 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	isStaticChangesetComputeActive(): boolean { return false; }
 	refreshBranchChangeset(): void { }
 	refreshSessionChangeset(): void { }
-	setTurnSubscriberProbe(): void { }
-	setUncommittedSubscriberProbe(): void { }
+	setSubscriberProbe(): void { }
 	async computeUncommittedChangeset(session: string): Promise<string> { return `${session}/changeset/uncommitted`; }
 	async computeTurnChangeset(session: string): Promise<string> { return `${session}/x`; }
 	async computeCompareTurnsChangeset(session: string): Promise<string> { return `${session}/y`; }

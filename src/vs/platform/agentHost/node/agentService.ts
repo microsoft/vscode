@@ -774,8 +774,7 @@ export class AgentService extends Disposable implements IAgentService {
 				if (!gitState) {
 					return;
 				}
-				this._changesetCoordinator.onSessionGitStateChanged(sessionKey);
-				this._changesetOperationContributionService.updateOperations(sessionKey, gitState);
+				this._changesetCoordinator.onSessionGitStateChanged(sessionKey, gitState);
 			},
 			e => {
 				this._logService.warn(`[AgentService] Failed to compute git state for ${session}`, e);

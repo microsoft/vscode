@@ -162,6 +162,7 @@ interface IFeedbackAnnotationMeta {
 	readonly codeSelection?: string;
 	readonly diffHunks?: string;
 	readonly sourcePRReviewCommentId?: string;
+	readonly pendingAgentReveal?: boolean;
 }
 
 function toTextRange(range: IRange): TextRange {
@@ -200,6 +201,7 @@ function feedbackToAnnotation(feedback: IAgentFeedback): Annotation {
 		codeSelection: feedback.codeSelection,
 		diffHunks: feedback.diffHunks,
 		sourcePRReviewCommentId: feedback.sourcePRReviewCommentId,
+		pendingAgentReveal: feedback.pendingAgentReveal,
 	};
 	return {
 		id: feedback.id,
@@ -236,6 +238,7 @@ function annotationToFeedback(annotation: Annotation, sessionResource: URI): IAg
 		sourcePRReviewCommentId: meta?.sourcePRReviewCommentId,
 		replies: replies.length ? replies : undefined,
 		state: annotation.resolved ? AgentFeedbackState.Resolved : (meta?.state ?? AgentFeedbackState.Accepted),
+		pendingAgentReveal: meta?.pendingAgentReveal,
 	};
 }
 

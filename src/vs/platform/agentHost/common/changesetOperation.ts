@@ -65,12 +65,12 @@ export interface IChangesetOperationRegistry {
 	 * Notifies the contribution service that advertised operations for all static
 	 * changesets in `sessionKey` should be recomputed from current session state.
 	 */
-	onDidChangeOperations(sessionKey: string): void;
+	onDidChangeOperations(sessionKey: string, changeset: string): void;
 	/**
 	 * Recomputes the session's git metadata and then refreshes advertised
 	 * operations if that metadata can be resolved.
 	 */
-	refreshSessionGitState(sessionKey: string): Promise<void>;
+	refreshSessionGitState(sessionKey: string, changeset: string): Promise<void>;
 }
 
 /**
@@ -103,14 +103,11 @@ export interface IChangesetOperationContributionService extends IDisposable {
 	 */
 	registerContribution(contribution: IChangesetOperationContribution): IDisposable;
 	/**
-	 * Refreshes the operations for the given session based on the current git state.
+	 * Recomputes and publishes operations for the changesets for a given
+	 * session. If `gitState` is not provided, the current git state will
+	 * be used.
 	 */
-	refreshOperationsFromCurrentState(sessionKey: string): void;
-	/**
-	 * Recomputes and publishes operations for the session and uncommitted static
-	 * changesets using the supplied git state.
-	 */
-	updateOperations(sessionKey: string, gitState: ISessionGitState): void;
+	updateOperations(sessionKey: string, changesets: Iterable<string>, gitState?: ISessionGitState): void;
 	/**
 	 * Invokes an advertised operation after validating the changeset, operation id,
 	 * and requested target scope.

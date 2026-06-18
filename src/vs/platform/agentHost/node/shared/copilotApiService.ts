@@ -10,6 +10,7 @@ import { getDevDeviceId, getMachineId } from '../../../../base/node/id.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
+import { COPILOT_INTEGRATION_ID, COPILOT_LICENSE_AGREEMENT } from '../../../endpoint/common/licenseAgreement.js';
 
 // #region Types
 
@@ -534,6 +535,9 @@ export class CopilotApiService implements ICopilotApiService {
 					...options?.headers,
 					'Authorization': `Bearer ${githubToken}`,
 				},
+				// Opt-in per request — see
+				// `ICopilotApiServiceRequestOptions.suppressIntegrationId`.
+				suppressIntegrationId: options?.suppressIntegrationId,
 				signal: options?.signal,
 			},
 			{ type: RequestType.Models },
@@ -827,17 +831,20 @@ export class CopilotApiService implements ICopilotApiService {
 		this._clientsByToken.delete(githubToken);
 	}
 
+	protected getIntegrationId(): string | undefined {
+		return COPILOT_INTEGRATION_ID;
+	}
 	private async _buildClientForToken(githubToken: string): Promise<ICachedClient> {
 		const { extensionInfo, userUrl } = await this._getCapiBase();
 		const fetch = this._fetch;
-		const capiClient = new CAPIClient(extensionInfo, undefined, {
+		const capiClient = new CAPIClient(extensionInfo, COPILOT_LICENSE_AGREEMENT, {
 			fetch: (url, options) => fetch(url, {
 				method: options.method ?? 'GET',
 				headers: options.headers,
 				body: options.body,
 				signal: options.signal as AbortSignal | undefined,
 			}),
-		});
+		}, undefined, this.getIntegrationId());
 
 		this._logService.debug('[CopilotApiService] Discovering CAPI endpoints via /copilot_internal/user');
 

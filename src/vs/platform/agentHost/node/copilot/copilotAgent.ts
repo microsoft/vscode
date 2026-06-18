@@ -57,6 +57,7 @@ import { ShellManager } from './copilotShellTools.js';
 import { isRestrictedTelemetryEnabled } from './copilotTokenFields.js';
 import { CopilotSlashCommandCompletionProvider } from './copilotSlashCommandCompletionProvider.js';
 import { DiscoveredType, SessionCustomizationDiscovery, areDiscoveredDirectoriesEqual, type IDiscoveredDirectory } from './sessionCustomizationDiscovery.js';
+import { COPILOT_INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement.js';
 
 /**
  * Maps a VS Code {@link LogLevel} to the Copilot CLI runtime's `logLevel`
@@ -627,6 +628,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 				flags.add('SHELL_SPAWN_BACKEND');
 				env['COPILOT_CLI_ENABLED_FEATURE_FLAGS'] = [...flags].join(',');
 			}
+
+			// Identify VS Code's agent host traffic in CAPI
+			env['GITHUB_COPILOT_INTEGRATION_ID'] = COPILOT_INTEGRATION_ID;
+			this._logService.info(`[Copilot] Set CLI env: GITHUB_COPILOT_INTEGRATION_ID=${COPILOT_INTEGRATION_ID}`);
 
 			// Enable the rubber duck critic subagent in the CLI when the agent host
 			// config opts in. `RUBBER_DUCK_AGENT` is the SDK's required interface for
@@ -1829,12 +1834,29 @@ export class CopilotAgent extends Disposable implements IAgent {
 				activeClientState: launchPlan.activeClientState,
 				resolveMcpChildId: name => findMcpChildId(activeClient.pluginController.getCustomizations(), name),
 				serverToolHost: this._serverToolHost,
+				fetchQuotaSnapshots: () => this._fetchQuotaSnapshots(),
 			},
 		);
 
 		this._mcpNotificationSubs.set(launchPlan.sessionId, agentSession.onMcpNotification(n => this._onMcpNotification.fire(n)));
 
 		return agentSession;
+	}
+
+	/**
+	 * Fetches the current Copilot quota snapshots via the SDK's
+	 * `account.getQuota` RPC (exposed only on the top-level client). Returns
+	 * the raw `quotaSnapshots` map keyed by quota type, or `undefined` when no
+	 * client is running. Bound and handed to each {@link CopilotAgentSession}
+	 * so it can forward per-response quota to the client.
+	 */
+	private async _fetchQuotaSnapshots(): Promise<Record<string, unknown> | undefined> {
+		const client = this._client;
+		if (!client) {
+			return undefined;
+		}
+		const result = await client.rpc.account.getQuota({});
+		return result.quotaSnapshots as Record<string, unknown> | undefined;
 	}
 
 	/**

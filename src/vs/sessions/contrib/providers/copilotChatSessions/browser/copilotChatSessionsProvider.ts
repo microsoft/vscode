@@ -992,14 +992,12 @@ class AgentSessionAdapter implements ICopilotChatSession {
 			if (!base?.pullRequest || !this._gitHubService) {
 				return base;
 			}
-			// Prefer the last-seen PR state from the shared cache (retained while
-			// the session is inactive and seeded from storage on reload). Fall
-			// back to the metadata icon from `base` until the cache is populated.
-			const cached = this._gitHubService.getCachedPullRequestState(base.owner, base.repo, base.pullRequest.number).read(reader);
-			if (!cached) {
+			const prModelRef = reader.store.add(this._gitHubService.createPullRequestModelReference(base.owner, base.repo, base.pullRequest.number));
+			const livePR = prModelRef.object.pullRequest.read(reader);
+			if (!livePR) {
 				return base;
 			}
-			return { ...base, pullRequest: { ...base.pullRequest, icon: computePullRequestIcon(cached.iconState) } };
+			return { ...base, pullRequest: { ...base.pullRequest, icon: computePullRequestIcon(livePR.isDraft ? 'draft' : livePR.state) } };
 		});
 
 		this._workspace = observableValue(this, this._buildWorkspace(session));
