@@ -15,8 +15,8 @@ export interface IAgentHostGitStateService {
 	/**
 	 * Refreshes the git state for a given session.
 	 * @param sessionKey The key of the session for which to refresh the git state.
-	 * @param workingDirectory The working directory of the session.
-	 * @returns A promise that resolves to the updated git state, or undefined if no changes were made, or null if an error occurred.
+	 * @param workingDirectory Optional working directory override; when omitted, the session summary's working directory is used.
+	 * @returns A promise that resolves to the updated git state, `undefined` if the git state is unchanged, or `null` if git state is unavailable (no working directory, not a git repo, or an error occurred).
 	 */
 	refreshSessionGitState(sessionKey: string, workingDirectory?: URI): Promise<ISessionGitState | undefined | null>;
 }
