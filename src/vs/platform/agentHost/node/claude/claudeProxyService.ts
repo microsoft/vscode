@@ -367,7 +367,7 @@ export class ClaudeProxyService implements IClaudeProxyService {
 		const headers = buildOutboundHeaders(req.headers);
 		let models: CCAModel[];
 		try {
-			models = await this._copilotApiService.models(runtime.githubToken, { headers });
+			models = await this._copilotApiService.models(runtime.githubToken, { headers, suppressIntegrationId: true });
 		} catch (err) {
 			this._writeUpstreamErrorResponse(res, err);
 			return;
