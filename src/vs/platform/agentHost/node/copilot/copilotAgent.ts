@@ -1946,29 +1946,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 				activeClientState: launchPlan.activeClientState,
 				resolveMcpChildId: name => findMcpChildId(activeClient.pluginController.getCustomizations(), name),
 				serverToolHost: this._serverToolHost,
-				fetchQuotaSnapshots: () => this._fetchQuotaSnapshots(),
 			},
 		);
 
 		this._mcpNotificationSubs.set(launchPlan.sessionId, agentSession.onMcpNotification(n => this._onMcpNotification.fire(n)));
 
 		return agentSession;
-	}
-
-	/**
-	 * Fetches the current Copilot quota snapshots via the SDK's
-	 * `account.getQuota` RPC (exposed only on the top-level client). Returns
-	 * the raw `quotaSnapshots` map keyed by quota type, or `undefined` when no
-	 * client is running. Bound and handed to each {@link CopilotAgentSession}
-	 * so it can forward per-response quota to the client.
-	 */
-	private async _fetchQuotaSnapshots(): Promise<Record<string, unknown> | undefined> {
-		const client = this._client;
-		if (!client) {
-			return undefined;
-		}
-		const result = await client.rpc.account.getQuota({});
-		return result.quotaSnapshots as Record<string, unknown> | undefined;
 	}
 
 	/**
