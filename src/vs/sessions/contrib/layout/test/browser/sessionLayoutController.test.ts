@@ -28,7 +28,7 @@ import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { LayoutController } from '../../browser/sessionLayoutController.js';
-import { CHANGES_VIEW_ID } from '../../../changes/common/changes.js';
+import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID } from '../../../changes/common/changes.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
@@ -113,6 +113,7 @@ suite('LayoutController', () => {
 	let openedViews: string[];
 	let setPartHiddenCalls: { hidden: boolean; part: Parts }[];
 	let activePaneCompositeId: string | undefined;
+	let pinnedAuxiliaryBarContainerIds: string[];
 
 	interface ICreateOptions {
 		readonly useModal?: 'off' | 'some' | 'all';
@@ -190,12 +191,19 @@ suite('LayoutController', () => {
 		});
 
 		activePaneCompositeId = undefined;
+		pinnedAuxiliaryBarContainerIds = [SESSIONS_FILES_CONTAINER_ID, CHANGES_VIEW_CONTAINER_ID];
 		instaService.stub(IPaneCompositePartService, new class extends mock<IPaneCompositePartService>() {
 			override getActivePaneComposite(_location: ViewContainerLocation): IPaneComposite | undefined {
 				if (activePaneCompositeId) {
 					return { getId: () => activePaneCompositeId! } as IPaneComposite;
 				}
 				return undefined;
+			}
+			override getPinnedPaneCompositeIds(_location: ViewContainerLocation): string[] {
+				// Mirrors production: pinned ids only. The active composite is not
+				// necessarily pinned (that distinction lives in getVisiblePaneCompositeIds),
+				// so tests must add a container to pinnedAuxiliaryBarContainerIds to model it as pinned.
+				return [...pinnedAuxiliaryBarContainerIds];
 			}
 		});
 
@@ -284,7 +292,9 @@ suite('LayoutController', () => {
 		const session2 = makeSession(URI.parse('session:2'));
 
 		activeSessionObs.set(session1, undefined);
+		// The active container must also be pinned for it to be restored.
 		activePaneCompositeId = 'some.custom.view';
+		pinnedAuxiliaryBarContainerIds = [...pinnedAuxiliaryBarContainerIds, 'some.custom.view'];
 
 		activeSessionObs.set(session2, undefined);
 
@@ -294,6 +304,60 @@ suite('LayoutController', () => {
 		assert.ok(
 			openedViewContainers.includes('some.custom.view'),
 			'should restore active view container when returning to session 1'
+		);
+	});
+
+	test('restores an explicit Files choice on session switch even when the session has changes', () => {
+		createLayoutController();
+		const session1 = makeSession(URI.parse('session:1'), { changes: [makeChange('/file.ts')] });
+		const session2 = makeSession(URI.parse('session:2'));
+
+		// The user explicitly selects the (pinned) Files pane for session 1.
+		activeSessionObs.set(session1, undefined);
+		activePaneCompositeId = SESSIONS_FILES_CONTAINER_ID;
+
+		activeSessionObs.set(session2, undefined);
+
+		openedViewContainers = [];
+		openedViews = [];
+		activeSessionObs.set(session1, undefined);
+
+		assert.ok(
+			openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
+			'should restore the user\'s explicit Files choice'
+		);
+		assert.ok(
+			!openedViews.includes(CHANGES_VIEW_ID),
+			'should not override the explicit Files choice with Changes'
+		);
+	});
+
+	test('shows changes for untitled session with changes', () => {
+		createLayoutController();
+		const session = makeSession(URI.parse('session:1'), {
+			status: SessionStatus.Untitled,
+			changes: [makeChange('/file.ts')],
+		});
+		activeSessionObs.set(session, undefined);
+
+		assert.ok(openedViews.includes(CHANGES_VIEW_ID));
+	});
+
+	test('does not force-open Files when the Files pane is hidden', () => {
+		createLayoutController();
+		// User has hidden / unpinned the Files pane.
+		pinnedAuxiliaryBarContainerIds = [CHANGES_VIEW_CONTAINER_ID];
+		const session = makeSession(URI.parse('session:1'));
+
+		activeSessionObs.set(session, undefined);
+
+		assert.ok(
+			!openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
+			'should not open the hidden Files pane'
+		);
+		assert.ok(
+			openedViews.includes(CHANGES_VIEW_ID),
+			'should fall back to Changes when Files is hidden'
 		);
 	});
 

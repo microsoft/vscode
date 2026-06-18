@@ -323,29 +323,41 @@ export class LayoutController extends Disposable {
 			return;
 		}
 
-		if (isUntitled) {
-			this._viewsService.openViewContainer(SESSIONS_FILES_CONTAINER_ID, false);
+		// On session switch or initial load, restore the saved view state.
+		// Untitled sessions never carry meaningful saved state.
+		const savedState = isUntitled ? undefined : this._viewStateBySession.get(sessionResource);
+
+		// Honor an explicitly hidden auxiliary bar for this session.
+		if (savedState && !savedState.auxiliaryBarVisible) {
+			this._layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
 			return;
 		}
 
-		// On session switch or initial load, restore the saved view state
-		const savedState = this._viewStateBySession.get(sessionResource);
-		if (savedState) {
-			if (!savedState.auxiliaryBarVisible) {
-				this._layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
-				return;
-			}
-			if (savedState.auxiliaryBarActiveViewContainerId) {
-				this._viewsService.openViewContainer(savedState.auxiliaryBarActiveViewContainerId, false);
-				return;
-			}
+		// Restore the user's last explicit auxiliary bar choice (Files, Changes or
+		// any other pane), but only if that pane is still pinned. If it was hidden /
+		// unpinned (e.g. the user hid the Files tab) we skip it and fall through to
+		// the default below rather than force-opening a hidden pane.
+		const savedContainerId = savedState?.auxiliaryBarActiveViewContainerId;
+		if (savedContainerId && this._isAuxiliaryBarContainerPinned(savedContainerId)) {
+			this._viewsService.openViewContainer(savedContainerId, false);
+			return;
 		}
 
-		if (hasChanges) {
+		// Default for a session without a saved choice (e.g. fresh or untitled):
+		// prefer Changes when the session has changes. Otherwise show the Files
+		// pane, unless the user has hidden/unpinned it — in which case fall back to
+		// Changes rather than force-opening Files.
+		if (hasChanges || !this._isAuxiliaryBarContainerPinned(SESSIONS_FILES_CONTAINER_ID)) {
 			this._viewsService.openView(CHANGES_VIEW_ID, false);
 		} else {
 			this._viewsService.openViewContainer(SESSIONS_FILES_CONTAINER_ID, false);
 		}
+	}
+
+	private _isAuxiliaryBarContainerPinned(containerId: string): boolean {
+		return this._paneCompositePartService
+			.getPinnedPaneCompositeIds(ViewContainerLocation.AuxiliaryBar)
+			.includes(containerId);
 	}
 
 	private _loadState(): void {
