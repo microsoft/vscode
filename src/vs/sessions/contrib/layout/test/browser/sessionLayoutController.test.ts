@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -114,6 +114,7 @@ suite('LayoutController', () => {
 	let setPartHiddenCalls: { hidden: boolean; part: Parts }[];
 	let activePaneCompositeId: string | undefined;
 	let pinnedAuxiliaryBarContainerIds: string[];
+	let visibleEditorsList: readonly unknown[];
 
 	interface ICreateOptions {
 		readonly useModal?: 'off' | 'some' | 'all';
@@ -173,6 +174,7 @@ suite('LayoutController', () => {
 				}
 			}
 			override hasFocus(_part: Parts): boolean { return false; }
+			suppressEditorPartAutoVisibility(): IDisposable { return Disposable.None; }
 			override readonly onDidChangePartVisibility = onDidChangePartVisibility.event;
 		} as Partial<IWorkbenchLayoutService> as IWorkbenchLayoutService);
 
@@ -207,8 +209,9 @@ suite('LayoutController', () => {
 			}
 		});
 
+		visibleEditorsList = [];
 		instaService.stub(IEditorService, new class extends mock<IEditorService>() {
-			override get visibleEditors() { return []; }
+			override get visibleEditors() { return visibleEditorsList as IEditorService['visibleEditors']; }
 		});
 
 		instaService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
@@ -361,10 +364,33 @@ suite('LayoutController', () => {
 		);
 	});
 
+	test('does not re-reveal aux bar after user hides it when session changes state updates', () => {
+		createLayoutController();
+		const session = makeSession(URI.parse('session:1'));
+		activeSessionObs.set(session, undefined);
+
+		// User hides the aux bar (Side Panel) without switching sessions.
+		partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
+
+		openedViews = [];
+		openedViewContainers = [];
+		setPartHiddenCalls = [];
+
+		// Changes appear, which re-triggers the aux bar sync autorun.
+		(session.changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/file.ts')], undefined);
+
+		assert.ok(
+			!openedViews.includes(CHANGES_VIEW_ID) && !openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
+			'aux bar must stay hidden after the user hid it, even when changes appear'
+		);
+	});
+
 	// --- Editor / auxiliary bar invariant ---
 
 	test('does not force auxiliary bar visible when restoring editor working set on session switch', async () => {
-		const session = makeSession(URI.parse('session:1'));
+		const session1 = makeSession(URI.parse('session:1'));
+		const session2 = makeSession(URI.parse('session:2'));
 		createLayoutController({
 			useModal: 'some',
 			workspaceFolders: [{ uri: URI.file('/repo') }],
@@ -374,11 +400,16 @@ suite('LayoutController', () => {
 				viewState: { auxiliaryBarVisible: false, auxiliaryBarActiveViewContainerId: undefined },
 			}],
 		});
+
+		// Start on a different session, then switch to the one with a saved working set.
+		activeSessionObs.set(session2, undefined);
+		await timeout(0);
+
 		partVisibility.set(Parts.EDITOR_PART, false);
 		partVisibility.set(Parts.AUXILIARYBAR_PART, false);
 		setPartHiddenCalls = [];
 
-		activeSessionObs.set(session, undefined);
+		activeSessionObs.set(session1, undefined);
 		// Flush the working-set sequencer (queued microtasks)
 		await timeout(0);
 
@@ -497,6 +528,72 @@ suite('LayoutController', () => {
 			auxiliaryBarVisible: true,
 			auxiliaryBarActiveViewContainerId: 'custom.view',
 		});
+	});
+
+	test('keeps aux bar hidden after reload when a session with editors closes both editor and aux bar', () => {
+		const workspaceFolders = [{ uri: URI.file('/repo') }];
+		createLayoutController({ useModal: 'some', workspaceFolders });
+
+		const session1 = makeSession(URI.parse('session:1'));
+		const session2 = makeSession(URI.parse('session:2'));
+
+		// Session 1 active with an editor open so a working set is saved on switch-away.
+		visibleEditorsList = [{}];
+		activeSessionObs.set(session1, undefined);
+		activeSessionObs.set(session2, undefined);
+
+		// Back to session 1 and hide the aux bar (captured immediately as hidden view state).
+		activeSessionObs.set(session1, undefined);
+		partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
+
+		// Close all editors, then switch away so the now-empty working set is saved.
+		// This deletes the working set; the captured aux view state must survive.
+		visibleEditorsList = [];
+		activeSessionObs.set(session2, undefined);
+
+		storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
+		const stored = storageService.get('sessions.layoutState', StorageScope.WORKSPACE);
+		assert.ok(stored, 'state should be persisted');
+
+		// Reload: a fresh controller restores from the persisted state.
+		createLayoutController({ useModal: 'some', workspaceFolders, layoutState: JSON.parse(stored!) });
+		const reloadedSession1 = makeSession(URI.parse('session:1'));
+		setPartHiddenCalls = [];
+		openedViews = [];
+		openedViewContainers = [];
+		activeSessionObs.set(reloadedSession1, undefined);
+
+		assert.ok(
+			setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
+			'aux bar should remain hidden after reload'
+		);
+	});
+
+	test('does not reveal the editor part on reload when its working set is restored but the part was hidden', async () => {
+		const workspaceFolders = [{ uri: URI.file('/repo') }];
+
+		// Reload: a session has a saved working set (editors were kept open) but the
+		// editor part was hidden by the user (e.g. closing the Side Panel). The
+		// workbench restores the editor part hidden; the controller must not reveal it.
+		const layoutState = [{
+			sessionResource: 'session:1',
+			editorWorkingSet: { id: 'ws-1', name: 'ws-1' },
+			viewState: { auxiliaryBarVisible: false, auxiliaryBarActiveViewContainerId: undefined },
+		}];
+		createLayoutController({ useModal: 'some', workspaceFolders, layoutState });
+
+		partVisibility.set(Parts.EDITOR_PART, false);
+		const session1 = makeSession(URI.parse('session:1'));
+		setPartHiddenCalls = [];
+		activeSessionObs.set(session1, undefined);
+		// Flush the working-set sequencer (queued microtasks)
+		await timeout(0);
+
+		assert.ok(
+			!setPartHiddenCalls.some(c => c.part === Parts.EDITOR_PART && c.hidden === false),
+			'editor part should not be revealed on initial restore'
+		);
 	});
 
 	test('migrates legacy sessions.workingSets key', () => {

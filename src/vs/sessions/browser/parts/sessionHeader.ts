@@ -26,7 +26,6 @@ import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IManagedHoverTooltipMarkdownString } from '../../../base/browser/ui/hover/hover.js';
 import { MarkdownString } from '../../../base/common/htmlContent.js';
-import { extUri } from '../../../base/common/resources.js';
 import { Menus } from '../menus.js';
 import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
 import { DraggedSessionIdentifier, SessionsDataTransfers } from '../dnd.js';
@@ -382,27 +381,14 @@ export class SessionHeader extends Disposable {
 			return undefined;
 		}
 
-		const repoPath = folder.root.fsPath;
 		const workingDirPath = folder.workingDirectory.fsPath;
-		const hasSeparateWorkingDir = !extUri.isEqual(folder.root, folder.workingDirectory);
 		const branch = folder.gitRepository?.branchName?.trim();
 
 		const md = new MarkdownString('', { supportThemeIcons: true });
-
 		const fallbackLines: string[] = [];
-		if (hasSeparateWorkingDir) {
-			const isWorkspaceFolder = folder.gitRepository?.workTreeUri === undefined;
-			const repoIcon = workspace.isVirtualWorkspace ? Codicon.cloud : isWorkspaceFolder ? Codicon.folder : Codicon.worktree;
-			md.appendMarkdown(`$(${repoIcon.id}) `);
-			md.appendText(repoPath);
-			md.appendMarkdown(`\n\n$(${Codicon.folder.id}) `);
-			md.appendText(workingDirPath);
-			fallbackLines.push(repoPath, workingDirPath);
-		} else {
-			md.appendMarkdown(`$(${Codicon.folder.id}) `);
-			md.appendText(workingDirPath);
-			fallbackLines.push(workingDirPath);
-		}
+		md.appendMarkdown(`$(${Codicon.folder.id}) `);
+		md.appendText(workingDirPath);
+		fallbackLines.push(workingDirPath);
 
 		if (branch) {
 			md.appendMarkdown('\n\n$(git-branch) ');

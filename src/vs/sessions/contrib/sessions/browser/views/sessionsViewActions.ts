@@ -39,7 +39,7 @@ const ACTION_ID_NEW_SESSION = 'workbench.action.chat.newChat';
 
 KeybindingsRegistry.registerKeybindingRule({
 	id: ACTION_ID_NEW_SESSION,
-	weight: KeybindingWeight.WorkbenchContrib + 1,
+	weight: KeybindingWeight.SessionsContrib,
 	// Don't shadow Ctrl/Cmd+N when focus is in the editor area so the standard
 	// `workbench.action.files.newUntitledFile` command handles the shortcut.
 	when: EditorAreaFocusContext.negate(),
@@ -65,7 +65,7 @@ registerAction2(class CloseSessionAction extends Action2 {
 
 KeybindingsRegistry.registerKeybindingRule({
 	id: CLOSE_SESSION_COMMAND_ID,
-	weight: KeybindingWeight.WorkbenchContrib + 1,
+	weight: KeybindingWeight.SessionsContrib,
 	when: ContextKeyExpr.and(IsNewChatSessionContext.negate(), EditorsVisibleContext.negate()),
 	primary: KeyMod.CtrlCmd | KeyCode.KeyW,
 	win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KeyW] },
@@ -124,7 +124,7 @@ for (let visibleIndex = 1; visibleIndex <= 9; visibleIndex++) {
 	const sessionIndex = visibleIndex === 9 ? -1 : visibleIndex - 1;
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: OPEN_SESSION_AT_INDEX_COMMAND_ID + visibleIndex,
-		weight: KeybindingWeight.WorkbenchContrib + 1,
+		weight: KeybindingWeight.SessionsContrib,
 		when: IsSessionsWindowContext,
 		primary: KeyMod.Alt | digitToKeyCode(visibleIndex),
 		mac: { primary: KeyMod.WinCtrl | digitToKeyCode(visibleIndex) },
@@ -188,7 +188,7 @@ registerAction2(class NavigatePreviousSessionAction extends Action2 {
 				// Alt+Up is a secondary (alternate) binding; the `!editorAreaFocus` gate
 				// keeps the editor's "Move Line Up" intact while still navigating from
 				// the chat input.
-				weight: KeybindingWeight.WorkbenchContrib + 1,
+				weight: KeybindingWeight.SessionsContrib,
 				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
 				primary: KeyMod.CtrlCmd | KeyCode.PageUp,
 				secondary: [KeyMod.Alt | KeyCode.UpArrow],
@@ -223,7 +223,7 @@ registerAction2(class NavigateNextSessionAction extends Action2 {
 				// Alt+Down is a secondary (alternate) binding; the `!editorAreaFocus` gate
 				// keeps the editor's "Move Line Down" intact while still navigating from
 				// the chat input.
-				weight: KeybindingWeight.WorkbenchContrib + 1,
+				weight: KeybindingWeight.SessionsContrib,
 				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
 				primary: KeyMod.CtrlCmd | KeyCode.PageDown,
 				secondary: [KeyMod.Alt | KeyCode.DownArrow],
