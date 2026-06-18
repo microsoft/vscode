@@ -1,0 +1,15 @@
+{
+	"name": "copilot-api-mock",
+	"version": "0.1.0",
+	"description": "Mock Copilot API server for validating enterprise-managed plugins (and account policy) against Code OSS.",
+	"license": "MIT",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"start": "node src/server.mjs",
+		"check": "node src/validate.mjs",
+		"check:update": "node src/validate.mjs --update",
+		"apply-overrides": "node scripts/apply-overrides.mjs",
+		"revert-overrides": "node scripts/revert-overrides.mjs"
+	}
+}

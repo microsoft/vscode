@@ -1,0 +1,11 @@
+{
+	"strictKnownMarketplaces": true,
+	"extraKnownMarketplaces": {
+		"agent-skills": {
+			"source": {
+				"source": "github",
+				"repo": "github/agent-skills"
+			}
+		}
+	}
+}
