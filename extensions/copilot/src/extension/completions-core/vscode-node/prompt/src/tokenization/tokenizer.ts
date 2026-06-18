@@ -37,18 +37,23 @@ export interface ExternalTokenizerProvider {
 let externalProvider: ExternalTokenizerProvider | undefined;
 
 /**
- * Registers a host tokenizer used instead of loading this module's own BPE
- * dictionaries. Must be called once, before the first
- * {@link initializeTokenizers} await (e.g. during host startup) — throws on
- * re-registration or after this module's own dictionary load has started, so
- * the load strategy cannot silently switch mid-session.
+ * Installs a host tokenizer used instead of loading this module's own BPE
+ * dictionaries. chat-lib embedders supply this through the inline-completions
+ * factory option `tokenizerProvider`, which installs it synchronously before
+ * any tokenization — so there is no registration race.
+ *
+ * Never throws, to keep host startup robust. The first provider wins: a later
+ * registration, or one made after the built-in dictionaries already started
+ * loading, is ignored and the current tokenizer keeps being used. The
+ * completions tokenizer is process-global, so only one provider is ever in
+ * effect.
  */
 export function setExternalTokenizerProvider(provider: ExternalTokenizerProvider): void {
-	if (externalProvider) {
-		throw new Error('External tokenizer provider is already registered');
-	}
-	if (ownLoadPromise) {
-		throw new Error('Cannot register an external tokenizer provider after the built-in tokenizers started loading');
+	if (externalProvider || ownLoadPromise) {
+		// A provider is already installed, or the built-in dictionaries already
+		// started loading; keep the current strategy rather than switching
+		// mid-session. The host transparently falls back instead of failing.
+		return;
 	}
 	externalProvider = provider;
 }
