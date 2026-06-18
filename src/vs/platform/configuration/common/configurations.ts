@@ -139,14 +139,18 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 				continue;
 			}
 			if (config.policy) {
-				if (config.type !== 'string' && config.type !== 'number' && config.type !== 'array' && config.type !== 'object' && config.type !== 'boolean') {
+				// `config.type` may be a single type or a union (e.g. `['array', 'null']`).
+				// Normalize to an array and keep only the types we can represent as policies.
+				const configTypes = Array.isArray(config.type) ? config.type : [config.type];
+				const supportedTypes = configTypes.filter(type => type === 'string' || type === 'number' || type === 'array' || type === 'object' || type === 'boolean');
+				if (supportedTypes.length === 0) {
 					this.logService.warn(`Policy ${config.policy.name} has unsupported type ${config.type}`);
 					continue;
 				}
 				const { value, managedSettings, restrictedValue } = config.policy;
 				keys.push(key);
 				policyDefinitions[config.policy.name] = {
-					type: config.type === 'number' ? 'number' : config.type === 'boolean' ? 'boolean' : 'string',
+					type: supportedTypes.includes('number') ? 'number' : supportedTypes.includes('boolean') ? 'boolean' : 'string',
 					value,
 					managedSettings,
 					restrictedValue,
@@ -180,7 +184,11 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 			const policyName = proprety?.policy?.name;
 			if (policyName) {
 				let policyValue: PolicyValue | ParsedType | undefined = this.policyService.getPolicyValue(policyName);
-				if (isString(policyValue) && proprety.type !== 'string') {
+				// `proprety.type` may be a single type or a union (e.g. `['array', 'null']`).
+				// A string policy value carries a JSON payload that must be parsed unless the
+				// setting itself is (or can be) a plain string.
+				const acceptsStringType = Array.isArray(proprety.type) ? proprety.type.includes('string') : proprety.type === 'string';
+				if (isString(policyValue) && !acceptsStringType) {
 					try {
 						policyValue = this.parse(policyValue);
 					} catch (e) {

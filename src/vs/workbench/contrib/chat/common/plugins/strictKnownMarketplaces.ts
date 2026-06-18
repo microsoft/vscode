@@ -3,27 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IStrictMarketplaceSource } from '../../../../../base/common/managedSettings.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IMarketplaceReference, MarketplaceReferenceKind, parseMarketplaceReference } from './marketplaceReference.js';
 
 /**
- * A single entry in the `chat.plugins.strictMarketplaces` allowlist. Mirrors the
- * CLI's `strictKnownMarketplaces` schema (a discriminated union on `source`).
- * Entries are delivered as JSON via the `ChatStrictMarketplaces` enterprise
- * policy, so fields are validated at match time rather than by a schema type.
+ * The allowlist entry type for `chat.plugins.strictMarketplaces`. Re-exported
+ * from `base/common` so chat plugin code can import it alongside the matcher it
+ * operates with; the same type is consumed by the managed-settings adapter.
  */
-export interface IStrictMarketplaceSource {
-	readonly source: 'github' | 'git' | 'url' | 'npm' | 'file' | 'directory' | 'hostPattern' | 'pathPattern';
-	readonly repo?: string;
-	readonly url?: string;
-	readonly ref?: string;
-	readonly path?: string;
-	readonly package?: string;
-	readonly hostPattern?: string;
-	readonly pathPattern?: string;
-	readonly headers?: Readonly<Record<string, string>>;
-}
+export type { IStrictMarketplaceSource };
 
 /**
  * The value of the `chat.plugins.strictMarketplaces` allowlist.
