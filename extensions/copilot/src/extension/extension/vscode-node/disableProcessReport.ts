@@ -3,8 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-Object.defineProperty(process, 'report', {
-	configurable: true,
-	writable: true,
-	value: undefined
-});
+if (process.report) {
+	try {
+		Object.defineProperty(process.report, 'getReport', {
+			value: undefined,
+			writable: true,
+			configurable: true,
+			enumerable: true
+		});
+	} catch (err) {
+
+	}
+}
