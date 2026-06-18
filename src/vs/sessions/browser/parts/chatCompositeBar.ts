@@ -173,9 +173,10 @@ export class ChatCompositeBar extends Disposable {
 			// Show once the session is created and either has multiple chats, or
 			// its single (default) chat carries a title that differs from the
 			// session title (both independent titles must stay visible).
+			const mainChatTitle = mainChat.title.read(reader);
 			const defaultChatDiverged = chats.length === 1
-				&& !!mainChat.title.read(reader)
-				&& mainChat.title.read(reader) !== session.title.read(reader);
+				&& !!mainChatTitle
+				&& mainChatTitle !== session.title.read(reader);
 			if (session.isCreated.read(reader) && (chats.length > 1 || defaultChatDiverged)) {
 				shown = true;
 				this._setVisible(true);

@@ -1616,6 +1616,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		const sessionId = AgentSession.id(session);
 		await this._sessionSequencer.queue(sessionId, async () => {
+			// Re-check inside the per-session sequencer: the outer `has` check
+			// above is only a fast early-out. If two `createChat` calls for the
+			// same chat URI race, both can pass that outer check; the sequencer
+			// serializes them, so the second task must re-check here to avoid
+			// overwriting (and disposing) the conversation the first one set.
+			if (this._chatSessions.has(chatKey)) {
+				return;
+			}
 			// Resolve the owning session so the new chat inherits its working
 			// directory scope. The parent may be provisional (no SDK session
 			// yet); in that case use its provisional working directory.

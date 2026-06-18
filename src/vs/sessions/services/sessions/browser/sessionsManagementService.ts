@@ -42,6 +42,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	readonly onDidDeleteChat: Event<ISession> = this._onDidDeleteChat.event;
 	private readonly _onDidRenameChat = this._register(new Emitter<ISession>());
 	readonly onDidRenameChat: Event<ISession> = this._onDidRenameChat.event;
+	private readonly _onDidRenameSession = this._register(new Emitter<ISession>());
+	readonly onDidRenameSession: Event<ISession> = this._onDidRenameSession.event;
 
 	private readonly _onDidChangeSessionTypes = this._register(new Emitter<void>());
 	readonly onDidChangeSessionTypes: Event<void> = this._onDidChangeSessionTypes.event;
@@ -511,7 +513,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	async renameSession(session: ISession, title: string): Promise<void> {
 		await this._getProvider(session)?.renameSession(session.sessionId, title);
-		this._onDidRenameChat.fire(session);
+		this._onDidRenameSession.fire(session);
 	}
 }
 
