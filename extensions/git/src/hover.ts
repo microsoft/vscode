@@ -122,8 +122,42 @@ function appendContent(markdownString: MarkdownString, authorAvatar: string | un
 	}
 
 	// Subject | Message (escape image syntax)
-	markdownString.appendMarkdown(`${emojify(message.replace(/!\[/g, '&#33;&#91;').replace(/\r\n|\r|\n/g, '\n\n'))}`);
+	markdownString.appendMarkdown(formatMessageForHoverMarkdown(emojify(message)));
 	markdownString.appendMarkdown(`\n\n---\n\n`);
+}
+
+export function formatMessageForHoverMarkdown(message: string): string {
+	const escapedMessage = message
+		.replace(/!\[/g, '&#33;&#91;')
+		.replace(/\r\n|\r/g, '\n');
+
+	return escapedMessage
+		.split(/\n\s*\n/g)
+		.map(paragraph => {
+			const lines = paragraph.split('\n');
+			const result: string[] = [];
+			let current = '';
+
+			for (const line of lines) {
+				if (/^\s*(?:[-*+]|\d+[.)])\s/.test(line)) {
+					if (current) {
+						result.push(current);
+					}
+					current = line.trimEnd();
+				} else {
+					current = current
+						? current + ' ' + line.trim()
+						: line.trimEnd();
+				}
+			}
+			if (current) {
+				result.push(current);
+			}
+
+			return result.join('\n').trim();
+		})
+		.filter(paragraph => paragraph.length > 0)
+		.join('\n\n');
 }
 
 function appendShortStats(markdownString: MarkdownString, shortStats: { files: number; insertions: number; deletions: number }): void {
