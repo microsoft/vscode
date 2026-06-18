@@ -234,7 +234,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: '22.21.x'
+          node-version-file: extensions/copilot/.nvmrc
 
       - name: Validate telemetry events
         working-directory: extensions/copilot
@@ -254,7 +254,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '22.21.x'
+          node-version-file: extensions/copilot/.nvmrc
 
       - name: Setup Python
         uses: actions/setup-python@v6
@@ -362,7 +362,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '22.21.x'
+          node-version-file: extensions/copilot/.nvmrc
 
       - name: Setup Python
         uses: actions/setup-python@v6

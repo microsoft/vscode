@@ -22,6 +22,11 @@ import { AgentHostEnabledSettingId } from './agentService.js';
 //     (loaded transitively from `app.ts`).
 //   - `src/vs/workbench/contrib/chat/browser/chat.shared.contribution.ts`
 //     (renderer registration for the settings UI).
+//
+// The `policy` block for `chat.agentHost.enabled` is added in the browser
+// layer (`agentHost/browser/agentHost.config.contribution.ts`) via
+// `updateConfigurations` because the `value` callback cannot be
+// structured-cloned over Electron IPC.
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
@@ -52,6 +57,13 @@ configurationRegistry.registerConfiguration({
 			],
 			description: nls.localize('chat.editor.defaultProvider', "Controls which provider is used as the default for new editor chat sessions."),
 			default: 'local',
+			tags: ['experimental'],
+			experiment: { mode: 'startup' },
+		},
+		'chat.editor.localAgent.enabled': {
+			type: 'boolean',
+			description: nls.localize('chat.editor.localAgent.enabled', "When enabled, shows the VS Code local chat harness in the chat picker."),
+			default: true,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
 		},

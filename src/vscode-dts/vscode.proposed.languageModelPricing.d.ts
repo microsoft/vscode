@@ -33,6 +33,12 @@ declare module 'vscode' {
 		readonly cacheCost?: number;
 
 		/**
+		 * Optional cache write cost in AI credits for this model.
+		 * Displayed in the model management UI as the cost per million cache-write tokens.
+		 */
+		readonly cacheWriteCost?: number;
+
+		/**
 		 * Optional long-context input cost in AI credits for this model.
 		 * Present only when long-context pricing differs from default pricing.
 		 * Displayed in the model picker hover as the cost per million input tokens
@@ -51,6 +57,12 @@ declare module 'vscode' {
 		 * Present only when long-context pricing differs from default pricing.
 		 */
 		readonly longContextCacheCost?: number;
+
+		/**
+		 * Optional long-context cache write cost in AI credits for this model.
+		 * Present only when long-context pricing differs from default pricing.
+		 */
+		readonly longContextCacheWriteCost?: number;
 
 		/**
 		 * Optional relative pricing category for this model (e.g. "low", "medium", "high", "very_high").
@@ -82,6 +94,11 @@ declare module 'vscode' {
 		readonly cacheCost?: number;
 
 		/**
+		 * Optional cache write cost in AI credits for this model.
+		 */
+		readonly cacheWriteCost?: number;
+
+		/**
 		 * Optional long-context input cost in AI credits for this model.
 		 * Present only when long-context pricing differs from default pricing.
 		 */
@@ -98,6 +115,12 @@ declare module 'vscode' {
 		 * Present only when long-context pricing differs from default pricing.
 		 */
 		readonly longContextCacheCost?: number;
+
+		/**
+		 * Optional long-context cache write cost in AI credits for this model.
+		 * Present only when long-context pricing differs from default pricing.
+		 */
+		readonly longContextCacheWriteCost?: number;
 
 		/**
 		 * Optional relative pricing category for this model (e.g. "low", "medium", "high", "very_high").

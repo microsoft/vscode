@@ -5,7 +5,7 @@
 
 import { OperatingSystem } from '../../../base/common/platform.js';
 import type { ITerminalSandboxCommand } from './terminalSandboxService.js';
-import { gitGlobalOptionsWithValue, type ITerminalSandboxCommandRule, matchesTerminalSandboxCommandRule } from './terminalSandboxCommandRules.js';
+import { type ITerminalSandboxCommandRule, matchesTerminalSandboxCommandRule } from './terminalSandboxCommandRules.js';
 
 export const enum TerminalSandboxRuntimeConfigurationOperation {
 	GnuPG = 'gnupg',
@@ -20,10 +20,7 @@ const terminalSandboxRuntimeConfigurationCommandRules: readonly ITerminalSandbox
 	{
 		keywords: ['git'],
 		value: TerminalSandboxRuntimeConfigurationOperation.GnuPG,
-		subcommands: ['commit'],
-		optionsWithValue: gitGlobalOptionsWithValue,
 		condition: ({ os }) => os !== OperatingSystem.Windows,
-		when: isGpgSignedGitCommit,
 	},
 ];
 
@@ -90,15 +87,11 @@ function shouldApplyRuntimeConfigurationOperation(operation: TerminalSandboxRunt
 	switch (operation) {
 		case TerminalSandboxRuntimeConfigurationOperation.GnuPG:
 			// allowAllUnixSockets applies to the whole sandbox invocation, so only add it when the
-			// signed commit is the only parsed command. Chained commands cannot receive it safely.
+			// Git command is the only parsed command. Chained commands cannot receive it safely.
 			return commandDetails.length === 1;
 		case TerminalSandboxRuntimeConfigurationOperation.Node:
 			return true;
 	}
-}
-
-function isGpgSignedGitCommit(command: ITerminalSandboxCommand): boolean {
-	return command.args.some(arg => arg === '-S' || arg.startsWith('-S') || arg === '--gpg-sign' || arg.startsWith('--gpg-sign='));
 }
 
 function mergeAdditionalSandboxConfigProperties(target: Record<string, unknown>, additional: Record<string, unknown>): void {

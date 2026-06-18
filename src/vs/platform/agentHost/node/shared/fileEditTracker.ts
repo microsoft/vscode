@@ -11,6 +11,8 @@ import { ILogService } from '../../../log/common/log.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { FileEditKind, ToolResultContentType, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
+import { extractAiChunks } from './editChunkExtractor.js';
+import { IEditSurvivalReporterFactory } from './editSurvivalReporter.js';
 
 const SESSION_DB_SCHEME = 'session-db';
 
@@ -86,6 +88,7 @@ export class FileEditTracker {
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
 		@IDiffComputeService private readonly _diffComputeService: IDiffComputeService,
+		@IEditSurvivalReporterFactory private readonly _editSurvivalReporterFactory: IEditSurvivalReporterFactory,
 	) { }
 
 	/**
@@ -143,13 +146,33 @@ export class FileEditTracker {
 	 * @param turnId - The turn that produced this edit.
 	 * @param toolCallId - The tool call that produced this edit.
 	 * @param filePath - Absolute path of the edited file.
+	 * @param toolName - The tool that produced this edit. Used together
+	 *   with {@link toolInput} to extract the AI-written text chunks
+	 *   for region-based survival scoring (see
+	 *   {@link IEditSurvivalReporterLaunchParams.aiChunks}). Pass an
+	 *   empty string when the tool is unknown; the survival reporter
+	 *   then falls back to whole-file scoring.
+	 * @param toolInput - The raw tool input, as received from the
+	 *   agent. Parsed by {@link extractAiChunks} -- unknown shapes are
+	 *   tolerated and yield an empty chunk list (whole-file fallback).
+	 * @param modelId - The model that produced this edit (e.g.
+	 *   `claude-sonnet-4.5`). Forwarded to the survival reporter so the
+	 *   resulting telemetry can be sliced by model. Expected to always
+	 *   be populated in practice; the parameter is typed `undefined`-
+	 *   tolerant so a missing model can't suppress the edit-survival
+	 *   sample, but `undefined` here is a bug and is logged as a warning
+	 *   (and surfaces as an empty `modelId` string in telemetry).
 	 */
-	async takeCompletedEdit(turnId: string, toolCallId: string, filePath: string): Promise<ToolResultFileEditContent | undefined> {
+	async takeCompletedEdit(turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined): Promise<ToolResultFileEditContent | undefined> {
 		const edit = this._completedEdits.get(filePath);
 		if (!edit) {
 			return undefined;
 		}
 		this._completedEdits.delete(filePath);
+
+		if (!modelId) {
+			this._logService.warn(`[FileEditTracker] No modelId for completed edit: ${filePath} (turn=${turnId}, toolCall=${toolCallId}, tool=${toolName || '<unknown>'}). Edit-survival telemetry will be emitted with an empty modelId.`);
+		}
 
 		const beforeBytes = edit.beforeContent.buffer;
 		const afterBytes = edit.afterContent.buffer;
@@ -182,6 +205,18 @@ export class FileEditTracker {
 		} catch (err) {
 			this._logService.warn(`[FileEditTracker] Failed to persist file edit to database: ${filePath}`, err);
 		}
+
+		this._editSurvivalReporterFactory.launch({
+			sessionUri: this._sessionUri,
+			turnId,
+			toolCallId,
+			filePath,
+			beforeText,
+			afterText,
+			isCreate,
+			modelId,
+			aiChunks: extractAiChunks(toolName, toolInput, filePath),
+		});
 
 		return {
 			type: ToolResultContentType.FileEdit,

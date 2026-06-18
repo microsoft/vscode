@@ -65,7 +65,7 @@ export interface IAgentHostCheckpointService {
 	 * the parent ref is recorded against the turn rather than creating a
 	 * redundant commit / new ref.
 	 *
-	 * Called from `AgentSideEffects` when a `SessionTurnComplete` action
+	 * Called from `AgentSideEffects` when a `ChatTurnComplete` action
 	 * fires, BEFORE the changeset service's `onTurnComplete` hook so the
 	 * per-turn changeset compute can pick up the new refs.
 	 */

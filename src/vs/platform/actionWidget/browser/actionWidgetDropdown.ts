@@ -217,9 +217,23 @@ export class ActionWidgetDropdown extends BaseDropdown {
 			}
 		}
 
+		const nonSeparatorItems = actionWidgetItems.filter(i => i.kind === ActionListItemKind.Action);
+
 		const accessibilityProvider: Partial<IListAccessibilityProvider<IActionListItem<IActionWidgetDropdownAction>>> = {
 			isChecked(element) {
 				return element.kind === ActionListItemKind.Action && !!element?.item?.checked;
+			},
+			getSetSize: () => nonSeparatorItems.length,
+			getPosInSet: (_element, index) => {
+				// Count only Action items up to this index; clamp to at least 1
+				// since aria-posinset must be in the range 1..aria-setsize
+				let pos = 0;
+				for (let i = 0; i <= index && i < actionWidgetItems.length; i++) {
+					if (actionWidgetItems[i].kind === ActionListItemKind.Action) {
+						pos++;
+					}
+				}
+				return Math.max(pos, 1);
 			},
 			getRole: (e) => {
 				switch (e.kind) {

@@ -782,17 +782,18 @@ export async function readSkills(pluginRoot: URI, dirs: readonly URI[], fileServ
 	const skills: INamedPluginResource[] = [];
 
 	const addSkill = async (name: string, skillMd: URI) => {
+		let description: string | undefined;
+		try {
+			const parsedInfo = await parseSkillFile(skillMd, fileService);
+			description = parsedInfo.description;
+			name = parsedInfo.name || name;
+		} catch {
+			// Keep the existing best-effort discovery behavior for malformed skills.
+		}
 		if (seen.has(name)) {
 			return;
 		}
 		seen.add(name);
-
-		let description: string | undefined;
-		try {
-			description = (await parseSkillFile(skillMd, fileService)).description;
-		} catch {
-			// Keep the existing best-effort discovery behavior for malformed skills.
-		}
 		skills.push({ uri: skillMd, name, ...(description ? { description } : {}) });
 	};
 

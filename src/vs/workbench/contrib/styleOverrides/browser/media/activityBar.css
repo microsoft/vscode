@@ -1,0 +1,32 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Activity Bar — replace the active (selected) item's left highlight border
+ * with a filled, rounded background that sits behind the icon.
+ */
+
+/* Drop the 2px left border indicator on the active item. */
+.style-override-activityBar .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator:before {
+	border-left: none !important;
+}
+
+/*
+ * Turn the active item indicator into an inset, rounded background box. It is
+ * pushed behind the icon (which lives on the action-label at z-index 1) so the
+ * icon stays legible on top of the fill. The size is derived from the activity
+ * bar's own CSS variables so it works for both the normal (48px) and compact
+ * (36px wide / 32px tall) layouts. The square side tracks the action height
+ * (the limiting dimension), and `left` keeps it horizontally centered.
+ */
+.style-override-activityBar .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator {
+	z-index: 0;
+	top: 0;
+	left: calc((var(--activity-bar-width, 48px) - var(--activity-bar-action-height, 48px) + 8px) / 2);
+	width: calc(var(--activity-bar-action-height, 48px) - 8px);
+	height: calc(var(--activity-bar-action-height, 48px) - 8px);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background-color: var(--vscode-activityBar-activeBackground, var(--vscode-list-inactiveSelectionBackground));
+}

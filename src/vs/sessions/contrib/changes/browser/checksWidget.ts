@@ -23,7 +23,7 @@ import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from '../../
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { GitHubCheckConclusion, GitHubCheckStatus, IGitHubCICheck } from '../../github/common/types.js';
 import { GitHubPullRequestCIModel, parseWorkflowRunId } from '../../github/browser/models/githubPullRequestCIModel.js';
-import { CICheckGroup, buildFixChecksPrompt, getCheckGroup, getCheckStateLabel, getFailedChecks } from './checksActions.js';
+import { CICheckGroup, buildFixChecksPrompt, getCheckGroup, getCheckStateLabel, getFailedChecks, getPullRequestUrl } from './checksActions.js';
 import { ChecksViewModel } from './checksViewModel.js';
 
 const $ = dom.$;
@@ -430,13 +430,13 @@ export class CIStatusWidget extends Disposable {
 			};
 		}));
 
-		const prompt = buildFixChecksPrompt(failedCheckDetails);
+		const prompt = buildFixChecksPrompt(failedCheckDetails, getPullRequestUrl(model));
 		const chatWidget = this._chatWidgetService.getWidgetBySessionResource(sessionResource);
 		if (!chatWidget) {
 			return;
 		}
 
-		await chatWidget.acceptInput(prompt, { noCommandDetection: true });
+		await chatWidget.acceptInput(prompt);
 	}
 }
 

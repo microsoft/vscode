@@ -12,7 +12,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 // --- Types -------------------------------------------------------------------
 
 export interface ICodeReviewSuggestion {
@@ -92,12 +92,13 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 		@ILogService private readonly _logService: ILogService,
 		@IGitHubService private readonly _gitHubService: IGitHubService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
 	) {
 		super();
 		this._registerSessionListeners();
 
 		const activeSessionResourceObs = derivedOpts({ equalsFn: isEqual }, reader => {
-			return this._sessionsManagementService.activeSession.read(reader)?.resource;
+			return this._sessionsService.activeSession.read(reader)?.resource;
 		});
 
 		// Subscribe to the active session's PR review threads model and project

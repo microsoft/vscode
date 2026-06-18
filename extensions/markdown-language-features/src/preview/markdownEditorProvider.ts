@@ -75,10 +75,39 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			webview.postMessage({ type: 'update', content: document.getText() });
 		});
 
+		const highlight = this.#wireHighlight(webview);
+
 		webviewPanel.onDidDispose(() => {
 			onMessage.dispose();
 			onDocumentChange.dispose();
+			highlight.dispose();
 		});
+	}
+
+	/**
+	 * Proxies the webview's syntax highlighting requests to the
+	 * `documentSyntaxHighlighting` proposed API, since the webview cannot call
+	 * it directly. Also forwards theme changes so the webview can re-highlight.
+	 */
+	#wireHighlight(webview: vscode.Webview): vscode.Disposable {
+		const onMessage = webview.onDidReceiveMessage(async (message) => {
+			if (message.type !== 'highlight') {
+				return;
+			}
+			const result = await vscode.languages.computeFullSyntaxHighlighting(message.source, message.languageId);
+			webview.postMessage({
+				type: 'highlightResult',
+				requestId: message.requestId,
+				tokens: result.tokens,
+				colorMap: result.colorMap,
+			});
+		});
+
+		const onThemeChange = vscode.languages.onDidChangeSyntaxHighlighting(() => {
+			webview.postMessage({ type: 'highlightThemeChanged' });
+		});
+
+		return vscode.Disposable.from(onMessage, onThemeChange);
 	}
 
 	#getHtml(webview: vscode.Webview): string {
@@ -98,28 +127,6 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; font-src ${webview.cspSource}; img-src ${webview.cspSource} https: data:; media-src ${webview.cspSource} https: data:; script-src 'nonce-${nonce}';" />
 	<link rel="stylesheet" href="${styleUri}" />
 	<title>Markdown Editor</title>
-	<style>
-		html, body {
-			margin: 0;
-			padding: 0;
-			height: 100%;
-			width: 100%;
-			background: var(--vscode-editor-background);
-		}
-		body { overflow: hidden; }
-		#editor {
-			height: 100%;
-			width: 100%;
-			overflow-y: auto;
-			display: flex;
-			justify-content: center;
-			align-items: flex-start;
-		}
-		#editor > * {
-			width: 100%;
-			max-width: 900px;
-		}
-	</style>
 </head>
 <body>${body}
 	<script nonce="${nonce}" type="module" src="${scriptUri}"></script>

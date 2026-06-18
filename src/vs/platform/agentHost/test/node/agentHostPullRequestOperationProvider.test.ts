@@ -51,7 +51,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 	test('hides PR operations immediately after handler reports PR creation', () => {
 		const provider = createContribution();
 
-		provider.onPullRequestCreated({ sessionKey: 'agent:/session', branchName: 'feature/test' });
+		provider.onPullRequestCreated({ sessionKey: 'agent:/session', changeset: '', branchName: 'feature/test' });
 		const operations = provider.getOperations({ sessionKey: 'agent:/session', gitState: githubBranchWithUncommittedChanges, changesetKind: ChangesetKind.Session, changesetUri: '' });
 
 		assert.deepStrictEqual({ operations }, {

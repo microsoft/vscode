@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agentService.js';
-import { buildDefaultChangesetCatalogue, buildSessionChangesetUri } from '../../common/changesetUri.js';
+import { buildDefaultChangesetCatalogue, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js';
 import { ChangesetStatus, SessionStatus, withSessionGitState, type Changeset } from '../../common/state/sessionState.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
@@ -258,7 +258,7 @@ suite.skip('AgentHostChangesetService', () => {
 			// Trigger a turn-complete (which fires the immediate diff path).
 			// Enable the uncommitted probe so the on-turn-complete uncommitted
 			// compute fires alongside the session-wide one.
-			localChangesets.setUncommittedSubscriberProbe(() => true);
+			localChangesets.setSubscriberProbe((_session, changeset) => changeset === buildUncommittedChangesetUri(sessionUri.toString()));
 			localChangesets.onTurnComplete(sessionUri.toString(), 'turn-1');
 
 			// Turn-complete recomputes both the uncommitted and the
@@ -776,7 +776,7 @@ suite.skip('AgentHostChangesetService', () => {
 		test('onTurnComplete schedules a per-turn recompute when the probe says someone is subscribed', async () => {
 			setupSession();
 			const svc = makeService();
-			svc.setTurnSubscriberProbe(() => true);
+			svc.setSubscriberProbe((_session, changeset) => changeset === buildTurnChangesetUri(sessionUri.toString(), 'turn-1'));
 
 			svc.onTurnComplete(sessionUri.toString(), 'turn-1');
 
@@ -794,7 +794,7 @@ suite.skip('AgentHostChangesetService', () => {
 		test('onTurnComplete does NOT schedule a per-turn recompute when the probe says nobody is subscribed', async () => {
 			setupSession();
 			const svc = makeService();
-			svc.setTurnSubscriberProbe(() => false);
+			svc.setSubscriberProbe(() => false);
 
 			svc.onTurnComplete(sessionUri.toString(), 'turn-1');
 
@@ -807,7 +807,7 @@ suite.skip('AgentHostChangesetService', () => {
 		test('onTurnComplete schedules an uncommitted recompute when the uncommitted probe says someone is subscribed', async () => {
 			setupSession();
 			const svc = makeService();
-			svc.setUncommittedSubscriberProbe(() => true);
+			svc.setSubscriberProbe((_session, changeset) => changeset === buildUncommittedChangesetUri(sessionUri.toString()));
 
 			svc.onTurnComplete(sessionUri.toString(), 'turn-1');
 
@@ -824,7 +824,7 @@ suite.skip('AgentHostChangesetService', () => {
 		test('onTurnComplete does NOT schedule an uncommitted recompute when the uncommitted probe says nobody is subscribed', async () => {
 			setupSession();
 			const svc = makeService();
-			svc.setUncommittedSubscriberProbe(() => false);
+			svc.setSubscriberProbe(() => false);
 
 			svc.onTurnComplete(sessionUri.toString(), 'turn-1');
 
@@ -838,7 +838,7 @@ suite.skip('AgentHostChangesetService', () => {
 			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
 				setupSession();
 				const svc = makeService();
-				svc.setTurnSubscriberProbe(() => true);
+				svc.setSubscriberProbe((_session, changeset) => changeset === buildTurnChangesetUri(sessionUri.toString(), 'turn-1'));
 
 				// 1) edits with subscriber -> after debounce, exactly one per-turn compute fires.
 				svc.onToolCallEditsApplied(sessionUri.toString(), 'turn-1');
@@ -856,7 +856,7 @@ suite.skip('AgentHostChangesetService', () => {
 
 				// 3) flipping the probe off mid-stream silences future
 				// per-turn computes even if more edits arrive.
-				svc.setTurnSubscriberProbe(() => false);
+				svc.setSubscriberProbe(() => false);
 				svc.onToolCallEditsApplied(sessionUri.toString(), 'turn-1');
 				await timeout(6_000);
 				assert.strictEqual(svc.turnComputeCalls.length, 2, 'unsubscribed turn must not get any further per-turn computes');
@@ -878,7 +878,7 @@ suite.skip('AgentHostChangesetService', () => {
 				createNoopGitService(),
 				NULL_CHECKPOINT_SERVICE,
 			));
-			svc.setTurnSubscriberProbe(() => true);
+			svc.setSubscriberProbe((_session, changeset) => changeset === buildTurnChangesetUri(sessionUri.toString(), 'turn-1'));
 
 			localStateManager.createSession({
 				resource: sessionUri.toString(),

@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
+import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { ChatModelConfigurationStore } from '../../../../browser/widget/input/chatModelConfigurationStore.js';
@@ -87,6 +88,55 @@ suite('ChatModelConfigurationStore', () => {
 
 		editor.setModelConfiguration(MODEL, { thinkingEffort: 'high' });
 		assert.deepStrictEqual(fired, [MODEL]);
+	});
+
+	test('setting an unchanged value does not fire onDidChange or rewrite storage', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const editor = createStore(storage, createStubService());
+		editor.setModelConfiguration(MODEL, { thinkingEffort: 'high' });
+
+		const fired: string[] = [];
+		store.add(editor.onDidChange(id => fired.push(id)));
+		let writes = 0;
+		const ds = store.add(new DisposableStore());
+		store.add(storage.onDidChangeValue(StorageScope.APPLICATION, KEY, ds)(() => writes++));
+
+		// Re-applying the same value (e.g. restoring on every input-state sync
+		// while a session stays selected) must be a no-op.
+		editor.setModelConfiguration(MODEL, { thinkingEffort: 'high' });
+		editor.restoreModelConfiguration(MODEL, { thinkingEffort: 'high' });
+
+		assert.deepStrictEqual(fired, []);
+		assert.strictEqual(writes, 0);
+	});
+
+	test('restoreModelConfiguration seeds the snapshot and persists to the scoped bucket', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const editor = createStore(storage, createStubService());
+
+		// Restoring a captured non-default value (e.g. from a reopened session)
+		// applies it to this editor and persists it for newly opened editors.
+		editor.restoreModelConfiguration(MODEL, { thinkingEffort: 'high' });
+		assert.deepStrictEqual(editor.getModelConfiguration(MODEL), { thinkingEffort: 'high' });
+
+		const editorB = createStore(storage, createStubService());
+		assert.deepStrictEqual(editorB.getModelConfiguration(MODEL), { thinkingEffort: 'high' });
+	});
+
+	test('restoreModelConfiguration ignores values that the current schema rejects', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const editor = createStore(storage, createStubService());
+
+		// A config captured against an older schema: an unknown key plus a
+		// now-invalid enum value. Both are dropped so the model falls back to its
+		// live default ('medium'), leaving no stale override behind.
+		editor.restoreModelConfiguration(MODEL, { thinkingEffort: 'extreme', removedProp: 42 });
+		assert.deepStrictEqual(editor.getModelConfiguration(MODEL), { thinkingEffort: 'medium' });
+
+		// The persisted bucket holds no stale entry, so a newly opened editor also
+		// resolves to the live default.
+		const editorB = createStore(storage, createStubService());
+		assert.deepStrictEqual(editorB.getModelConfiguration(MODEL), { thinkingEffort: 'medium' });
 	});
 
 	test('clear() drops in-memory snapshots so the next read re-seeds from storage', () => {

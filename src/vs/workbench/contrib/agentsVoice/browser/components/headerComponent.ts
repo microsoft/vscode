@@ -128,9 +128,10 @@ export function createHeader(): HeaderComponent {
 			copilotIcon.src = props.copilotIconSrc;
 
 			// Mic color
-			const micColor = props.voiceState === 'listening' ? 'var(--vscode-editorInfo-foreground)'
-				: props.voiceState === 'speaking' ? 'var(--vscode-agentsVoice-speakingForeground)'
-					: 'var(--vscode-descriptionForeground)';
+			const micColor = props.voiceState === 'error' ? 'var(--vscode-editorError-foreground)'
+				: props.voiceState === 'listening' ? 'var(--vscode-editorInfo-foreground)'
+					: props.voiceState === 'speaking' ? 'var(--vscode-agentsVoice-speakingForeground)'
+						: 'var(--vscode-descriptionForeground)';
 			micBtn.style.color = micColor;
 			micBtn.onmouseenter = () => { micBtn.style.color = 'var(--vscode-foreground)'; };
 			micBtn.onmouseleave = () => { micBtn.style.color = micColor; };

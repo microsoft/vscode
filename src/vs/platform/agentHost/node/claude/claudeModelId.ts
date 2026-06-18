@@ -53,6 +53,24 @@ export function parseClaudeModelId(modelId: string): ParsedClaudeModelId {
 }
 
 /**
+ * Normalize a Claude model ID to the SDK format (dash-separated version, e.g.
+ * `claude-haiku-4-5`). The Claude Agent SDK / CLI only recognizes this form;
+ * given the endpoint format (`claude-haiku-4.5`) it treats the model as unknown
+ * and falls back to a generic feature set (adaptive thinking + reasoning effort)
+ * that the model may not support, producing a 400 from CAPI. Unparseable /
+ * non-Claude IDs pass through unchanged; `undefined` passes through as
+ * `undefined` so callers can normalize an optional model id in one step.
+ */
+export function toSdkModelId(modelId: string): string;
+export function toSdkModelId(modelId: string | undefined): string | undefined;
+export function toSdkModelId(modelId: string | undefined): string | undefined {
+	if (modelId === undefined) {
+		return undefined;
+	}
+	return tryParseClaudeModelId(modelId)?.toSdkModelId() ?? modelId;
+}
+
+/**
  * Attempts to parse a Claude model ID string (SDK or endpoint format) into its components.
  *
  * Accepts either format:

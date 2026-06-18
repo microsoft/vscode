@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import type { CopilotClient } from '@github/copilot-sdk';
 import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -71,6 +72,42 @@ suite('SessionCustomizationDiscovery', () => {
 			wsCopilotInstructions.toString(),
 			wsGeminiInstructions.toString(),
 		].sort((a, b) => a.localeCompare(b)));
+	});
+
+	test('groups discovered customizations by parent folder', async () => {
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		const client = {
+			rpc: {
+				agents: {
+					discover: async () => ({
+						agents: [
+							{ id: 'one', name: 'One', description: '', path: '/workspace/.github/agents/one.agent.md', userInvocable: false },
+							{ id: 'two', name: 'Two', description: '', path: '/workspace/.github/agents/two.agent.md', userInvocable: true },
+							{ id: 'three', name: 'Three', description: '', path: '/workspace/.github/other/three.agent.md', userInvocable: false },
+						],
+					}),
+				},
+				instructions: { discover: async () => ({ sources: [] }) },
+				skills: { discover: async () => ({ skills: [] }) },
+			},
+		} as unknown as CopilotClient;
+
+		const customizations = await discovery.discover(client, CancellationToken.None);
+		const agentDirectories = customizations.filter(customization => customization.contents === 'agent');
+
+		const getPath = (uri: string) => URI.parse(uri).path;
+
+		assert.strictEqual(agentDirectories.length, 2);
+		assert.deepStrictEqual(agentDirectories.map(customization => getPath(customization.uri)).sort(), [
+			'/workspace/.github/agents',
+			'/workspace/.github/other',
+		]);
+		const agentsInAgentsDir = agentDirectories.find(customization => getPath(customization.uri) === '/workspace/.github/agents');
+		assert.ok(agentsInAgentsDir);
+		assert.deepStrictEqual(agentsInAgentsDir.children?.map(child => getPath(child.uri)).sort(), [
+			'/workspace/.github/agents/one.agent.md',
+			'/workspace/.github/agents/two.agent.md',
+		]);
 	});
 
 	test('returns directories sorted by type and URI', async () => {

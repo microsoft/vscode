@@ -12,7 +12,7 @@ import { autorunWithStore, IReader, observableFromEvent } from '../../../util/vs
 import { VirtualTextDocumentProvider } from '../../inlineEdits/vscode-node/utils/virtualTextDocumentProvider';
 
 export class SettingsSchemaFeature extends Disposable {
-	private readonly _copilotToken = observableFromEvent(this, this._authenticationService.onDidAuthenticationChange, () => this._authenticationService.copilotToken);
+	private readonly _copilotToken = observableFromEvent(this, this._authenticationService.onDidCopilotTokenChange, () => this._authenticationService.copilotToken);
 	private readonly _isInternal = this._copilotToken.map(t => !!(t?.isInternal));
 
 	constructor(

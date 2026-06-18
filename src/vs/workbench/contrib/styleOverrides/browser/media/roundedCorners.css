@@ -1,0 +1,209 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Style-override module: "Rounded Corners".
+ *
+ * Applies a disciplined, three-tier corner-radius system across the workbench
+ * based on the role each surface plays:
+ *
+ *   - Outer radius (8px): overlays / anything floating above the rest of the UI
+ *     (quick input, hovers, suggest, context menus, toasts, dialogs, find,
+ *     rename, color picker, ...).
+ *   - Inner radius (6px): non-control containers that sit within the UI
+ *     (notification center surfaces, sticky scroll, ...).
+ *   - Controls (4px): all interactable UI controls (text inputs, selects,
+ *     list/tree rows, ...).
+ *
+ * All rules are gated behind the `.style-override-roundedCorners` class, which
+ * the StyleOverridesContribution toggles onto the workbench container(s) when
+ * the `workbench.experimental.styleOverrides` setting includes "roundedCorners".
+ * Without that class these rules never apply.
+ */
+
+/*
+ * Define the three-tier scale once by aligning the shared corner-radius tokens.
+ * Most workbench widgets consume these `--vscode-cornerRadius-*` variables, so
+ * redefining them rounds a large surface area in a single place. The tiers map
+ * as: small = controls (4px), medium = inner containers (6px), large = outer /
+ * floating overlays (8px).
+ */
+.style-override-roundedCorners {
+	--vscode-cornerRadius-xSmall: 4px;
+	--vscode-cornerRadius-small: 4px;
+	--vscode-cornerRadius-medium: 6px;
+	--vscode-cornerRadius-large: 8px;
+	--vscode-cornerRadius-xLarge: 8px;
+}
+
+/* =============================================================================
+ * Controls (4px) — inputs, selects, list/tree rows, anything interactable.
+ * ========================================================================== */
+
+/* Text inputs and find inputs */
+.style-override-roundedCorners .monaco-inputbox {
+	border-radius: var(--vscode-cornerRadius-small) !important;
+}
+
+.style-override-roundedCorners .monaco-findInput,
+.style-override-roundedCorners .monaco-findInput .monaco-inputbox {
+	border-radius: var(--vscode-cornerRadius-small) !important;
+}
+
+/* Select / dropdown controls */
+.style-override-roundedCorners .monaco-select-box,
+.style-override-roundedCorners .monaco-select-box-dropdown-container {
+	border-radius: var(--vscode-cornerRadius-small) !important;
+}
+
+/* List / tree rows (including the notification center list rows) */
+.style-override-roundedCorners .monaco-list .monaco-list-row,
+.style-override-roundedCorners .notifications-list-container .monaco-list-row {
+	border-radius: var(--vscode-cornerRadius-small) !important;
+}
+
+/* Action bar labels / keybindings (toolbar icon buttons) */
+.style-override-roundedCorners .monaco-action-bar .action-label,
+.style-override-roundedCorners .monaco-action-bar .action-item .keybinding {
+	border-radius: var(--vscode-cornerRadius-small) !important;
+}
+
+/*
+ * Agent status pill (experimental title-bar widget). A connected pill/badge
+ * group whose segments hardcode 5-6px per-corner radii, with a few intentional
+ * flat (0) seams where segments butt together. Re-map every rounded corner to
+ * the controls tier while preserving each segment's shape and the flat seams.
+ */
+
+/* All-corners segments */
+.style-override-roundedCorners .agent-status-pill,
+.style-override-roundedCorners .agent-status-badge,
+.style-override-roundedCorners .agent-status-badge-section:only-child,
+.style-override-roundedCorners .agent-status-esc-button,
+.style-override-roundedCorners .agent-status-enter-button {
+	border-radius: var(--vscode-cornerRadius-small) !important;
+}
+
+/* Leading-edge segments (rounded left, flat right) */
+.style-override-roundedCorners .agent-status-pill .agent-status-input-area,
+.style-override-roundedCorners .agent-status-command-center-toolbar,
+.style-override-roundedCorners .agent-status-badge-section:first-child,
+.style-override-roundedCorners .agent-status-badge-section.sparkle .action-container {
+	border-radius: var(--vscode-cornerRadius-small) 0 0 var(--vscode-cornerRadius-small) !important;
+}
+
+/* Trailing-edge segments (flat left, rounded right) */
+.style-override-roundedCorners .agent-status-badge-section:last-child,
+.style-override-roundedCorners .agent-status-badge-section.sparkle:last-child .dropdown-action-container {
+	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0 !important;
+}
+
+/* Intentional flat seams where a segment butts up against its neighbour */
+.style-override-roundedCorners .agent-status-line-separator + .agent-status-input-area,
+.style-override-roundedCorners .agent-status-pill.compact-mode .agent-status-badge-section.sparkle .action-container {
+	border-radius: 0 !important;
+}
+
+/* Scrollbar sliders */
+.style-override-roundedCorners .monaco-scrollable-element > .scrollbar > .slider {
+	border-radius: var(--vscode-cornerRadius-small) !important;
+}
+
+/*
+ * The editor's own scrollbars sit flush against the viewport edge (next to the
+ * minimap); rounding their sliders looks odd, so keep those square.
+ */
+.style-override-roundedCorners .monaco-editor .monaco-scrollable-element > .scrollbar > .slider {
+	border-radius: 0 !important;
+}
+
+/* =============================================================================
+ * Inner (6px) — non-control containers that live within the UI.
+ * ========================================================================== */
+
+/* Editor sticky scroll container */
+.style-override-roundedCorners .monaco-editor .sticky-widget {
+	border-radius: var(--vscode-cornerRadius-medium) !important;
+	overflow: hidden;
+}
+
+/*
+ * Settings editor row container. The focused/hovered row paints a background
+ * (and the focused row draws an outline) on this element, so round it to the
+ * inner tier to match.
+ */
+.style-override-roundedCorners .settings-editor .settings-tree-container .setting-item-contents.settings-row-inner-container {
+	border-radius: var(--vscode-cornerRadius-medium) !important;
+}
+
+/* =============================================================================
+ * Outer (8px) — overlays / floating UI above the rest of the workbench.
+ * ========================================================================== */
+
+/* Quick input (command palette, quick open) */
+.style-override-roundedCorners .quick-input-widget {
+	border-radius: var(--vscode-cornerRadius-large) !important;
+	overflow: hidden;
+}
+
+/* Editor / workbench hover, suggest and parameter hint widgets */
+.style-override-roundedCorners .monaco-hover,
+.style-override-roundedCorners .editor-widget.suggest-widget,
+.style-override-roundedCorners .monaco-editor .parameter-hints-widget {
+	border-radius: var(--vscode-cornerRadius-large) !important;
+	overflow: hidden;
+}
+
+/* Context menus and general menu surfaces */
+.style-override-roundedCorners .monaco-menu .monaco-action-bar.vertical {
+	border-radius: var(--vscode-cornerRadius-large) !important;
+}
+
+/*
+ * Notification center (floats above the status bar). It already clips its
+ * children with `overflow: hidden`, so rounding the container alone gives the
+ * header its top corners and the list its bottom corners in one place.
+ */
+.style-override-roundedCorners .notifications-center {
+	border-radius: var(--vscode-cornerRadius-large) !important;
+}
+
+/*
+ * Notification toasts. The visible, shadowed surface is the nested
+ * `.notifications-list-container`, wrapped by `.notification-toast` (and its
+ * scrollable element / list row). The base styles round every one of these
+ * layers to the same radius; round them together here too, otherwise a larger
+ * radius on the outer wrapper leaves a gap at the corner where the smaller
+ * inner radius shows through.
+ */
+.style-override-roundedCorners .notifications-toasts .notifications-list-container,
+.style-override-roundedCorners .notifications-toasts .notification-toast-container > .notification-toast,
+.style-override-roundedCorners .notifications-toasts .notification-toast-container > .notification-toast .monaco-scrollable-element,
+.style-override-roundedCorners .notifications-toasts .notification-toast-container > .notification-toast .monaco-list-row {
+	border-radius: var(--vscode-cornerRadius-large) !important;
+}
+
+/* Modal dialogs */
+.style-override-roundedCorners .monaco-dialog-box {
+	border-radius: var(--vscode-cornerRadius-large) !important;
+	overflow: hidden;
+}
+
+/* Editor find / replace widget */
+.style-override-roundedCorners .monaco-editor .find-widget {
+	border-radius: var(--vscode-cornerRadius-large) !important;
+}
+
+/* Rename input widget */
+.style-override-roundedCorners .monaco-editor .rename-box {
+	border-radius: var(--vscode-cornerRadius-large) !important;
+	overflow: hidden;
+}
+
+/* Color picker widget */
+.style-override-roundedCorners .colorpicker-widget {
+	border-radius: var(--vscode-cornerRadius-large) !important;
+	overflow: hidden;
+}

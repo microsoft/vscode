@@ -15,6 +15,7 @@ export interface StatusRowsProps {
 	readonly needsInputCount: number;
 	readonly doneCount: number;
 	readonly speakingSessionLabel: string | undefined;
+	readonly speakingSessionResource: URI | undefined;
 	readonly pendingToolConfirmations: readonly IPendingToolConfirmation[];
 	readonly onOpenSession: (resource: URI) => void;
 	/** When false, hide the counter rows and the "No active sessions" placeholder. */
@@ -66,6 +67,8 @@ export function createStatusRows(): StatusRowsComponent {
 	const speakingLabel = dom.$('span');
 	speakingLabel.style.cssText = `font-size:${FONT_SIZE.body};color:var(--vscode-agentsVoice-speakingForeground);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
 	speakingRow.append(speakingDot, speakingLabel);
+	let speakingClickHandler: (() => void) | undefined;
+	let speakingKeyHandler: ((e: KeyboardEvent) => void) | undefined;
 
 	const workingRow = createStatusRow();
 	const needsInputRow = createStatusRow();
@@ -96,8 +99,53 @@ export function createStatusRows(): StatusRowsComponent {
 			if (props.speakingSessionLabel) {
 				speakingRow.style.display = 'flex';
 				speakingLabel.textContent = props.speakingSessionLabel;
+
+				// Clean up previous handlers
+				if (speakingClickHandler) {
+					speakingRow.removeEventListener('click', speakingClickHandler);
+					speakingClickHandler = undefined;
+				}
+				if (speakingKeyHandler) {
+					speakingRow.removeEventListener('keydown', speakingKeyHandler);
+					speakingKeyHandler = undefined;
+				}
+
+				if (props.speakingSessionResource) {
+					const resource = props.speakingSessionResource;
+					speakingClickHandler = () => props.onOpenSession(resource);
+					speakingKeyHandler = (e: KeyboardEvent) => {
+						if (e.key === 'Enter' || e.key === ' ') {
+							e.preventDefault();
+							props.onOpenSession(resource);
+						}
+					};
+					speakingRow.addEventListener('click', speakingClickHandler);
+					speakingRow.addEventListener('keydown', speakingKeyHandler);
+					speakingRow.style.cursor = 'pointer';
+					speakingRow.tabIndex = 0;
+					speakingRow.setAttribute('role', 'button');
+					speakingRow.title = localize('agentsVoice.jumpToSession', "Jump to session");
+				} else {
+					speakingRow.style.cursor = '';
+					speakingRow.removeAttribute('tabIndex');
+					speakingRow.removeAttribute('role');
+					speakingRow.title = '';
+				}
 			} else {
 				speakingRow.style.display = 'none';
+				// Clean up when hidden
+				if (speakingClickHandler) {
+					speakingRow.removeEventListener('click', speakingClickHandler);
+					speakingClickHandler = undefined;
+				}
+				if (speakingKeyHandler) {
+					speakingRow.removeEventListener('keydown', speakingKeyHandler);
+					speakingKeyHandler = undefined;
+				}
+				speakingRow.style.cursor = '';
+				speakingRow.removeAttribute('tabIndex');
+				speakingRow.removeAttribute('role');
+				speakingRow.title = '';
 			}
 
 			if (showCounters) {

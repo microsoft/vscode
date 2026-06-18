@@ -393,7 +393,7 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 	}
 
 	private addTemplateToUrl(baseUrl: string, owner?: string, repositoryName?: string, issueSource?: IssueSource): string {
-		const needsTemplate = issueSource === IssueSource.VSCode || (owner?.toLowerCase() === 'microsoft' && repositoryName?.toLowerCase() === 'vscode');
+		const needsTemplate = issueSource === IssueSource.VSCode || issueSource === IssueSource.AgentsWindow || (owner?.toLowerCase() === 'microsoft' && repositoryName?.toLowerCase() === 'vscode');
 		if (!needsTemplate) {
 			return baseUrl;
 		}

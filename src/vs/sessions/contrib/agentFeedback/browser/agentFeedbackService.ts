@@ -14,6 +14,7 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { editingEntriesContainResource } from '../../../../workbench/contrib/chat/browser/sessionResourceMatching.js';
 import { changeMatchesResource, getActiveResourceCandidates, IAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
@@ -36,6 +37,16 @@ export { AgentFeedbackKind, AgentFeedbackState, type IAgentFeedback };
 
 export interface INavigableSessionComment {
 	readonly id: string;
+}
+
+/** Options for {@link IAgentFeedbackService.acceptFeedback}. */
+export interface IAcceptFeedbackOptions {
+	/**
+	 * Flag the accepted item as pending reveal to the agent so the
+	 * `viewUnreviewedComments` server tool returns it (and only the items
+	 * revealed in the same invocation).
+	 */
+	readonly revealToAgent?: boolean;
 }
 
 export interface IAgentFeedbackChangeEvent {
@@ -113,8 +124,13 @@ export interface IAgentFeedbackService {
 	 * {@link AgentFeedbackState.Created} state, transitioning it to
 	 * {@link AgentFeedbackState.Accepted} so it becomes submittable and is
 	 * attached to the chat input.
+	 *
+	 * When {@link IAcceptFeedbackOptions.revealToAgent} is set, the item is
+	 * additionally flagged as pending reveal to the agent so the
+	 * `viewUnreviewedComments` server tool returns exactly the comments the user
+	 * chose to reveal for that invocation.
 	 */
-	acceptFeedback(sessionResource: URI, feedbackId: string): void;
+	acceptFeedback(sessionResource: URI, feedbackId: string, options?: IAcceptFeedbackOptions): void;
 
 	/**
 	 * Remove a single feedback item.
@@ -243,6 +259,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	constructor(
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@ILogService private readonly _logService: ILogService,
@@ -293,7 +310,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	}
 
 	private _trackVisibleEditorResources(): void {
-		const activeSession = this._sessionsManagementService.activeSession.get();
+		const activeSession = this._sessionsService.activeSession.get();
 		if (!activeSession) {
 			return;
 		}
@@ -306,7 +323,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	}
 
 	getSessionForFile(resourceUri: URI): ISession | undefined {
-		const sessionResource = this._fileToSession.get(resourceUri) ?? this._sessionsManagementService.activeSession.get()?.resource;
+		const sessionResource = this._fileToSession.get(resourceUri) ?? this._sessionsService.activeSession.get()?.resource;
 		if (!sessionResource) {
 			return undefined;
 		}
@@ -356,7 +373,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		return feedback;
 	}
 
-	acceptFeedback(sessionResource: URI, feedbackId: string): void {
+	acceptFeedback(sessionResource: URI, feedbackId: string, options?: IAcceptFeedbackOptions): void {
 		const backend = this._backendForSession(sessionResource);
 		const feedbackItems = backend.getItems(sessionResource);
 		const existing = feedbackItems.find(f => f.id === feedbackId);
@@ -364,7 +381,11 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			return;
 		}
 
-		const accepted: IAgentFeedback = { ...existing, state: AgentFeedbackState.Accepted };
+		const accepted: IAgentFeedback = {
+			...existing,
+			state: AgentFeedbackState.Accepted,
+			...(options?.revealToAgent ? { pendingAgentReveal: true } : {}),
+		};
 		backend.upsert(accepted);
 
 		if (accepted.kind !== AgentFeedbackKind.UserReview) {

@@ -24,6 +24,7 @@ import { ChatResultListSubPart } from './chatResultListSubPart.js';
 import { ChatSimpleToolProgressPart } from './chatSimpleToolProgressPart.js';
 import { ChatSandboxPrerequisiteConfirmationSubPart } from './chatSandboxPrerequisiteConfirmationSubPart.js';
 import { ChatModifiedFilesConfirmationSubPart } from './chatModifiedFilesConfirmationSubPart.js';
+import { ChatAgentFeedbackReviewConfirmationSubPart } from './chatAgentFeedbackReviewConfirmationSubPart.js';
 import { ChatTerminalToolConfirmationSubPart } from './chatTerminalToolConfirmationSubPart.js';
 import { ChatTerminalToolProgressPart } from './chatTerminalToolProgressPart.js';
 import { ToolConfirmationSubPart } from './chatToolConfirmationSubPart.js';
@@ -193,6 +194,8 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 					return this.instantiationService.createInstance(ChatTerminalToolConfirmationSubPart, this.toolInvocation, this.toolInvocation.toolSpecificData, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockStartIndex);
 				} else if (this.toolInvocation.toolSpecificData?.kind === 'modifiedFilesConfirmation') {
 					return this.instantiationService.createInstance(ChatModifiedFilesConfirmationSubPart, this.toolInvocation, this.context, this.listPool);
+				} else if (this.toolInvocation.toolSpecificData?.kind === 'agentFeedbackReviewConfirmation') {
+					return this.instantiationService.createInstance(ChatAgentFeedbackReviewConfirmationSubPart, this.toolInvocation, this.context);
 				} else {
 					return this.instantiationService.createInstance(ToolConfirmationSubPart, this.toolInvocation, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockStartIndex);
 				}

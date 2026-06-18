@@ -22,7 +22,7 @@ import { ISessionsPartService, IToggleMaximizeSessionEvent } from '../../service
  * singleton so the part registers itself with the workbench layout service
  * before the workbench starts laying out parts.
  *
- * The part is a passive renderer: the {@link ISessionsViewService} drives the
+ * The part is a passive renderer: the {@link ISessionsService} drives the
  * grid via {@link updateVisibleSessions}/{@link focusSession} and listens to
  * {@link onDidFocusSession}. The part observes neither the model nor the view.
  */

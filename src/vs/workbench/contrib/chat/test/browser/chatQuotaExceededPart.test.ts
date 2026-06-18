@@ -16,7 +16,6 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { ChatEntitlement, IChatEntitlementService, IChatSentiment } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IChatResponseErrorDetails } from '../../common/chatService/chatService.js';
 import { IChatErrorDetailsPart, IChatResponseViewModel } from '../../common/model/chatViewModel.js';
-import { IChatWidgetService } from '../../browser/chat.js';
 import { ChatQuotaExceededPart } from '../../browser/widget/chatContentParts/chatQuotaExceededPart.js';
 
 
@@ -86,7 +85,6 @@ suite('ChatQuotaExceededPart', () => {
 	function createWidget(entitlement: ChatEntitlement, errorDetails: IChatResponseErrorDetails): ChatQuotaExceededPart {
 		executedCommands = [];
 
-		const chatWidgetService = {} as IChatWidgetService;
 		const commandService = {
 			executeCommand(id: string) {
 				executedCommands.push(id);
@@ -106,7 +104,6 @@ suite('ChatQuotaExceededPart', () => {
 			element,
 			content,
 			renderer,
-			chatWidgetService,
 			commandService,
 			telemetryService,
 			entitlementService,

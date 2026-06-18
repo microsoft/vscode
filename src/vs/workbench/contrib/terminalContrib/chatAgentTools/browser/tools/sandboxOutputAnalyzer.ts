@@ -84,9 +84,9 @@ export function outputLooksSandboxBlocked(output: string): boolean {
 
 /**
  * Checks whether output clearly suggests a network failure. This is used only
- * to prevent automatic unsandboxing; retry selection is left to the model.
+ * to select automatic allow-network retries and prevent automatic unsandboxing.
  */
 export function outputLooksSandboxNetworkBlocked(output: string): boolean {
 	const normalized = output.replace(/\n/g, ' ');
-	return /Could not resolve host|Temporary failure in name resolution|Name or service not known|EAI_AGAIN|ENETUNREACH|Network is unreachable|network (?:access )?(?:blocked|disabled)|(?:connect|socket).*(?:Operation not permitted|Permission denied)|(?:Operation not permitted|Permission denied).*(?:connect|socket)/i.test(normalized);
+	return /Could not resolve host|Temporary failure in name resolution|Name or service not known|EAI_AGAIN|ENETUNREACH|Network is unreachable|Received HTTP code 403 from proxy after CONNECT|network (?:access )?(?:blocked|disabled)|(?:connect|socket).*(?:Operation not permitted|Permission denied)|(?:Operation not permitted|Permission denied).*(?:connect|socket)/i.test(normalized);
 }

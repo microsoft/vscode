@@ -21,8 +21,7 @@ import { IChatPromptSlashCommand, IPromptsService } from '../../../../workbench/
 import { INewChatModelPickerService } from './newChatModelPicker.js';
 import { isAgentHostTarget } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 /**
  * Static command ID used by completion items to trigger immediate slash command execution,
  * mirroring the pattern of core's `ChatSubmitAction` for `executeImmediately` commands.
@@ -70,7 +69,7 @@ export class SlashCommandHandler extends Disposable {
 		@IAICustomizationWorkspaceService private readonly aiCustomizationWorkspaceService: IAICustomizationWorkspaceService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@INewChatModelPickerService private readonly newChatModelPickerService: INewChatModelPickerService,
-		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsService private readonly sessionsService: ISessionsService,
 	) {
 		super();
 		this._commandDecorations = this._editor.createDecorationsCollection();
@@ -250,7 +249,7 @@ export class SlashCommandHandler extends Disposable {
 			_debugDisplayName: 'sessionsPromptSlashCommands',
 			triggerCharacters: ['/'],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
-				const activeSession = this.sessionsManagementService.activeSession.get();
+				const activeSession = this.sessionsService.activeSession.get();
 				if (activeSession && isAgentHostTarget(getChatSessionType(activeSession.resource))) {
 					// Agent-host sessions delegate completions to the host
 					// process via `AgentHostInputCompletions`.

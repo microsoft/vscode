@@ -28,7 +28,7 @@ import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbenc
 import { ISessionChangeEvent, ISendRequestOptions, ISessionModelPickerOptions, ISessionsProvider } from '../../common/sessionsProvider.js';
 import { SessionsManagementService } from '../../browser/sessionsManagementService.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
-import { SessionsViewService } from '../../browser/sessionsViewService.js';
+import { SessionsService } from '../../browser/sessionsService.js';
 import { ISessionsPartService } from '../../browser/sessionsPartService.js';
 import { ISessionsProvidersService } from '../../browser/sessionsProvidersService.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
@@ -119,7 +119,7 @@ class TestSessionsProvidersService extends mock<ISessionsProvidersService>() {
 	}
 
 	override getProviders(): ISessionsProvider[] {
-		return [...this._providers];
+		return [...this._providers].sort((a, b) => a.order - b.order);
 	}
 
 	override getProvider<T extends ISessionsProvider>(providerId: string): T | undefined {
@@ -159,7 +159,7 @@ class TestSessionsProvider extends mock<ISessionsProvider>() {
 	override async createNewChat(): Promise<IChat> { return this._session.mainChat.get(); }
 }
 
-function createSessionsManagementService(session: ISession, disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, provider: ISessionsProvider = new TestSessionsProvider(session)): { service: ISessionsManagementService; view: SessionsViewService; chatWidgetService: TestChatWidgetService } {
+function createSessionsManagementService(session: ISession, disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, provider: ISessionsProvider = new TestSessionsProvider(session)): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService } {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const chatWidgetService = new TestChatWidgetService();
 
@@ -194,14 +194,14 @@ class TestSessionsPartService extends mock<ISessionsPartService>() {
 }
 
 /**
- * Builds a {@link SessionsViewService} over an already-created management
+ * Builds a {@link SessionsService} over an already-created management
  * service, stubbing the management service instance and a passive part so the
  * view's opening/restore/visible-session behaviour can be tested.
  */
-function createView(instantiationService: TestInstantiationService, service: ISessionsManagementService, disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>): SessionsViewService {
+function createView(instantiationService: TestInstantiationService, service: ISessionsManagementService, disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>): SessionsService {
 	instantiationService.stub(ISessionsManagementService, service);
 	instantiationService.stub(ISessionsPartService, new TestSessionsPartService());
-	return disposables.add(instantiationService.createInstance(SessionsViewService));
+	return disposables.add(instantiationService.createInstance(SessionsService));
 }
 
 suite('SessionsManagementService', () => {
@@ -252,7 +252,7 @@ suite('SessionsManagementService', () => {
 
 		// Open the original session so it becomes the active session
 		await view.openSession(originalSession.resource);
-		assert.strictEqual(service.activeSession.get()?.sessionId, 'original');
+		assert.strictEqual(view.activeSession.get()?.sessionId, 'original');
 
 		// A new session appears but is NOT displayed in any widget
 		const otherSession = stubSession({ sessionId: 'other', providerId: 'test' });
@@ -261,7 +261,7 @@ suite('SessionsManagementService', () => {
 		onDidChangeSessions.fire({ added: [otherSession], removed: [], changed: [] });
 
 		// The active session should remain unchanged
-		assert.strictEqual(service.activeSession.get()?.sessionId, 'original');
+		assert.strictEqual(view.activeSession.get()?.sessionId, 'original');
 	});
 
 	test('getSessionForChatResource returns the session that owns the chat', () => {
@@ -385,7 +385,7 @@ suite('SessionsManagementService', () => {
 		// First window: open the session, then simulate shutdown (flush storage).
 		const first = makeService();
 		await first.view.openSession(session.resource);
-		assert.strictEqual(first.service.activeSession.get()?.sessionId, 'x');
+		assert.strictEqual(first.view.activeSession.get()?.sessionId, 'x');
 		await storage.flush();
 
 		// Second window: restore from persisted state.
@@ -394,7 +394,7 @@ suite('SessionsManagementService', () => {
 
 		assert.deepStrictEqual({
 			visible: second.view.visibleSessions.get().map(s => s?.sessionId ?? null),
-			active: second.service.activeSession.get()?.sessionId ?? null,
+			active: second.view.activeSession.get()?.sessionId ?? null,
 		}, {
 			visible: ['x'],
 			active: 'x',
@@ -452,7 +452,7 @@ suite('SessionsManagementService', () => {
 
 		assert.deepStrictEqual({
 			hasTarget: view.visibleSessions.get().some(s => s?.sessionId === 'target'),
-			active: service.activeSession.get()?.sessionId ?? null,
+			active: view.activeSession.get()?.sessionId ?? null,
 		}, {
 			hasTarget: true,
 			active: 'target',
@@ -483,19 +483,19 @@ suite('SessionsManagementService', () => {
 			}
 		};
 
-		const { service, view } = createSessionsManagementService(openSession, disposables, provider);
+		const { view } = createSessionsManagementService(openSession, disposables, provider);
 
 		// Make the established session active.
 		await view.openSession(openSession.resource);
-		assert.strictEqual(service.activeSession.get()?.sessionId, 'open');
+		assert.strictEqual(view.activeSession.get()?.sessionId, 'open');
 
 		// Opening a new session view inherits the active session's workspace.
 		view.openNewSession();
 
 		assert.deepStrictEqual({
 			createdFor: createdFolderUri?.toString() ?? null,
-			activeSession: service.activeSession.get()?.sessionId ?? null,
-			activeWorkspace: service.activeSession.get()?.workspace.get()?.folders[0]?.root.toString() ?? null,
+			activeSession: view.activeSession.get()?.sessionId ?? null,
+			activeWorkspace: view.activeSession.get()?.workspace.get()?.folders[0]?.root.toString() ?? null,
 		}, {
 			createdFor: workspaceB.toString(),
 			activeSession: 'inherited',
@@ -528,10 +528,10 @@ suite('SessionsManagementService', () => {
 			}
 		};
 
-		const { service, view } = createSessionsManagementService(openSession, disposables, provider);
+		const { view } = createSessionsManagementService(openSession, disposables, provider);
 
 		await view.openSession(openSession.resource);
-		assert.strictEqual(service.activeSession.get()?.sessionId, 'open');
+		assert.strictEqual(view.activeSession.get()?.sessionId, 'open');
 
 		// Without the inherit option, no new session is created from the active
 		// session's workspace; the empty new-session view is shown instead.
@@ -539,7 +539,7 @@ suite('SessionsManagementService', () => {
 
 		assert.deepStrictEqual({
 			createNewSessionCalled,
-			activeSession: service.activeSession.get()?.sessionId ?? null,
+			activeSession: view.activeSession.get()?.sessionId ?? null,
 		}, {
 			createNewSessionCalled: false,
 			activeSession: null,
@@ -571,15 +571,15 @@ suite('SessionsManagementService', () => {
 			}
 		};
 
-		const { service, view } = createSessionsManagementService(openSession, disposables, provider);
+		const { view } = createSessionsManagementService(openSession, disposables, provider);
 
 		// Compose an in-progress new session (pending draft) for workspace A.
 		view.openNewSession({ folderUri: workspaceA });
-		assert.strictEqual(service.activeSession.get()?.sessionId, 'pending');
+		assert.strictEqual(view.activeSession.get()?.sessionId, 'pending');
 
 		// Navigate to the established session, which shares workspace A.
 		await view.openSession(openSession.resource);
-		assert.strictEqual(service.activeSession.get()?.sessionId, 'open');
+		assert.strictEqual(view.activeSession.get()?.sessionId, 'open');
 
 		// Opening a new session view inherits workspace A and always creates a
 		// fresh draft for it (no workspace de-duplication).
@@ -587,7 +587,7 @@ suite('SessionsManagementService', () => {
 
 		assert.deepStrictEqual({
 			createNewSessionCount,
-			activeSession: service.activeSession.get()?.sessionId ?? null,
+			activeSession: view.activeSession.get()?.sessionId ?? null,
 		}, {
 			createNewSessionCount: 2,
 			activeSession: 'pending',
@@ -638,7 +638,7 @@ suite('SessionsManagementService', () => {
 		assert.deepStrictEqual({
 			visible: view.visibleSessions.get().map(s => s?.sessionId ?? null),
 			sticky: view.visibleSessions.get().map(s => s?.sticky.get() ?? false),
-			active: service.activeSession.get()?.sessionId,
+			active: view.activeSession.get()?.sessionId,
 		}, {
 			visible: ['a', 'b', 'c'],
 			sticky: [true, false, false],
@@ -699,7 +699,7 @@ suite('SessionsManagementService', () => {
 		assert.deepStrictEqual({
 			showedActiveAlone,
 			final: view.visibleSessions.get().map(s => s?.sessionId ?? null),
-			active: service.activeSession.get()?.sessionId,
+			active: view.activeSession.get()?.sessionId,
 		}, {
 			showedActiveAlone: false,
 			final: ['a', 'b'],
@@ -719,12 +719,12 @@ suite('SessionsManagementService', () => {
 
 		// Open the session so it becomes the active session.
 		await view.openSession(session.resource);
-		assert.strictEqual(service.activeSession.get()?.sessionId, 's1');
+		assert.strictEqual(view.activeSession.get()?.sessionId, 's1');
 
 		// A foreground new-chat send keeps the started session active (the view
 		// follows the send and never resets the active slot).
 		await service.sendNewChatRequest(session, { query: 'hi' });
-		assert.strictEqual(service.activeSession.get()?.sessionId, 's1');
+		assert.strictEqual(view.activeSession.get()?.sessionId, 's1');
 	});
 
 	test('sendNewChatRequest with background resolves before provider send commits', async () => {
@@ -774,16 +774,16 @@ suite('SessionsManagementService', () => {
 				return session;
 			}
 		}(session);
-		const { service } = createSessionsManagementService(session, disposables, provider);
+		const { service, view } = createSessionsManagementService(session, disposables, provider);
 
 		// No active session and no pending composer before the headless send.
-		assert.strictEqual(service.activeSession.get(), undefined);
+		assert.strictEqual(view.activeSession.get(), undefined);
 
 		await service.createAndSendNewChatRequest(URI.parse('test:///folder'), { query: 'hi' });
 
 		// The request was sent, but the user's view was not navigated into the session.
 		assert.strictEqual(sendRequestStarted, true);
-		assert.strictEqual(service.activeSession.get(), undefined);
+		assert.strictEqual(view.activeSession.get(), undefined);
 	});
 
 	test('getAllSessionTypes orders providers by their order property (lower first)', () => {
@@ -805,11 +805,11 @@ suite('SessionsManagementService', () => {
 			constructor() { super(draft); }
 			override getSessions(): ISession[] { return [draft, committed]; }
 		};
-		const { service, view } = createSessionsManagementService(draft, disposables, provider);
+		const { view } = createSessionsManagementService(draft, disposables, provider);
 
 		// Open the draft so it becomes the active session.
 		await view.openSession(draft.resource);
-		assert.strictEqual(service.activeSession.get()?.sessionId, 'draft');
+		assert.strictEqual(view.activeSession.get()?.sessionId, 'draft');
 
 		// The provider atomically replaces the draft with a committed session
 		// (e.g. after the first turn). The complete flow must: swap the visible
@@ -819,7 +819,7 @@ suite('SessionsManagementService', () => {
 
 		assert.deepStrictEqual({
 			visible: view.visibleSessions.get().map(s => s?.sessionId ?? null),
-			active: service.activeSession.get()?.sessionId ?? null,
+			active: view.activeSession.get()?.sessionId ?? null,
 		}, {
 			visible: ['committed'],
 			active: 'committed',
@@ -835,16 +835,16 @@ suite('SessionsManagementService', () => {
 			constructor() { super(before); }
 			override getSessions(): ISession[] { return [before]; }
 		};
-		const { service, view } = createSessionsManagementService(before, disposables, provider);
+		const { view } = createSessionsManagementService(before, disposables, provider);
 
 		await view.openSession(before.resource);
-		assert.strictEqual(service.activeSession.get()?.resource.toString(), before.resource.toString());
+		assert.strictEqual(view.activeSession.get()?.resource.toString(), before.resource.toString());
 
 		// A same-id replacement still needs to force the active session update
 		// so consumers observe the new resource.
 		onDidReplaceSession.fire({ from: before, to: after });
 
-		assert.strictEqual(service.activeSession.get()?.resource.toString(), after.resource.toString());
+		assert.strictEqual(view.activeSession.get()?.resource.toString(), after.resource.toString());
 	});
 
 	test('replacing a non-active session leaves the active session unchanged', async () => {
@@ -857,13 +857,13 @@ suite('SessionsManagementService', () => {
 			constructor() { super(active); }
 			override getSessions(): ISession[] { return [active, draft, committed]; }
 		};
-		const { service, view } = createSessionsManagementService(active, disposables, provider);
+		const { view } = createSessionsManagementService(active, disposables, provider);
 
 		// Open `active` and add `draft` to the grid alongside it without
 		// activating, so `draft` is visible but not the active session.
 		await view.openSession(active.resource);
 		view.insertAt(draft, 'active', 'right', false);
-		assert.strictEqual(service.activeSession.get()?.sessionId, 'active');
+		assert.strictEqual(view.activeSession.get()?.sessionId, 'active');
 
 		// Replacing the non-active `draft` swaps its grid slot to `committed`
 		// but must not hijack the active session.
@@ -871,35 +871,35 @@ suite('SessionsManagementService', () => {
 
 		assert.deepStrictEqual({
 			visible: view.visibleSessions.get().map(s => s?.sessionId ?? null),
-			active: service.activeSession.get()?.sessionId ?? null,
+			active: view.activeSession.get()?.sessionId ?? null,
 		}, {
 			visible: ['active', 'committed'],
 			active: 'active',
 		});
 	});
 
-	test('replaceActiveSession only replaces when the active session matches `from`', async () => {
+	test('replacing a session only swaps the active session when it matches `from`', async () => {
 		const a = stubSession({ sessionId: 'a', providerId: 'test' });
 		const b = stubSession({ sessionId: 'b', providerId: 'test' });
+		const other = stubSession({ sessionId: 'other', providerId: 'test' });
+		const onDidReplaceSession = disposables.add(new Emitter<{ from: ISession; to: ISession }>());
 		const provider = new class extends TestSessionsProvider {
+			override readonly onDidReplaceSession = onDidReplaceSession.event;
 			constructor() { super(a); }
-			override getSessions(): ISession[] { return [a, b]; }
+			override getSessions(): ISession[] { return [a, b, other]; }
 		};
-		const { service, view } = createSessionsManagementService(a, disposables, provider);
+		const { view } = createSessionsManagementService(a, disposables, provider);
 
 		await view.openSession(a.resource);
-		const activeA = service.activeSession.get()!;
-		await view.openSession(b.resource);
-		const activeB = service.activeSession.get()!;
-		assert.strictEqual(activeB.sessionId, 'b');
+		assert.strictEqual(view.activeSession.get()?.sessionId, 'a');
 
-		// `from` does not match the active session: no-op.
-		service.replaceActiveSession(activeA, activeB);
-		assert.strictEqual(service.activeSession.get()?.sessionId, 'b');
+		// `from` does not match the active session: active stays put.
+		onDidReplaceSession.fire({ from: other, to: b });
+		assert.strictEqual(view.activeSession.get()?.sessionId, 'a');
 
-		// `from` matches the active session: replaced with `to`.
-		service.replaceActiveSession(activeB, activeA);
-		assert.strictEqual(service.activeSession.get()?.sessionId, 'a');
+		// `from` matches the active session: active is replaced with `to`.
+		onDidReplaceSession.fire({ from: a, to: b });
+		assert.strictEqual(view.activeSession.get()?.sessionId, 'b');
 	});
 });
 

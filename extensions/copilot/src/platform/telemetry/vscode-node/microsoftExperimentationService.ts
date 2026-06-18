@@ -198,6 +198,23 @@ class PlatformAndReleaseDateFilterProvider implements IExperimentationFilterProv
 	}
 }
 
+class WindowKindFilterProvider implements IExperimentationFilterProvider {
+	constructor(
+		private _logService: ILogService
+	) { }
+
+	getFilters(): Map<string, string> {
+		const filters = new Map<string, string>();
+
+		// Mirrors the core `X-VSCode-WindowKind` filter (`editor` or `agents`).
+		const windowKind = vscode.workspace.isAgentSessionsWorkspace ? 'agents' : 'editor';
+		filters.set('X-VSCode-WindowKind', windowKind);
+
+		this._logService.trace(`[WindowKindFilterProvider]::getFilters Filters: ${JSON.stringify(Array.from(filters.entries()))}`);
+		return filters;
+	}
+}
+
 export class MicrosoftExperimentationService extends BaseExperimentationService {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -228,6 +245,7 @@ export class MicrosoftExperimentationService extends BaseExperimentationService 
 				new CopilotCompletionsFilterProvider(() => self?.getCompletionsFilters() ?? new Map(), logService),
 				new DevDeviceIdFilterProvider(vscode.env.devDeviceId),
 				new PlatformAndReleaseDateFilterProvider(logService),
+				new WindowKindFilterProvider(logService),
 			);
 		};
 

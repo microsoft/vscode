@@ -22,6 +22,7 @@ import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatContextUsageDetails, IChatContextUsageData } from './chatContextUsageDetails.js';
+import type { IChatWidget } from '../../chat.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 
@@ -102,8 +103,10 @@ export class ChatContextUsageWidget extends Disposable {
 	private readonly _modelConfigurationListener = this._register(new MutableDisposable());
 	private _currentResponse: IChatResponseModel | undefined;
 	private _currentModelId: string | undefined;
+	private _sessionCost: number = 0;
 	private readonly _hoverDisposable = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _contextUsageDetails = this._register(new MutableDisposable<ChatContextUsageDetails>());
+	private _chatWidget: IChatWidget | undefined;
 
 	private currentData: IChatContextUsageData | undefined;
 
@@ -171,6 +174,11 @@ export class ChatContextUsageWidget extends Disposable {
 		this.setupHover();
 	}
 
+	setChatWidget(widget: IChatWidget): void {
+		this._chatWidget = widget;
+		this._contextUsageDetails.value?.setChatWidget(widget);
+	}
+
 	/**
 	 * Shows the sticky context usage details hover and records that the user
 	 * has opened it. Returns `true` if the details were shown.
@@ -200,7 +208,7 @@ export class ChatContextUsageWidget extends Disposable {
 			return undefined;
 		}
 		if (!this._contextUsageDetails.value) {
-			this._contextUsageDetails.value = this.instantiationService.createInstance(ChatContextUsageDetails);
+			this._contextUsageDetails.value = this.instantiationService.createInstance(ChatContextUsageDetails, this._chatWidget);
 		}
 		this._contextUsageDetails.value.update(this.currentData);
 		return this._contextUsageDetails.value;
@@ -241,11 +249,13 @@ export class ChatContextUsageWidget extends Disposable {
 	 * Updates the widget with the latest request/response data.
 	 * The model is retrieved from the request's modelId.
 	 * @param lastRequest The last request in the session
+	 * @param sessionCost Total copilot credits consumed across all turns
 	 */
-	update(lastRequest: IChatRequestModel | undefined): void {
+	update(lastRequest: IChatRequestModel | undefined, sessionCost: number = 0): void {
 		this._lastRequestDisposable.clear();
 		this._currentResponse = undefined;
 		this._currentModelId = undefined;
+		this._sessionCost = sessionCost;
 
 		if (!lastRequest) {
 			// New/empty chat session clear everything
@@ -324,27 +334,30 @@ export class ChatContextUsageWidget extends Disposable {
 			? (Math.max(0, outputBuffer - completionTokens) / totalContextWindow) * 100
 			: undefined;
 
-		this.render(percentage, completionTokens, usedTokens, totalContextWindow, outputBufferPercentage, promptTokenDetails);
+		this.render({
+			usedTokens, completionTokens, totalContextWindow,
+			percentage, outputBufferPercentage,
+			promptTokenDetails, sessionCost: this._sessionCost,
+		});
 		this.show();
 	}
 
-	private render(percentage: number, completionTokens: number, usedTokens: number, totalContextWindow: number, outputBufferPercentage: number | undefined, promptTokenDetails?: readonly { category: string; label: string; percentageOfPrompt: number }[]): void {
-		// Store current data for use in details popup
-		this.currentData = { usedTokens, completionTokens, totalContextWindow, percentage, outputBufferPercentage, promptTokenDetails };
+	private render(data: IChatContextUsageData): void {
+		this.currentData = data;
 
 		// Pie chart shows actual usage percentage only
-		this.progressIndicator.setProgress(percentage);
+		this.progressIndicator.setProgress(data.percentage);
 
 		// Update percentage label and aria-label (clamp display to 100)
-		const roundedPercentage = Math.min(100, Math.round(percentage));
+		const roundedPercentage = Math.min(100, Math.round(data.percentage));
 		this.percentageLabel.textContent = `${roundedPercentage}%`;
 		this.domNode.setAttribute('aria-label', localize('contextUsagePercentageLabel', "Context window usage: {0}%", roundedPercentage));
 
 		// Color based on actual usage percentage
 		this.domNode.classList.remove('warning', 'error');
-		if (percentage >= 90) {
+		if (data.percentage >= 90) {
 			this.domNode.classList.add('error');
-		} else if (percentage >= 75) {
+		} else if (data.percentage >= 75) {
 			this.domNode.classList.add('warning');
 		}
 	}

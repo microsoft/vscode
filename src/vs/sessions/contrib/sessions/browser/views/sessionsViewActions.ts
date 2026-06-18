@@ -31,7 +31,7 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { ActiveSessionContextKeys } from '../../../changes/common/changes.js';
 import { hasActiveSessionFailedCIChecks } from '../../../changes/browser/checksActions.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
-import { ISessionsViewService } from '../../../../services/sessions/browser/sessionsViewService.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 
 //  Constants
 
@@ -59,8 +59,8 @@ registerAction2(class CloseSessionAction extends Action2 {
 		});
 	}
 	override async run(accessor: ServicesAccessor) {
-		const sessionsViewService = accessor.get(ISessionsViewService);
-		sessionsViewService.openNewSession();
+		const sessionsService = accessor.get(ISessionsService);
+		sessionsService.openNewSession();
 	}
 });
 
@@ -96,7 +96,7 @@ const openSessionAtIndex = (accessor: ServicesAccessor, sessionIndex: unknown): 
 		return;
 	}
 	const viewsService = accessor.get(IViewsService);
-	const sessionsViewService = accessor.get(ISessionsViewService);
+	const sessionsService = accessor.get(ISessionsService);
 	const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
 	const visible = view?.sessionsControl?.getVisibleSessions() ?? [];
 	if (visible.length === 0) {
@@ -109,7 +109,7 @@ const openSessionAtIndex = (accessor: ServicesAccessor, sessionIndex: unknown): 
 	if (!target) {
 		return;
 	}
-	sessionsViewService.openSession(target.resource);
+	sessionsService.openSession(target.resource);
 };
 
 CommandsRegistry.registerCommand({
@@ -137,8 +137,7 @@ for (let visibleIndex = 1; visibleIndex <= 9; visibleIndex++) {
 
 const navigateSessionInList = async (accessor: ServicesAccessor, direction: 'previous' | 'next'): Promise<void> => {
 	const viewsService = accessor.get(IViewsService);
-	const sessionsViewService = accessor.get(ISessionsViewService);
-	const sessionsManagementService = accessor.get(ISessionsManagementService);
+	const sessionsService = accessor.get(ISessionsService);
 	const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
 	const visible = view?.sessionsControl?.getVisibleSessions() ?? [];
 	if (visible.length === 0) {
@@ -147,7 +146,7 @@ const navigateSessionInList = async (accessor: ServicesAccessor, direction: 'pre
 
 	// Locate the active session within the visible list so navigation follows
 	// what the user sees (respecting grouping, filtering, and collapsed sections).
-	const activeResource = sessionsManagementService.activeSession.get()?.resource.toString();
+	const activeResource = sessionsService.activeSession.get()?.resource.toString();
 	const currentIndex = activeResource === undefined
 		? -1
 		: visible.findIndex(session => session.resource.toString() === activeResource);
@@ -169,7 +168,7 @@ const navigateSessionInList = async (accessor: ServicesAccessor, direction: 'pre
 
 	const target = visible[targetIndex];
 	if (target) {
-		await sessionsViewService.openSession(target.resource);
+		await sessionsService.openSession(target.resource);
 	}
 };
 
@@ -461,19 +460,18 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 		if (!context || !context.sessions || context.sessions.length === 0) {
 			return;
 		}
-		const sessionsViewService = accessor.get(ISessionsViewService);
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const sessionsService = accessor.get(ISessionsService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
 		const commandService = accessor.get(ICommandService);
 
-		sessionsViewService.openNewSession();
+		sessionsService.openNewSession();
 
 		const session = context.sessions[0];
 		const workspace = session.workspace.get();
 		const folderUri = workspace?.folders[0]?.root;
 		const providerId = session.providerId;
 
-		const newSession = sessionsManagementService.activeSession.get();
+		const newSession = sessionsService.activeSession.get();
 		if (folderUri) {
 			sessionsPartService.getSessionView(newSession?.sessionId)?.selectWorkspace(folderUri, providerId);
 		}
@@ -552,56 +550,6 @@ registerAction2(class ArchiveSectionAction extends Action2 {
 
 		for (const session of context.sessions) {
 			await sessionsManagementService.archiveSession(session);
-		}
-	}
-});
-
-registerAction2(class UnarchiveSectionAction extends Action2 {
-	constructor() {
-		super({
-			id: 'sessionsView.sectionUnarchive',
-			title: localize2('unarchiveSection', "Restore All"),
-			icon: Codicon.discard,
-			menu: [{
-				id: SessionSectionToolbarMenuId,
-				group: 'navigation',
-				order: 0,
-				when: ContextKeyExpr.equals(SessionSectionTypeContext.key, 'archived'),
-			}]
-		});
-	}
-	async run(accessor: ServicesAccessor, context?: ISessionSection): Promise<void> {
-		if (!context || !context.sessions || context.sessions.length === 0) {
-			return;
-		}
-
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const dialogService = accessor.get(IDialogService);
-		const storageService = accessor.get(IStorageService);
-
-		if (context.sessions.length > 1) {
-			const skipConfirmation = storageService.getBoolean(ConfirmArchiveStorageKey, StorageScope.PROFILE, false);
-			if (!skipConfirmation) {
-				const confirmed = await dialogService.confirm({
-					message: localize('unarchiveSectionSessions.confirm', "Are you sure you want to restore {0} sessions?", context.sessions.length),
-					primaryButton: localize('unarchiveSectionSessions.unarchive', "Restore All"),
-					checkbox: {
-						label: localize('doNotAskAgain2', "Do not ask me again")
-					}
-				});
-
-				if (!confirmed.confirmed) {
-					return;
-				}
-
-				if (confirmed.checkboxChecked) {
-					storageService.store(ConfirmArchiveStorageKey, true, StorageScope.PROFILE, StorageTarget.USER);
-				}
-			}
-		}
-
-		for (const session of context.sessions) {
-			await sessionsManagementService.unarchiveSession(session);
 		}
 	}
 });
@@ -746,8 +694,9 @@ registerAction2(class UnarchiveSessionAction extends Action2 {
 	}
 	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const sessionsService = accessor.get(ISessionsService);
 		if (!context) {
-			const activeSession = sessionsManagementService.activeSession.get();
+			const activeSession = sessionsService.activeSession.get();
 			if (activeSession) {
 				await sessionsManagementService.unarchiveSession(activeSession);
 			}
@@ -889,22 +838,22 @@ registerAction2(class OpenSessionToTheSideAction extends Action2 {
 			return;
 		}
 		const sessions = Array.isArray(context) ? context : [context];
-		const sessionsViewService = accessor.get(ISessionsViewService);
+		const sessionsService = accessor.get(ISessionsService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
 
 		for (let i = 0; i < sessions.length - 1; i++) {
 			const session = sessions[i];
-			const visible = sessionsViewService.visibleSessions.get();
+			const visible = sessionsService.visibleSessions.get();
 			const lastVisible = visible[visible.length - 1];
 			if (lastVisible && lastVisible.sessionId !== session.sessionId) {
-				sessionsViewService.insertAt(session, lastVisible.sessionId, 'right');
+				sessionsService.insertAt(session, lastVisible.sessionId, 'right');
 			}
 		}
 
 		const lastRequested = sessions[sessions.length - 1];
-		await openSessionToTheSide(sessionsViewService, lastRequested);
+		await openSessionToTheSide(sessionsService, lastRequested);
 
-		const visibleAfterOpen = sessionsViewService.visibleSessions.get();
+		const visibleAfterOpen = sessionsService.visibleSessions.get();
 		const opened = visibleAfterOpen.find(s => s?.sessionId === lastRequested.sessionId);
 		if (opened) {
 			sessionsPartService.focusSession(opened);
@@ -977,7 +926,8 @@ registerAction2(class MarkSessionAsDoneAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const activeSession = sessionsManagementService.activeSession.get();
+		const sessionsService = accessor.get(ISessionsService);
+		const activeSession = sessionsService.activeSession.get();
 		if (!activeSession || activeSession.status.get() === SessionStatus.Untitled) {
 			return;
 		}
@@ -1006,7 +956,8 @@ registerAction2(class RestoreSessionAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const activeSession = sessionsManagementService.activeSession.get();
+		const sessionsService = accessor.get(ISessionsService);
+		const activeSession = sessionsService.activeSession.get();
 		if (!activeSession || activeSession.status.get() === SessionStatus.Untitled) {
 			return;
 		}

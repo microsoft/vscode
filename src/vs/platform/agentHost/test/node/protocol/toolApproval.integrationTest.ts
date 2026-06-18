@@ -49,27 +49,27 @@ suite('Protocol WebSocket — Permissions & Auto-Approve', function () {
 		dispatchTurnStarted(client, sessionUri, 'turn-perm', 'permission', 1);
 
 		// The mock agent fires tool_start + tool_ready instead of permission_request
-		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallStart'));
-		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallReady'));
+		await client.waitForNotification(n => isActionNotification(n, 'chat/toolCallStart'));
+		await client.waitForNotification(n => isActionNotification(n, 'chat/toolCallReady'));
 
 		// Confirm the tool call
 		client.notify('dispatchAction', {
 			clientSeq: 2,
 			channel: sessionUri,
 			action: {
-				type: 'session/toolCallConfirmed',
+				type: 'chat/toolCallConfirmed',
 				turnId: 'turn-perm',
 				toolCallId: 'tc-perm-1',
 				approved: true,
 			},
 		});
 
-		const responsePart = await client.waitForNotification(n => isActionNotification(n, 'session/responsePart'));
+		const responsePart = await client.waitForNotification(n => isActionNotification(n, 'chat/responsePart'));
 		const responsePartAction = getActionEnvelope(responsePart).action as IResponsePartAction;
 		assert.strictEqual(responsePartAction.part.kind, ResponsePartKind.Markdown);
 		assert.strictEqual((responsePartAction.part as MarkdownResponsePart).content, 'Allowed.');
 
-		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
 	});
 
 	// ---- Edit auto-approve patterns -------------------------------------------
@@ -85,13 +85,13 @@ suite('Protocol WebSocket — Permissions & Auto-Approve', function () {
 
 		// The write should be auto-approved — we should see tool_start, tool_complete, and turn_complete
 		// but NOT a pending-confirmation toolCallReady (one without `confirmed`).
-		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallStart'));
-		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallComplete'));
-		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+		await client.waitForNotification(n => isActionNotification(n, 'chat/toolCallStart'));
+		await client.waitForNotification(n => isActionNotification(n, 'chat/toolCallComplete'));
+		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
 
 		// Verify no pending-confirmation toolCallReady was received
 		const pendingConfirmNotifs = client.receivedNotifications(n => {
-			if (!isActionNotification(n, 'session/toolCallReady')) {
+			if (!isActionNotification(n, 'chat/toolCallReady')) {
 				return false;
 			}
 			const action = getActionEnvelope(n).action as { confirmed?: string };
@@ -110,15 +110,15 @@ suite('Protocol WebSocket — Permissions & Auto-Approve', function () {
 		dispatchTurnStarted(client, sessionUri, 'turn-deny', 'write-env', 1);
 
 		// The .env write should NOT be auto-approved — we should see toolCallReady (pending confirmation)
-		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallStart'));
-		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallReady'));
+		await client.waitForNotification(n => isActionNotification(n, 'chat/toolCallStart'));
+		await client.waitForNotification(n => isActionNotification(n, 'chat/toolCallReady'));
 
 		// Confirm it manually to let the turn complete
 		client.notify('dispatchAction', {
 			clientSeq: 2,
 			channel: sessionUri,
 			action: {
-				type: 'session/toolCallConfirmed',
+				type: 'chat/toolCallConfirmed',
 				turnId: 'turn-deny',
 				toolCallId: 'tc-write-env-1',
 				approved: true,
@@ -126,7 +126,7 @@ suite('Protocol WebSocket — Permissions & Auto-Approve', function () {
 			},
 		});
 
-		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
 	});
 
 	// ---- Shell auto-approve ---------------------------------------------------
@@ -142,13 +142,13 @@ suite('Protocol WebSocket — Permissions & Auto-Approve', function () {
 
 		// The shell command should be auto-approved — we should see tool_start, tool_complete, and turn_complete
 		// but NOT a pending-confirmation toolCallReady.
-		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallStart'));
-		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallComplete'));
-		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+		await client.waitForNotification(n => isActionNotification(n, 'chat/toolCallStart'));
+		await client.waitForNotification(n => isActionNotification(n, 'chat/toolCallComplete'));
+		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
 
 		// Verify no pending-confirmation toolCallReady was received
 		const pendingConfirmNotifs = client.receivedNotifications(n => {
-			if (!isActionNotification(n, 'session/toolCallReady')) {
+			if (!isActionNotification(n, 'chat/toolCallReady')) {
 				return false;
 			}
 			const action = getActionEnvelope(n).action as { confirmed?: string };
@@ -167,15 +167,15 @@ suite('Protocol WebSocket — Permissions & Auto-Approve', function () {
 		dispatchTurnStarted(client, sessionUri, 'turn-shell-deny', 'run-dangerous-command', 1);
 
 		// The denied command should NOT be auto-approved — we should see toolCallReady (pending confirmation)
-		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallStart'));
-		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallReady'));
+		await client.waitForNotification(n => isActionNotification(n, 'chat/toolCallStart'));
+		await client.waitForNotification(n => isActionNotification(n, 'chat/toolCallReady'));
 
 		// Confirm it manually to let the turn complete
 		client.notify('dispatchAction', {
 			clientSeq: 2,
 			channel: sessionUri,
 			action: {
-				type: 'session/toolCallConfirmed',
+				type: 'chat/toolCallConfirmed',
 				turnId: 'turn-shell-deny',
 				toolCallId: 'tc-shell-deny-1',
 				approved: true,
@@ -183,6 +183,6 @@ suite('Protocol WebSocket — Permissions & Auto-Approve', function () {
 			},
 		});
 
-		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
 	});
 });

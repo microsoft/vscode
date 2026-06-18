@@ -18,6 +18,7 @@ export class MockAuthenticationService implements IAuthenticationService {
 	readonly isMinimalMode = false;
 	readonly onDidAuthenticationChange: Event<void> = Event.None;
 	readonly onDidAccessTokenChange: Event<void> = Event.None;
+	readonly onDidCopilotTokenChange: Event<void> = Event.None;
 	readonly onDidAdoAuthenticationChange: Event<void> = Event.None;
 	readonly anyGitHubSession: AuthenticationSession | undefined = undefined;
 	readonly permissiveGitHubSession: AuthenticationSession | undefined = undefined;

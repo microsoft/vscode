@@ -392,88 +392,64 @@ suite('normalizeTokenPrices', () => {
 		assert.strictEqual(normalizeTokenPrices(undefined), undefined);
 	});
 
-	test('returns undefined when flat fields are missing', () => {
+	test('returns undefined when default tier is missing or incomplete', () => {
 		assert.strictEqual(normalizeTokenPrices({ batch_size: 1_000_000 }), undefined);
-		assert.strictEqual(normalizeTokenPrices({ input_price: 100 }), undefined);
-	});
-
-	test('converts legacy flat nano-AIU prices to credits per 1M tokens', () => {
-		const result = normalizeTokenPrices({
-			batch_size: 1_000_000,
-			input_price: 3_000_000_000,
-			output_price: 15_000_000_000,
-			cache_price: 375_000_000,
-		});
-		assert.ok(result);
-		assert.strictEqual(result.default.inputPrice, 3);
-		assert.strictEqual(result.default.outputPrice, 15);
-		assert.strictEqual(result.default.cachePrice, 0.375);
-		assert.strictEqual(result.longContext, undefined);
-	});
-
-	test('scales legacy prices when batch_size differs from 1M', () => {
-		const result = normalizeTokenPrices({
-			batch_size: 500_000,
-			input_price: 1_500_000_000,
-			output_price: 7_500_000_000,
-		});
-		assert.ok(result);
-		assert.strictEqual(result.default.inputPrice, 3);
-		assert.strictEqual(result.default.outputPrice, 15);
-		assert.strictEqual(result.default.cachePrice, undefined);
-	});
-
-	test('defaults batch_size to 1M when missing', () => {
-		const result = normalizeTokenPrices({
-			input_price: 1_000_000_000,
-			output_price: 2_000_000_000,
-		});
-		assert.ok(result);
-		assert.strictEqual(result.default.inputPrice, 1);
-		assert.strictEqual(result.default.outputPrice, 2);
+		assert.strictEqual(normalizeTokenPrices({ default: { input_price: 100 } }), undefined);
 	});
 
 	test('converts tiered AIU prices to credits per 1M tokens', () => {
 		const result = normalizeTokenPrices({
 			batch_size: 1_000_000,
-			default: { input_price: 3, output_price: 15, cache_price: 0.375 },
+			default: { input_price: 3, output_price: 15, cache_price: 0.375, cache_write_price: 1.5 },
 		});
 		assert.ok(result);
 		assert.strictEqual(result.default.inputPrice, 3);
 		assert.strictEqual(result.default.outputPrice, 15);
 		assert.strictEqual(result.default.cachePrice, 0.375);
+		assert.strictEqual(result.default.cacheWritePrice, 1.5);
 		assert.strictEqual(result.longContext, undefined);
+	});
+
+	test('leaves cacheWritePrice undefined when absent from response', () => {
+		const result = normalizeTokenPrices({
+			batch_size: 1_000_000,
+			default: { input_price: 3, output_price: 15 },
+		});
+		assert.ok(result);
+		assert.strictEqual(result.default.cachePrice, undefined);
+		assert.strictEqual(result.default.cacheWritePrice, undefined);
 	});
 
 	test('includes long-context tier when present', () => {
 		const result = normalizeTokenPrices({
 			batch_size: 1_000_000,
-			default: { input_price: 3, output_price: 15, cache_price: 0.375 },
-			long_context: { input_price: 6, output_price: 30, cache_price: 0.75 },
+			default: { input_price: 3, output_price: 15, cache_price: 0.375, cache_write_price: 1.5 },
+			long_context: { input_price: 6, output_price: 30, cache_price: 0.75, cache_write_price: 3 },
 		});
 		assert.ok(result);
 		assert.strictEqual(result.default.inputPrice, 3);
+		assert.strictEqual(result.default.cacheWritePrice, 1.5);
 		assert.strictEqual(result.longContext?.inputPrice, 6);
 		assert.strictEqual(result.longContext?.outputPrice, 30);
 		assert.strictEqual(result.longContext?.cachePrice, 0.75);
+		assert.strictEqual(result.longContext?.cacheWritePrice, 3);
 	});
 
-	test('tiered format takes precedence over flat fields', () => {
+	test('includes long-context tier when cache_write_price differs from default', () => {
 		const result = normalizeTokenPrices({
 			batch_size: 1_000_000,
-			input_price: 999_999_999,
-			output_price: 999_999_999,
-			default: { input_price: 3, output_price: 15 },
+			default: { input_price: 3, output_price: 15, cache_write_price: 1.5 },
+			long_context: { input_price: 3, output_price: 15, cache_write_price: 3 },
 		});
 		assert.ok(result);
-		assert.strictEqual(result.default.inputPrice, 3);
-		assert.strictEqual(result.default.outputPrice, 15);
+		assert.ok(result.longContext, 'long-context tier should be included when cache_write_price differs');
+		assert.strictEqual(result.longContext?.cacheWritePrice, 3);
 	});
 });
 
 suite('formatPricingLabel', () => {
 	function tier(inputPrice: number, outputPrice: number) {
-		return { default: { inputPrice, outputPrice, cacheReadTokenPrice: 0 } };
+		return { default: { inputPrice, outputPrice, cacheReadTokenPrice: 0, cacheWriteTokenPrice: 0 } };
 	}
 
 	test('renders zero prices as 0 instead of exponential notation', () => {

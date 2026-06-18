@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ReasoningEffort } from './protocol/generated/ReasoningEffort.js';
+import type { ReasoningSummary } from './protocol/generated/ReasoningSummary.js';
+import type { Personality } from './protocol/generated/Personality.js';
 import type { WebSearchMode } from './protocol/generated/WebSearchMode.js';
 import type { AskForApproval } from './protocol/generated/v2/AskForApproval.js';
+import type { ModeKind } from './protocol/generated/ModeKind.js';
 import type { SandboxMode } from './protocol/generated/v2/SandboxMode.js';
 
 export const enum CodexSessionConfigKey {
@@ -15,28 +18,11 @@ export const enum CodexSessionConfigKey {
 	NetworkAccessEnabled = 'codex.networkAccessEnabled',
 	WebSearchMode = 'codex.webSearchMode',
 	ModelReasoningEffort = 'codex.modelReasoningEffort',
+	Personality = 'codex.personality',
+	ReasoningSummary = 'codex.reasoningSummary',
 }
 
 export type CodexApprovalPolicy = Extract<AskForApproval, 'never' | 'on-request' | 'on-failure' | 'untrusted'>;
-
-export function isCodexSupportedModel(id: string, name?: string): boolean {
-	if (id.toLowerCase() === 'auto') {
-		return false;
-	}
-	return /^(gpt-5|codex)/i.test(id) || /codex/i.test(name ?? '');
-}
-
-export function normalizeCodexModelId(id: string): string | undefined {
-	if (isCodexSupportedModel(id)) {
-		return id;
-	}
-	const slashIndex = id.lastIndexOf('/');
-	if (slashIndex === -1 || slashIndex === id.length - 1) {
-		return undefined;
-	}
-	const rawId = id.substring(slashIndex + 1);
-	return isCodexSupportedModel(rawId) ? rawId : undefined;
-}
 
 export function narrowApprovalPolicy(value: unknown): CodexApprovalPolicy | undefined {
 	switch (value) {
@@ -95,4 +81,36 @@ export function narrowReasoningEffort(value: unknown): ReasoningEffort | undefin
 		default:
 			return undefined;
 	}
+}
+
+export function narrowPersonality(value: unknown): Personality | undefined {
+	switch (value) {
+		case 'none':
+		case 'friendly':
+		case 'pragmatic':
+			return value;
+		default:
+			return undefined;
+	}
+}
+
+export function narrowReasoningSummary(value: unknown): ReasoningSummary | undefined {
+	switch (value) {
+		case 'auto':
+		case 'concise':
+		case 'detailed':
+		case 'none':
+			return value;
+		default:
+			return undefined;
+	}
+}
+
+/**
+ * Map the platform-generic {@link SessionMode} (Agent Mode) to codex's native
+ * collaboration {@link ModeKind}: VS Code "Plan" → codex `plan`, "Interactive"
+ * → codex `default`.
+ */
+export function collaborationModeKind(value: unknown): ModeKind {
+	return value === 'plan' ? 'plan' : 'default';
 }

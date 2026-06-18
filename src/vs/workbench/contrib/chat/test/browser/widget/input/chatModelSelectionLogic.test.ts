@@ -90,6 +90,20 @@ function createSessionModel(
 	});
 }
 
+/**
+ * Creates a model served by a specific (typically BYOK) vendor, with the identifier prefixed by that vendor
+ * (e.g. `ollama/deepseek`). Mirrors how the language model registry qualifies non-Copilot models.
+ */
+function createVendorModel(
+	vendor: string,
+	id: string,
+	name: string,
+	overrides?: Partial<ILanguageModelChatMetadata>,
+): ILanguageModelChatMetadataAndIdentifier {
+	const model = createModel(id, name, { vendor, family: vendor, isBYOK: true, ...overrides });
+	return { identifier: `${vendor}/${id}`, metadata: model.metadata };
+}
+
 suite('ChatModelSelectionLogic', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -1657,6 +1671,65 @@ suite('ChatModelSelectionLogic', () => {
 				location: ChatAgentLocation.Chat, currentModeKind: ChatModeKind.Ask,
 				sessionType: undefined,
 			}, allModels), false);
+		});
+
+		// Repro for #321037: on first launch the restored Copilot selection is reset to a BYOK model. The Copilot
+		// vendor depends on the Copilot token, which round-trips slower than fast/local BYOK providers (Ollama,
+		// Cerebras). So the Copilot vendor resolves an EMPTY live list first while the BYOK vendors already have live
+		// models. `mergeModelsWithCache` then treats Copilot's empty resolution as authoritative and evicts the cached
+		// Copilot models that were used to restore the selection — leaving only BYOK models, which triggers a
+		// reset-to-default that clobbers the user's persisted Copilot choice.
+		test('startup race #321037: Copilot vendor resolves empty before BYOK, restored selection must survive', () => {
+			// The user's persisted choice (a Copilot model) and its siblings, seeded into the cache from the previous
+			// session.
+			const persistedId = 'copilot/claude-opus-4.6-1m';
+			const cachedCopilot = [
+				createModel('claude-opus-4.6-1m', 'Claude Opus 4.6 (1M)'),
+				createModel('gpt-5.5', 'GPT-5.5'),
+			];
+
+			// Fast/local BYOK providers that publish live models immediately.
+			const liveByok = [
+				createVendorModel('ollama', 'deepseek-v3.1', 'DeepSeek V3.1'),
+				createVendorModel('cerebras', 'zai-glm-4.7', 'GLM 4.7'),
+			];
+
+			// Copilot contributed a vendor but resolved an EMPTY live list (token not ready yet); the BYOK vendors
+			// resolved with models. All three are therefore "resolved".
+			const contributedVendors = new Set(['copilot', 'ollama', 'cerebras']);
+			const resolvedVendors = new Set(['copilot', 'ollama', 'cerebras']);
+
+			const available = computeAvailableModels(
+				liveByok,
+				[...cachedCopilot, ...liveByok],
+				contributedVendors,
+				undefined,
+				ChatModeKind.Agent,
+				ChatAgentLocation.Chat,
+				resolvedVendors,
+			);
+
+			// DESIRED: the user's restored Copilot model is still selectable during the race, so no reset-to-BYOK
+			// happens and the persisted choice is kept. CURRENT (bug): Copilot cache is evicted, only BYOK remains, the
+			// model is considered unavailable and gets reset to a BYOK default.
+			assert.ok(
+				available.some(m => m.identifier === persistedId),
+				'restored Copilot model should remain available while its vendor is still activating',
+			);
+			assert.strictEqual(
+				shouldResetOnModelListChange(persistedId, available),
+				false,
+				'must not reset the restored Copilot selection during the startup race',
+			);
+
+			// And the fallback default must not be a BYOK model (which is what gets persisted today, clobbering the user
+			// choice on the next launch).
+			const fallback = findDefaultModel(available, ChatAgentLocation.Chat);
+			assert.notStrictEqual(
+				fallback?.metadata.isBYOK,
+				true,
+				'reset fallback should not be a BYOK model',
+			);
 		});
 	});
 });

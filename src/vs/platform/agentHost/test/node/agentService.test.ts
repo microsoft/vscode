@@ -148,7 +148,7 @@ suite('AgentService (node dispatcher)', () => {
 			// Start a turn so there's an active turn to map events to
 			service.dispatchAction(
 				session.toString(),
-				{ type: ActionType.SessionTurnStarted, turnId: 'turn-1', message: { text: 'hello', origin: { kind: MessageKind.User } } },
+				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', message: { text: 'hello', origin: { kind: MessageKind.User } } },
 				'test-client', 1,
 			);
 
@@ -157,9 +157,9 @@ suite('AgentService (node dispatcher)', () => {
 
 			copilotAgent.fireProgress({
 				kind: 'action', session,
-				action: { type: ActionType.SessionResponsePart, turnId: 'turn-1', part: { kind: ResponsePartKind.Markdown, id: 'msg-1', content: 'hello' } },
+				action: { type: ActionType.ChatResponsePart, turnId: 'turn-1', part: { kind: ResponsePartKind.Markdown, id: 'msg-1', content: 'hello' } },
 			});
-			assert.ok(envelopes.some(e => e.action.type === ActionType.SessionResponsePart));
+			assert.ok(envelopes.some(e => e.action.type === ActionType.ChatResponsePart));
 		});
 	});
 
@@ -267,7 +267,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			svc.dispatchAction(
 				session.toString(),
-				{ type: ActionType.SessionTurnStarted, turnId: 'turn-1', message: { text: 'Please help me fix the TypeScript compile errors', origin: { kind: MessageKind.User } } },
+				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', message: { text: 'Please help me fix the TypeScript compile errors', origin: { kind: MessageKind.User } } },
 				'test-client', 1,
 			);
 
@@ -294,7 +294,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			svc.dispatchAction(
 				session.toString(),
-				{ type: ActionType.SessionTurnStarted, turnId: 'turn-1', message: { text: 'Explain workspace search indexing', origin: { kind: MessageKind.User } } },
+				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', message: { text: 'Explain workspace search indexing', origin: { kind: MessageKind.User } } },
 				'test-client', 1,
 			);
 
@@ -318,7 +318,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			svc.dispatchAction(
 				session.toString(),
-				{ type: ActionType.SessionTurnStarted, turnId: 'turn-1', message: { text: 'Create tests for terminal persistence', origin: { kind: MessageKind.User } } },
+				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', message: { text: 'Create tests for terminal persistence', origin: { kind: MessageKind.User } } },
 				'test-client', 1,
 			);
 			await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'title generation should be in flight');
@@ -348,7 +348,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			svc.dispatchAction(
 				session.toString(),
-				{ type: ActionType.SessionTurnStarted, turnId: 'turn-1', message: { text: 'Investigate flaky terminal tests', origin: { kind: MessageKind.User } } },
+				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', message: { text: 'Investigate flaky terminal tests', origin: { kind: MessageKind.User } } },
 				'test-client', 1,
 			);
 			await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'title generation should be in flight');
@@ -375,13 +375,13 @@ suite('AgentService (node dispatcher)', () => {
 
 			svc.dispatchAction(
 				sourceSession.toString(),
-				{ type: ActionType.SessionTurnStarted, turnId: 'source-turn', message: { text: 'Seed fork title', origin: { kind: MessageKind.User } } },
+				{ type: ActionType.ChatTurnStarted, turnId: 'source-turn', message: { text: 'Seed fork title', origin: { kind: MessageKind.User } } },
 				'test-client', 1,
 			);
 			await waitForCondition(() => svc.stateManager.getSessionState(sourceSession.toString())?.summary.title === 'Source generated title', 'source generated title should be applied');
 			svc.dispatchAction(
 				sourceSession.toString(),
-				{ type: ActionType.SessionTurnComplete, turnId: 'source-turn' },
+				{ type: ActionType.ChatTurnComplete, turnId: 'source-turn' },
 				'test-client', 2,
 			);
 			await waitForCondition(() => (svc.stateManager.getSessionState(sourceSession.toString())?.turns.length ?? 0) === 1, 'source turn should be complete before forking');
@@ -396,7 +396,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			svc.dispatchAction(
 				forkedSession.toString(),
-				{ type: ActionType.SessionTurnStarted, turnId: 'fork-turn-1', message: { text: 'Continue from the fork', origin: { kind: MessageKind.User } } },
+				{ type: ActionType.ChatTurnStarted, turnId: 'fork-turn-1', message: { text: 'Continue from the fork', origin: { kind: MessageKind.User } } },
 				'test-client', 3,
 			);
 
@@ -450,7 +450,7 @@ suite('AgentService (node dispatcher)', () => {
 			svc.dispatchAction(
 				session.toString(),
 				{
-					type: ActionType.SessionTurnStarted,
+					type: ActionType.ChatTurnStarted,
 					turnId: 'turn-1',
 					message: { text: 'hello', origin: { kind: MessageKind.User }, attachments: attachments as never },
 				},
@@ -794,7 +794,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			// Sanity: the subagent child session is announced.
 			assert.ok(
-				service.stateManager.getAllSessionSummaries().some(s => s.resource === childSessionUri),
+				service.stateManager.getOverlaySessionSummaries().some(s => s.resource === childSessionUri),
 				'subagent child session should be listed',
 			);
 
@@ -808,6 +808,69 @@ suite('AgentService (node dispatcher)', () => {
 					subagentSessions: [],
 					includesParent: true,
 				},
+			);
+		});
+
+		test('listSessions overlay excludes idle provisional sessions but keeps ones with an active turn (#321269)', async () => {
+			// A provisional agent whose `listSessions` never returns the
+			// provisional session (mirroring CLI/Claude, which don't persist a
+			// session until its first message). The agent service's overlay is
+			// then the only thing that could surface it.
+			class ProvisionalMockAgent extends MockAgent {
+				override async createSession(config?: import('../../common/agentService.js').IAgentCreateSessionConfig): Promise<import('../../common/agentService.js').IAgentCreateSessionResult> {
+					const result = await super.createSession(config);
+					return { ...result, provisional: true };
+				}
+				override async listSessions() {
+					return [];
+				}
+			}
+
+			const provisionalAgent = new ProvisionalMockAgent('copilot');
+			disposables.add(toDisposable(() => provisionalAgent.dispose()));
+			service.registerProvider(provisionalAgent);
+
+			const session = await service.createSession({ provider: 'copilot' });
+
+			// Idle provisional session (the new-session composer's eagerly
+			// created session, before its first message) must not leak in.
+			const idleListed = await service.listSessions();
+			assert.ok(
+				!idleListed.some(s => s.session.toString() === session.toString()),
+				'idle provisional session should not appear in listSessions',
+			);
+
+			// Once a turn is in flight (the first turn can start before
+			// materialization completes), the session must stay visible so
+			// renderer-side caches don't evict the in-flight session.
+			service.dispatchAction(
+				session.toString(),
+				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', message: { text: 'hello', origin: { kind: MessageKind.User } } },
+				'test-client', 1,
+			);
+			const activeListed = await service.listSessions();
+			assert.ok(
+				activeListed.some(s => s.session.toString() === session.toString()),
+				'provisional session with an active turn should appear in listSessions',
+			);
+
+			// If the turn completes before the materialize event lands, the
+			// session is back to lifecycle=creating with no active turn — but it
+			// has a recorded turn now, so it must STAY visible (otherwise a
+			// listSessions refresh in this window would evict the just-finished
+			// session, reintroducing #321269's sibling eviction bug).
+			service.dispatchAction(
+				session.toString(),
+				{ type: ActionType.ChatTurnComplete, turnId: 'turn-1' },
+				'test-client', 2,
+			);
+			const stateAfterTurn = service.stateManager.getSessionState(session.toString());
+			assert.strictEqual(stateAfterTurn?.lifecycle, SessionLifecycle.Creating, 'session should still be provisional (materialize not yet fired)');
+			assert.strictEqual(stateAfterTurn?.activeTurn, undefined, 'completed turn should clear the active turn');
+			const completedListed = await service.listSessions();
+			assert.ok(
+				completedListed.some(s => s.session.toString() === session.toString()),
+				'provisional session with a completed turn should still appear in listSessions',
 			);
 		});
 
@@ -1159,6 +1222,7 @@ suite('AgentService (node dispatcher)', () => {
 				branchExists: async () => false,
 				hasUncommittedChanges: async () => false,
 				commitAll: async () => { },
+				restore: async () => { },
 				hasUpstream: async () => false,
 				pushBranch: async () => { },
 				getSessionGitState: async (uri: URI) => { calls.push(uri.fsPath); return gitState; },
@@ -1254,6 +1318,7 @@ suite('AgentService (node dispatcher)', () => {
 				commitAll: async () => { },
 				hasUpstream: async () => false,
 				pushBranch: async () => { },
+				restore: async () => { },
 				getSessionGitState: async () => undefined,
 				computeSessionFileDiffs: async () => undefined,
 				showBlob: async () => undefined,
@@ -1944,7 +2009,7 @@ suite('AgentService (node dispatcher)', () => {
 			// mid-response.
 			service.dispatchAction(
 				sessionResource.toString(),
-				{ type: ActionType.SessionTurnStarted, turnId: 'turn-1', message: { text: 'hello', origin: { kind: MessageKind.User } } },
+				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', message: { text: 'hello', origin: { kind: MessageKind.User } } },
 				'client-1', 1,
 			);
 
@@ -2252,12 +2317,12 @@ suite('AgentService (node dispatcher)', () => {
 				service.addSubscriber(sessionResource, 'client-1');
 				service.dispatchAction(
 					sessionResource.toString(),
-					{ type: ActionType.SessionTurnStarted, turnId: 'turn-1', message: { text: 'hello', origin: { kind: MessageKind.User } } },
+					{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', message: { text: 'hello', origin: { kind: MessageKind.User } } },
 					'client-1', 1,
 				);
 				service.dispatchAction(
 					sessionResource.toString(),
-					{ type: ActionType.SessionTurnComplete, turnId: 'turn-1' },
+					{ type: ActionType.ChatTurnComplete, turnId: 'turn-1' },
 					'client-1', 2,
 				);
 
@@ -2711,7 +2776,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.ok(forkedState);
 			assert.deepStrictEqual(forkedState!.changesets, defaultCatalogue(forkedStr));
 			// Note: source-session turn was seeded directly on state, so the
-			// reducer never saw a SessionTurnStarted/Complete pair for it;
+			// reducer never saw a ChatTurnStarted/Complete pair for it;
 			// the fork branch (agentService.ts:548 path) is still exercised
 			// because `config.fork` survives the L493-504 turn-count check.
 			assert.ok(forkedState!.turns.length > 0, 'forked session should carry copied turns');

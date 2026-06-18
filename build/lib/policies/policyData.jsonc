@@ -129,6 +129,21 @@
             "included": true
         },
         {
+            "key": "chat.agentHost.codexAgent.enabled",
+            "name": "Codex3PIntegration",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.126",
+            "localization": {
+                "description": {
+                    "key": "chat.agentHost.codexAgent.enabled.policy",
+                    "value": "Enable Codex Agent sessions in VS Code. Start and resume agentic coding sessions powered by OpenAI Codex SDK. Uses your existing Copilot subscription."
+                }
+            },
+            "type": "boolean",
+            "default": false,
+            "included": true
+        },
+        {
             "key": "chat.tools.global.autoApprove",
             "name": "ChatToolsAutoApprove",
             "category": "InteractiveSession",
@@ -216,6 +231,21 @@
                 "description": {
                     "key": "chat.extensionToolsEnabled",
                     "value": "Enable using tools contributed by third-party extensions."
+                }
+            },
+            "type": "boolean",
+            "default": true,
+            "included": true
+        },
+        {
+            "key": "chat.agentHost.enabled",
+            "name": "ChatAgentHostEnabled",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.126",
+            "localization": {
+                "description": {
+                    "key": "chat.agentHost.enabled",
+                    "value": "When enabled, some agents run in a separate agent host process."
                 }
             },
             "type": "boolean",
@@ -661,7 +691,10 @@
             },
             "type": "boolean",
             "default": true,
-            "included": true
+            "included": true,
+            "referencedSettings": [
+                "chat.agentHost.claudeAgent.enabled"
+            ]
         }
     ]
 }

@@ -380,6 +380,25 @@ export function isHiddenTool(toolName: string): boolean {
 }
 
 /**
+ * Returns true when the tool is Copilot's internal Autopilot completion signal.
+ */
+export function isTaskCompleteTool(toolName: string): boolean {
+	return toolName === CopilotToolName.TaskComplete;
+}
+
+/**
+ * Extracts the user-facing Autopilot completion summary from the tool output,
+ * falling back to the original `summary` argument for older/incomplete events.
+ */
+export function getTaskCompleteSummary(parameters: Record<string, unknown> | undefined, toolOutput: string | undefined): string | undefined {
+	if (toolOutput && toolOutput.trim().length > 0) {
+		return toolOutput;
+	}
+	const summary = parameters?.summary;
+	return typeof summary === 'string' && summary.trim().length > 0 ? summary : undefined;
+}
+
+/**
  * Returns true if the tool executes shell commands.
  */
 export function isShellTool(toolName: string): boolean {

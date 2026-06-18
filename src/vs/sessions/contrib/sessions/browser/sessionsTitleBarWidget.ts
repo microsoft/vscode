@@ -22,7 +22,7 @@ import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { SHOW_SESSIONS_PICKER_COMMAND_ID } from './sessionsActions.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 /**
  * Sessions Title Bar Widget - renders the active chat session
  * in the command center of the agent sessions workbench.
@@ -51,6 +51,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		action: SubmenuItemAction,
 		options: IBaseActionViewItemOptions | undefined,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsService private readonly sessionsService: ISessionsService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ICommandService private readonly commandService: ICommandService,
 	) {
@@ -58,7 +59,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 
 		// Re-render when the active session's title or workspace changes
 		this._register(autorun(reader => {
-			const sessionData = this.sessionsManagementService.activeSession.read(reader);
+			const sessionData = this.sessionsService.activeSession.read(reader);
 			if (sessionData) {
 				sessionData.title.read(reader);
 				sessionData.workspace.read(reader);
@@ -195,7 +196,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	 * Get the icon for the active session's type.
 	 */
 	private _getActiveSessionIcon(): ThemeIcon | undefined {
-		const sessionData = this.sessionsManagementService.activeSession.get();
+		const sessionData = this.sessionsService.activeSession.get();
 		if (sessionData) {
 			return sessionData.icon;
 		}
@@ -206,7 +207,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	 * Get the display title for the active session.
 	 */
 	private _getSessionTitle(): string | undefined {
-		const sessionData = this.sessionsManagementService.activeSession.get();
+		const sessionData = this.sessionsService.activeSession.get();
 		return sessionData?.title.get()?.trim() || undefined;
 	}
 
@@ -214,7 +215,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	 * Get the repository label for the active session.
 	 */
 	private _getRepositoryLabel(): string | undefined {
-		const sessionData = this.sessionsManagementService.activeSession.get();
+		const sessionData = this.sessionsService.activeSession.get();
 		if (sessionData) {
 			const workspace = sessionData.workspace.get();
 			if (workspace) {

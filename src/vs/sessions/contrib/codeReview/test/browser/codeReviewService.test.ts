@@ -20,6 +20,7 @@ import { GitHubPullRequestReviewThreadsModel } from '../../../github/browser/mod
 import { IGitHubPRComment, IGitHubPullRequestReviewThread } from '../../../github/common/types.js';
 import { IGitHubInfo, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { ICodeReviewService, CodeReviewService, PRReviewStateKind } from '../../browser/codeReviewService.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 
 suite('CodeReviewService', () => {
@@ -36,7 +37,7 @@ suite('CodeReviewService', () => {
 		private readonly _onDidChangeSessions: Emitter<ISessionsChangeEvent>;
 		private readonly _activeSession: ReturnType<typeof observableValue<IActiveSession | undefined>>;
 		override readonly onDidChangeSessions: Event<ISessionsChangeEvent>;
-		override readonly activeSession: IObservable<IActiveSession | undefined>;
+		readonly activeSession: IObservable<IActiveSession | undefined>;
 
 		private readonly _sessions = new Map<string, ISession>();
 
@@ -95,7 +96,7 @@ suite('CodeReviewService', () => {
 			}
 		}
 
-		override setActiveSession(session: ISession | undefined): void {
+		setActiveSession(session: ISession | undefined): void {
 			this._activeSession.set(session as IActiveSession | undefined, undefined);
 		}
 
@@ -210,6 +211,7 @@ suite('CodeReviewService', () => {
 
 		sessionsManagement = new MockSessionsManagementService(store);
 		instantiationService.stub(ISessionsManagementService, sessionsManagement);
+		instantiationService.stub(ISessionsService, { activeSession: sessionsManagement.activeSession } as unknown as ISessionsService);
 
 		gitHubService = new MockGitHubService(sessionsManagement);
 		instantiationService.stub(IGitHubService, gitHubService);

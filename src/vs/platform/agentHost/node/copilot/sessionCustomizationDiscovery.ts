@@ -3,16 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { CopilotClient } from '@github/copilot-sdk';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, type IDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
-import { joinPath } from '../../../../base/common/resources.js';
+import { joinPath, dirname as uriDirname } from '../../../../base/common/resources.js';
 import { compare as compareStrings } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
+import { basename, isAbsolute } from '../../../../base/common/path.js';
 import { IFileService, IFileStatWithMetadata } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
+import type { AgentsDiscoverRequest } from './copilotRCP.js';
+import { AgentCustomization, ChildCustomization, CustomizationLoadStatus, CustomizationType, DirectoryCustomization, RuleCustomization, SkillCustomization, customizationId } from '../../common/state/sessionState.js';
+import { ChildCustomizationType } from '../../common/state/protocol/state.js';
 
 /**
  * The kinds of customizations the agent host discovers from disk.
@@ -80,6 +85,14 @@ function areDiscoveredFilesEqual(a: readonly IDiscoveredFile[], b: readonly IDis
 
 function compareDiscoveredFile(a: IDiscoveredFile, b: IDiscoveredFile): number {
 	return compareStrings(a.uri.toString(), b.uri.toString());
+}
+
+function compareDirectoryCustomization(a: DirectoryCustomization, b: DirectoryCustomization): number {
+	const byUri = compareStrings(a.uri, b.uri);
+	if (byUri !== 0) {
+		return byUri;
+	}
+	return compareStrings(a.contents, b.contents);
 }
 
 /**
@@ -212,6 +225,89 @@ export class SessionCustomizationDiscovery extends Disposable {
 	private _scheduleRefresh(): void {
 		this._onDidChange.fire();
 	}
+
+	public async discover(client: CopilotClient, token: CancellationToken): Promise<readonly DirectoryCustomization[]> {
+		throwIfCancelled(token);
+
+		const p: AgentsDiscoverRequest = { projectPaths: [this._workingDirectory.fsPath] };
+
+		try {
+			const agents: AgentCustomization[] = [];
+
+			const agentDiscovery = await client.rpc.agents.discover(p);
+			for (const agent of agentDiscovery.agents) {
+				if (agent.path) {
+					const uri = URI.file(agent.path);
+					agents.push({ type: CustomizationType.Agent, uri: uri.toString(), id: agent.id, name: agent.name, description: agent.description, _meta: { userInvocable: agent.userInvocable } });
+				}
+			}
+
+			const rules: RuleCustomization[] = [];
+
+			const instructionDiscovery = await client.rpc.instructions.discover(p);
+			for (const instruction of instructionDiscovery.sources) {
+				let uri: URI;
+				if (isAbsolute(instruction.sourcePath)) {
+					uri = URI.file(instruction.sourcePath);
+				} else {
+					uri = joinPath(this._workingDirectory, instruction.sourcePath);
+				}
+				rules.push({ type: CustomizationType.Rule, uri: uri.toString(), id: instruction.id, name: instruction.label, description: instruction.description, globs: instruction.applyTo, alwaysApply: false });
+			}
+
+			const skills: SkillCustomization[] = [];
+
+			const skillDiscovery = await client.rpc.skills.discover(p);
+			for (const skill of skillDiscovery.skills) {
+				if (skill.path) {
+					const uri = URI.file(skill.path);
+					skills.push({ type: CustomizationType.Skill, uri: uri.toString(), id: skill.path, name: skill.name, description: skill.description });
+				}
+			}
+
+			const result: DirectoryCustomization[] = [];
+			this.toDirectoryCustomizations(CustomizationType.Agent, agents, result);
+			this.toDirectoryCustomizations(CustomizationType.Rule, rules, result);
+			this.toDirectoryCustomizations(CustomizationType.Skill, skills, result);
+			return result.sort(compareDirectoryCustomization);
+		} catch (err) {
+			this._logService.error(`[SessionCustomizationDiscovery] Error during discovery: ${err instanceof Error ? err.message : String(err)}`);
+			return [];
+		}
+	}
+
+	private toDirectoryCustomizations(type: ChildCustomizationType, customizations: readonly ChildCustomization[], result: DirectoryCustomization[]): void {
+		const byParent = new ResourceMap<{ readonly uri: URI; readonly children: ChildCustomization[] }>();
+		for (const customization of customizations) {
+			if (customization.type !== type) {
+				continue;
+			}
+			const childUri = URI.parse(customization.uri);
+			const parentUri = uriDirname(childUri);
+			let entry = byParent.get(parentUri);
+			if (!entry) {
+				entry = { uri: parentUri, children: [] };
+				byParent.set(parentUri, entry);
+			}
+			entry.children.push(customization);
+		}
+
+		for (const { uri, children } of byParent.values()) {
+			children.sort((a, b) => compareStrings(a.uri, b.uri));
+			result.push({
+				type: CustomizationType.Directory,
+				id: customizationId(uri.toString()),
+				uri: uri.toString(),
+				name: basename(uri.path),
+				enabled: true,
+				contents: type,
+				writable: true,
+				load: { kind: CustomizationLoadStatus.Loaded },
+				children,
+			});
+		}
+	}
+
 
 	/**
 	 * Returns the list of discovered customization directories and files in a sorted way.
@@ -458,3 +554,5 @@ export const _internal = {
 	searchRoots,
 	agentInstructions,
 };
+
+

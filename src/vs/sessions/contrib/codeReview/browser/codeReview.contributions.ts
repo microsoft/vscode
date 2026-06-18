@@ -15,6 +15,7 @@ import { IsPhoneLayoutContext, ActiveSessionWorkspaceIsVirtualContext, ChatSessi
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { CodeReviewService, ICodeReviewService } from './codeReviewService.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
@@ -53,11 +54,12 @@ class RunSessionCodeReviewAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, sessionResource?: URI): Promise<void> {
 		const sessionManagementService = accessor.get(ISessionsManagementService);
+		const sessionsService = accessor.get(ISessionsService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
 
 		const resource = URI.isUri(sessionResource)
 			? sessionResource
-			: sessionManagementService.activeSession.get()?.resource;
+			: sessionsService.activeSession.get()?.resource;
 		if (!resource) {
 			return;
 		}

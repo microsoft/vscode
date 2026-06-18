@@ -223,6 +223,7 @@ export function findExistingPagesByHost(
 	options?: {
 		includeBlank?: boolean;
 		sharingState?: BrowserViewSharingState;
+		activeSessionId?: string;
 	}
 ): BrowserEditorInput[] {
 	const parsed = URL.parse(url);
@@ -231,7 +232,7 @@ export function findExistingPagesByHost(
 	}
 
 	const results: BrowserEditorInput[] = [];
-	for (const editor of browserViewService.getKnownBrowserViews().values()) {
+	for (const editor of browserViewService.getContextualBrowserViews({ activeSessionId: options?.activeSessionId }).values()) {
 		if (!(editor instanceof BrowserEditorInput)) {
 			continue;
 		}

@@ -231,6 +231,7 @@ suite('SessionsNavigation', () => {
 
 		nav = disposables.add(new SessionsNavigation(
 			store,
+			store.activeSession,
 			store,
 			recency,
 			contextKeyService,

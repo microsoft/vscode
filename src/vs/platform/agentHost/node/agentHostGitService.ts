@@ -55,6 +55,15 @@ export interface IAgentHostGitService {
 	commitAll(workingDirectory: URI, message: string): Promise<void>;
 
 	/**
+	 * Restores files in the working tree via `git restore`. When
+	 * {@link options.staged} is true, restores the index instead of the
+	 * working tree. When {@link options.ref} is provided, the contents are
+	 * taken from that ref (`--source`). An empty {@link paths} array
+	 * restores everything (`.`).
+	 */
+	restore(workingDirectory: URI, paths: readonly string[], options?: { readonly staged?: boolean; readonly ref?: string }): Promise<void>;
+
+	/**
 	 * Returns true when the named branch has an upstream tracking ref
 	 * (i.e. `<branch>@{upstream}` resolves). Used before {@link pushBranch}
 	 * to decide whether `--set-upstream` is needed.
@@ -273,11 +282,11 @@ export class AgentHostGitService implements IAgentHostGitService {
 		// tracking from the start point (e.g. when starting from
 		// 'origin/main', without --no-track git would set the new branch's
 		// upstream to origin/main, which would mis-attribute pushes/pulls).
-		await this._runGit(repositoryRoot, ['worktree', 'add', '--no-track', '-b', branchName, worktree.fsPath, resolvedStartPoint], { timeout: 60_000, throwOnError: true });
+		await this._runGit(repositoryRoot, ['-c', 'checkout.workers=0', 'worktree', 'add', '--no-track', '-b', branchName, worktree.fsPath, resolvedStartPoint], { timeout: 180_000, throwOnError: true });
 	}
 
 	async addExistingWorktree(repositoryRoot: URI, worktree: URI, branchName: string): Promise<void> {
-		await this._runGit(repositoryRoot, ['worktree', 'add', worktree.fsPath, branchName], { timeout: 60_000, throwOnError: true });
+		await this._runGit(repositoryRoot, ['-c', 'checkout.workers=0', 'worktree', 'add', worktree.fsPath, branchName], { timeout: 180_000, throwOnError: true });
 	}
 
 	async removeWorktree(repositoryRoot: URI, worktree: URI): Promise<void> {
@@ -299,6 +308,24 @@ export class AgentHostGitService implements IAgentHostGitService {
 	async commitAll(workingDirectory: URI, message: string): Promise<void> {
 		await this._runGit(workingDirectory, ['add', '-A', '--', ':/'], { throwOnError: true });
 		await this._runGit(workingDirectory, ['commit', '--no-verify', '--no-gpg-sign', '-m', message], { timeout: 60_000, throwOnError: true });
+	}
+
+	async restore(workingDirectory: URI, paths: readonly string[], options?: { readonly staged?: boolean; readonly ref?: string }): Promise<void> {
+		const args = ['restore'];
+
+		if (options?.staged) {
+			args.push('--staged');
+		}
+
+		if (options?.ref) {
+			args.push('--source', options.ref);
+		}
+
+		if (paths.length === 0) {
+			paths = ['.'];
+		}
+
+		await this._runGit(workingDirectory, [...args, '--', ...paths], { throwOnError: true });
 	}
 
 	async hasUpstream(workingDirectory: URI, branchName: string): Promise<boolean> {

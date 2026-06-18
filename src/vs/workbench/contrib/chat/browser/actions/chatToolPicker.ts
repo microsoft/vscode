@@ -5,17 +5,22 @@
 import { assertNever } from '../../../../../base/common/assert.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { FileSystemProviderCapabilities, IFileService } from '../../../../../platform/files/common/files.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickTreeItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { ExtensionEditorTab, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { McpCommandIds } from '../../../mcp/common/mcpCommandIds.js';
 import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
@@ -24,7 +29,7 @@ import { startServerAndWaitForLiveTools } from '../../../mcp/common/mcpTypesUtil
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsConfirmationService } from '../../common/tools/languageModelToolsConfirmationService.js';
 import { ILanguageModelToolsService, IToolData, IToolSet, ToolDataSource, ToolSet } from '../../common/tools/languageModelToolsService.js';
-import { ConfigureToolSets } from '../tools/toolSetsContribution.js';
+import { ConfigureToolSets, deleteToolSetFromFileContents } from '../tools/toolSetsContribution.js';
 
 const enum BucketOrdinal { User, BuiltIn, Mcp, Extension }
 
@@ -147,7 +152,7 @@ function createToolTreeItemFromData(tool: IToolData, checked: boolean): IToolTre
 	};
 }
 
-function createToolSetTreeItem(toolset: IToolSet, checked: boolean, editorService: IEditorService): IToolSetTreeItem {
+function createToolSetTreeItem(toolset: IToolSet, checked: boolean, editorService: IEditorService, removeToolSet: (toolSet: IToolSet) => void): IToolSetTreeItem {
 	const iconProps = mapIconToTreeItem(toolset.icon);
 	const buttons = [];
 	if (toolset.source.type === 'user') {
@@ -156,6 +161,10 @@ function createToolSetTreeItem(toolset: IToolSet, checked: boolean, editorServic
 			iconClass: ThemeIcon.asClassName(Codicon.edit),
 			tooltip: localize('editUserBucket', "Edit Tool Set"),
 			action: () => editorService.openEditor({ resource })
+		}, {
+			iconClass: ThemeIcon.asClassName(Codicon.trash),
+			tooltip: localize('deleteUserBucket', "Delete Tool Set"),
+			action: () => removeToolSet(toolset)
 		});
 	}
 	return {
@@ -209,6 +218,45 @@ export async function showToolsPicker(
 	const toolsService = accessor.get(ILanguageModelToolsService);
 	const confirmationService = accessor.get(ILanguageModelToolsConfirmationService);
 	const telemetryService = accessor.get(ITelemetryService);
+	const dialogService = accessor.get(IDialogService);
+	const textFileService = accessor.get(ITextFileService);
+	const fileService = accessor.get(IFileService);
+	const notificationService = accessor.get(INotificationService);
+
+	const removeToolSet = async (toolSet: IToolSet): Promise<void> => {
+		if (toolSet.source.type !== 'user') {
+			return;
+		}
+
+		const result = await dialogService.confirm({
+			type: 'warning',
+			message: localize('deleteToolSet.confirm.message', "Delete tool set '{0}'?", toolSet.referenceName),
+			detail: localize('deleteToolSet.confirm.detail', "This removes the tool set definition from {0}.", toolSet.source.label),
+			primaryButton: localize('deleteToolSet.confirm.primary', "Delete")
+		});
+
+		if (!result.confirmed) {
+			return;
+		}
+
+		try {
+			const rawContent = await textFileService.read(toolSet.source.file);
+			const updated = deleteToolSetFromFileContents(rawContent.value, toolSet.referenceName);
+			if (!updated) {
+				return;
+			}
+
+			if (updated.isEmpty) {
+				// No tool sets remain in the file, so remove the file entirely.
+				const useTrash = fileService.hasCapability(toolSet.source.file, FileSystemProviderCapabilities.Trash);
+				await fileService.del(toolSet.source.file, { useTrash });
+			} else {
+				await textFileService.write(toolSet.source.file, updated.contents);
+			}
+		} catch (error) {
+			notificationService.error(localize('deleteToolSet.error', "Failed to delete tool set '{0}': {1}", toolSet.referenceName, toErrorMessage(error)));
+		}
+	};
 
 	const mcpServerByTool = new Map<string, IMcpServer>();
 	for (const server of mcpService.servers.get()) {
@@ -402,7 +450,7 @@ export async function showToolsPicker(
 				}
 				// all mcp tools are part of toolsService.getTools()
 			} else {
-				const treeItem = createToolSetTreeItem(toolSet, toolSetChecked, editorService);
+				const treeItem = createToolSetTreeItem(toolSet, toolSetChecked, editorService, toolSet => void removeToolSet(toolSet));
 				bucket.children.push(treeItem);
 				const children = [];
 				for (const tool of toolSet.getTools()) {
@@ -528,12 +576,21 @@ export async function showToolsPicker(
 					}
 					traverse(item.children);
 				} else if (isToolSetTreeItem(item)) {
-					result.set(item.toolset, item.checked === true);
+					let toolSetChecked = item.checked === true;
+					if (item.children) {
+						const allChildrenChecked = item.children.filter(isToolTreeItem).every(child => child.checked === true);
+						toolSetChecked = toolSetChecked && allChildrenChecked;
+					}
+					result.set(item.toolset, toolSetChecked);
 					if (item.children) {
 						traverse(item.children);
 					}
 				} else if (isToolTreeItem(item)) {
-					result.set(item.tool, item.checked || result.get(item.tool) === true); // tools can be in user tool sets and other buckets
+					const checked = item.checked === true;
+					const previous = result.get(item.tool);
+					// Tools can show up in multiple places (e.g. buckets and tool sets). If a tool is
+					// explicitly unchecked anywhere, preserve that deselection.
+					result.set(item.tool, previous === undefined ? checked : previous && checked);
 				}
 			}
 		};
@@ -581,7 +638,7 @@ export async function showToolsPicker(
 		} else if (button === installExtension) {
 			extensionsWorkbenchService.openSearch('@tag:language-model-tools');
 		} else if (button === configureToolSets) {
-			commandService.executeCommand(ConfigureToolSets.ID);
+			commandService.executeCommand(ConfigureToolSets.ID, { selection: collectResults() });
 		}
 		treePicker.hide();
 	}));

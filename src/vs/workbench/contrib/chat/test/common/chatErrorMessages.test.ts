@@ -208,7 +208,7 @@ suite('ChatErrorMessages', () => {
 		test('default plan, no usage-based billing', () => {
 			assert.strictEqual(
 				getQuotaMessageForPlan(undefined),
-				'You\'ve exhausted your premium model quota. To continue working, switch to Auto. For additional paid premium requests, please reach out to your organization\'s Copilot admin or wait for your allowance to renew.',
+				'You\'ve exhausted your premium model quota. For additional paid premium requests, please reach out to your organization\'s Copilot admin or wait for your allowance to renew.',
 			);
 		});
 	});

@@ -6,6 +6,7 @@
 import { Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { localize } from '../../../nls.js';
+import { ITunnelProxyInfo } from '../../tunnel/common/tunnelProxy.js';
 
 const commandPrefix = 'workbench.action.browser';
 export enum BrowserViewCommandId {
@@ -104,10 +105,12 @@ export interface IBrowserViewWindowConfiguration {
 	/** Maximum number of entries to retain per browser session history. */
 	readonly maxHistoryEntries?: number;
 	/**
-	 * The id of the shared-process tunnel proxy the window's remote browser
-	 * views should connect through, or `undefined` if no proxy should be used.
+	 * Resolved tunnel-proxy credentials for the window's remote browser views,
+	 * produced by the window's local node extension host (which hosts the HTTPS
+	 * tunnel proxy). `undefined` until the proxy has started, or when no proxy
+	 * is used. Applied to the Electron sessions of the window's remote views.
 	 */
-	readonly proxyId?: string;
+	readonly proxyInfo?: ITunnelProxyInfo;
 	/**
 	 * The window's contribution to the `file://` allowlist used by integrated
 	 * browser sessions. Main unions every window's contribution into a

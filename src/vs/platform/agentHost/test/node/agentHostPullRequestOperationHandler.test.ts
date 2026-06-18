@@ -43,6 +43,7 @@ class TestGitService implements IAgentHostGitService {
 		this.calls.push(`commitAll:${message}`);
 		this.uncommitted = false;
 	}
+	async restore(): Promise<void> { }
 	async hasUpstream(): Promise<boolean> {
 		this.calls.push('hasUpstream');
 		return this.upstream;

@@ -298,7 +298,10 @@ These metrics track the activity and outcomes of agentic code changes across all
 | `copilot_chat.agent.summarization.count` | Counter | events | Context summarization outcomes (applied/failed) |
 | `copilot_chat.pull_request.count` | Counter | PRs | Pull requests created via CLI agent |
 | `copilot_chat.cloud.session.count` | Counter | sessions | Cloud/remote agent sessions by partner |
-| `copilot_chat.cloud.pr_ready.count` | Counter | events | Remote agent job PR ready notifications |
+| `copilot_chat.cloud.pr_ready.count` | Counter | events | Remote agent job PR ready notifications (v1/Jobs API only) |
+| `copilot_chat.cloud.operation.count` | Counter | operations | Cloud backend operation outcomes (create, fetch, follow-up, PR) by backend version |
+| `copilot_chat.cloud.operation.duration` | Histogram | ms | Cloud backend operation latency by backend version |
+| `copilot_chat.cloud.error.count` | Counter | errors | Cloud backend operation failures by backend version and error type |
 
 **`copilot_chat.edit.acceptance.count` attributes:** `copilot_chat.edit.source` (`inline_chat`/`chat_editing`/`chat_editing_hunk`/`apply_patch`/`replace_string`/`code_mapper`), `copilot_chat.edit.outcome` (`accepted`/`rejected`), `copilot_chat.language_id` (optional)
 
@@ -318,7 +321,15 @@ These metrics track the activity and outcomes of agentic code changes across all
 
 **`copilot_chat.agent.summarization.count` attributes:** `outcome` (`applied`/`failed`)
 
-**`copilot_chat.cloud.session.count` attributes:** `partner_agent` (`copilot`/`claude`/`codex`)
+**`copilot_chat.cloud.session.count` attributes:** `partner_agent` (`copilot`/`claude`/`codex`), `github.copilot.cloud.backend_version` (`v1`/`v2`, optional)
+
+**`copilot_chat.cloud.pr_ready.count` attributes:** `github.copilot.cloud.backend_version` (`v1`, optional)
+
+**`copilot_chat.cloud.operation.count` attributes:** `operation` (`createSession`/`fetchSessionList`/`fetchContent`/`fetchEvents`/`pollUpdate`/`followUp`/`findTaskForPullRequest`/`createPullRequest`/`sessionActivated`), `github.copilot.cloud.backend_version` (`v1`/`v2`), `success`
+
+**`copilot_chat.cloud.operation.duration` attributes:** `operation`, `github.copilot.cloud.backend_version` (`v1`/`v2`)
+
+**`copilot_chat.cloud.error.count` attributes:** `operation`, `github.copilot.cloud.backend_version` (`v1`/`v2`), `error.type` (low-cardinality classifier, e.g. `http_500`)
 
 ### Events
 

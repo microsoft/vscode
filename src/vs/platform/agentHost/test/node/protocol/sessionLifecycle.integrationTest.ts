@@ -10,10 +10,11 @@ import { SubscribeResult } from '../../../common/state/protocol/commands.js';
 import type { SessionAddedParams, SessionRemovedParams } from '../../../common/state/protocol/notifications.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import type { ListSessionsResult } from '../../../common/state/sessionProtocol.js';
-import { ResponsePartKind, ROOT_STATE_URI, SessionStatus, type MarkdownResponsePart, type SessionState, type ToolCallResponsePart } from '../../../common/state/sessionState.js';
+import { ResponsePartKind, ROOT_STATE_URI, SessionStatus, type MarkdownResponsePart, type ISessionWithDefaultChat, type ToolCallResponsePart } from '../../../common/state/sessionState.js';
 import { PRE_EXISTING_SESSION_URI } from '../mockAgent.js';
 import {
 	createAndSubscribeSession,
+	fetchSessionWithChat,
 	isActionNotification,
 	IServerHandle,
 	nextSessionUri,
@@ -106,8 +107,7 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 
 		// Subscribing to this session should trigger the restore path: the
 		// server fetches message history from the agent and reconstructs turns.
-		const result = await client.call<SubscribeResult>('subscribe', { channel: preExistingUri });
-		const state = result.snapshot!.state as SessionState;
+		const state = await fetchSessionWithChat(client, preExistingUri);
 
 		assert.strictEqual(state.lifecycle, 'ready', 'restored session should be in ready state');
 		assert.ok(state.turns.length >= 1, `expected at least 1 restored turn but got ${state.turns.length}`);
@@ -161,7 +161,7 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 
 		// Verify the flags are reflected in the subscribed session state
 		const snapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-		const state = snapshot.snapshot!.state as SessionState;
+		const state = snapshot.snapshot!.state as ISessionWithDefaultChat;
 		assert.ok(state.summary.status & SessionStatus.IsArchived, 'IsArchived flag should be set in snapshot');
 		assert.ok(state.summary.status & SessionStatus.IsRead, 'IsRead flag should be set in snapshot');
 

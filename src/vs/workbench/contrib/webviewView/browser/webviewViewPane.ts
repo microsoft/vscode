@@ -125,6 +125,18 @@ export class WebviewViewPane extends ViewPane {
 		this._container = container;
 		this._rootContainer = undefined;
 
+		// The webview iframe lives in an overlay at the document root for DOM
+		// reasons (iframes can't be reparented). This means it's outside the
+		// normal Tab order of the sidebar. Add a tabbable proxy element so
+		// keyboard users can Tab into the webview content.
+		container.tabIndex = 0;
+		container.setAttribute('role', 'document');
+		this._register(addDisposableListener(container, 'focus', (e) => {
+			if (e.target === container && this._webview.value) {
+				this._webview.value.focus();
+			}
+		}));
+
 		this.layoutWebview();
 	}
 

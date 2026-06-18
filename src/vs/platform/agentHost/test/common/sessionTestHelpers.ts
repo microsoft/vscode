@@ -186,6 +186,7 @@ export function createNoopGitService(): import('../../node/agentHostGitService.j
 		branchExists: async () => false,
 		hasUncommittedChanges: async () => false,
 		commitAll: async () => { },
+		restore: async () => { },
 		hasUpstream: async () => false,
 		pushBranch: async () => { },
 		getSessionGitState: async () => undefined,

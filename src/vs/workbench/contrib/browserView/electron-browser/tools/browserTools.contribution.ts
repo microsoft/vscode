@@ -127,7 +127,7 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 	 * context updates whenever a page is shared or unshared.
 	 */
 	private _syncModelListeners(): void {
-		const views = this.browserViewService.getKnownBrowserViews();
+		const views = this.browserViewService.getContextualBrowserViews();
 		// Remove listeners for views that no longer exist
 		for (const id of this._modelListeners.keys()) {
 			if (!views.has(id)) {
@@ -146,7 +146,7 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 	}
 
 	private _updateBrowserContext(): void {
-		const views = [...this.browserViewService.getKnownBrowserViews().values()];
+		const views = [...this.browserViewService.getContextualBrowserViews().values()];
 		const sharedViews = views.filter(v => v.model?.sharingState === BrowserViewSharingState.Shared);
 		const unsharedCount = views.length - sharedViews.length;
 

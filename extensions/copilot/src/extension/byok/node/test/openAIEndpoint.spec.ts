@@ -109,6 +109,7 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 
 	afterEach(() => {
 		disposables.clear();
+		vi.restoreAllMocks();
 	});
 
 	describe('ownsAuthorization', () => {

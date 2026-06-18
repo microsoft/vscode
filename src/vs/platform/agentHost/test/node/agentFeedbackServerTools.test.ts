@@ -19,8 +19,10 @@ import {
 	deleteCommentsToolName,
 	feedbackServerToolDefinitions,
 	feedbackServerToolGroup,
+	feedbackToolRequiresConfirmation,
 	listCommentsToolName,
 	resolveCommentsToolName,
+	viewUnreviewedCommentsToolName,
 } from '../../node/shared/agentFeedbackServerTools.js';
 
 suite('AgentFeedbackServerTools', () => {
@@ -28,7 +30,7 @@ suite('AgentFeedbackServerTools', () => {
 	const sessionResource = 'copilot:/test-session';
 	const fileUri = 'file:///workspace/app.ts';
 
-	function annotation(id: string, state: string, resolved = false, text = 'comment'): Annotation {
+	function annotation(id: string, state: string, resolved = false, text = 'comment', kind = 'codeReview', pendingAgentReveal = false): Annotation {
 		return {
 			id,
 			turnId: '',
@@ -36,7 +38,7 @@ suite('AgentFeedbackServerTools', () => {
 			range: { start: { line: 0, character: 0 }, end: { line: 0, character: 4 } },
 			resolved,
 			entries: [{ id: `${id}:0`, text }],
-			_meta: { [FEEDBACK_ANNOTATION_META_KEY]: { kind: 'codeReview', state, sessionResource } },
+			_meta: { [FEEDBACK_ANNOTATION_META_KEY]: { kind, state, sessionResource, ...(pendingAgentReveal ? { pendingAgentReveal: true } : {}) } },
 		};
 	}
 
@@ -77,6 +79,7 @@ suite('AgentFeedbackServerTools', () => {
 				kind: 'codeReview',
 				resolved: false,
 			}],
+			note: 'There is 1 code review comment which the user has not reviewed yet. If the user wants you to tackle them, call the `viewUnreviewedComments` tool to view them.',
 		});
 	});
 
@@ -117,6 +120,68 @@ suite('AgentFeedbackServerTools', () => {
 
 	test('unknown tool name throws', () => {
 		assert.throws(() => applyFeedbackTool(stateWith(), sessionResource, 'nope', {}), /Unknown feedback server tool/);
+	});
+
+	test('listComments adds no note when there are no unreviewed reviewable comments', () => {
+		const state = stateWith(annotation('a', 'accepted', false, 'visible'));
+		const outcome = applyFeedbackTool(state, sessionResource, listCommentsToolName, {});
+		assert.strictEqual(JSON.parse(outcome.result).note, undefined);
+	});
+
+	test('listComments note counts created PR and code-review comments per kind', () => {
+		const state = stateWith(
+			annotation('pr1', 'created', false, 'pr a', 'prReview'),
+			annotation('pr2', 'created', false, 'pr b', 'prReview'),
+			annotation('cr1', 'created', false, 'cr a', 'codeReview'),
+			// user-authored created comments are not "reviewable" and never counted
+			annotation('u1', 'created', false, 'user', 'user'),
+			annotation('done', 'accepted', false, 'already reviewed', 'prReview'),
+		);
+		const outcome = applyFeedbackTool(state, sessionResource, listCommentsToolName, {});
+		assert.strictEqual(
+			JSON.parse(outcome.result).note,
+			'There are 2 pull request comments and 1 code review comment which the user has not reviewed yet. If the user wants you to tackle them, call the `viewUnreviewedComments` tool to view them.',
+		);
+	});
+
+	test('viewUnreviewedComments returns the comments flagged for reveal and clears the flag', () => {
+		const state = stateWith(
+			annotation('pr1', 'created', false, 'still hidden', 'prReview'),
+			annotation('pr2', 'accepted', false, 'revealed pr', 'prReview', true),
+			annotation('cr1', 'accepted', false, 'revealed code review', 'codeReview', true),
+			// previously-accepted reviewable comment without the flag -> excluded
+			annotation('pr3', 'accepted', false, 'old accepted pr', 'prReview'),
+			// user-authored comment is not reviewable -> excluded even when flagged
+			annotation('u1', 'accepted', false, 'user comment', 'user', true),
+		);
+		const outcome = applyFeedbackTool(state, sessionResource, viewUnreviewedCommentsToolName, {});
+		const clearedIds = outcome.actions.map(a => (a as Extract<typeof a, { type: ActionType.AnnotationsSet }>).annotation.id);
+		const clearedFlags = outcome.actions.map(a => (a as Extract<typeof a, { type: ActionType.AnnotationsSet }>).annotation._meta?.[FEEDBACK_ANNOTATION_META_KEY] as { pendingAgentReveal?: boolean });
+		assert.deepStrictEqual({
+			returnedIds: JSON.parse(outcome.result).comments.map((c: { id: string }) => c.id),
+			clearedIds,
+			flagsCleared: clearedFlags.every(meta => meta.pendingAgentReveal === undefined),
+		}, {
+			returnedIds: ['pr2', 'cr1'],
+			clearedIds: ['pr2', 'cr1'],
+			flagsCleared: true,
+		});
+	});
+
+	test('viewUnreviewedComments requires confirmation; the read/mutate tools do not', () => {
+		assert.deepStrictEqual({
+			view: feedbackToolRequiresConfirmation(viewUnreviewedCommentsToolName),
+			list: feedbackToolRequiresConfirmation(listCommentsToolName),
+			add: feedbackToolRequiresConfirmation(addCommentToolName),
+			del: feedbackToolRequiresConfirmation(deleteCommentsToolName),
+			resolve: feedbackToolRequiresConfirmation(resolveCommentsToolName),
+		}, {
+			view: true,
+			list: false,
+			add: false,
+			del: false,
+			resolve: false,
+		});
 	});
 
 	test('addComment rejects invalid arguments', () => {
@@ -200,6 +265,18 @@ suite('AgentFeedbackServerTools', () => {
 			host.advertise(sessionResource);
 			const state = manager.getSessionState(sessionResource);
 			assert.deepStrictEqual(state?.serverTools, feedbackServerToolDefinitions);
+		});
+
+		test('requiresConfirmation reflects the owning group', () => {
+			assert.deepStrictEqual({
+				view: host.requiresConfirmation(viewUnreviewedCommentsToolName),
+				list: host.requiresConfirmation(listCommentsToolName),
+				unknown: host.requiresConfirmation('nope'),
+			}, {
+				view: true,
+				list: false,
+				unknown: false,
+			});
 		});
 	});
 

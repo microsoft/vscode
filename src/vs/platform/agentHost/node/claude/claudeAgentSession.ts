@@ -20,10 +20,11 @@ import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { PendingMessage, SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, ToolCallPendingConfirmationState, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { PendingMessage, ChatInputAnswer, ChatInputRequest, ChatInputResponseKind, ToolCallPendingConfirmationState, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import type { Customization, ToolCallResult } from '../../common/state/sessionState.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
 import { buildClientMcpServers, buildOptions } from './claudeSdkOptions.js';
+import { toSdkModelId } from './claudeModelId.js';
 import { buildServerToolMcpServer, CLAUDE_SERVER_TOOL_MCP_SERVER_NAME, serverToolAllowList } from './claudeServerToolMcpServer.js';
 import { ClaudeSessionMetadataStore } from './claudeSessionMetadataStore.js';
 import { convertToolCallResult } from './clientTools/claudeClientToolResult.js';
@@ -73,7 +74,7 @@ function resolveCurrentPermissionMode(
  *   • Per-session identity (sessionId / sessionUri / workingDirectory).
  *   • The {@link ClaudeSdkPipeline} that drives the SDK Query lifecycle
  *     and emits every {@link AgentSignal} for this session (router-
- *     mapped per-message signals plus `SessionTurnComplete` and
+ *     mapped per-message signals plus `ChatTurnComplete` and
  *     `steering_consumed`).
  *   • Pending-permission and pending-user-input registries (Phase 7),
  *     surfaced via `requestPermission` / `requestUserInput`.
@@ -156,9 +157,9 @@ export class ClaudeAgentSession extends Disposable {
 
 	/**
 	 * Phase 7 / S3.2. User-input deferreds parked for interactive tools
-	 * (`AskUserQuestion`, `ExitPlanMode`). Keyed by `SessionInputRequest.id`.
+	 * (`AskUserQuestion`, `ExitPlanMode`). Keyed by `ChatInputRequest.id`.
 	 */
-	private readonly _pendingUserInputs = new PendingRequestRegistry<{ response: SessionInputResponseKind; answers?: Record<string, SessionInputAnswer> }>();
+	private readonly _pendingUserInputs = new PendingRequestRegistry<{ response: ChatInputResponseKind; answers?: Record<string, ChatInputAnswer> }>();
 
 	/**
 	 * Phase 10 — owns the workbench-registered client-tool snapshot
@@ -189,6 +190,54 @@ export class ClaudeAgentSession extends Disposable {
 
 	private readonly _onDidSessionProgress = this._register(new Emitter<AgentSignal>());
 	readonly onDidSessionProgress: Event<AgentSignal> = this._onDidSessionProgress.event;
+
+	/**
+	 * Real Copilot credits (in nano-AIU) billed by CAPI for the current
+	 * turn, summed across every `/v1/messages` request the SDK made
+	 * (including subagents). Fed by {@link recordTurnCredits} from the
+	 * proxy's `onDidReportCredits`, reset at the start of each {@link send},
+	 * and attached to the turn's `ChatUsage` signal by
+	 * {@link _enrichSignalWithCredits}. Unlike the SDK's `total_cost_usd`
+	 * (an Anthropic-list-price estimate), this is what CAPI actually bills.
+	 */
+	private _currentTurnNanoAiu = 0;
+
+	/**
+	 * Accumulate proxy-reported billed credits for the in-flight turn.
+	 * Called from {@link ClaudeAgent} for every proxy `onDidReportCredits`
+	 * routed to this session. Ignores non-positive / non-finite values.
+	 */
+	recordTurnCredits(totalNanoAiu: number): void {
+		if (Number.isFinite(totalNanoAiu) && totalNanoAiu > 0) {
+			this._currentTurnNanoAiu += totalNanoAiu;
+		}
+	}
+
+	/**
+	 * Inject the turn's accumulated Copilot credits into its `ChatUsage`
+	 * signal as `_meta.copilotUsage.totalNanoAiu` — the well-known key the
+	 * workbench prefers over `_meta.cost` when rendering per-turn credits.
+	 * All other signals pass through untouched.
+	 */
+	private _enrichSignalWithCredits(signal: AgentSignal): AgentSignal {
+		if (signal.kind !== 'action' || signal.action.type !== ActionType.ChatUsage || this._currentTurnNanoAiu <= 0) {
+			return signal;
+		}
+		const usage = signal.action.usage;
+		return {
+			...signal,
+			action: {
+				...signal.action,
+				usage: {
+					...usage,
+					_meta: {
+						...usage._meta,
+						copilotUsage: { totalNanoAiu: this._currentTurnNanoAiu },
+					},
+				},
+			},
+		};
+	}
 
 	constructor(
 		readonly sessionId: string,
@@ -289,7 +338,7 @@ export class ClaudeAgentSession extends Disposable {
 			await warm[Symbol.asyncDispose]();
 			throw err;
 		}
-		this._register(pipeline.onDidProduceSignal(s => this._onDidSessionProgress.fire(s)));
+		this._register(pipeline.onDidProduceSignal(s => this._onDidSessionProgress.fire(this._enrichSignalWithCredits(s))));
 		this._pipeline = pipeline;
 		// On-disk Open Plugin bundle for SDK-discovered customizations.
 		// The bundle directory is content-addressed by the SDK snapshot
@@ -305,7 +354,7 @@ export class ClaudeAgentSession extends Disposable {
 		// the user's last-chosen model / effort without losing the picker
 		// config. Read provisional state directly off the session.
 		pipeline.seedCurrentConfig(
-			this._provisionalModel?.id,
+			toSdkModelId(this._provisionalModel?.id),
 			clampEffortForRuntime(resolveClaudeEffort(this._provisionalModel)),
 			permissionMode,
 		);
@@ -410,7 +459,14 @@ export class ClaudeAgentSession extends Disposable {
 				...(clientServers ?? {}),
 				...(serverToolServer ? { [CLAUDE_SERVER_TOOL_MCP_SERVER_NAME]: serverToolServer } : {}),
 			};
-		return { mcpServers, allowedTools: serverToolHost ? serverToolAllowList(serverToolHost.toolNames) : undefined };
+		// Exclude server tools that require user confirmation from the
+		// auto-approve allow-list so the SDK surfaces them via `canUseTool`
+		// (the host then renders a custom confirmation) instead of running them
+		// silently.
+		const autoApproveToolNames = serverToolHost
+			? serverToolHost.toolNames.filter(name => !serverToolHost.requiresConfirmation(name))
+			: undefined;
+		return { mcpServers, allowedTools: autoApproveToolNames ? serverToolAllowList(autoApproveToolNames) : undefined };
 	}
 
 	/** True once {@link materialize} has installed the SDK pipeline. */
@@ -464,6 +520,9 @@ export class ClaudeAgentSession extends Disposable {
 	 */
 	async send(prompt: SDKUserMessage, turnId: string): Promise<void> {
 		const pipeline = this._requirePipeline();
+		// New turn: reset the per-turn credit accumulator so proxy reports
+		// for this turn's `/v1/messages` calls sum from zero.
+		this._currentTurnNanoAiu = 0;
 		if (this.toolDiff.hasDifference || this.clientCustomizationsDiff.hasDifference) {
 			await this._rebindForSyncedState();
 		} else {
@@ -499,7 +558,7 @@ export class ClaudeAgentSession extends Disposable {
 	 */
 	abort(): void {
 		this._pendingPermissions.denyAll(false);
-		this._pendingUserInputs.denyAll({ response: SessionInputResponseKind.Cancel });
+		this._pendingUserInputs.denyAll({ response: ChatInputResponseKind.Cancel });
 		this._requirePipeline().abort();
 	}
 
@@ -526,10 +585,14 @@ export class ClaudeAgentSession extends Disposable {
 			if (requestedEffort === 'max') {
 				this._logService.warn(`[Claude:${this.sessionId}] setModel: 'max' effort clamped to 'xhigh' (Copilot CAPI has no 'max' model yet)`);
 			}
-			await this._pipeline.setModel(model.id);
-			if (runtimeEffort !== undefined) {
-				await this._pipeline.setEffort(runtimeEffort);
-			}
+			await this._pipeline.setModel(toSdkModelId(model.id));
+			// Always push the resolved effort, including `undefined`. Switching
+			// to a model that does not support reasoning effort (e.g. Haiku)
+			// resolves to `undefined`, which must actively CLEAR any effort the
+			// SDK is still applying from a prior effort-capable model — otherwise
+			// the next turn replays e.g. `'high'` onto Haiku and the API 400s
+			// (`output_config.effort ... does not support reasoning effort`).
+			await this._pipeline.setEffort(runtimeEffort);
 		}
 		await this._metadataStore.write(this.sessionUri, { model });
 	}
@@ -662,20 +725,20 @@ export class ClaudeAgentSession extends Disposable {
 	}
 
 	/**
-	 * Fire a {@link ActionType.SessionInputRequested} action and park on
+	 * Fire a {@link ActionType.ChatInputRequested} action and park on
 	 * a deferred until {@link respondToUserInputRequest} resolves it.
 	 * Resolves with `{ response: Cancel }` if the pipeline is aborted.
 	 */
-	requestUserInput(request: SessionInputRequest, parentToolCallId?: string): Promise<{ response: SessionInputResponseKind; answers?: Record<string, SessionInputAnswer> }> {
+	requestUserInput(request: ChatInputRequest, parentToolCallId?: string): Promise<{ response: ChatInputResponseKind; answers?: Record<string, ChatInputAnswer> }> {
 		if (!this._pipeline || this._pipeline.isAborted) {
-			return Promise.resolve({ response: SessionInputResponseKind.Cancel });
+			return Promise.resolve({ response: ChatInputResponseKind.Cancel });
 		}
 		return this._pendingUserInputs.registerAndFire(request.id, () => {
 			this._onDidSessionProgress.fire({
 				kind: 'action',
 				session: this.sessionUri,
 				action: {
-					type: ActionType.SessionInputRequested,
+					type: ActionType.ChatInputRequested,
 					request,
 				},
 				...(parentToolCallId !== undefined ? { parentToolCallId } : {}),
@@ -685,8 +748,8 @@ export class ClaudeAgentSession extends Disposable {
 
 	respondToUserInputRequest(
 		requestId: string,
-		response: SessionInputResponseKind,
-		answers?: Record<string, SessionInputAnswer>,
+		response: ChatInputResponseKind,
+		answers?: Record<string, ChatInputAnswer>,
 	): boolean {
 		return this._pendingUserInputs.respond(requestId, { response, answers });
 	}
@@ -707,7 +770,7 @@ export class ClaudeAgentSession extends Disposable {
 	 * Resolve a parked client-tool MCP handler with the workbench-supplied
 	 * result. Returns `true` if a matching deferred was found and settled.
 	 * Unknown ids are a benign no-op — `agentSideEffects.ts` forwards every
-	 * `SessionToolCallComplete` envelope, so SDK-owned tool completions land
+	 * `ChatToolCallComplete` envelope, so SDK-owned tool completions land
 	 * here too and must NOT throw.
 	 */
 	completeClientToolCall(toolCallId: string, result: ToolCallResult): boolean {
@@ -815,7 +878,7 @@ export class ClaudeAgentSession extends Disposable {
 		// Resolve parked deferreds before tearing the pipeline down so the
 		// SDK's canUseTool callback unwinds with a deny and the loop exits.
 		this._pendingPermissions.denyAll(false);
-		this._pendingUserInputs.denyAll({ response: SessionInputResponseKind.Cancel });
+		this._pendingUserInputs.denyAll({ response: ChatInputResponseKind.Cancel });
 		this._pendingClientToolCalls.rejectAll(new CancellationError());
 		super.dispose();
 	}

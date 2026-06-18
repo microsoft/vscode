@@ -22,7 +22,7 @@ import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ACTION_ID_NEW_CHAT } from '../actions/chatActions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Throttler } from '../../../../../base/common/async.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { ITreeContextMenuEvent } from '../../../../../base/browser/ui/tree/tree.js';
@@ -267,6 +267,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			...this.options,
 			isGroupedByRepository: () => this.options.filter.groupResults?.() === AgentSessionsGrouping.Repository,
 			isSortedByUpdated: () => this.options.filter.sortResults?.() === AgentSessionsSorting.Updated,
+			pauseSessionUpdates: () => this.pauseUpdates(),
 		}, approvalModel, activeSessionResource));
 		const compact = this.options.compactShowMore;
 		const sessionDataSource = this.sessionsDataSource = this._register(new AgentSessionsDataSource(this.options.filter, sorter, this.options.repositoryGroupLimit));
@@ -773,12 +774,43 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		}
 	}
 
-	async update(): Promise<void> {
+	async update(): Promise<boolean> {
+		if (this.updatePauseOwner) {
+			// While updates are paused (e.g. a session hover is open), avoid re-sorting the list so items don't jump
+			// around under the user's cursor. Remember that an update is pending and run it once updates are resumed.
+			this.hasPendingUpdate = true;
+			return false;
+		}
+
 		return this.updateSessionsListThrottler.queue(async () => {
+			if (this.updatePauseOwner) {
+				this.hasPendingUpdate = true;
+				return false;
+			}
+
+			this.hasPendingUpdate = false;
 			this.computeRecentRepositoryLabels();
 			await this.sessionsList?.updateChildren();
 
 			this._onDidUpdate.fire();
+			return true;
+		});
+	}
+
+	private updatePauseOwner: object | undefined;
+	private hasPendingUpdate = false;
+
+	private pauseUpdates(): IDisposable {
+		const owner = {};
+		this.updatePauseOwner = owner;
+		return toDisposable(() => {
+			if (this.updatePauseOwner !== owner) {
+				return;
+			}
+			this.updatePauseOwner = undefined;
+			if (this.hasPendingUpdate && this.visible) {
+				this.update();
+			}
 		});
 	}
 

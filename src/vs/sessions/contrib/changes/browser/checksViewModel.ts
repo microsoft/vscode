@@ -8,7 +8,7 @@ import { derived, derivedOpts, IObservable } from '../../../../base/common/obser
 import { URI } from '../../../../base/common/uri.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { GitHubPullRequestCIModel } from '../../github/browser/models/githubPullRequestCIModel.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { isEqual } from '../../../../base/common/resources.js';
 
 export class ChecksViewModel extends Disposable {
@@ -17,12 +17,12 @@ export class ChecksViewModel extends Disposable {
 
 	constructor(
 		@IGitHubService gitHubService: IGitHubService,
-		@ISessionsManagementService sessionManagementService: ISessionsManagementService,
+		@ISessionsService sessionsService: ISessionsService,
 	) {
 		super();
 
 		this.activeSessionResourceObs = derivedOpts<URI | undefined>({ equalsFn: isEqual }, reader => {
-			const session = sessionManagementService.activeSession.read(reader);
+			const session = sessionsService.activeSession.read(reader);
 			return session?.resource;
 		});
 

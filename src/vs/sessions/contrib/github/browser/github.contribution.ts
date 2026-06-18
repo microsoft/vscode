@@ -11,7 +11,9 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { getPullRequestKey } from '../common/utils.js';
+import { GitHubPullRequestState } from '../common/types.js';
 import { GitHubService, IGitHubService } from './githubService.js';
 
 export class GitHubPullRequestPollingContribution extends Disposable implements IWorkbenchContribution {
@@ -23,11 +25,12 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 	constructor(
 		@IGitHubService private readonly _gitHubService: IGitHubService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
 	) {
 		super();
 
 		const activeSessionResourceObs = derivedOpts<URI | undefined>({ equalsFn: isEqual }, reader => {
-			const activeSession = this._sessionsManagementService.activeSession.read(reader);
+			const activeSession = this._sessionsService.activeSession.read(reader);
 			if (!activeSession || !activeSession.resource || activeSession.isArchived.read(reader)) {
 				return undefined;
 			}
@@ -126,6 +129,24 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 
 		disposables.add(modelRef);
 		disposables.add(modelRef.object.startPolling());
+
+		// Poll CI checks and review threads so the session's PR icon can reflect
+		// failing checks / unresolved comments even when the session is not active.
+		const prNumber = gitHubInfo.pullRequest.number;
+		disposables.add(autorun(reader => {
+			const prDetails = modelRef.object.pullRequest.read(reader);
+			if (!prDetails || prDetails.isDraft || prDetails.state !== GitHubPullRequestState.Open) {
+				return;
+			}
+
+			const ciModelRef = reader.store.add(this._gitHubService.createPullRequestCIModelReference(gitHubInfo.owner, gitHubInfo.repo, prNumber, prDetails.headSha));
+			ciModelRef.object.refresh();
+			reader.store.add(ciModelRef.object.startPolling());
+
+			const reviewThreadsModelRef = reader.store.add(this._gitHubService.createPullRequestReviewThreadsModelReference(gitHubInfo.owner, gitHubInfo.repo, prNumber));
+			reviewThreadsModelRef.object.refresh();
+			reader.store.add(reviewThreadsModelRef.object.startPolling());
+		}));
 
 		this._pullRequests.set(key, disposables);
 	}

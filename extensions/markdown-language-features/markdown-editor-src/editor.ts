@@ -4,15 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { EditorController, EditorModel, EditorView, StringEdit, StringValue, findNodeOffsetById, taskCheckboxRange } from '@vscode/markdown-editor';
-import { autorun } from '@vscode/markdown-editor/observables';
+import { Disposable, autorun } from '@vscode/markdown-editor/observables';
 import mermaid from 'mermaid';
 import 'katex/dist/katex.min.css';
 import '@vscode/markdown-editor/editor.css';
 import '@vscode/markdown-editor/themes/github.css';
-
-mermaid.initialize({ startOnLoad: false, theme: 'default' });
-
-let mermaidCounter = 0;
+import './markdownEditor.css';
+import { WebviewSyntaxHighlighter } from './syntaxHighlighter';
 
 interface VsCodeApi {
 	postMessage(message: unknown): void;
@@ -22,102 +20,98 @@ interface VsCodeApi {
 
 declare function acquireVsCodeApi(): VsCodeApi;
 
-const vscode = acquireVsCodeApi();
+class Editor extends Disposable {
+	readonly model = new EditorModel();
+	isUpdatingFromExtension = false;
+	#mermaidCounter = 0;
+	#initialized = false;
 
-interface EditorInstance {
-	readonly model: EditorModel;
-	isUpdatingFromExtension: boolean;
-}
+	readonly #vscode = acquireVsCodeApi();
+	readonly #syntaxHighlighter = new WebviewSyntaxHighlighter((message) => this.#vscode.postMessage(message));
 
-function createEditor(
-	host: HTMLElement,
-	content: string,
-	options: { readonly readonly: boolean; readonly onEdit?: (text: string) => void }
-): EditorInstance {
-	const model = new EditorModel();
-	model.sourceText.set(new StringValue(content), undefined);
+	constructor(host: HTMLElement) {
+		super();
 
-	const instance: EditorInstance = {
-		model,
-		isUpdatingFromExtension: false,
-	};
+		mermaid.initialize({ startOnLoad: false, theme: 'default' });
 
-	const view = new EditorView(model, {
-		classNames: ['github-markdown-theme'],
-		onToggleCheckbox(item, newChecked) {
-			if (options.readonly) {
+		window.addEventListener('message', (event) => {
+			const message = event.data;
+			if (this.#syntaxHighlighter.handleMessage(message)) {
 				return;
 			}
-			const doc = model.document.get();
-			const itemOffset = findNodeOffsetById(doc, item);
-			if (itemOffset === undefined) { return; }
-			const range = taskCheckboxRange(item);
-			if (!range) { return; }
-			model.applyEdit(
-				StringEdit.replace(
-					range.delta(itemOffset),
-					newChecked ? '[x]' : '[ ]'
-				)
-			);
-		},
-		renderCustomCodeBlock(language, content) {
-			if (language !== 'mermaid') {
-				return undefined;
-			}
-			const div = document.createElement('div');
-			div.className = 'md-mermaid';
-			const id = `mermaid-${mermaidCounter++}`;
-			mermaid
-				.render(id, content)
-				.then(({ svg }) => {
-					div.innerHTML = svg;
-				})
-				.catch(() => {
-					div.textContent = content;
-				});
-			return div;
-		},
-	});
-	new EditorController(model, view);
-	host.appendChild(view.element);
-
-	if (!options.readonly && options.onEdit) {
-		const onEdit = options.onEdit;
-		autorun((reader) => {
-			const text = reader.readObservable(model.sourceText).value;
-			if (!instance.isUpdatingFromExtension) {
-				onEdit(text);
+			switch (message.type) {
+				case 'init': {
+					if (!this.#initialized) {
+						this.#initialized = true;
+						this.#createView(host, !!message.readonly);
+						this.model.sourceText.set(new StringValue(message.content), undefined);
+					}
+					break;
+				}
+				case 'update': {
+					this.isUpdatingFromExtension = true;
+					this.model.sourceText.set(new StringValue(message.content), undefined);
+					this.isUpdatingFromExtension = false;
+					break;
+				}
 			}
 		});
+
+		this.#vscode.postMessage({ type: 'ready' });
 	}
 
-	return instance;
+	#createView(host: HTMLElement, readonly: boolean): void {
+		const model = this.model;
+
+		const view = this._register(new EditorView(model, {
+			classNames: ['github-markdown-theme'],
+			syntaxHighlighter: this.#syntaxHighlighter,
+			onToggleCheckbox: (item, newChecked) => {
+				if (readonly) {
+					return;
+				}
+				const doc = model.document.get();
+				const itemOffset = findNodeOffsetById(doc, item);
+				if (itemOffset === undefined) { return; }
+				const range = taskCheckboxRange(item);
+				if (!range) { return; }
+				model.applyEdit(
+					StringEdit.replace(
+						range.delta(itemOffset),
+						newChecked ? '[x]' : '[ ]'
+					)
+				);
+			},
+			renderCustomCodeBlock: (language, content) => {
+				if (language !== 'mermaid') {
+					return undefined;
+				}
+				const div = document.createElement('div');
+				div.className = 'md-mermaid';
+				const id = `mermaid-${this.#mermaidCounter++}`;
+				mermaid
+					.render(id, content)
+					.then(({ svg }) => {
+						div.innerHTML = svg;
+					})
+					.catch(() => {
+						div.textContent = content;
+					});
+				return div;
+			},
+		}));
+		this._register(new EditorController(model, view));
+		host.appendChild(view.element);
+
+		if (!readonly) {
+			this._register(autorun((reader) => {
+				const text = reader.readObservable(this.model.sourceText).value;
+				if (!this.isUpdatingFromExtension) {
+					this.#vscode.postMessage({ type: 'edit', content: text });
+				}
+			}));
+		}
+	}
 }
 
-let single: EditorInstance | undefined;
-
-window.addEventListener('message', (event) => {
-	const message = event.data;
-	switch (message.type) {
-		case 'init': {
-			const host = document.getElementById('editor')!;
-			single = createEditor(host, message.content, {
-				readonly: !!message.readonly,
-				onEdit: (text) => vscode.postMessage({ type: 'edit', content: text }),
-			});
-			break;
-		}
-		case 'update': {
-			const target = single;
-			if (!target) {
-				return;
-			}
-			target.isUpdatingFromExtension = true;
-			target.model.sourceText.set(new StringValue(message.content), undefined);
-			target.isUpdatingFromExtension = false;
-			break;
-		}
-	}
-});
-
-vscode.postMessage({ type: 'ready' });
+new Editor(document.getElementById('editor')!);

@@ -64,7 +64,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: '22.21.x'
+          node-version-file: .nvmrc
 
       - name: Validate telemetry events
         run: npx --package=@vscode/telemetry-extractor --yes vscode-telemetry-extractor -s . > /dev/null
@@ -81,7 +81,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '22.21.x'
+          node-version-file: .nvmrc
 
       - name: Setup Python
         uses: actions/setup-python@v6
@@ -161,7 +161,7 @@ jobs:
 
   windows-tests:
     name: Test (Windows)
-    runs-on: windows-2022
+    runs-on: windows-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -171,7 +171,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '22.21.x'
+          node-version-file: .nvmrc
 
       - name: Setup Python
         uses: actions/setup-python@v6

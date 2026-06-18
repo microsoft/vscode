@@ -25,7 +25,6 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { EditorActivation } from '../../../../../platform/editor/common/editor.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { IEditorPane } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IChatRequestVariableEntry, isImplicitVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isStringVariableEntry, isWorkspaceVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { isChatViewTitleActionContext } from '../../common/actions/chatActions.js';
@@ -127,10 +126,10 @@ registerAction2(class OpenFileInDiffAction extends WorkingSetAction {
 
 		for (const uri of uris) {
 
-			let pane: IEditorPane | undefined = editorService.activeEditorPane;
-			if (!pane) {
-				pane = await editorService.openEditor({ resource: uri });
-			}
+			// Always open the editor for the target URI. Using the currently active
+			// editor pane is not safe because it may be unrelated to `uri` (e.g. a
+			// webview), in which case `getEditorIntegration` would have no effect.
+			const pane = await editorService.openEditor({ resource: uri });
 
 			if (!pane) {
 				return;

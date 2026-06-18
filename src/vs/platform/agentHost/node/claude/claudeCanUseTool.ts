@@ -5,7 +5,7 @@
 
 import type { PermissionResult, PermissionUpdate } from '@anthropic-ai/claude-agent-sdk';
 import { ClaudePermissionMode, ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
-import { SessionInputResponseKind, ToolCallPendingConfirmationState, ToolCallStatus } from '../../common/state/protocol/state.js';
+import { ChatInputResponseKind, ToolCallPendingConfirmationState, ToolCallStatus } from '../../common/state/protocol/state.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { ClaudeAgentSession } from './claudeAgentSession.js';
 import { buildAskUserSessionInputQuestions, buildExitPlanModeConfirmationState, flattenAskUserAnswers, parseAskUserQuestionInput } from './claudeInteractiveTools.js';
@@ -89,7 +89,7 @@ export async function handleCanUseTool(
 	}
 	const abortHandler = () => {
 		session.respondToPermissionRequest(options.toolUseID, false);
-		session.respondToUserInputRequest(options.toolUseID, SessionInputResponseKind.Cancel);
+		session.respondToUserInputRequest(options.toolUseID, ChatInputResponseKind.Cancel);
 	};
 	options.signal.addEventListener('abort', abortHandler);
 	try {
@@ -115,7 +115,7 @@ async function dispatchCanUseTool(
 	// so it uses the standard `pending_confirmation` channel with
 	// custom button labels; `AskUserQuestion` is structured user
 	// input (a question carousel) so it routes through
-	// `requestUserInput` / `SessionInputRequested`.
+	// `requestUserInput` / `ChatInputRequested`.
 	if (INTERACTIVE_CLAUDE_TOOLS.has(toolName)) {
 		return handleInteractiveTool(deps, session, toolName, input, options);
 	}
@@ -152,7 +152,7 @@ async function dispatchCanUseTool(
 
 /**
  * Phase 12 step 5 — shared subagent-context resolution for every
- * `pending_confirmation` and `SessionInputRequested` emission. When the
+ * `pending_confirmation` and `ChatInputRequested` emission. When the
  * SDK delivers `options.agentID`, look up the parent spawn via the
  * session's registry and write the agentId back to it. The write is
  * **first-writer-wins** (a mismatched late agentID is silently dropped
@@ -243,7 +243,7 @@ async function handleExitPlanMode(
 
 /**
  * `AskUserQuestion` (S3.5a): translate the SDK's question carousel
- * into a {@link SessionInputRequest}, await the workbench answer,
+ * into a {@link ChatInputRequest}, await the workbench answer,
  * and re-key answers by question text (matching the production
  * extension's `Record<question, value>` contract).
  */
@@ -264,7 +264,7 @@ async function handleAskUserQuestion(
 		id: toolUseID,
 		questions: buildAskUserSessionInputQuestions(askInput),
 	}, parentToolCallId);
-	if (answer.response !== SessionInputResponseKind.Accept || !answer.answers) {
+	if (answer.response !== ChatInputResponseKind.Accept || !answer.answers) {
 		return { behavior: 'deny', message: 'The user cancelled the question' };
 	}
 

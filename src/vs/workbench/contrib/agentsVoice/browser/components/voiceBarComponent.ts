@@ -44,12 +44,11 @@ export function createVoiceBar(): VoiceBarComponent {
 	stopBtn.tabIndex = 0;
 	stopBtn.ariaLabel = localize('agentsVoice.stopSpeech', "Stop speech");
 	stopBtn.style.cssText = `font-size:${FONT_SIZE.body};color:var(--vscode-editorError-foreground);cursor:pointer;-webkit-app-region:no-drag;padding:2px;`;
-	stopBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); });
 	addKeyboardActivation(stopBtn);
 
 	container.append(dot, label, waveform, stopBtn);
 
-	let currentStopHandler: (() => void) | undefined;
+	let currentStopHandler: ((e: Event) => void) | undefined;
 
 	return {
 		element: container,
@@ -59,6 +58,11 @@ export function createVoiceBar(): VoiceBarComponent {
 
 			if ((isSpeaking && props.speakingSession) || (!isSpeaking && !isListening)) {
 				container.style.display = 'none';
+				// Detach handler when hidden to avoid stale listeners
+				if (currentStopHandler) {
+					stopBtn.removeEventListener('click', currentStopHandler);
+					currentStopHandler = undefined;
+				}
 				return;
 			}
 			container.style.display = 'flex';
@@ -69,11 +73,16 @@ export function createVoiceBar(): VoiceBarComponent {
 				: localize('agentsVoice.listening', "Listening");
 
 			stopBtn.style.display = isSpeaking ? '' : 'none';
-			if (currentStopHandler) {
-				stopBtn.removeEventListener('click', currentStopHandler as EventListener);
+			if (isSpeaking) {
+				if (currentStopHandler) {
+					stopBtn.removeEventListener('click', currentStopHandler);
+				}
+				currentStopHandler = (e: Event) => { e.preventDefault(); e.stopPropagation(); props.onStopSpeech(); };
+				stopBtn.addEventListener('click', currentStopHandler);
+			} else if (currentStopHandler) {
+				stopBtn.removeEventListener('click', currentStopHandler);
+				currentStopHandler = undefined;
 			}
-			currentStopHandler = () => props.onStopSpeech();
-			stopBtn.addEventListener('click', currentStopHandler as EventListener);
 		}
 	};
 }

@@ -104,6 +104,9 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 	private readonly _onDidClearProviderEvents = this._register(new Emitter<URI>());
 	readonly onDidClearProviderEvents: Event<URI> = this._onDidClearProviderEvents.event;
 
+	private readonly _onDidEndSession = this._register(new Emitter<URI>());
+	readonly onDidEndSession: Event<URI> = this._onDidEndSession.event;
+
 	private readonly _onDidChangeAvailableSessionResources = this._register(new Emitter<void>());
 	readonly onDidChangeAvailableSessionResources: Event<void> = this._onDidChangeAvailableSessionResources.event;
 
@@ -142,11 +145,16 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 	private static readonly _debugEligibleSessionTypes = new Set([
 		localChatSessionType,			// local sessions
 		'copilotcli',				// Copilot CLI background sessions
+		'agent-host-copilotcli',		// local Agent Host Copilot CLI sessions
 		'claude-code',				// Claude Code CLI sessions
 	]);
 
 	private _isDebugEligibleSession(sessionResource: URI): boolean {
-		return ChatDebugServiceImpl._debugEligibleSessionTypes.has(getChatSessionType(sessionResource))
+		const sessionType = getChatSessionType(sessionResource);
+		return ChatDebugServiceImpl._debugEligibleSessionTypes.has(sessionType)
+			// Remote Agent Host Copilot CLI sessions use a dynamic
+			// `remote-<authority>-copilotcli` scheme; see copilotCliEventsUri.ts.
+			|| (sessionType.startsWith('remote-') && sessionType.endsWith('-copilotcli'))
 			|| this._importedSessions.has(sessionResource);
 	}
 
@@ -411,6 +419,7 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 			cts.dispose();
 			this._invocationCts.delete(sessionResource);
 		}
+		this._onDidEndSession.fire(sessionResource);
 	}
 
 	private _clearProviderEvents(sessionResource: URI): void {

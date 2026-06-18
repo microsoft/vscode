@@ -152,6 +152,7 @@ The provider ships a rich set of session-scoped UI in `browser/`:
 | `agentHostSkillButtons.ts` | Built-in skill toolbar buttons; defines the `sessions.isAgentHostSession` (`IsAgentHostSession`) context key bound to the active session's provider. |
 | `agentHostSessionChangesets.ts` / `agentHostDiffs.ts` | Changeset model and diff conversion (`mapProtocolStatus` maps the protocol status bitset → `SessionStatus`). |
 | `agentHostSessionBranchActions.ts` | Branch-related session actions. |
+| `agentHostSessionDeleteAction.ts` | "Delete..." session context-menu action (gated on `ANY_AGENT_HOST_PROVIDER_RE`); delegates to the shared `confirmAndDeleteSessions` helper which confirms and calls `ISessionsManagementService.deleteSession`. |
 | `exportDebugLogsAction.ts` | "Export debug logs" developer action. |
 | `openSessionEventsFileActions.ts` | "Open Copilot CLI State File" — Sessions-app variant resolving the session via `ISessionsManagementService.activeSession`. |
 | `mobile/` | Phone-layout variants: `mobileAgentHostModePicker.ts`, `mobileChatInputConfigPicker.ts`, `mobileChatPhoneInputPresenter.ts`. |

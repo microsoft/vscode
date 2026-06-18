@@ -99,6 +99,13 @@ export interface IAgentSessionRendererOptions {
 
 	isGroupedByRepository?(): boolean;
 	isSortedByUpdated?(): boolean;
+
+	/**
+	 * Called when a session hover is shown so the host can pause updates that
+	 * would re-sort the list while the user is reading the hover. The returned
+	 * disposable resumes updates.
+	 */
+	pauseSessionUpdates?(): IDisposable;
 }
 
 export class AgentSessionRenderer extends Disposable implements ICompressibleTreeRenderer<IAgentSession, FuzzyScore, IAgentSessionItemTemplate> {
@@ -554,11 +561,24 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		}
 
 		const widget = this.sessionHover.value;
+		let pauseDisposable: IDisposable | undefined;
 		return {
 			id: `agent.session.hover.${session.resource.toString()}`,
 			content: widget.domNode,
 			style: HoverStyle.Pointer,
-			onDidShow: () => widget.onRendered(),
+			onDidShow: () => {
+				// Pause list updates before rendering starts so resolving the session's lazy details does not re-sort the list
+				// and cause sessions to jump under the cursor (see #320509).
+				const previousPauseDisposable = pauseDisposable;
+				pauseDisposable = this.options.pauseSessionUpdates?.();
+				previousPauseDisposable?.dispose();
+				widget.onRendered();
+			},
+			onDidHide: () => {
+				widget.onHidden();
+				pauseDisposable?.dispose();
+				pauseDisposable = undefined;
+			},
 			position: {
 				hoverPosition: this.options.getHoverPosition()
 			}

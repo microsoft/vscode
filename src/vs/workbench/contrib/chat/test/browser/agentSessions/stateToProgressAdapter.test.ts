@@ -1369,7 +1369,7 @@ suite('stateToProgressAdapter', () => {
 			const invocation = toolCallStateToInvocation(tc);
 			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
 
-			// Simulate subagent content arriving via SessionToolCallContentChanged
+			// Simulate subagent content arriving via ChatToolCallContentChanged
 			const runningTc: ToolCallRunningState = {
 				...tc,
 				status: ToolCallStatus.Running,

@@ -980,6 +980,7 @@
 		"--chat-bar-background",
 		"--chat-tab-active-foreground",
 		"--chat-tab-inactive-foreground",
+		"--chat-tab-max-width",
 		"--status-border-top-color",
 		"--tab-border-bottom-color",
 		"--tab-border-top-color",
