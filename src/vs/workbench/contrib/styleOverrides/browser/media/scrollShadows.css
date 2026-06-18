@@ -33,10 +33,6 @@
 	--scroll-shadow-surface: var(--vscode-editor-background);
 }
 
-.style-override-scrollShadows .part.editor {
-	--scroll-shadow-surface: var(--vscode-editor-background);
-}
-
 .style-override-scrollShadows .part.panel {
 	--scroll-shadow-surface: var(--vscode-panel-background);
 }
@@ -56,7 +52,7 @@
 	position: relative;
 }
 
-/* .style-override-scrollShadows .monaco-list > .monaco-scrollable-element::before,
+.style-override-scrollShadows .monaco-list > .monaco-scrollable-element::before,
 .style-override-scrollShadows .monaco-list > .monaco-scrollable-element::after {
 	content: "";
 	position: absolute;
@@ -65,7 +61,7 @@
 	height: 12px;
 	pointer-events: none;
 	z-index: 10;
-} */
+}
 
 .style-override-scrollShadows .monaco-list > .monaco-scrollable-element::before {
 	top: 0;

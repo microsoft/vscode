@@ -33,6 +33,12 @@ interface IStyleOverrideModule {
 	readonly id: string;
 	readonly label: string;
 	readonly description: string;
+	/**
+	 * Whether this module changes layout-affecting CSS variables (e.g. the pane
+	 * header size). Toggling such a module requires a workbench relayout so the
+	 * new values are read; modules without this flag only affect appearance.
+	 */
+	readonly layoutAffecting?: boolean;
 }
 
 /**
@@ -70,7 +76,8 @@ const STYLE_OVERRIDE_MODULES: readonly IStyleOverrideModule[] = [
 	{
 		id: 'paneHeaders',
 		label: localize('styleOverrides.paneHeaders', "Pane Headers"),
-		description: localize('styleOverrides.paneHeaders.description', "Insets the view pane header separators, rounds their corners and adds a background tint on hover.")
+		description: localize('styleOverrides.paneHeaders.description', "Insets the view pane header separators, rounds their corners and adds a background tint on hover."),
+		layoutAffecting: true
 	},
 	{
 		id: 'roundedCorners',
@@ -112,6 +119,10 @@ export class StyleOverridesContribution extends Disposable implements IWorkbench
 
 	private readonly knownModuleIds = new Set(STYLE_OVERRIDE_MODULES.map(m => m.id));
 	private readonly knownClassNames = STYLE_OVERRIDE_MODULES.map(m => classNameFor(m.id));
+	private readonly layoutAffectingClassNames = new Set(STYLE_OVERRIDE_MODULES.filter(m => m.layoutAffecting).map(m => classNameFor(m.id)));
+
+	/** Whether a layout-affecting module was active at the last applied selection. */
+	private layoutAffectingActive = false;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -119,14 +130,21 @@ export class StyleOverridesContribution extends Disposable implements IWorkbench
 	) {
 		super();
 
+		this.layoutAffectingActive = this.hasActiveLayoutAffectingModule();
+
 		// A config change re-applies to every container (the global `update()`
 		// covers all windows, including auxiliary ones).
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(SETTING_ID)) {
 				this.update();
 				// Some modules drive layout-affecting CSS variables (e.g. the
-				// `paneHeaders` header size). Relayout so the new values are read.
-				this.layoutService.layout();
+				// `paneHeaders` header size). Only relayout when one of those is
+				// toggled, to avoid an unnecessary full workbench relayout.
+				const layoutAffectingActive = this.hasActiveLayoutAffectingModule();
+				if (layoutAffectingActive !== this.layoutAffectingActive) {
+					this.layoutAffectingActive = layoutAffectingActive;
+					this.layoutService.layout();
+				}
 			}
 		}));
 
@@ -150,6 +168,16 @@ export class StyleOverridesContribution extends Disposable implements IWorkbench
 			}
 		}
 		return active;
+	}
+
+	private hasActiveLayoutAffectingModule(): boolean {
+		const active = this.activeClassNames();
+		for (const className of this.layoutAffectingClassNames) {
+			if (active.has(className)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private update(): void {
