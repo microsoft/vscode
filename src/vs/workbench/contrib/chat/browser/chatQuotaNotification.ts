@@ -86,7 +86,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	private _prevAdditionalUsageEnabled: boolean | undefined;
 	private _prevSessionPercentUsed: number | undefined;
 	private _prevWeeklyPercentUsed: number | undefined;
-	private _trajectoryTreatment: 'enabled' | 'control' | undefined;
+	private _trajectoryTreatment: string | undefined;
 	private _trajectoryAssignmentRequested = false;
 	private _activeTrajectoryTelemetryData: ChatQuotaTrajectoryNudgeEvent | undefined;
 
@@ -142,10 +142,15 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	 * Enrolls the user in the trajectory experiment. Called lazily, only once
 	 * the user has met every condition required to render the nudge, so that
 	 * the experiment is not diluted with users who would never be exposed.
+	 *
+	 * Stores the raw treatment value. `undefined` means the user is not
+	 * assigned to the flight (or assignments are not available); only an
+	 * explicit `'enabled'` treatment renders the nudge. We deliberately do not
+	 * coerce a missing assignment into a synthetic "control" value, since that
+	 * would assume an enrollment that may not exist.
 	 */
 	private async _resolveTrajectoryTreatment(): Promise<void> {
-		const treatment = await this._assignmentService.getTreatment<string>(TRAJECTORY_TREATMENT);
-		this._trajectoryTreatment = treatment === 'enabled' ? 'enabled' : 'control';
+		this._trajectoryTreatment = await this._assignmentService.getTreatment<string>(TRAJECTORY_TREATMENT);
 		this._update();
 	}
 

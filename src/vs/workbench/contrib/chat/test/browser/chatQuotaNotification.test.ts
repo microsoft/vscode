@@ -701,6 +701,31 @@ suite('ChatQuotaNotificationContribution', () => {
 			});
 		});
 
+		test('does not show when user is eligible but not assigned to the experiment', async () => {
+			// No treatment configured: getTreatment resolves to undefined, i.e.
+			// the user is not in the flight. This must not be treated as control
+			// enrollment, but it should still attempt exposure since the user met
+			// every render condition.
+			const { assignmentMock, notificationMock } = createContribution({
+				entitlement: ChatEntitlement.Pro,
+				quotas: {
+					resetDate: makeResetDate(24),
+					usageBasedBilling: true,
+					premiumChat: makeQuotaSnapshot(72),
+				},
+			});
+
+			await flushPromises();
+
+			assert.deepStrictEqual({
+				treatments: assignmentMock.getTreatmentCalls,
+				notification: notificationMock.getNotification(),
+			}, {
+				treatments: ['chatQuotaTrajectoryNudge'],
+				notification: undefined,
+			});
+		});
+
 		test('does not show outside monthly usage window', async () => {
 			const results = [];
 			for (const percentRemaining of [91, 64]) {
