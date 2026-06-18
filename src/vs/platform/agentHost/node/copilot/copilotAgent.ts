@@ -48,9 +48,8 @@ import { ActiveClientState } from '../activeClientState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../agentHostGitService.js';
-import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { findMcpChildId } from '../shared/mcpCustomizationController.js';
-import { CopilotBranchNameGenerator } from './copilotBranchNameGenerator.js';
+import { ICopilotBranchNameGenerator } from './copilotBranchNameGenerator.js';
 import { CopilotAgentSession, type CopilotSdkMode } from './copilotAgentSession.js';
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
 import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
@@ -319,7 +318,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _shutdownPromise: Promise<void> | undefined;
 	private readonly _plugins: PluginController;
 	private readonly _sessionLauncher: CopilotSessionLauncher;
-	private readonly _branchNameGenerator: CopilotBranchNameGenerator;
 	readonly onDidCustomizationsChange: Event<void>;
 	/** Per-session active client state for tools + plugin snapshot tracking. */
 	private readonly _activeClients = new ResourceMap<ActiveClient>();
@@ -331,14 +329,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
-		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
+		@ICopilotBranchNameGenerator private readonly _branchNameGenerator: ICopilotBranchNameGenerator,
 		@IAgentHostCompletions completions: IAgentHostCompletions,
 		@IAgentHostCheckpointService private readonly _checkpointService: IAgentHostCheckpointService,
 	) {
 		super();
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController));
 		this._sessionLauncher = this._instantiationService.createInstance(CopilotSessionLauncher);
-		this._branchNameGenerator = new CopilotBranchNameGenerator(this._copilotApiService, this._logService);
 		this.onDidCustomizationsChange = this._plugins.onDidChange;
 		this._register(completions.registerProvider(new CopilotSlashCommandCompletionProvider(this.id, {
 			hasHistory: (sessionId) => !this._provisionalSessions.has(sessionId) && this._sessions.has(sessionId),

@@ -46,7 +46,7 @@ import { AgentHostCompletions, IAgentHostCompletions } from '../../node/agentHos
 import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, getCopilotWorktreeName, getCopilotWorktreesRoot } from '../../node/copilot/copilotAgent.js';
 import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
-import { CopilotBranchNameGenerator, getCopilotBranchNameHintFromMessage, normalizeCopilotBranchName } from '../../node/copilot/copilotBranchNameGenerator.js';
+import { CopilotBranchNameGenerator, ICopilotBranchNameGenerator, getCopilotBranchNameHintFromMessage, normalizeCopilotBranchName } from '../../node/copilot/copilotBranchNameGenerator.js';
 import type { CopilotSessionLaunchPlan, IActiveClientSnapshot } from '../../node/copilot/copilotSessionLauncher.js';
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
@@ -312,10 +312,10 @@ class ResumePathCopilotAgent extends CopilotAgent {
 		@ISessionDataService sessionDataService: ISessionDataService,
 		@IAgentHostGitService gitService: IAgentHostGitService,
 		@IAgentConfigurationService configurationService: IAgentConfigurationService,
-		@ICopilotApiService copilotApiService: ICopilotApiService,
+		@ICopilotBranchNameGenerator branchNameGenerator: ICopilotBranchNameGenerator,
 		@IAgentHostCompletions completions: IAgentHostCompletions,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, new MockAgentHostOTelService(), copilotApiService, completions, NULL_CHECKPOINT_SERVICE);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, new MockAgentHostOTelService(), branchNameGenerator, completions, NULL_CHECKPOINT_SERVICE);
 		this._enablePlanModeOnClient(this._copilotClient as CopilotClient);
 	}
 
@@ -335,10 +335,10 @@ class TestableCopilotAgent extends CopilotAgent {
 		@ISessionDataService sessionDataService: ISessionDataService,
 		@IAgentHostGitService gitService: IAgentHostGitService,
 		@IAgentConfigurationService configurationService: IAgentConfigurationService,
-		@ICopilotApiService copilotApiService: ICopilotApiService,
+		@ICopilotBranchNameGenerator branchNameGenerator: ICopilotBranchNameGenerator,
 		@IAgentHostCompletions completions: IAgentHostCompletions,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, new MockAgentHostOTelService(), copilotApiService, completions, NULL_CHECKPOINT_SERVICE);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, new MockAgentHostOTelService(), branchNameGenerator, completions, NULL_CHECKPOINT_SERVICE);
 		this._enablePlanModeOnClient(this._copilotClient as CopilotClient);
 	}
 
@@ -408,7 +408,9 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 		flush: async () => undefined,
 	});
 	services.set(IAgentHostCompletions, disposables.add(new AgentHostCompletions(logService)));
-	services.set(ICopilotApiService, options?.copilotApiService ?? new TestCopilotApiService());
+	const copilotApiService = options?.copilotApiService ?? new TestCopilotApiService();
+	services.set(ICopilotApiService, copilotApiService);
+	services.set(ICopilotBranchNameGenerator, new CopilotBranchNameGenerator(copilotApiService, logService));
 	services.set(ITelemetryService, NullTelemetryService);
 	if (options?.environmentServiceRegistration !== 'none') {
 		const environmentService = {
