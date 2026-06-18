@@ -21,8 +21,6 @@ export interface IChatInputNotificationAction {
 	readonly label: string;
 	readonly commandId: string;
 	readonly commandArgs?: unknown[];
-	readonly secondary?: boolean;
-	readonly run?: () => void;
 }
 
 export interface IChatInputNotificationMuteAction {

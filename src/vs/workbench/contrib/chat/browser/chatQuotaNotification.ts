@@ -89,7 +89,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	private _trajectoryNudgeEnabled = false;
 	private _trajectoryTreatmentInitialized = false;
 	private _lastLoggedTrajectoryShownSignature: string | undefined;
-	private _activeTrajectoryWarning: { averageDailyUsage: number; percentUsed: number } | undefined;
+	private _activeTrajectoryTelemetryData: ChatQuotaTrajectoryNudgeEvent | undefined;
 
 	constructor(
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
@@ -110,11 +110,11 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			if (id !== QUOTA_NOTIFICATION_ID) {
 				return;
 			}
-			if (this._activeTrajectoryWarning) {
-				this._logQuotaTrajectoryNudgeClosed(this._activeTrajectoryWarning);
+			if (this._activeTrajectoryTelemetryData) {
+				this._logQuotaTrajectoryNudgeClosed(this._activeTrajectoryTelemetryData);
 				this._storeTrajectoryShown();
 			}
-			this._activeTrajectoryWarning = undefined;
+			this._activeTrajectoryTelemetryData = undefined;
 		}));
 		this._register(CommandsRegistry.registerCommand(CREDIT_EFFICIENCY_LEARN_MORE_COMMAND_ID, (accessor: ServicesAccessor) => this._handleCreditEfficiencyLearnMoreCommand(accessor)));
 
@@ -357,8 +357,8 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	private _showQuotaTrajectoryWarning(warning: { averageDailyUsage: number; percentUsed: number }): void {
 		this._showingExhausted = false;
-		this._activeTrajectoryWarning = warning;
-		this._logQuotaTrajectoryNudgeShown(warning);
+		this._activeTrajectoryTelemetryData = this._getQuotaTrajectoryNudgeTelemetryData(warning);
+		this._logQuotaTrajectoryNudgeShown(this._activeTrajectoryTelemetryData);
 		this._storeTrajectoryShown();
 		const learnMoreLink = createMarkdownCommandLink({
 			text: localize('quota.trajectory.learnMore', "Learn more about managing credits"),
@@ -378,34 +378,34 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	}
 
 	private async _handleCreditEfficiencyLearnMoreCommand(accessor: ServicesAccessor): Promise<void> {
-		if (this._activeTrajectoryWarning) {
-			this._handleQuotaTrajectoryNudgeLinkClicked(this._activeTrajectoryWarning);
+		if (this._activeTrajectoryTelemetryData) {
+			this._handleQuotaTrajectoryNudgeLinkClicked(this._activeTrajectoryTelemetryData);
 		}
 		await accessor.get(IOpenerService).open(URI.parse(CREDIT_EFFICIENCY_LEARN_MORE_URL));
 	}
 
-	private _handleQuotaTrajectoryNudgeLinkClicked(warning: { averageDailyUsage: number; percentUsed: number }): void {
-		this._logQuotaTrajectoryNudgeLinkClicked(warning);
+	private _handleQuotaTrajectoryNudgeLinkClicked(data: ChatQuotaTrajectoryNudgeEvent): void {
+		this._logQuotaTrajectoryNudgeLinkClicked(data);
 		this._storeTrajectoryShown();
 		queueMicrotask(() => this._hideNotification());
 	}
 
-	private _logQuotaTrajectoryNudgeShown(warning: { averageDailyUsage: number; percentUsed: number }): void {
+	private _logQuotaTrajectoryNudgeShown(data: ChatQuotaTrajectoryNudgeEvent): void {
 		const resetPeriod = this._getTrajectoryPeriodKey();
 		const signature = resetPeriod ?? 'unknown';
 		if (signature === this._lastLoggedTrajectoryShownSignature) {
 			return;
 		}
 		this._lastLoggedTrajectoryShownSignature = signature;
-		this._telemetryService.publicLog2<ChatQuotaTrajectoryNudgeEvent, ChatQuotaTrajectoryNudgeClassification>('chatQuotaTrajectoryNudgeShown', this._getQuotaTrajectoryNudgeTelemetryData(warning));
+		this._telemetryService.publicLog2<ChatQuotaTrajectoryNudgeEvent, ChatQuotaTrajectoryNudgeClassification>('chatQuotaTrajectoryNudgeShown', data);
 	}
 
-	private _logQuotaTrajectoryNudgeClosed(warning: { averageDailyUsage: number; percentUsed: number }): void {
-		this._telemetryService.publicLog2<ChatQuotaTrajectoryNudgeEvent, ChatQuotaTrajectoryNudgeClassification>('chatQuotaTrajectoryNudgeClosed', this._getQuotaTrajectoryNudgeTelemetryData(warning));
+	private _logQuotaTrajectoryNudgeClosed(data: ChatQuotaTrajectoryNudgeEvent): void {
+		this._telemetryService.publicLog2<ChatQuotaTrajectoryNudgeEvent, ChatQuotaTrajectoryNudgeClassification>('chatQuotaTrajectoryNudgeClosed', data);
 	}
 
-	private _logQuotaTrajectoryNudgeLinkClicked(warning: { averageDailyUsage: number; percentUsed: number }): void {
-		this._telemetryService.publicLog2<ChatQuotaTrajectoryNudgeEvent, ChatQuotaTrajectoryNudgeClassification>('chatQuotaTrajectoryNudgeLinkClicked', this._getQuotaTrajectoryNudgeTelemetryData(warning));
+	private _logQuotaTrajectoryNudgeLinkClicked(data: ChatQuotaTrajectoryNudgeEvent): void {
+		this._telemetryService.publicLog2<ChatQuotaTrajectoryNudgeEvent, ChatQuotaTrajectoryNudgeClassification>('chatQuotaTrajectoryNudgeLinkClicked', data);
 	}
 
 	private _getQuotaTrajectoryNudgeTelemetryData(warning: { averageDailyUsage: number; percentUsed: number }): ChatQuotaTrajectoryNudgeEvent {
@@ -437,7 +437,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	private _showExhaustedNotification(): void {
 		this._showingExhausted = true;
-		this._activeTrajectoryWarning = undefined;
+		this._activeTrajectoryTelemetryData = undefined;
 
 		const entitlement = this._chatEntitlementService.entitlement;
 		const quotas = this._chatEntitlementService.quotas;
@@ -479,7 +479,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	private _showOverageActivationNotification(): void {
 		this._showingExhausted = true;
-		this._activeTrajectoryWarning = undefined;
+		this._activeTrajectoryTelemetryData = undefined;
 
 		this._setNotification({
 			id: QUOTA_NOTIFICATION_ID,
@@ -497,7 +497,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	private _showQuotaApproachingWarning(warning: { percentUsed: number }): void {
 		this._showingExhausted = false;
-		this._activeTrajectoryWarning = undefined;
+		this._activeTrajectoryTelemetryData = undefined;
 
 		const entitlement = this._chatEntitlementService.entitlement;
 		const quotas = this._chatEntitlementService.quotas;
@@ -570,7 +570,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	private _showRateLimitWarning(warning: { percentUsed: number; type: 'session' | 'weekly'; resetDate: string | undefined }): void {
 		this._showingExhausted = false;
-		this._activeTrajectoryWarning = undefined;
+		this._activeTrajectoryTelemetryData = undefined;
 
 		const message = warning.type === 'session'
 			? localize('rateLimit.session', "You've used {0}% of your session rate limit.", warning.percentUsed)
@@ -619,7 +619,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	private _showManagedPlanBlockedNotification(): void {
 		this._showingExhausted = true;
-		this._activeTrajectoryWarning = undefined;
+		this._activeTrajectoryTelemetryData = undefined;
 
 		this._setNotification({
 			id: QUOTA_NOTIFICATION_ID,
@@ -673,7 +673,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	private _hideNotification(): void {
 		this._showingExhausted = false;
-		this._activeTrajectoryWarning = undefined;
+		this._activeTrajectoryTelemetryData = undefined;
 		this._chatInputNotificationService.deleteNotification(QUOTA_NOTIFICATION_ID);
 	}
 

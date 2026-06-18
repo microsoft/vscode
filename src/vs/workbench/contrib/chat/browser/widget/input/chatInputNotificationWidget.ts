@@ -205,11 +205,11 @@ export class ChatInputNotificationWidget extends Disposable {
 
 				for (let i = 0; i < notification.actions.length; i++) {
 					const action = notification.actions[i];
-					const isSecondary = action.secondary ?? i !== notification.actions.length - 1;
+					const isLast = i === notification.actions.length - 1;
 
 					const button = this._contentDisposables.add(new Button(actionsContainer, {
 						...defaultButtonStyles,
-						...(isSecondary ? {
+						...(!isLast ? {
 							buttonBackground: undefined,
 							buttonHoverBackground: undefined,
 							buttonForeground: undefined,
@@ -219,7 +219,7 @@ export class ChatInputNotificationWidget extends Disposable {
 							buttonSecondaryBorder: undefined,
 						} : {}),
 						supportIcons: true,
-						secondary: isSecondary,
+						secondary: !isLast,
 					}));
 					button.element.classList.add('chat-input-notification-action-button');
 					button.label = action.label;
@@ -230,7 +230,6 @@ export class ChatInputNotificationWidget extends Disposable {
 							id: action.commandId,
 							from: 'chatInputNotification',
 						});
-						action.run?.();
 						await this._commandService.executeCommand(action.commandId, ...(action.commandArgs ?? []));
 					}));
 				}

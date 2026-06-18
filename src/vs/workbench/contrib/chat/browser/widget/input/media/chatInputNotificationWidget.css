@@ -127,7 +127,6 @@
 /* Body row: description + actions inline, wraps at small widths */
 .chat-input-notification .chat-input-notification-body {
 	display: flex;
-	flex-wrap: wrap;
 	align-items: flex-start;
 	gap: 8px;
 	min-width: 0;
@@ -139,7 +138,7 @@
 	font-size: var(--vscode-agents-fontSize-label1);
 	line-height: 18px;
 	color: var(--vscode-descriptionForeground);
-	flex: 1 1 160px;
+	flex: 1 1 auto;
 	min-width: 0;
 	overflow-wrap: break-word;
 	word-break: break-word;
