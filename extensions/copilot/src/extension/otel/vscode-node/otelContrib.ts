@@ -172,21 +172,23 @@ export class OTelContrib extends Disposable implements IExtensionContribution {
 	private _refreshChatStatusItem(item: vscode.ChatStatusItem): void {
 		const config = this._otelService.config;
 		const destination = this._formatStatusDestination();
-		const captureContent = config.captureContent ? vscode.l10n.t('On') : vscode.l10n.t('Off');
+		const captureContent = config.captureContent
+			? vscode.l10n.t('Conversation content is captured, including prompts, responses, system instructions, and tool definitions.')
+			: vscode.l10n.t('Conversation content is not captured.');
 
 		item.title = {
 			label: vscode.l10n.t('OpenTelemetry'),
 			link: DOCS_URL,
 			helpText: vscode.l10n.t('Open documentation for OpenTelemetry monitoring.'),
 		};
-		item.description = config.captureContent ? vscode.l10n.t('Capture On') : vscode.l10n.t('On');
+		item.description = vscode.l10n.t('On');
 		item.detail = vscode.l10n.t(
-			"Chat is being monitored with {0} via OpenTelemetry. Capture content: {1}. [Manage](command:{2})",
+			"OpenTelemetry is exporting to {0}. {1} [Manage](command:{2})",
 			destination.detail,
 			captureContent,
 			OPEN_OTEL_SETTINGS_COMMAND,
 		);
-		item.tooltip = vscode.l10n.t('Chat is being monitored with {0} via OpenTelemetry. Capture content: {1}.', destination.tooltip, captureContent);
+		item.tooltip = vscode.l10n.t('OpenTelemetry is exporting to {0}. {1}', destination.tooltip, captureContent);
 		item.show();
 	}
 
@@ -195,20 +197,20 @@ export class OTelContrib extends Disposable implements IExtensionContribution {
 		switch (config.exporterType) {
 			case 'console':
 				return {
-					detail: vscode.l10n.t('the console exporter'),
+					detail: `**${vscode.l10n.t('console exporter')}**`,
 					tooltip: vscode.l10n.t('the console exporter'),
 				};
 			case 'file': {
 				const filePath = config.fileExporterPath;
 				if (!filePath || filePath === os.devNull) {
 					return {
-						detail: vscode.l10n.t('the file exporter'),
+						detail: `**${vscode.l10n.t('file exporter')}**`,
 						tooltip: vscode.l10n.t('the file exporter'),
 					};
 				}
 				const fileBaseName = filePath.replace(/^.*[\\/]/, '');
 				return {
-					detail: `\`${fileBaseName}\``,
+					detail: `**${fileBaseName}**`,
 					tooltip: filePath,
 				};
 			}
@@ -216,7 +218,7 @@ export class OTelContrib extends Disposable implements IExtensionContribution {
 			case 'otlp-http': {
 				const host = this._formatEndpointHost(config.otlpEndpoint);
 				return {
-					detail: `\`${host}\``,
+					detail: `**${host}**`,
 					tooltip: config.otlpEndpoint,
 				};
 			}
