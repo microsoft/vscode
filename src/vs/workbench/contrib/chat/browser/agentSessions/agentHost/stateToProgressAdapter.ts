@@ -12,14 +12,14 @@ import { MessageKind, ToolCallContributorKind, ToolCallStatus, TurnState, Respon
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { getChatErrorDetailsFromMeta, IChatErrorContext } from '../../../common/chatErrorMessages.js';
 import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAttachment } from '../../../../../../platform/agentHost/common/agentFeedbackAttachments.js';
+import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAnnotationsAttachment, isAgentFeedbackAttachment } from '../../../../../../platform/agentHost/common/agentFeedbackAttachments.js';
 import { isViewUnreviewedCommentsTool } from '../../../../../../platform/agentHost/common/agentFeedbackAnnotations.js';
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatExternalEdit, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { type IChatRequestVariableData } from '../../../common/model/chatModel.js';
-import { AgentHostCompletionReferenceKind, restorePasteVariableEntryFromAttachment, toAgentHostCompletionVariableEntryFromMetadata, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { AgentHostCompletionReferenceKind, restorePasteVariableEntryFromAttachment, toAgentHostCompletionVariableEntryFromMetadata, type IAgentFeedbackVariableEntry, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { type IToolConfirmationMessages, type IToolData, type IToolResult, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
 import { basename, isEqual } from '../../../../../../base/common/resources.js';
@@ -298,13 +298,64 @@ export function messageAttachmentsToVariableData(attachments: readonly MessageAt
 		return undefined;
 	}
 	const variables: IChatRequestVariableEntry[] = [];
+	// Agent feedback is sent as one annotations attachment per comment; restore
+	// them into a single aggregated agentFeedback entry so history shows one
+	// "N comments" chip rather than one chip per comment.
+	const aggregatedFeedback = aggregateAgentFeedbackAnnotationAttachments(attachments, connectionAuthority);
+	if (aggregatedFeedback) {
+		variables.push(aggregatedFeedback);
+	}
 	for (const a of attachments) {
+		if (isAgentFeedbackAnnotationsAttachment(a)) {
+			continue; // handled by the aggregation above
+		}
 		const v = messageAttachmentToVariableEntry(a, connectionAuthority);
 		if (v) {
 			variables.push(v);
 		}
 	}
 	return variables.length > 0 ? { variables } : undefined;
+}
+
+function aggregateAgentFeedbackAnnotationAttachments(attachments: readonly MessageAttachment[], connectionAuthority: string): IAgentFeedbackVariableEntry | undefined {
+	const feedbackAttachments = attachments.filter(isAgentFeedbackAnnotationsAttachment);
+	if (feedbackAttachments.length === 0) {
+		return undefined;
+	}
+	let sessionResource: string | undefined;
+	let annotationsResource: string | undefined;
+	const feedbackItems: IAgentFeedbackVariableEntry['feedbackItems'][number][] = [];
+	for (const attachment of feedbackAttachments) {
+		annotationsResource ??= attachment.resource;
+		const metadata = getAgentFeedbackAttachmentMetadata(attachment);
+		if (!metadata) {
+			continue;
+		}
+		sessionResource ??= metadata.sessionResource;
+		for (const item of metadata.feedbackItems) {
+			feedbackItems.push({
+				id: item.id,
+				text: item.text,
+				resourceUri: toAgentHostUri(URI.parse(item.resourceUri), connectionAuthority),
+				range: textRangeToIRange(item.range),
+				...(item.replies?.length ? { replies: item.replies } : {}),
+			});
+		}
+	}
+	if (feedbackItems.length === 0 || !sessionResource) {
+		return undefined;
+	}
+	return {
+		kind: 'agentFeedback',
+		id: generateUuid(),
+		name: feedbackItems.length === 1
+			? localize('agentFeedback.one', "1 comment")
+			: localize('agentFeedback.many', "{0} comments", feedbackItems.length),
+		value: feedbackAttachments[0].label,
+		sessionResource: URI.parse(sessionResource),
+		annotationsResource: annotationsResource ? URI.parse(annotationsResource) : undefined,
+		feedbackItems,
+	};
 }
 
 function messageAttachmentToVariableEntry(attachment: MessageAttachment, connectionAuthority: string): IChatRequestVariableEntry | undefined {
