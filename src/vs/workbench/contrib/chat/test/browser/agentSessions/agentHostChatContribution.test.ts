@@ -3609,7 +3609,7 @@ suite('AgentHostChatContribution', () => {
 			]);
 		}));
 
-		test('agent feedback variable is dropped (feedback lives in the annotations channel)', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		test('agent feedback variable becomes a simple attachment when no annotations channel is known', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/feedback-test' });
 
@@ -3643,7 +3643,27 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
 			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
-			assert.strictEqual(turnAction.message.attachments, undefined);
+			assert.deepStrictEqual(turnAction.message.attachments, [{
+				type: MessageAttachmentKind.Simple,
+				label: 'Feedback',
+				modelRepresentation: 'Feedback text for the model',
+				displayKind: AgentFeedbackAttachmentDisplayKind,
+				_meta: {
+					source: 'test',
+					[AgentFeedbackAttachmentMetadataKey]: {
+						sessionResource: sessionResource.toString(),
+						feedbackItems: [{
+							id: 'feedback-1',
+							text: 'Please simplify this.',
+							resourceUri: URI.file('/workspace/foo.ts').toString(),
+							range: {
+								start: { line: 1, character: 2 },
+								end: { line: 3, character: 4 },
+							},
+						}],
+					},
+				},
+			}]);
 		}));
 
 		test('directory variable with file:// URI becomes directory attachment', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -3912,6 +3932,26 @@ suite('AgentHostChatContribution', () => {
 						range: {
 							start: { line: 1, character: 2 },
 							end: { line: 3, character: 4 },
+						},
+					},
+				},
+				{
+					type: MessageAttachmentKind.Simple,
+					label: 'Feedback',
+					modelRepresentation: 'Feedback text for the model',
+					displayKind: AgentFeedbackAttachmentDisplayKind,
+					_meta: {
+						[AgentFeedbackAttachmentMetadataKey]: {
+							sessionResource: 'agent-host-copilot:/new-turntest',
+							feedbackItems: [{
+								id: 'feedback-1',
+								text: 'Please simplify this.',
+								resourceUri: feedbackUri.toString(),
+								range: {
+									start: { line: 5, character: 0 },
+									end: { line: 5, character: 7 },
+								},
+							}],
 						},
 					},
 				},
