@@ -199,6 +199,16 @@ export function setup(logger: Logger) {
 					await app.workbench.agentsWindow.waitForNewSessionView();
 					logger.log(`[Agents Window/${session.name}] new session view ready`);
 
+					if (session.name === 'Claude') {
+						// Pre-pay the Claude session cold-start cost (#321072): the first
+						// Claude session in the Agents Window's extension host has to
+						// bundle-load the SDK, start the localhost language model server,
+						// spawn the SDK subprocess and load plugins — collectively often
+						// >60s on macOS arm64 CI. A throwaway prompt absorbs that cost so
+						// the real assertion below runs against a warm pipeline.
+						await warmUpClaudeModel(app, logger, 'Agents Window/Claude');
+					}
+
 					logger.log(`[Agents Window/${session.name}] selecting session type '${session.name}'`);
 					await app.workbench.agentsWindow.selectSessionType(session.name);
 
