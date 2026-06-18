@@ -18,6 +18,7 @@ import { workbenchConfigurationNodeBase } from '../../../common/configuration.js
 // until the matching class is toggled onto the workbench container(s) below.
 import './media/activityBar.css';
 import './media/fontRamp.css';
+import './media/keyboardFocusOnly.css';
 import './media/padding.css';
 import './media/paneHeaders.css';
 import './media/roundedCorners.css';
@@ -47,6 +48,11 @@ const STYLE_OVERRIDE_MODULES: readonly IStyleOverrideModule[] = [
 		id: 'fontRamp',
 		label: localize('styleOverrides.fontRamp', "Font Ramp"),
 		description: localize('styleOverrides.fontRamp.description', "Applies a unified typographic ramp across the workbench: headings at 26/18px, 13px body, 12px section titles and tabs, 11px metadata and 10px badges.")
+	},
+	{
+		id: 'keyboardFocusOnly',
+		label: localize('styleOverrides.keyboardFocusOnly', "Keyboard-Only Focus Borders"),
+		description: localize('styleOverrides.keyboardFocusOnly.description', "Hides focus borders that appear when panels are focused with the mouse, while keeping them for keyboard navigation.")
 	},
 	{
 		id: 'padding',
