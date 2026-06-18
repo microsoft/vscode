@@ -543,7 +543,7 @@ suite('ChatQuotaNotificationContribution', () => {
 
 			await flushPromises();
 
-			// Initial treatment resolution stores 75% as the baseline without notifying.
+			// First data arrival stores 75% as the baseline without notifying.
 			assert.strictEqual(notificationMock.getNotification(), undefined);
 		});
 
@@ -690,8 +690,6 @@ suite('ChatQuotaNotificationContribution', () => {
 				},
 			}, { trajectoryTreatment: 'enabled' });
 
-			await flushPromises();
-			assignmentMock.onDidRefetchAssignments.fire();
 			await flushPromises();
 
 			assert.deepStrictEqual({

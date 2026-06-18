@@ -86,8 +86,8 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	private _prevAdditionalUsageEnabled: boolean | undefined;
 	private _prevSessionPercentUsed: number | undefined;
 	private _prevWeeklyPercentUsed: number | undefined;
-	private _trajectoryNudgeEnabled = false;
-	private _trajectoryTreatmentInitialized = false;
+	private _trajectoryTreatment: 'enabled' | 'control' | undefined;
+	private _trajectoryAssignmentRequested = false;
 	private _activeTrajectoryTelemetryData: ChatQuotaTrajectoryNudgeEvent | undefined;
 
 	constructor(
@@ -104,7 +104,6 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		this._register(this._chatEntitlementService.onDidChangeQuotaRemaining(() => this._update()));
 		this._register(this._chatEntitlementService.onDidChangeQuotaExceeded(() => this._update()));
 		this._register(this._chatEntitlementService.onDidChangeEntitlement(() => this._update()));
-		this._register(this._assignmentService.onDidRefetchAssignments(() => { void this._updateTrajectoryTreatment(); }));
 		this._register(this._chatInputNotificationService.onDidDismiss(id => {
 			if (id !== QUOTA_NOTIFICATION_ID) {
 				return;
@@ -134,29 +133,17 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 				this._setExhaustedDismissed();
 			}
 		}));
-
-		// Check initial state in case quota is already exhausted at startup
-		void this._updateTrajectoryTreatment();
 		this._update();
 	}
 
-	private async _updateTrajectoryTreatment(): Promise<void> {
-		if (!Language.isDefaultVariant()) {
-			this._setTrajectoryTreatment(false);
-			return;
-		}
-
-		const trajectoryTreatment = await this._assignmentService.getTreatment<string>(TRAJECTORY_TREATMENT);
-		this._setTrajectoryTreatment(trajectoryTreatment === 'enabled');
-	}
-
-	private _setTrajectoryTreatment(trajectoryEnabled: boolean): void {
-		const wasInitialized = this._trajectoryTreatmentInitialized;
-		this._trajectoryTreatmentInitialized = true;
-		if (wasInitialized && this._trajectoryNudgeEnabled === trajectoryEnabled) {
-			return;
-		}
-		this._trajectoryNudgeEnabled = trajectoryEnabled;
+	/**
+	 * Enrolls the user in the trajectory experiment. Called lazily, only once
+	 * the user has met every condition required to render the nudge, so that
+	 * the experiment is not diluted with users who would never be exposed.
+	 */
+	private async _resolveTrajectoryTreatment(): Promise<void> {
+		const treatment = await this._assignmentService.getTreatment<string>(TRAJECTORY_TREATMENT);
+		this._trajectoryTreatment = treatment === 'enabled' ? 'enabled' : 'control';
 		this._update();
 	}
 
@@ -247,23 +234,23 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			return;
 		}
 
-		// Nothing new to show — only hide if the exhausted notification is
-		// active and the quota is no longer exhausted (state-driven).
-		if (this._showingExhausted && !this._isQuotaUsedUp()) {
-			this._hideNotification();
-		}
-
-		if (!this._trajectoryTreatmentInitialized) {
-			this._captureNotificationBaselines();
-			return;
-		}
-
 		// Priority 2: Quota approaching threshold
 		if (isQuotaNotificationEligible) {
-			const trajectoryWarning = this._computeQuotaTrajectoryWarning();
-			if (trajectoryWarning) {
-				this._showQuotaTrajectoryWarning(trajectoryWarning);
-				return;
+			const trajectoryCandidate = this._computeQuotaTrajectoryCandidate();
+			if (trajectoryCandidate) {
+				// Enroll only now that every render condition is met, so the
+				// treatment and control cohorts are assigned at the same point.
+				if (!this._trajectoryAssignmentRequested) {
+					this._trajectoryAssignmentRequested = true;
+					void this._resolveTrajectoryTreatment();
+				}
+				if (this._trajectoryTreatment === undefined) {
+					return; // assignment pending — don't show lower-priority notifications yet
+				}
+				if (this._trajectoryTreatment === 'enabled') {
+					this._showQuotaTrajectoryWarning(trajectoryCandidate);
+					return;
+				}
 			}
 
 			const quotaWarning = this._computeQuotaWarning();
@@ -279,23 +266,15 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			this._showRateLimitWarning(rateLimitWarning);
 			return;
 		}
+
+		// Nothing new to show — only hide if the exhausted notification is
+		// active and the quota is no longer exhausted (state-driven).
+		if (this._showingExhausted && !this._isQuotaUsedUp()) {
+			this._hideNotification();
+		}
 	}
 
 	// --- Threshold crossing detection ----------------------------------------
-
-	private _captureNotificationBaselines(): void {
-		const snapshot = this._getRelevantSnapshot();
-		this._prevQuotaPercentUsed = !snapshot || snapshot.unlimited ? undefined : 100 - snapshot.percentRemaining;
-		this._prevSessionPercentUsed = this._getRateLimitPercentUsed(this._chatEntitlementService.quotas.sessionRateLimit);
-		this._prevWeeklyPercentUsed = this._getRateLimitPercentUsed(this._chatEntitlementService.quotas.weeklyRateLimit);
-	}
-
-	private _getRateLimitPercentUsed(snapshot: IRateLimitSnapshot | undefined): number | undefined {
-		if (!snapshot || snapshot.unlimited) {
-			return undefined;
-		}
-		return 100 - snapshot.percentRemaining;
-	}
 
 	private _computeQuotaWarning(): { percentUsed: number } | undefined {
 		const snapshot = this._getRelevantSnapshot();
@@ -312,8 +291,8 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		return undefined;
 	}
 
-	private _computeQuotaTrajectoryWarning(): { averageDailyUsage: number; percentUsed: number } | undefined {
-		if (!this._trajectoryNudgeEnabled || !this._isTrajectoryEligibleEntitlement() || this._isTrajectoryShownInCurrentPeriod()) {
+	private _computeQuotaTrajectoryCandidate(): { averageDailyUsage: number; percentUsed: number } | undefined {
+		if (!Language.isDefaultVariant() || !this._isTrajectoryEligibleEntitlement() || this._isTrajectoryShownInCurrentPeriod()) {
 			return undefined;
 		}
 
