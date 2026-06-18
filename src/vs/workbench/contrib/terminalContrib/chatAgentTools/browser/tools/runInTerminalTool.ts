@@ -80,7 +80,7 @@ import { clamp } from '../../../../../../base/common/numbers.js';
 import { IOutputAnalyzer } from './outputAnalyzer.js';
 import { SandboxOutputAnalyzer, outputLooksSandboxBlocked, outputLooksSandboxNetworkBlocked } from './sandboxOutputAnalyzer.js';
 import { IAgentSessionsService } from '../../../../chat/browser/agentSessions/agentSessionsService.js';
-import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, TerminalSandboxPreCheckRemediation, type ITerminalSandboxPrecheckInputs, type ITerminalSandboxResolvedNetworkDomains } from '../../common/terminalSandboxService.js';
+import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, TerminalSandboxPreCheckRemediation, type ITerminalSandboxPrecheckInputs, type ITerminalSandboxResolvedNetworkDomains, type TerminalSandboxFileAccessPermission } from '../../common/terminalSandboxService.js';
 import { LanguageModelPartAudience } from '../../../../chat/common/languageModels.js';
 import { isSessionAutoApproveLevel, isTerminalAutoApproveAllowed, isToolEligibleForTerminalAutoApproval } from './terminalToolAutoApprove.js';
 import type { IJSONSchemaMap } from '../../../../../../base/common/jsonSchema.js';
@@ -169,6 +169,7 @@ function createSandboxLines(allowToRunUnsandboxedCommands: boolean, retryWithAll
 		'- When executing commands within the sandboxed environment, all operations requiring a temporary directory must utilize the $TMPDIR environment variable. The /tmp directory is not guaranteed to be accessible or writable and must be avoided',
 		'- Tools and scripts should respect the TMPDIR environment variable, which is automatically set to an appropriate path within the sandbox',
 		'- If the Git commands fail while chained together (using && or ;), rewrite and run them as separate, individual commands',
+		'- If a command needs sandboxed read or write access to a specific file path outside workspace, pass requestFileValidationCheck with the permission needed and corresponding file paths. VS Code checks sandbox access before execution and returns Access Denied without running the command when access is unavailable.',
 	];
 	if (retryWithAllowNetworkRequests) {
 		lines.push(
@@ -362,6 +363,30 @@ export async function createRunInTerminalToolData(
 		requestAllowNetworkReason: {
 			type: 'string',
 			description: 'A short explanation of why this sandboxed command needs unrestricted network access. Only provide this when requestAllowNetwork is true.'
+		},
+		requestFileValidationCheck: {
+			type: 'array',
+			description: 'Sandbox file access checks to perform before running the command. Provide the required permission and the corresponding file paths that the command needs to access.',
+			items: {
+				type: 'object',
+				properties: {
+					permission: {
+						type: 'string',
+						enum: ['read', 'write'],
+						description: 'The sandbox file permission needed for these paths.'
+					},
+					paths: {
+						type: 'array',
+						items: { type: 'string' },
+						description: 'The file paths that require the specified sandbox permission.'
+					}
+				},
+				required: ['permission', 'paths']
+			}
+		},
+		requestFileValidationCheckReason: {
+			type: 'string',
+			description: 'A short explanation of why this sandboxed command needs these file paths. Only provide this when requestFileValidationCheck is not empty.'
 		}
 	} : {};
 
@@ -431,7 +456,19 @@ export interface IRunInTerminalInputParams {
 	requestUnsandboxedExecutionReason?: string;
 	requestAllowNetwork?: boolean;
 	requestAllowNetworkReason?: string;
+	requestFileValidationCheck?: IRunInTerminalFileValidationCheck[];
+	requestFileValidationCheckReason?: string;
 	allowToRunUnsandboxedCommands?: boolean;
+}
+
+export interface IRunInTerminalFileValidationCheck {
+	permission: TerminalSandboxFileAccessPermission;
+	paths: string[];
+}
+
+interface IRunInTerminalDeniedFileAccess {
+	permission: TerminalSandboxFileAccessPermission;
+	path: string;
 }
 
 interface IResolvedExecutionOptions {
@@ -733,6 +770,33 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		return localize(
 			'runInTerminal.allowNetwork.disabled.result',
 			"The command was not executed because it requested unrestricted network access in the terminal sandbox, but per-command network access is disabled by chat.agent.sandbox.retryWithAllowNetworkRequests. Run the command with restricted network access instead, or enable the setting to allow network access requests."
+		);
+	}
+
+	private async _getDeniedSandboxFileAccess(checks: readonly IRunInTerminalFileValidationCheck[] | undefined, sandboxPrecheckInputs: ITerminalSandboxPrecheckInputs | undefined): Promise<IRunInTerminalDeniedFileAccess[]> {
+		if (!checks?.length) {
+			return [];
+		}
+
+		const deniedAccess: IRunInTerminalDeniedFileAccess[] = [];
+		for (const check of checks) {
+			if ((check.permission !== 'read' && check.permission !== 'write') || !Array.isArray(check.paths)) {
+				continue;
+			}
+			const result = await this._terminalSandboxService.checkFileAccess(check.permission, check.paths, sandboxPrecheckInputs);
+			for (const path of result.denied) {
+				deniedAccess.push({ permission: check.permission, path });
+			}
+		}
+		return deniedAccess;
+	}
+
+	private _buildSandboxFileAccessDeniedMessage(deniedAccess: readonly IRunInTerminalDeniedFileAccess[]): string {
+		const deniedPaths = deniedAccess.map(({ permission, path }) => `${permission}: ${path}`).join('\n');
+		return localize(
+			'runInTerminal.sandbox.fileAccessDenied',
+			"Access Denied: The command was not executed because the terminal sandbox does not allow access to the requested file paths:\n{0}",
+			deniedPaths
 		);
 	}
 
@@ -1843,6 +1907,25 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
+		}
+
+		if (didSandboxWrapCommand) {
+			const deniedAccess = await this._getDeniedSandboxFileAccess(args.requestFileValidationCheck, sandboxPrecheckInputs);
+			if (deniedAccess.length > 0) {
+				const message = this._buildSandboxFileAccessDeniedMessage(deniedAccess);
+				return {
+					toolResultError: message,
+					toolResultDetails: {
+						input: args.command,
+						output: [{ type: 'embed', isText: true, value: message }],
+						isError: true,
+					},
+					content: [{
+						kind: 'text',
+						value: message,
+					}],
+				};
+			}
 		}
 
 		let error: string | undefined;
