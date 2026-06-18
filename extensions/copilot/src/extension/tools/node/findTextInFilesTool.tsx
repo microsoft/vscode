@@ -19,6 +19,7 @@ import { raceTimeoutAndCancellationError } from '../../../util/common/racePromis
 import { asArray } from '../../../util/vs/base/common/arrays';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { isAbsolute } from '../../../util/vs/base/common/path';
+import { count } from '../../../util/vs/base/common/strings';
 import { URI } from '../../../util/vs/base/common/uri';
 import { Position as EditorPosition } from '../../../util/vs/editor/common/core/position';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
@@ -30,7 +31,6 @@ import { ToolName } from '../common/toolNames';
 import { CopilotToolMode, ICopilotTool, ToolRegistry } from '../common/toolsRegistry';
 import { checkCancellation, InputGlobResult, inputGlobToPattern, patternContainsWorkspaceFolderPath } from './toolUtils';
 import { IExperimentationService } from '../../../lib/node/chatLibMain';
-import { splitLines } from '../../../util/vs/base/common/strings';
 
 interface IFindTextInFilesToolParams {
 	query: string;
@@ -461,6 +461,9 @@ export interface FindTextInFilesResultProps extends BasePromptElementProps {
 	noMatchInstructions?: string;
 }
 
+/** Max number of characters between matching ranges. */
+const MAX_CHARS_BETWEEN_MATCHES = 500;
+
 /** Start priority for findFiles lines so that context is gradually trimmed. */
 const FIND_FILES_START_PRIORITY = 1000;
 
@@ -510,17 +513,6 @@ interface IFindMatchProps extends BasePromptElementProps {
  * 3. Prioritizes lines in the middle of the match where the range lies
  */
 export class FindMatch extends PromptElement<IFindMatchProps> {
-
-	/** Max number of characters between matching ranges. */
-	private static readonly MAX_CHARS_BETWEEN_MATCHES = 500;
-
-	/**
-	 * Max number of characters of the matched span itself to include before eliding its
-	 * middle. Prevents a single match (e.g. a greedy regex matching a multi-megabyte minified
-	 * line) from contributing an unbounded amount of text.
-	 */
-	private static readonly MAX_MATCH_PREVIEW_CHARS = 2000;
-
 	constructor(
 		props: PromptElementProps<IFindMatchProps>,
 		@IPromptPathRepresentationService private readonly promptPathRepresentationService: IPromptPathRepresentationService,
@@ -536,7 +528,18 @@ export class FindMatch extends PromptElement<IFindMatchProps> {
 		const start = convert.positionToOffset(new EditorPosition(rangeInPreview.start.line + 1, rangeInPreview.start.character + 1));
 		const end = convert.positionToOffset(new EditorPosition(rangeInPreview.end.line + 1, rangeInPreview.end.character + 1));
 
-		const toPreviewLines = FindMatch.boundMatchPreview(preview, start, end);
+		let toPreview = preview;
+		let lineStartsAt = (rangeInDocument.start.line + 1) - count(preview.slice(0, start), '\n');
+		if (preview.length - end > MAX_CHARS_BETWEEN_MATCHES) {
+			toPreview = preview.slice(0, end + MAX_CHARS_BETWEEN_MATCHES) + '...';
+		}
+
+		if (start > MAX_CHARS_BETWEEN_MATCHES) {
+			lineStartsAt += count(preview.slice(0, start - MAX_CHARS_BETWEEN_MATCHES), '\n');
+			toPreview = '...' + toPreview.slice(start - MAX_CHARS_BETWEEN_MATCHES);
+		}
+
+		const toPreviewLines = toPreview.split('\n');
 		const center = Math.floor(toPreviewLines.length / 2);
 		return <Tag name='match' attrs={{
 			path: this.promptPathRepresentationService.getFilePath(uri),
@@ -549,90 +552,6 @@ export class FindMatch extends PromptElement<IFindMatchProps> {
 				</TextChunk>
 			)}
 		</Tag>;
-	}
-
-	/**
-	 * Bounds a match preview so a single match cannot contribute an unbounded amount of text,
-	 * returning the result already split into lines (so callers don't need to split again).
-	 *
-	 * - Trims surrounding context to {@link MAX_CHARS_BETWEEN_MATCHES} characters on each side.
-	 * - If the matched span itself exceeds {@link MAX_MATCH_PREVIEW_CHARS}, elides it via
-	 *   {@link elideMatchTextLines}: the middle characters (single-line) or the middle lines
-	 *   (multi-line) are dropped while the match's boundaries stay visible.
-	 *
-	 * For matches within these limits the surrounding window is returned unchanged.
-	 *
-	 * @param preview The full preview text (may span multiple lines and be very large).
-	 * @param start Offset of the match start within `preview`.
-	 * @param end Offset of the match end within `preview`.
-	 */
-	private static boundMatchPreview(preview: string, start: number, end: number): string[] {
-		start = Math.max(0, Math.min(start, preview.length));
-		end = Math.max(start, Math.min(end, preview.length));
-
-		const matchText = preview.slice(start, end);
-		const matchLines = matchText.length > this.MAX_MATCH_PREVIEW_CHARS
-			? this.elideMatchTextLines(matchText)
-			: splitLines(matchText);
-
-		const prefix = start > this.MAX_CHARS_BETWEEN_MATCHES ? '...' : '';
-		const suffix = preview.length - end > this.MAX_CHARS_BETWEEN_MATCHES ? '...' : '';
-		const beforeLines = splitLines(prefix + preview.slice(Math.max(0, start - this.MAX_CHARS_BETWEEN_MATCHES), start));
-		const afterLines = splitLines(preview.slice(end, end + this.MAX_CHARS_BETWEEN_MATCHES) + suffix);
-
-		// The last `before` line shares a physical line with the first match line, and the last match
-		// line shares a physical line with the first `after` line, so stitch them together at those
-		// seams rather than joining everything and splitting again.
-		const head = beforeLines[beforeLines.length - 1];
-		const tail = afterLines[0];
-		const lines = beforeLines.slice(0, -1);
-		if (matchLines.length === 1) {
-			lines.push(head + matchLines[0] + tail);
-		} else {
-			lines.push(head + matchLines[0]);
-			for (let i = 1; i < matchLines.length - 1; i++) {
-				lines.push(matchLines[i]);
-			}
-			lines.push(matchLines[matchLines.length - 1] + tail);
-		}
-		lines.push(...afterLines.slice(1));
-		return lines;
-	}
-
-	/**
-	 * Bounds the matched span itself so a single match cannot contribute an unbounded amount of text,
-	 * returning the bounded match as an array of lines.
-	 *
-	 * - A single-line match keeps its head and tail and elides the middle characters.
-	 * - A multi-line match keeps only its first and last line (each width-bounded the same way) and
-	 *   elides the lines in between, so the start and end of the match both remain visible instead of
-	 *   being cut mid-way.
-	 */
-	private static elideMatchTextLines(matchText: string): string[] {
-		if (!matchText.includes('\n')) {
-			return [this.elideLineWidth(matchText)];
-		}
-		const lines = splitLines(matchText);
-		const first = this.elideLineWidth(lines[0]);
-		const last = this.elideLineWidth(lines[lines.length - 1]);
-		const elidedLines = lines.length - 2;
-		return elidedLines > 0
-			? [first, `[... ${elidedLines} ${elidedLines === 1 ? 'line' : 'lines'} elided ...]`, last]
-			: [first, last];
-	}
-
-	/**
-	 * Elides the middle of a single line if it exceeds {@link MAX_MATCH_PREVIEW_CHARS}, keeping its
-	 * head and tail so both ends of the line remain visible.
-	 */
-	private static elideLineWidth(line: string): string {
-		if (line.length <= this.MAX_MATCH_PREVIEW_CHARS) {
-			return line;
-		}
-		const head = Math.ceil(this.MAX_MATCH_PREVIEW_CHARS / 2);
-		const tail = this.MAX_MATCH_PREVIEW_CHARS - head;
-		const elided = line.length - head - tail;
-		return `${line.slice(0, head)}[... ${elided} characters elided ...]${line.slice(line.length - tail)}`;
 	}
 }
 
