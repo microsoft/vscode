@@ -693,7 +693,8 @@
             "default": true,
             "included": true,
             "referencedSettings": [
-                "chat.agentHost.claudeAgent.enabled"
+                "chat.agentHost.claudeAgent.enabled",
+                "sessions.chat.claudeAgent.enabled"
             ]
         }
     ]
