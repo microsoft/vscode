@@ -665,6 +665,27 @@ suite('WordOperations', () => {
 		});
 	});
 
+	test('deleteWordRight for cursor at beginning of single whitespace', () => {
+		withTestCodeEditor([
+			' foo.bar()',
+			'  foo.bar()',
+		], {}, (editor, _) => {
+			const model = editor.getModel()!;
+
+			// single whitespace should only delete the space, not the word
+			editor.setPosition(new Position(1, 1));
+			deleteWordRight(editor);
+			assert.strictEqual(model.getLineContent(1), 'foo.bar()');
+			assert.deepStrictEqual(editor.getPosition(), new Position(1, 1));
+
+			// double whitespace should also only delete the spaces
+			editor.setPosition(new Position(2, 1));
+			deleteWordRight(editor);
+			assert.strictEqual(model.getLineContent(2), 'foo.bar()');
+			assert.deepStrictEqual(editor.getPosition(), new Position(2, 1));
+		});
+	});
+
 	test('deleteWordRight for cursor just before a word', () => {
 		withTestCodeEditor([
 			'    \tMy First Line\t ',
@@ -775,7 +796,7 @@ suite('WordOperations', () => {
 	});
 
 	test('deleteWordRight - issue #832', () => {
-		const EXPECTED = '   |/*| Just| some| text| a|+=| 3| +|5|-|3| */|  |';
+		const EXPECTED = '   |/*| |Just| |some| |text| |a|+=| |3| |+|5|-|3| |*/|  |';
 		const [text,] = deserializePipePositions(EXPECTED);
 		const actualStops = testRepeatedActionAndExtractPositions(
 			text,
