@@ -172,23 +172,21 @@ export class OTelContrib extends Disposable implements IExtensionContribution {
 	private _refreshChatStatusItem(item: vscode.ChatStatusItem): void {
 		const config = this._otelService.config;
 		const destination = this._formatStatusDestination();
-		const captureContent = config.captureContent
-			? vscode.l10n.t('captures prompts, responses, system instructions, tool schemas, tool inputs, and tool outputs, which may include sensitive code and file contents')
-			: vscode.l10n.t('does not capture prompts, responses, system instructions, tool schemas, tool inputs, or tool outputs');
+		const contentCaptureState = config.captureContent ? vscode.l10n.t('enabled') : vscode.l10n.t('not enabled');
 
 		item.title = {
-			label: vscode.l10n.t('OpenTelemetry'),
+			label: vscode.l10n.t('Monitoring'),
 			link: DOCS_URL,
-			helpText: vscode.l10n.t('Open documentation for OpenTelemetry monitoring.'),
+			helpText: vscode.l10n.t('Monitor agent usage with OpenTelemetry.'),
 		};
-		item.description = vscode.l10n.t('On');
+		item.description = vscode.l10n.t('Enabled');
 		item.detail = vscode.l10n.t(
-			"OpenTelemetry exports to {0} and {1} ([Manage](command:{2})).",
+			"Agent behaviors and usage are monitored and exported to {0}.\nCapture of sensitive content including prompts, responses, and tool calls is {1}.\n[Manage](command:{2})",
 			destination.detail,
-			captureContent,
+			contentCaptureState,
 			OPEN_OTEL_SETTINGS_COMMAND,
 		);
-		item.tooltip = vscode.l10n.t('OpenTelemetry exports to {0} and {1}.', destination.tooltip, captureContent);
+		item.tooltip = vscode.l10n.t('Agent behaviors and usage are monitored and exported to {0}. Capture of sensitive content including prompts, responses, and tool calls is {1}.', destination.tooltip, contentCaptureState);
 		item.show();
 	}
 
