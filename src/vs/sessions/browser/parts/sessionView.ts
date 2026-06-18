@@ -7,21 +7,19 @@ import './media/sessionView.css';
 import { $, size } from '../../../base/browser/dom.js';
 import { ISerializableView, IViewSize } from '../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { asCssVariable } from '../../../platform/theme/common/colorUtils.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
-import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
-import { AbstractChatView, ChatViewKind, IChatViewOptions } from './chatView.js';
-import { ChatCompositeBar } from './chatCompositeBar.js';
+import { IChatViewOptions } from './chatView.js';
+import { ChatGroupsView } from './chatGroupsView.js';
 import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
 import { autorun } from '../../../base/common/observable.js';
 import { SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsReadContext, SessionIsStickyContext, SessionSupportsMultipleChatsContext, ChatSessionProviderIdContext, ChatSessionTypeContext } from '../../common/contextkeys.js';
 import { activeSessionViewBackground, activeSessionViewForeground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../common/theme.js';
-import { SessionStatus } from '../../services/sessions/common/session.js';
 
 /**
  * Options passed to {@link SessionView.openSession}. Extends the chat view
@@ -30,13 +28,12 @@ import { SessionStatus } from '../../services/sessions/common/session.js';
 export interface ISessionViewOptions extends IChatViewOptions { }
 
 /**
- * A stable single-slot grid leaf that handles switching between concrete
- * chat views internally. `SessionsPart` delegates `openSession(...)` to
- * this host so it no longer needs to remove/add grid views when the active
- * chat view kind changes.
+ * A stable single-slot grid leaf for the Sessions Part. `SessionsPart`
+ * delegates `openSession(...)` to this host so it no longer needs to remove/add
+ * grid views as the bound session changes.
  *
- * Also hosts the {@link SessionHeader} and {@link ChatCompositeBar} so that they
- * live alongside the chat view they relate to.
+ * Hosts the {@link SessionHeader} (centered, width-capped) above a
+ * {@link ChatGroupsView} that renders the session's chats as a grid of groups.
  */
 export class SessionView extends Disposable implements ISerializableView {
 
@@ -58,12 +55,11 @@ export class SessionView extends Disposable implements ISerializableView {
 	readonly onDidChange: Event<IViewSize | undefined> = this._onDidChange.event;
 
 	private readonly _header: SessionHeader;
-	private readonly _compositeBar: ChatCompositeBar;
+	private readonly _groupsView: ChatGroupsView;
 	private readonly _floatingToolbar: SessionViewFloatingToolbar;
 	private readonly _centeredContentContainer: HTMLElement;
 	private readonly _contentContainer: HTMLElement;
 
-	private readonly _currentView = this._register(new MutableDisposable<AbstractChatView>());
 	private _lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
 
 	private _openSessionDisposables = this._register(new DisposableStore());
@@ -79,11 +75,13 @@ export class SessionView extends Disposable implements ISerializableView {
 	private readonly _chatSessionProviderIdKey: IContextKey<string>;
 	private readonly _chatSessionTypeKey: IContextKey<string>;
 
+	/** Whether the hosted groups view currently shows a grid (more than one group). */
+	private _isGridLayout = false;
+
 	/** Whether this view currently hosts the active session in the grid. */
 	private _isActive = true;
 
 	constructor(
-		@IChatViewFactory private readonly chatViewFactory: IChatViewFactory,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
@@ -108,33 +106,43 @@ export class SessionView extends Disposable implements ISerializableView {
 		// reference it without duplicating the constant.
 		this.element.style.setProperty('--session-view-centered-content-max-width', `${SessionView.CENTERED_CONTENT_MAX_WIDTH}px`);
 
-		// The header and composite bar (tabs) are hosted in a centered, width-capped
-		// container so they align with the centered chat content. The chat content
-		// itself lives in a full-width container so its transcript list spans the
-		// whole session view and its scrollbar stays pinned to the right edge; the
-		// chat rows and input self-center at the same max-width via CSS.
+		// The header is hosted in a centered, width-capped container so it aligns
+		// with the centered chat content. The chat groups grid lives in a
+		// full-width container below it so its transcript list spans the whole
+		// session view and its scrollbar stays pinned to the right edge; the chat
+		// rows and input self-center at the same max-width via CSS.
 		this._centeredContentContainer = $('.session-view-centered-content');
 		this.element.appendChild(this._centeredContentContainer);
 
 		this._header = this._register(scopedInstantiationService.createInstance(SessionHeader));
 		this._centeredContentContainer.appendChild(this._header.element);
 
-		this._compositeBar = this._register(scopedInstantiationService.createInstance(ChatCompositeBar));
-		this._centeredContentContainer.appendChild(this._compositeBar.element);
-
 		this._contentContainer = $('.session-view-content');
 		this.element.appendChild(this._contentContainer);
+
+		this._groupsView = this._register(scopedInstantiationService.createInstance(ChatGroupsView));
+		this._contentContainer.appendChild(this._groupsView.element);
 
 		this._floatingToolbar = this._register(scopedInstantiationService.createInstance(SessionViewFloatingToolbar));
 		this.element.appendChild(this._floatingToolbar.element);
 
 		this._applyActiveSessionStyles();
 
-		// Re-layout children when the header or composite bar changes visibility/height
+		// Re-layout children when the header changes visibility/height
 		this._register(this._header.onDidChangeVisibility(() => this._layoutChildren()));
 		this._register(this._header.onDidChangeHeight(() => this._layoutChildren()));
-		this._register(this._compositeBar.onDidChangeVisibility(() => this._layoutChildren()));
-		this._register(this._compositeBar.onDidChangeHeight(() => this._layoutChildren()));
+
+		// When the session shows a grid of chats (more than one group), let the
+		// header span the full width too; with a lone group it stays centered.
+		this._register(autorun(reader => {
+			const isGridLayout = this._groupsView.groupCount.read(reader) > 1;
+			if (this._isGridLayout === isGridLayout) {
+				return;
+			}
+			this._isGridLayout = isGridLayout;
+			this.element.classList.toggle('grid-layout', isGridLayout);
+			this._layoutChildren();
+		}));
 	}
 
 	openSession(session: IActiveSession | undefined, options: ISessionViewOptions): void {
@@ -147,36 +155,10 @@ export class SessionView extends Disposable implements ISerializableView {
 
 		this._openSessionDisposables.add(this._handleContextKeys(session));
 
-		this._openSessionDisposables.add(autorun(reader => {
-			let desiredKind: ChatViewKind;
-			if (session === undefined || session.isCreated.read(reader) === false) {
-				desiredKind = 'newSession';
-			} else if (session.activeChat.read(reader).status.read(reader) === SessionStatus.Untitled) {
-				desiredKind = 'newChatInSession';
-			} else {
-				desiredKind = 'chat';
-			}
-
-			let view = this._currentView.value;
-
-			if (!view || view.kind !== desiredKind) {
-				view = desiredKind === 'chat'
-					? this.chatViewFactory.createChatView()
-					: this.chatViewFactory.createNewChatView(desiredKind === 'newChatInSession', options);
-				this._contentContainer.replaceChildren(view.element);
-				this._currentView.value = view;
-				view.setActive(this._isActive);
-			}
-
-			if (session) {
-				view.setChat(session.activeChat.read(reader), session.sessionId);
-			}
-
-			this._header.setSession(session);
-			this._compositeBar.setSession(session);
-			this._floatingToolbar.setSession(session);
-			this._layoutChildren();
-		}));
+		this._header.setSession(session);
+		this._groupsView.setSession(session, options);
+		this._floatingToolbar.setSession(session);
+		this._layoutChildren();
 	}
 
 	private _handleContextKeys(session: IActiveSession | undefined): IDisposable {
@@ -227,24 +209,24 @@ export class SessionView extends Disposable implements ISerializableView {
 		}
 		const { width, height, top, left } = this._lastLayout;
 
-		// Apply the centered band's width first so the header and tabs wrap to
-		// their final layout before we measure their combined height. Measuring
-		// before the width is applied could read a stale (pre-cap) height and
-		// cause a transient overlap until a later layout pass corrects it.
-		const centeredWidth = Math.min(width, SessionView.CENTERED_CONTENT_MAX_WIDTH);
+		// Apply the centered band's width first so the header wraps to its final
+		// layout before we measure its height. Measuring before the width is
+		// applied could read a stale (pre-cap) height and cause a transient
+		// overlap until a later layout pass corrects it.
+		// In a grid layout the header spans the full width (matching the
+		// full-width chat groups); with a lone group it is centered and capped.
+		const centeredWidth = this._isGridLayout ? width : Math.min(width, SessionView.CENTERED_CONTENT_MAX_WIDTH);
 		this._centeredContentContainer.style.width = `${centeredWidth}px`;
 
-		const headerHeight = this._header.visible ? this._header.height : 0;
-		const tabsHeight = this._compositeBar.visible ? this._compositeBar.height : 0;
-		const barHeight = headerHeight + tabsHeight;
+		const barHeight = this._header.visible ? this._header.height : 0;
 
-		// Cap the band's height to the header + tabs (it is horizontally centered
-		// via CSS `margin: 0 auto`) so the full-width chat content sits below it.
+		// Cap the band's height to the header (it is horizontally centered via CSS
+		// `margin: 0 auto`) so the full-width chat groups grid sits below it.
 		size(this._centeredContentContainer, centeredWidth, barHeight);
 
-		// Lay out the chat content at full width so its scrollbar reaches the
+		// Lay out the chat groups grid at full width so its scrollbar reaches the
 		// right edge; the chat rows and input center themselves via CSS.
-		this._currentView.value?.layout(width, height - barHeight, top + barHeight, left);
+		this._groupsView.layout(width, height - barHeight, top + barHeight, left);
 	}
 
 	toJSON(): object {
@@ -252,7 +234,7 @@ export class SessionView extends Disposable implements ISerializableView {
 	}
 
 	focus(): void {
-		this._currentView.value?.focus();
+		this._groupsView.focus();
 	}
 
 	startTitleEditing(): void {
@@ -260,22 +242,22 @@ export class SessionView extends Disposable implements ISerializableView {
 	}
 
 	selectWorkspace(folderUri: URI, providerId?: string): void {
-		this._currentView.value?.selectWorkspace(folderUri, providerId);
+		this._groupsView.selectWorkspace(folderUri, providerId);
 	}
 
 	prefillInput(text: string): void {
-		this._currentView.value?.prefillInput(text);
+		this._groupsView.prefillInput(text);
 	}
 
 	sendQuery(text: string): void {
-		this._currentView.value?.sendQuery(text);
+		this._groupsView.sendQuery(text);
 	}
 
 	/**
-	 * Attaches the given resources as context to the hosted chat view's input.
+	 * Attaches the given resources as context to the active chat group's input.
 	 */
 	attach(uris: URI[]): void {
-		this._currentView.value?.attach(uris);
+		this._groupsView.attach(uris);
 	}
 
 	/**
@@ -297,7 +279,7 @@ export class SessionView extends Disposable implements ISerializableView {
 		}
 		this._isActive = active;
 		this._applyActiveSessionStyles();
-		this._currentView.value?.setActive(active);
+		this._groupsView.setSessionActive(active);
 	}
 
 	private _applyActiveSessionStyles(): void {
