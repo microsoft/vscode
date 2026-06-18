@@ -25,8 +25,9 @@ const http = require('node:http') as typeof import('node:http');
 const fs = require('node:fs') as typeof import('node:fs');
 const path = require('node:path') as typeof import('node:path');
 const { fileURLToPath } = require('node:url') as typeof import('node:url');
+const { stripTypeScriptTypes } = require('node:module') as typeof import('node:module');
 
-const endpoints: EndpointDef[] = require('./endpoints');
+const endpoints: EndpointDef[] = require('./endpoints.ts');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const PRODUCT_JSON = path.join(ROOT, 'product.json');
@@ -342,14 +343,34 @@ function unwireOverrides(): void {
 }
 
 /** Serve a file from the public/ directory (plus the shared endpoints.js). */
+/**
+ * Read a `.ts` source file, strip type annotations via Node's built-in
+ * `module.stripTypeScriptTypes()`, and serve the result as plain JavaScript.
+ * This lets the browser GUI stay in TypeScript without a build step.
+ */
+function serveTypeStripped(tsPath: string, res: ServerResponse): void {
+	const source = fs.readFileSync(tsPath, 'utf8');
+	const stripped = stripTypeScriptTypes(source);
+	res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8' });
+	res.end(stripped);
+}
+
 function serveStatic(pathname: string, res: ServerResponse): void {
 	// The GUI loads the shared endpoints module that lives one level up.
 	if (pathname === '/endpoints.js') {
-		res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8' });
-		return fs.createReadStream(path.join(__dirname, 'endpoints.js')).pipe(res);
+		return serveTypeStripped(path.join(__dirname, 'endpoints.ts'), res);
 	}
 
 	const rel = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '');
+
+	// Serve .ts sources as type-stripped JS when the browser requests .js.
+	if (rel.endsWith('.js')) {
+		const tsPath = path.normalize(path.join(PUBLIC_DIR, rel.replace(/\.js$/, '.ts')));
+		if (tsPath.startsWith(PUBLIC_DIR + path.sep) && fs.existsSync(tsPath)) {
+			return serveTypeStripped(tsPath, res);
+		}
+	}
+
 	const filePath = path.normalize(path.join(PUBLIC_DIR, rel));
 
 	// Guard against path traversal outside public/.
@@ -365,6 +386,7 @@ function contentType(filePath: string): string {
 	switch (path.extname(filePath)) {
 		case '.html': return 'text/html; charset=utf-8';
 		case '.js': return 'text/javascript; charset=utf-8';
+		case '.ts': return 'text/javascript; charset=utf-8';
 		case '.css': return 'text/css; charset=utf-8';
 		case '.json': return 'application/json; charset=utf-8';
 		default: return 'application/octet-stream';

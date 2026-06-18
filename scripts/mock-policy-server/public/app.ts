@@ -3,29 +3,73 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-//@ts-check
+/**
+ * Client-side GUI for the mock policy server. Loaded via a `<script>` tag in
+ * `index.html`; the server uses `module.stripTypeScriptTypes()` to serve this
+ * TypeScript source as plain JavaScript — no build step needed.
+ *
+ * Relies on `MOCK_POLICY_ENDPOINTS` being defined as a global by
+ * `endpoints.ts` (loaded via an earlier `<script>` tag).
+ */
+declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 
 (function () {
 	'use strict';
 
-	const $ = (/** @type {string} */ id) => /** @type {HTMLElement} */(document.getElementById(id));
+	interface EndpointDef {
+		id: string;
+		label: string;
+		path: string;
+		productKey: string;
+		description: string;
+		url?: string;
+		body?: unknown;
+		presets: { id: string; label: string; description: string; body: unknown }[];
+	}
+
+	interface ServerState {
+		endpoints: EndpointDef[];
+		wired: boolean;
+		overridesSnippet?: string;
+		overridesPath?: string;
+	}
+
+	interface SchemaResult {
+		ok: boolean;
+		source?: string;
+		resolved?: string;
+		error?: string;
+		schema?: JsonSchema;
+	}
+
+	interface JsonSchema {
+		type?: string;
+		properties?: Record<string, JsonSchema>;
+		additionalProperties?: boolean | JsonSchema;
+		items?: JsonSchema;
+		enum?: unknown[];
+		const?: unknown;
+		default?: unknown;
+		description?: string;
+	}
+
+	const $ = (id: string): HTMLElement => document.getElementById(id)!;
 	const tabs = $('tabs');
-	const editor = /** @type {HTMLTextAreaElement} */ ($('editor'));
-	const presetSelect = /** @type {HTMLSelectElement} */ ($('preset'));
+	const editor = $('editor') as HTMLTextAreaElement;
+	const presetSelect = $('preset') as HTMLSelectElement;
 	const endpointMeta = $('endpoint-meta');
 	const endpointUrlEl = $('endpoint-url');
 	const editorStatus = $('editor-status');
 	const wiredStatusEl = $('wired-status');
 
-	/** @type {any[]} */
-	let endpoints = [];
+	let endpoints: EndpointDef[] = [];
 	/** Currently selected endpoint id. */
 	let activeId = '';
 	/** Working copy of each endpoint body as edited in the GUI (string). */
-	const drafts = {};
+	const drafts: Record<string, string> = {};
 
 	/** Restore drafts from localStorage. */
-	function loadDrafts() {
+	function loadDrafts(): void {
 		try {
 			const saved = localStorage.getItem('mock-policy-drafts');
 			if (saved) {
@@ -35,29 +79,29 @@
 	}
 
 	/** Persist drafts to localStorage. */
-	function saveDrafts() {
+	function saveDrafts(): void {
 		try { localStorage.setItem('mock-policy-drafts', JSON.stringify(drafts)); } catch { /* quota */ }
 	}
 	/** Loaded managed-settings schema (or null if unavailable). */
-	let schema = null;
+	let schema: JsonSchema | null = null;
 
-	function activeEndpoint() {
+	function activeEndpoint(): EndpointDef | undefined {
 		return endpoints.find(e => e.id === activeId);
 	}
 
-	function setStatus(message, kind) {
+	function setStatus(message: string, kind?: string): void {
 		editorStatus.textContent = message;
 		editorStatus.dataset.kind = kind || '';
 	}
 
 	/** Validate the editor content as JSON. Returns parsed value or undefined. */
-	function parseEditor() {
+	function parseEditor(): unknown | undefined {
 		const raw = editor.value.trim();
 		if (raw === '') {
 			setStatus('Empty body — will be served as {}.', '');
 			return {};
 		}
-		let parsed;
+		let parsed: unknown;
 		try {
 			parsed = JSON.parse(raw);
 		} catch (e) {
@@ -72,7 +116,7 @@
 		}
 		// Update the validation table live if schema is loaded and we're on managed settings.
 		if (activeId === 'managedSettings' && schema && typeof parsed === 'object' && parsed && !Array.isArray(parsed)) {
-			renderValidationResults(parsed);
+			renderValidationResults(parsed as Record<string, unknown>);
 		} else {
 			$('validation-results').hidden = true;
 		}
@@ -85,7 +129,7 @@
 	 * way `projectManagedSettings` drops undeclared keys. Returns a warning string
 	 * or '' when nothing to report.
 	 */
-	function validateAgainstSchema(parsed) {
+	function validateAgainstSchema(parsed: unknown): string {
 		if (activeId !== 'managedSettings' || !schema || typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
 			return '';
 		}
@@ -93,7 +137,7 @@
 		if (!properties || typeof properties !== 'object') {
 			return '';
 		}
-		const unknown = Object.keys(parsed).filter(key => !(key in properties));
+		const unknown = Object.keys(parsed).filter(key => !Object.hasOwn(properties, key));
 		return unknown.length ? `Keys not in schema (will be dropped): ${unknown.join(', ')}.` : '';
 	}
 
@@ -101,7 +145,7 @@
 	 * Walk a JSON schema and produce a representative example object.
 	 * Handles object/string/boolean/number/array/enum and nested properties.
 	 */
-	function hydrateFromSchema(s) {
+	function hydrateFromSchema(s: JsonSchema | undefined): unknown {
 		if (!s || typeof s !== 'object') {
 			return null;
 		}
@@ -113,7 +157,7 @@
 		}
 		switch (s.type) {
 			case 'object': {
-				const obj = {};
+				const obj: Record<string, unknown> = {};
 				if (s.properties) {
 					for (const [key, sub] of Object.entries(s.properties)) {
 						obj[key] = hydrateFromSchema(sub);
@@ -138,16 +182,16 @@
 		}
 	}
 
-	async function api(path, options) {
-		const res = await fetch(path, options);
+	async function api<T = unknown>(urlPath: string, options?: RequestInit): Promise<T> {
+		const res = await fetch(urlPath, options);
 		const data = await res.json().catch(() => ({}));
 		if (!res.ok) {
 			throw new Error(data && data.error ? data.error : `${res.status} ${res.statusText}`);
 		}
-		return data;
+		return data as T;
 	}
 
-	function renderTabs() {
+	function renderTabs(): void {
 		tabs.textContent = '';
 		for (const endpoint of endpoints) {
 			const tab = document.createElement('button');
@@ -162,13 +206,16 @@
 		}
 	}
 
-	function selectEndpoint(id) {
+	function selectEndpoint(id: string): void {
 		// Stash the current draft before switching.
 		if (activeId) {
 			drafts[activeId] = editor.value;
 		}
 		activeId = id;
 		const endpoint = activeEndpoint();
+		if (!endpoint) {
+			return;
+		}
 
 		// Build two-line description: route + product key on line 1, description on line 2
 		const routeSpan = document.createElement('span');
@@ -184,7 +231,7 @@
 		descSpan.textContent = endpoint.description;
 
 		endpointMeta.replaceChildren(routeSpan, descSpan);
-		endpointUrlEl.textContent = endpoint.url;
+		endpointUrlEl.textContent = endpoint.url ?? '';
 		editor.value = drafts[id] ?? JSON.stringify(endpoint.body ?? {}, null, '\t');
 		renderTabs();
 		renderPresets();
@@ -194,7 +241,7 @@
 		parseEditor();
 	}
 
-	function renderPresets() {
+	function renderPresets(): void {
 		const endpoint = activeEndpoint();
 		presetSelect.textContent = '';
 		(endpoint?.presets ?? []).forEach((preset, index) => {
@@ -205,7 +252,7 @@
 		});
 	}
 
-	function applyPreset() {
+	function applyPreset(): void {
 		const endpoint = activeEndpoint();
 		const preset = endpoint?.presets?.[Number(presetSelect.value)];
 		if (preset) {
@@ -221,7 +268,7 @@
 	let overridesSnippet = '';
 	let overridesPath = '';
 
-	function renderWired(state) {
+	function renderWired(state: ServerState): void {
 		wiredStatusEl.textContent = state.wired ? 'Applied \u2713' : 'Not applied';
 		wiredStatusEl.dataset.kind = state.wired ? 'ok' : '';
 		if (state.overridesSnippet) {
@@ -232,13 +279,13 @@
 		}
 	}
 
-	async function save() {
+	async function save(): Promise<void> {
 		const parsed = parseEditor();
 		if (parsed === undefined) {
 			return;
 		}
 		try {
-			const state = await api('/api/state', {
+			const state = await api<ServerState>('/api/state', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ endpoint: activeId, body: parsed })
@@ -250,29 +297,29 @@
 		} catch { /* auto-save failures are silent */ }
 	}
 
-	let saveTimer = 0;
-	function debouncedSave() {
+	let saveTimer: ReturnType<typeof setTimeout> | 0 = 0;
+	function debouncedSave(): void {
 		clearTimeout(saveTimer);
 		saveTimer = setTimeout(save, 400);
 	}
 
-	async function wire(wireIt) {
+	async function wire(wireIt: boolean): Promise<void> {
 		try {
-			const state = await api(wireIt ? '/api/wire' : '/api/unwire', { method: 'POST' });
+			const state = await api<ServerState>(wireIt ? '/api/wire' : '/api/unwire', { method: 'POST' });
 			endpoints = state.endpoints;
 			renderWired(state);
 		} catch { /* status is shown via the wired-status element */ }
 	}
 
-	function formatJson() {
+	function formatJson(): void {
 		const parsed = parseEditor();
 		if (parsed !== undefined) {
 			editor.value = JSON.stringify(parsed, null, '\t');
 		}
 	}
 
-	async function loadSchema() {
-		const sourceEl = /** @type {HTMLInputElement} */ ($('schema-source'));
+	async function loadSchema(): Promise<void> {
+		const sourceEl = $('schema-source') as HTMLInputElement;
 		const badgeEl = $('schema-badge');
 		const viewEl = $('schema-view');
 
@@ -280,13 +327,13 @@
 		const url = customSource ? '/api/schema?source=' + encodeURIComponent(customSource) : '/api/schema';
 
 		try {
-			const result = await api(url);
+			const result = await api<SchemaResult>(url);
 			if (!customSource) {
 				sourceEl.value = result.resolved || result.source || '';
 			}
 			if (result.ok) {
-				schema = result.schema;
-				badgeEl.textContent = 'Loaded ✓';
+				schema = result.schema ?? null;
+				badgeEl.textContent = 'Loaded \u2713';
 				badgeEl.dataset.kind = 'ok';
 				badgeEl.dataset.tooltip = result.resolved || 'Schema loaded';
 				viewEl.textContent = JSON.stringify(result.schema, null, '\t');
@@ -316,7 +363,7 @@
 		parseEditor();
 	}
 
-	function renderValidationResults(parsed) {
+	function renderValidationResults(parsed: Record<string, unknown>): void {
 		const container = $('validation-results');
 		const properties = schema?.properties ?? {};
 		const schemaKeys = Object.keys(properties);
@@ -330,18 +377,19 @@
 		}
 
 		const rows = allKeys.map(key => {
-			const inSchema = key in properties;
+			const inSchema = Object.hasOwn(properties, key);
 			const inBody = bodyKeys.includes(key);
-			let status, cls;
-			if (inSchema && inBody) { status = '✓ Present'; cls = 'validation-ok'; }
-			else if (inSchema && !inBody) { status = '— Missing'; cls = ''; }
-			else { status = '⚠ Unknown (will be dropped)'; cls = 'validation-warn'; }
+			let statusText: string;
+			let cls: string;
+			if (inSchema && inBody) { statusText = '\u2713 Present'; cls = 'validation-ok'; }
+			else if (inSchema && !inBody) { statusText = '\u2014 Missing'; cls = ''; }
+			else { statusText = '\u26A0 Unknown (will be dropped)'; cls = 'validation-warn'; }
 			const desc = properties[key]?.description || '';
-			return `<tr><td><code>${key}</code></td><td class="${cls}">${status}</td><td>${desc ? desc.split('.')[0] : ''}</td></tr>`;
+			return `<tr><td><code>${key}</code></td><td class="${cls}">${statusText}</td><td>${desc ? desc.split('.')[0] : ''}</td></tr>`;
 		});
 
-		const unknownCount = bodyKeys.filter(k => !(k in properties)).length;
-		const presentCount = bodyKeys.filter(k => k in properties).length;
+		const unknownCount = bodyKeys.filter(k => !Object.hasOwn(properties, k)).length;
+		const presentCount = bodyKeys.filter(k => Object.hasOwn(properties, k)).length;
 
 		container.innerHTML = `<table class="validation-table"><thead><tr><th>Key</th><th>Status</th><th>Description</th></tr></thead><tbody>${rows.join('')}</tbody></table>`
 			+ `<p class="validation-summary">${presentCount} of ${schemaKeys.length} schema keys present`
@@ -351,17 +399,17 @@
 		setStatus(unknownCount ? `${unknownCount} key${unknownCount > 1 ? 's' : ''} not in schema.` : 'All keys match the schema.', unknownCount ? 'warn' : 'ok');
 	}
 
-	function toggleSchemaView() {
+	function toggleSchemaView(): void {
 		const viewEl = $('schema-view');
 		viewEl.hidden = !viewEl.hidden;
 		$('toggle-schema').textContent = viewEl.hidden ? 'View' : 'Hide';
 	}
 
-	async function init() {
+	async function init(): Promise<void> {
 		// Restore saved schema source and drafts from localStorage.
 		const savedSource = localStorage.getItem('mock-policy-schema-source');
 		if (savedSource) {
-			/** @type {HTMLInputElement} */ ($('schema-source')).value = savedSource;
+			($('schema-source') as HTMLInputElement).value = savedSource;
 		}
 		loadDrafts();
 
@@ -404,7 +452,7 @@
 			setStatus('Generated example from schema.', 'ok');
 		});
 		try {
-			const state = await api('/api/state');
+			const state = await api<ServerState>('/api/state');
 			endpoints = state.endpoints;
 			renderWired(state);
 			if (endpoints.length) {

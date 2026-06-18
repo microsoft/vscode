@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-//@ts-check
-
 /**
  * Shared definition of the Copilot "policy" endpoints that
  * `DefaultAccountService` (src/vs/workbench/services/accounts/browser/defaultAccount.ts)
@@ -17,35 +15,45 @@
  * `product.json` -> `defaultChatAgent.<productKey>`, so pointing all of them at
  * a local server via `product.overrides.json` lets a dev exercise the whole
  * policy pipeline offline.
+ *
+ * NOTE: The server uses `module.stripTypeScriptTypes()` to serve this file to
+ * the browser as plain JavaScript — no build step is needed.
  */
-(function (root, factory) {
+
+export interface EndpointPreset {
+	id: string;
+	label: string;
+	description: string;
+	body: unknown;
+}
+
+export interface EndpointDef {
+	/** Stable id used by the API + GUI. */
+	id: string;
+	/** Human label for the GUI tab. */
+	label: string;
+	/** URL path the server serves / Code OSS calls. */
+	path: string;
+	/** Key under product.json `defaultChatAgent`. */
+	productKey: string;
+	/** One-line summary for the GUI. */
+	description: string;
+	/** First preset is used as the default body. */
+	presets: EndpointPreset[];
+}
+
+/* eslint-disable-next-line no-var -- UMD global for browser <script> context */
+declare var MOCK_POLICY_ENDPOINTS: EndpointDef[];
+
+(function (root: Record<string, unknown> | undefined, factory: () => EndpointDef[]) {
 	if (typeof module === 'object' && module.exports) {
 		module.exports = factory();
-	} else {
+	} else if (root) {
 		root.MOCK_POLICY_ENDPOINTS = factory();
 	}
-})(typeof self !== 'undefined' ? self : this, function () {
+})(typeof self !== 'undefined' ? self as unknown as Record<string, unknown> : undefined, function (): EndpointDef[] {
 
-	/**
-	 * @typedef {Object} EndpointPreset
-	 * @property {string} id
-	 * @property {string} label
-	 * @property {string} description
-	 * @property {unknown} body
-	 */
-
-	/**
-	 * @typedef {Object} EndpointDef
-	 * @property {string} id            Stable id used by the API + GUI.
-	 * @property {string} label         Human label for the GUI tab.
-	 * @property {string} path          URL path the server serves / Code OSS calls.
-	 * @property {string} productKey    Key under product.json `defaultChatAgent`.
-	 * @property {string} description   One-line summary for the GUI.
-	 * @property {EndpointPreset[]} presets  First preset is used as the default body.
-	 */
-
-	/** @type {EndpointDef[]} */
-	const endpoints = [
+	const endpoints: EndpointDef[] = [
 		{
 			id: 'managedSettings',
 			label: 'Managed Settings',
