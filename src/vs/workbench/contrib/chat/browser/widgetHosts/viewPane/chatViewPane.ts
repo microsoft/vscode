@@ -382,9 +382,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this._voiceBarDisposables.clear();
 		container.replaceChildren();
 
-		if (this.configurationService.getValue<boolean>('agents.voice.enabled')) {
-			container.style.display = '';
+		// Always keep the container hidden — voice UI is now the mic toolbar
+		// button + transcript overlay. We still register the command bridges
+		// needed by VoiceSessionController.
+		container.style.display = 'none';
 
+		if (this.configurationService.getValue<boolean>('agents.voice.enabled')) {
 			// Voice command bridge — lets the VoiceSessionController reach into the chat widget
 			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.acceptInput', (_accessor, text: string) => {
 				if (text && this._widget?.viewModel) {
@@ -406,10 +409,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.getCurrentSession', (_accessor): string | undefined => {
 				return this._widget?.viewModel?.sessionResource?.toString();
 			}));
-
-			this.createVoiceAgentBar(container);
-		} else {
-			container.style.display = 'none';
 		}
 	}
 
