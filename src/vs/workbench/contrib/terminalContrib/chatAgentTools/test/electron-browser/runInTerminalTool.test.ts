@@ -113,7 +113,6 @@ suite('RunInTerminalTool', () => {
 		setConfig(TerminalChatAgentToolsSettingId.BlockDetectedFileWrites, 'outsideWorkspace');
 		setConfig(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, true);
 		setConfig(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
-		setConfig(AgentSandboxSettingId.AgentSandboxAutoApproveUnsandboxedCommands, false);
 		setConfig(AgentSandboxSettingId.AgentSandboxAllowAutoApprove, false);
 		sandboxEnabled = false;
 		sandboxPrereqResult = {
@@ -950,17 +949,6 @@ suite('RunInTerminalTool', () => {
 			await assertAutomaticUnsandboxRetryElicitation(runInTerminalTool, LocalChatSessionUri.forSession('auto-retry-sandbox-force-approved-session'), 'rm dangerous-file.txt', 'bash', undefined);
 		});
 
-		test('should auto-retry without elicitation when unsandboxed command auto approve is enabled', async () => {
-			setConfig(AgentSandboxSettingId.AgentSandboxAutoApproveUnsandboxedCommands, true);
-			const sessionResource = LocalChatSessionUri.forSession('auto-retry-unsandboxed-setting-session');
-
-			const model = createChatModelWithRequest(sessionResource);
-			const shouldRetry = await confirmAutomaticUnsandboxRetry(runInTerminalTool, sessionResource, 'rm dangerous-file.txt', 'bash', undefined);
-
-			strictEqual(shouldRetry, true, 'Expected unsandboxed auto approve setting to retry without prompting');
-			const elicitation = model.getRequests().at(-1)?.response?.response.value.find(part => part.kind === 'elicitation2');
-			ok(!elicitation, 'Expected no elicitation when unsandboxed auto approve setting is enabled');
-		});
 	});
 
 	suite('default auto-approve rules', () => {
@@ -1417,56 +1405,6 @@ suite('RunInTerminalTool', () => {
 			ok(result.toolResultError, 'Expected the rejected request to be returned as a tool error');
 			ok(result.content[0].kind === 'text' && result.content[0].value.includes('The command was not executed'));
 			ok(result.content[0].kind === 'text' && result.content[0].value.includes('chat.agent.sandbox.allowUnsandboxedCommands'));
-		});
-
-		test('should auto-approve explicit unsandboxed execution requests when unsandboxed auto approve is enabled', async () => {
-			setConfig(AgentSandboxSettingId.AgentSandboxAutoApproveUnsandboxedCommands, true);
-			setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, false);
-			sandboxEnabled = true;
-			sandboxPrereqResult = {
-				enabled: true,
-				sandboxConfigPath: '/tmp/sandbox.json',
-				failedCheck: undefined,
-			};
-			runInTerminalTool.setBackendOs(OperatingSystem.Linux);
-
-			const result = await executeToolTest({
-				requestUnsandboxedExecution: true,
-				requestUnsandboxedExecutionReason: 'Needs network access outside the sandbox',
-			});
-
-			assertAutoApproved(result);
-			const terminalData = result!.toolSpecificData as IChatTerminalToolInvocationData;
-			strictEqual(terminalData.requestUnsandboxedExecution, true);
-			strictEqual(terminalData.requestUnsandboxedExecutionReason, 'Needs network access outside the sandbox');
-			strictEqual(terminalData.commandLine.toolEdited, 'unsandboxed:echo hello');
-		});
-
-		test('should auto-approve blocked-domain unsandboxed fallback when unsandboxed auto approve is enabled', async () => {
-			setConfig(AgentSandboxSettingId.AgentSandboxAutoApproveUnsandboxedCommands, true);
-			setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, false);
-			sandboxEnabled = true;
-			sandboxPrereqResult = {
-				enabled: true,
-				sandboxConfigPath: '/tmp/sandbox.json',
-				failedCheck: undefined,
-			};
-			runInTerminalTool.setBackendOs(OperatingSystem.Linux);
-			terminalSandboxService.wrapCommand = async (command: string) => ({
-				command: `unsandboxed:${command}`,
-				isSandboxWrapped: false,
-				requiresUnsandboxConfirmation: true,
-				blockedDomains: ['evil.com'],
-				deniedDomains: ['evil.com'],
-			});
-
-			const result = await executeToolTest({ command: 'curl https://evil.com' });
-
-			assertAutoApproved(result);
-			const terminalData = result!.toolSpecificData as IChatTerminalToolInvocationData;
-			strictEqual(terminalData.requestUnsandboxedExecution, true);
-			strictEqual(terminalData.commandLine.toolEdited, 'unsandboxed:curl https://evil.com');
-			strictEqual(terminalData.requestUnsandboxedExecutionReason, 'This command accesses evil.com, which is blocked by chat.agent.deniedNetworkDomains.');
 		});
 
 		test('should auto-approve sandboxed commands when sandbox auto approve is enabled', async () => {

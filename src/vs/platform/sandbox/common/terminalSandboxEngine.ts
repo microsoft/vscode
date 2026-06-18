@@ -166,11 +166,6 @@ export class TerminalSandboxEngine extends Disposable {
 		return this._areRetryWithAllowNetworkRequestsAllowed();
 	}
 
-	isAutoApproveUnsandboxedCommands(): boolean {
-		return this._areUnsandboxedCommandsAllowed()
-			&& this._getSettingValue<boolean>(AgentSandboxSettingId.AgentSandboxAutoApproveUnsandboxedCommands) === true;
-	}
-
 	async getOS(): Promise<OperatingSystem> {
 		this._os = await this._host.getOS();
 		return this._os;
