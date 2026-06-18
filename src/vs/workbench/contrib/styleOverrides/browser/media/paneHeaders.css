@@ -52,9 +52,17 @@
 	display: none;
 }
 
-/* Round the header corners. */
+.style-override-paneHeaders .monaco-pane-view .pane {
+	background-color: var(--vscode-sideBar-background, var(--vscode-panel-background)) !important;
+}
+
+/* Round the header corners and let the header match its surface at rest so it
+ * reads as part of the panel / side bar body rather than a tinted strip. The
+ * inline header background from the PaneView is overridden here; the hover tint
+ * below still wins via its higher specificity. */
 .style-override-paneHeaders .monaco-pane-view .pane > .pane-header {
 	border-radius: var(--vscode-cornerRadius-medium);
+	background-color: var(--vscode-sideBar-background, var(--vscode-panel-background)) !important;
 }
 
 /*

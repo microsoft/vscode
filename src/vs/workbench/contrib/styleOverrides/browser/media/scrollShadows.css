@@ -81,10 +81,13 @@
 /* =============================================================================
  * Editor area. The main editor viewport scrolls inside `.editor-scrollable`;
  * pin the fades to that scrollable element so they share the scrollbar's
- * stacking context and sit below it.
+ * stacking context and sit below it. Scope to the editor / panel parts so the
+ * fade never leaks onto inline editors such as the chat input.
  * ========================================================================== */
-.style-override-scrollShadows .monaco-editor .editor-scrollable::before,
-.style-override-scrollShadows .monaco-editor .editor-scrollable::after {
+.style-override-scrollShadows .part.editor .monaco-editor .editor-scrollable::before,
+.style-override-scrollShadows .part.editor .monaco-editor .editor-scrollable::after,
+.style-override-scrollShadows .part.panel .monaco-editor .editor-scrollable::before,
+.style-override-scrollShadows .part.panel .monaco-editor .editor-scrollable::after {
 	content: "";
 	position: absolute;
 	left: 0;
@@ -95,12 +98,14 @@
 	z-index: 10;
 }
 
-.style-override-scrollShadows .monaco-editor .editor-scrollable::before {
+.style-override-scrollShadows .part.editor .monaco-editor .editor-scrollable::before,
+.style-override-scrollShadows .part.panel .monaco-editor .editor-scrollable::before {
 	top: 0;
 	background: linear-gradient(to bottom, var(--scroll-shadow-surface), transparent);
 }
 
-.style-override-scrollShadows .monaco-editor .editor-scrollable::after {
+.style-override-scrollShadows .part.editor .monaco-editor .editor-scrollable::after,
+.style-override-scrollShadows .part.panel .monaco-editor .editor-scrollable::after {
 	bottom: 0;
 	background: linear-gradient(to top, var(--scroll-shadow-surface), transparent);
 }
