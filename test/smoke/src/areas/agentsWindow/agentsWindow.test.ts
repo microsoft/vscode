@@ -235,7 +235,17 @@ export function setup(logger: Logger) {
 
 					// Follow-up message in the same session — exercises the
 					// active-session input path (not the new-session homepage).
-					await app.workbench.agentsWindow.sendFollowUpMessage(`hello again [scenario:${session.scenarioId2}]`);
+					// For Copilot CLI, pass the expected active label so
+					// `sendFollowUpMessage` re-verifies the active slot right
+					// before sending (the workbench can auto-swap the slot to
+					// a fresh untitled session between `activateSessionByLabel`
+					// returning and the send-button click).
+					const expectedActiveLabel = session.name === 'Copilot CLI' ? session.reply : undefined;
+					await app.workbench.agentsWindow.sendFollowUpMessage(
+						`hello again [scenario:${session.scenarioId2}]`,
+						undefined,
+						expectedActiveLabel,
+					);
 
 					const secondTurnTimeout = session.name === 'Copilot CLI' ? 180_000 : 60_000;
 					const text2 = await app.workbench.agentsWindow.waitForAssistantText(session.reply2, secondTurnTimeout);
