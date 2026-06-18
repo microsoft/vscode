@@ -801,7 +801,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					return true;
 				}
 				this._logService.info(`[AgentHost] Cancellation requested for ${sessionKey}, dispatching turnCancelled`);
-				this._config.connection.dispatch(chatKey, {
+				this._config.connection.dispatch(this._resolveTurnDispatchChannel(sessionResource), {
 					type: ActionType.ChatTurnCancelled,
 					turnId,
 				});
@@ -1328,6 +1328,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const turnId = request.requestId;
 		this._clientDispatchedTurnIds.add(turnId);
 		const chatKey = this._resolveChatUri(request.sessionResource).toString();
+		const turnChannel = this._resolveTurnDispatchChannel(request.sessionResource);
 		const messageAttachments = await this._convertVariablesToAttachments(request);
 		if (cancellationToken.isCancellationRequested) {
 			return;
@@ -1379,7 +1380,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				const truncateAction: ChatTruncatedAction = {
 					type: ActionType.ChatTruncated,
 				};
-				this._config.connection.dispatch(chatKey, truncateAction);
+				this._config.connection.dispatch(turnChannel, truncateAction);
 			} else {
 				const seenAtIndex = protocolState.turns.findIndex(t => t.id === previousRequest!.id);
 				if (seenAtIndex !== -1 && seenAtIndex < protocolState.turns.length - 1) {
@@ -1387,7 +1388,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						type: ActionType.ChatTruncated,
 						turnId: previousRequest!.id,
 					};
-					this._config.connection.dispatch(chatKey, truncateAction);
+					this._config.connection.dispatch(turnChannel, truncateAction);
 				}
 			}
 		}
@@ -1399,7 +1400,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			turnId,
 			message: userOriginMessage(request.message, messageAttachments),
 		};
-		this._config.connection.dispatch(chatKey, turnAction);
+		this._config.connection.dispatch(turnChannel, turnAction);
 
 		// Ensure the snapshot controller records a sentinel checkpoint for this
 		// request so it appears in requestDisablement even if the turn
@@ -1417,7 +1418,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const cancelSub = store.add(cancellationToken.onCancellationRequested(() => {
 				cancelSub.dispose();
 				this._logService.info(`[AgentHost] Cancellation requested for ${session.toString()}, dispatching turnCancelled`);
-				this._config.connection.dispatch(chatKey, {
+				this._config.connection.dispatch(turnChannel, {
 					type: ActionType.ChatTurnCancelled,
 					turnId,
 				});
@@ -2715,6 +2716,22 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return URI.parse(buildChatUri(session.toString(), sessionResource.fragment));
 		}
 		return URI.parse(this._resolveDefaultChatUri(session.toString()));
+	}
+
+	/**
+	 * Channel that turn-lifecycle actions (turnStarted, truncated,
+	 * turnCancelled) dispatch to. Unlike conversation side-channel actions —
+	 * which target the resolved chat URI (see {@link _resolveChatUri}) — the
+	 * default chat's turn lifecycle targets the owning session URI directly:
+	 * the server maps a session-scoped turn dispatch to that session's default
+	 * chat, and subagent session URIs are derived from this channel. Peer chats
+	 * carry a chatId fragment and target their own chat channel URI.
+	 */
+	private _resolveTurnDispatchChannel(sessionResource: URI): string {
+		const session = this._resolveSessionUri(sessionResource);
+		return sessionResource.fragment
+			? buildChatUri(session.toString(), sessionResource.fragment)
+			: session.toString();
 	}
 
 	private _isNewSessionResource(sessionResource: URI): boolean {
