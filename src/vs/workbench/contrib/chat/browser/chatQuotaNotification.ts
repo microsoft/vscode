@@ -6,6 +6,7 @@
 import { safeIntl } from '../../../../base/common/date.js';
 import { createMarkdownCommandLink, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Language } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
@@ -184,8 +185,16 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	}
 
 	private async _updateTrajectoryTreatment(): Promise<void> {
+		if (!Language.isDefaultVariant()) {
+			this._setTrajectoryTreatment(false);
+			return;
+		}
+
 		const trajectoryTreatment = await this._assignmentService.getTreatment<string>(TRAJECTORY_TREATMENT);
-		const trajectoryEnabled = trajectoryTreatment === 'enabled';
+		this._setTrajectoryTreatment(trajectoryTreatment === 'enabled');
+	}
+
+	private _setTrajectoryTreatment(trajectoryEnabled: boolean): void {
 		const wasInitialized = this._trajectoryTreatmentInitialized;
 		this._trajectoryTreatmentInitialized = true;
 		if (wasInitialized && this._trajectoryNudgeEnabled === trajectoryEnabled) {
