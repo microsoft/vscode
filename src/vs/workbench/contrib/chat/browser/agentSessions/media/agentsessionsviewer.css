@@ -49,6 +49,11 @@
 		}
 	}
 
+.monaco-list:focus .monaco-list-row.selected .agent-session-icon > .codicon,
+.monaco-list:focus .monaco-list-row.selected .agent-session-icon > .monaco-pixel-spinner {
+	color: var(--vscode-list-activeSelectionForeground) !important;
+}
+
 	.monaco-list-row.selected .agent-session-item,
 	.monaco-list-row.selected .agent-session-title {
 		color: unset;

@@ -120,7 +120,7 @@ export class ChatContextUsageDetails extends Disposable {
 		// Listen to menu changes to show/hide actions section
 		const menu = this._register(this.menuService.createMenu(MenuId.ChatContextUsageActions, this.contextKeyService));
 		const updateActions = () => {
-			const actions = getActionBarActions(menu.getActions(), () => true);
+			const actions = getActionBarActions(menu.getActions({ shouldForwardArgs: true }), () => true);
 			const primaryActions = actions.primary.map(action => this.withActionContext(action));
 			const secondaryActions = actions.secondary.map(action => this.withActionContext(action));
 			buttonBar.update(primaryActions, secondaryActions);

@@ -85,7 +85,14 @@ function modelsResponse(models: object[]): Response {
 }
 
 function createService(fetchImpl: FetchFunction): CopilotApiService {
-	return new CopilotApiService(fetchImpl, new NullLogService(), testProductService);
+	return new class extends CopilotApiService {
+		constructor() {
+			super(fetchImpl, new NullLogService(), testProductService);
+		}
+		override getIntegrationId(): string | undefined {
+			return undefined; // Don't send an integration ID for tests
+		}
+	}();
 }
 
 type CapturedRequest = { url: string; init: RequestInit | undefined };
