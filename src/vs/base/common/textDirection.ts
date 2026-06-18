@@ -15,6 +15,8 @@ const RTL_CHARACTER = /[\u0590-\u05FF\u0600-\u06FF\u0700-\u074F\u0750-\u077F\u07
  *
  * Detection is presence-based: if the text contains *any* RTL character the block is
  * laid out `rtl`, otherwise `auto` (the browser resolves LTR/neutral content itself).
+ * Mixed-direction text (RTL and LTR characters together) therefore resolves to `rtl`,
+ * not `auto`.
  *
  * This is intentionally not the first-strong-character / `dir="auto"` heuristic: an RTL
  * paragraph that happens to start with an English word (a brand or tech term, very common

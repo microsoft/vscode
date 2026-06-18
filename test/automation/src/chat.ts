@@ -113,7 +113,8 @@ export class Chat {
 	 * RTL smoke test to assert Hebrew/Arabic content is laid out right-to-left.
 	 */
 	async getLatestResponseTextDirection(): Promise<string | null> {
-		const directional = this.code.driver.currentPage.locator(`${CHAT_RESPONSE_COMPLETE} .chat-markdown-part [dir]`).last();
+		const latestResponse = this.code.driver.currentPage.locator(CHAT_RESPONSE_COMPLETE).last();
+		const directional = latestResponse.locator(`.chat-markdown-part [dir]`).last();
 		return await directional.getAttribute('dir');
 	}
 
