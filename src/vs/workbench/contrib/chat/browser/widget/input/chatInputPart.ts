@@ -40,6 +40,7 @@ import { EditorOptions, IEditorOptions, IEditorScrollbarOptions } from '../../..
 import { IDimension } from '../../../../../../editor/common/core/2d/dimension.js';
 import { IPosition } from '../../../../../../editor/common/core/position.js';
 import { IRange, Range } from '../../../../../../editor/common/core/range.js';
+import { IEditorDecorationsCollection } from '../../../../../../editor/common/editorCommon.js';
 import { isLocation } from '../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
@@ -128,6 +129,7 @@ import { ChatArtifactsWidget } from '../chatArtifactsWidget.js';
 import { ChatDragAndDrop } from '../chatDragAndDrop.js';
 import { ChatFollowups } from './chatFollowups.js';
 import { IChatInputNotificationService } from './chatInputNotificationService.js';
+import { updateChatInputTextDirection } from './chatInputTextDirection.js';
 import { ChatGoalBannerWidget } from './chatGoalBannerWidget.js';
 import { ChatInputNotificationWidget } from './chatInputNotificationWidget.js';
 import { IChatInputPickerOptions } from './chatInputPickerActionItem.js';
@@ -363,6 +365,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private _inputEditor!: CodeEditorWidget;
 	private _inputEditorElement!: HTMLElement;
+	private _inputDirectionDecorations!: IEditorDecorationsCollection;
 	private _forceVisibleScrollbarUntilAccept = false;
 
 	// Reference to the input model for syncing input state
@@ -2739,6 +2742,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const editorOptions = getSimpleCodeEditorWidgetOptions();
 		editorOptions.contributions?.push(...EditorExtensionsRegistry.getSomeEditorContributions([ContentHoverController.ID, GlyphHoverController.ID, DropIntoEditorController.ID, CopyPasteController.ID, LinkDetector.ID, InlineCompletionsController.ID]));
 		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, this._inputEditorElement, options, editorOptions));
+		this._inputDirectionDecorations = this._inputEditor.createDecorationsCollection();
 
 		SuggestController.get(this._inputEditor)?.forceRenderingAbove();
 		options.overflowWidgetsDomNode?.classList.add('hideSuggestTextIcons');
@@ -2771,6 +2775,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					this._layout(this.cachedWidth);
 				}
 			}
+
+			// Lay out Hebrew/Arabic lines right-to-left as the user types.
+			updateChatInputTextDirection(this._inputEditor, this._inputDirectionDecorations);
 
 			this._updateInputContentContextKeys();
 

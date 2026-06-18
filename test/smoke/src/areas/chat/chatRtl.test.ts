@@ -66,6 +66,11 @@ export function setup(logger: Logger) {
 				await app.workbench.quickaccess.runCommand('workbench.action.chat.open');
 				await app.workbench.chat.waitForChatView();
 
+				// The input box itself should lay Hebrew out right-to-left while composing.
+				await app.workbench.chat.typeInInput('שלום זהו טקסט בעברית');
+				const inputDirection = await app.workbench.chat.getInputTextDirection();
+				assert.strictEqual(inputDirection, 'rtl', `expected the Hebrew chat input line to be dir="rtl", saw ${inputDirection}`);
+
 				await app.workbench.chat.sendMessage(`reply in hebrew [scenario:${RTL_SCENARIO_ID}]`);
 				await app.workbench.chat.waitForResponse(1500);
 
