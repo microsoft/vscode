@@ -880,15 +880,24 @@ suite('ChatQuotaNotificationContribution', () => {
 			await flushPromises();
 			entitlementMock.onDidChangeQuotaRemaining.fire();
 
-			assert.deepStrictEqual(telemetryService.events, [{
-				name: 'chatQuotaTrajectoryNudgeShown',
-				data: {
-					severity: 'info',
-					entitlement: 'Pro',
-					averageDailyUsage: 4.67,
-					percentUsed: 28,
+			assert.deepStrictEqual(telemetryService.events, [
+				{
+					name: 'chatQuotaTrajectoryNudgeEnrolled',
+					data: {
+						treatment: 'enabled',
+						entitlement: 'Pro',
+					},
 				},
-			}]);
+				{
+					name: 'chatQuotaTrajectoryNudgeShown',
+					data: {
+						severity: 'info',
+						entitlement: 'Pro',
+						averageDailyUsage: 4.67,
+						percentUsed: 28,
+					},
+				},
+			]);
 		});
 
 		test('logs close telemetry', async () => {
@@ -906,6 +915,13 @@ suite('ChatQuotaNotificationContribution', () => {
 			notificationMock.dismiss();
 
 			assert.deepStrictEqual(telemetryService.events, [
+				{
+					name: 'chatQuotaTrajectoryNudgeEnrolled',
+					data: {
+						treatment: 'enabled',
+						entitlement: 'Pro',
+					},
+				},
 				{
 					name: 'chatQuotaTrajectoryNudgeShown',
 					data: {
@@ -947,6 +963,13 @@ suite('ChatQuotaNotificationContribution', () => {
 			}, {
 				events: [
 					{
+						name: 'chatQuotaTrajectoryNudgeEnrolled',
+						data: {
+							treatment: 'enabled',
+							entitlement: 'Pro',
+						},
+					},
+					{
 						name: 'chatQuotaTrajectoryNudgeShown',
 						data: {
 							severity: 'info',
@@ -966,6 +989,53 @@ suite('ChatQuotaNotificationContribution', () => {
 					},
 				],
 				opened: [CREDIT_EFFICIENCY_LEARN_MORE_URL],
+			});
+		});
+
+		test('logs enrollment telemetry for control assignment without showing nudge', async () => {
+			const telemetryService = new TestTelemetryService();
+			const { notificationMock } = createContribution({
+				entitlement: ChatEntitlement.Pro,
+				quotas: {
+					resetDate: makeResetDate(24),
+					usageBasedBilling: true,
+					premiumChat: makeQuotaSnapshot(72),
+				},
+			}, { trajectoryTreatment: 'control', telemetryService });
+
+			await flushPromises();
+
+			assert.deepStrictEqual({
+				events: telemetryService.events,
+				notification: notificationMock.getNotification(),
+			}, {
+				events: [{
+					name: 'chatQuotaTrajectoryNudgeEnrolled',
+					data: { treatment: 'control', entitlement: 'Pro' },
+				}],
+				notification: undefined,
+			});
+		});
+
+		test('does not log enrollment telemetry when not assigned to a flight', async () => {
+			const telemetryService = new TestTelemetryService();
+			const { notificationMock } = createContribution({
+				entitlement: ChatEntitlement.Pro,
+				quotas: {
+					resetDate: makeResetDate(24),
+					usageBasedBilling: true,
+					premiumChat: makeQuotaSnapshot(72),
+				},
+			}, { telemetryService }); // no treatment configured -> not assigned to the flight
+
+			await flushPromises();
+
+			assert.deepStrictEqual({
+				events: telemetryService.events,
+				notification: notificationMock.getNotification(),
+			}, {
+				events: [],
+				notification: undefined,
 			});
 		});
 

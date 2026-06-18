@@ -50,6 +50,18 @@ type ChatQuotaTrajectoryNudgeClassification = {
 	percentUsed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The monthly quota percentage used when the quota trajectory nudge event was logged.' };
 };
 
+type ChatQuotaTrajectoryNudgeEnrollmentEvent = {
+	treatment: string;
+	entitlement: string;
+};
+
+type ChatQuotaTrajectoryNudgeEnrollmentClassification = {
+	owner: 'rfeltis';
+	comment: 'Tracks when a user is assigned to a flight for the chat quota trajectory nudge experiment, to measure experiment exposure.';
+	treatment: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The treatment value assigned by the experiment service.' };
+	entitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The user entitlement when the user was assigned to the experiment flight.' };
+};
+
 /**
  * Persisted flag remembering that the user dismissed the quota-exceeded
  * notification. Kept until quota recovers (credit becomes available again) so
@@ -147,10 +159,15 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	 * assigned to the flight (or assignments are not available); only an
 	 * explicit `'enabled'` treatment renders the nudge. We deliberately do not
 	 * coerce a missing assignment into a synthetic "control" value, since that
-	 * would assume an enrollment that may not exist.
+	 * would assume an enrollment that may not exist. Enrollment telemetry is
+	 * emitted only when the user is actually assigned to a flight.
 	 */
 	private async _resolveTrajectoryTreatment(): Promise<void> {
-		this._trajectoryTreatment = await this._assignmentService.getTreatment<string>(TRAJECTORY_TREATMENT);
+		const treatment = await this._assignmentService.getTreatment<string>(TRAJECTORY_TREATMENT);
+		this._trajectoryTreatment = treatment;
+		if (treatment !== undefined) {
+			this._logQuotaTrajectoryNudgeEnrolled(treatment);
+		}
 		this._update();
 	}
 
@@ -375,6 +392,13 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	private _logQuotaTrajectoryNudgeLinkClicked(data: ChatQuotaTrajectoryNudgeEvent): void {
 		this._telemetryService.publicLog2<ChatQuotaTrajectoryNudgeEvent, ChatQuotaTrajectoryNudgeClassification>('chatQuotaTrajectoryNudgeLinkClicked', data);
+	}
+
+	private _logQuotaTrajectoryNudgeEnrolled(treatment: string): void {
+		this._telemetryService.publicLog2<ChatQuotaTrajectoryNudgeEnrollmentEvent, ChatQuotaTrajectoryNudgeEnrollmentClassification>('chatQuotaTrajectoryNudgeEnrolled', {
+			treatment,
+			entitlement: ChatEntitlement[this._chatEntitlementService.entitlement],
+		});
 	}
 
 	private _getQuotaTrajectoryNudgeTelemetryData(warning: { averageDailyUsage: number; percentUsed: number }): ChatQuotaTrajectoryNudgeEvent {
