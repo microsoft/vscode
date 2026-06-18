@@ -10,8 +10,9 @@ import { onUnexpectedError } from '../../../base/common/errors.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, IReader, ISettableObservable, observableValue, transaction } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
-import { Direction, SerializableGrid, Sizing } from '../../../base/browser/ui/grid/grid.js';
+import { Direction, ISerializedGrid, IViewDeserializer, SerializableGrid, Sizing } from '../../../base/browser/ui/grid/grid.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
 import { contrastBorder } from '../../../platform/theme/common/colorRegistry.js';
 import { IThemeService, Themable } from '../../../platform/theme/common/themeService.js';
 import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
@@ -37,6 +38,25 @@ interface IGroupEntry {
 	readonly tabsVisible: IObservable<boolean>;
 }
 
+/** A single group within a persisted chat grid layout. */
+interface ISerializedChatGroup {
+	/** Resources (as strings) assigned to this group, in tab order. */
+	readonly resourceIds: string[];
+	/** The resource (as a string) of the chat this group showed. */
+	readonly activeResourceId: string;
+}
+
+/** Persisted grid layout for a single session, keyed by {@link ISession.sessionId}. */
+interface ISerializedChatGroupsLayout {
+	readonly version: 1;
+	/** The grid tree (structure + sizes); each leaf's data carries its group index. */
+	readonly grid: ISerializedGrid;
+	/** The groups, indexed by the `index` stored in each grid leaf. */
+	readonly groups: ISerializedChatGroup[];
+	/** Index of the active group within {@link groups}. */
+	readonly activeGroupIndex: number;
+}
+
 /**
  * Hosts the grid of chat groups within a single {@link IActiveSession}. Chats
  * default to a single group (tab strip). Dragging a chat tab to a group's edge
@@ -44,9 +64,13 @@ interface IGroupEntry {
  * there — mirroring VS Code editor groups.
  *
  * The session is the single source of truth for which chats exist; the grid is
- * a UI-only partition over those chats and is not persisted across reloads.
+ * a UI-only partition over those chats. The partition (groups, their assigned
+ * chats, and the grid structure/sizes) is persisted per session to workspace
+ * storage and restored on reload via {@link _tryRestoreLayout}.
  */
 export class ChatGroupsView extends Themable {
+
+	private static readonly STORAGE_KEY = 'sessions.chatGroupsLayout';
 
 	readonly element: HTMLElement = $('.chat-groups-view');
 
@@ -66,6 +90,15 @@ export class ChatGroupsView extends Themable {
 	private _mainChatResource: IObservable<string> | undefined;
 	private _sessionActive = true;
 
+	/** While restoring a persisted layout: routes (late-loading) chats back to their saved groups. */
+	private _restoreAssignment: Map<string, number> | undefined;
+	/** Saved tab order (resource string -> ordinal) used to restore tab order across groups. */
+	private _restoreOrder: Map<string, number> | undefined;
+	/** The session's chat ids present when restore began, used to detect when the catalog has loaded. */
+	private _restoreInitialIds: Set<string> | undefined;
+	/** Whether a persisted layout is still being restored (saved chats may not have loaded yet). */
+	private _restorePending = false;
+
 	private _lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
 
 	private readonly _chatTransfer = LocalSelectionTransfer.getInstance<DraggedChatIdentifier>();
@@ -75,6 +108,7 @@ export class ChatGroupsView extends Themable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super(themeService);
 	}
@@ -85,6 +119,10 @@ export class ChatGroupsView extends Themable {
 		if (this._session === session) {
 			return;
 		}
+
+		// Snapshot the outgoing session's layout (captures final grid sizes) before tearing it down.
+		this._persistLayout();
+
 		this._session = session;
 
 		const store = new DisposableStore();
@@ -93,6 +131,10 @@ export class ChatGroupsView extends Themable {
 		this._grid = undefined;
 		this._groups = [];
 		this._activeGroup = undefined;
+		this._restoreAssignment = undefined;
+		this._restoreOrder = undefined;
+		this._restoreInitialIds = undefined;
+		this._restorePending = false;
 		this._setGroupCount(1);
 
 		if (!session) {
@@ -102,12 +144,7 @@ export class ChatGroupsView extends Themable {
 
 		this._mainChatResource = derived(reader => session.mainChat.read(reader).resource.toString());
 
-		const firstGroup = this._createGroupEntry(session, store);
-		this._groups = [firstGroup];
-		this._activeGroup = firstGroup;
-		firstGroup.view.setGroupActive(true);
-
-		const grid = new SerializableGrid(firstGroup.view, { styles: { separatorBorder: this._separatorBorder } });
+		const grid = this._tryRestoreLayout(session, store) ?? this._createSingleGroupGrid(session, store);
 		this._grid = grid;
 		store.add(grid);
 		this.element.replaceChildren(grid.element);
@@ -122,6 +159,87 @@ export class ChatGroupsView extends Themable {
 		store.add(autorun(reader => this._reconcile(reader)));
 
 		this._applyLayout();
+	}
+
+	private _createSingleGroupGrid(session: IActiveSession, store: DisposableStore): SerializableGrid<ChatGroupView> {
+		const firstGroup = this._createGroupEntry(session, store);
+		this._groups = [firstGroup];
+		this._activeGroup = firstGroup;
+		firstGroup.view.setGroupActive(true);
+		this._setGroupCount(1);
+		return new SerializableGrid(firstGroup.view, { styles: { separatorBorder: this._separatorBorder } });
+	}
+
+	/**
+	 * Rebuilds a persisted grid layout for the session, if one is stored. Returns
+	 * `undefined` to fall back to a single group. Saved chats may not have loaded
+	 * yet (the catalog arrives asynchronously); {@link _reconcile} routes them back
+	 * to their groups via {@link _restoreAssignment} once they appear.
+	 */
+	private _tryRestoreLayout(session: IActiveSession, store: DisposableStore): SerializableGrid<ChatGroupView> | undefined {
+		const saved = this._loadStored(session.sessionId);
+		if (!saved || saved.groups.length <= 1) {
+			return undefined;
+		}
+
+		const indexToEntry = new Map<number, IGroupEntry>();
+		const deserializer: IViewDeserializer<ChatGroupView> = {
+			fromJSON: (json: { index?: number } | null) => {
+				const index = typeof json?.index === 'number' ? json.index : indexToEntry.size;
+				const entry = this._createGroupEntry(session, store);
+				indexToEntry.set(index, entry);
+				return entry.view;
+			}
+		};
+
+		let grid: SerializableGrid<ChatGroupView>;
+		try {
+			grid = SerializableGrid.deserialize(saved.grid, deserializer, { styles: { separatorBorder: this._separatorBorder } });
+		} catch (e) {
+			onUnexpectedError(e);
+			return undefined;
+		}
+
+		const groups: IGroupEntry[] = [];
+		for (let i = 0; i < saved.groups.length; i++) {
+			const entry = indexToEntry.get(i);
+			if (entry) {
+				groups.push(entry);
+			}
+		}
+		if (groups.length <= 1) {
+			grid.dispose();
+			return undefined;
+		}
+
+		const assignment = new Map<string, number>();
+		const order = new Map<string, number>();
+		let ordinal = 0;
+		saved.groups.forEach((g, i) => {
+			const entry = indexToEntry.get(i);
+			if (!entry) {
+				return;
+			}
+			for (const id of g.resourceIds) {
+				assignment.set(id, entry.id);
+				order.set(id, ordinal++);
+			}
+			if (g.activeResourceId) {
+				entry.activeResourceId.set(g.activeResourceId, undefined);
+			}
+		});
+
+		this._groups = groups;
+		this._restoreAssignment = assignment;
+		this._restoreOrder = order;
+		this._restoreInitialIds = new Set(session.chats.get().map(c => c.resource.toString()));
+		this._restorePending = true;
+		this._activeGroup = indexToEntry.get(saved.activeGroupIndex) ?? groups[0];
+		for (const group of this._groups) {
+			group.view.setGroupActive(group === this._activeGroup);
+		}
+		this._setGroupCount(this._groups.length);
+		return grid;
 	}
 
 	private _createGroupEntry(session: IActiveSession, store: DisposableStore): IGroupEntry {
@@ -202,17 +320,35 @@ export class ChatGroupsView extends Themable {
 				}
 			}
 
-			// Assign newly added chats to the active group, preserving session order.
+			// Assign newly added chats. While restoring, route each chat back to its
+			// saved group; otherwise (and for genuinely new chats) use the active group.
 			const assigned = new Set<string>();
 			for (const group of this._groups) {
 				for (const id of group.resourceIds.get()) {
 					assigned.add(id);
 				}
 			}
-			const newIds = orderedIds.filter(id => !assigned.has(id));
-			if (newIds.length && this._activeGroup) {
-				const target = this._activeGroup;
-				target.resourceIds.set([...target.resourceIds.get(), ...newIds], tx);
+			for (const id of orderedIds) {
+				if (assigned.has(id)) {
+					continue;
+				}
+				const savedGroupId = this._restoreAssignment?.get(id);
+				const target = (savedGroupId !== undefined ? this._groups.find(g => g.id === savedGroupId) : undefined) ?? this._activeGroup;
+				if (target) {
+					target.resourceIds.set([...target.resourceIds.get(), id], tx);
+				}
+			}
+
+			// While restoring, keep each group's tabs in their saved order.
+			if (this._restorePending && this._restoreOrder) {
+				const restoreOrder = this._restoreOrder;
+				for (const group of this._groups) {
+					const ids = group.resourceIds.get();
+					const sorted = [...ids].sort((a, b) => (restoreOrder.get(a) ?? Number.MAX_SAFE_INTEGER) - (restoreOrder.get(b) ?? Number.MAX_SAFE_INTEGER));
+					if (sorted.some((id, i) => id !== ids[i])) {
+						group.resourceIds.set(sorted, tx);
+					}
+				}
 			}
 
 			// Reflect the session's active chat onto its owning group.
@@ -234,7 +370,25 @@ export class ChatGroupsView extends Themable {
 			}
 		});
 
-		this._removeEmptyGroups();
+		// Finish restoring once the saved chats have loaded (or the catalog has
+		// arrived without them, meaning they were deleted between reloads). Empty
+		// groups are kept while restore is pending so late-loading chats still have
+		// a home; once restore completes, any group left empty is collapsed.
+		if (this._restorePending) {
+			const allSavedPresent = this._restoreAssignment ? [...this._restoreAssignment.keys()].every(id => validIds.has(id)) : true;
+			const catalogChanged = !this._restoreInitialIds || orderedIds.length !== this._restoreInitialIds.size || orderedIds.some(id => !this._restoreInitialIds!.has(id));
+			if (allSavedPresent || catalogChanged) {
+				this._restorePending = false;
+				this._restoreAssignment = undefined;
+				this._restoreOrder = undefined;
+				this._restoreInitialIds = undefined;
+			}
+		}
+
+		if (!this._restorePending) {
+			this._removeEmptyGroups();
+			this._persistLayout();
+		}
 	}
 
 	private _findTargetGroup(child: HTMLElement): { readonly id: number; readonly element: HTMLElement } | undefined {
@@ -294,6 +448,7 @@ export class ChatGroupsView extends Themable {
 		this._setActiveGroup(target);
 		this._sessionsService.openChat(this._session!, resource).catch(onUnexpectedError);
 		this._removeEmptyGroups();
+		this._persistLayout();
 	}
 
 	private _splitChatIntoNewGroup(resource: URI, source: IGroupEntry, reference: IGroupEntry, zone: ChatDropZone): void {
@@ -316,6 +471,7 @@ export class ChatGroupsView extends Themable {
 		this._sessionsService.openChat(this._session, resource).catch(onUnexpectedError);
 		this._removeEmptyGroups();
 		this._applyLayout();
+		this._persistLayout();
 	}
 
 	private _removeEmptyGroups(): void {
@@ -346,6 +502,7 @@ export class ChatGroupsView extends Themable {
 		for (const group of this._groups) {
 			group.view.setGroupActive(group === entry);
 		}
+		this._persistLayout();
 	}
 
 	private _setGroupCount(count: number): void {
@@ -434,5 +591,59 @@ export class ChatGroupsView extends Themable {
 	override updateStyles(): void {
 		super.updateStyles();
 		this._grid?.style({ separatorBorder: this._separatorBorder });
+	}
+
+	/** Persists the current grid layout for the active session (or clears it when a single group). */
+	private _persistLayout(): void {
+		if (!this._session || !this._grid || this._restorePending) {
+			return;
+		}
+		const sessionId = this._session.sessionId;
+		if (this._groups.length <= 1) {
+			this._saveStored(sessionId, undefined);
+			return;
+		}
+		this._groups.forEach((group, i) => group.view.setSerializationIndex(i));
+		const layout: ISerializedChatGroupsLayout = {
+			version: 1,
+			grid: this._grid.serialize(),
+			groups: this._groups.map(group => ({ resourceIds: group.resourceIds.get(), activeResourceId: group.activeResourceId.get() })),
+			activeGroupIndex: Math.max(0, this._groups.indexOf(this._activeGroup!)),
+		};
+		this._saveStored(sessionId, layout);
+	}
+
+	private _readStoredLayouts(): Record<string, ISerializedChatGroupsLayout> {
+		const raw = this._storageService.get(ChatGroupsView.STORAGE_KEY, StorageScope.WORKSPACE);
+		if (!raw) {
+			return {};
+		}
+		try {
+			return JSON.parse(raw) as Record<string, ISerializedChatGroupsLayout>;
+		} catch {
+			return {};
+		}
+	}
+
+	private _loadStored(sessionId: string): ISerializedChatGroupsLayout | undefined {
+		const entry = this._readStoredLayouts()[sessionId];
+		return entry?.version === 1 ? entry : undefined;
+	}
+
+	private _saveStored(sessionId: string, layout: ISerializedChatGroupsLayout | undefined): void {
+		const layouts = this._readStoredLayouts();
+		if (layout) {
+			layouts[sessionId] = layout;
+		} else if (layouts[sessionId] === undefined) {
+			return;
+		} else {
+			delete layouts[sessionId];
+		}
+		this._storageService.store(ChatGroupsView.STORAGE_KEY, JSON.stringify(layouts), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+	}
+
+	override dispose(): void {
+		this._persistLayout();
+		super.dispose();
 	}
 }

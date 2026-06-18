@@ -88,6 +88,8 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 	private _groupActive = false;
 	/** Whether this group's session is the active session in the sessions part. */
 	private _sessionActive = true;
+	/** Index of this group within the persisted layout, written into {@link toJSON}. */
+	private _serializationIndex = 0;
 
 	constructor(
 		@IChatViewFactory private readonly _chatViewFactory: IChatViewFactory,
@@ -219,8 +221,13 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		this._currentView.value?.layout(width, height - barHeight, top + barHeight, left);
 	}
 
+	/** Sets the index this group serializes as, so the grid deserializer can map nodes back to groups. */
+	setSerializationIndex(index: number): void {
+		this._serializationIndex = index;
+	}
+
 	toJSON(): object {
-		return { type: ChatGroupView.TYPE };
+		return { type: ChatGroupView.TYPE, index: this._serializationIndex };
 	}
 
 	focus(): void {
