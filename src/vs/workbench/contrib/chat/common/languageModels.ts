@@ -183,13 +183,6 @@ export interface ILanguageModelConfigurationSchema extends IJSONSchema {
 			group?: string;
 			/** Labels for enum values. If provided, these are shown instead of the raw enum values. */
 			enumItemLabels?: string[];
-			/**
-			 * Numeric token count per enum value (parallel to `enum`). Set for the
-			 * `'tokens'` group when the enum values are tier names rather than raw
-			 * token counts (e.g. Copilot CLI's `contextTier`), so the context-usage
-			 * widget can resolve the selected tier to a real context window size.
-			 */
-			enumItemTokenCounts?: number[];
 		};
 	};
 }
@@ -218,6 +211,12 @@ export interface ILanguageModelChatMetadata {
 	readonly family: string;
 	readonly maxInputTokens: number;
 	readonly maxOutputTokens: number;
+	/**
+	 * Maximum input tokens when the model's long-context tier is selected (see the
+	 * `'tokens'` group in {@link configurationSchema}). Falls back to
+	 * {@link maxInputTokens} for the default tier.
+	 */
+	readonly longContextMaxInputTokens?: number;
 
 	readonly isDefaultForLocation: { [K in ChatAgentLocation]?: boolean };
 	readonly isUserSelectable?: boolean;

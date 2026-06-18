@@ -731,7 +731,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			default: 'default',
 			enum: ['default', 'long_context'],
 			enumLabels: [formatTokenCount(defaultMax), formatTokenCount(longContextMax)],
-			enumTokenCounts: [defaultMax, longContextMax],
 			enumDescriptions: [
 				localize('copilot.modelContextTier.default', "Default"),
 				hasLongContextSurcharge
@@ -739,6 +738,23 @@ export class CopilotAgent extends Disposable implements IAgent {
 					: localize('copilot.modelContextTier.longerSessionsNoCompaction', "Longer sessions without compaction"),
 			],
 		};
+	}
+
+	/**
+	 * The model's long-context window size in tokens, surfaced as model metadata
+	 * (sibling of `maxContextWindow`) so the context-usage widget can reflect a
+	 * `long_context` tier selection. Mirrors the gating in
+	 * {@link _createContextTierConfigSchemaProperty}: returns `undefined` when the
+	 * model has no distinct long-context tier.
+	 */
+	private _getLongContextWindow(billing: ModelInfo['billing'] | undefined): number | undefined {
+		const tokenPrices = (billing as ICopilotModelBilling | undefined)?.tokenPrices;
+		const defaultMax = tokenPrices?.contextMax;
+		const longContextMax = tokenPrices?.longContext?.contextMax;
+		if (!defaultMax || !longContextMax || defaultMax >= longContextMax) {
+			return undefined;
+		}
+		return longContextMax;
 	}
 
 	/**
@@ -943,6 +959,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// Synthetic SDK entries like `auto` ship with `capabilities: {}` and
 			// no fixed context window — surface them with maxContextWindow undefined.
 			maxContextWindow: m.capabilities?.limits?.max_context_window_tokens,
+			maxLongContextWindow: this._getLongContextWindow(m.billing),
 			supportsVision: !!m.capabilities?.supports?.vision,
 			configSchema: this._createModelConfigSchema(m),
 			policyState: m.policy?.state as PolicyState | undefined,
