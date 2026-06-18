@@ -41,8 +41,9 @@ export class AgentHostCommitOperationContribution extends Disposable implements 
 		return [{
 			id: AgentHostCommitOperationHandler.OPERATION_COMMIT,
 			label: localize('agentHost.changeset.commit', "Commit Changes"),
-			scopes: [ChangesetOperationScope.Changeset],
 			icon: 'git-commit',
+			group: 'commit',
+			scopes: [ChangesetOperationScope.Changeset],
 			status: ChangesetOperationStatus.Idle,
 		} satisfies ChangesetOperation];
 	}

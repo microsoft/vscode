@@ -124,8 +124,7 @@ function toSessionChangesetOperation(operation: ChangesetOperation): ISessionCha
 		icon: operation.icon
 			? ThemeIcon.fromId(operation.icon)
 			: undefined,
-		scopes: operation.scopes.map(toSessionChangesetOperationScope),
-		status: toSessionChangesetOperationStatus(operation.status),
+		group: operation.group,
 		confirmation: operation.confirmation
 			? typeof operation.confirmation === 'string'
 				? operation.confirmation
@@ -133,6 +132,8 @@ function toSessionChangesetOperation(operation: ChangesetOperation): ISessionCha
 					isTrusted: false, supportThemeIcons: true
 				})
 			: undefined,
+		scopes: operation.scopes.map(toSessionChangesetOperationScope),
+		status: toSessionChangesetOperationStatus(operation.status),
 	};
 }
 
