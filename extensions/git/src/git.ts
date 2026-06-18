@@ -207,6 +207,37 @@ export interface SpawnOptions extends cp.SpawnOptions {
 	onSpawn?: (childProcess: cp.ChildProcess) => void;
 }
 
+function killProcessTree(child: cp.ChildProcess): void {
+	const pid = child.pid;
+
+	if (pid === undefined) {
+		child.kill();
+		return;
+	}
+
+	if (isWindows) {
+		// On Windows, child.kill() does not kill child processes spawned by the
+		// process. Use taskkill with /T to kill the entire process tree.
+		try {
+			cp.spawnSync('taskkill', ['/T', '/F', '/PID', pid.toString()], {
+				stdio: ['ignore', 'ignore', 'ignore']
+			});
+		} catch {
+			// The process may have already exited
+			child.kill();
+		}
+	} else {
+		// On Unix, attempt to kill the process group. If the child is the process
+		// group leader we can send a signal to the entire group using -pid.
+		try {
+			process.kill(-pid, 'SIGTERM');
+		} catch {
+			// Fallback: process may not be a group leader or may have already exited
+			child.kill();
+		}
+	}
+}
+
 async function exec(child: cp.ChildProcess, cancellationToken?: CancellationToken): Promise<IExecutionResult<Buffer>> {
 	if (!child.stdout || !child.stderr) {
 		throw new GitError({ message: 'Failed to get stdout or stderr from git process.' });
@@ -249,7 +280,7 @@ async function exec(child: cp.ChildProcess, cancellationToken?: CancellationToke
 		const cancellationPromise = new Promise<[number, Buffer, string]>((_, e) => {
 			onceEvent(cancellationToken.onCancellationRequested)(() => {
 				try {
-					child.kill();
+					killProcessTree(child);
 				} catch (err) {
 					// noop
 				}
