@@ -94,7 +94,7 @@ jobs:
         with:
           key-prefix: node_modules-linux
           key-args: "linux ${{ env.VSCODE_ARCH }} $(node -p process.arch)"
-          extract: 'false'
+          lookup-only: 'true'
 
       - name: Install build dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -160,7 +160,7 @@ jobs:
         with:
           key-prefix: node_modules-macos
           key-args: "darwin ${{ env.VSCODE_ARCH }} $(node -p process.arch)"
-          extract: 'false'
+          lookup-only: 'true'
 
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -215,7 +215,7 @@ jobs:
         with:
           key-prefix: node_modules-windows
           key-args: "win32 ${{ env.VSCODE_ARCH }} $(node -p process.arch)"
-          extract: 'false'
+          lookup-only: 'true'
 
       - name: Install dependencies
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
