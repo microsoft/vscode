@@ -51,6 +51,7 @@ import { ChatAgentLocation } from '../../chat/common/constants.js';
 const AGENTS_VOICE_WINDOW_VISIBLE = new RawContextKey<boolean>('agentsVoiceWindowVisible', false);
 export const AGENTS_VOICE_WIDGET_FOCUSED = new RawContextKey<boolean>('agentsVoiceWidgetFocused', false);
 const AGENTS_VOICE_CONNECTED = new RawContextKey<boolean>('agentsVoiceConnected', false);
+const AGENTS_VOICE_LISTENING = new RawContextKey<boolean>('agentsVoiceListening', false);
 
 // --- Context Key Binding ---
 
@@ -88,8 +89,11 @@ class AgentsVoiceConnectedKeyContribution extends Disposable implements IWorkben
 		super();
 
 		const connectedKey = AGENTS_VOICE_CONNECTED.bindTo(contextKeyService);
+		const listeningKey = AGENTS_VOICE_LISTENING.bindTo(contextKeyService);
 		this._register(autorun(reader => {
 			connectedKey.set(voiceSessionController.isConnected.read(reader));
+			const state = voiceSessionController.voiceState.read(reader);
+			listeningKey.set(state === 'listening');
 		}));
 	}
 }
@@ -161,8 +165,9 @@ CommandsRegistry.registerCommand('_agentsVoice.openWindow', async (accessor) => 
 });
 
 // --- Mic button in Chat toolbar ---
-// Always shows mic (unfilled). Click to connect if disconnected, or toggle PTT if connected.
-// The disconnect button (shown when connected) is the visual indicator of active voice mode.
+// Shows mic (unfilled) normally, mic-filled when actively listening.
+// Click to connect if disconnected, or toggle PTT if connected.
+// The disconnect button (shown when connected) indicates active voice mode.
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -176,6 +181,7 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+					AGENTS_VOICE_LISTENING.negate(),
 				),
 				group: 'navigation',
 				order: 4
@@ -191,12 +197,39 @@ registerAction2(class extends Action2 {
 				await agentsVoiceWindowService.openWindow();
 			}
 		} else {
-			// Simulate a tap (pttDown + pttUp).
-			// A short tap enters toggle mode (recording continues until next tap).
-			// If already in toggle mode, pttDown finishes recording and sends.
 			voiceController.pttDown();
 			voiceController.pttUp();
 		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'agentsVoice.pttStopInChat',
+			title: nls.localize2('agentsVoice.pttStopInChat', "Voice Mode: Stop Recording"),
+			icon: Codicon.micFilled,
+			precondition: ContextKeyExpr.and(
+				ContextKeyExpr.equals('config.agents.voice.enabled', true),
+				AGENTS_VOICE_LISTENING.isEqualTo(true),
+			),
+			menu: {
+				id: MenuId.ChatExecute,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+					AGENTS_VOICE_LISTENING.isEqualTo(true),
+				),
+				group: 'navigation',
+				order: 4
+			}
+		});
+	}
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const voiceController = accessor.get(IVoiceSessionController);
+		// Stop recording and send
+		voiceController.pttDown();
+		voiceController.pttUp();
 	}
 });
 
