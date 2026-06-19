@@ -1234,7 +1234,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					}
 					return;
 				}
-				ref.dispose();
 				const result = await this.chatService.sendRequest(target, text).catch(err => {
 					this.logService.warn('[voice] Error sending transcription to target session:', err);
 					return undefined;
@@ -1244,6 +1243,26 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					this._watchResponseForFloatingWindow(target);
 					// Open the floating window so user can see the response
 					this.commandService.executeCommand('_agentsVoice.openWindow').catch(() => { /* ignore */ });
+					// Keep the session model loaded until the response completes
+					// so the autorun can observe state transitions and trigger narration.
+					const model = this.chatService.getSession(target);
+					if (model) {
+						const lastReq = model.getRequests().at(-1);
+						if (lastReq?.response && !lastReq.response.isComplete && !lastReq.response.isCanceled) {
+							const responseDisposable = lastReq.response.onDidChange(() => {
+								if (lastReq.response!.isComplete || lastReq.response!.isCanceled) {
+									responseDisposable.dispose();
+									ref.dispose();
+								}
+							});
+						} else {
+							ref.dispose();
+						}
+					} else {
+						ref.dispose();
+					}
+				} else {
+					ref.dispose();
 				}
 			}
 		} else {
