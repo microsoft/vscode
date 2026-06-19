@@ -7,9 +7,8 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableMap, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { AgentHostMcpServers, AgentHostMcpServersConfigKey } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
-import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { AgentSession, IAgentConnection, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { getEffectiveAgents } from '../../../../../../platform/agentHost/common/customAgents.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
@@ -22,9 +21,6 @@ import { IChatService } from '../../../common/chatService/chatService.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostMcpServer } from '../../../../../../sessions/common/agentHostSessionsProvider.js';
-
-const AGENT_HOST_SESSION_SCHEME_PREFIX = 'agent-host-';
-const REMOTE_AGENT_HOST_SESSION_SCHEME_PREFIX = 'remote-';
 
 export const IAgentHostCustomizationService = createDecorator<IAgentHostCustomizationService>('agentHostCustomizationService');
 
@@ -88,14 +84,13 @@ class WorkbenchAgentHostCustomizationService extends Disposable implements IAgen
 	private readonly _sessionStateSubscriptions = this._register(new DisposableMap<string, IDisposable & { readonly connection: IAgentConnection; readonly backendSession: URI; readonly sub: IAgentSubscription<SessionState> }>());
 
 	constructor(
-		@IAgentHostService private readonly _agentHostService: IAgentHostService,
-		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
+		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisionalSessionService: IAgentHostUntitledProvisionalSessionService,
 		@IChatService chatService: IChatService,
 	) {
 		super();
 
-		this._register(this._agentHostService.onDidAction(envelope => {
+		this._register(this._connectionsService.ambientConnection.onDidAction(envelope => {
 			switch (envelope.action.type) {
 				case ActionType.SessionCustomizationsChanged:
 				case ActionType.SessionCustomizationUpdated:
@@ -198,7 +193,7 @@ class WorkbenchAgentHostCustomizationService extends Disposable implements IAgen
 		return value && !(value instanceof Error) ? value : undefined;
 	}
 
-	private _ensureSessionStateSubscription(sessionResource: URI, target: IAgentHostSessionTarget): (IDisposable & { readonly connection: IAgentConnection; readonly backendSession: URI; readonly sub: IAgentSubscription<SessionState> }) | undefined {
+	private _ensureSessionStateSubscription(sessionResource: URI, target: IAgentHostSessionResolution): (IDisposable & { readonly connection: IAgentConnection; readonly backendSession: URI; readonly sub: IAgentSubscription<SessionState> }) | undefined {
 		const key = sessionResource.toString();
 		const existing = this._sessionStateSubscriptions.get(key);
 		if (existing?.backendSession.toString() === target.backendSession.toString() && existing.connection === target.connection) {
@@ -237,49 +232,19 @@ class WorkbenchAgentHostCustomizationService extends Disposable implements IAgen
 	 * the {@link IAgentConnection} (local or remote) that owns it. Returns
 	 * `undefined` for sessions not backed by an agent host.
 	 */
-	private _resolveSessionTarget(sessionResource: URI): IAgentHostSessionTarget | undefined {
+	private _resolveSessionTarget(sessionResource: URI): IAgentHostSessionResolution | undefined {
 		const provisionalSession = this._provisionalSessionService.get(sessionResource);
 		if (provisionalSession) {
-			// Provisional (untitled) sessions are always local.
-			return { connection: this._agentHostService, backendSession: provisionalSession };
+			// Provisional (untitled) sessions are always backed by the ambient host.
+			return { connection: this._connectionsService.ambientConnection, backendSession: provisionalSession };
 		}
 
 		if (isUntitledChatSession(sessionResource)) {
 			return undefined;
 		}
 
-		const scheme = sessionResource.scheme;
-		const rawSessionId = sessionResource.path.substring(1);
-
-		if (scheme.startsWith(AGENT_HOST_SESSION_SCHEME_PREFIX)) {
-			const provider = scheme.substring(AGENT_HOST_SESSION_SCHEME_PREFIX.length);
-			return provider ? { connection: this._agentHostService, backendSession: AgentSession.uri(provider, rawSessionId) } : undefined;
-		}
-
-		if (scheme.startsWith(REMOTE_AGENT_HOST_SESSION_SCHEME_PREFIX)) {
-			// Remote schemes are `remote-<sanitizedAuthority>-<provider>`. Both
-			// the authority and provider may contain dashes, so disambiguate
-			// against the live connection list rather than splitting blindly.
-			for (const info of this._remoteAgentHostService.connections) {
-				const prefix = `${REMOTE_AGENT_HOST_SESSION_SCHEME_PREFIX}${agentHostAuthority(info.address)}-`;
-				if (!scheme.startsWith(prefix)) {
-					continue;
-				}
-				const provider = scheme.substring(prefix.length);
-				const connection = this._remoteAgentHostService.getConnection(info.address);
-				if (provider && connection) {
-					return { connection, backendSession: AgentSession.uri(provider, rawSessionId) };
-				}
-			}
-		}
-
-		return undefined;
+		return this._connectionsService.resolveSessionResource(sessionResource);
 	}
-}
-
-interface IAgentHostSessionTarget {
-	readonly connection: IAgentConnection;
-	readonly backendSession: URI;
 }
 
 registerSingleton(IAgentHostCustomizationService, WorkbenchAgentHostCustomizationService, InstantiationType.Delayed);

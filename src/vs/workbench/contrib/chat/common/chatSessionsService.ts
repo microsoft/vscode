@@ -12,6 +12,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IPosition } from '../../../../editor/common/core/position.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { LOCAL_AGENT_HOST_SCHEME_PREFIX, REMOTE_AGENT_HOST_SCHEME_PREFIX } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from './participants/chatAgents.js';
 import { IChatEditingSession } from './editing/chatEditingService.js';
 import { IChatRequestModeInstructions, IChatRequestVariableData, ISerializableChatModelInputState } from './model/chatModel.js';
@@ -264,7 +265,7 @@ export namespace SessionType {
  */
 export function isLocalAgentHostTarget(target: string): boolean {
 	return target === SessionType.AgentHostCopilot ||
-		target.startsWith('agent-host-');
+		target.startsWith(LOCAL_AGENT_HOST_SCHEME_PREFIX);
 }
 
 /**
@@ -276,7 +277,7 @@ export function isLocalAgentHostTarget(target: string): boolean {
  * are NOT agent hosts need a different prefix, this function must be updated.
  */
 export function isRemoteAgentHostTarget(target: string): boolean {
-	return target.startsWith('remote-');
+	return target.startsWith(REMOTE_AGENT_HOST_SCHEME_PREFIX);
 }
 
 /**
