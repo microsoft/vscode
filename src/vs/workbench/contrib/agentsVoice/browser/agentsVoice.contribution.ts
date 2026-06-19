@@ -53,6 +53,7 @@ export const AGENTS_VOICE_WIDGET_FOCUSED = new RawContextKey<boolean>('agentsVoi
 const AGENTS_VOICE_CONNECTED = new RawContextKey<boolean>('agentsVoiceConnected', false);
 const AGENTS_VOICE_CONNECTING = new RawContextKey<boolean>('agentsVoiceConnecting', false);
 const AGENTS_VOICE_LISTENING = new RawContextKey<boolean>('agentsVoiceListening', false);
+const AGENTS_VOICE_ACTIVE = new RawContextKey<boolean>('agentsVoiceActive', false);
 
 // --- Context Key Binding ---
 
@@ -92,11 +93,13 @@ class AgentsVoiceConnectedKeyContribution extends Disposable implements IWorkben
 		const connectedKey = AGENTS_VOICE_CONNECTED.bindTo(contextKeyService);
 		const connectingKey = AGENTS_VOICE_CONNECTING.bindTo(contextKeyService);
 		const listeningKey = AGENTS_VOICE_LISTENING.bindTo(contextKeyService);
+		const activeKey = AGENTS_VOICE_ACTIVE.bindTo(contextKeyService);
 		this._register(autorun(reader => {
 			connectedKey.set(voiceSessionController.isConnected.read(reader));
 			connectingKey.set(voiceSessionController.isConnecting.read(reader));
 			const state = voiceSessionController.voiceState.read(reader);
 			listeningKey.set(state === 'listening');
+			activeKey.set(state === 'listening' || state === 'speaking');
 		}));
 	}
 }
@@ -221,7 +224,7 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
-					AGENTS_VOICE_LISTENING.negate(),
+					AGENTS_VOICE_ACTIVE.negate(),
 					AGENTS_VOICE_CONNECTING.negate(),
 				),
 				group: 'navigation',
@@ -256,14 +259,14 @@ registerAction2(class extends Action2 {
 			icon: Codicon.micFilled,
 			precondition: ContextKeyExpr.and(
 				ContextKeyExpr.equals('config.agents.voice.enabled', true),
-				AGENTS_VOICE_LISTENING.isEqualTo(true),
+				AGENTS_VOICE_ACTIVE.isEqualTo(true),
 			),
 			menu: {
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
-					AGENTS_VOICE_LISTENING.isEqualTo(true),
+					AGENTS_VOICE_ACTIVE.isEqualTo(true),
 				),
 				group: 'navigation',
 				order: 4
@@ -274,7 +277,7 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
 					ChatContextKeys.inChatInput,
-					AGENTS_VOICE_LISTENING.isEqualTo(true),
+					AGENTS_VOICE_ACTIVE.isEqualTo(true),
 				),
 			},
 		});
