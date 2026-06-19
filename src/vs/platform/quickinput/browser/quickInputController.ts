@@ -922,7 +922,7 @@ export class QuickInputController extends Disposable {
 						width: anchor.width,
 						height: 0
 					};
-					maxListHeight = Math.min(400, container.height - anchor.top - verticalPadding);
+					maxListHeight = Math.min(400, container.bottom - anchor.top - verticalPadding);
 					preferredAnchorPosition = AnchorPosition.BELOW;
 				} else {
 					width = 380;
