@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Raw } from '@vscode/prompt-tsx';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { CancellationTokenSource } from 'vscode';
 import { BlockedExtensionService, IBlockedExtensionService } from '../../../../platform/chat/common/blockedExtensionService';
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../../platform/endpoint/common/endpointProvider';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
@@ -13,7 +14,7 @@ import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
-import { CustomEndpointOAIEndpoint, hasExplicitApiPath, resolveCustomEndpointUrl } from '../customEndpointProvider';
+import { CUSTOM_ENDPOINT_DEFAULT_MAX_INPUT_TOKENS, CUSTOM_ENDPOINT_DEFAULT_MAX_OUTPUT_TOKENS, CustomEndpointBYOKModelProvider, CustomEndpointOAIEndpoint, hasExplicitApiPath, mergeModelsById, resolveCustomEndpointModelCapabilities, resolveCustomEndpointUrl } from '../customEndpointProvider';
 
 describe('CustomEndpointBYOKModelProvider', () => {
 	const disposables = new DisposableStore();
@@ -403,5 +404,232 @@ describe('CustomEndpointBYOKModelProvider', () => {
 			expect(messages[0].reasoning).toBe('I should read the README before answering.');
 			expect(messages[0].cot_summary).toBe('I should read the README before answering.');
 		});
+	});
+});
+
+describe('resolveCustomEndpointModelCapabilities', () => {
+	it('applies defaults (tools ON, vision OFF) for a minimal OpenAI entry', () => {
+		expect(resolveCustomEndpointModelCapabilities({ id: 'gpt-4o' })).toEqual({
+			name: 'gpt-4o',
+			toolCalling: true,
+			vision: false,
+			maxInputTokens: CUSTOM_ENDPOINT_DEFAULT_MAX_INPUT_TOKENS,
+			maxOutputTokens: CUSTOM_ENDPOINT_DEFAULT_MAX_OUTPUT_TOKENS,
+			supportsReasoningEffort: undefined,
+		});
+	});
+
+	it('parses OpenRouter-style rich fields (tools, vision, reasoning, context window)', () => {
+		const caps = resolveCustomEndpointModelCapabilities({
+			id: 'anthropic/claude-sonnet-4',
+			name: 'Claude Sonnet 4',
+			supported_parameters: ['tools', 'reasoning'],
+			architecture: { input_modalities: ['text', 'image'] },
+			top_provider: { context_length: 200000 },
+		});
+		expect(caps).toEqual({
+			name: 'Claude Sonnet 4',
+			toolCalling: true,
+			vision: true,
+			maxInputTokens: 184000,
+			maxOutputTokens: 16000,
+			supportsReasoningEffort: ['low', 'medium', 'high'],
+		});
+	});
+
+	it('trusts advertised supported_parameters: absence of `tools` means tool calling OFF', () => {
+		const caps = resolveCustomEndpointModelCapabilities({ id: 'm', supported_parameters: ['temperature'] });
+		expect(caps?.toolCalling).toBe(false);
+	});
+
+	it('derives a token split from a vLLM max_model_len', () => {
+		const caps = resolveCustomEndpointModelCapabilities({ id: 'm', max_model_len: 32768 });
+		expect(caps?.maxOutputTokens).toBe(8192);
+		expect(caps?.maxInputTokens).toBe(24576);
+	});
+
+	it('honors an explicit max_completion_tokens cap', () => {
+		const caps = resolveCustomEndpointModelCapabilities({ id: 'm', top_provider: { context_length: 100000, max_completion_tokens: 4096 } });
+		expect(caps?.maxOutputTokens).toBe(4096);
+		expect(caps?.maxInputTokens).toBe(95904);
+	});
+
+	it('keeps input tokens positive for a tiny context window', () => {
+		const caps = resolveCustomEndpointModelCapabilities({ id: 'm', context_length: 1000 });
+		expect(caps?.maxOutputTokens).toBe(250);
+		expect(caps?.maxInputTokens).toBe(750);
+	});
+
+	it('falls back to id for the name, and reads display_name when present', () => {
+		expect(resolveCustomEndpointModelCapabilities({ id: 'm' })?.name).toBe('m');
+		expect(resolveCustomEndpointModelCapabilities({ id: 'm', display_name: 'My Model' })?.name).toBe('My Model');
+	});
+
+	it('returns undefined for entries without a usable id', () => {
+		expect(resolveCustomEndpointModelCapabilities({})).toBeUndefined();
+		expect(resolveCustomEndpointModelCapabilities({ id: 123 })).toBeUndefined();
+		expect(resolveCustomEndpointModelCapabilities(null)).toBeUndefined();
+		expect(resolveCustomEndpointModelCapabilities(undefined)).toBeUndefined();
+	});
+});
+
+describe('mergeModelsById', () => {
+	it('lets manual entries override discovered ones by id and appends manual-only entries', () => {
+		const discovered = [{ id: 'a', src: 'd' }, { id: 'b', src: 'd' }];
+		const manual = [{ id: 'b', src: 'm' }, { id: 'c', src: 'm' }];
+		expect(mergeModelsById(discovered, manual)).toEqual([
+			{ id: 'a', src: 'd' },
+			{ id: 'b', src: 'm' },
+			{ id: 'c', src: 'm' },
+		]);
+	});
+
+	it('returns the discovered list unchanged when there are no manual entries', () => {
+		expect(mergeModelsById([{ id: 'a' }], [])).toEqual([{ id: 'a' }]);
+	});
+});
+
+describe('CustomEndpointBYOKModelProvider model discovery', () => {
+	const token = new CancellationTokenSource().token;
+
+	class TestableCustomEndpointProvider extends CustomEndpointBYOKModelProvider {
+		public readonly warnings: string[] = [];
+		protected override showDiscoveryWarning(message: string): void {
+			this.warnings.push(message);
+		}
+	}
+
+	function createLogServiceMock() {
+		const logService: any = {
+			_serviceBrand: undefined,
+			trace: vi.fn(), debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), show: vi.fn(),
+			createSubLogger: vi.fn(), withExtraTarget: vi.fn(),
+		};
+		logService.createSubLogger.mockReturnValue(logService);
+		logService.withExtraTarget.mockReturnValue(logService);
+		return logService;
+	}
+
+	function createProvider(fetch: (url: string, options: unknown) => Promise<unknown>): TestableCustomEndpointProvider {
+		const storage = {
+			getAPIKey: vi.fn().mockResolvedValue(undefined),
+			storeAPIKey: vi.fn().mockResolvedValue(undefined),
+			deleteAPIKey: vi.fn().mockResolvedValue(undefined),
+		};
+		return new TestableCustomEndpointProvider(
+			storage as any,
+			createLogServiceMock(),
+			{ fetch } as any,
+			{ createInstance: vi.fn().mockReturnValue({}) } as any,
+			{ isConfigured: vi.fn().mockReturnValue(false), getConfig: vi.fn(), setConfig: vi.fn() } as any,
+			{} as any,
+		);
+	}
+
+	function jsonResponse(body: unknown) {
+		return { json: async () => body };
+	}
+
+	it('discovers models from the configured /models endpoint with default capabilities', async () => {
+		const fetch = vi.fn(async (url: string) => {
+			expect(url).toBe('https://api.example.com/models');
+			return jsonResponse({ data: [{ id: 'model-a' }, { id: 'model-b' }] });
+		});
+		const provider = createProvider(fetch);
+
+		const models = await provider.provideLanguageModelChatInformation(
+			{ silent: true, configuration: { url: 'https://api.example.com', apiKey: 'k' } },
+			token,
+		);
+
+		expect(models.map(m => m.id)).toEqual(['model-a', 'model-b']);
+		expect(models[0].capabilities).toMatchObject({ toolCalling: true, imageInput: false });
+		expect(models[0].maxInputTokens).toBe(CUSTOM_ENDPOINT_DEFAULT_MAX_INPUT_TOKENS);
+		expect(models[0].maxOutputTokens).toBe(CUSTOM_ENDPOINT_DEFAULT_MAX_OUTPUT_TOKENS);
+	});
+
+	it('lets a manual entry override a discovered model and appends manual-only models', async () => {
+		const fetch = vi.fn(async () => jsonResponse({ data: [{ id: 'model-a' }, { id: 'model-b' }] }));
+		const provider = createProvider(fetch);
+
+		const models = await provider.provideLanguageModelChatInformation(
+			{
+				silent: true,
+				configuration: {
+					url: 'https://api.example.com',
+					apiKey: 'k',
+					models: [
+						{ id: 'model-a', name: 'Overridden A', url: 'https://api.example.com/v1', toolCalling: true, vision: true, maxInputTokens: 1000, maxOutputTokens: 100 },
+						{ id: 'model-c', name: 'Manual C', url: 'https://api.example.com/v1', toolCalling: false, vision: false, maxInputTokens: 2000, maxOutputTokens: 200 },
+					],
+				},
+			},
+			token,
+		);
+
+		const byId = new Map(models.map(m => [m.id, m]));
+		expect([...byId.keys()].sort()).toEqual(['model-a', 'model-b', 'model-c']);
+		// manual override wins for model-a
+		expect(byId.get('model-a')!.name).toBe('Overridden A');
+		expect(byId.get('model-a')!.capabilities).toMatchObject({ imageInput: true });
+		expect(byId.get('model-a')!.maxInputTokens).toBe(1000);
+		// discovered default remains for model-b
+		expect(byId.get('model-b')!.capabilities).toMatchObject({ imageInput: false });
+		// manual-only model-c is appended
+		expect(byId.get('model-c')!.name).toBe('Manual C');
+	});
+
+	it('falls back to manual models and warns once when discovery fails (non-silent)', async () => {
+		const fetch = vi.fn(async () => { throw new Error('boom'); });
+		const provider = createProvider(fetch);
+		const configuration = {
+			url: 'https://api.example.com',
+			apiKey: 'k',
+			models: [
+				{ id: 'fallback', name: 'Fallback', url: 'https://api.example.com/v1', toolCalling: true, vision: false, maxInputTokens: 1000, maxOutputTokens: 100 },
+			],
+		};
+
+		const first = await provider.provideLanguageModelChatInformation({ silent: false, configuration }, token);
+		const second = await provider.provideLanguageModelChatInformation({ silent: false, configuration }, token);
+
+		expect(first.map(m => m.id)).toEqual(['fallback']);
+		expect(second.map(m => m.id)).toEqual(['fallback']);
+		// warned once despite two refreshes (dedup by URL), and the message names the endpoint
+		expect(provider.warnings).toHaveLength(1);
+		expect(provider.warnings[0]).toContain('https://api.example.com');
+	});
+
+	it('does not warn on a silent refresh failure', async () => {
+		const fetch = vi.fn(async () => { throw new Error('boom'); });
+		const provider = createProvider(fetch);
+
+		const models = await provider.provideLanguageModelChatInformation(
+			{ silent: true, configuration: { url: 'https://api.example.com', apiKey: 'k', models: [] } },
+			token,
+		);
+
+		expect(models).toEqual([]);
+		expect(provider.warnings).toEqual([]);
+	});
+
+	it('returns only manual models when no discovery url is set', async () => {
+		const fetch = vi.fn(async () => { throw new Error('should not be called'); });
+		const provider = createProvider(fetch);
+
+		const models = await provider.provideLanguageModelChatInformation(
+			{
+				silent: true,
+				configuration: {
+					models: [
+						{ id: 'manual', name: 'Manual', url: 'https://api.example.com/v1', toolCalling: true, vision: false, maxInputTokens: 1000, maxOutputTokens: 100 },
+					],
+				},
+			},
+			token,
+		);
+
+		expect(models.map(m => m.id)).toEqual(['manual']);
+		expect(fetch).not.toHaveBeenCalled();
 	});
 });
