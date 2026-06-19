@@ -243,20 +243,20 @@ export class AgentsVoiceWidget extends Disposable {
 		this._chevronWrapper.style.cssText = 'display:flex;justify-content:center;cursor:pointer;-webkit-app-region:no-drag;';
 		this._chevronIcon = dom.$('span.codicon');
 		this._chevronIcon.style.cssText = `font-size:${FONT_SIZE.iconSm};color:var(--vscode-descriptionForeground);`;
-		this._chevronIcon.addEventListener('mouseenter', () => { this._chevronIcon.style.color = 'var(--vscode-foreground)'; });
-		this._chevronIcon.addEventListener('mouseleave', () => { this._chevronIcon.style.color = 'var(--vscode-descriptionForeground)'; });
+		this._register(dom.addDisposableListener(this._chevronIcon, 'mouseenter', () => { this._chevronIcon.style.color = 'var(--vscode-foreground)'; }));
+		this._register(dom.addDisposableListener(this._chevronIcon, 'mouseleave', () => { this._chevronIcon.style.color = 'var(--vscode-descriptionForeground)'; }));
 		this._chevronWrapper.append(this._chevronIcon);
-		this._chevronWrapper.addEventListener('click', (e) => {
+		this._register(dom.addDisposableListener(this._chevronWrapper, 'click', (e) => {
 			e.preventDefault(); e.stopPropagation();
 			if (this.callbacks.showSessionsPicker) {
 				this.callbacks.showSessionsPicker();
 			} else {
 				this._expanded.set(!this._expanded.get(), undefined);
 			}
-		});
-		this._chevronWrapper.addEventListener('keydown', (e) => {
+		}));
+		this._register(dom.addDisposableListener(this._chevronWrapper, 'keydown', (e) => {
 			if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this._chevronWrapper.click(); }
-		});
+		}));
 
 		// --- Input box layout elements ---
 		if (opts.inputBoxLayout) {
@@ -310,8 +310,8 @@ export class AgentsVoiceWidget extends Disposable {
 				el.ariaLabel = ariaLabel;
 				el.title = title;
 				el.style.cssText = `font-size:${FONT_SIZE.iconSm};color:var(--vscode-descriptionForeground);cursor:pointer;-webkit-app-region:no-drag;padding:2px;`;
-				el.addEventListener('mouseenter', () => { el.style.color = 'var(--vscode-foreground)'; });
-				el.addEventListener('mouseleave', () => { el.style.color = 'var(--vscode-descriptionForeground)'; });
+				this._register(dom.addDisposableListener(el, 'mouseenter', () => { el.style.color = 'var(--vscode-foreground)'; }));
+				this._register(dom.addDisposableListener(el, 'mouseleave', () => { el.style.color = 'var(--vscode-descriptionForeground)'; }));
 				addKeyboardActivation(el);
 				return el;
 			};
@@ -343,10 +343,10 @@ export class AgentsVoiceWidget extends Disposable {
 			this._inputBoxSessionsBtn = toolbarBtn('codicon-list-tree',
 				localize('agentsVoice.sessions', "Sessions"),
 				localize('agentsVoice.sessions', "Sessions"));
-			this._inputBoxSessionsBtn.addEventListener('click', (e) => {
+			this._register(dom.addDisposableListener(this._inputBoxSessionsBtn, 'click', (e) => {
 				e.preventDefault(); e.stopPropagation();
 				this._expanded.set(!this._expanded.get(), undefined);
-			});
+			}));
 
 			// Close button
 			this._inputBoxCloseBtn = toolbarBtn('codicon-chrome-minimize',
@@ -409,20 +409,20 @@ export class AgentsVoiceWidget extends Disposable {
 			win.document.addEventListener('keydown', onDocKeydown, true);
 			this._register(toDisposable(() => win.document.removeEventListener('keydown', onDocKeydown, true)));
 
-			this.container.addEventListener('keydown', (e: KeyboardEvent) => {
+			this._register(dom.addDisposableListener(this.container, 'keydown', (e: KeyboardEvent) => {
 				if (!_isTextInput(e.target) && pttKeyCode && e.code === pttKeyCode) {
 					// Prevent repeat keydowns from activating focused child
 					// buttons (role="button" elements fire click on Space).
 					e.preventDefault();
 				}
-			});
-			this.container.addEventListener('keyup', (e: KeyboardEvent) => {
+			}));
+			this._register(dom.addDisposableListener(this.container, 'keyup', (e: KeyboardEvent) => {
 				if (!_isTextInput(e.target) && pttKeyCode && e.code === pttKeyCode) {
 					e.preventDefault();
 					pttKeyCode = undefined;
 					this.callbacks.pttUp();
 				}
-			});
+			}));
 
 			// Hook into pttDown to snapshot which key started PTT.
 			const origPttDown = this.callbacks.pttDown;

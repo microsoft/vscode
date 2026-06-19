@@ -258,21 +258,6 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 			this.agentSessionsService.model.resolve(undefined);
 		}, 3000));
 
-		// Periodically save window bounds
-		let lastBoundsJson = '';
-		this._windowDisposables.add(disposableWindowInterval(auxiliaryWindow.window, () => {
-			if (!this._window) { return; }
-			try {
-				const state = this._window.createState();
-				if (state.bounds) {
-					const posJson = JSON.stringify({ x: state.bounds.x, y: state.bounds.y });
-					if (posJson !== lastBoundsJson) {
-						lastBoundsJson = posJson;
-						this.storageService.store(AgentsVoiceStorageKeys.WindowBounds, posJson, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-					}
-				}
-			} catch { /* window may have been disposed */ }
-		}, 1000));
 
 		// Clean up when user closes window via OS controls
 		Event.once(auxiliaryWindow.onUnload)(() => {
