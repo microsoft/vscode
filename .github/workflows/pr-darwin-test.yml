@@ -135,8 +135,7 @@ jobs:
         env:
           DEBUG: "*browser*"
 
-      - name: Build integration tests
-        if: ${{ inputs.unit_and_integration_tests }}
+      - name: Compile extensions for integration tests & smoke tests
         run: |
           set -e
           npm run gulp \
@@ -178,11 +177,7 @@ jobs:
         working-directory: test/smoke
         run: npm run compile
 
-      - name: Compile extensions for smoke tests
-        if: ${{ inputs.smoke_tests }}
-        run: npm run gulp compile-extension-media
-
-      - name: Build Copilot Chat extension for smoke tests
+      - name: Compile Copilot Chat extension for smoke tests
         if: ${{ inputs.smoke_tests }}
         working-directory: extensions/copilot
         run: npm run compile
