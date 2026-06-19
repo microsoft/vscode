@@ -11,8 +11,8 @@
  *
  * All rules are gated behind the `.style-override-tabs` class, which the
  * StyleOverridesContribution toggles onto the workbench container(s) when the
- * `workbench.experimental.styleOverrides` setting includes "tabs". Without that
- * class these rules never apply. Mirrors the Agents window styling defined in
+ * `workbench.experimental.modernUI` (Modern UI Update) setting is enabled. Mirrors
+ * the Agents window styling defined in
  * src/vs/sessions/browser/media/style.css.
  */
 

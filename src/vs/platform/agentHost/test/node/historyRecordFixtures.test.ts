@@ -99,7 +99,7 @@ suite('mapSessionEventsToHistoryRecords', () => {
 			state: 'complete',
 			parts: [
 				{ kind: ResponsePartKind.ToolCall, toolName: 'view' },
-				{ kind: ResponsePartKind.Markdown, content: 'Reviewed index.html.' },
+				{ kind: ResponsePartKind.Markdown, content: '\n\n**Task completed:** Reviewed index.html.' },
 			],
 		}]);
 	});
