@@ -10,7 +10,7 @@ import * as crypto from 'crypto';
 import type * as vscode from 'vscode';
 import type { ChatParticipantToolToken } from 'vscode';
 import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
-import { IChatQuotaService } from '../../../../platform/chat/common/chatQuotaService';
+import { IChatQuotaService, QuotaSnapshot, QuotaSnapshots } from '../../../../platform/chat/common/chatQuotaService';
 import { getQuotaMessageForPlan } from '../../../../platform/chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { IGitService } from '../../../../platform/git/common/gitService';
@@ -1443,6 +1443,12 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 						copilotUsageNanoAiu = totalNanoAiu;
 						this._chatQuotaService.setLastCopilotUsage(totalNanoAiu, request.id);
 					}
+				}
+				// Sync the live per-category quota state the SDK reports (internal-only field) so the
+				// quota UI stays current without a separate `copilot_internal/user` fetch. This mirrors
+				// the extension-host chat path, which processes `copilot_quota_snapshots` from CAPI.
+				if (event.data.quotaSnapshots) {
+					this._chatQuotaService.processQuotaSnapshots(toChatQuotaSnapshots(event.data.quotaSnapshots));
 				}
 				// Record this model turn so we can synthesize a `chat` span for it at request completion.
 				modelTurnUsages.push({
@@ -3148,6 +3154,34 @@ interface IModelTurnUsage {
 	readonly copilotUsageNanoAiu?: number;
 	/** Set when the turn originates from a subagent (nested under a parent tool call). */
 	readonly parentToolCallId?: string;
+}
+
+/**
+ * Shape of a single quota snapshot on the SDK's `assistant.usage` event (`quotaSnapshots`). The
+ * field is marked internal-only by the SDK but mirrors the per-category quota state CAPI returns.
+ */
+interface ISdkQuotaSnapshot {
+	readonly isUnlimitedEntitlement: boolean;
+	readonly entitlementRequests: number;
+	readonly overage: number;
+	readonly overageAllowedWithExhaustedQuota: boolean;
+	readonly remainingPercentage: number;
+	readonly resetDate?: Date;
+}
+
+/** Maps the SDK `assistant.usage` quota snapshots to the shared {@link QuotaSnapshots} shape. */
+function toChatQuotaSnapshots(snapshots: Record<string, ISdkQuotaSnapshot>): QuotaSnapshots {
+	const result: Record<string, QuotaSnapshot> = {};
+	for (const [key, snapshot] of Object.entries(snapshots)) {
+		result[key] = {
+			entitlement: snapshot.isUnlimitedEntitlement ? '-1' : String(snapshot.entitlementRequests),
+			percent_remaining: snapshot.remainingPercentage,
+			overage_permitted: snapshot.overageAllowedWithExhaustedQuota,
+			overage_count: snapshot.overage,
+			reset_date: snapshot.resetDate?.toISOString(),
+		};
+	}
+	return result;
 }
 
 function buildPromptTokenDetails(usageInfo: UsageInfoData | undefined): { category: string; label: string; percentageOfPrompt: number }[] | undefined {

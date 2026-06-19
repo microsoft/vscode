@@ -17,13 +17,14 @@ import { isViewUnreviewedCommentsTool } from '../../../../../../platform/agentHo
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatExternalEdit, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
+import { type IQuotaSnapshot } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { type IChatRequestVariableData } from '../../../common/model/chatModel.js';
 import { AgentHostCompletionReferenceKind, restorePasteVariableEntryFromAttachment, toAgentHostCompletionVariableEntryFromMetadata, type IAgentFeedbackVariableEntry, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { type IToolConfirmationMessages, type IToolData, type IToolResult, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
 import { basename, isEqual } from '../../../../../../base/common/resources.js';
-import { hasKey } from '../../../../../../base/common/types.js';
+import { hasKey, type Mutable } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
 import type { IRange } from '../../../../../../editor/common/core/range.js';
 
@@ -191,6 +192,88 @@ function getCopilotCredits(usage: UsageInfo | undefined): number | undefined {
 	return typeof cost === 'number' && cost >= 0
 		? cost
 		: undefined;
+}
+
+/**
+ * A partial quota update derived from a usage report's `_meta.quotaSnapshots`. Structurally a
+ * subset of the entitlement service's quota state, so callers merge it onto the existing quotas.
+ */
+export interface IAgentHostQuotaUpdate {
+	readonly chat?: IQuotaSnapshot;
+	readonly completions?: IQuotaSnapshot;
+	readonly premiumChat?: IQuotaSnapshot;
+	readonly additionalUsageEnabled?: boolean;
+	readonly additionalUsageCount?: number;
+	readonly resetDate?: string;
+}
+
+type AccountQuotaSnapshot = NonNullable<NonNullable<UsageInfoMeta['quotaSnapshots']>[string]>;
+
+function mapAccountQuotaSnapshot(snapshot: AccountQuotaSnapshot): IQuotaSnapshot | undefined {
+	const unlimited = snapshot.isUnlimitedEntitlement ?? false;
+	const entitlement = typeof snapshot.entitlementRequests === 'number' ? snapshot.entitlementRequests : undefined;
+
+	// Skip categories with no allocated entitlement (e.g. free-tier premium with 0 credits),
+	// mirroring `parseQuotas` so we don't surface an empty premium bucket.
+	if (!unlimited && entitlement === 0) {
+		return undefined;
+	}
+
+	const used = typeof snapshot.usedRequests === 'number' ? snapshot.usedRequests : undefined;
+	const remaining = typeof snapshot.remainingPercentage === 'number' ? snapshot.remainingPercentage : 0;
+	const resetAt = snapshot.resetDate ? Date.parse(snapshot.resetDate) : NaN;
+	return {
+		percentRemaining: Math.min(100, Math.max(0, remaining)),
+		unlimited,
+		entitlement: !unlimited && entitlement !== undefined && entitlement >= 0 ? entitlement : undefined,
+		quotaRemaining: !unlimited && entitlement !== undefined && used !== undefined ? Math.max(0, entitlement - used) : undefined,
+		resetAt: Number.isFinite(resetAt) ? resetAt : undefined,
+	};
+}
+
+/**
+ * Maps the per-category quota snapshots carried on a usage report's `_meta.quotaSnapshots`
+ * (reported by the model-call usage event) into a partial quota update for the entitlement
+ * service. Returns `undefined` when no usable snapshot is present.
+ */
+export function usageInfoToQuotas(usage: UsageInfo | undefined): IAgentHostQuotaUpdate | undefined {
+	const meta = usage?._meta as UsageInfoMeta | undefined;
+	const snapshots = meta?.quotaSnapshots;
+	if (!snapshots) {
+		return undefined;
+	}
+
+	const update: Mutable<IAgentHostQuotaUpdate> = {};
+	let hasAny = false;
+
+	const chat = snapshots['chat'] && mapAccountQuotaSnapshot(snapshots['chat']);
+	if (chat) {
+		update.chat = chat;
+		hasAny = true;
+	}
+	const completions = snapshots['completions'] && mapAccountQuotaSnapshot(snapshots['completions']);
+	if (completions) {
+		update.completions = completions;
+		hasAny = true;
+	}
+	const premiumRaw = snapshots['premium_interactions'];
+	const premiumChat = premiumRaw && mapAccountQuotaSnapshot(premiumRaw);
+	if (premiumChat) {
+		update.premiumChat = premiumChat;
+		hasAny = true;
+	}
+	if (premiumRaw) {
+		update.additionalUsageEnabled = premiumRaw.overageAllowedWithExhaustedQuota ?? false;
+		update.additionalUsageCount = typeof premiumRaw.overage === 'number' ? premiumRaw.overage : 0;
+		hasAny = true;
+	}
+
+	const resetDate = premiumRaw?.resetDate ?? snapshots['chat']?.resetDate;
+	if (resetDate) {
+		update.resetDate = resetDate;
+	}
+
+	return hasAny ? update : undefined;
 }
 
 /**
