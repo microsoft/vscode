@@ -8,12 +8,19 @@
  *
  *  Section 1: Built-in extension dependencies (CG skips engines.vscode packages)
  *  Section 2: Root node_modules ClearlyDefined gaps (LICENSE on disk but not in CG output)
+ *  Section 3: cgmanifest.json git components CG can't harvest from ClearlyDefined
+ *  Section 4: Cargo.lock crates missing or stubbed in CG (crates.io + repo LICENSE)
+ *  Section 5: Platform-specific binary packages (arch optionalDependencies)
+ *  Section 6: OS-gated whole packages skipped by npm on the build host (lockfile)
+ *  Section 7: Pre-built built-in extension deps (extensionsCG/<name>/package-lock.json)
  *
  *  Usage:
  *    node scan-licenses.js --repo <path> --output <path>
  *
  *  --repo         Path to the vscode repo root
  *  --output       Path to write the supplemental NOTICE entries
+ *  --strict-builtin-extensions   Fail the build if a built-in extension lockfile
+ *                 is missing from a populated extensionsCG/ (Section 7 guard)
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
@@ -610,6 +617,78 @@ export function isOsGatedShippedElsewhere(osList: string[], hostPlatform: string
 		}
 	}
 	return false;
+}
+
+/**
+ * The built-in extension names declared in product.json. These are PRE-BUILT
+ * extensions (js-debug, js-debug-companion, js-profile-table, ...) that VS Code
+ * downloads as finished VSIXs rather than building from source, so their bundled
+ * dependencies never land in this repo's node_modules and are invisible to CG.
+ * Section 7 reads each one's package-lock.json (downloaded into extensionsCG/ by
+ * the `download-builtin-extensions-cg` build step) to recover that coverage.
+ */
+export function readBuiltInExtensionNames(productJson: unknown): string[] {
+	const names: string[] = [];
+	const pj = productJson as { builtInExtensions?: unknown; webBuiltInExtensions?: unknown } | undefined;
+	if (!pj) {
+		return names;
+	}
+	for (const list of [pj.builtInExtensions, pj.webBuiltInExtensions]) {
+		if (Array.isArray(list)) {
+			for (const ext of list) {
+				const n = (ext as { name?: unknown })?.name;
+				if (typeof n === 'string' && n) {
+					names.push(n);
+				}
+			}
+		}
+	}
+	return names;
+}
+
+/**
+ * Enumerate the PRODUCTION dependencies recorded in a package-lock.json
+ * (lockfileVersion 2/3 `packages` map). Returns one {name, version} per distinct
+ * dependency, skipping:
+ *   - the root project entry (lockKey has no `node_modules/` segment)
+ *   - dev-only dependencies (`dev: true` — they do not ship)
+ *   - workspace link entries (`link: true`)
+ *   - arch-suffixed binaries (Section 5 enumerates those from their parent's
+ *     optionalDependencies; double-handling would duplicate them)
+ * Optional and peer production deps are KEPT — deliberate over-inclusion, since
+ * the legacy OSS tool listed them and crediting a license you do not strictly
+ * need is the safe direction. Returns [] for a lockfileVersion-1 file (no
+ * `packages` map) so the caller can warn rather than silently miss coverage.
+ */
+export function enumerateLockfileProdDeps(lockJson: unknown): Array<{ name: string; version: string }> {
+	const lock = lockJson as { packages?: Record<string, { version?: string; dev?: boolean; link?: boolean }> } | undefined;
+	const pkgs = lock?.packages;
+	if (!pkgs || typeof pkgs !== 'object') {
+		return [];
+	}
+	const out: Array<{ name: string; version: string }> = [];
+	const seen = new Set<string>();
+	for (const lockKey of Object.keys(pkgs)) {
+		const meta = pkgs[lockKey];
+		if (!meta || meta.dev === true || meta.link === true) {
+			continue;
+		}
+		const nmIdx = lockKey.lastIndexOf('node_modules/');
+		if (nmIdx < 0) {
+			continue; // the root project entry, not a dependency
+		}
+		const name = lockKey.slice(nmIdx + 'node_modules/'.length);
+		if (!name || isArchPackageName(name)) {
+			continue;
+		}
+		const key = name.toLowerCase();
+		if (seen.has(key)) {
+			continue;
+		}
+		seen.add(key);
+		out.push({ name, version: meta.version || '' });
+	}
+	return out;
 }
 
 const _shippedSuffixCache = new Set<string>();
@@ -1737,6 +1816,155 @@ async function main(): Promise<void> {
 	console.log(`  Section 6 seeded ${s6Seeded} os-gated package(s) into the presence index ` +
 		`(${s6AlreadyResolved} already licensed, ${s6AlreadyPresent} already present).`);
 
+	// =========================================================================
+	// SECTION 7: Built-in (pre-built) extension dependency enumeration
+	//
+	// js-debug, js-debug-companion and js-profile-table are PRE-BUILT extensions:
+	// VS Code downloads them as finished VSIXs (product.json `builtInExtensions`)
+	// rather than building them from source. Their bundled npm dependencies are
+	// therefore never installed into this repo's node_modules and never scanned by
+	// CG, so ~14 of js-debug's runtime deps (acorn-loose, astring, preact, signale,
+	// @c4312/chromehash, ...) silently drop from the notice even though they ship in
+	// the product. The legacy OSS tool caught them by walking each extension's
+	// package-lock.json.
+	//
+	// Fix: the `download-builtin-extensions-cg` build step already deposits each
+	// extension's package-lock.json into extensionsCG/<name>/. We read those
+	// lockfiles, enumerate the production dependencies that CG / Sections 1-6 did
+	// not already cover, and resolve each one's license text from its repository
+	// (the same packument -> repo LICENSE fetch path as Section 5). A dep whose
+	// text cannot be fetched is seeded into the presence index (loud, shift-left)
+	// so a cglicenses override can supply it rather than the package vanishing.
+	//
+	// Guard: when extensionsCG/ exists (the download step ran) but a manifest
+	// extension's lockfile is missing, that is a genuine coverage hole — logged as
+	// an ERROR and, with --strict-builtin-extensions, fails the build. When
+	// extensionsCG/ is absent entirely (local/offline runs) Section 7 is skipped
+	// quietly.
+	// =========================================================================
+	console.log('');
+	console.log('=========================================================================');
+	console.log('SECTION 7: Built-in (pre-built) extension dependency enumeration');
+	console.log('=========================================================================');
+
+	let s7Added = 0;
+	let s7Seeded = 0;
+	let s7SkippedCg = 0;
+	let s7SkippedAlready = 0;
+	let s7DepsEnumerated = 0;
+	let s7LockfilesFound = 0;
+	let s7ExtCount = 0;
+	const s7MissingLockfiles: string[] = [];
+	const strictBuiltin = process.argv.includes('--strict-builtin-extensions');
+
+	const extensionsCgDir = path.join(repoRoot, 'extensionsCG');
+	if (!fs.existsSync(extensionsCgDir)) {
+		console.log(`  extensionsCG/ not present at ${extensionsCgDir} — built-in extension lockfiles not downloaded; skipping Section 7.`);
+		console.log('  (Expected for local/offline runs; the download-builtin-extensions-cg build step populates it in CI.)');
+	} else {
+		let builtInNames: string[] = [];
+		const productJsonPath = path.join(repoRoot, 'product.json');
+		try {
+			builtInNames = readBuiltInExtensionNames(JSON.parse(fs.readFileSync(productJsonPath, 'utf8')));
+		} catch (err) {
+			console.warn(`  WARN: could not read built-in extensions from ${productJsonPath}: ${(err as Error).message}`);
+		}
+		s7ExtCount = builtInNames.length;
+		console.log(`  Built-in extensions in product.json: ${builtInNames.length}` +
+			`${builtInNames.length ? ' (' + builtInNames.join(', ') + ')' : ''}`);
+
+		// Collect the production deps across every built-in extension lockfile,
+		// deduped by lowercased name, skipping anything Sections 1-6 / CG covered.
+		const s7Pending = new Map<string, { name: string; version: string }>();
+		for (const extName of builtInNames) {
+			const lockPath = path.join(extensionsCgDir, extName, 'package-lock.json');
+			if (!fs.existsSync(lockPath)) {
+				s7MissingLockfiles.push(extName);
+				continue;
+			}
+			s7LockfilesFound++;
+			let lockJson: unknown;
+			try {
+				lockJson = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
+			} catch (err) {
+				console.warn(`  WARN: could not parse ${lockPath}: ${(err as Error).message}`);
+				continue;
+			}
+			const deps = enumerateLockfileProdDeps(lockJson);
+			if (deps.length === 0) {
+				console.warn(`  WARN: ${extName} lockfile produced 0 production deps (lockfileVersion 1, or empty) — ${lockPath}`);
+			}
+			for (const dep of deps) {
+				const key = dep.name.toLowerCase();
+				if (entries.has(key)) { s7SkippedAlready++; continue; }
+				if (cgCovered.has(key)) { s7SkippedCg++; continue; }
+				if (!s7Pending.has(key)) {
+					s7Pending.set(key, dep);
+				}
+			}
+		}
+		s7DepsEnumerated = s7Pending.size;
+		console.log(`  ${s7DepsEnumerated} uncovered production dep(s) to resolve across ${s7LockfilesFound} lockfile(s)`);
+
+		// Resolve license text for each missing dep: packument -> license id + repo
+		// url, then fetch the LICENSE from the repository (same path as Section 5).
+		// Every fetch is wrapped so a network failure logs and continues — never
+		// crashes the build. A dep with no fetchable text is seeded into the
+		// presence index so a cglicenses override can supply it (loud, not silent).
+		const s7Tasks = [...s7Pending.values()].map(dep => async (): Promise<void> => {
+			try {
+				const key = dep.name.toLowerCase();
+				const packument = await fetchNpmRegistryJson(dep.name);
+				let licenseId = '';
+				let repoUrl = '';
+				if (packument) {
+					const v = packument.versions ? packument.versions[dep.version] : undefined;
+					licenseId = npmLicenseId(v);
+					repoUrl = normalizeRepoUrl(v?.repository ?? packument.repository);
+				}
+				let text: string | undefined;
+				if (repoUrl) {
+					for (const ref of [`v${dep.version}`, dep.version, 'main', 'master']) {
+						const t = await fetchLicenseFromGitRepo(repoUrl, ref);
+						if (t && isRealLicenseBody(t)) {
+							text = t;
+							break;
+						}
+					}
+				}
+				if (text) {
+					validateCopyright(dep.name, text, 'builtin-extension');
+					entries.set(key, {
+						name: dep.name,
+						version: dep.version,
+						license: licenseId,
+						url: repoUrl,
+						licenseText: text,
+						fromExtension: 'builtin-extension-enumeration',
+					});
+					s7Added++;
+					console.log(`  ADDED (builtin-ext): ${dep.name}@${dep.version} - ${licenseId || 'unknown'} (text: repo)`);
+				} else {
+					if (!noLicenseSeen.has(key)) {
+						noLicenseSeen.set(key, { name: dep.name, version: dep.version });
+						s7Seeded++;
+					}
+					console.warn(`  NO LICENSE TEXT: ${dep.name}@${dep.version} - seeded into presence index (id=${licenseId || 'unknown'}, url=${repoUrl || 'none'})`);
+				}
+			} catch (err) {
+				console.warn(`  BUILTIN-EXTENSION FAILED: ${dep.name}@${dep.version} - unexpected error: ${(err as Error).message}`);
+			}
+		});
+		await runWithConcurrency(s7Tasks, 4);
+
+		if (s7MissingLockfiles.length > 0) {
+			console.error(`  ERROR: ${s7MissingLockfiles.length} built-in extension(s) in product.json have NO downloaded package-lock.json in extensionsCG/ — their bundled dependencies are NOT covered: ${s7MissingLockfiles.join(', ')}`);
+			console.error('  This usually means the `download-builtin-extensions-cg` step failed (it is continueOnError). Coverage has a hole until it is re-run.');
+		}
+		console.log(`  Section 7 added ${s7Added} dep(s) with text, seeded ${s7Seeded} into presence; ` +
+			`skipped ${s7SkippedCg} CG-covered, ${s7SkippedAlready} already-resolved.`);
+	}
+
 	// Step 4: Sort and write output
 	const sorted = [...entries.values()].sort((a, b) =>
 		a.name.toLowerCase().localeCompare(b.name.toLowerCase())
@@ -1833,12 +2061,30 @@ async function main(): Promise<void> {
 	console.log(`    Skipped (not shipped):     ${pbSkippedNotShipped}`);
 	console.log(`  Section 6 - OS-gated whole packages:`);
 	console.log(`    Seeded into presence:      ${s6Seeded}`);
+	console.log(`  Section 7 - Built-in extension deps:`);
+	console.log(`    Built-in extensions:       ${s7ExtCount}`);
+	console.log(`    Lockfiles found:           ${s7LockfilesFound}`);
+	console.log(`    Lockfiles missing:         ${s7MissingLockfiles.length}${s7MissingLockfiles.length ? ' (' + s7MissingLockfiles.join(', ') + ')' : ''}`);
+	console.log(`    Uncovered deps resolved:   ${s7DepsEnumerated}`);
+	console.log(`    Added (text from repo):    ${s7Added}`);
+	console.log(`    Seeded into presence:      ${s7Seeded}`);
+	console.log(`    Skipped (CG covers):       ${s7SkippedCg}`);
+	console.log(`    Skipped (already resolved): ${s7SkippedAlready}`);
 	console.log(`  Total entries in output:     ${entries.size}`);
 	console.log(`  Output: ${outputPath}`);
 	console.log(`  Presence index (present but unlicensed): ${presence.length}`);
 	console.log(`  Presence output: ${presencePath}`);
 	console.log(`  Stub-override index: ${stubOverrideList.length}`);
 	console.log(`  Stub-override output: ${stubOverridePath}`);
+
+	// Guard: a populated extensionsCG/ that is nonetheless missing a manifest
+	// extension's lockfile is a real coverage hole (the download step ran but
+	// produced a gap). Outputs are already written above so the artifact still
+	// publishes; --strict-builtin-extensions turns this into a hard failure.
+	if (strictBuiltin && s7LockfilesFound > 0 && s7MissingLockfiles.length > 0) {
+		console.error(`--strict-builtin-extensions: failing build — ${s7MissingLockfiles.length} built-in extension lockfile(s) missing from a populated extensionsCG/: ${s7MissingLockfiles.join(', ')}`);
+		process.exit(1);
+	}
 }
 
 function parseArgs(argv: string[]): Record<string, string> {
