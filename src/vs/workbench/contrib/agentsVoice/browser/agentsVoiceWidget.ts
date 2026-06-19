@@ -260,7 +260,8 @@ export class AgentsVoiceWidget extends Disposable {
 
 		// --- Input box layout elements ---
 		if (opts.inputBoxLayout) {
-			// Inject processing animation CSS
+			// Inject processing animation CSS into the document head
+			// (@property must be at document level to work)
 			const styleEl = dom.$('style');
 			styleEl.textContent = `
 				@property --voice-processing-angle { syntax: '<angle>'; inherits: false; initial-value: 135deg; }
@@ -288,7 +289,7 @@ export class AgentsVoiceWidget extends Disposable {
 					pointer-events: none; z-index: 1;
 				}
 			`;
-			this.container.append(styleEl);
+			getWindow(this.container).document.head.append(styleEl);
 
 			// Rounded bordered container for transcript/placeholder (matches chat-input-container)
 			this._inputBoxContainer = dom.$('div');
