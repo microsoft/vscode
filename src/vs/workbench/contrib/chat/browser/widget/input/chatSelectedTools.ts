@@ -10,6 +10,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ObservableMemento, observableMemento } from '../../../../../../platform/observable/common/observableMemento.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IChatMode } from '../../../common/chatModes.js';
 import { ChatModeKind } from '../../../common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
@@ -35,6 +36,7 @@ export class ChatSelectedTools extends Disposable {
 
 	private readonly _sessionStates = new ObservableMap<string, ToolEnablementStates | undefined>();
 	private readonly _currentTools: IObservable<readonly IToolData[]>;
+	private readonly _isSessionsWindow: boolean;
 
 	constructor(
 		private readonly _mode: IObservable<IChatMode>,
@@ -43,8 +45,11 @@ export class ChatSelectedTools extends Disposable {
 		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
 		@IStorageService _storageService: IStorageService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
+
+		this._isSessionsWindow = environmentService.isSessionsWindow;
 
 		const globalStateMemento = observableMemento<ToolEnablementStates>({
 			key: 'chat/selectedTools',
@@ -90,7 +95,7 @@ export class ChatSelectedTools extends Disposable {
 		if (isAgentHost) {
 			// Agent-host sessions default backend-provided tools off; resolution lives in a shared helper so the
 			// exposed client tools stay in sync with what the picker shows.
-			return computeAgentHostToolEnablement(this._toolsService, currentMap, this._currentTools.read(r), lm, r);
+			return computeAgentHostToolEnablement(this._toolsService, currentMap, this._currentTools.read(r), lm, r, { isSessionsWindow: this._isSessionsWindow });
 		}
 
 		// Use getTools with contextKeyService to filter tools by current model

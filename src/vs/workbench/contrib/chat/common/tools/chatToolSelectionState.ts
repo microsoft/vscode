@@ -105,18 +105,23 @@ export function observableAgentHostToolsState(storageService: IStorageService, s
  * from the agent-host tool picker and never sent to the backend, so the model isn't offered the same capability twice.
  */
 const agentHostBackendToolReferenceNames: ReadonlySet<string> = new Set([
-	// File read / navigation
-	'readFile', 'listDirectory',
-	// File edit / create
-	'applyPatch', 'insertEdit', 'replaceString', 'multiReplaceString', 'createFile', 'createDirectory', 'editFiles',
-	// Literal file / text search
-	'fileSearch', 'textSearch',
-	// Terminal / shell execution
-	'runInTerminal', 'getTerminalOutput', 'sendToTerminal', 'killTerminal',
-	// Web fetch
+	'applyPatch',
+	'createDirectory',
+	'createFile',
+	'editFiles',
 	'fetch',
-	// Sub-agent orchestration
+	'fileSearch',
+	'getTerminalOutput',
+	'insertEdit',
+	'killTerminal',
+	'listDirectory',
+	'multiReplaceString',
+	'readFile',
+	'replaceString',
+	'runInTerminal',
 	'runSubagent',
+	'sendToTerminal',
+	'textSearch'
 ]);
 
 export function isAgentHostBackendProvidedTool(tool: IToolData): boolean {
@@ -124,13 +129,55 @@ export function isAgentHostBackendProvidedTool(tool: IToolData): boolean {
 }
 
 /**
- * Computes tool/tool-set enablement for an agent-host session. Tools whose capability the backend already provides
- * ({@link agentHostBackendToolReferenceNames}) are omitted entirely — they are neither shown in the picker nor sent to
- * the backend, even if a stored selection or an enabled tool set would otherwise include them. Remaining tools default
- * on. The result is kept consistent with the chat tool picker's `setChecked || perToolTrue` rendering: a tool-set's
- * value is the AND of its visible members, and a tool set with no visible members is omitted as well.
+ * Tool reference names that rely on UI the dedicated Agents window does not have (no notebook editor, no Problems
+ * panel). They are hidden from the picker and never sent for agent-host sessions running in the Agents window, but stay
+ * available for agent-host sessions hosted in the regular workbench.
  */
-export function computeAgentHostToolEnablement(toolsService: ILanguageModelToolsService, state: ToolEnablementStates, tools: readonly IToolData[], model: ILanguageModelChatMetadata | undefined, reader: IReader | undefined): IToolAndToolSetEnablementMap {
+const agentsWindowUnsupportedToolReferenceNames: ReadonlySet<string> = new Set([
+	'createJupyterNotebook',
+	'editNotebook',
+	'getNotebookSummary',
+	'newWorkspace',
+	'problems',
+	'readNotebookCellOutput',
+	'runNotebookCell',
+	'runTests',
+	'testFailure'
+]);
+
+/** Context that influences which tools are hidden from an agent-host session. */
+export interface IAgentHostToolHidingContext {
+	/** True when the session is hosted in the dedicated Agents window. */
+	readonly isSessionsWindow: boolean;
+}
+
+/**
+ * Whether a tool should be hidden from an agent-host session's picker and never sent to the backend. A tool is hidden
+ * when it is internal infrastructure ({@link IToolData.canBeReferencedInPrompt} === false, never exposed anywhere), when
+ * the backend already provides its capability natively ({@link isAgentHostBackendProvidedTool}), or when it relies on UI
+ * the Agents window lacks ({@link agentsWindowUnsupportedToolReferenceNames}).
+ */
+export function isAgentHostHiddenTool(tool: IToolData, context: IAgentHostToolHidingContext): boolean {
+	if (tool.canBeReferencedInPrompt === false) {
+		return true;
+	}
+	if (isAgentHostBackendProvidedTool(tool)) {
+		return true;
+	}
+	if (context.isSessionsWindow && tool.toolReferenceName !== undefined && agentsWindowUnsupportedToolReferenceNames.has(tool.toolReferenceName)) {
+		return true;
+	}
+	return false;
+}
+
+/**
+ * Computes tool/tool-set enablement for an agent-host session. Tools hidden in this context ({@link isAgentHostHiddenTool})
+ * are omitted entirely — neither shown in the picker nor sent to the backend, even if a stored selection or an enabled
+ * tool set would otherwise include them. Remaining tools default on. The result is kept consistent with the chat tool
+ * picker's `setChecked || perToolTrue` rendering: a tool-set's value is the AND of its visible members, and a tool set
+ * with no visible members is omitted as well.
+ */
+export function computeAgentHostToolEnablement(toolsService: ILanguageModelToolsService, state: ToolEnablementStates, tools: readonly IToolData[], model: ILanguageModelChatMetadata | undefined, reader: IReader | undefined, context: IAgentHostToolHidingContext): IToolAndToolSetEnablementMap {
 	const map = new Map<IToolData | IToolSet, boolean>();
 	const isEnabled = (tool: IToolData, toolSetId: string | undefined): boolean => {
 		if (toolSetId !== undefined) {
@@ -149,7 +196,7 @@ export function computeAgentHostToolEnablement(toolsService: ILanguageModelTools
 		return true; // tools that reach here have no backend equivalent, so they are on by default
 	};
 	for (const tool of tools) {
-		if (tool.canBeReferencedInPrompt && !isAgentHostBackendProvidedTool(tool)) {
+		if (tool.canBeReferencedInPrompt && !isAgentHostHiddenTool(tool, context)) {
 			map.set(tool, isEnabled(tool, undefined));
 		}
 	}
@@ -157,8 +204,8 @@ export function computeAgentHostToolEnablement(toolsService: ILanguageModelTools
 		let allEnabled = true;
 		let hasVisibleMember = false;
 		for (const member of toolSet.getTools(reader)) {
-			if (isAgentHostBackendProvidedTool(member)) {
-				continue; // backend-provided members are hidden and never sent, regardless of the tool set's state
+			if (isAgentHostHiddenTool(member, context)) {
+				continue; // hidden members are never shown or sent, regardless of the tool set's state
 			}
 			hasVisibleMember = true;
 			const enabled = isEnabled(member, toolSet.id);

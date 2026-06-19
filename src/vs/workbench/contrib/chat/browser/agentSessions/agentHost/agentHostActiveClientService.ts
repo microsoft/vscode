@@ -20,6 +20,7 @@ import { IPromptsService } from '../../../common/promptSyntax/service/promptsSer
 import { ILanguageModelToolsService, isToolSet } from '../../../common/tools/languageModelToolsService.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { computeAgentHostToolEnablement, observableAgentHostToolsState } from '../../../common/tools/chatToolSelectionState.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { AgentCustomizationSyncProvider } from './agentCustomizationSyncProvider.js';
 import { resolveCustomizationRefs } from './agentHostLocalCustomizations.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
@@ -69,6 +70,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IFileService private readonly _fileService: IFileService,
 		@IMcpService private readonly _mcpService: IMcpService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 		this._customizationsByType = observableValue('agentHostCustomizationsByType', new Map());
@@ -79,7 +81,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		const agentHostToolsState = observableAgentHostToolsState(this._storageService, this._store);
 		this.clientTools = derived(reader => {
 			const state = agentHostToolsState.read(reader);
-			const enablement = computeAgentHostToolEnablement(toolsService, state, allToolsObs.read(reader), undefined, reader);
+			const enablement = computeAgentHostToolEnablement(toolsService, state, allToolsObs.read(reader), undefined, reader, { isSessionsWindow: this._environmentService.isSessionsWindow });
 			const defs: ToolDefinition[] = [];
 			for (const [item, enabled] of enablement) {
 				if (enabled && !isToolSet(item) && item.canBeReferencedInPrompt !== false) {

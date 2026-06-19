@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { computeAgentHostToolEnablement, isAgentHostBackendProvidedTool, ToolEnablementStates } from '../../../common/tools/chatToolSelectionState.js';
+import { computeAgentHostToolEnablement, isAgentHostBackendProvidedTool, isAgentHostHiddenTool, ToolEnablementStates } from '../../../common/tools/chatToolSelectionState.js';
 import { ILanguageModelToolsService, IToolAndToolSetEnablementMap, IToolData, IToolSet, isToolSet, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 
 suite('chatToolSelectionState', () => {
@@ -73,18 +73,29 @@ suite('chatToolSelectionState', () => {
 		});
 	});
 
+	suite('isAgentHostHiddenTool', () => {
+
+		test('hides internal, backend, and (in the Agents window) unsupported tools', () => {
+			assert.strictEqual(isAgentHostHiddenTool(makeTool('x', 'internal', false), { isSessionsWindow: false }), true);
+			assert.strictEqual(isAgentHostHiddenTool(makeTool('x', 'readFile'), { isSessionsWindow: false }), true);
+			assert.strictEqual(isAgentHostHiddenTool(makeTool('x', 'problems'), { isSessionsWindow: false }), false);
+			assert.strictEqual(isAgentHostHiddenTool(makeTool('x', 'problems'), { isSessionsWindow: true }), true);
+			assert.strictEqual(isAgentHostHiddenTool(makeTool('x', 'usages'), { isSessionsWindow: true }), false);
+		});
+	});
+
 	suite('computeAgentHostToolEnablement', () => {
 
 		test('hides backend-provided standalone tools and defaults the rest on', () => {
 			const tools = [makeTool('t.read', 'readFile'), makeTool('t.normal', 'normal')];
-			const result = computeAgentHostToolEnablement(makeToolsService([]), emptyState(), tools, undefined, undefined);
+			const result = computeAgentHostToolEnablement(makeToolsService([]), emptyState(), tools, undefined, undefined, { isSessionsWindow: false });
 			assert.deepStrictEqual(byId(result), { 't.normal': true });
 		});
 
 		test('honors explicit per-tool selection but never revives backend tools', () => {
 			const tools = [makeTool('t.read', 'readFile'), makeTool('t.a', 'a'), makeTool('t.b', 'b')];
 			const state: ToolEnablementStates = { toolSets: new Map(), tools: new Map([['t.read', true], ['t.a', false]]) };
-			const result = computeAgentHostToolEnablement(makeToolsService([]), state, tools, undefined, undefined);
+			const result = computeAgentHostToolEnablement(makeToolsService([]), state, tools, undefined, undefined, { isSessionsWindow: false });
 			assert.deepStrictEqual(byId(result), { 't.a': false, 't.b': true });
 		});
 
@@ -94,8 +105,24 @@ suite('chatToolSelectionState', () => {
 			const rename = makeTool('t.rename', 'rename');
 			const mixed = makeToolSet('set.mixed', [read, rename]);
 			const allBackend = makeToolSet('set.allBackend', [read, edit]);
-			const result = computeAgentHostToolEnablement(makeToolsService([mixed, allBackend]), emptyState(), [], undefined, undefined);
+			const result = computeAgentHostToolEnablement(makeToolsService([mixed, allBackend]), emptyState(), [], undefined, undefined, { isSessionsWindow: false });
 			assert.deepStrictEqual(byId(result), { 't.rename': true, 'set:set.mixed': true });
+		});
+
+		test('hides internal tool-set members (canBeReferencedInPrompt === false)', () => {
+			const visible = makeTool('t.visible', 'visible');
+			const internal = makeTool('t.internal', 'internal', false);
+			const set = makeToolSet('set.s', [visible, internal]);
+			const result = computeAgentHostToolEnablement(makeToolsService([set]), emptyState(), [], undefined, undefined, { isSessionsWindow: false });
+			assert.deepStrictEqual(byId(result), { 't.visible': true, 'set:set.s': true });
+		});
+
+		test('hides notebook and problems tools only in the Agents window', () => {
+			const tools = [makeTool('t.problems', 'problems'), makeTool('t.notebook', 'editNotebook'), makeTool('t.code', 'usages')];
+			const inEditor = computeAgentHostToolEnablement(makeToolsService([]), emptyState(), tools, undefined, undefined, { isSessionsWindow: false });
+			assert.deepStrictEqual(byId(inEditor), { 't.problems': true, 't.notebook': true, 't.code': true });
+			const inAgents = computeAgentHostToolEnablement(makeToolsService([]), emptyState(), tools, undefined, undefined, { isSessionsWindow: true });
+			assert.deepStrictEqual(byId(inAgents), { 't.code': true });
 		});
 
 		test('a disabled tool set hides its members unless individually opted in', () => {
@@ -103,7 +130,7 @@ suite('chatToolSelectionState', () => {
 			const b = makeTool('t.b', 'b');
 			const set = makeToolSet('set.s', [a, b]);
 			const state: ToolEnablementStates = { toolSets: new Map([['set.s', false]]), tools: new Map([['t.a', true]]) };
-			const result = computeAgentHostToolEnablement(makeToolsService([set]), state, [], undefined, undefined);
+			const result = computeAgentHostToolEnablement(makeToolsService([set]), state, [], undefined, undefined, { isSessionsWindow: false });
 			assert.deepStrictEqual(byId(result), { 't.a': true, 't.b': false, 'set:set.s': false });
 		});
 	});

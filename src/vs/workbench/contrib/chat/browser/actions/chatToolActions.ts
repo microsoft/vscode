@@ -23,7 +23,9 @@ import { isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatModeKind } from '../../common/constants.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ToolsScope } from '../widget/input/chatSelectedTools.js';
-import { isAgentHostBackendProvidedTool } from '../../common/tools/chatToolSelectionState.js';
+import { isAgentHostHiddenTool } from '../../common/tools/chatToolSelectionState.js';
+import { IToolData } from '../../common/tools/languageModelToolsService.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { showToolsPicker } from './chatToolPicker.js';
 
@@ -196,8 +198,10 @@ export class ConfigureToolsAction extends Action2 {
 		});
 
 		try {
-			// Agent-host sessions hide tools the backend already provides natively — also as tool-set members.
-			const excludeTool = entriesScope === ToolsScope.AgentHost ? isAgentHostBackendProvidedTool : undefined;
+			// Agent-host sessions hide tools the backend already provides natively (also as tool-set members) and, in the
+			// Agents window, tools that depend on UI it doesn't have (notebooks, Problems).
+			const isSessionsWindow = accessor.get(IWorkbenchEnvironmentService).isSessionsWindow;
+			const excludeTool = entriesScope === ToolsScope.AgentHost ? ((tool: IToolData) => isAgentHostHiddenTool(tool, { isSessionsWindow })) : undefined;
 			const result = await instaService.invokeFunction(showToolsPicker, placeholder, source, description, () => entriesMap.get(), widget.input.selectedLanguageModel.get()?.metadata, cts.token, excludeTool);
 			if (result) {
 				widget.input.selectedToolsModel.set(result, false);
