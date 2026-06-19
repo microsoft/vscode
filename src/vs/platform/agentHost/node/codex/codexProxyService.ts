@@ -11,6 +11,7 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { CopilotApiError, ICopilotApiService } from '../shared/copilotApiService.js';
+import { buildForwardedChatError, encodeForwardedChatError } from '../shared/forwardedChatError.js';
 
 /**
  * Refcounted handle to the local OpenAI-Responses → CAPI proxy.
@@ -407,7 +408,7 @@ export class CodexProxyService implements ICodexProxyService {
 
 		try {
 			this._logService.info(`[${PROXY_USER_FACING_NAME}] forwarding to CAPI responses...`);
-			const upstream = await this._copilotApiService.responses(dispatchedToken, body, { signal: entry.ac.signal, suppressIntegrationId: true });
+			const upstream = await this._copilotApiService.responses(dispatchedToken, body, { signal: entry.ac.signal });
 			const contentType = upstream.headers.get('content-type') ?? 'application/json';
 			const upstreamHeaders = [...upstream.headers.entries()].map(([k, v]) => `${k}: ${v}`).join(', ');
 			this._logService.info(`[${PROXY_USER_FACING_NAME}] <<< CAPI response: status=${upstream.status}, contentType=${contentType}, headers=[${upstreamHeaders}]`);
@@ -465,7 +466,8 @@ export class CodexProxyService implements ICodexProxyService {
 			}
 			if (err instanceof CopilotApiError) {
 				this._logService.error(`[${PROXY_USER_FACING_NAME}] CAPI error: status=${err.status}, message=${err.message}`);
-				writeJsonError(res, err.status, 'api_error', err.message);
+				const marker = encodeForwardedChatError(buildForwardedChatError(err));
+				writeJsonError(res, err.status, 'api_error', `${err.message} ${marker}`);
 				return;
 			}
 			this._logService.error(`[${PROXY_USER_FACING_NAME}] upstream error: ${err instanceof Error ? err.message : String(err)}`);

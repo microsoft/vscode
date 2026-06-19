@@ -4895,13 +4895,13 @@ declare module 'vscode' {
 		 */
 		Color = 15,
 		/**
-		 * The `Reference` completion item kind.
-		 */
-		Reference = 17,
-		/**
 		 * The `File` completion item kind.
 		 */
 		File = 16,
+		/**
+		 * The `Reference` completion item kind.
+		 */
+		Reference = 17,
 		/**
 		 * The `Folder` completion item kind.
 		 */

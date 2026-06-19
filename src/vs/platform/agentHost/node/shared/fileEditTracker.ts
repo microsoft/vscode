@@ -11,6 +11,8 @@ import { ILogService } from '../../../log/common/log.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { FileEditKind, ToolResultContentType, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
+import { extractAiChunks } from './editChunkExtractor.js';
+import { IEditSurvivalReporterFactory } from './editSurvivalReporter.js';
 
 const SESSION_DB_SCHEME = 'session-db';
 
@@ -86,6 +88,7 @@ export class FileEditTracker {
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
 		@IDiffComputeService private readonly _diffComputeService: IDiffComputeService,
+		@IEditSurvivalReporterFactory private readonly _editSurvivalReporterFactory: IEditSurvivalReporterFactory,
 	) { }
 
 	/**
@@ -140,16 +143,20 @@ export class FileEditTracker {
 	 * and returns the result as an {@link ToolResultFileEditContent}
 	 * for inclusion in the tool result.
 	 *
-	 * @param turnId - The turn that produced this edit.
-	 * @param toolCallId - The tool call that produced this edit.
-	 * @param filePath - Absolute path of the edited file.
+	 * `toolName` and `toolInput` are forwarded to {@link extractAiChunks}
+	 * for region-based survival scoring; unknown shapes fall back to
+	 * whole-file scoring.
 	 */
-	async takeCompletedEdit(turnId: string, toolCallId: string, filePath: string): Promise<ToolResultFileEditContent | undefined> {
+	async takeCompletedEdit(turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined): Promise<ToolResultFileEditContent | undefined> {
 		const edit = this._completedEdits.get(filePath);
 		if (!edit) {
 			return undefined;
 		}
 		this._completedEdits.delete(filePath);
+
+		if (!modelId) {
+			this._logService.warn(`[FileEditTracker] No modelId for completed edit: ${filePath} (turn=${turnId}, toolCall=${toolCallId}, tool=${toolName || '<unknown>'}). Edit-survival telemetry will be emitted with an empty modelId.`);
+		}
 
 		const beforeBytes = edit.beforeContent.buffer;
 		const afterBytes = edit.afterContent.buffer;
@@ -182,6 +189,19 @@ export class FileEditTracker {
 		} catch (err) {
 			this._logService.warn(`[FileEditTracker] Failed to persist file edit to database: ${filePath}`, err);
 		}
+
+		this._editSurvivalReporterFactory.launch({
+			sessionUri: this._sessionUri,
+			turnId,
+			toolCallId,
+			filePath,
+			beforeText,
+			afterText,
+			isCreate,
+			modelId,
+			toolName,
+			aiChunks: extractAiChunks(toolName, toolInput, filePath),
+		});
 
 		return {
 			type: ToolResultContentType.FileEdit,

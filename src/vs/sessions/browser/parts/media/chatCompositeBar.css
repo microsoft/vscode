@@ -24,6 +24,10 @@
 	padding: 0 10px;
 	box-sizing: border-box;
 	container-type: inline-size;
+
+	/* Tab width cap: 200px, but never more than 40% of the tab strip width
+		(cqi = container-query inline-size unit, enabled by container-type). */
+	--chat-tab-max-width: min(200px, 40cqi);
 }
 
 /* Header: a status icon column next to a main column (title row + meta row).
@@ -76,7 +80,7 @@
 	font-weight: var(--vscode-agents-fontWeight-semiBold, 600);
 	font-size: var(--vscode-agents-fontSize-heading3, 13px);
 	color: var(--chat-tab-active-foreground, var(--session-view-foreground));
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	min-height: 22px;
 	/* Match the input's inner padding so the rendered text and the rename
 		input's text occupy the same horizontal position. */
@@ -125,8 +129,8 @@
 	color: var(--vscode-input-foreground, inherit);
 	background-color: var(--vscode-input-background, transparent);
 	border: 1px solid var(--vscode-focusBorder, var(--vscode-input-border, transparent));
-	border-radius: 4px;
-	padding: 0 3px;
+	border-radius: var(--vscode-cornerRadius-small);
+	padding: 0 4px;
 	margin: 0;
 	outline: none;
 	min-height: 22px;
@@ -144,7 +148,7 @@
 	margin-left: auto;
 }
 
-/* Meta row: workspace · branch · diff stats */
+/* Meta row: workspace · diff stats */
 .chat-composite-bar-meta-row {
 	display: flex;
 	align-items: center;
@@ -158,25 +162,22 @@
 	white-space: nowrap;
 }
 
-.chat-composite-bar-meta-workspace-label,
-.chat-composite-bar-meta-branch-label {
+.chat-composite-bar-meta-workspace-label {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	min-width: 0;
 }
 
-.chat-composite-bar-meta-workspace,
-.chat-composite-bar-meta-branch {
+.chat-composite-bar-meta-workspace {
 	display: inline-flex;
 	align-items: center;
-	gap: 3px;
+	gap: 4px;
 	min-width: 0;
 	overflow: hidden;
 }
 
-.monaco-workbench .chat-composite-bar-meta-workspace-icon.codicon[class*='codicon-'],
-.monaco-workbench .chat-composite-bar-meta-branch-icon.codicon[class*='codicon-'] {
+.monaco-workbench .chat-composite-bar-meta-workspace-icon.codicon[class*='codicon-'] {
 	display: inline-flex;
 	align-items: center;
 	font-size: var(--vscode-codiconFontSize-compact, 12px);
@@ -188,12 +189,41 @@
 	opacity: 0.8;
 }
 
+/* Flatten the session header meta toolbar action bar so contributed items such as the diff-stats +/- counts read as inline, clickable labels rather than buttons. */
+.chat-composite-bar-meta-toolbar,
+.chat-composite-bar-meta-toolbar .monaco-action-bar,
+.chat-composite-bar-meta-toolbar .actions-container {
+	display: inline-flex;
+	align-items: center;
+	height: 100%;
+}
+
 .chat-composite-bar-meta-diff {
 	display: inline-flex;
 	align-items: center;
-	gap: 6px;
 	flex-shrink: 0;
+}
+
+.chat-composite-bar-meta-diff .action-label {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	color: inherit;
+	font: inherit;
 	font-variant-numeric: tabular-nums;
+	cursor: pointer;
+	padding: 0 2px;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.chat-composite-bar-meta-diff .action-label:hover {
+	color: inherit;
+	text-decoration: none;
+}
+
+.chat-composite-bar-meta-diff .action-label:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
 }
 
 .chat-composite-bar-meta-added {
@@ -244,6 +274,7 @@
 	position: absolute;
 	top: 0px;
 	right: 0px;
+	height: 35px;
 	flex-direction: row;
 	align-items: center;
 	padding: 0 4px;
@@ -267,7 +298,7 @@
 	border-radius: var(--vscode-cornerRadius-small);
 	user-select: none;
 	flex-shrink: 0;
-	max-width: min(200px, 40cqi);
+	max-width: var(--chat-tab-max-width);
 }
 
 .chat-composite-bar-tab-label {
@@ -275,6 +306,44 @@
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	min-width: 0;
+}
+
+/* While editing, the tab expands to its max width. */
+.chat-composite-bar-tab.editing {
+	cursor: default;
+	padding: 0 2px;
+	width: var(--chat-tab-max-width);
+	max-width: var(--chat-tab-max-width);
+}
+
+/* Hide the label and adornments so the input fills the tab while editing. */
+.session-chat-tabs-bar .chat-composite-bar-tab.editing .chat-composite-bar-tab-label,
+.session-chat-tabs-bar .chat-composite-bar-tab.editing .chat-composite-bar-tab-indicator,
+.session-chat-tabs-bar .chat-composite-bar-tab.editing .chat-composite-bar-tab-actions {
+	display: none;
+}
+
+.chat-composite-bar-tab-input-container {
+	display: none;
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.chat-composite-bar-tab.editing .chat-composite-bar-tab-input-container {
+	display: flex;
+}
+
+.chat-composite-bar-tab-input.monaco-inputbox {
+	flex: 1 1 auto;
+	min-width: 0;
+	height: 22px;
+}
+
+.chat-composite-bar-tab-input.monaco-inputbox .input {
+	font-family: inherit;
+	font-weight: inherit;
+	font-size: inherit;
+	padding: 0 4px;
 }
 
 .chat-composite-bar-tab:hover {

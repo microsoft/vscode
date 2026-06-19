@@ -6,12 +6,13 @@
 import { URI } from '../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { combinedDisposable, Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
-import { basename } from '../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../base/common/resources.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IAgentHostCustomizationService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
-import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
+import { IAgentHostMcpServer, IAgentHostSessionsProvider, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../sessions/browser/sessionsService.js';
 import { ISessionsProvider } from '../../sessions/common/sessionsProvider.js';
 import { AgentCustomization, Customization, CustomizationType } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { ISession } from '../../sessions/common/session.js';
@@ -26,6 +27,7 @@ export class AgentHostCustomizationService extends Disposable implements IAgentH
 
 	constructor(
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
@@ -36,8 +38,8 @@ export class AgentHostCustomizationService extends Disposable implements IAgentH
 	}
 
 	private _getSession(sessionResource: URI): ISession | undefined {
-		const activeSession = this._sessionsManagementService.activeSession.get();
-		if (activeSession && activeSession.resource.toString() === sessionResource.toString()) {
+		const activeSession = this._sessionsService.activeSession.get();
+		if (activeSession && isEqual(activeSession.resource, sessionResource)) {
 			return activeSession;
 		}
 		return this._sessionsManagementService.getSession(sessionResource);
@@ -85,6 +87,17 @@ export class AgentHostCustomizationService extends Disposable implements IAgentH
 			}
 		}
 		return undefined;
+	}
+
+	getMcpServers(sessionResource: URI): readonly IAgentHostMcpServer[] {
+		const session = this._getSession(sessionResource);
+		if (session) {
+			const provider = this._getAHSProvider(session);
+			if (provider) {
+				return provider.getMcpServers(session.sessionId);
+			}
+		}
+		return [];
 	}
 
 
