@@ -1116,6 +1116,23 @@
 		"fullLicenseTextUri": "https://raw.githubusercontent.com/xtermjs/xterm.js/master/LICENSE"
 	},
 	{
+		// Reason: @github/copilot-sdk does not ship a LICENSE file in its npm tarball,
+		// and ClearlyDefined has not harvested it, so CG emits no license text and the
+		// on-disk scanner finds nothing. The source repo is public MIT with a LICENSE file.
+		// Source: https://github.com/github/copilot-sdk/blob/main/LICENSE
+		"name": "@github/copilot-sdk",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/github/copilot-sdk/main/LICENSE"
+	},
+	{
+		// Reason: @vscode/windows-ca-certs is os:["win32"], so npm never installs it on
+		// the single Linux NOTICE agent and the on-disk scanner cannot see it. It is not
+		// harvested by CG either. Section 6 of scan-licenses.ts seeds it into the presence
+		// index from package-lock.json so this override can inject the BSD text below.
+		// Source: https://github.com/microsoft/vscode-windows-ca-certs/blob/main/LICENSE
+		"name": "@vscode/windows-ca-certs",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/microsoft/vscode-windows-ca-certs/main/LICENSE"
+	},
+	{
 		// Reason: @vscode/markdown-editor comes from a private repo (microsoft/vscode-packages).
 		// License text provided verbatim by the repo owner.
 		"name": "@vscode/markdown-editor",

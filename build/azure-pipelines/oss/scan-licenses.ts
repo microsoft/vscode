@@ -554,6 +554,64 @@ export function isArchPackageName(name: string): boolean {
 const VSCODE_SHIPPED_PLATFORMS = new Set(['darwin', 'linux', 'linuxmusl', 'win32']);
 const VSCODE_SHIPPED_ARCHS = new Set(['x64', 'arm64', 'arm']);
 
+/**
+ * npm `os` values for the platforms VS Code ships, spelled the way npm package
+ * manifests do. VSCODE_SHIPPED_PLATFORMS uses the build-config name "linuxmusl",
+ * but an npm `os` field only ever says "linux" (musl is a libc variant, not an
+ * os value), so the npm-spelled shipped set collapses linuxmusl into linux.
+ */
+export const NPM_SHIPPED_OS = new Set(['darwin', 'linux', 'win32']);
+
+/**
+ * Evaluate an npm `os` constraint list against a single platform using npm's own
+ * semantics: a platform is allowed when it is not explicitly negated AND (there
+ * are no positive entries OR it matches a positive entry).
+ *   ["win32"]           -> only win32
+ *   ["!win32"]          -> everything except win32
+ *   ["darwin", "linux"] -> darwin or linux
+ */
+export function osAllows(osList: string[], platform: string): boolean {
+	let hasPositive = false;
+	let positiveMatch = false;
+	for (const raw of osList) {
+		if (typeof raw !== 'string' || raw.length === 0) {
+			continue;
+		}
+		if (raw[0] === '!') {
+			if (raw.slice(1) === platform) {
+				return false; // an explicit negation always wins
+			}
+		} else {
+			hasPositive = true;
+			if (raw === platform) {
+				positiveMatch = true;
+			}
+		}
+	}
+	return hasPositive ? positiveMatch : true;
+}
+
+/**
+ * True when a package's `os` constraint means it will NOT install on the build
+ * host yet WILL ship on at least one platform VS Code targets. These packages
+ * are invisible to the on-disk scanner on a single-platform NOTICE agent, so
+ * Section 6 seeds them into the presence index from the lockfile instead.
+ */
+export function isOsGatedShippedElsewhere(osList: string[], hostPlatform: string): boolean {
+	if (!Array.isArray(osList) || osList.length === 0) {
+		return false;
+	}
+	if (osAllows(osList, hostPlatform)) {
+		return false; // installs on the host -> the normal scanner already sees it
+	}
+	for (const shipped of NPM_SHIPPED_OS) {
+		if (osAllows(osList, shipped)) {
+			return true;
+		}
+	}
+	return false;
+}
+
 const _shippedSuffixCache = new Set<string>();
 function _buildShippedSuffixes(): Set<string> {
 	if (_shippedSuffixCache.size > 0) {
@@ -1594,6 +1652,91 @@ async function main(): Promise<void> {
 
 	console.log(`  Platform-binary arch entries added: ${pbAdded}`);
 
+	// =========================================================================
+	// SECTION 6: OS-gated whole-package enumeration (lockfile-driven)
+	//
+	// Sections 1-2 only see what npm actually installed on THIS build host. The
+	// NOTICE job runs on a single Linux agent, so a package gated to another OS
+	// via its `os` field (e.g. @vscode/windows-ca-certs, os:["win32"]) is never
+	// on disk here -> the scanner misses it -> it silently drops from the notice
+	// even though it ships in the win32 product. The legacy OSS tool caught these
+	// because it walked the lockfile, not the installed tree.
+	//
+	// Fix: read the package-lock.json files (the manifest of EVERY dependency,
+	// installed or not) and seed any package that (a) will not install on the
+	// host but (b) ships on a platform we target into the presence index. The
+	// cglicenses.json override then supplies the human-authored license text; if
+	// no override exists the package surfaces as "present but unlicensed" (loud,
+	// shift-left) instead of vanishing (silent). Arch-suffixed binaries
+	// (@img/sharp-win32-x64, @esbuild/linux-x64, ...) are NOT handled here -
+	// Section 5 already enumerates those from their parents' optionalDependencies.
+	// =========================================================================
+	console.log('');
+	console.log('=========================================================================');
+	console.log('SECTION 6: OS-gated whole-package enumeration (lockfile-driven)');
+	console.log(`  Host platform: ${process.platform}`);
+	console.log('=========================================================================');
+
+	const hostPlatform = process.platform;
+	const s6LockFiles = [
+		path.join(repoRoot, 'package-lock.json'),
+		path.join(repoRoot, 'remote', 'package-lock.json'),
+		path.join(repoRoot, 'build', 'package-lock.json'),
+	];
+	let s6Seeded = 0;
+	let s6AlreadyResolved = 0;
+	let s6AlreadyPresent = 0;
+	const s6Seen = new Set<string>();
+	for (const lockPath of s6LockFiles) {
+		if (!fs.existsSync(lockPath)) {
+			continue;
+		}
+		let lock: { packages?: Record<string, { version?: string; os?: unknown }> };
+		try {
+			lock = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
+		} catch (err) {
+			console.warn(`  WARN: could not parse ${lockPath}: ${(err as Error).message}`);
+			continue;
+		}
+		const pkgs = lock.packages || {};
+		for (const lockKey of Object.keys(pkgs)) {
+			const meta = pkgs[lockKey];
+			if (!isOsGatedShippedElsewhere(meta?.os as string[], hostPlatform)) {
+				continue;
+			}
+			const nmIdx = lockKey.lastIndexOf('node_modules/');
+			if (nmIdx < 0) {
+				continue; // the root project entry, not a dependency
+			}
+			const name = lockKey.slice(nmIdx + 'node_modules/'.length);
+			if (!name) {
+				continue;
+			}
+			// Section 5 owns arch-suffixed binaries; don't double-handle them.
+			if (isArchPackageName(name)) {
+				continue;
+			}
+			const key = name.toLowerCase();
+			if (s6Seen.has(key)) {
+				continue;
+			}
+			s6Seen.add(key);
+			if (entries.has(key)) {
+				s6AlreadyResolved++; // already resolved with a license elsewhere
+				continue;
+			}
+			if (noLicenseSeen.has(key)) {
+				s6AlreadyPresent++;
+				continue;
+			}
+			noLicenseSeen.set(key, { name, version: meta?.version || '' });
+			s6Seeded++;
+			console.log(`  SEEDED (os:[${(meta!.os as string[]).join(', ')}]): ${name}@${meta?.version || ''}`);
+		}
+	}
+	console.log(`  Section 6 seeded ${s6Seeded} os-gated package(s) into the presence index ` +
+		`(${s6AlreadyResolved} already licensed, ${s6AlreadyPresent} already present).`);
+
 	// Step 4: Sort and write output
 	const sorted = [...entries.values()].sort((a, b) =>
 		a.name.toLowerCase().localeCompare(b.name.toLowerCase())
@@ -1688,6 +1831,8 @@ async function main(): Promise<void> {
 	console.log(`    Skipped (already resolved): ${pbSkippedAlready}`);
 	console.log(`    Skipped (CG covers):       ${pbSkippedCg}`);
 	console.log(`    Skipped (not shipped):     ${pbSkippedNotShipped}`);
+	console.log(`  Section 6 - OS-gated whole packages:`);
+	console.log(`    Seeded into presence:      ${s6Seeded}`);
 	console.log(`  Total entries in output:     ${entries.size}`);
 	console.log(`  Output: ${outputPath}`);
 	console.log(`  Presence index (present but unlicensed): ${presence.length}`);
