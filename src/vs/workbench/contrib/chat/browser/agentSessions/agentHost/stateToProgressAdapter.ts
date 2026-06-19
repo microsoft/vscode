@@ -219,11 +219,17 @@ function mapAccountQuotaSnapshot(snapshot: AccountQuotaSnapshot): IQuotaSnapshot
 		return undefined;
 	}
 
+	// `remainingPercentage` is required to express a usable snapshot. Treat its absence as
+	// "no data" and skip the category rather than defaulting to 0, which would otherwise
+	// masquerade as an exhausted quota (matching `parseQuotas`, where `percent_remaining` is required).
+	if (typeof snapshot.remainingPercentage !== 'number') {
+		return undefined;
+	}
+
 	const used = typeof snapshot.usedRequests === 'number' ? snapshot.usedRequests : undefined;
-	const remaining = typeof snapshot.remainingPercentage === 'number' ? snapshot.remainingPercentage : 0;
 	const resetAt = snapshot.resetDate ? Date.parse(snapshot.resetDate) : NaN;
 	return {
-		percentRemaining: Math.min(100, Math.max(0, remaining)),
+		percentRemaining: Math.min(100, Math.max(0, snapshot.remainingPercentage)),
 		unlimited,
 		entitlement: !unlimited && entitlement !== undefined && entitlement >= 0 ? entitlement : undefined,
 		quotaRemaining: !unlimited && entitlement !== undefined && used !== undefined ? Math.max(0, entitlement - used) : undefined,

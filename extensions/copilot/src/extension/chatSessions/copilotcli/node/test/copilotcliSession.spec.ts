@@ -2569,6 +2569,50 @@ describe('CopilotCLISession', () => {
 			}]);
 		});
 
+		it('tolerates a string resetDate and skips malformed snapshots from assistant.usage', async () => {
+			sdkSession.send = async (options: any) => {
+				sdkSession.emit('user.message', { content: options.prompt });
+				sdkSession.emit('assistant.usage', {
+					model: 'claude-opus-4.7',
+					inputTokens: 200,
+					outputTokens: 80,
+					quotaSnapshots: {
+						// The internal field can drift from the published type: `resetDate` may arrive as an
+						// ISO string and a snapshot may be missing `remainingPercentage` entirely.
+						premium_interactions: {
+							isUnlimitedEntitlement: false,
+							entitlementRequests: 300,
+							overage: 1.5,
+							overageAllowedWithExhaustedQuota: true,
+							remainingPercentage: 75,
+							resetDate: '2026-07-01T00:00:00.000Z',
+						},
+						completions: {
+							isUnlimitedEntitlement: false,
+							entitlementRequests: 50,
+							// remainingPercentage absent — snapshot must be skipped rather than producing "undefined".
+						},
+					},
+				});
+				sdkSession.emit('assistant.turn_end', {});
+			};
+
+			const session = await createSession();
+			session.attachStream(new UsageCapturingStream());
+
+			await session.handleRequest({ id: 'req-1', toolInvocationToken: undefined as never }, { prompt: 'Hello' }, [], undefined, authInfo, CancellationToken.None);
+
+			expect(processedQuotaSnapshots).toEqual([{
+				premium_interactions: {
+					entitlement: '300',
+					percent_remaining: 75,
+					overage_permitted: true,
+					overage_count: 1.5,
+					reset_date: '2026-07-01T00:00:00.000Z',
+				},
+			}]);
+		});
+
 		it('reports usage from session.usage_info event immediately', async () => {
 			sdkSession.send = async (options: any) => {
 				sdkSession.emit('user.message', { content: options.prompt });

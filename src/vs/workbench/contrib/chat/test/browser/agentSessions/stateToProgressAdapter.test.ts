@@ -1556,5 +1556,22 @@ suite('stateToProgressAdapter', () => {
 				additionalUsageCount: 0,
 			});
 		});
+
+		test('skips a category whose remainingPercentage is missing', () => {
+			const result = usageInfoToQuotas({
+				_meta: {
+					quotaSnapshots: {
+						chat: {
+							isUnlimitedEntitlement: false,
+							entitlementRequests: 100,
+							usedRequests: 10,
+							// remainingPercentage intentionally absent — must not masquerade as exhausted (0%).
+						},
+					},
+				},
+			});
+
+			assert.strictEqual(result, undefined);
+		});
 	});
 });

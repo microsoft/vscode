@@ -3158,30 +3158,50 @@ interface IModelTurnUsage {
 
 /**
  * Shape of a single quota snapshot on the SDK's `assistant.usage` event (`quotaSnapshots`). The
- * field is marked internal-only by the SDK but mirrors the per-category quota state CAPI returns.
+ * field is marked internal-only by the SDK, so although the published types say `entitlementRequests`
+ * is a number and `resetDate` is a `Date`, the runtime shape can drift (e.g. a sibling SDK delivers
+ * `resetDate` as an ISO string). Mark the fields optional and validate at runtime below.
  */
 interface ISdkQuotaSnapshot {
-	readonly isUnlimitedEntitlement: boolean;
-	readonly entitlementRequests: number;
-	readonly overage: number;
-	readonly overageAllowedWithExhaustedQuota: boolean;
-	readonly remainingPercentage: number;
-	readonly resetDate?: Date;
+	readonly isUnlimitedEntitlement?: boolean;
+	readonly entitlementRequests?: number;
+	readonly overage?: number;
+	readonly overageAllowedWithExhaustedQuota?: boolean;
+	readonly remainingPercentage?: number;
+	readonly resetDate?: Date | string;
 }
 
 /** Maps the SDK `assistant.usage` quota snapshots to the shared {@link QuotaSnapshots} shape. */
 function toChatQuotaSnapshots(snapshots: Record<string, ISdkQuotaSnapshot>): QuotaSnapshots {
 	const result: Record<string, QuotaSnapshot> = {};
 	for (const [key, snapshot] of Object.entries(snapshots)) {
+		if (!snapshot || typeof snapshot !== 'object') {
+			continue;
+		}
+		const unlimited = snapshot.isUnlimitedEntitlement === true;
+		const entitlement = unlimited
+			? '-1'
+			: typeof snapshot.entitlementRequests === 'number' ? String(snapshot.entitlementRequests) : undefined;
+		if (entitlement === undefined || typeof snapshot.remainingPercentage !== 'number') {
+			continue;
+		}
 		result[key] = {
-			entitlement: snapshot.isUnlimitedEntitlement ? '-1' : String(snapshot.entitlementRequests),
+			entitlement,
 			percent_remaining: snapshot.remainingPercentage,
-			overage_permitted: snapshot.overageAllowedWithExhaustedQuota,
-			overage_count: snapshot.overage,
-			reset_date: snapshot.resetDate?.toISOString(),
+			overage_permitted: snapshot.overageAllowedWithExhaustedQuota ?? false,
+			overage_count: typeof snapshot.overage === 'number' ? snapshot.overage : 0,
+			reset_date: toResetDateIsoString(snapshot.resetDate),
 		};
 	}
 	return result;
+}
+
+/** Coerces an SDK `resetDate` (a `Date` per the published type, but possibly an ISO string at runtime) to an ISO string. */
+function toResetDateIsoString(resetDate: Date | string | undefined): string | undefined {
+	if (resetDate instanceof Date) {
+		return resetDate.toISOString();
+	}
+	return typeof resetDate === 'string' ? resetDate : undefined;
 }
 
 function buildPromptTokenDetails(usageInfo: UsageInfoData | undefined): { category: string; label: string; percentageOfPrompt: number }[] | undefined {
