@@ -83,6 +83,7 @@ function createMockEntitlementService(opts?: {
 function createMockNotificationService() {
 	let lastNotification: IChatInputNotification | undefined = undefined;
 	let deleted = false;
+	let dismissed = false;
 	let setCount = 0;
 
 	const onDidChange = new Emitter<void>();
@@ -95,22 +96,38 @@ function createMockNotificationService() {
 		setNotification(notification: IChatInputNotification) {
 			lastNotification = notification;
 			deleted = false;
+			dismissed = false;
 			setCount++;
+			onDidChange.fire();
 		},
 		deleteNotification(_id: string) {
 			deleted = true;
+			dismissed = false;
+			onDidChange.fire();
 		},
-		dismissNotification() { },
-		getActiveNotification() { return deleted ? undefined : lastNotification; },
+		dismissNotification(id: string) {
+			if (!lastNotification || lastNotification.id !== id || dismissed) {
+				return;
+			}
+			dismissed = true;
+			onDidDismiss.fire(id);
+			onDidChange.fire();
+		},
+		getActiveNotification(filter?: (notification: IChatInputNotification) => boolean) {
+			if (deleted || dismissed || !lastNotification) {
+				return undefined;
+			}
+			return !filter || filter(lastNotification) ? lastNotification : undefined;
+		},
 		handleMessageSent() { },
 	};
 
 	return {
 		service,
-		getNotification(): IChatInputNotification | undefined { return deleted ? undefined : lastNotification; },
+		getNotification(): IChatInputNotification | undefined { return deleted || dismissed ? undefined : lastNotification; },
 		get wasDeleted() { return deleted; },
 		get setCount() { return setCount; },
-		reset() { lastNotification = undefined; deleted = false; setCount = 0; },
+		reset() { lastNotification = undefined; deleted = false; dismissed = false; setCount = 0; },
 	};
 }
 
