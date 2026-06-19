@@ -305,6 +305,9 @@ suite('CommandLineFileWriteAnalyzer', () => {
 			test('absolute path - C: drive - block', () => t('Write-Host "hello" > C:\\temp\\file.txt', 'outsideWorkspace', false, 1));
 			test('absolute path - D: drive - block', () => t('Write-Host "hello" > D:\\data\\config.txt', 'outsideWorkspace', false, 1));
 			test('absolute path - different drive than workspace - block', () => t('Write-Host "hello" > E:\\external\\file.txt', 'outsideWorkspace', false, 1));
+			test('absolute path traversal outside workspace - block', () => t('Write-Host "hello" > C:\\workspace\\project\\test\\..\\..\\other\\file.txt', 'outsideWorkspace', false, 1));
+			test('absolute path traversal to settings path outside workspace - block', () => t('Write-Host "{}" > C:\\workspace\\project\\test\\..\\..\\..\\Users\\user\\AppData\\Roaming\\Code\\User\\settings.json', 'outsideWorkspace', false, 1));
+			test('absolute path traversal that remains inside workspace - allow', () => t('Write-Host "hello" > C:\\workspace\\project\\test\\..\\file.txt', 'outsideWorkspace', true, 1));
 
 			// Absolute paths - UNC paths
 			test('absolute path - UNC path - block', () => t('Write-Host "hello" > \\\\server\\share\\file.txt', 'outsideWorkspace', false, 1));
