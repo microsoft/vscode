@@ -32,7 +32,7 @@ suite('mapSessionEvents — task_complete rendering', () => {
 		assert.strictEqual(turns.length, 1);
 		assert.deepStrictEqual(partKinds(turns[0].responseParts), [
 			{ kind: ResponsePartKind.Markdown, content: 'Working on it.' },
-			{ kind: ResponsePartKind.Markdown, content: '\n\n**Task complete:** Done. All good.' },
+			{ kind: ResponsePartKind.Markdown, content: '\n\n**Task completed:** Done. All good.' },
 		]);
 	});
 

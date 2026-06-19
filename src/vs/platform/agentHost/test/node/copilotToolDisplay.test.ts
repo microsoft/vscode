@@ -109,7 +109,7 @@ suite('copilotToolDisplay — markdown-rendered tools', () => {
 	});
 
 	test('getToolMarkdownContent returns the task_complete summary when present', () => {
-		assert.strictEqual(getToolMarkdownContent('task_complete', { summary: 'All tests pass.' }), '\n\n**Task complete:** All tests pass.');
+		assert.strictEqual(getToolMarkdownContent('task_complete', { summary: 'All tests pass.' }), '\n\n**Task completed:** All tests pass.');
 	});
 
 	test('getToolMarkdownContent returns undefined for empty, missing, or non-string summaries', () => {
