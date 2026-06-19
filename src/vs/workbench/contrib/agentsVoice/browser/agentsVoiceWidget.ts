@@ -231,7 +231,7 @@ export class AgentsVoiceWidget extends Disposable {
 		this._statusTextDiv.style.cssText = `text-align:center;font-size:${FONT_SIZE.body};font-weight:500;color:var(--vscode-foreground);padding:2px 0;`;
 
 		this._sessionListWrapper = dom.$('div');
-		this._sessionListWrapper.style.cssText = 'display:flex;flex-direction:column;-webkit-app-region:no-drag;overflow:hidden;';
+		this._sessionListWrapper.style.cssText = 'display:flex;flex-direction:column;-webkit-app-region:no-drag;overflow-y:auto;max-height:300px;';
 		this._sessionListWrapper.append(this._sessionListComponent.element);
 
 		this._expandSpacer = dom.$('div');

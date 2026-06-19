@@ -320,19 +320,13 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		const pillWidth = pill.offsetWidth;
 		const pillHeight = pill.offsetHeight;
 		if (pillWidth <= 0 || pillHeight <= 0) { return; }
-		const targetWidth = pillWidth;
-		const targetHeight = pillHeight;
 		const currentWidth = auxiliaryWindow.window.outerWidth;
 		const currentHeight = auxiliaryWindow.window.outerHeight;
-		if (targetWidth !== currentWidth || targetHeight !== currentHeight) {
-			// Anchor bottom edge: when height changes, the bottom stays fixed
-			// and the top moves up/down. This keeps the toolbar area stable.
-			const currentBottom = auxiliaryWindow.window.screenY + currentHeight;
-			const x = auxiliaryWindow.window.screenX;
+		if (pillWidth !== currentWidth || pillHeight !== currentHeight) {
 			try {
-				auxiliaryWindow.window.resizeTo(targetWidth, targetHeight);
-				const newY = currentBottom - targetHeight;
-				auxiliaryWindow.window.moveTo(x, newY);
+				// resizeTo only — no moveTo. On macOS this keeps top-left fixed,
+				// window grows/shrinks downward. No visible position change.
+				auxiliaryWindow.window.resizeTo(pillWidth, pillHeight);
 			} catch { /* resize may not be supported */ }
 		}
 	}
