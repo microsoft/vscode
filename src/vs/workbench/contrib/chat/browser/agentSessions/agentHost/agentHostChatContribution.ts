@@ -7,7 +7,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
-import { URI } from '../../../../../../base/common/uri.js';
+import { type URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { AgentHostEnabledSettingId, claudePreferAgentHostSettingId, IAgentHostService, shouldSurfaceLocalAgentHostProvider, type AgentProvider, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
