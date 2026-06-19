@@ -107,7 +107,8 @@ enum LayoutClasses {
 	FULLSCREEN = 'fullscreen',
 	MAXIMIZED = 'maximized',
 	WINDOW_BORDER = 'border',
-	NO_SHADOWS = 'no-shadows'
+	NO_SHADOWS = 'no-shadows',
+	FLOATING_PANELS = 'floating-panels'
 }
 
 interface IPathToOpen extends IPath {
@@ -443,6 +444,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.updateShadows();
 			}
 
+			// Floating Panels
+			if (e.affectsConfiguration(LayoutSettings.FLOATING_PANELS)) {
+				this.updateFloatingPanels();
+				this.layout(); // re-layout so parts pick up the new floating margins
+			}
+
 			// Auxiliary Sidebar
 			if (e.affectsConfiguration(WorkbenchLayoutSettings.AUXILIARYBAR_FORCE_MAXIMIZED)) {
 				const forceMaximized = this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_FORCE_MAXIMIZED);
@@ -615,6 +622,18 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		for (const container of Array.from(this.containers)) {
 			container.classList.toggle(LayoutClasses.NO_SHADOWS, noShadows);
 		}
+	}
+
+	isFloatingPanelsEnabled(): boolean {
+		return this.configurationService.getValue<boolean>(LayoutSettings.FLOATING_PANELS) === true;
+	}
+
+	private updateFloatingPanels(): void {
+		// Floating panels is a main-window concept: only the main container hosts
+		// the side bars and bottom panel. Scope the class (and therefore the CSS
+		// card margins) to the main container so auxiliary windows — whose parts do
+		// not apply the matching content insets in code — are left untouched.
+		this.mainContainer.classList.toggle(LayoutClasses.FLOATING_PANELS, this.isFloatingPanelsEnabled());
 	}
 
 	private setSideBarPosition(position: Position): void {
@@ -1888,7 +1907,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			!this.isVisible(Parts.AUXILIARYBAR_PART) ? LayoutClasses.AUXILIARYBAR_HIDDEN : undefined,
 			!this.isVisible(Parts.STATUSBAR_PART) ? LayoutClasses.STATUSBAR_HIDDEN : undefined,
 			this.state.runtime.mainWindowFullscreen ? LayoutClasses.FULLSCREEN : undefined,
-			this.isShadowsDisabled() ? LayoutClasses.NO_SHADOWS : undefined
+			this.isShadowsDisabled() ? LayoutClasses.NO_SHADOWS : undefined,
+			this.isFloatingPanelsEnabled() ? LayoutClasses.FLOATING_PANELS : undefined
 		]);
 	}
 

@@ -8,8 +8,11 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore, IDisposable, ImmortalReference, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { GitHubPullRequestModel } from '../../browser/models/githubPullRequestModel.js';
+import { GitHubPullRequestCIModel } from '../../browser/models/githubPullRequestCIModel.js';
+import { GitHubPullRequestReviewThreadsModel } from '../../browser/models/githubPullRequestReviewThreadsModel.js';
+import { GitHubPullRequestState, IGitHubPullRequest } from '../../common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -25,11 +28,13 @@ suite('GitHubPullRequestPollingContribution', () => {
 	let sessionsManagementService: TestSessionsManagementService;
 	let sessionsService: ISessionsService;
 	let gitHubService: TestGitHubService;
+	let activeSession: ISettableObservable<IActiveSession | undefined>;
 
 	setup(() => {
 		sessionsManagementService = new TestSessionsManagementService(store);
+		activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
 		sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
+			override readonly activeSession = activeSession;
 		};
 		gitHubService = new TestGitHubService();
 	});
@@ -96,6 +101,71 @@ suite('GitHubPullRequestPollingContribution', () => {
 			'owner/repo/1': { startPollingCalls: 1, stopPollingCalls: 1, disposeCalls: 0 },
 		});
 		assert.strictEqual(session.isArchived.get(), false);
+	});
+
+	test('polls CI checks and review threads once an open pull request resolves', () => {
+		sessionsManagementService.addSession('session', makeGitHubInfo(1));
+		store.add(new GitHubPullRequestPollingContribution(gitHubService, sessionsManagementService, sessionsService));
+
+		// Until the PR details load, only the PR model is polled.
+		assert.deepStrictEqual(gitHubService.statusModelSnapshot(), { ci: {}, reviewThreads: {} });
+
+		gitHubService.setPullRequestDetails('owner', 'repo', 1, { state: GitHubPullRequestState.Open, isDraft: false, headSha: 'sha1' });
+
+		assert.deepStrictEqual(gitHubService.statusModelSnapshot(), {
+			ci: { 'owner/repo/1/sha1': { startPollingCalls: 1, refreshCalls: 1 } },
+			reviewThreads: { 'owner/repo/1': { startPollingCalls: 1, refreshCalls: 1 } },
+		});
+	});
+
+	test('does not poll CI checks or review threads for draft pull requests', () => {
+		sessionsManagementService.addSession('session', makeGitHubInfo(1));
+		store.add(new GitHubPullRequestPollingContribution(gitHubService, sessionsManagementService, sessionsService));
+
+		gitHubService.setPullRequestDetails('owner', 'repo', 1, { state: GitHubPullRequestState.Open, isDraft: true, headSha: 'sha1' });
+
+		assert.deepStrictEqual(gitHubService.statusModelSnapshot(), { ci: {}, reviewThreads: {} });
+	});
+
+	test('starts polling once an asynchronously resolved PR number appears', () => {
+		// Mirrors the agent-host provider, whose `gitHubInfo` initially has no PR
+		// number (it is resolved asynchronously via findPullRequestNumberByHeadBranch).
+		const session = sessionsManagementService.addSession('async', { owner: 'owner', repo: 'repo' });
+		store.add(new GitHubPullRequestPollingContribution(gitHubService, sessionsManagementService, sessionsService));
+
+		// No PR number yet → nothing is polled.
+		assert.deepStrictEqual(gitHubService.snapshot(), {});
+
+		// The PR number resolves later.
+		sessionsManagementService.setGitHubInfo(session, makeGitHubInfo(1));
+
+		assert.deepStrictEqual(gitHubService.snapshot(), {
+			'owner/repo/1': { startPollingCalls: 1, stopPollingCalls: 0, disposeCalls: 0 },
+		});
+	});
+
+	test('stops polling a merged pull request unless it is the active session', () => {
+		const session = sessionsManagementService.addSession('session', makeGitHubInfo(1));
+		store.add(new GitHubPullRequestPollingContribution(gitHubService, sessionsManagementService, sessionsService));
+
+		// Open PR → polling.
+		gitHubService.setPullRequestDetails('owner', 'repo', 1, { state: GitHubPullRequestState.Open, isDraft: false, headSha: 'sha1' });
+		assert.deepStrictEqual(gitHubService.snapshot(), {
+			'owner/repo/1': { startPollingCalls: 1, stopPollingCalls: 0, disposeCalls: 0 },
+		});
+
+		// Merges while not the active session → the repeating poll loop stops (the
+		// single initial fetch already produced the merged icon).
+		gitHubService.setPullRequestDetails('owner', 'repo', 1, { state: GitHubPullRequestState.Merged, isDraft: false, headSha: 'sha1' });
+		assert.deepStrictEqual(gitHubService.snapshot(), {
+			'owner/repo/1': { startPollingCalls: 1, stopPollingCalls: 1, disposeCalls: 0 },
+		});
+
+		// Becomes the active session → polling resumes even though it is merged.
+		activeSession.set(session as unknown as IActiveSession, undefined);
+		assert.deepStrictEqual(gitHubService.snapshot(), {
+			'owner/repo/1': { startPollingCalls: 2, stopPollingCalls: 1, disposeCalls: 0 },
+		});
 	});
 });
 
@@ -230,6 +300,8 @@ class TestSession implements ISession {
 class TestGitHubService extends mock<IGitHubService>() {
 
 	private readonly _models = new Map<string, TestPullRequestModel>();
+	private readonly _ciModels = new Map<string, TestStatusModel>();
+	private readonly _threadModels = new Map<string, TestStatusModel>();
 
 	override readonly activeSessionPullRequestObs = observableValue('test.activePR', undefined);
 	override readonly activeSessionPullRequestCIObs = observableValue('test.activePRCI', undefined);
@@ -245,6 +317,31 @@ class TestGitHubService extends mock<IGitHubService>() {
 		return new ImmortalReference(model as unknown as GitHubPullRequestModel);
 	}
 
+	override createPullRequestCIModelReference(owner: string, repo: string, prNumber: number, headSha: string): IReference<GitHubPullRequestCIModel> {
+		const key = `${owner}/${repo}/${prNumber}/${headSha}`;
+		let model = this._ciModels.get(key);
+		if (!model) {
+			model = new TestStatusModel();
+			this._ciModels.set(key, model);
+		}
+		return new ImmortalReference(model as unknown as GitHubPullRequestCIModel);
+	}
+
+	override createPullRequestReviewThreadsModelReference(owner: string, repo: string, prNumber: number): IReference<GitHubPullRequestReviewThreadsModel> {
+		const key = `${owner}/${repo}/${prNumber}`;
+		let model = this._threadModels.get(key);
+		if (!model) {
+			model = new TestStatusModel();
+			this._threadModels.set(key, model);
+		}
+		return new ImmortalReference(model as unknown as GitHubPullRequestReviewThreadsModel);
+	}
+
+	setPullRequestDetails(owner: string, repo: string, prNumber: number, details: { readonly state: GitHubPullRequestState; readonly isDraft: boolean; readonly headSha: string }): void {
+		const model = this._models.get(`${owner}/${repo}/${prNumber}`);
+		model?.setPullRequest(makePullRequest(details));
+	}
+
 	snapshot(): Record<string, { startPollingCalls: number; stopPollingCalls: number; disposeCalls: number }> {
 		const entries = [...this._models.entries()].map(([key, model]) => [key, {
 			startPollingCalls: model.startPollingCalls,
@@ -253,6 +350,13 @@ class TestGitHubService extends mock<IGitHubService>() {
 		}] as const);
 		return Object.fromEntries(entries);
 	}
+
+	statusModelSnapshot(): { ci: Record<string, { startPollingCalls: number; refreshCalls: number }>; reviewThreads: Record<string, { startPollingCalls: number; refreshCalls: number }> } {
+		const toRecord = (models: Map<string, TestStatusModel>) => Object.fromEntries(
+			[...models.entries()].map(([key, model]) => [key, { startPollingCalls: model.startPollingCalls, refreshCalls: model.refreshCalls }] as const)
+		);
+		return { ci: toRecord(this._ciModels), reviewThreads: toRecord(this._threadModels) };
+	}
 }
 
 class TestPullRequestModel implements IDisposable {
@@ -260,6 +364,13 @@ class TestPullRequestModel implements IDisposable {
 	startPollingCalls = 0;
 	stopPollingCalls = 0;
 	disposeCalls = 0;
+
+	private readonly _pullRequest = observableValue<IGitHubPullRequest | undefined>('test.pullRequest', undefined);
+	readonly pullRequest: IObservable<IGitHubPullRequest | undefined> = this._pullRequest;
+
+	setPullRequest(pullRequest: IGitHubPullRequest): void {
+		this._pullRequest.set(pullRequest, undefined);
+	}
 
 	startPolling(): IDisposable {
 		this.startPollingCalls++;
@@ -273,6 +384,43 @@ class TestPullRequestModel implements IDisposable {
 	dispose(): void {
 		this.disposeCalls++;
 	}
+}
+
+class TestStatusModel implements IDisposable {
+
+	startPollingCalls = 0;
+	refreshCalls = 0;
+
+	refresh(): Promise<void> {
+		this.refreshCalls++;
+		return Promise.resolve();
+	}
+
+	startPolling(): IDisposable {
+		this.startPollingCalls++;
+		return toDisposable(() => { });
+	}
+
+	dispose(): void { }
+}
+
+function makePullRequest(overrides: { readonly state: GitHubPullRequestState; readonly isDraft: boolean; readonly headSha: string }): IGitHubPullRequest {
+	return {
+		number: 1,
+		title: '',
+		body: '',
+		state: overrides.state,
+		author: { login: '', avatarUrl: '' },
+		headRef: '',
+		headSha: overrides.headSha,
+		baseRef: '',
+		isDraft: overrides.isDraft,
+		createdAt: '',
+		updatedAt: '',
+		mergedAt: undefined,
+		mergeable: undefined,
+		mergeableState: '',
+	};
 }
 
 function makeGitHubInfo(prNumber: number): IGitHubInfo {

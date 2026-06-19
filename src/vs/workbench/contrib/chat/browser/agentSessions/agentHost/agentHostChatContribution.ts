@@ -7,8 +7,9 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { type URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
-import { AgentHostEnabledSettingId, ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHostEditorSettingId, IAgentHostService, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostEnabledSettingId, claudePreferAgentHostSettingId, IAgentHostService, shouldSurfaceLocalAgentHostProvider, type AgentProvider, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -29,7 +30,7 @@ import { authenticateProtectedResources, AgentHostAuthTokenCache, resolveAuthent
 import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from './agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from './agentHostSessionHandler.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
-import { AgentHostSessionListController } from './agentHostSessionListController.js';
+import { AgentHostSessionListController, IAgentHostSessionListConnection } from './agentHostSessionListController.js';
 import { AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 
 const LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX = 'agent-host-';
@@ -58,7 +59,7 @@ async function waitForLocalAgentHostActivation(accessor: ServicesAccessor, sessi
 			return false;
 		}
 		if (rootState) {
-			return rootState.agents.some(agent => agent.provider === provider && shouldRegisterAgent(agent.provider, configurationService, environmentService.isSessionsWindow));
+			return rootState.agents.some(agent => agent.provider === provider && shouldSurfaceLocalAgentHostProvider(agent.provider, configurationService, environmentService.isSessionsWindow));
 		}
 
 		const changed = await Promise.race([
@@ -78,14 +79,48 @@ function getLocalAgentHostProviderForSessionType(sessionType: string): AgentProv
 	return sessionType.slice(LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX.length) || undefined;
 }
 
-function shouldRegisterAgent(provider: AgentProvider, configurationService: IConfigurationService, isSessionsWindow: boolean): boolean {
-	if (provider !== 'claude') {
-		return true;
+/**
+ * Shared session-list connection used by all local agent-host list controllers.
+ *
+ * The agent host exposes a single provider-agnostic `listSessions()` RPC, while
+ * the workbench registers one {@link AgentHostSessionListController} per agent
+ * provider. Those controllers can refresh at the same time during startup,
+ * reconnect, or workspace changes. This wrapper keeps the controller coupled
+ * only to the minimal list-session surface and joins concurrent refreshes onto
+ * one in-flight `listSessions()` request so the agent host does not repeat the
+ * same session enumeration work for every provider.
+ */
+export class CoalescingAgentHostSessionListConnection implements IAgentHostSessionListConnection {
+
+	private _listSessionsInFlight: Promise<IAgentSessionMetadata[]> | undefined;
+
+	constructor(
+		private readonly _delegate: IAgentHostService,
+	) { }
+
+	get onDidNotification(): IAgentHostSessionListConnection['onDidNotification'] {
+		return this._delegate.onDidNotification;
 	}
-	const settingId = isSessionsWindow
-		? ClaudePreferAgentHostAgentsSettingId
-		: ClaudePreferAgentHostEditorSettingId;
-	return configurationService.getValue<boolean>(settingId) === true;
+
+	disposeSession(session: URI): Promise<void> {
+		return this._delegate.disposeSession(session);
+	}
+
+	listSessions(): Promise<IAgentSessionMetadata[]> {
+		if (this._listSessionsInFlight) {
+			return this._listSessionsInFlight;
+		}
+
+		const request = this._delegate.listSessions();
+		this._listSessionsInFlight = request;
+		const clear = () => {
+			if (this._listSessionsInFlight === request) {
+				this._listSessionsInFlight = undefined;
+			}
+		};
+		request.then(clear, clear);
+		return request;
+	}
 }
 
 export { AgentHostSessionHandler } from './agentHostSessionHandler.js';
@@ -107,6 +142,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	private readonly _modelProviders = new Map<AgentProvider, AgentHostLanguageModelProvider>();
 	/** List controllers keyed by agent provider, for cache resets on reconnect. */
 	private readonly _listControllers = new Map<AgentProvider, AgentHostSessionListController>();
+	private readonly _sessionListConnection: CoalescingAgentHostSessionListConnection;
 
 	/** Dedupes redundant `authenticate` RPCs when the resolved token hasn't changed. */
 	private readonly _authTokenCache = new AgentHostAuthTokenCache();
@@ -132,6 +168,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 
 		this._isSessionsWindow = environmentService.isSessionsWindow;
 		this._enableSmokeTestDriver = !!environmentService.enableSmokeTestDriver;
+		this._sessionListConnection = new CoalescingAgentHostSessionListConnection(this._agentHostService);
 
 		if (!this._configurationService.getValue<boolean>(AgentHostEnabledSettingId)) {
 			return;
@@ -167,9 +204,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		// registration of the `claude` provider inside this window. Flipping
 		// the relevant setting unregisters / re-registers Claude live.
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			const relevantSetting = this._isSessionsWindow
-				? ClaudePreferAgentHostAgentsSettingId
-				: ClaudePreferAgentHostEditorSettingId;
+			const relevantSetting = claudePreferAgentHostSettingId(this._isSessionsWindow);
 			if (!e.affectsConfiguration(relevantSetting)) {
 				return;
 			}
@@ -197,7 +232,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	 * to avoid Claude appearing twice in the same window.
 	 */
 	private _shouldRegisterAgent(provider: AgentProvider): boolean {
-		return shouldRegisterAgent(provider, this._configurationService, this._isSessionsWindow);
+		return shouldSurfaceLocalAgentHostProvider(provider, this._configurationService, this._isSessionsWindow);
 	}
 
 	private _handleRootStateChange(rootState: RootState): void {
@@ -247,9 +282,9 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			: localize('agentHost.displayName', "{0} - Agent Host", agent.displayName);
 
 		// Chat session contribution.
-		// In the Agents app, hide the delegation picker for local agent host
-		// sessions (matches behavior of remote agent host sessions). In VS Code,
-		// keep the picker available so users can hand off to other targets.
+		// Keep the delegation picker available for local agent host sessions in
+		// both VS Code and the Agents app so users can hand off (continue) their
+		// conversation to any other agent host session or remote target.
 		store.add(this._chatSessionsService.registerChatSessionContribution({
 			type: sessionType,
 			name: agentId,
@@ -259,7 +294,8 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			canDelegate: true,
 			requiresCustomModels: true,
 			supportsAutoModel: agentHostProviderSupportsAutoModel(agent.provider),
-			supportsDelegation: !this._isSessionsWindow,
+			agentHostProviderId: agent.provider,
+			supportsDelegation: true,
 			capabilities: {
 				supportsCheckpoints: true,
 				supportsPromptAttachments: true,
@@ -268,7 +304,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		}));
 
 		// Session list controller
-		const listController = store.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType, agent.provider, this._agentHostService, undefined, 'local'));
+		const listController = store.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType, agent.provider, this._sessionListConnection, undefined, 'local'));
 		this._listControllers.set(agent.provider, listController);
 		store.add({ dispose: () => this._listControllers.delete(agent.provider) });
 		store.add(this._chatSessionsService.registerChatSessionItemController(sessionType, listController));

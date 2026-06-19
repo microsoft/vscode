@@ -240,10 +240,7 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 			return;
 		}
 		for (const session of activeSessions) {
-			this._changesets.refreshBranchChangeset(session);
-			this._changesets.refreshSessionChangeset(session);
-
-			void this._changesets.computeUncommittedChangeset(session);
+			this._changesets.recomputeSubscribedChangesets(session);
 		}
 	}
 

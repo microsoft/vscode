@@ -793,6 +793,15 @@ class PolicyDiagnosticsAction extends Action2 {
 			content += `| Fetched at | ${fetchedAt ? new Date(fetchedAt).toLocaleString() : '*n/a*'} |\n`;
 			content += '\n';
 
+			const rawResponse = defaultAccountService.managedSettingsRawResponse;
+			if (rawResponse !== null && rawResponse !== undefined) {
+				content += '### Raw Response\n\n';
+				content += '```json\n';
+				content += JSON.stringify(rawResponse, null, 2);
+				content += '\n```\n\n';
+			}
+
+			content += '### Processed (after projection)\n\n';
 			const managedSettingsData = {
 				managedSettings: policyData?.managedSettings,
 			};
@@ -806,16 +815,17 @@ class PolicyDiagnosticsAction extends Action2 {
 		content += '## Policy-Controlled Settings\n\n';
 
 		const policyConfigurations = configurationRegistry.getPolicyConfigurations();
+		const policyReferenceConfigurations = configurationRegistry.getPolicyReferenceConfigurations();
 		const configurationProperties = configurationRegistry.getConfigurationProperties();
 		const excludedProperties = configurationRegistry.getExcludedConfigurationProperties();
 
-		if (policyConfigurations.size > 0) {
+		if (policyConfigurations.size > 0 || policyReferenceConfigurations.size > 0) {
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			const appliedPolicy: Array<{ name: string; key: string; property: any; inspection: any }> = [];
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			const notAppliedPolicy: Array<{ name: string; key: string; property: any; inspection: any }> = [];
 
-			for (const [policyName, settingKey] of policyConfigurations) {
+			const collectPolicySetting = (policyName: string, settingKey: string) => {
 				const property = configurationProperties[settingKey] ?? excludedProperties[settingKey];
 				if (property) {
 					const inspectValue = configurationService.inspect(settingKey);
@@ -831,6 +841,15 @@ class PolicyDiagnosticsAction extends Action2 {
 					} else {
 						notAppliedPolicy.push(settingInfo);
 					}
+				}
+			};
+
+			for (const [policyName, settingKey] of policyConfigurations) {
+				collectPolicySetting(policyName, settingKey);
+			}
+			for (const [policyName, settingKeys] of policyReferenceConfigurations) {
+				for (const settingKey of settingKeys) {
+					collectPolicySetting(policyName, settingKey);
 				}
 			}
 

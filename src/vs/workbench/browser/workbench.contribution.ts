@@ -813,6 +813,12 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': true,
 				'description': localize('shadows', "Controls whether shadow effects are shown around the side panels and other workbench elements.")
 			},
+			[LayoutSettings.FLOATING_PANELS]: {
+				'type': 'boolean',
+				'default': false,
+				'tags': ['experimental'],
+				'description': localize('floatingPanels', "Controls whether the side bars and bottom panel are shown as floating cards with rounded corners and gaps, similar to the agents window design."),
+			},
 		}
 	});
 

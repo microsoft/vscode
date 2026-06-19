@@ -148,7 +148,7 @@
 	margin-left: auto;
 }
 
-/* Meta row: workspace · branch · diff stats */
+/* Meta row: workspace · diff stats */
 .chat-composite-bar-meta-row {
 	display: flex;
 	align-items: center;
@@ -162,16 +162,14 @@
 	white-space: nowrap;
 }
 
-.chat-composite-bar-meta-workspace-label,
-.chat-composite-bar-meta-branch-label {
+.chat-composite-bar-meta-workspace-label {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	min-width: 0;
 }
 
-.chat-composite-bar-meta-workspace,
-.chat-composite-bar-meta-branch {
+.chat-composite-bar-meta-workspace {
 	display: inline-flex;
 	align-items: center;
 	gap: 4px;
@@ -179,8 +177,7 @@
 	overflow: hidden;
 }
 
-.monaco-workbench .chat-composite-bar-meta-workspace-icon.codicon[class*='codicon-'],
-.monaco-workbench .chat-composite-bar-meta-branch-icon.codicon[class*='codicon-'] {
+.monaco-workbench .chat-composite-bar-meta-workspace-icon.codicon[class*='codicon-'] {
 	display: inline-flex;
 	align-items: center;
 	font-size: var(--vscode-codiconFontSize-compact, 12px);
@@ -192,12 +189,41 @@
 	opacity: 0.8;
 }
 
+/* Flatten the session header meta toolbar action bar so contributed items such as the diff-stats +/- counts read as inline, clickable labels rather than buttons. */
+.chat-composite-bar-meta-toolbar,
+.chat-composite-bar-meta-toolbar .monaco-action-bar,
+.chat-composite-bar-meta-toolbar .actions-container {
+	display: inline-flex;
+	align-items: center;
+	height: 100%;
+}
+
 .chat-composite-bar-meta-diff {
 	display: inline-flex;
 	align-items: center;
-	gap: 6px;
 	flex-shrink: 0;
+}
+
+.chat-composite-bar-meta-diff .action-label {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	color: inherit;
+	font: inherit;
 	font-variant-numeric: tabular-nums;
+	cursor: pointer;
+	padding: 0 2px;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.chat-composite-bar-meta-diff .action-label:hover {
+	color: inherit;
+	text-decoration: none;
+}
+
+.chat-composite-bar-meta-diff .action-label:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
 }
 
 .chat-composite-bar-meta-added {

@@ -88,6 +88,16 @@ export function getResizedWindowBounds(bounds: IRectangle, delta: IWindowResizeD
 	return { x, y, width, height };
 }
 
+export interface IStartTracingOptions {
+
+	/**
+	 * Whether to enable heap profiling for MemoryInfra traces. Only takes effect
+	 * if the `disabled-by-default-memory-infra` category is included in the trace
+	 * and requires the recording to also collect periodic memory dumps.
+	 */
+	readonly enableHeapProfiling?: boolean;
+}
+
 export const enum FocusMode {
 
 	/**
@@ -290,7 +300,7 @@ export interface ICommonNativeHostService {
 
 	// Perf Introspection
 	profileRenderer(session: string, duration: number): Promise<IV8Profile>;
-	startTracing(categories: string): Promise<void>;
+	startTracing(categories: string, options?: IStartTracingOptions): Promise<void>;
 
 	// Connectivity
 	resolveProxy(url: string): Promise<string | undefined>;

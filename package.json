@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.126.0",
-  "distro": "8edd514e8c5617018ec1e3f7e9c482edd103640a",
+  "distro": "e6b302180cc8fecde16d482d0f2add78b067b6bf",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -24,7 +24,7 @@
     "compile-copilot": "npm --prefix extensions/copilot run compile",
     "transpile": "npm-run-all2 -lp transpile-client transpile-extensions compile-copilot",
     "transpile-extensions": "npm run gulp transpile-extensions compile-extension-media",
-    "compile-check-ts-native": "tsgo --project ./src/tsconfig.json --noEmit --skipLibCheck",
+    "typecheck-client": "tsgo --project ./src/tsconfig.json --noEmit --skipLibCheck",
     "codex:gen-protocol": "node build/codex/generate-protocol.mjs",
     "watch": "npm-run-all2 -lp watch-client-transpile watch-client watch-extensions watch-copilot",
     "watch-transpile": "npm-run-all2 -lp watch-client-transpile watch-extensions watch-copilot",
@@ -71,6 +71,7 @@
     "serve-out-rspack": "cd build/rspack && npx rspack serve --config rspack.serve-out.config.mts",
     "watch-web": "npm run gulp watch-web",
     "watch-cli": "npm run gulp watch-cli",
+    "mock-policy-server": "node --experimental-strip-types scripts/mock-policy-server/server.ts",
     "eslint": "node build/eslint.ts",
     "stylelint": "node build/stylelint.ts",
     "playwright-install": "npm exec playwright install",
@@ -94,7 +95,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
-    "@github/copilot": "^1.0.61",
+    "@github/copilot": "^1.0.63",
     "@github/copilot-sdk": "^1.0.1",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
@@ -106,7 +107,7 @@
     "@microsoft/mxc-sdk": "0.6.0",
     "@parcel/watcher": "^2.5.6",
     "@types/semver": "^7.5.8",
-    "@vscode/codicons": "^0.0.46-16",
+    "@vscode/codicons": "^0.0.46-18",
     "@vscode/copilot-api": "^0.4.2",
     "@vscode/deviceid": "^0.1.1",
     "@vscode/diff": "0.0.2-7",
@@ -253,7 +254,7 @@
     "sinon-test": "^3.1.3",
     "source-map": "0.6.1",
     "source-map-support": "^0.5.21",
-    "tar": "^7.5.9",
+    "tar": "^7.5.16",
     "tsec": "0.2.7",
     "tslib": "^2.6.3",
     "typescript": "^6.0.0-dev.20260416",

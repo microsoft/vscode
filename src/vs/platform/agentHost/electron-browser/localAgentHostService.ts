@@ -15,7 +15,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentHostAhpJsonlLoggingSettingId, AgentHostIpcChannels, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostService, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IAgentHostSocketInfo, IConnectionTrackerService, isAgentHostEnabled, IMcpNotification } from '../common/agentService.js';
+import { AgentHostAhpJsonlLoggingSettingId, AgentHostIpcChannels, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostService, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IAgentHostSocketInfo, IConnectionTrackerService, isAgentHostEnabled, IMcpNotification } from '../common/agentService.js';
 import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
 import { wrapAgentServiceWithAhpLogging } from './localAhpJsonlLogging.js';
 import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
@@ -24,7 +24,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { ActionType, type ActionEnvelope, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type ClientAnnotationsAction } from '../common/state/sessionActions.js';
 import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult, IStateSnapshot } from '../common/state/sessionProtocol.js';
-import { StateComponents, ROOT_STATE_URI, type RootState } from '../common/state/sessionState.js';
+import { StateComponents, ROOT_STATE_URI, parseChatUri, type RootState } from '../common/state/sessionState.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { URI } from '../../../base/common/uri.js';
 import { AGENT_HOST_CLIENT_RESOURCE_CHANNEL, AgentHostClientResourceChannel } from '../common/agentHostClientResourceChannel.js';
@@ -231,6 +231,16 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	disposeSession(session: URI): Promise<void> {
 		return this._proxy.disposeSession(session);
 	}
+	createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<void> {
+		return this._proxy.createChat(session, chat, options);
+	}
+	disposeChat(chat: URI): Promise<void> {
+		const session = parseChatUri(chat)?.session;
+		if (!session) {
+			return Promise.resolve();
+		}
+		return this._proxy.disposeChat(URI.parse(session), chat);
+	}
 	createTerminal(params: CreateTerminalParams): Promise<void> {
 		return this._proxy.createTerminal(params);
 	}
@@ -270,6 +280,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	getSubscriptionUnmanaged<T>(_kind: StateComponents, resource: URI): IAgentSubscription<T> | undefined {
 		return this._subscriptionManager.getSubscriptionUnmanaged<T>(resource);
+	}
+
+	getInflightSessionCreate(resource: URI): Promise<unknown> | undefined {
+		return this._subscriptionManager.getInflightSessionCreate(resource);
 	}
 
 	getActiveSubscriptions(): readonly IActiveSubscriptionInfo[] {

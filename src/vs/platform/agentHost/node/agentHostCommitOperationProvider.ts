@@ -7,7 +7,7 @@ import { Disposable, DisposableStore, IDisposable } from '../../../base/common/l
 import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ChangesetKind } from '../common/changesetUri.js';
-import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationRegistry } from '../common/changesetOperation.js';
+import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetOperation } from '../common/state/sessionState.js';
 import { AgentHostCommitOperationHandler } from './agentHostCommitOperationHandler.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
@@ -27,7 +27,7 @@ export class AgentHostCommitOperationContribution extends Disposable implements 
 		this._registry = registry;
 		const store = new DisposableStore();
 		const getSessionState = (sessionKey: string) => this._stateManager.getSessionState(sessionKey);
-		const handler = this._instantiationService.createInstance(AgentHostCommitOperationHandler, getSessionState, sessionKey => this._onCommitted(sessionKey));
+		const handler = this._instantiationService.createInstance(AgentHostCommitOperationHandler, getSessionState, (sessionKey: string) => this._onCommitted(sessionKey));
 		store.add(registry.registerChangesetOperationHandler(AgentHostCommitOperationHandler.OPERATION_COMMIT, handler));
 		store.add({ dispose: () => { this._registry = undefined; } });
 		return store;
@@ -40,11 +40,12 @@ export class AgentHostCommitOperationContribution extends Disposable implements 
 
 		return [{
 			id: AgentHostCommitOperationHandler.OPERATION_COMMIT,
-			label: localize('agentHost.changeset.commit', "Commit"),
-			scopes: [ChangesetOperationScope.Changeset],
+			label: localize('agentHost.changeset.commit', "Commit Changes"),
 			icon: 'git-commit',
+			group: 'commit',
+			scopes: [ChangesetOperationScope.Changeset],
 			status: ChangesetOperationStatus.Idle,
-		}];
+		} satisfies ChangesetOperation];
 	}
 
 	private async _onCommitted(sessionKey: string): Promise<void> {
