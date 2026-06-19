@@ -264,6 +264,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 		this._setNotification({
 			id: QUOTA_NOTIFICATION_ID,
+			telemetryId: 'quotaExhausted',
 			severity: ChatInputNotificationSeverity.Info,
 			message: localize('quota.exhausted.title', "Credit Limit Reached"),
 			description,
@@ -280,6 +281,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 		this._setNotification({
 			id: QUOTA_NOTIFICATION_ID,
+			telemetryId: 'overageActivation',
 			severity: ChatInputNotificationSeverity.Info,
 			message: localize('quota.overage.title', "Credit Limit Reached"),
 			description: localize('quota.overage.desc', "Additional budget is now covering extra usage."),
@@ -316,6 +318,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 		this._setNotification({
 			id: QUOTA_NOTIFICATION_ID,
+			telemetryId: 'quotaApproaching',
 			severity: ChatInputNotificationSeverity.Info,
 			message: localize('quota.approaching.title', "Credits at {0}%", warning.percentUsed),
 			description,
@@ -375,6 +378,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 		this._setNotification({
 			id: QUOTA_NOTIFICATION_ID,
+			telemetryId: warning.type === 'session' ? 'sessionRateLimitWarning' : 'weeklyRateLimitWarning',
 			severity: ChatInputNotificationSeverity.Info,
 			message,
 			description,
@@ -409,6 +413,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 		this._setNotification({
 			id: QUOTA_NOTIFICATION_ID,
+			telemetryId: 'managedPlanBlocked',
 			severity: ChatInputNotificationSeverity.Info,
 			message: localize('quota.blocked.managed.title', "Usage Blocked"),
 			description: localize('quota.blocked.managed', "Your organization or enterprise has exceeded its Copilot budget. Contact your admin to resume usage."),
