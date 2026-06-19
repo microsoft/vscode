@@ -109,7 +109,7 @@ jobs:
     name: Linux
     uses: ./.github/workflows/pr-linux-test.yml
     with:
-      job_name: Electron (Smoke)
+      job_name: Electron-Smoke
       electron_tests: true
       unit_and_integration_tests: false
 
@@ -139,7 +139,7 @@ jobs:
     name: macOS
     uses: ./.github/workflows/pr-darwin-test.yml
     with:
-      job_name: Electron (Smoke)
+      job_name: Electron-Smoke
       electron_tests: true
       unit_and_integration_tests: false
 
@@ -169,7 +169,7 @@ jobs:
     name: Windows
     uses: ./.github/workflows/pr-win32-test.yml
     with:
-      job_name: Electron (Smoke)
+      job_name: Electron-Smoke
       electron_tests: true
       unit_and_integration_tests: false
 
