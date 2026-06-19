@@ -51,6 +51,7 @@ import { ChatAgentLocation } from '../../chat/common/constants.js';
 const AGENTS_VOICE_WINDOW_VISIBLE = new RawContextKey<boolean>('agentsVoiceWindowVisible', false);
 export const AGENTS_VOICE_WIDGET_FOCUSED = new RawContextKey<boolean>('agentsVoiceWidgetFocused', false);
 const AGENTS_VOICE_CONNECTED = new RawContextKey<boolean>('agentsVoiceConnected', false);
+const AGENTS_VOICE_CONNECTING = new RawContextKey<boolean>('agentsVoiceConnecting', false);
 const AGENTS_VOICE_LISTENING = new RawContextKey<boolean>('agentsVoiceListening', false);
 
 // --- Context Key Binding ---
@@ -89,9 +90,11 @@ class AgentsVoiceConnectedKeyContribution extends Disposable implements IWorkben
 		super();
 
 		const connectedKey = AGENTS_VOICE_CONNECTED.bindTo(contextKeyService);
+		const connectingKey = AGENTS_VOICE_CONNECTING.bindTo(contextKeyService);
 		const listeningKey = AGENTS_VOICE_LISTENING.bindTo(contextKeyService);
 		this._register(autorun(reader => {
 			connectedKey.set(voiceSessionController.isConnected.read(reader));
+			connectingKey.set(voiceSessionController.isConnecting.read(reader));
 			const state = voiceSessionController.voiceState.read(reader);
 			listeningKey.set(state === 'listening');
 		}));
@@ -182,6 +185,33 @@ CommandsRegistry.registerCommand('_agentsVoice.openWindow', async (accessor) => 
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
+			id: 'agentsVoice.connecting',
+			title: nls.localize2('agentsVoice.connecting', "Connecting..."),
+			icon: Codicon.loading,
+			precondition: ContextKeyExpr.and(
+				ContextKeyExpr.equals('config.agents.voice.enabled', true),
+				AGENTS_VOICE_CONNECTING.isEqualTo(true),
+			),
+			menu: {
+				id: MenuId.ChatExecute,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+					AGENTS_VOICE_CONNECTING.isEqualTo(true),
+				),
+				group: 'navigation',
+				order: 4
+			}
+		});
+	}
+	async run(): Promise<void> {
+		// No-op — just a visual indicator
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
 			id: 'agentsVoice.startVoiceInChat',
 			title: nls.localize2('agentsVoice.startVoiceInChat', "Voice Mode"),
 			icon: Codicon.mic,
@@ -192,6 +222,7 @@ registerAction2(class extends Action2 {
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					AGENTS_VOICE_LISTENING.negate(),
+					AGENTS_VOICE_CONNECTING.negate(),
 				),
 				group: 'navigation',
 				order: 4
