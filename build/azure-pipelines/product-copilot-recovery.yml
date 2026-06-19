@@ -64,12 +64,12 @@ extends:
           # under $PWD. @github/copilot vendors @picovoice/pvrecorder-node, whose
           # linux/x86_64 prebuild depends on GLIBC > 2.28. The native is not
           # shipped in the VSIX, so just remove the pvrecorder prebuilds before
-          # the check runs.
-          find "$(Build.SourcesDirectory)" \
-            -type d -name pvrecorder-node \
-            -path "*@picovoice/pvrecorder-node" \
+          # the check runs. sqlite3 (transitive via @keyv/sqlite) has the same
+          # issue and is also excluded from the VSIX via .vscodeignore.
+          find "$(Build.SourcesDirectory)" -type d \
+            \( -path "*@picovoice/pvrecorder-node" -o -path "*/node_modules/sqlite3" \) \
             -print -exec rm -rf {} +
-        displayName: Remove pvrecorder native binaries before GLIBC check
+        displayName: Remove native binaries with GLIBC > 2.28 before check
 
     uploadSourceMaps:
       enabled: true
