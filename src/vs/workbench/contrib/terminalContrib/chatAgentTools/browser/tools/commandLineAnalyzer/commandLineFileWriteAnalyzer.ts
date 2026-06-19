@@ -6,6 +6,7 @@
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { win32, posix } from '../../../../../../../base/common/path.js';
+import { extUri, normalizePath } from '../../../../../../../base/common/resources.js';
 import { localize } from '../../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
@@ -144,7 +145,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 									break;
 								}
 							}
-							const fileUri = URI.isUri(fileWrite) ? fileWrite : URI.file(fileWrite);
+							const fileUri = normalizePath(URI.isUri(fileWrite) ? fileWrite : URI.file(fileWrite));
 							// TODO: Handle command substitutions/complex destinations properly https://github.com/microsoft/vscode/issues/274167
 							// TODO: Handle environment variables properly https://github.com/microsoft/vscode/issues/274166
 							// `~` catches POSIX tilde expansion (e.g. `~/foo`) and `%` catches Windows
@@ -160,7 +161,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 
 							const isInsideWorkspace = workspaceFolders.some(folder =>
 								folder.uri.scheme === fileUri.scheme &&
-								(fileUri.path.startsWith(folder.uri.path + '/') || fileUri.path === folder.uri.path)
+								extUri.isEqualOrParent(fileUri, folder.uri)
 							);
 							if (!isInsideWorkspace) {
 								// Allow writes to OS temp locations when the user has opted into
