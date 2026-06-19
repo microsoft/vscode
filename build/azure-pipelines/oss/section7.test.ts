@@ -15,9 +15,12 @@
  *    2. enumerateLockfileProdDeps - walking a lockfileVersion 2/3 `packages` map
  *       (skips root/dev/link/arch entries, dedups, last-node_modules name, and
  *       returns [] for lockfileVersion 1).
+ *    3. readBuiltInExtensionManifest - extracting name+version+repo (for self-fetch).
+ *    4. builtInExtensionLockfileUrl - building the public raw.githubusercontent.com
+ *       package-lock.json URL (no token), rejecting non-GitHub/missing inputs.
  *--------------------------------------------------------------------------------------------*/
 
-import { readBuiltInExtensionNames, enumerateLockfileProdDeps } from './scan-licenses.js';
+import { readBuiltInExtensionNames, enumerateLockfileProdDeps, readBuiltInExtensionManifest, builtInExtensionLockfileUrl } from './scan-licenses.js';
 
 let passed = 0;
 let failed = 0;
@@ -126,6 +129,50 @@ const archDeps = enumerateLockfileProdDeps(lockArch).map(d => d.name);
 check('keeps arch-independent parent esbuild', archDeps.includes('esbuild'));
 check('skips @esbuild/linux-x64 (Section 5 owns it)', !archDeps.includes('@esbuild/linux-x64'));
 check('skips @esbuild/darwin-arm64 (Section 5 owns it)', !archDeps.includes('@esbuild/darwin-arm64'));
+
+// -- 3. readBuiltInExtensionManifest ------------------------------------------
+console.log('readBuiltInExtensionManifest - name + version + repo:');
+
+const manifestShape = {
+	builtInExtensions: [
+		{ name: 'ms-vscode.js-debug', version: '1.117.0', repo: 'https://github.com/microsoft/vscode-js-debug' },
+		{ name: 'ms-vscode.js-debug-companion', version: '1.1.3', repo: 'https://github.com/microsoft/vscode-js-debug-companion' },
+	],
+	webBuiltInExtensions: [
+		{ name: 'web-ext', version: '2.0.0', repo: 'https://github.com/microsoft/web-ext' },
+	],
+};
+const manifest = readBuiltInExtensionManifest(manifestShape);
+check('manifest merges builtIn + web (3 entries)', manifest.length === 3);
+check('manifest captures version', manifest.find(e => e.name === 'ms-vscode.js-debug')?.version === '1.117.0');
+check('manifest captures repo', manifest.find(e => e.name === 'ms-vscode.js-debug')?.repo === 'https://github.com/microsoft/vscode-js-debug');
+check('manifest undefined product json -> []', readBuiltInExtensionManifest(undefined).length === 0);
+check('manifest null product json -> []', readBuiltInExtensionManifest(null).length === 0);
+check('manifest missing key -> []', readBuiltInExtensionManifest({}).length === 0);
+check('manifest skips nameless entries', readBuiltInExtensionManifest({
+	builtInExtensions: [{ name: 'ok', version: '1.0.0', repo: 'r' }, { version: '2.0.0' }, { name: 42 }, null],
+}).length === 1);
+check('manifest defaults missing version/repo to empty string', (() => {
+	const m = readBuiltInExtensionManifest({ builtInExtensions: [{ name: 'x' }] });
+	return m.length === 1 && m[0].version === '' && m[0].repo === '';
+})());
+
+// -- 4. builtInExtensionLockfileUrl -------------------------------------------
+console.log('builtInExtensionLockfileUrl - public raw URL (no token):');
+
+check('builds the js-debug raw URL at the version tag',
+	builtInExtensionLockfileUrl('https://github.com/microsoft/vscode-js-debug', '1.117.0') ===
+	'https://raw.githubusercontent.com/microsoft/vscode-js-debug/v1.117.0/package-lock.json');
+check('handles a trailing .git suffix',
+	builtInExtensionLockfileUrl('https://github.com/microsoft/vscode-js-debug.git', '1.0.0') ===
+	'https://raw.githubusercontent.com/microsoft/vscode-js-debug/v1.0.0/package-lock.json');
+check('never embeds a token in the URL', (() => {
+	const u = builtInExtensionLockfileUrl('https://github.com/microsoft/vscode-js-debug', '1.117.0') || '';
+	return !u.includes('@');
+})());
+check('missing version -> undefined', builtInExtensionLockfileUrl('https://github.com/microsoft/vscode-js-debug', '') === undefined);
+check('missing repo -> undefined', builtInExtensionLockfileUrl('', '1.0.0') === undefined);
+check('non-GitHub host -> undefined', builtInExtensionLockfileUrl('https://gitlab.com/foo/bar', '1.0.0') === undefined);
 
 // -- summary ------------------------------------------------------------------
 console.log('');

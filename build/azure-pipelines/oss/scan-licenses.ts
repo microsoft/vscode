@@ -12,15 +12,16 @@
  *  Section 4: Cargo.lock crates missing or stubbed in CG (crates.io + repo LICENSE)
  *  Section 5: Platform-specific binary packages (arch optionalDependencies)
  *  Section 6: OS-gated whole packages skipped by npm on the build host (lockfile)
- *  Section 7: Pre-built built-in extension deps (extensionsCG/<name>/package-lock.json)
+ *  Section 7: Pre-built built-in extension deps (disk extensionsCG/<name>/, else
+ *             self-fetched from the extension's public package-lock.json)
  *
  *  Usage:
  *    node scan-licenses.js --repo <path> --output <path>
  *
  *  --repo         Path to the vscode repo root
  *  --output       Path to write the supplemental NOTICE entries
- *  --strict-builtin-extensions   Fail the build if a built-in extension lockfile
- *                 is missing from a populated extensionsCG/ (Section 7 guard)
+ *  --strict-builtin-extensions   Fail the build if any built-in extension lockfile
+ *                 cannot be obtained from disk or self-fetch (Section 7 guard)
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
@@ -644,6 +645,56 @@ export function readBuiltInExtensionNames(productJson: unknown): string[] {
 		}
 	}
 	return names;
+}
+
+/**
+ * The full built-in extension manifest (name + version + repo) declared in
+ * product.json. Section 7 needs version + repo (not just the name) so it can
+ * self-fetch each extension's package-lock.json directly from GitHub when the
+ * `download-builtin-extensions-cg` step did not deposit it into extensionsCG/
+ * (that step is continueOnError and has silently failed in CI). Entries without
+ * a usable name are dropped; version/repo default to '' when absent.
+ */
+export function readBuiltInExtensionManifest(productJson: unknown): Array<{ name: string; version: string; repo: string }> {
+	const out: Array<{ name: string; version: string; repo: string }> = [];
+	const pj = productJson as { builtInExtensions?: unknown; webBuiltInExtensions?: unknown } | undefined;
+	if (!pj) {
+		return out;
+	}
+	for (const list of [pj.builtInExtensions, pj.webBuiltInExtensions]) {
+		if (Array.isArray(list)) {
+			for (const ext of list) {
+				const e = ext as { name?: unknown; version?: unknown; repo?: unknown };
+				if (typeof e?.name === 'string' && e.name) {
+					out.push({
+						name: e.name,
+						version: typeof e.version === 'string' ? e.version : '',
+						repo: typeof e.repo === 'string' ? e.repo : '',
+					});
+				}
+			}
+		}
+	}
+	return out;
+}
+
+/**
+ * Build the public raw.githubusercontent.com URL for a built-in extension's
+ * package-lock.json at its release tag. These repos are PUBLIC, so no token is
+ * needed (and embedding one in the URL userinfo makes native fetch throw — the
+ * exact bug that left extensionsCG/ empty in CI). Mirrors the host parsing in
+ * githubRawLicenseCandidates. Returns undefined for a non-GitHub/unparseable
+ * repo or a missing version so the caller can warn rather than build a bad URL.
+ */
+export function builtInExtensionLockfileUrl(repo: string, version: string): string | undefined {
+	if (!repo || !version) {
+		return undefined;
+	}
+	const m = repo.match(/github\.com[/:]([^/]+)\/([^/#?]+?)(?:\.git)?(?:[/#?].*)?$/i);
+	if (!m) {
+		return undefined;
+	}
+	return `https://raw.githubusercontent.com/${m[1]}/${m[2]}/v${version}/package-lock.json`;
 }
 
 /**
@@ -1828,19 +1879,27 @@ async function main(): Promise<void> {
 	// the product. The legacy OSS tool caught them by walking each extension's
 	// package-lock.json.
 	//
-	// Fix: the `download-builtin-extensions-cg` build step already deposits each
-	// extension's package-lock.json into extensionsCG/<name>/. We read those
-	// lockfiles, enumerate the production dependencies that CG / Sections 1-6 did
-	// not already cover, and resolve each one's license text from its repository
-	// (the same packument -> repo LICENSE fetch path as Section 5). A dep whose
-	// text cannot be fetched is seeded into the presence index (loud, shift-left)
-	// so a cglicenses override can supply it rather than the package vanishing.
+	// Fix: obtain each extension's package-lock.json, enumerate the production
+	// dependencies that CG / Sections 1-6 did not already cover, and resolve each
+	// one's license text from its repository (the same packument -> repo LICENSE
+	// fetch path as Section 5). A dep whose text cannot be fetched is seeded into
+	// the presence index (loud, shift-left) so a cglicenses override can supply it
+	// rather than the package vanishing.
 	//
-	// Guard: when extensionsCG/ exists (the download step ran) but a manifest
-	// extension's lockfile is missing, that is a genuine coverage hole — logged as
-	// an ERROR and, with --strict-builtin-extensions, fails the build. When
-	// extensionsCG/ is absent entirely (local/offline runs) Section 7 is skipped
-	// quietly.
+	// Lockfile acquisition is disk-first, self-fetch-fallback:
+	//   1. Prefer extensionsCG/<name>/package-lock.json, deposited by the
+	//      `download-builtin-extensions-cg` build step.
+	//   2. If that file is absent, self-fetch the lockfile straight from the public
+	//      raw.githubusercontent.com URL at the release tag — no token needed.
+	// The download step is continueOnError and has silently failed in CI for ~2y
+	// (it embeds a token in the URL userinfo, which makes native fetch throw), so
+	// the self-fetch fallback is what actually delivers coverage today. Keeping the
+	// disk path means we still use the step's output for free once it is repaired.
+	//
+	// Guard: an extension whose lockfile cannot be obtained from EITHER source is a
+	// genuine coverage hole. In CI (TF_BUILD/BUILD_BUILDID set) that is logged as an
+	// ERROR; --strict-builtin-extensions turns any missing lockfile into a hard
+	// build failure. Offline local runs (no disk copy, no network) log a quiet NOTE.
 	// =========================================================================
 	console.log('');
 	console.log('=========================================================================');
@@ -1853,46 +1912,76 @@ async function main(): Promise<void> {
 	let s7SkippedAlready = 0;
 	let s7DepsEnumerated = 0;
 	let s7LockfilesFound = 0;
+	let s7LockfilesFromDisk = 0;
+	let s7LockfilesFetched = 0;
 	let s7ExtCount = 0;
 	const s7MissingLockfiles: string[] = [];
 	const strictBuiltin = process.argv.includes('--strict-builtin-extensions');
+	const inCI = !!(process.env.TF_BUILD || process.env.BUILD_BUILDID);
 
 	const extensionsCgDir = path.join(repoRoot, 'extensionsCG');
-	if (!fs.existsSync(extensionsCgDir)) {
-		console.log(`  extensionsCG/ not present at ${extensionsCgDir} — built-in extension lockfiles not downloaded; skipping Section 7.`);
-		console.log('  (Expected for local/offline runs; the download-builtin-extensions-cg build step populates it in CI.)');
-	} else {
-		let builtInNames: string[] = [];
+	{
+		let extManifest: Array<{ name: string; version: string; repo: string }> = [];
 		const productJsonPath = path.join(repoRoot, 'product.json');
 		try {
-			builtInNames = readBuiltInExtensionNames(JSON.parse(fs.readFileSync(productJsonPath, 'utf8')));
+			extManifest = readBuiltInExtensionManifest(JSON.parse(fs.readFileSync(productJsonPath, 'utf8')));
 		} catch (err) {
 			console.warn(`  WARN: could not read built-in extensions from ${productJsonPath}: ${(err as Error).message}`);
 		}
-		s7ExtCount = builtInNames.length;
-		console.log(`  Built-in extensions in product.json: ${builtInNames.length}` +
-			`${builtInNames.length ? ' (' + builtInNames.join(', ') + ')' : ''}`);
+		s7ExtCount = extManifest.length;
+		console.log(`  Built-in extensions in product.json: ${s7ExtCount}` +
+			`${s7ExtCount ? ' (' + extManifest.map(e => e.name).join(', ') + ')' : ''}`);
 
-		// Collect the production deps across every built-in extension lockfile,
-		// deduped by lowercased name, skipping anything Sections 1-6 / CG covered.
-		const s7Pending = new Map<string, { name: string; version: string }>();
-		for (const extName of builtInNames) {
-			const lockPath = path.join(extensionsCgDir, extName, 'package-lock.json');
-			if (!fs.existsSync(lockPath)) {
-				s7MissingLockfiles.push(extName);
-				continue;
+		// Acquire each extension's package-lock.json — disk first (deposited by the
+		// download-builtin-extensions-cg step), then self-fetch the public raw URL
+		// at the release tag when disk is empty. Runs concurrently; each extension
+		// lands in lockByExt or s7MissingLockfiles.
+		const lockByExt = new Map<string, unknown>();
+		const acquireTasks = extManifest.map(ext => async (): Promise<void> => {
+			const lockPath = path.join(extensionsCgDir, ext.name, 'package-lock.json');
+			if (fs.existsSync(lockPath)) {
+				try {
+					lockByExt.set(ext.name, JSON.parse(fs.readFileSync(lockPath, 'utf8')));
+					s7LockfilesFound++;
+					s7LockfilesFromDisk++;
+					return;
+				} catch (err) {
+					console.warn(`  WARN: could not parse ${lockPath}: ${(err as Error).message}`);
+				}
 			}
-			s7LockfilesFound++;
-			let lockJson: unknown;
-			try {
-				lockJson = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
-			} catch (err) {
-				console.warn(`  WARN: could not parse ${lockPath}: ${(err as Error).message}`);
+			const lockUrl = builtInExtensionLockfileUrl(ext.repo, ext.version);
+			if (!lockUrl) {
+				console.warn(`  WARN: ${ext.name} has no parseable GitHub repo/version in product.json — cannot self-fetch its lockfile`);
+				s7MissingLockfiles.push(ext.name);
+				return;
+			}
+			const body = await fetchUriText(lockUrl);
+			if (body) {
+				try {
+					lockByExt.set(ext.name, JSON.parse(body));
+					s7LockfilesFound++;
+					s7LockfilesFetched++;
+					console.log(`  self-fetched lockfile: ${ext.name}@${ext.version} (${lockUrl})`);
+					return;
+				} catch (err) {
+					console.warn(`  WARN: could not parse self-fetched lockfile for ${ext.name}: ${(err as Error).message}`);
+				}
+			}
+			s7MissingLockfiles.push(ext.name);
+		});
+		await runWithConcurrency(acquireTasks, 4);
+
+		// Collect the production deps across every acquired lockfile, deduped by
+		// lowercased name, skipping anything Sections 1-6 / CG covered.
+		const s7Pending = new Map<string, { name: string; version: string }>();
+		for (const ext of extManifest) {
+			const lockJson = lockByExt.get(ext.name);
+			if (!lockJson) {
 				continue;
 			}
 			const deps = enumerateLockfileProdDeps(lockJson);
 			if (deps.length === 0) {
-				console.warn(`  WARN: ${extName} lockfile produced 0 production deps (lockfileVersion 1, or empty) — ${lockPath}`);
+				console.warn(`  WARN: ${ext.name} lockfile produced 0 production deps (lockfileVersion 1, or empty)`);
 			}
 			for (const dep of deps) {
 				const key = dep.name.toLowerCase();
@@ -1904,7 +1993,7 @@ async function main(): Promise<void> {
 			}
 		}
 		s7DepsEnumerated = s7Pending.size;
-		console.log(`  ${s7DepsEnumerated} uncovered production dep(s) to resolve across ${s7LockfilesFound} lockfile(s)`);
+		console.log(`  ${s7LockfilesFound} lockfile(s) acquired (${s7LockfilesFromDisk} disk, ${s7LockfilesFetched} self-fetched); ${s7DepsEnumerated} uncovered production dep(s) to resolve`);
 
 		// Resolve license text for each missing dep: packument -> license id + repo
 		// url, then fetch the LICENSE from the repository (same path as Section 5).
@@ -1958,8 +2047,14 @@ async function main(): Promise<void> {
 		await runWithConcurrency(s7Tasks, 4);
 
 		if (s7MissingLockfiles.length > 0) {
-			console.error(`  ERROR: ${s7MissingLockfiles.length} built-in extension(s) in product.json have NO downloaded package-lock.json in extensionsCG/ — their bundled dependencies are NOT covered: ${s7MissingLockfiles.join(', ')}`);
-			console.error('  This usually means the `download-builtin-extensions-cg` step failed (it is continueOnError). Coverage has a hole until it is re-run.');
+			const detail = `${s7MissingLockfiles.length} built-in extension(s) have NO obtainable package-lock.json (neither extensionsCG/ nor self-fetch): ${s7MissingLockfiles.join(', ')}`;
+			if (inCI) {
+				console.error(`  ERROR: ${detail}`);
+				console.error('  Their bundled dependencies are NOT covered. The download-builtin-extensions-cg step likely failed AND the GitHub self-fetch fallback could not reach the lockfile.');
+			} else {
+				console.log(`  NOTE: ${detail}`);
+				console.log('  (Expected for offline local runs; CI self-fetches each lockfile from GitHub.)');
+			}
 		}
 		console.log(`  Section 7 added ${s7Added} dep(s) with text, seeded ${s7Seeded} into presence; ` +
 			`skipped ${s7SkippedCg} CG-covered, ${s7SkippedAlready} already-resolved.`);
@@ -2063,7 +2158,7 @@ async function main(): Promise<void> {
 	console.log(`    Seeded into presence:      ${s6Seeded}`);
 	console.log(`  Section 7 - Built-in extension deps:`);
 	console.log(`    Built-in extensions:       ${s7ExtCount}`);
-	console.log(`    Lockfiles found:           ${s7LockfilesFound}`);
+	console.log(`    Lockfiles found:           ${s7LockfilesFound} (${s7LockfilesFromDisk} disk, ${s7LockfilesFetched} self-fetched)`);
 	console.log(`    Lockfiles missing:         ${s7MissingLockfiles.length}${s7MissingLockfiles.length ? ' (' + s7MissingLockfiles.join(', ') + ')' : ''}`);
 	console.log(`    Uncovered deps resolved:   ${s7DepsEnumerated}`);
 	console.log(`    Added (text from repo):    ${s7Added}`);
@@ -2077,12 +2172,13 @@ async function main(): Promise<void> {
 	console.log(`  Stub-override index: ${stubOverrideList.length}`);
 	console.log(`  Stub-override output: ${stubOverridePath}`);
 
-	// Guard: a populated extensionsCG/ that is nonetheless missing a manifest
-	// extension's lockfile is a real coverage hole (the download step ran but
-	// produced a gap). Outputs are already written above so the artifact still
-	// publishes; --strict-builtin-extensions turns this into a hard failure.
-	if (strictBuiltin && s7LockfilesFound > 0 && s7MissingLockfiles.length > 0) {
-		console.error(`--strict-builtin-extensions: failing build — ${s7MissingLockfiles.length} built-in extension lockfile(s) missing from a populated extensionsCG/: ${s7MissingLockfiles.join(', ')}`);
+	// Guard: any built-in extension whose lockfile could not be obtained from disk
+	// OR self-fetch is a real coverage hole. Outputs are already written above so
+	// the artifact still publishes; --strict-builtin-extensions turns this into a
+	// hard failure. (The CI-vs-offline distinction for logging is handled inline
+	// above via `inCI`; --strict is an explicit opt-in regardless of environment.)
+	if (strictBuiltin && s7MissingLockfiles.length > 0) {
+		console.error(`--strict-builtin-extensions: failing build — ${s7MissingLockfiles.length} built-in extension lockfile(s) unobtainable (disk or self-fetch): ${s7MissingLockfiles.join(', ')}`);
 		process.exit(1);
 	}
 }
