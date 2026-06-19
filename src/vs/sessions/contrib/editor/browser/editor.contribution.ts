@@ -29,7 +29,7 @@ import { Parts } from '../../../../workbench/services/layout/browser/layoutServi
 import { MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID } from '../../../../workbench/browser/parts/editor/editorCommands.js';
 import { TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
 import { TEXT_FILE_EDITOR_ID } from '../../../../workbench/contrib/files/common/files.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { SessionsCategories } from '../../../common/categories.js';
 
@@ -88,6 +88,7 @@ class RestoreMainEditorPartAction extends Action2 {
 			title: localize2('restoreMainEditorPart', "Restore Editor Area"),
 			icon: Codicon.screenNormal,
 			f1: false,
+			toggled: EditorMaximizedContext,
 			menu: {
 				id: MenuId.EditorTitleLayout,
 				group: 'navigation',
@@ -186,6 +187,7 @@ class PullEditorLeftAction extends Action2 {
 			title: localize2('pullEditorLeft', "Show Secondary Side Bar"),
 			icon: Codicon.chevronLeft,
 			f1: false,
+			toggled: AuxiliaryBarVisibleContext.toNegated(),
 			menu: {
 				id: MenuId.EditorTitleLayout,
 				group: 'navigation',
@@ -370,7 +372,7 @@ class AddFileAsContextAction extends Action2 {
 
 	run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		const editorService = accessor.get(IEditorService);
-		const sessionManagementService = accessor.get(ISessionsManagementService);
+		const sessionsService = accessor.get(ISessionsService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
 
 		const resolvedContext = resolveCommandsContext(args, editorService, accessor.get(IEditorGroupsService), accessor.get(IListService));
@@ -382,7 +384,7 @@ class AddFileAsContextAction extends Action2 {
 			return;
 		}
 
-		const sessionId = sessionManagementService.activeSession.get()?.sessionId;
+		const sessionId = sessionsService.activeSession.get()?.sessionId;
 		sessionsPartService.getSessionView(sessionId)?.attach(resources);
 	}
 }

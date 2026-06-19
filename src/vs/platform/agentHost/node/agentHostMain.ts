@@ -21,6 +21,7 @@ import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
+import { CopilotBranchNameGenerator, ICopilotBranchNameGenerator } from './copilot/copilotBranchNameGenerator.js';
 import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';
 import { ClaudeAgent } from './claude/claudeAgent.js';
 import { ClaudeAgentSdkService, ClaudeSdkPackage, IClaudeAgentSdkService } from './claude/claudeAgentSdkService.js';
@@ -59,6 +60,7 @@ import { ISandboxHelperService } from '../../sandbox/common/sandboxHelperService
 import { SandboxHelperService } from '../../sandbox/node/sandboxHelper.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
+import { IEditSurvivalReporterFactory, EditSurvivalReporterFactory } from './shared/editSurvivalReporter.js';
 import { AgentHostClientFileSystemProvider } from '../common/agentHostClientFileSystemProvider.js';
 import { AGENT_CLIENT_SCHEME } from '../common/agentClientUri.js';
 import { AGENT_HOST_CLIENT_RESOURCE_CHANNEL, createAgentHostClientResourceConnection } from '../common/agentHostClientResourceChannel.js';
@@ -162,6 +164,7 @@ async function startAgentHost(): Promise<void> {
 		diServices.set(IAgentSdkDownloader, agentSdkDownloader);
 		const copilotApiService = instantiationService.createInstance(CopilotApiService, undefined);
 		diServices.set(ICopilotApiService, copilotApiService);
+		diServices.set(ICopilotBranchNameGenerator, instantiationService.createInstance(CopilotBranchNameGenerator));
 		const claudeProxyService = disposables.add(instantiationService.createInstance(ClaudeProxyService));
 		diServices.set(IClaudeProxyService, claudeProxyService);
 		const claudeAgentSdkService = instantiationService.createInstance(ClaudeAgentSdkService);
@@ -176,6 +179,7 @@ async function startAgentHost(): Promise<void> {
 		diServices.set(IAgentPluginManager, pluginManager);
 		const diffComputeService = disposables.add(new NodeWorkerDiffComputeService(logService));
 		diServices.set(IDiffComputeService, diffComputeService);
+		diServices.set(IEditSurvivalReporterFactory, instantiationService.createInstance(EditSurvivalReporterFactory));
 
 		diServices.set(IAgentHostTerminalManager, agentService.terminalManager);
 		diServices.set(IAgentConfigurationService, agentService.configurationService);
@@ -185,12 +189,15 @@ async function startAgentHost(): Promise<void> {
 		//  1. The user-facing enable toggle (`chat.agentHost.<x>Agent.enabled`,
 		//     forwarded as an env var by the starters). Claude defaults to on,
 		//     Codex defaults to off.
-		//  2. The SDK being reachable — either via the dev-override env var
-		//     (`VSCODE_AGENT_HOST_*_SDK_ROOT`) or via a `product.agentSdks.<pkg>`
-		//     entry that ships with this build.
+		//  2. The SDK being reachable. Claude is a devDependency of this repo
+		//     so the bare-import path in `ClaudeAgentSdkService._loadSdk`
+		//     always succeeds in dev; in built products the SDK ships via
+		//     `product.agentSdks.claude` and the downloader handles it. Codex
+		//     has no equivalent dev path yet, so it still requires either the
+		//     env-var override or a `product.agentSdks.codex` entry.
 		// If either gate fails, the provider is not registered and never appears
 		// in the agent picker (matches the pre-CDN UX exactly).
-		if (isAgentEnabled(process.env[AgentHostClaudeAgentEnabledEnvVar], true) && agentSdkDownloader.isAvailable(ClaudeSdkPackage)) {
+		if (isAgentEnabled(process.env[AgentHostClaudeAgentEnabledEnvVar], true) && (!environmentService.isBuilt || agentSdkDownloader.isAvailable(ClaudeSdkPackage))) {
 			agentService.registerProvider(instantiationService.createInstance(ClaudeAgent));
 		}
 		if (isAgentEnabled(process.env[AgentHostCodexAgentEnabledEnvVar], false) && agentSdkDownloader.isAvailable(CodexSdkPackage)) {

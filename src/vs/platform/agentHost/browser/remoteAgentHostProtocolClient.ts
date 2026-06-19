@@ -18,13 +18,13 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
-import { AgentSession, IAgentConnection, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agentService.js';
+import { AgentSession, IAgentConnection, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agentService.js';
 import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
 import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../common/agentHostUri.js';
 import { AgentHostResourcePermissionError, IAgentHostResourceService } from '../common/agentHostResourceService.js';
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest } from '../common/state/protocol/messages.js';
-import { ActionType, type ActionEnvelope, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
+import { ActionType, type ActionEnvelope, type INotification, type IRootConfigChangedAction, type SessionAction, type ChatAction, type TerminalAction, type ClientAnnotationsAction } from '../common/state/sessionActions.js';
 import { SessionSummary, SessionStatus, ROOT_STATE_URI, StateComponents, isAhpRootChannel, type ClientPluginCustomization, type RootState } from '../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, type ProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
@@ -644,7 +644,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			replays.push({
 				jsonrpc: '2.0',
 				method: 'dispatchAction',
-				params: { channel: entry.sessionUri, clientSeq: entry.clientSeq, action: entry.action },
+				params: { channel: entry.channel, clientSeq: entry.clientSeq, action: entry.action },
 			});
 		}
 
@@ -677,11 +677,15 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		return this._subscriptionManager.getSubscriptionUnmanaged<T>(resource);
 	}
 
+	getInflightSessionCreate(resource: URI): Promise<unknown> | undefined {
+		return this._subscriptionManager.getInflightSessionCreate(resource);
+	}
+
 	getActiveSubscriptions(): readonly IActiveSubscriptionInfo[] {
 		return this._subscriptionManager.getActiveSubscriptions();
 	}
 
-	dispatch(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
+	dispatch(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
 		const seq = this._subscriptionManager.dispatchOptimistic(channel, action);
 		this.dispatchAction(channel, action, this._clientId, seq);
 	}
@@ -726,7 +730,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	/**
 	 * Dispatch a client action to the server. Returns the clientSeq used.
 	 */
-	private dispatchAction(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction, _clientId: string, clientSeq: number): void {
+	private dispatchAction(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, _clientId: string, clientSeq: number): void {
 		this._grantImplicitReadsForOutgoingAction(action);
 		this._sendNotification('dispatchAction', { channel, clientSeq, action });
 	}
@@ -734,7 +738,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	/**
 	 * Create a new session on the remote agent host.
 	 */
-	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
+	createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
 		const provider = config?.provider;
 		if (!provider) {
 			throw new Error('Cannot create remote agent host session without a provider.');
@@ -743,17 +747,18 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		if (config?.activeClient?.customizations) {
 			this._grantImplicitReadsForCustomizations(config.activeClient.customizations);
 		}
-		const inflight = this._sendRequest('createSession', {
+		// Use `.then` (not `async`) so the tracked promise and the returned promise are the same object — callers
+		// awaiting via `getInflightSessionCreate` resume on the same microtask queue as direct `createSession()` awaiters.
+		const promise = this._sendRequest('createSession', {
 			channel: session.toString(),
 			provider,
 			model: config?.model,
 			workingDirectory: config?.workingDirectory ? fromAgentHostUri(config.workingDirectory).toString() : undefined,
 			config: config?.config,
 			activeClient: config?.activeClient,
-		});
-		this._subscriptionManager.trackSessionCreate(session, inflight);
-		await inflight;
-		return session;
+		}).then(() => session);
+		this._subscriptionManager.trackSessionCreate(session, promise);
+		return promise;
 	}
 
 	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
@@ -822,6 +827,18 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		await this._sendRequest('disposeSession', { channel: session.toString() });
 	}
 
+	async createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<void> {
+		await this._sendRequest('createChat', {
+			channel: session.toString(),
+			chat: chat.toString(),
+			model: options?.model,
+		});
+	}
+
+	async disposeChat(chat: URI): Promise<void> {
+		await this._sendRequest('disposeChat', { channel: chat.toString() });
+	}
+
 	/**
 	 * Create a new terminal on the remote agent host.
 	 */
@@ -883,7 +900,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 * `SessionActiveClientChanged`, which is the only client-dispatched
 	 * action that ships customization URIs to the host.
 	 */
-	private _grantImplicitReadsForOutgoingAction(action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
+	private _grantImplicitReadsForOutgoingAction(action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
 		if (action.type === ActionType.SessionActiveClientChanged && action.activeClient?.customizations) {
 			this._grantImplicitReadsForCustomizations(action.activeClient.customizations);
 		}

@@ -112,7 +112,7 @@ export class SessionPermissionManager extends Disposable {
 	 * when user confirmation is required.
 	 *
 	 * Checks are evaluated in order:
-	 * 1. Session-level bypass (`autoApprove` / `autopilot` config)
+	 * 1. Session-level bypass (`autoApprove` config)
 	 * 2. Per-tool session permissions (`permissions.allow`)
 	 * 3. Read path rules (within working directory)
 	 * 4. Write path rules (within working directory + glob patterns)
@@ -168,14 +168,14 @@ export class SessionPermissionManager extends Disposable {
 	}
 
 	isSessionAutoApproveEnabled(sessionKey: ProtocolURI): boolean {
-		const autoApproveLevel = this._configService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.AutoApprove);
-		return autoApproveLevel === 'autoApprove' || autoApproveLevel === 'autopilot';
+		// `autoApprove` (Bypass Approvals) auto-approves every tool call.
+		return this._configService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.AutoApprove) === 'autoApprove';
 	}
 
 	// ---- Action construction (analogous to getPreConfirmActions) -------------
 
 	/**
-	 * Constructs a `SessionToolCallReady` action from an agent
+	 * Constructs a `ChatToolCallReady` action from an agent
 	 * `pending_confirmation` signal. When the tool needs user confirmation
 	 * (the protocol state carries `confirmationTitle`), the standard
 	 * confirmation options are baked in so clients can render them directly.
@@ -184,7 +184,7 @@ export class SessionPermissionManager extends Disposable {
 		const state = e.state;
 		if (state.confirmationTitle) {
 			return {
-				type: ActionType.SessionToolCallReady,
+				type: ActionType.ChatToolCallReady,
 				turnId,
 				toolCallId: state.toolCallId,
 				invocationMessage: state.invocationMessage,
@@ -200,7 +200,7 @@ export class SessionPermissionManager extends Disposable {
 			};
 		}
 		return {
-			type: ActionType.SessionToolCallReady,
+			type: ActionType.ChatToolCallReady,
 			turnId,
 			toolCallId: state.toolCallId,
 			invocationMessage: state.invocationMessage,
@@ -213,7 +213,7 @@ export class SessionPermissionManager extends Disposable {
 	// ---- Post-confirmation side effects -------------------------------------
 
 	/**
-	 * Handles the side effect of a `SessionToolCallConfirmed` action when the
+	 * Handles the side effect of a `ChatToolCallConfirmed` action when the
 	 * user selected "Allow in this Session". Adds the tool to the session's
 	 * permission allow list so future calls are auto-approved.
 	 */

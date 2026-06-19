@@ -11,17 +11,12 @@ import type { IAgentConnection } from './agentService.js';
 /**
  * Chat-session resource scheme prefix for the window's ambient/local agent
  * host: `agent-host-<provider>`.
+ *
+ * Remote agent host session schemes (`remote-<authority>-<provider>`) are
+ * handled by `agentHostSessionType.ts` (`isRemoteAgentHostSessionType` and
+ * friends), which also owns the authority disambiguation.
  */
 export const LOCAL_AGENT_HOST_SCHEME_PREFIX = 'agent-host-';
-
-/**
- * Chat-session resource scheme prefix for remote agent hosts:
- * `remote-<sanitizedAuthority>-<provider>`. The authority is produced by
- * `agentHostAuthority`; both the authority and provider segments may contain
- * dashes, so the split point is disambiguated against live connections (see
- * {@link IAgentHostConnectionsService.resolveSessionResource}).
- */
-export const REMOTE_AGENT_HOST_SCHEME_PREFIX = 'remote-';
 
 /**
  * Reserved connection authority for the window's ambient/primary agent host.

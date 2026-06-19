@@ -49,8 +49,18 @@ export const enum LayoutSettings {
 	EDITOR_ACTIONS_LOCATION = 'workbench.editor.editorActionsLocation',
 	COMMAND_CENTER = 'window.commandCenter',
 	LAYOUT_ACTIONS = 'workbench.layoutControl.enabled',
-	SHADOWS = 'workbench.shadows'
+	SHADOWS = 'workbench.shadows',
+	MODERN_UI = 'workbench.experimental.modernUI'
 }
+
+/**
+ * The margin (in pixels) reserved on each side of a part when the Modern UI Update
+ * experiment (`LayoutSettings.MODERN_UI`) is enabled. Parts grow or shrink their
+ * content by this amount to leave room for the margin/border applied in CSS
+ * (`src/vs/workbench/browser/media/floatingPanels.css`, `.floating-panels`).
+ * Keep in sync with the `--vscode-spacing-size60` (6px) token used there.
+ */
+export const FLOATING_PANEL_MARGIN = 6;
 
 export const enum ActivityBarPosition {
 	DEFAULT = 'default',
@@ -213,6 +223,15 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Returns whether the given part has the keyboard focus or not.
 	 */
 	hasFocus(part: Parts): boolean;
+
+	/**
+	 * Returns whether the floating panels presentation is enabled for this
+	 * workbench, i.e. whether the Modern UI Update experiment
+	 * (`LayoutSettings.MODERN_UI`) is on. Always `false` for the agents window,
+	 * which has its own floating card design and must not apply the experiment's
+	 * content insets.
+	 */
+	isFloatingPanelsEnabled(): boolean;
 
 	/**
 	 * Focuses the part in the target window. If the part is not visible this is a noop.

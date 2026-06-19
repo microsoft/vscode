@@ -8,7 +8,8 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { localize } from '../../../nls.js';
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
 import { AgentSession, IAgentConnection, IAgentHostService } from '../common/agentService.js';
-import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionInfo, IAgentHostConnectionsService, IAgentHostSessionResolution, LOCAL_AGENT_HOST_SCHEME_PREFIX, REMOTE_AGENT_HOST_SCHEME_PREFIX } from '../common/agentHostConnectionsService.js';
+import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionInfo, IAgentHostConnectionsService, IAgentHostSessionResolution, LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../common/agentHostConnectionsService.js';
+import { findRemoteAgentHostSessionTypeAuthority, isRemoteAgentHostSessionType, remoteAgentHostSessionTypeAuthorityPrefix } from '../common/agentHostSessionType.js';
 import { agentHostAuthority } from '../common/agentHostUri.js';
 import { IRemoteAgentHostService } from '../common/remoteAgentHostService.js';
 import type { URI } from '../../../base/common/uri.js';
@@ -85,18 +86,15 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 				: undefined;
 		}
 
-		if (scheme.startsWith(REMOTE_AGENT_HOST_SCHEME_PREFIX)) {
+		if (isRemoteAgentHostSessionType(scheme)) {
 			// `remote-<authority>-<provider>`: both segments may contain dashes,
-			// so probe each dash boundary (shortest authority first) and take the
-			// first authority that resolves to a live connection.
-			const rest = scheme.substring(REMOTE_AGENT_HOST_SCHEME_PREFIX.length);
-			for (let i = rest.indexOf('-'); i !== -1; i = rest.indexOf('-', i + 1)) {
-				const provider = rest.substring(i + 1);
-				if (!provider) {
-					continue;
-				}
-				const connection = this.getConnectionByAuthority(rest.substring(0, i));
-				if (connection) {
+			// so resolve the authority against the live connection set (longest
+			// match wins) rather than splitting the string blindly.
+			const authority = findRemoteAgentHostSessionTypeAuthority(scheme, this.connections.filter(c => !c.isAmbient).map(c => c.authority));
+			if (authority) {
+				const provider = scheme.substring(remoteAgentHostSessionTypeAuthorityPrefix(authority).length);
+				const connection = this.getConnectionByAuthority(authority);
+				if (provider && connection) {
 					return { connection, backendSession: AgentSession.uri(provider, rawSessionId) };
 				}
 			}

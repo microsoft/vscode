@@ -7,8 +7,10 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableMap, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { AgentHostMcpServers, AgentHostMcpServersConfigKey } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
-import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { AgentSession, IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { isRemoteAgentHostSessionType, remoteAgentHostSessionTypeId } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
+import { AGENT_HOST_LOG_OUTPUT_CHANNEL_ID, remoteAgentHostLogOutputChannelId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IAgentHostConnectionsService, IAgentHostSessionResolution, LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { getEffectiveAgents } from '../../../../../../platform/agentHost/common/customAgents.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
@@ -37,10 +39,11 @@ export interface IAgentHostCustomizationService {
 
 	/**
 	 * Returns the MCP servers exposed by an agent-host session. Each entry
-	 * carries the current status and a {@link IAgentHostMcpServer.setEnabled}
+	 * carries the current status, a {@link IAgentHostMcpServer.setEnabled}
 	 * method that dispatches the protocol-level toggle on behalf of the
-	 * caller. Returns an empty array for sessions not backed by an agent
-	 * host, or that don't expose any MCP servers.
+	 * caller, and the {@link IAgentHostMcpServer.logOutputChannelId} of the
+	 * host backing the session. Returns an empty array for sessions not
+	 * backed by an agent host, or that don't expose any MCP servers.
 	 */
 	getMcpServers(sessionResource: URI): readonly IAgentHostMcpServer[];
 
@@ -143,6 +146,7 @@ class WorkbenchAgentHostCustomizationService extends Disposable implements IAgen
 		}
 		const customizations = this._readSessionState(sessionResource)?.customizations ?? [];
 		const channel = target.backendSession.toString();
+		const logOutputChannelId = this._resolveLogOutputChannelId(sessionResource, target.backendSession);
 		return customizations
 			.filter((c): c is McpServerCustomization => c.type === CustomizationType.McpServer)
 			.map((c): IAgentHostMcpServer => ({
@@ -150,6 +154,7 @@ class WorkbenchAgentHostCustomizationService extends Disposable implements IAgen
 				name: c.name,
 				enabled: c.enabled,
 				status: c.state.kind,
+				logOutputChannelId,
 				setEnabled: (enabled: boolean) => {
 					target.connection.dispatch(channel, {
 						type: ActionType.SessionCustomizationToggled,
@@ -185,6 +190,24 @@ class WorkbenchAgentHostCustomizationService extends Disposable implements IAgen
 				},
 			},
 		});
+	}
+
+	private _resolveLogOutputChannelId(sessionResource: URI, backendSession: URI): string | undefined {
+		if (sessionResource.scheme.startsWith(LOCAL_AGENT_HOST_SCHEME_PREFIX)) {
+			return AGENT_HOST_LOG_OUTPUT_CHANNEL_ID;
+		}
+
+		if (isRemoteAgentHostSessionType(sessionResource.scheme)) {
+			const backendProvider = AgentSession.provider(backendSession);
+			// The facade descriptor already exposes the sanitized authority, so
+			// we match the session scheme against `remote-<authority>-<provider>`.
+			const info = backendProvider
+				? this._connectionsService.connections.find(c => !c.isAmbient && c.address !== undefined && sessionResource.scheme === remoteAgentHostSessionTypeId(c.authority, backendProvider))
+				: undefined;
+			return info?.address ? remoteAgentHostLogOutputChannelId(info.address) : undefined;
+		}
+
+		return undefined;
 	}
 
 	private _readSessionState(sessionResource: URI): SessionState | undefined {
