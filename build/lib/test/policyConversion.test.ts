@@ -534,7 +534,7 @@ suite('Policy E2E conversion', () => {
 		assert.ok(ObjectPolicy.from(category, policy), 'A union array|null type should be classified as an object policy');
 	});
 
-	test('descriptions containing angle brackets produce valid XML (#320551)', () => {
+	test('descriptions containing angle brackets are escaped in ADML output (#320551)', () => {
 		const policyData: ExportedPolicyDataDto = {
 			categories: [{ key: 'InteractiveSession', name: { key: 'interactiveSessionConfigurationTitle', value: 'Chat' } }],
 			policies: [
