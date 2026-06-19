@@ -39,25 +39,24 @@ suite('ChatStatusBarEntry - computeQuotaResumeState', () => {
 	}
 
 	const scenarios: IScenario[] = [
-		// Free: enter blocked when chat or completions is exhausted
-		{ name: 'free not blocked stays none', previous: 'none', entitlement: ChatEntitlement.Free, quotas: { chat: available, completions: available }, expected: 'none' },
-		{ name: 'free chat exhausted becomes blocked', previous: 'none', entitlement: ChatEntitlement.Free, quotas: { chat: exhausted, completions: available }, expected: 'blocked' },
-		{ name: 'free completions exhausted becomes blocked', previous: 'none', entitlement: ChatEntitlement.Free, quotas: { chat: available, completions: exhausted }, expected: 'blocked' },
+		// Free: enter blocked when premium chat is exhausted
+		{ name: 'free not blocked stays none', previous: 'none', entitlement: ChatEntitlement.Free, quotas: { premiumChat: available }, expected: 'none' },
+		{ name: 'free premium exhausted becomes blocked', previous: 'none', entitlement: ChatEntitlement.Free, quotas: { premiumChat: exhausted }, expected: 'blocked' },
 
 		// Free: reset after being blocked surfaces "resumed"
-		{ name: 'free reset after blocked becomes resumed', previous: 'blocked', entitlement: ChatEntitlement.Free, quotas: { chat: available, completions: available }, expected: 'resumed' },
-		{ name: 'free still exhausted stays blocked', previous: 'blocked', entitlement: ChatEntitlement.Free, quotas: { chat: exhausted, completions: available }, expected: 'blocked' },
+		{ name: 'free reset after blocked becomes resumed', previous: 'blocked', entitlement: ChatEntitlement.Free, quotas: { premiumChat: available }, expected: 'resumed' },
+		{ name: 'free still exhausted stays blocked', previous: 'blocked', entitlement: ChatEntitlement.Free, quotas: { premiumChat: exhausted }, expected: 'blocked' },
 
 		// Offline / unresolved quota: do not falsely resume, keep blocked until fresh data
 		{ name: 'free no quota data keeps blocked', previous: 'blocked', entitlement: ChatEntitlement.Free, quotas: {}, expected: 'blocked' },
 
 		// Additional spend: never blocked, and never surfaces resumed
-		{ name: 'free exhausted with additional spend not blocked', previous: 'none', entitlement: ChatEntitlement.Free, quotas: { chat: exhausted, additionalUsageEnabled: true }, expected: 'none' },
-		{ name: 'blocked then additional spend clears to none', previous: 'blocked', entitlement: ChatEntitlement.Free, quotas: { chat: exhausted, additionalUsageEnabled: true }, expected: 'none' },
+		{ name: 'free exhausted with additional spend not blocked', previous: 'none', entitlement: ChatEntitlement.Free, quotas: { premiumChat: exhausted, additionalUsageEnabled: true }, expected: 'none' },
+		{ name: 'blocked then additional spend clears to none', previous: 'blocked', entitlement: ChatEntitlement.Free, quotas: { premiumChat: exhausted, additionalUsageEnabled: true }, expected: 'none' },
 
 		// Resumed persists until dismissed
-		{ name: 'resumed persists while not blocked', previous: 'resumed', entitlement: ChatEntitlement.Free, quotas: { chat: available, completions: available }, expected: 'resumed' },
-		{ name: 'resumed overridden when blocked again', previous: 'resumed', entitlement: ChatEntitlement.Free, quotas: { chat: exhausted }, expected: 'blocked' },
+		{ name: 'resumed persists while not blocked', previous: 'resumed', entitlement: ChatEntitlement.Free, quotas: { premiumChat: available }, expected: 'resumed' },
+		{ name: 'resumed overridden when blocked again', previous: 'resumed', entitlement: ChatEntitlement.Free, quotas: { premiumChat: exhausted }, expected: 'blocked' },
 
 		// Pooled Business/Enterprise
 		{ name: 'business pooled depleted becomes blocked', previous: 'none', entitlement: ChatEntitlement.Business, quotas: { premiumChat: pooledDepleted }, expected: 'blocked' },
@@ -65,10 +64,17 @@ suite('ChatStatusBarEntry - computeQuotaResumeState', () => {
 		{ name: 'business pooled depleted with additional spend not blocked', previous: 'none', entitlement: ChatEntitlement.Business, quotas: { premiumChat: pooledDepleted, additionalUsageEnabled: true }, expected: 'none' },
 		{ name: 'business reset after blocked becomes resumed', previous: 'blocked', entitlement: ChatEntitlement.Business, quotas: { premiumChat: pooledAvailable }, expected: 'resumed' },
 
-		// Untracked audience (paid individual): not blocked here
-		{ name: 'pro exhausted not tracked stays none', previous: 'none', entitlement: ChatEntitlement.Pro, quotas: { premiumChat: exhausted }, expected: 'none' },
-		{ name: 'upgrade from free to pro while blocked clears to none', previous: 'blocked', entitlement: ChatEntitlement.Pro, quotas: {}, expected: 'none' },
-		{ name: 'resumed on untracked plan clears to none', previous: 'resumed', entitlement: ChatEntitlement.Pro, quotas: {}, expected: 'none' },
+		// Paid individual plans (Pro/Pro+/EDU): tracked via premium chat quota
+		{ name: 'pro premium exhausted becomes blocked', previous: 'none', entitlement: ChatEntitlement.Pro, quotas: { premiumChat: exhausted }, expected: 'blocked' },
+		{ name: 'pro plus premium exhausted becomes blocked', previous: 'none', entitlement: ChatEntitlement.ProPlus, quotas: { premiumChat: exhausted }, expected: 'blocked' },
+		{ name: 'edu premium exhausted becomes blocked', previous: 'none', entitlement: ChatEntitlement.EDU, quotas: { premiumChat: exhausted }, expected: 'blocked' },
+		{ name: 'pro reset after blocked becomes resumed', previous: 'blocked', entitlement: ChatEntitlement.Pro, quotas: { premiumChat: available }, expected: 'resumed' },
+		{ name: 'pro premium with additional spend not blocked', previous: 'none', entitlement: ChatEntitlement.Pro, quotas: { premiumChat: exhausted, additionalUsageEnabled: true }, expected: 'none' },
+		{ name: 'pro no quota data keeps blocked', previous: 'blocked', entitlement: ChatEntitlement.Pro, quotas: {}, expected: 'blocked' },
+
+		// Untracked audience (signed out / unresolved / not entitled): never tracked
+		{ name: 'unresolved while blocked clears to none', previous: 'blocked', entitlement: ChatEntitlement.Unresolved, quotas: {}, expected: 'none' },
+		{ name: 'unavailable resumed clears to none', previous: 'resumed', entitlement: ChatEntitlement.Unavailable, quotas: {}, expected: 'none' },
 	];
 
 	test('state transitions', () => {
@@ -158,17 +164,17 @@ suite('ChatStatusBarEntry', () => {
 	}
 
 	test('renders the blocked quota state and persists it', () => {
-		const { statusbar, storageService } = createEntry({ entitlement: ChatEntitlement.Free, quotas: { chat: exhausted, completions: available } });
+		const { statusbar, storageService } = createEntry({ entitlement: ChatEntitlement.Free, quotas: { premiumChat: exhausted } });
 
-		assert.strictEqual(statusbar.current?.text, '$(copilot-warning) Chat quota reached');
+		assert.strictEqual(statusbar.current?.text, '$(copilot-warning) Quota reached');
 		assert.strictEqual(persistedState(storageService), 'blocked');
 	});
 
 	test('transitions to resumed when the limit resets while running', () => {
-		const { svc, statusbar, storageService } = createEntry({ entitlement: ChatEntitlement.Free, quotas: { chat: exhausted } });
+		const { svc, statusbar, storageService } = createEntry({ entitlement: ChatEntitlement.Free, quotas: { premiumChat: exhausted } });
 		assert.strictEqual(persistedState(storageService), 'blocked');
 
-		svc.quotas = { chat: available, completions: available };
+		svc.quotas = { premiumChat: available };
 		svc.fireQuotaExceeded();
 
 		assert.strictEqual(statusbar.current?.text, '$(copilot) Copilot Resumed');
@@ -176,7 +182,7 @@ suite('ChatStatusBarEntry', () => {
 	});
 
 	test('restores resumed on launch when previously blocked and now reset', async () => {
-		const { statusbar, storageService } = createEntry({ entitlement: ChatEntitlement.Free, quotas: { chat: available, completions: available }, persisted: 'blocked' });
+		const { statusbar, storageService } = createEntry({ entitlement: ChatEntitlement.Free, quotas: { premiumChat: available }, persisted: 'blocked' });
 
 		await flushTimers();
 
@@ -194,7 +200,7 @@ suite('ChatStatusBarEntry', () => {
 	});
 
 	test('clears resumed when the dashboard is opened', async () => {
-		const { statusbar, storageService } = createEntry({ entitlement: ChatEntitlement.Free, quotas: { chat: available, completions: available }, persisted: 'blocked' });
+		const { statusbar, storageService } = createEntry({ entitlement: ChatEntitlement.Free, quotas: { premiumChat: available }, persisted: 'blocked' });
 		await flushTimers();
 		assert.strictEqual(statusbar.current?.text, '$(copilot) Copilot Resumed');
 
@@ -210,13 +216,13 @@ suite('ChatStatusBarEntry', () => {
 	});
 
 	test('resumed is overridden when the user becomes blocked again', () => {
-		const { svc, statusbar, storageService } = createEntry({ entitlement: ChatEntitlement.Free, quotas: { chat: available, completions: available }, persisted: 'resumed' });
+		const { svc, statusbar, storageService } = createEntry({ entitlement: ChatEntitlement.Free, quotas: { premiumChat: available }, persisted: 'resumed' });
 		assert.strictEqual(statusbar.current?.text, '$(copilot) Copilot Resumed');
 
-		svc.quotas = { chat: exhausted };
+		svc.quotas = { premiumChat: exhausted };
 		svc.fireQuotaExceeded();
 
-		assert.strictEqual(statusbar.current?.text, '$(copilot-warning) Chat quota reached');
+		assert.strictEqual(statusbar.current?.text, '$(copilot-warning) Quota reached');
 		assert.strictEqual(persistedState(storageService), 'blocked');
 	});
 });

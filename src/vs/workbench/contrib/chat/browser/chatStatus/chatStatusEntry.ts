@@ -39,32 +39,36 @@ export type ChatQuotaResumeState = 'none' | 'blocked' | 'resumed';
 
 type ChatQuotas = IChatEntitlementService['quotas'];
 
+/**
+ * Whether this entry tracks quota for the given entitlement. All signed-up plans
+ * are tracked via the unified premium chat quota. Transient states (signed out,
+ * unresolved, not entitled) are not tracked.
+ */
 function isTrackedEntitlement(entitlement: ChatEntitlement): boolean {
-	return entitlement === ChatEntitlement.Free || entitlement === ChatEntitlement.Business || entitlement === ChatEntitlement.Enterprise;
+	switch (entitlement) {
+		case ChatEntitlement.Free:
+		case ChatEntitlement.EDU:
+		case ChatEntitlement.Pro:
+		case ChatEntitlement.ProPlus:
+		case ChatEntitlement.Business:
+		case ChatEntitlement.Enterprise:
+			return true;
+		default:
+			return false;
+	}
 }
 
-function isQuotaBlocked(entitlement: ChatEntitlement, quotas: ChatQuotas): boolean {
-	if (entitlement === ChatEntitlement.Free) {
-		return quotas.chat?.percentRemaining === 0 || quotas.completions?.percentRemaining === 0;
+function isQuotaBlocked(quotas: ChatQuotas): boolean {
+	const premiumChat = quotas.premiumChat;
+	if (premiumChat === undefined) {
+		return false;
 	}
 
-	if (entitlement === ChatEntitlement.Business || entitlement === ChatEntitlement.Enterprise) {
-		return quotas.premiumChat?.unlimited === true && quotas.premiumChat.hasQuota === false;
-	}
-
-	return false;
+	return premiumChat.unlimited ? premiumChat.hasQuota === false : premiumChat.percentRemaining === 0;
 }
 
-function hasResolvedQuota(entitlement: ChatEntitlement, quotas: ChatQuotas): boolean {
-	if (entitlement === ChatEntitlement.Free) {
-		return quotas.chat !== undefined || quotas.completions !== undefined;
-	}
-
-	if (entitlement === ChatEntitlement.Business || entitlement === ChatEntitlement.Enterprise) {
-		return quotas.premiumChat !== undefined;
-	}
-
-	return false;
+function hasResolvedQuota(quotas: ChatQuotas): boolean {
+	return quotas.premiumChat !== undefined;
 }
 
 /**
@@ -83,7 +87,7 @@ export function computeQuotaResumeState(previous: ChatQuotaResumeState, entitlem
 
 	const additionalSpend = quotas.additionalUsageEnabled === true;
 
-	if (!additionalSpend && isQuotaBlocked(entitlement, quotas)) {
+	if (!additionalSpend && isQuotaBlocked(quotas)) {
 		return 'blocked';
 	}
 
@@ -95,7 +99,7 @@ export function computeQuotaResumeState(previous: ChatQuotaResumeState, entitlem
 		return 'none';
 	}
 
-	return hasResolvedQuota(entitlement, quotas) ? 'resumed' : 'blocked';
+	return hasResolvedQuota(quotas) ? 'resumed' : 'blocked';
 }
 
 export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribution {
@@ -357,9 +361,6 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			}
 		} else {
 			const quotas = this.chatEntitlementService.quotas;
-			const chatQuotaExceeded = quotas.chat?.percentRemaining === 0;
-			const completionsQuotaExceeded = quotas.completions?.percentRemaining === 0;
-			const isPooledQuotaDepleted = quotas.premiumChat?.unlimited && quotas.premiumChat.hasQuota === false;
 
 			// Disabled
 			if (this.chatEntitlementService.sentiment.disabled || this.chatEntitlementService.sentiment.untrusted) {
@@ -383,25 +384,9 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 				return this.getSetupEntryProps();
 			}
 
-			// Free Quota Exceeded
-			else if (this.chatEntitlementService.entitlement === ChatEntitlement.Free && (chatQuotaExceeded || completionsQuotaExceeded)) {
-				let quotaWarning: string;
-				if (chatQuotaExceeded && !completionsQuotaExceeded) {
-					quotaWarning = localize('chatQuotaExceededStatus', "Chat quota reached");
-				} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
-					quotaWarning = localize('completionsQuotaExceededStatus', "Inline suggestions limit reached");
-				} else {
-					quotaWarning = localize('chatAndCompletionsQuotaExceededStatus', "Quota reached");
-				}
-
-				text = `$(copilot-warning) ${quotaWarning}`;
-				ariaLabel = quotaWarning;
-				kind = 'prominent';
-			}
-
-			// Pooled Entitlement Exhausted (Business/Enterprise)
-			else if ((this.chatEntitlementService.entitlement === ChatEntitlement.Business || this.chatEntitlementService.entitlement === ChatEntitlement.Enterprise) && isPooledQuotaDepleted) {
-				const quotaWarning = localize('chatAndCompletionsQuotaExceededStatus', "Quota reached");
+			// Quota Exceeded (all tracked plans share the premium chat quota)
+			else if (isTrackedEntitlement(this.chatEntitlementService.entitlement) && isQuotaBlocked(quotas)) {
+				const quotaWarning = localize('chatQuotaExceededStatus', "Quota reached");
 				text = `$(copilot-warning) ${quotaWarning}`;
 				ariaLabel = quotaWarning;
 				kind = 'prominent';
