@@ -222,7 +222,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 					}
 				},
 				err => {
-					this._logService.trace(`${TRACE_PREFIX} [GitHubService] findPullRequestNumberByHeadBranch for ${key} FAILED; dropping cache entry. Error: ${err}`);
+					this._logService.trace(`${TRACE_PREFIX} [GitHubService] findPullRequestNumberByHeadBranch for ${key} FAILED; dropping cache entry.`, err);
 					this._findPRByBranchCache.delete(key);
 				},
 			);
