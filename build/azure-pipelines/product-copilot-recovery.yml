@@ -10,6 +10,11 @@ resources:
       name: microsoft/vscode-engineering
       ref: main
       endpoint: Monaco
+    - repository: capi
+      type: github
+      name: microsoft/vscode-capi
+      ref: main
+      endpoint: Monaco
 
 parameters:
   - name: customNPMRegistry
