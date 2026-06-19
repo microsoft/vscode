@@ -60,6 +60,11 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # TODO: remove this step before merging
+      - name: Save node_modules cache
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        uses: ./.github/actions/save-node-modules
+
       - name: Type check /build/ scripts
         run: npm run typecheck
         working-directory: build
@@ -192,6 +197,11 @@ jobs:
         working-directory: extensions/copilot
         run: npm ci
 
+      # TODO: remove this step before merging
+      - name: Save node_modules cache
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        uses: ./.github/actions/save-node-modules
+
       - name: Ensure no duplicate cache keys
         working-directory: extensions/copilot
         run: npx tsx test/base/cache-cli check
@@ -274,6 +284,11 @@ jobs:
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         working-directory: extensions/copilot
         run: npm ci
+
+      # TODO: remove this step before merging
+      - name: Save node_modules cache
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        uses: ./.github/actions/save-node-modules
 
       - name: TypeScript type checking
         working-directory: extensions/copilot
@@ -363,6 +378,11 @@ jobs:
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         working-directory: extensions/copilot
         run: npm ci
+
+      # TODO: remove this step before merging
+      - name: Save node_modules cache
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        uses: ./.github/actions/save-node-modules
 
       - name: TypeScript type checking
         working-directory: extensions/copilot
