@@ -7,8 +7,9 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
-import { AgentHostEnabledSettingId, claudePreferAgentHostSettingId, IAgentHostService, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostEnabledSettingId, claudePreferAgentHostSettingId, IAgentHostService, shouldSurfaceLocalAgentHostProvider, type AgentProvider, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -29,7 +30,7 @@ import { authenticateProtectedResources, AgentHostAuthTokenCache, resolveAuthent
 import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from './agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from './agentHostSessionHandler.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
-import { AgentHostSessionListController } from './agentHostSessionListController.js';
+import { AgentHostSessionListController, IAgentHostSessionListConnection } from './agentHostSessionListController.js';
 import { AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 
 const LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX = 'agent-host-';
@@ -78,6 +79,50 @@ function getLocalAgentHostProviderForSessionType(sessionType: string): AgentProv
 	return sessionType.slice(LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX.length) || undefined;
 }
 
+/**
+ * Shared session-list connection used by all local agent-host list controllers.
+ *
+ * The agent host exposes a single provider-agnostic `listSessions()` RPC, while
+ * the workbench registers one {@link AgentHostSessionListController} per agent
+ * provider. Those controllers can refresh at the same time during startup,
+ * reconnect, or workspace changes. This wrapper keeps the controller coupled
+ * only to the minimal list-session surface and joins concurrent refreshes onto
+ * one in-flight `listSessions()` request so the agent host does not repeat the
+ * same session enumeration work for every provider.
+ */
+export class CoalescingAgentHostSessionListConnection implements IAgentHostSessionListConnection {
+
+	private _listSessionsInFlight: Promise<IAgentSessionMetadata[]> | undefined;
+
+	constructor(
+		private readonly _delegate: IAgentHostService,
+	) { }
+
+	get onDidNotification(): IAgentHostSessionListConnection['onDidNotification'] {
+		return this._delegate.onDidNotification;
+	}
+
+	disposeSession(session: URI): Promise<void> {
+		return this._delegate.disposeSession(session);
+	}
+
+	listSessions(): Promise<IAgentSessionMetadata[]> {
+		if (this._listSessionsInFlight) {
+			return this._listSessionsInFlight;
+		}
+
+		const request = this._delegate.listSessions();
+		this._listSessionsInFlight = request;
+		const clear = () => {
+			if (this._listSessionsInFlight === request) {
+				this._listSessionsInFlight = undefined;
+			}
+		};
+		request.then(clear, clear);
+		return request;
+	}
+}
+
 export { AgentHostSessionHandler } from './agentHostSessionHandler.js';
 export { AgentHostSessionListController } from './agentHostSessionListController.js';
 
@@ -97,6 +142,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	private readonly _modelProviders = new Map<AgentProvider, AgentHostLanguageModelProvider>();
 	/** List controllers keyed by agent provider, for cache resets on reconnect. */
 	private readonly _listControllers = new Map<AgentProvider, AgentHostSessionListController>();
+	private readonly _sessionListConnection: CoalescingAgentHostSessionListConnection;
 
 	/** Dedupes redundant `authenticate` RPCs when the resolved token hasn't changed. */
 	private readonly _authTokenCache = new AgentHostAuthTokenCache();
@@ -122,6 +168,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 
 		this._isSessionsWindow = environmentService.isSessionsWindow;
 		this._enableSmokeTestDriver = !!environmentService.enableSmokeTestDriver;
+		this._sessionListConnection = new CoalescingAgentHostSessionListConnection(this._agentHostService);
 
 		if (!this._configurationService.getValue<boolean>(AgentHostEnabledSettingId)) {
 			return;
@@ -257,7 +304,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		}));
 
 		// Session list controller
-		const listController = store.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType, agent.provider, this._agentHostService, undefined, 'local'));
+		const listController = store.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType, agent.provider, this._sessionListConnection, undefined, 'local'));
 		this._listControllers.set(agent.provider, listController);
 		store.add({ dispose: () => this._listControllers.delete(agent.provider) });
 		store.add(this._chatSessionsService.registerChatSessionItemController(sessionType, listController));
