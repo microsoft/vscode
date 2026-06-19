@@ -425,7 +425,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// Dynamic audio-reactive glow animation (matches aux window behavior)
 		let animFrameId: number | undefined;
-		let glowDataArray: Uint8Array<ArrayBuffer> | undefined;
+		let glowDataArray: Uint8Array | undefined;
 		const win = getWindow(inputContainerEl);
 		const startGlowAnimation = () => {
 			if (animFrameId !== undefined) { return; }
@@ -453,7 +453,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					if (!glowDataArray || glowDataArray.length !== analyser.frequencyBinCount) {
 						glowDataArray = new Uint8Array(analyser.frequencyBinCount);
 					}
-					analyser.getByteFrequencyData(glowDataArray);
+					analyser.getByteFrequencyData(glowDataArray as Uint8Array<ArrayBuffer>);
 					let sum = 0;
 					for (let i = 0; i < glowDataArray.length; i++) {
 						sum += glowDataArray[i];
