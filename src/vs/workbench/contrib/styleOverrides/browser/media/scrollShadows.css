@@ -63,11 +63,6 @@
 	z-index: 10;
 }
 
-.style-override-scrollShadows .monaco-list > .monaco-scrollable-element::after {
-	bottom: 0;
-	background: linear-gradient(to top, var(--scroll-shadow-surface), transparent);
-}
-
 /* =============================================================================
  * Editor area. The main editor viewport scrolls inside `.editor-scrollable`;
  * pin the fades to that scrollable element so they share the scrollbar's
