@@ -206,7 +206,9 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 			selectTargetSession: (resource) => {
 				this.voiceSessionController.setTargetSession(resource);
 				// Reveal the selected session in the chat panel
-				this.commandService.executeCommand('_chat.voice.switchToSession', resource.toString()).catch(() => { /* ignore */ });
+				if (resource) {
+					this.commandService.executeCommand('_chat.voice.switchToSession', resource.toString()).catch(() => { /* ignore */ });
+				}
 			},
 			newSessionAsTarget: () => {
 				this.voiceSessionController.newSessionAsTarget();
