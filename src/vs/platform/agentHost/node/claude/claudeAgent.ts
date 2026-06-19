@@ -333,7 +333,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				.sort((a, b) => Number(b.is_chat_default) - Number(a.is_chat_default))
 				.map(m => toAgentModelInfo(m, this.id));
 
-			this._logService.info(`[Claude] Models refreshed. Count: ${filtered.length}`);
+			this._logService.info(`[Claude] Models refreshed. Count: ${filtered.length}, ${filtered.map(m => m.name).join(', ')}`);
 			this._models.set(filtered, undefined);
 		} catch (err) {
 			this._logService.error(err, '[Claude] Failed to refresh models');

@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { AgentHostEnabledSettingId, claudePreferAgentHostSettingId, IAgentHostService, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
+import { type URI } from '../../../../../../base/common/uri.js';
+import { AgentHostEnabledSettingId, claudePreferAgentHostSettingId, IAgentHostService, shouldSurfaceLocalAgentHostProvider, type AgentProvider, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -12,7 +13,51 @@ import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
-import { AgentHostSessionListController } from './agentHostSessionListController.js';
+import { AgentHostSessionListController, IAgentHostSessionListConnection } from './agentHostSessionListController.js';
+
+/**
+ * Shared session-list connection used by all local agent-host list controllers.
+ *
+ * The agent host exposes a single provider-agnostic `listSessions()` RPC, while
+ * the workbench registers one {@link AgentHostSessionListController} per agent
+ * provider. Those controllers can refresh at the same time during startup,
+ * reconnect, or workspace changes. This wrapper keeps the controller coupled
+ * only to the minimal list-session surface and joins concurrent refreshes onto
+ * one in-flight `listSessions()` request so the agent host does not repeat the
+ * same session enumeration work for every provider.
+ */
+export class CoalescingAgentHostSessionListConnection implements IAgentHostSessionListConnection {
+
+	private _listSessionsInFlight: Promise<IAgentSessionMetadata[]> | undefined;
+
+	constructor(
+		private readonly _delegate: IAgentHostService,
+	) { }
+
+	get onDidNotification(): IAgentHostSessionListConnection['onDidNotification'] {
+		return this._delegate.onDidNotification;
+	}
+
+	disposeSession(session: URI): Promise<void> {
+		return this._delegate.disposeSession(session);
+	}
+
+	listSessions(): Promise<IAgentSessionMetadata[]> {
+		if (this._listSessionsInFlight) {
+			return this._listSessionsInFlight;
+		}
+
+		const request = this._delegate.listSessions();
+		this._listSessionsInFlight = request;
+		const clear = () => {
+			if (this._listSessionsInFlight === request) {
+				this._listSessionsInFlight = undefined;
+			}
+		};
+		request.then(clear, clear);
+		return request;
+	}
+}
 
 export class AgentHostSessionListContribution extends Disposable implements IWorkbenchContribution {
 
@@ -20,6 +65,7 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 
 	private readonly _agentRegistrations = this._register(new DisposableMap<AgentProvider, DisposableStore>());
 	private readonly _listControllers = new Map<AgentProvider, AgentHostSessionListController>();
+	private readonly _sessionListConnection: CoalescingAgentHostSessionListConnection;
 
 	private readonly _isSessionsWindow: boolean;
 
@@ -34,6 +80,7 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 		super();
 
 		this._isSessionsWindow = environmentService.isSessionsWindow;
+		this._sessionListConnection = new CoalescingAgentHostSessionListConnection(this._agentHostService);
 
 		if (this._isSessionsWindow || !this._configurationService.getValue<boolean>(AgentHostEnabledSettingId)) {
 			return;
@@ -92,7 +139,7 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 		this._agentRegistrations.set(agent.provider, store);
 
 		const sessionType = `agent-host-${agent.provider}`;
-		const listController = store.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType, agent.provider, this._agentHostService, undefined, 'local'));
+		const listController = store.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType, agent.provider, this._sessionListConnection, undefined, 'local'));
 		this._listControllers.set(agent.provider, listController);
 		store.add(toDisposable(() => this._listControllers.delete(agent.provider)));
 
