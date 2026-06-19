@@ -347,10 +347,6 @@ export interface IChatEndpoint extends IEndpoint {
 	 */
 	readonly tokenPricing?: IChatEndpointTokenPricing;
 	readonly priceCategory?: string;
-	/**
-	 * Optional model-picker category (e.g. "lightweight", "versatile", "powerful").
-	 * Surfaced as a tag in the model picker.
-	 */
 	readonly modelPickerCategory?: string;
 	readonly isFallback: boolean;
 	readonly customModel?: CustomModel;

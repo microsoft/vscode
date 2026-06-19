@@ -117,12 +117,6 @@ export interface IModelAPIResponse {
 	info_messages?: { code: string; message: string }[];
 	billing?: IModelBilling;
 	model_picker_price_category?: string;
-	/**
-	 * Optional category for the model, typically only populated for models where
-	 * `model_picker_enabled` is true. Known categories: 'lightweight' for fast and
-	 * cost-efficient models, 'versatile' for balanced models, 'powerful' for the most
-	 * capable models. Clients should be resilient to additional categories in the future.
-	 */
 	model_picker_category?: string;
 	capabilities: IChatModelCapabilities | ICompletionModelCapabilities | IEmbeddingModelCapabilities;
 	supported_endpoints?: ModelSupportedEndpoint[];
