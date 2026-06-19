@@ -140,12 +140,22 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'agentsVoice.toggleWindow',
 			title: nls.localize2('toggleAgentsVoiceWindow', "Voice Mode"),
-			menu: {
+			icon: Codicon.openInWindow,
+			menu: [{
 				id: MenuId.MenubarViewMenu,
 				group: '5_copilot',
 				order: 1,
 				when: ContextKeyExpr.equals('config.agents.voice.enabled', true),
-			},
+			}, {
+				id: MenuId.ChatExecute,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					AGENTS_VOICE_CONNECTED.isEqualTo(true),
+					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+				),
+				group: 'navigation',
+				order: 6
+			}],
 			toggled: AGENTS_VOICE_WINDOW_VISIBLE.isEqualTo(true),
 		});
 	}
