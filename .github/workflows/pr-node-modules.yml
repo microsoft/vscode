@@ -20,19 +20,12 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-      - name: Prepare node_modules cache key
-        run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts compile $(node -p process.arch) > .build/packagelockhash
-
       - name: Restore node_modules cache
         id: cache-node-modules
-        uses: actions/cache@v5
+        uses: ./.github/actions/restore-node-modules
         with:
-          path: .build/node_modules_cache
-          key: "node_modules-compile-${{ hashFiles('.build/packagelockhash') }}"
-
-      - name: Extract node_modules cache
-        if: steps.cache-node-modules.outputs.cache-hit == 'true'
-        run: ./.github/workflows/node_modules_cache/cache.sh extract
+          key-prefix: node_modules-compile
+          key-args: "compile $(node -p process.arch)"
 
       - name: Install build tools
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -56,9 +49,9 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.VSCODE_OSS }}
 
-      - name: Create node_modules archive
+      - name: Save node_modules cache
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: ./.github/workflows/node_modules_cache/cache.sh archive
+        uses: ./.github/actions/save-node-modules
 
       - name: Prepare built-in extensions cache key
         run: |
@@ -95,15 +88,13 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-      - name: Prepare node_modules cache key
-        run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts linux $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
-
       - name: Restore node_modules cache
         id: cache-node-modules
-        uses: actions/cache@v5
+        uses: ./.github/actions/restore-node-modules
         with:
-          path: .build/node_modules_cache
-          key: "node_modules-linux-${{ hashFiles('.build/packagelockhash') }}"
+          key-prefix: node_modules-linux
+          key-args: "linux ${{ env.VSCODE_ARCH }} $(node -p process.arch)"
+          extract: 'false'
 
       - name: Install build dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -144,9 +135,9 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.VSCODE_OSS }}
 
-      - name: Create node_modules archive
+      - name: Save node_modules cache
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: ./.github/workflows/node_modules_cache/cache.sh archive
+        uses: ./.github/actions/save-node-modules
 
   macOS:
     name: macOS
@@ -163,15 +154,13 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-      - name: Prepare node_modules cache key
-        run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts darwin $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
-
       - name: Restore node_modules cache
         id: cache-node-modules
-        uses: actions/cache@v5
+        uses: ./.github/actions/restore-node-modules
         with:
-          path: .build/node_modules_cache
-          key: "node_modules-macos-${{ hashFiles('.build/packagelockhash') }}"
+          key-prefix: node_modules-macos
+          key-args: "darwin ${{ env.VSCODE_ARCH }} $(node -p process.arch)"
+          extract: 'false'
 
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -201,9 +190,9 @@ jobs:
           # on macOS.
           GYP_DEFINES: "kerberos_use_rtld=false"
 
-      - name: Create node_modules archive
+      - name: Save node_modules cache
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: ./.github/workflows/node_modules_cache/cache.sh archive
+        uses: ./.github/actions/save-node-modules
 
   windows:
     name: Windows
@@ -220,18 +209,13 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-      - name: Prepare node_modules cache key
-        shell: pwsh
-        run: |
-          mkdir .build -ea 0
-          node build/azure-pipelines/common/computeNodeModulesCacheKey.ts win32 ${{ env.VSCODE_ARCH }} $(node -p process.arch) > .build/packagelockhash
-
       - name: Restore node_modules cache
-        uses: actions/cache@v5
         id: node-modules-cache
+        uses: ./.github/actions/restore-node-modules
         with:
-          path: .build/node_modules_cache
-          key: "node_modules-windows-${{ hashFiles('.build/packagelockhash') }}"
+          key-prefix: node_modules-windows
+          key-args: "win32 ${{ env.VSCODE_ARCH }} $(node -p process.arch)"
+          extract: 'false'
 
       - name: Install dependencies
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
@@ -261,10 +245,9 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.VSCODE_OSS }}
 
-      - name: Create node_modules archive
+      - name: Save node_modules cache
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
-        shell: pwsh
-        run: ./.github/workflows/node_modules_cache/cache.ps1 archive
+        uses: ./.github/actions/save-node-modules
 
   copilot-linux:
     name: Copilot (Linux)
@@ -278,19 +261,12 @@ jobs:
         with:
           node-version-file: extensions/copilot/.nvmrc
 
-      - name: Prepare node_modules cache key
-        run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts $(node -p process.platform) $(node -p process.arch) > .build/packagelockhash
-
       - name: Restore node_modules cache
         id: cache-node-modules
-        uses: actions/cache@v5
+        uses: ./.github/actions/restore-node-modules
         with:
-          path: .build/node_modules_cache
-          key: "copilot-node_modules-linux-${{ hashFiles('.build/packagelockhash') }}"
-
-      - name: Extract node_modules cache
-        if: steps.cache-node-modules.outputs.cache-hit == 'true'
-        run: ./.github/workflows/node_modules_cache/cache.sh extract
+          key-prefix: copilot-node_modules-linux
+          key-args: "$(node -p process.platform) $(node -p process.arch)"
 
       - name: Install root dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -301,9 +277,9 @@ jobs:
         working-directory: extensions/copilot
         run: npm ci
 
-      - name: Create node_modules archive
+      - name: Save node_modules cache
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: ./.github/workflows/node_modules_cache/cache.sh archive
+        uses: ./.github/actions/save-node-modules
 
   copilot-windows:
     name: Copilot (Windows)
@@ -317,23 +293,12 @@ jobs:
         with:
           node-version-file: extensions/copilot/.nvmrc
 
-      - name: Prepare node_modules cache key
-        shell: pwsh
-        run: |
-          mkdir .build -ea 0
-          node build/azure-pipelines/common/computeNodeModulesCacheKey.ts $(node -p process.platform) $(node -p process.arch) > .build/packagelockhash
-
       - name: Restore node_modules cache
         id: cache-node-modules
-        uses: actions/cache@v5
+        uses: ./.github/actions/restore-node-modules
         with:
-          path: .build/node_modules_cache
-          key: "copilot-node_modules-windows-${{ hashFiles('.build/packagelockhash') }}"
-
-      - name: Extract node_modules cache
-        if: steps.cache-node-modules.outputs.cache-hit == 'true'
-        shell: pwsh
-        run: ./.github/workflows/node_modules_cache/cache.ps1 extract
+          key-prefix: copilot-node_modules-windows
+          key-args: "$(node -p process.platform) $(node -p process.arch)"
 
       - name: Install root dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -344,7 +309,6 @@ jobs:
         working-directory: extensions/copilot
         run: npm ci
 
-      - name: Create node_modules archive
+      - name: Save node_modules cache
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        shell: pwsh
-        run: ./.github/workflows/node_modules_cache/cache.ps1 archive
+        uses: ./.github/actions/save-node-modules

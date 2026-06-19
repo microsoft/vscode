@@ -29,19 +29,12 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-      - name: Prepare node_modules cache key
-        run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts compile $(node -p process.arch) > .build/packagelockhash
-
       - name: Restore node_modules cache
         id: cache-node-modules
-        uses: actions/cache@v5
+        uses: ./.github/actions/restore-node-modules
         with:
-          path: .build/node_modules_cache
-          key: "node_modules-css-order-scan-${{ hashFiles('.build/packagelockhash') }}"
-
-      - name: Extract node_modules cache
-        if: steps.cache-node-modules.outputs.cache-hit == 'true'
-        run: ./.github/workflows/node_modules_cache/cache.sh extract
+          key-prefix: node_modules-css-order-scan
+          key-args: "compile $(node -p process.arch)"
 
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -61,9 +54,9 @@ jobs:
         run: npm ci
         working-directory: build/rspack
 
-      - name: Create node_modules archive
+      - name: Save node_modules cache
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: ./.github/workflows/node_modules_cache/cache.sh archive
+        uses: ./.github/actions/save-node-modules
 
       - name: Copy codicons
         run: cp node_modules/@vscode/codicons/dist/codicon.ttf src/vs/base/browser/ui/codicons/codicon/codicon.ttf

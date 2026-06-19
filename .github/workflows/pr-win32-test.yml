@@ -33,23 +33,12 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-      - name: Prepare node_modules cache key
-        shell: pwsh
-        run: |
-          mkdir .build -ea 0
-          node build/azure-pipelines/common/computeNodeModulesCacheKey.ts win32 ${{ env.VSCODE_ARCH }} $(node -p process.arch) > .build/packagelockhash
-
       - name: Restore node_modules cache
-        uses: actions/cache/restore@v5
         id: node-modules-cache
+        uses: ./.github/actions/restore-node-modules
         with:
-          path: .build/node_modules_cache
-          key: "node_modules-windows-${{ hashFiles('.build/packagelockhash') }}"
-
-      - name: Extract node_modules cache
-        if: steps.node-modules-cache.outputs.cache-hit == 'true'
-        shell: pwsh
-        run: ./.github/workflows/node_modules_cache/cache.ps1 extract
+          key-prefix: node_modules-windows
+          key-args: "win32 ${{ env.VSCODE_ARCH }} $(node -p process.arch)"
 
       - name: Install dependencies
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
@@ -83,11 +72,6 @@ jobs:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Create node_modules archive
-        if: steps.node-modules-cache.outputs.cache-hit != 'true'
-        shell: pwsh
-        run: ./.github/workflows/node_modules_cache/cache.ps1 archive
 
       - name: Create .build folder
         shell: pwsh
