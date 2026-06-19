@@ -378,7 +378,12 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 			try {
 				const parsed = JSON.parse(raw);
 				if (typeof parsed.x === 'number' && typeof parsed.y === 'number') {
-					const bounds = { x: parsed.x, y: parsed.y, width: defaults.width, height: defaults.height };
+					// Use stored x for horizontal position, but recalculate y
+					// based on the stored bottom edge to handle height changes
+					const storedHeight = typeof parsed.height === 'number' ? parsed.height : defaults.height;
+					const storedBottom = parsed.y + storedHeight;
+					const y = storedBottom - defaults.height;
+					const bounds = { x: parsed.x, y, width: defaults.width, height: defaults.height };
 					if (this._isOnScreen(bounds)) {
 						return bounds;
 					}
@@ -394,7 +399,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		if (state.bounds) {
 			this.storageService.store(
 				AgentsVoiceStorageKeys.WindowBounds,
-				JSON.stringify({ x: state.bounds.x, y: state.bounds.y }),
+				JSON.stringify({ x: state.bounds.x, y: state.bounds.y, height: state.bounds.height }),
 				StorageScope.WORKSPACE,
 				StorageTarget.MACHINE
 			);
