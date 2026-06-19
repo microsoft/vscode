@@ -94,6 +94,9 @@ export class BrowserView extends Disposable {
 	private readonly _onDidClose = this._register(new Emitter<void>());
 	readonly onDidClose: Event<void> = this._onDidClose.event;
 
+	private readonly _onDidChangeRemoteStatus = this._register(new Emitter<boolean>());
+	readonly onDidChangeRemoteStatus: Event<boolean> = this._onDidChangeRemoteStatus.event;
+
 	constructor(
 		public readonly id: string,
 		public readonly owner: IBrowserViewOwner,
@@ -206,6 +209,10 @@ export class BrowserView extends Disposable {
 		this.debugger = new BrowserViewDebugger(this, this.logService);
 		this.emulator = this._register(new BrowserViewEmulator(this, this.logService));
 		this.inspector = this._register(new BrowserViewInspector(this));
+
+		const fireRemoteStatus = () => this._onDidChangeRemoteStatus.fire(this.session.remote.isRemote);
+		this._register(this.session.remote.onDidStart(fireRemoteStatus));
+		this._register(this.session.remote.onDidStop(fireRemoteStatus));
 
 		this.setupEventListeners();
 	}
@@ -338,6 +345,18 @@ export class BrowserView extends Disposable {
 		webContents.on('did-finish-load', () => fireLoadingEvent(false));
 
 		this.session.trust.installCertErrorHandler(webContents);
+
+		webContents.on('login', (event, _details, authInfo, callback) => {
+			// Automatically supply proxy auth credentials for the tunnel proxy.
+			if (this.session.remote.proxy) {
+				const { username, password } = this.session.remote.proxy.credentials;
+				const proxyPort = this.session.remote.proxy.port;
+				if (authInfo.isProxy && authInfo.host === '127.0.0.1' && authInfo.port === proxyPort) {
+					event.preventDefault();
+					callback(username, password);
+				}
+			}
+		});
 
 		webContents.on('render-process-gone', (_event, details) => {
 			this._lastError = {
@@ -522,6 +541,7 @@ export class BrowserView extends Disposable {
 			storageKeys: this.session.history.storageKeys,
 			browserZoomIndex: this._browserZoomIndex,
 			isElementSelectionActive: this.inspector.isElementSelectionActive,
+			isRemoteSession: this.session.remote.isRemote,
 			isAreaSelectionActive: this.inspector.isAreaSelectionActive,
 			device: this.emulator.device
 		};
@@ -596,6 +616,9 @@ export class BrowserView extends Disposable {
 	 */
 	async loadURL(url: string): Promise<void> {
 		this._explicitNavigationPending = true;
+		// Wait for the tunnel proxy (if any) to be applied so the navigation
+		// and the requests it triggers flow through the proxy.
+		await this.session.remote.whenReady;
 		await this._view.webContents.loadURL(url);
 	}
 
@@ -670,11 +693,12 @@ export class BrowserView extends Disposable {
 			const zoomFactor = this._view.webContents.getZoomFactor();
 			// The visual viewport scale accounts for pinch-to-zoom magnification, which is separate from the regular zoom factor.
 			const visualViewportScale = await this.inspector.getVisualViewportScale();
+			const emulationScale = this.emulator.emulatedScaleFactor;
 			options.screenRect = {
-				x: options.pageRect.x * visualViewportScale * zoomFactor,
-				y: options.pageRect.y * visualViewportScale * zoomFactor,
-				width: options.pageRect.width * visualViewportScale * zoomFactor,
-				height: options.pageRect.height * visualViewportScale * zoomFactor
+				x: options.pageRect.x * visualViewportScale * zoomFactor * emulationScale,
+				y: options.pageRect.y * visualViewportScale * zoomFactor * emulationScale,
+				width: options.pageRect.width * visualViewportScale * zoomFactor * emulationScale,
+				height: options.pageRect.height * visualViewportScale * zoomFactor * emulationScale
 			};
 		}
 		if (options?.awaitNextPaint) {

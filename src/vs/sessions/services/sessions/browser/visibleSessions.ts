@@ -7,7 +7,6 @@ import { Disposable, DisposableMap, IDisposable } from '../../../../base/common/
 import { IObservable, ISettableObservable, ITransaction, autorun, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IActiveSession } from '../common/sessionsManagement.js';
 import { IChat, ISession, SessionStatus } from '../common/session.js';
 
@@ -183,7 +182,6 @@ export class VisibleSessions extends Disposable {
 	constructor(
 		private readonly _resolveInitialChat: (session: ISession) => IChat,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
-		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
 	) {
 		super();
 	}
@@ -608,19 +606,7 @@ export class VisibleSessions extends Disposable {
 
 		const initialChat = this._resolveInitialChat(session);
 		visibleSession = new VisibleSession(session, initialChat);
-
-		// Trigger lazy resolve for expensive session properties (e.g. changes,
-		// badge). Per-wrapper so visible-but-not-active sessions also have their
-		// data populated for rendering in the grid.
-		let observedSession = false;
 		const visibleSessionRef = visibleSession;
-		visibleSession.addDisposable(autorun(reader => {
-			if (observedSession || session.loading.read(reader)) {
-				return;
-			}
-			observedSession = true;
-			this._agentSessionsService.model.observeSession(session.resource);
-		}));
 
 		// Track chat list changes — if the active chat is removed, fall back to last.
 		visibleSession.addDisposable(autorun(reader => {

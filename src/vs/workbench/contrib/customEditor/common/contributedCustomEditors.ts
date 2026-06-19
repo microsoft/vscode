@@ -123,11 +123,11 @@ function getPriorityFromContribution(
 	extension: IExtensionDescription,
 	includeDiffAndMergePriority: boolean,
 ): CustomEditorDescriptor['priority'] {
-	const editorPriority = getSinglePriorityFromContribution(typeof contribution === 'string' ? contribution : contribution?.editor, extension) ?? RegisteredEditorPriority.default;
+	const editorPriority = getSinglePriorityFromContribution(typeof contribution === 'string' ? contribution : contribution?.textEditor, extension) ?? RegisteredEditorPriority.default;
 	return {
 		editor: editorPriority,
-		diff: includeDiffAndMergePriority && typeof contribution !== 'string' ? getSinglePriorityFromContribution(contribution?.diff, extension) ?? editorPriority : editorPriority,
-		merge: includeDiffAndMergePriority && typeof contribution !== 'string' ? getSinglePriorityFromContribution(contribution?.merge, extension) ?? editorPriority : editorPriority,
+		diff: includeDiffAndMergePriority && typeof contribution !== 'string' ? getSinglePriorityFromContribution(contribution?.diffEditor, extension) ?? editorPriority : editorPriority,
+		merge: includeDiffAndMergePriority && typeof contribution !== 'string' ? getSinglePriorityFromContribution(contribution?.mergeEditor, extension) ?? editorPriority : editorPriority,
 	};
 }
 

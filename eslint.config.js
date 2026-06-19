@@ -23,6 +23,12 @@ const ignores = fs.readFileSync(path.join(import.meta.dirname, '.eslint-ignore')
 	.split(/\r\n|\n/)
 	.filter(line => line && !line.startsWith('#'));
 
+const allowedJavaScriptFiles = fs.readFileSync(path.join(import.meta.dirname, '.eslint-allowed-javascript-files'), 'utf8')
+	.toString()
+	.split(/\r\n|\n/)
+	.map(line => line.trim())
+	.filter(line => line && !line.startsWith('#'));
+
 export default defineConfig(
 	// Global ignores
 	{
@@ -1540,6 +1546,7 @@ export default defineConfig(
 						'ssh2',
 						'stream',
 						'string_decoder',
+						'tar',
 						'tas-client',
 						'tls',
 						'undici',
@@ -2303,6 +2310,38 @@ export default defineConfig(
 		}
 	},
 	{
+		// `IAgentSessionsService` and the agent sessions model are provider-internal
+		// to Copilot. Only the Copilot chat sessions provider may consume them; the
+		// rest of the Agents window (sessions workbench) must stay provider-agnostic.
+		// See src/vs/sessions/SESSIONS.md.
+		files: [
+			'src/vs/sessions/**/*.ts'
+		],
+		ignores: [
+			'src/vs/sessions/contrib/providers/copilotChatSessions/**/*.ts'
+		],
+		languageOptions: {
+			parser: tseslint.parser,
+		},
+		rules: {
+			'no-restricted-imports': [
+				'warn',
+				{
+					'patterns': [
+						{
+							'group': ['dompurify*'],
+							'message': 'Use domSanitize instead of dompurify directly'
+						},
+						{
+							'group': ['**/agentSessions/agentSessionsService', '**/agentSessions/agentSessionsService.js'],
+							'message': 'IAgentSessionsService is provider-internal to Copilot. Only contrib/providers/copilotChatSessions may import it; the rest of the Agents window must stay provider-agnostic. See src/vs/sessions/SESSIONS.md.'
+						}
+					]
+				}
+			]
+		}
+	},
+	{
 		files: [
 			'src/vs/workbench/contrib/notebook/browser/view/renderers/*.ts'
 		],
@@ -2871,4 +2910,22 @@ export default defineConfig(
 				},
 			],
 		}
+	},
+	// Forbid new JavaScript files - use TypeScript instead.
+	// The allowlist of pre-existing JS/CJS/MJS files lives in
+	// `.eslint-allowed-javascript-files`, which is gated by CODEOWNERS.
+	// Do NOT add new entries; convert your file to TypeScript instead.
+	{
+		files: [
+			'**/*.js',
+			'**/*.cjs',
+			'**/*.mjs',
+		],
+		ignores: allowedJavaScriptFiles,
+		plugins: {
+			'local': pluginLocal,
+		},
+		rules: {
+			'local/code-no-new-javascript-files': 'error',
+		},
 	});

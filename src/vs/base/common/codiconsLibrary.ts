@@ -719,4 +719,7 @@ export const codiconsLibrary = {
 	askCompact: register('ask-compact', 0xecc1),
 	settingsCompact: register('settings-compact', 0xecc2),
 	vmCompact: register('vm-compact', 0xecc3),
+	runCompact: register('run-compact', 0xecc4),
+	gitPullRequestComment: register('git-pull-request-comment', 0xecc5),
+	gitPullRequestError: register('git-pull-request-error', 0xecc6),
 } as const;

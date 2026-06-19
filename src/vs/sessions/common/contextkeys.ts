@@ -18,6 +18,7 @@ export const ActiveSessionHasGitSyncActionRunningContext = new RawContextKey<boo
 export const ActiveSessionUsesCombinedConfigPickerContext = new RawContextKey<boolean>('activeSessionUsesCombinedConfigPicker', false, localize('activeSessionUsesCombinedConfigPicker', "Whether the active session's provider offers a combined mode and model configuration picker (used on phone layouts in place of the standalone pickers)"));
 export const ChatSessionProviderIdContext = new RawContextKey<string>('chatSessionProviderId', '', localize('chatSessionProviderId', "The provider ID of a session in context menu overlays"));
 export const ChatSessionTypeContext = new RawContextKey<string>('chatSessionType', '', localize('chatSessionType', "The session type of a session in context menu overlays"));
+export const ChatSessionSupportsRenameContext = new RawContextKey<boolean>('chatSessionSupportsRename', false, localize('chatSessionSupportsRename', "Whether a session in context menu overlays can be renamed"));
 
 //#endregion
 
@@ -29,6 +30,7 @@ export const SessionIsMaximizedContext = new RawContextKey<boolean>('sessionIsMa
 export const SessionSupportsMultipleChatsContext = new RawContextKey<boolean>('sessionSupportsMultipleChats', false, localize('sessionSupportsMultipleChats', "Whether the session view's session supports multiple chats"));
 export const SessionIsReadContext = new RawContextKey<boolean>('sessionIsRead', true, localize('sessionIsRead', "Whether the session has been marked as read"));
 export const SessionIsArchivedContext = new RawContextKey<boolean>('sessionIsArchived', false, localize('sessionIsArchived', "Whether the session is archived (marked as done)"));
+export const SessionHasChangesContext = new RawContextKey<boolean>('sessionHasChanges', false, localize('sessionHasChanges', "Whether the session view's session has pending changes (insertions or deletions)"));
 
 //#endregion
 

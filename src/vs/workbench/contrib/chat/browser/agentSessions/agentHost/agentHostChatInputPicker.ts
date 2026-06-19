@@ -25,26 +25,32 @@ import { StateComponents } from '../../../../../../platform/agentHost/common/sta
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import type { IAction } from '../../../../../../base/common/actions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import type { IChatWidget } from '../../chat.js';
-import { ChatConfiguration } from '../../../common/constants.js';
+import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../common/constants.js';
+import { maybeConfirmElevatedPermissionLevel } from '../../../common/chatPermissionWarnings.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
+import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
 
 const FILTER_THRESHOLD = 10;
 
 const LEARN_MORE_VALUE = '__agentHostChatInputPicker.learnMore__';
-const PERMISSION_MODE_LEARN_MORE_URL = 'https://code.visualstudio.com/docs/copilot/agents/agent-tools#_permission-levels';
+const PERMISSION_MODE_LEARN_MORE_URL = 'https://aka.ms/vscode/docs/permissions';
 
 interface IConfigPickerItem {
 	readonly value: string;
 	readonly label: string;
 	readonly description?: string;
+	readonly checked?: boolean;
 }
 
 function getConfigIcon(property: string, value: unknown | undefined): ThemeIcon | undefined {
@@ -64,6 +70,15 @@ function getConfigIcon(property: string, value: unknown | undefined): ThemeIcon 
 		}
 		return Codicon.shield;
 	}
+	if (property === ClaudeSessionConfigKey.PermissionMode && typeof value === 'string') {
+		switch (value) {
+			case 'default': return Codicon.shield;
+			case 'acceptEdits': return Codicon.edit;
+			case 'plan': return Codicon.lightbulb;
+			case 'auto': return Codicon.sparkle;
+			case 'bypassPermissions': return Codicon.warning;
+		}
+	}
 	return undefined;
 }
 
@@ -72,7 +87,9 @@ function isAutoApprovePolicyRestricted(configurationService: IConfigurationServi
 }
 
 function normalizeConfigValue(property: string, value: string, policyRestricted: boolean): string {
-	if (property === SessionConfigKey.AutoApprove && policyRestricted && (value === 'autoApprove' || value === 'autopilot')) {
+	// Assisted, Bypass, and (legacy) Autopilot all auto-approve at least some
+	// tool calls, so clamp anything but Default when policy disables auto-approve.
+	if (property === SessionConfigKey.AutoApprove && policyRestricted && value !== 'default') {
 		return 'default';
 	}
 	return value;
@@ -82,10 +99,10 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 	return items.map(item => ({
 		kind: ActionListItemKind.Action,
 		label: item.label,
-		description: item.description,
+		detail: item.description,
 		group: { title: '', icon: getConfigIcon(property, item.value) },
 		disabled: policyRestricted && property === SessionConfigKey.AutoApprove && (item.value === 'autoApprove' || item.value === 'autopilot'),
-		item: { ...item, label: isSelectedValue(currentValue, item.value) ? `${item.label} ${localize('selected', "(Selected)")}` : item.label },
+		item: { ...item, checked: isSelectedValue(currentValue, item.value) },
 	}));
 }
 
@@ -176,6 +193,26 @@ export function isClaimedByDedicatedPicker(property: string, schema: SessionConf
 }
 
 /**
+ * Resolves which config value a chat-input chip should display, given the
+ * server's session-state value and the workbench overlay value.
+ *
+ * Precedence depends on the session lifecycle:
+ *  - Untitled (pre-send): the workbench overlay is authoritative — it reflects
+ *    synchronous chip edits before the provisional backend echoes them, so it
+ *    wins over server state.
+ *  - Running (titled): the *server* is authoritative. The overlay is only
+ *    refreshed on manual chip edits, so server-driven changes (e.g. Plan →
+ *    Autopilot when the user approves a plan) must win, otherwise a stale
+ *    overlay value would shadow them.
+ */
+export function resolveConfigChipValue(isUntitled: boolean, serverValue: unknown, overlayValue: unknown, schemaDefault: unknown): unknown {
+	const preferred = isUntitled
+		? (overlayValue ?? serverValue)
+		: (serverValue ?? overlayValue);
+	return preferred ?? schemaDefault;
+}
+
+/**
  * One workbench chat-input chip bound to a single agent-host session-config
  * property. Used both for dedicated well-known property chips
  * (`SessionConfigKey.Mode`, `.AutoApprove`) and for generic per-property chips
@@ -196,11 +233,15 @@ export class AgentHostChatInputPicker extends Disposable {
 		private readonly _property: string,
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
+		@IHoverService private readonly _hoverService: IHoverService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IAgentHostSessionWorkingDirectoryResolver private readonly _workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisional: IAgentHostUntitledProvisionalSessionService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
+		@IDialogService private readonly _dialogService: IDialogService,
+		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
 
@@ -342,6 +383,10 @@ export class AgentHostChatInputPicker extends Disposable {
 
 		const isReadOnly = !!ctx.schema.readOnly || (isStartedSession && ctx.schema.sessionMutable === false);
 		const trigger = renderPickerTrigger(slot, isReadOnly, this._renderDisposables, () => this._showPicker(trigger));
+		const tooltip = ctx.schema.description ?? ctx.schema.title;
+		if (tooltip) {
+			this._renderDisposables.add(this._hoverService.setupDelayedHover(trigger, { content: tooltip }));
+		}
 		this._renderTrigger(trigger, ctx.schema, ctx.value, isReadOnly);
 	}
 
@@ -401,9 +446,9 @@ export class AgentHostChatInputPicker extends Disposable {
 			if (!schema) {
 				return undefined;
 			}
-			const value = overlay?.values?.[this._property]
-				?? state.config?.values?.[this._property]
-				?? schema.default;
+			const serverValue = state.config?.values?.[this._property];
+			const overlayValue = overlay?.values?.[this._property];
+			const value = resolveConfigChipValue(isUntitledChatSession(sessionResource), serverValue, overlayValue, schema.default);
 			return { backendSession: this._subRef.value.backendSession, schema, value };
 		}
 
@@ -440,11 +485,16 @@ export class AgentHostChatInputPicker extends Disposable {
 		const policyRestricted = isAutoApprovePolicyRestricted(this._configurationService);
 		const actionItems = toActionItems(this._property, items, currentValue, policyRestricted);
 		if (this._property === ClaudeSessionConfigKey.PermissionMode || this._property === SessionConfigKey.AutoApprove) {
+			const learnMoreLabel = localize('agentHostChatInputPicker.learnMorePermissions', "Learn more about permissions");
+			actionItems.push({
+				kind: ActionListItemKind.Separator,
+				label: '',
+			});
 			actionItems.push({
 				kind: ActionListItemKind.Action,
-				label: localize('agentHostChatInputPicker.learnMorePermissions', "Learn more about permissions"),
+				label: learnMoreLabel,
 				group: { title: '', icon: Codicon.blank },
-				item: { value: LEARN_MORE_VALUE, label: localize('agentHostChatInputPicker.learnMorePermissions', "Learn more about permissions") },
+				item: { value: LEARN_MORE_VALUE, label: learnMoreLabel },
 			});
 		}
 
@@ -455,7 +505,7 @@ export class AgentHostChatInputPicker extends Disposable {
 					void this._openerService.open(URI.parse(PERMISSION_MODE_LEARN_MORE_URL));
 					return;
 				}
-				void this._setValue(ctx.backendSession, item.value);
+				void this._confirmAndSetValue(ctx.backendSession, item.value);
 			},
 			onFilter: ctx.schema.enumDynamic
 				? query => this._filterDelayer.trigger(async () => {
@@ -529,7 +579,8 @@ export class AgentHostChatInputPicker extends Disposable {
 			return typeof cwd === 'string' ? URI.parse(cwd) : cwd;
 		}
 		const sessionResource = this._widget.viewModel?.sessionResource;
-		return (sessionResource && this._workingDirectoryResolver.resolve(sessionResource))
+		return (sessionResource && this._newSessionFolderService.getFolder(sessionResource))
+			?? (sessionResource && this._workingDirectoryResolver.resolve(sessionResource))
 			?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
 	}
 
@@ -541,6 +592,29 @@ export class AgentHostChatInputPicker extends Disposable {
 			return { ...(state.config?.values ?? {}), ...(overlay?.values ?? {}) };
 		}
 		return overlay?.values ?? this._initialResolved?.result.values;
+	}
+
+	/**
+	 * Surfaces the shared elevated-level warning for a Bypass / (legacy)
+	 * Autopilot approval pick before applying it. Non-elevated levels and
+	 * non-approval properties apply directly. Tolerated forward/legacy
+	 * auto-approve values that are not recognized {@link ChatPermissionLevel}s
+	 * (e.g. `assisted`) are still treated as elevated and fall back to the
+	 * Bypass Approvals warning so they can never be selected silently.
+	 */
+	private async _confirmAndSetValue(backendSession: URI, value: string): Promise<void> {
+		if (this._property === SessionConfigKey.AutoApprove) {
+			const levelToConfirm = isChatPermissionLevel(value)
+				? value
+				: (value !== ChatPermissionLevel.Default ? ChatPermissionLevel.AutoApprove : undefined);
+			if (levelToConfirm) {
+				const confirmed = await maybeConfirmElevatedPermissionLevel(levelToConfirm, this._dialogService, this._storageService, { defaultSettingKey: ChatConfiguration.AgentSessionDefaultConfiguration });
+				if (!confirmed) {
+					return;
+				}
+			}
+		}
+		await this._setValue(backendSession, value);
 	}
 
 	private async _setValue(backendSession: URI, value: string): Promise<void> {

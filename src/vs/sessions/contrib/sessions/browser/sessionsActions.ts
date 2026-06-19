@@ -9,20 +9,21 @@ import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuRegistry, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { EditorAreaFocusContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { CanGoBackContext, CanGoForwardContext, ChatSessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
-import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsViewService } from '../../../browser/sessionsViewService.js';
+import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
-import { ISessionsPartService } from '../../../browser/parts/sessionsPartService.js';
+import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
 
 // -- Show Sessions Picker --
@@ -39,24 +40,23 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyCode.KeyR,
 				mac: { primary: KeyMod.WinCtrl | KeyCode.KeyR },
-				weight: KeybindingWeight.WorkbenchContrib + 1,
+				weight: KeybindingWeight.SessionsContrib,
 				when: IsSessionsWindowContext,
 			},
 		});
 	}
 
 	override async run(accessor: ServicesAccessor) {
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const sessionsViewService = accessor.get(ISessionsViewService);
+		const sessionsService = accessor.get(ISessionsService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
 		const sessionsListModelService = accessor.get(ISessionsListModelService);
 
-		const { recent, other } = sessionsViewService.getRecentlyOpenedSessions();
+		const { recent, other } = sessionsService.getRecentlyOpenedSessions();
 		const recentSessions = recent.filter(s => !s.isArchived.get());
 		const otherSessions = other.filter(s => !s.isArchived.get());
 
-		const activeSessionId = sessionsManagementService.activeSession.get()?.sessionId;
+		const activeSessionId = sessionsService.activeSession.get()?.sessionId;
 
 		interface ISessionPickItem extends IQuickPickItem {
 			session?: ISession;
@@ -144,8 +144,8 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 
 		const openSelected = (selected: ISessionPickItem, inBackground: boolean, toSide: boolean): void => {
 			if (!selected.session) {
-				sessionsViewService.openNewSession();
-				sessionsPartService.focusSession(sessionsManagementService.activeSession.get());
+				sessionsService.openNewSession();
+				sessionsPartService.focusSession(sessionsService.activeSession.get());
 				return;
 			}
 
@@ -154,9 +154,9 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 			// normal open when there is no active session to anchor against or the
 			// session is already the active one.
 			if (toSide && activeSessionId !== undefined && selected.session.sessionId !== activeSessionId) {
-				sessionsViewService.insertAt(selected.session, activeSessionId, 'right', !inBackground);
+				sessionsService.insertAt(selected.session, activeSessionId, 'right', !inBackground);
 			} else {
-				sessionsViewService.openSession(selected.session.resource, { preserveFocus: inBackground });
+				sessionsService.openSession(selected.session.resource, { preserveFocus: inBackground });
 			}
 		};
 
@@ -190,12 +190,13 @@ registerAction2(class GoBackAction extends Action2 {
 			},
 			f1: true,
 			icon: Codicon.arrowLeft,
+			tooltip: localize('sessionsGoBackTooltip', "Go Back One Session"),
 			category: SessionsCategories.Sessions,
 			precondition: CanGoBackContext,
 			keybinding: {
 				// Higher than `WorkbenchContrib` so the `Ctrl+Shift+Tab` secondary wins over the
 				// editor quick-open actions (which bind the same chord at `WorkbenchContrib`).
-				weight: KeybindingWeight.WorkbenchContrib + 1,
+				weight: KeybindingWeight.SessionsContrib,
 				win: { primary: KeyMod.Alt | KeyCode.LeftArrow, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
 				mac: { primary: KeyMod.WinCtrl | KeyCode.Minus, secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab] },
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Minus, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
@@ -215,7 +216,7 @@ registerAction2(class GoBackAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		await accessor.get(ISessionsViewService).openPreviousSession();
+		await accessor.get(ISessionsService).openPreviousSession();
 	}
 });
 
@@ -231,12 +232,13 @@ registerAction2(class GoForwardAction extends Action2 {
 			},
 			f1: true,
 			icon: Codicon.arrowRight,
+			tooltip: localize('sessionsGoForwardTooltip', "Go Forward One Session"),
 			category: SessionsCategories.Sessions,
 			precondition: CanGoForwardContext,
 			keybinding: {
 				// Higher than `WorkbenchContrib` so the `Ctrl+Tab` secondary wins over the
 				// editor quick-open actions (which bind the same chord at `WorkbenchContrib`).
-				weight: KeybindingWeight.WorkbenchContrib + 1,
+				weight: KeybindingWeight.SessionsContrib,
 				win: { primary: KeyMod.Alt | KeyCode.RightArrow, secondary: [KeyMod.CtrlCmd | KeyCode.Tab] },
 				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Minus, secondary: [KeyMod.WinCtrl | KeyCode.Tab] },
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus, secondary: [KeyMod.CtrlCmd | KeyCode.Tab] },
@@ -256,7 +258,7 @@ registerAction2(class GoForwardAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		await accessor.get(ISessionsViewService).openNextSession();
+		await accessor.get(ISessionsService).openNextSession();
 	}
 });
 
@@ -273,7 +275,7 @@ registerAction2(class FocusActiveSessionAction extends Action2 {
 				// Must outrank the workbench `workbench.action.chat.open` binding
 				// (WorkbenchContrib) so that in the sessions window the chord
 				// focuses the active session. Using the normal open chat action will not work for new session views.
-				weight: KeybindingWeight.WorkbenchContrib + 1,
+				weight: KeybindingWeight.SessionsContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
 				mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI },
 			},
@@ -281,25 +283,30 @@ registerAction2(class FocusActiveSessionAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
-		sessionsPartService.focusSession(sessionsManagementService.activeSession.get());
+		const sessionsService = accessor.get(ISessionsService);
+		sessionsPartService.focusSession(sessionsService.activeSession.get());
 	}
 });
 
 // -- Focus Nth Session in the Grid (Cmd/Ctrl+1..9) --
+// Mirrors VS Code's "Focus Editor Group N": Ctrl/Cmd+1..8 focus that grid slot
+// and Ctrl/Cmd+9 focuses the LAST slot. Does nothing when the slot doesn't exist.
 
 for (let index = 0; index < 9; index++) {
 	const position = index + 1;
+	const isLast = position === 9;
 	registerAction2(class FocusSessionByPositionAction extends Action2 {
 		constructor() {
 			super({
 				id: `sessions.focusSessionInGrid${position}`,
-				title: localize2('focusSessionInGrid', "Focus Session {0} in Grid", position),
+				title: isLast
+					? localize2('focusLastSessionInGrid', "Focus Last Session in Grid")
+					: localize2('focusSessionInGrid', "Focus Session {0} in Grid", position),
 				f1: true,
 				category: SessionsCategories.Sessions,
 				keybinding: {
-					weight: KeybindingWeight.WorkbenchContrib + 1,
+					weight: KeybindingWeight.SessionsContrib,
 					primary: KeyMod.CtrlCmd | (KeyCode.Digit1 + index),
 					when: IsSessionsWindowContext,
 				},
@@ -307,16 +314,17 @@ for (let index = 0; index < 9; index++) {
 		}
 
 		override async run(accessor: ServicesAccessor): Promise<void> {
-			const sessionsViewService = accessor.get(ISessionsViewService);
+			const sessionsService = accessor.get(ISessionsService);
 			const sessionsPartService = accessor.get(ISessionsPartService);
 
-			const visible = sessionsViewService.visibleSessions.get();
-			if (index >= visible.length) {
+			const visible = sessionsService.visibleSessions.get();
+			const targetIndex = isLast ? visible.length - 1 : index;
+			if (targetIndex < 0 || targetIndex >= visible.length) {
 				return;
 			}
 
-			const session = visible[index];
-			sessionsViewService.setActive(session);
+			const session = visible[targetIndex];
+			sessionsService.setActive(session);
 			sessionsPartService.focusSession(session);
 		}
 	});
@@ -333,7 +341,7 @@ registerAction2(class CloseAllSessionsAction extends Action2 {
 			category: SessionsCategories.Sessions,
 			precondition: IsSessionsWindowContext,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib + 1,
+				weight: KeybindingWeight.SessionsContrib,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyW),
 				// Only fire from the keyboard while a session (its chat view) has focus.
 				when: ContextKeyExpr.and(IsSessionsWindowContext, SessionsFocusContext),
@@ -342,7 +350,7 @@ registerAction2(class CloseAllSessionsAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		accessor.get(ISessionsViewService).closeAllSessions();
+		accessor.get(ISessionsService).closeAllSessions();
 	}
 });
 
@@ -365,11 +373,10 @@ registerAction2(class AddChatToSessionBarAction extends Action2 {
 		if (!session) {
 			return;
 		}
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const sessionsViewService = accessor.get(ISessionsViewService);
+		const sessionsService = accessor.get(ISessionsService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
-		await sessionsViewService.openNewChatInSession(session);
-		sessionsPartService.focusSession(sessionsManagementService.activeSession.get());
+		await sessionsService.openNewChatInSession(session);
+		sessionsPartService.focusSession(sessionsService.activeSession.get());
 	}
 });
 
@@ -397,7 +404,7 @@ registerAction2(class TogglePinSessionAction extends Action2 {
 		if (!session) {
 			return;
 		}
-		accessor.get(ISessionsViewService).toggleSessionStickiness(session);
+		accessor.get(ISessionsService).toggleSessionStickiness(session);
 	}
 });
 
@@ -458,12 +465,11 @@ registerAction2(class CloseSessionAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const sessionsViewService = accessor.get(ISessionsViewService);
+		const sessionsService = accessor.get(ISessionsService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
 
-		sessionsViewService.closeSession(session);
-		sessionsPartService.focusSession(sessionsManagementService.activeSession.get());
+		sessionsService.closeSession(session);
+		sessionsPartService.focusSession(sessionsService.activeSession.get());
 	}
 });
 
@@ -489,6 +495,30 @@ registerAction2(class ToggleMaximizeSessionViewAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
 		accessor.get(ISessionsPartService).toggleMaximizeSession(session);
-		accessor.get(ISessionsViewService).setActive(session);
+		accessor.get(ISessionsService).setActive(session);
+	}
+});
+
+// -- Close Editor Area (Watermark Toolbar) --
+
+registerAction2(class CloseEditorAreaAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.closeEditorArea',
+			title: localize2('closeEditorArea', "Close Editor Area"),
+			icon: Codicon.close,
+			category: SessionsCategories.Sessions,
+			menu: {
+				id: MenuId.EditorGroupWatermarkToolbar,
+				group: 'navigation',
+				order: 10,
+				when: IsSessionsWindowContext,
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+		layoutService.setPartHidden(true, Parts.EDITOR_PART);
 	}
 });
