@@ -8,7 +8,7 @@ import type { CustomAgentConfig, MCPServerConfig, SessionConfig } from '@github/
 import { OperatingSystem, OS } from '../../../../base/common/platform.js';
 import { parseFrontMatter } from '../../../../base/common/yaml.js';
 import { IFileService } from '../../../files/common/files.js';
-import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
+import { McpServerType, type IMcpServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
 import type { IMcpServerDefinition, INamedPluginResource, IParsedAgent, IParsedHookCommand, IParsedHookGroup, IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
 import { type AgentCustomization, type ChildCustomization } from '../../common/state/protocol/state.js';
 import { dirname } from '../../../../base/common/path.js';
@@ -31,26 +31,39 @@ type ErrorOccurredHookInput = Parameters<NonNullable<SessionHooks['onErrorOccurr
 export function toSdkMcpServers(defs: readonly IMcpServerDefinition[]): Record<string, MCPServerConfig> {
 	const result: Record<string, MCPServerConfig> = {};
 	for (const def of defs) {
-		const config = def.configuration;
-		if (config.type === McpServerType.LOCAL) {
-			result[def.name] = {
-				type: 'local',
-				command: config.command,
-				args: config.args ? [...config.args] : [],
-				tools: ['*'],
-				...(config.env && { env: toStringEnv(config.env) }),
-				...(config.cwd && { cwd: config.cwd }),
-			};
-		} else {
-			result[def.name] = {
-				type: 'http',
-				url: config.url,
-				tools: ['*'],
-				...(config.headers && { headers: { ...config.headers } }),
-			};
-		}
+		result[def.name] = toSdkMcpServer(def.name, def.configuration);
 	}
 	return result;
+}
+
+/**
+ * Converts root MCP server config maps into the SDK's `mcpServers` config.
+ */
+export function toSdkMcpServersFromConfigMap(servers: Record<string, IMcpServerConfiguration>): Record<string, MCPServerConfig> {
+	const result: Record<string, MCPServerConfig> = {};
+	for (const [name, config] of Object.entries(servers)) {
+		result[name] = toSdkMcpServer(name, config);
+	}
+	return result;
+}
+
+function toSdkMcpServer(_name: string, config: IMcpServerConfiguration): MCPServerConfig {
+	if (config.type === McpServerType.LOCAL) {
+		return {
+			type: 'local',
+			command: config.command,
+			args: config.args ? [...config.args] : [],
+			tools: ['*'],
+			...(config.env && { env: toStringEnv(config.env) }),
+			...(config.cwd && { cwd: config.cwd }),
+		};
+	}
+	return {
+		type: 'http',
+		url: config.url,
+		tools: ['*'],
+		...(config.headers && { headers: { ...config.headers } }),
+	};
 }
 
 /**

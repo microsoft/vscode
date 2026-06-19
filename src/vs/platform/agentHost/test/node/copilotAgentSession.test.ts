@@ -266,7 +266,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		sessionId: 'test-session-1',
 		workingDirectory: options?.workingDirectory,
 		resolvedAgentName: undefined,
-		snapshot: options?.clientSnapshot ?? { tools: [], plugins: [] },
+		snapshot: options?.clientSnapshot ?? { tools: [], plugins: [], mcpServers: {} },
 		shellManager: undefined,
 		githubToken: undefined,
 		model: undefined,
@@ -1396,6 +1396,7 @@ suite('CopilotAgentSession', () => {
 				clientSnapshot: {
 					tools,
 					plugins: [],
+					mcpServers: {},
 				},
 				activeClientState,
 			});
@@ -2500,6 +2501,7 @@ suite('CopilotAgentSession', () => {
 				inputSchema: { type: 'object', properties: {} },
 			}],
 			plugins: [],
+			mcpServers: {},
 		};
 
 		/** Builds a live ActiveClientState seeded with the given owning clientId and the snapshot's tools. */

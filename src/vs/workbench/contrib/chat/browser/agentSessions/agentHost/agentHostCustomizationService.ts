@@ -6,20 +6,25 @@
 import { URI } from '../../../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableMap, IDisposable } from '../../../../../../base/common/lifecycle.js';
-import { AgentSession, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostMcpServers, AgentHostMcpServersConfigKey } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
+import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { AgentSession, IAgentConnection, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { getEffectiveAgents } from '../../../../../../platform/agentHost/common/customAgents.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { CustomizationType, McpServerCustomization, type Customization, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { AgentCustomization, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { AgentCustomization, ROOT_STATE_URI, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostMcpServer } from '../../../../../../sessions/common/agentHostSessionsProvider.js';
 
 const AGENT_HOST_SESSION_SCHEME_PREFIX = 'agent-host-';
+const REMOTE_AGENT_HOST_SESSION_SCHEME_PREFIX = 'remote-';
 
 export const IAgentHostCustomizationService = createDecorator<IAgentHostCustomizationService>('agentHostCustomizationService');
 
@@ -42,6 +47,14 @@ export interface IAgentHostCustomizationService {
 	 * host, or that don't expose any MCP servers.
 	 */
 	getMcpServers(sessionResource: URI): readonly IAgentHostMcpServer[];
+
+	/**
+	 * Adds (or replaces) an agent-host-level MCP server in the root config of
+	 * the agent host backing `sessionResource`. The write is routed to the
+	 * correct connection (local or remote) for that session. No-op for
+	 * sessions not backed by an agent host.
+	 */
+	addMcpServer(sessionResource: URI, name: string, config: IMcpServerConfiguration): void;
 }
 
 export class NullAgentHostCustomizationService implements IAgentHostCustomizationService {
@@ -60,6 +73,9 @@ export class NullAgentHostCustomizationService implements IAgentHostCustomizatio
 	getMcpServers(_sessionResource: URI): readonly IAgentHostMcpServer[] {
 		return [];
 	}
+	addMcpServer(_sessionResource: URI, _name: string, _config: IMcpServerConfiguration): void {
+		// no-op
+	}
 }
 
 class WorkbenchAgentHostCustomizationService extends Disposable implements IAgentHostCustomizationService {
@@ -69,10 +85,11 @@ class WorkbenchAgentHostCustomizationService extends Disposable implements IAgen
 	private readonly _onDidChangeCustomizations = this._register(new Emitter<void>());
 	readonly onDidChangeCustomAgents: Event<void> = this._onDidChangeCustomAgents.event;
 	readonly onDidChangeCustomizations: Event<void> = this._onDidChangeCustomizations.event;
-	private readonly _sessionStateSubscriptions = this._register(new DisposableMap<string, IDisposable & { readonly backendSession: URI; readonly sub: IAgentSubscription<SessionState> }>());
+	private readonly _sessionStateSubscriptions = this._register(new DisposableMap<string, IDisposable & { readonly connection: IAgentConnection; readonly backendSession: URI; readonly sub: IAgentSubscription<SessionState> }>());
 
 	constructor(
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
+		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisionalSessionService: IAgentHostUntitledProvisionalSessionService,
 		@IChatService chatService: IChatService,
 	) {
@@ -125,12 +142,12 @@ class WorkbenchAgentHostCustomizationService extends Disposable implements IAgen
 	}
 
 	getMcpServers(sessionResource: URI): readonly IAgentHostMcpServer[] {
-		const backendSession = this._resolveBackendSession(sessionResource);
-		if (!backendSession) {
+		const target = this._resolveSessionTarget(sessionResource);
+		if (!target) {
 			return [];
 		}
 		const customizations = this._readSessionState(sessionResource)?.customizations ?? [];
-		const channel = backendSession.toString();
+		const channel = target.backendSession.toString();
 		return customizations
 			.filter((c): c is McpServerCustomization => c.type === CustomizationType.McpServer)
 			.map((c): IAgentHostMcpServer => ({
@@ -139,7 +156,7 @@ class WorkbenchAgentHostCustomizationService extends Disposable implements IAgen
 				enabled: c.enabled,
 				status: c.state.kind,
 				setEnabled: (enabled: boolean) => {
-					this._agentHostService.dispatch(channel, {
+					target.connection.dispatch(channel, {
 						type: ActionType.SessionCustomizationToggled,
 						id: c.id,
 						enabled,
@@ -148,27 +165,55 @@ class WorkbenchAgentHostCustomizationService extends Disposable implements IAgen
 			}));
 	}
 
+	addMcpServer(sessionResource: URI, name: string, config: IMcpServerConfiguration): void {
+		const target = this._resolveSessionTarget(sessionResource);
+		if (!target) {
+			return;
+		}
+
+		const rootState = target.connection.rootState.value;
+		if (!rootState || rootState instanceof Error) {
+			return;
+		}
+
+		const existingServers = rootState.config?.values?.[AgentHostMcpServersConfigKey];
+		const servers: AgentHostMcpServers = existingServers && typeof existingServers === 'object' && !Array.isArray(existingServers)
+			? existingServers as AgentHostMcpServers
+			: {};
+
+		target.connection.dispatch(ROOT_STATE_URI, {
+			type: ActionType.RootConfigChanged,
+			config: {
+				[AgentHostMcpServersConfigKey]: {
+					...servers,
+					[name]: config,
+				},
+			},
+		});
+	}
+
 	private _readSessionState(sessionResource: URI): SessionState | undefined {
-		const backendSession = this._resolveBackendSession(sessionResource);
-		const value = backendSession ? this._ensureSessionStateSubscription(sessionResource, backendSession)?.sub.value : undefined;
+		const target = this._resolveSessionTarget(sessionResource);
+		const value = target ? this._ensureSessionStateSubscription(sessionResource, target)?.sub.value : undefined;
 		return value && !(value instanceof Error) ? value : undefined;
 	}
 
-	private _ensureSessionStateSubscription(sessionResource: URI, backendSession: URI): (IDisposable & { readonly backendSession: URI; readonly sub: IAgentSubscription<SessionState> }) | undefined {
+	private _ensureSessionStateSubscription(sessionResource: URI, target: IAgentHostSessionTarget): (IDisposable & { readonly connection: IAgentConnection; readonly backendSession: URI; readonly sub: IAgentSubscription<SessionState> }) | undefined {
 		const key = sessionResource.toString();
 		const existing = this._sessionStateSubscriptions.get(key);
-		if (existing?.backendSession.toString() === backendSession.toString()) {
+		if (existing?.backendSession.toString() === target.backendSession.toString() && existing.connection === target.connection) {
 			return existing;
 		}
 
-		const ref = this._agentHostService.getSubscription(StateComponents.Session, backendSession, 'AgentHostCustomizationService');
+		const ref = target.connection.getSubscription(StateComponents.Session, target.backendSession, 'AgentHostCustomizationService');
 		const sub = ref.object;
 		const listener = sub.onDidChange(() => {
 			this._fireCustomizationsChanged();
 			this._fireCustomAgentsChanged();
 		});
 		const entry = {
-			backendSession,
+			connection: target.connection,
+			backendSession: target.backendSession,
 			sub,
 			dispose: () => {
 				listener.dispose();
@@ -187,23 +232,54 @@ class WorkbenchAgentHostCustomizationService extends Disposable implements IAgen
 		this._onDidChangeCustomizations.fire();
 	}
 
-	private _resolveBackendSession(sessionResource: URI): URI | undefined {
+	/**
+	 * Resolves a chat session resource to the backend agent-session URI plus
+	 * the {@link IAgentConnection} (local or remote) that owns it. Returns
+	 * `undefined` for sessions not backed by an agent host.
+	 */
+	private _resolveSessionTarget(sessionResource: URI): IAgentHostSessionTarget | undefined {
 		const provisionalSession = this._provisionalSessionService.get(sessionResource);
 		if (provisionalSession) {
-			return provisionalSession;
+			// Provisional (untitled) sessions are always local.
+			return { connection: this._agentHostService, backendSession: provisionalSession };
 		}
 
 		if (isUntitledChatSession(sessionResource)) {
 			return undefined;
 		}
 
-		if (!sessionResource.scheme.startsWith(AGENT_HOST_SESSION_SCHEME_PREFIX)) {
-			return undefined;
+		const scheme = sessionResource.scheme;
+		const rawSessionId = sessionResource.path.substring(1);
+
+		if (scheme.startsWith(AGENT_HOST_SESSION_SCHEME_PREFIX)) {
+			const provider = scheme.substring(AGENT_HOST_SESSION_SCHEME_PREFIX.length);
+			return provider ? { connection: this._agentHostService, backendSession: AgentSession.uri(provider, rawSessionId) } : undefined;
 		}
 
-		const provider = sessionResource.scheme.substring(AGENT_HOST_SESSION_SCHEME_PREFIX.length);
-		return provider ? AgentSession.uri(provider, sessionResource.path.substring(1)) : undefined;
+		if (scheme.startsWith(REMOTE_AGENT_HOST_SESSION_SCHEME_PREFIX)) {
+			// Remote schemes are `remote-<sanitizedAuthority>-<provider>`. Both
+			// the authority and provider may contain dashes, so disambiguate
+			// against the live connection list rather than splitting blindly.
+			for (const info of this._remoteAgentHostService.connections) {
+				const prefix = `${REMOTE_AGENT_HOST_SESSION_SCHEME_PREFIX}${agentHostAuthority(info.address)}-`;
+				if (!scheme.startsWith(prefix)) {
+					continue;
+				}
+				const provider = scheme.substring(prefix.length);
+				const connection = this._remoteAgentHostService.getConnection(info.address);
+				if (provider && connection) {
+					return { connection, backendSession: AgentSession.uri(provider, rawSessionId) };
+				}
+			}
+		}
+
+		return undefined;
 	}
+}
+
+interface IAgentHostSessionTarget {
+	readonly connection: IAgentConnection;
+	readonly backendSession: URI;
 }
 
 registerSingleton(IAgentHostCustomizationService, WorkbenchAgentHostCustomizationService, InstantiationType.Delayed);

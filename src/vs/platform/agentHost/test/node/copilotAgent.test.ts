@@ -411,7 +411,7 @@ function createAgentSessionThroughAgent(agent: CopilotAgent, instantiationServic
 		sessionId: 'test-session-1',
 		workingDirectory: undefined,
 		resolvedAgentName: undefined,
-		snapshot: { tools: [], plugins: [] },
+		snapshot: { tools: [], plugins: [], mcpServers: {} },
 		shellManager,
 		githubToken: 'token',
 		model: undefined,
