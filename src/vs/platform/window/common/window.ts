@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ * Copyright (c) Microsoft Corporation. All rights reserved.
+ * Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from '../../../base/common/buffer.js';
@@ -36,12 +36,10 @@ export interface IRectangle extends IPoint {
 }
 
 export interface IBaseOpenWindowsOptions {
-
 	/**
 	 * Whether to reuse the window or open a new one.
 	 */
 	readonly forceReuseWindow?: boolean;
-
 	/**
 	 * The remote authority to use when windows are opened with either
 	 * - no workspace (empty window)
@@ -50,7 +48,6 @@ export interface IBaseOpenWindowsOptions {
 	 * If not set, defaults to the remote authority of the current window.
 	 */
 	readonly remoteAuthority?: string | null;
-
 	readonly forceProfile?: string;
 	readonly forceTempProfile?: boolean;
 }
@@ -58,16 +55,12 @@ export interface IBaseOpenWindowsOptions {
 export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
 	readonly forceNewWindow?: boolean;
 	readonly preferNewWindow?: boolean;
-
 	readonly noRecentEntry?: boolean;
-
 	readonly addMode?: boolean;
 	readonly removeMode?: boolean;
-
 	readonly diffMode?: boolean;
 	readonly mergeMode?: boolean;
 	readonly gotoLineMode?: boolean;
-
 	readonly waitMarkerFileURI?: URI;
 }
 
@@ -142,10 +135,8 @@ export function hasNativeContextMenu(configurationService: IConfigurationService
 	if (isWeb) {
 		return false;
 	}
-
 	const nativeTitle = hasNativeTitlebar(configurationService, titleBarStyle);
 	const windowConfigurations = configurationService.getValue<IWindowSettings | undefined>('window');
-
 	if (windowConfigurations?.menuStyle === MenuStyleConfiguration.NATIVE) {
 		// Do not support native menu with custom title bar
 		if (!isMacintosh && !nativeTitle) {
@@ -153,11 +144,9 @@ export function hasNativeContextMenu(configurationService: IConfigurationService
 		}
 		return true;
 	}
-
 	if (windowConfigurations?.menuStyle === MenuStyleConfiguration.CUSTOM) {
 		return false;
 	}
-
 	return nativeTitle; // Default to inherit from title bar style
 }
 
@@ -165,11 +154,9 @@ export function hasNativeMenu(configurationService: IConfigurationService, title
 	if (isWeb) {
 		return false;
 	}
-
 	if (isMacintosh) {
 		return true;
 	}
-
 	return hasNativeContextMenu(configurationService, titleBarStyle);
 }
 
@@ -177,7 +164,6 @@ export type MenuBarVisibility = 'classic' | 'visible' | 'toggle' | 'hidden' | 'c
 
 export function getMenuBarVisibility(configurationService: IConfigurationService): MenuBarVisibility {
 	const menuBarVisibility = configurationService.getValue<MenuBarVisibility | 'default'>(MenuSettings.MenuBarVisibility);
-
 	if (menuBarVisibility === 'default' || (menuBarVisibility === 'compact' && hasNativeMenu(configurationService)) || (isMacintosh && isNative)) {
 		return 'classic';
 	} else {
@@ -211,6 +197,8 @@ export interface IWindowSettings {
 	readonly newWindowProfile: string;
 	readonly density: IDensitySettings;
 	readonly border: 'off' | 'default' | 'system' | string /* color in RGB or other formats */;
+	/** Controls font smoothing / antialiasing for the UI. */
+	readonly fontSmoothing: 'auto' | 'antialiased' | 'none';
 }
 
 export interface IDensitySettings {
@@ -249,7 +237,6 @@ export function hasNativeTitlebar(configurationService: IConfigurationService, t
 	if (!titleBarStyle) {
 		titleBarStyle = getTitleBarStyle(configurationService);
 	}
-
 	return titleBarStyle === TitlebarStyle.NATIVE;
 }
 
@@ -257,25 +244,21 @@ export function getTitleBarStyle(configurationService: IConfigurationService): T
 	if (isWeb) {
 		return TitlebarStyle.CUSTOM;
 	}
-
 	const configuration = configurationService.getValue<IWindowSettings | undefined>('window');
 	if (configuration) {
 		const useNativeTabs = isMacintosh && configuration.nativeTabs === true;
 		if (useNativeTabs) {
 			return TitlebarStyle.NATIVE; // native tabs on macOS do not work with custom title style
 		}
-
 		const useSimpleFullScreen = isMacintosh && configuration.nativeFullScreen === false;
 		if (useSimpleFullScreen) {
-			return TitlebarStyle.NATIVE; // simple fullscreen does not work well with custom title style (https://github.com/microsoft/vscode/issues/63291)
+			return TitlebarStyle.NATIVE; // simple fullscreen does not work well with custom title style[](https://github.com/microsoft/vscode/issues/63291)
 		}
-
 		const style = configuration.titleBarStyle;
 		if (style === TitlebarStyle.NATIVE || style === TitlebarStyle.CUSTOM) {
 			return style;
 		}
 	}
-
 	return TitlebarStyle.CUSTOM; // default to custom on all OS
 }
 
@@ -283,13 +266,11 @@ export function getWindowControlsStyle(configurationService: IConfigurationServi
 	if (isWeb || isMacintosh || getTitleBarStyle(configurationService) === TitlebarStyle.NATIVE) {
 		return WindowControlsStyle.NATIVE; // only supported on Windows/Linux desktop with custom titlebar
 	}
-
 	const configuration = configurationService.getValue<IWindowSettings | undefined>('window');
 	const style = configuration?.controlsStyle;
 	if (style === WindowControlsStyle.CUSTOM || style === WindowControlsStyle.HIDDEN) {
 		return style;
 	}
-
 	return WindowControlsStyle.NATIVE; // default to native on all OS
 }
 
@@ -299,18 +280,15 @@ export function useWindowControlsOverlay(configurationService: IConfigurationSer
 	if (isWeb) {
 		return false; // only supported on desktop instances
 	}
-
 	if (hasNativeTitlebar(configurationService)) {
 		return false; // only supported when title bar is custom
 	}
-
 	if (!isMacintosh) {
 		const setting = getWindowControlsStyle(configurationService);
 		if (setting === WindowControlsStyle.CUSTOM || setting === WindowControlsStyle.HIDDEN) {
 			return false; // explicitly disabled by choice
 		}
 	}
-
 	return true; // default
 }
 
@@ -319,17 +297,13 @@ export function useNativeFullScreen(configurationService: IConfigurationService)
 	if (!windowConfig || typeof windowConfig.nativeFullScreen !== 'boolean') {
 		return true; // default
 	}
-
 	if (windowConfig.nativeTabs) {
 		return true; // https://github.com/electron/electron/issues/16142
 	}
-
 	return windowConfig.nativeFullScreen !== false;
 }
 
-
 export interface IPath<T = IEditorOptions> extends IPathData<T> {
-
 	/**
 	 * The file path to open within the instance
 	 */
@@ -337,30 +311,25 @@ export interface IPath<T = IEditorOptions> extends IPathData<T> {
 }
 
 export interface IPathData<T = IEditorOptions> {
-
 	/**
 	 * The file path to open within the instance
 	 */
 	readonly fileUri?: UriComponents;
-
 	/**
 	 * Optional editor options to apply in the file
 	 */
 	readonly options?: T;
-
 	/**
 	 * A hint that the file exists. if true, the
 	 * file exists, if false it does not. with
 	 * `undefined` the state is unknown.
 	 */
 	readonly exists?: boolean;
-
 	/**
 	 * A hint about the file type of this path.
 	 * with `undefined` the type is unknown.
 	 */
 	readonly type?: FileType;
-
 	/**
 	 * Specifies if the file should be only be opened
 	 * if it exists.
@@ -409,7 +378,6 @@ export interface IColorScheme {
 
 export interface IWindowConfiguration {
 	remoteAuthority?: string;
-
 	filesToOpenOrCreate?: IPath[];
 	filesToDiff?: IPath[];
 	filesToMerge?: IPath[];
@@ -424,33 +392,25 @@ export interface IOSConfiguration {
 export interface INativeWindowConfiguration extends IWindowConfiguration, NativeParsedArgs, ISandboxConfiguration {
 	mainPid: number;
 	handle?: VSBuffer;
-
 	machineId: string;
 	sqmId: string;
 	devDeviceId: string;
 	isPortable: boolean;
-
 	execPath: string;
 	backupPath?: string;
-
 	profiles: {
 		home: UriComponents;
 		all: readonly UriDto<IUserDataProfile>[];
 		profile: UriDto<IUserDataProfile>;
 	};
-
 	homeDir: string;
 	tmpDir: string;
 	userDataDir: string;
-
 	partsSplash?: IPartsSplash;
-
 	workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
-
 	isInitialStartup?: boolean;
 	logLevel: LogLevel;
 	loggers: UriDto<ILoggerResource>[];
-
 	fullscreen?: boolean;
 	maximized?: boolean;
 	accessibilitySupport?: boolean;
@@ -458,14 +418,10 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	autoDetectHighContrast?: boolean;
 	autoDetectColorScheme?: boolean;
 	isCustomZoomLevel?: boolean;
-
 	perfMarks: PerformanceMark[];
-
 	filesToWait?: IPathsToWaitFor;
-
 	os: IOSConfiguration;
 	policiesData?: IStringDictionary<{ definition: PolicyDefinition; value: PolicyValue }>;
-
 	isSessionsWindow?: boolean;
 }
 
