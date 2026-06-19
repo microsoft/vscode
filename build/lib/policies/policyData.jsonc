@@ -129,6 +129,21 @@
             "included": true
         },
         {
+            "key": "chat.agentHost.enabled",
+            "name": "ChatAgentHostEnabled",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.126",
+            "localization": {
+                "description": {
+                    "key": "chat.agentHost.enabled",
+                    "value": "When enabled, some agents run in a separate agent host process."
+                }
+            },
+            "type": "boolean",
+            "default": true,
+            "included": true
+        },
+        {
             "key": "chat.agentHost.codexAgent.enabled",
             "name": "Codex3PIntegration",
             "category": "InteractiveSession",
@@ -238,21 +253,6 @@
             "included": true
         },
         {
-            "key": "chat.agentHost.enabled",
-            "name": "ChatAgentHostEnabled",
-            "category": "InteractiveSession",
-            "minimumVersion": "1.126",
-            "localization": {
-                "description": {
-                    "key": "chat.agentHost.enabled",
-                    "value": "When enabled, some agents run in a separate agent host process."
-                }
-            },
-            "type": "boolean",
-            "default": true,
-            "included": true
-        },
-        {
             "key": "chat.plugins.enabled",
             "name": "ChatPluginsEnabled",
             "category": "InteractiveSession",
@@ -290,11 +290,14 @@
             "localization": {
                 "description": {
                     "key": "chat.plugins.strictMarketplaces.policy",
-                    "value": "Only trust marketplaces supplied via enterprise policy; plugins from any other marketplace will not load."
+                    "value": "Allowlist of plugin marketplace sources. When set, only marketplaces matching an entry are trusted; an empty array blocks all marketplaces."
                 }
             },
-            "type": "boolean",
-            "default": false,
+            "type": [
+                "array",
+                "null"
+            ],
+            "default": null,
             "included": true
         },
         {
