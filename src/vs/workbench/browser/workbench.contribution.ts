@@ -1033,3 +1033,26 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 			return result;
 		}
 	}]);
+
+// Migrate the previous standalone experiments (`workbench.experimental.floatingPanels`
+// and `workbench.experimental.styleOverrides`) onto the consolidated
+// `workbench.experimental.modernUI` toggle. Either of the old settings being on
+// enables the unified Modern UI Update experiment.
+Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: 'workbench.experimental.floatingPanels', migrateFn: (value: unknown) => {
+			const result: ConfigurationKeyValuePairs = [['workbench.experimental.floatingPanels', { value: undefined }]];
+			if (value === true) {
+				result.push([LayoutSettings.MODERN_UI, { value: true }]);
+			}
+			return result;
+		}
+	}, {
+		key: 'workbench.experimental.styleOverrides', migrateFn: (value: unknown) => {
+			const result: ConfigurationKeyValuePairs = [['workbench.experimental.styleOverrides', { value: undefined }]];
+			if (Array.isArray(value) && value.length > 0) {
+				result.push([LayoutSettings.MODERN_UI, { value: true }]);
+			}
+			return result;
+		}
+	}]);
