@@ -27,6 +27,7 @@ import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } 
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService, type ChatSendResult, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService, isIChatSessionFileChange2 } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { ChatConfiguration } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
@@ -407,13 +408,25 @@ suite('LocalAgentHostSessionsProvider', () => {
 		// the same agent (e.g. `copilotcli`) shares one session type across
 		// local and remote hosts and the standalone Copilot CLI provider.
 		assert.strictEqual(provider.sessionTypes[0].id, 'copilotcli');
-		assert.strictEqual(provider.sessionTypes[0].label, 'Copilot');
+		assert.strictEqual(provider.sessionTypes[0].label, 'Copilot CLI [Agent Host]');
+	});
+
+	test('simplifies Copilot session type label when editor local agent is disabled', () => {
+		const provider = createProvider(disposables, agentHost, undefined, {
+			configurationService: new TestConfigurationService({
+				[ChatConfiguration.EditorLocalAgentEnabled]: false,
+			}),
+		});
+
+		assert.deepStrictEqual(provider.sessionTypes.map(t => ({ id: t.id, label: t.label })), [
+			{ id: 'copilotcli', label: 'Copilot' },
+		]);
 	});
 
 	test('session types update when the local host advertises additional agents', () => {
 		const provider = createProvider(disposables, agentHost);
 		assert.deepStrictEqual(provider.sessionTypes.map(t => ({ id: t.id, label: t.label })), [
-			{ id: 'copilotcli', label: 'Copilot' },
+			{ id: 'copilotcli', label: 'Copilot CLI [Agent Host]' },
 		]);
 
 		let changes = 0;
@@ -427,7 +440,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(changes, 1);
 		// The logical sessionType id is the agent provider name itself.
 		assert.deepStrictEqual(provider.sessionTypes.map(t => ({ id: t.id, label: t.label })), [
-			{ id: 'copilotcli', label: 'Copilot' },
+			{ id: 'copilotcli', label: 'Copilot CLI [Agent Host]' },
 			{ id: 'openai', label: 'OpenAI' },
 		]);
 	});
