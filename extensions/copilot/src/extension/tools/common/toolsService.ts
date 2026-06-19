@@ -131,10 +131,26 @@ function getObjectPropertyByPath(obj: any, jsonPointerPath: string): { parent: a
 }
 
 /**
+ * Property names that must never be used as path segments when reconstructing
+ * objects from untrusted tool input, to avoid prototype pollution.
+ */
+const UNSAFE_PROPERTY_NAMES = new Set(['__proto__', 'constructor', 'prototype']);
+
+/**
+ * Upper bound for array indices accepted when reconstructing flattened tool
+ * input. Caps the reconstructed array length to avoid huge sparse arrays from
+ * untrusted input (e.g. `items[999999999999]`) that would make subsequent Ajv
+ * validation pathologically slow.
+ */
+const MAX_FLATTENED_ARRAY_INDEX = 1000;
+
+/**
  * Parses a flattened path key (e.g. `questions[0].options[1].label`) into an
  * ordered list of segments (`['questions', 0, 'options', 1, 'label']`). Object
  * properties are returned as strings and array indices as numbers. Returns
- * `undefined` if the key is not a well-formed, contiguous path expression.
+ * `undefined` if the key is not a well-formed, contiguous path expression, if
+ * it contains an unsafe property name (e.g. `__proto__`), or if an array index
+ * exceeds {@link MAX_FLATTENED_ARRAY_INDEX}.
  */
 function parseFlattenedPath(key: string): (string | number)[] | undefined {
 	const segments: (string | number)[] = [];
@@ -147,8 +163,17 @@ function parseFlattenedPath(key: string): (string | number)[] | undefined {
 			return undefined;
 		}
 		if (match[2] !== undefined) {
-			segments.push(Number(match[2]));
+			const index = Number(match[2]);
+			// Reject out-of-range indices to avoid huge sparse arrays.
+			if (!Number.isSafeInteger(index) || index > MAX_FLATTENED_ARRAY_INDEX) {
+				return undefined;
+			}
+			segments.push(index);
 		} else {
+			// Reject prototype-pollution keys from untrusted tool input.
+			if (UNSAFE_PROPERTY_NAMES.has(match[1])) {
+				return undefined;
+			}
 			segments.push(match[1]);
 		}
 		lastIndex = re.lastIndex;
@@ -164,7 +189,8 @@ function parseFlattenedPath(key: string): (string | number)[] | undefined {
  * flattened path expressions. Some models (notably Gemini) serialize nested
  * tool-call arguments as flat keys like `questions[0].header` instead of a
  * proper nested object. Returns `undefined` when none of the keys use path
- * notation (so normal inputs are left untouched) or when a key is malformed.
+ * notation (so normal inputs are left untouched), when a key is malformed, or
+ * when keys conflict (e.g. both `a` and `a.b`).
  */
 function tryUnflattenObject(obj: Record<string, unknown>): Record<string, unknown> | undefined {
 	const keys = Object.keys(obj);
@@ -172,7 +198,8 @@ function tryUnflattenObject(obj: Record<string, unknown>): Record<string, unknow
 		return undefined;
 	}
 
-	const result: Record<string, unknown> = {};
+	// Use null-prototype containers so untrusted keys cannot reach Object.prototype.
+	const result: Record<string, unknown> = Object.create(null);
 	for (const key of keys) {
 		const path = parseFlattenedPath(key);
 		if (!path) {
@@ -183,12 +210,24 @@ function tryUnflattenObject(obj: Record<string, unknown>): Record<string, unknow
 		for (let i = 0; i < path.length - 1; i++) {
 			const segment = path[i];
 			const nextSegment = path[i + 1];
-			if (current[segment] === undefined) {
-				current[segment] = typeof nextSegment === 'number' ? [] : {};
+			const child = current[segment];
+			if (child === undefined) {
+				current[segment] = typeof nextSegment === 'number' ? [] : Object.create(null);
+			} else if (typeof child !== 'object' || child === null) {
+				// Conflicting keys (e.g. both `a` and `a.b`) would require
+				// overwriting a primitive with a container; bail out instead.
+				return undefined;
 			}
 			current = current[segment];
 		}
-		current[path[path.length - 1]] = obj[key];
+
+		const leaf = path[path.length - 1];
+		if (typeof current[leaf] === 'object' && current[leaf] !== null) {
+			// A container already exists at this leaf (e.g. both `a` and `a.b`
+			// where `a` is assigned last); refuse to clobber it.
+			return undefined;
+		}
+		current[leaf] = obj[key];
 	}
 
 	return result;

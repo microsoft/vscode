@@ -314,5 +314,99 @@ describe('Tool Service', () => {
 				}
 			});
 		});
+
+		test('should not pollute prototype when reconstructing flattened keys', () => {
+			const pollutionTool: vscode.LanguageModelToolInformation = {
+				name: 'pollutionTool',
+				description: 'A tool whose flattened input contains unsafe property names',
+				inputSchema: {
+					type: 'object',
+					properties: {
+						data: {
+							type: 'object',
+							properties: { value: { type: 'string' } }
+						}
+					},
+					required: ['data']
+				},
+				tags: [],
+				source: undefined
+			};
+
+			(toolsService.tools as vscode.LanguageModelToolInformation[]).push(pollutionTool);
+
+			const malicious = JSON.stringify({
+				'__proto__.polluted': 'yes',
+				'data.value': 'ok'
+			});
+
+			const result = toolsService.validateToolInput('pollutionTool', malicious);
+
+			// The unsafe key makes reconstruction bail out, so validation fails
+			// rather than mutating Object.prototype.
+			expect(result).toMatchObject({
+				error: expect.stringContaining('ERROR: Your input to the tool was invalid')
+			});
+			expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+		});
+
+		test('should bail out on conflicting flattened keys', () => {
+			const conflictTool: vscode.LanguageModelToolInformation = {
+				name: 'conflictTool',
+				description: 'A tool whose flattened input has conflicting paths',
+				inputSchema: {
+					type: 'object',
+					properties: {
+						a: { type: 'object' }
+					},
+					required: ['a']
+				},
+				tags: [],
+				source: undefined
+			};
+
+			(toolsService.tools as vscode.LanguageModelToolInformation[]).push(conflictTool);
+
+			// `a` is both a primitive and a parent of `a.b` — unresolvable.
+			const conflicting = JSON.stringify({
+				'a': 'primitive',
+				'a.b': 'nested'
+			});
+
+			const result = toolsService.validateToolInput('conflictTool', conflicting);
+			expect(result).toMatchObject({
+				error: expect.stringContaining('ERROR: Your input to the tool was invalid')
+			});
+		});
+
+		test('should reject out-of-range array indices in flattened keys', () => {
+			const indexTool: vscode.LanguageModelToolInformation = {
+				name: 'indexTool',
+				description: 'A tool whose flattened input has an enormous array index',
+				inputSchema: {
+					type: 'object',
+					properties: {
+						items: {
+							type: 'array',
+							items: { type: 'string' }
+						}
+					},
+					required: ['items']
+				},
+				tags: [],
+				source: undefined
+			};
+
+			(toolsService.tools as vscode.LanguageModelToolInformation[]).push(indexTool);
+
+			// A huge index would create a massive sparse array; reconstruction
+			// must bail rather than produce one.
+			const huge = JSON.stringify({ 'items[999999999999]': 'value' });
+
+			const result = toolsService.validateToolInput('indexTool', huge);
+			expect(result).toMatchObject({
+				error: expect.stringContaining('ERROR: Your input to the tool was invalid')
+			});
+		});
 	});
 });
