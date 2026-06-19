@@ -1486,7 +1486,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	protected abstract resourceSchemeForProvider(provider: string): string;
 
 	/** Format the human-readable label for a session type entry (e.g. `Copilot CLI`). */
-	protected abstract _formatSessionTypeLabel(agentLabel: string): string;
+	protected abstract _formatSessionTypeLabel(agentLabel: string, provider: string): string;
 
 	/**
 	 * Whether `provider` should be advertised as a session type by this host.
@@ -1519,7 +1519,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				// agent are registered under its resource scheme (`agent-host-<provider>`),
 				// not the bare provider id, so carry it for availability lookups.
 				chatSessionType: this.resourceSchemeForProvider(agent.provider),
-				label: this._formatSessionTypeLabel(agent.displayName?.trim() || agent.provider),
+				label: this._formatSessionTypeLabel(agent.displayName?.trim() || agent.provider, agent.provider),
 				icon: this.iconForAgentProvider(agent.provider) ?? this.icon,
 			}));
 

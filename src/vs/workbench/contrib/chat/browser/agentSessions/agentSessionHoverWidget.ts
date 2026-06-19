@@ -14,6 +14,7 @@ import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.j
 import { autorun } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
@@ -46,6 +47,7 @@ export class AgentSessionHoverWidget extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -183,7 +185,7 @@ export class AgentSessionHoverWidget extends Disposable {
 		const provider = providerType ?? AgentSessionProviders.Local;
 		const providerIcon = getAgentSessionProviderIcon(provider);
 		dom.append(detailsRow, renderIcon(providerIcon));
-		dom.append(detailsRow, dom.$('span', undefined, getAgentSessionProviderName(provider)));
+		dom.append(detailsRow, dom.$('span', undefined, getAgentSessionProviderName(provider, this.configurationService)));
 		dom.append(detailsRow, dom.$('span.separator', undefined, '•'));
 
 		if (session.timing.lastRequestEnded && session.timing.lastRequestStarted) {
@@ -274,7 +276,7 @@ export class AgentSessionHoverWidget extends Disposable {
 		const providerType = getAgentSessionProvider(session.providerType);
 		const provider = providerType ?? AgentSessionProviders.Local;
 		const providerIcon = getAgentSessionProviderIcon(provider);
-		const providerName = getAgentSessionProviderName(provider);
+		const providerName = getAgentSessionProviderName(provider, this.configurationService);
 		let timeLabel: string;
 		if (session.timing.lastRequestEnded && session.timing.lastRequestStarted) {
 			const duration = this.toDuration(session.timing.lastRequestStarted, session.timing.lastRequestEnded, true);

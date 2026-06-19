@@ -8,6 +8,7 @@ import { Disposable, DisposableStore } from '../../../../../base/common/lifecycl
 import { equals } from '../../../../../base/common/objects.js';
 import { localize } from '../../../../../nls.js';
 import { registerAction2, Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
@@ -80,6 +81,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	constructor(
 		private readonly options: IAgentSessionsFilterOptions,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
@@ -215,7 +217,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 				return labelOverrides.get(id)!;
 			}
 			const knownProvider = getAgentSessionProvider(id);
-			return knownProvider ? getAgentSessionProviderName(knownProvider) : id;
+			return knownProvider ? getAgentSessionProviderName(knownProvider, this.configurationService) : id;
 		};
 
 		let providers: { id: string; label: string }[];

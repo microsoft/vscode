@@ -244,7 +244,7 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 		const providerName = getAgentSessionProviderName(provider);
 		// For dynamically-registered agent host providers, getAgentSessionProviderName
 		// falls back to the raw session type; prefer the contribution's display name.
-		const label = providerName === provider ? (contrib.displayName ?? providerName) : providerName;
+		const label = provider === AgentSessionProviders.AgentHostCopilot || providerName === provider ? (contrib.displayName ?? providerName) : providerName;
 		return {
 			id: contrib.type,
 			enabled,

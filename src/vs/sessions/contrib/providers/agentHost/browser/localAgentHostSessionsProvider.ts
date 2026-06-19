@@ -20,6 +20,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
+import { AgentSessionProviders, getAgentSessionProviderName } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -197,7 +198,11 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		};
 	}
 
-	protected _formatSessionTypeLabel(agentLabel: string): string {
+	protected _formatSessionTypeLabel(agentLabel: string, provider: string): string {
+		if (provider === 'copilotcli') {
+			return getAgentSessionProviderName(AgentSessionProviders.AgentHostCopilot, this._configurationService);
+		}
+
 		// Use the unadorned agent label (e.g. "Copilot") rather than tagging it
 		// with `[Agent Host]`. The session type id is shared with the extension-host
 		// Copilot CLI provider, so the filter menu / new-session picker entry

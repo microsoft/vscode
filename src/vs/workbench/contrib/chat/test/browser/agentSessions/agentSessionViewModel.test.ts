@@ -19,10 +19,12 @@ import { TestLifecycleService, workbenchInstantiationService } from '../../../..
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { MenuId } from '../../../../../../platform/actions/common/actions.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { AgentSessionProviders, getAgentCanContinueIn, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../../browser/agentSessions/agentSessions.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 
 class StaticChatSessionItemController implements IChatSessionItemController {
 	readonly onDidChangeChatSessionItems = Event.None;
@@ -2172,6 +2174,20 @@ suite('AgentSessions', () => {
 		test('should return correct icon for AgentHostCopilot provider', () => {
 			const icon = getAgentSessionProviderIcon(AgentSessionProviders.AgentHostCopilot);
 			assert.strictEqual(icon.id, Codicon.copilot.id);
+		});
+
+		test('should return simplified AgentHostCopilot name when editor local agent is disabled', () => {
+			const configurationService = new TestConfigurationService({
+				[ChatConfiguration.EditorLocalAgentEnabled]: false,
+			});
+
+			assert.deepStrictEqual({
+				defaultName: getAgentSessionProviderName(AgentSessionProviders.AgentHostCopilot),
+				simplifiedName: getAgentSessionProviderName(AgentSessionProviders.AgentHostCopilot, configurationService),
+			}, {
+				defaultName: 'Copilot CLI [Agent Host]',
+				simplifiedName: 'Copilot',
+			});
 		});
 
 		test('should return correct name for Growth provider', () => {
