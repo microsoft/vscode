@@ -230,5 +230,89 @@ describe('Tool Service', () => {
 				error: expect.stringContaining('ERROR: Your input to the tool was invalid')
 			});
 		});
+
+		test('should reconstruct flattened path keys', () => {
+			const askQuestionsTool: vscode.LanguageModelToolInformation = {
+				name: 'askQuestionsTool',
+				description: 'A tool that expects an array of nested question objects',
+				inputSchema: {
+					type: 'object',
+					properties: {
+						questions: {
+							type: 'array',
+							items: {
+								type: 'object',
+								properties: {
+									header: { type: 'string' },
+									question: { type: 'string' },
+									allowFreeformInput: { type: 'boolean' },
+									options: {
+										type: 'array',
+										items: {
+											type: 'object',
+											properties: {
+												label: { type: 'string' },
+												description: { type: 'string' },
+												recommended: { type: 'boolean' }
+											},
+											required: ['label']
+										}
+									}
+								},
+								required: ['header', 'question']
+							}
+						}
+					},
+					required: ['questions']
+				},
+				tags: [],
+				source: undefined
+			};
+
+			(toolsService.tools as vscode.LanguageModelToolInformation[]).push(askQuestionsTool);
+
+			// Gemini-style flattened path keys instead of a nested object/array.
+			const flattenedInput = JSON.stringify({
+				'questions[0].allowFreeformInput': true,
+				'questions[0].header': 'repro_question_1',
+				'questions[0].options[0].description': 'First option description',
+				'questions[0].options[0].label': 'Option A',
+				'questions[0].options[0].recommended': true,
+				'questions[0].options[1].description': 'Second option description',
+				'questions[0].options[1].label': 'Option B',
+				'questions[0].question': 'Which option do you prefer?',
+				'questions[1].allowFreeformInput': false,
+				'questions[1].header': 'repro_question_2',
+				'questions[1].options[0].label': 'Yes',
+				'questions[1].options[1].label': 'No',
+				'questions[1].question': 'Do you want to continue?'
+			});
+
+			const result = toolsService.validateToolInput('askQuestionsTool', flattenedInput);
+			expect(result).toEqual({
+				inputObj: {
+					questions: [
+						{
+							allowFreeformInput: true,
+							header: 'repro_question_1',
+							question: 'Which option do you prefer?',
+							options: [
+								{ description: 'First option description', label: 'Option A', recommended: true },
+								{ description: 'Second option description', label: 'Option B' }
+							]
+						},
+						{
+							allowFreeformInput: false,
+							header: 'repro_question_2',
+							question: 'Do you want to continue?',
+							options: [
+								{ label: 'Yes' },
+								{ label: 'No' }
+							]
+						}
+					]
+				}
+			});
+		});
 	});
 });

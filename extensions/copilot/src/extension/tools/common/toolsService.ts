@@ -130,6 +130,70 @@ function getObjectPropertyByPath(obj: any, jsonPointerPath: string): { parent: a
 	return null;
 }
 
+/**
+ * Parses a flattened path key (e.g. `questions[0].options[1].label`) into an
+ * ordered list of segments (`['questions', 0, 'options', 1, 'label']`). Object
+ * properties are returned as strings and array indices as numbers. Returns
+ * `undefined` if the key is not a well-formed, contiguous path expression.
+ */
+function parseFlattenedPath(key: string): (string | number)[] | undefined {
+	const segments: (string | number)[] = [];
+	const re = /\.?([^.[\]]+)|\[(\d+)\]/g;
+	let lastIndex = 0;
+	let match: RegExpExecArray | null;
+	while ((match = re.exec(key)) !== null) {
+		// Bail if there is an unexpected character between tokens (e.g. `a..b`).
+		if (match.index !== lastIndex) {
+			return undefined;
+		}
+		if (match[2] !== undefined) {
+			segments.push(Number(match[2]));
+		} else {
+			segments.push(match[1]);
+		}
+		lastIndex = re.lastIndex;
+	}
+	if (lastIndex !== key.length || segments.length === 0) {
+		return undefined;
+	}
+	return segments;
+}
+
+/**
+ * Reconstructs a nested object/array structure from an object whose keys are
+ * flattened path expressions. Some models (notably Gemini) serialize nested
+ * tool-call arguments as flat keys like `questions[0].header` instead of a
+ * proper nested object. Returns `undefined` when none of the keys use path
+ * notation (so normal inputs are left untouched) or when a key is malformed.
+ */
+function tryUnflattenObject(obj: Record<string, unknown>): Record<string, unknown> | undefined {
+	const keys = Object.keys(obj);
+	if (!keys.some(key => /\.|\[\d+\]/.test(key))) {
+		return undefined;
+	}
+
+	const result: Record<string, unknown> = {};
+	for (const key of keys) {
+		const path = parseFlattenedPath(key);
+		if (!path) {
+			return undefined;
+		}
+
+		let current: any = result;
+		for (let i = 0; i < path.length - 1; i++) {
+			const segment = path[i];
+			const nextSegment = path[i + 1];
+			if (current[segment] === undefined) {
+				current[segment] = typeof nextSegment === 'number' ? [] : {};
+			}
+			current = current[segment];
+		}
+		current[path[path.length - 1]] = obj[key];
+	}
+
+	return result;
+}
+
 function ajvValidateForTool(toolName: string, fn: ValidateFunction, inputObj: unknown): IToolValidationResult {
 	// Empty output can be valid when the schema only has optional properties
 	if (fn(inputObj ?? {})) {
@@ -165,6 +229,16 @@ function ajvValidateForTool(toolName: string, fn: ValidateFunction, inputObj: un
 
 		if (hasNestedJsonStrings) {
 			return ajvValidateForTool(toolName, fn, inputObj);
+		}
+	}
+
+	// Recovery: some models (notably Gemini) serialize nested arguments as
+	// flattened path keys like `questions[0].header` instead of nested
+	// objects/arrays. Reconstruct the nested structure and re-validate.
+	if (typeof inputObj === 'object' && inputObj !== null && !Array.isArray(inputObj)) {
+		const unflattened = tryUnflattenObject(inputObj as Record<string, unknown>);
+		if (unflattened) {
+			return ajvValidateForTool(toolName, fn, unflattened);
 		}
 	}
 
