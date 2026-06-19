@@ -200,6 +200,11 @@ resources:
       name: microsoft/vsda
       endpoint: Monaco
       ref: main
+    - repository: vscode_loc
+      type: github
+      name: microsoft/vscode-extensions-loc
+      endpoint: Monaco
+      ref: main
 
 extends:
   template: v1/1ES.Official.PipelineTemplate.yml@1esPipelines
@@ -211,6 +216,7 @@ extends:
           - repository: capi
           - repository: encrypt
           - repository: vsda
+          - repository: vscode_loc
       tsa:
         enabled: true
         configFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/tsaoptions.json
