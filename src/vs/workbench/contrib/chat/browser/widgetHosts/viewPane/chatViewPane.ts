@@ -138,7 +138,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@IMicCaptureService private readonly micCaptureService: IMicCaptureService,
 		@ITtsPlaybackService private readonly ttsPlaybackService: ITtsPlaybackService,
 		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
-		@IAgentsVoiceWindowService _agentsVoiceWindowService: IAgentsVoiceWindowService,
+		@IAgentsVoiceWindowService private readonly agentsVoiceWindowService: IAgentsVoiceWindowService,
 		@IAgentTitleBarStatusService _agentTitleBarStatusService: IAgentTitleBarStatusService,
 		@IVoicePlaybackService _voicePlaybackService: IVoicePlaybackService,
 		@IWorkbenchEnvironmentService _workbenchEnvironmentService: IWorkbenchEnvironmentService,
@@ -499,6 +499,15 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const visible = turns.filter(t => t.text.length > 0 || (t.speaker === 'user' && t.isPartial));
 
 			if (!connected) {
+				transcriptOverlay.style.display = 'none';
+				return;
+			}
+
+			// If aux window is open and voice is targeting a different session,
+			// don't show transcript in the chat input — it's shown in aux window instead.
+			const targetSession = this.voiceSessionController.targetSession.read(reader);
+			const currentSession = this._widget?.viewModel?.sessionResource;
+			if (this.agentsVoiceWindowService.isOpen && targetSession && currentSession && targetSession.toString() !== currentSession.toString()) {
 				transcriptOverlay.style.display = 'none';
 				return;
 			}
