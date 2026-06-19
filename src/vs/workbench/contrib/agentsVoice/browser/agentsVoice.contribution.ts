@@ -161,8 +161,8 @@ CommandsRegistry.registerCommand('_agentsVoice.openWindow', async (accessor) => 
 });
 
 // --- Mic button in Chat toolbar ---
-// First click: connect. Subsequent clicks/holds: push-to-talk.
-// Disconnect is available via command palette or aux window.
+// When disconnected: shows mic icon, click to connect.
+// When connected: shows mic-filled icon, click to toggle PTT.
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -176,6 +176,7 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+					AGENTS_VOICE_CONNECTED.negate(),
 				),
 				group: 'navigation',
 				order: 4
@@ -185,16 +186,42 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const voiceController = accessor.get(IVoiceSessionController);
 		const agentsVoiceWindowService = accessor.get(IAgentsVoiceWindowService);
-		if (!voiceController.isConnected.get()) {
-			// First click: connect (greeting plays automatically) + open aux window
-			await voiceController.connect(mainWindow);
-			if (!agentsVoiceWindowService.isOpen) {
-				await agentsVoiceWindowService.openWindow();
-			}
-		} else {
-			// Already connected: act as PTT (tap-to-toggle recording)
-			voiceController.pttDown();
+		await voiceController.connect(mainWindow);
+		if (!agentsVoiceWindowService.isOpen) {
+			await agentsVoiceWindowService.openWindow();
 		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'agentsVoice.pttInChat',
+			title: nls.localize2('agentsVoice.pttInChat', "Voice Mode: Push to Talk"),
+			icon: Codicon.micFilled,
+			precondition: ContextKeyExpr.and(
+				ContextKeyExpr.equals('config.agents.voice.enabled', true),
+				AGENTS_VOICE_CONNECTED.isEqualTo(true),
+			),
+			menu: {
+				id: MenuId.ChatExecute,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+					AGENTS_VOICE_CONNECTED.isEqualTo(true),
+				),
+				group: 'navigation',
+				order: 4
+			}
+		});
+	}
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const voiceController = accessor.get(IVoiceSessionController);
+		// Simulate a tap (pttDown + pttUp).
+		// A short tap enters toggle mode (recording continues until next tap).
+		// If already in toggle mode, pttDown finishes recording and sends.
+		voiceController.pttDown();
+		voiceController.pttUp();
 	}
 });
 
