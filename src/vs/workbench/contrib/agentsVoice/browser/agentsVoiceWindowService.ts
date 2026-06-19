@@ -7,6 +7,7 @@ import { Disposable, DisposableStore, MutableDisposable } from '../../../../base
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { disposableWindowInterval } from '../../../../base/browser/dom.js';
+import { getZoomFactor } from '../../../../base/browser/browser.js';
 import { FileAccess } from '../../../../base/common/network.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -28,6 +29,7 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
+import { inputBackground, inputBorder } from '../../../../platform/theme/common/colors/inputColors.js';
 import { AgentsVoiceWidget } from './agentsVoiceWidget.js';
 import { bindWidgetToController } from './agentsVoiceWidgetBinding.js';
 import { AgentsVoiceSessionsPicker } from './agentsVoiceSessionsPicker.js';
@@ -125,10 +127,11 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 			bounds,
 			alwaysOnTop,
 			frameless: true,
-			transparent: true,
+			transparent: false,
 			disableFullscreen: true,
 			nativeTitlebar: false,
 			noBackgroundThrottling: true,
+			backgroundColor: this.themeService.getColorTheme().getColor(editorBackground)?.toString() ?? '#1e1e1e',
 		});
 
 		this._window = auxiliaryWindow;
@@ -139,21 +142,19 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		auxiliaryWindow.window.document.title = projectName ? `Agents Voice — ${projectName}` : 'Agents Voice';
 
 		auxiliaryWindow.container.style.overflow = 'hidden';
-		auxiliaryWindow.container.style.display = 'flex';
-		auxiliaryWindow.container.style.flexDirection = 'column';
-		auxiliaryWindow.container.style.justifyContent = 'flex-end';
-		auxiliaryWindow.container.style.paddingBottom = '50px';
 		auxiliaryWindow.window.document.body.style.setProperty('margin', '0', 'important');
 
 		// Resolve theme colors so the aux window matches the chat input box
 		const theme = this.themeService.getColorTheme();
 		const bgColor = theme.getColor(editorBackground)?.toString() ?? '#1e1e1e';
+		const inputBg = theme.getColor(inputBackground)?.toString() ?? '#3C3C3C';
+		const inputBd = theme.getColor(inputBorder)?.toString() ?? 'transparent';
 
 		auxiliaryWindow.container.style.setProperty('--vscode-agents-background', bgColor);
-		auxiliaryWindow.container.style.backgroundColor = 'transparent';
-		auxiliaryWindow.container.style.border = 'none';
+		auxiliaryWindow.container.style.backgroundColor = inputBg;
+		auxiliaryWindow.container.style.border = `1px solid ${inputBd}`;
 		auxiliaryWindow.container.style.boxSizing = 'border-box';
-		auxiliaryWindow.window.document.body.style.setProperty('background-color', 'transparent', 'important');
+		auxiliaryWindow.window.document.body.style.setProperty('background-color', inputBg, 'important');
 
 		this._windowDisposables.clear();
 
@@ -312,10 +313,25 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 
 	// --- Window sizing ---
 
-	private _resizeWindow(_auxiliaryWindow: IAuxiliaryWindow): void {
-		// No-op: window uses a fixed size with the widget positioned at the
-		// bottom via CSS flexbox. Content height changes (e.g. expand/collapse
-		// sessions) are handled within the window without moving/resizing it.
+	private _resizeWindow(auxiliaryWindow: IAuxiliaryWindow): void {
+		// eslint-disable-next-line no-restricted-syntax
+		const pill = auxiliaryWindow.container.querySelector('div') as HTMLElement | null;
+		if (!pill) { return; }
+		void pill.offsetWidth;
+		const pillWidth = pill.offsetWidth;
+		const pillHeight = pill.offsetHeight;
+		if (pillWidth <= 0 || pillHeight <= 0) { return; }
+		const zoomFactor = getZoomFactor(auxiliaryWindow.window);
+		const targetWidth = Math.ceil(pillWidth * zoomFactor);
+		const targetHeight = Math.ceil(pillHeight * zoomFactor);
+		const currentWidth = auxiliaryWindow.window.outerWidth;
+		const currentHeight = auxiliaryWindow.window.outerHeight;
+		if (targetWidth !== currentWidth || targetHeight !== currentHeight) {
+			try {
+				// Only resize — don't move. The window stays wherever the user placed it.
+				auxiliaryWindow.window.resizeTo(targetWidth, targetHeight);
+			} catch { /* resize may not be supported */ }
+		}
 	}
 
 	// --- Bounds persistence ---
@@ -331,8 +347,8 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		// Title bar height = difference between outer and inner
 		const titleBarHeight = outerHeight - innerHeight;
 		const clientTop = winY + titleBarHeight;
-		// Place the aux window so its bottom is 50px above the bottom of the client area
-		const y = clientTop + innerHeight - AGENTS_VOICE_WINDOW_DEFAULT_HEIGHT - 50;
+		// Place the aux window 40px above the bottom of the client area
+		const y = clientTop + innerHeight - AGENTS_VOICE_WINDOW_DEFAULT_HEIGHT - 40;
 		return {
 			x: Math.round(winX + (winWidth - AGENTS_VOICE_WINDOW_DEFAULT_WIDTH) / 2),
 			y,
