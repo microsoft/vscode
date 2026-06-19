@@ -664,11 +664,12 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	async getAllSessions(token: CancellationToken, options?: IListCopilotCLISessionsOptions): Promise<readonly ICopilotCLISessionItem[]> {
 		const key = `${options?.metadataLimit ?? 'all'}:${options?.resolveLabels ?? true}`;
 		if (!this._getAllSessionsProgress.has(key)) {
-			this._getAllSessionsProgress.set(key, this._getAllSessions(token, options));
+			this._getAllSessionsProgress.set(key, this._getAllSessions(CancellationToken.None, options));
 		}
-		return this._getAllSessionsProgress.get(key)!.finally(() => {
+		const promise = this._getAllSessionsProgress.get(key)!.finally(() => {
 			this._getAllSessionsProgress.delete(key);
 		});
+		return raceCancellationError(promise, token);
 	}
 
 	private _sessionLabels: Map<string, string> = new Map();
@@ -731,7 +732,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 					const id = metadata.sessionId;
 					const startTime = metadata.startTime.getTime();
 					const endTime = metadata.modifiedTime.getTime();
-					const label = resolveLabels ? await this.getSessionTitleImpl(metadata.sessionId, metadata, token) : 'Copilot CLI Session';
+					const label = resolveLabels ? await this.getSessionTitleImpl(metadata.sessionId, metadata, token) : l10n.t('Copilot CLI Session');
 					if (!label) {
 						return;
 					}
