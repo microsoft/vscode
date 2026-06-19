@@ -520,7 +520,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 						transcriptOverlay.removeChild(transcriptOverlay.lastChild!);
 					}
 					const hint = $('span.partial');
-					hint.textContent = localize('voiceMode.listeningHint', "Listening...");
+					const kb = this.keybindingService.lookupKeybinding('agentsVoice.pushToTalk');
+					const kbLabel = kb?.getLabel();
+					hint.textContent = kbLabel
+						? localize('voiceMode.pttHint', "Press {0} to talk", kbLabel)
+						: localize('voiceMode.clickMicHint', "Click mic to talk");
 					transcriptOverlay.append(hint);
 				} else {
 					transcriptOverlay.style.display = 'none';
