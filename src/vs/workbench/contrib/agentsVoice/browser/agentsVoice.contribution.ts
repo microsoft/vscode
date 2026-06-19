@@ -22,7 +22,7 @@ import './transcriptsView/voiceTranscripts.contribution.js';
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
-import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import * as nls from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
@@ -226,7 +226,15 @@ registerAction2(class extends Action2 {
 				),
 				group: 'navigation',
 				order: 4
-			}
+			},
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					ChatContextKeys.inChatInput,
+				),
+			},
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
@@ -259,7 +267,16 @@ registerAction2(class extends Action2 {
 				),
 				group: 'navigation',
 				order: 4
-			}
+			},
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					ChatContextKeys.inChatInput,
+					AGENTS_VOICE_LISTENING.isEqualTo(true),
+				),
+			},
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {

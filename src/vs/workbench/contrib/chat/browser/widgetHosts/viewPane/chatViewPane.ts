@@ -135,8 +135,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@ICommandService private readonly commandService: ICommandService,
 		@IActivityService private readonly activityService: IActivityService,
 		@IHostService private readonly hostService: IHostService,
-		@IMicCaptureService _micCaptureService: IMicCaptureService,
-		@ITtsPlaybackService _ttsPlaybackService: ITtsPlaybackService,
+		@IMicCaptureService private readonly micCaptureService: IMicCaptureService,
+		@ITtsPlaybackService private readonly ttsPlaybackService: ITtsPlaybackService,
 		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
 		@IAgentsVoiceWindowService _agentsVoiceWindowService: IAgentsVoiceWindowService,
 		@IAgentTitleBarStatusService _agentTitleBarStatusService: IAgentTitleBarStatusService,
@@ -417,14 +417,79 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const style = document.createElement('style');
 		style.textContent = `
 			@keyframes voiceTextPulse { 0%,100%{opacity:0.9} 50%{opacity:0.4} }
-			@keyframes voiceGlowPulse { 0%,100%{opacity:0.6} 50%{opacity:1} }
 			.voice-transcript-overlay .committed { color: var(--vscode-foreground); }
 			.voice-transcript-overlay .partial { color: var(--vscode-foreground); opacity:0.6; font-style:italic; animation: voiceTextPulse 1.5s ease-in-out infinite; }
 			.voice-transcript-overlay .assistant-text { color: var(--vscode-descriptionForeground); display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
-			.chat-input-container.voice-active { border-color: rgba(163,113,247,0.6) !important; box-shadow: 0 0 8px rgba(163,113,247,0.3), inset 0 0 4px rgba(163,113,247,0.1); }
-			.chat-input-container.voice-listening { border-color: rgba(88,166,255,0.7) !important; box-shadow: 0 0 10px rgba(88,166,255,0.35), inset 0 0 4px rgba(88,166,255,0.1); animation: voiceGlowPulse 1.4s ease-in-out infinite; }
 		`;
 		transcriptOverlay.append(style);
+
+		// Dynamic audio-reactive glow animation (matches aux window behavior)
+		let animFrameId: number | undefined;
+		const win = getWindow(inputContainerEl);
+		const startGlowAnimation = () => {
+			if (animFrameId !== undefined) { return; }
+			const animate = () => {
+				animFrameId = win.requestAnimationFrame(animate);
+				const connected = this.voiceSessionController.isConnected.get();
+				const voiceState = this.voiceSessionController.voiceState.get();
+				const glowActive = connected && (voiceState === 'listening' || voiceState === 'speaking');
+
+				if (!glowActive) {
+					inputContainerEl.style.borderColor = '';
+					inputContainerEl.style.boxShadow = '';
+					inputContainerEl.classList.remove('voice-active', 'voice-listening');
+					return;
+				}
+
+				// Get audio intensity from analyser
+				const analyser = this.ttsPlaybackService.analyserNode
+					?? (voiceState === 'listening' ? this.micCaptureService.analyserNode : null)
+					?? null;
+				let intensity: number;
+				if (!analyser) {
+					intensity = 0.3;
+				} else {
+					const dataArray = new Uint8Array(analyser.frequencyBinCount);
+					analyser.getByteFrequencyData(dataArray);
+					let sum = 0;
+					for (let i = 0; i < dataArray.length; i++) {
+						sum += dataArray[i];
+					}
+					intensity = Math.min(1, (sum / dataArray.length) / 80);
+				}
+
+				// Blue when listening, purple when speaking
+				const rgb = voiceState === 'speaking' ? '163,113,247' : '88,166,255';
+				const borderAlpha = 0.4 + intensity * 0.5;
+				const shadowSpread = 4 + intensity * 12;
+				const shadowAlpha = 0.15 + intensity * 0.35;
+				inputContainerEl.style.borderColor = `rgba(${rgb},${borderAlpha})`;
+				inputContainerEl.style.boxShadow = `0 0 ${shadowSpread}px rgba(${rgb},${shadowAlpha}), inset 0 0 ${shadowSpread * 0.4}px rgba(${rgb},${shadowAlpha * 0.3})`;
+				inputContainerEl.classList.add('voice-active');
+				inputContainerEl.classList.toggle('voice-listening', voiceState === 'listening');
+			};
+			animFrameId = win.requestAnimationFrame(animate);
+		};
+		const stopGlowAnimation = () => {
+			if (animFrameId !== undefined) {
+				win.cancelAnimationFrame(animFrameId);
+				animFrameId = undefined;
+			}
+			inputContainerEl.style.borderColor = '';
+			inputContainerEl.style.boxShadow = '';
+			inputContainerEl.classList.remove('voice-active', 'voice-listening');
+		};
+
+		this._register(autorun(reader => {
+			const connected = this.voiceSessionController.isConnected.read(reader);
+			const voiceState = this.voiceSessionController.voiceState.read(reader);
+			if (connected && (voiceState === 'listening' || voiceState === 'speaking')) {
+				startGlowAnimation();
+			} else {
+				stopGlowAnimation();
+			}
+		}));
+		this._register({ dispose: () => stopGlowAnimation() });
 
 		this._register(autorun(reader => {
 			const turns = this.voiceSessionController.transcriptTurns.read(reader);
@@ -432,11 +497,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const voiceState = this.voiceSessionController.voiceState.read(reader);
 			const showTranscript = this.configurationService.getValue<boolean>('agents.voice.showTranscript') !== false;
 			const visible = turns.filter(t => t.text.length > 0 || (t.speaker === 'user' && t.isPartial));
-
-			// Toggle glow classes on input container
-			const voiceActive = connected && (voiceState === 'listening' || voiceState === 'speaking');
-			inputContainerEl.classList.toggle('voice-active', voiceActive);
-			inputContainerEl.classList.toggle('voice-listening', connected && voiceState === 'listening');
 
 			if (!connected) {
 				transcriptOverlay.style.display = 'none';

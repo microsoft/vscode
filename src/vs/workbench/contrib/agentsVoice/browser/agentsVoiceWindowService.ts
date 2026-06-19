@@ -46,8 +46,6 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 	private _window: IAuxiliaryWindow | undefined;
 	private readonly _windowDisposables = this._register(new DisposableStore());
 	private readonly _ownershipChannel: BroadcastChannel;
-	private _anchorBottomEdge: number | undefined;
-	private _anchorCenterX: number | undefined;
 
 	get isOpen(): boolean {
 		return !!this._window;
@@ -138,10 +136,6 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 
 		this._window = auxiliaryWindow;
 		this._auxiliaryWindowRef.value = auxiliaryWindow;
-
-		// Store anchor points for bottom-edge-fixed resizing
-		this._anchorBottomEdge = bounds.y + bounds.height;
-		this._anchorCenterX = bounds.x + Math.round(bounds.width / 2);
 
 		const workspace = this.workspaceContextService.getWorkspace();
 		const projectName = workspace.folders.length > 0 ? workspace.folders[0].name : '';
@@ -351,9 +345,9 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		const newWidth = targetWidth !== currentWidth ? targetWidth : currentWidth;
 		const newHeight = targetHeight !== currentHeight ? targetHeight : currentHeight;
 		if (newWidth !== currentWidth || newHeight !== currentHeight) {
-			// Use stored anchors so the window never drifts
-			const bottomEdge = this._anchorBottomEdge ?? (auxiliaryWindow.window.screenY + currentHeight);
-			const centerX = this._anchorCenterX ?? (auxiliaryWindow.window.screenX + Math.round(currentWidth / 2));
+			// Anchor from the current window position (respects user-dragged position)
+			const bottomEdge = auxiliaryWindow.window.screenY + currentHeight;
+			const centerX = auxiliaryWindow.window.screenX + Math.round(currentWidth / 2);
 			try {
 				auxiliaryWindow.window.resizeTo(newWidth, newHeight);
 				const newY = bottomEdge - newHeight;
