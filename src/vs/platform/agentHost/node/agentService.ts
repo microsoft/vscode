@@ -1553,12 +1553,26 @@ export class AgentService extends Disposable implements IAgentService {
 		// sessions that were not created in the current process lifetime.
 		// Overlay any values the user previously selected (persisted via
 		// `SessionConfigChanged`) on top of the provider's resolved defaults.
-		const restoredConfig = await this._resolveCreatedSessionConfig(agent, {
-			workingDirectory: meta.workingDirectory,
-			config: persistedConfigValues,
-		});
+		const [restoredConfig, restoredCustomizations] = await Promise.all([
+			this._resolveCreatedSessionConfig(agent, {
+				workingDirectory: meta.workingDirectory,
+				config: persistedConfigValues,
+			}),
+			agent.getSessionCustomizations
+				? agent.getSessionCustomizations(session).catch(err => {
+					this._logService.error('[AgentService] restoreSession: failed to resolve session customizations', err);
+					return undefined;
+				})
+				: Promise.resolve(undefined),
+		]);
 		if (restoredConfig) {
 			this._stateManager.setSessionConfig(sessionStr, restoredConfig);
+		}
+		// Seed restored session customizations into state so the very first
+		// snapshot after selecting an existing session contains effective
+		// instructions/agents without waiting for a follow-up republish.
+		if (restoredCustomizations && restoredCustomizations.length > 0) {
+			this._stateManager.setSessionCustomizations(sessionStr, restoredCustomizations);
 		}
 
 		this._logService.info(`[AgentService] Restored session ${sessionStr} with ${turns.length} turns`);
