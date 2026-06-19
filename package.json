@@ -150,7 +150,7 @@
     "playwright-core": "1.61.0-alpha-2026-06-04",
     "ssh2": "^1.16.0",
     "tas-client": "0.3.1",
-    "undici": "^7.24.0",
+    "undici": "^7.28.0",
     "vscode-oniguruma": "1.7.0",
     "vscode-regexpp": "^3.1.0",
     "vscode-textmate": "^9.3.2",
