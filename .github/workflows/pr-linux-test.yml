@@ -13,13 +13,19 @@ on:
       remote_tests:
         type: boolean
         default: false
+      unit_and_integration_tests:
+        type: boolean
+        default: true
+      smoke_tests:
+        type: boolean
+        default: true
 
 jobs:
   linux-test:
     name: ${{ inputs.job_name }}
     runs-on: ubuntu-24.04
     env:
-      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}
+      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (!inputs.unit_and_integration_tests && inputs.smoke_tests) && '-smoke' || '' }}
       NPM_ARCH: x64
       VSCODE_ARCH: x64
     steps:
@@ -265,19 +271,19 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 🧪 Run unit tests (Electron)
-        if: ${{ inputs.electron_tests }}
+        if: ${{ inputs.electron_tests && inputs.unit_and_integration_tests }}
         timeout-minutes: 15
         run: ./scripts/test.sh --tfs "Unit Tests"
         env:
           DISPLAY: ":10"
 
       - name: 🧪 Run unit tests (node.js)
-        if: ${{ inputs.electron_tests }}
+        if: ${{ inputs.electron_tests && inputs.unit_and_integration_tests }}
         timeout-minutes: 15
         run: npm run test-node
 
       - name: 🧪 Run unit tests (Browser, Chromium)
-        if: ${{ inputs.browser_tests }}
+        if: ${{ inputs.browser_tests && inputs.unit_and_integration_tests }}
         timeout-minutes: 30
         run: npm run test-browser-no-install -- --browser chromium --tfs "Browser Unit Tests"
         env:
@@ -309,29 +315,31 @@ jobs:
         run: npm --prefix extensions/copilot run compile
 
       - name: 🧪 Run integration tests (Electron)
-        if: ${{ inputs.electron_tests }}
+        if: ${{ inputs.electron_tests && inputs.unit_and_integration_tests }}
         timeout-minutes: 20
         run: ./scripts/test-integration.sh --tfs "Integration Tests"
         env:
           DISPLAY: ":10"
 
       - name: 🧪 Run integration tests (Browser, Chromium)
-        if: ${{ inputs.browser_tests }}
+        if: ${{ inputs.browser_tests && inputs.unit_and_integration_tests }}
         timeout-minutes: 20
         run: ./scripts/test-web-integration.sh --browser chromium
 
       - name: 🧪 Run integration tests (Remote)
-        if: ${{ inputs.remote_tests }}
+        if: ${{ inputs.remote_tests && inputs.unit_and_integration_tests }}
         timeout-minutes: 20
         run: ./scripts/test-remote-integration.sh
         env:
           DISPLAY: ":10"
 
       - name: Compile smoke tests
+        if: ${{ inputs.smoke_tests }}
         working-directory: test/smoke
         run: npm run compile
 
       - name: Compile extensions for smoke tests
+        if: ${{ inputs.smoke_tests }}
         run: npm run gulp compile-extension-media
 
       # Remove the musl-libc Claude Code native binary so the bundled
@@ -347,6 +355,7 @@ jobs:
       # https://github.com/anthropics/claude-agent-sdk-typescript for the SDK
       # resolution order.
       - name: Remove musl Claude binary on glibc Linux
+        if: ${{ inputs.smoke_tests }}
         run: rm -rf node_modules/@anthropic-ai/claude-agent-sdk-linux-x64-musl node_modules/@anthropic-ai/claude-agent-sdk-linux-arm64-musl
 
       - name: Diagnostics before smoke test run (processes, max_user_watches, number of opened file handles)
@@ -359,19 +368,19 @@ jobs:
         if: always()
 
       - name: 🧪 Run smoke tests (Electron)
-        if: ${{ inputs.electron_tests }}
+        if: ${{ inputs.electron_tests && inputs.smoke_tests }}
         timeout-minutes: 20
         run: npm run smoketest-no-compile -- --tracing
         env:
           DISPLAY: ":10"
 
       - name: 🧪 Run smoke tests (Browser, Chromium)
-        if: ${{ inputs.browser_tests }}
+        if: ${{ inputs.browser_tests && inputs.smoke_tests }}
         timeout-minutes: 20
         run: npm run smoketest-no-compile -- --web --tracing --headless
 
       - name: 🧪 Run smoke tests (Remote)
-        if: ${{ inputs.remote_tests }}
+        if: ${{ inputs.remote_tests && inputs.smoke_tests }}
         timeout-minutes: 20
         run: npm run smoketest-no-compile -- --remote --tracing
         env:

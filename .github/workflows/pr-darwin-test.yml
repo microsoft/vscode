@@ -13,13 +13,19 @@ on:
       remote_tests:
         type: boolean
         default: false
+      unit_and_integration_tests:
+        type: boolean
+        default: true
+      smoke_tests:
+        type: boolean
+        default: true
 
 jobs:
   macOS-test:
     name: ${{ inputs.job_name }}
     runs-on: macos-14-xlarge
     env:
-      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}
+      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (!inputs.unit_and_integration_tests && inputs.smoke_tests) && '-smoke' || '' }}
       NPM_ARCH: arm64
       VSCODE_ARCH: arm64
     steps:
@@ -113,17 +119,17 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 🧪 Run unit tests (Electron)
-        if: ${{ inputs.electron_tests }}
+        if: ${{ inputs.electron_tests && inputs.unit_and_integration_tests }}
         timeout-minutes: 15
         run: ./scripts/test.sh --tfs "Unit Tests"
 
       - name: 🧪 Run unit tests (node.js)
-        if: ${{ inputs.electron_tests }}
+        if: ${{ inputs.electron_tests && inputs.unit_and_integration_tests }}
         timeout-minutes: 15
         run: npm run test-node
 
       - name: 🧪 Run unit tests (Browser, Webkit)
-        if: ${{ inputs.browser_tests }}
+        if: ${{ inputs.browser_tests && inputs.unit_and_integration_tests }}
         timeout-minutes: 30
         run: npm run test-browser-no-install -- --browser webkit --tfs "Browser Unit Tests"
         env:
@@ -152,28 +158,31 @@ jobs:
             compile-extension:vscode-test-resolver
 
       - name: 🧪 Run integration tests (Electron)
-        if: ${{ inputs.electron_tests }}
+        if: ${{ inputs.electron_tests && inputs.unit_and_integration_tests }}
         timeout-minutes: 20
         run: ./scripts/test-integration.sh --tfs "Integration Tests"
 
       - name: 🧪 Run integration tests (Browser, Webkit)
-        if: ${{ inputs.browser_tests }}
+        if: ${{ inputs.browser_tests && inputs.unit_and_integration_tests }}
         timeout-minutes: 20
         run: ./scripts/test-web-integration.sh --browser webkit
 
       - name: 🧪 Run integration tests (Remote)
-        if: ${{ inputs.remote_tests }}
+        if: ${{ inputs.remote_tests && inputs.unit_and_integration_tests }}
         timeout-minutes: 20
         run: ./scripts/test-remote-integration.sh
 
       - name: Compile smoke tests
+        if: ${{ inputs.smoke_tests }}
         working-directory: test/smoke
         run: npm run compile
 
       - name: Compile extensions for smoke tests
+        if: ${{ inputs.smoke_tests }}
         run: npm run gulp compile-extension-media
 
       - name: Build Copilot Chat extension for smoke tests
+        if: ${{ inputs.smoke_tests }}
         working-directory: extensions/copilot
         run: npm run compile
 
@@ -183,17 +192,17 @@ jobs:
         if: always()
 
       - name: 🧪 Run smoke tests (Electron)
-        if: ${{ inputs.electron_tests }}
+        if: ${{ inputs.electron_tests && inputs.smoke_tests }}
         timeout-minutes: 20
         run: npm run smoketest-no-compile -- --tracing
 
       - name: 🧪 Run smoke tests (Browser, Chromium)
-        if: ${{ inputs.browser_tests }}
+        if: ${{ inputs.browser_tests && inputs.smoke_tests }}
         timeout-minutes: 20
         run: npm run smoketest-no-compile -- --web --tracing --headless
 
       - name: 🧪 Run smoke tests (Remote)
-        if: ${{ inputs.remote_tests }}
+        if: ${{ inputs.remote_tests && inputs.smoke_tests }}
         timeout-minutes: 20
         run: npm run smoketest-no-compile -- --remote --tracing
 
