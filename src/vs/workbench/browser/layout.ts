@@ -2195,15 +2195,23 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		};
 	}
 
+	private resizeWindowToKeepEditorSizeSeq = 0;
+
 	private async resizeWindowToKeepEditorSize(resize: IPartToggleWindowResize): Promise<void> {
+		const seq = ++this.resizeWindowToKeepEditorSizeSeq;
 
-		// Wait for the layout that the OS window resize triggers, then restore the
-		// editor to its previous size so that the panel absorbs the size change
-		const onDidRelayout = raceTimeout(Event.toPromise(Event.once(this.onDidLayoutMainContainer)), 1000);
-		await this.hostService.resizeMainWindow(resize.delta, resize.anchor);
-		await onDidRelayout;
+		try {
+			// Wait for the layout that the OS window resize triggers, then restore the
+			// editor to its previous size so that the panel absorbs the size change
+			const onDidRelayout = raceTimeout(Event.toPromise(Event.once(this.onDidLayoutMainContainer)), 1000);
+			await this.hostService.resizeMainWindow(resize.delta, resize.anchor);
+			await onDidRelayout;
+		} catch (error) {
+			this.logService.warn('[layout] resizeWindowToKeepEditorSize failed', error);
+			return;
+		}
 
-		if (this.disposed || !this.workbenchGrid) {
+		if (this.disposed || !this.workbenchGrid || seq !== this.resizeWindowToKeepEditorSizeSeq) {
 			return;
 		}
 

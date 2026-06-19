@@ -387,9 +387,23 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async resizeWindow(windowId: number | undefined, delta: IWindowResizeDelta, anchor: IWindowResizeAnchor, options?: INativeHostOptions): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
-		if (window?.win && !window.win.isFullScreen() && !window.win.isMaximized()) {
-			window.win.setBounds(getResizedWindowBounds(window.win.getBounds(), delta, anchor));
+		if (!window?.win || window.win.isFullScreen() || window.win.isMaximized()) {
+			return;
 		}
+
+		const currentBounds = window.win.getBounds();
+		const [minWidth, minHeight] = window.win.getMinimumSize();
+
+		const desiredBounds = getResizedWindowBounds(currentBounds, delta, anchor);
+		const width = Math.max(desiredBounds.width, minWidth);
+		const height = Math.max(desiredBounds.height, minHeight);
+
+		window.win.setBounds({
+			x: anchor.right ? currentBounds.x + currentBounds.width - width : currentBounds.x,
+			y: anchor.bottom ? currentBounds.y + currentBounds.height - height : currentBounds.y,
+			width,
+			height
+		});
 	}
 
 	async updateWindowControls(windowId: number | undefined, options: INativeHostOptions & { height?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): Promise<void> {
