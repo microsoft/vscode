@@ -7,7 +7,7 @@ import assert from 'assert';
 import { suite, test } from 'node:test';
 import { promises as fs } from 'fs';
 import path from 'path';
-import type { ExportedPolicyDataDto, CategoryDto } from '../policies/policyDto.ts';
+import type { ExportedPolicyDataDto, CategoryDto, PolicyDto } from '../policies/policyDto.ts';
 import { BooleanPolicy } from '../policies/booleanPolicy.ts';
 import { NumberPolicy } from '../policies/numberPolicy.ts';
 import { ObjectPolicy } from '../policies/objectPolicy.ts';
@@ -518,6 +518,20 @@ suite('Policy E2E conversion', () => {
 		// enumDescriptions to exist and match enum length for string enum policies.
 		const parsed = parsePolicies(policyData);
 		assert.ok(parsed.length > 0, 'Should parse at least one policy from policyData.jsonc');
+	});
+
+	test('ObjectPolicy.from accepts a union type (e.g. array | null)', () => {
+		const category: CategoryDto = { key: 'Extensions', name: { key: 'Extensions', value: 'Extensions' } };
+		const policy: PolicyDto = {
+			key: 'chat.plugins.strictMarketplaces',
+			name: 'ChatStrictMarketplaces',
+			category: 'Extensions',
+			minimumVersion: '1.0',
+			localization: { description: { key: 'desc', value: 'desc' } },
+			type: ['array', 'null'],
+			default: null,
+		};
+		assert.ok(ObjectPolicy.from(category, policy), 'A union array|null type should be classified as an object policy');
 	});
 
 });

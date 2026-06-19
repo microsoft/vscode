@@ -1823,7 +1823,7 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(responsePart.part, {
 				kind: ResponsePartKind.Markdown,
 				id: responsePart.part.id,
-				content: 'Completed the requested work.',
+				content: '\n\n**Task completed:** Completed the requested work.',
 			});
 		});
 
@@ -2580,7 +2580,7 @@ suite('CopilotAgentSession', () => {
 
 		test('autopilot auto-answers a free-form question without firing a progress event', async () => {
 			const { runtime, signals } = await createAgentSession(disposables, {
-				configValues: { [SessionConfigKey.AutoApprove]: 'autopilot' },
+				configValues: { [SessionConfigKey.Mode]: 'autopilot' },
 			});
 
 			const result = await runtime.handleUserInputRequest(
@@ -2596,11 +2596,11 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(signals.length, 0);
 		});
 
-		test('autopilot does not auto-answer when autoApprove is not "autopilot"', async () => {
-			// Sanity check: with autoApprove=default the question must
+		test('autopilot does not auto-answer when mode is not "autopilot"', async () => {
+			// Sanity check: with mode=interactive the question must
 			// still be surfaced as a progress event (the existing behavior).
 			const { runtime, signals } = await createAgentSession(disposables, {
-				configValues: { [SessionConfigKey.AutoApprove]: 'default' },
+				configValues: { [SessionConfigKey.Mode]: 'interactive' },
 			});
 
 			runtime.handleUserInputRequest(
@@ -2775,7 +2775,7 @@ suite('CopilotAgentSession', () => {
 
 		test('autopilot auto-cancels without firing a progress event', async () => {
 			const { runtime, signals } = await createAgentSession(disposables, {
-				configValues: { [SessionConfigKey.AutoApprove]: 'autopilot' },
+				configValues: { [SessionConfigKey.Mode]: 'autopilot' },
 			});
 
 			const result = await runtime.handleElicitationRequest({
@@ -3496,8 +3496,8 @@ suite('CopilotAgentSession', () => {
 			await responsePromise;
 		});
 
-		test('completing the input request with autopilot resolves with approved + autopilot + autoApproveEdits', async () => {
-			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
+		test('completing the input request with autopilot resolves with approved + autopilot + autoApproveEdits and syncs mode=autopilot', async () => {
+			const { session, runtime, waitForSignal, sessionConfigUpdates } = await createAgentSession(disposables);
 
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'autopilot' }), { sessionId: 'test-session-1' });
 			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
@@ -3513,10 +3513,14 @@ suite('CopilotAgentSession', () => {
 			});
 
 			assert.deepStrictEqual(await responsePromise, { approved: true, selectedAction: 'autopilot', autoApproveEdits: true });
+			// Picking "Implement with Autopilot" flips the AHP mode immediately.
+			assert.deepStrictEqual(sessionConfigUpdates, [
+				{ session: 'copilot:/test-session-1', patch: { mode: 'autopilot' } },
+			]);
 		});
 
-		test('completing the input request with interactive resolves with approved + interactive (no autoApprove)', async () => {
-			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
+		test('completing the input request with interactive resolves with approved + interactive (no autoApprove) and syncs mode=interactive', async () => {
+			const { session, runtime, waitForSignal, sessionConfigUpdates } = await createAgentSession(disposables);
 
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'interactive' }), { sessionId: 'test-session-1' });
 			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
@@ -3532,6 +3536,9 @@ suite('CopilotAgentSession', () => {
 			});
 
 			assert.deepStrictEqual(await responsePromise, { approved: true, selectedAction: 'interactive' });
+			assert.deepStrictEqual(sessionConfigUpdates, [
+				{ session: 'copilot:/test-session-1', patch: { mode: 'interactive' } },
+			]);
 		});
 
 		test('declining the input request resolves with approved=false', async () => {
@@ -3706,16 +3713,16 @@ suite('CopilotAgentSession', () => {
 			]);
 		});
 
-		test('session.mode_changed → autopilot translates to mode=interactive + autoApprove=autopilot', async () => {
-			// The SDK has a first-class `autopilot` mode but AHP exposes it
-			// as the `autopilot` value on the orthogonal `autoApprove` axis.
-			// The translation is contained in the Copilot agent.
+		test('session.mode_changed → autopilot maps directly to mode=autopilot', async () => {
+			// The SDK and AHP share the same three-mode space; autopilot now
+			// lives on the `mode` axis and the `autoApprove` axis is left
+			// untouched. The translation is contained in the Copilot agent.
 			const { mockSession, sessionConfigUpdates } = await createAgentSession(disposables);
 
 			mockSession.fire('session.mode_changed', { previousMode: 'plan', newMode: 'autopilot' } as SessionEventPayload<'session.mode_changed'>['data']);
 
 			assert.deepStrictEqual(sessionConfigUpdates, [
-				{ session: 'copilot:/test-session-1', patch: { mode: 'interactive', autoApprove: 'autopilot' } },
+				{ session: 'copilot:/test-session-1', patch: { mode: 'autopilot' } },
 			]);
 		});
 
@@ -3727,37 +3734,23 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(sessionConfigUpdates.length, 0);
 		});
 
-		// ---- autopilot fast-path -------------------------------------------
+		// ---- no automatic plan → implementation handoff -------------------
 
-		test('handleExitPlanModeRequest auto-accepts when autoApprove=autopilot (recommended action)', async () => {
-			const { runtime, signals } = await createAgentSession(disposables, {
-				configValues: { [SessionConfigKey.AutoApprove]: 'autopilot' },
+		test('handleExitPlanModeRequest always surfaces the plan-review UI, even in autopilot mode', async () => {
+			const { session, runtime, waitForSignal } = await createAgentSession(disposables, {
+				configValues: { [SessionConfigKey.Mode]: 'autopilot' },
 			});
 
-			const response = await runtime.handleExitPlanModeRequest(planRequestParams({
+			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({
 				actions: ['autopilot', 'interactive', 'exit_only'],
 				recommendedAction: 'autopilot',
 			}), { sessionId: 'test-session-1' });
 
-			assert.deepStrictEqual(response, { approved: true, selectedAction: 'autopilot', autoApproveEdits: true });
-			// User-input request should NOT be surfaced to the client.
-			assert.strictEqual(signals.filter(s => isAction(s, ActionType.ChatInputRequested)).length, 0);
-		});
-
-		test('handleExitPlanModeRequest auto-accepts with priority order when no recommended action available', async () => {
-			const { runtime } = await createAgentSession(disposables, {
-				configValues: { [SessionConfigKey.AutoApprove]: 'autopilot' },
-			});
-
-			// SDK proposes a recommended action that's NOT in the offered set —
-			// fall back to the priority order (autopilot > autopilot_fleet >
-			// interactive > exit_only).
-			const response = await runtime.handleExitPlanModeRequest(planRequestParams({
-				actions: ['interactive', 'exit_only'],
-				recommendedAction: 'autopilot_fleet',
-			}), { sessionId: 'test-session-1' });
-
-			assert.deepStrictEqual(response, { approved: true, selectedAction: 'interactive' });
+			// There is no automatic handoff from plan into implementation: the
+			// user must explicitly choose an action regardless of mode.
+			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
+			session.respondToUserInputRequest(getInputRequest(signal).id, ChatInputResponseKind.Decline);
+			await responsePromise;
 		});
 
 		test('handleExitPlanModeRequest does NOT auto-accept when autoApprove=default', async () => {

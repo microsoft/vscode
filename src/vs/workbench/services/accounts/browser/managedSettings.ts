@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IPolicyData } from '../../../../base/common/defaultAccount.js';
-import { IExtraKnownMarketplaceEntry, extraKnownMarketplacesToConfigDict } from '../../../../base/common/managedSettings.js';
+import { IExtraKnownMarketplaceEntry, IStrictMarketplaceSource, extraKnownMarketplacesToConfigDict } from '../../../../base/common/managedSettings.js';
 import { ManagedSettingValue } from '../../../../base/common/policy.js';
 import { isObject, isString } from '../../../../base/common/types.js';
-import { COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, flattenManagedSettings } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_STRICT_MARKETPLACES_KEY, flattenManagedSettings } from '../../../../platform/policy/common/copilotManagedSettings.js';
 
 /**
  * Response shape from the Copilot `/copilot_internal/managed_settings` endpoint.
@@ -30,7 +30,7 @@ export interface IManagedSettingsResponse {
 		| { readonly source: 'github'; readonly repo: string; readonly ref?: string }
 		| { readonly source: 'git'; readonly url: string; readonly ref?: string };
 	}>;
-	readonly strictKnownMarketplaces?: boolean;
+	readonly strictKnownMarketplaces?: readonly IStrictMarketplaceSource[];
 	/** Any unknown keys in the response are accepted for forward compatibility. */
 	readonly [key: string]: unknown;
 }
@@ -45,13 +45,14 @@ export interface IManagedSettingsResponse {
  * dropping undeclared or type-mismatched keys happens later, at the
  * `projectManagedSettings` step.
  *
- * - Scalar leaves (`permissions.*`, `strictKnownMarketplaces`, and any
- *   forward-compatible scalar keys) are flattened into dot-separated keys.
- * - Structured settings (`enabledPlugins`, `extraKnownMarketplaces`) are carried
- *   as canonical JSON strings under a single key each — the same shape an admin
- *   authors via native MDM. `PolicyConfiguration` parses the JSON back into the
- *   object-typed setting on read. `extraKnownMarketplaces` is normalized from the
- *   API's `Record<id, { source }>` map to the `{ [name]: url-or-shorthand }` dict.
+ * - Scalar leaves (`permissions.*` and any forward-compatible scalar keys) are
+ *   flattened into dot-separated keys.
+ * - Structured settings (`enabledPlugins`, `extraKnownMarketplaces`,
+ *   `strictKnownMarketplaces`) are carried as canonical JSON strings under a
+ *   single key each — the same shape an admin authors via native MDM.
+ *   `PolicyConfiguration` parses the JSON back into the object-typed setting on
+ *   read. `extraKnownMarketplaces` is normalized from the API's
+ *   `Record<id, { source }>` map to the `{ [name]: url-or-shorthand }` dict.
  *
  * Malformed marketplace entries are dropped (with an optional warning via
  * {@link onWarn}) rather than throwing, so a bad enterprise settings file degrades
@@ -60,12 +61,16 @@ export interface IManagedSettingsResponse {
  * Exported for unit-testing the shape transformation independently of network I/O.
  */
 export function adaptManagedSettings(response: IManagedSettingsResponse, onWarn?: (msg: string) => void): Partial<IPolicyData> {
-	const { enabledPlugins, extraKnownMarketplaces, ...rest } = response;
+	const { enabledPlugins, extraKnownMarketplaces, strictKnownMarketplaces, ...rest } = response;
 
 	const managedSettings: Record<string, ManagedSettingValue> = { ...flattenManagedSettings(rest) };
 
 	if (isObject(enabledPlugins)) {
 		managedSettings[COPILOT_ENABLED_PLUGINS_KEY] = JSON.stringify(enabledPlugins);
+	}
+
+	if (Array.isArray(strictKnownMarketplaces)) {
+		managedSettings[COPILOT_STRICT_MARKETPLACES_KEY] = JSON.stringify(strictKnownMarketplaces);
 	}
 
 	const marketplaceDict = extraKnownMarketplacesToConfigDict(normalizeExtraKnownMarketplaces(extraKnownMarketplaces, onWarn));
