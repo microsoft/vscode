@@ -1323,6 +1323,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			return;
 		}
 
+		// Seed the state cache so the delta mechanism sees thinking→idle as a transition
+		// and includes last_response_summary in the patch.
+		this._prevSessionStates.set(sessionResource.toString(), { state: 'thinking', detail: '' });
+		this._sendContext();
+
 		const disposables = new DisposableStore();
 		let lastText = '';
 
@@ -1343,6 +1348,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 
 			if (response.isComplete || response.isCanceled) {
+				// Notify the voice backend of the state transition so it can
+				// narrate the response for this non-focused session.
+				this._prevSessionStates.set(sessionResource.toString(), { state: 'idle', detail: '' });
+				this._sendContext();
+				this.voiceClientService.flushSessionContext();
 				disposables.dispose();
 			}
 		};
