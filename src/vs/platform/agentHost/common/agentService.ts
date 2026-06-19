@@ -887,6 +887,14 @@ export interface IAgent {
 	disposeChat?(session: URI, chat: URI): Promise<void>;
 
 	/**
+	 * Returns the persisted catalog of additional (non-default) peer chats for a
+	 * session as their channel URIs. Used to re-register peer chats (and seed
+	 * their history) when a session is restored after a process restart.
+	 * Optional: harnesses without multi-chat persistence omit it.
+	 */
+	getChats?(session: URI): Promise<readonly URI[]>;
+
+	/**
 	 * Called when the session's pending (steering) message changes.
 	 * The agent harness decides how to react — e.g. inject steering
 	 * mid-turn via `mode: 'immediate'`.

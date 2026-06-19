@@ -29,7 +29,7 @@ import { CompletionItemKind as AhpCompletionItemKind, type CompletionItem as Ahp
 import { ConfirmationOptionKind, TerminalClaimKind, ToolCallContributorKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, ChatTurnStartedAction, isChatAction, type ChatAction, type ClientChatAction, type ClientSessionAction, type ChatInputCompletedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { buildSubagentSessionUri, getToolSubagentContent, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, buildChatUri, buildDefaultChatUri, parseChatUri, mergeSessionWithDefaultChat, type ChatState, type ISessionWithDefaultChat, type ClientPluginCustomization, type ICompletedToolCall, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputRequest, type SessionState, type ToolCallResponsePart, type ToolCallState, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentSessionUri, getToolSubagentContent, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, buildChatUri, buildDefaultChatUri, parseChatUri, mergeSessionWithDefaultChat, type ChatState, type ISessionWithDefaultChat, type ClientPluginCustomization, type ICompletedToolCall, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputRequest, type SessionState, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -49,7 +49,7 @@ import {
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
 import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestion, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind, formatCopilotCredits, type IChatMultiSelectAnswer, type IChatQuestionAnswerValue, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
-import { IChatEntitlementService, isProUser, type IQuotaSnapshot } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
@@ -139,24 +139,6 @@ function userOriginMessage(text: string, attachments: readonly MessageAttachment
 		: { text, origin: { kind: MessageKind.User } };
 }
 
-/**
- * Shape of a single quota snapshot forwarded by the agent host under
- * `UsageInfo._meta.quotaSnapshots` — the SDK's `account.getQuota` result
- * (`AccountQuotaSnapshot`), keyed by quota type (`chat` / `completions` /
- * `premium_interactions`). All fields are optional because they originate from
- * a dynamically-read, server-controlled payload.
- */
-interface IRawQuotaSnapshot {
-	readonly isUnlimitedEntitlement?: boolean;
-	readonly entitlementRequests?: number;
-	readonly usedRequests?: number;
-	readonly remainingPercentage?: number;
-	readonly overage?: number;
-	readonly overageAllowedWithExhaustedQuota?: boolean;
-	readonly usageAllowedWithExhaustedQuota?: boolean;
-	readonly hasQuota?: boolean;
-	readonly resetDate?: string;
-}
 /**
  * Map a local {@link ConfirmedReason} (how the {@link ChatToolInvocation}
  * resolved its confirmation gate) to the protocol's
@@ -454,6 +436,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 */
 	private readonly _additionalChatSubscriptions = new Map<string, IReference<IAgentSubscription<ChatState>>>();
 
+	/**
+	 * Backend session URIs with an in-flight {@link provideChatSessionContent}
+	 * call, keyed by session URI string with a refcount value. While a chat is
+	 * still hydrating its subscriptions, a sibling chat of the same session
+	 * closing must not tear down the shared session subscription out from under
+	 * it (see {@link _releaseChatSessionSubscriptions} / {@link _hasOtherSessionHold}).
+	 */
+	private readonly _hydratingChatSessions = new Map<string, number>();
+
 	constructor(
 		config: IAgentHostSessionHandlerConfig,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
@@ -551,56 +542,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			isUsageBasedBilling: quotas.usageBasedBilling,
 			quotaResetDate: quotas.resetDate,
 		};
-	}
-
-	/**
-	 * Pushes the per-response quota snapshots forwarded by the agent host
-	 * (under `UsageInfo._meta.quotaSnapshots`) into `IChatEntitlementService`,
-	 * mirroring the Copilot Chat extension's `chat.updateQuotas(...)` after each
-	 * response. Without this the chat input quota notification never renders in
-	 * the agent host because the entitlement service is only refreshed on a
-	 * slow background poll, never per-response.
-	 */
-	private _applyQuotaSnapshotsFromUsage(usage: UsageInfo | undefined): void {
-		const snapshots = usage?._meta?.quotaSnapshots;
-		if (!snapshots || typeof snapshots !== 'object') {
-			return;
-		}
-
-		const record = snapshots as Record<string, IRawQuotaSnapshot | undefined>;
-		const entitlement = this._chatEntitlementService.entitlement;
-		// Paid plans draw down premium interactions; everyone else (signed out,
-		// unresolved, Free-eligible, or signed-up Free) is tracked under `chat`.
-		const isFree = !isProUser(entitlement);
-		const raw = isFree ? record['chat'] : (record['premium_interactions'] ?? record['premium_models']);
-		if (!raw) {
-			return;
-		}
-
-		const entitlementCount = raw.entitlementRequests;
-		const unlimited = raw.isUnlimitedEntitlement ?? entitlementCount === -1;
-		const percentRemaining = Math.max(0, Math.min(100, raw.remainingPercentage ?? 0));
-		const snapshot: IQuotaSnapshot = {
-			percentRemaining,
-			unlimited,
-			// Prefer the server's authoritative `hasQuota` (an "unlimited" plan can
-			// still be blocked, e.g. exhausted Business/Enterprise); fall back to a
-			// derivation only when it is absent.
-			hasQuota: raw.hasQuota ?? (unlimited || percentRemaining > 0),
-			entitlement: typeof entitlementCount === 'number' && Number.isFinite(entitlementCount) ? entitlementCount : undefined,
-		};
-
-		const existing = this._chatEntitlementService.quotas;
-		const quotas = {
-			...existing,
-			resetDate: raw.resetDate ?? existing.resetDate,
-			chat: isFree ? snapshot : existing.chat,
-			premiumChat: isFree ? existing.premiumChat : snapshot,
-			additionalUsageEnabled: raw.overageAllowedWithExhaustedQuota ?? existing.additionalUsageEnabled,
-			additionalUsageCount: raw.overage ?? existing.additionalUsageCount,
-		};
-
-		this._chatEntitlementService.acceptQuotas(quotas);
 	}
 
 	async provideChatInputCompletions(sessionResource: URI, params: IChatInputCompletionsParams, token: CancellationToken): Promise<IChatInputCompletionsResult | undefined> {
@@ -705,68 +646,82 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		let initialProgress: IChatProgress[] | undefined;
 		let activeTurnId: string | undefined;
 		let sessionTitle: string | undefined;
-		if (!isNewSession) {
-			try {
-				const sub = this._ensureSessionSubscription(resolvedSession.toString());
-				const chatSub = this._ensureChatSubscription(resolvedSession.toString(), chatKey);
-				// Wait for both the session summary and its default-chat
-				// conversation state to hydrate from the server. After the
-				// multi-chat protocol adoption, turns/activeTurn live on the
-				// separate chat channel, so reading them before the chat
-				// subscription lands would yield an empty history.
-				await Promise.all([
-					this._whenSubscriptionHydrated(sub, token),
-					this._whenSubscriptionHydrated(chatSub, token),
-				]);
-				const sessionState = this._getSessionState(resolvedSession.toString(), chatKey);
-				if (sessionState) {
-					sessionTitle = sessionState.summary.title;
-					const fallbackRawModelId = sessionState.summary.model?.id;
-					const lookup = this._createTurnModelLookup(sessionResource, fallbackRawModelId);
-					history.push(...turnsToHistory(resolvedSession, sessionState.turns, this._config.agentId, this._config.connectionAuthority, lookup, this._chatErrorContext()));
+		// Mark this session as hydrating so that a sibling chat of the same
+		// session closing while we await our subscriptions does not tear down
+		// the shared session subscription (which would strand us forever).
+		const hydrationKey = resolvedSession.toString();
+		this._hydratingChatSessions.set(hydrationKey, (this._hydratingChatSessions.get(hydrationKey) ?? 0) + 1);
+		try {
+			if (!isNewSession) {
+				try {
+					const sub = this._ensureSessionSubscription(resolvedSession.toString());
+					const chatSub = this._ensureChatSubscription(resolvedSession.toString(), chatKey);
+					// Wait for both the session summary and its default-chat
+					// conversation state to hydrate from the server. After the
+					// multi-chat protocol adoption, turns/activeTurn live on the
+					// separate chat channel, so reading them before the chat
+					// subscription lands would yield an empty history.
+					await Promise.all([
+						this._whenSubscriptionHydrated(sub, token),
+						this._whenSubscriptionHydrated(chatSub, token),
+					]);
+					const sessionState = this._getSessionState(resolvedSession.toString(), chatKey);
+					if (sessionState) {
+						sessionTitle = sessionState.summary.title;
+						const fallbackRawModelId = sessionState.summary.model?.id;
+						const lookup = this._createTurnModelLookup(sessionResource, fallbackRawModelId);
+						history.push(...turnsToHistory(resolvedSession, sessionState.turns, this._config.agentId, this._config.connectionAuthority, lookup, this._chatErrorContext()));
 
-					// Enrich history with inner tool calls from subagent
-					// child sessions. Subscribes to each child session so
-					// its tool calls appear grouped under the parent widget.
-					await this._enrichHistoryWithSubagentCalls(history, resolvedSession);
+						// Enrich history with inner tool calls from subagent
+						// child sessions. Subscribes to each child session so
+						// its tool calls appear grouped under the parent widget.
+						await this._enrichHistoryWithSubagentCalls(history, resolvedSession);
 
-					// Store historical turns so the editing session can seed a
-					// request-level checkpoint for each turn (with file edits
-					// folded in) when the controller is created lazily. We seed
-					// for every turn — not just those with edits — so "Restore
-					// Checkpoint" on any historical request can find a boundary
-					// to navigate to.
-					if (sessionState.turns.length > 0) {
-						this._pendingHistoryTurns.set(sessionResource, sessionState.turns);
+						// Store historical turns so the editing session can seed a
+						// request-level checkpoint for each turn (with file edits
+						// folded in) when the controller is created lazily. We seed
+						// for every turn — not just those with edits — so "Restore
+						// Checkpoint" on any historical request can find a boundary
+						// to navigate to.
+						if (sessionState.turns.length > 0) {
+							this._pendingHistoryTurns.set(sessionResource, sessionState.turns);
+						}
+
+						// If there's an active turn, include its request in history
+						// with an empty response so the chat service creates a
+						// pending request, then provide accumulated progress via
+						// progressObs for live streaming.
+						if (sessionState.activeTurn) {
+							activeTurnId = sessionState.activeTurn.id;
+							const activeRawModelId = sessionState.activeTurn.usage?.model ?? fallbackRawModelId;
+							history.push({
+								type: 'request',
+								prompt: sessionState.activeTurn.message.text,
+								participant: this._config.agentId,
+								modelId: lookup.toLanguageModelId(activeRawModelId),
+								variableData: messageToVariableData(sessionState.activeTurn.message, this._config.connectionAuthority),
+								isSystemInitiated: sessionState.activeTurn.message.origin.kind === MessageKind.SystemNotification,
+							});
+							history.push({
+								type: 'response',
+								parts: [],
+								participant: this._config.agentId,
+								details: lookup.toResponseDetails(activeRawModelId, sessionState.activeTurn.usage),
+							});
+							initialProgress = activeTurnToProgress(resolvedSession, sessionState.activeTurn, this._config.connectionAuthority);
+							this._logService.info(`[AgentHost] Reconnecting to active turn ${activeTurnId} for session ${resolvedSession.toString()}`);
+						}
 					}
-
-					// If there's an active turn, include its request in history
-					// with an empty response so the chat service creates a
-					// pending request, then provide accumulated progress via
-					// progressObs for live streaming.
-					if (sessionState.activeTurn) {
-						activeTurnId = sessionState.activeTurn.id;
-						const activeRawModelId = sessionState.activeTurn.usage?.model ?? fallbackRawModelId;
-						history.push({
-							type: 'request',
-							prompt: sessionState.activeTurn.message.text,
-							participant: this._config.agentId,
-							modelId: lookup.toLanguageModelId(activeRawModelId),
-							variableData: messageToVariableData(sessionState.activeTurn.message, this._config.connectionAuthority),
-							isSystemInitiated: sessionState.activeTurn.message.origin.kind === MessageKind.SystemNotification,
-						});
-						history.push({
-							type: 'response',
-							parts: [],
-							participant: this._config.agentId,
-							details: lookup.toResponseDetails(activeRawModelId, sessionState.activeTurn.usage),
-						});
-						initialProgress = activeTurnToProgress(resolvedSession, sessionState.activeTurn, this._config.connectionAuthority);
-						this._logService.info(`[AgentHost] Reconnecting to active turn ${activeTurnId} for session ${resolvedSession.toString()}`);
-					}
+				} catch (err) {
+					this._logService.warn(`[AgentHost] Failed to subscribe to existing session: ${resolvedSession.toString()}`, err);
 				}
-			} catch (err) {
-				this._logService.warn(`[AgentHost] Failed to subscribe to existing session: ${resolvedSession.toString()}`, err);
+			}
+		} finally {
+			const remaining = (this._hydratingChatSessions.get(hydrationKey) ?? 1) - 1;
+			if (remaining > 0) {
+				this._hydratingChatSessions.set(hydrationKey, remaining);
+			} else {
+				this._hydratingChatSessions.delete(hydrationKey);
 			}
 		}
 		const session = this._instantiationService.createInstance(
@@ -794,7 +749,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				this._pendingMessageSubscriptions.deleteAndDispose(sessionResource);
 				this._serverTurnWatchers.deleteAndDispose(sessionResource);
 				this._pendingHistoryTurns.delete(sessionResource);
-				this._releaseSessionSubscription(resolvedSession.toString());
+				this._releaseChatSessionSubscriptions(resolvedSession.toString(), chatKey);
 			},
 			() => {
 				const sessionKey = resolvedSession.toString();
@@ -1606,13 +1561,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (opts.subAgentInvocationId === undefined) {
 			let lastUsage: ReturnType<typeof usageInfoToChatUsage>;
 			store.add(autorun(reader => {
-				const rawUsage = usage$.read(reader);
-				// Update the core quota state (and thus the chat input quota
-				// notification) from the per-response quota snapshots forwarded
-				// by the agent host. Mirrors the Copilot Chat extension, which
-				// calls `chat.updateQuotas(...)` after each response.
-				this._applyQuotaSnapshotsFromUsage(rawUsage);
-				const usage = usageInfoToChatUsage(rawUsage);
+				const usage = usageInfoToChatUsage(usage$.read(reader));
 				if (!usage) {
 					return;
 				}
@@ -3380,6 +3329,65 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				ref.dispose();
 			}
 		}
+	}
+
+	/**
+	 * Release the subscriptions held by a single chat session on dispose.
+	 *
+	 * Unlike {@link _releaseSessionSubscription} (which tears down every chat
+	 * of a session at once), this only releases the disposed chat's own
+	 * conversation subscription and never touches sibling peer chats: closing
+	 * one chat of a multi-chat session must not strand another chat — including
+	 * one that is concurrently hydrating in {@link provideChatSessionContent} —
+	 * on a disposed subscription. The session summary subscription (and its
+	 * lockstep default-chat subscription) is shared by every chat of the
+	 * session, so it is only torn down once no sibling chat session is still
+	 * active or mid-hydration for the same backend session.
+	 */
+	private _releaseChatSessionSubscriptions(sessionUri: string, chatUri: string): void {
+		// Release this chat's own conversation subscription. The default chat's
+		// subscription is keyed by session URI and torn down together with the
+		// shared session subscription below; peer chats own a dedicated entry.
+		if (chatUri !== this._resolveDefaultChatUri(sessionUri)) {
+			const chatRef = this._additionalChatSubscriptions.get(chatUri);
+			if (chatRef) {
+				this._additionalChatSubscriptions.delete(chatUri);
+				chatRef.dispose();
+			}
+		}
+		// Keep the shared session subscription alive while any sibling chat of
+		// the same backend session is still active or hydrating.
+		if (this._hasOtherSessionHold(sessionUri)) {
+			return;
+		}
+		const ref = this._sessionSubscriptions.get(sessionUri);
+		if (ref) {
+			this._sessionSubscriptions.delete(sessionUri);
+			ref.dispose();
+		}
+		const chatRef = this._defaultChatSubscriptions.get(sessionUri);
+		if (chatRef) {
+			this._defaultChatSubscriptions.delete(sessionUri);
+			chatRef.dispose();
+		}
+	}
+
+	/**
+	 * Returns whether another chat session for the given backend session URI is
+	 * still active or in the middle of hydrating its subscriptions, so the
+	 * shared session subscription must be kept alive. Callers invoke this after
+	 * removing their own entry from {@link _activeSessions}.
+	 */
+	private _hasOtherSessionHold(sessionUri: string): boolean {
+		if ((this._hydratingChatSessions.get(sessionUri) ?? 0) > 0) {
+			return true;
+		}
+		for (const resource of this._activeSessions.keys()) {
+			if (this._resolveSessionUri(resource).toString() === sessionUri) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**

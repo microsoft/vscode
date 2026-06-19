@@ -25,7 +25,7 @@ import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/ag
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, type ChangesetState, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart } from '../../common/state/sessionState.js';
+import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, type ChangesetState, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { type MessageResourceAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -2087,6 +2087,44 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				disposed: [chatUri.toString()],
 				inCatalog: false,
+			});
+		});
+
+		test('restoreSession re-registers persisted peer chats with their history', async () => {
+			class MultiChatAgent extends MockAgent {
+				async createChat(_session: URI, _chat: URI): Promise<void> { }
+				async getChats(session: URI): Promise<readonly URI[]> {
+					return [URI.parse(buildChatUri(session, 'peer-1'))];
+				}
+				override async getSessionMessages(session: URI): Promise<readonly Turn[]> {
+					if (session.scheme === 'ahp-chat') {
+						return [{
+							id: 'peer-turn-1',
+							state: TurnState.Complete,
+							message: { text: 'hi peer', origin: { kind: MessageKind.User } },
+							responseParts: [],
+							usage: undefined,
+						}];
+					}
+					return [];
+				}
+			}
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			service.registerProvider(agent);
+			const { session } = await agent.createSession();
+			service.stateManager.deleteSession(session.toString());
+
+			await service.restoreSession(session);
+
+			const state = service.stateManager.getSessionState(session.toString());
+			const peerUri = buildChatUri(session, 'peer-1');
+			const peerChatState = service.stateManager.getChatState(URI.parse(peerUri).toString());
+			assert.deepStrictEqual({
+				inCatalog: !!state?.chats.some(c => c.resource.toString() === peerUri),
+				peerTurnIds: peerChatState?.turns.map(t => t.id) ?? [],
+			}, {
+				inCatalog: true,
+				peerTurnIds: ['peer-turn-1'],
 			});
 		});
 	});

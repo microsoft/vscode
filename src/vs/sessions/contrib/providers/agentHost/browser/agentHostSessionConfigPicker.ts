@@ -77,6 +77,7 @@ export interface IConfigPickerItem {
 	readonly value: string;
 	readonly label: string;
 	readonly description?: string;
+	readonly checked?: boolean;
 }
 
 export function getConfigIcon(property: string, value: unknown | undefined): ThemeIcon | undefined {
@@ -110,7 +111,7 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 		detail: item.description,
 		group: { title: '', icon: getConfigIcon(property, item.value) },
 		disabled: policyRestricted && (item.value === 'autoApprove' || item.value === 'autopilot'),
-		item: { ...item, label: isSelectedValue(currentValue, item.value) ? `${item.label} ${localize('selected', "(Selected)")}` : item.label },
+		item: { ...item, checked: isSelectedValue(currentValue, item.value) },
 	}));
 }
 
@@ -407,8 +408,8 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		}
 
 		const isAutoApproveProperty = property === SessionConfigKey.AutoApprove;
-		const currentValue = provider.getSessionConfig(sessionId)?.values[property];
-		const currentItem = items.find(i => i.value === currentValue);
+		const currentValue = provider.getSessionConfig(sessionId)?.values[property] ?? schema.default;
+		const currentItem = items.find(i => isSelectedValue(currentValue, i.value));
 		const actionItems = toActionItems(property, items, currentValue, policyRestricted);
 
 		const delegate: IActionListDelegate<IConfigPickerItem> = {
@@ -439,7 +440,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				? query => this._filterDelayer.trigger(async () => {
 					const filteredRawItems = await this._getItems(provider, sessionId, property, schema, query);
 					const { items: filteredItems, policyRestricted: filteredPolicyRestricted } = applyAutoApproveFiltering(filteredRawItems, property, this._configurationService);
-					return toActionItems(property, filteredItems, provider.getSessionConfig(sessionId)?.values[property], filteredPolicyRestricted);
+					return toActionItems(property, filteredItems, provider.getSessionConfig(sessionId)?.values[property] ?? schema.default, filteredPolicyRestricted);
 				})
 				: undefined,
 			onHide: () => trigger.focus(),

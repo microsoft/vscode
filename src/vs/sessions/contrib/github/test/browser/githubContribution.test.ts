@@ -8,7 +8,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore, IDisposable, ImmortalReference, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { GitHubPullRequestModel } from '../../browser/models/githubPullRequestModel.js';
 import { GitHubPullRequestCIModel } from '../../browser/models/githubPullRequestCIModel.js';
 import { GitHubPullRequestReviewThreadsModel } from '../../browser/models/githubPullRequestReviewThreadsModel.js';
@@ -28,11 +28,13 @@ suite('GitHubPullRequestPollingContribution', () => {
 	let sessionsManagementService: TestSessionsManagementService;
 	let sessionsService: ISessionsService;
 	let gitHubService: TestGitHubService;
+	let activeSession: ISettableObservable<IActiveSession | undefined>;
 
 	setup(() => {
 		sessionsManagementService = new TestSessionsManagementService(store);
+		activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
 		sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
+			override readonly activeSession = activeSession;
 		};
 		gitHubService = new TestGitHubService();
 	});
@@ -123,6 +125,47 @@ suite('GitHubPullRequestPollingContribution', () => {
 		gitHubService.setPullRequestDetails('owner', 'repo', 1, { state: GitHubPullRequestState.Open, isDraft: true, headSha: 'sha1' });
 
 		assert.deepStrictEqual(gitHubService.statusModelSnapshot(), { ci: {}, reviewThreads: {} });
+	});
+
+	test('starts polling once an asynchronously resolved PR number appears', () => {
+		// Mirrors the agent-host provider, whose `gitHubInfo` initially has no PR
+		// number (it is resolved asynchronously via findPullRequestNumberByHeadBranch).
+		const session = sessionsManagementService.addSession('async', { owner: 'owner', repo: 'repo' });
+		store.add(new GitHubPullRequestPollingContribution(gitHubService, sessionsManagementService, sessionsService));
+
+		// No PR number yet → nothing is polled.
+		assert.deepStrictEqual(gitHubService.snapshot(), {});
+
+		// The PR number resolves later.
+		sessionsManagementService.setGitHubInfo(session, makeGitHubInfo(1));
+
+		assert.deepStrictEqual(gitHubService.snapshot(), {
+			'owner/repo/1': { startPollingCalls: 1, stopPollingCalls: 0, disposeCalls: 0 },
+		});
+	});
+
+	test('stops polling a merged pull request unless it is the active session', () => {
+		const session = sessionsManagementService.addSession('session', makeGitHubInfo(1));
+		store.add(new GitHubPullRequestPollingContribution(gitHubService, sessionsManagementService, sessionsService));
+
+		// Open PR → polling.
+		gitHubService.setPullRequestDetails('owner', 'repo', 1, { state: GitHubPullRequestState.Open, isDraft: false, headSha: 'sha1' });
+		assert.deepStrictEqual(gitHubService.snapshot(), {
+			'owner/repo/1': { startPollingCalls: 1, stopPollingCalls: 0, disposeCalls: 0 },
+		});
+
+		// Merges while not the active session → the repeating poll loop stops (the
+		// single initial fetch already produced the merged icon).
+		gitHubService.setPullRequestDetails('owner', 'repo', 1, { state: GitHubPullRequestState.Merged, isDraft: false, headSha: 'sha1' });
+		assert.deepStrictEqual(gitHubService.snapshot(), {
+			'owner/repo/1': { startPollingCalls: 1, stopPollingCalls: 1, disposeCalls: 0 },
+		});
+
+		// Becomes the active session → polling resumes even though it is merged.
+		activeSession.set(session as unknown as IActiveSession, undefined);
+		assert.deepStrictEqual(gitHubService.snapshot(), {
+			'owner/repo/1': { startPollingCalls: 2, stopPollingCalls: 1, disposeCalls: 0 },
+		});
 	});
 });
 

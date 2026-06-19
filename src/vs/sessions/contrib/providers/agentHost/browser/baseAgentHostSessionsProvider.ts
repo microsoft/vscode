@@ -32,6 +32,7 @@ import { AgentInfo, buildChatUri, buildDefaultChatUri, isDefaultChatUri, parseCh
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
@@ -1417,6 +1418,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		@ISessionsService protected readonly _sessionsService: ISessionsService,
 		@IAgentHostActiveClientService protected readonly _activeClientService: IAgentHostActiveClientService,
 		@IStorageService protected readonly _storageService: IStorageService,
+		@IDialogService protected readonly _dialogService: IDialogService,
 	) {
 		super();
 		this._register(toDisposable(() => {
@@ -2317,6 +2319,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
 		const ahpChatUri = URI.parse(buildChatUri(sessionUri, chatId));
+
+		const confirmed = await this._dialogService.confirm({
+			message: localize('deleteChat.confirm', "Are you sure you want to delete this chat?"),
+			detail: localize('deleteChat.detail', "This action cannot be undone."),
+			primaryButton: localize('deleteChat.delete', "Delete")
+		});
+		if (!confirmed.confirmed) {
+			return;
+		}
 
 		// Keep the session-state subscription alive so the `chatRemoved` the
 		// host emits flows into `applyChatCatalog` and drops the chat from
