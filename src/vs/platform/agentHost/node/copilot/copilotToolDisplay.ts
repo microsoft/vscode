@@ -399,6 +399,41 @@ export function getTaskCompleteSummary(parameters: Record<string, unknown> | und
 }
 
 /**
+ * Formats the Autopilot completion summary as the markdown response part
+ * content, including the localized prefix.
+ */
+export function getTaskCompleteMarkdown(parameters: Record<string, unknown> | undefined, toolOutput: string | undefined): string | undefined {
+	const summary = getTaskCompleteSummary(parameters, toolOutput);
+	if (!summary) {
+		return undefined;
+	}
+	return '\n\n' + localize('toolMarkdown.taskComplete', "**Task completed:** {0}", summary);
+}
+
+/**
+ * Returns true if the tool should render as a markdown response part instead
+ * of a tool-call entry.
+ */
+export function isMarkdownRenderedTool(toolName: string): boolean {
+	return isTaskCompleteTool(toolName);
+}
+
+/**
+ * Returns markdown content for tools rendered as inline markdown response
+ * parts.
+ */
+export function getToolMarkdownContent(toolName: string, parameters: Record<string, unknown> | undefined): string | undefined {
+	if (!isMarkdownRenderedTool(toolName)) {
+		return undefined;
+	}
+	const summary = getTaskCompleteSummary(parameters, undefined);
+	if (!summary) {
+		return undefined;
+	}
+	return getTaskCompleteMarkdown(parameters, undefined);
+}
+
+/**
  * Returns true if the tool executes shell commands.
  */
 export function isShellTool(toolName: string): boolean {

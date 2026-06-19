@@ -1823,7 +1823,7 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(responsePart.part, {
 				kind: ResponsePartKind.Markdown,
 				id: responsePart.part.id,
-				content: 'Completed the requested work.',
+				content: '\n\n**Task completed:** Completed the requested work.',
 			});
 		});
 
