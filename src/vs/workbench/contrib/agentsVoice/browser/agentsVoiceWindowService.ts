@@ -45,6 +45,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 	private _window: IAuxiliaryWindow | undefined;
 	private readonly _windowDisposables = this._register(new DisposableStore());
 	private readonly _ownershipChannel: BroadcastChannel;
+	private _resizeTimeout: ReturnType<typeof setTimeout> | undefined;
 
 	get isOpen(): boolean {
 		return !!this._window;
@@ -204,6 +205,8 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 			},
 			selectTargetSession: (resource) => {
 				this.voiceSessionController.setTargetSession(resource);
+				// Reveal the selected session in the chat panel
+				this.commandService.executeCommand('_chat.voice.switchToSession', resource.toString()).catch(() => { /* ignore */ });
 			},
 			newSessionAsTarget: () => {
 				this.voiceSessionController.newSessionAsTarget();
@@ -313,6 +316,17 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 	// --- Window sizing ---
 
 	private _resizeWindow(auxiliaryWindow: IAuxiliaryWindow): void {
+		// Debounce resize to avoid fighting user drag operations
+		if (this._resizeTimeout) {
+			clearTimeout(this._resizeTimeout);
+		}
+		this._resizeTimeout = setTimeout(() => {
+			this._resizeTimeout = undefined;
+			this._doResizeWindow(auxiliaryWindow);
+		}, 100);
+	}
+
+	private _doResizeWindow(auxiliaryWindow: IAuxiliaryWindow): void {
 		// eslint-disable-next-line no-restricted-syntax
 		const pill = auxiliaryWindow.container.querySelector('div') as HTMLElement | null;
 		if (!pill) { return; }
@@ -324,9 +338,13 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		const currentHeight = auxiliaryWindow.window.outerHeight;
 		if (pillWidth !== currentWidth || pillHeight !== currentHeight) {
 			try {
+				// Clamp height so window doesn't exceed available screen space.
+				const screenBottom = auxiliaryWindow.window.screen.availHeight;
+				const maxHeight = screenBottom - auxiliaryWindow.window.screenY;
+				const clampedHeight = Math.min(pillHeight, Math.max(maxHeight, AGENTS_VOICE_WINDOW_DEFAULT_HEIGHT));
 				// resizeTo only — no moveTo. On macOS this keeps top-left fixed,
 				// window grows/shrinks downward. No visible position change.
-				auxiliaryWindow.window.resizeTo(pillWidth, pillHeight);
+				auxiliaryWindow.window.resizeTo(pillWidth, clampedHeight);
 			} catch { /* resize may not be supported */ }
 		}
 	}
