@@ -700,12 +700,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * `ModelBilling` type — narrow through {@link ICopilotModelBilling} until the SDK catches up.
 	 */
 	private _createContextTierConfigSchemaProperty(billing: ModelInfo['billing'] | undefined): ConfigPropertySchema | undefined {
-		const tokenPrices = billing?.tokenPrices;
-		const defaultMax = tokenPrices?.contextMax;
-		const longContextMax = tokenPrices?.longContext?.contextMax;
-		if (!defaultMax || !longContextMax || defaultMax >= longContextMax) {
+		const windows = this._getContextTierWindows(billing);
+		if (!windows) {
 			return undefined;
 		}
+		const tokenPrices = billing?.tokenPrices;
 
 		const hasLongContextSurcharge = typeof tokenPrices?.longContext?.inputPrice === 'number'
 			|| typeof tokenPrices?.longContext?.outputPrice === 'number';
@@ -716,7 +715,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			description: localize('copilot.modelContextTier.description', "Selects the context window size for this model."),
 			default: 'default',
 			enum: ['default', 'long_context'],
-			enumLabels: [formatTokenCount(defaultMax), formatTokenCount(longContextMax)],
+			enumLabels: [formatTokenCount(windows.defaultWindow), formatTokenCount(windows.longWindow)],
 			enumDescriptions: [
 				localize('copilot.modelContextTier.default', "Default"),
 				hasLongContextSurcharge
@@ -727,20 +726,25 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * The model's long-context window size in tokens, surfaced as model metadata
-	 * (sibling of `maxContextWindow`) so the context-usage widget can reflect a
-	 * `long_context` tier selection. Mirrors the gating in
-	 * {@link _createContextTierConfigSchemaProperty}: returns `undefined` when the
-	 * model has no distinct long-context tier.
+	 * Resolves the default- and long-context window sizes (in tokens) for a model that exposes a distinct
+	 * `long_context` tier — i.e. its default `contextMax` is strictly smaller than its long-context `contextMax`.
+	 * Returns `undefined` when the model has no such tier. Mirrors the gating in `getContextSizeOptions` in the
+	 * Copilot extension: the default tier window is `tokenPrices.contextMax` (the smaller, recommended window) and
+	 * the long tier window is `tokenPrices.longContext.contextMax` (the model's full window). Note this default
+	 * window is distinct from `capabilities.limits.max_context_window_tokens`, which is the model's absolute (long)
+	 * maximum.
+	 *
+	 * `billing.tokenPrices` is present on the runtime CAPI `/models` payload but not yet declared on the published SDK
+	 * `ModelBilling` type — narrow through {@link ICopilotModelBilling} until the SDK catches up.
 	 */
-	private _getLongContextWindow(billing: ModelInfo['billing'] | undefined): number | undefined {
-		const tokenPrices = (billing as ICopilotModelBilling | undefined)?.tokenPrices;
+	private _getContextTierWindows(billing: ModelInfo['billing'] | undefined): { defaultWindow: number; longWindow: number } | undefined {
+		const tokenPrices = billing?.tokenPrices;
 		const defaultMax = tokenPrices?.contextMax;
 		const longContextMax = tokenPrices?.longContext?.contextMax;
 		if (!defaultMax || !longContextMax || defaultMax >= longContextMax) {
 			return undefined;
 		}
-		return longContextMax;
+		return { defaultWindow: defaultMax, longWindow: longContextMax };
 	}
 
 	/**
@@ -938,19 +942,25 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._logService.info('[Copilot] Listing models...');
 		const client = await this._ensureClient();
 		const { models } = await client.rpc.models.list({ gitHubToken });
-		const result = models.map((m): IAgentModelInfo => ({
-			provider: this.id,
-			id: m.id,
-			name: m.name,
-			// Synthetic SDK entries like `auto` ship with `capabilities: {}` and
-			// no fixed context window — surface them with maxContextWindow undefined.
-			maxContextWindow: m.capabilities?.limits?.max_context_window_tokens,
-			maxLongContextWindow: this._getLongContextWindow(m.billing),
-			supportsVision: !!m.capabilities?.supports?.vision,
-			configSchema: this._createModelConfigSchema(m),
-			policyState: m.policy?.state as PolicyState | undefined,
-			_meta: this._createModelPricingMeta(m),
-		}));
+		const result = models.map((m): IAgentModelInfo => {
+			// Models with a distinct long-context tier expose two windows: the smaller default-tier window
+			// (`tokenPrices.contextMax`) is the baseline shown by default, while the full window is the
+			// `long_context` tier. `capabilities.limits.max_context_window_tokens` is the model's absolute
+			// (long) maximum, so it must not be used as the default-tier baseline. Fall back to it only when
+			// the model has no tier distinction (e.g. synthetic `auto`, which ships with `capabilities: {}`).
+			const contextTierWindows = this._getContextTierWindows(m.billing);
+			return {
+				provider: this.id,
+				id: m.id,
+				name: m.name,
+				maxContextWindow: contextTierWindows?.defaultWindow ?? m.capabilities?.limits?.max_context_window_tokens,
+				maxLongContextWindow: contextTierWindows?.longWindow,
+				supportsVision: !!m.capabilities?.supports?.vision,
+				configSchema: this._createModelConfigSchema(m),
+				policyState: m.policy?.state as PolicyState | undefined,
+				_meta: this._createModelPricingMeta(m),
+			};
+		});
 		this._logService.info(`[Copilot] Found ${result.length} models: ${result.map(m => m.name).join(', ')}`);
 		return result;
 	}

@@ -148,8 +148,9 @@ export class ChatContextUsageWidget extends Disposable {
 
 	private readonly _lastRequestDisposable = this._register(new MutableDisposable());
 	private readonly _modelConfigurationListener = this._register(new MutableDisposable());
+	private readonly _selectedModelListener = this._register(new MutableDisposable());
 	private _currentResponse: IChatResponseModel | undefined;
-	private _currentModelId: string | undefined;
+	private _currentRequestModelId: string | undefined;
 	private _sessionCost: number = 0;
 	private readonly _hoverDisposable = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _contextUsageDetails = this._register(new MutableDisposable<ChatContextUsageDetails>());
@@ -171,6 +172,18 @@ export class ChatContextUsageWidget extends Disposable {
 	 * lag the editor's actual selection (see issue #320393).
 	 */
 	private _modelConfigurationResolver: ((modelId: string) => IStringDictionary<unknown> | undefined) | undefined;
+
+	/**
+	 * Resolves the editor's currently-selected model id. The widget prefers this
+	 * over the request's recorded model when resolving the context window and
+	 * configuration, so toggling the context size (or switching models) is
+	 * reflected live — even when the last request was recorded against a
+	 * different model identifier. This matters for agent-host sessions, where the
+	 * model the user selects (e.g. `agent-host-copilot:<id>`) can differ from the
+	 * identifier stamped on an earlier request (e.g. a foreign `copilot/<id>`).
+	 * Falls back to the request's model when unset.
+	 */
+	private _currentModelIdResolver: (() => string | undefined) | undefined;
 
 	constructor(
 		@IHoverService private readonly hoverService: IHoverService,
@@ -294,14 +307,18 @@ export class ChatContextUsageWidget extends Disposable {
 
 	/**
 	 * Updates the widget with the latest request/response data.
-	 * The model is retrieved from the request's modelId.
+	 *
+	 * Usage numbers come from the request's response; the context window and
+	 * configuration are resolved from the editor's currently-selected model when
+	 * available (see {@link setCurrentModelResolver}), falling back to the
+	 * request's recorded model.
 	 * @param lastRequest The last request in the session
 	 * @param sessionCost Total copilot credits consumed across all turns
 	 */
 	update(lastRequest: IChatRequestModel | undefined, sessionCost: number = 0): void {
 		this._lastRequestDisposable.clear();
 		this._currentResponse = undefined;
-		this._currentModelId = undefined;
+		this._currentRequestModelId = undefined;
 		this._sessionCost = sessionCost;
 
 		if (!lastRequest) {
@@ -320,23 +337,22 @@ export class ChatContextUsageWidget extends Disposable {
 		}
 
 		const response = lastRequest.response;
-		const modelId = lastRequest.modelId;
 		this._currentResponse = response;
-		this._currentModelId = modelId;
+		this._currentRequestModelId = lastRequest.modelId;
 
 		// Update immediately if usage data is already available
-		this.updateFromResponse(response, modelId);
+		this.updateFromResponse(response);
 
 		// Subscribe to response changes to update whenever usage data changes
 		this._lastRequestDisposable.value = response.onDidChange(() => {
-			this.updateFromResponse(response, modelId);
+			this.updateFromResponse(response);
 		});
 	}
 
 	/**
 	 * Provides a per-editor resolver for the selected model's configuration
 	 * (notably the user-selected context size). The widget re-renders whenever
-	 * the supplied event fires for the currently displayed model. Without this,
+	 * the supplied event fires for the model it currently reflects. Without this,
 	 * the widget falls back to the profile-global value, which can drift from
 	 * the editor's actual selection (see issue #320393).
 	 */
@@ -346,16 +362,43 @@ export class ChatContextUsageWidget extends Disposable {
 	): void {
 		this._modelConfigurationResolver = resolver;
 		this._modelConfigurationListener.value = onDidChange(modelId => {
-			if (this._currentResponse && this._currentModelId === modelId) {
-				this.updateFromResponse(this._currentResponse, modelId);
+			if (this._currentResponse && this._resolveModelId() === modelId) {
+				this.updateFromResponse(this._currentResponse);
 			}
 		});
 	}
 
-	private updateFromResponse(response: IChatResponseModel, modelId: string): void {
+	/**
+	 * Provides the editor's currently-selected model id, which the widget prefers
+	 * over the request's recorded model when resolving the context window and
+	 * configuration. Re-renders whenever the selection changes so switching
+	 * models (or context-size tiers) is reflected live. See {@link _currentModelIdResolver}.
+	 */
+	setCurrentModelResolver(
+		resolver: () => string | undefined,
+		onDidChange: Event<void>,
+	): void {
+		this._currentModelIdResolver = resolver;
+		this._selectedModelListener.value = onDidChange(() => {
+			if (this._currentResponse) {
+				this.updateFromResponse(this._currentResponse);
+			}
+		});
+	}
+
+	/**
+	 * The model the widget reflects: the editor's currently-selected model when
+	 * known, else the model recorded on the current request.
+	 */
+	private _resolveModelId(): string | undefined {
+		return this._currentModelIdResolver?.() ?? this._currentRequestModelId;
+	}
+
+	private updateFromResponse(response: IChatResponseModel): void {
 		const usage = response.usage;
-		const modelMetadata = this.languageModelsService.lookupLanguageModel(modelId);
-		const modelConfiguration = this._modelConfigurationResolver?.(modelId) ?? this.languageModelsService.getModelConfiguration(modelId);
+		const modelId = this._resolveModelId();
+		const modelMetadata = modelId ? this.languageModelsService.lookupLanguageModel(modelId) : undefined;
+		const modelConfiguration = modelId ? (this._modelConfigurationResolver?.(modelId) ?? this.languageModelsService.getModelConfiguration(modelId)) : undefined;
 		const configuredContextSize = resolveConfiguredContextTokens(modelConfiguration, modelMetadata);
 		const maxInputTokens = configuredContextSize ?? modelMetadata?.maxInputTokens;
 		const maxOutputTokens = modelMetadata?.maxOutputTokens;

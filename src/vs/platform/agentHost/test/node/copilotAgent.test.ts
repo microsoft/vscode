@@ -908,7 +908,9 @@ suite('CopilotAgent', () => {
 			copilotClient: new TestCopilotClient([], [{
 				id: 'claude-sonnet',
 				name: 'Claude Sonnet',
-				capabilities: { limits: { max_context_window_tokens: 200_000 } },
+				// `max_context_window_tokens` is the model's absolute (long) maximum, which must NOT be used as
+				// the default-tier baseline; the default window comes from `tokenPrices.contextMax`.
+				capabilities: { limits: { max_context_window_tokens: 1_000_000 } },
 				billing: {
 					multiplier: 1,
 					tokenPrices: {
@@ -926,6 +928,8 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual(contextTier?.enum, ['default', 'long_context']);
 			assert.strictEqual(contextTier?.default, 'default');
 			assert.deepStrictEqual(contextTier?.enumLabels, ['200K', '1M']);
+			// Baseline window is the default tier (200K), not the model's absolute max (1M).
+			assert.strictEqual(models[0].maxContextWindow, 200_000);
 			assert.strictEqual(models[0].maxLongContextWindow, 1_000_000);
 		} finally {
 			await disposeAgent(agent);

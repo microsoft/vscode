@@ -2703,6 +2703,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			modelId => this.getModelConfiguration(modelId),
 			this._modelConfigStore.onDidChange,
 		);
+		this.contextUsageWidget.setCurrentModelResolver(
+			() => this.currentLanguageModel,
+			Event.fromObservableLight(this._currentLanguageModel),
+		);
 		this.contextUsageWidgetContainer.appendChild(this.contextUsageWidget.domNode);
 
 		if (this.options.enableImplicitContext && !this._implicitContext) {
