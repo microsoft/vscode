@@ -377,11 +377,9 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		if (raw) {
 			try {
 				const parsed = JSON.parse(raw);
-				if (typeof parsed.x === 'number' && typeof parsed.y === 'number') {
-					// Use stored x for horizontal position, but recalculate y
-					// based on the stored bottom edge to handle height changes
-					const storedHeight = typeof parsed.height === 'number' ? parsed.height : defaults.height;
-					const storedBottom = parsed.y + storedHeight;
+				if (typeof parsed.x === 'number' && typeof parsed.y === 'number' && typeof parsed.height === 'number') {
+					// Recalculate y from stored bottom edge to handle height changes
+					const storedBottom = parsed.y + parsed.height;
 					const y = storedBottom - defaults.height;
 					const bounds = { x: parsed.x, y, width: defaults.width, height: defaults.height };
 					if (this._isOnScreen(bounds)) {
