@@ -155,6 +155,17 @@ suite('MultiplexPolicyService', () => {
 					value: policyData => policyData.chat_preview_features_enabled === false ? JSON.stringify(['policyValueG1', 'policyValueG2']) : undefined,
 				}
 			},
+			'setting.H': {
+				'type': ['array', 'null'],
+				'default': null,
+				policy: {
+					name: 'PolicySettingH',
+					category: PolicyCategory.Extensions,
+					minimumVersion: '1.0.0',
+					localization: { description: { key: '', value: '' } },
+					value: policyData => policyData.chat_preview_features_enabled === false ? JSON.stringify([]) : undefined,
+				}
+			},
 		}
 	};
 
@@ -392,5 +403,29 @@ suite('MultiplexPolicyService', () => {
 
 		assert.strictEqual(policyService.getPolicyValue('PolicySettingG'), JSON.stringify(['policyValueG1', 'policyValueG2']));
 		assert.deepStrictEqual(policyConfiguration.configurationModel.getValue('setting.G'), ['policyValueG1', 'policyValueG2']);
+	});
+
+	test('union-typed (array | null) policy preserves an empty array (lockdown) distinct from unset', async () => {
+		await clear();
+
+		// Policy set to an empty array (e.g. a lockdown allowlist): must round-trip to `[]`, not `undefined`.
+		const setPolicyData: IPolicyData = { chat_preview_features_enabled: false };
+		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, setPolicyData));
+		await defaultAccountService.refresh();
+		await policyConfiguration.initialize();
+
+		assert.strictEqual(policyService.getPolicyValue('PolicySettingH'), JSON.stringify([]));
+		assert.deepStrictEqual(policyConfiguration.configurationModel.getValue('setting.H'), []);
+	});
+
+	test('union-typed (array | null) policy unset leaves the setting at its default (distinct from empty array)', async () => {
+		await clear();
+
+		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, {}));
+		await defaultAccountService.refresh();
+		await policyConfiguration.initialize();
+
+		assert.strictEqual(policyService.getPolicyValue('PolicySettingH'), undefined);
+		assert.strictEqual(policyConfiguration.configurationModel.getValue('setting.H'), undefined);
 	});
 });
