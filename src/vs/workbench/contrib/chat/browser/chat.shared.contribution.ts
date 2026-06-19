@@ -1041,7 +1041,7 @@ configurationRegistry.registerConfiguration({
 				},
 				required: ['source'],
 			},
-			markdownDescription: nls.localize('chat.plugins.strictMarketplaces', "Enterprise-managed allowlist of plugin marketplace sources. When set, only marketplaces matching one of these entries can be installed or loaded; an empty array blocks all marketplaces. Each entry is an object with a `source` discriminator (`github`, `git`, `url`, `file`, `directory`, `hostPattern`, or `pathPattern`) and the corresponding fields. Typically delivered via enterprise policy."),
+			markdownDescription: nls.localize('chat.plugins.strictMarketplaces', "Enterprise-managed allowlist of plugin marketplace sources. When set, only marketplaces matching one of these entries can be installed; an empty array blocks all marketplaces. This does not retroactively disable already-installed plugins. Each entry is an object with a `source` discriminator (`github`, `git`, `url`, `npm`, `file`, `directory`, `hostPattern`, or `pathPattern`) and the corresponding fields. Typically delivered via enterprise policy."),
 			default: null,
 			restricted: true,
 			scope: ConfigurationScope.APPLICATION,

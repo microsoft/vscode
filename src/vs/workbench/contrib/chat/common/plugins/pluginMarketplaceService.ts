@@ -172,7 +172,7 @@ export interface IPluginMarketplaceService {
 	getMarketplacePluginMetadata(pluginUri: URI): IMarketplacePlugin | undefined;
 	addInstalledPlugin(pluginUri: URI, plugin: IMarketplacePlugin): void;
 	removeInstalledPlugin(pluginUri: URI): void;
-	/** Returns whether the given marketplace has been explicitly trusted by the user. */
+	/** Returns whether the given marketplace is trusted — either explicitly trusted by the user, or allowed by the enterprise allowlist when strict mode is active. */
 	isMarketplaceTrusted(ref: IMarketplaceReference): boolean;
 	/**
 	 * Returns whether the strict-marketplace enterprise policy

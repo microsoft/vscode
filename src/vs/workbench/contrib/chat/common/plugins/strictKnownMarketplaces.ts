@@ -27,10 +27,16 @@ export type StrictKnownMarketplaces = readonly IStrictMarketplaceSource[];
  * Coerces a resolved configuration value into a {@link StrictKnownMarketplaces}
  * allowlist. Returns `undefined` (meaning "no restrictions") when the value is
  * not an array — which is also how an unset policy surfaces (the registered
- * `null` default).
+ * `null` default). Malformed entries (non-objects or entries without a string
+ * `source`) are dropped so a bad managed-settings payload degrades to "no match"
+ * rather than throwing during matching.
  */
 export function getStrictKnownMarketplaces(value: unknown): StrictKnownMarketplaces | undefined {
-	return Array.isArray(value) ? value as StrictKnownMarketplaces : undefined;
+	if (!Array.isArray(value)) {
+		return undefined;
+	}
+	return value.filter((entry): entry is IStrictMarketplaceSource =>
+		typeof entry === 'object' && entry !== null && typeof entry.source === 'string');
 }
 
 /**
@@ -71,7 +77,7 @@ function matchesAllowlistEntry(entry: IStrictMarketplaceSource, ref: IMarketplac
 			if (typeof entry.url !== 'string') {
 				return false;
 			}
-			const candidate = parseMarketplaceReference(entry.url);
+			const candidate = parseMarketplaceReference(appendRef(entry.url, entry.ref));
 			return !!candidate && candidate.canonicalId === ref.canonicalId;
 		}
 		case 'npm': {

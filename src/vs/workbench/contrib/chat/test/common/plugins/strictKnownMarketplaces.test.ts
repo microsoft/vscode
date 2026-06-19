@@ -25,6 +25,17 @@ suite('strictKnownMarketplaces', () => {
 		assert.deepStrictEqual(getStrictKnownMarketplaces([]), []);
 	});
 
+	test('getStrictKnownMarketplaces drops malformed entries', () => {
+		const value = [
+			{ source: 'github', repo: 'owner/repo' },
+			null,
+			42,
+			'github',
+			{ repo: 'owner/repo' }, // missing source
+		];
+		assert.deepStrictEqual(getStrictKnownMarketplaces(value), [{ source: 'github', repo: 'owner/repo' }]);
+	});
+
 	test('undefined allowlist allows everything; empty allowlist blocks everything', () => {
 		const r = ref('microsoft/vscode');
 		assert.strictEqual(isMarketplaceReferenceAllowed(undefined, r), true);
@@ -59,6 +70,13 @@ suite('strictKnownMarketplaces', () => {
 		const allowlist: IStrictMarketplaceSource[] = [{ source: 'git', url: 'https://example.com/team/kit.git' }];
 		assert.strictEqual(isMarketplaceReferenceAllowed(allowlist, ref('https://example.com/team/kit.git')), true);
 		assert.strictEqual(isMarketplaceReferenceAllowed(allowlist, ref('https://example.com/team/other.git')), false);
+	});
+
+	test('url entry honors a pinned ref', () => {
+		const pinned: IStrictMarketplaceSource[] = [{ source: 'url', url: 'https://example.com/team/kit.git', ref: 'main' }];
+		assert.strictEqual(isMarketplaceReferenceAllowed(pinned, ref('https://example.com/team/kit.git#main')), true);
+		assert.strictEqual(isMarketplaceReferenceAllowed(pinned, ref('https://example.com/team/kit.git')), false);
+		assert.strictEqual(isMarketplaceReferenceAllowed(pinned, ref('https://example.com/team/kit.git#dev')), false);
 	});
 
 	test('npm entries never match', () => {
