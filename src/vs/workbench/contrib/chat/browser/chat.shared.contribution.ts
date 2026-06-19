@@ -1000,7 +1000,7 @@ configurationRegistry.registerConfiguration({
 				localization: {
 					description: {
 						key: 'chat.plugins.enabledPlugins.policy',
-						value: nls.localize('chat.plugins.enabledPlugins.policy', "Plugin enablement. Keys are plugin IDs in `<plugin>@<marketplace>` form; values enable or disable the plugin."),
+						value: nls.localize('chat.plugins.enabledPlugins.policy', "Plugin enablement. Keys are plugin IDs in `{plugin}@{marketplace}` form; values enable or disable the plugin."),
 					}
 				},
 			},
@@ -1045,15 +1045,33 @@ configurationRegistry.registerConfiguration({
 				localization: {
 					description: {
 						key: 'chat.plugins.extraMarketplaces.policy',
-						value: nls.localize('chat.plugins.extraMarketplaces.policy', "Additional plugin marketplaces to query. Keys are marketplace names; values are GitHub shorthand (`owner/repo[#ref]`) or Git URIs (`<url>[#ref]`)."),
+						value: nls.localize('chat.plugins.extraMarketplaces.policy', "Additional plugin marketplaces to query. Keys are marketplace names; values are GitHub shorthand (`owner/repo[#ref]`) or Git URIs (`{url}[#ref]`)."),
 					}
 				},
 			},
 		},
 		[ChatConfiguration.StrictMarketplaces]: {
-			type: 'boolean',
-			markdownDescription: nls.localize('chat.plugins.strictMarketplaces', "When enabled, only marketplaces supplied via enterprise policy are trusted. Plugins from any other marketplace will not load."),
-			default: false,
+			type: ['array', 'null'],
+			items: {
+				type: 'object',
+				properties: {
+					source: {
+						type: 'string',
+						enum: ['github', 'git', 'url', 'npm', 'file', 'directory', 'hostPattern', 'pathPattern'],
+					},
+					repo: { type: 'string' },
+					url: { type: 'string' },
+					ref: { type: 'string' },
+					path: { type: 'string' },
+					package: { type: 'string' },
+					hostPattern: { type: 'string' },
+					pathPattern: { type: 'string' },
+					headers: { type: 'object', additionalProperties: { type: 'string' } },
+				},
+				required: ['source'],
+			},
+			markdownDescription: nls.localize('chat.plugins.strictMarketplaces', "Enterprise-managed allowlist of plugin marketplace sources. When set, only marketplaces matching one of these entries can be installed; an empty array blocks all marketplaces. This does not retroactively disable already-installed plugins. Each entry is an object with a `source` discriminator (`github`, `git`, `url`, `npm`, `file`, `directory`, `hostPattern`, or `pathPattern`) and the corresponding fields. Typically delivered via enterprise policy."),
+			default: null,
 			restricted: true,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
@@ -1063,12 +1081,12 @@ configurationRegistry.registerConfiguration({
 				minimumVersion: '1.122',
 				value: (policyData) => policyData.managedSettings?.[COPILOT_STRICT_MARKETPLACES_KEY],
 				managedSettings: {
-					[COPILOT_STRICT_MARKETPLACES_KEY]: { type: 'boolean' },
+					[COPILOT_STRICT_MARKETPLACES_KEY]: { type: 'string' },
 				},
 				localization: {
 					description: {
 						key: 'chat.plugins.strictMarketplaces.policy',
-						value: nls.localize('chat.plugins.strictMarketplaces.policy', "Only trust marketplaces supplied via enterprise policy; plugins from any other marketplace will not load."),
+						value: nls.localize('chat.plugins.strictMarketplaces.policy', "Allowlist of plugin marketplace sources. When set, only marketplaces matching an entry are trusted; an empty array blocks all marketplaces."),
 					}
 				},
 			},

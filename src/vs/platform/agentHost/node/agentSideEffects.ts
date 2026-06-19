@@ -349,7 +349,9 @@ export class AgentSideEffects extends Disposable {
 			if (subagentSession) {
 				const subTurnId = this._stateManager.getActiveTurnId(subagentSession);
 				if (subTurnId) {
-					this._handleToolReady(signal, subagentSession, subTurnId, agent);
+					void this._handleToolReady(signal, subagentSession, subTurnId, agent).catch(err => {
+						this._logService.error('[AgentSideEffects] _handleToolReady failed', err);
+					});
 				}
 				return;
 			}
@@ -381,7 +383,9 @@ export class AgentSideEffects extends Disposable {
 	private _dispatchActionForSession(signal: AgentSignal, sessionKey: ProtocolURI, turnId: string, agent?: IAgent): void {
 		if (signal.kind === 'pending_confirmation') {
 			if (agent) {
-				this._handleToolReady(signal, sessionKey, turnId, agent);
+				void this._handleToolReady(signal, sessionKey, turnId, agent).catch(err => {
+					this._logService.error('[AgentSideEffects] _handleToolReady failed', err);
+				});
 			}
 			return;
 		}
@@ -496,6 +500,14 @@ export class AgentSideEffects extends Disposable {
 		}
 		this._tryConsumeNextQueuedMessage(sessionKey);
 		this._options.onTurnComplete(sessionScope);
+
+		// After the first turn completes, refine the auto-generated title using
+		// the full first-turn context (request + response). No-op for later
+		// turns or when the title has since been changed. `sessionKey` may be an
+		// additional chat channel; route it as `chatChannel` so the refinement
+		// targets that chat's title, mirroring `seedTitleFromFirstMessage`.
+		const titleChatChannel = isAhpChatChannel(sessionKey) && !isDefaultChatUri(sessionKey) ? sessionKey : undefined;
+		this._titleController.refineTitleFromFirstTurn(sessionScope, titleChatChannel);
 	}
 
 	private _describeSignal(signal: AgentSignal): string {
@@ -726,7 +738,7 @@ export class AgentSideEffects extends Disposable {
 	 * dispatches the `ChatToolCallReady` action with confirmation options
 	 * for the client.
 	 */
-	private _handleToolReady(e: IAgentToolPendingConfirmationSignal, sessionKey: ProtocolURI, turnId: string, agent: IAgent): void {
+	private async _handleToolReady(e: IAgentToolPendingConfirmationSignal, sessionKey: ProtocolURI, turnId: string, agent: IAgent): Promise<void> {
 		const approvalEvent = {
 			toolCallId: e.state.toolCallId,
 			session: e.session,
@@ -734,7 +746,7 @@ export class AgentSideEffects extends Disposable {
 			permissionPath: e.permissionPath,
 			toolInput: e.state.toolInput,
 		};
-		const autoApproval = this._permissionManager.getAutoApproval(approvalEvent, sessionKey);
+		const autoApproval = await this._permissionManager.getAutoApproval(approvalEvent, sessionKey);
 		const part = this._stateManager.getSessionState(sessionKey)?.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === e.state.toolCallId);
 		const toolCall = part?.kind === ResponsePartKind.ToolCall ? part.toolCall : undefined;
 		const contributor = e.state.contributor ?? toolCall?.contributor;
