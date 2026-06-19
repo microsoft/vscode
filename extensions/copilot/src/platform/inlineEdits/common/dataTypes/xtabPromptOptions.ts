@@ -5,6 +5,7 @@
 
 import { assertNever } from '../../../../util/vs/base/common/assert';
 import { IValidator, vBoolean, vEnum, vNumber, vObj, vRequired, vString, vUndefined, vUnion } from '../../../configuration/common/validator';
+import { ImportChanges } from './importFilteringOptions';
 
 export enum IncludeLineNumbersOption {
 	WithSpaceAfter = 'withSpaceAfter',
@@ -495,6 +496,8 @@ export interface ModelConfiguration {
 	recentlyViewedDocuments?: Partial<RecentlyViewedDocumentsOptions>;
 	lintOptions: Partial<LintOptions> | undefined;
 	supportsNextCursorLinePrediction?: boolean;
+	/** Whether import-only edits are allowed. `undefined` is treated as {@link ImportChanges.None}. */
+	allowImportChanges?: ImportChanges;
 }
 
 /**
@@ -513,6 +516,7 @@ const STRATEGY_CONFIG: Partial<Record<PromptingStrategy, Partial<ModelConfigurat
 		currentFile: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace },
 		recentlyViewedDocuments: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace },
 		supportsNextCursorLinePrediction: false,
+		allowImportChanges: ImportChanges.All,
 	},
 	[PromptingStrategy.PatchBased02WithoutRecentLineNumbers]: {
 		includeTagsInCurrentFile: false,
@@ -520,6 +524,7 @@ const STRATEGY_CONFIG: Partial<Record<PromptingStrategy, Partial<ModelConfigurat
 		currentFile: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace },
 		recentlyViewedDocuments: { includeLineNumbers: IncludeLineNumbersOption.None },
 		supportsNextCursorLinePrediction: false,
+		allowImportChanges: ImportChanges.All,
 	},
 };
 
@@ -559,6 +564,7 @@ export const MODEL_CONFIGURATION_VALIDATOR: IValidator<ModelConfiguration> = vOb
 	'recentlyViewedDocuments': vUnion(RecentlyViewedDocumentsOptions.VALIDATOR, vUndefined()),
 	'lintOptions': vUnion(LINT_OPTIONS_VALIDATOR, vUndefined()),
 	'supportsNextCursorLinePrediction': vUnion(vBoolean(), vUndefined()),
+	'allowImportChanges': vUnion(ImportChanges.VALIDATOR, vUndefined()),
 });
 
 export function parseLintOptionString(optionString: string, defaults: LintOptions): LintOptions {
@@ -739,7 +745,6 @@ export namespace SpeculativeRequestsEnablement {
  */
 export enum DuplicateAdditionsMode {
 	Off = 'off',
-	Log = 'log',
 	DropPatch = 'dropPatch',
 	DropAllRemaining = 'dropAllRemaining',
 	TrimDuplicate = 'trimDuplicate',
@@ -748,7 +753,6 @@ export enum DuplicateAdditionsMode {
 export namespace DuplicateAdditionsMode {
 	export const VALIDATOR = vEnum(
 		DuplicateAdditionsMode.Off,
-		DuplicateAdditionsMode.Log,
 		DuplicateAdditionsMode.DropPatch,
 		DuplicateAdditionsMode.DropAllRemaining,
 		DuplicateAdditionsMode.TrimDuplicate,

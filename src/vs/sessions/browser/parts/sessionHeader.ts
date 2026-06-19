@@ -17,22 +17,51 @@ import { ThemeIcon } from '../../../base/common/themables.js';
 import { localize } from '../../../nls.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
 import { ISessionsListModelService } from '../../services/sessions/browser/sessionsListModelService.js';
+import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
+import { ActionRunner, IAction } from '../../../base/common/actions.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
+import { IHoverService } from '../../../platform/hover/browser/hover.js';
+import { getDefaultHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { IManagedHoverTooltipMarkdownString } from '../../../base/browser/ui/hover/hover.js';
+import { MarkdownString } from '../../../base/common/htmlContent.js';
 import { Menus } from '../menus.js';
 import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
 import { DraggedSessionIdentifier, SessionsDataTransfers } from '../dnd.js';
 import { applyDragImage } from '../../../base/browser/ui/dnd/dnd.js';
 import { applySessionBarThemeColors } from './sessionBarStyles.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
-import { isAgentHostProviderId } from '../../common/agentHostSessionsProvider.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { SessionStatusIcon } from '../sessionStatusIcon.js';
 
 /**
+ * An action runner for the session header toolbars that promotes the header's
+ * session to be the active session before running any contributed command. This
+ * ensures commands (e.g. View Changes) operate on the clicked session even when
+ * a different session is currently active.
+ */
+class SessionActivatingActionRunner extends ActionRunner {
+
+	constructor(
+		private readonly _getSession: () => IActiveSession | undefined,
+		private readonly _sessionsService: ISessionsService,
+	) {
+		super();
+	}
+
+	protected override async runAction(action: IAction, context?: unknown): Promise<void> {
+		const session = this._getSession();
+		if (session) {
+			this._sessionsService.setActive(session);
+		}
+		await super.runAction(action, context);
+	}
+}
+
+/**
  * The session header shown at the top of a session view. It surfaces the session
- * identity (status icon + title), a meta row (workspace · branch · diff stats),
+ * identity (status icon + title), a meta row (workspace · diff stats),
  * and the session toolbars (e.g. Run, Open in VS Code, New Chat).
  *
  * It is intentionally decoupled from the {@link ChatCompositeBar} (the chat tab
@@ -46,7 +75,10 @@ export class SessionHeader extends Disposable {
 	private readonly _titleEl: HTMLElement;
 	private readonly _titleTextEl: HTMLElement;
 	private readonly _metaRow: HTMLElement;
+	private readonly _metaWorkspaceEl: HTMLElement;
+	private readonly _metaSeparatorEl: HTMLElement;
 	private readonly _toolbar: MenuWorkbenchToolBar;
+	private readonly _metaToolbar: MenuWorkbenchToolBar;
 	private readonly _titleActionsEl: HTMLElement;
 
 	private readonly _sessionDisposables = this._register(new MutableDisposable<DisposableStore>());
@@ -65,6 +97,7 @@ export class SessionHeader extends Disposable {
 	private readonly _sessionTransfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
 
 	private readonly _readStateSignal: IObservable<void>;
+	private readonly _metaActionsSignal: IObservable<void>;
 
 	private readonly _statusIcon: SessionStatusIcon;
 
@@ -87,6 +120,8 @@ export class SessionHeader extends Disposable {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsListModelService private readonly _sessionsListModelService: ISessionsListModelService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super();
 
@@ -95,9 +130,9 @@ export class SessionHeader extends Disposable {
 		this._container = $('.chat-composite-bar.session-header-bar');
 
 		// Header: a status icon column alongside a main column that stacks the title
-		// row (title + actions) and the meta row (workspace · branch · diff). This
-		// mirrors the sessions list so the meta row aligns under the title rather
-		// than under the status icon.
+		// row (title + actions) and the meta row (workspace · diff). This mirrors the
+		// sessions list so the meta row aligns under the title rather than under the
+		// status icon.
 		const header = $('.chat-composite-bar-header');
 		this._container.appendChild(header);
 
@@ -143,6 +178,41 @@ export class SessionHeader extends Disposable {
 
 		this._metaRow = $('.chat-composite-bar-meta-row');
 		main.appendChild(this._metaRow);
+
+		// Workspace label (rebuilt per session) followed by a separator and the
+		// session header meta toolbar. Actions are contributed into the generic
+		// Menus.SessionHeaderMeta menu; the changes view contributes the diff-stats
+		// action, rendered as a clickable menu item that opens the multi-file diff
+		// editor.
+		this._metaWorkspaceEl = $('span.chat-composite-bar-meta-workspace');
+		this._metaRow.appendChild(this._metaWorkspaceEl);
+
+		// Hovering the workspace label reveals the complete absolute folder path
+		// and git branch — the same details surfaced in the session list hover.
+		this._register(this._hoverService.setupManagedHover(
+			getDefaultHoverDelegate('element'),
+			this._metaWorkspaceEl,
+			() => this._buildWorkspaceHover(),
+		));
+
+		this._metaSeparatorEl = $('span.chat-composite-bar-meta-separator');
+		this._metaRow.appendChild(this._metaSeparatorEl);
+
+		const metaToolbarContainer = $('.chat-composite-bar-meta-toolbar');
+		this._metaRow.appendChild(metaToolbarContainer);
+		// Commands contributed into the header meta toolbar (e.g. View Changes)
+		// operate on this view's session. Promote it to the active session before
+		// running any of them via a custom action runner, so the command always
+		// targets the clicked session even when another session is active.
+		const metaActionRunner = this._register(new SessionActivatingActionRunner(() => this._session, this._sessionsService));
+		this._metaToolbar = this._register(instantiationService.createInstance(MenuWorkbenchToolBar, metaToolbarContainer, Menus.SessionHeaderMeta, {
+			hiddenItemStrategy: HiddenItemStrategy.Ignore,
+			menuOptions: { shouldForwardArgs: true },
+			actionRunner: metaActionRunner,
+		}));
+		// The meta row separator/visibility tracks whether the meta toolbar has any
+		// contributed actions, so recompute the header whenever they change.
+		this._metaActionsSignal = observableSignalFromEvent(this, this._metaToolbar.onDidChangeMenuItems);
 
 		// Report height changes (e.g. meta row content wrapping) so the host can re-layout
 		const heightObserver = this._register(new DisposableResizeObserver('SessionHeader.height', () => {
@@ -236,6 +306,7 @@ export class SessionHeader extends Disposable {
 		this._cancelTitleEditing();
 		this._session = session;
 		this._toolbar.context = session;
+		this._metaToolbar.context = session;
 		this._statusIcon.reset();
 
 		const store = new DisposableStore();
@@ -269,66 +340,63 @@ export class SessionHeader extends Disposable {
 		this._titleTextEl.textContent = session.title.read(reader) || localize('agentSessions.newSession', "New Session");
 		this._titleEl.classList.toggle('editable', this._isTitleEditable());
 
-		// Meta row: workspace · branch · diff stats
-		reset(this._metaRow);
+		// Meta row: workspace · diff stats
 		const workspace = session.workspace.read(reader);
-		const branch = workspace?.folders.find(folder => folder.gitRepository?.branchName)?.gitRepository?.branchName?.trim();
 
-		let hasMeta = false;
-		const appendSeparator = () => {
-			if (hasMeta) {
-				this._metaRow.appendChild($('span.chat-composite-bar-meta-separator'));
-			}
-		};
-
-		if (workspace?.label) {
+		reset(this._metaWorkspaceEl);
+		const hasWorkspace = !!workspace?.label;
+		if (hasWorkspace) {
 			// Mirror the sessions list / hover icon logic: cloud for virtual workspaces,
 			// folder when the session runs in the repo checkout, worktree otherwise.
 			const isWorkspaceFolder = workspace.folders.length > 0 && workspace.folders[0]?.gitRepository?.workTreeUri === undefined;
 			const workspaceIcon = workspace.isVirtualWorkspace ? Codicon.cloudCompact : isWorkspaceFolder ? Codicon.folderCompact : Codicon.worktreeCompact;
-			const workspaceEl = $('span.chat-composite-bar-meta-workspace');
-			workspaceEl.appendChild($('span.chat-composite-bar-meta-workspace-icon' + ThemeIcon.asCSSSelector(workspaceIcon)));
+			this._metaWorkspaceEl.appendChild($('span.chat-composite-bar-meta-workspace-icon' + ThemeIcon.asCSSSelector(workspaceIcon)));
 			const workspaceLabel = $('span.chat-composite-bar-meta-workspace-label');
 			workspaceLabel.textContent = workspace.label;
-			workspaceEl.appendChild(workspaceLabel);
-			this._metaRow.appendChild(workspaceEl);
-			hasMeta = true;
+			this._metaWorkspaceEl.appendChild(workspaceLabel);
 		}
+		this._metaWorkspaceEl.style.display = hasWorkspace ? '' : 'none';
+
+		// Show the meta row separator/row based on whether the meta toolbar has any
+		// contributed actions. Reading the signal re-runs this on menu changes.
+		this._metaActionsSignal.read(reader);
+		const hasMetaActions = !this._metaToolbar.isEmpty();
+
+		this._metaSeparatorEl.style.display = hasWorkspace && hasMetaActions ? '' : 'none';
+
+		this._metaRow.style.display = hasWorkspace || hasMetaActions ? '' : 'none';
+		this._onDidChangeHeight.fire();
+	}
+
+	/**
+	 * Builds the workspace hover content for the current session. Shows the repo
+	 * folder and, when the working directory differs from the repo root, the
+	 * working directory on a separate line, followed by the git branch.
+	 * Returns `undefined` when there is no workspace to describe.
+	 */
+	private _buildWorkspaceHover(): IManagedHoverTooltipMarkdownString | undefined {
+		const workspace = this._session?.workspace.get();
+		const folder = workspace?.folders[0];
+		if (!workspace || !folder) {
+			return undefined;
+		}
+
+		const workingDirPath = folder.workingDirectory.fsPath;
+		const branch = folder.gitRepository?.branchName?.trim();
+
+		const md = new MarkdownString('', { supportThemeIcons: true });
+		const fallbackLines: string[] = [];
+		md.appendMarkdown(`$(${Codicon.folder.id}) `);
+		md.appendText(workingDirPath);
+		fallbackLines.push(workingDirPath);
 
 		if (branch) {
-			appendSeparator();
-			const branchEl = $('span.chat-composite-bar-meta-branch');
-			branchEl.appendChild($('span.chat-composite-bar-meta-branch-icon' + ThemeIcon.asCSSSelector(Codicon.gitBranchCompact)));
-			const branchLabel = $('span.chat-composite-bar-meta-branch-label');
-			branchLabel.textContent = branch;
-			branchEl.appendChild(branchLabel);
-			this._metaRow.appendChild(branchEl);
-			hasMeta = true;
+			md.appendMarkdown('\n\n$(git-branch) ');
+			md.appendText(branch);
+			fallbackLines.push(branch);
 		}
 
-		// Aggregate insertions/deletions across all of the session's changes.
-		const changes = session.changes.read(reader);
-		let insertions = 0;
-		let deletions = 0;
-		for (const change of changes) {
-			insertions += change.insertions;
-			deletions += change.deletions;
-		}
-		if (insertions > 0 || deletions > 0) {
-			appendSeparator();
-			const diffEl = $('span.chat-composite-bar-meta-diff');
-			const addedEl = $('span.chat-composite-bar-meta-added');
-			addedEl.textContent = `+${insertions}`;
-			const removedEl = $('span.chat-composite-bar-meta-removed');
-			removedEl.textContent = `-${deletions}`;
-			diffEl.appendChild(addedEl);
-			diffEl.appendChild(removedEl);
-			this._metaRow.appendChild(diffEl);
-			hasMeta = true;
-		}
-
-		this._metaRow.style.display = hasMeta ? '' : 'none';
-		this._onDidChangeHeight.fire();
+		return { markdown: md, markdownNotSupportedFallback: fallbackLines.join('\n') };
 	}
 
 	private _setVisible(visible: boolean): void {
@@ -345,12 +413,12 @@ export class SessionHeader extends Disposable {
 	}
 
 	/**
-	 * The title is editable when the session is backed by an agent host provider —
-	 * the same condition that gates the `Rename...` context menu action in the
-	 * sessions list, since only those providers implement `renameChat`.
+	 * The title is editable when the backing provider declares it supports
+	 * renaming the session (`capabilities.supportsRename`). This is the same
+	 * signal that gates the `Rename...` context menu action in the sessions list.
 	 */
 	private _isTitleEditable(): boolean {
-		return !!this._session && isAgentHostProviderId(this._session.providerId);
+		return !!this._session && (this._session.capabilities.supportsRename ?? false);
 	}
 
 	startTitleEditing(): void {
@@ -406,9 +474,8 @@ export class SessionHeader extends Disposable {
 			const newTitle = input.value.trim();
 			this._endTitleEditing();
 			if (commit && newTitle && newTitle !== initialTitle) {
-				const mainChat = session.mainChat.get();
 				this._sessionsManagementService
-					.renameChat(session, mainChat.resource, newTitle)
+					.renameSession(session, newTitle)
 					.catch(onUnexpectedError);
 			}
 		};
