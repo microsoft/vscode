@@ -459,7 +459,7 @@ function truncate(text: string, maxLength: number): string {
  */
 function formatPathAsMarkdownLink(path: string): string {
 	const uri = URI.file(path);
-	return `[${basename(uri)}](${uri})`;
+	return `[${escapeMarkdownLinkLabel(basename(uri))}](${uri})`;
 }
 
 function formatUrlAsMarkdownLink(url: string): string {
@@ -1071,9 +1071,8 @@ export function getPermissionDisplay(request: ITypedPermissionRequest, workingDi
 		}
 		case 'read':
 			return {
-				confirmationTitle: localize('copilot.permission.read.title', "Read file?"),
-				invocationMessage: intention ?? getInvocationMessage(CopilotToolName.View, getToolDisplayName(CopilotToolName.View), path ? { path } : undefined),
-				toolInput: tryStringify(path ? { path, intention } : request) ?? undefined,
+				confirmationTitle: localize('copilot.permission.read.title', "Allow reading file outside of workspace?"),
+				invocationMessage: getInvocationMessage(CopilotToolName.View, getToolDisplayName(CopilotToolName.View), path ? { path } : undefined),
 				permissionKind: 'read',
 				permissionPath: path,
 			};
