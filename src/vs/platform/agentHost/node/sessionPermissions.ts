@@ -3,14 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { homedir } from 'os';
 import { match as globMatch } from '../../../base/common/glob.js';
+import { untildify } from '../../../base/common/labels.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import * as path from '../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase, normalizePath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
-import type { IAgentToolReadyEvent } from '../common/agentService.js';
 import { platformSessionSchema } from '../common/agentHostSchema.js';
+import type { IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ConfirmationOptionKind, type ConfirmationOption } from '../common/state/protocol/state.js';
 import { ActionType, type IToolCallReadyAction } from '../common/state/sessionActions.js';
@@ -25,13 +28,13 @@ import { CommandAutoApprover } from './commandAutoApprover.js';
 
 /**
  * Event fields needed for auto-approval decisions.
- * Matches the subset of {@link IAgentToolReadyEvent} used by the
+ * Matches the subset of {@link IAgentToolPendingConfirmationSignal} used by the
  * approval pipeline.
  */
 export interface IToolApprovalEvent {
 	readonly toolCallId: string;
 	readonly session: URI;
-	readonly permissionKind?: IAgentToolReadyEvent['permissionKind'];
+	readonly permissionKind?: IAgentToolPendingConfirmationSignal['permissionKind'];
 	readonly permissionPath?: string;
 	readonly toolInput?: string;
 }
@@ -109,19 +112,17 @@ export class SessionPermissionManager extends Disposable {
 	 * when user confirmation is required.
 	 *
 	 * Checks are evaluated in order:
-	 * 1. Session-level bypass (`autoApprove` / `autopilot` config)
+	 * 1. Session-level bypass (`autoApprove` config)
 	 * 2. Per-tool session permissions (`permissions.allow`)
 	 * 3. Read path rules (within working directory)
 	 * 4. Write path rules (within working directory + glob patterns)
 	 * 5. Shell command rules (tree-sitter parsed, default allow/deny)
 	 */
 	getAutoApproval(e: IToolApprovalEvent, sessionKey: ProtocolURI): ToolCallConfirmationReason | undefined {
-		const autoApproveLevel = this._configService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.AutoApprove);
 		const workDir = this._configService.getEffectiveWorkingDirectory(sessionKey);
 
 		// 1. Session-level auto-approve
-		if (autoApproveLevel === 'autoApprove' || autoApproveLevel === 'autopilot') {
-			this._logService.trace(`[SessionPermissionManager] Auto-approving tool call (session autoApprove=${autoApproveLevel})`);
+		if (this.isSessionAutoApproveEnabled(sessionKey)) {
 			return ToolCallConfirmationReason.Setting;
 		}
 
@@ -150,7 +151,9 @@ export class SessionPermissionManager extends Disposable {
 
 		// 5. Shell auto-approval
 		if (e.permissionKind === 'shell' && e.toolInput) {
-			const result = this._commandAutoApprover.shouldAutoApprove(e.toolInput);
+			const result = this._commandAutoApprover.shouldAutoApprove(e.toolInput, {
+				isWriteDestApproved: (dest) => this._isShellWriteDestApproved(dest, workDir),
+			});
 			if (result === 'approved') {
 				this._logService.trace('[SessionPermissionManager] Auto-approving shell command');
 				return ToolCallConfirmationReason.NotNeeded;
@@ -164,43 +167,53 @@ export class SessionPermissionManager extends Disposable {
 		return undefined;
 	}
 
+	isSessionAutoApproveEnabled(sessionKey: ProtocolURI): boolean {
+		// `autoApprove` (Bypass Approvals) auto-approves every tool call.
+		return this._configService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.AutoApprove) === 'autoApprove';
+	}
+
 	// ---- Action construction (analogous to getPreConfirmActions) -------------
 
 	/**
-	 * Constructs a `SessionToolCallReady` action from an agent `tool_ready`
-	 * event. When the tool needs user confirmation (`confirmationTitle` is
-	 * set), the standard confirmation options are included in the action so
-	 * clients can render them directly.
+	 * Constructs a `ChatToolCallReady` action from an agent
+	 * `pending_confirmation` signal. When the tool needs user confirmation
+	 * (the protocol state carries `confirmationTitle`), the standard
+	 * confirmation options are baked in so clients can render them directly.
 	 */
-	createToolReadyAction(e: IAgentToolReadyEvent, sessionKey: ProtocolURI, turnId: string): IToolCallReadyAction {
-		if (e.confirmationTitle) {
+	createToolReadyAction(e: IAgentToolPendingConfirmationSignal, _sessionKey: ProtocolURI, turnId: string): IToolCallReadyAction {
+		const state = e.state;
+		if (state.confirmationTitle) {
 			return {
-				type: ActionType.SessionToolCallReady,
-				session: sessionKey,
+				type: ActionType.ChatToolCallReady,
 				turnId,
-				toolCallId: e.toolCallId,
-				invocationMessage: e.invocationMessage,
-				toolInput: e.toolInput,
-				confirmationTitle: e.confirmationTitle,
-				edits: e.edits,
-				options: CONFIRMATION_OPTIONS.slice(),
+				toolCallId: state.toolCallId,
+				invocationMessage: state.invocationMessage,
+				toolInput: state.toolInput,
+				confirmationTitle: state.confirmationTitle,
+				edits: state.edits,
+				editable: state.editable,
+				...(state._meta ? { _meta: state._meta } : {}),
+				// Agents can supply tool-specific buttons (e.g. ExitPlanMode's
+				// `Approve`/`Deny`) by populating `state.options`. The standard
+				// `Allow Once / Allow in this Session / Skip` set is the default.
+				options: state.options ? state.options.slice() : CONFIRMATION_OPTIONS.slice(),
 			};
 		}
 		return {
-			type: ActionType.SessionToolCallReady,
-			session: sessionKey,
+			type: ActionType.ChatToolCallReady,
 			turnId,
-			toolCallId: e.toolCallId,
-			invocationMessage: e.invocationMessage,
-			toolInput: e.toolInput,
+			toolCallId: state.toolCallId,
+			invocationMessage: state.invocationMessage,
+			toolInput: state.toolInput,
 			confirmed: ToolCallConfirmationReason.NotNeeded,
+			...(state._meta ? { _meta: state._meta } : {}),
 		};
 	}
 
 	// ---- Post-confirmation side effects -------------------------------------
 
 	/**
-	 * Handles the side effect of a `SessionToolCallConfirmed` action when the
+	 * Handles the side effect of a `ChatToolCallConfirmed` action when the
 	 * user selected "Allow in this Session". Adds the tool to the session's
 	 * permission allow list so future calls are auto-approved.
 	 */
@@ -221,6 +234,41 @@ export class SessionPermissionManager extends Disposable {
 		}
 		const workingDirectory = URI.parse(workDir);
 		return extUriBiasedIgnorePathCase.isEqualOrParent(normalizePath(URI.file(filePath)), workingDirectory);
+	}
+
+	/**
+	 * Checks whether a shell write-redirection destination (e.g. the `out.txt`
+	 * in `echo hi > out.txt`) should be auto-approved by reusing the same
+	 * rules that govern write tool calls: the destination must resolve to a
+	 * path inside the working directory and must not match a denied glob.
+	 */
+	private _isShellWriteDestApproved(dest: string, workDir: string | undefined): boolean {
+		const resolved = this._resolveShellRedirectPath(dest, workDir);
+		if (!resolved) {
+			return false;
+		}
+		return this._isPathInWorkingDirectory(resolved, workDir) && this._isEditAutoApproved(resolved);
+	}
+
+	/**
+	 * Resolves the raw text of a shell redirect destination to an absolute
+	 * filesystem path. `~` is expanded to the user's home directory; the
+	 * downstream working-directory check rejects paths that end up outside
+	 * the workspace. Returns `undefined` when resolution would require a
+	 * working directory that isn't configured.
+	 */
+	private _resolveShellRedirectPath(dest: string, workDir: string | undefined): string | undefined {
+		const trimmed = untildify(dest.trim(), homedir());
+		if (!trimmed) {
+			return undefined;
+		}
+		if (path.isAbsolute(trimmed)) {
+			return trimmed;
+		}
+		if (!workDir) {
+			return undefined;
+		}
+		return path.resolve(URI.parse(workDir).fsPath, trimmed);
 	}
 
 	private _isEditAutoApproved(filePath: string): boolean {

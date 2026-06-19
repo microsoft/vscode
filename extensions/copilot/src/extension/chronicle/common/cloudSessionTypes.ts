@@ -67,6 +67,13 @@ export interface SessionEvent {
 	parentId: string | null;
 	/** When true, the event is transient and not persisted. */
 	ephemeral?: boolean;
+	/**
+	 * Sub-agent instance identifier. Absent for events from the root/main agent
+	 * and for session-level events. Used by the cloud renderer to scope events
+	 * (assistant.message, tool.execution_*) under a sub-agent envelope so they
+	 * are not displayed as standalone sessions.
+	 */
+	agentId?: string;
 	/** Event type discriminator. */
 	type: string;
 	/** Event-specific payload. */
@@ -84,9 +91,14 @@ export interface WorkingDirectoryContext {
 }
 
 /** Reason why session creation failed. */
-export type CreateSessionFailureReason = 'policy_blocked' | 'error';
+export type CreateSessionFailureReason = 'policy_blocked' | 'rate_limited' | 'error';
 
 /** Result of attempting to create a cloud session. */
 export type CreateSessionResult =
 	| { ok: true; response: CreateSessionResponse }
 	| { ok: false; reason: CreateSessionFailureReason };
+
+/** Result of attempting to submit a batch of session events. */
+export type SubmitSessionEventsResult =
+	| { ok: true }
+	| { ok: false; reason: 'policy_blocked' | 'rate_limited' | 'error' };

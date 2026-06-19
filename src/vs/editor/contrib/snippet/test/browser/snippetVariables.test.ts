@@ -309,12 +309,38 @@ suite('Snippet Variables Resolver', function () {
 		assertVariableResolve3(resolver, 'CURRENT_HOUR');
 		assertVariableResolve3(resolver, 'CURRENT_MINUTE');
 		assertVariableResolve3(resolver, 'CURRENT_SECOND');
+		assertVariableResolve3(resolver, 'CURRENT_MILLISECOND');
 		assertVariableResolve3(resolver, 'CURRENT_DAY_NAME');
 		assertVariableResolve3(resolver, 'CURRENT_DAY_NAME_SHORT');
 		assertVariableResolve3(resolver, 'CURRENT_MONTH_NAME');
 		assertVariableResolve3(resolver, 'CURRENT_MONTH_NAME_SHORT');
 		assertVariableResolve3(resolver, 'CURRENT_SECONDS_UNIX');
+		assertVariableResolve3(resolver, 'CURRENT_MILLISECONDS_UNIX');
 		assertVariableResolve3(resolver, 'CURRENT_TIMEZONE_OFFSET');
+		assertVariableResolve3(resolver, 'CURRENT_TIMEZONE_NAME');
+	});
+
+	test('Time-based snippet variables have deterministic millisecond and unix values', function () {
+		const now = Date.UTC(2024, 3, 15, 12, 34, 56, 7);
+		const clock = sinon.useFakeTimers({ now });
+		try {
+			const resolver = new TimeBasedVariableResolver;
+			const expectedDate = new Date(now);
+			const pad = (value: number, length: number) => String(value).padStart(length, '0');
+
+			assertVariableResolve(resolver, 'CURRENT_YEAR', String(expectedDate.getFullYear()));
+			assertVariableResolve(resolver, 'CURRENT_YEAR_SHORT', String(expectedDate.getFullYear()).slice(-2));
+			assertVariableResolve(resolver, 'CURRENT_MONTH', pad(expectedDate.getMonth() + 1, 2));
+			assertVariableResolve(resolver, 'CURRENT_DATE', pad(expectedDate.getDate(), 2));
+			assertVariableResolve(resolver, 'CURRENT_HOUR', pad(expectedDate.getHours(), 2));
+			assertVariableResolve(resolver, 'CURRENT_MINUTE', pad(expectedDate.getMinutes(), 2));
+			assertVariableResolve(resolver, 'CURRENT_SECOND', pad(expectedDate.getSeconds(), 2));
+			assertVariableResolve(resolver, 'CURRENT_MILLISECOND', pad(expectedDate.getMilliseconds(), 3));
+			assertVariableResolve(resolver, 'CURRENT_SECONDS_UNIX', String(Math.floor(now / 1000)));
+			assertVariableResolve(resolver, 'CURRENT_MILLISECONDS_UNIX', String(now));
+		} finally {
+			clock.restore();
+		}
 	});
 
 	test('Time-based snippet variables resolve to the same values even as time progresses', async function () {
@@ -326,12 +352,15 @@ suite('Snippet Variables Resolver', function () {
 			$CURRENT_HOUR
 			$CURRENT_MINUTE
 			$CURRENT_SECOND
+			$CURRENT_MILLISECOND
 			$CURRENT_DAY_NAME
 			$CURRENT_DAY_NAME_SHORT
 			$CURRENT_MONTH_NAME
 			$CURRENT_MONTH_NAME_SHORT
 			$CURRENT_SECONDS_UNIX
+			$CURRENT_MILLISECONDS_UNIX
 			$CURRENT_TIMEZONE_OFFSET
+			$CURRENT_TIMEZONE_NAME
 		`;
 
 		const clock = sinon.useFakeTimers();

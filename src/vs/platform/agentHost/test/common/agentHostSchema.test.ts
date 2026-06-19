@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { createSchema, platformSessionSchema, schemaProperty, type AutoApproveLevel, type IPermissionsValue } from '../../common/agentHostSchema.js';
+import { createSchema, migrateLegacyAutopilotConfig, platformSessionSchema, schemaProperty, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 
@@ -283,11 +283,13 @@ suite('agentHostSchema', () => {
 
 	suite('platformSessionSchema', () => {
 
-		test('validates the three autoApprove levels', () => {
-			const levels: AutoApproveLevel[] = ['default', 'autoApprove', 'autopilot'];
+		test('validates the autoApprove levels', () => {
+			const levels: AutoApproveLevel[] = ['default', 'autoApprove'];
 			for (const level of levels) {
 				assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.AutoApprove, level), true, level);
 			}
+			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.AutoApprove, 'assisted'), false);
+			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.AutoApprove, 'autopilot'), false);
 			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.AutoApprove, 'bogus'), false);
 		});
 
@@ -296,6 +298,51 @@ suite('agentHostSchema', () => {
 			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Permissions, ok), true);
 			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Permissions, { allow: [42], deny: [] }), false);
 			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Permissions, { allow: [] }), true);
+		});
+
+		test('validates the agent modes', () => {
+			const modes: SessionMode[] = ['interactive', 'plan', 'autopilot'];
+			for (const mode of modes) {
+				assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Mode, mode), true, mode);
+			}
+			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Mode, 'shell'), false);
+			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Mode, 42), false);
+		});
+	});
+
+	// ---- legacy autopilot migration ----------------------------------------
+
+	suite('migrateLegacyAutopilotConfig', () => {
+
+		test('maps legacy autoApprove=autopilot to mode=autopilot + autoApprove=default', () => {
+			const result = migrateLegacyAutopilotConfig({ [SessionConfigKey.AutoApprove]: 'autopilot' });
+			assert.deepStrictEqual(result, { mode: 'autopilot', autoApprove: 'default' });
+		});
+
+		test('preserves plan mode (legacy plan took precedence over autopilot)', () => {
+			const result = migrateLegacyAutopilotConfig({ [SessionConfigKey.Mode]: 'plan', [SessionConfigKey.AutoApprove]: 'autopilot' });
+			assert.deepStrictEqual(result, { mode: 'plan', autoApprove: 'default' });
+		});
+
+		test('overwrites a stale interactive mode with autopilot', () => {
+			const result = migrateLegacyAutopilotConfig({ [SessionConfigKey.Mode]: 'interactive', [SessionConfigKey.AutoApprove]: 'autopilot' });
+			assert.deepStrictEqual(result, { mode: 'autopilot', autoApprove: 'default' });
+		});
+
+		test('passes through configs without the legacy value untouched', () => {
+			const input = { [SessionConfigKey.AutoApprove]: 'assisted', [SessionConfigKey.Mode]: 'interactive' };
+			assert.strictEqual(migrateLegacyAutopilotConfig(input), input);
+		});
+
+		test('migrated config validates against the schema', () => {
+			const input: Record<string, unknown> = { [SessionConfigKey.AutoApprove]: 'autopilot' };
+			const result = migrateLegacyAutopilotConfig(input)!;
+			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Mode, result[SessionConfigKey.Mode]), true);
+			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.AutoApprove, result[SessionConfigKey.AutoApprove]), true);
+		});
+
+		test('handles undefined', () => {
+			assert.strictEqual(migrateLegacyAutopilotConfig(undefined), undefined);
 		});
 	});
 });

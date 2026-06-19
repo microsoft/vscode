@@ -4,27 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from '../../../../base/common/network.js';
-import { IChatSessionsService } from './chatSessionsService.js';
+import { IChatSessionsService, localChatSessionType, SessionType } from './chatSessionsService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { ProductQualityContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { ChatEntitlementContextKeys } from '../../../services/chat/common/chatEntitlementService.js';
-import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
+import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../common/contextkeys.js';
+import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { LocalChatSessionUri } from './model/chatUri.js';
 
 export enum ChatConfiguration {
 	AIDisabled = 'chat.disableAIFeatures',
 	PluginsEnabled = 'chat.plugins.enabled',
 	PluginLocations = 'chat.pluginLocations',
 	PluginMarketplaces = 'chat.plugins.marketplaces',
+	ExtraMarketplaces = 'chat.plugins.extraMarketplaces',
+	StrictMarketplaces = 'chat.plugins.strictMarketplaces',
+	EnabledPlugins = 'chat.plugins.enabledPlugins',
 	AgentEnabled = 'chat.agent.enabled',
 	PlanAgentDefaultModel = 'chat.planAgent.defaultModel',
 	ExploreAgentDefaultModel = 'chat.exploreAgent.defaultModel',
+	UtilityModel = 'chat.utilityModel',
+	UtilitySmallModel = 'chat.utilitySmallModel',
 	RequestQueueingDefaultAction = 'chat.requestQueuing.defaultAction',
 	AgentStatusEnabled = 'chat.agentsControl.enabled',
 	EditorAssociations = 'chat.editorAssociations',
 	UnifiedAgentsBar = 'chat.unifiedAgentsBar.enabled',
 	AgentSessionProjectionEnabled = 'chat.agentSessionProjection.enabled',
-	EditModeHidden = 'chat.editMode.hidden',
 	ExtensionToolsEnabled = 'chat.extensionTools.enabled',
 	RepoInfoEnabled = 'chat.repoInfo.enabled',
 	EditRequests = 'chat.editRequests',
@@ -40,12 +47,15 @@ export enum ChatConfiguration {
 	ThinkingGenerateTitles = 'chat.agent.thinking.generateTitles',
 	TerminalToolsInThinking = 'chat.agent.thinking.terminalTools',
 	SimpleTerminalCollapsible = 'chat.tools.terminal.simpleCollapsible',
+	CompressOutputEnabled = 'chat.tools.compressOutput.enabled',
 	ThinkingPhrases = 'chat.agent.thinking.phrases',
 	AutoExpandToolFailures = 'chat.tools.autoExpandFailures',
 	TodosShowWidget = 'chat.tools.todos.showWidget',
 	NotifyWindowOnConfirmation = 'chat.notifyWindowOnConfirmation',
 	NotifyWindowOnResponseReceived = 'chat.notifyWindowOnResponseReceived',
 	ChatViewSessionsEnabled = 'chat.viewSessions.enabled',
+	SessionSyncEnabled = 'chat.sessionSync.enabled',
+	SessionSyncExcludeRepositories = 'chat.sessionSync.excludeRepositories',
 	ChatViewSessionsGrouping = 'chat.viewSessions.grouping',
 	ChatViewSessionsOrientation = 'chat.viewSessions.orientation',
 	ChatViewProgressBadgeEnabled = 'chat.viewProgressBadge.enabled',
@@ -60,34 +70,38 @@ export enum ChatConfiguration {
 	ExitAfterDelegation = 'chat.exitAfterDelegation',
 	ExplainChangesEnabled = 'chat.editing.explainChanges.enabled',
 	RevealNextChangeOnResolve = 'chat.editing.revealNextChangeOnResolve',
+	OpenChangedFileInDiffEditor = 'chat.editing.openChangedFileInDiffEditor',
 	GrowthNotificationEnabled = 'chat.growthNotification.enabled',
+	TitleBarSignInEnabled = 'chat.titleBar.signIn.enabled',
+	TitleBarOpenInAgentsWindowEnabled = 'chat.titleBar.openInAgentsWindow.enabled',
 
 	ChatCustomizationHarnessSelectorEnabled = 'chat.customizations.harnessSelector.enabled',
-	AutopilotEnabled = 'chat.autopilot.enabled',
+	ChatCustomizationsStructuredPreviewEnabled = 'chat.customizations.structuredPreview.enabled',
+	AutopilotAdvancedEnabled = 'chat.autopilot.advanced.enabled',
+	PlanReviewInlineEditorEnabled = 'chat.planReview.inlineEditor.enabled',
 	DefaultPermissionLevel = 'chat.permissions.default',
+	AgentSessionDefaultConfiguration = 'chat.agentSessions.defaultConfiguration',
 	ImageCarouselEnabled = 'imageCarousel.chat.enabled',
 	ArtifactsEnabled = 'chat.artifacts.enabled',
 	ArtifactsRulesByMimeType = 'chat.artifacts.rules.byMimeType',
 	ArtifactsRulesByFilePath = 'chat.artifacts.rules.byFilePath',
 	ArtifactsRulesByMemoryFilePath = 'chat.artifacts.rules.byMemoryFilePath',
 	ToolConfirmationCarousel = 'chat.tools.confirmationCarousel.enabled',
+	ToolRiskAssessmentEnabled = 'chat.tools.riskAssessment.enabled',
+	ToolRiskAssessmentModel = 'chat.tools.riskAssessment.model',
 	DefaultNewSessionMode = 'chat.newSession.defaultMode',
 	AgentHostClientTools = 'chat.agentHost.clientTools',
+	CopilotCliHideExtensionHostAgents = 'chat.agents.copilotCli.hideExtensionHost',
+	EditorDefaultProvider = 'chat.editor.defaultProvider',
+	EditorLocalAgentEnabled = 'chat.editor.localAgent.enabled',
+	CopilotCliHideExtensionHostEditor = 'chat.editor.copilotCli.hideExtensionHost',
+	AgentsHandoffTipMode = 'chat.agentsHandoffTip.mode',
 
 	IncrementalRendering = 'chat.experimental.incrementalRendering.enabled',
 	IncrementalRenderingStyle = 'chat.experimental.incrementalRendering.animationStyle',
 	IncrementalRenderingBuffering = 'chat.experimental.incrementalRendering.buffering',
 
-	/**
-	 * When enabled, `vscode_renameSymbol` and `vscode_listCodeUsages` are always
-	 * registered with a static, language-list-free description. This makes the
-	 * tools array byte-stable across rounds even as language extensions activate
-	 * mid-turn, which significantly improves prompt-cache hit rates on agent
-	 * conversations. Behavior is unchanged: the tools still error on
-	 * unsupported languages at invocation time. Behind an A/B flag for
-	 * controlled rollout.
-	 */
-	SymbolToolsCacheStable = 'chat.experimental.symbolTools.cacheStable',
+	CollectInstructionsInExtension = 'chat.experimental.collectInstructionsInExtension',
 }
 
 /**
@@ -118,11 +132,35 @@ export function isChatPermissionLevel(level: unknown | undefined): level is Chat
 }
 
 /**
+ * Shape of the {@link ChatConfiguration.AgentSessionDefaultConfiguration}
+ * object setting. Controls the starting `mode` and `approvals` for new
+ * agent-host sessions (such as Copilot CLI). Both properties are optional —
+ * a missing property falls back to the per-axis default.
+ */
+export type AgentSessionMode = 'interactive' | 'plan' | 'autopilot';
+
+export interface IAgentSessionDefaultConfiguration {
+	/** Starting agent mode: `interactive` / `plan` / `autopilot`. */
+	readonly mode?: AgentSessionMode;
+	/** Starting approval level: `default` / `autoApprove`. */
+	readonly approvals?: ChatPermissionLevel.Default | ChatPermissionLevel.AutoApprove;
+}
+
+/**
  * Returns true if the permission level enables auto-approval of all tool calls.
  * Both {@link ChatPermissionLevel.AutoApprove} and {@link ChatPermissionLevel.Autopilot} enable auto-approval.
  */
 export function isAutoApproveLevel(level: ChatPermissionLevel | undefined): boolean {
 	return level === ChatPermissionLevel.AutoApprove || level === ChatPermissionLevel.Autopilot;
+}
+
+/**
+ * True for {@link ChatPermissionLevel.Autopilot} only. Unlike {@link isAutoApproveLevel}, this
+ * excludes {@link ChatPermissionLevel.AutoApprove}, so it can gate Autopilot-only behavior such as
+ * risk-based skipping of tool calls.
+ */
+export function isAutopilotLevel(level: ChatPermissionLevel | undefined): boolean {
+	return level === ChatPermissionLevel.Autopilot;
 }
 
 // Thinking display modes for pinned content
@@ -204,14 +242,107 @@ export function isSupportedChatFileScheme(accessor: ServicesAccessor, scheme: st
 	return true;
 }
 
+/**
+ * Returns the effective default session type for a new chat in the VS Code
+ * editor window, honoring the experimental
+ * {@link ChatConfiguration.EditorDefaultProvider} setting:
+ * - `'copilotAh'` selects the Agent Host Copilot CLI when its contribution is registered.
+ * - `'copilotEh'` selects the Extension Host Copilot CLI when its contribution is
+ *   registered and it is not hidden by {@link ChatConfiguration.CopilotCliHideExtensionHostEditor}.
+ *
+ * Falls back to {@link localChatSessionType} when local is enabled, or when no
+ * visible non-local provider is available.
+ */
+export function getDefaultNewChatSessionType(
+	configurationService: IConfigurationService,
+	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>
+): string {
+	const defaultProvider = configurationService.getValue<string>(ChatConfiguration.EditorDefaultProvider);
+	const defaultType = getConfiguredEditorDefaultSessionType(defaultProvider);
+	if (defaultType === SessionType.AgentHostCopilot && !isEditorLocalAgentEnabled(configurationService)) {
+		return defaultType;
+	}
+
+	if (defaultType && isVisibleEditorChatSessionType(defaultType, configurationService, chatSessionsService)) {
+		return defaultType;
+	}
+
+	if (isEditorLocalAgentEnabled(configurationService)) {
+		return localChatSessionType;
+	}
+
+	return getVisibleNonLocalEditorChatSessionTypes(configurationService, chatSessionsService)[0] ?? localChatSessionType;
+}
+
+export function getDefaultNewChatSessionResource(
+	configurationService: IConfigurationService,
+	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>
+): URI {
+	const defaultType = getDefaultNewChatSessionType(configurationService, chatSessionsService);
+	return defaultType === localChatSessionType
+		? LocalChatSessionUri.getNewSessionUri()
+		: URI.from({ scheme: defaultType, path: `/untitled-${generateUuid()}` });
+}
+
+export function isEditorLocalAgentEnabled(configurationService: IConfigurationService): boolean {
+	return configurationService.getValue<boolean>(ChatConfiguration.EditorLocalAgentEnabled) ?? true;
+}
+
+export function isVisibleEditorChatSessionType(
+	sessionType: string,
+	configurationService: IConfigurationService,
+	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>
+): boolean {
+	if (sessionType === localChatSessionType) {
+		if (!isEditorLocalAgentEnabled(configurationService) && configurationService.getValue<string>(ChatConfiguration.EditorDefaultProvider) === 'copilotAh') {
+			return false;
+		}
+		return isEditorLocalAgentEnabled(configurationService) || getVisibleNonLocalEditorChatSessionTypes(configurationService, chatSessionsService).length === 0;
+	}
+
+	if (sessionType === SessionType.CopilotCLI && configurationService.getValue<boolean>(ChatConfiguration.CopilotCliHideExtensionHostEditor)) {
+		return false;
+	}
+
+	return !!chatSessionsService.getChatSessionContribution(sessionType);
+}
+
+function getConfiguredEditorDefaultSessionType(defaultProvider: string | undefined): string | undefined {
+	switch (defaultProvider) {
+		case 'local':
+			return localChatSessionType;
+		case 'copilotAh':
+			return SessionType.AgentHostCopilot;
+		case 'copilotEh':
+			return SessionType.CopilotCLI;
+		default:
+			return undefined;
+	}
+}
+
+function getVisibleNonLocalEditorChatSessionTypes(
+	configurationService: IConfigurationService,
+	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>
+): string[] {
+	const sessionTypes = new Set<string>();
+	for (const contribution of chatSessionsService.getAllChatSessionContributions()) {
+		if (contribution.type !== localChatSessionType && isVisibleEditorChatSessionType(contribution.type, configurationService, chatSessionsService)) {
+			sessionTypes.add(contribution.type);
+		}
+	}
+	return Array.from(sessionTypes);
+}
+
 export const MANAGE_CHAT_COMMAND_ID = 'workbench.action.chat.manage';
 
+export const OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.openWorkspaceInAgentsWindow';
 export const OPEN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.openAgentsWindow';
 export const OPEN_AGENTS_WINDOW_PRECONDITION = ContextKeyExpr.and(
-	ProductQualityContext.notEqualsTo('stable'),
 	ChatEntitlementContextKeys.Setup.hidden.negate(),
 	ChatEntitlementContextKeys.Setup.disabledInWorkspace.negate(),
 	IsSessionsWindowContext.negate(),
+	ContextKeyExpr.has(`config.${ChatConfiguration.AgentEnabled}`),
+	IsAuxiliaryWindowContext.negate()
 );
 
 export const ChatEditorTitleMaxLength = 30;

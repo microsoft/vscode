@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
+import { COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
 
 /**
  * Describes the context needed for model selection decisions.
@@ -12,7 +12,6 @@ import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } f
 interface IModelSelectionContext {
 	readonly location: ChatAgentLocation;
 	readonly currentModeKind: ChatModeKind;
-	readonly isInlineChatV2Enabled: boolean;
 	readonly sessionType: string | undefined;
 }
 
@@ -20,26 +19,28 @@ interface IModelSelectionContext {
  * Filter models based on session type.
  * When a session has a specific type (and it's not 'local'), only models targeting that
  * session type are returned. Otherwise, general-purpose models are returned.
+ *
+ * `isUserSelectable` defaults to `true` when omitted: only an explicit `false` hides
+ * the model from the picker and this model-selection flow.
  */
 export function filterModelsForSession(
 	models: ILanguageModelChatMetadataAndIdentifier[],
 	sessionType: string | undefined,
 	currentModeKind: ChatModeKind,
 	location: ChatAgentLocation,
-	isInlineChatV2Enabled: boolean,
 ): ILanguageModelChatMetadataAndIdentifier[] {
 	if (sessionType && sessionType !== 'local' && hasModelsTargetingSession(models, sessionType)) {
 		return models.filter(entry =>
 			entry.metadata?.targetChatSessionType === sessionType &&
-			entry.metadata?.isUserSelectable
+			entry.metadata?.isUserSelectable !== false
 		);
 	}
 
 	return models.filter(entry =>
 		!entry.metadata?.targetChatSessionType &&
-		entry.metadata?.isUserSelectable &&
+		entry.metadata?.isUserSelectable !== false &&
 		isModelSupportedForMode(entry, currentModeKind) &&
-		isModelSupportedForInlineChat(entry, location, isInlineChatV2Enabled)
+		isModelSupportedForInlineChat(entry, location)
 	);
 }
 
@@ -62,9 +63,8 @@ export function isModelSupportedForMode(
 export function isModelSupportedForInlineChat(
 	model: ILanguageModelChatMetadataAndIdentifier,
 	location: ChatAgentLocation,
-	isInlineChatV2Enabled: boolean,
 ): boolean {
-	if (location !== ChatAgentLocation.EditorInline || !isInlineChatV2Enabled) {
+	if (location !== ChatAgentLocation.EditorInline) {
 		return true;
 	}
 	return !!model.metadata.capabilities?.toolCalling;
@@ -97,6 +97,27 @@ export function isModelValidForSession(
 		return model.metadata.targetChatSessionType === sessionType;
 	}
 	return !model.metadata.targetChatSessionType;
+}
+
+/**
+ * Find a model in `pool` that matches `previous` by id, then family, then
+ * name (case-insensitive). Used to carry a selection across model pools
+ * (e.g. `copilot/claude-sonnet-4.6` → `agent-host-copilotcli:claude-sonnet-4.6`).
+ * Returns `undefined` when no candidate matches.
+ */
+export function findBestMatchingModel(
+	previous: ILanguageModelChatMetadataAndIdentifier | undefined,
+	pool: readonly ILanguageModelChatMetadataAndIdentifier[],
+): ILanguageModelChatMetadataAndIdentifier | undefined {
+	if (!previous || pool.length === 0) {
+		return undefined;
+	}
+	const id = previous.metadata.id?.trim().toLowerCase();
+	const family = previous.metadata.family?.trim().toLowerCase();
+	const name = previous.metadata.name?.trim().toLowerCase();
+	return (id ? pool.find(m => m.metadata.id?.trim().toLowerCase() === id) : undefined)
+		?? (family ? pool.find(m => m.metadata.family?.trim().toLowerCase() === family) : undefined)
+		?? (name ? pool.find(m => m.metadata.name?.trim().toLowerCase() === name) : undefined);
 }
 
 /**
@@ -167,7 +188,7 @@ export function shouldResetModelToDefault(
 	}
 
 	// Model not supported for inline chat
-	if (!isModelSupportedForInlineChat(currentModel, context.location, context.isInlineChatV2Enabled)) {
+	if (!isModelSupportedForInlineChat(currentModel, context.location)) {
 		return true;
 	}
 
@@ -201,14 +222,14 @@ export function resolveModelFromSyncState(
 	sessionType: string | undefined,
 	context?: IModelSelectionContext,
 ): { action: 'keep' | 'apply' | 'default' } {
-	// Already the same model — nothing to do
-	if (currentModel && currentModel.identifier === stateModel.identifier) {
-		return { action: 'keep' };
-	}
-
-	// Validate the state model belongs to this session's model pool
+	// Validate the state model belongs to this session's model pool first.
 	if (!isModelValidForSession(stateModel, allModels, sessionType)) {
 		return { action: 'default' };
+	}
+
+	// Already the same model and valid for the new pool — nothing to do
+	if (currentModel && currentModel.identifier === stateModel.identifier) {
+		return { action: 'keep' };
 	}
 
 	// When a UI context is available, also validate mode and inline-chat compatibility
@@ -216,7 +237,7 @@ export function resolveModelFromSyncState(
 		if (!isModelSupportedForMode(stateModel, context.currentModeKind)) {
 			return { action: 'default' };
 		}
-		if (!isModelSupportedForInlineChat(stateModel, context.location, context.isInlineChatV2Enabled)) {
+		if (!isModelSupportedForInlineChat(stateModel, context.location)) {
 			return { action: 'default' };
 		}
 	}
@@ -225,24 +246,39 @@ export function resolveModelFromSyncState(
 }
 
 /**
- * Merges live models with cached models per-vendor.
- * For vendors whose models have resolved, uses live data.
- * For vendors that are contributed but haven't resolved yet (startup race), keeps cached models.
- * Vendors no longer contributed are evicted from cache.
+ * Merges live models with cached models per-vendor, evicting cache for vendors no longer contributed.
+ *
+ * - `resolvedVendors`: vendors that have finished resolving. An empty live list for these is authoritative
+ *   (e.g. BYOK key removed), so their cache is dropped.
+ * - Copilot is the exception: its models are gated on an async token that can resolve slower than fast/local BYOK
+ *   providers, so an early empty resolution is transient. Keeping its cache avoids resetting (and persisting) a
+ *   restored Copilot selection to a BYOK default, which also preserves the selection across sign-out/in (see #321037).
+ * - When nothing is contributed yet and there are no live models (startup / reload), the full cache is returned to
+ *   avoid flickering the picker to empty.
  */
 export function mergeModelsWithCache(
 	liveModels: ILanguageModelChatMetadataAndIdentifier[],
 	cachedModels: ILanguageModelChatMetadataAndIdentifier[],
 	contributedVendors: Set<string>,
+	resolvedVendors?: ReadonlySet<string>,
 ): ILanguageModelChatMetadataAndIdentifier[] {
-	if (liveModels.length > 0) {
-		const liveVendors = new Set(liveModels.map(m => m.metadata.vendor));
-		return [
-			...liveModels,
-			...cachedModels.filter(m => !liveVendors.has(m.metadata.vendor) && contributedVendors.has(m.metadata.vendor)),
-		];
+	if (contributedVendors.size === 0 && liveModels.length === 0) {
+		return cachedModels;
 	}
-	return cachedModels;
+	const liveVendors = new Set(liveModels.map(m => m.metadata.vendor));
+	const usableCached = cachedModels.filter(m => {
+		const vendor = m.metadata.vendor;
+		if (!contributedVendors.has(vendor) || liveVendors.has(vendor)) {
+			return false;
+		}
+		// A resolved vendor with no live models is authoritatively empty and its cache is dropped — except Copilot, whose
+		// empty resolution is transient while its token is still pending (see doc comment above).
+		if (resolvedVendors?.has(vendor) && vendor !== COPILOT_VENDOR_ID) {
+			return false;
+		}
+		return true;
+	});
+	return [...liveModels, ...usableCached];
 }
 
 /**
@@ -267,7 +303,9 @@ export function shouldResetOnModelListChange(
  * This handles the startup race where the model wasn't available during
  * `initSelectedModel` but arrives later via `onDidChangeLanguageModels`.
  *
- * The model must pass both the persisted-default check and the `isUserSelectable` check.
+ * The model must pass both the persisted-default check and the user-selectable
+ * check. `isUserSelectable` defaults to `true`; only an explicit `false` blocks
+ * restoration.
  */
 export function shouldRestoreLateArrivingModel(
 	persistedModelId: string,
@@ -275,7 +313,7 @@ export function shouldRestoreLateArrivingModel(
 	model: ILanguageModelChatMetadataAndIdentifier,
 	location: ChatAgentLocation,
 ): boolean {
-	if (!model.metadata.isUserSelectable) {
+	if (model.metadata.isUserSelectable === false) {
 		return false;
 	}
 	const result = shouldRestorePersistedModel(

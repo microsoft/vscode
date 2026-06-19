@@ -9,6 +9,7 @@ import { NoopOTelService, resolveOTelConfig } from '../../../../platform/otel/co
 import type { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
 import type { IRequestLogger } from '../../../../platform/requestLogger/common/requestLogger';
 import { NullTelemetryService } from '../../../../platform/telemetry/common/nullTelemetryService';
+import type { TelemetryDestination, TelemetryEventMeasurements, TelemetryEventProperties } from '../../../../platform/telemetry/common/telemetry';
 import { TestLogService } from '../../../../platform/testing/common/testLogService';
 import type { IBYOKStorageService } from '../byokStorageService';
 
@@ -63,6 +64,14 @@ class TestProgress implements vscode.Progress<ProgressItem> {
 	}
 }
 
+class RecordingTelemetryService extends NullTelemetryService {
+	public readonly events: { eventName: string; destination: TelemetryDestination; properties?: TelemetryEventProperties; measurements?: TelemetryEventMeasurements }[] = [];
+
+	override sendTelemetryEvent(eventName: string, destination: TelemetryDestination, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void {
+		this.events.push({ eventName, destination, properties, measurements });
+	}
+}
+
 function createStorageService(overrides?: Partial<IBYOKStorageService>): IBYOKStorageService {
 	return {
 		getAPIKey: vi.fn().mockResolvedValue(undefined),
@@ -101,6 +110,57 @@ describe('GeminiNativeBYOKLMProvider', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 	});
+
+	it('emits response.success telemetry with the forwarded turn measurement', async () => {
+		const { GeminiNativeBYOKLMProvider } = await import('../geminiNativeProvider');
+		const genai = await import('@google/genai');
+		const MockGoogleGenAI = genai.GoogleGenAI as unknown as { streamChunks: any[] };
+		MockGoogleGenAI.streamChunks.length = 0;
+		MockGoogleGenAI.streamChunks.push({
+			candidates: [{
+				content: { parts: [{ text: 'Hello from Gemini' }] }
+			}],
+			usageMetadata: {
+				promptTokenCount: 11,
+				candidatesTokenCount: 7,
+				totalTokenCount: 18,
+				cachedContentTokenCount: 2
+			}
+		});
+
+		const telemetry = new RecordingTelemetryService();
+		const provider = new GeminiNativeBYOKLMProvider(undefined, createStorageService(), new TestLogService(), createRequestLogger(), telemetry, new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '1.0.0', sessionId: 'test' })));
+		const model = {
+			id: 'gemini-2.0-flash',
+			name: 'Gemini 2.0 Flash',
+			family: 'Gemini',
+			version: '1.0.0',
+			maxInputTokens: 1000,
+			maxOutputTokens: 1000,
+			capabilities: { toolCalling: false, imageInput: false },
+			configuration: { apiKey: 'k_test' }
+		} as any;
+		const messages: vscode.LanguageModelChatMessage[] = [
+			new vscode.LanguageModelChatMessage(vscode.LanguageModelChatMessageRole.User, 'hello')
+		];
+
+		const tokenSource = new vscode.CancellationTokenSource();
+		try {
+			await provider.provideLanguageModelChatResponse(
+				model,
+				messages,
+				{ requestInitiator: 'test', tools: [], toolMode: vscode.LanguageModelChatToolMode.Auto, modelOptions: { _telemetryTurn: 3 } } as any,
+				new TestProgress(),
+				tokenSource.token
+			);
+		} finally {
+			tokenSource.dispose();
+		}
+
+		const responseSuccessEvent = telemetry.events.find(event => event.eventName === 'response.success');
+		expect(responseSuccessEvent).toBeDefined();
+		expect(responseSuccessEvent?.measurements?.turn).toBe(3);
+	}, 30_000);
 
 	it.skip('throws a clear error when no API key is configured (no silent return)', async () => {
 		const { GeminiNativeBYOKLMProvider } = await import('../geminiNativeProvider');

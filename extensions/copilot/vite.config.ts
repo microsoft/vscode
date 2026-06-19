@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// eslint-disable-next-line no-restricted-imports
 import * as path from 'path';
 import { loadEnv } from 'vite';
-import topLevelAwait from 'vite-plugin-top-level-await';
 import wasm from 'vite-plugin-wasm';
 import { defineConfig } from 'vitest/config';
 
@@ -22,7 +20,7 @@ export default defineConfig(({ mode }) => ({
 		exclude,
 		env: loadEnv(mode, process.cwd(), ''),
 		alias: {
-			// similar to aliasing in the esbuild config `.esbuild.ts`
+			// similar to aliasing in the esbuild config `.esbuild.mts`
 			// vitest requires aliases to be absolute paths. reference: https://vitejs.dev/config/shared-options#resolve-alias
 			'vscode': path.resolve(__dirname, 'src/util/common/test/shims/vscodeTypesShim.ts'),
 		}
@@ -32,8 +30,12 @@ export default defineConfig(({ mode }) => ({
 			ignored: exclude,
 		}
 	},
+	oxc: {
+		jsx: {
+			development: false,
+		}
+	},
 	plugins: [
-		wasm(),
-		topLevelAwait()
+		wasm()
 	]
 }));

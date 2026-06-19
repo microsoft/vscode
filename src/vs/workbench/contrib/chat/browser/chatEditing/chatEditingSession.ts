@@ -1037,7 +1037,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		return new class implements IModifiedEntryTelemetryInfo {
 			get agentId() { return responseModel.agent?.id; }
 			get modelId() { return responseModel.request?.modelId; }
-			get modeId() { return responseModel.request?.modeInfo?.modeId; }
+			get modeId() { return responseModel.request?.modeInfo?.telemetryModeId; }
 			get command() { return responseModel.slashCommand?.name; }
 			get sessionResource() { return responseModel.session.sessionResource; }
 			get requestId() { return responseModel.requestId; }
@@ -1209,7 +1209,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			// this file does not exist yet, create it and try again
 			await this._bulkEditService.apply({ edits: [{ newResource: resource }] });
 			if (this.configurationService.getValue<boolean>('accessibility.openChatEditedFiles')) {
-				this._editorService.openEditor({ resource, options: { inactive: true, preserveFocus: true, pinned: true } });
+				this._editorService.openEditor({ resource, options: { inactive: true, preserveFocus: true, pinned: true, isExplicit: false } });
 			}
 
 			// Record file creation operation

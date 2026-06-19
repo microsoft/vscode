@@ -101,7 +101,8 @@ enum LayoutClasses {
 	FULLSCREEN = 'fullscreen',
 	MAXIMIZED = 'maximized',
 	WINDOW_BORDER = 'border',
-	NO_SHADOWS = 'no-shadows'
+	NO_SHADOWS = 'no-shadows',
+	FLOATING_PANELS = 'floating-panels'
 }
 
 interface IPathToOpen extends IPath {
@@ -341,7 +342,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private registerLayoutListeners(): void {
 
 		// Restore editor if hidden and an editor is to show
-		const showEditorIfHidden = () => {
+		const showEditorIfHidden = (explicitUserAction?: boolean) => {
 			if (
 				this.isVisible(Parts.EDITOR_PART, mainWindow) ||		// already visible
 				this.mainPartEditorService.visibleEditors.length === 0	// no editor to show
@@ -350,7 +351,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 
 			if (this.isAuxiliaryBarMaximized()) {
-				this.toggleMaximizedAuxiliaryBar();
+				// Do not unmaximize the auxiliary side bar when the editor was
+				// opened automatically (e.g. by the chat agent applying edits).
+				// Only an explicit user action should disrupt the chosen layout.
+				if (explicitUserAction !== false) {
+					this.toggleMaximizedAuxiliaryBar();
+				}
 			} else {
 				this.toggleMaximizedPanel();
 			}
@@ -375,10 +381,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.editorGroupService.whenRestored.then(() => {
 
 			// Handle visible editors changing for parts visibility
-			this._register(this.mainPartEditorService.onDidVisibleEditorsChange(() => {
+			this._register(this.mainPartEditorService.onDidVisibleEditorsChange(e => {
 				const handled = maybeMaximizeAuxiliaryBar();
 				if (!handled) {
-					showEditorIfHidden();
+					showEditorIfHidden(e.isExplicit);
 				}
 			}));
 			this._register(this.editorGroupService.mainPart.onDidActivateGroup(e => {
@@ -430,6 +436,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// Shadows
 			if (e.affectsConfiguration(LayoutSettings.SHADOWS)) {
 				this.updateShadows();
+			}
+
+			// Floating Panels
+			if (e.affectsConfiguration(LayoutSettings.FLOATING_PANELS)) {
+				this.updateFloatingPanels();
+				this.layout(); // re-layout so parts pick up the new floating margins
 			}
 
 			// Auxiliary Sidebar
@@ -604,6 +616,18 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		for (const container of Array.from(this.containers)) {
 			container.classList.toggle(LayoutClasses.NO_SHADOWS, noShadows);
 		}
+	}
+
+	isFloatingPanelsEnabled(): boolean {
+		return this.configurationService.getValue<boolean>(LayoutSettings.FLOATING_PANELS) === true;
+	}
+
+	private updateFloatingPanels(): void {
+		// Floating panels is a main-window concept: only the main container hosts
+		// the side bars and bottom panel. Scope the class (and therefore the CSS
+		// card margins) to the main container so auxiliary windows — whose parts do
+		// not apply the matching content insets in code — are left untouched.
+		this.mainContainer.classList.toggle(LayoutClasses.FLOATING_PANELS, this.isFloatingPanelsEnabled());
 	}
 
 	private setSideBarPosition(position: Position): void {
@@ -1703,6 +1727,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.parent,				// in that case the workbench will span the entire site
 				this.contextService.getWorkbenchState() === WorkbenchState.EMPTY ? DEFAULT_EMPTY_WINDOW_DIMENSIONS : DEFAULT_WORKSPACE_WINDOW_DIMENSIONS // running with fallback to ensure no error is thrown (https://github.com/microsoft/vscode/issues/240242)
 			);
+
 			this.logService.trace(`Layout#layout, height: ${this._mainContainerDimension.height}, width: ${this._mainContainerDimension.width}`);
 
 			size(this.mainContainer, this._mainContainerDimension.width, this._mainContainerDimension.height);
@@ -1876,7 +1901,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			!this.isVisible(Parts.AUXILIARYBAR_PART) ? LayoutClasses.AUXILIARYBAR_HIDDEN : undefined,
 			!this.isVisible(Parts.STATUSBAR_PART) ? LayoutClasses.STATUSBAR_HIDDEN : undefined,
 			this.state.runtime.mainWindowFullscreen ? LayoutClasses.FULLSCREEN : undefined,
-			this.isShadowsDisabled() ? LayoutClasses.NO_SHADOWS : undefined
+			this.isShadowsDisabled() ? LayoutClasses.NO_SHADOWS : undefined,
+			this.isFloatingPanelsEnabled() ? LayoutClasses.FLOATING_PANELS : undefined
 		]);
 	}
 
@@ -2955,11 +2981,12 @@ class LayoutStateModel extends Disposable {
 				return true;
 			}
 
-			// New users: Show auxiliary bar even in empty workspaces
-			// but not if the user explicitly hides it
+			// New users: Show auxiliary bar even in empty workspaces,
+			// but not if the user explicitly hides it or AI features are disabled.
 			if (
 				this.isNew[StorageScope.APPLICATION] &&
-				configuration.value !== 'hidden'
+				configuration.value !== 'hidden' &&
+				!this.configurationService.getValue<boolean>('chat.disableAIFeatures')
 			) {
 				return false;
 			}

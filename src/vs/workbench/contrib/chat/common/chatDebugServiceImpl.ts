@@ -12,7 +12,8 @@ import { ResourceMap } from '../../../../base/common/map.js';
 import { extUri } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugLogProvider, IChatDebugResolvedEventContent, IChatDebugService } from './chatDebugService.js';
-import { LocalChatSessionUri } from './model/chatUri.js';
+import { localChatSessionType } from './chatSessionsService.js';
+import { getChatSessionType } from './model/chatUri.js';
 
 /**
  * Per-session circular buffer for debug events.
@@ -103,6 +104,9 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 	private readonly _onDidClearProviderEvents = this._register(new Emitter<URI>());
 	readonly onDidClearProviderEvents: Event<URI> = this._onDidClearProviderEvents.event;
 
+	private readonly _onDidEndSession = this._register(new Emitter<URI>());
+	readonly onDidEndSession: Event<URI> = this._onDidEndSession.event;
+
 	private readonly _onDidChangeAvailableSessionResources = this._register(new Emitter<void>());
 	readonly onDidChangeAvailableSessionResources: Event<void> = this._onDidChangeAvailableSessionResources.event;
 
@@ -137,15 +141,20 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 		generic: 5,
 	};
 
-	/** Schemes eligible for debug logging and provider invocation. */
-	private static readonly _debugEligibleSchemes = new Set([
-		LocalChatSessionUri.scheme,	// vscode-chat-session (local sessions)
+	/** Session types eligible for debug logging and provider invocation. */
+	private static readonly _debugEligibleSessionTypes = new Set([
+		localChatSessionType,			// local sessions
 		'copilotcli',				// Copilot CLI background sessions
+		'agent-host-copilotcli',		// local Agent Host Copilot CLI sessions
 		'claude-code',				// Claude Code CLI sessions
 	]);
 
 	private _isDebugEligibleSession(sessionResource: URI): boolean {
-		return ChatDebugServiceImpl._debugEligibleSchemes.has(sessionResource.scheme)
+		const sessionType = getChatSessionType(sessionResource);
+		return ChatDebugServiceImpl._debugEligibleSessionTypes.has(sessionType)
+			// Remote Agent Host Copilot CLI sessions use a dynamic
+			// `remote-<authority>-copilotcli` scheme; see copilotCliEventsUri.ts.
+			|| (sessionType.startsWith('remote-') && sessionType.endsWith('-copilotcli'))
 			|| this._importedSessions.has(sessionResource);
 	}
 
@@ -410,6 +419,7 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 			cts.dispose();
 			this._invocationCts.delete(sessionResource);
 		}
+		this._onDidEndSession.fire(sessionResource);
 	}
 
 	private _clearProviderEvents(sessionResource: URI): void {

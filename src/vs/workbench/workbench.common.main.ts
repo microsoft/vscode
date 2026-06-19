@@ -9,10 +9,15 @@ import '../editor/editor.all.js';
 
 import './api/browser/extensionHost.contribution.js';
 import './browser/workbench.contribution.js';
+import './browser/workbench.zenMode.contribution.js';
 
 // Agent-sessions color tokens — side-effect import so they register in the
 // global color registry and appear in the color-theme JSON schema.
 import '../sessions/common/theme.js';
+
+// Agent-sessions size tokens (font ramp) — side-effect import so they register
+// in the global size registry and appear in the workbench-sizes JSON schema.
+import '../sessions/common/sizes.js';
 
 //#endregion
 
@@ -138,6 +143,7 @@ import './services/editor/common/customEditorLabelService.js';
 import './services/dataChannel/browser/dataChannelService.js';
 import './services/inlineCompletions/common/inlineCompletionsUnification.js';
 import './services/chat/common/chatEntitlementService.js';
+import './services/agentHost/common/agentHostResourceService.js';
 import './services/log/common/defaultLogLevels.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
@@ -215,9 +221,13 @@ import './contrib/notebook/browser/notebook.contribution.js';
 import './contrib/speech/browser/speech.contribution.js';
 
 // Chat
+import './contrib/chat/browser/chat.shared.contribution.js';
 import './contrib/chat/browser/chat.contribution.js';
 import './contrib/chat/browser/chat.view.contribution.js';
 import './contrib/inlineChat/browser/inlineChat.contribution.js';
+
+// Copilot Voice
+import './contrib/agentsVoice/browser/agentsVoice.contribution.js';
 import './contrib/mcp/browser/mcp.contribution.js';
 import './contrib/mcp/browser/mcp.view.contribution.js';
 import './contrib/chat/browser/chatSessions/chatSessions.contribution.js';
@@ -323,6 +333,9 @@ import './contrib/externalTerminal/browser/externalTerminal.contribution.js';
 
 // Relauncher
 import './contrib/relauncher/browser/relauncher.contribution.js';
+
+// Style Overrides (experimental)
+import './contrib/styleOverrides/browser/styleOverrides.contribution.js';
 
 // Tasks
 import './contrib/tasks/browser/task.contribution.js';

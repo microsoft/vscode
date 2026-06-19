@@ -5,6 +5,8 @@
 
 import { outdent } from 'outdent';
 import { expect, suite, test } from 'vitest';
+import { ChatFetchResponseType } from '../../../../platform/chat/common/commonTypes';
+import { NewSymbolNameTriggerKind } from '../../../../vscodeTypes';
 import { RenameSuggestionsProvider } from '../../node/renameSuggestionsProvider';
 
 suite('processReply', () => {
@@ -257,5 +259,32 @@ suite('preprocessSymbolNames', () => {
 			languageId: 'javascript',
 		});
 		expect(result).toEqual(['camelCase', 'snake_case', 'PascalCase', 'UPPER_SNAKE_CASE', 'lower-kebab-case']);
+	});
+});
+
+suite('shouldShowQuotaExceededDialog', () => {
+	test('shows for manual invoke + quota exceeded', () => {
+		expect(RenameSuggestionsProvider.shouldShowQuotaExceededDialog(NewSymbolNameTriggerKind.Invoke, ChatFetchResponseType.QuotaExceeded, false)).toBe(true);
+	});
+
+	test('shows for manual invoke + rate limited + no-auth user', () => {
+		expect(RenameSuggestionsProvider.shouldShowQuotaExceededDialog(NewSymbolNameTriggerKind.Invoke, ChatFetchResponseType.RateLimited, true)).toBe(true);
+	});
+
+	test('does not show for manual invoke + rate limited + signed-in user', () => {
+		expect(RenameSuggestionsProvider.shouldShowQuotaExceededDialog(NewSymbolNameTriggerKind.Invoke, ChatFetchResponseType.RateLimited, false)).toBe(false);
+	});
+
+	test('does not show for manual invoke + success', () => {
+		expect(RenameSuggestionsProvider.shouldShowQuotaExceededDialog(NewSymbolNameTriggerKind.Invoke, ChatFetchResponseType.Success, false)).toBe(false);
+	});
+
+	// Regression test for https://github.com/microsoft/vscode/issues/319414
+	test('does not show for automatic trigger + quota exceeded', () => {
+		expect(RenameSuggestionsProvider.shouldShowQuotaExceededDialog(NewSymbolNameTriggerKind.Automatic, ChatFetchResponseType.QuotaExceeded, false)).toBe(false);
+	});
+
+	test('does not show for automatic trigger + rate limited + no-auth user', () => {
+		expect(RenameSuggestionsProvider.shouldShowQuotaExceededDialog(NewSymbolNameTriggerKind.Automatic, ChatFetchResponseType.RateLimited, true)).toBe(false);
 	});
 });

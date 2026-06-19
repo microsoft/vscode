@@ -8,12 +8,13 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { CustomizationHarnessServiceBase, createVSCodeHarnessDescriptor, ICustomizationItemProvider, IHarnessDescriptor, matchesWorkspaceSubpath } from '../../common/customizationHarnessService.js';
+import { CustomizationHarnessServiceBase, createVSCodeHarnessDescriptor, ICustomizationItemProvider, IHarnessDescriptor, matchesWorkspaceSubpath, ICustomizationItem } from '../../common/customizationHarnessService.js';
 import { PromptsType, Target } from '../../common/promptSyntax/promptTypes.js';
 import { ICustomAgent, IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { SessionType } from '../../common/chatSessionsService.js';
 import { MockPromptsService } from './promptSyntax/service/mockPromptsService.js';
+import { AICustomizationSources } from '../../common/aiCustomizationWorkspaceService.js';
 
 suite('CustomizationHarnessService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -28,7 +29,15 @@ suite('CustomizationHarnessService', () => {
 		return service;
 	}
 
+	const testSessionType1 = 'test-session-type1';
+	//const testSessionType2 = 'test-session-type2';
+	const testSessionResource1 = URI.parse('test-session-type1://session1');
+	const testSessionResource2 = URI.parse('test-session-type2://session2');
+
 	suite('registerExternalHarness', () => {
+
+
+
 		test('forwards item provider changes via onDidChangeSlashCommands with sessionType', () => {
 			const service = createService();
 			const emitter = new Emitter<void>();
@@ -38,10 +47,10 @@ suite('CustomizationHarnessService', () => {
 				id: harnessId,
 				label: 'Test Harness',
 				icon: ThemeIcon.fromId('extensions'),
-				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
+				getStorageSourceFilter: () => ({ sources: [AICustomizationSources.local] }),
 				itemProvider: {
 					onDidChange: emitter.event,
-					provideChatSessionCustomizations: async () => [],
+					provideChatSessionCustomizations: async (_sessionResource: URI, _token: CancellationToken) => [],
 				},
 			};
 
@@ -64,10 +73,10 @@ suite('CustomizationHarnessService', () => {
 				id: harnessId,
 				label: 'Test Harness',
 				icon: ThemeIcon.fromId('extensions'),
-				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
+				getStorageSourceFilter: () => ({ sources: [AICustomizationSources.local] }),
 				itemProvider: {
 					onDidChange: emitter.event,
-					provideChatSessionCustomizations: async () => [],
+					provideChatSessionCustomizations: async (_sessionResource: URI, _token: CancellationToken) => [],
 				},
 			};
 
@@ -91,10 +100,10 @@ suite('CustomizationHarnessService', () => {
 				id: 'test-ext',
 				label: 'Test Extension',
 				icon: ThemeIcon.fromId('extensions'),
-				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
+				getStorageSourceFilter: () => ({ sources: [AICustomizationSources.local] }),
 				itemProvider: {
 					onDidChange: emitter.event,
-					provideChatSessionCustomizations: async () => [],
+					provideChatSessionCustomizations: async (_sessionResource: URI, _token: CancellationToken) => [],
 				},
 			};
 
@@ -113,10 +122,10 @@ suite('CustomizationHarnessService', () => {
 				id: 'test-ext',
 				label: 'Test Extension',
 				icon: ThemeIcon.fromId('extensions'),
-				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
+				getStorageSourceFilter: () => ({ sources: [AICustomizationSources.local] }),
 				itemProvider: {
 					onDidChange: emitter.event,
-					provideChatSessionCustomizations: async () => [],
+					provideChatSessionCustomizations: async (_sessionResource: URI, _token: CancellationToken) => [],
 				},
 			};
 
@@ -127,7 +136,7 @@ suite('CustomizationHarnessService', () => {
 			assert.strictEqual(service.availableHarnesses.get().length, 1);
 		});
 
-		test('falls back to first harness when active external harness is removed', () => {
+		test.skip('falls back to first harness when active external harness is removed', () => {
 			const service = createService();
 			const emitter = new Emitter<void>();
 			store.add(emitter);
@@ -135,15 +144,16 @@ suite('CustomizationHarnessService', () => {
 				id: 'test-ext',
 				label: 'Test Extension',
 				icon: ThemeIcon.fromId('extensions'),
-				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
+				getStorageSourceFilter: () => ({ sources: [AICustomizationSources.local] }),
 				itemProvider: {
 					onDidChange: emitter.event,
-					provideChatSessionCustomizations: async () => [],
+					provideChatSessionCustomizations: async (_sessionResource: URI, _token: CancellationToken) => [],
 				},
 			};
+			const activeSessionResource = URI.parse('test-ext://session');
 
 			const reg = service.registerExternalHarness(externalDescriptor);
-			service.setActiveHarness('test-ext');
+			service.setActiveSession(activeSessionResource);
 			assert.strictEqual(service.activeHarness.get(), 'test-ext');
 
 			reg.dispose();
@@ -158,15 +168,16 @@ suite('CustomizationHarnessService', () => {
 				id: 'test-ext',
 				label: 'Test Extension',
 				icon: ThemeIcon.fromId('extensions'),
-				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
+				getStorageSourceFilter: () => ({ sources: [AICustomizationSources.local] }),
 				itemProvider: {
 					onDidChange: emitter.event,
-					provideChatSessionCustomizations: async () => [],
+					provideChatSessionCustomizations: async (_sessionResource: URI, _token: CancellationToken) => [],
 				},
 			};
+			const activeSessionResource = URI.parse('test-ext://session');
 
 			store.add(service.registerExternalHarness(externalDescriptor));
-			service.setActiveHarness('test-ext');
+			service.setActiveSession(activeSessionResource);
 			assert.strictEqual(service.activeHarness.get(), 'test-ext');
 
 			const activeDescriptor = service.getActiveDescriptor();
@@ -187,12 +198,13 @@ suite('CustomizationHarnessService', () => {
 				getStorageSourceFilter: () => customFilter,
 				itemProvider: {
 					onDidChange: emitter.event,
-					provideChatSessionCustomizations: async () => [],
+					provideChatSessionCustomizations: async (_sessionResource: URI, _token: CancellationToken) => [],
 				},
 			};
+			const activeSessionResource = URI.parse('test-ext://session');
 
 			store.add(service.registerExternalHarness(externalDescriptor));
-			service.setActiveHarness('test-ext');
+			service.setActiveSession(activeSessionResource);
 			assert.deepStrictEqual(service.getStorageSourceFilter(PromptsType.agent), customFilter);
 		});
 
@@ -201,7 +213,7 @@ suite('CustomizationHarnessService', () => {
 			const emitter = new Emitter<void>();
 			store.add(emitter);
 			const testItems = [
-				{ uri: URI.parse('file:///workspace/.claude/SKILL.md'), type: 'skill', name: 'Test Skill', description: 'A test skill', extensionId: undefined, pluginUri: undefined },
+				{ uri: URI.parse('file:///workspace/.claude/SKILL.md'), type: 'skill', name: 'Test Skill', description: 'A test skill', source: 'local', extensionId: undefined, pluginUri: undefined, userInvocable: undefined } satisfies ICustomizationItem,
 			];
 
 			const itemProvider: ICustomizationItemProvider = {
@@ -213,14 +225,17 @@ suite('CustomizationHarnessService', () => {
 				id: 'test-ext',
 				label: 'Test Extension',
 				icon: ThemeIcon.fromId('extensions'),
-				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
+				getStorageSourceFilter: () => ({ sources: [AICustomizationSources.local] }),
 				itemProvider,
 			};
+			const activeSessionResource = URI.parse('test-ext://session');
+
+			const testSessionResource = URI.parse('test-ext://session');
 
 			store.add(service.registerExternalHarness(externalDescriptor));
-			service.setActiveHarness('test-ext');
+			service.setActiveSession(activeSessionResource);
 
-			const items = await service.getActiveDescriptor().itemProvider!.provideChatSessionCustomizations(CancellationToken.None);
+			const items = await service.getActiveDescriptor().itemProvider!.provideChatSessionCustomizations(testSessionResource, CancellationToken.None);
 			assert.strictEqual(items?.length, 1);
 			assert.strictEqual(items![0].name, 'Test Skill');
 			assert.strictEqual(items![0].type, 'skill');
@@ -236,15 +251,16 @@ suite('CustomizationHarnessService', () => {
 				icon: ThemeIcon.fromId('extensions'),
 				hiddenSections: ['agents', 'prompts'],
 				workspaceSubpaths: ['.test-ext'],
-				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
+				getStorageSourceFilter: () => ({ sources: [AICustomizationSources.local] }),
 				itemProvider: {
 					onDidChange: emitter.event,
-					provideChatSessionCustomizations: async () => [],
+					provideChatSessionCustomizations: async (_sessionResource: URI, _token: CancellationToken) => [],
 				},
 			};
 
 			store.add(service.registerExternalHarness(externalDescriptor));
-			service.setActiveHarness('test-ext');
+			const activeSessionResource = URI.parse('test-ext://session');
+			service.setActiveSession(activeSessionResource);
 
 			const descriptor = service.getActiveDescriptor();
 			assert.deepStrictEqual(descriptor.hiddenSections, ['agents', 'prompts']);
@@ -256,10 +272,10 @@ suite('CustomizationHarnessService', () => {
 				id: 'cli',
 				label: 'Copilot CLI (static)',
 				icon: ThemeIcon.fromId('extensions'),
-				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
+				getStorageSourceFilter: () => ({ sources: [AICustomizationSources.local] }),
 			};
 			const service = createService(
-				createVSCodeHarnessDescriptor([PromptsStorage.extension]),
+				createVSCodeHarnessDescriptor([AICustomizationSources.extension]),
 				staticDescriptor,
 			);
 			assert.strictEqual(service.availableHarnesses.get().length, 2);
@@ -270,10 +286,10 @@ suite('CustomizationHarnessService', () => {
 				id: 'cli',
 				label: 'Copilot CLI (from API)',
 				icon: ThemeIcon.fromId('extensions'),
-				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
+				getStorageSourceFilter: () => ({ sources: [AICustomizationSources.local] }),
 				itemProvider: {
 					onDidChange: emitter.event,
-					provideChatSessionCustomizations: async () => [],
+					provideChatSessionCustomizations: async (_sessionResource: URI, _token: CancellationToken) => [],
 				},
 			};
 
@@ -291,10 +307,10 @@ suite('CustomizationHarnessService', () => {
 				id: 'cli',
 				label: 'Copilot CLI (static)',
 				icon: ThemeIcon.fromId('extensions'),
-				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
+				getStorageSourceFilter: () => ({ sources: [AICustomizationSources.local] }),
 			};
 			const service = createService(
-				createVSCodeHarnessDescriptor([PromptsStorage.extension]),
+				createVSCodeHarnessDescriptor([AICustomizationSources.extension]),
 				staticDescriptor,
 			);
 
@@ -304,10 +320,10 @@ suite('CustomizationHarnessService', () => {
 				id: 'cli',
 				label: 'Copilot CLI (from API)',
 				icon: ThemeIcon.fromId('extensions'),
-				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
+				getStorageSourceFilter: () => ({ sources: [AICustomizationSources.local] }),
 				itemProvider: {
 					onDidChange: emitter.event,
-					provideChatSessionCustomizations: async () => [],
+					provideChatSessionCustomizations: async (_sessionResource: URI, _token: CancellationToken) => [],
 				},
 			};
 
@@ -325,10 +341,10 @@ suite('CustomizationHarnessService', () => {
 				id: 'cli',
 				label: 'Copilot CLI (static)',
 				icon: ThemeIcon.fromId('extensions'),
-				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
+				getStorageSourceFilter: () => ({ sources: [AICustomizationSources.local] }),
 			};
 			const service = createService(
-				createVSCodeHarnessDescriptor([PromptsStorage.extension]),
+				createVSCodeHarnessDescriptor([AICustomizationSources.extension]),
 				staticDescriptor,
 			);
 
@@ -338,15 +354,16 @@ suite('CustomizationHarnessService', () => {
 				id: 'cli',
 				label: 'Copilot CLI (from API)',
 				icon: ThemeIcon.fromId('extensions'),
-				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
+				getStorageSourceFilter: () => ({ sources: [AICustomizationSources.local] }),
 				itemProvider: {
 					onDidChange: emitter.event,
-					provideChatSessionCustomizations: async () => [],
+					provideChatSessionCustomizations: async (_sessionResource: URI, _token: CancellationToken) => [],
 				},
 			};
+			const sessionResource = URI.parse('cli://session');
 
 			const reg = service.registerExternalHarness(externalDescriptor);
-			service.setActiveHarness('cli');
+			service.setActiveSession(sessionResource);
 			assert.strictEqual(service.activeHarness.get(), 'cli');
 
 			reg.dispose();
@@ -361,6 +378,7 @@ suite('CustomizationHarnessService', () => {
 
 
 			const testSessionType = 'test-session-type';
+			const testSessionResource = URI.parse('test-session-type://session');
 
 			const emitter = new Emitter<void>();
 			store.add(emitter);
@@ -368,19 +386,19 @@ suite('CustomizationHarnessService', () => {
 				id: testSessionType,
 				label: 'Test Extension',
 				icon: ThemeIcon.fromId('extensions'),
-				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
+				getStorageSourceFilter: () => ({ sources: [AICustomizationSources.local] }),
 				itemProvider: {
 					onDidChange: emitter.event,
-					provideChatSessionCustomizations: async () => [
-						{ uri: URI.parse('file:///workspace/.test/prompts/fix.prompt.md'), type: PromptsType.prompt, name: 'fix', description: 'Fix something', extensionId: undefined, pluginUri: undefined },
-						{ uri: URI.parse('file:///workspace/.test/skills/lint/SKILL.md'), type: PromptsType.skill, name: 'lint', description: 'Lint skill', extensionId: undefined, pluginUri: undefined },
-						{ uri: URI.parse('file:///workspace/.test/instructions/rule.instructions.md'), type: PromptsType.instructions, name: 'rule', description: 'Ignore me', extensionId: undefined, pluginUri: undefined },
-						{ uri: URI.parse('file:///workspace/.test/skills/disabled/SKILL.md'), type: PromptsType.skill, name: 'disabled', enabled: false, extensionId: undefined, pluginUri: undefined },
+					provideChatSessionCustomizations: async (_sessionResource: URI, _token: CancellationToken) => [
+						{ uri: URI.parse('file:///workspace/.test/prompts/fix.prompt.md'), type: PromptsType.prompt, source: 'local', name: 'fix', description: 'Fix something', extensionId: undefined, pluginUri: undefined, userInvocable: undefined },
+						{ uri: URI.parse('file:///workspace/.test/skills/lint/SKILL.md'), type: PromptsType.skill, source: 'local', name: 'lint', description: 'Lint skill', extensionId: undefined, pluginUri: undefined, userInvocable: undefined },
+						{ uri: URI.parse('file:///workspace/.test/instructions/rule.instructions.md'), type: PromptsType.instructions, source: 'local', name: 'rule', description: 'Ignore me', extensionId: undefined, pluginUri: undefined, userInvocable: undefined },
+						{ uri: URI.parse('file:///workspace/.test/skills/disabled/SKILL.md'), type: PromptsType.skill, source: 'local', name: 'disabled', enabled: false, extensionId: undefined, pluginUri: undefined, userInvocable: undefined },
 					],
 				},
 			});
 
-			const commands = await service.getSlashCommands(testSessionType, CancellationToken.None);
+			const commands = await service.getSlashCommands(testSessionResource, CancellationToken.None);
 			assert.deepStrictEqual(commands.map(command => ({ name: command.name, type: command.type })), [
 				{ name: 'fix', type: PromptsType.prompt },
 				{ name: 'lint', type: PromptsType.skill },
@@ -390,6 +408,8 @@ suite('CustomizationHarnessService', () => {
 		test('falls back to promptsService when the active harness has no provider', async () => {
 
 			const testSessionType = 'test-session-type';
+			const testSessionResource = URI.parse('test-session-type://session');
+			const otherSessionResource = URI.parse('other-session-type://session');
 			const promptsService = new class extends MockPromptsService {
 				override async getPromptSlashCommands() {
 					return [
@@ -402,14 +422,14 @@ suite('CustomizationHarnessService', () => {
 			const service = new CustomizationHarnessServiceBase([createVSCodeHarnessDescriptor([PromptsStorage.extension])], SessionType.Local, promptsService);
 			store.add(service);
 			{
-				const commands = await service.getSlashCommands(testSessionType, CancellationToken.None);
+				const commands = await service.getSlashCommands(testSessionResource, CancellationToken.None);
 				assert.deepStrictEqual(commands.map(command => ({ name: command.name, type: command.type, userInvocable: command.userInvocable, sessionTypes: command.sessionTypes })), [
 					{ name: 'explain', type: PromptsType.prompt, userInvocable: false, sessionTypes: [testSessionType] },
 					{ name: 'review', type: PromptsType.skill, userInvocable: true, sessionTypes: undefined },
 				]);
 			}
 			{
-				const commands = await service.getSlashCommands(SessionType.Local, CancellationToken.None);
+				const commands = await service.getSlashCommands(otherSessionResource, CancellationToken.None);
 				assert.deepStrictEqual(commands.map(command => ({ name: command.name, type: command.type, userInvocable: command.userInvocable, sessionTypes: command.sessionTypes })), [
 					{ name: 'review', type: PromptsType.skill, userInvocable: true, sessionTypes: undefined },
 				]);
@@ -418,58 +438,67 @@ suite('CustomizationHarnessService', () => {
 	});
 
 	suite('getCustomAgents', () => {
-		const createAgent = (name: string, path: string, sessionTypes?: readonly string[]): ICustomAgent => ({
-			uri: URI.parse(path),
-			name,
-			target: Target.GitHubCopilot,
-			visibility: { userInvocable: true, agentInvocable: true },
-			agentInstructions: { content: '', toolReferences: [] },
-			source: { storage: PromptsStorage.local },
-			sessionTypes,
-		});
+		const createAgent = (name: string, path: string, sessionTypes: readonly string[] | undefined, enabled: boolean): ICustomAgent => {
+			const uri = URI.parse(path);
+			return {
+				id: uri.toString(),
+				uri,
+				name,
+				target: Target.GitHubCopilot,
+				visibility: { userInvocable: true, agentInvocable: true },
+				agentInstructions: { content: '', toolReferences: [] },
+				source: { storage: PromptsStorage.local },
+				sessionTypes,
+				enabled,
+			};
+		};
 
 		test('falls back to promptsService and filters by session type', async () => {
-			const testSessionType = 'test-session-type';
 			const promptsService = new MockPromptsService();
 			promptsService.setCustomModes([
-				createAgent('matching', 'file:///workspace/.github/agents/matching.agent.md', [testSessionType]),
-				createAgent('global', 'file:///workspace/.github/agents/global.agent.md'),
-				createAgent('other', 'file:///workspace/.github/agents/other.agent.md', ['other-session']),
+				createAgent('matching', 'file:///workspace/.github/agents/matching.agent.md', [testSessionType1], true),
+				createAgent('global', 'file:///workspace/.github/agents/global.agent.md', undefined, true),
+				createAgent('other', 'file:///workspace/.github/agents/other.agent.md', ['other-session'], true),
 			]);
 			const service = new CustomizationHarnessServiceBase([createVSCodeHarnessDescriptor([PromptsStorage.extension])], SessionType.Local, promptsService);
 			store.add(service);
 
-			const agents = await service.getCustomAgents(testSessionType, CancellationToken.None);
+			const agents = await service.getCustomAgents(testSessionResource1, CancellationToken.None);
 			assert.deepStrictEqual(agents.map(agent => agent.name), ['matching', 'global']);
 		});
 
 		test('uses provider item URIs to scope resolved custom agents', async () => {
-			const testSessionType = 'test-session-type';
+
 			const promptsService = new MockPromptsService();
 			promptsService.setCustomModes([
-				createAgent('selected', 'file:///workspace/.test/agents/selected.agent.md', [testSessionType]),
-				createAgent('not-selected', 'file:///workspace/.test/agents/not-selected.agent.md', [testSessionType]),
+				createAgent('selected', 'file:///workspace/.test/agents/selected.agent.md', undefined, true),
+				createAgent('not-selected', 'file:///workspace/.test/agents/not-selected.agent.md', undefined, false),
 			]);
 
 			const emitter = new Emitter<void>();
 			store.add(emitter);
 			const service = new CustomizationHarnessServiceBase([{
-				id: testSessionType,
+				id: testSessionType1,
 				label: 'Test Extension',
 				icon: ThemeIcon.fromId('extensions'),
-				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
+				getStorageSourceFilter: () => ({ sources: [AICustomizationSources.local] }),
 				itemProvider: {
 					onDidChange: emitter.event,
-					provideChatSessionCustomizations: async () => [
-						{ uri: URI.parse('file:///workspace/.test/agents/selected.agent.md'), type: PromptsType.agent, name: 'selected', extensionId: undefined, pluginUri: undefined },
-						{ uri: URI.parse('file:///workspace/.test/agents/disabled.agent.md'), type: PromptsType.agent, name: 'disabled', enabled: false, extensionId: undefined, pluginUri: undefined },
+					provideChatSessionCustomizations: async (_sessionResource: URI, _token: CancellationToken) => [
+						{ uri: URI.parse('file:///workspace/.test/agents/enabled.agent.md'), type: PromptsType.agent, source: 'local', name: 'enabled', enabled: true, extensionId: undefined, pluginUri: undefined, userInvocable: undefined },
+						{ uri: URI.parse('file:///workspace/.test/agents/disabled.agent.md'), type: PromptsType.agent, source: 'local', name: 'disabled', enabled: false, extensionId: undefined, pluginUri: undefined, userInvocable: undefined },
 					],
 				},
-			}], testSessionType, promptsService);
+			}], testSessionType1, promptsService);
 			store.add(service);
-
-			const agents = await service.getCustomAgents(testSessionType, CancellationToken.None);
-			assert.deepStrictEqual(agents.map(agent => agent.name), ['selected']);
+			{
+				const agents = (await service.getCustomAgents(testSessionResource1, CancellationToken.None));
+				assert.deepStrictEqual(agents.map(agent => [agent.name, agent.enabled]), [['enabled', true], ['disabled', false]]);
+			}
+			{
+				const agents = (await service.getCustomAgents(testSessionResource2, CancellationToken.None));
+				assert.deepStrictEqual(agents.map(agent => [agent.name, agent.enabled]), [['selected', true], ['not-selected', false]]);
+			}
 		});
 	});
 

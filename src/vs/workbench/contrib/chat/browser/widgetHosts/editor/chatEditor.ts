@@ -227,11 +227,11 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 
 		if (chatSessionType !== localChatSessionType) {
 			try {
-				await raceCancellationError(this.chatSessionsService.canResolveChatSession(input.resource.scheme), token);
+				await raceCancellationError(this.chatSessionsService.canResolveChatSession(chatSessionType), token);
 				const contributions = this.chatSessionsService.getAllChatSessionContributions();
 				const contribution = contributions.find(c => c.type === chatSessionType);
 				if (contribution) {
-					this.widget.lockToCodingAgent(contribution.name, contribution.displayName, contribution.type);
+					this.widget.lockToCodingAgent(contribution.name, contribution.displayName, contribution.type, contribution.agentHostProviderId);
 					isContributedChatSession = true;
 				} else {
 					this.widget.unlockFromCodingAgent();

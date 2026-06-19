@@ -7,8 +7,29 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { readAgentModelPricingMeta } from '../../../../../../platform/agentHost/common/agentModelPricing.js';
 import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelConfigurationSchema } from '../../../common/languageModels.js';
+
+/**
+ * Returns whether an agent host provider exposes a synthetic "Auto" model to
+ * fall back to.
+ *
+ * Today only the Copilot CLI harness exposes an Auto selection and can run
+ * without an explicit model, so it shows "Auto" rather than a "No models
+ * available" state when no models are listed. Other harnesses (Claude,
+ * Codex, …) require an explicit model.
+ *
+ * `provider` is the underlying agent provider id (e.g. `'copilotcli'`,
+ * `'claude'`, `'codex'`), not the `agent-host-<provider>` session type.
+ *
+ * TODO: hoist this capability onto the agent host protocol (e.g. a
+ * `supportsAutoModel?: boolean` on `IAgentDescriptor` / `AgentInfo`) so each
+ * agent declares its own value instead of this allow-list living in core.
+ */
+export function agentHostProviderSupportsAutoModel(provider: string): boolean {
+	return provider === 'copilotcli';
+}
 
 /**
  * Exposes models available from the agent host process as selectable
@@ -39,29 +60,41 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	async provideLanguageModelChatInfo(_options: unknown, _token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]> {
 		return this._models
 			.filter(m => m.policyState !== 'disabled')
-			.map(m => ({
-				identifier: `${this._vendor}:${m.id}`,
-				metadata: {
-					extension: nullExtensionDescription.identifier,
-					name: m.name,
-					id: m.id,
-					vendor: this._vendor,
-					version: '1.0',
-					family: m.id,
-					maxInputTokens: m.maxContextWindow ?? 0,
-					maxOutputTokens: 0,
-					isDefaultForLocation: {},
-					isUserSelectable: true,
-					modelPickerCategory: undefined,
-					targetChatSessionType: this._sessionType,
-					capabilities: {
-						vision: m.supportsVision ?? false,
-						toolCalling: true,
-						agentMode: true,
+			.map(m => {
+				const pricing = readAgentModelPricingMeta(m._meta);
+				const multiplierNumeric = pricing.multiplierNumeric;
+				return {
+					identifier: `${this._vendor}:${m.id}`,
+					metadata: {
+						extension: nullExtensionDescription.identifier,
+						name: m.name,
+						id: m.id,
+						vendor: this._vendor,
+						version: '1.0',
+						family: m.id,
+						maxInputTokens: m.maxContextWindow ?? 0,
+						maxOutputTokens: 0,
+						isDefaultForLocation: {},
+						isUserSelectable: true,
+						pricing: multiplierNumeric !== undefined ? `${multiplierNumeric}x` : undefined,
+						multiplierNumeric,
+						inputCost: pricing.inputCost,
+						cacheCost: pricing.cacheCost,
+						outputCost: pricing.outputCost,
+						longContextInputCost: pricing.longContextInputCost,
+						longContextCacheCost: pricing.longContextCacheCost,
+						longContextOutputCost: pricing.longContextOutputCost,
+						priceCategory: pricing.priceCategory,
+						targetChatSessionType: this._sessionType,
+						capabilities: {
+							vision: m.supportsVision ?? false,
+							toolCalling: true,
+							agentMode: true,
+						},
+						configurationSchema: this._toLanguageModelConfigurationSchema(m.configSchema),
 					},
-					configurationSchema: this._toLanguageModelConfigurationSchema(m.configSchema),
-				},
-			}));
+				};
+			});
 	}
 
 	private _toLanguageModelConfigurationSchema(schema: ConfigSchema | undefined): ILanguageModelConfigurationSchema | undefined {
@@ -81,9 +114,17 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				enumItemLabels: property.enumLabels,
 				enumDescriptions: property.enumDescriptions,
 				readOnly: property.readOnly,
-				group: key === 'thinkingLevel' ? 'navigation' : undefined,
+				group: AgentHostLanguageModelProvider._groupForConfigKey(key),
 			}])),
 		};
+	}
+
+	private static _groupForConfigKey(key: string): string | undefined {
+		switch (key) {
+			case 'thinkingLevel': return 'navigation';
+			case 'contextTier': return 'tokens';
+			default: return undefined;
+		}
 	}
 
 	async sendChatRequest(): Promise<never> {

@@ -100,7 +100,7 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		this.stepIndicator = elements.stepIndicator;
 		this.activeContentDisposables = this._register(new DisposableStore());
 		this.updateContentExpansionStateScheduler = this._register(new dom.AnimationFrameScheduler(this.domNode, () => this.updateContentExpansionState()));
-		this.contentResizeObserver = this._register(new dom.DisposableResizeObserver(() => this.updateContentExpansionStateScheduler.schedule()));
+		this.contentResizeObserver = this._register(new dom.DisposableResizeObserver('ChatToolConfirmationCarouselPart.contentExpansion', () => this.updateContentExpansionStateScheduler.schedule()));
 		this._register(this.contentResizeObserver.observe(this.contentContainer));
 
 		this.allowAllButton = this._register(new Button(elements.overlayActions, { ...defaultButtonStyles, small: true }));

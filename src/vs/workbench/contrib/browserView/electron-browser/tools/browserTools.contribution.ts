@@ -8,9 +8,11 @@ import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
+import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IChatContextService } from '../../../chat/browser/contextContrib/chatContextService.js';
+import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { ILanguageModelToolsService, ToolDataSource, ToolSet } from '../../../chat/common/tools/languageModelToolsService.js';
 import { BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { formatBrowserEditorList } from './browserToolHelpers.js';
@@ -43,6 +45,8 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 		@IEditorService private readonly editorService: IEditorService,
 		@IBrowserViewWorkbenchService private readonly browserViewService: IBrowserViewWorkbenchService,
 		@IAgentNetworkFilterService private readonly agentNetworkFilterService: IAgentNetworkFilterService,
+		@IChatService private readonly chatService: IChatService,
+		@IPlaywrightService private readonly playwrightService: IPlaywrightService,
 	) {
 		super();
 
@@ -60,6 +64,13 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 
 		this._register(this.browserViewService.onDidChangeSharingAvailable(() => {
 			this._updateToolRegistrations();
+		}));
+
+		// Dispose Playwright sessions when the corresponding chat session ends.
+		this._register(this.chatService.onDidDisposeSession(e => {
+			for (const resource of e.sessionResources) {
+				void this.playwrightService.disposeSession(resource.toString()).catch(() => { });
+			}
 		}));
 	}
 
@@ -104,6 +115,8 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 			this._syncModelListeners();
 			this._updateBrowserContext();
 		}));
+		this._toolsStore.add(this.editorService.onDidActiveEditorChange(() => this._updateBrowserContext()));
+		this._toolsStore.add(this.editorService.onDidVisibleEditorsChange(() => this._updateBrowserContext()));
 		this._toolsStore.add(this.agentNetworkFilterService.onDidChange(() => this._updateBrowserContext()));
 
 		this._updateBrowserContext();
@@ -114,7 +127,7 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 	 * context updates whenever a page is shared or unshared.
 	 */
 	private _syncModelListeners(): void {
-		const views = this.browserViewService.getKnownBrowserViews();
+		const views = this.browserViewService.getContextualBrowserViews();
 		// Remove listeners for views that no longer exist
 		for (const id of this._modelListeners.keys()) {
 			if (!views.has(id)) {
@@ -125,6 +138,7 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 		for (const [id, input] of views) {
 			if (!this._modelListeners.has(id) && input.model) {
 				const store = new DisposableStore();
+				store.add(input.onDidChangeLabel(() => this._updateBrowserContext()));
 				store.add(input.model.onDidChangeSharingState(() => this._updateBrowserContext()));
 				this._modelListeners.set(id, store);
 			}
@@ -132,7 +146,7 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 	}
 
 	private _updateBrowserContext(): void {
-		const views = [...this.browserViewService.getKnownBrowserViews().values()];
+		const views = [...this.browserViewService.getContextualBrowserViews().values()];
 		const sharedViews = views.filter(v => v.model?.sharingState === BrowserViewSharingState.Shared);
 		const unsharedCount = views.length - sharedViews.length;
 
@@ -154,6 +168,7 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 				value += '\n\n';
 			}
 			value += `${unsharedCount} ${unsharedCount === 1 ? 'page is' : 'pages are'} open but not shared.`;
+			value += `\nUse the 'open_browser_page' tool to open a new page or to help the user share an existing page.`;
 		}
 
 		this.chatContextService.updateWorkspaceContextItems(BrowserChatAgentToolsContribution.CONTEXT_ID, [{

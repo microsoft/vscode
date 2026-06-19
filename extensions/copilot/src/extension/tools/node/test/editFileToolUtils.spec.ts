@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import { homedir } from 'os';
+import { homedir, tmpdir } from 'os';
+import * as path from 'path';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { DefaultsOnlyConfigurationService } from '../../../../platform/configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../../../platform/configuration/test/common/inMemoryConfigurationService';
@@ -15,7 +16,7 @@ import { MockCustomInstructionsService } from '../../../../platform/test/common/
 import { TestWorkspaceService } from '../../../../platform/test/node/testWorkspaceService';
 import { WorkspaceEdit as WorkspaceEditShim } from '../../../../util/common/test/shims/editing';
 import { createTextDocumentData, IExtHostDocumentData, setDocText } from '../../../../util/common/test/shims/textDocument';
-import { isMacintosh } from '../../../../util/vs/base/common/platform';
+import { isMacintosh, isWindows } from '../../../../util/vs/base/common/platform';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { WorkspaceEdit } from '../../../../vscodeTypes';
 import { applyEdits as applyTextEdits } from '../../../prompt/node/intents';
@@ -1072,5 +1073,43 @@ describe('makeUriConfirmationChecker', async () => {
 		expect(await checker(prodEnv)).toBe(ConfirmationCheckResult.Sensitive); // Sensitive - matches block pattern
 		expect(await checker(testEnv)).toBe(ConfirmationCheckResult.NoConfirmation); // exception pattern
 		expect(await checker(apiKey)).toBe(ConfirmationCheckResult.Sensitive); // Sensitive - matches block pattern
+	});
+
+	describe.skipIf(isWindows)('symlink escape protection', () => {
+		let tmpRoot: string;
+		let workspaceDir: string;
+		let outsideDir: string;
+
+		beforeEach(() => {
+			tmpRoot = fs.mkdtempSync(path.join(tmpdir(), 'editutils-symlink-'));
+			workspaceDir = fs.realpathSync(fs.mkdtempSync(path.join(tmpRoot, 'workspace-')));
+			outsideDir = fs.realpathSync(fs.mkdtempSync(path.join(tmpRoot, 'outside-')));
+		});
+
+		afterEach(() => {
+			fs.rmSync(tmpRoot, { recursive: true, force: true });
+		});
+
+		test('non-existent file under symlinked parent resolves through the symlink', async () => {
+			// repo/assets -> outsideDir; target file does not exist yet.
+			fs.symlinkSync(outsideDir, path.join(workspaceDir, 'assets'), 'dir');
+			workspaceService = new TestWorkspaceService([URI.file(workspaceDir)], []);
+			const checker = makeUriConfirmationChecker(configService, workspaceService.getWorkspaceFolder.bind(workspaceService), customInstructionsService);
+
+			const target = URI.file(path.join(workspaceDir, 'assets', 'pwned.desktop'));
+			expect(await checker(target)).toBe(ConfirmationCheckResult.OutsideWorkspace);
+		});
+
+		test('non-existent file under symlinked ancestor with non-existent intermediate dirs is still detected', async () => {
+			// repo/assets -> outsideDir; intermediate directory `newdir` does not exist.
+			// This is the bypass: realpath of the immediate parent (newdir) also throws
+			// ENOENT, so the check must walk up to the symlinked ancestor.
+			fs.symlinkSync(outsideDir, path.join(workspaceDir, 'assets'), 'dir');
+			workspaceService = new TestWorkspaceService([URI.file(workspaceDir)], []);
+			const checker = makeUriConfirmationChecker(configService, workspaceService.getWorkspaceFolder.bind(workspaceService), customInstructionsService);
+
+			const target = URI.file(path.join(workspaceDir, 'assets', 'newdir', 'pwned.desktop'));
+			expect(await checker(target)).toBe(ConfirmationCheckResult.OutsideWorkspace);
+		});
 	});
 });

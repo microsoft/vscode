@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mainWindow } from '../../../base/browser/window.js';
+import { getRecentDisposableResizeObserverAttributionForLoopError } from '../../../base/browser/dom.js';
 import { ErrorNoTelemetry } from '../../../base/common/errors.js';
 import { toDisposable } from '../../../base/common/lifecycle.js';
 import BaseErrorTelemetry, { ErrorEvent } from '../common/errorTelemetry.js';
@@ -51,6 +52,16 @@ export default class ErrorTelemetry extends BaseErrorTelemetry {
 					? err.stack = err.stack.join('\n')
 					: err.stack;
 			}
+		}
+
+		// Attribute the stackless `ResizeObserver loop completed with
+		// undelivered notifications` warning to the most recently invoked
+		// `DisposableResizeObserver`, so the bucket points at the offending
+		// consumer instead of just the message.
+		const resizeObserverAttribution = getRecentDisposableResizeObserverAttributionForLoopError(msg);
+		if (resizeObserverAttribution) {
+			data.msg = resizeObserverAttribution;
+			data.callstack = resizeObserverAttribution;
 		}
 
 		this._enqueue(data);

@@ -5,7 +5,7 @@
 
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { Event } from '../../../base/common/event.js';
-import { URI } from '../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
 import { MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from '../../../base/parts/sandbox/common/electronTypes.js';
 import { ISerializableCommandAction } from '../../action/common/action.js';
 import { INativeOpenDialogOptions } from '../../dialogs/common/dialogs.js';
@@ -54,6 +54,16 @@ export interface IOSStatistics {
 
 export interface INativeHostOptions {
 	readonly targetWindowId?: number;
+}
+
+export interface IStartTracingOptions {
+
+	/**
+	 * Whether to enable heap profiling for MemoryInfra traces. Only takes effect
+	 * if the `disabled-by-default-memory-infra` category is included in the trace
+	 * and requires the recording to also collect periodic memory dumps.
+	 */
+	readonly enableHeapProfiling?: boolean;
 }
 
 export const enum FocusMode {
@@ -129,15 +139,7 @@ export interface ICommonNativeHostService {
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
 
-	openAgentsWindow(options?: { readonly forceNewWindow?: boolean }): Promise<void>;
-
-	/**
-	 * Launches the sibling application (host ↔ embedded).
-	 * The launched process is detached with its own process group.
-	 *
-	 * @param args CLI arguments to pass to the sibling application.
-	 */
-	launchSiblingApp(args?: string[]): Promise<void>;
+	openAgentsWindow(options?: { folderUri?: UriComponents; sessionResource?: UriComponents }): Promise<void>;
 
 	isFullScreen(options?: INativeHostOptions): Promise<boolean>;
 	toggleFullScreen(options?: INativeHostOptions): Promise<void>;
@@ -189,6 +191,8 @@ export interface ICommonNativeHostService {
 	openExternal(url: string, defaultApplication?: string): Promise<boolean>;
 	moveItemToTrash(fullPath: string): Promise<void>;
 
+	getMediaAccessStatus(mediaType: 'microphone' | 'camera' | 'screen'): Promise<'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown'>;
+
 	isAdmin(): Promise<boolean>;
 	writeElevated(source: URI, target: URI, options?: { unlock?: boolean }): Promise<void>;
 	isRunningUnderARM64Translation(): Promise<boolean>;
@@ -203,6 +207,9 @@ export interface ICommonNativeHostService {
 
 	// Screenshots
 	getScreenshot(rect?: IRectangle): Promise<VSBuffer | undefined>;
+
+	// GitHub mobile upload API (runs in main process to avoid CORS)
+	uploadFileViaMobileApi(token: string, repoId: string, fileName: string, fileBytes: VSBuffer, contentType: string): Promise<{ fileName: string; assetUrl: string; contentType: string }>;
 
 	// Process
 	getProcessId(): Promise<number | undefined>;
@@ -250,7 +257,7 @@ export interface ICommonNativeHostService {
 
 	// Perf Introspection
 	profileRenderer(session: string, duration: number): Promise<IV8Profile>;
-	startTracing(categories: string): Promise<void>;
+	startTracing(categories: string, options?: IStartTracingOptions): Promise<void>;
 
 	// Connectivity
 	resolveProxy(url: string): Promise<string | undefined>;

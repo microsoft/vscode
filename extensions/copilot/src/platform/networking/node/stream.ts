@@ -351,6 +351,7 @@ export class SSEProcessor {
 					copilot_confirmation?: any;
 					copilot_errors: any;
 					usage: APIUsage | undefined;
+					copilot_usage?: { total_nano_aiu: number };
 				};
 				try {
 					json = JSON.parse(lineWithoutData);
@@ -362,6 +363,9 @@ export class SSEProcessor {
 
 				// Track usage data for this stream. Usage is global and not per choice. Therefore it's emitted as its own chunk
 				if (json.usage) {
+					if (json.copilot_usage && typeof json.copilot_usage.total_nano_aiu === 'number') {
+						json.usage.copilot_usage = json.copilot_usage;
+					}
 					yield json.usage;
 				}
 

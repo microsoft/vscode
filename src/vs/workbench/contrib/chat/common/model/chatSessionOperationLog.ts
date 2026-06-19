@@ -84,6 +84,7 @@ const responsePartSchema = Adapt.v<IChatProgressResponseContent, SerializedChatR
 				case 'info':
 				case 'treeData':
 				case 'workspaceEdit':
+				case 'externalEdit':
 				case 'disabledClaudeHooks':
 					return a.kind === b.kind;
 
@@ -153,6 +154,10 @@ const requestSchema = Adapt.object<IChatRequestModel, ISerializableChatRequestDa
 	codeCitations: Adapt.v(m => m.response?.codeCitations, objectsEqual),
 	timeSpentWaiting: Adapt.v(m => m.response?.timestamp), // based on response timestamp
 	completionTokens: Adapt.v(m => m.response?.completionTokenCount),
+	promptTokens: Adapt.v(m => m.response?.usage?.promptTokens),
+	outputBuffer: Adapt.v(m => m.response?.usage?.outputBuffer),
+	promptTokenDetails: Adapt.v(m => m.response?.usage?.promptTokenDetails, objectsEqual),
+	copilotCredits: Adapt.v(m => m.response?.usage?.copilotCredits),
 	elapsedMs: Adapt.v(m => m.response?.elapsedMs ?? (m.response?.completedAt ? Math.max(0, m.response.completedAt - m.response.confirmationAdjustedTimestamp.get()) : undefined)),
 	modeInfo: Adapt.v(m => m.modeInfo, objectsEqual),
 	isSystemInitiated: Adapt.v(m => m.isSystemInitiated),
@@ -166,6 +171,7 @@ const inputStateSchema = Adapt.object<ISerializableChatModelInputState, ISeriali
 	attachments: Adapt.v(i => i.attachments.map(IChatRequestVariableEntry.toExport), objectsEqual),
 	mode: Adapt.v(i => i.mode, (a, b) => a.id === b.id),
 	selectedModel: Adapt.v(i => i.selectedModel, (a, b) => a?.identifier === b?.identifier),
+	modelConfiguration: Adapt.v(i => i.modelConfiguration, objectsEqual),
 	inputText: Adapt.v(i => i.inputText),
 	selections: Adapt.v(i => i.selections, objectsEqual),
 	permissionLevel: Adapt.v(i => i.permissionLevel),
@@ -191,6 +197,7 @@ export const storageSchema = Adapt.object<IChatModel, ISerializableChatData>({
 	hasPendingEdits: Adapt.v(m => m.editingSession?.entries.get().some(e => e.state.get() === ModifiedFileEntryState.Modified)),
 	repoData: Adapt.v(m => m.repoData, objectsEqual),
 	pendingRequests: Adapt.t(m => m.getPendingRequests(), Adapt.array(pendingRequestSchema)),
+	workingDirectory: Adapt.v(m => m.workingDirectory?.toString()),
 });
 
 export class ChatSessionOperationLog extends Adapt.ObjectMutationLog<IChatModel, ISerializableChatData> implements IChatDataSerializerLog {

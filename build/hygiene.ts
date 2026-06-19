@@ -6,7 +6,7 @@
 import cp from 'child_process';
 import es from 'event-stream';
 import fs from 'fs';
-import filter from 'gulp-filter';
+import { filter } from './lib/gulp/facade.ts';
 import pall from 'p-all';
 import path from 'path';
 import VinylFile from 'vinyl';
@@ -38,6 +38,43 @@ export function checkCopilotEnginesVersion(repoRoot: string): string | undefined
 	const actual = copilotPkg?.engines?.vscode;
 	if (actual !== expected) {
 		return `engines.vscode in 'extensions/copilot/package.json' must be "${expected}" (the version from the root package.json), but found "${actual ?? '<missing>'}"`;
+	}
+	return undefined;
+}
+
+/**
+ * Checks that every tracked .js/.cjs/.mjs file in the repo is listed in
+ * `.eslint-allowed-javascript-files`. This complements the
+ * `local/code-no-new-javascript-files` ESLint rule by also covering files
+ * that are excluded via `.eslint-ignore`.
+ *
+ * Returns an error message if there are unknown JS files, or undefined if OK.
+ */
+export function checkNoNewJavaScriptFiles(repoRoot: string): string | undefined {
+	const allowlistPath = path.join(repoRoot, '.eslint-allowed-javascript-files');
+	const allowed = new Set(
+		fs.readFileSync(allowlistPath, 'utf8')
+			.split(/\r\n|\n/)
+			.map(line => line.trim())
+			.filter(line => line && !line.startsWith('#'))
+	);
+
+	// `git ls-files` lists tracked files relative to repo root using forward slashes.
+	const out = cp.execSync('git ls-files "*.js" "*.cjs" "*.mjs"', {
+		cwd: repoRoot,
+		encoding: 'utf8',
+		maxBuffer: 10 * 1024 * 1024,
+	});
+	const tracked = out.split(/\r?\n/).filter(line => !!line);
+
+	const unknown = tracked.filter(file => !allowed.has(file));
+	if (unknown.length > 0) {
+		return [
+			'New JavaScript files are not allowed. Use TypeScript (.ts) instead.',
+			'If a file genuinely must be JavaScript, add it to .eslint-allowed-javascript-files',
+			'(this requires CODEOWNERS review). Offending files:',
+			...unknown.map(f => `  ${f}`),
+		].join('\n');
 	}
 	return undefined;
 }
@@ -253,7 +290,7 @@ function createGitIndexVinyls(paths: string[]): Promise<VinylFile[]> {
 
 				cp.exec(
 					process.platform === 'win32' ? `git show :${relativePath}` : `git show ':${relativePath}'`,
-					{ maxBuffer: stat.size, encoding: 'buffer' },
+					{ maxBuffer: Math.max(stat.size * 2, 1024 * 1024), encoding: 'buffer' },
 					(err, out) => {
 						if (err) {
 							return e(err);
@@ -310,16 +347,11 @@ if (import.meta.main) {
 						}
 					}
 
-					// Run copilot pre-commit checks if copilot files are staged
-					if (some.some(f => f.startsWith('extensions/copilot/'))) {
-						console.log('Running copilot pre-commit checks...');
-						const result = cp.spawnSync('npx', ['lint-staged'], {
-							cwd: path.join(process.cwd(), 'extensions', 'copilot'),
-							stdio: 'inherit',
-							shell: true,
-						});
-						if (result.status !== 0) {
-							console.error('Copilot pre-commit checks failed.');
+					// Check that no new .js/.cjs/.mjs files are being added outside of the allowlist
+					if (some.some(f => /\.(js|cjs|mjs)$/.test(f) || f === '.eslint-allowed-javascript-files')) {
+						const jsAllowlistError = checkNoNewJavaScriptFiles(process.cwd());
+						if (jsAllowlistError) {
+							console.error(jsAllowlistError);
 							process.exit(1);
 						}
 					}

@@ -6,9 +6,11 @@
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../../../../base/browser/markdownRenderer.js';
 import { status } from '../../../../../../../base/browser/ui/aria/aria.js';
+import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { stripIcons } from '../../../../../../../base/common/iconLabels.js';
 import { autorun } from '../../../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
@@ -41,7 +43,7 @@ export class ChatToolProgressSubPart extends BaseChatToolInvocationSubPart {
 	private createProgressPart(): HTMLElement {
 		const isComplete = IChatToolInvocation.isComplete(this.toolInvocation);
 
-		if (isComplete && this.toolIsConfirmed && this.toolInvocation.pastTenseMessage) {
+		if (isComplete && this.toolIsConfirmed && (this.toolInvocation.pastTenseMessage || this.toolInvocation.invocationMessage)) {
 			const key = this.getAnnouncementKey('complete');
 			const completionContent = this.toolInvocation.pastTenseMessage ?? this.toolInvocation.invocationMessage;
 			// Don't render anything if there's no meaningful content
@@ -49,7 +51,7 @@ export class ChatToolProgressSubPart extends BaseChatToolInvocationSubPart {
 				return document.createElement('div');
 			}
 			const shouldAnnounce = this.toolInvocation.kind === 'toolInvocation' && this.hasMeaningfulContent(completionContent) ? this.computeShouldAnnounce(key) : false;
-			const part = this.renderProgressContent(completionContent, shouldAnnounce);
+			const part = this.renderProgressContent(completionContent!, shouldAnnounce);
 			this._register(part);
 			return part.domNode;
 		} else {
@@ -65,8 +67,8 @@ export class ChatToolProgressSubPart extends BaseChatToolInvocationSubPart {
 					if (state.type === IChatToolInvocation.StateKind.Cancelled && state.reasonMessage) {
 						progressContent = state.reasonMessage;
 					} else if (state.type === IChatToolInvocation.StateKind.Executing) {
-						const progress = state.progress.read(reader);
-						progressContent = progress?.message ?? this.toolInvocation.invocationMessage;
+						const progressMessage = state.progress.read(reader)?.message;
+						progressContent = this.hasMeaningfulContent(progressMessage) ? progressMessage : this.toolInvocation.invocationMessage;
 					} else {
 						progressContent = this.toolInvocation.invocationMessage;
 					}
@@ -80,7 +82,7 @@ export class ChatToolProgressSubPart extends BaseChatToolInvocationSubPart {
 					return;
 				}
 				const shouldAnnounce = this.toolInvocation.kind === 'toolInvocation' && this.hasMeaningfulContent(progressContent) ? this.computeShouldAnnounce(key) : false;
-				const part = reader.store.add(this.renderProgressContent(progressContent, shouldAnnounce));
+				const part = reader.store.add(this.renderProgressContent(progressContent!, shouldAnnounce));
 				dom.reset(container, part.domNode);
 			}));
 			return container;
@@ -106,7 +108,13 @@ export class ChatToolProgressSubPart extends BaseChatToolInvocationSubPart {
 			this.provideScreenReaderStatus(content);
 		}
 
-		return this.instantiationService.createInstance(ChatProgressContentPart, progressMessage, this.renderer, this.context, undefined, true, this.getIcon(), this.toolInvocation, shouldShimmerForTool(this.toolInvocation));
+		const shouldShimmer = shouldShimmerForTool(this.toolInvocation, content);
+		return this.instantiationService.createInstance(ChatProgressContentPart, progressMessage, this.renderer, this.context, shouldShimmer ? true : undefined, true, this.getProgressIcon(), this.toolInvocation, shouldShimmer);
+	}
+
+	private getProgressIcon(): ThemeIcon {
+		const icon = this.getIcon();
+		return ThemeIcon.isEqual(icon, ThemeIcon.modify(Codicon.loading, 'spin')) ? Codicon.check : icon;
 	}
 
 	private getAnnouncementKey(kind: 'progress' | 'complete'): string {

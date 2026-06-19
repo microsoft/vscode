@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../nls.js';
+import { TelemetryConfiguration, TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { SessionConfigKey } from './sessionConfigKeys.js';
 import type { SessionConfigPropertySchema, SessionConfigSchema } from './state/protocol/commands.js';
 import { JsonRpcErrorCodes, ProtocolError } from './state/sessionProtocol.js';
@@ -258,7 +259,9 @@ function safeStringify(value: unknown): string {
 
 // ---- Platform-owned schema -------------------------------------------------
 
-export type AutoApproveLevel = 'default' | 'autoApprove' | 'autopilot';
+export type AutoApproveLevel = 'default' | 'autoApprove';
+
+export type SessionMode = 'interactive' | 'plan' | 'autopilot';
 
 export interface IPermissionsValue {
 	readonly allow: readonly string[];
@@ -304,22 +307,68 @@ export const platformSessionSchema = createSchema({
 		type: 'string',
 		title: localize('agentHost.sessionConfig.autoApprove', "Approvals"),
 		description: localize('agentHost.sessionConfig.autoApproveDescription', "Tool approval behavior for this session"),
-		enum: ['default', 'autoApprove', 'autopilot'],
+		enum: ['default', 'autoApprove'],
 		enumLabels: [
 			localize('agentHost.sessionConfig.autoApprove.default', "Default Approvals"),
 			localize('agentHost.sessionConfig.autoApprove.bypass', "Bypass Approvals"),
-			localize('agentHost.sessionConfig.autoApprove.autopilot', "Autopilot (Preview)"),
 		],
 		enumDescriptions: [
 			localize('agentHost.sessionConfig.autoApprove.defaultDescription', "Copilot uses your configured settings"),
 			localize('agentHost.sessionConfig.autoApprove.bypassDescription', "All tool calls are auto-approved"),
-			localize('agentHost.sessionConfig.autoApprove.autopilotDescription', "Autonomously iterates from start to finish"),
 		],
 		default: 'default',
 		sessionMutable: true,
 	}),
 	[SessionConfigKey.Permissions]: permissionsProperty,
+	[SessionConfigKey.Mode]: schemaProperty<SessionMode>({
+		type: 'string',
+		title: localize('agentHost.sessionConfig.mode', "Agent Mode"),
+		description: localize('agentHost.sessionConfig.modeDescription', "How the agent should approach this turn"),
+		enum: ['interactive', 'plan', 'autopilot'],
+		enumLabels: [
+			localize('agentHost.sessionConfig.mode.interactive', "Interactive"),
+			localize('agentHost.sessionConfig.mode.plan', "Plan"),
+			localize('agentHost.sessionConfig.mode.autopilot', "Autopilot"),
+		],
+		enumDescriptions: [
+			localize('agentHost.sessionConfig.mode.interactiveDescription', "Step-by-step collaboration"),
+			localize('agentHost.sessionConfig.mode.planDescription', "Plan first, execute when ready"),
+			localize('agentHost.sessionConfig.mode.autopilotDescription', "Autonomously iterates from start to finish"),
+		],
+		default: 'interactive',
+		sessionMutable: true,
+	}),
 });
+
+/**
+ * Rewrites a legacy `autoApprove='autopilot'` config value — used before
+ * Autopilot moved from the `autoApprove` axis onto the orthogonal `mode`
+ * axis — into the current two-axis shape:
+ *
+ *  - `autoApprove='autopilot'` + `mode='plan'`  → `mode='plan'`, `autoApprove='default'`
+ *    (legacy `plan` took precedence over autopilot when resolving the SDK mode).
+ *  - `autoApprove='autopilot'` + any other mode → `mode='autopilot'`, `autoApprove='default'`.
+ *
+ * Returns a shallow copy with the migration applied, or the original
+ * reference unchanged when no legacy value is present. Safe to call on
+ * `undefined`.
+ *
+ * Without this, a session persisted (or a "remembered" picker value seeded)
+ * with `autoApprove='autopilot'` would fail the new schema's enum validation
+ * and silently fall back to `default`, downgrading the session from
+ * autonomous Autopilot to manual per-tool confirmation.
+ */
+export function migrateLegacyAutopilotConfig<T extends Record<string, unknown> | undefined>(config: T): T {
+	if (!config || config[SessionConfigKey.AutoApprove] !== 'autopilot') {
+		return config;
+	}
+	const migrated: Record<string, unknown> = { ...config };
+	if (migrated[SessionConfigKey.Mode] !== 'plan') {
+		migrated[SessionConfigKey.Mode] = 'autopilot' satisfies SessionMode;
+	}
+	migrated[SessionConfigKey.AutoApprove] = 'default' satisfies AutoApproveLevel;
+	return migrated as T;
+}
 
 /**
  * Root (agent host) config properties owned by the platform itself.
@@ -331,6 +380,63 @@ export const platformSessionSchema = createSchema({
  *   auto-approval. See `SessionPermissionManager` for the evaluation
  *   rules.
  */
+export const AgentHostTelemetryLevelConfigKey = 'telemetryLevel';
+
+/**
+ * Root config key forwarded from the renderer when VS Code's
+ * `chat.sessionSync.enabled` setting changes. Controls the `remote` flag
+ * passed to the copilot-sdk `CopilotClientOptions`.
+ */
+export const AgentHostSessionSyncEnabledConfigKey = 'sessionSyncEnabled';
+
+/**
+ * The VS Code setting ID for session sync. Defined here so the platform
+ * layer (renderer-side forwarding) can reference it without importing from
+ * `workbench/contrib/chat`.
+ */
+export const SESSION_SYNC_ENABLED_SETTING_ID = 'chat.sessionSync.enabled';
+
+export function telemetryLevelToAgentHostConfigValue(telemetryLevel: TelemetryLevel): TelemetryConfiguration {
+	switch (telemetryLevel) {
+		case TelemetryLevel.NONE:
+			return TelemetryConfiguration.OFF;
+		case TelemetryLevel.CRASH:
+			return TelemetryConfiguration.CRASH;
+		case TelemetryLevel.ERROR:
+			return TelemetryConfiguration.ERROR;
+		case TelemetryLevel.USAGE:
+			return TelemetryConfiguration.ON;
+	}
+}
+
+export function agentHostConfigValueToTelemetryLevel(value: unknown): TelemetryLevel | undefined {
+	switch (value) {
+		case TelemetryConfiguration.OFF:
+			return TelemetryLevel.NONE;
+		case TelemetryConfiguration.CRASH:
+			return TelemetryLevel.CRASH;
+		case TelemetryConfiguration.ERROR:
+			return TelemetryLevel.ERROR;
+		case TelemetryConfiguration.ON:
+			return TelemetryLevel.USAGE;
+		default:
+			return undefined;
+	}
+}
+
 export const platformRootSchema = createSchema({
 	[SessionConfigKey.Permissions]: permissionsProperty,
+	[AgentHostTelemetryLevelConfigKey]: schemaProperty<TelemetryConfiguration>({
+		type: 'string',
+		title: localize('agentHost.config.telemetryLevel.title', "Telemetry Level"),
+		description: localize('agentHost.config.telemetryLevel.description', "Most restrictive telemetry level requested by connected clients."),
+		enum: [TelemetryConfiguration.ON, TelemetryConfiguration.ERROR, TelemetryConfiguration.CRASH, TelemetryConfiguration.OFF],
+		default: TelemetryConfiguration.ON,
+	}),
+	[AgentHostSessionSyncEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.sessionSyncEnabled.title', "Session Sync"),
+		description: localize('agentHost.config.sessionSyncEnabled.description', "Whether remote session sync is enabled for the copilot-sdk CLI."),
+		default: false,
+	}),
 });
