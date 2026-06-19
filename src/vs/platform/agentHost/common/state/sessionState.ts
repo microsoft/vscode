@@ -101,6 +101,24 @@ export interface UsageInfoMeta {
 		totalNanoAiu?: number;
 		[key: string]: unknown;
 	};
+	/**
+	 * Per-category account quota snapshots reported by the backend on the
+	 * model-call usage event, keyed by quota type (e.g. `chat`,
+	 * `premium_interactions`). Clients MAY use these to keep the account quota
+	 * UI current without a separate quota fetch.
+	 */
+	quotaSnapshots?: {
+		[quotaType: string]: {
+			readonly isUnlimitedEntitlement?: boolean;
+			readonly entitlementRequests?: number;
+			readonly usedRequests?: number;
+			readonly remainingPercentage?: number;
+			readonly overage?: number;
+			readonly overageAllowedWithExhaustedQuota?: boolean;
+			/** ISO 8601 date when the quota resets, if applicable. */
+			readonly resetDate?: string;
+		} | undefined;
+	};
 	[key: string]: unknown;
 }
 
