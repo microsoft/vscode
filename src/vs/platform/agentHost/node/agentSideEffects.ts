@@ -496,6 +496,14 @@ export class AgentSideEffects extends Disposable {
 		}
 		this._tryConsumeNextQueuedMessage(sessionKey);
 		this._options.onTurnComplete(sessionScope);
+
+		// After the first turn completes, refine the auto-generated title using
+		// the full first-turn context (request + response). No-op for later
+		// turns or when the title has since been changed. `sessionKey` may be an
+		// additional chat channel; route it as `chatChannel` so the refinement
+		// targets that chat's title, mirroring `seedTitleFromFirstMessage`.
+		const titleChatChannel = isAhpChatChannel(sessionKey) && !isDefaultChatUri(sessionKey) ? sessionKey : undefined;
+		this._titleController.refineTitleFromFirstTurn(sessionScope, titleChatChannel);
 	}
 
 	private _describeSignal(signal: AgentSignal): string {
