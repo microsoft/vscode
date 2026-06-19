@@ -125,10 +125,11 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			return;
 		}
 
-		// Once quota recovers (credit is available again) drop any persisted
-		// dismissal so the quota-exceeded notification can show the next time
-		// quota runs out.
-		if (!this._isExhaustedState()) {
+		// Once quota recovers (credit is positively available again) drop any
+		// persisted dismissal so the quota-exceeded notification can show the next
+		// time quota runs out. Guarded on a present snapshot so the transient
+		// "no quota data yet" state at startup/reload does not wipe the flag.
+		if (this._isQuotaKnownAvailable()) {
 			this._clearExhaustedDismissed();
 		}
 
@@ -437,17 +438,13 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	// --- Exhausted dismissal persistence ------------------------------------
 
 	/**
-	 * Returns `true` when the account is in a quota-exceeded state — either a
-	 * managed plan whose org budget is blocked, or an eligible plan whose quota
-	 * is fully used up.
+	 * Returns `true` only when there is an actual quota snapshot indicating that
+	 * credit is available (i.e. quota is not used up). Returns `false` when no
+	 * snapshot has loaded yet, so the transient "no data" state at startup/reload
+	 * is not mistaken for recovery.
 	 */
-	private _isExhaustedState(): boolean {
-		const entitlement = this._chatEntitlementService.entitlement;
-		if (this._isManagedPlan(entitlement) && this._isManagedPlanBlocked()) {
-			return true;
-		}
-		const isEligible = entitlement === ChatEntitlement.Unknown || this._isUBBEligible();
-		return isEligible && this._isQuotaUsedUp();
+	private _isQuotaKnownAvailable(): boolean {
+		return !!this._getRelevantSnapshot() && !this._isQuotaUsedUp();
 	}
 
 	private _isExhaustedDismissed(): boolean {

@@ -308,6 +308,31 @@ suite('ChatQuotaNotificationContribution', () => {
 			assert.ok(second.notificationMock.getNotification());
 			assert.strictEqual(second.notificationMock.getNotification()!.message, 'Credit Limit Reached');
 		});
+
+		test('keeps dismissal across reload when quota data is not loaded yet at startup', () => {
+			const storageService = store.add(new InMemoryStorageService());
+
+			// First window: exhausted notification shown, then dismissed by the user.
+			const first = createContribution(
+				{ quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0) } },
+				undefined,
+				storageService,
+			);
+			first.notificationMock.dismiss(first.notificationMock.getNotification()!.id);
+
+			// Reload: quota snapshots have not been fetched yet (no relevant snapshot),
+			// so the dismissal must NOT be cleared by the transient "no data" state.
+			const second = createContribution(
+				{ quotas: { usageBasedBilling: true, premiumChat: undefined } },
+				undefined,
+				storageService,
+			);
+			assert.strictEqual(second.notificationMock.getNotification(), undefined);
+
+			// Quota data arrives showing it is still exhausted — banner stays suppressed.
+			updateQuotas(second.entitlementMock, { premiumChat: makeQuotaSnapshot(0) });
+			assert.strictEqual(second.notificationMock.getNotification(), undefined);
+		});
 	});
 
 	// --- Exhausted notification descriptions --------------------------------
