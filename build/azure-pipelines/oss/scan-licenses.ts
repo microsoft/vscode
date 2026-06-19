@@ -507,6 +507,202 @@ function collectPackagesInNodeModules(nmDir: string): string[] {
 	return packages;
 }
 
+// =============================================================================
+// SECTION 5 helpers: Platform-binary (arch-specific npm package) enumeration.
+//
+// Architecture-specific npm packages (e.g. @img/sharp-win32-x64) are declared
+// as optionalDependencies of an arch-independent PARENT (sharp). On a
+// single-platform build agent only the host arch is installed on disk, so the
+// scanner misses the other arches that the legacy OSS tool emitted. We
+// enumerate EVERY arch from each parent's optionalDependencies and resolve each
+// arch child's OWN license (a child can differ from its parent: parent `sharp`
+// is Apache-2.0 but `@img/sharp-win32-x64` is "Apache-2.0 AND LGPL-3.0-or-later").
+//
+// Exported helpers are unit-tested without running main() (see the entry-point
+// guard at the bottom of this file, mirroring the Section 4 helpers).
+// =============================================================================
+
+/**
+ * Matches an npm package name that ends in a platform+arch token, optionally
+ * followed by a libc/abi suffix. Used both to recognize an arch package and to
+ * find the arch-bearing keys inside a parent's optionalDependencies.
+ *
+ * MATCHES:      @img/sharp-win32-x64, @img/sharp-libvips-darwin-arm64,
+ *               @napi-rs/canvas-linux-arm-gnueabihf, @parcel/watcher-linux-x64-glibc.
+ * DOES NOT match the arch-independent parents: sharp, @napi-rs/canvas,
+ *               @parcel/watcher, @github/copilot.
+ */
+export const ARCH_SUFFIX_RE = /-(?:darwin|linux|linuxmusl|win32|android|freebsd|openbsd|netbsd|sunos|aix)-(?:x64|arm64|arm|ia32|ppc64|ppc64le|s390x|riscv64|loong64|mips64el|universal)(?:-(?:gnu|musl|msvc|glibc|gnueabihf|eabihf|androideabi))?$/;
+
+/** True when the package name ends in a platform+arch token (see ARCH_SUFFIX_RE). */
+export function isArchPackageName(name: string): boolean {
+	return ARCH_SUFFIX_RE.test(name || '');
+}
+
+/**
+ * Extract a license id from the many shapes an npm package.json / packument
+ * version object can use for its `license`/`licenses` field: a plain SPDX
+ * string, the legacy `{ type: 'MIT' }` object, or the legacy
+ * `licenses: [{ type: 'MIT' }]` array. Returns '' when none is present.
+ */
+export function npmLicenseId(pkg: { license?: unknown; licenses?: unknown } | undefined): string {
+	if (!pkg) {
+		return '';
+	}
+	const lic = pkg.license;
+	if (typeof lic === 'string') {
+		return lic;
+	}
+	if (lic && typeof lic === 'object' && typeof (lic as { type?: unknown }).type === 'string') {
+		return (lic as { type: string }).type;
+	}
+	const arr = pkg.licenses;
+	if (Array.isArray(arr) && arr.length > 0) {
+		const first = arr[0];
+		if (typeof first === 'string') {
+			return first;
+		}
+		if (first && typeof first === 'object' && typeof (first as { type?: unknown }).type === 'string') {
+			return (first as { type: string }).type;
+		}
+	}
+	return '';
+}
+
+/** Normalize a package.json/packument `repository` field (string or {url}) to a bare URL. */
+function normalizeRepoUrl(repo: unknown): string {
+	let url = '';
+	if (typeof repo === 'string') {
+		url = repo;
+	} else if (repo && typeof repo === 'object' && typeof (repo as { url?: unknown }).url === 'string') {
+		url = (repo as { url: string }).url;
+	}
+	return url.replace(/^git\+/, '').replace(/\.git$/, '');
+}
+
+/** Read and JSON-parse a package's package.json, returning the raw object (or undefined). */
+function readPackageJsonRaw(pkgDir: string): Record<string, unknown> | undefined {
+	const pkgPath = path.join(pkgDir, 'package.json');
+	try {
+		if (!fs.existsSync(pkgPath)) {
+			return undefined;
+		}
+		return JSON.parse(fs.readFileSync(pkgPath, 'utf8')) as Record<string, unknown>;
+	} catch {
+		return undefined;
+	}
+}
+
+/** Filter an optionalDependencies object to its arch-bearing entries (name + version). */
+function archChildrenFromOptionalDeps(optDeps: unknown): Array<{ name: string; version: string }> {
+	const out: Array<{ name: string; version: string }> = [];
+	if (!optDeps || typeof optDeps !== 'object') {
+		return out;
+	}
+	for (const [depName, depVer] of Object.entries(optDeps as Record<string, unknown>)) {
+		if (isArchPackageName(depName)) {
+			out.push({ name: depName, version: typeof depVer === 'string' ? depVer : '' });
+		}
+	}
+	return out;
+}
+
+/** A trimmed-down npm registry packument: the parts Section 5 reads. */
+export interface NpmPackument {
+	repository?: unknown;
+	versions?: { [version: string]: { license?: unknown; licenses?: unknown; repository?: unknown; optionalDependencies?: unknown } };
+}
+
+/**
+ * Fetch a package's registry packument from registry.npmjs.org. Modeled on
+ * fetchCratesIoJson: resolves undefined on any non-200, parse error, network
+ * error, or timeout so a registry hiccup never crashes the build. Exported for
+ * testing (the unit tests do NOT call it over the network).
+ */
+export function fetchNpmRegistryJson(name: string, timeoutMs = 10_000): Promise<NpmPackument | undefined> {
+	return new Promise(resolve => {
+		const options: https.RequestOptions = {
+			host: 'registry.npmjs.org',
+			path: '/' + encodeURIComponent(name),
+			headers: { 'Accept': 'application/json' },
+			timeout: timeoutMs,
+		};
+		const req = https.get(options, res => {
+			if (res.statusCode !== 200) {
+				res.resume();
+				resolve(undefined);
+				return;
+			}
+			let data = '';
+			res.setEncoding('utf8');
+			res.on('data', chunk => data += chunk);
+			res.on('end', () => {
+				try {
+					resolve(JSON.parse(data) as NpmPackument);
+				} catch {
+					resolve(undefined);
+				}
+			});
+		});
+		req.on('error', () => resolve(undefined));
+		req.on('timeout', () => { req.destroy(); resolve(undefined); });
+	});
+}
+
+/**
+ * Resolve the license TEXT for one arch package, with family-level reuse. The
+ * text is uniform across arches of the SAME package family, so we cache it by
+ * repository URL and reuse it for siblings (fetch once). Resolution order:
+ *   (own)    text this arch resolved from disk (a) or its repo (b),
+ *   (parent) the seed parent's already-resolved license text (c),
+ *   (none)   empty body, last resort (d) - the caller warns.
+ * Returns the resolved text plus the source label for counters.
+ */
+export function familyText(
+	cache: Map<string, { text: string; source: string }>,
+	repoUrl: string,
+	ownText: string | undefined,
+	ownSource: 'disk' | 'repo' | undefined,
+	parentText: string | undefined,
+): { text: string; source: string } {
+	if (repoUrl) {
+		const hit = cache.get(repoUrl);
+		if (hit) {
+			return hit;
+		}
+	}
+	let result: { text: string; source: string };
+	if (ownText && ownSource) {
+		result = { text: ownText, source: ownSource };
+	} else if (parentText) {
+		result = { text: parentText, source: 'parent' };
+	} else {
+		result = { text: '', source: 'none' };
+	}
+	if (repoUrl && result.text) {
+		cache.set(repoUrl, result);
+	}
+	return result;
+}
+
+/**
+ * Guard for the parent-text fallback. Parent license TEXT may only be reused
+ * for a child when their license IDS match. Reusing text across an id boundary
+ * (e.g. an Apache-2.0 parent's text under an LGPL-3.0 child id - the nested
+ * sharp -> sharp-libvips case) is the legacy libvips defect we must not
+ * replicate. Returns the parent text when safe, otherwise undefined (the caller
+ * then emits an empty body + a NO LICENSE TEXT warning for a human to resolve).
+ */
+export function parentTextIfCompatible(parentLicenseId: string, childLicenseId: string, parentText: string): string | undefined {
+	if (!parentText) {
+		return undefined;
+	}
+	if (parentLicenseId && childLicenseId && parentLicenseId.toLowerCase() === childLicenseId.toLowerCase()) {
+		return parentText;
+	}
+	return undefined;
+}
+
 /**
  * Recursively find all cgmanifest.json files in the repo (excluding node_modules).
  */
@@ -1115,6 +1311,238 @@ async function main(): Promise<void> {
 	console.log(`  Crates added (coverage gap): ${cargoFetched}`);
 	console.log(`  Crates stub-overridden: ${cargoStubOverride}`);
 
+	// =========================================================================
+	// SECTION 5: Platform-binary enumeration
+	//
+	// Closes a parity gap with the legacy OSS tool. Arch-specific npm packages
+	// (e.g. @img/sharp-win32-x64) are optionalDependencies of an arch-independent
+	// PARENT (sharp). On a single-platform build agent only the host arch is
+	// installed on disk, so the scanner above misses every other arch. Legacy
+	// enumerated EVERY arch from the parent's optionalDependencies and resolved
+	// EACH arch's OWN license. We do the same here: enumerate all arches (even
+	// ones VS Code does not ship - deliberate, harmless over-inclusion), resolve
+	// each arch child's own license id + url + text, and recurse into nested
+	// arch-specific optionalDependencies (sharp -> @img/sharp-<arch> ->
+	// @img/sharp-libvips-<arch>). Every fetch is wrapped so a registry/network
+	// failure resolves to undefined and continues - this must never crash the build.
+	// =========================================================================
+	console.log('');
+	console.log('=========================================================================');
+	console.log('SECTION 5: Enumerating platform-specific binary packages (all arches)');
+	console.log('  Why: arch-specific npm packages are optionalDependencies of an');
+	console.log('  arch-independent parent. Only the host arch installs on disk, so the');
+	console.log('  scan above misses the rest. Legacy emitted every arch - so do we.');
+	console.log('=========================================================================');
+	console.log('');
+
+	let pbParentsFound = 0;
+	let pbAdded = 0;
+	let pbFetchedRegistry = 0;
+	let pbTextFromDisk = 0;
+	let pbTextFromRepo = 0;
+	let pbTextFromParent = 0;
+	let pbNoText = 0;
+	let pbSkippedAlready = 0;
+	let pbSkippedCg = 0;
+
+	// node_modules roots the scanner already knows: repo root, remote, build, and
+	// every extension root (+ server / server-lib). Seeds and on-disk lookups
+	// both walk these.
+	const pbRoots = [
+		path.join(repoRoot, 'node_modules'),
+		path.join(repoRoot, 'remote', 'node_modules'),
+		path.join(repoRoot, 'build', 'node_modules'),
+	];
+	for (const ext of extensions) {
+		pbRoots.push(path.join(extensionsDir, ext, 'node_modules'));
+		pbRoots.push(path.join(extensionsDir, ext, 'server', 'node_modules'));
+		pbRoots.push(path.join(extensionsDir, ext, 'server', 'lib', 'node_modules'));
+	}
+
+	// Index every on-disk package (lowercased name -> dir) and, in the same pass,
+	// collect the SEED PARENTS: packages whose optionalDependencies have >=1
+	// arch-bearing key (this naturally finds sharp / canvas / parcel-watcher / copilot).
+	const pbOnDisk = new Map<string, string>();
+	const pbSeedKeys = new Set<string>();
+	const pbSeedParents: Array<{ key: string; dir: string; optDeps: Record<string, unknown> }> = [];
+	for (const root of pbRoots) {
+		for (const pkgName of collectPackagesInNodeModules(root)) {
+			const dir = path.join(root, ...pkgName.split('/'));
+			const ck = pkgName.toLowerCase();
+			if (!pbOnDisk.has(ck)) {
+				pbOnDisk.set(ck, dir);
+			}
+			const raw = readPackageJsonRaw(dir);
+			const opt = raw?.optionalDependencies;
+			if (!pbSeedKeys.has(ck) && opt && typeof opt === 'object' && archChildrenFromOptionalDeps(opt).length >= 1) {
+				pbSeedKeys.add(ck);
+				pbSeedParents.push({ key: ck, dir, optDeps: opt as Record<string, unknown> });
+			}
+		}
+	}
+	pbParentsFound = pbSeedParents.length;
+	console.log(`  Found ${pbParentsFound} platform-binary parent packages on disk`);
+
+	// Family license text cache (keyed by repository URL): fetch once, reuse for
+	// every arch sibling of the same family.
+	const pbTextByRepo = new Map<string, { text: string; source: string }>();
+	// Dedupe arch children by lowercased name across the whole BFS.
+	const pbVisited = new Set<string>();
+
+	// BFS frontier: each node carries the optionalDependencies to enumerate plus
+	// the seed parent identity (used for the parent license-text fallback). Seed
+	// parents are the level-0 frontier; their resolved arch children become the
+	// next frontier (recursing into the nested libvips level, and beyond).
+	interface PbFrontierNode {
+		optDeps: unknown;
+		seedParentKey: string;
+		seedParentLicenseId: string;
+		seedParentText: string;
+	}
+	let pbFrontier: PbFrontierNode[] = pbSeedParents.map(p => ({
+		optDeps: p.optDeps,
+		seedParentKey: p.key,
+		seedParentLicenseId: npmLicenseId(readPackageJsonRaw(p.dir)),
+		seedParentText: entries.get(p.key)?.licenseText || '',
+	}));
+
+	while (pbFrontier.length > 0) {
+		// Expand the frontier into the unique arch children to resolve this level.
+		const childrenThisLevel: Array<{ name: string; version: string; seedParentKey: string; seedParentLicenseId: string; seedParentText: string }> = [];
+		for (const node of pbFrontier) {
+			for (const child of archChildrenFromOptionalDeps(node.optDeps)) {
+				const ck = child.name.toLowerCase();
+				if (pbVisited.has(ck)) {
+					continue;
+				}
+				pbVisited.add(ck);
+				childrenThisLevel.push({
+					name: child.name,
+					version: child.version,
+					seedParentKey: node.seedParentKey,
+					seedParentLicenseId: node.seedParentLicenseId,
+					seedParentText: node.seedParentText,
+				});
+			}
+		}
+		if (childrenThisLevel.length === 0) {
+			break;
+		}
+
+		const nextFrontier: PbFrontierNode[] = [];
+		const tasks = childrenThisLevel.map(child => async (): Promise<void> => {
+			try {
+				const ck = child.name.toLowerCase();
+				const onDiskDir = pbOnDisk.get(ck);
+
+				// Resolve license id, repo url, and this arch's own optionalDependencies
+				// (for recursion) - from disk if installed, else from the packument.
+				let licenseId = '';
+				let repoUrl = '';
+				let childOptDeps: unknown;
+				if (onDiskDir) {
+					const raw = readPackageJsonRaw(onDiskDir);
+					licenseId = npmLicenseId(raw);
+					repoUrl = normalizeRepoUrl(raw?.repository);
+					childOptDeps = raw?.optionalDependencies;
+				} else {
+					const packument = await fetchNpmRegistryJson(child.name);
+					if (packument) {
+						pbFetchedRegistry++;
+						const v = packument.versions ? packument.versions[child.version] : undefined;
+						licenseId = npmLicenseId(v);
+						repoUrl = normalizeRepoUrl(v?.repository ?? packument.repository);
+						childOptDeps = v?.optionalDependencies;
+					}
+				}
+
+				// Recurse into this arch's own arch-specific optionalDependencies
+				// (the libvips level) regardless of whether we emit it below.
+				nextFrontier.push({
+					optDeps: childOptDeps,
+					seedParentKey: child.seedParentKey,
+					seedParentLicenseId: child.seedParentLicenseId,
+					seedParentText: child.seedParentText,
+				});
+
+				// Only ADD genuinely-missing arches. Host arch may already be in
+				// `entries` (Section 1/2); CG may already emit it.
+				if (entries.has(ck)) {
+					pbSkippedAlready++;
+					return;
+				}
+				if (cgCovered.has(ck)) {
+					pbSkippedCg++;
+					return;
+				}
+
+				// Resolve license TEXT with family-level reuse (fetch once per repo).
+				let resolved = repoUrl ? pbTextByRepo.get(repoUrl) : undefined;
+				if (!resolved) {
+					let ownText: string | undefined;
+					let ownSource: 'disk' | 'repo' | undefined;
+					// (a) any arch of this family on disk -> read its LICENSE file.
+					if (onDiskDir) {
+						const lf = findLicenseFile(onDiskDir);
+						if (lf) {
+							try {
+								ownText = fs.readFileSync(lf, 'utf8').trim();
+								ownSource = 'disk';
+							} catch { /* fall through */ }
+						}
+					}
+					// (b) else fetch the family text once from its repository.
+					if (!ownText && repoUrl) {
+						for (const ref of [`v${child.version}`, child.version, 'main', 'master']) {
+							const text = await fetchLicenseFromGitRepo(repoUrl, ref);
+							if (text && isRealLicenseBody(text)) {
+								ownText = text;
+								ownSource = 'repo';
+								break;
+							}
+						}
+					}
+					// (c) parent fallback / (d) empty - handled by familyText.
+					// Parent text is only safe across a matching license id (never
+					// reuse Apache parent text under an LGPL child - the legacy bug).
+					const safeParentText = parentTextIfCompatible(child.seedParentLicenseId, licenseId, child.seedParentText);
+					resolved = familyText(pbTextByRepo, repoUrl, ownText, ownSource, safeParentText);
+				}
+
+				if (resolved.source === 'disk') {
+					pbTextFromDisk++;
+				} else if (resolved.source === 'repo') {
+					pbTextFromRepo++;
+				} else if (resolved.source === 'parent') {
+					pbTextFromParent++;
+				} else {
+					pbNoText++;
+					console.warn(`  NO LICENSE TEXT: ${child.name}@${child.version} - emitting entry with empty body (id=${licenseId || 'unknown'}, url=${repoUrl || 'none'})`);
+				}
+
+				entries.set(ck, {
+					name: child.name,
+					version: child.version,
+					license: licenseId,
+					url: repoUrl,
+					licenseText: resolved.text,
+					fromExtension: 'platform-binary-enumeration',
+				});
+				pbAdded++;
+				console.log(`  ADDED (arch): ${child.name}@${child.version} - ${licenseId || 'unknown'} (text: ${resolved.source})`);
+			} catch (err) {
+				// Defense-in-depth: any unexpected throw must log and continue,
+				// never reject (which would crash the build).
+				console.warn(`  PLATFORM-BINARY FAILED: ${child.name}@${child.version} - unexpected error: ${(err as Error).message}`);
+			}
+		});
+
+		await runWithConcurrency(tasks, 4);
+		pbFrontier = nextFrontier;
+	}
+
+	console.log(`  Platform-binary arch entries added: ${pbAdded}`);
+
 	// Step 4: Sort and write output
 	const sorted = [...entries.values()].sort((a, b) =>
 		a.name.toLowerCase().localeCompare(b.name.toLowerCase())
@@ -1198,6 +1626,16 @@ async function main(): Promise<void> {
 	console.log(`    crates.io API failed:      ${cargoApiFailed}`);
 	console.log(`    Fetch failed (no LICENSE): ${cargoFetchFailed}`);
 	console.log(`    AND-license incomplete:    ${cargoAndIncomplete}`);
+	console.log(`  Section 5 - Platform binaries:`);
+	console.log(`    Parent packages found:     ${pbParentsFound}`);
+	console.log(`    Arch entries added:        ${pbAdded}`);
+	console.log(`    Fetched from registry:     ${pbFetchedRegistry}`);
+	console.log(`    Text from disk:            ${pbTextFromDisk}`);
+	console.log(`    Text from repo:            ${pbTextFromRepo}`);
+	console.log(`    Text from parent fallback: ${pbTextFromParent}`);
+	console.log(`    No text (warned):          ${pbNoText}`);
+	console.log(`    Skipped (already resolved): ${pbSkippedAlready}`);
+	console.log(`    Skipped (CG covers):       ${pbSkippedCg}`);
 	console.log(`  Total entries in output:     ${entries.size}`);
 	console.log(`  Output: ${outputPath}`);
 	console.log(`  Presence index (present but unlicensed): ${presence.length}`);
