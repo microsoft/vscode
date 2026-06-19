@@ -1665,7 +1665,7 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(listCalls, 1);
 
 			releaseListSessions.fire();
-			const [a, b] = await Promise.all([first, second]);
+			const [a,] = await Promise.all([first, second]);
 
 			assert.deepStrictEqual({
 				listCalls,
