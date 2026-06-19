@@ -1,7 +1,12 @@
 {
   "name": "code-oss-dev",
+<<<<<<< HEAD
   "version": "1.126.0",
   "distro": "e6b302180cc8fecde16d482d0f2add78b067b6bf",
+=======
+  "version": "1.125.1",
+  "distro": "8edd514e8c5617018ec1e3f7e9c482edd103640a",
+>>>>>>> fcf604774b9 (Prepare for 1.125.1 (#322057))
   "author": {
     "name": "Microsoft Corporation"
   },
