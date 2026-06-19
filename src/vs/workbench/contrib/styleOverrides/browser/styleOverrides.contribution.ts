@@ -87,8 +87,14 @@ export class StyleOverridesContribution extends Disposable implements IWorkbench
 			if (e.affectsConfiguration(LayoutSettings.MODERN_UI)) {
 				this.update();
 				// Some modules drive layout-affecting CSS variables (e.g. the
-				// `paneHeaders` header size). Only relayout when one of those is
-				// toggled, to avoid an unnecessary full workbench relayout.
+				// `paneHeaders` header size) that the JS layout reads back, so a
+				// relayout is required once the classes are toggled. The base layout
+				// (`Layout`) also relayouts for this same setting, but its listener
+				// runs earlier (startup) than this contribution's (Restored phase),
+				// so that pass happens *before* these classes are applied and reads
+				// stale values. This relayout therefore runs last and is the
+				// authoritative one — do not remove it as "redundant". Guarded so it
+				// only fires when the enabled state actually flips.
 				const layoutAffectingActive = this.hasActiveLayoutAffectingModule();
 				if (layoutAffectingActive !== this.layoutAffectingActive) {
 					this.layoutAffectingActive = layoutAffectingActive;

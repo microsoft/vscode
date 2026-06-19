@@ -225,9 +225,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	hasFocus(part: Parts): boolean;
 
 	/**
-	 * Returns whether the floating panels experiment is enabled for this
-	 * workbench. Always `false` for the agents window, which has its own floating
-	 * card design and must not apply the experiment's content insets.
+	 * Returns whether the floating panels presentation is enabled for this
+	 * workbench, i.e. whether the Modern UI Update experiment
+	 * (`LayoutSettings.MODERN_UI`) is on. Always `false` for the agents window,
+	 * which has its own floating card design and must not apply the experiment's
+	 * content insets.
 	 */
 	isFloatingPanelsEnabled(): boolean;
 
