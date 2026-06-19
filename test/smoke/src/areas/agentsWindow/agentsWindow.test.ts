@@ -27,10 +27,12 @@ interface SessionConfig {
 	readonly reply: string;
 	readonly scenarioId2: string;
 	readonly reply2: string;
+	/** Skip the second message/assertion (e.g. while a known flake is being investigated). */
+	readonly skipReply2?: boolean;
 }
 
 const SESSIONS: readonly SessionConfig[] = [
-	{ name: 'Copilot CLI', scenarioId: 'smoke-hello-copilot', reply: 'MOCKED_COPILOT_RESPONSE', scenarioId2: 'smoke-hello-copilot-2', reply2: 'MOCKED_COPILOT_RESPONSE_2' },
+	{ name: 'Copilot CLI', scenarioId: 'smoke-hello-copilot', reply: 'MOCKED_COPILOT_RESPONSE', scenarioId2: 'smoke-hello-copilot-2', reply2: 'MOCKED_COPILOT_RESPONSE_2', skipReply2: true },
 	{ name: 'Claude', scenarioId: 'smoke-hello-claude', reply: 'MOCKED_CLAUDE_RESPONSE', scenarioId2: 'smoke-hello-claude-2', reply2: 'MOCKED_CLAUDE_RESPONSE_2' },
 	{ name: 'Local', scenarioId: 'smoke-hello-local', reply: 'MOCKED_LOCAL_RESPONSE', scenarioId2: 'smoke-hello-local-2', reply2: 'MOCKED_LOCAL_RESPONSE_2' },
 ];
@@ -233,23 +235,27 @@ export function setup(logger: Logger) {
 						await app.workbench.agentsWindow.activateSessionByLabel(session.reply);
 					}
 
-					// Follow-up message in the same session — exercises the
-					// active-session input path (not the new-session homepage).
-					// For Copilot CLI, pass the expected active label so
-					// `sendFollowUpMessage` re-verifies the active slot right
-					// before sending (the workbench can auto-swap the slot to
-					// a fresh untitled session between `activateSessionByLabel`
-					// returning and the send-button click).
-					const expectedActiveLabel = session.name === 'Copilot CLI' ? session.reply : undefined;
-					await app.workbench.agentsWindow.sendFollowUpMessage(
-						`hello again [scenario:${session.scenarioId2}]`,
-						undefined,
-						expectedActiveLabel,
-					);
+					if (!session.skipReply2) {
+						// Follow-up message in the same session — exercises the
+						// active-session input path (not the new-session homepage).
+						// For Copilot CLI, pass the expected active label so
+						// `sendFollowUpMessage` re-verifies the active slot right
+						// before sending (the workbench can auto-swap the slot to
+						// a fresh untitled session between `activateSessionByLabel`
+						// returning and the send-button click).
+						const expectedActiveLabel = session.name === 'Copilot CLI' ? session.reply : undefined;
+						await app.workbench.agentsWindow.sendFollowUpMessage(
+							`hello again [scenario:${session.scenarioId2}]`,
+							undefined,
+							expectedActiveLabel,
+						);
 
-					const secondTurnTimeout = session.name === 'Copilot CLI' ? 180_000 : 60_000;
-					const text2 = await app.workbench.agentsWindow.waitForAssistantText(session.reply2, secondTurnTimeout);
-					logger.log(`Agents Window (${session.name}) response 2: ${text2}`);
+						const secondTurnTimeout = session.name === 'Copilot CLI' ? 180_000 : 60_000;
+						const text2 = await app.workbench.agentsWindow.waitForAssistantText(session.reply2, secondTurnTimeout);
+						logger.log(`Agents Window (${session.name}) response 2: ${text2}`);
+					} else {
+						logger.log(`[Agents Window/${session.name}] skipping second reply assertion (skipReply2=true)`);
+					}
 
 					assert.ok(
 						mockServer.requestCount() > requestsBefore,

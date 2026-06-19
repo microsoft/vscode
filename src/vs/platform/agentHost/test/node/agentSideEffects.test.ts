@@ -1604,8 +1604,8 @@ suite('AgentSideEffects', () => {
 			]);
 		});
 
-		test('auto-approves shell commands when autoApprove is set to autopilot', () => {
-			setupSessionWithConfig('autopilot');
+		test('auto-approves shell commands when autoApprove is set to bypass', () => {
+			setupSessionWithConfig('autoApprove');
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
 
@@ -1613,7 +1613,7 @@ suite('AgentSideEffects', () => {
 				kind: 'action', session: sessionUri,
 				action: {
 					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
-					toolCallId: 'tc-ap-shell-1', toolName: 'shell', displayName: 'Shell', contributor: undefined,
+					toolCallId: 'tc-bypass-shell-1', toolName: 'shell', displayName: 'Shell', contributor: undefined,
 					_meta: { toolKind: undefined, language: undefined },
 				},
 			});
@@ -1621,7 +1621,7 @@ suite('AgentSideEffects', () => {
 				kind: 'action', session: sessionUri,
 				action: {
 					type: ActionType.ChatToolCallReady, turnId: 'turn-1',
-					toolCallId: 'tc-ap-shell-1', invocationMessage: 'Run rm -rf /', toolInput: undefined,
+					toolCallId: 'tc-bypass-shell-1', invocationMessage: 'Run rm -rf /', toolInput: undefined,
 					confirmed: ToolCallConfirmationReason.NotNeeded,
 				},
 			});
@@ -1630,16 +1630,17 @@ suite('AgentSideEffects', () => {
 				kind: 'pending_confirmation', session: sessionUri,
 				state: {
 					status: ToolCallStatus.PendingConfirmation,
-					toolCallId: 'tc-ap-shell-1', toolName: '', displayName: '',
+					toolCallId: 'tc-bypass-shell-1', toolName: '', displayName: '',
 					invocationMessage: 'Run rm -rf /', toolInput: 'rm -rf /',
 					confirmationTitle: undefined, edits: undefined,
 				},
 				permissionKind: 'shell', permissionPath: undefined,
 			});
 
-			// Dangerous command would normally be blocked, but session-level auto-approve overrides
+			// Dangerous command would normally be blocked, but session-level
+			// bypass auto-approve overrides.
 			assert.deepStrictEqual(agent.respondToPermissionCalls, [
-				{ requestId: 'tc-ap-shell-1', approved: true },
+				{ requestId: 'tc-bypass-shell-1', approved: true },
 			]);
 		});
 

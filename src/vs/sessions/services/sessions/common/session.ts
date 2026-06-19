@@ -223,6 +223,8 @@ export interface ISessionChangesetOperation {
 	readonly description?: string;
 	/** Optional icon for the operation. */
 	readonly icon?: ThemeIcon;
+	/** Optional group identifier, used to group related operations together. */
+	readonly group?: string;
 	/** The scopes to which this operation applies. */
 	readonly scopes: SessionChangesetOperationScope[];
 	/** Current execution status for this operation. */

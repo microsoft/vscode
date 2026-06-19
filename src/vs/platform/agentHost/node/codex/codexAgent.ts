@@ -713,7 +713,7 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	private async _refreshModels(token: string): Promise<void> {
 		try {
-			const all = await this._copilotApiService.models(token, { suppressIntegrationId: true });
+			const all = await this._copilotApiService.models(token);
 			if (this._githubToken !== token) {
 				return;
 			}
