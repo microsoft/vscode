@@ -32,20 +32,6 @@ import { hasActiveSessionFailedCIChecks } from '../../../changes/browser/checksA
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 
-//  Constants
-
-const ACTION_ID_NEW_SESSION = 'workbench.action.chat.newChat';
-//  Keybindings
-
-KeybindingsRegistry.registerKeybindingRule({
-	id: ACTION_ID_NEW_SESSION,
-	weight: KeybindingWeight.SessionsContrib,
-	// Don't shadow Ctrl/Cmd+N when focus is in the editor area so the standard
-	// `workbench.action.files.newUntitledFile` command handles the shortcut.
-	when: EditorAreaFocusContext.negate(),
-	primary: KeyMod.CtrlCmd | KeyCode.KeyN,
-});
-
 const CLOSE_SESSION_COMMAND_ID = 'sessionsViewPane.closeSession';
 registerAction2(class CloseSessionAction extends Action2 {
 	constructor() {
