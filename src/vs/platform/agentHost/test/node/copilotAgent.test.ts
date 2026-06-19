@@ -32,7 +32,6 @@ import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentActionSignal, type IAgentSessionMetadata } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { buildSubagentSessionUri, buildChatUri, CustomizationLoadStatus, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, customizationId, type ClientPluginCustomization, type MarkdownResponsePart, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
 import { CustomizationType, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction, type IDeltaAction, type SessionAction } from '../../common/state/sessionActions.js';
@@ -187,6 +186,7 @@ class TestSessionDataService extends Disposable implements ISessionDataService {
 	cleanupOrphanedData(): Promise<void> { return Promise.resolve(); }
 	whenIdle(): Promise<void> { return Promise.resolve(); }
 }
+type CopilotModelsList = CopilotClient['rpc']['models']['list'];
 
 interface ITestCopilotModelInfo {
 	readonly id: string;
@@ -207,12 +207,16 @@ interface ITestCopilotModelInfo {
 			readonly longContext?: { readonly contextMax?: number; readonly inputPrice?: number; readonly cachePrice?: number; readonly cacheWritePrice?: number; readonly outputPrice?: number };
 		};
 	};
+	readonly modelPickerPriceCategory?: string;
 	readonly supportedReasoningEfforts?: ModelInfo['supportedReasoningEfforts'];
 	readonly defaultReasoningEffort?: ModelInfo['defaultReasoningEffort'];
 }
 
 interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'listSessions' | 'listModels' | 'createSession' | 'resumeSession' | 'getSessionMetadata' | 'deleteSession'> {
-	readonly rpc: { readonly sessions: { readonly fork: CopilotClient['rpc']['sessions']['fork'] } };
+	readonly rpc: {
+		readonly sessions: { readonly fork: CopilotClient['rpc']['sessions']['fork'] };
+		readonly models: { readonly list: CopilotModelsList };
+	};
 }
 
 function toSdkModelInfo(model: ITestCopilotModelInfo): ModelInfo {
@@ -230,14 +234,31 @@ function toSdkModelInfo(model: ITestCopilotModelInfo): ModelInfo {
 		},
 		...(model.policy ? { policy: { state: model.policy.state ?? 'enabled', terms: '' } } : {}),
 		...(model.billing ? { billing: model.billing } : {}),
+		...(model.modelPickerPriceCategory ? { modelPickerPriceCategory: model.modelPickerPriceCategory } : {}),
 		...(model.supportedReasoningEfforts ? { supportedReasoningEfforts: model.supportedReasoningEfforts } : {}),
 		...(model.defaultReasoningEffort ? { defaultReasoningEffort: model.defaultReasoningEffort } : {}),
 	};
 }
 
 class TestCopilotClient implements ITestCopilotClient {
-	readonly rpc: ITestCopilotClient['rpc'] = { sessions: { fork: async () => ({ sessionId: 'forked-session' }) } };
+	readonly rpc: ITestCopilotClient['rpc'] = {
+		sessions: { fork: async () => ({ sessionId: 'forked-session' }) },
+		models: {
+			list: async params => {
+				this.modelListRequests.push(params);
+				const error = this.modelListErrors.shift();
+				if (error) {
+					throw error;
+				}
+				return { models: this._models.map(toSdkModelInfo) };
+			}
+		},
+	};
+	startCallCount = 0;
+	stopCallCount = 0;
 	listSessionCallCount = 0;
+	readonly modelListRequests: Parameters<CopilotModelsList>[0][] = [];
+	readonly modelListErrors: Error[] = [];
 	readonly getSessionMetadataCalls: string[] = [];
 	readonly deletedSessionIds: string[] = [];
 
@@ -246,8 +267,13 @@ class TestCopilotClient implements ITestCopilotClient {
 		private readonly _models: readonly ITestCopilotModelInfo[] = [],
 	) { }
 
-	async start(): Promise<void> { }
-	async stop(): ReturnType<ITestCopilotClient['stop']> { return []; }
+	async start(): Promise<void> {
+		this.startCallCount++;
+	}
+	async stop(): ReturnType<ITestCopilotClient['stop']> {
+		this.stopCallCount++;
+		return [];
+	}
 	async listSessions(): ReturnType<ITestCopilotClient['listSessions']> {
 		this.listSessionCallCount++;
 		return this._sessions;
@@ -601,26 +627,99 @@ suite('CopilotAgent', () => {
 		);
 	});
 
-	test('returns empty models and throws AuthRequired for sessions before authentication', async () => {
-		const agent = createTestAgent(disposables);
+	test('returns empty models and lists sessions before authentication', async () => {
+		const sessionDataService = disposables.add(new TestSessionDataService());
+		const ownedSession = AgentSession.uri('copilotcli', 'owned-before-auth');
+		const ownedDb = sessionDataService.openDatabase(ownedSession);
+		ownedDb.dispose();
+		const client = new TestCopilotClient([sdkSession('owned-before-auth')]);
+		const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
 		try {
-			assert.deepStrictEqual(agent.models.get(), []);
-			await assert.rejects(
-				() => agent.listSessions(),
-				(error: Error) => error instanceof ProtocolError && error.code === AHP_AUTH_REQUIRED,
-			);
+			const sessions = await agent.listSessions();
+			assert.deepStrictEqual({
+				models: agent.models.get(),
+				sessions: sessions.map(session => AgentSession.id(session.session)),
+				starts: client.startCallCount,
+				listCalls: client.listSessionCallCount,
+			}, {
+				models: [],
+				sessions: ['owned-before-auth'],
+				starts: 1,
+				listCalls: 1,
+			});
 		} finally {
 			await disposeAgent(agent);
 		}
 	});
 
-	test('requires authentication before creating a session', async () => {
-		const agent = createTestAgent(disposables);
+	test('starts the client and creates a provisional session before authentication', async () => {
+		const client = new TestCopilotClient([]);
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		const session = AgentSession.uri('copilotcli', 'unauth-create');
+		const workingDirectory = URI.file('/workspace');
 		try {
-			await assert.rejects(
-				() => agent.createSession({ workingDirectory: URI.file('/workspace') }),
-				(error: Error) => error instanceof ProtocolError && error.code === AHP_AUTH_REQUIRED,
-			);
+			const result = await agent.createSession({ session, workingDirectory });
+			assert.ok(result.workingDirectory);
+			assert.deepStrictEqual({
+				session: result.session.toString(),
+				workingDirectory: result.workingDirectory.toString(),
+				provisional: result.provisional,
+				starts: client.startCallCount,
+				stops: client.stopCallCount,
+			}, {
+				session: session.toString(),
+				workingDirectory: workingDirectory.toString(),
+				provisional: true,
+				starts: 1,
+				stops: 0,
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('passes the GitHub token when refreshing models', async () => {
+		const client = new TestCopilotClient([], [{
+			id: 'gpt-4o',
+			name: 'GPT-4o',
+		}]);
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		try {
+			await agent.authenticate('https://api.github.com', 'model-token');
+			await waitForState(agent.models, models => models.length > 0);
+
+			assert.deepStrictEqual(client.modelListRequests, [{ gitHubToken: 'model-token' }]);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('does not stop the client when the auth token changes', async () => {
+		const client = new TestCopilotClient([], [{
+			id: 'gpt-4o',
+			name: 'GPT-4o',
+		}]);
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		try {
+			await agent.listSessions();
+			await agent.authenticate('https://api.github.com', 'model-token-a');
+			for (let i = 0; i < 200 && client.modelListRequests.length < 1; i++) {
+				await new Promise(resolve => setTimeout(resolve, 0));
+			}
+			await agent.authenticate('https://api.github.com', 'model-token-b');
+			for (let i = 0; i < 200 && client.modelListRequests.length < 2; i++) {
+				await new Promise(resolve => setTimeout(resolve, 0));
+			}
+
+			assert.deepStrictEqual({
+				starts: client.startCallCount,
+				stops: client.stopCallCount,
+				requests: client.modelListRequests,
+			}, {
+				starts: 1,
+				stops: 0,
+				requests: [{ gitHubToken: 'model-token-a' }, { gitHubToken: 'model-token-b' }],
+			});
 		} finally {
 			await disposeAgent(agent);
 		}
@@ -751,7 +850,6 @@ suite('CopilotAgent', () => {
 				capabilities: { limits: { max_context_window_tokens: 200_000 } },
 				billing: {
 					multiplier: 1,
-					priceCategory: 'medium',
 					tokenPrices: {
 						contextMax: 200_000,
 						inputPrice: 3,
@@ -760,6 +858,7 @@ suite('CopilotAgent', () => {
 						longContext: { contextMax: 1_000_000, inputPrice: 6, cachePrice: 1, outputPrice: 22.5 },
 					},
 				},
+				modelPickerPriceCategory: 'medium',
 			}]),
 		});
 		try {
@@ -770,6 +869,7 @@ suite('CopilotAgent', () => {
 				multiplierNumeric: 1,
 				inputCost: 3,
 				cacheCost: 1,
+				cacheWriteCost: 1,
 				outputCost: 15,
 				longContextInputCost: 6,
 				longContextOutputCost: 22.5,
