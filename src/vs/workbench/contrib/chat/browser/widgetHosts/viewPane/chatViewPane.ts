@@ -425,7 +425,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// Dynamic audio-reactive glow animation (matches aux window behavior)
 		let animFrameId: number | undefined;
-		let glowDataArray: Uint8Array | undefined;
+		let glowDataArray: Uint8Array<ArrayBuffer> | undefined;
 		const win = getWindow(inputContainerEl);
 		const startGlowAnimation = () => {
 			if (animFrameId !== undefined) { return; }
