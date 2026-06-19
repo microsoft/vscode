@@ -33,7 +33,7 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
+
 import { IAgentsVoiceWindowService, AgentsVoiceStorageKeys } from '../common/agentsVoice.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -160,7 +160,9 @@ CommandsRegistry.registerCommand('_agentsVoice.openWindow', async (accessor) => 
 	}
 });
 
-// --- Mic button in Chat toolbar (connect voice mode) ---
+// --- Mic button in Chat toolbar ---
+// First click: connect. Subsequent clicks/holds: push-to-talk.
+// Disconnect is available via command palette or aux window.
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -174,46 +176,36 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
-					AGENTS_VOICE_CONNECTED.negate(),
 				),
 				group: 'navigation',
 				order: 4
-			},
+			}
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const voiceController = accessor.get(IVoiceSessionController);
-		const notificationService = accessor.get(INotificationService);
-		try {
+		const agentsVoiceWindowService = accessor.get(IAgentsVoiceWindowService);
+		if (!voiceController.isConnected.get()) {
+			// First click: connect (greeting plays automatically) + open aux window
 			await voiceController.connect(mainWindow);
-			if (!voiceController.isConnected.get() && voiceController.isConnecting.get()) {
-				await new Promise<void>(resolve => {
-					const disposable = autorun(reader => {
-						const connecting = voiceController.isConnecting.read(reader);
-						if (!connecting) {
-							resolve();
-							queueMicrotask(() => disposable.dispose());
-						}
-					});
-				});
+			if (!agentsVoiceWindowService.isOpen) {
+				await agentsVoiceWindowService.openWindow();
 			}
-			if (!voiceController.isConnected.get()) {
-				notificationService.error(nls.localize('agentsVoice.connectFailed', "Voice Mode: Could not connect to the voice backend. Please try again later."));
-			}
-		} catch (e) {
-			notificationService.error(nls.localize('agentsVoice.connectError', "Voice Mode: Connection failed — {0}", e instanceof Error ? e.message : String(e)));
+		} else {
+			// Already connected: act as PTT (tap-to-toggle recording)
+			voiceController.pttDown();
 		}
 	}
 });
 
-// --- Disconnect button in Chat toolbar (shown when connected) ---
+// --- Disconnect Voice (command palette + separate toolbar button when connected) ---
 
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'agentsVoice.disconnect',
 			title: nls.localize2('agentsVoice.disconnect', "Disconnect Voice Mode"),
-			icon: Codicon.micFilled,
+			icon: Codicon.debugDisconnect,
 			f1: true,
 			precondition: ContextKeyExpr.and(
 				ContextKeyExpr.equals('config.agents.voice.enabled', true),
@@ -227,7 +219,7 @@ registerAction2(class extends Action2 {
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 				),
 				group: 'navigation',
-				order: 4
+				order: 5
 			},
 		});
 	}
