@@ -151,6 +151,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 	private updatingPromise: CancelablePromise<boolean> | undefined;
 
 	private _showDotFiles: boolean = true;
+	private _acceptedFolderOverride: URI | undefined;
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
@@ -661,6 +662,10 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 			resolveValue = this.addPostfix(resolveValue);
 		}
 		if (await this.validate(resolveValue)) {
+			if (this._acceptedFolderOverride) {
+				resolveValue = this._acceptedFolderOverride;
+				this._acceptedFolderOverride = undefined;
+			}
 			this.busy = false;
 			return resolveValue;
 		}
@@ -985,15 +990,37 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 					if (!folderUri) {
 						return false;
 					}
-					// If the user edited the path in the prompt, propagate the new value
-					// back to the file picker and let validation run again on the new path
-					// rather than creating a folder at the edited path immediately.
+					// If the user edited the path in the prompt, re-validate the new path
+					// (basename and parent directory) without prompting again — the user
+					// already confirmed they want to create a folder.
+					let createTarget = folderUri;
 					if (!resources.isEqual(folderUri, uri)) {
+						let editedStat: IFileStatWithPartialMetadata | undefined;
+						let editedStatDirname: IFileStatWithPartialMetadata | undefined;
+						try {
+							editedStatDirname = await this.fileService.stat(resources.dirname(folderUri));
+							editedStat = await this.fileService.stat(folderUri);
+						} catch (e) {
+							// do nothing
+						}
 						this.filePickBox.value = this.pathFromUri(folderUri);
-						return false;
+						if (!isValidBasename(resources.basename(folderUri), this.isWindows)) {
+							this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateBadFilename', 'Please enter a valid file name.');
+							return false;
+						}
+						if (!editedStatDirname?.isDirectory || editedStatDirname.readonly) {
+							this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateNonexistentDir', 'Please enter a path that exists.');
+							return false;
+						}
+						if (editedStat) {
+							// Edited path already exists; let the user re-accept to open it.
+							return false;
+						}
+						createTarget = folderUri;
 					}
 					try {
-						await this.fileService.createFolder(folderUri);
+						await this.fileService.createFolder(createTarget);
+						this._acceptedFolderOverride = resources.isEqual(createTarget, uri) ? undefined : createTarget;
 						return true;
 					} catch (e) {
 						this.filePickBox.validationMessage = nls.localize('remoteFileDialog.createFolderFailed', 'Could not create folder: {0}', e.message);
