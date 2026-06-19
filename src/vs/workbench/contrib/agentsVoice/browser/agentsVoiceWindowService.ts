@@ -342,17 +342,9 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 	// --- Bounds persistence ---
 
 	private _defaultBounds(): IRectangle {
-		// Position the aux window at the bottom-center of the screen the main
-		// window is on. This avoids issues with multi-window setups or incorrect
-		// outerWidth values.
-		const screen = mainWindow.screen;
-		const screenLeft = (screen as unknown as { availLeft?: number }).availLeft ?? 0;
-		const screenTop = (screen as unknown as { availTop?: number }).availTop ?? 0;
-		const screenWidth = screen?.availWidth ?? 1920;
-		const screenHeight = screen?.availHeight ?? 1080;
-
-		const x = Math.round(screenLeft + (screenWidth - AGENTS_VOICE_WINDOW_DEFAULT_WIDTH) / 2);
-		const y = screenTop + screenHeight - AGENTS_VOICE_WINDOW_DEFAULT_HEIGHT - 100;
+		// Center horizontally within the main VS Code window, near bottom.
+		const x = Math.round(mainWindow.screenX + (mainWindow.outerWidth - AGENTS_VOICE_WINDOW_DEFAULT_WIDTH) / 2);
+		const y = mainWindow.screenY + mainWindow.outerHeight - AGENTS_VOICE_WINDOW_DEFAULT_HEIGHT - 100;
 		return {
 			x,
 			y,
@@ -361,51 +353,14 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		};
 	}
 
-	private _isOnScreen(bounds: IRectangle): boolean {
-		const screen = mainWindow.screen;
-		const screenLeft = (screen as unknown as { availLeft?: number }).availLeft ?? 0;
-		const screenTop = (screen as unknown as { availTop?: number }).availTop ?? 0;
-		const screenWidth = screen?.availWidth ?? 1920;
-		const screenHeight = screen?.availHeight ?? 1080;
-
-		const minVisible = 50;
-		const visibleX = Math.min(bounds.x + bounds.width, screenLeft + screenWidth) - Math.max(bounds.x, screenLeft);
-		const visibleY = Math.min(bounds.y + bounds.height, screenTop + screenHeight) - Math.max(bounds.y, screenTop);
-
-		return visibleX >= minVisible && visibleY >= minVisible;
-	}
-
 	private loadBounds(): IRectangle {
-		const defaults = this._defaultBounds();
-		const raw = this.storageService.get(AgentsVoiceStorageKeys.WindowBounds, StorageScope.WORKSPACE);
-		if (raw) {
-			try {
-				const parsed = JSON.parse(raw);
-				if (typeof parsed.x === 'number' && typeof parsed.y === 'number' && typeof parsed.height === 'number') {
-					// Recalculate y from stored bottom edge to handle height changes
-					const storedBottom = parsed.y + parsed.height;
-					const y = storedBottom - defaults.height;
-					const bounds = { x: parsed.x, y, width: defaults.width, height: defaults.height };
-					if (this._isOnScreen(bounds)) {
-						return bounds;
-					}
-				}
-			} catch { /* ignore invalid JSON */ }
-		}
-
-		return defaults;
+		// Always compute fresh bounds from the current main window position.
+		// This ensures the aux window is always centered within VS Code.
+		return this._defaultBounds();
 	}
 
-	private saveBounds(window: IAuxiliaryWindow): void {
-		const state = window.createState();
-		if (state.bounds) {
-			this.storageService.store(
-				AgentsVoiceStorageKeys.WindowBounds,
-				JSON.stringify({ x: state.bounds.x, y: state.bounds.y, height: state.bounds.height }),
-				StorageScope.WORKSPACE,
-				StorageTarget.MACHINE
-			);
-		}
+	private saveBounds(_window: IAuxiliaryWindow): void {
+		// Bounds persistence disabled — always use fresh defaults for now.
 	}
 }
 
