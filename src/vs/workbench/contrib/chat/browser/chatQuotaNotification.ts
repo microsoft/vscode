@@ -43,7 +43,7 @@ type ChatQuotaTrajectoryNudgeEvent = {
 
 type ChatQuotaTrajectoryNudgeClassification = {
 	owner: 'rfeltis';
-	comment: 'Tracks when the chat quota trajectory nudge is shown, closed, and when users click its learn more link.';
+	comment: 'Tracks when users click the chat quota trajectory nudge learn more link.';
 	severity: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The severity of the quota trajectory nudge.' };
 	entitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The user entitlement when the quota trajectory nudge event was logged.' };
 	averageDailyUsage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The average daily monthly quota usage percentage that caused the nudge.' };
@@ -119,9 +119,6 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		this._register(this._chatInputNotificationService.onDidDismiss(id => {
 			if (id !== QUOTA_NOTIFICATION_ID) {
 				return;
-			}
-			if (this._activeTrajectoryTelemetryData) {
-				this._logQuotaTrajectoryNudgeClosed(this._activeTrajectoryTelemetryData);
 			}
 			this._activeTrajectoryTelemetryData = undefined;
 		}));
@@ -355,7 +352,6 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	private _showQuotaTrajectoryWarning(warning: { averageDailyUsage: number; percentUsed: number }): void {
 		this._showingExhausted = false;
 		this._activeTrajectoryTelemetryData = this._getQuotaTrajectoryNudgeTelemetryData(warning);
-		this._logQuotaTrajectoryNudgeShown(this._activeTrajectoryTelemetryData);
 		this._storeTrajectoryShown();
 		const learnMoreLink = createMarkdownCommandLink({
 			text: localize('quota.trajectory.learnMore', "Learn more about managing credits"),
@@ -380,14 +376,6 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			queueMicrotask(() => this._hideNotification());
 		}
 		await accessor.get(IOpenerService).open(URI.parse(CREDIT_EFFICIENCY_LEARN_MORE_URL));
-	}
-
-	private _logQuotaTrajectoryNudgeShown(data: ChatQuotaTrajectoryNudgeEvent): void {
-		this._telemetryService.publicLog2<ChatQuotaTrajectoryNudgeEvent, ChatQuotaTrajectoryNudgeClassification>('chatQuotaTrajectoryNudgeShown', data);
-	}
-
-	private _logQuotaTrajectoryNudgeClosed(data: ChatQuotaTrajectoryNudgeEvent): void {
-		this._telemetryService.publicLog2<ChatQuotaTrajectoryNudgeEvent, ChatQuotaTrajectoryNudgeClassification>('chatQuotaTrajectoryNudgeClosed', data);
 	}
 
 	private _logQuotaTrajectoryNudgeLinkClicked(data: ChatQuotaTrajectoryNudgeEvent): void {

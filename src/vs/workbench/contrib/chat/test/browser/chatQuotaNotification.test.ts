@@ -866,83 +866,6 @@ suite('ChatQuotaNotificationContribution', () => {
 			assert.ok(typeof message !== 'string' && message.value.includes('monthly allowance'));
 		});
 
-		test('logs shown telemetry once per quota period', async () => {
-			const telemetryService = new TestTelemetryService();
-			const { entitlementMock } = createContribution({
-				entitlement: ChatEntitlement.Pro,
-				quotas: {
-					resetDate: makeResetDate(24),
-					usageBasedBilling: true,
-					premiumChat: makeQuotaSnapshot(72),
-				},
-			}, { trajectoryTreatment: true, telemetryService });
-
-			await flushPromises();
-			entitlementMock.onDidChangeQuotaRemaining.fire();
-
-			assert.deepStrictEqual(telemetryService.events, [
-				{
-					name: 'chatQuotaTrajectoryNudgeEnrolled',
-					data: {
-						treatment: true,
-						entitlement: 'Pro',
-					},
-				},
-				{
-					name: 'chatQuotaTrajectoryNudgeShown',
-					data: {
-						severity: 'info',
-						entitlement: 'Pro',
-						averageDailyUsage: 4.67,
-						percentUsed: 28,
-					},
-				},
-			]);
-		});
-
-		test('logs close telemetry', async () => {
-			const telemetryService = new TestTelemetryService();
-			const { notificationMock } = createContribution({
-				entitlement: ChatEntitlement.Pro,
-				quotas: {
-					resetDate: makeResetDate(24),
-					usageBasedBilling: true,
-					premiumChat: makeQuotaSnapshot(72),
-				},
-			}, { trajectoryTreatment: true, telemetryService });
-
-			await flushPromises();
-			notificationMock.dismiss();
-
-			assert.deepStrictEqual(telemetryService.events, [
-				{
-					name: 'chatQuotaTrajectoryNudgeEnrolled',
-					data: {
-						treatment: true,
-						entitlement: 'Pro',
-					},
-				},
-				{
-					name: 'chatQuotaTrajectoryNudgeShown',
-					data: {
-						severity: 'info',
-						entitlement: 'Pro',
-						averageDailyUsage: 4.67,
-						percentUsed: 28,
-					},
-				},
-				{
-					name: 'chatQuotaTrajectoryNudgeClosed',
-					data: {
-						severity: 'info',
-						entitlement: 'Pro',
-						averageDailyUsage: 4.67,
-						percentUsed: 28,
-					},
-				},
-			]);
-		});
-
 		test('logs link click telemetry', async () => {
 			const telemetryService = new TestTelemetryService();
 			createContribution({
@@ -967,15 +890,6 @@ suite('ChatQuotaNotificationContribution', () => {
 						data: {
 							treatment: true,
 							entitlement: 'Pro',
-						},
-					},
-					{
-						name: 'chatQuotaTrajectoryNudgeShown',
-						data: {
-							severity: 'info',
-							entitlement: 'Pro',
-							averageDailyUsage: 4.67,
-							percentUsed: 28,
 						},
 					},
 					{
