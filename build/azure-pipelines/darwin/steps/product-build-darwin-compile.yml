@@ -28,7 +28,7 @@ steps:
     inputs:
       azureSubscription: vscode
       KeyVaultName: vscode-build-secrets
-      SecretsFilter: "macos-developer-certificate,macos-developer-certificate-key"
+      SecretsFilter: "github-distro-mixin-password,macos-developer-certificate,macos-developer-certificate-key"
 
   - script: node build/setup-npm-registry.ts $NPM_REGISTRY
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))

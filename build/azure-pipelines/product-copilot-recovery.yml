@@ -68,7 +68,6 @@ extends:
     testSteps:
       - checkout: self
         lfs: true
-        persistCredentials: true
         retryCountOnTaskFailure: 3
       - template: copilot/setup-steps.yml
       - template: copilot/test-steps.yml
