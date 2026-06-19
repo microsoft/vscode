@@ -23,6 +23,8 @@
     "compile-client": "npm run gulp compile",
     "compile-copilot": "npm --prefix extensions/copilot run compile",
     "transpile": "npm-run-all2 -lp transpile-client transpile-extensions compile-copilot",
+    "build-fast": "npm-run-all2 -lp transpile-client build-fast-extensions compile-copilot",
+    "build-fast-extensions": "npm run gulp copy-codicons compile-extensions compile-extension-media",
     "transpile-extensions": "npm run gulp transpile-extensions compile-extension-media",
     "compile-check-ts-native": "tsgo --project ./src/tsconfig.json --noEmit --skipLibCheck",
     "codex:gen-protocol": "node build/codex/generate-protocol.mjs",
