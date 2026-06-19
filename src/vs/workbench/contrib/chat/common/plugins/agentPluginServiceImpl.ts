@@ -149,7 +149,7 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 	 *   is set, only plugins whose ID appears with value `true` are allowed.
 	 *
 	 * Marketplace trust (`chat.plugins.strictMarketplaces`) is enforced at
-	 * install time only, mirroring the CLI — already-installed plugins are not
+	 * install time only, already-installed plugins are not
 	 * retroactively unloaded.
 	 *
 	 * Plugins without a marketplace provenance (e.g. user-configured filesystem
