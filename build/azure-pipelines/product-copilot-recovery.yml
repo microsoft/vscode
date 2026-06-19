@@ -16,6 +16,10 @@ parameters:
     displayName: Custom NPM Registry (Terrapin)
     type: boolean
     default: true
+  - name: NPM_REGISTRY
+    displayName: Custom NPM Registry URL
+    type: string
+    default: 'https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/'
   - name: publishExtension
     displayName: Publish Stable Recovery Extension
     type: boolean
@@ -24,6 +28,11 @@ parameters:
 variables:
   - name: VSCODE_QUALITY
     value: stable
+  - name: NPM_REGISTRY
+    ${{ if eq(parameters.customNPMRegistry, true) }}:
+      value: ${{ parameters.NPM_REGISTRY }}
+    ${{ else }}:
+      value: none
 
 extends:
   template: azure-pipelines/extension/stable.yml@templates
