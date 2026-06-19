@@ -8,10 +8,8 @@ import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 
 /**
- * Property keys we forward to the Copilot SDK runtime as common telemetry
- * properties. The runtime prefixes each key with `sdk_correlation_` and stamps
- * the result onto every session telemetry event in GitHub's first-party
- * telemetry cluster.
+ * The copilot SDK prefixes each key with `sdk_correlation_` and stamps
+ * the result onto every sdk event.
  */
 const enum CommonTelemetryPropertyKey {
 	VSCodeVersion = 'vscode_version',
@@ -24,15 +22,6 @@ const enum CommonTelemetryPropertyKey {
 	SessionId = 'session_id',
 }
 
-/**
- * Runtime validation mirrors `buildSessionCorrelationProperties` in
- * github/copilot-agent-runtime: lower-snake-case key starting with `[a-z0-9]`, max 64 chars,
- * non-empty string value, max 512 chars, up to 16 entries.
- */
-const KEY_REGEX = /^[a-z0-9][a-z0-9_]{0,63}$/;
-const MAX_VALUE_LENGTH = 512;
-const MAX_KEYS = 16;
-
 type SendRequest = (...args: unknown[]) => Promise<unknown>;
 
 interface IClientWithConnection {
@@ -41,20 +30,8 @@ interface IClientWithConnection {
 
 /**
  * Forwards a curated set of VS Code common telemetry properties into the Copilot SDK
- * session RPC layer so they end up on every session telemetry event in GitHub's
- * first-party telemetry cluster.
+ * session RPC layer so they end up on every session telemetry event in GitHub's events.
  *
- * The runtime field — `internalCorrelationIds` on `SessionCreateRequest` /
- * `SessionResumeRequest` — was introduced in
- * github/copilot-agent-runtime#8490. It is intentionally `@internal`: not exposed
- * on the public `@github/copilot-sdk` `SessionConfig` / `ResumeSessionConfig`,
- * and the SDK's hand-built `session.create` / `session.resume` payloads do not
- * forward unknown fields stashed on `SessionConfig`. So we inject the field at
- * the JSON-RPC layer by wrapping `client.connection.sendRequest`.
- *
- * Note: values land in unrestricted `properties` on GitHub's cluster, so they
- * must not contain PII. Hashed identifiers (machineId / sqmId / devDeviceId) and
- * non-identifying VS Code metadata are fine; raw paths, user names, tokens are not.
  */
 export class CopilotCommonTelemetryProperties {
 
@@ -97,33 +74,24 @@ export class CopilotCommonTelemetryProperties {
 		};
 	}
 
-	/**
-	 * Compose the common telemetry properties we want to attach to every
-	 * Copilot SDK session telemetry event. Drops undefined / empty / over-length
-	 * values silently so the runtime never sees an invalid entry.
-	 */
 	private _buildCommonTelemetryProperties(): Record<string, string> {
 		const props: Record<string, string> = {};
-		const add = (key: string, value: string | undefined): void => {
-			if (Object.keys(props).length >= MAX_KEYS) {
-				return;
+		const setIfDefined = (key: CommonTelemetryPropertyKey, value: string | undefined): void => {
+			if (value) {
+				props[key] = value;
 			}
-			if (!value || !KEY_REGEX.test(key) || value.length > MAX_VALUE_LENGTH) {
-				return;
-			}
-			props[key] = value;
 		};
 
-		add(CommonTelemetryPropertyKey.VSCodeVersion, this._productService.version);
-		add(CommonTelemetryPropertyKey.VSCodeCommit, this._productService.commit);
-		add(CommonTelemetryPropertyKey.VSCodeQuality, this._productService.quality);
+		setIfDefined(CommonTelemetryPropertyKey.VSCodeVersion, this._productService.version);
+		setIfDefined(CommonTelemetryPropertyKey.VSCodeCommit, this._productService.commit);
+		setIfDefined(CommonTelemetryPropertyKey.VSCodeQuality, this._productService.quality);
 		if (this._telemetryService.msftInternal !== undefined) {
-			add(CommonTelemetryPropertyKey.IsInternal, this._telemetryService.msftInternal ? 'true' : 'false');
+			props[CommonTelemetryPropertyKey.IsInternal] = this._telemetryService.msftInternal ? 'true' : 'false';
 		}
-		add(CommonTelemetryPropertyKey.MachineId, this._telemetryService.machineId);
-		add(CommonTelemetryPropertyKey.SqmId, this._telemetryService.sqmId);
-		add(CommonTelemetryPropertyKey.DevDeviceId, this._telemetryService.devDeviceId);
-		add(CommonTelemetryPropertyKey.SessionId, this._telemetryService.sessionId);
+		setIfDefined(CommonTelemetryPropertyKey.MachineId, this._telemetryService.machineId);
+		setIfDefined(CommonTelemetryPropertyKey.SqmId, this._telemetryService.sqmId);
+		setIfDefined(CommonTelemetryPropertyKey.DevDeviceId, this._telemetryService.devDeviceId);
+		setIfDefined(CommonTelemetryPropertyKey.SessionId, this._telemetryService.sessionId);
 
 		return props;
 	}

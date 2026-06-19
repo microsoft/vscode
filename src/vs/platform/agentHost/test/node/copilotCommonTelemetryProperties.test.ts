@@ -119,14 +119,6 @@ suite('CopilotCommonTelemetryProperties', () => {
 		);
 	});
 
-	test('drops values longer than 512 characters', async () => {
-		const longCommit = 'a'.repeat(513);
-		const call = await captureCommonProperties(fakeTelemetry(), fakeProduct({ commit: longCommit }));
-		const props = (call.params as { internalCorrelationIds: Record<string, string> }).internalCorrelationIds;
-		assert.strictEqual(props.vscode_commit, undefined);
-		assert.strictEqual(props.vscode_version, '1.99.0');
-	});
-
 	test('injects common properties into session.resume params', async () => {
 		const call = await captureCommonProperties(fakeTelemetry(), fakeProduct(), 'session.resume', { sessionId: 'abc' });
 		assert.strictEqual((call.params as { sessionId: string }).sessionId, 'abc');
