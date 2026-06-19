@@ -54,11 +54,11 @@ export const enum LayoutSettings {
 }
 
 /**
- * The margin (in pixels) reserved on each side of a part when the modern UI
- * experiment (`LayoutSettings.MODERN_UI`) is enabled. Parts grow
- * or shrink their content by this amount to leave room for the card margin and
- * border applied in CSS (`part.css`, `.floating-panels`). This value must be
- * kept in sync with the `--floating-panel-margin` custom property defined there.
+ * The margin (in pixels) reserved on each side of a part when the Modern UI Update
+ * experiment (`LayoutSettings.MODERN_UI`) is enabled. Parts grow or shrink their
+ * content by this amount to leave room for the margin/border applied in CSS
+ * (`src/vs/workbench/browser/media/floatingPanels.css`, `.floating-panels`).
+ * Keep in sync with the `--vscode-spacing-size60` (6px) token used there.
  */
 export const FLOATING_PANEL_MARGIN = 6;
 
