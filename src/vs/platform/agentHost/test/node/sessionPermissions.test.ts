@@ -50,8 +50,14 @@ suite('SessionPermissionManager', () => {
 	}
 
 	setup(async () => {
-		workDir = realpathSync(mkdtempSync(join(tmpdir(), 'sesperm-work-')));
-		outsideDir = realpathSync(mkdtempSync(join(tmpdir(), 'sesperm-out-')));
+		// Prefer the CI runner temp dir (a plain long path) over `os.tmpdir()`,
+		// which on Windows CI is an 8.3 short path (`C:\Users\RUNNER~1\...`) that
+		// `assertPathIsSafe` rejects for its `~1` segment — which would make every
+		// auto-approval fail. `realpathSync` keeps macOS `/var` -> `/private/var`
+		// consistent so the symlink-resolution checks compare like-for-like.
+		const baseTmp = process.env.RUNNER_TEMP || tmpdir();
+		workDir = realpathSync(mkdtempSync(join(baseTmp, 'sesperm-work-')));
+		outsideDir = realpathSync(mkdtempSync(join(baseTmp, 'sesperm-out-')));
 
 		manager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const configService = disposables.add(new AgentConfigurationService(manager, new NullLogService()));
