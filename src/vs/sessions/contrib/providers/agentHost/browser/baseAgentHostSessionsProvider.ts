@@ -2482,7 +2482,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._onDidChangeSessions.fire({ added: [skeleton], removed: [], changed: [] });
 
 		try {
-			const committedSession = await this._waitForNewSession(existingKeys);
+			const committedSession = await this._waitForNewSession(existingKeys, chatResource.scheme);
 			if (committedSession) {
 				this._preserveNewSessionConfig(newSession, committedSession.sessionId);
 				// Session graduated: release the eager subscription without
@@ -2880,10 +2880,21 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 
-	private async _waitForNewSession(existingKeys: Set<string>): Promise<ISession | undefined> {
+	/**
+	 * Resolve the freshly-committed backend session for an in-flight send.
+	 *
+	 * The local agent host runs a single provider whose session cache holds
+	 * **every** agent-host session type (codex, claude, copilot, …). A send
+	 * therefore has to identify *its own* new session by both novelty (a raw id
+	 * not present before the send) **and** type: `expectedScheme` is the
+	 * `chatResource` scheme (e.g. `agent-host-codex`), so a session of another
+	 * type that happens to appear mid-send — a slow codex send racing against a
+	 * restored claude session, say — is never mistaken for this send's commit.
+	 */
+	private async _waitForNewSession(existingKeys: Set<string>, expectedScheme: string): Promise<ISession | undefined> {
 		await this._refreshSessions();
 		for (const [key, cached] of this._sessionCache) {
-			if (!existingKeys.has(key)) {
+			if (!existingKeys.has(key) && cached.resource.scheme === expectedScheme) {
 				return cached;
 			}
 		}
@@ -2894,7 +2905,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				waitDisposables.add(this._onDidChangeSessions.event(e => {
 					const newSession = e.added.find(s => {
 						const rawId = s.resource.path.substring(1);
-						return !existingKeys.has(rawId);
+						return !existingKeys.has(rawId) && s.resource.scheme === expectedScheme;
 					});
 					if (newSession) {
 						resolve(newSession);
