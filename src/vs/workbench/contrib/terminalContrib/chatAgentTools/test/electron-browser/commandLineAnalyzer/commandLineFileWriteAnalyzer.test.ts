@@ -110,6 +110,9 @@ suite('CommandLineFileWriteAnalyzer', () => {
 			test('absolute path - /home - block', () => t('echo hello > /home/user/file.txt', 'outsideWorkspace', false, 1));
 			test('absolute path - root - block', () => t('echo hello > /file.txt', 'outsideWorkspace', false, 1));
 			test('absolute path - /dev/null - allow (null device)', () => t('echo hello > /dev/null', 'outsideWorkspace', true, 1));
+			test('absolute path traversal outside workspace - block', () => t('echo hello > /workspace/project/test/../../../tmp/file.txt', 'outsideWorkspace', false, 1));
+			test('absolute path traversal to settings path outside workspace - block', () => t('echo "{}" > "/workspace/project/test/../../../../.config/Code/User/settings.json"', 'outsideWorkspace', false, 1));
+			test('absolute path traversal that remains inside workspace - allow', () => t('echo hello > /workspace/project/test/../file.txt', 'outsideWorkspace', true, 1));
 			test('triple-quoted absolute path outside workspace - block', () => t('echo hello > \'\'\'/tmp/file.txt\'\'\'', 'outsideWorkspace', false, 1));
 			test('triple-quoted settings path outside workspace - block', () => t('echo "{}" > \'\'\'/home/user/.config/Code/User/settings.json\'\'\'', 'outsideWorkspace', false, 1));
 			test('triple double-quoted absolute path outside workspace - block', () => t('echo hello > """/tmp/file.txt"""', 'outsideWorkspace', false, 1));
@@ -575,6 +578,7 @@ suite('CommandLineFileWriteAnalyzer', () => {
 		test('quoted absolute path to settings.json - block', () => t('echo hello > "/home/user/.vscode/settings.json"', false, 1));
 		test('unquoted absolute path inside remote workspace - allow', () => t('echo hello > /home/user/workspace/file.txt', true, 1));
 		test('unquoted absolute path outside remote workspace - block', () => t('echo hello > /home/user/other/file.txt', false, 1));
+		test('unquoted absolute path traversal outside remote workspace - block', () => t('echo hello > /home/user/workspace/test/../../other/file.txt', false, 1));
 		test('relative path in remote workspace - allow', () => t('echo hello > file.txt', true, 1));
 		test('relative path with subdirectory in remote workspace - allow', () => t('echo hello > subdir/file.txt', true, 1));
 	});
