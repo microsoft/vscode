@@ -34,14 +34,14 @@ jobs:
           node-version-file: .nvmrc
 
       - name: Restore node_modules cache
-        id: node-modules-cache
+        id: cache-node-modules
         uses: ./.github/actions/restore-node-modules
         with:
           key-prefix: node_modules-windows
           key-args: "win32 ${{ env.VSCODE_ARCH }} $(node -p process.arch)"
 
       - name: Install dependencies
-        if: steps.node-modules-cache.outputs.cache-hit != 'true'
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           . build/azure-pipelines/win32/exec.ps1
@@ -72,11 +72,6 @@ jobs:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # TODO: remove this step before merging
-      - name: Save node_modules cache
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        uses: ./.github/actions/save-node-modules
 
       - name: Create .build folder
         shell: pwsh
