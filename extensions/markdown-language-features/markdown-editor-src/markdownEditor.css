@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+<<<<<<< HEAD:extensions/markdown-language-features/markdown-editor-src/markdownEditor.css
 html, body {
 	margin: 0;
 	padding: 0;
@@ -10,6 +11,17 @@ html, body {
 	width: 100%;
 	background: var(--vscode-editor-background);
 }
+=======
+if (process.report) {
+	try {
+		Object.defineProperty(process.report, 'getReport', {
+			value: () => undefined,
+			writable: true,
+			configurable: true,
+			enumerable: true
+		});
+	} catch (err) {
+>>>>>>> 2ca29a0f2a1 (Override getReport with a function returning undefined (#322036)):extensions/copilot/src/extension/extension/vscode-node/disableProcessReport.ts
 
 body {
 	overflow: hidden;
