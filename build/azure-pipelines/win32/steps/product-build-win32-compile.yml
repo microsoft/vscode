@@ -169,6 +169,8 @@ steps:
       echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)"
     env:
       GITHUB_TOKEN: "$(github-token-code-oss)"
+      AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
+      VSCODE_ELECTRON_PREBUILT_FEED: vscode-electron-prebuilt
     displayName: Build client
 
   # Note: the appx prepare step has to follow Build client step since build step replaces the template

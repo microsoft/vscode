@@ -220,6 +220,8 @@ steps:
       echo "##vso[task.setvariable variable=CLIENT_ARCHIVE_NAME]$(basename $ARCHIVE_PATH)"
     env:
       GITHUB_TOKEN: "$(github-token-code-oss)"
+      AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
+      VSCODE_ELECTRON_PREBUILT_FEED: vscode-electron-prebuilt
     displayName: Build client
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:

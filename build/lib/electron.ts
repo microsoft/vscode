@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import cp from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import { Readable } from 'stream';
 import vfs from 'vinyl-fs';
 import { filter, jsonEditor } from './gulp/facade.ts';
 import * as util from './util.ts';
@@ -101,7 +103,79 @@ function darwinBundleDocumentTypes(types: { [name: string]: string | string[] },
 }
 
 const { msBuildId } = util.getElectronVersion();
-const electronVersion = '42.2.0';
+export const electronVersion = '42.2.0';
+
+// In product builds, `@vscode/gulp-electron` is given an asset resolver (via the
+// `repo` option) that fetches the prebuilt Electron archives on demand from our
+// Azure Artifacts feed using the `az` CLI, instead of downloading them from a
+// private GitHub release (which would require a long-lived Personal Access
+// Token). Each universal package contains exactly one file, which is streamed
+// back as a `Response` and validated against the feed's `SHASUMS256.txt`.
+const ELECTRON_FEED_ORGANIZATION = 'https://dev.azure.com/monacotools';
+const ELECTRON_FEED_PROJECT = 'Monaco';
+const electronFeed = process.env['VSCODE_ELECTRON_PREBUILT_FEED'];
+
+function azExecFile(args: string[]): Promise<void> {
+	return new Promise((resolve, reject) => {
+		const child = cp.spawn('az', args, { stdio: 'inherit', shell: process.platform === 'win32' });
+		child.on('error', reject);
+		child.on('close', code => code === 0 ? resolve() : reject(new Error(`az ${args[0]} ${args[1] ?? ''} exited with code ${code}`)));
+	});
+}
+
+let azureDevOpsExtension: Promise<void> | undefined;
+function ensureAzureDevOpsExtension(): Promise<void> {
+	if (!azureDevOpsExtension) {
+		azureDevOpsExtension = (async () => {
+			const result = cp.spawnSync('az', ['extension', 'show', '--name', 'azure-devops'], { stdio: 'ignore', shell: process.platform === 'win32' });
+			if (result.status !== 0) {
+				await azExecFile(['extension', 'add', '--name', 'azure-devops', '--only-show-errors']);
+			}
+		})();
+	}
+	return azureDevOpsExtension;
+}
+
+// Maps the artifact file name `@vscode/gulp-electron` requests to the matching
+// universal package name in the feed, or `undefined` when it is not mirrored.
+function feedPackageName(fileName: string): string | undefined {
+	if (fileName === 'SHASUMS256.txt') {
+		return 'shasums256';
+	}
+	if (fileName.endsWith('-symbols.zip')) {
+		return undefined;
+	}
+	return fileName.replace(/\.zip$/, '');
+}
+
+const electronAssetResolver = electronFeed
+	? async ({ fileName }: { url: string; fileName: string }): Promise<Response> => {
+		const name = feedPackageName(fileName);
+		if (!name) {
+			return new Response(null, { status: 404 });
+		}
+		const version = `${electronVersion}-${msBuildId}`;
+		const dir = path.join(root, '.build', 'electron-feed', `${name}-${version}`);
+		if (!fs.existsSync(dir)) {
+			await ensureAzureDevOpsExtension();
+			await azExecFile([
+				'artifacts', 'universal', 'download',
+				'--organization', ELECTRON_FEED_ORGANIZATION,
+				'--project', ELECTRON_FEED_PROJECT,
+				'--scope', 'project',
+				'--feed', electronFeed,
+				'--name', name,
+				'--version', version,
+				'--path', dir,
+			]);
+		}
+		const [only] = await fs.promises.readdir(dir);
+		const filePath = path.join(dir, only);
+		const size = (await fs.promises.stat(filePath)).size;
+		const body = Readable.toWeb(fs.createReadStream(filePath)) as ReadableStream<Uint8Array>;
+		return new Response(body, { status: 200, headers: { 'Content-Length': String(size) } });
+	}
+	: undefined;
 
 export const config = {
 	version: electronVersion,
@@ -203,7 +277,7 @@ export const config = {
 	linuxExecutableName: product.applicationName,
 	winIcon: 'resources/win32/code.ico',
 	token: process.env['GITHUB_TOKEN'],
-	repo: product.electronRepository || undefined,
+	repo: electronAssetResolver ?? (product.electronRepository || undefined),
 	validateChecksum: true,
 	checksumFile: path.join(root, 'build', 'checksums', 'electron.txt'),
 	createVersionedResources: useVersionedUpdate,

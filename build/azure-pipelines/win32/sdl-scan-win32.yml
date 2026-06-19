@@ -112,6 +112,8 @@ steps:
   - powershell: npm run gulp "vscode-symbols-win32-${{ parameters.VSCODE_ARCH }}"
     env:
       GITHUB_TOKEN: "$(github-token-code-oss)"
+      AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
+      VSCODE_ELECTRON_PREBUILT_FEED: vscode-electron-prebuilt
     displayName: Download Symbols
 
   - powershell: |
