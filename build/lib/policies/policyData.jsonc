@@ -61,7 +61,7 @@
             "localization": {
                 "description": {
                     "key": "chat.plugins.extraMarketplaces.policy",
-                    "value": "Additional plugin marketplaces to query. Keys are marketplace names; values are GitHub shorthand (`owner/repo[#ref]`) or Git URIs (`<url>[#ref]`)."
+                    "value": "Additional plugin marketplaces to query. Keys are marketplace names; values are GitHub shorthand (`owner/repo[#ref]`) or Git URIs (`{url}[#ref]`)."
                 }
             },
             "type": "object",
@@ -275,7 +275,7 @@
             "localization": {
                 "description": {
                     "key": "chat.plugins.enabledPlugins.policy",
-                    "value": "Plugin enablement. Keys are plugin IDs in `<plugin>@<marketplace>` form; values enable or disable the plugin."
+                    "value": "Plugin enablement. Keys are plugin IDs in `{plugin}@{marketplace}` form; values enable or disable the plugin."
                 }
             },
             "type": "object",
