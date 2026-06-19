@@ -570,7 +570,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const sessionSyncAtStartup = this._isSessionSyncEnabled();
 		const rubberDuckAtStartup = this._isRubberDuckEnabled();
 		const clientStarting = (async () => {
-			this._logService.info('[Copilot] Starting CopilotClient... (with token)');
+			this._logService.info('[Copilot] Starting CopilotClient...');
 
 			// Build a clean env for the CLI subprocess, stripping Electron/VS Code vars
 			// that can interfere with the Node.js process the SDK spawns.
