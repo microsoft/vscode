@@ -6,7 +6,7 @@
 if (process.report) {
 	try {
 		Object.defineProperty(process.report, 'getReport', {
-			value: undefined,
+			value: () => undefined,
 			writable: true,
 			configurable: true,
 			enumerable: true
