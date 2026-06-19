@@ -152,9 +152,12 @@ export function createHeader(): HeaderComponent {
 
 			// Placeholder text — shown when not connected, displays PTT keybinding
 			placeholderText.style.display = showConnected ? 'none' : '';
-			const keyLabel = props.pttKeyLabel ?? 'Space';
-			placeholderText.textContent = localize('agentsVoice.holdToTalk', "Hold {0} to talk", keyLabel);
-			placeholderText.ariaLabel = localize('agentsVoice.holdToTalk', "Hold {0} to talk", keyLabel);
+			const keyLabel = props.pttKeyLabel;
+			const holdText = keyLabel
+				? localize('agentsVoice.holdToTalk', "Hold {0} to talk", keyLabel)
+				: localize('agentsVoice.clickMicToTalk', "Click mic to talk");
+			placeholderText.textContent = holdText;
+			placeholderText.ariaLabel = holdText;
 			placeholderText.onclick = props.onConnectClick;
 
 			// Gear

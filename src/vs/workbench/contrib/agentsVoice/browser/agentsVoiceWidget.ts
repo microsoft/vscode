@@ -260,6 +260,36 @@ export class AgentsVoiceWidget extends Disposable {
 
 		// --- Input box layout elements ---
 		if (opts.inputBoxLayout) {
+			// Inject processing animation CSS
+			const styleEl = dom.$('style');
+			styleEl.textContent = `
+				@property --voice-processing-angle { syntax: '<angle>'; inherits: false; initial-value: 135deg; }
+				@keyframes voice-processing-spin { from { --voice-processing-angle: 135deg; } to { --voice-processing-angle: 495deg; } }
+				.processing { overflow: visible !important; }
+				.processing::before {
+					content: ''; position: absolute; inset: -1px; border-radius: inherit; padding: 1px;
+					background: conic-gradient(from var(--voice-processing-angle),
+						transparent 0deg, rgba(88,166,255,0.9) 20deg, rgba(88,166,255,1) 30deg,
+						rgba(88,166,255,0.6) 50deg, transparent 90deg, transparent 360deg);
+					-webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+					mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+					-webkit-mask-composite: xor; mask-composite: exclude;
+					animation: voice-processing-spin 3s linear infinite;
+					pointer-events: none; z-index: 2;
+				}
+				.processing::after {
+					content: ''; position: absolute; inset: -1px; border-radius: inherit; padding: 2px;
+					background: conic-gradient(from var(--voice-processing-angle),
+						transparent 0deg, rgba(88,166,255,0.5) 25deg, rgba(88,166,255,0.3) 50deg, transparent 90deg, transparent 360deg);
+					-webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+					mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+					-webkit-mask-composite: xor; mask-composite: exclude;
+					filter: blur(1.5px); animation: voice-processing-spin 3s linear infinite;
+					pointer-events: none; z-index: 1;
+				}
+			`;
+			this.container.append(styleEl);
+
 			// Rounded bordered container for transcript/placeholder (matches chat-input-container)
 			this._inputBoxContainer = dom.$('div');
 			this._inputBoxContainer.style.cssText = 'box-sizing:border-box;background-color:var(--vscode-input-background);border:1px solid var(--vscode-input-border, transparent);border-radius:var(--vscode-cornerRadius-large, 8px);padding:10px 12px;width:100%;position:relative;min-height:32px;display:flex;align-items:center;-webkit-app-region:no-drag;';
@@ -565,6 +595,9 @@ export class AgentsVoiceWidget extends Disposable {
 			this._inputBoxContainer!.style.boxShadow = 'none';
 		}
 
+		// Toggle processing comet animation when agent is thinking
+		this._inputBoxContainer!.classList.toggle('processing', voiceState === 'processing');
+
 		if (hasTranscript) {
 			// Show transcript text inside the placeholder (no purple coloring)
 			this._inputBoxPlaceholder!.style.display = '';
@@ -575,11 +608,13 @@ export class AgentsVoiceWidget extends Disposable {
 			// Show placeholder
 			this._inputBoxPlaceholder!.style.display = '';
 			this._transcriptComponent.element.style.display = 'none';
-			const keyLabel = this._pttKeyLabel.read(reader) ?? 'Space';
+			const keyLabel = this._pttKeyLabel.read(reader);
 			if (showConnected) {
 				this._inputBoxPlaceholder!.textContent = localize('agentsVoice.listening', "Listening");
-			} else {
+			} else if (keyLabel) {
 				this._inputBoxPlaceholder!.textContent = localize('agentsVoice.holdToTalk', "Hold {0} to talk", keyLabel);
+			} else {
+				this._inputBoxPlaceholder!.textContent = localize('agentsVoice.clickMicToTalk', "Click mic to talk");
 			}
 		}
 
@@ -607,8 +642,10 @@ export class AgentsVoiceWidget extends Disposable {
 
 		// Mic button — always visible (primary action)
 		this._inputBoxMicBtn!.style.display = '';
-		const keyLabel = this._pttKeyLabel.read(reader) ?? 'Space';
-		const micTooltip = localize('agentsVoice.pushToTalkKey', "Push to talk ({0})", keyLabel);
+		const keyLabel = this._pttKeyLabel.read(reader);
+		const micTooltip = keyLabel
+			? localize('agentsVoice.pushToTalkKey', "Push to talk ({0})", keyLabel)
+			: localize('agentsVoice.pushToTalk', "Push to talk");
 		this._inputBoxMicBtn!.title = micTooltip;
 		this._inputBoxMicBtn!.ariaLabel = micTooltip;
 		const micColor = voiceState === 'error' ? 'var(--vscode-editorError-foreground)'
