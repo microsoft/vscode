@@ -1040,17 +1040,17 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 // enables the unified Modern UI Update experiment.
 Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 	.registerConfigurationMigrations([{
-		key: 'workbench.experimental.floatingPanels', migrateFn: (value: unknown) => {
+		key: 'workbench.experimental.floatingPanels', migrateFn: (value: unknown, valueAccessor) => {
 			const result: ConfigurationKeyValuePairs = [['workbench.experimental.floatingPanels', { value: undefined }]];
-			if (value === true) {
+			if (value === true && valueAccessor(LayoutSettings.MODERN_UI) === undefined) {
 				result.push([LayoutSettings.MODERN_UI, { value: true }]);
 			}
 			return result;
 		}
 	}, {
-		key: 'workbench.experimental.styleOverrides', migrateFn: (value: unknown) => {
+		key: 'workbench.experimental.styleOverrides', migrateFn: (value: unknown, valueAccessor) => {
 			const result: ConfigurationKeyValuePairs = [['workbench.experimental.styleOverrides', { value: undefined }]];
-			if (Array.isArray(value) && value.length > 0) {
+			if (Array.isArray(value) && value.length > 0 && valueAccessor(LayoutSettings.MODERN_UI) === undefined) {
 				result.push([LayoutSettings.MODERN_UI, { value: true }]);
 			}
 			return result;
