@@ -343,7 +343,7 @@ export async function exportAgentHostDebugLogs(
 	try {
 		const saved = await exportService.save(logs.exportName, logs.files);
 		if (saved) {
-			notificationService.info(chatEntitlementService.isInternal
+			notificationService.warn(chatEntitlementService.isInternal
 				? localize('exportDebugLogs.privacyWarning.internal', "Note: This log may contain personal information such as auth tokens, file contents, or terminal output. It MUST be shared privately via Slack or in an issue filed on the microsoft/vscode-internalbacklog repo.")
 				: localize('exportDebugLogs.privacyWarning', "Note: This log may contain personal information such as auth tokens, file contents, or terminal output. Please consider sharing privately or reviewing the contents carefully before sharing."));
 		}
