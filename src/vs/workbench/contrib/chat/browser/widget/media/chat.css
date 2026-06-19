@@ -4395,6 +4395,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 /* Voice mode: green disconnect button */
-.chat-input-container .chat-input-toolbars .action-label.codicon-debug-disconnect {
+.chat-input-container .chat-input-toolbars .codicon-debug-disconnect {
 	color: #3fb950 !important;
 }

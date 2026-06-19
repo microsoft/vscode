@@ -327,14 +327,9 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		const currentWidth = auxiliaryWindow.window.outerWidth;
 		const currentHeight = auxiliaryWindow.window.outerHeight;
 		if (targetWidth !== currentWidth || targetHeight !== currentHeight) {
-			// Keep bottom edge fixed: calculate where bottom is, resize, then reposition
-			const currentBottom = auxiliaryWindow.window.screenY + currentHeight;
-			const centerX = auxiliaryWindow.window.screenX + Math.round(currentWidth / 2);
 			try {
+				// Resize only — no moveTo. Window top-left stays fixed.
 				auxiliaryWindow.window.resizeTo(targetWidth, targetHeight);
-				const newY = currentBottom - targetHeight;
-				const newX = centerX - Math.round(targetWidth / 2);
-				auxiliaryWindow.window.moveTo(newX, newY);
 			} catch { /* resize may not be supported */ }
 		}
 	}
