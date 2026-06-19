@@ -143,7 +143,30 @@ export function buildCopilotChatToken(mockUrl: string): string {
 	})).toString('base64');
 }
 
-export function getCopilotSmokeTestEnv(mockServer?: MockLlmServer): Readonly<Record<string, string | undefined>> {
+export function getCopilotSmokeTestEnv(mockServer?: MockLlmServer, opts?: { userDataDir?: string }): Readonly<Record<string, string | undefined>> {
+	// When `userDataDir` is provided, isolate the Copilot CLI session store
+	// from the user's real `~/.copilot/` by pointing `XDG_STATE_HOME` at a
+	// sibling of the per-run `userDataDir`. The extension's `getCopilotHome()`
+	// / `getCopilotCLISessionStateDir()` (in
+	// `extensions/copilot/src/extension/chatSessions/copilotcli/node/cliHelpers.ts`)
+	// and the underlying CLI SDK both anchor to `XDG_STATE_HOME/.copilot/`
+	// when that env var is set, otherwise to `~/.copilot/`. Pinning it under
+	// the per-run `userDataDir` means the smoke-test cleanup (which removes
+	// the whole `testDataPath`) also wipes the Copilot state, so repeated
+	// local runs don't accumulate sessions that slow down `listSessions`
+	// and other startup paths.
+	let xdgStateHome: string | undefined;
+	if (opts?.userDataDir) {
+		xdgStateHome = `${opts.userDataDir}-copilot-state`;
+		try {
+			fs.mkdirSync(xdgStateHome, { recursive: true });
+		} catch {
+			// best effort — the dir will be created by the extension on first
+			// write if mkdir fails here (e.g. due to a race with a sibling
+			// suite). The env var is still honoured.
+		}
+	}
+
 	return {
 		// Mirror the env-var bypass used by `scripts/chat-simulation/common/utils.js#buildEnv`
 		// for perf-regression / memory-leak runs:
@@ -156,6 +179,7 @@ export function getCopilotSmokeTestEnv(mockServer?: MockLlmServer): Readonly<Rec
 		GITHUB_PAT: 'smoketest-fake-pat',
 		IS_SCENARIO_AUTOMATION: '1',
 		VSCODE_COPILOT_CHAT_TOKEN: mockServer ? buildCopilotChatToken(mockServer.url) : undefined,
+		XDG_STATE_HOME: xdgStateHome,
 	};
 }
 

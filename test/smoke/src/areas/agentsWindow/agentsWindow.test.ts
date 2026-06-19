@@ -124,7 +124,8 @@ export function setup(logger: Logger) {
 		});
 
 		installAllHandlers(logger, opts => {
-			const copilotEnv = getCopilotSmokeTestEnv(mockServer);
+			const copilotEnv = getCopilotSmokeTestEnv(mockServer, { userDataDir: opts.userDataDir });
+			logger.log(`[Agents Window] XDG_STATE_HOME=${copilotEnv.XDG_STATE_HOME ?? '<unset>'}`);
 			logger.log(`[Agents Window] extraEnv keys for app: ${Object.keys(copilotEnv).join(', ')} (token len=${(copilotEnv.VSCODE_COPILOT_CHAT_TOKEN ?? '').length})`);
 			return {
 				...opts,
@@ -166,6 +167,22 @@ export function setup(logger: Logger) {
 				['sessions.chat.localAgent.enabled', 'true'],
 				['github.copilot.chat.cli.sandbox.enabled', '"on"'],
 				['github.copilot.chat.cli.sessionEventLogging.enabled', 'true'],
+				// Disable multi-chat per Copilot CLI session for this smoke
+				// test. With multi-chat enabled (default), each follow-up
+				// turn creates a *new sub-chat* with its own SDK session
+				// nested under the parent session: the workbench
+				// auto-swaps the active slot to a fresh new-session
+				// homepage right after the previous turn commits, and
+				// each turn ends up in its own isolated worktree
+				// (`isolationEnabled: true, worktreePath: agents-...`).
+				// That interferes with the smoke test driver's
+				// activate/send sequence and makes msg2 land in a
+				// different VS Code session than the assertion expects.
+				// With this setting off, `supportsMultipleChats` is
+				// false for Copilot CLI and turns share a workspace
+				// (`isolationEnabled: false, worktreePath: undefined`),
+				// which keeps the test flow deterministic.
+				['sessions.github.copilot.multiChatSessions', 'false'],
 			]);
 			logger.log(`[Agents Window] user settings written; requestCount=${mockServer.requestCount()}`);
 
@@ -222,33 +239,8 @@ export function setup(logger: Logger) {
 					const text = await app.workbench.agentsWindow.waitForAssistantText(session.reply);
 					logger.log(`Agents Window (${session.name}) response 1: ${text}`);
 
-					// Copilot CLI: after a request completes, the Agents Window
-					// auto-switches the active view to a fresh untitled session;
-					// sending a follow-up prompt there would spawn a brand new
-					// agent session (with its own session id and branch) rather
-					// than continuing the existing one. Click back into the
-					// just-completed session before sending message 2 so the
-					// follow-up lands in the same session. Identify the row by
-					// its msg1 reply text since the sessions list also contains
-					// workspace folder group headers and historical sessions.
-					if (session.name === 'Copilot CLI') {
-						await app.workbench.agentsWindow.activateSessionByLabel(session.reply);
-					}
-
 					if (!session.skipReply2) {
-						// Follow-up message in the same session — exercises the
-						// active-session input path (not the new-session homepage).
-						// For Copilot CLI, pass the expected active label so
-						// `sendFollowUpMessage` re-verifies the active slot right
-						// before sending (the workbench can auto-swap the slot to
-						// a fresh untitled session between `activateSessionByLabel`
-						// returning and the send-button click).
-						const expectedActiveLabel = session.name === 'Copilot CLI' ? session.reply : undefined;
-						await app.workbench.agentsWindow.sendFollowUpMessage(
-							`hello again [scenario:${session.scenarioId2}]`,
-							undefined,
-							expectedActiveLabel,
-						);
+						await app.workbench.agentsWindow.sendFollowUpMessage(`hello again [scenario:${session.scenarioId2}]`);
 
 						const secondTurnTimeout = session.name === 'Copilot CLI' ? 180_000 : 60_000;
 						const text2 = await app.workbench.agentsWindow.waitForAssistantText(session.reply2, secondTurnTimeout);
@@ -822,7 +814,7 @@ function setupAgentHostSuite(logger: Logger, config: {
 			...opts,
 			extraEnv: {
 				...(opts.extraEnv ?? {}),
-				...getCopilotSmokeTestEnv(mockServer),
+				...getCopilotSmokeTestEnv(mockServer, { userDataDir: opts.userDataDir }),
 				COPILOT_ENABLE_ALT_PROVIDERS: 'true',
 				COPILOT_API_URL: mockServer.url,
 				COPILOT_DEBUG_GITHUB_API_URL: mockServer.url,

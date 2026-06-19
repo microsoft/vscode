@@ -134,6 +134,22 @@ steps:
       displayName: 🧪 Run smoke tests (Electron)
       timeoutInMinutes: 20
 
+    # TEMPORARY: loop the Copilot CLI Agents Window test 20 times to reproduce
+    # a flaky failure on Windows. Remove before merging — the loop adds ~60 min
+    # per Windows test run. See `.github/skills/smoke-tests/SKILL.md`.
+    - powershell: |
+        for ($i = 1; $i -le 20; $i++) {
+          Write-Host "::group::Smoke probe run $i/20"
+          npm run smoketest-no-compile -- --tracing -g "Agents Window Test Copilot CLI session$" --build "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)"
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "##[error]Smoke test failed on run $i/20"
+            exit 1
+          }
+          Write-Host "::endgroup::"
+        }
+      displayName: 🧪 Smoke test flakiness probe (TEMPORARY)
+      timeoutInMinutes: 90
+
   - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
     - powershell: npm run smoketest-no-compile -- --web --tracing --headless
       env:
