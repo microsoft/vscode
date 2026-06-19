@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatStatus.css';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, ShowTooltipCommand, StatusbarAlignment, StatusbarEntryKind } from '../../../../services/statusbar/browser/statusbar.js';
 import { ChatEntitlement, ChatEntitlementContextKeys, ChatEntitlementService, IChatEntitlementService, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { disposableLongTimeout, disposableTimeout } from '../../../../../base/common/async.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -28,11 +30,73 @@ import { isWeb } from '../../../../../base/common/platform.js';
 import { InEditorZenModeContext } from '../../../../common/contextkeys.js';
 import { ChatConfiguration } from '../../common/constants.js';
 
+/**
+ * Tracks whether Copilot is currently blocked by a reached quota limit, has
+ * resumed after a limit reset, or neither. Persisted across sessions so a reset
+ * that happens while VS Code is closed can still be surfaced on next launch.
+ */
+export type ChatQuotaResumeState = 'none' | 'blocked' | 'resumed';
+
+type ChatQuotas = IChatEntitlementService['quotas'];
+
+function isQuotaBlocked(entitlement: ChatEntitlement, quotas: ChatQuotas): boolean {
+	if (entitlement === ChatEntitlement.Free) {
+		return quotas.chat?.percentRemaining === 0 || quotas.completions?.percentRemaining === 0;
+	}
+
+	if (entitlement === ChatEntitlement.Business || entitlement === ChatEntitlement.Enterprise) {
+		return quotas.premiumChat?.unlimited === true && quotas.premiumChat.hasQuota === false;
+	}
+
+	return false;
+}
+
+function hasResolvedQuota(entitlement: ChatEntitlement, quotas: ChatQuotas): boolean {
+	if (entitlement === ChatEntitlement.Free) {
+		return quotas.chat !== undefined || quotas.completions !== undefined;
+	}
+
+	if (entitlement === ChatEntitlement.Business || entitlement === ChatEntitlement.Enterprise) {
+		return quotas.premiumChat !== undefined;
+	}
+
+	return false;
+}
+
+/**
+ * Pure state transition for the Copilot quota "resumed" indicator:
+ * - Enters `blocked` while a limit is reached and the user is not on additional spend.
+ * - Moves `blocked` -> `resumed` only on a genuine limit reset (fresh quota, no additional spend).
+ * - Moves `blocked` -> `none` when unblocked via additional spend (not a reset).
+ * - Keeps `blocked` while fresh quota has not been resolved yet (e.g. offline) to avoid false positives.
+ * - Otherwise preserves the previous state, so `resumed` persists until dismissed.
+ */
+export function computeQuotaResumeState(previous: ChatQuotaResumeState, entitlement: ChatEntitlement, quotas: ChatQuotas): ChatQuotaResumeState {
+	const additionalSpend = quotas.additionalUsageEnabled === true;
+
+	if (!additionalSpend && isQuotaBlocked(entitlement, quotas)) {
+		return 'blocked';
+	}
+
+	if (previous !== 'blocked') {
+		return previous;
+	}
+
+	if (additionalSpend) {
+		return 'none';
+	}
+
+	return hasResolvedQuota(entitlement, quotas) ? 'resumed' : 'blocked';
+}
+
 export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.chatStatusBarEntry';
 
 	private static readonly TITLE_BAR_CONTEXT_KEYS = new Set(['updateTitleBar', InEditorZenModeContext.key, ChatEntitlementContextKeys.hasByokModels.key]);
+
+	private static readonly QUOTA_RESUME_STATE_KEY = 'chat.quotaResumeState';
+	private static readonly QUOTA_RESET_RETRY_DELAY = 5 * 60 * 1000; // re-check 5 min after a passed reset time
 
 	private entry: IStatusbarEntryAccessor | undefined = undefined;
 
@@ -41,6 +105,11 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	private readonly dashboardTooltip: IStatusbarEntry['tooltip'];
 
 	private runningSessionsCount: number;
+
+	private quotaResumeState: ChatQuotaResumeState;
+	private readonly quotaResetTimer = this._register(new MutableDisposable());
+	private readonly quotaRefresh = this._register(new MutableDisposable());
+	private readonly clearResumedScheduler = this._register(new MutableDisposable());
 
 	constructor(
 		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
@@ -51,13 +120,18 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		@IInlineCompletionsService private readonly completionsService: IInlineCompletionsService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 
 		this.runningSessionsCount = this.chatSessionsService.getInProgress().reduce((total, item) => total + item.count, 0);
 
+		this.quotaResumeState = this.readPersistedQuotaResumeState();
+
 		this.dashboardTooltip = {
 			element: (token: CancellationToken) => {
+				this.onDashboardOpened();
+
 				const store = new DisposableStore();
 				store.add(token.onCancellationRequested(() => {
 					store.dispose();
@@ -78,6 +152,8 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		this.update();
 
 		this.registerListeners();
+
+		this.initializeQuotaResumeState();
 	}
 
 	private update(): void {
@@ -96,9 +172,10 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	}
 
 	private registerListeners(): void {
-		this._register(this.chatEntitlementService.onDidChangeQuotaExceeded(() => this.update()));
+		this._register(this.chatEntitlementService.onDidChangeQuotaExceeded(() => this.onQuotaChanged()));
+		this._register(this.chatEntitlementService.onDidChangeQuotaRemaining(() => this.onQuotaChanged()));
 		this._register(this.chatEntitlementService.onDidChangeSentiment(() => this.update()));
-		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => this.update()));
+		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => this.onQuotaChanged()));
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(ChatStatusBarEntry.TITLE_BAR_CONTEXT_KEYS)) {
 				this.update();
@@ -137,6 +214,120 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			});
 		}
 	}
+
+	//#region --- Quota Resume Tracking
+
+	private onQuotaChanged(): void {
+		this.evaluateQuotaResumeState();
+		this.update();
+	}
+
+	private evaluateQuotaResumeState(): void {
+		const next = computeQuotaResumeState(this.quotaResumeState, this.chatEntitlementService.entitlement, this.chatEntitlementService.quotas);
+		this.setQuotaResumeState(next);
+
+		// While blocked, schedule a refresh for when the limit is expected to reset.
+		if (next === 'blocked') {
+			this.scheduleQuotaResetRefresh();
+		} else {
+			this.quotaResetTimer.clear();
+		}
+	}
+
+	private getQuotaResetTime(): number | undefined {
+		const quotas = this.chatEntitlementService.quotas;
+
+		const premiumResetAt = quotas.premiumChat?.resetAt;
+		if (typeof premiumResetAt === 'number') {
+			return premiumResetAt * 1000;
+		}
+
+		if (quotas.resetDate) {
+			const parsed = Date.parse(quotas.resetDate);
+			if (!isNaN(parsed)) {
+				return parsed;
+			}
+		}
+
+		return undefined;
+	}
+
+	private scheduleQuotaResetRefresh(): void {
+		const resetAt = this.getQuotaResetTime();
+		if (resetAt === undefined) {
+			this.quotaResetTimer.clear(); // no known reset time: rely on quota events and next launch
+			return;
+		}
+
+		// Back off when the reset time has already passed but we are still blocked,
+		// so we re-check periodically instead of hammering the service.
+		const delay = resetAt > Date.now() ? resetAt - Date.now() : ChatStatusBarEntry.QUOTA_RESET_RETRY_DELAY;
+		this.quotaResetTimer.value = disposableLongTimeout(() => this.refreshQuotaAndEvaluate(), delay);
+	}
+
+	private refreshQuotaAndEvaluate(): void {
+		const cts = new CancellationTokenSource();
+		this.quotaRefresh.value = toDisposable(() => cts.dispose(true));
+
+		(async () => {
+			try {
+				await this.chatEntitlementService.update(cts.token);
+			} catch {
+				// Ignore refresh failures: keep the last known state and let a future
+				// quota update or the next launch re-evaluate.
+			}
+
+			if (cts.token.isCancellationRequested) {
+				return;
+			}
+
+			this.evaluateQuotaResumeState();
+			this.update();
+		})();
+	}
+
+	private initializeQuotaResumeState(): void {
+		if (this.quotaResumeState === 'blocked') {
+			// A blocked state was recorded in a previous session: verify against fresh
+			// quota data whether the limit has since reset while VS Code was closed.
+			this.refreshQuotaAndEvaluate();
+		} else {
+			this.evaluateQuotaResumeState();
+		}
+	}
+
+	private readPersistedQuotaResumeState(): ChatQuotaResumeState {
+		const stored = this.storageService.get(ChatStatusBarEntry.QUOTA_RESUME_STATE_KEY, StorageScope.PROFILE);
+		return stored === 'blocked' || stored === 'resumed' ? stored : 'none';
+	}
+
+	private setQuotaResumeState(state: ChatQuotaResumeState): void {
+		if (this.quotaResumeState === state) {
+			return;
+		}
+
+		this.quotaResumeState = state;
+		if (state === 'none') {
+			this.storageService.remove(ChatStatusBarEntry.QUOTA_RESUME_STATE_KEY, StorageScope.PROFILE);
+		} else {
+			this.storageService.store(ChatStatusBarEntry.QUOTA_RESUME_STATE_KEY, state, StorageScope.PROFILE, StorageTarget.MACHINE);
+		}
+	}
+
+	private onDashboardOpened(): void {
+		if (this.quotaResumeState !== 'resumed') {
+			return;
+		}
+
+		// Defer clearing to avoid re-entrant status bar updates while the dashboard
+		// tooltip is being built.
+		this.clearResumedScheduler.value = disposableTimeout(() => {
+			this.setQuotaResumeState('none');
+			this.update();
+		}, 0);
+	}
+
+	//#endregion
 
 	private getEntryProps(): IStatusbarEntry {
 		let text = '$(copilot)';
@@ -204,6 +395,14 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 				const quotaWarning = localize('chatAndCompletionsQuotaExceededStatus', "Quota reached");
 				text = `$(copilot-warning) ${quotaWarning}`;
 				ariaLabel = quotaWarning;
+				kind = 'prominent';
+			}
+
+			// Copilot Resumed (limit reset after the user was previously blocked)
+			else if (this.quotaResumeState === 'resumed') {
+				const resumedLabel = localize('chatResumedStatus', "Copilot Resumed");
+				text = `$(copilot) ${resumedLabel}`;
+				ariaLabel = resumedLabel;
 				kind = 'prominent';
 			}
 
