@@ -3,22 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isGpt55, isGpt55EconomicalSearchAndEditExp } from '../../../../../platform/endpoint/common/chatModelCapabilities';
+import { isGpt55 } from '../../../../../platform/endpoint/common/chatModelCapabilities';
 import { IChatEndpoint } from '../../../../../platform/networking/common/networking';
-import { IInstantiationService } from '../../../../../util/vs/platform/instantiation/common/instantiation';
 import { Gpt55CopilotIdentityRule } from '../../base/copilotIdentity';
 import { Gpt5SafetyRule } from '../../base/safetyRules';
 import { CopilotIdentityRulesConstructor, IAgentPrompt, PromptRegistry, ReminderInstructionsConstructor, SafetyRulesConstructor, SystemPrompt } from '../promptRegistry';
 import { Gpt55PromptBase, Gpt55ReminderInstructions } from './gpt55BasePrompt';
-import { Gpt55EconomicalSearchAndEditPromptExp } from './gpt55EconomicalPrompt';
 
 export class Gpt55Prompt extends Gpt55PromptBase { }
 
 class Gpt55PromptResolver implements IAgentPrompt {
-	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-	) { }
-
 	static async matchesModel(endpoint: IChatEndpoint): Promise<boolean> {
 		return isGpt55(endpoint);
 	}
@@ -26,12 +20,6 @@ class Gpt55PromptResolver implements IAgentPrompt {
 	static readonly familyPrefixes = [];
 
 	resolveSystemPrompt(endpoint: IChatEndpoint): SystemPrompt | undefined {
-		const hasEconomicalSearchAndEditExp = this.instantiationService.invokeFunction(isGpt55EconomicalSearchAndEditExp, endpoint);
-
-		if (hasEconomicalSearchAndEditExp) {
-			return Gpt55EconomicalSearchAndEditPromptExp;
-		}
-
 		return Gpt55Prompt;
 	}
 
