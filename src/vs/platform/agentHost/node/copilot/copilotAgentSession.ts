@@ -56,12 +56,10 @@ import { buildPendingEditContentUri } from './pendingEditContentStore.js';
 import { McpServerStatus, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
 
 /**
- * The full set of agent modes the Copilot SDK accepts. Wider than the
- * {@link SessionMode} the AHP exposes — the SDK has a first-class
- * `'autopilot'` mode while AHP models that as
- * `mode='interactive', autoApprove='autopilot'`. The Copilot agent
- * translates between the two views in {@link CopilotAgentSession.send}
- * and the `session.mode_changed` listener.
+ * The full set of agent modes the Copilot SDK accepts. AHP now exposes the
+ * same three modes (`interactive` / `plan` / `autopilot`) on its `mode` axis,
+ * so the Copilot agent maps between the two views directly in
+ * {@link CopilotAgentSession.send} and the `session.mode_changed` listener.
  */
 export type CopilotSdkMode = 'interactive' | 'plan' | 'autopilot';
 type CopilotSdkAttachment = Required<MessageOptions>['attachments'][number];
@@ -1153,6 +1151,15 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
+	/**
+	 * `true` when the session's effective `mode` is `autopilot` — the
+	 * autonomous, continue-until-done mode in which no user is available to
+	 * answer questions or fill in elicitation forms.
+	 */
+	private _isAutopilotMode(): boolean {
+		return this._configurationService.getEffectiveValue(this.sessionUri.toString(), platformSessionSchema, SessionConfigKey.Mode) === 'autopilot';
+	}
+
 	async sendSteering(steeringMessage: PendingMessage): Promise<void> {
 		if (this._steeringMessagesInFlight.has(steeringMessage.id) || this._pendingSteeringFlips.has(steeringMessage.id)) {
 			return;
@@ -1652,7 +1659,7 @@ export class CopilotAgentSession extends Disposable {
 		request: UserInputRequest,
 		_invocation: { sessionId: string },
 	): Promise<UserInputResponse> {
-		const isAutopilot = this._configurationService.getEffectiveValue(this.sessionUri.toString(), platformSessionSchema, SessionConfigKey.AutoApprove) === 'autopilot';
+		const isAutopilot = this._isAutopilotMode();
 		if (isAutopilot) {
 			return {
 				answer: 'The user is not available to answer your question. Choose a pragmatic option best aligned with the context of the request.',
@@ -1740,7 +1747,7 @@ export class CopilotAgentSession extends Disposable {
 	 * be misleading to the MCP server.
 	 */
 	private async _handleElicitationRequest(context: ElicitationContext): Promise<ElicitationResult> {
-		const isAutopilot = this._configurationService.getEffectiveValue(this.sessionUri.toString(), platformSessionSchema, SessionConfigKey.AutoApprove) === 'autopilot';
+		const isAutopilot = this._isAutopilotMode();
 		if (isAutopilot) {
 			return { action: 'cancel' };
 		}
@@ -1899,12 +1906,40 @@ export class CopilotAgentSession extends Disposable {
 			return { approved: false };
 		}
 
+		// Reflect the chosen implementation path on the AHP `mode` axis right
+		// away so the mode picker updates as soon as the user approves the
+		// plan (e.g. Plan → Autopilot when they pick "Implement with
+		// Autopilot"). The SDK also fires `session.mode_changed`, but that is
+		// async; writing here makes the UI update deterministic. The patch is
+		// idempotent, so the later event is a no-op.
+		this._syncAhpModeFromExitPlanAction(selectedAction);
+
 		const isAutopilot = selectedAction === 'autopilot' || selectedAction === 'autopilot_fleet';
 		return {
 			approved: true,
 			selectedAction,
 			...(isAutopilot ? { autoApproveEdits: true } : {}),
 		};
+	}
+
+	/**
+	 * Translates an approved `exit_plan_mode` action into the AHP `mode` axis
+	 * and writes it so the mode picker reflects the choice immediately:
+	 *
+	 *  - `autopilot` / `autopilot_fleet` → `mode='autopilot'`.
+	 *  - `interactive` → `mode='interactive'`.
+	 *  - `exit_only` (approve plan without executing) leaves the mode untouched.
+	 */
+	private _syncAhpModeFromExitPlanAction(selectedAction: string): void {
+		switch (selectedAction) {
+			case 'autopilot':
+			case 'autopilot_fleet':
+				this._syncAhpConfigFromSdkMode('autopilot');
+				break;
+			case 'interactive':
+				this._syncAhpConfigFromSdkMode('interactive');
+				break;
+		}
 	}
 
 	private async _handlePreToolUse(input: PreToolUseHookInput): Promise<void> {
@@ -2411,10 +2446,8 @@ export class CopilotAgentSession extends Disposable {
 
 		// Sync the AHP session config when the SDK's `currentMode` changes
 		// (e.g. after the model approves a plan, or after we set the mode
-		// before sending). The SDK has three modes (`interactive` / `plan` /
-		// `autopilot`); AHP only models `interactive` / `plan` and treats
-		// autopilot as `mode='interactive', autoApprove='autopilot'`, so we
-		// translate before writing.
+		// before sending). The SDK and AHP share the same three modes
+		// (`interactive` / `plan` / `autopilot`), so we map directly.
 		this._register(wrapper.onSessionModeChanged(e => {
 			this._logService.info(`[Copilot:${sessionId}] session.mode_changed: ${e.data.previousMode} -> ${e.data.newMode}`);
 			const newMode = e.data.newMode;
@@ -2549,13 +2582,15 @@ export class CopilotAgentSession extends Disposable {
 
 	/**
 	 * Translates the SDK's three-mode space (`interactive` / `plan` /
-	 * `autopilot`) to AHP's two-axis model:
+	 * `autopilot`) to AHP's `mode` axis directly:
 	 *
 	 *  - SDK `plan` → AHP `mode='plan'`.
 	 *  - SDK `interactive` → AHP `mode='interactive'`.
-	 *  - SDK `autopilot` → AHP `mode='interactive', autoApprove='autopilot'`.
-	 *    Autopilot is exposed in AHP as the highest auto-approval level on
-	 *    the orthogonal `autoApprove` axis, not as a mode value.
+	 *  - SDK `autopilot` → AHP `mode='autopilot'`.
+	 *
+	 * Autopilot lives on the `mode` axis; the orthogonal `autoApprove` axis
+	 * (Default / Bypass) is left untouched so the user's chosen
+	 * approval level is preserved across SDK mode transitions.
 	 *
 	 * Patches that already match the current AHP values are still
 	 * dispatched (the reducer is a no-op in that case) but written values
@@ -2569,8 +2604,7 @@ export class CopilotAgentSession extends Disposable {
 				patch[SessionConfigKey.Mode] = 'plan';
 				break;
 			case 'autopilot':
-				patch[SessionConfigKey.Mode] = 'interactive';
-				patch[SessionConfigKey.AutoApprove] = 'autopilot';
+				patch[SessionConfigKey.Mode] = 'autopilot';
 				break;
 			case 'interactive':
 				patch[SessionConfigKey.Mode] = 'interactive';
@@ -2592,16 +2626,6 @@ export class CopilotAgentSession extends Disposable {
 		const questionId = generateUuid();
 		this._logService.info(`[Copilot:${this.sessionId}] exitPlanMode.request: rpcId=${requestId}, actions=[${data.actions.join(',')}], recommended=${data.recommendedAction}`);
 
-		// When the session's effective auto-approval level is `autopilot`,
-		// approve the plan automatically without surfacing a question to
-		// the user. Mirrors the "autopilot fast-path" in the Copilot CLI's
-		// own plan-mode handler.
-		const autoApprove = this._configurationService.getEffectiveValue(this.sessionUri.toString(), platformSessionSchema, SessionConfigKey.AutoApprove);
-		if (autoApprove === 'autopilot') {
-			const response = autoApproveExitPlanMode(data);
-			this._logService.info(`[Copilot:${this.sessionId}] exitPlanMode.request auto-accepted (autoApprove=autopilot): selectedAction=${response.selectedAction ?? '(none)'}`);
-			return response;
-		}
 
 		// Resolve the plan file path so we can embed a markdown link.
 		let planPath: string | null = null;
@@ -2927,47 +2951,6 @@ export class CopilotAgentSession extends Disposable {
 	private _cancelPendingClientToolCalls(): void {
 		this._pendingClientToolCalls.denyAll({ textResultForLlm: 'Tool call cancelled: session ended', resultType: 'failure', error: 'Session ended' });
 	}
-}
-
-/**
- * Builds the {@link IExitPlanModeResponse} used when the session is in
- * autopilot and we approve the plan without user interaction.
- *
- * Selection priority mirrors the Copilot CLI's own autopilot handler.
- *
- * 1. If the SDK's `recommendedAction` is offered, take it.
- * 2. Otherwise fall back to `autopilot` → `autopilot_fleet` → `interactive`
- *    → `exit_only`.
- * 3. As a last resort, approve without picking a `selectedAction` (the SDK
- *    keeps `currentMode='interactive'` in that case).
- *
- * `autoApproveEdits: true` is set whenever the chosen action is one of the
- * autopilot variants, mirroring the CLI behavior.
- */
-function autoApproveExitPlanMode(data: ExitPlanModeRequest): IExitPlanModeResponse {
-	const choices = data.actions ?? [];
-	const isAutopilotAction = (action: string) => action === 'autopilot' || action === 'autopilot_fleet';
-
-	if (data.recommendedAction && choices.includes(data.recommendedAction)) {
-		const selectedAction = data.recommendedAction;
-		return {
-			approved: true,
-			selectedAction,
-			...(isAutopilotAction(selectedAction) ? { autoApproveEdits: true } : {}),
-		};
-	}
-
-	for (const action of ['autopilot', 'autopilot_fleet', 'interactive', 'exit_only']) {
-		if (choices.includes(action)) {
-			return {
-				approved: true,
-				selectedAction: action,
-				...(isAutopilotAction(action) ? { autoApproveEdits: true } : {}),
-			};
-		}
-	}
-
-	return { approved: true, autoApproveEdits: true };
 }
 
 /**
