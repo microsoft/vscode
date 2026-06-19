@@ -570,6 +570,7 @@ export class PluginListWidget extends Disposable {
 
 	private sectionTitleHeader!: HTMLElement;
 	private sectionLink!: HTMLAnchorElement;
+	private marketplaceBackContainer!: HTMLElement;
 	private searchAndButtonContainer!: HTMLElement;
 	private searchInput!: InputBox;
 	private cardContainer!: HTMLElement;
@@ -684,6 +685,15 @@ export class PluginListWidget extends Disposable {
 		));
 		this._register(headerObserver.observe(this.sectionTitleHeader));
 
+		this.marketplaceBackContainer = DOM.append(this.element, $('.plugin-marketplace-back-container'));
+		this.marketplaceBackContainer.style.display = 'none';
+		const backToInstalledLabel = localize('backToInstalledPlugins', "Back to Installed");
+		this.backButtonContainer = DOM.append(this.marketplaceBackContainer, $('.list-add-button-container'));
+		this.backButton = this._register(new Button(this.backButtonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: backToInstalledLabel, ariaLabel: backToInstalledLabel }));
+		this.backButton.element.classList.add('list-add-button', 'plugin-card-ghost-button');
+		this.backButton.label = `$(${Codicon.arrowLeft.id}) ${backToInstalledLabel}`;
+		this._register(this.backButton.onDidClick(() => this.toggleBrowseMode(false)));
+
 		// Search and button container
 		this.searchAndButtonContainer = DOM.append(this.element, $('.list-search-and-button-container'));
 
@@ -707,13 +717,6 @@ export class PluginListWidget extends Disposable {
 
 		// Button container (Browse Marketplace + Add actions + Create Plugin)
 		this.buttonContainer = DOM.append(this.searchAndButtonContainer, $('.list-button-group'));
-
-		this.backButtonContainer = DOM.append(this.buttonContainer, $('.list-add-button-container'));
-		const backToInstalledLabel = localize('backToInstalledPlugins', "Back to Installed");
-		this.backButton = this._register(new Button(this.backButtonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: backToInstalledLabel, ariaLabel: backToInstalledLabel }));
-		this.backButton.element.classList.add('list-add-button');
-		this.backButton.label = `$(${Codicon.arrowLeft.id}) ${backToInstalledLabel}`;
-		this._register(this.backButton.onDidClick(() => this.toggleBrowseMode(false)));
 
 		const browseButtonContainer = DOM.append(this.buttonContainer, $('.list-add-button-container'));
 		const browseMarketplaceLabel = localize('browseMarketplace', "Browse Marketplace");
@@ -982,8 +985,7 @@ export class PluginListWidget extends Disposable {
 			this.toggleBrowseMode(false);
 		}
 
-		this.backButtonContainer.style.display = this.browseMode ? '' : 'none';
-		this.backButtonContainer.style.display = 'none';
+		this.marketplaceBackContainer.style.display = this.browseMode ? '' : 'none';
 		this.browseButton.element.parentElement!.style.display = 'none';
 		this.browseButton.label = `$(${Codicon.library.id}) ${localize('browseMarketplace', "Browse Marketplace")}`;
 		this.browseButton.enabled = browseMarketplaceAvailable;
@@ -1154,13 +1156,7 @@ export class PluginListWidget extends Disposable {
 				this.appendInstalledPluginCard(installedGrid, item);
 			}
 		} else {
-			const installedGrid = this.renderCardSection(
-				content,
-				localize('installedPluginsSection', "Installed"),
-				localize('installedPluginsSectionDescription', "Plugins available in this client and ready to extend your agent."),
-				'installed-plugins-section'
-			);
-			this.appendPluginHomeEmptyState(installedGrid);
+			this.appendPluginHomeEmptyState(content);
 		}
 
 		const installedNames = new Set(this.installedItems.map(item => item.name.toLowerCase()));
@@ -1177,7 +1173,7 @@ export class PluginListWidget extends Disposable {
 			}
 		}
 
-		this.renderDiscoverySnapshot(content);
+		this.renderDiscoverySnapshot(content, installedPlugins.length === 0);
 		if (this.marketplaceItems.length === 0 && this.isBrowseMarketplaceAvailable()) {
 			void this.queryMarketplaceSnapshot();
 		}
@@ -1303,7 +1299,7 @@ export class PluginListWidget extends Disposable {
 		}
 	}
 
-	private renderDiscoverySnapshot(parent: HTMLElement): void {
+	private renderDiscoverySnapshot(parent: HTMLElement, hideActions: boolean): void {
 		const marketplaceItems = this.getUninstalledMarketplaceItems();
 		if (marketplaceItems.length === 0) {
 			return;
@@ -1318,17 +1314,19 @@ export class PluginListWidget extends Disposable {
 		const header = DOM.append(section, $('.plugin-card-section-header'));
 		const text = DOM.append(header, $('.plugin-card-section-text'));
 		const title = DOM.append(text, $('h3.plugin-card-section-title'));
-		title.textContent = localize('discoverMorePlugins', "Discover more");
+		title.textContent = localize('featuredPlugins', "Featured");
 		const description = DOM.append(text, $('.plugin-card-section-description'));
 		description.textContent = localize('discoverMorePluginsDescription', "A curated snapshot from configured marketplaces.");
-		const installFromSource = this.cardDisposables.add(new Button(header, { ...defaultButtonStyles, secondary: true, supportIcons: true, ariaLabel: localize('installFromSource', "Install Plugin from Source") }));
-		installFromSource.element.classList.add('plugin-card-ghost-button', 'plugin-install-from-source-button');
-		installFromSource.label = `$(${Codicon.add.id}) ${localize('installFromSource', "Install Plugin from Source")}`;
-		this.cardDisposables.add(installFromSource.onDidClick(() => this.runInstallFromSourceAction()));
-		const action = this.cardDisposables.add(new Button(header, { ...defaultButtonStyles, secondary: true, supportIcons: true, ariaLabel: localize('browseAllPlugins', "Browse All Plugins") }));
-		action.element.classList.add('plugin-browse-all-button');
-		action.label = `$(${Codicon.library.id}) ${localize('browseAllPlugins', "Browse All Plugins")}`;
-		this.cardDisposables.add(action.onDidClick(() => this.showBrowseMarketplace()));
+		if (!hideActions) {
+			const installFromSource = this.cardDisposables.add(new Button(header, { ...defaultButtonStyles, secondary: true, supportIcons: true, ariaLabel: localize('installFromSource', "Install Plugin from Source") }));
+			installFromSource.element.classList.add('plugin-card-ghost-button', 'plugin-install-from-source-button');
+			installFromSource.label = `$(${Codicon.add.id}) ${localize('installFromSource', "Install Plugin from Source")}`;
+			this.cardDisposables.add(installFromSource.onDidClick(() => this.runInstallFromSourceAction()));
+			const action = this.cardDisposables.add(new Button(header, { ...defaultButtonStyles, secondary: true, supportIcons: true, ariaLabel: localize('browseAllPlugins', "Browse All Plugins") }));
+			action.element.classList.add('plugin-browse-all-button');
+			action.label = `$(${Codicon.library.id}) ${localize('browseAllPlugins', "Browse All Plugins")}`;
+			this.cardDisposables.add(action.onDidClick(() => this.showBrowseMarketplace()));
+		}
 		const grid = DOM.append(section, $('.plugin-card-grid'));
 		for (const item of snapshotItems) {
 			this.appendMarketplacePluginCard(grid, item);
@@ -1349,12 +1347,6 @@ export class PluginListWidget extends Disposable {
 
 		this.showCardSurface();
 		const content = DOM.append(this.cardContainer, $('.plugin-card-scroll'));
-		const header = DOM.append(content, $('.plugin-marketplace-page-header'));
-		const back = this.cardDisposables.add(new Button(header, { ...defaultButtonStyles, secondary: true, supportIcons: true, ariaLabel: localize('backToInstalledPlugins', "Back to Installed") }));
-		back.element.classList.add('plugin-card-ghost-button');
-		back.label = `$(${Codicon.arrowLeft.id}) ${localize('backToInstalledPlugins', "Back to Installed")}`;
-		this.rememberCardFocusElement(back.element);
-		this.cardDisposables.add(back.onDidClick(() => this.toggleBrowseMode(false)));
 		const recommendedKeys = this.pluginMarketplaceService.recommendedPlugins.get();
 		const recommended = marketplaceItems.filter(item => recommendedKeys.has(getMarketplaceRecommendationKey(item)));
 		const allPlugins = marketplaceItems.filter(item => !recommendedKeys.has(getMarketplaceRecommendationKey(item)));
@@ -1719,7 +1711,8 @@ export class PluginListWidget extends Disposable {
 		}
 		const headerHeight = this.sectionTitleHeader.offsetHeight;
 		this.lastHeaderHeight = headerHeight;
-		const listHeight = Math.max(0, height - searchBarHeight - headerHeight);
+		const backHeight = this.marketplaceBackContainer.offsetHeight;
+		const listHeight = Math.max(0, height - searchBarHeight - headerHeight - backHeight);
 
 		this.cardContainer.style.height = `${listHeight}px`;
 		this.listContainer.style.height = `${listHeight}px`;
