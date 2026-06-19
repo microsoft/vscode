@@ -125,7 +125,7 @@ suite('AgentHostSkillCompletionProvider', () => {
 
 		const result = await run(provider, '/');
 
-		assert.deepStrictEqual(result.map(item => item.insertText), ['/$first:session-skill ', '/$second:global-skill ']);
+		assert.deepStrictEqual(result.map(item => item.insertText), ['/first:session-skill ', '/second:global-skill ']);
 	});
 
 	test('ignores disabled customization containers', async () => {
@@ -138,7 +138,7 @@ suite('AgentHostSkillCompletionProvider', () => {
 
 		const result = await run(provider, '/');
 
-		assert.deepStrictEqual(result.map(item => item.insertText), ['/$enabled:visible-skill ']);
+		assert.deepStrictEqual(result.map(item => item.insertText), ['/enabled:visible-skill ']);
 	});
 
 	test('returns an empty list when the agent has no session customizations hook', async () => {
@@ -155,10 +155,10 @@ suite('AgentHostSkillCompletionProvider', () => {
 		agent.getSessionCustomizations = async () => [plugin('skills', [skill('alpha'), skill('beta')])];
 		const provider = createProvider(agent);
 
-		const result = await run(provider, '/$skills:b extra', '/$skills:b'.length);
+		const result = await run(provider, '/skills:b extra', '/skills:b'.length);
 
 		assert.deepStrictEqual(result.map(item => ({ insertText: item.insertText, rangeStart: item.rangeStart, rangeEnd: item.rangeEnd })), [
-			{ insertText: '/$skills:beta ', rangeStart: 0, rangeEnd: 10 },
+			{ insertText: '/skills:beta ', rangeStart: 0, rangeEnd: 9 },
 		]);
 	});
 
@@ -166,12 +166,12 @@ suite('AgentHostSkillCompletionProvider', () => {
 		const agent = new MockAgent('mock');
 		agent.getSessionCustomizations = async () => [plugin('skills', [skill('alpha'), skill('beta')])];
 		const provider = createProvider(agent);
-		const text = 'use /$skills:b extra';
+		const text = 'use /skills:b extra';
 
-		const result = await run(provider, text, text.indexOf('/$skills:b') + '/$skills:b'.length);
+		const result = await run(provider, text, text.indexOf('/skills:b') + '/skills:b'.length);
 
 		assert.deepStrictEqual(result.map(item => ({ insertText: item.insertText, rangeStart: item.rangeStart, rangeEnd: item.rangeEnd })), [
-			{ insertText: '/$skills:beta ', rangeStart: 4, rangeEnd: 14 },
+			{ insertText: '/skills:beta ', rangeStart: 4, rangeEnd: 13 },
 		]);
 	});
 
@@ -184,8 +184,8 @@ suite('AgentHostSkillCompletionProvider', () => {
 		const result = await run(provider, text);
 
 		assert.deepStrictEqual(result.map(item => ({ insertText: item.insertText, rangeStart: item.rangeStart, rangeEnd: item.rangeEnd })), [
-			{ insertText: '/$skills:alpha ', rangeStart: 4, rangeEnd: 5 },
-			{ insertText: '/$skills:beta ', rangeStart: 4, rangeEnd: 5 },
+			{ insertText: '/skills:alpha ', rangeStart: 4, rangeEnd: 5 },
+			{ insertText: '/skills:beta ', rangeStart: 4, rangeEnd: 5 },
 		]);
 	});
 
@@ -203,7 +203,7 @@ suite('AgentHostSkillCompletionProvider', () => {
 		const agent = new MockAgent('mock');
 		agent.getSessionCustomizations = async () => [plugin('skills', [skill('cached-skill')])];
 		const provider = createProvider(agent);
-		const text = 'use /$skills:cached-skill trailing';
+		const text = 'use /skills:cached-skill trailing';
 
 		const result = await run(provider, text, text.indexOf('trailing'));
 
@@ -214,7 +214,7 @@ suite('AgentHostSkillCompletionProvider', () => {
 		const agent = new MockAgent('mock');
 		agent.getSessionCustomizations = async () => [plugin('skills', [skill('cached-skill')])];
 		const provider = createProvider(agent);
-		const text = '/$skills:cached-skill trailing';
+		const text = '/skills:cached-skill trailing';
 
 		const result = await run(provider, text, text.indexOf('trailing'));
 
