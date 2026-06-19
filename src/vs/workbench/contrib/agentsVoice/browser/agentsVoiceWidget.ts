@@ -372,11 +372,11 @@ export class AgentsVoiceWidget extends Disposable {
 			this._contentDiv.append(
 				this._onboardingComponent.element,
 				this._feedbackDialogComponent.element,
+				this._inputBoxToolbar!,
+				this._transcriptComponent.element,
 				this._sessionListWrapper,
 				this._statusRowsComponent.element,
 				this._inputBoxContainer!,
-				this._transcriptComponent.element,
-				this._inputBoxToolbar!,
 			);
 		} else {
 			this._contentDiv.append(
@@ -599,11 +599,23 @@ export class AgentsVoiceWidget extends Disposable {
 		this._inputBoxContainer!.classList.toggle('processing', voiceState === 'processing');
 
 		if (hasTranscript) {
-			// Show transcript text inside the placeholder (no purple coloring)
-			this._inputBoxPlaceholder!.style.display = '';
-			this._transcriptComponent.element.style.display = 'none';
-			const lastTurn = transcriptTurns[transcriptTurns.length - 1];
-			this._inputBoxPlaceholder!.textContent = lastTurn?.text ?? '';
+			if (showExpanded) {
+				// When expanded, show full transcript component with chat-like styling
+				this._transcriptComponent.element.style.display = '';
+				this._transcriptComponent.element.style.padding = '8px 12px';
+				this._transcriptComponent.element.style.borderBottom = '1px solid var(--vscode-widget-border, var(--vscode-input-border, transparent))';
+				this._transcriptComponent.update({ turns: transcriptTurns, chatStyle: true });
+				// Hide the input box placeholder since transcript is shown above
+				this._inputBoxPlaceholder!.style.display = 'none';
+			} else {
+				// Show transcript text inside the placeholder (no purple coloring)
+				this._inputBoxPlaceholder!.style.display = '';
+				this._transcriptComponent.element.style.display = 'none';
+				this._transcriptComponent.element.style.padding = '';
+				this._transcriptComponent.element.style.borderBottom = '';
+				const lastTurn = transcriptTurns[transcriptTurns.length - 1];
+				this._inputBoxPlaceholder!.textContent = lastTurn?.text ?? '';
+			}
 		} else {
 			// Show placeholder
 			this._inputBoxPlaceholder!.style.display = '';
