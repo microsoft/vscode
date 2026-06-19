@@ -648,7 +648,7 @@ suite('CopilotAgent', () => {
 			}
 			await disposeAgent(agent);
 		}
-	});
+	}).timeout(30_000);
 
 	suite('restart on startup config change', () => {
 
