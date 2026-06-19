@@ -3558,7 +3558,9 @@ export namespace ChatPromptReference {
 			value = new types.ChatReferenceBinaryData(
 				variable.mimeType ?? 'image/png',
 				() => Promise.resolve(new Uint8Array(Object.values(variable.value as number[]))),
-				ref && URI.isUri(ref) ? ref : undefined
+				ref && URI.isUri(ref) ? ref : undefined,
+				variable.isPasted,
+				variable.isURL
 			);
 		} else if (variable.kind === 'diagnostic') {
 			const filterSeverity = variable.filterSeverity && DiagnosticSeverity.to(variable.filterSeverity);
@@ -3636,6 +3638,7 @@ export namespace ChatRequestModeInstructions {
 				name: mode.name,
 				content: mode.content,
 				toolReferences: ChatLanguageModelToolReferences.to(revive(mode.toolReferences)),
+				allowedSubagents: mode.allowedSubagents,
 				metadata: mode.metadata,
 				isBuiltin: mode.isBuiltin,
 			};
@@ -3656,6 +3659,7 @@ export namespace ChatRequestModeInstructions {
 					value: undefined,
 					range: ref.range ? { start: ref.range[0], endExclusive: ref.range[1] } : undefined,
 				})) ?? [],
+				allowedSubagents: mode.allowedSubagents,
 				metadata: mode.metadata,
 				isBuiltin: mode.isBuiltin,
 			};

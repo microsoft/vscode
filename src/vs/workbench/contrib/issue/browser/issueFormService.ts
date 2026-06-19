@@ -191,7 +191,7 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 
 		const issueBody = body + mediaMarkdown;
 
-		const baseUrl = this.getIssueUrlWithTitle(title, issueTarget.url, data.issueSource === IssueSource.Extension);
+		const baseUrl = this.getIssueUrlWithTitle(title, issueTarget.url);
 		let previewBody = issueBody;
 		let url = this.createIssuePreviewUrl(baseUrl, previewBody, gitHubDetails, data.issueSource);
 
@@ -378,8 +378,14 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 		return { owner: match[1], repositoryName: match[2] };
 	}
 
-	private getIssueUrlWithTitle(issueTitle: string, issueUrl: string, fileOnExtension: boolean): string {
-		if (fileOnExtension && !/\/issues\/new(?:[?#].*)?$/i.test(issueUrl)) {
+	private getIssueUrlWithTitle(issueTitle: string, issueUrl: string): string {
+		// Point any GitHub target at the new-issue form, not just extensions. The
+		// VS Code / Marketplace targets can be a bare repo URL (e.g. a `data.uri`
+		// override or a `reportIssueUrl` without the `/issues/new` suffix), which
+		// would otherwise open the repo landing page instead of the pre-filled
+		// issue form. The `isGitHubUrl` guard leaves non-GitHub issue trackers
+		// (which open directly as external links) untouched.
+		if (this.isGitHubUrl(issueUrl) && !/\/issues\/new(?:[?#].*)?$/i.test(issueUrl)) {
 			issueUrl = `${normalizeGitHubUrl(issueUrl)}/issues/new`;
 		}
 		const queryStringPrefix = issueUrl.indexOf('?') === -1 ? '?' : '&';
@@ -387,7 +393,7 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 	}
 
 	private addTemplateToUrl(baseUrl: string, owner?: string, repositoryName?: string, issueSource?: IssueSource): string {
-		const needsTemplate = issueSource === IssueSource.VSCode || (owner?.toLowerCase() === 'microsoft' && repositoryName?.toLowerCase() === 'vscode');
+		const needsTemplate = issueSource === IssueSource.VSCode || issueSource === IssueSource.AgentsWindow || (owner?.toLowerCase() === 'microsoft' && repositoryName?.toLowerCase() === 'vscode');
 		if (!needsTemplate) {
 			return baseUrl;
 		}

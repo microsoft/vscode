@@ -102,7 +102,7 @@ function pickFirstString(obj: Record<string, unknown>, keys: readonly string[]):
 }
 
 function classifyEditType(toolName: string, obj: Record<string, unknown>): EditOperationType | undefined {
-	if (toolName === 'create' || toolName === 'createFile' || toolName === 'create_file') {
+	if (toolName === 'create' || toolName === 'createFile' || toolName === 'create_file' || toolName === 'Write') {
 		return 'create';
 	}
 	if (toolName === 'insert') {
@@ -113,7 +113,9 @@ function classifyEditType(toolName: string, obj: Record<string, unknown>): EditO
 		toolName === 'str_replace_editor' ||
 		toolName === 'replaceString' ||
 		toolName === 'replace_string_in_file' ||
-		toolName === 'multi_replace_string_in_file'
+		toolName === 'multi_replace_string_in_file' ||
+		toolName === 'Edit' ||
+		toolName === 'MultiEdit'
 	) {
 		return 'str_replace';
 	}
@@ -122,12 +124,13 @@ function classifyEditType(toolName: string, obj: Record<string, unknown>): EditO
 		toolName === 'applyPatch' ||
 		toolName === 'apply_patch' ||
 		toolName === 'insert_edit_into_file' ||
-		toolName === 'edit_notebook_file'
+		toolName === 'edit_notebook_file' ||
+		toolName === 'NotebookEdit'
 	) {
 		return 'update';
 	}
-	// `view`/`readFile`/`read_file` have no edit_type.
-	if (toolName === 'view' || toolName === 'readFile' || toolName === 'read_file') {
+	// `view`/`readFile`/`read_file`/`Read` have no edit_type.
+	if (toolName === 'view' || toolName === 'readFile' || toolName === 'read_file' || toolName === 'Read') {
 		return undefined;
 	}
 	// Fallback: heuristic on common arg names.

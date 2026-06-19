@@ -15,6 +15,7 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { SessionsAquariumActiveContext } from '../../../common/contextkeys.js';
 import { disposeSharedFishDefs, Fish, pickRandomSpecies } from './fish.js';
@@ -113,6 +114,7 @@ export class AquariumService extends Disposable implements IAquariumService {
 		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -233,13 +235,18 @@ export class AquariumService extends Disposable implements IAquariumService {
 		// Build the icon as a real DOM child instead of innerHTML to satisfy Trusted Types.
 		button.replaceChildren();
 		const iconSpan = button.ownerDocument.createElement('span');
+		// The icon is purely decorative; the button already has an aria-label.
+		iconSpan.setAttribute('aria-hidden', 'true');
 		if (active) {
 			const iconClasses = ThemeIcon.asClassName(Codicon.close).split(/\s+/).filter(Boolean);
 			for (const cls of iconClasses) {
 				iconSpan.classList.add(cls);
 			}
 		} else {
-			iconSpan.classList.add('agents-aquarium-toggle-logo');
+			const iconClasses = ThemeIcon.asClassName(Codicon.smiley).split(/\s+/).filter(Boolean);
+			for (const cls of iconClasses) {
+				iconSpan.classList.add(cls);
+			}
 		}
 		button.appendChild(iconSpan);
 		const label = this.getToggleLabel(active);
@@ -252,6 +259,18 @@ export class AquariumService extends Disposable implements IAquariumService {
 	}
 
 	private toggle(): void {
+		const willActivate = !this.activeRef.value;
+		type AquariumToggleEvent = {
+			activated: boolean;
+		};
+		type AquariumToggleClassification = {
+			activated: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the toggle activated (true) or deactivated (false) the aquarium.' };
+			owner: 'justschen';
+			comment: 'Tracks how often users click the Agents window aquarium easter-egg toggle.';
+		};
+		this.telemetryService.publicLog2<AquariumToggleEvent, AquariumToggleClassification>('vscodeAgents.aquarium/toggle', {
+			activated: willActivate,
+		});
 		if (this.activeRef.value) {
 			this.deactivate(/* persist */ true);
 		} else if (this.hasVisibleMount()) {
@@ -363,7 +382,14 @@ function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbe
 	water.setAttribute('aria-hidden', 'true');
 	// First child so subsequent chat bar content paints over it.
 	sessionsContainer.insertBefore(water, sessionsContainer.firstChild);
-	store.add(toDisposable(() => water.remove()));
+	// Sessions Grid wraps the chat content in `.session-view` / `.session-view-content`
+	// with opaque backgrounds (see sessionsPart.css). Mark the part so a scoped
+	// CSS override can clear those backgrounds and let the water layer show through.
+	sessionsContainer.classList.add('aquarium-active');
+	store.add(toDisposable(() => {
+		water.remove();
+		sessionsContainer.classList.remove('aquarium-active');
+	}));
 
 	const fishLayer = doc.createElement('div');
 	fishLayer.className = 'agents-aquarium-fish-layer';

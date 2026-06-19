@@ -112,7 +112,7 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 		this._delegate.setExperimentProperty(name, value);
 	}
 
-	setCommonProperty(name: string, value: string): void {
+	setCommonProperty(name: string, value: string | boolean): void {
 		this._delegate.setCommonProperty(name, value);
 	}
 

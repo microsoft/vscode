@@ -476,15 +476,36 @@ export const enum McpToolVisibility {
 /**
  * Serializable data for MCP App UI rendering.
  * This contains all the information needed to render an MCP App webview.
+ *
+ * The transport for the App's sub-RPCs (`tools/call`, `resources/read`,
+ * `sampling/createMessage`, …) is determined by the discriminator:
+ *
+ * - `local`: resolves the MCP server via {@link IMcpService} from
+ *   `serverDefinitionId` + `collectionId`. Used for locally-configured
+ *   MCP servers.
+ * - `agentHost`: routes through {@link IAgentHostService.handleMcpRequest}
+ *   on the AHP `mcp://` side `channel`. Used for MCP servers owned by
+ *   an agent host.
  */
-export interface IMcpToolCallUIData {
-	/** URI of the UI resource for rendering (e.g., "ui://weather-server/dashboard") */
-	readonly resourceUri: string;
-	/** Reference to the server definition for reconnection */
-	readonly serverDefinitionId: string;
-	/** Reference to the collection containing the server */
-	readonly collectionId: string;
-}
+export type IMcpToolCallUIData =
+	| {
+		readonly kind: 'local';
+		/** URI of the UI resource for rendering (e.g., "ui://weather-server/dashboard") */
+		readonly resourceUri: string;
+		/** Reference to the server definition for reconnection */
+		readonly serverDefinitionId: string;
+		/** Reference to the collection containing the server */
+		readonly collectionId: string;
+	}
+	| {
+		readonly kind: 'agentHost';
+		/** URI of the UI resource for rendering (e.g., "ui://weather-server/dashboard") */
+		readonly resourceUri: string;
+		/** AHP `mcp://` channel URI for the originating server. */
+		readonly channel: string;
+		/** Stable identifier for the originating server (used as webview origin key). */
+		readonly serverId: string;
+	};
 
 export interface IMcpTool {
 
@@ -545,6 +566,13 @@ export interface McpServerTransportHTTPAuthentication {
 
 export interface McpServerTransportHTTPOAuth {
 	readonly clientId?: string;
+	/**
+	 * (Preview) When true, the MCP server uses enterprise-managed authentication via the configured
+	 * SSO issuer (see `mcp.enterpriseManagedAuth.idp`). Tokens are obtained through OAuth Identity
+	 * Assertion Authorization Grant (ID-JAG) so that, after a one-time sign-in, subsequent enterprise-managed
+	 * servers connect silently.
+	 */
+	readonly enterpriseManaged?: boolean;
 }
 
 /**

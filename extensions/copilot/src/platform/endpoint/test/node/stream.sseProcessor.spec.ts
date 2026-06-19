@@ -648,6 +648,66 @@ data: [DONE]
 		expect(metadata).toBeUndefined();
 	});
 
+	// Regression for https://github.com/microsoft/vscode/issues/312746
+	// DeepSeek / Moonshot (Kimi) / Minimax stream reasoning under `reasoning_content`.
+	test('stream containing reasoning_content (DeepSeek/Kimi/Moonshot)', async function () {
+		const response = [
+			`data: {"choices":[{"content_filter_results":{},"delta":{"reasoning_content":"Analy"},"index":0}],"created":1751057335,"id":"","model":"","object":"chat.completion.chunk","system_fingerprint":"fp","usage":null}\n`,
+			`data: {"choices":[{"content_filter_results":{},"delta":{"reasoning_content":"zing"},"index":0}],"created":1751057335,"id":"","model":"","object":"chat.completion.chunk","system_fingerprint":"fp","usage":null}\n`,
+			`data: [DONE]\n`,
+		];
+		const processor = await SSEProcessor.create(
+			logService,
+			telemetryService,
+			1,
+			createFakeStreamResponse(response),
+		);
+
+		let thinkingText: string | string[] | undefined = undefined;
+
+		await getAll(processor.processSSE((text: string, index: number, delta: IResponseDelta) => {
+			if (delta.thinking && !isEncryptedThinkingDelta(delta.thinking) && delta.thinking.text) {
+				if (thinkingText === undefined) {
+					thinkingText = '';
+				}
+				thinkingText += Array.isArray(delta.thinking.text) ? delta.thinking.text.join('') : delta.thinking.text;
+			}
+			return Promise.resolve(undefined);
+		}));
+
+		expect(thinkingText).toBe('Analyzing');
+	});
+
+	// Regression for https://github.com/microsoft/vscode/issues/312746
+	// OpenRouter streams reasoning under `reasoning`.
+	test('stream containing reasoning (OpenRouter)', async function () {
+		const response = [
+			`data: {"choices":[{"content_filter_results":{},"delta":{"reasoning":"Analy"},"index":0}],"created":1751057335,"id":"","model":"","object":"chat.completion.chunk","system_fingerprint":"fp","usage":null}\n`,
+			`data: {"choices":[{"content_filter_results":{},"delta":{"reasoning":"zing"},"index":0}],"created":1751057335,"id":"","model":"","object":"chat.completion.chunk","system_fingerprint":"fp","usage":null}\n`,
+			`data: [DONE]\n`,
+		];
+		const processor = await SSEProcessor.create(
+			logService,
+			telemetryService,
+			1,
+			createFakeStreamResponse(response),
+		);
+
+		let thinkingText: string | string[] | undefined = undefined;
+
+		await getAll(processor.processSSE((text: string, index: number, delta: IResponseDelta) => {
+			if (delta.thinking && !isEncryptedThinkingDelta(delta.thinking) && delta.thinking.text) {
+				if (thinkingText === undefined) {
+					thinkingText = '';
+				}
+				thinkingText += Array.isArray(delta.thinking.text) ? delta.thinking.text.join('') : delta.thinking.text;
+			}
+			return Promise.resolve(undefined);
+		}));
+
+		expect(thinkingText).toBe('Analyzing');
+	});
+
 	suite('real world snapshots', () => {
 
 		async function processResponse(response: string[], expectedNumChoices = 1) {

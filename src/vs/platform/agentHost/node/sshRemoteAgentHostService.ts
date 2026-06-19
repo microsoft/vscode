@@ -26,15 +26,21 @@ import {
 	type ISSHConnectResult,
 	type ISSHKeyboardInteractivePrompt,
 	type ISSHKeyboardInteractiveRequest,
-	type ISSHRelayMessage,
 	type ISSHResolvedConfig,
 } from '../common/sshRemoteAgentHost.js';
+import type { IRelayMessage } from '../common/relayTransport.js';
 import {
+	buildAgentHostBaseCommand,
 	buildCLIDownloadUrl,
+	buildCleanupOldCLIsCommand,
+	buildFindFallbackCLICommand,
 	cleanupRemoteAgentHost,
+	extractAgentHostWebSocketURL,
 	findRunningAgentHost,
 	getRemoteCLIBin,
-	getRemoteCLIDir,
+	getRemoteCLIDataDir,
+	getRemoteCLIInstallRoot,
+	isValidFallbackCLIPath,
 	redactToken,
 	resolveRemotePlatform,
 	shellEscape,
@@ -307,11 +313,16 @@ function bindSshExec(client: SSHClient): (command: string, opts?: { ignoreExitCo
 function startRemoteAgentHost(
 	client: SSHClient,
 	logService: ILogService,
-	quality: string,
+	cliBin: string | undefined,
+	cliDataDir: string | undefined,
 	commandOverride?: string,
 ): Promise<{ port: number; connectionToken: string | undefined; pid: number | undefined; stream: SSHChannel }> {
 	return new Promise((resolve, reject) => {
-		const baseCmd = commandOverride ?? `${getRemoteCLIBin(quality)} agent host --port 0`;
+		if (!commandOverride && (!cliBin || !cliDataDir)) {
+			reject(new Error(`${LOG_PREFIX} startRemoteAgentHost requires either a cliBin+cliDataDir pair or a commandOverride`));
+			return;
+		}
+		const baseCmd = commandOverride ?? buildAgentHostBaseCommand(cliBin!, cliDataDir!);
 		// Wrap in a login shell so the agent host process inherits the
 		// user's PATH and environment from ~/.bash_profile / ~/.bashrc
 		// (ssh2 exec runs a non-interactive non-login shell by default).
@@ -347,14 +358,12 @@ function startRemoteAgentHost(
 				}
 
 				if (!resolved) {
-					const match = clean.match(/ws:\/\/(?:127\.0\.0\.1|localhost):(\d+)(?:\?tkn=([^\s&]+))?/);
+					const match = extractAgentHostWebSocketURL(clean);
 					if (match) {
 						resolved = true;
 						clearTimeout(timeout);
-						const port = parseInt(match[1], 10);
-						const connectionToken = match[2] || undefined;
-						logService.info(`${LOG_PREFIX} Remote agent host listening on port ${port}`);
-						resolve({ port, connectionToken, pid, stream });
+						logService.info(`${LOG_PREFIX} Remote agent host listening on port ${match.port}`);
+						resolve({ port: match.port, connectionToken: match.token, pid, stream });
 					}
 				}
 			};
@@ -548,8 +557,8 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	private readonly _onDidReportConnectProgress = this._register(new Emitter<ISSHConnectProgress>());
 	readonly onDidReportConnectProgress: Event<ISSHConnectProgress> = this._onDidReportConnectProgress.event;
 
-	private readonly _onDidRelayMessage = this._register(new Emitter<ISSHRelayMessage>());
-	readonly onDidRelayMessage: Event<ISSHRelayMessage> = this._onDidRelayMessage.event;
+	private readonly _onDidRelayMessage = this._register(new Emitter<IRelayMessage>());
+	readonly onDidRelayMessage: Event<IRelayMessage> = this._onDidRelayMessage.event;
 
 	private readonly _onDidRelayClose = this._register(new Emitter<string>());
 	readonly onDidRelayClose: Event<string> = this._onDidRelayClose.event;
@@ -699,28 +708,37 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			reportProgress(localize('sshProgressConnecting', "Establishing SSH connection..."));
 			sshClient = await this._connectSSH(config, connectionKey);
 
-			if (config.remoteAgentHostCommand) {
-				// Dev override: skip platform detection and CLI install,
-				// use the provided command directly.
-				this._logService.info(`${LOG_PREFIX} Using custom agent host command: ${config.remoteAgentHostCommand}`);
-			} else {
-				// 2. Detect remote platform
-				const { stdout: unameS } = await sshExec(sshClient, 'uname -s');
-				const { stdout: unameM } = await sshExec(sshClient, 'uname -m');
+			let cliBin: string | undefined;
+			let cliResolved = false;
+			// Resolve the remote CLI lazily: platform detection and CLI
+			// install/refresh only run when we're actually about to spawn
+			// an agent host. Reconnects that reuse a live AH via the
+			// lockfile skip this work entirely, since the running AH was
+			// spawned from whatever CLI was current at the time.
+			const ensureCliResolved = async (): Promise<void> => {
+				if (cliResolved) {
+					return;
+				}
+				cliResolved = true;
+				if (config.remoteAgentHostCommand) {
+					this._logService.info(`${LOG_PREFIX} Using custom agent host command: ${config.remoteAgentHostCommand}`);
+					return;
+				}
+				const { stdout: unameS } = await sshExec(sshClient!, 'uname -s');
+				const { stdout: unameM } = await sshExec(sshClient!, 'uname -m');
 				const platform = resolveRemotePlatform(unameS, unameM);
 				if (!platform) {
 					throw new Error(`${LOG_PREFIX} Unsupported remote platform: ${unameS.trim()} ${unameM.trim()}`);
 				}
 				this._logService.info(`${LOG_PREFIX} Remote platform: ${platform.os}-${platform.arch}`);
-
-				// 3. Install CLI if needed
 				reportProgress(localize('sshProgressInstallingCLI', "Checking remote CLI installation..."));
-				await this._ensureCLIInstalled(sshClient, platform, reportProgress);
-			}
+				cliBin = await this._ensureCLIInstalled(sshClient!, platform, reportProgress);
+			};
 
-			// 4. Check for an already-running agent host on the remote.
+			// 2. Check for an already-running agent host on the remote first.
 			//    This prevents accumulating orphaned processes when the SSH
-			//    connection drops and we reconnect.
+			//    connection drops and we reconnect — and avoids paying for
+			//    platform detection + CLI install on every reconnect.
 			let remoteHost: string = '127.0.0.1';
 			let remotePort: number | undefined;
 			let connectionToken: string | undefined;
@@ -736,9 +754,12 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			}
 
 			if (remotePort === undefined) {
-				// 5. Start agent-host and capture port/token
+				// 3. Need to spawn fresh: resolve the CLI now.
+				await ensureCliResolved();
+
+				// 4. Start agent-host and capture port/token
 				reportProgress(localize('sshProgressStartingAgent', "Starting remote agent host..."));
-				const result = await this._startRemoteAgentHost(sshClient, this._quality, config.remoteAgentHostCommand);
+				const result = await this._startRemoteAgentHost(sshClient, cliBin, getRemoteCLIDataDir(this._serverDataFolderName), config.remoteAgentHostCommand);
 				remotePort = result.port;
 				connectionToken = result.connectionToken;
 				agentStream = result.stream;
@@ -762,13 +783,15 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				if (existingAH.kind !== 'compatible') {
 					throw relayErr;
 				}
-				// The reused agent host is not connectable — kill it and start fresh
+				// The reused agent host is not connectable — kill it and start fresh.
+				// Resolve the CLI now (we skipped it on the reuse path).
 				const relayErrorMessage = relayErr instanceof Error ? relayErr.message : String(relayErr);
 				this._logService.warn(`${LOG_PREFIX} Failed to connect to reused agent host on ${remoteHost}:${remotePort}: ${relayErrorMessage}. Starting fresh`);
 				await cleanupRemoteAgentHost(exec, this._logService, this._serverDataFolderName, this._quality);
+				await ensureCliResolved();
 
 				reportProgress(localize('sshProgressStartingAgent', "Starting remote agent host..."));
-				const result = await this._startRemoteAgentHost(sshClient, this._quality, config.remoteAgentHostCommand);
+				const result = await this._startRemoteAgentHost(sshClient, cliBin, getRemoteCLIDataDir(this._serverDataFolderName), config.remoteAgentHostCommand);
 				remoteHost = '127.0.0.1';
 				remotePort = result.port;
 				connectionToken = result.connectionToken;
@@ -1336,10 +1359,14 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		return this._productService.serverDataFolderName ?? '.vscode-server-oss';
 	}
 
+	private get _commit(): string | undefined {
+		return this._productService.commit;
+	}
+
 	protected _startRemoteAgentHost(
-		client: SSHClient, quality: string, commandOverride?: string,
+		client: SSHClient, cliBin: string | undefined, cliDataDir: string | undefined, commandOverride?: string,
 	): Promise<{ port: number; connectionToken: string | undefined; pid: number | undefined; stream: SSHChannel }> {
-		return startRemoteAgentHost(client, this._logService, quality, commandOverride);
+		return startRemoteAgentHost(client, this._logService, cliBin, cliDataDir, commandOverride);
 	}
 
 	protected async _createWebSocketRelay(
@@ -1350,25 +1377,172 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		return createWebSocketRelay(nativeRequire, client, dstHost, dstPort, connectionToken, this._logService, onMessage, onClose);
 	}
 
-	private async _ensureCLIInstalled(client: SSHClient, platform: { os: string; arch: string }, reportProgress: (message: string) => void): Promise<void> {
-		const cliDir = getRemoteCLIDir(this._quality);
-		const cliBin = getRemoteCLIBin(this._quality);
+	/**
+	 * Resolve which CLI binary to run on the remote.
+	 *
+	 * When the desktop has a `productService.commit` (release builds), we
+	 * pin to that commit: install at `~/<serverDataFolderName>/<archive>-<commit>`
+	 * (sharing the install root with Remote-SSH), reuse on file existence,
+	 * download from the commit-pinned URL on miss, and clean up older
+	 * commit-keyed CLIs (keep last 5). The agent host CLI does not
+	 * self-update on this path, so the desktop pushes freshness on every
+	 * fresh start — but tolerantly: if the download fails and any other
+	 * usable CLI is present (other commit-keyed or the legacy
+	 * `~/.vscode-cli{,-<quality>}/<archive>`), we fall back to the newest
+	 * one rather than refusing to connect.
+	 *
+	 * In dev/OSS builds with no commit, we keep the loose, non-pinned
+	 * behavior: install `~/<serverDataFolderName>/<archive>` from the
+	 * `latest` URL, with a `--version`-based reuse check.
+	 *
+	 * Returns the resolved CLI binary path to run.
+	 */
+	private async _ensureCLIInstalled(client: SSHClient, platform: { os: string; arch: string }, reportProgress: (message: string) => void): Promise<string> {
+		const commit = this._commit;
+		if (!commit) {
+			return this._ensureCLIInstalledLoose(client, platform, reportProgress);
+		}
+		return this._ensureCLIInstalledPinned(client, platform, reportProgress, commit);
+	}
+
+	/**
+	 * Commit-pinned install path. See {@link _ensureCLIInstalled}.
+	 */
+	private async _ensureCLIInstalledPinned(client: SSHClient, platform: { os: string; arch: string }, reportProgress: (message: string) => void, commit: string): Promise<string> {
+		const cliBin = getRemoteCLIBin(this._serverDataFolderName, this._quality, commit);
+		const installRoot = getRemoteCLIInstallRoot(this._serverDataFolderName);
+
+		// Primary reuse check: pure file existence on the commit-keyed path.
+		// No `--version` parsing — we know the file is ours and matches the
+		// desktop commit.
+		const { code: existsCode } = await sshExec(client, `test -x ${cliBin}`, { ignoreExitCode: true });
+		if (existsCode === 0) {
+			this._logService.info(`${LOG_PREFIX} Reusing remote CLI at ${cliBin}`);
+			// Bump mtime so the retention pass below doesn't prune the
+			// binary we just decided to reuse. Without this, a user
+			// rotating between several desktop builds could see their
+			// currently-used CLI fall out of the 5-newest window and
+			// get deleted just before the next reconnect.
+			const { code: touchCode } = await sshExec(client, `touch -- ${cliBin}`, { ignoreExitCode: true });
+			if (touchCode === 0) {
+				// Now that the in-use binary is the newest by mtime, prune
+				// older commit-keyed installs. Best-effort.
+				await sshExec(client, buildCleanupOldCLIsCommand(this._serverDataFolderName, this._quality), { ignoreExitCode: true });
+			} else {
+				// If we couldn't refresh mtime, skip the retention pass —
+				// running it now could prune the binary we just decided
+				// to reuse. We'll retry retention on the next reconnect.
+				this._logService.warn(`${LOG_PREFIX} Skipping CLI retention cleanup: touch exited ${touchCode}`);
+			}
+			return cliBin;
+		}
+
+		reportProgress(localize('sshProgressDownloadingCLI', "Installing VS Code CLI on remote..."));
+		const url = buildCLIDownloadUrl(platform.os, platform.arch, this._quality, commit);
+
+		// Extract into a temp dir inside the install root so the final `mv`
+		// is a same-filesystem atomic rename. Concurrent SSH sessions racing
+		// here both end up with a valid binary for the same commit; the
+		// trailing `rm -rf` of the tmp dir is idempotent.
+		const installCmd = [
+			`mkdir -p ${installRoot}`,
+			`tmpdir=$(mktemp -d ${installRoot}/.cli-install-XXXXXX)`,
+			`(cd "$tmpdir" && curl -fsSL ${shellEscape(url)} | tar xz)`,
+			// The archive contains exactly one file: the CLI binary, named per quality.
+			`mv "$tmpdir"/* ${cliBin}`,
+			`chmod +x ${cliBin}`,
+			`rm -rf "$tmpdir"`,
+		].join(' && ');
+
+		try {
+			await sshExec(client, installCmd);
+			// Validate the installed binary actually runs. If the archive was
+			// for the wrong platform / corrupted, this surfaces immediately.
+			const { code: versionCode } = await sshExec(client, `${cliBin} --version`, { ignoreExitCode: true });
+			if (versionCode !== 0) {
+				throw new Error(`CLI at ${cliBin} failed --version check after install (exit code ${versionCode})`);
+			}
+			this._logService.info(`${LOG_PREFIX} Installed remote CLI at ${cliBin}`);
+			// Prune older commit-keyed installs now that the new binary is
+			// in place and is the newest by mtime.
+			await sshExec(client, buildCleanupOldCLIsCommand(this._serverDataFolderName, this._quality), { ignoreExitCode: true });
+			return cliBin;
+		} catch (installErr) {
+			// Soft fallback (key difference from Remote-SSH): if the
+			// commit-pinned download fails (offline, 404, etc.) but another
+			// usable CLI is already on the box, use that instead of refusing
+			// to connect. The agent host has no strict commit-lock with the
+			// desktop — the protocol handshake will catch genuine
+			// incompatibilities.
+			const installErrorMessage = installErr instanceof Error ? installErr.message : String(installErr);
+			this._logService.warn(`${LOG_PREFIX} Could not install matching CLI for commit ${commit}: ${installErrorMessage}. Looking for a fallback CLI on the remote...`);
+			const fallback = await this._findFallbackCLI(client);
+			if (fallback) {
+				this._logService.warn(`${LOG_PREFIX} Using fallback CLI at ${fallback} (does not match desktop commit ${commit}).`);
+				return fallback;
+			}
+			throw installErr;
+		}
+	}
+
+	/**
+	 * Loose dev-build install: no commit pin. See {@link _ensureCLIInstalled}.
+	 */
+	private async _ensureCLIInstalledLoose(client: SSHClient, platform: { os: string; arch: string }, reportProgress: (message: string) => void): Promise<string> {
+		const cliBin = getRemoteCLIBin(this._serverDataFolderName, this._quality);
+		const installRoot = getRemoteCLIInstallRoot(this._serverDataFolderName);
+		this._logService.warn(`${LOG_PREFIX} Desktop has no product commit; falling back to non-pinned CLI install at ${cliBin}.`);
+
 		const { code } = await sshExec(client, `${cliBin} --version`, { ignoreExitCode: true });
 		if (code === 0) {
-			this._logService.info(`${LOG_PREFIX} VS Code CLI already installed on remote`);
-			return;
+			this._logService.info(`${LOG_PREFIX} Reusing remote CLI at ${cliBin} (dev build, --version check passed)`);
+			return cliBin;
 		}
 
 		reportProgress(localize('sshProgressDownloadingCLI', "Installing VS Code CLI on remote..."));
 		const url = buildCLIDownloadUrl(platform.os, platform.arch, this._quality);
 
 		const installCmd = [
-			`mkdir -p ${cliDir}`,
-			`curl -fsSL ${shellEscape(url)} | tar xz -C ${cliDir}`,
+			`mkdir -p ${installRoot}`,
+			`curl -fsSL ${shellEscape(url)} | tar xz -C ${installRoot}`,
 			`chmod +x ${cliBin}`,
 		].join(' && ');
 
 		await sshExec(client, installCmd);
-		this._logService.info(`${LOG_PREFIX} VS Code CLI installed successfully`);
+		this._logService.info(`${LOG_PREFIX} Installed remote CLI at ${cliBin}`);
+		return cliBin;
+	}
+
+	/**
+	 * List remote CLI candidates that could be used as a fallback when the
+	 * commit-pinned download fails, and return the newest one that passes
+	 * a `--version` check. Returns `undefined` if no candidate works.
+	 */
+	private async _findFallbackCLI(client: SSHClient): Promise<string | undefined> {
+		const { stdout } = await sshExec(client, buildFindFallbackCLICommand(this._serverDataFolderName, this._quality), { ignoreExitCode: true });
+		const rawCandidates = stdout.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+		// Defensive validation: the finder shell snippet emits paths we
+		// trust by construction, but the output is still data coming back
+		// over SSH that we then interpolate into a follow-up command
+		// (`<candidate> --version`). Filter to the exact shapes we expect
+		// — `<root>/<archive>-<40 hex>` or `<legacyDir>/<archive>` — so a
+		// malicious or junk file in the install root can never become a
+		// shell argument.
+		const candidates: string[] = [];
+		for (const candidate of rawCandidates) {
+			if (isValidFallbackCLIPath(candidate, this._serverDataFolderName, this._quality)) {
+				candidates.push(candidate);
+			} else {
+				this._logService.info(`${LOG_PREFIX} Ignoring fallback CLI candidate with unexpected path shape: ${candidate}`);
+			}
+		}
+		for (const candidate of candidates) {
+			const { code } = await sshExec(client, `${candidate} --version`, { ignoreExitCode: true });
+			if (code === 0) {
+				return candidate;
+			}
+			this._logService.info(`${LOG_PREFIX} Fallback CLI candidate ${candidate} failed --version check (exit ${code}); trying next.`);
+		}
+		return undefined;
 	}
 }
