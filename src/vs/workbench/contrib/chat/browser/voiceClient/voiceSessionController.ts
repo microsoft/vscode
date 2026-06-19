@@ -1217,8 +1217,24 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					this.logService.warn('[voice] acceptInput failed for visible target:', err);
 				});
 			} else {
-				// Target is NOT visible — send directly and watch for response
-				// in the floating window
+				// Target is NOT visible — ensure session is loaded, then send
+				const cts = new CancellationTokenSource();
+				const ref = await this.chatService.acquireOrLoadSession(target, ChatAgentLocation.Chat, cts.token, 'voice-send').catch(err => {
+					this.logService.warn('[voice] Failed to load target session:', err);
+					return undefined;
+				});
+				cts.dispose();
+				if (!ref) {
+					this.logService.warn('[voice] Could not load target session, falling back to switch');
+					// Fallback: switch to the session and send via the UI
+					const switched = await this.commandService.executeCommand<boolean>('_chat.voice.switchToSession', target.toString()).catch(() => false);
+					if (switched) {
+						await new Promise(resolve => setTimeout(resolve, 200));
+						await this.commandService.executeCommand('_chat.voice.acceptInput', text).catch(() => { });
+					}
+					return;
+				}
+				ref.dispose();
 				const result = await this.chatService.sendRequest(target, text).catch(err => {
 					this.logService.warn('[voice] Error sending transcription to target session:', err);
 					return undefined;
