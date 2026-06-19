@@ -6,6 +6,7 @@
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, autorun, transaction, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { disposableWindowInterval } from '../../../../../base/browser/dom.js';
+import { disposableTimeout } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -1034,33 +1035,33 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._statusText.set('Hold to speak...', undefined);
 
 		// Simulate a user speaking after 1s
-		setTimeout(() => {
+		this._voiceEventDisposables.add(disposableTimeout(() => {
 			if (!this._isConnected.get()) { return; }
 			this._voiceState.set('listening', undefined);
 			this._transcriptTurns.set([{ speaker: 'user', text: 'Create a', committed: '', isPartial: true }], undefined);
-		}, 1000);
+		}, 1000));
 
 		// Partial grows
-		setTimeout(() => {
+		this._voiceEventDisposables.add(disposableTimeout(() => {
 			if (!this._isConnected.get()) { return; }
 			this._transcriptTurns.set([{ speaker: 'user', text: 'Create a new React component', committed: 'Create a ', isPartial: true }], undefined);
-		}, 2000);
+		}, 2000));
 
 		// Final user turn
-		setTimeout(() => {
+		this._voiceEventDisposables.add(disposableTimeout(() => {
 			if (!this._isConnected.get()) { return; }
 			this._transcriptTurns.set([{ speaker: 'user', text: 'Create a new React component for the dashboard', committed: 'Create a new React component for the dashboard', isPartial: false }], undefined);
 			this._voiceState.set('idle', undefined);
-		}, 3000);
+		}, 3000));
 
 		// Assistant response
-		setTimeout(() => {
+		this._voiceEventDisposables.add(disposableTimeout(() => {
 			if (!this._isConnected.get()) { return; }
 			this._transcriptTurns.set([
 				{ speaker: 'user', text: 'Create a new React component for the dashboard', committed: 'Create a new React component for the dashboard', isPartial: false },
 				{ speaker: 'assistant', text: 'I\'ll create a Dashboard component with some widgets...', committed: '', isPartial: false },
 			], undefined);
-		}, 4500);
+		}, 4500));
 	}
 
 	private _onConnectionLost(): void {
