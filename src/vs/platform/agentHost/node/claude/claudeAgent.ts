@@ -315,7 +315,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		}
 		try {
 			const userAgent = `${USER_AGENT_PREFIX}/${this._productService.version}`;
-			const all = await this._copilotApiService.models(tokenAtStart, { headers: { 'User-Agent': userAgent }, suppressIntegrationId: true });
+			const all = await this._copilotApiService.models(tokenAtStart, { headers: { 'User-Agent': userAgent } });
 			// Stale-write guard: if `authenticate()` rotated the token
 			// while we were awaiting the model list, a newer refresh has
 			// already published the right value — don't overwrite it.
@@ -333,7 +333,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				.sort((a, b) => Number(b.is_chat_default) - Number(a.is_chat_default))
 				.map(m => toAgentModelInfo(m, this.id));
 
-			this._logService.info(`[Claude] Models refreshed. Count: ${filtered.length}`);
+			this._logService.info(`[Claude] Models refreshed. Count: ${filtered.length}, ${filtered.map(m => m.name).join(', ')}`);
 			this._models.set(filtered, undefined);
 		} catch (err) {
 			this._logService.error(err, '[Claude] Failed to refresh models');

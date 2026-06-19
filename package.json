@@ -71,6 +71,7 @@
     "serve-out-rspack": "cd build/rspack && npx rspack serve --config rspack.serve-out.config.mts",
     "watch-web": "npm run gulp watch-web",
     "watch-cli": "npm run gulp watch-cli",
+    "mock-policy-server": "node --experimental-strip-types scripts/mock-policy-server/server.ts",
     "eslint": "node build/eslint.ts",
     "stylelint": "node build/stylelint.ts",
     "playwright-install": "npm exec playwright install",
@@ -94,8 +95,8 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
-    "@github/copilot": "^1.0.63",
-    "@github/copilot-sdk": "^1.0.1",
+    "@github/copilot": "^1.0.64-0",
+    "@github/copilot-sdk": "^1.0.2",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
     "@microsoft/dev-tunnels-connections": "^1.3.41",
