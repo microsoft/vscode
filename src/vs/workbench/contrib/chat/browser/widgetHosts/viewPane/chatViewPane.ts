@@ -425,6 +425,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// Dynamic audio-reactive glow animation (matches aux window behavior)
 		let animFrameId: number | undefined;
+		let glowDataArray: Uint8Array | undefined;
 		const win = getWindow(inputContainerEl);
 		const startGlowAnimation = () => {
 			if (animFrameId !== undefined) { return; }
@@ -449,13 +450,15 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				if (!analyser) {
 					intensity = 0.3;
 				} else {
-					const dataArray = new Uint8Array(analyser.frequencyBinCount);
-					analyser.getByteFrequencyData(dataArray);
-					let sum = 0;
-					for (let i = 0; i < dataArray.length; i++) {
-						sum += dataArray[i];
+					if (!glowDataArray || glowDataArray.length !== analyser.frequencyBinCount) {
+						glowDataArray = new Uint8Array(analyser.frequencyBinCount);
 					}
-					intensity = Math.min(1, (sum / dataArray.length) / 80);
+					analyser.getByteFrequencyData(glowDataArray);
+					let sum = 0;
+					for (let i = 0; i < glowDataArray.length; i++) {
+						sum += glowDataArray[i];
+					}
+					intensity = Math.min(1, (sum / glowDataArray.length) / 80);
 				}
 
 				// Blue when listening, purple when speaking
