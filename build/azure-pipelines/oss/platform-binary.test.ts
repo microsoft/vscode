@@ -16,7 +16,7 @@
  *       none reuses the cached text; parent fallback and empty last-resort.
  *--------------------------------------------------------------------------------------------*/
 
-import { ARCH_SUFFIX_RE, isArchPackageName, npmLicenseId, familyText, parentTextIfCompatible } from './scan-licenses.js';
+import { ARCH_SUFFIX_RE, isArchPackageName, isShippedArch, npmLicenseId, familyText, parentTextIfCompatible } from './scan-licenses.js';
 
 let passed = 0;
 let failed = 0;
@@ -61,6 +61,43 @@ const archNo = [
 ];
 for (const name of archNo) {
 	check(`no-match: ${name}`, isArchPackageName(name) === false);
+}
+
+// -- 1b. shipped-arch filter --------------------------------------------------
+console.log('isShippedArch - shipped platforms (must MATCH):');
+const shippedYes = [
+	'@rollup/rollup-darwin-arm64',
+	'@rollup/rollup-linux-x64-gnu',
+	'@rollup/rollup-win32-x64-msvc',
+	'@rollup/rollup-linux-arm-gnueabihf',
+	'@esbuild/linux-x64',
+	'@esbuild/darwin-arm64',
+	'@esbuild/win32-arm64',
+	'@img/sharp-linuxmusl-x64',
+	'@parcel/watcher-linux-arm64-glibc',
+];
+for (const name of shippedYes) {
+	check(`shipped: ${name}`, isShippedArch(name) === true);
+}
+
+console.log('isShippedArch - non-shipped platforms (must NOT match):');
+const shippedNo = [
+	'@esbuild/android-arm64',
+	'@esbuild/freebsd-x64',
+	'@esbuild/aix-ppc64',
+	'@esbuild/sunos-x64',
+	'@esbuild/linux-ia32',
+	'@esbuild/linux-riscv64',
+	'@esbuild/linux-s390x',
+	'@esbuild/linux-ppc64',
+	'@esbuild/openbsd-x64',
+	'@rollup/rollup-android-arm64',
+	'@napi-rs/canvas-linux-riscv64-gnu',
+	'esbuild',
+	'react',
+];
+for (const name of shippedNo) {
+	check(`not-shipped: ${name}`, isShippedArch(name) === false);
 }
 
 // -- 2. npm license shape parser ----------------------------------------------

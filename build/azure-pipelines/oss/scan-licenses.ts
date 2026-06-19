@@ -544,6 +544,46 @@ export function isArchPackageName(name: string): boolean {
 }
 
 /**
+ * Platforms and architectures VS Code actually ships. Used by Section 5 to
+ * skip arch packages for platforms we don't target (android, freebsd, etc.).
+ *
+ * Source of truth: build/azure-pipelines/product-build.yml build matrix +
+ * build/agent-sdk/common.ts (KNOWN_VSCODE_PLATFORMS / VscodeBuildArch).
+ * "alpine" in build config = "linuxmusl" in npm package names.
+ */
+const VSCODE_SHIPPED_PLATFORMS = new Set(['darwin', 'linux', 'linuxmusl', 'win32']);
+const VSCODE_SHIPPED_ARCHS = new Set(['x64', 'arm64', 'arm']);
+
+const _shippedSuffixCache = new Set<string>();
+function _buildShippedSuffixes(): Set<string> {
+	if (_shippedSuffixCache.size > 0) {
+		return _shippedSuffixCache;
+	}
+	for (const p of VSCODE_SHIPPED_PLATFORMS) {
+		for (const a of VSCODE_SHIPPED_ARCHS) {
+			_shippedSuffixCache.add(`${p}-${a}`);
+		}
+	}
+	// darwin-universal is a macOS composite build, not a separate npm arch
+	_shippedSuffixCache.add('darwin-universal');
+	return _shippedSuffixCache;
+}
+
+/**
+ * True when the arch suffix matches a platform+arch VS Code ships.
+ * Strips ABI qualifiers (-gnu, -musl, -msvc, -glibc, -gnueabihf) before matching.
+ */
+export function isShippedArch(name: string): boolean {
+	const m = name.match(ARCH_SUFFIX_RE);
+	if (!m) {
+		return false;
+	}
+	// Remove the leading separator and any trailing ABI qualifier
+	const suffix = m[0].replace(/^[/-]/, '').replace(/-(gnu|musl|msvc|glibc|gnueabihf|eabihf|androideabi)$/, '');
+	return _buildShippedSuffixes().has(suffix);
+}
+
+/**
  * Extract a license id from the many shapes an npm package.json / packument
  * version object can use for its `license`/`licenses` field: a plain SPDX
  * string, the legacy `{ type: 'MIT' }` object, or the legacy
@@ -1332,10 +1372,12 @@ async function main(): Promise<void> {
 	// =========================================================================
 	console.log('');
 	console.log('=========================================================================');
-	console.log('SECTION 5: Enumerating platform-specific binary packages (all arches)');
+	console.log('SECTION 5: Enumerating platform-specific binary packages (shipped arches)');
 	console.log('  Why: arch-specific npm packages are optionalDependencies of an');
 	console.log('  arch-independent parent. Only the host arch installs on disk, so the');
-	console.log('  scan above misses the rest. Legacy emitted every arch - so do we.');
+	console.log('  scan above misses the rest. We enumerate every SHIPPED arch.');
+	console.log('  Shipped platforms: ' + Array.from(VSCODE_SHIPPED_PLATFORMS).join(', '));
+	console.log('  Shipped arches: ' + Array.from(VSCODE_SHIPPED_ARCHS).join(', '));
 	console.log('=========================================================================');
 	console.log('');
 
@@ -1348,6 +1390,7 @@ async function main(): Promise<void> {
 	let pbNoText = 0;
 	let pbSkippedAlready = 0;
 	let pbSkippedCg = 0;
+	let pbSkippedNotShipped = 0;
 
 	// node_modules roots the scanner already knows: repo root, remote, build, and
 	// every extension root (+ server / server-lib). Seeds and on-disk lookups
@@ -1420,6 +1463,10 @@ async function main(): Promise<void> {
 					continue;
 				}
 				pbVisited.add(ck);
+				if (!isShippedArch(child.name)) {
+					pbSkippedNotShipped++;
+					continue;
+				}
 				childrenThisLevel.push({
 					name: child.name,
 					version: child.version,
@@ -1640,6 +1687,7 @@ async function main(): Promise<void> {
 	console.log(`    No text (warned):          ${pbNoText}`);
 	console.log(`    Skipped (already resolved): ${pbSkippedAlready}`);
 	console.log(`    Skipped (CG covers):       ${pbSkippedCg}`);
+	console.log(`    Skipped (not shipped):     ${pbSkippedNotShipped}`);
 	console.log(`  Total entries in output:     ${entries.size}`);
 	console.log(`  Output: ${outputPath}`);
 	console.log(`  Presence index (present but unlicensed): ${presence.length}`);
