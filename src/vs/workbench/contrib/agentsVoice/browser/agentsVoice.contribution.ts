@@ -422,5 +422,13 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.APPLICATION,
 			included: false,
 		},
+		'agents.voice.showTranscript': {
+			type: 'boolean',
+			description: nls.localize('agents.voice.showTranscript', "Show the voice transcript overlay in the chat input area while voice mode is active."),
+			default: true,
+			scope: ConfigurationScope.APPLICATION,
+			included: false,
+			tags: ['advanced'],
+		},
 	}
 });
