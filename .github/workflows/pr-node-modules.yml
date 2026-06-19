@@ -267,6 +267,7 @@ jobs:
         with:
           key-prefix: copilot-node_modules-linux
           key-args: "$(node -p process.platform) $(node -p process.arch)"
+          lookup-only: 'true'
 
       - name: Install root dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -299,6 +300,7 @@ jobs:
         with:
           key-prefix: copilot-node_modules-windows
           key-args: "$(node -p process.platform) $(node -p process.arch)"
+          lookup-only: 'true'
 
       - name: Install root dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
