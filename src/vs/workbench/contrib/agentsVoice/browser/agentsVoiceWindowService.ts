@@ -327,9 +327,14 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		const currentWidth = auxiliaryWindow.window.outerWidth;
 		const currentHeight = auxiliaryWindow.window.outerHeight;
 		if (targetWidth !== currentWidth || targetHeight !== currentHeight) {
+			// Keep bottom edge fixed: calculate where bottom is, resize, then reposition
+			const currentBottom = auxiliaryWindow.window.screenY + currentHeight;
+			const centerX = auxiliaryWindow.window.screenX + Math.round(currentWidth / 2);
 			try {
-				// Only resize — don't move. The window stays wherever the user placed it.
 				auxiliaryWindow.window.resizeTo(targetWidth, targetHeight);
+				const newY = currentBottom - targetHeight;
+				const newX = centerX - Math.round(targetWidth / 2);
+				auxiliaryWindow.window.moveTo(newX, newY);
 			} catch { /* resize may not be supported */ }
 		}
 	}
@@ -337,20 +342,18 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 	// --- Bounds persistence ---
 
 	private _defaultBounds(): IRectangle {
-		// Center horizontally relative to the main VS Code window, anchored near
-		// the bottom of the visible client area (inside the window).
-		const winX = mainWindow.screenX ?? 0;
-		const winY = mainWindow.screenY ?? 0;
+		// Position the aux window at the bottom-center of the main VS Code window.
+		// Use screen-relative coordinates: place it so its bottom edge is ~100px
+		// above the bottom of the main window.
+		const screenX = mainWindow.screenX ?? 0;
+		const screenY = mainWindow.screenY ?? 0;
 		const winWidth = mainWindow.outerWidth ?? 1920;
-		const outerHeight = mainWindow.outerHeight ?? 1080;
-		const innerHeight = mainWindow.innerHeight ?? outerHeight;
-		// Title bar height = difference between outer and inner
-		const titleBarHeight = outerHeight - innerHeight;
-		const clientTop = winY + titleBarHeight;
-		// Place the aux window 40px above the bottom of the client area
-		const y = clientTop + innerHeight - AGENTS_VOICE_WINDOW_DEFAULT_HEIGHT - 40;
+		const winHeight = mainWindow.outerHeight ?? 1080;
+
+		const x = Math.round(screenX + (winWidth - AGENTS_VOICE_WINDOW_DEFAULT_WIDTH) / 2);
+		const y = screenY + winHeight - AGENTS_VOICE_WINDOW_DEFAULT_HEIGHT - 100;
 		return {
-			x: Math.round(winX + (winWidth - AGENTS_VOICE_WINDOW_DEFAULT_WIDTH) / 2),
+			x,
 			y,
 			width: AGENTS_VOICE_WINDOW_DEFAULT_WIDTH,
 			height: AGENTS_VOICE_WINDOW_DEFAULT_HEIGHT,
