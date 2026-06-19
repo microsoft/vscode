@@ -160,13 +160,13 @@ CommandsRegistry.registerCommand('_agentsVoice.openWindow', async (accessor) => 
 	}
 });
 
-// --- Mic button in Chat toolbar (connect/disconnect toggle) ---
+// --- Mic button in Chat toolbar (toggle voice mode on/off) ---
 
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'agentsVoice.startVoiceInChat',
-			title: nls.localize2('agentsVoice.startVoiceInChat', "Voice Mode"),
+			id: 'agentsVoice.toggleVoiceInChat',
+			title: nls.localize2('agentsVoice.toggleVoiceInChat', "Voice Mode"),
 			icon: Codicon.mic,
 			precondition: ContextKeyExpr.equals('config.agents.voice.enabled', true),
 			menu: {
@@ -174,7 +174,6 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
-					AGENTS_VOICE_CONNECTED.negate(),
 				),
 				group: 'navigation',
 				order: 4
@@ -183,7 +182,6 @@ registerAction2(class extends Action2 {
 				weight: KeybindingWeight.WorkbenchContrib + 1,
 				primary: KeyCode.Space,
 				when: ContextKeyExpr.and(
-					AGENTS_VOICE_CONNECTED.negate(),
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
 					ChatContextKeys.inChatInput,
 					ChatContextKeys.inputHasText.negate(),
@@ -195,6 +193,14 @@ registerAction2(class extends Action2 {
 		const voiceController = accessor.get(IVoiceSessionController);
 		const ttsPlaybackService = accessor.get(ITtsPlaybackService);
 		const notificationService = accessor.get(INotificationService);
+
+		// Toggle: if connected, disconnect
+		if (voiceController.isConnected.get()) {
+			voiceController.disconnect();
+			return;
+		}
+
+		// Connect
 		try {
 			await voiceController.connect(mainWindow);
 			// connect() resolves before the WebSocket handshake completes.
@@ -212,39 +218,41 @@ registerAction2(class extends Action2 {
 			}
 			if (!voiceController.isConnected.get()) {
 				notificationService.error(nls.localize('agentsVoice.connectFailed', "Voice Mode: Could not connect to the voice backend. Please try again later."));
-			} else {
-				// Wait for the greeting to finish before starting PTT.
-				// The backend sends a greeting audio_response after session_init.
-				// Calling pttDown() immediately would suppress/kill it.
-				// Strategy: wait up to 3s for playback to start, then wait for it
-				// to finish. If no playback starts, assume no greeting and proceed.
-				const startPttAfterGreeting = () => {
-					if (voiceController.isConnected.get()) {
-						voiceController.pttDown();
-					}
-				};
-				if (ttsPlaybackService.isPlaying) {
-					// Already playing (greeting arrived fast) — wait for it to finish
-					const sub = ttsPlaybackService.onPlaybackStopped(() => {
-						sub.dispose();
-						startPttAfterGreeting();
-					});
-				} else {
-					// Wait for playback to start (greeting hasn't arrived yet)
-					let started = false;
-					const timeout = setTimeout(() => {
-						if (!started) {
-							startSub.dispose();
-							startPttAfterGreeting();
-						}
-					}, 3000);
-					const startSub = ttsPlaybackService.onPlaybackStopped(() => {
-						started = true;
-						clearTimeout(timeout);
-						startSub.dispose();
-						startPttAfterGreeting();
-					});
+				return;
+			}
+			// Continuous listening: after the greeting finishes, call pttDown()
+			// to stream mic audio. Backend VAD detects speech boundaries —
+			// no explicit pttUp() needed. After the backend responds with audio,
+			// onPlaybackStopped sets state back to 'listening' (since _pttHeld
+			// remains true), creating a continuous conversation loop.
+			const startListening = () => {
+				if (voiceController.isConnected.get()) {
+					voiceController.pttDown();
 				}
+			};
+			if (ttsPlaybackService.isPlaying) {
+				const sub = ttsPlaybackService.onPlaybackStopped(() => {
+					sub.dispose();
+					startListening();
+				});
+			} else {
+				// Wait up to 3s for greeting to arrive and finish
+				let resolved = false;
+				const timeout = setTimeout(() => {
+					if (!resolved) {
+						resolved = true;
+						sub.dispose();
+						startListening();
+					}
+				}, 3000);
+				const sub = ttsPlaybackService.onPlaybackStopped(() => {
+					if (!resolved) {
+						resolved = true;
+						clearTimeout(timeout);
+						sub.dispose();
+						startListening();
+					}
+				});
 			}
 		} catch (e) {
 			notificationService.error(nls.localize('agentsVoice.connectError', "Voice Mode: Connection failed — {0}", e instanceof Error ? e.message : String(e)));
@@ -252,39 +260,18 @@ registerAction2(class extends Action2 {
 	}
 });
 
-// --- Disconnect Voice button (shown when connected) ---
+// --- Disconnect Voice (command palette only, no toolbar button) ---
 
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'agentsVoice.disconnect',
 			title: nls.localize2('agentsVoice.disconnect', "Disconnect Voice Mode"),
-			icon: Codicon.debugDisconnect,
 			f1: true,
 			precondition: ContextKeyExpr.and(
 				ContextKeyExpr.equals('config.agents.voice.enabled', true),
 				AGENTS_VOICE_CONNECTED.isEqualTo(true),
 			),
-			menu: {
-				id: MenuId.ChatExecute,
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('config.agents.voice.enabled', true),
-					AGENTS_VOICE_CONNECTED.isEqualTo(true),
-					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
-				),
-				group: 'navigation',
-				order: 4
-			},
-			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib + 1,
-				primary: KeyCode.Space,
-				when: ContextKeyExpr.and(
-					AGENTS_VOICE_CONNECTED.isEqualTo(true),
-					ContextKeyExpr.equals('config.agents.voice.enabled', true),
-					ChatContextKeys.inChatInput,
-					ChatContextKeys.inputHasText.negate(),
-				),
-			},
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
