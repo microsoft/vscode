@@ -327,7 +327,6 @@ export class AgentsVoiceWidget extends Disposable {
 			this._inputBoxConnIndicator = toolbarBtn('codicon-debug-connected',
 				localize('agentsVoice.disconnect', "Disconnect"),
 				localize('agentsVoice.disconnect', "Disconnect"));
-			this._inputBoxConnIndicator.style.cssText += 'color:var(--vscode-charts-green);';
 
 			// Gear button
 			this._inputBoxGearBtn = toolbarBtn('codicon-gear',

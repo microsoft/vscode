@@ -364,7 +364,7 @@ registerAction2(class extends Action2 {
 			precondition: ContextKeyExpr.equals('config.agents.voice.enabled', true),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyCode.Space,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space,
 				when: ContextKeyExpr.and(
 					AGENTS_VOICE_WIDGET_FOCUSED,
 					ContextKeyExpr.not('inputFocus'),

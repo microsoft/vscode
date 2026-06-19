@@ -325,13 +325,14 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		const currentWidth = auxiliaryWindow.window.outerWidth;
 		const currentHeight = auxiliaryWindow.window.outerHeight;
 		if (targetWidth !== currentWidth || targetHeight !== currentHeight) {
-			// Save position before resize (macOS resizeTo anchors bottom-left, shifting Y)
+			// Anchor bottom edge: when height changes, the bottom stays fixed
+			// and the top moves up/down. This keeps the toolbar area stable.
+			const currentBottom = auxiliaryWindow.window.screenY + currentHeight;
 			const x = auxiliaryWindow.window.screenX;
-			const y = auxiliaryWindow.window.screenY;
 			try {
 				auxiliaryWindow.window.resizeTo(targetWidth, targetHeight);
-				// Restore original top-left position so window doesn't drift
-				auxiliaryWindow.window.moveTo(x, y);
+				const newY = currentBottom - targetHeight;
+				auxiliaryWindow.window.moveTo(x, newY);
 			} catch { /* resize may not be supported */ }
 		}
 	}
