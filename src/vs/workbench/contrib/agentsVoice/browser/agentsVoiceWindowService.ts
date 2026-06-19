@@ -141,9 +141,6 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		auxiliaryWindow.window.document.title = projectName ? `Agents Voice — ${projectName}` : 'Agents Voice';
 
 		auxiliaryWindow.container.style.overflow = 'hidden';
-		auxiliaryWindow.container.style.display = 'flex';
-		auxiliaryWindow.container.style.flexDirection = 'column';
-		auxiliaryWindow.container.style.justifyContent = 'flex-end';
 		auxiliaryWindow.window.document.body.style.setProperty('margin', '0', 'important');
 
 		// Resolve theme colors so the aux window matches the chat input box
@@ -315,9 +312,28 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 
 	// --- Window sizing ---
 
-	private _resizeWindow(_auxiliaryWindow: IAuxiliaryWindow): void {
-		// No-op: on macOS resizeTo anchors bottom-left, causing the window to
-		// move up when height increases. We use a fixed initial size instead.
+	private _resizeWindow(auxiliaryWindow: IAuxiliaryWindow): void {
+		// eslint-disable-next-line no-restricted-syntax
+		const pill = auxiliaryWindow.container.querySelector('div') as HTMLElement | null;
+		if (!pill) { return; }
+		void pill.offsetWidth;
+		const pillWidth = pill.offsetWidth;
+		const pillHeight = pill.offsetHeight;
+		if (pillWidth <= 0 || pillHeight <= 0) { return; }
+		const targetWidth = pillWidth;
+		const targetHeight = pillHeight;
+		const currentWidth = auxiliaryWindow.window.outerWidth;
+		const currentHeight = auxiliaryWindow.window.outerHeight;
+		if (targetWidth !== currentWidth || targetHeight !== currentHeight) {
+			// Save position before resize (macOS resizeTo anchors bottom-left, shifting Y)
+			const x = auxiliaryWindow.window.screenX;
+			const y = auxiliaryWindow.window.screenY;
+			try {
+				auxiliaryWindow.window.resizeTo(targetWidth, targetHeight);
+				// Restore original top-left position so window doesn't drift
+				auxiliaryWindow.window.moveTo(x, y);
+			} catch { /* resize may not be supported */ }
+		}
 	}
 
 	// --- Bounds persistence ---
