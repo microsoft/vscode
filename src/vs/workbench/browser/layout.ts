@@ -2159,7 +2159,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const canResizeWindow = isNative && !this.state.runtime.mainWindowFullscreen && !this.isWindowMaximized(mainWindow);
 
 		if (
-			skipLayout || // Only on explicit user toggles, not during restore
+			skipLayout || // Skip programmatic visibility changes
 			willBeMaximized || // Editor is not visible when the part is maximized
 			this.inMaximizedAuxiliaryBarTransition ||	// Transition resizes all parts at once
 			!visibilityChanged ||
