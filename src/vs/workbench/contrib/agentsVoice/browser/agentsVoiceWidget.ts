@@ -628,6 +628,7 @@ export class AgentsVoiceWidget extends Disposable {
 			// Constrain session list height so toolbar and transcript always remain visible
 			this._sessionListWrapper.style.maxHeight = '200px';
 			this._sessionListWrapper.style.overflowY = 'auto';
+			this._sessionListWrapper.style.scrollbarWidth = 'none';
 			this._sessionListComponent.update({
 				sessions: this._sessions.read(reader),
 				groups: this._sessionGroups.read(reader),
