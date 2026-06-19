@@ -1954,7 +1954,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Apply the window resize that keeps the editor size stable (no-op on web)
 		if (sideBarToggleResize) {
-			this.resizeWindowToKeepEditorSize(sideBarToggleResize);
+			void this.resizeWindowToKeepEditorSize(sideBarToggleResize);
 		}
 	}
 
@@ -2145,7 +2145,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Apply the window resize that keeps the editor size stable (no-op on web)
 		if (panelToggleResize) {
-			this.resizeWindowToKeepEditorSize(panelToggleResize);
+			void this.resizeWindowToKeepEditorSize(panelToggleResize);
 		}
 	}
 
@@ -2388,7 +2388,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Apply the window resize that keeps the editor size stable (no-op on web)
 		if (auxiliaryBarToggleResize) {
-			this.resizeWindowToKeepEditorSize(auxiliaryBarToggleResize);
+			void this.resizeWindowToKeepEditorSize(auxiliaryBarToggleResize);
 		}
 	}
 
