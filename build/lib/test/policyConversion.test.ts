@@ -534,4 +534,52 @@ suite('Policy E2E conversion', () => {
 		assert.ok(ObjectPolicy.from(category, policy), 'A union array|null type should be classified as an object policy');
 	});
 
+	test('descriptions containing angle brackets produce valid XML (#320551)', () => {
+		const policyData: ExportedPolicyDataDto = {
+			categories: [{ key: 'InteractiveSession', name: { key: 'interactiveSessionConfigurationTitle', value: 'Chat' } }],
+			policies: [
+				{
+					key: 'chat.plugins.enabledPlugins',
+					name: 'ChatEnabledPlugins',
+					category: 'InteractiveSession',
+					minimumVersion: '1.122',
+					localization: {
+						description: {
+							key: 'chat.plugins.enabledPlugins.policy',
+							value: 'Plugin enablement. Keys are plugin IDs in `<plugin>@<marketplace>` form; values enable or disable the plugin.'
+						}
+					},
+					type: 'object',
+					default: {},
+				},
+				{
+					key: 'chat.plugins.extraMarketplaces',
+					name: 'ChatExtraMarketplaces',
+					category: 'InteractiveSession',
+					minimumVersion: '1.122',
+					localization: {
+						description: {
+							key: 'chat.plugins.extraMarketplaces.policy',
+							value: 'Additional plugin marketplaces to query. Keys are marketplace names; values are GitHub shorthand (`owner/repo[#ref]`) or Git URIs (`<url>[#ref]`).'
+						}
+					},
+					type: 'object',
+					default: {},
+				}
+			]
+		};
+
+		const parsed = parsePolicies(policyData);
+		const { adml } = renderGP(mockProduct, parsed, []);
+		const enUs = adml.find(a => a.languageId === 'en-us');
+		assert.ok(enUs, 'en-us ADML should exist');
+
+		// Angle brackets must be escaped so the output is valid XML
+		assert.ok(enUs.contents.includes('&lt;plugin&gt;@&lt;marketplace&gt;'), 'angle brackets in descriptions must be XML-escaped');
+		assert.ok(enUs.contents.includes('&lt;url&gt;'), 'angle brackets in descriptions must be XML-escaped');
+		assert.ok(!enUs.contents.includes('<plugin>'), 'raw angle brackets must not appear in ADML output');
+		assert.ok(!enUs.contents.includes('<url>'), 'raw angle brackets must not appear in ADML output');
+	});
+
+
 });
