@@ -224,43 +224,6 @@ extends:
         jobs:
           - template: build/azure-pipelines/product-quality-checks.yml@self
 
-      - stage: DistroProbe
-        dependsOn: []
-        pool:
-          name: 1es-ubuntu-22.04-x64
-          os: linux
-        jobs:
-          - job: DistroProbe
-            displayName: Distro Probe
-            steps:
-              - checkout: self
-                path: s/vscode
-                fetchDepth: 1
-                fetchTags: false
-                displayName: Checkout microsoft/vscode
-              - checkout: distro
-                path: s/vscode-distro
-                fetchDepth: 0
-                displayName: Checkout microsoft/vscode-distro
-              - task: NodeTool@0
-                inputs:
-                  versionSource: fromFile
-                  versionFilePath: $(Agent.BuildDirectory)/s/vscode/.nvmrc
-              - script: |
-                  set -e
-                  SELF="$(Agent.BuildDirectory)/s/vscode"
-                  DISTRO="$(Agent.BuildDirectory)/s/vscode-distro"
-                  SHA=$(node -p "require('$SELF/package.json').distro")
-                  echo "package.json distro SHA: $SHA"
-                  echo "distro HEAD before checkout:"
-                  git -C "$DISTRO" log -1 --oneline
-                  git -C "$DISTRO" checkout "$SHA"
-                  echo "checked out distro SHA OK:"
-                  git -C "$DISTRO" log -1 --oneline
-                  echo "distro top-level contents:"
-                  ls -la "$DISTRO" | head -30
-                displayName: Probe distro checkout
-
       - stage: Copilot
         dependsOn: []
         pool:
