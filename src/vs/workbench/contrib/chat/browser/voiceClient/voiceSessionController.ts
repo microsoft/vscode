@@ -1907,8 +1907,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			return false;
 		});
 
+		const targetSessionId = this._targetSession.get()?.toString();
+
 		const sessionList = sessions.map(s => {
 			const model = this.chatService.getSession(s.resource);
+			const isActive = s.resource.toString() === targetSessionId;
 			if (!model) {
 				const fallbackState = s.status === AgentSessionStatus.InProgress ? 'thinking'
 					: s.status === AgentSessionStatus.NeedsInput ? 'waiting_for_confirmation'
@@ -1916,14 +1919,14 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 							: 'unknown';
 				return {
 					id: s.resource.toString(),
-					is_active: false,
+					is_active: isActive,
 					agent_state: fallbackState,
 				};
 			}
 			const stateInfo = this._getAgentStateInfo(model);
 			return {
 				id: s.resource.toString(),
-				is_active: false,
+				is_active: isActive,
 				agent_state: stateInfo.state,
 				...(stateInfo.detail ? { agent_state_detail: stateInfo.detail } : {}),
 				...(stateInfo.last_response_summary ? { last_response_summary: stateInfo.last_response_summary } : {}),
@@ -1945,7 +1948,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 			sessionList.push({
 				id: key,
-				is_active: false,
+				is_active: key === targetSessionId,
 				agent_state: stateInfo.state,
 				...(stateInfo.detail ? { agent_state_detail: stateInfo.detail } : {}),
 				...(stateInfo.last_response_summary ? { last_response_summary: stateInfo.last_response_summary } : {}),
