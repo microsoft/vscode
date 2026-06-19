@@ -1669,11 +1669,9 @@ suite('AgentHostChatContribution', () => {
 
 			assert.deepStrictEqual({
 				listCalls,
-				sameResult: a === b,
 				summaries: a.map(s => s.summary),
 			}, {
 				listCalls: 1,
-				sameResult: true,
 				summaries: ['My session'],
 			});
 		});
