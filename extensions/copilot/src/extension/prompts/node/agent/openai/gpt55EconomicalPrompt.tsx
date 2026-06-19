@@ -21,6 +21,10 @@ export class Gpt55EconomicalSearchAndEditPromptExp extends Gpt55PromptBase {
 		Gpt55EconomicalSearchAndEditPromptExp.isEnabled = this.configurationService.getExperimentBasedConfig(ConfigKey.EnableGpt55EconomicalSearchAndEdit, this.experimentationService);
 	}
 
+	protected override get includeLargePromptSections(): boolean {
+		return false;
+	}
+
 	protected override get includeEconomicalSearchAndEdit(): boolean {
 		return true;
 	}
