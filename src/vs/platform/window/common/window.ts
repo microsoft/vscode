@@ -197,8 +197,6 @@ export interface IWindowSettings {
 	readonly newWindowProfile: string;
 	readonly density: IDensitySettings;
 	readonly border: 'off' | 'default' | 'system' | string /* color in RGB or other formats */;
-	/** Controls font smoothing / antialiasing for the UI. */
-	readonly fontSmoothing: 'auto' | 'antialiased' | 'none';
 }
 
 export interface IDensitySettings {
