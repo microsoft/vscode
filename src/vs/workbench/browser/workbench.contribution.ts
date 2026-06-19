@@ -594,6 +594,12 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				],
 				agentsWindow: { default: 'never', readOnly: true },
 			},
+			'workbench.keepEditorSizeOnToggle': {
+				'type': 'boolean',
+				'default': false,
+				'description': localize('keepEditorSizeOnToggle', "Controls whether showing or hiding the panel, primary side bar, or secondary side bar resizes the window such that the editor keeps its size, instead of changing the editor size to make room for it. Only applies on desktop when the window is not maximized or in full screen."),
+				'included': !isWeb,
+			},
 			'workbench.secondarySideBar.defaultVisibility': {
 				'type': 'string',
 				'enum': ['hidden', 'visibleInWorkspace', 'visible', 'maximizedInWorkspace', 'maximized'],

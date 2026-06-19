@@ -7,7 +7,7 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { FocusMode } from '../../../../platform/native/common/native.js';
+import { FocusMode, IWindowResizeAnchor, IWindowResizeDelta } from '../../../../platform/native/common/native.js';
 import { IWindowOpenable, IOpenWindowOptions, IOpenEmptyWindowOptions, IPoint, IRectangle, IOpenedMainWindow, IOpenedAuxiliaryWindow } from '../../../../platform/window/common/window.js';
 
 export const IHostService = createDecorator<IHostService>('hostService');
@@ -110,6 +110,13 @@ export interface IHostService {
 	 * a modal dialog or modal editor part).
 	 */
 	setWindowDimmed(targetWindow: Window, dimmed: boolean): Promise<void>;
+
+	/**
+	 * Resizes the window by the delta, keeping the edges as indicated by
+	 * the anchor fixed in place. Has no effect when the window is maximized or in
+	 * full screen.
+	 */
+	resizeMainWindow(delta: IWindowResizeDelta, anchor: IWindowResizeAnchor): Promise<void>;
 
 	/**
 	 * Get the location of the mouse cursor and its display bounds or `undefined` if unavailable.

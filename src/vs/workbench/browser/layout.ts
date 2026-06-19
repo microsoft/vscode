@@ -7,7 +7,7 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable }
 import { Event, Emitter } from '../../base/common/event.js';
 import { EventType, addDisposableListener, getClientArea, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, isActiveDocument, getWindow, getWindowId, getActiveElement, Dimension } from '../../base/browser/dom.js';
 import { onDidChangeFullscreen, isFullscreen, isWCOEnabled } from '../../base/browser/browser.js';
-import { isWindows, isLinux, isMacintosh, isWeb, isIOS } from '../../base/common/platform.js';
+import { isWindows, isLinux, isMacintosh, isWeb, isIOS, isNative } from '../../base/common/platform.js';
 import { EditorInputCapabilities, GroupIdentifier, isResourceEditorInput, IUntypedEditorInput, pathsToEditors } from '../common/editor.js';
 import { SidebarPart } from './parts/sidebar/sidebarPart.js';
 import { PanelPart } from './parts/panel/panelPart.js';
@@ -40,7 +40,7 @@ import { DiffEditorInput } from '../common/editor/diffEditorInput.js';
 import { mark } from '../../base/common/performance.js';
 import { IExtensionService } from '../services/extensions/common/extensions.js';
 import { ILogService } from '../../platform/log/common/log.js';
-import { DeferredPromise, Promises } from '../../base/common/async.js';
+import { DeferredPromise, Promises, raceTimeout } from '../../base/common/async.js';
 import { IBannerService } from '../services/banner/browser/bannerService.js';
 import { IPaneCompositePartService } from '../services/panecomposite/browser/panecomposite.js';
 import { AuxiliaryBarPart } from './parts/auxiliarybar/auxiliaryBarPart.js';
@@ -67,6 +67,12 @@ interface ILayoutRuntimeState {
 interface IEditorToOpen {
 	readonly editor: IUntypedEditorInput;
 	readonly viewColumn?: number;
+}
+
+interface IPartToggleWindowResize {
+	readonly editorSize: IViewSize;
+	readonly delta: { readonly width: number; readonly height: number };
+	readonly anchor: { readonly right: boolean; readonly bottom: boolean };
 }
 
 interface ILayoutInitializationState {
@@ -1456,7 +1462,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			this.setPanelHidden(true, true);
 			this.setAuxiliaryBarHidden(true, true);
-			this.setSideBarHidden(true);
+			this.setSideBarHidden(true, true);
 
 			if (config.hideActivityBar) {
 				this.setActivityBarHidden(true);
@@ -1539,7 +1545,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 
 			if (zenModeExitInfo.wasVisible.sideBar) {
-				this.setSideBarHidden(false);
+				this.setSideBarHidden(false, true);
 			}
 
 			if (!this.stateModel.getRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN, true)) {
@@ -1654,7 +1660,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					// visibility efficiently.
 
 					if (part === sideBar) {
-						this.setSideBarHidden(!visible);
+						this.setSideBarHidden(!visible, true);
 					} else if (part === panelPart && this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN) === visible) {
 						this.setPanelHidden(!visible, true);
 					} else if (part === auxiliaryBarPart) {
@@ -1886,12 +1892,18 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		]);
 	}
 
-	private setSideBarHidden(hidden: boolean): void {
+	private setSideBarHidden(hidden: boolean, skipLayout?: boolean): void {
 		if (!hidden && this.setAuxiliaryBarMaximized(false) && this.isVisible(Parts.SIDEBAR_PART)) {
 			return; // return: leaving maximised auxiliary bar made this part visible
 		}
 
+		const wasHidden = !this.isVisible(Parts.SIDEBAR_PART);
+
 		this.stateModel.setRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN, hidden);
+
+		// Optionally resize the window so that the editor keeps its size when the
+		// primary side bar is shown or hidden (instead of the editor making room for it)
+		const sideBarToggleResize = this.getPartToggleWindowResize(this.sideBarPartView, this.getSideBarPosition(), hidden, wasHidden, skipLayout, false);
 
 		// Adjust CSS
 		if (hidden) {
@@ -1918,6 +1930,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			if (viewletToOpen) {
 				this.openViewContainer(ViewContainerLocation.Sidebar, viewletToOpen);
 			}
+		}
+
+		// Apply the window resize that keeps the editor size stable (no-op on web)
+		if (sideBarToggleResize) {
+			this.resizeWindowToKeepEditorSize(sideBarToggleResize);
 		}
 	}
 
@@ -2037,6 +2054,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		const panelOpensMaximized = this.panelOpensMaximized();
 
+		// Optionally resize the window so that the editor keeps its size when
+		// the panel is shown or hidden (instead of the editor making room for it)
+		const panelToggleResize = this.getPartToggleWindowResize(this.panelPartView, this.getPanelPosition(), hidden, wasHidden, skipLayout, hidden ? isPanelMaximized : panelOpensMaximized);
+
 		// Adjust CSS
 		if (hidden) {
 			this.mainContainer.classList.add(LayoutClasses.PANEL_HIDDEN);
@@ -2101,6 +2122,72 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (focusEditor) {
 			this.editorGroupService.mainPart.activeGroup.focus(); // Pass focus to editor group if panel part is now hidden
 		}
+
+		// Apply the window resize that keeps the editor size stable (no-op on web)
+		if (panelToggleResize) {
+			this.resizeWindowToKeepEditorSize(panelToggleResize);
+		}
+	}
+
+	private getPartToggleWindowResize(partView: ISerializableView, position: Position, hidden: boolean, wasHidden: boolean, skipLayout: boolean | undefined, willBeMaximized: boolean): IPartToggleWindowResize | undefined {
+		const visibilityChanged = wasHidden !== hidden;
+		const keepEditorSizeEnabled = this.configurationService.getValue<boolean>(WorkbenchLayoutSettings.KEEP_EDITOR_SIZE_ON_TOGGLE);
+		const editorVisible = this.isVisible(Parts.EDITOR_PART, mainWindow);
+
+		// Window resizing is only available on desktop and only when the window is
+		// free to grow or shrink (not maximized or in full screen)
+		const canResizeWindow = isNative && !this.state.runtime.mainWindowFullscreen && !this.isWindowMaximized(mainWindow);
+
+		if (
+			skipLayout || // Only on explicit user toggles, not during restore
+			willBeMaximized || // Editor is not visible when the part is maximized
+			this.inMaximizedAuxiliaryBarTransition ||	// Transition resizes all parts at once
+			!visibilityChanged ||
+			!keepEditorSizeEnabled ||
+			!canResizeWindow ||
+			!editorVisible
+		) {
+			return undefined;
+		}
+
+		const horizontal = isHorizontal(position);
+
+		// When hiding, the part is still visible in the grid, so use its current size
+		// When showing, the part is still hidden, so fall back to its last visible size
+		let partSizeAlongAxis: number;
+		if (hidden) {
+			const partSize = this.workbenchGrid.getViewSize(partView);
+			partSizeAlongAxis = horizontal ? partSize.height : partSize.width;
+		} else {
+			partSizeAlongAxis = this.workbenchGrid.getViewCachedVisibleSize(partView) ?? (horizontal ? partView.minimumHeight : partView.minimumWidth);
+		}
+
+		if (partSizeAlongAxis <= 0) {
+			return undefined;
+		}
+
+		const delta = hidden ? -partSizeAlongAxis : partSizeAlongAxis;
+
+		return {
+			editorSize: this.workbenchGrid.getViewSize(this.editorPartView),
+			delta: { width: horizontal ? 0 : delta, height: horizontal ? delta : 0 },
+			anchor: { right: position === Position.LEFT, bottom: position === Position.TOP }
+		};
+	}
+
+	private async resizeWindowToKeepEditorSize(resize: IPartToggleWindowResize): Promise<void> {
+
+		// Wait for the layout that the OS window resize triggers, then restore the
+		// editor to its previous size so that the panel absorbs the size change
+		const onDidRelayout = raceTimeout(Event.toPromise(Event.once(this.onDidLayoutMainContainer)), 1000);
+		await this.hostService.resizeMainWindow(resize.delta, resize.anchor);
+		await onDidRelayout;
+
+		if (this.disposed || !this.workbenchGrid) {
+			return;
+		}
+
+		this.workbenchGrid.resizeView(this.editorPartView, { width: resize.editorSize.width, height: resize.editorSize.height });
 	}
 
 	private inMaximizedAuxiliaryBarTransition = false;
@@ -2229,7 +2316,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return; // return: leaving maximised auxiliary bar made this part hidden
 		}
 
+		const wasHidden = !this.isVisible(Parts.AUXILIARYBAR_PART);
+
 		this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, hidden);
+
+		// Optionally resize the window so that the editor keeps its size when the
+		// secondary side bar is shown or hidden (instead of the editor making room for it).
+		// The secondary side bar is always on the opposite side of the primary side bar.
+		const auxiliaryBarToggleResize = this.getPartToggleWindowResize(this.auxiliaryBarPartView, this.getSideBarPosition() === Position.LEFT ? Position.RIGHT : Position.LEFT, hidden, wasHidden, skipLayout, false);
 
 		// Adjust CSS
 		if (hidden) {
@@ -2262,6 +2356,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			if (viewletToOpen) {
 				this.openViewContainer(ViewContainerLocation.AuxiliaryBar, viewletToOpen, !skipLayout);
 			}
+		}
+
+		// Apply the window resize that keeps the editor size stable (no-op on web)
+		if (auxiliaryBarToggleResize) {
+			this.resizeWindowToKeepEditorSize(auxiliaryBarToggleResize);
 		}
 	}
 
@@ -2840,6 +2939,7 @@ enum WorkbenchLayoutSettings {
 	ACTIVITY_BAR_VISIBLE = 'workbench.activityBar.visible',
 	PANEL_POSITION = 'workbench.panel.defaultLocation',
 	PANEL_OPENS_MAXIMIZED = 'workbench.panel.opensMaximized',
+	KEEP_EDITOR_SIZE_ON_TOGGLE = 'workbench.keepEditorSizeOnToggle',
 	ZEN_MODE_CONFIG = 'zenMode',
 	EDITOR_CENTERED_LAYOUT_AUTO_RESIZE = 'workbench.editor.centeredLayoutAutoResize',
 	EDITOR_RESTORE_EDITORS = 'workbench.editor.restoreEditors',

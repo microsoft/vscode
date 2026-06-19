@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IHostService, IToastOptions, IToastResult } from '../browser/host.js';
-import { FocusMode, INativeHostService } from '../../../../platform/native/common/native.js';
+import { FocusMode, INativeHostService, IWindowResizeAnchor, IWindowResizeDelta } from '../../../../platform/native/common/native.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILabelService, Verbosity } from '../../../../platform/label/common/label.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
@@ -175,6 +175,10 @@ class WorkbenchHostService extends Disposable implements IHostService {
 
 	async setWindowDimmed(targetWindow: Window, dimmed: boolean): Promise<void> {
 		return this.nativeHostService.updateWindowControls({ dimmed, targetWindowId: getWindowId(targetWindow) });
+	}
+
+	resizeMainWindow(delta: IWindowResizeDelta, anchor: IWindowResizeAnchor): Promise<void> {
+		return this.nativeHostService.resizeWindow(delta, anchor);
 	}
 
 	getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle }> {
