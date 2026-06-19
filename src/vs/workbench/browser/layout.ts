@@ -2204,12 +2204,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			const beforeWidth = this._mainContainerDimension.width;
 			const beforeHeight = this._mainContainerDimension.height;
 
+			const relayoutPromise = Event.toPromise(Event.once(Event.filter(this.onDidLayoutMainContainer, d => d.width !== beforeWidth || d.height !== beforeHeight)));
+
 			await this.hostService.resizeMainWindow(resize.delta, resize.anchor);
 
-			const didRelayout = await raceTimeout(
-				Event.toPromise(Event.once(Event.filter(this.onDidLayoutMainContainer, d => d.width !== beforeWidth || d.height !== beforeHeight))),
-				1000
-			);
+			const didRelayout = await raceTimeout(relayoutPromise, 1000);
 
 			if (!didRelayout) {
 				return;
