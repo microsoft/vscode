@@ -190,12 +190,8 @@ registerAction2(class extends Action2 {
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const voiceController = accessor.get(IVoiceSessionController);
-		const agentsVoiceWindowService = accessor.get(IAgentsVoiceWindowService);
 		if (!voiceController.isConnected.get()) {
 			await voiceController.connect(mainWindow);
-			if (!agentsVoiceWindowService.isOpen) {
-				await agentsVoiceWindowService.openWindow();
-			}
 		} else {
 			voiceController.pttDown();
 			voiceController.pttUp();
