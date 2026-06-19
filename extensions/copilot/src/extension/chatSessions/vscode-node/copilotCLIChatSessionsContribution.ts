@@ -74,6 +74,7 @@ const OPEN_REPOSITORY_COMMAND_ID = 'github.copilot.cli.sessions.openRepository';
 const OPEN_IN_COPILOT_CLI_COMMAND_ID = 'github.copilot.cli.openInCopilotCLI';
 const MAX_MRU_ENTRIES = 10;
 const CHECK_FOR_STEERING_DELAY = 100; // ms
+const INITIAL_SESSION_METADATA_LIMIT = 20;
 
 // When we start new sessions, we don't have the real session id, we have a temporary untitled id.
 // We also need this when we open a session and later run it.
@@ -273,7 +274,7 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 
 	public async provideChatSessionItems(token: vscode.CancellationToken): Promise<vscode.ChatSessionItem[]> {
 		const stopwatch = new StopWatch();
-		const sessions = await this.copilotcliSessionService.getAllSessions(token);
+		const sessions = await this.copilotcliSessionService.getAllSessions(token, { metadataLimit: INITIAL_SESSION_METADATA_LIMIT, resolveLabels: false });
 		// Drain the pending set: sessions that were explicitly refreshed get `changes` populated
 		// eagerly so the visible row reflects the latest diff info on this re-provide pass.
 		const pendingIds = new Set(this.pendingChangeIncludeIds);

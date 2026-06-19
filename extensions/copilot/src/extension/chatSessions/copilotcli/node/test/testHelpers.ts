@@ -89,7 +89,7 @@ export class MockCliSdkSessionManager {
 		}
 		return Promise.resolve(undefined);
 	}
-	listSessions() {
+	listSessions(_options?: { metadataLimit?: number }) {
 		return Promise.resolve(Array.from(this.sessions.values()).map(s => ({ sessionId: s.sessionId, startTime: s.startTime, modifiedTime: s.startTime, summary: s.summary, name: s.name })));
 	}
 	getSessionMetadata({ sessionId }: { sessionId: string }) {
