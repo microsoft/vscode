@@ -167,15 +167,6 @@ export function isGpt55EconomicalSearchAndEditExp(
 	return isGpt55(model) && configurationService.getExperimentBasedConfig(ConfigKey.EnableGpt55EconomicalSearchAndEdit, experimentationService);
 }
 
-export function isGpt55LargePromptSectionsExp(
-	accessor: ServicesAccessor,
-	model: LanguageModelChat | IChatEndpoint | string,
-) {
-	const configurationService = accessor.get(IConfigurationService);
-	const experimentationService = accessor.get(IExperimentationService);
-	return isGpt55(model) && configurationService.getExperimentBasedConfig(ConfigKey.EnableGpt55LargePromptSections, experimentationService);
-}
-
 export function isHiddenModelM(model: LanguageModelChat | IChatEndpoint | string) {
 	const family_hash = getCachedSha256Hash(typeof model === 'string' ? model : model.family);
 	return HIDDEN_FAMILY_M_HASHES.includes(family_hash);
