@@ -7,10 +7,10 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { raceCancellationError, raceTimeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
-import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString, markdownStringEqual } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, DisposableMap, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableFromEvent, observableValue, observableValueOpts, transaction } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, ITransaction, observableFromEvent, observableValue, observableValueOpts, transaction } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -23,7 +23,7 @@ import { AgentSessionProviders, AgentSessionTarget } from '../../../../../workbe
 import { IChatService, IChatSendRequestOptions } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatSessionStatus, IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, sessionFileChangesEqual, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, ISessionChangeset, IChatCheckpoints } from '../../../../services/sessions/common/session.js';
+import { ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, sessionFileChangesEqual, gitHubInfoEqual, sessionWorkspaceEqual, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, ISessionChangeset, IChatCheckpoints } from '../../../../services/sessions/common/session.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
 import { ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
@@ -184,6 +184,22 @@ function buildChatFromSession(chat: Omit<ICopilotChatSession, 'mainChat'>, resou
 		description: chat.description,
 		lastTurnEnd: chat.lastTurnEnd,
 	};
+}
+
+function setIfChanged<T>(observable: ISettableObservable<T>, value: T, tx: ITransaction, equals: (a: T, b: T) => boolean = Object.is): boolean {
+	if (equals(observable.get(), value)) {
+		return false;
+	}
+	observable.set(value, tx, undefined);
+	return true;
+}
+
+function dateEquals(a: Date | undefined, b: Date | undefined): boolean {
+	return a?.getTime() === b?.getTime();
+}
+
+function markdownStringEquals(a: IMarkdownString | undefined, b: IMarkdownString | undefined): boolean {
+	return a === b || !!a && !!b && markdownStringEqual(a, b);
 }
 
 /**
@@ -1055,21 +1071,23 @@ class AgentSessionAdapter implements ICopilotChatSession {
 	/**
 	 * Update reactive properties from a refreshed agent session.
 	 */
-	update(session: IAgentSession): void {
+	update(session: IAgentSession): boolean {
+		let changed = false;
 		transaction(tx => {
-			this._title.set(session.label, tx);
-			this._workspace.set(this._buildWorkspace(session), tx);
+			changed = setIfChanged(this._title, session.label, tx) || changed;
+			changed = setIfChanged(this._workspace, this._buildWorkspace(session), tx, sessionWorkspaceEqual) || changed;
 			const updatedTime = session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created;
-			this._updatedAt.set(new Date(updatedTime), tx);
-			this._status.set(toSessionStatus(session.status), tx);
-			this._changes.set(this._extractChanges(session), tx);
-			this._checkpoints.set(this._extractCheckpoints(session), tx);
-			this._isArchived.set(session.isArchived(), tx);
-			this._isRead.set(session.isRead(), tx);
-			this._description.set(this._extractDescription(session), tx);
-			this._lastTurnEnd.set(session.timing.lastRequestEnded ? new Date(session.timing.lastRequestEnded) : undefined, tx);
-			this._baseGitHubInfo.set(this._extractGitHubInfo(session), tx);
+			changed = setIfChanged(this._updatedAt, new Date(updatedTime), tx, dateEquals) || changed;
+			changed = setIfChanged(this._status, toSessionStatus(session.status), tx) || changed;
+			changed = setIfChanged(this._changes, this._extractChanges(session), tx, sessionFileChangesEqual) || changed;
+			changed = setIfChanged(this._checkpoints, this._extractCheckpoints(session), tx, structuralEquals) || changed;
+			changed = setIfChanged(this._isArchived, session.isArchived(), tx) || changed;
+			changed = setIfChanged(this._isRead, session.isRead(), tx) || changed;
+			changed = setIfChanged(this._description, this._extractDescription(session), tx, markdownStringEquals) || changed;
+			changed = setIfChanged(this._lastTurnEnd, session.timing.lastRequestEnded ? new Date(session.timing.lastRequestEnded) : undefined, tx, dateEquals) || changed;
+			changed = setIfChanged(this._baseGitHubInfo, this._extractGitHubInfo(session), tx, gitHubInfoEqual) || changed;
 		});
+		return changed;
 	}
 
 	private _getSessionTypeIcon(session: IAgentSession): ThemeIcon {
@@ -1703,9 +1721,11 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				inputCost: modelMetadata?.inputCost,
 				outputCost: modelMetadata?.outputCost,
 				cacheCost: modelMetadata?.cacheCost,
+				cacheWriteCost: modelMetadata?.cacheWriteCost,
 				longContextInputCost: modelMetadata?.longContextInputCost,
 				longContextOutputCost: modelMetadata?.longContextOutputCost,
 				longContextCacheCost: modelMetadata?.longContextCacheCost,
+				longContextCacheWriteCost: modelMetadata?.longContextCacheWriteCost,
 				priceCategory: modelMetadata?.priceCategory,
 				maxInputTokens: modelMetadata?.maxInputTokens ?? 0,
 				maxOutputTokens: modelMetadata?.maxOutputTokens ?? 0,
@@ -1825,6 +1845,13 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			return;
 		}
 		throw new Error('Renaming is not supported for this session type');
+	}
+
+	async renameSession(sessionId: string, title: string): Promise<void> {
+		const session = this._findSession(sessionId);
+		if (session) {
+			await this.renameChat(sessionId, session.mainChat.get().resource, title);
+		}
 	}
 
 	async deleteChat(sessionId: string, chatUri: URI): Promise<void> {
@@ -2387,11 +2414,21 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				}));
 			});
 
-			// The adapter should appear almost immediately after the commit
-			// event via _refreshSessionCache; use a short safety timeout.
+			// The adapter normally appears within a few hundred ms of the commit
+			// event via _refreshSessionCache, but the refresh is gated on the
+			// underlying provider's `provideChatSessionItems` call. Some legacy
+			// providers (notably Copilot CLI's V1 contribution) scan disk for
+			// session metadata on every refresh and can take 10+ seconds when
+			// the on-disk session list is large or cold. If we give up too
+			// early the chat widget never gets re-bound from the untitled URI
+			// to the committed SDK session URI, so a follow-up message would
+			// spawn a brand new SDK session instead of continuing the existing
+			// one. Use a generous timeout that covers the slowest realistic
+			// refresh while still failing loudly if something is genuinely
+			// stuck.
 			const result = await raceTimeout(
 				token ? raceCancellationError(sessionPromise, token) : sessionPromise,
-				5_000,
+				30_000,
 			);
 			if (!result) {
 				throw new Error('Timed out waiting for committed session in cache');
@@ -2621,8 +2658,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 			const existing = this._sessionCache.get(key);
 			if (existing) {
-				existing.update(session);
-				changedData.push(existing);
+				if (existing.update(session)) {
+					changedData.push(existing);
+				}
 			} else {
 				const adapter = new AgentSessionAdapter(session, this.id, this.gitHubService);
 				this._sessionCache.set(key, adapter);
@@ -2899,6 +2937,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			mainChat,
 			capabilities: {
 				supportsMultipleChats: primaryChat.sessionType === CopilotCLISessionType.id && this._isMultiChatEnabled(),
+				supportsRename: this._sessionTypeSupportsRename(primaryChat.sessionType),
 				// Cloud-agent sessions run worktreeCreated tasks server-side during
 				// environment provisioning, so the agents-window dispatcher must
 				// not re-run them. CLI / local sessions don't.
@@ -2938,9 +2977,18 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			mainChat,
 			capabilities: {
 				supportsMultipleChats: false,
+				supportsRename: this._sessionTypeSupportsRename(chat.sessionType),
 				runsWorktreeCreatedTasks: chat.sessionType === CopilotCloudSessionType.id,
 			},
 		};
+	}
+
+	/**
+	 * Whether {@link renameChat} can rename a session of the given type. Only
+	 * the CopilotCLI and Claude backends expose a rename command; others throw.
+	 */
+	private _sessionTypeSupportsRename(sessionType: string): boolean {
+		return sessionType === CopilotCLISessionType.id || sessionType === AgentSessionProviders.Claude;
 	}
 
 	private _toChat(chat: ICopilotChatSession, resource?: URI): IChat {

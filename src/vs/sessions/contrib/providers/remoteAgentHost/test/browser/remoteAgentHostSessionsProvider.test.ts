@@ -15,7 +15,7 @@ import { AgentSession, type IAgentConnection, type IAgentSessionMetadata } from 
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { SessionLifecycle, type AgentInfo, type ModelSelection, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { SessionStatus as ProtocolSessionStatus, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildDefaultChatUri, SessionStatus as ProtocolSessionStatus, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -36,7 +36,8 @@ import { IGitHubService } from '../../../../github/browser/githubService.js';
 import { IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { CopilotCLISessionType } from '../../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { IObservable, constObservable } from '../../../../../../base/common/observable.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 
 // ---- Mock connection --------------------------------------------------------
 
@@ -216,7 +217,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	instantiationService.stub(IGitHubService, new class extends mock<IGitHubService>() {
 		override findPullRequestNumberByHeadBranch = async () => undefined;
 	}());
-	instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 		override readonly activeSession: IObservable<IActiveSession | undefined> = constObservable<IActiveSession | undefined>(undefined);
 	}());
 	instantiationService.stub(IAgentHostActiveClientService, new class extends mock<IAgentHostActiveClientService>() {
@@ -656,7 +657,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const target = sessions.find((s) => s.title.get() === 'Old Title');
 		assert.ok(target, 'Session should exist');
 
-		await provider.renameChat(target!.sessionId, target!.resource, 'New Title');
+		await provider.renameSession(target!.sessionId, 'New Title');
 
 		assert.strictEqual(connection.dispatchedActions.length, 1);
 		const dispatched = connection.dispatchedActions[0];
@@ -677,14 +678,14 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const target = sessions.find((s) => s.title.get() === 'Before');
 		assert.ok(target);
 
-		await provider.renameChat(target!.sessionId, target!.resource, 'After');
+		await provider.renameSession(target!.sessionId, 'After');
 
 		assert.strictEqual(target!.title.get(), 'After');
 	});
 
 	test('renameSession is no-op for unknown chatId', async () => {
 		const provider = createProvider(disposables, connection);
-		await provider.renameChat('nonexistent-id', URI.parse('test://nonexistent'), 'Ignored');
+		await provider.renameSession('nonexistent-id', 'Ignored');
 
 		assert.strictEqual(connection.dispatchedActions.length, 0);
 	});
@@ -699,8 +700,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const target = sessions.find((s) => s.title.get() === 'Seq Test');
 		assert.ok(target);
 
-		await provider.renameChat(target!.sessionId, target!.resource, 'Title 1');
-		await provider.renameChat(target!.sessionId, target!.resource, 'Title 2');
+		await provider.renameSession(target!.sessionId, 'Title 1');
+		await provider.renameSession(target!.sessionId, 'Title 2');
 
 		assert.strictEqual(connection.dispatchedActions.length, 2);
 		assert.strictEqual(connection.dispatchedActions[0].clientSeq, 0);
@@ -777,9 +778,9 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 		// Trigger refresh via turnComplete action (simulates what happens on reload)
 		connection.fireAction({
-			channel: AgentSession.uri('copilotcli', 'persist-sess').toString(),
+			channel: buildDefaultChatUri(AgentSession.uri('copilotcli', 'persist-sess').toString()),
 			action: {
-				type: 'session/turnComplete',
+				type: ActionType.ChatTurnComplete,
 			},
 			serverSeq: 1,
 			origin: undefined,
@@ -983,9 +984,9 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		disposables.add(provider.onDidChangeSessions((e: ISessionChangeEvent) => changes.push(e)));
 
 		connection.fireAction({
-			channel: AgentSession.uri('copilotcli', 'turn-sess').toString(),
+			channel: buildDefaultChatUri(AgentSession.uri('copilotcli', 'turn-sess').toString()),
 			action: {
-				type: 'session/turnComplete',
+				type: ActionType.ChatTurnComplete,
 			},
 			serverSeq: 1,
 			origin: undefined,
@@ -1023,7 +1024,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const fakeState: SessionState = {
 			summary: { resource: AgentSession.uri('copilotcli', 'seed-1').toString(), provider: 'copilotcli', title: 'Seeded Session', status: ProtocolSessionStatus.Idle, createdAt: 0, modifiedAt: 0 },
 			lifecycle: SessionLifecycle.Ready,
-			turns: [],
+			chats: [],
 			config,
 		};
 		connection.setSessionState('seed-1', 'copilotcli', fakeState);

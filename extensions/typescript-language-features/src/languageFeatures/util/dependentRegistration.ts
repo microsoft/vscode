@@ -128,11 +128,11 @@ export function requireSomeCapability(
 }
 
 export function requireHasVsCodeExtension(
-	extensionId: string
+	extensionIds: readonly string[]
 ) {
 	return new Condition(
 		() => {
-			return !!vscode.extensions.getExtension(extensionId);
+			return extensionIds.some(extensionId => vscode.extensions.getExtension(extensionId));
 		},
 		vscode.extensions.onDidChange
 	);

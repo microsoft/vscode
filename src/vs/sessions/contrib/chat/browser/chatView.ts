@@ -161,6 +161,11 @@ export class ChatView extends AbstractChatView {
 		}));
 	}
 
+	override dispose(): void {
+		this._loadCts.value?.cancel();
+		super.dispose();
+	}
+
 	private _buildStyles(active: boolean) {
 		return {
 			listForeground: active ? activeSessionViewForeground : inactiveSessionViewForeground,
@@ -186,15 +191,20 @@ export class ChatView extends AbstractChatView {
 			return;
 		}
 
+		const previousChatResource = this._currentChatResource;
 		this._currentChatResource = resource;
 
 		// Cancel any in-flight load for the previous chat and start a fresh one.
+		this._loadCts.value?.cancel();
+		if (previousChatResource) {
+			this._clearCurrentChat();
+		}
 		const cts = new CancellationTokenSource();
 		this._loadCts.value = cts;
 		const token = cts.token;
 
 		const loadPromise = this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatView').then(ref => {
-			if (token.isCancellationRequested || !ref) {
+			if (token.isCancellationRequested || !ref || !isEqual(this._currentChatResource, resource)) {
 				ref?.dispose();
 				return;
 			}
@@ -205,7 +215,7 @@ export class ChatView extends AbstractChatView {
 			if (!token.isCancellationRequested) {
 				this.logService.error('[ChatView] Failed to load chat model for chat', err);
 			}
-			if (resource === this._currentChatResource) { // might have changed while we were waiting, only reset if it is still the same
+			if (isEqual(this._currentChatResource, resource)) { // might have changed while we were waiting, only reset if it is still the same
 				this._currentChatResource = undefined;
 			}
 		});
@@ -214,6 +224,12 @@ export class ChatView extends AbstractChatView {
 		// matching how each editor group shows progress independently. The short
 		// delay avoids flashing the bar for fast cached loads.
 		this.showProgressWhile(loadPromise, 800);
+	}
+
+	private _clearCurrentChat(): void {
+		this._widget.clear().catch(err => this.logService.error('[ChatView] Failed to clear chat widget', err));
+		this._widget.setModel(undefined);
+		this._modelRef.clear();
 	}
 
 	private _applyHistoryKey(): void {
@@ -229,7 +245,7 @@ export class ChatView extends AbstractChatView {
 
 		const contribution = this.chatSessionsService.getChatSessionContribution(sessionType);
 		if (contribution) {
-			this._widget.lockToCodingAgent(contribution.name, contribution.displayName, sessionType);
+			this._widget.lockToCodingAgent(contribution.name, contribution.displayName, sessionType, contribution.agentHostProviderId);
 		} else {
 			this._widget.unlockFromCodingAgent();
 		}

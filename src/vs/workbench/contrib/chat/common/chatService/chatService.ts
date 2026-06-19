@@ -165,7 +165,15 @@ export interface IChatUsage {
 	completionTokens: number;
 	outputBuffer?: number;
 	promptTokenDetails?: readonly IChatUsagePromptTokenDetail[];
+	copilotCredits?: number;
 	kind: 'usage';
+}
+
+/**
+ * Formats a copilot credit value for display.
+ */
+export function formatCopilotCredits(credits: number): string {
+	return parseFloat(credits.toFixed(1)).toString();
 }
 
 export interface IChatContentInlineReference {
@@ -701,7 +709,7 @@ export type ConfirmedReason =
 
 export interface IChatToolInvocation {
 	readonly presentation: IPreparedToolInvocation['presentation'];
-	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData;
+	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData;
 	/**
 	 * Observable that tracks the `kind` of `toolSpecificData`. Used by the
 	 * tool invocation part to re-render when the kind changes (e.g. from
@@ -979,7 +987,7 @@ export interface IToolResultOutputDetailsSerialized {
  */
 export interface IChatToolInvocationSerialized {
 	presentation: IPreparedToolInvocation['presentation'];
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData;
 	invocationMessage: string | IMarkdownString;
 	originMessage: string | IMarkdownString | undefined;
 	pastTenseMessage: string | IMarkdownString | undefined;
@@ -1087,6 +1095,52 @@ export interface IChatModifiedFilesConfirmationData {
 		readonly title?: string;
 		readonly description?: string;
 	}[];
+}
+
+/**
+ * Confirmation data for the agent host `viewUnreviewedComments` tool. The
+ * comments themselves are not carried here: the renderer fetches them (and
+ * performs reveal/delete/accept actions) through commands registered by the
+ * agent feedback feature, so this workbench/chat layer stays decoupled from the
+ * `vs/sessions` feedback model. The renderer resolves the owning session from
+ * its render context. Only the confirmation button labels are needed up front.
+ */
+export interface IChatAgentFeedbackReviewConfirmationData {
+	readonly kind: 'agentFeedbackReviewConfirmation';
+	/** Confirmation button labels (first is the primary/approve action). */
+	readonly options: readonly string[];
+}
+
+/**
+ * A single unreviewed comment shown in the {@link IChatAgentFeedbackReviewConfirmationData}
+ * confirmation. Produced by {@link AgentFeedbackReviewCommandId.GetComments}.
+ */
+export interface IChatAgentFeedbackReviewComment {
+	readonly id: string;
+	/** Localized origin label, e.g. "PR Review" or "Agent Review"; absent for user-authored comments. */
+	readonly kindLabel?: string;
+	/** The comment body. */
+	readonly text: string;
+	/** The file the comment is anchored to. */
+	readonly fileUri: UriComponents;
+}
+
+/**
+ * Command ids the agent feedback review confirmation renderer (workbench/chat)
+ * uses to fetch unreviewed comments and apply the user's selection. They are
+ * implemented by the agent feedback feature in `vs/sessions`, keeping the chat
+ * layer decoupled from the feedback model. All take the owning session resource
+ * (`UriComponents`) as their first argument.
+ */
+export const enum AgentFeedbackReviewCommandId {
+	/** `(sessionResource)` -> `IChatAgentFeedbackReviewComment[]` (the `created` reviewable comments). */
+	GetComments = '_agentFeedbackReview.getComments',
+	/** `(sessionResource, commentId)` -> opens the file and reveals the comment. */
+	Reveal = '_agentFeedbackReview.reveal',
+	/** `(sessionResource, commentId)` -> deletes the comment entirely. */
+	Delete = '_agentFeedbackReview.delete',
+	/** `(sessionResource, commentIds)` -> accepts (reveals) the given comments. */
+	Accept = '_agentFeedbackReview.accept',
 }
 
 export interface IChatMcpServersStarting {

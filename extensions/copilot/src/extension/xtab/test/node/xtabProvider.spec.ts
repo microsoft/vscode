@@ -12,6 +12,7 @@ import { ConfigKey, IConfigurationService } from '../../../../platform/configura
 import { InMemoryConfigurationService } from '../../../../platform/configuration/test/common/inMemoryConfigurationService';
 import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/documentId';
 import { Edits } from '../../../../platform/inlineEdits/common/dataTypes/edit';
+import { ImportChanges } from '../../../../platform/inlineEdits/common/dataTypes/importFilteringOptions';
 import { LanguageId } from '../../../../platform/inlineEdits/common/dataTypes/languageId';
 import { DEFAULT_OPTIONS, EarlyDivergenceCancellationMode, LanguageContextLanguages, LintOptionShowCode, LintOptionWarning, ModelConfiguration, PatchModelPrediction, PromptingStrategy, ResponseFormat } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { InlineEditRequestLogContext } from '../../../../platform/inlineEdits/common/inlineEditLogContext';
@@ -1163,6 +1164,36 @@ describe('XtabProvider integration', () => {
 
 			// Import-only changes should be filtered out
 			expect(edits.length).toBe(0);
+		});
+
+		it('allows import-only changes when model config allows them', async () => {
+			const provider = createProvider();
+			mockModelService.setSelectedConfig({ allowImportChanges: ImportChanges.All });
+
+			const lines = [
+				'import { foo } from "bar";',
+				'',
+				'function main() {',
+				'  foo();',
+				'}',
+			];
+			// Place cursor at the import line
+			const request = createRequestWithEdit(lines, {
+				insertionOffset: 5,
+				insertedText: 'x',
+				languageId: 'typescript',
+			});
+
+			// Respond with a modified import line
+			const responseLines = [...lines];
+			responseLines[0] = 'import { foo, baz } from "bar";';
+			streamingFetcher.setStreamingLines(responseLines);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { edits } = await collectEdits(gen);
+
+			// With import changes allowed, the import-only edit should pass through
+			expect(edits.length).toBeGreaterThan(0);
 		});
 
 		it('passes through substantive code edits', async () => {

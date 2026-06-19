@@ -17,7 +17,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from './participants/chatAgents.js';
 import { IChatEditingSession } from './editing/chatEditingService.js';
 import { IChatRequestModeInstructions, IChatRequestVariableData, ISerializableChatModelInputState } from './model/chatModel.js';
-import { IChatProgress, IChatSessionTiming } from './chatService/chatService.js';
+import { IChatProgress, IChatResponseErrorDetails, IChatSessionTiming } from './chatService/chatService.js';
 import { Target } from './promptSyntax/promptTypes.js';
 
 export const enum ChatSessionsExtensions {
@@ -76,9 +76,11 @@ export interface IChatSessionProviderOptionModelMetadata {
 	readonly inputCost?: number;
 	readonly outputCost?: number;
 	readonly cacheCost?: number;
+	readonly cacheWriteCost?: number;
 	readonly longContextInputCost?: number;
 	readonly longContextOutputCost?: number;
 	readonly longContextCacheCost?: number;
+	readonly longContextCacheWriteCost?: number;
 	readonly priceCategory?: string;
 	readonly maxInputTokens?: number;
 	readonly maxOutputTokens?: number;
@@ -177,6 +179,12 @@ export interface IChatSessionsExtensionPoint {
 	 */
 	readonly supportsAutoModel?: boolean;
 	/**
+	 * Logical Agent Host provider ID for Agent Host-backed chat sessions.
+	 * For example, both local `agent-host-copilotcli` and remote
+	 * `remote-{authority}-copilotcli` sessions use `copilotcli`.
+	 */
+	readonly agentHostProviderId?: string;
+	/**
 	 * When false, the delegation picker is hidden for this session type.
 	 * Defaults to true.
 	 */
@@ -268,6 +276,12 @@ export type IChatSessionHistoryItem = {
 	parts: IChatProgress[];
 	participant: string;
 	details?: string;
+	/**
+	 * Error details for a failed response. Rendered as a proper chat error
+	 * (including the quota-exceeded upgrade affordance), mirroring the live
+	 * agent result's `errorDetails`.
+	 */
+	errorDetails?: IChatResponseErrorDetails;
 };
 
 export type IChatSessionRequestHistoryItem = Extract<IChatSessionHistoryItem, { type: 'request' }>;
@@ -290,6 +304,8 @@ export namespace SessionType {
 	export const Codex = 'openai-codex';
 	export const Growth = 'copilot-growth';
 	export const AgentHostCopilot = 'agent-host-copilotcli';
+	export const AgentHostClaude = 'agent-host-claude';
+	export const AgentHostCodex = 'agent-host-codex';
 }
 
 /**
