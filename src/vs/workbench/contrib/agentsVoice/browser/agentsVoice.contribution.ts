@@ -21,6 +21,7 @@ import '../common/voiceTranscriptStore.js';
 import './transcriptsView/voiceTranscripts.contribution.js';
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import * as nls from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -165,7 +166,20 @@ registerAction2(class extends Action2 {
 		} else {
 			try {
 				await voiceController.connect(mainWindow);
-				// If still not connected after connect resolves, the backend rejected
+				// connect() resolves before the WebSocket handshake completes.
+				// Wait for isConnecting to settle (either connected or failed).
+				if (!voiceController.isConnected.get() && voiceController.isConnecting.get()) {
+					await new Promise<void>(resolve => {
+						const disposable = autorun(reader => {
+							const connecting = voiceController.isConnecting.read(reader);
+							if (!connecting) {
+								resolve();
+								// Dispose on next microtask to avoid disposing inside the autorun callback
+								queueMicrotask(() => disposable.dispose());
+							}
+						});
+					});
+				}
 				if (!voiceController.isConnected.get()) {
 					notificationService.error(nls.localize('agentsVoice.connectFailed', "Voice Mode: Could not connect to the voice backend. Please try again later."));
 				}

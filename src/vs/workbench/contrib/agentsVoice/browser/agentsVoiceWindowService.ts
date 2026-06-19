@@ -29,6 +29,7 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
+import { inputBackground, inputBorder } from '../../../../platform/theme/common/colors/inputColors.js';
 import { AgentsVoiceWidget } from './agentsVoiceWidget.js';
 import { bindWidgetToController } from './agentsVoiceWidgetBinding.js';
 import { AgentsVoiceSessionsPicker } from './agentsVoiceSessionsPicker.js';
@@ -45,6 +46,8 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 	private _window: IAuxiliaryWindow | undefined;
 	private readonly _windowDisposables = this._register(new DisposableStore());
 	private readonly _ownershipChannel: BroadcastChannel;
+	private _anchorBottomEdge: number | undefined;
+	private _anchorCenterX: number | undefined;
 
 	get isOpen(): boolean {
 		return !!this._window;
@@ -130,19 +133,34 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 			disableFullscreen: true,
 			nativeTitlebar: false,
 			noBackgroundThrottling: true,
-			backgroundColor: this.themeService.getColorTheme().getColor(editorBackground)?.toString() ?? '#1e1e1e',
+			backgroundColor: this.themeService.getColorTheme().getColor(inputBackground)?.toString() ?? '#3C3C3C',
 		});
 
 		this._window = auxiliaryWindow;
 		this._auxiliaryWindowRef.value = auxiliaryWindow;
+
+		// Store anchor points for bottom-edge-fixed resizing
+		this._anchorBottomEdge = bounds.y + bounds.height;
+		this._anchorCenterX = bounds.x + Math.round(bounds.width / 2);
 
 		const workspace = this.workspaceContextService.getWorkspace();
 		const projectName = workspace.folders.length > 0 ? workspace.folders[0].name : '';
 		auxiliaryWindow.window.document.title = projectName ? `Agents Voice — ${projectName}` : 'Agents Voice';
 
 		auxiliaryWindow.container.style.overflow = 'hidden';
-		auxiliaryWindow.container.style.setProperty('--vscode-agents-background', this.themeService.getColorTheme().getColor(editorBackground)?.toString() ?? '#1e1e1e');
 		auxiliaryWindow.window.document.body.style.setProperty('margin', '0', 'important');
+
+		// Resolve theme colors so the aux window matches the chat input box
+		const theme = this.themeService.getColorTheme();
+		const bgColor = theme.getColor(editorBackground)?.toString() ?? '#1e1e1e';
+		const inputBg = theme.getColor(inputBackground)?.toString() ?? '#3C3C3C';
+		const inputBd = theme.getColor(inputBorder)?.toString() ?? 'transparent';
+
+		auxiliaryWindow.container.style.setProperty('--vscode-agents-background', bgColor);
+		auxiliaryWindow.container.style.backgroundColor = inputBg;
+		auxiliaryWindow.container.style.border = `1px solid ${inputBd}`;
+		auxiliaryWindow.container.style.boxSizing = 'border-box';
+		auxiliaryWindow.window.document.body.style.setProperty('background-color', inputBg, 'important');
 
 		this._windowDisposables.clear();
 
@@ -215,6 +233,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 			},
 		}, {
 			defaultExpanded: false,
+			inputBoxLayout: true,
 		});
 		this._windowDisposables.add(widget);
 
@@ -329,23 +348,17 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		const targetHeight = Math.ceil(pillHeight * zoomFactor);
 		const currentWidth = auxiliaryWindow.window.outerWidth;
 		const currentHeight = auxiliaryWindow.window.outerHeight;
-		// Only resize width unconditionally; for height, only grow (never
-		// shrink) so that manual vertical resizing by the user is preserved.
 		const newWidth = targetWidth !== currentWidth ? targetWidth : currentWidth;
-		const newHeight = targetHeight > currentHeight ? targetHeight : currentHeight;
+		const newHeight = targetHeight !== currentHeight ? targetHeight : currentHeight;
 		if (newWidth !== currentWidth || newHeight !== currentHeight) {
-			// Capture position before resize — resizeTo can shift the window
-			// on some platforms (macOS), causing accumulated drift.
-			const preX = auxiliaryWindow.window.screenX;
-			const preY = auxiliaryWindow.window.screenY;
+			// Use stored anchors so the window never drifts
+			const bottomEdge = this._anchorBottomEdge ?? (auxiliaryWindow.window.screenY + currentHeight);
+			const centerX = this._anchorCenterX ?? (auxiliaryWindow.window.screenX + Math.round(currentWidth / 2));
 			try {
 				auxiliaryWindow.window.resizeTo(newWidth, newHeight);
-				// Restore position if it drifted
-				const postX = auxiliaryWindow.window.screenX;
-				const postY = auxiliaryWindow.window.screenY;
-				if (postX !== preX || postY !== preY) {
-					auxiliaryWindow.window.moveTo(preX, preY);
-				}
+				const newY = bottomEdge - newHeight;
+				const newX = centerX - Math.round(newWidth / 2);
+				auxiliaryWindow.window.moveTo(newX, newY);
 			} catch { /* resize may not be supported */ }
 		}
 	}
@@ -353,11 +366,21 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 	// --- Bounds persistence ---
 
 	private _defaultBounds(): IRectangle {
-		const screenWidth = mainWindow.screen?.availWidth ?? 1920;
-		const screenHeight = mainWindow.screen?.availHeight ?? 1080;
+		// Center horizontally relative to the main VS Code window, anchored near
+		// the bottom of the visible client area (inside the window).
+		const winX = mainWindow.screenX ?? 0;
+		const winY = mainWindow.screenY ?? 0;
+		const winWidth = mainWindow.outerWidth ?? 1920;
+		const outerHeight = mainWindow.outerHeight ?? 1080;
+		const innerHeight = mainWindow.innerHeight ?? outerHeight;
+		// Title bar height = difference between outer and inner
+		const titleBarHeight = outerHeight - innerHeight;
+		const clientTop = winY + titleBarHeight;
+		// Place the aux window 40px above the bottom of the client area
+		const y = clientTop + innerHeight - AGENTS_VOICE_WINDOW_DEFAULT_HEIGHT - 40;
 		return {
-			x: Math.round((screenWidth - AGENTS_VOICE_WINDOW_DEFAULT_WIDTH) / 2),
-			y: screenHeight - AGENTS_VOICE_WINDOW_DEFAULT_HEIGHT - 80,
+			x: Math.round(winX + (winWidth - AGENTS_VOICE_WINDOW_DEFAULT_WIDTH) / 2),
+			y,
 			width: AGENTS_VOICE_WINDOW_DEFAULT_WIDTH,
 			height: AGENTS_VOICE_WINDOW_DEFAULT_HEIGHT,
 		};

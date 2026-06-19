@@ -125,7 +125,7 @@ export function createHeader(): HeaderComponent {
 		.voice-conn-indicator:hover .voice-conn-disconnect { display: inline-block !important; color: var(--vscode-errorForeground, #f44) !important; }
 	`;
 
-	container.append(copilotIcon, micBtn, placeholderText, gearBtn, connIndicator, spacer, feedbackBtn, popoutBtn, closeBtn, connStyle);
+	container.append(copilotIcon, micBtn, placeholderText, gearBtn, connIndicator, spacer, popoutBtn, closeBtn, connStyle);
 
 	return {
 		element: container,

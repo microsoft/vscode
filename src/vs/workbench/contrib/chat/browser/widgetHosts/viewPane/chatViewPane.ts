@@ -111,7 +111,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	constructor(
 		options: IViewPaneOptions,
-		@IKeybindingService private readonly keybindingService2: IKeybindingService,
+		@IKeybindingService keybindingService2: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -135,13 +135,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@ICommandService private readonly commandService: ICommandService,
 		@IActivityService private readonly activityService: IActivityService,
 		@IHostService private readonly hostService: IHostService,
-		@IMicCaptureService private readonly micCaptureService: IMicCaptureService,
-		@ITtsPlaybackService private readonly ttsPlaybackService: ITtsPlaybackService,
+		@IMicCaptureService _micCaptureService: IMicCaptureService,
+		@ITtsPlaybackService _ttsPlaybackService: ITtsPlaybackService,
 		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
-		@IAgentsVoiceWindowService private readonly agentsVoiceWindowService: IAgentsVoiceWindowService,
-		@IAgentTitleBarStatusService private readonly agentTitleBarStatusService: IAgentTitleBarStatusService,
-		@IVoicePlaybackService private readonly voicePlaybackService: IVoicePlaybackService,
-		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IAgentsVoiceWindowService _agentsVoiceWindowService: IAgentsVoiceWindowService,
+		@IAgentTitleBarStatusService _agentTitleBarStatusService: IAgentTitleBarStatusService,
+		@IVoicePlaybackService _voicePlaybackService: IVoicePlaybackService,
+		@IWorkbenchEnvironmentService _workbenchEnvironmentService: IWorkbenchEnvironmentService,
 	) {
 		super(options, keybindingService2, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -430,43 +430,45 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const turns = this.voiceSessionController.transcriptTurns.read(reader);
 			const connected = this.voiceSessionController.isConnected.read(reader);
 			const voiceState = this.voiceSessionController.voiceState.read(reader);
+			const showTranscript = this.configurationService.getValue<boolean>('agents.voice.showTranscript') !== false;
 			const visible = turns.filter(t => t.text.length > 0 || (t.speaker === 'user' && t.isPartial));
 
 			// Toggle glow classes on input container
-			inputContainerEl.classList.toggle('voice-active', connected);
+			const voiceActive = connected && (voiceState === 'listening' || voiceState === 'speaking');
+			inputContainerEl.classList.toggle('voice-active', voiceActive);
 			inputContainerEl.classList.toggle('voice-listening', connected && voiceState === 'listening');
 
-			if (!connected || visible.length === 0) {
+			if (!connected || visible.length === 0 || !showTranscript) {
 				transcriptOverlay.style.display = 'none';
 				return;
 			}
 
 			transcriptOverlay.style.display = '';
+			// Show only the latest turn: user question first, then assistant reply replaces it
+			const lastTurn = visible[visible.length - 1];
 			const contentElements: HTMLElement[] = [];
-			for (const turn of visible) {
-				if (turn.speaker === 'user') {
-					const span = $('span');
-					if (turn.isPartial) {
-						const committedPart = turn.committed || '';
-						const unsurePart = turn.text.slice(committedPart.length);
-						if (committedPart) {
-							const c = $('span.committed');
-							c.textContent = committedPart;
-							span.append(c);
-						}
-						const u = $('span.partial');
-						u.textContent = unsurePart + '\u2589';
-						span.append(u);
-					} else {
-						span.className = 'committed';
-						span.textContent = turn.text;
+			if (lastTurn.speaker === 'user') {
+				const span = $('span');
+				if (lastTurn.isPartial) {
+					const committedPart = lastTurn.committed || '';
+					const unsurePart = lastTurn.text.slice(committedPart.length);
+					if (committedPart) {
+						const c = $('span.committed');
+						c.textContent = committedPart;
+						span.append(c);
 					}
-					contentElements.push(span);
+					const u = $('span.partial');
+					u.textContent = unsurePart + '\u2589';
+					span.append(u);
 				} else {
-					const div = $('div.assistant-text');
-					div.textContent = turn.text;
-					contentElements.push(div);
+					span.className = 'committed';
+					span.textContent = lastTurn.text;
 				}
+				contentElements.push(span);
+			} else {
+				const div = $('div.assistant-text');
+				div.textContent = lastTurn.text;
+				contentElements.push(div);
 			}
 			// Keep the style element, replace content
 			while (transcriptOverlay.childNodes.length > 1) {

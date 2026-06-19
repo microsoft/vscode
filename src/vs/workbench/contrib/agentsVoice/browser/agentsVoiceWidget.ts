@@ -17,7 +17,7 @@ import { createSessionList, type SessionRowData, type SessionGroupData } from '.
 import { createFeedbackDialog, type FeedbackDialogState } from './components/feedbackDialog.js';
 import { createOnboarding } from './components/onboardingComponent.js';
 import { createVoiceBar } from './components/voiceBarComponent.js';
-import { FONT_SIZE } from './components/tokens.js';
+import { FONT_SIZE, addKeyboardActivation } from './components/tokens.js';
 import type { VoiceState, IPendingToolConfirmation, ITranscriptTurn } from '../../chat/browser/voiceClient/voiceSessionController.js';
 
 export interface VoiceWidgetCallbacks {
@@ -98,6 +98,13 @@ export interface VoiceWidgetOptions {
 	 * (collapsed) to match the legacy floating aux-window behavior.
 	 */
 	readonly defaultExpanded?: boolean;
+	/**
+	 * When true, renders the widget in a chat-input-box style layout:
+	 * a rounded bordered container for transcript/placeholder text with a
+	 * toolbar row below for action icons. Matches the chat panel input box
+	 * appearance.
+	 */
+	readonly inputBoxLayout?: boolean;
 }
 
 const DEFAULT_OPTIONS: Required<VoiceWidgetOptions> = {
@@ -115,6 +122,7 @@ const DEFAULT_OPTIONS: Required<VoiceWidgetOptions> = {
 	showOnboarding: false,
 	reshowOnboardingOnDisconnect: false,
 	defaultExpanded: false,
+	inputBoxLayout: false,
 };
 
 export class AgentsVoiceWidget extends Disposable {
@@ -165,6 +173,17 @@ export class AgentsVoiceWidget extends Disposable {
 	private readonly _chevronWrapper: HTMLElement;
 	private readonly _chevronIcon: HTMLElement;
 
+	// --- Input box layout elements (created only when inputBoxLayout=true) ---
+	private readonly _inputBoxContainer: HTMLElement | undefined;
+	private readonly _inputBoxPlaceholder: HTMLElement | undefined;
+	private readonly _inputBoxToolbar: HTMLElement | undefined;
+	private readonly _inputBoxMicBtn: HTMLElement | undefined;
+	private readonly _inputBoxGearBtn: HTMLElement | undefined;
+	private readonly _inputBoxConnIndicator: HTMLElement | undefined;
+	private readonly _inputBoxFeedbackBtn: HTMLElement | undefined;
+	private readonly _inputBoxSessionsBtn: HTMLElement | undefined;
+	private readonly _inputBoxCloseBtn: HTMLElement | undefined;
+
 	private readonly _options: Required<VoiceWidgetOptions>;
 
 	constructor(
@@ -182,10 +201,10 @@ export class AgentsVoiceWidget extends Disposable {
 		const opts = this._options;
 		const widthStyle = opts.width === 'auto'
 			? 'width:100%;position:relative;'
-			: `position:absolute;top:0;left:0;width:${opts.width}px;min-height:${AGENTS_VOICE_WINDOW_DEFAULT_HEIGHT}px;`;
+			: `position:absolute;top:0;left:0;width:${opts.width}px;${opts.inputBoxLayout ? '' : `min-height:${AGENTS_VOICE_WINDOW_DEFAULT_HEIGHT}px;`}`;
 
 		this._rootDiv = dom.$('div');
-		this._rootDiv.style.cssText = `${widthStyle}display:flex;flex-direction:column;user-select:none;font-family:inherit;font-size:${FONT_SIZE.base};color:var(--vscode-foreground);box-sizing:border-box;margin:0;`;
+		this._rootDiv.style.cssText = `${widthStyle}display:flex;flex-direction:column;user-select:none;font-family:inherit;font-size:${FONT_SIZE.base};color:var(--vscode-foreground);box-sizing:border-box;margin:0;${opts.inputBoxLayout && opts.draggable ? '-webkit-app-region:drag;' : ''}`;
 
 		this._glowDiv = dom.$('div');
 		this._glowDiv.style.cssText = 'position:absolute;top:0;left:0;right:0;height:50px;pointer-events:none;z-index:0;';
@@ -212,7 +231,7 @@ export class AgentsVoiceWidget extends Disposable {
 		this._statusTextDiv.style.cssText = `text-align:center;font-size:${FONT_SIZE.body};font-weight:500;color:var(--vscode-foreground);padding:2px 0;`;
 
 		this._sessionListWrapper = dom.$('div');
-		this._sessionListWrapper.style.cssText = 'display:flex;flex-direction:column;';
+		this._sessionListWrapper.style.cssText = 'display:flex;flex-direction:column;-webkit-app-region:no-drag;overflow:hidden;';
 		this._sessionListWrapper.append(this._sessionListComponent.element);
 
 		this._expandSpacer = dom.$('div');
@@ -239,19 +258,110 @@ export class AgentsVoiceWidget extends Disposable {
 			if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this._chevronWrapper.click(); }
 		});
 
+		// --- Input box layout elements ---
+		if (opts.inputBoxLayout) {
+			// Rounded bordered container for transcript/placeholder (matches chat-input-container)
+			this._inputBoxContainer = dom.$('div');
+			this._inputBoxContainer.style.cssText = 'box-sizing:border-box;background-color:var(--vscode-input-background);border:1px solid var(--vscode-input-border, transparent);border-radius:var(--vscode-cornerRadius-large, 8px);padding:10px 12px;width:100%;position:relative;min-height:32px;display:flex;align-items:center;-webkit-app-region:no-drag;';
+
+			this._inputBoxPlaceholder = dom.$('span');
+			this._inputBoxPlaceholder.style.cssText = `font-size:${FONT_SIZE.body};color:var(--vscode-input-placeholderForeground, var(--vscode-descriptionForeground));user-select:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;`;
+			this._inputBoxContainer.append(this._inputBoxPlaceholder);
+
+			// Toolbar row below the input box
+			this._inputBoxToolbar = dom.$('div');
+			this._inputBoxToolbar.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 4px 2px;-webkit-app-region:no-drag;';
+
+			const toolbarBtn = (className: string, ariaLabel: string, title: string): HTMLElement => {
+				const el = dom.$(`span.codicon.${className}`);
+				el.role = 'button';
+				el.tabIndex = 0;
+				el.ariaLabel = ariaLabel;
+				el.title = title;
+				el.style.cssText = `font-size:${FONT_SIZE.iconSm};color:var(--vscode-descriptionForeground);cursor:pointer;-webkit-app-region:no-drag;padding:2px;`;
+				el.addEventListener('mouseenter', () => { el.style.color = 'var(--vscode-foreground)'; });
+				el.addEventListener('mouseleave', () => { el.style.color = 'var(--vscode-descriptionForeground)'; });
+				addKeyboardActivation(el);
+				return el;
+			};
+
+			// Mic button
+			this._inputBoxMicBtn = dom.$('span.codicon.codicon-mic');
+			this._inputBoxMicBtn.role = 'button';
+			this._inputBoxMicBtn.tabIndex = 0;
+			this._inputBoxMicBtn.ariaLabel = localize('agentsVoice.pushToTalkSpace', "Push to talk (Space)");
+			this._inputBoxMicBtn.title = localize('agentsVoice.pushToTalkSpace', "Push to talk (Space)");
+			this._inputBoxMicBtn.style.cssText = `font-size:${FONT_SIZE.iconMd};cursor:pointer;-webkit-app-region:no-drag;border-radius:4px;padding:2px;`;
+
+			// Connection indicator
+			this._inputBoxConnIndicator = toolbarBtn('codicon-debug-connected',
+				localize('agentsVoice.disconnect', "Disconnect"),
+				localize('agentsVoice.disconnect', "Disconnect"));
+			this._inputBoxConnIndicator.style.cssText += 'color:var(--vscode-charts-green);';
+
+			// Gear button
+			this._inputBoxGearBtn = toolbarBtn('codicon-gear',
+				localize('agentsVoice.configureKeybinding', "Configure keybinding"),
+				localize('agentsVoice.configureKeybinding', "Configure keybinding"));
+
+			// Feedback button
+			this._inputBoxFeedbackBtn = toolbarBtn('codicon-feedback',
+				localize('agentsVoice.sendFeedback', "Send feedback"),
+				localize('agentsVoice.sendFeedback', "Send feedback"));
+
+			// Sessions dropdown button
+			this._inputBoxSessionsBtn = toolbarBtn('codicon-list-tree',
+				localize('agentsVoice.sessions', "Sessions"),
+				localize('agentsVoice.sessions', "Sessions"));
+			this._inputBoxSessionsBtn.addEventListener('click', (e) => {
+				e.preventDefault(); e.stopPropagation();
+				this._expanded.set(!this._expanded.get(), undefined);
+			});
+
+			// Close button
+			this._inputBoxCloseBtn = toolbarBtn('codicon-chrome-minimize',
+				localize('agentsVoice.minimize', "Minimize"),
+				localize('agentsVoice.minimize', "Minimize"));
+
+			const toolbarSpacer = dom.$('span');
+			toolbarSpacer.style.flex = '1';
+
+			this._inputBoxToolbar.append(
+				this._inputBoxMicBtn,
+				this._inputBoxConnIndicator,
+				this._inputBoxGearBtn,
+				toolbarSpacer,
+				this._inputBoxFeedbackBtn,
+				this._inputBoxSessionsBtn,
+				this._inputBoxCloseBtn
+			);
+		}
+
 		// Assemble: all children are in the DOM; visibility is toggled via display
-		this._contentDiv.append(
-			this._onboardingComponent.element,
-			this._headerComponent.element,
-			this._voiceBarComponent.element,
-			this._feedbackDialogComponent.element,
-			this._statusTextDiv,
-			this._transcriptComponent.element,
-			this._statusRowsComponent.element,
-			this._sessionListWrapper,
-			this._expandSpacer,
-			this._chevronWrapper
-		);
+		if (opts.inputBoxLayout) {
+			this._contentDiv.append(
+				this._onboardingComponent.element,
+				this._feedbackDialogComponent.element,
+				this._sessionListWrapper,
+				this._statusRowsComponent.element,
+				this._inputBoxContainer!,
+				this._transcriptComponent.element,
+				this._inputBoxToolbar!,
+			);
+		} else {
+			this._contentDiv.append(
+				this._onboardingComponent.element,
+				this._headerComponent.element,
+				this._voiceBarComponent.element,
+				this._feedbackDialogComponent.element,
+				this._statusTextDiv,
+				this._transcriptComponent.element,
+				this._statusRowsComponent.element,
+				this._sessionListWrapper,
+				this._expandSpacer,
+				this._chevronWrapper
+			);
+		}
 
 		this._rootDiv.append(this._glowDiv, this._titleRow, this._contentDiv);
 		this.container.append(this._rootDiv);
@@ -382,6 +492,161 @@ export class AgentsVoiceWidget extends Disposable {
 	}
 
 	private _updateDOM(reader: IReader): void {
+		if (this._options.inputBoxLayout) {
+			this._updateDOMInputBoxLayout(reader);
+		} else {
+			this._updateDOMClassicLayout(reader);
+		}
+	}
+
+	private _updateDOMInputBoxLayout(reader: IReader): void {
+		const onboarding = this._showOnboarding.read(reader);
+		const voiceState = this._voiceState.read(reader);
+		const isConnected = this._isConnected.read(reader);
+		const isConnecting = this._isConnecting.read(reader);
+		const isReconnecting = this._isReconnecting.read(reader);
+		const showConnected = isConnected || isReconnecting;
+		const opts = this._options;
+		const showExpanded = this._shouldShowExpanded.read(reader) && opts.showExpandChevron;
+
+		// Adjust root width when sessions are expanded
+		const baseWidth = typeof opts.width === 'number' ? opts.width : AGENTS_VOICE_WINDOW_DEFAULT_WIDTH;
+		this._rootDiv.style.width = `${baseWidth}px`;
+
+		// Title row: hidden during onboarding
+		this._titleRow.style.display = (onboarding || !opts.title) ? 'none' : 'flex';
+
+		if (onboarding) {
+			this._onboardingComponent.element.style.display = '';
+			this._feedbackDialogComponent.element.style.display = 'none';
+			this._inputBoxContainer!.style.display = 'none';
+			this._transcriptComponent.element.style.display = 'none';
+			this._statusRowsComponent.element.style.display = 'none';
+			this._sessionListWrapper.style.display = 'none';
+			this._inputBoxToolbar!.style.display = 'none';
+
+			this._onboardingComponent.update({
+				pttKeyLabel: this._pttKeyLabel.read(reader),
+				isConnecting: this._onboardingPendingConnect.read(reader) || isConnecting,
+				onGetStarted: (e) => { e.preventDefault(); e.stopPropagation(); this._dismissOnboarding(true); },
+				onOpenPttKeySettings: (e) => { e.preventDefault(); e.stopPropagation(); this.callbacks.openPttKeySettings(); },
+				onOpenPopout: this.callbacks.openPopout ? (e) => { e.preventDefault(); e.stopPropagation(); this.callbacks.openPopout?.(); } : undefined,
+			});
+			return;
+		}
+
+		this._onboardingComponent.element.style.display = 'none';
+
+		const feedbackState = this._feedbackDialogState.read(reader);
+		if (feedbackState) {
+			this._feedbackDialogComponent.element.style.display = '';
+			this._feedbackDialogComponent.update({
+				onSubmit: (text) => this._submitFeedback(text),
+				onCancel: () => { this._feedbackDialogState.set(null, undefined); },
+			}, feedbackState);
+			this._inputBoxContainer!.style.display = 'none';
+			this._transcriptComponent.element.style.display = 'none';
+			this._statusRowsComponent.element.style.display = 'none';
+			this._sessionListWrapper.style.display = 'none';
+			this._inputBoxToolbar!.style.display = 'none';
+			return;
+		}
+
+		this._feedbackDialogComponent.element.style.display = 'none';
+
+		// Input box container — show transcript inside or placeholder
+		this._inputBoxContainer!.style.display = 'flex';
+		const transcriptTurns = this._transcriptTurns.read(reader);
+		const hasTranscript = transcriptTurns.some(t => t.text.length > 0 || (t.speaker === 'user' && t.isPartial));
+
+		// Toggle voice-active glow on the input container (base state; wave animation overrides dynamically)
+		if (!showConnected || (voiceState !== 'listening' && voiceState !== 'speaking')) {
+			this._inputBoxContainer!.style.borderColor = 'var(--vscode-input-border, transparent)';
+			this._inputBoxContainer!.style.boxShadow = 'none';
+		}
+
+		if (hasTranscript) {
+			// Show transcript text inside the placeholder (no purple coloring)
+			this._inputBoxPlaceholder!.style.display = '';
+			this._transcriptComponent.element.style.display = 'none';
+			const lastTurn = transcriptTurns[transcriptTurns.length - 1];
+			this._inputBoxPlaceholder!.textContent = lastTurn?.text ?? '';
+		} else {
+			// Show placeholder
+			this._inputBoxPlaceholder!.style.display = '';
+			this._transcriptComponent.element.style.display = 'none';
+			const keyLabel = this._pttKeyLabel.read(reader) ?? 'Space';
+			if (showConnected) {
+				this._inputBoxPlaceholder!.textContent = localize('agentsVoice.listening', "Listening");
+			} else {
+				this._inputBoxPlaceholder!.textContent = localize('agentsVoice.holdToTalk', "Hold {0} to talk", keyLabel);
+			}
+		}
+
+		// Status rows — hide in inputBoxLayout (no "No active sessions" text needed)
+		if (!showExpanded) {
+			this._statusRowsComponent.element.style.display = 'none';
+			this._sessionListWrapper.style.display = 'none';
+		} else {
+			this._statusRowsComponent.element.style.display = 'none';
+			this._sessionListWrapper.style.display = '';
+			this._sessionListComponent.update({
+				sessions: this._sessions.read(reader),
+				groups: this._sessionGroups.read(reader),
+				selectedTarget: this._selectedTargetSession.read(reader),
+				onOpenSession: (r) => this.callbacks.openSession(r),
+				onStopSession: (r) => this.callbacks.stopSession(r),
+				onCancelSession: (r) => this.callbacks.cancelSession(r),
+				onSelectTarget: (r) => { this._selectedTargetSession.set(r, undefined); this.callbacks.selectTargetSession(r); },
+				onNewSession: () => this.callbacks.newSessionAsTarget(),
+			});
+		}
+
+		// Toolbar — always visible
+		this._inputBoxToolbar!.style.display = 'flex';
+
+		// Mic button — always visible (primary action)
+		this._inputBoxMicBtn!.style.display = '';
+		const keyLabel = this._pttKeyLabel.read(reader) ?? 'Space';
+		const micTooltip = localize('agentsVoice.pushToTalkKey', "Push to talk ({0})", keyLabel);
+		this._inputBoxMicBtn!.title = micTooltip;
+		this._inputBoxMicBtn!.ariaLabel = micTooltip;
+		const micColor = voiceState === 'error' ? 'var(--vscode-editorError-foreground)'
+			: voiceState === 'listening' ? 'var(--vscode-editorInfo-foreground)'
+				: voiceState === 'speaking' ? 'var(--vscode-agentsVoice-speakingForeground)'
+					: 'var(--vscode-descriptionForeground)';
+		this._inputBoxMicBtn!.style.color = micColor;
+		// Toggle filled state when actively listening or speaking
+		const micFilled = voiceState === 'listening' || voiceState === 'speaking';
+		this._inputBoxMicBtn!.classList.toggle('codicon-mic', !micFilled);
+		this._inputBoxMicBtn!.classList.toggle('codicon-mic-filled', micFilled);
+		this._inputBoxMicBtn!.onmousedown = (e: MouseEvent) => { e.preventDefault(); this.callbacks.pttDown(); };
+		this._inputBoxMicBtn!.onmouseup = () => { this.callbacks.pttUp(); };
+
+		// Connection indicator — visible when connected
+		this._inputBoxConnIndicator!.style.display = showConnected ? '' : 'none';
+		this._inputBoxConnIndicator!.onclick = (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this.callbacks.disconnect(); };
+
+		// Gear button — always visible
+		this._inputBoxGearBtn!.style.display = '';
+		this._inputBoxGearBtn!.onclick = (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this.callbacks.openPttKeySettings(); };
+
+		// Feedback button — always visible
+		this._inputBoxFeedbackBtn!.onclick = (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this._toggleFeedbackDialog(); };
+
+		// Sessions button — always visible, icon toggles with expanded state
+		this._inputBoxSessionsBtn!.style.display = '';
+		this._inputBoxSessionsBtn!.className = `codicon codicon-${showExpanded ? 'chevron-up' : 'list-tree'}`;
+		this._inputBoxSessionsBtn!.title = showExpanded
+			? localize('agentsVoice.collapseSessions', "Collapse sessions")
+			: localize('agentsVoice.sessions', "Sessions");
+
+		// Close button
+		this._inputBoxCloseBtn!.style.display = opts.showClose ? '' : 'none';
+		this._inputBoxCloseBtn!.onclick = (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this.callbacks.closeWindow(); };
+	}
+
+	private _updateDOMClassicLayout(reader: IReader): void {
 		const onboarding = this._showOnboarding.read(reader);
 		const voiceState = this._voiceState.read(reader);
 		const opts = this._options;
@@ -658,16 +923,19 @@ export class AgentsVoiceWidget extends Disposable {
 
 			if (!glowActive) {
 				this._glowDiv.style.display = 'none';
+				if (this._inputBoxContainer) {
+					this._inputBoxContainer.style.borderColor = 'var(--vscode-input-border, transparent)';
+					this._inputBoxContainer.style.boxShadow = 'none';
+				}
 				return;
 			}
-			this._glowDiv.style.display = '';
 
 			const analyser = this.callbacks.getAnalyserNode();
 			let intensity: number;
 			if (onboarding) {
 				intensity = 0.6;
 			} else if (!analyser) {
-				intensity = 0;
+				intensity = 0.3;
 			} else {
 				const dataArray = new Uint8Array(analyser.frequencyBinCount);
 				analyser.getByteFrequencyData(dataArray);
@@ -678,6 +946,18 @@ export class AgentsVoiceWidget extends Disposable {
 				intensity = Math.min(1, (sum / dataArray.length) / 80);
 			}
 
+			// Animate input box container border/shadow (inputBoxLayout)
+			if (this._inputBoxContainer) {
+				const r = (voiceState === 'speaking') ? '163,113,247' : '88,166,255';
+				const borderAlpha = 0.4 + intensity * 0.5;
+				const shadowSpread = 4 + intensity * 12;
+				const shadowAlpha = 0.15 + intensity * 0.35;
+				this._inputBoxContainer.style.borderColor = `rgba(${r},${borderAlpha})`;
+				this._inputBoxContainer.style.boxShadow = `0 0 ${shadowSpread}px rgba(${r},${shadowAlpha}), inset 0 0 ${shadowSpread * 0.4}px rgba(${r},${shadowAlpha * 0.3})`;
+			}
+
+			// Classic layout glow div
+			this._glowDiv.style.display = '';
 			const baseOpacity = 0.15 + intensity * 0.4;
 			const r = (onboarding || voiceState === 'speaking') ? '163,113,247' : '88,166,255';
 			this._glowDiv.style.background = `radial-gradient(ellipse 40% 70% at 50% 0%, rgba(${r},${baseOpacity}) 0%, transparent 100%), radial-gradient(ellipse 70% 100% at 50% 0%, rgba(${r},${baseOpacity * 0.4}) 0%, transparent 100%)`;

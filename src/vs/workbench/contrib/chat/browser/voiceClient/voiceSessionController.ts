@@ -840,7 +840,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				this._isReconnecting.set(false, undefined);
 				this._voiceState.set('idle', undefined);
 				this._statusText.set('Tap to start', undefined);
-			} else if (!this._isConnecting.get()) {
+			} else if (this._isConnecting.get()) {
+				// Connection failed during initial handshake (e.g. fatal WS close).
+				// Clear isConnecting so callers awaiting the state settle properly.
+				this._isConnecting.set(false, undefined);
+				this._voiceState.set('idle', undefined);
+				this._statusText.set('Tap to start', undefined);
+			} else {
 				this._voiceState.set('idle', undefined);
 			}
 		}));
