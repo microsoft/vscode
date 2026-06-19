@@ -195,7 +195,7 @@ jobs:
         uses: actions/cache/restore@v5
         with:
           path: .build/node_modules_cache
-          key: "copilot-build_cache-${{ hashFiles('.build/packagelockhash') }}"
+          key: "copilot-node_modules-linux-${{ hashFiles('.build/packagelockhash') }}"
 
       - name: Extract node_modules cache
         if: steps.cache-node-modules.outputs.cache-hit == 'true'
@@ -289,7 +289,7 @@ jobs:
         uses: actions/cache/restore@v5
         with:
           path: .build/node_modules_cache
-          key: "copilot-build_cache-${{ hashFiles('.build/packagelockhash') }}"
+          key: "copilot-node_modules-linux-${{ hashFiles('.build/packagelockhash') }}"
 
       - name: Extract node_modules cache
         if: steps.cache-node-modules.outputs.cache-hit == 'true'
@@ -392,7 +392,7 @@ jobs:
         uses: actions/cache/restore@v5
         with:
           path: .build/node_modules_cache
-          key: "copilot-windows-build_cache-${{ hashFiles('.build/packagelockhash') }}"
+          key: "copilot-node_modules-windows-${{ hashFiles('.build/packagelockhash') }}"
 
       - name: Extract node_modules cache
         if: steps.cache-node-modules.outputs.cache-hit == 'true'

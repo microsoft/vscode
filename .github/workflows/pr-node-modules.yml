@@ -265,3 +265,86 @@ jobs:
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
         shell: pwsh
         run: ./.github/workflows/node_modules_cache/cache.ps1 archive
+
+  copilot-linux:
+    name: Copilot (Linux)
+    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=copilot-linux-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    steps:
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: extensions/copilot/.nvmrc
+
+      - name: Prepare node_modules cache key
+        run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts $(node -p process.platform) $(node -p process.arch) > .build/packagelockhash
+
+      - name: Restore node_modules cache
+        id: cache-node-modules
+        uses: actions/cache@v5
+        with:
+          path: .build/node_modules_cache
+          key: "copilot-node_modules-linux-${{ hashFiles('.build/packagelockhash') }}"
+
+      - name: Extract node_modules cache
+        if: steps.cache-node-modules.outputs.cache-hit == 'true'
+        run: ./.github/workflows/node_modules_cache/cache.sh extract
+
+      - name: Install root dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm ci --ignore-scripts --no-workspaces
+
+      - name: Install copilot dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        working-directory: extensions/copilot
+        run: npm ci
+
+      - name: Create node_modules archive
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: ./.github/workflows/node_modules_cache/cache.sh archive
+
+  copilot-windows:
+    name: Copilot (Windows)
+    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=copilot-windows-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    steps:
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: extensions/copilot/.nvmrc
+
+      - name: Prepare node_modules cache key
+        shell: pwsh
+        run: |
+          mkdir .build -ea 0
+          node build/azure-pipelines/common/computeNodeModulesCacheKey.ts $(node -p process.platform) $(node -p process.arch) > .build/packagelockhash
+
+      - name: Restore node_modules cache
+        id: cache-node-modules
+        uses: actions/cache@v5
+        with:
+          path: .build/node_modules_cache
+          key: "copilot-node_modules-windows-${{ hashFiles('.build/packagelockhash') }}"
+
+      - name: Extract node_modules cache
+        if: steps.cache-node-modules.outputs.cache-hit == 'true'
+        shell: pwsh
+        run: ./.github/workflows/node_modules_cache/cache.ps1 extract
+
+      - name: Install root dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm ci --ignore-scripts --no-workspaces
+
+      - name: Install copilot dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        working-directory: extensions/copilot
+        run: npm ci
+
+      - name: Create node_modules archive
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: ./.github/workflows/node_modules_cache/cache.ps1 archive
