@@ -185,6 +185,16 @@ resources:
       name: microsoft/vscode-distro
       endpoint: Monaco
       ref: main
+    - repository: capi
+      type: github
+      name: microsoft/vscode-capi
+      endpoint: Monaco
+      ref: main
+    - repository: encrypt
+      type: github
+      name: microsoft/vscode-encrypt
+      endpoint: Monaco
+      ref: main
 
 extends:
   template: v1/1ES.Official.PipelineTemplate.yml@1esPipelines
@@ -193,6 +203,8 @@ extends:
       sourceRepositoriesToScan:
         exclude:
           - repository: distro
+          - repository: capi
+          - repository: encrypt
       tsa:
         enabled: true
         configFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/tsaoptions.json

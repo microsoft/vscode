@@ -1,6 +1,20 @@
 steps:
   - template: ../distro/download-distro.yml@self
 
+  # Check out the private microsoft/vscode-encrypt repository using the agent's
+  # GitHub App (Monaco) credentials. The distro cli-patches add vscode-encrypt as
+  # a cargo git dependency; since cargo fetches git dependencies with the git CLI
+  # (CARGO_NET_GIT_FETCH_WITH_CLI), we redirect the public GitHub URL to this local
+  # checkout via git's insteadOf so no PAT is required to resolve it.
+  - checkout: encrypt
+    path: s/.build/vscode-encrypt
+    fetchDepth: 0
+    retryCountOnTaskFailure: 3
+    displayName: Checkout microsoft/vscode-encrypt
+
+  - script: git config --global url."file://$(Build.SourcesDirectory)/.build/vscode-encrypt".insteadOf "https://github.com/microsoft/vscode-encrypt"
+    displayName: Redirect vscode-encrypt to local checkout
+
   - script: node build/azure-pipelines/distro/mixin-quality.ts
     displayName: Mixin distro quality
 
