@@ -228,7 +228,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'agentsVoice.disconnect',
 			title: nls.localize2('agentsVoice.disconnect', "Disconnect Voice Mode"),
-			icon: Codicon.micFilled,
+			icon: Codicon.close,
 			f1: true,
 			precondition: ContextKeyExpr.and(
 				ContextKeyExpr.equals('config.agents.voice.enabled', true),
