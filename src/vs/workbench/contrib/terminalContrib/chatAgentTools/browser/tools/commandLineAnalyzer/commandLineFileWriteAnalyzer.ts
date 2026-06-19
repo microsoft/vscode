@@ -96,13 +96,14 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 	}
 
 	private _stripSurroundingQuotes(text: string): string {
-		if (
-			(text.startsWith('"') && text.endsWith('"')) ||
-			(text.startsWith('\'') && text.endsWith('\''))
+		let result = text;
+		while (
+			(result.startsWith('"') && result.endsWith('"')) ||
+			(result.startsWith('\'') && result.endsWith('\''))
 		) {
-			return text.slice(1, -1);
+			result = result.slice(1, -1);
 		}
-		return text;
+		return result;
 	}
 
 	private _mapNullDevice(options: ICommandLineAnalyzerOptions, rawFileWrite: string): string | typeof nullDevice {

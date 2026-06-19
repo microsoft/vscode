@@ -162,6 +162,7 @@ interface IFeedbackAnnotationMeta {
 	readonly codeSelection?: string;
 	readonly diffHunks?: string;
 	readonly sourcePRReviewCommentId?: string;
+	readonly pendingAgentReveal?: boolean;
 }
 
 function toTextRange(range: IRange): TextRange {
@@ -200,6 +201,7 @@ function feedbackToAnnotation(feedback: IAgentFeedback): Annotation {
 		codeSelection: feedback.codeSelection,
 		diffHunks: feedback.diffHunks,
 		sourcePRReviewCommentId: feedback.sourcePRReviewCommentId,
+		pendingAgentReveal: feedback.pendingAgentReveal,
 	};
 	return {
 		id: feedback.id,
@@ -236,6 +238,7 @@ function annotationToFeedback(annotation: Annotation, sessionResource: URI): IAg
 		sourcePRReviewCommentId: meta?.sourcePRReviewCommentId,
 		replies: replies.length ? replies : undefined,
 		state: annotation.resolved ? AgentFeedbackState.Resolved : (meta?.state ?? AgentFeedbackState.Accepted),
+		pendingAgentReveal: meta?.pendingAgentReveal,
 	};
 }
 
@@ -352,6 +355,16 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 			}
 		}
 		return result;
+	}
+
+	/**
+	 * Returns the annotations channel URI backing the given session's feedback,
+	 * or `undefined` when the session is not an agent-host session (or no channel
+	 * could be resolved). Each feedback item id is an annotation id on this
+	 * channel, so callers can reference specific comments by id.
+	 */
+	getAnnotationsChannelResource(sessionResource: URI): URI | undefined {
+		return this._ensureChannel(sessionResource)?.annotationsUri;
 	}
 
 	private _hasSnapshot(subscription: IAgentSubscription<AnnotationsState>): boolean {

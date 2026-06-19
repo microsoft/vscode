@@ -767,6 +767,15 @@ export class AgentSubscriptionManager extends Disposable {
 	}
 
 	/**
+	 * Returns the in-flight `createSession` Promise for this URI, or `undefined` if no create is pending. Used by
+	 * callers that need to gate their own work on a still-running eager `createSession` (e.g. the chat handler awaits
+	 * this before deciding whether the sessions provider's eager-create raced first send).
+	 */
+	getInflightSessionCreate(resource: URI): Promise<unknown> | undefined {
+		return this._inflightCreates.get(resource);
+	}
+
+	/**
 	 * Register an in-flight `createSession` Promise for a session URI. Any
 	 * subscribe issued for this resource while the create is pending waits
 	 * for the Promise before issuing the wire-level subscribe.

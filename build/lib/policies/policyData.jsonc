@@ -129,6 +129,21 @@
             "included": true
         },
         {
+            "key": "chat.agentHost.codexAgent.enabled",
+            "name": "Codex3PIntegration",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.126",
+            "localization": {
+                "description": {
+                    "key": "chat.agentHost.codexAgent.enabled.policy",
+                    "value": "Enable Codex Agent sessions in VS Code. Start and resume agentic coding sessions powered by OpenAI Codex SDK. Uses your existing Copilot subscription."
+                }
+            },
+            "type": "boolean",
+            "default": false,
+            "included": true
+        },
+        {
             "key": "chat.tools.global.autoApprove",
             "name": "ChatToolsAutoApprove",
             "category": "InteractiveSession",
@@ -216,6 +231,21 @@
                 "description": {
                     "key": "chat.extensionToolsEnabled",
                     "value": "Enable using tools contributed by third-party extensions."
+                }
+            },
+            "type": "boolean",
+            "default": true,
+            "included": true
+        },
+        {
+            "key": "chat.agentHost.enabled",
+            "name": "ChatAgentHostEnabled",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.126",
+            "localization": {
+                "description": {
+                    "key": "chat.agentHost.enabled",
+                    "value": "When enabled, some agents run in a separate agent host process."
                 }
             },
             "type": "boolean",
@@ -325,21 +355,6 @@
             },
             "type": "array",
             "default": [],
-            "included": true
-        },
-        {
-            "key": "chat.editMode.hidden",
-            "name": "DeprecatedEditModeHidden",
-            "category": "InteractiveSession",
-            "minimumVersion": "1.112",
-            "localization": {
-                "description": {
-                    "key": "chat.editMode.hidden",
-                    "value": "When enabled, hides the Edit mode from the chat mode picker."
-                }
-            },
-            "type": "boolean",
-            "default": true,
             "included": true
         },
         {
@@ -463,21 +478,6 @@
             },
             "type": "boolean",
             "default": true,
-            "included": true
-        },
-        {
-            "key": "chat.agent.sandbox.autoApproveUnsandboxedCommands",
-            "name": "ChatAgentSandboxAutoApproveUnsandboxedCommands",
-            "category": "IntegratedTerminal",
-            "minimumVersion": "1.116",
-            "localization": {
-                "description": {
-                    "key": "agentSandbox.autoApproveUnsandboxedCommands",
-                    "value": "Controls whether agent mode terminal commands that run outside the sandbox are auto-approved. This applies only when both `#chat.agent.sandbox.enabled#` and `#chat.agent.sandbox.allowUnsandboxedCommands#` are enabled."
-                }
-            },
-            "type": "boolean",
-            "default": false,
             "included": true
         },
         {
@@ -661,7 +661,10 @@
             },
             "type": "boolean",
             "default": true,
-            "included": true
+            "included": true,
+            "referencedSettings": [
+                "chat.agentHost.claudeAgent.enabled"
+            ]
         }
     ]
 }

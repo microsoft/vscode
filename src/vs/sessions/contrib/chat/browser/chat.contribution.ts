@@ -9,13 +9,13 @@ import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsViewService } from '../../../services/sessions/browser/sessionsViewService.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { BranchChatSessionAction } from './branchChatSessionAction.js';
 import { RunScriptContribution } from './runScriptAction.js';
 import './nullInlineChatSessionService.js';
 import './nullChatTipService.js';
 import './modelPicker.js';
+import './agentHostDelegation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ISessionsTasksService, SessionsTasksService } from './sessionsTasksService.js';
@@ -66,12 +66,11 @@ class NewChatInSessionsWindowAction extends Action2 {
 	}
 
 	override run(accessor: ServicesAccessor): void {
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const sessionsViewService = accessor.get(ISessionsViewService);
+		const sessionsService = accessor.get(ISessionsService);
 		// Inherit the active session's provider and session type so the new
 		// session defaults to the same kind the user is currently working in.
-		const activeSession = sessionsManagementService.activeSession.get();
-		sessionsViewService.openNewSession({
+		const activeSession = sessionsService.activeSession.get();
+		sessionsService.openNewSession({
 			folderUri: activeSession?.workspace.get()?.uri,
 			providerId: activeSession?.providerId,
 			sessionTypeId: activeSession?.sessionType,

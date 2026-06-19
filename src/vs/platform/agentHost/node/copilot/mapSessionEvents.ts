@@ -13,7 +13,7 @@ import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type Message, type ResponsePart, type StringOrMarkdown, type ToolCallCompletedState, type ToolResultContent, type Turn } from '../../common/state/sessionState.js';
-import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getSubagentMetadata, getTaskCompleteSummary, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall } from './copilotToolDisplay.js';
+import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall } from './copilotToolDisplay.js';
 import { buildSessionDbUri } from '../shared/fileEditTracker.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 
@@ -436,8 +436,11 @@ export async function mapSessionEvents(
 				}
 				toolInfoByCallId.delete(d.toolCallId);
 				if (isTaskCompleteTool(info.toolName)) {
-					const summary = getTaskCompleteSummary(info.parameters, d.error?.message ?? d.result?.content);
-					const builder = parentBuilder ?? (parentBuilder = newTurnBuilder(generateUuid(), ''));
+					const builder = targetBuilderFor(d.parentToolCallId);
+					if (!builder) {
+						continue;
+					}
+					const summary = getTaskCompleteMarkdown(info.parameters, d.error?.message ?? d.result?.content);
 					if (summary) {
 						builder.responseParts.push({
 							kind: ResponsePartKind.Markdown,
@@ -445,7 +448,7 @@ export async function mapSessionEvents(
 							content: summary,
 						});
 					}
-					if (d.success && builder === parentBuilder) {
+					if (!d.parentToolCallId && d.success && builder === parentBuilder) {
 						turns.push(finalizeTurn(parentBuilder, TurnState.Complete));
 						parentBuilder = undefined;
 					}
@@ -509,6 +512,17 @@ export async function mapSessionEvents(
 			const info = toolInfoByCallId.get(request.toolCallId)
 				?? makeToolStartInfo(request.name, request.arguments, parentToolCallId, workingDirectory);
 			if (!info) {
+				continue;
+			}
+			if (isTaskCompleteTool(info.toolName)) {
+				const summary = getTaskCompleteMarkdown(info.parameters, completion?.error?.message ?? completion?.result?.content);
+				if (summary) {
+					builder.responseParts.push({
+						kind: ResponsePartKind.Markdown,
+						id: generateUuid(),
+						content: summary,
+					});
+				}
 				continue;
 			}
 			builder.responseParts.push(makeCompletedToolCallPart(

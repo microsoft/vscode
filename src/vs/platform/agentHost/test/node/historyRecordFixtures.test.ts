@@ -99,9 +99,19 @@ suite('mapSessionEventsToHistoryRecords', () => {
 			state: 'complete',
 			parts: [
 				{ kind: ResponsePartKind.ToolCall, toolName: 'view' },
-				{ kind: ResponsePartKind.Markdown, content: 'Reviewed index.html.' },
+				{ kind: ResponsePartKind.Markdown, content: '\n\n**Task completed:** Reviewed index.html.' },
 			],
 		}]);
+	});
+
+	test('drops orphan task_complete without synthesizing a turn', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-task-complete', toolName: 'task_complete', arguments: { summary: 'Done.' } } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-task-complete', success: true, result: { content: 'Done.' } } },
+		];
+
+		const result = await mapSessionEvents(session, undefined, events);
+		assert.deepStrictEqual(result.turns, []);
 	});
 
 	test('skips tool_complete without matching tool_start', async () => {

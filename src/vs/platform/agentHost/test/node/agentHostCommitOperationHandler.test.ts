@@ -50,6 +50,7 @@ class TestGitService implements IAgentHostGitService {
 		this.calls.push(`commitAll:${message}`);
 		this.uncommitted = false;
 	}
+	async restore(): Promise<void> { }
 	async hasUpstream(): Promise<boolean> { return false; }
 	async pushBranch(): Promise<void> { }
 	async getSessionGitState(): Promise<undefined> { return undefined; }
@@ -107,16 +108,19 @@ class TestChangesetService implements IAgentHostChangesetService {
 	restorePersistedStaticChangesets(_sessionUri: string, _metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs { return {}; }
 	persistChangesSummary(_sessionUri: string, _summary: ChangesSummary): void { }
 	isStaticChangesetComputeActive(): boolean { return false; }
+	getListMetadataKeys(_sessionUri: string): Record<string, true> | undefined { return undefined; }
+	computeListEntryChanges(_sessionUri: string, _metadata: Record<string, string | undefined>): ChangesSummary | undefined { return undefined; }
 	refreshBranchChangeset(session: string): void { this.calls.push(`refreshBranch:${session}`); }
 	refreshSessionChangeset(session: string): void { this.calls.push(`refreshSession:${session}`); }
+	onWorkingDirectoryAvailable(_session: string): void { }
+	recomputeSubscribedChangesets(_session: string): void { }
+	onSessionDisposed(_session: string): void { }
 	async computeUncommittedChangeset(session: string): Promise<string> { this.calls.push(`computeUncommitted:${session}`); return `${session}/changeset/uncommitted`; }
 	async computeTurnChangeset(_session: string, _turnId: string): Promise<string> { return ''; }
 	async computeCompareTurnsChangeset(_session: string, _originalTurnId: string, _modifiedTurnId: string): Promise<string> { return ''; }
 	onToolCallEditsApplied(_session: string, _turnId: string): void { }
 	onTurnComplete(_session: string, _turnId: string | undefined): void { }
 	onSessionTruncated(_session: string): void { }
-	setTurnSubscriberProbe(_probe: (session: string, turnId: string) => boolean): void { }
-	setUncommittedSubscriberProbe(_probe: (session: string) => boolean): void { }
 }
 
 function createAgentService(token: string | undefined): IAgentService {

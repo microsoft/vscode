@@ -21,6 +21,7 @@ import type { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck 
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
+import { AgentFeedbackAttachmentDisplayKind } from '../../common/agentFeedbackAttachments.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction } from '../../common/state/sessionActions.js';
@@ -47,7 +48,12 @@ class MockCopilotSession {
 	readonly sendRequests: unknown[] = [];
 	readonly modeSetCalls: Array<{ mode: 'interactive' | 'plan' | 'autopilot' }> = [];
 	readonly compactCalls: unknown[] = [];
+	readonly commandListCalls: unknown[] = [];
+	readonly commandInvokeCalls: Array<{ name: string; input?: string }> = [];
 	compactResult: { success: boolean; tokensRemoved: number; messagesRemoved: number } = { success: true, tokensRemoved: 0, messagesRemoved: 0 };
+	compactError: unknown = undefined;
+	commandListResult: { commands: Array<{ name: string; kind: 'builtin' | 'skill' | 'client'; description: string; allowDuringAgentExecution: boolean }> } = { commands: [] };
+	commandInvokeResult: { kind: 'text'; text: string; markdown?: boolean } | { kind: 'completed'; message?: string } | { kind: 'agent-prompt'; prompt: string; displayPrompt: string; mode?: 'interactive' | 'plan' | 'autopilot' } = { kind: 'text', text: '' };
 	messages: SessionEvent[] = [];
 
 	private readonly _handlers = new Map<string, Set<(event: SessionEvent) => void>>();
@@ -99,7 +105,20 @@ class MockCopilotSession {
 		history: {
 			compact: async (params?: unknown) => {
 				this.compactCalls.push(params ?? null);
+				if (this.compactError !== undefined) {
+					throw this.compactError;
+				}
 				return this.compactResult;
+			},
+		},
+		commands: {
+			list: async (params?: unknown) => {
+				this.commandListCalls.push(params ?? null);
+				return this.commandListResult;
+			},
+			invoke: async (params: { name: string; input?: string }) => {
+				this.commandInvokeCalls.push(params);
+				return this.commandInvokeResult;
 			},
 		},
 		mcp: {
@@ -181,7 +200,7 @@ type ISessionInternalsForTest = {
 	_editTracker: {
 		trackEditStart(path: string): Promise<void>;
 		completeEdit(path: string): Promise<void>;
-		takeCompletedEdit(turnId: string, toolCallId: string, path: string): Promise<ToolResultFileEditContent | undefined>;
+		takeCompletedEdit(turnId: string, toolCallId: string, path: string, toolName: string, toolInput: unknown, modelId: string | undefined): Promise<ToolResultFileEditContent | undefined>;
 	};
 	_pendingClientToolCalls: {
 		register(toolCallId: string): Promise<ToolResultObject>;
@@ -475,6 +494,32 @@ suite('CopilotAgentSession', () => {
 		}]);
 	});
 
+	test('sends agent feedback annotations attachments as text blobs', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+
+		await session.send('/act-on-feedback', [{
+			type: MessageAttachmentKind.Annotations,
+			label: '1 comment',
+			displayKind: AgentFeedbackAttachmentDisplayKind,
+			resource: 'ahp-session:/s/annotations',
+			annotationIds: ['feedback-1'],
+		}]);
+
+		const expectedText =
+			'The user attached specific feedback comments to act on (comment ids):\n' +
+			'- feedback-1\n\n' +
+			'Use the `listComments` tool to read their content and focus on these comments.';
+		assert.deepStrictEqual(mockSession.sendRequests, [{
+			prompt: '/act-on-feedback',
+			attachments: [{
+				type: 'blob',
+				data: encodeBase64(VSBuffer.fromString(expectedText)),
+				mimeType: 'text/plain',
+				displayName: '1 comment',
+			}],
+		}]);
+	});
+
 	test('sends simple attachments as text blobs and restores them from SDK blobs', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
 
@@ -529,7 +574,51 @@ suite('CopilotAgentSession', () => {
 		}]);
 	});
 
-	test('`/compact` runs the history compact RPC and completes the turn without emitting output', async () => {
+	test('sends paste simple attachments as text blobs', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+
+		await session.send('continue', [{
+			type: MessageAttachmentKind.Simple,
+			label: 'Previous conversation',
+			displayKind: 'paste',
+			modelRepresentation: 'Transcript text',
+		}]);
+
+		assert.deepStrictEqual(mockSession.sendRequests, [{
+			prompt: 'continue',
+			attachments: [{
+				type: 'blob',
+				data: encodeBase64(VSBuffer.fromString('Transcript text')),
+				mimeType: 'text/plain',
+				displayName: 'Previous conversation',
+			}],
+		}]);
+
+		mockSession.messages = [{
+			type: 'user.message',
+			id: 'event-1',
+			parentId: null,
+			timestamp: new Date().toISOString(),
+			data: {
+				interactionId: 'message-1',
+				content: 'continue',
+				attachments: [{
+					type: 'blob',
+					data: encodeBase64(VSBuffer.fromString('Transcript text')),
+					mimeType: 'text/plain',
+					displayName: 'Previous conversation',
+				}],
+			},
+		}];
+
+		assert.deepStrictEqual((await session.getMessages())[0].message.attachments, [{
+			type: MessageAttachmentKind.Simple,
+			label: 'Previous conversation',
+			modelRepresentation: 'Transcript text',
+		}]);
+	});
+
+	test('`/compact` runs the history compact RPC and completes the turn with output', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 
 		await session.send('/compact', undefined, 'turn-compact');
@@ -540,9 +629,24 @@ suite('CopilotAgentSession', () => {
 		assert.deepStrictEqual(mockSession.sendRequests, []);
 
 		// The turn opened by the server is closed inline (the SDK never fires
-		// `onIdle` for the compact path) without emitting any response content.
+		// `onIdle` for the compact path) after emitting the completion message.
 		const actions = getActions(signals);
-		assert.deepStrictEqual(actions.filter(a => a.type === ActionType.ChatResponsePart), []);
+		const responseParts = actions.filter((a): a is ChatResponsePartAction => a.type === ActionType.ChatResponsePart);
+		assert.strictEqual(responseParts.length, 1);
+		const responsePart = responseParts[0];
+		assert.strictEqual(responsePart.part.kind, ResponsePartKind.Markdown);
+		if (responsePart.part.kind !== ResponsePartKind.Markdown) {
+			throw new Error('unreachable');
+		}
+		assert.deepStrictEqual({
+			turnId: responsePart.turnId,
+			kind: responsePart.part.kind,
+			content: responsePart.part.content,
+		}, {
+			turnId: 'turn-compact',
+			kind: ResponsePartKind.Markdown,
+			content: 'Compaction completed',
+		});
 		const turnComplete = actions.find(a => a.type === ActionType.ChatTurnComplete);
 		assert.ok(turnComplete, 'expected the turn to complete');
 		assert.strictEqual((turnComplete as ChatTurnCompleteAction).turnId, 'turn-compact');
@@ -558,6 +662,193 @@ suite('CopilotAgentSession', () => {
 		assert.deepStrictEqual(mockSession.sendRequests, []);
 		const turnComplete = getActions(signals).find(a => a.type === ActionType.ChatTurnComplete);
 		assert.ok(turnComplete, 'expected the turn to complete on a failed compaction');
+	});
+
+	test('`/compact` treats nothing-to-compact errors as completed', async () => {
+		const logService = new CapturingLogService();
+		const { session, mockSession, signals } = await createAgentSession(disposables, { logService });
+		mockSession.compactError = new Error('NOTHING TO COMPACT for this conversation');
+
+		await session.send('/compact', undefined, 'turn-compact');
+
+		const actions = getActions(signals);
+		assert.deepStrictEqual({
+			compactCalls: mockSession.compactCalls.length,
+			sendRequests: mockSession.sendRequests,
+			errors: logService.errors,
+			responseParts: actions
+				.filter(a => a.type === ActionType.ChatResponsePart)
+				.map(a => {
+					const part = (a as ChatResponsePartAction).part;
+					return part.kind === ResponsePartKind.Markdown ? { turnId: a.turnId, kind: part.kind, content: part.content } : { turnId: a.turnId, kind: part.kind };
+				}),
+			turnComplete: actions
+				.filter(a => a.type === ActionType.ChatTurnComplete)
+				.map(a => (a as ChatTurnCompleteAction).turnId),
+		}, {
+			compactCalls: 1,
+			sendRequests: [],
+			errors: [],
+			responseParts: [{ turnId: 'turn-compact', kind: ResponsePartKind.Markdown, content: 'Compaction completed' }],
+			turnComplete: ['turn-compact'],
+		});
+	});
+
+	test('`/env` runs the runtime command when listed and emits markdown output', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [{
+				name: 'env',
+				kind: 'builtin',
+				description: 'Show loaded environment details',
+				allowDuringAgentExecution: true,
+			}],
+		};
+		mockSession.commandInvokeResult = { kind: 'text', text: '## Environment\n\nLoaded.', markdown: true };
+
+		await session.send('/env', undefined, 'turn-env');
+
+		const actions = getActions(signals);
+		assert.deepStrictEqual({
+			commandListCalls: mockSession.commandListCalls,
+			commandInvokeCalls: mockSession.commandInvokeCalls,
+			sendRequests: mockSession.sendRequests,
+			responseParts: actions
+				.filter(a => a.type === ActionType.ChatResponsePart)
+				.map(a => {
+					const part = (a as ChatResponsePartAction).part;
+					return part.kind === ResponsePartKind.Markdown ? { kind: part.kind, content: part.content } : { kind: part.kind };
+				}),
+			turnComplete: actions
+				.filter(a => a.type === ActionType.ChatTurnComplete)
+				.map(a => (a as ChatTurnCompleteAction).turnId),
+		}, {
+			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: false }],
+			commandInvokeCalls: [{ name: 'env' }],
+			sendRequests: [],
+			responseParts: [{ kind: ResponsePartKind.Markdown, content: '## Environment\n\nLoaded.' }],
+			turnComplete: ['turn-env'],
+		});
+	});
+
+	test('`/env` escapes plain text runtime command output before emitting markdown', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [{
+				name: 'env',
+				kind: 'builtin',
+				description: 'Show loaded environment details',
+				allowDuringAgentExecution: true,
+			}],
+		};
+		mockSession.commandInvokeResult = { kind: 'text', text: '*plain*\n- item', markdown: false };
+
+		await session.send('/env', undefined, 'turn-env');
+
+		const responsePart = getActions(signals).find(a => a.type === ActionType.ChatResponsePart) as ChatResponsePartAction | undefined;
+		assert.strictEqual(responsePart?.part.kind, ResponsePartKind.Markdown);
+		if (responsePart?.part.kind === ResponsePartKind.Markdown) {
+			assert.strictEqual(responsePart.part.content, '\\*plain\\*\n\\- item');
+		}
+	});
+
+	test('`/env` falls through to a normal SDK send when not listed', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.commandListResult = { commands: [] };
+
+		await session.send('/env', undefined, 'turn-env');
+
+		assert.deepStrictEqual({
+			commandListCalls: mockSession.commandListCalls,
+			commandInvokeCalls: mockSession.commandInvokeCalls,
+			sendRequests: mockSession.sendRequests,
+			responseParts: getActions(signals).filter(a => a.type === ActionType.ChatResponsePart),
+			turnComplete: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete),
+		}, {
+			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: false }],
+			commandInvokeCalls: [],
+			sendRequests: [{ prompt: '/env', attachments: undefined }],
+			responseParts: [],
+			turnComplete: [],
+		});
+	});
+
+	test('caches runtime slash command availability across checks', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [
+				{
+					name: 'env',
+					kind: 'builtin',
+					description: 'Show loaded environment details',
+					allowDuringAgentExecution: true,
+				},
+				{
+					name: 'review',
+					kind: 'builtin',
+					description: 'Run code review agent to analyze changes',
+					allowDuringAgentExecution: false,
+				},
+				{
+					name: 'not-a-builtin',
+					kind: 'skill',
+					description: 'Skill command',
+					allowDuringAgentExecution: false,
+				},
+			],
+		};
+
+		assert.deepStrictEqual({
+			env: await session.hasRuntimeSlashCommand('env'),
+			review: await session.hasRuntimeSlashCommand('review'),
+			skill: await session.hasRuntimeSlashCommand('not-a-builtin'),
+			commandListCalls: mockSession.commandListCalls,
+		}, {
+			env: true,
+			review: true,
+			skill: false,
+			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: false }],
+		});
+	});
+
+	test('`/review` forwards as a prompt-invoked command', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		await session.send('/review focus on tests', undefined, 'turn-review');
+
+		assert.deepStrictEqual({
+			commandListCalls: mockSession.commandListCalls,
+			commandInvokeCalls: mockSession.commandInvokeCalls,
+			sendRequests: mockSession.sendRequests,
+			responseParts: getActions(signals).filter(a => a.type === ActionType.ChatResponsePart),
+			turnComplete: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete),
+		}, {
+			commandListCalls: [],
+			commandInvokeCalls: [],
+			sendRequests: [{ prompt: '/review focus on tests', attachments: undefined }],
+			responseParts: [],
+			turnComplete: [],
+		});
+	});
+
+	test('`/security-review` forwards as a prompt-invoked command', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		await session.send('/security-review', undefined, 'turn-security-review');
+
+		assert.deepStrictEqual({
+			commandListCalls: mockSession.commandListCalls,
+			commandInvokeCalls: mockSession.commandInvokeCalls,
+			sendRequests: mockSession.sendRequests,
+			responseParts: getActions(signals).filter(a => a.type === ActionType.ChatResponsePart),
+			turnComplete: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete),
+		}, {
+			commandListCalls: [],
+			commandInvokeCalls: [],
+			sendRequests: [{ prompt: '/security-review', attachments: undefined }],
+			responseParts: [],
+			turnComplete: [],
+		});
 	});
 
 	test('emits accumulated Copilot usage metadata', async () => {
@@ -1523,8 +1814,8 @@ suite('CopilotAgentSession', () => {
 			} as SessionEventPayload<'tool.execution_complete'>['data']);
 
 			const actions = getActions(signals);
-			assert.deepStrictEqual(actions.map(a => a.type), [ActionType.SessionResponsePart]);
-			const responsePart = actions[0] as SessionResponsePartAction;
+			assert.deepStrictEqual(actions.map(a => a.type), [ActionType.ChatResponsePart]);
+			const responsePart = actions[0] as ChatResponsePartAction;
 			assert.strictEqual(responsePart.part.kind, ResponsePartKind.Markdown);
 			if (responsePart.part.kind !== ResponsePartKind.Markdown) {
 				return;
@@ -1532,7 +1823,7 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(responsePart.part, {
 				kind: ResponsePartKind.Markdown,
 				id: responsePart.part.id,
-				content: 'Completed the requested work.',
+				content: '\n\n**Task completed:** Completed the requested work.',
 			});
 		});
 
@@ -1620,7 +1911,7 @@ suite('CopilotAgentSession', () => {
 			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, { workingDirectory });
 			const sessionInternals = session as unknown as ISessionInternalsForTest;
 			const taken: string[] = [];
-			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, _toolCallId, path) => {
+			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, _toolCallId, path, _toolName, _toolInput, _modelId) => {
 				taken.push(path);
 				return undefined;
 			};
@@ -2289,7 +2580,7 @@ suite('CopilotAgentSession', () => {
 
 		test('autopilot auto-answers a free-form question without firing a progress event', async () => {
 			const { runtime, signals } = await createAgentSession(disposables, {
-				configValues: { [SessionConfigKey.AutoApprove]: 'autopilot' },
+				configValues: { [SessionConfigKey.Mode]: 'autopilot' },
 			});
 
 			const result = await runtime.handleUserInputRequest(
@@ -2305,11 +2596,11 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(signals.length, 0);
 		});
 
-		test('autopilot does not auto-answer when autoApprove is not "autopilot"', async () => {
-			// Sanity check: with autoApprove=default the question must
+		test('autopilot does not auto-answer when mode is not "autopilot"', async () => {
+			// Sanity check: with mode=interactive the question must
 			// still be surfaced as a progress event (the existing behavior).
 			const { runtime, signals } = await createAgentSession(disposables, {
-				configValues: { [SessionConfigKey.AutoApprove]: 'default' },
+				configValues: { [SessionConfigKey.Mode]: 'interactive' },
 			});
 
 			runtime.handleUserInputRequest(
@@ -2484,7 +2775,7 @@ suite('CopilotAgentSession', () => {
 
 		test('autopilot auto-cancels without firing a progress event', async () => {
 			const { runtime, signals } = await createAgentSession(disposables, {
-				configValues: { [SessionConfigKey.AutoApprove]: 'autopilot' },
+				configValues: { [SessionConfigKey.Mode]: 'autopilot' },
 			});
 
 			const result = await runtime.handleElicitationRequest({
@@ -3055,6 +3346,8 @@ suite('CopilotAgentSession', () => {
 				this.advertised.push(sessionUri);
 			}
 
+			requiresConfirmation(_toolName: string): boolean { return false; }
+
 			executeTool(sessionUri: string, toolName: string, rawArgs: unknown): string {
 				this.executions.push({ sessionUri, toolName, rawArgs });
 				if (this.error) {
@@ -3203,8 +3496,8 @@ suite('CopilotAgentSession', () => {
 			await responsePromise;
 		});
 
-		test('completing the input request with autopilot resolves with approved + autopilot + autoApproveEdits', async () => {
-			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
+		test('completing the input request with autopilot resolves with approved + autopilot + autoApproveEdits and syncs mode=autopilot', async () => {
+			const { session, runtime, waitForSignal, sessionConfigUpdates } = await createAgentSession(disposables);
 
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'autopilot' }), { sessionId: 'test-session-1' });
 			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
@@ -3220,10 +3513,14 @@ suite('CopilotAgentSession', () => {
 			});
 
 			assert.deepStrictEqual(await responsePromise, { approved: true, selectedAction: 'autopilot', autoApproveEdits: true });
+			// Picking "Implement with Autopilot" flips the AHP mode immediately.
+			assert.deepStrictEqual(sessionConfigUpdates, [
+				{ session: 'copilot:/test-session-1', patch: { mode: 'autopilot' } },
+			]);
 		});
 
-		test('completing the input request with interactive resolves with approved + interactive (no autoApprove)', async () => {
-			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
+		test('completing the input request with interactive resolves with approved + interactive (no autoApprove) and syncs mode=interactive', async () => {
+			const { session, runtime, waitForSignal, sessionConfigUpdates } = await createAgentSession(disposables);
 
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'interactive' }), { sessionId: 'test-session-1' });
 			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
@@ -3239,6 +3536,9 @@ suite('CopilotAgentSession', () => {
 			});
 
 			assert.deepStrictEqual(await responsePromise, { approved: true, selectedAction: 'interactive' });
+			assert.deepStrictEqual(sessionConfigUpdates, [
+				{ session: 'copilot:/test-session-1', patch: { mode: 'interactive' } },
+			]);
 		});
 
 		test('declining the input request resolves with approved=false', async () => {
@@ -3413,16 +3713,16 @@ suite('CopilotAgentSession', () => {
 			]);
 		});
 
-		test('session.mode_changed → autopilot translates to mode=interactive + autoApprove=autopilot', async () => {
-			// The SDK has a first-class `autopilot` mode but AHP exposes it
-			// as the `autopilot` value on the orthogonal `autoApprove` axis.
-			// The translation is contained in the Copilot agent.
+		test('session.mode_changed → autopilot maps directly to mode=autopilot', async () => {
+			// The SDK and AHP share the same three-mode space; autopilot now
+			// lives on the `mode` axis and the `autoApprove` axis is left
+			// untouched. The translation is contained in the Copilot agent.
 			const { mockSession, sessionConfigUpdates } = await createAgentSession(disposables);
 
 			mockSession.fire('session.mode_changed', { previousMode: 'plan', newMode: 'autopilot' } as SessionEventPayload<'session.mode_changed'>['data']);
 
 			assert.deepStrictEqual(sessionConfigUpdates, [
-				{ session: 'copilot:/test-session-1', patch: { mode: 'interactive', autoApprove: 'autopilot' } },
+				{ session: 'copilot:/test-session-1', patch: { mode: 'autopilot' } },
 			]);
 		});
 
@@ -3434,37 +3734,23 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(sessionConfigUpdates.length, 0);
 		});
 
-		// ---- autopilot fast-path -------------------------------------------
+		// ---- no automatic plan → implementation handoff -------------------
 
-		test('handleExitPlanModeRequest auto-accepts when autoApprove=autopilot (recommended action)', async () => {
-			const { runtime, signals } = await createAgentSession(disposables, {
-				configValues: { [SessionConfigKey.AutoApprove]: 'autopilot' },
+		test('handleExitPlanModeRequest always surfaces the plan-review UI, even in autopilot mode', async () => {
+			const { session, runtime, waitForSignal } = await createAgentSession(disposables, {
+				configValues: { [SessionConfigKey.Mode]: 'autopilot' },
 			});
 
-			const response = await runtime.handleExitPlanModeRequest(planRequestParams({
+			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({
 				actions: ['autopilot', 'interactive', 'exit_only'],
 				recommendedAction: 'autopilot',
 			}), { sessionId: 'test-session-1' });
 
-			assert.deepStrictEqual(response, { approved: true, selectedAction: 'autopilot', autoApproveEdits: true });
-			// User-input request should NOT be surfaced to the client.
-			assert.strictEqual(signals.filter(s => isAction(s, ActionType.ChatInputRequested)).length, 0);
-		});
-
-		test('handleExitPlanModeRequest auto-accepts with priority order when no recommended action available', async () => {
-			const { runtime } = await createAgentSession(disposables, {
-				configValues: { [SessionConfigKey.AutoApprove]: 'autopilot' },
-			});
-
-			// SDK proposes a recommended action that's NOT in the offered set —
-			// fall back to the priority order (autopilot > autopilot_fleet >
-			// interactive > exit_only).
-			const response = await runtime.handleExitPlanModeRequest(planRequestParams({
-				actions: ['interactive', 'exit_only'],
-				recommendedAction: 'autopilot_fleet',
-			}), { sessionId: 'test-session-1' });
-
-			assert.deepStrictEqual(response, { approved: true, selectedAction: 'interactive' });
+			// There is no automatic handoff from plan into implementation: the
+			// user must explicitly choose an action regardless of mode.
+			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
+			session.respondToUserInputRequest(getInputRequest(signal).id, ChatInputResponseKind.Decline);
+			await responsePromise;
 		});
 
 		test('handleExitPlanModeRequest does NOT auto-accept when autoApprove=default', async () => {
