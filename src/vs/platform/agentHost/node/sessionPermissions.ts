@@ -425,7 +425,8 @@ export class SessionPermissionManager extends Disposable {
 					pathsToCheck.push(linked);
 				}
 			} catch (e) {
-				if ((e as NodeJS.ErrnoException).code === 'EPERM') {
+				const code = (e as NodeJS.ErrnoException).code;
+				if (code === 'EPERM' || code === 'EACCES') {
 					// No permission to resolve the path — require confirmation.
 					return undefined;
 				}
