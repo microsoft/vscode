@@ -8,7 +8,7 @@ import './agentsVoiceWindowService.js';
 
 // Register voice client services
 import '../../chat/browser/voiceClient/micCaptureService.js';
-import '../../chat/browser/voiceClient/ttsPlaybackService.js';
+import { ITtsPlaybackService } from '../../chat/browser/voiceClient/ttsPlaybackService.js';
 import '../../chat/browser/voiceClient/voiceClientService.js';
 import { IVoiceSessionController } from '../../chat/browser/voiceClient/voiceSessionController.js';
 import '../../chat/browser/voiceClient/voiceToolDispatchService.js';
@@ -193,6 +193,7 @@ registerAction2(class extends Action2 {
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const voiceController = accessor.get(IVoiceSessionController);
+		const ttsPlaybackService = accessor.get(ITtsPlaybackService);
 		const notificationService = accessor.get(INotificationService);
 		try {
 			await voiceController.connect(mainWindow);
@@ -212,8 +213,38 @@ registerAction2(class extends Action2 {
 			if (!voiceController.isConnected.get()) {
 				notificationService.error(nls.localize('agentsVoice.connectFailed', "Voice Mode: Could not connect to the voice backend. Please try again later."));
 			} else {
-				// Start listening immediately — backend uses VAD to detect speech
-				voiceController.pttDown();
+				// Wait for the greeting to finish before starting PTT.
+				// The backend sends a greeting audio_response after session_init.
+				// Calling pttDown() immediately would suppress/kill it.
+				// Strategy: wait up to 3s for playback to start, then wait for it
+				// to finish. If no playback starts, assume no greeting and proceed.
+				const startPttAfterGreeting = () => {
+					if (voiceController.isConnected.get()) {
+						voiceController.pttDown();
+					}
+				};
+				if (ttsPlaybackService.isPlaying) {
+					// Already playing (greeting arrived fast) — wait for it to finish
+					const sub = ttsPlaybackService.onPlaybackStopped(() => {
+						sub.dispose();
+						startPttAfterGreeting();
+					});
+				} else {
+					// Wait for playback to start (greeting hasn't arrived yet)
+					let started = false;
+					const timeout = setTimeout(() => {
+						if (!started) {
+							startSub.dispose();
+							startPttAfterGreeting();
+						}
+					}, 3000);
+					const startSub = ttsPlaybackService.onPlaybackStopped(() => {
+						started = true;
+						clearTimeout(timeout);
+						startSub.dispose();
+						startPttAfterGreeting();
+					});
+				}
 			}
 		} catch (e) {
 			notificationService.error(nls.localize('agentsVoice.connectError', "Voice Mode: Connection failed — {0}", e instanceof Error ? e.message : String(e)));
