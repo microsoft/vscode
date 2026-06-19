@@ -814,23 +814,28 @@
 .ai-customization-management-editor .plugin-detail-container .ai-customization-embedded-detail .embedded-detail-leading-slot:not(:empty) {
 	display: flex;
 	align-items: center;
-	margin-inline-end: 4px;
+	margin-inline-start: -15px;
+	margin-inline-end: 20px;
 }
 
 .ai-customization-management-editor .plugin-detail-editor-container {
 	flex: 1;
 	overflow: auto;
 	min-height: 0;
+	display: flex;
+	justify-content: center;
 }
 
 /* Compact embedded detail component (shared by MCP / plugin) */
 .ai-customization-management-editor .ai-customization-embedded-detail {
 	display: flex;
 	flex-direction: column;
-	gap: 12px;
+	gap: var(--vscode-spacing-size200);
 	padding: 16px 24px 24px 24px;
 	max-width: 720px;
+	width: 100%;
 	min-width: 0;
+	box-sizing: border-box;
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail.is-empty .embedded-detail-header,
@@ -841,8 +846,9 @@
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-header {
 	display: flex;
 	align-items: flex-start;
-	gap: 4px;
+	gap: 0;
 	min-width: 0;
+	margin-bottom: var(--vscode-spacing-size40);
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-icon {
@@ -867,6 +873,44 @@
 	gap: 4px;
 }
 
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-title-actions {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size60);
+	margin-left: auto;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-title-actions .monaco-button {
+	width: auto;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-name-row {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	min-width: 0;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-status-badge {
+	flex-shrink: 0;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-title-actions .embedded-detail-disable-button.monaco-button {
+	color: var(--vscode-descriptionForeground);
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-title-actions .embedded-detail-uninstall-button.monaco-button {
+	color: var(--vscode-errorForeground);
+	border-color: color-mix(in srgb, var(--vscode-errorForeground) 35%, transparent);
+	background: transparent;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-title-actions .embedded-detail-uninstall-button.monaco-button:hover {
+	background: color-mix(in srgb, var(--vscode-errorForeground) 12%, transparent);
+}
+
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-name {
 	margin: 0;
 	font-size: var(--vscode-agents-fontSize-heading2);
@@ -887,6 +931,13 @@
 	font-size: 12px;
 }
 
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-badges {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+}
+
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-description {
 	color: var(--vscode-foreground);
 	font-size: var(--vscode-agents-fontSize-body1);
@@ -894,6 +945,196 @@
 	white-space: pre-wrap;
 	word-break: break-word;
 	padding-inline-start: 32px;
+	margin-bottom: var(--vscode-spacing-size40);
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-facts {
+	display: grid;
+	grid-template-columns: minmax(96px, max-content) minmax(0, 1fr);
+	gap: var(--vscode-spacing-size60) var(--vscode-spacing-size120);
+	padding-inline-start: 32px;
+	margin-bottom: var(--vscode-spacing-size80);
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-fact-row {
+	display: contents;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-fact-label,
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-fact-value {
+	font-size: var(--vscode-agents-fontSize-body2);
+	line-height: 16px;
+	min-width: 0;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-fact-label {
+	color: var(--vscode-descriptionForeground);
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-fact-value {
+	color: var(--vscode-foreground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-fact-link {
+	color: var(--vscode-textLink-foreground);
+	text-decoration: none;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-fact-link:hover {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-location-value {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+	max-width: 100%;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-location-label {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-copy-button.monaco-button {
+	flex-shrink: 0;
+	width: 16px;
+	min-width: 16px;
+	height: 16px;
+	padding: 0;
+	background: transparent !important;
+	border-color: transparent !important;
+	color: var(--vscode-descriptionForeground) !important;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-copy-button.monaco-button:hover {
+	background: transparent !important;
+	color: var(--vscode-textLink-activeForeground) !important;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-section {
+	padding-inline-start: 32px;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-section-title {
+	margin: 0 0 var(--vscode-spacing-size60) 0;
+	font-size: var(--vscode-agents-fontSize-heading3);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	line-height: 18px;
+	color: var(--vscode-foreground);
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-chip-list {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-contribution-chip {
+	line-height: 18px;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-contribution-section {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size60);
+	min-width: 0;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-contribution-section + .plugin-detail-contribution-section {
+	margin-top: var(--vscode-spacing-size160);
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-contribution-group {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size60);
+	min-width: 0;
+	padding: var(--vscode-spacing-size100) var(--vscode-spacing-size120);
+	border: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: var(--vscode-editor-background);
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-contribution-group-title {
+	font-size: var(--vscode-agents-fontSize-label1);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	color: var(--vscode-foreground);
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-contribution-list {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size60);
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-contribution-row {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	gap: var(--vscode-spacing-size20);
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-contribution-link {
+	padding: 0;
+	border: none;
+	background: transparent;
+	color: var(--vscode-textLink-foreground);
+	text-align: left;
+	cursor: pointer;
+	font-family: inherit;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-contribution-link:hover {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-contribution-link:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-contribution-name {
+	font-size: var(--vscode-agents-fontSize-body1);
+	line-height: 18px;
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-contribution-link.plugin-detail-contribution-name {
+	color: var(--vscode-textLink-foreground);
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-contribution-link.plugin-detail-contribution-name:hover {
+	color: var(--vscode-textLink-activeForeground);
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-contribution-description,
+.ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-contribution-more,
+.ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-contribution-empty {
+	font-size: var(--vscode-agents-fontSize-body2);
+	line-height: 16px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-contribution-description {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.vscode-high-contrast .ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-contribution-group {
+	border-color: var(--vscode-contrastBorder);
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-empty {
@@ -1136,6 +1377,383 @@
 .mcp-server-item .mcp-server-status.disabled {
 	background-color: color-mix(in srgb, var(--vscode-badge-background) 50%, transparent);
 	color: var(--vscode-badge-foreground);
+}
+
+.plugin-list-widget .plugin-search-header {
+	display: flex;
+	align-items: flex-end;
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120) var(--vscode-spacing-size40);
+	-webkit-user-select: none;
+	user-select: none;
+	pointer-events: none;
+}
+
+.plugin-list-widget .plugin-search-header.available-to-install {
+	padding-top: var(--vscode-spacing-size160);
+}
+
+.plugin-list-widget .plugin-search-header:hover {
+	background: transparent !important;
+}
+
+.plugin-list-widget .plugin-search-header-label {
+	font-size: var(--vscode-agents-fontSize-heading3);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	line-height: 18px;
+	color: var(--vscode-foreground);
+}
+
+/* Plugin list item */
+.plugin-list-widget .plugin-list-item {
+	display: flex;
+	align-items: center;
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+	cursor: pointer;
+	border-radius: var(--vscode-cornerRadius-small);
+	gap: var(--vscode-spacing-size120);
+	min-height: 44px;
+	overflow: hidden;
+	box-sizing: border-box;
+}
+
+.plugin-list-widget .plugin-list-item:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.plugin-list-widget .plugin-list-item.disabled {
+	opacity: 0.6;
+}
+
+.plugin-list-widget .plugin-list-item .item-sync-checkbox {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+}
+
+.plugin-list-widget .plugin-list-item-icon {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	border-radius: var(--vscode-cornerRadius-medium);
+	color: var(--vscode-descriptionForeground);
+	background: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
+}
+
+.plugin-list-widget .plugin-list-item-icon.codicon::before {
+	font-size: var(--vscode-codiconFontSize);
+}
+
+.plugin-list-widget .plugin-list-item-details {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size20);
+	overflow: hidden;
+}
+
+.plugin-list-widget .plugin-list-item-name-row {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	min-width: 0;
+	overflow: hidden;
+}
+
+.plugin-list-widget .plugin-list-item-name {
+	font-size: var(--vscode-agents-fontSize-body1);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	line-height: 18px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.plugin-list-widget .plugin-list-item-description,
+.plugin-list-widget .plugin-list-item-source,
+.plugin-list-widget .plugin-list-item-metadata {
+	font-size: var(--vscode-agents-fontSize-body2);
+	line-height: 14px;
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.plugin-list-widget .plugin-list-item-source {
+	color: var(--vscode-textPreformat-foreground, var(--vscode-descriptionForeground));
+}
+
+.plugin-list-widget .plugin-list-item-status {
+	flex-shrink: 0;
+	font-size: var(--vscode-agents-fontSize-label2);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	line-height: 18px;
+	padding: 0 var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-circle);
+	color: var(--vscode-badge-foreground);
+	background-color: var(--vscode-badge-background);
+}
+
+.plugin-list-widget .plugin-list-item-status.running {
+	color: var(--vscode-editor-background);
+	background-color: color-mix(in srgb, var(--vscode-terminal-ansiGreen) 50%, transparent);
+}
+
+.plugin-list-widget .plugin-list-item-status.disabled {
+	color: var(--vscode-badge-foreground);
+	background-color: color-mix(in srgb, var(--vscode-badge-background) 50%, transparent);
+}
+
+.plugin-list-widget .plugin-list-item-action {
+	flex-shrink: 0;
+}
+
+.plugin-list-widget .plugin-list-item-install-button {
+	font-size: var(--vscode-agents-fontSize-body2);
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size100);
+}
+
+.plugin-list-widget .plugin-list-item-install-button:focus-visible {
+	outline-offset: -1px;
+}
+
+.plugin-list-widget .plugin-card-container {
+	flex: 1;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.plugin-list-widget .plugin-card-scroll {
+	height: 100%;
+	overflow: auto;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size20) var(--vscode-spacing-size200);
+	box-sizing: border-box;
+}
+
+.plugin-list-widget .plugin-card-section {
+	margin-bottom: var(--vscode-spacing-size240);
+}
+
+.plugin-list-widget .plugin-discovery-section {
+	margin-bottom: 0;
+}
+
+.plugin-list-widget .plugin-card-section-header {
+	display: flex;
+	align-items: flex-end;
+	justify-content: flex-start;
+	gap: var(--vscode-spacing-size60);
+	margin-bottom: var(--vscode-spacing-size120);
+	min-width: 0;
+}
+
+.plugin-list-widget .plugin-card-section-text {
+	flex: 1;
+	min-width: 0;
+}
+
+.plugin-list-widget .plugin-card-section-title {
+	margin: 0;
+	font-size: var(--vscode-agents-fontSize-heading3);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	line-height: 18px;
+	color: var(--vscode-foreground);
+}
+
+.plugin-list-widget .plugin-card-section-description {
+	margin-top: var(--vscode-spacing-size20);
+	font-size: var(--vscode-agents-fontSize-body2);
+	line-height: 16px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.plugin-list-widget .plugin-card-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+	gap: var(--vscode-spacing-size120);
+}
+
+.plugin-list-widget .plugin-card {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+	min-height: 80px;
+	padding: var(--vscode-spacing-size120);
+	border: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
+	border-radius: var(--vscode-cornerRadius-large);
+	background: var(--vscode-editorWidget-background);
+	color: var(--vscode-foreground);
+	box-sizing: border-box;
+	cursor: pointer;
+}
+
+.plugin-list-widget .plugin-marketplace-card {
+	gap: var(--vscode-spacing-sizeNone);
+	min-height: 80px;
+}
+
+.plugin-list-widget .plugin-installed-card {
+	gap: var(--vscode-spacing-size80);
+}
+
+.plugin-list-widget .plugin-card:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.plugin-list-widget .plugin-card:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.plugin-list-widget .plugin-card.disabled {
+	opacity: 0.65;
+}
+
+.plugin-list-widget .plugin-card-header {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size100);
+	min-width: 0;
+}
+
+.plugin-list-widget .plugin-card-header .plugin-card-actions {
+	margin-left: auto;
+	padding-top: var(--vscode-spacing-size20);
+}
+
+.plugin-list-widget .plugin-card-icon {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 32px;
+	height: 32px;
+	border-radius: var(--vscode-cornerRadius-large);
+	color: var(--vscode-descriptionForeground);
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.plugin-list-widget .plugin-card-icon.codicon::before {
+	font-size: var(--vscode-codiconFontSize);
+}
+
+.plugin-list-widget .plugin-card-icon-large {
+	width: 40px;
+	height: 40px;
+}
+
+.plugin-list-widget .plugin-card-title-block {
+	flex: 1;
+	min-width: 0;
+}
+
+.plugin-list-widget .plugin-card-title {
+	font-size: var(--vscode-agents-fontSize-body1);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	line-height: 18px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.plugin-list-widget .plugin-card-subtitle,
+.plugin-list-widget .plugin-card-description,
+.plugin-list-widget .plugin-card-meta {
+	font-size: var(--vscode-agents-fontSize-body2);
+	line-height: 16px;
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.plugin-list-widget .plugin-card-description {
+	white-space: normal;
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+}
+
+.plugin-list-widget .plugin-card-badges,
+.plugin-list-widget .plugin-card-contribution-preview,
+.plugin-list-widget .plugin-card-actions {
+	display: flex;
+	flex-wrap: nowrap;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+}
+
+.plugin-list-widget .plugin-card-badges,
+.plugin-list-widget .plugin-card-contribution-preview {
+	justify-content: flex-start;
+}
+
+.plugin-list-widget .plugin-card-actions {
+	justify-content: flex-end;
+}
+
+.plugin-list-widget .plugin-card-actions .monaco-button {
+	width: auto;
+	flex: 0 0 auto;
+	font-size: var(--vscode-agents-fontSize-body2);
+	padding: 0 var(--vscode-spacing-size80);
+	min-height: 24px;
+}
+
+.plugin-list-widget .plugin-card-actions .plugin-card-icon-button.monaco-button {
+	width: 24px;
+	min-width: 24px;
+	padding: 0;
+}
+
+.plugin-list-widget .plugin-card-actions .plugin-card-ghost-button.monaco-button,
+.plugin-list-widget .plugin-card-section-header .plugin-card-ghost-button.monaco-button {
+	background: transparent !important;
+	color: var(--vscode-foreground) !important;
+	border-color: transparent !important;
+	width: auto !important;
+}
+
+.plugin-list-widget .plugin-card-actions .plugin-card-ghost-button.monaco-button:hover,
+.plugin-list-widget .plugin-card-section-header .plugin-card-ghost-button.monaco-button:hover {
+	background: var(--vscode-toolbar-hoverBackground) !important;
+	color: var(--vscode-foreground) !important;
+}
+
+.plugin-list-widget .plugin-home-empty-card {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size100);
+	padding: var(--vscode-spacing-size200);
+	margin-bottom: var(--vscode-spacing-size240);
+	border: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
+	border-radius: var(--vscode-cornerRadius-large);
+	background: var(--vscode-editor-background);
+}
+
+.plugin-list-widget .plugin-home-empty-title {
+	margin: 0;
+	font-size: var(--vscode-agents-fontSize-heading3);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	color: var(--vscode-foreground);
+}
+
+.plugin-list-widget .plugin-home-empty-description {
+	max-width: 520px;
+	font-size: var(--vscode-agents-fontSize-body1);
+	line-height: 1.45;
+	color: var(--vscode-descriptionForeground);
+}
+
+.vscode-high-contrast .plugin-list-widget .plugin-card,
+.vscode-high-contrast .plugin-list-widget .plugin-home-empty-card {
+	border-color: var(--vscode-contrastBorder);
 }
 
 /* Button group for Add Server + Browse Marketplace */

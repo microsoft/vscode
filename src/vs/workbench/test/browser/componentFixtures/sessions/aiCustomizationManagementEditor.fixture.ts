@@ -715,6 +715,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			}());
 			reg.defineInstance(IPluginMarketplaceService, new class extends mock<IPluginMarketplaceService>() {
 				override readonly installedPlugins = constObservable([]);
+				override readonly recommendedPlugins = constObservable(new Set<string>());
 				override readonly onDidChangeMarketplaces = Event.None;
 			}());
 			reg.defineInstance(IPluginInstallService, new class extends mock<IPluginInstallService>() { }());
@@ -869,9 +870,7 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 	ctx.container.appendChild(widget.element);
 	widget.layout(height, width);
 
-	// Click the Browse Marketplace button to enter browse mode
-	const browseButton = widget.element.querySelector('.list-add-button') as HTMLElement;
-	browseButton?.click();
+	widget.showBrowseMarketplace();
 
 	// Wait for the gallery query to resolve
 	await new Promise(resolve => setTimeout(resolve, 50));
@@ -882,15 +881,25 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 // ============================================================================
 
 function makeInstalledPlugin(name: string, uri: URI, enabled: boolean): IAgentPlugin {
+	const contributionName = name.toLowerCase().replace(/\s+/g, '-');
 	return new class extends mock<IAgentPlugin>() {
 		override readonly uri = uri;
 		override readonly label = name;
 		override readonly enablement = constObservable(enabled ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile);
 		override readonly hooks = constObservable([]);
-		override readonly commands = constObservable([]);
-		override readonly skills = constObservable([]);
-		override readonly agents = constObservable([]);
-		override readonly instructions = constObservable([]);
+		override readonly commands = constObservable([
+			{ uri: URI.joinPath(uri, 'commands', `${contributionName}-lookup.md`), name: `${name} lookup`, description: `Search ${name} from chat.` },
+			{ uri: URI.joinPath(uri, 'commands', `${contributionName}-summarize.md`), name: `${name} summary`, description: `Summarize recent ${name} activity.` },
+		]);
+		override readonly skills = constObservable([
+			{ uri: URI.joinPath(uri, 'skills', `${contributionName}-triage.md`), name: `${name} triage`, description: `Help triage ${name} workflows.` },
+		]);
+		override readonly agents = constObservable([
+			{ uri: URI.joinPath(uri, 'agents', `${contributionName}.agent.md`), name: `${name} assistant`, description: `An agent specialized for ${name}.` },
+		]);
+		override readonly instructions = constObservable([
+			{ uri: URI.joinPath(uri, 'instructions', `${contributionName}.instructions.md`), name: `${name} instructions`, description: `Context rules for ${name}.` },
+		]);
 		override readonly mcpServerDefinitions = constObservable([]);
 		override remove() { }
 	}();
@@ -975,6 +984,7 @@ async function renderPluginBrowseMode(ctx: ComponentFixtureContext): Promise<voi
 			}());
 			reg.defineInstance(IPluginMarketplaceService, new class extends mock<IPluginMarketplaceService>() {
 				override readonly installedPlugins = constObservable([]);
+				override readonly recommendedPlugins = constObservable(new Set(['Figma@copilot', 'Stripe@copilot']));
 				override readonly onDidChangeMarketplaces = Event.None;
 				override async fetchMarketplacePlugins() { return marketplacePlugins; }
 			}());
@@ -1111,6 +1121,7 @@ function renderPluginDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): 
 			}());
 			reg.defineInstance(IPluginMarketplaceService, new class extends mock<IPluginMarketplaceService>() {
 				override readonly installedPlugins = constObservable([]);
+				override readonly recommendedPlugins = constObservable(new Set<string>());
 				override readonly onDidChangeMarketplaces = Event.None;
 				override async fetchMarketplacePlugins() { return []; }
 			}());

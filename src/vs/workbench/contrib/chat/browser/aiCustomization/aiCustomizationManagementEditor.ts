@@ -2341,6 +2341,18 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const detailBody = DOM.append(this.pluginDetailContainer, $('.plugin-detail-editor-container'));
 
 		this.embeddedPluginDetail = this.editorDisposables.add(this.instantiationService.createInstance(EmbeddedAgentPluginDetail, detailBody));
+		this.editorDisposables.add(this.embeddedPluginDetail.onDidRequestOpenSkill(uri => {
+			this.openSkillFromPluginDetail(uri);
+		}));
+		this.editorDisposables.add(this.embeddedPluginDetail.onDidRequestOpenAgent(uri => {
+			this.openPromptsItemFromPluginDetail(AICustomizationManagementSection.Agents, uri);
+		}));
+		this.editorDisposables.add(this.embeddedPluginDetail.onDidRequestOpenSection(section => {
+			this.openSectionFromPluginDetail(section);
+		}));
+		this.editorDisposables.add(this.embeddedPluginDetail.onDidUninstall(() => {
+			this.goBackFromPluginDetail();
+		}));
 
 		// Back button rendered into the detail's leading slot
 		const backButton = DOM.append(this.embeddedPluginDetail.leadingSlot, $('button.editor-back-button'));
@@ -2368,6 +2380,46 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.dimension) {
 			this.layout(this.dimension);
 		}
+	}
+
+	private async openSkillFromPluginDetail(uri: URI): Promise<void> {
+		await this.openPromptsItemFromPluginDetail(AICustomizationManagementSection.Skills, uri);
+	}
+
+	private async openPromptsItemFromPluginDetail(section: AICustomizationManagementSection, uri: URI): Promise<void> {
+		this.pluginDetailDisposables.clear();
+		this.embeddedPluginDetail?.clearInput();
+		this.pluginDetailReturnSection = undefined;
+		this.viewMode = 'list';
+		this.selectedSection = section;
+		this.sectionContextKey.set(section);
+		this.storageService.store(AI_CUSTOMIZATION_MANAGEMENT_SELECTED_SECTION_KEY, section, StorageScope.PROFILE, StorageTarget.USER);
+		this.updateContentVisibility();
+		await this.listWidget.setSection(section);
+		const modelSection = ITEMS_MODEL_SECTIONS.find(s => s === section);
+		if (modelSection) {
+			await this.itemsModel.whenSectionLoaded(modelSection);
+			const item = this.itemsModel.getItems(modelSection).get().find(item => isEqual(item.uri, uri));
+			if (item) {
+				const source = item.source;
+				const isWorkspaceFile = source === AICustomizationSources.local;
+				const isReadOnly = !source || source === AICustomizationSources.extension || source === AICustomizationSources.plugin || source === AICustomizationSources.builtin;
+				this.showEmbeddedEditor(item.uri, item.name, item.promptType, source ?? AICustomizationSources.builtin, isWorkspaceFile, isReadOnly);
+			}
+		}
+		this.ensureSectionsListReflectsActiveSection(section);
+		if (this.dimension) {
+			this.layout(this.dimension);
+		}
+	}
+
+	private openSectionFromPluginDetail(section: AICustomizationManagementSection): void {
+		this.pluginDetailDisposables.clear();
+		this.embeddedPluginDetail?.clearInput();
+		this.pluginDetailReturnSection = undefined;
+		this.viewMode = 'list';
+		this.updateContentVisibility();
+		this.selectSectionById(section);
 	}
 
 	/**

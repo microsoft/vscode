@@ -223,6 +223,24 @@ For markdown-backed customizations (`.agent.md`, `SKILL.md`, `.instructions.md`,
 
 Hooks and other non-markdown detail views continue to open directly in their existing raw/detail experiences.
 
+### Plugins Section
+
+The Plugins section uses a bolder card-based home surface while preserving `WorkbenchList` as the search and accessibility-safe fallback. The default **Plugins Home** shows installed plugins as cards, remote/session plugins as operational cards, and a progressive marketplace discovery snapshot below the installed content.
+
+Installed plugin cards show:
+- plugin identity, source/provenance, enabled/disabled state, and description
+- contribution preview chips derived from real installed plugin data (`agents`, `skills`, `commands`, `instructions`, `mcpServerDefinitions`, `hooks`)
+- explicit action buttons (`View`, `More Actions`) rather than making the card itself clickable
+
+Browse mode is a plugin-local destination with an explicit **Back to Installed** button. It renders the full marketplace as cards when not searching:
+- **Recommended for this workspace** appears only when backed by `IPluginMarketplaceService.recommendedPlugins`
+- **All plugins** shows remaining uninstalled marketplace items
+- Search switches to a flat `WorkbenchList` result view so keyboarding and screen-reader behavior stay predictable
+
+Marketplace cards only show metadata backed by current data (`name`, `description`, marketplace label, recommendation key). They must not show unverifiable claims such as popularity, verification, ratings, screenshots, or generic trust badges.
+
+The embedded plugin detail view shows identity, linked source/provenance, inline enable/disable/uninstall actions for installed plugins, a copyable local path, description, and full installed contribution inventory grouped by type under **Included capabilities**. Marketplace detail stays honest about data limits and explains that structured contribution details are available after install unless a future marketplace schema exposes them.
+
 ### AgenticPromptsService (Sessions)
 
 Sessions overrides `PromptsService` via `AgenticPromptsService` (in `promptsService.ts`):
