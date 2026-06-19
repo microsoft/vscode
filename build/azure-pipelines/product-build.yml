@@ -195,6 +195,11 @@ resources:
       name: microsoft/vscode-encrypt
       endpoint: Monaco
       ref: main
+    - repository: vsda
+      type: github
+      name: microsoft/vsda
+      endpoint: Monaco
+      ref: main
 
 extends:
   template: v1/1ES.Official.PipelineTemplate.yml@1esPipelines
@@ -205,6 +210,7 @@ extends:
           - repository: distro
           - repository: capi
           - repository: encrypt
+          - repository: vsda
       tsa:
         enabled: true
         configFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/tsaoptions.json
