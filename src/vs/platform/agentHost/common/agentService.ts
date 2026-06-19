@@ -640,6 +640,14 @@ export interface IAgentCreateSessionConfig {
 	};
 }
 
+/** Options for creating an additional chat within a session. */
+export interface IAgentCreateChatOptions {
+	/** Optional display title for the new chat. */
+	readonly title?: string;
+	/** Optional model override; defaults to the session's model. */
+	readonly model?: ModelSelection;
+}
+
 export interface IAgentResolveSessionConfigParams {
 	readonly provider?: AgentProvider;
 	readonly workingDirectory?: URI;
@@ -857,8 +865,34 @@ export interface IAgent {
 	/** Return dynamic completions for a session configuration property. */
 	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult>;
 
-	/** Send a user message into an existing session. */
-	sendMessage(session: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string): Promise<void>;
+	/** Send a user message into an existing session. When `chat` is provided
+	 * (and differs from the default chat), the harness routes the message to
+	 * that specific chat within a multi-chat session. */
+	sendMessage(session: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, chat?: URI): Promise<void>;
+
+	/**
+	 * Create an additional chat within an existing session, backed by a new
+	 * conversation that shares the session's scope (working directory, model,
+	 * agent, customizations). Optional: harnesses that do not support multiple
+	 * concurrent chats simply omit it. The `chat` URI is the client-chosen
+	 * channel the new chat will be addressed by.
+	 */
+	createChat?(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<void>;
+
+	/**
+	 * Dispose an additional chat created via {@link createChat}, freeing its
+	 * backing conversation. The session's default chat cannot be disposed in
+	 * isolation; it lives and dies with the session.
+	 */
+	disposeChat?(session: URI, chat: URI): Promise<void>;
+
+	/**
+	 * Returns the persisted catalog of additional (non-default) peer chats for a
+	 * session as their channel URIs. Used to re-register peer chats (and seed
+	 * their history) when a session is restored after a process restart.
+	 * Optional: harnesses without multi-chat persistence omit it.
+	 */
+	getChats?(session: URI): Promise<readonly URI[]>;
 
 	/**
 	 * Called when the session's pending (steering) message changes.
@@ -882,8 +916,9 @@ export interface IAgent {
 	/** Dispose a session, freeing resources. */
 	disposeSession(session: URI): Promise<void>;
 
-	/** Abort the current turn, stopping any in-flight processing. */
-	abortSession(session: URI): Promise<void>;
+	/** Abort the current turn, stopping any in-flight processing. When `chat`
+	 * is provided, only that chat's in-flight turn is aborted. */
+	abortSession(session: URI, chat?: URI): Promise<void>;
 
 	/** Change the model for an existing session. */
 	changeModel(session: URI, model: ModelSelection): Promise<void>;
@@ -1067,6 +1102,17 @@ export interface IAgentService {
 
 	/** Create a new session. Returns the session URI. */
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
+
+	/**
+	 * Create an additional chat within an existing session. Spins up the
+	 * backing conversation in the harness (sharing the session's scope) and
+	 * registers the chat in the session's catalog so subscribers observe a
+	 * `session/chatAdded` action. The `chat` URI is the client-chosen channel.
+	 */
+	createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<void>;
+
+	/** Dispose an additional chat created via {@link createChat}. */
+	disposeChat(session: URI, chat: URI): Promise<void>;
 
 	/** Resolve the dynamic configuration schema for creating a session. */
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult>;
@@ -1351,6 +1397,15 @@ export interface IAgentConnection {
 	 */
 	getCompletionTriggerCharacters(): Promise<readonly string[]>;
 	disposeSession(session: URI): Promise<void>;
+
+	/**
+	 * Create an additional peer chat inside an existing session. `chat` is a
+	 * client-chosen chat URI (see {@link buildChatUri}). The host adds the
+	 * chat to the session's catalog and publishes `session/chatAdded`.
+	 */
+	createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<void>;
+	/** Dispose an additional chat created via {@link createChat}. */
+	disposeChat(chat: URI): Promise<void>;
 
 	// ---- Terminal lifecycle -------------------------------------------------
 	createTerminal(params: CreateTerminalParams): Promise<void>;

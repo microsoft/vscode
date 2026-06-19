@@ -16,7 +16,7 @@ export class MockOctoKitService implements IOctoKitService {
 	private orgInstructions: Map<string, string> = new Map();
 	private userOrganizations: string[] = ['testorg'];
 
-	getCurrentAuthedUser = async () => ({ login: 'testuser', name: 'Test User', avatar_url: '' });
+	getCurrentAuthedUser: IOctoKitService['getCurrentAuthedUser'] = async () => ({ id: 1, login: 'testuser', name: 'Test User', avatar_url: '' });
 	getCopilotPullRequestsForUser = async () => [];
 	getGitHubOutageStatus = async (): Promise<GitHubOutageStatus> => GitHubOutageStatus.None;
 	getCopilotSessionsForPR = async () => [];

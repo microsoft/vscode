@@ -22,7 +22,7 @@ import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey 
 import { ActionType, isSessionAction, isChatAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { CustomizationType, type ClientPluginCustomization, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, createSessionState, createChatState, createDefaultChatSummary, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, StateComponents, buildSubagentSessionUri, ToolResultContentType, MessageAttachmentKind, MessageKind, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, createSessionState, createChatState, createDefaultChatSummary, buildChatUri, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, StateComponents, buildSubagentSessionUri, ToolResultContentType, MessageAttachmentKind, MessageKind, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -70,7 +70,8 @@ import { ChatQuestionCarouselData } from '../../../common/model/chatProgressType
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import type { IChatModel, IChatPendingRequest, IChatRequestModel } from '../../../common/model/chatModel.js';
 import { convertBufferToScreenshotVariable } from '../../../browser/attachments/chatScreenshotContext.js';
-import { AgentHostCompletionReferenceKind, toAgentHostCompletionVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { AgentHostCompletionReferenceKind, ChatPasteAttachmentMetadata, toAgentHostCompletionVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { messageAttachmentsToVariableData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
 // ---- Mock agent host service ------------------------------------------------
 
@@ -878,6 +879,228 @@ suite('AgentHostChatContribution', () => {
 			fire({ type: 'chat/turnComplete', session: session!, turnId: turnId! } as ChatAction);
 			await turnPromise;
 		});
+
+		test('sends paste variables as paste simple attachments', async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'continue',
+				variables: {
+					variables: [{
+						kind: 'paste',
+						id: 'transcript',
+						name: 'Previous conversation',
+						value: 'Transcript text',
+						code: 'Transcript text',
+						language: 'markdown',
+						pastedLines: 'Previous conversation',
+						fileName: 'Previous conversation',
+						copiedFrom: undefined,
+					}],
+				},
+			});
+
+			const turnStarted = agentHostService.turnActions[0].action as ITurnStartedAction;
+			assert.deepStrictEqual(turnStarted.message.attachments, [{
+				type: MessageAttachmentKind.Simple,
+				label: 'Previous conversation',
+				modelRepresentation: 'Transcript text',
+			}]);
+
+			fire({ type: 'chat/turnComplete', session: session!, turnId: turnId! } as ChatAction);
+			await turnPromise;
+		});
+
+		test('sends agent feedback variables as annotations attachments referencing each comment', async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/feedback-send' });
+			const annotationsResource = URI.parse('ahp-session:/feedback-send/annotations');
+			const feedbackFile = URI.file('/workspace/foo.ts');
+			const feedbackFile2 = URI.file('/workspace/bar.ts');
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: '/act-on-feedback',
+				sessionResource,
+				variables: {
+					variables: [{
+						kind: 'agentFeedback',
+						id: 'agentFeedback:' + sessionResource.toString(),
+						name: '2 comments',
+						value: 'Feedback text for the model',
+						sessionResource,
+						annotationsResource,
+						feedbackItems: [{
+							id: 'feedback-1',
+							text: 'Please simplify this.',
+							resourceUri: feedbackFile,
+							range: { startLineNumber: 2, startColumn: 3, endLineNumber: 4, endColumn: 5 },
+							replies: ['Agreed'],
+						}, {
+							id: 'feedback-2',
+							text: 'Rename this.',
+							resourceUri: feedbackFile2,
+							range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 },
+						}],
+					}],
+				},
+			});
+
+			const turnStarted = agentHostService.turnActions[0].action as ITurnStartedAction;
+			assert.deepStrictEqual(turnStarted.message.attachments, [{
+				type: MessageAttachmentKind.Annotations,
+				label: '2 comments',
+				displayKind: AgentFeedbackAttachmentDisplayKind,
+				resource: annotationsResource.toString(),
+				annotationIds: ['feedback-1'],
+				_meta: {
+					[AgentFeedbackAttachmentMetadataKey]: {
+						sessionResource: sessionResource.toString(),
+						feedbackItems: [{
+							id: 'feedback-1',
+							text: 'Please simplify this.',
+							resourceUri: feedbackFile.toString(),
+							range: {
+								start: { line: 1, character: 2 },
+								end: { line: 3, character: 4 },
+							},
+							replies: ['Agreed'],
+						}],
+					},
+				},
+			}, {
+				type: MessageAttachmentKind.Annotations,
+				label: '2 comments',
+				displayKind: AgentFeedbackAttachmentDisplayKind,
+				resource: annotationsResource.toString(),
+				annotationIds: ['feedback-2'],
+				_meta: {
+					[AgentFeedbackAttachmentMetadataKey]: {
+						sessionResource: sessionResource.toString(),
+						feedbackItems: [{
+							id: 'feedback-2',
+							text: 'Rename this.',
+							resourceUri: feedbackFile2.toString(),
+							range: {
+								start: { line: 0, character: 0 },
+								end: { line: 0, character: 4 },
+							},
+						}],
+					},
+				},
+			}]);
+
+			fire({ type: 'chat/turnComplete', session: session!, turnId: turnId! } as ChatAction);
+			await turnPromise;
+		});
+
+		test('sends agent feedback variables as a simple attachment when no annotations channel is known', async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/feedback-send-fallback' });
+			const feedbackFile = URI.file('/workspace/foo.ts');
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: '/act-on-feedback',
+				sessionResource,
+				variables: {
+					variables: [{
+						kind: 'agentFeedback',
+						id: 'agentFeedback:' + sessionResource.toString(),
+						name: '1 comment',
+						value: 'Feedback text for the model',
+						sessionResource,
+						feedbackItems: [{
+							id: 'feedback-1',
+							text: 'Please simplify this.',
+							resourceUri: feedbackFile,
+							range: { startLineNumber: 2, startColumn: 3, endLineNumber: 4, endColumn: 5 },
+							replies: ['Agreed'],
+						}],
+					}],
+				},
+			});
+
+			const turnStarted = agentHostService.turnActions[0].action as ITurnStartedAction;
+			assert.deepStrictEqual(turnStarted.message.attachments, [{
+				type: MessageAttachmentKind.Simple,
+				label: '1 comment',
+				modelRepresentation: 'Feedback text for the model',
+				displayKind: AgentFeedbackAttachmentDisplayKind,
+				_meta: {
+					[AgentFeedbackAttachmentMetadataKey]: {
+						sessionResource: sessionResource.toString(),
+						feedbackItems: [{
+							id: 'feedback-1',
+							text: 'Please simplify this.',
+							resourceUri: feedbackFile.toString(),
+							range: {
+								start: { line: 1, character: 2 },
+								end: { line: 3, character: 4 },
+							},
+							replies: ['Agreed'],
+						}],
+					},
+				},
+			}]);
+
+			fire({ type: 'chat/turnComplete', session: session!, turnId: turnId! } as ChatAction);
+			await turnPromise;
+		});
+
+		test('restores tagged simple paste attachments as paste variable entries', () => {
+			const variableData = messageAttachmentsToVariableData([{
+				type: MessageAttachmentKind.Simple,
+				label: 'Previous conversation',
+				modelRepresentation: 'conversation transcript',
+				_meta: {
+					[ChatPasteAttachmentMetadata.Kind]: 'paste',
+					[ChatPasteAttachmentMetadata.Language]: 'markdown',
+					[ChatPasteAttachmentMetadata.FileName]: 'Previous conversation',
+					[ChatPasteAttachmentMetadata.PastedLines]: 'Previous conversation',
+				},
+			}], 'test');
+
+			assert.deepStrictEqual(variableData?.variables.map(variable => ({
+				kind: variable.kind,
+				name: variable.name,
+				value: variable.value,
+				code: variable.kind === 'paste' ? variable.code : undefined,
+				language: variable.kind === 'paste' ? variable.language : undefined,
+				pastedLines: variable.kind === 'paste' ? variable.pastedLines : undefined,
+				fileName: variable.kind === 'paste' ? variable.fileName : undefined,
+			})), [{
+				kind: 'paste',
+				name: 'Previous conversation',
+				value: 'conversation transcript',
+				code: 'conversation transcript',
+				language: 'markdown',
+				pastedLines: 'Previous conversation',
+				fileName: 'Previous conversation',
+			}]);
+		});
+
+		test('restores paste displayKind simple attachments as generic variable entries', () => {
+			const variableData = messageAttachmentsToVariableData([{
+				type: MessageAttachmentKind.Simple,
+				label: 'Previous conversation',
+				displayKind: 'paste',
+				modelRepresentation: 'conversation transcript',
+			}], 'test');
+
+			assert.deepStrictEqual(variableData?.variables.map(variable => ({
+				kind: variable.kind,
+				name: variable.name,
+				value: variable.value,
+				code: variable.kind === 'paste' ? variable.code : undefined,
+				language: variable.kind === 'paste' ? variable.language : undefined,
+				pastedLines: variable.kind === 'paste' ? variable.pastedLines : undefined,
+				fileName: variable.kind === 'paste' ? variable.fileName : undefined,
+			})), [{
+				kind: 'generic',
+				name: 'Previous conversation',
+				value: 'conversation transcript',
+				code: undefined,
+				language: undefined,
+				pastedLines: undefined,
+				fileName: undefined,
+			}]);
+		});
 	});
 
 	// ---- Session disposal -----------------------------------------------
@@ -902,6 +1125,31 @@ suite('AgentHostChatContribution', () => {
 			chatSession.dispose();
 
 			assert.strictEqual(fired, 1, 'onWillDispose should fire exactly once when the session is disposed');
+		});
+
+		test('disposing one chat does not tear down a sibling peer chat subscription (peer chat never loads after reload)', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/multi' });
+			const backendSession = AgentSession.uri('copilot', 'multi');
+			const peerResource = URI.from({ scheme: 'agent-host-copilot', path: '/multi', fragment: 'peer-1' });
+			const peerChatUri = URI.parse(buildChatUri(backendSession.toString(), 'peer-1'));
+
+			// Open the session's default chat and an additional peer chat.
+			const defaultSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			const peerSession = await sessionHandler.provideChatSessionContent(peerResource, CancellationToken.None);
+			disposables.add(toDisposable(() => peerSession.dispose()));
+
+			assert.ok(agentHostService.getSubscriptionUnmanaged(StateComponents.Chat, peerChatUri), 'peer chat subscription should be live after it is opened');
+
+			// Closing the default chat must NOT dispose the still-open peer
+			// chat's subscription. The regression left the peer chat's
+			// `provideChatSessionContent` awaiting a dead subscription, so it
+			// never resolved and the chat stayed stuck on a loading spinner.
+			defaultSession.dispose();
+
+			assert.ok(agentHostService.getSubscriptionUnmanaged(StateComponents.Chat, peerChatUri), 'peer chat subscription must stay live after the sibling default chat is disposed');
+			assert.ok(agentHostService.getSubscriptionUnmanaged(StateComponents.Session, backendSession), 'shared session subscription must stay live while the peer chat is still open');
 		});
 	});
 
@@ -2636,6 +2884,92 @@ suite('AgentHostChatContribution', () => {
 			}
 		});
 
+		test('restores agent feedback annotations attachments as one aggregated request variable', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/feedback-annotations-history' });
+			const annotationsResource = 'ahp-session:/feedback-annotations-history/annotations';
+			const feedbackFile = URI.file('/workspace/foo.ts');
+			const feedbackFile2 = URI.file('/workspace/bar.ts');
+			const sessionUri = AgentSession.uri('copilot', 'feedback-annotations-history');
+			const makeAnnotationAttachment = (id: string, text: string, resourceUri: string) => ({
+				type: MessageAttachmentKind.Annotations,
+				label: '2 comments',
+				displayKind: AgentFeedbackAttachmentDisplayKind,
+				resource: annotationsResource,
+				annotationIds: [id],
+				_meta: {
+					[AgentFeedbackAttachmentMetadataKey]: {
+						sessionResource: sessionResource.toString(),
+						feedbackItems: [{
+							id,
+							text,
+							resourceUri,
+							range: { start: { line: 1, character: 2 }, end: { line: 3, character: 4 } },
+						}],
+					},
+				},
+			});
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
+				lifecycle: SessionLifecycle.Ready,
+				turns: [{
+					id: 'turn-1',
+					message: {
+						text: '/act-on-feedback',
+						origin: { kind: MessageKind.User },
+						attachments: [
+							makeAnnotationAttachment('feedback-1', 'Please simplify this.', feedbackFile.toString()),
+							makeAnnotationAttachment('feedback-2', 'Rename this.', feedbackFile2.toString()),
+						],
+					},
+					responseParts: [],
+					usage: undefined,
+					state: TurnState.Complete,
+				}],
+			} as SessionState);
+
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+
+			const request = session.history[0];
+			assert.strictEqual(request.type, 'request');
+			if (request.type === 'request') {
+				assert.ok(request.variableData);
+				const variables = request.variableData.variables;
+				assert.strictEqual(variables.length, 1);
+				const feedbackVariable = variables[0];
+				assert.strictEqual(feedbackVariable.kind, 'agentFeedback');
+				assert.deepStrictEqual({
+					kind: feedbackVariable.kind,
+					name: feedbackVariable.name,
+					sessionResource: feedbackVariable.sessionResource.toString(),
+					annotationsResource: feedbackVariable.annotationsResource?.toString(),
+					feedbackItems: feedbackVariable.feedbackItems.map(item => ({
+						id: item.id,
+						text: item.text,
+						resourceUri: item.resourceUri.toString(),
+						range: item.range,
+					})),
+				}, {
+					kind: 'agentFeedback',
+					name: '2 comments',
+					sessionResource: sessionResource.toString(),
+					annotationsResource,
+					feedbackItems: [{
+						id: 'feedback-1',
+						text: 'Please simplify this.',
+						resourceUri: feedbackFile.toString(),
+						range: { startLineNumber: 2, startColumn: 3, endLineNumber: 4, endColumn: 5 },
+					}, {
+						id: 'feedback-2',
+						text: 'Rename this.',
+						resourceUri: feedbackFile2.toString(),
+						range: { startLineNumber: 2, startColumn: 3, endLineNumber: 4, endColumn: 5 },
+					}],
+				});
+			}
+		});
+
 		test('restores agent host completion attachments as hidden request variables', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/completion-history' });
@@ -3300,7 +3634,7 @@ suite('AgentHostChatContribution', () => {
 			]);
 		}));
 
-		test('agent feedback variable is dropped (feedback lives in the annotations channel)', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		test('agent feedback variable becomes a simple attachment when no annotations channel is known', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/feedback-test' });
 
@@ -3334,7 +3668,27 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
 			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
-			assert.strictEqual(turnAction.message.attachments, undefined);
+			assert.deepStrictEqual(turnAction.message.attachments, [{
+				type: MessageAttachmentKind.Simple,
+				label: 'Feedback',
+				modelRepresentation: 'Feedback text for the model',
+				displayKind: AgentFeedbackAttachmentDisplayKind,
+				_meta: {
+					source: 'test',
+					[AgentFeedbackAttachmentMetadataKey]: {
+						sessionResource: sessionResource.toString(),
+						feedbackItems: [{
+							id: 'feedback-1',
+							text: 'Please simplify this.',
+							resourceUri: URI.file('/workspace/foo.ts').toString(),
+							range: {
+								start: { line: 1, character: 2 },
+								end: { line: 3, character: 4 },
+							},
+						}],
+					},
+				},
+			}]);
 		}));
 
 		test('directory variable with file:// URI becomes directory attachment', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -3603,6 +3957,26 @@ suite('AgentHostChatContribution', () => {
 						range: {
 							start: { line: 1, character: 2 },
 							end: { line: 3, character: 4 },
+						},
+					},
+				},
+				{
+					type: MessageAttachmentKind.Simple,
+					label: 'Feedback',
+					modelRepresentation: 'Feedback text for the model',
+					displayKind: AgentFeedbackAttachmentDisplayKind,
+					_meta: {
+						[AgentFeedbackAttachmentMetadataKey]: {
+							sessionResource: 'agent-host-copilot:/new-turntest',
+							feedbackItems: [{
+								id: 'feedback-1',
+								text: 'Please simplify this.',
+								resourceUri: feedbackUri.toString(),
+								range: {
+									start: { line: 5, character: 0 },
+									end: { line: 5, character: 7 },
+								},
+							}],
 						},
 					},
 				},

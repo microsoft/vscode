@@ -76,6 +76,7 @@ import { IExtHostLanguageModels } from './extHostLanguageModels.js';
 import { ExtHostLanguages } from './extHostLanguages.js';
 import { IExtHostLocalizationService } from './extHostLocalizationService.js';
 import { IExtHostManagedSockets } from './extHostManagedSockets.js';
+import { IExtHostBrowserTunnelProxy } from './extHostBrowserTunnelProxy.js';
 import { IExtHostMpcService } from './extHostMcp.js';
 import { ExtHostMessageService } from './extHostMessageService.js';
 import { ExtHostNotebookController } from './extHostNotebook.js';
@@ -161,6 +162,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostSecretState = accessor.get(IExtHostSecretState);
 	const extHostEditorTabs = accessor.get(IExtHostEditorTabs);
 	const extHostManagedSockets = accessor.get(IExtHostManagedSockets);
+	const extHostBrowserTunnelProxy = accessor.get(IExtHostBrowserTunnelProxy);
 	const extHostProgress = accessor.get(IExtHostProgress);
 	const extHostAuthentication = accessor.get(IExtHostAuthentication);
 	const extHostLanguageModels = accessor.get(IExtHostLanguageModels);
@@ -185,6 +187,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	rpcProtocol.set(ExtHostContext.ExtHostTelemetry, extHostTelemetry);
 	rpcProtocol.set(ExtHostContext.ExtHostEditorTabs, extHostEditorTabs);
 	rpcProtocol.set(ExtHostContext.ExtHostManagedSockets, extHostManagedSockets);
+	rpcProtocol.set(ExtHostContext.ExtHostBrowserTunnelProxy, extHostBrowserTunnelProxy);
 	rpcProtocol.set(ExtHostContext.ExtHostProgress, extHostProgress);
 	rpcProtocol.set(ExtHostContext.ExtHostAuthentication, extHostAuthentication);
 	rpcProtocol.set(ExtHostContext.ExtHostChatProvider, extHostLanguageModels);

@@ -29,7 +29,7 @@ import { IActiveSession } from '../../../../../services/sessions/common/sessions
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { type ISession } from '../../../../../services/sessions/common/session.js';
-import { ISessionInputContext } from '../../../../chat/browser/sessionInputContext.js';
+import { ISessionContext } from '../../../../../services/sessions/browser/sessionContext.js';
 import { isWellKnownModeSchema } from '../agentHostPermissionPickerDelegate.js';
 import { agentHostModelPickerStorageKey } from '../agentHostModelPicker.js';
 import { INewChatModelPickerService } from '../../../../chat/browser/newChatModelPicker.js';
@@ -432,7 +432,7 @@ class MobileChatInputConfigPickerContribution extends Disposable implements IWor
 			Menus.NewSessionConfig,
 			MOBILE_CHAT_INPUT_CONFIG_PICKER_ID,
 			(_action, _options, scopedInstantiationService) => {
-				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionInputContext));
+				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
 				const picker = scopedInstantiationService.createInstance(MobileChatInputConfigPicker, session);
 				return new MobileChatInputConfigPickerActionViewItem(picker);
 			},

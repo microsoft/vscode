@@ -8,7 +8,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
@@ -17,9 +17,14 @@ import { workbenchConfigurationNodeBase } from '../../../common/configuration.js
 // rules behind a `.style-override-<id>` ancestor class, so the styles are inert
 // until the matching class is toggled onto the workbench container(s) below.
 import './media/activityBar.css';
+import './media/commandCenter.css';
 import './media/fontRamp.css';
+import './media/keyboardFocusOnly.css';
+import './media/padding.css';
 import './media/paneHeaders.css';
 import './media/roundedCorners.css';
+import './media/scrollShadows.css';
+import './media/statusBar.css';
 import './media/tabs.css';
 
 const SETTING_ID = 'workbench.experimental.styleOverrides';
@@ -28,6 +33,12 @@ interface IStyleOverrideModule {
 	readonly id: string;
 	readonly label: string;
 	readonly description: string;
+	/**
+	 * Whether this module changes layout-affecting CSS variables (e.g. the pane
+	 * header size). Toggling such a module requires a workbench relayout so the
+	 * new values are read; modules without this flag only affect appearance.
+	 */
+	readonly layoutAffecting?: boolean;
 }
 
 /**
@@ -40,7 +51,12 @@ const STYLE_OVERRIDE_MODULES: readonly IStyleOverrideModule[] = [
 	{
 		id: 'activityBar',
 		label: localize('styleOverrides.activityBar', "Activity Bar"),
-		description: localize('styleOverrides.activityBar.description', "Replaces the active activity bar item's left highlight border with a rounded background behind the icon.")
+		description: localize('styleOverrides.activityBar.description', "Replaces the active activity bar item's left highlight border with a rounded background behind the icon, and forces item foregrounds to the editor foreground so icons stay legible.")
+	},
+	{
+		id: 'commandCenter',
+		label: localize('styleOverrides.commandCenter', "Agents Window Command Center"),
+		description: localize('styleOverrides.commandCenter.description', "Makes the command center and agent status input transparent at rest, revealing their background on hover to match the Agents window.")
 	},
 	{
 		id: 'fontRamp',
@@ -48,14 +64,35 @@ const STYLE_OVERRIDE_MODULES: readonly IStyleOverrideModule[] = [
 		description: localize('styleOverrides.fontRamp.description', "Applies a unified typographic ramp across the workbench: headings at 26/18px, 13px body, 12px section titles and tabs, 11px metadata and 10px badges.")
 	},
 	{
+		id: 'keyboardFocusOnly',
+		label: localize('styleOverrides.keyboardFocusOnly', "Keyboard-Only Focus Borders"),
+		description: localize('styleOverrides.keyboardFocusOnly.description', "Hides focus borders that appear when panels are focused with the mouse, while keeping them for keyboard navigation.")
+	},
+	{
+		id: 'padding',
+		label: localize('styleOverrides.padding', "Padding"),
+		description: localize('styleOverrides.padding.description', "Adds extra padding to view pane headers and bodies for more breathing room around content.")
+	},
+	{
 		id: 'paneHeaders',
 		label: localize('styleOverrides.paneHeaders', "Pane Headers"),
-		description: localize('styleOverrides.paneHeaders.description', "Insets the view pane header separators, rounds their corners and adds a background tint on hover.")
+		description: localize('styleOverrides.paneHeaders.description', "Insets the view pane header separators, rounds their corners and adds a background tint on hover."),
+		layoutAffecting: true
 	},
 	{
 		id: 'roundedCorners',
 		label: localize('styleOverrides.roundedCorners', "Rounded Corners"),
 		description: localize('styleOverrides.roundedCorners.description', "Applies a three-tier corner radius system: 8px for overlays (quick input, hovers, menus, dialogs), 6px for non-control containers and 4px for interactable controls (inputs, lists).")
+	},
+	{
+		id: 'scrollShadows',
+		label: localize('styleOverrides.scrollShadows', "Scroll Shadows"),
+		description: localize('styleOverrides.scrollShadows.description', "Adds soft inset shadows to the top and bottom of lists, trees and the editor so content reads as scrolling under a fixed frame.")
+	},
+	{
+		id: 'statusBar',
+		label: localize('styleOverrides.statusBar', "Status Bar"),
+		description: localize('styleOverrides.statusBar.description', "Forces the status bar foreground to the general editor foreground so its text and icons stay legible when the status bar background is neutralized.")
 	},
 	{
 		id: 'tabs',
@@ -82,18 +119,32 @@ export class StyleOverridesContribution extends Disposable implements IWorkbench
 
 	private readonly knownModuleIds = new Set(STYLE_OVERRIDE_MODULES.map(m => m.id));
 	private readonly knownClassNames = STYLE_OVERRIDE_MODULES.map(m => classNameFor(m.id));
+	private readonly layoutAffectingClassNames = new Set(STYLE_OVERRIDE_MODULES.filter(m => m.layoutAffecting).map(m => classNameFor(m.id)));
+
+	/** Whether a layout-affecting module was active at the last applied selection. */
+	private layoutAffectingActive = false;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ILayoutService private readonly layoutService: ILayoutService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super();
+
+		this.layoutAffectingActive = this.hasActiveLayoutAffectingModule();
 
 		// A config change re-applies to every container (the global `update()`
 		// covers all windows, including auxiliary ones).
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(SETTING_ID)) {
 				this.update();
+				// Some modules drive layout-affecting CSS variables (e.g. the
+				// `paneHeaders` header size). Only relayout when one of those is
+				// toggled, to avoid an unnecessary full workbench relayout.
+				const layoutAffectingActive = this.hasActiveLayoutAffectingModule();
+				if (layoutAffectingActive !== this.layoutAffectingActive) {
+					this.layoutAffectingActive = layoutAffectingActive;
+					this.layoutService.layout();
+				}
 			}
 		}));
 
@@ -117,6 +168,16 @@ export class StyleOverridesContribution extends Disposable implements IWorkbench
 			}
 		}
 		return active;
+	}
+
+	private hasActiveLayoutAffectingModule(): boolean {
+		const active = this.activeClassNames();
+		for (const className of this.layoutAffectingClassNames) {
+			if (active.has(className)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private update(): void {

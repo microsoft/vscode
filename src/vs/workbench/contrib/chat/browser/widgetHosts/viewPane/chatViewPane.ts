@@ -596,7 +596,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const newSessionButtonContainer = this.sessionsNewButtonContainer = append(sessionsContainer, $('.agent-sessions-new-button-container'));
 		const newSessionButton = this._register(new Button(newSessionButtonContainer, { ...defaultButtonStyles, secondary: true }));
 		newSessionButton.label = localize('newSession', "New Session");
-		this._register(newSessionButton.onDidClick(() => this.commandService.executeCommand(ACTION_ID_NEW_CHAT)));
+		this._register(newSessionButton.onDidClick(() => this.commandService.executeCommand(ACTION_ID_NEW_CHAT, this.getActionsContext())));
 
 		// Sessions Control
 		this.sessionsControlContainer = append(sessionsContainer, $('.agent-sessions-control-container'));
@@ -1266,7 +1266,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 			// Switching to side-by-side, reveal the current session after elements have loaded
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
-				updatePromise.then(() => {
+				updatePromise.then(didUpdate => {
+					if (!didUpdate) {
+						return;
+					}
+
 					const sessionResource = this._widget?.viewModel?.sessionResource;
 					if (sessionResource) {
 						this.sessionsControl?.reveal(sessionResource);

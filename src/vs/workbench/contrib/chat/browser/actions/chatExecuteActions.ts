@@ -34,7 +34,7 @@ import { ILanguageModelToolsService } from '../../common/tools/languageModelTool
 import { isInClaudeAgentsFolder } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
-import { getAgentSessionProvider, AgentSessionProviders } from '../agentSessions/agentSessions.js';
+import { getAgentSessionProvider, AgentSessionProviders, AgentSessionTarget } from '../agentSessions/agentSessions.js';
 import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ctxHasEditorModification, ctxHasRequestInProgress, ctxIsGlobalEditingSession } from '../chatEditing/chatEditingEditorContextKeys.js';
 import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY, clearChatSessionPreservingType, handleCurrentEditingSession, handleModeSwitch } from './chatActions.js';
@@ -159,14 +159,14 @@ abstract class SubmitAction extends Action2 {
 		widget?.acceptInput(context?.inputValue);
 	}
 
-	private async handleDelegation(accessor: ServicesAccessor, widget: IChatWidget, delegationTarget: Exclude<AgentSessionProviders, AgentSessionProviders.Local>): Promise<void> {
+	private async handleDelegation(accessor: ServicesAccessor, widget: IChatWidget, delegationTarget: Exclude<AgentSessionTarget, AgentSessionProviders.Local>): Promise<void> {
 		const chatSessionsService = accessor.get(IChatSessionsService);
 
 		// Find the contribution for the delegation target
 		const contributions = chatSessionsService.getAllChatSessionContributions();
 		const targetContribution = contributions.find(contrib => {
 			const providerType = getAgentSessionProvider(contrib.type);
-			return providerType === delegationTarget;
+			return providerType === delegationTarget || contrib.type === delegationTarget;
 		});
 
 		if (!targetContribution) {
@@ -427,6 +427,8 @@ export class OpenModelPickerAction extends Action2 {
 				group: 'navigation',
 				when:
 					ContextKeyExpr.and(
+						// Hide the model picker while a delegation (continue in) target is pending
+						ChatContextKeys.hasPendingDelegationTarget.negate(),
 						ContextKeyExpr.or(
 							ChatContextKeys.lockedToCodingAgent.negate(),
 							ChatContextKeys.chatSessionHasTargetedModels),
@@ -521,6 +523,8 @@ export class OpenModePickerAction extends Action2 {
 						ChatContextKeys.enabled,
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 						ChatContextKeys.inQuickChat.negate(),
+						// Hide the agent picker while a delegation (continue in) target is pending
+						ChatContextKeys.hasPendingDelegationTarget.negate(),
 						ContextKeyExpr.or(
 							ChatContextKeys.lockedToCodingAgent.negate(),
 							ChatContextKeys.chatSessionHasCustomAgentTarget),
@@ -611,7 +615,8 @@ export class OpenDelegationPickerAction extends Action2 {
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 						ChatContextKeys.inQuickChat.negate(),
 						ChatContextKeys.chatSessionSupportsDelegation,
-						ChatContextKeys.chatSessionIsEmpty.negate()
+						ChatContextKeys.chatSessionIsEmpty.negate(),
+						IsSessionsWindowContext.negate()
 					),
 					group: 'navigation',
 				},
