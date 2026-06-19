@@ -931,22 +931,27 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private async _listModels(): Promise<IAgentModelInfo[]> {
 		this._logService.info('[Copilot] Listing models...');
-		const client = await this._ensureClient();
-		const models = await client.listModels();
-		const result = models.map((m): IAgentModelInfo => ({
-			provider: this.id,
-			id: m.id,
-			name: m.name,
-			// Synthetic SDK entries like `auto` ship with `capabilities: {}` and
-			// no fixed context window — surface them with maxContextWindow undefined.
-			maxContextWindow: m.capabilities?.limits?.max_context_window_tokens,
-			supportsVision: !!m.capabilities?.supports?.vision,
-			configSchema: this._createModelConfigSchema(m),
-			policyState: m.policy?.state as PolicyState | undefined,
-			_meta: this._createModelPricingMeta(m.billing),
-		}));
-		this._logService.info(`[Copilot] Found ${result.length} models`);
-		return result;
+		try {
+			const client = await this._ensureClient();
+			const models = await client.listModels();
+			const result = models.map((m): IAgentModelInfo => ({
+				provider: this.id,
+				id: m.id,
+				name: m.name,
+				// Synthetic SDK entries like `auto` ship with `capabilities: {}` and
+				// no fixed context window — surface them with maxContextWindow undefined.
+				maxContextWindow: m.capabilities?.limits?.max_context_window_tokens,
+				supportsVision: !!m.capabilities?.supports?.vision,
+				configSchema: this._createModelConfigSchema(m),
+				policyState: m.policy?.state as PolicyState | undefined,
+				_meta: this._createModelPricingMeta(m.billing),
+			}));
+			this._logService.info(`[Copilot] Found ${result.length} models: ${result.map(m => m.name).join(', ')}`);
+			return result;
+		} catch (err) {
+			this._logService.error(err, '[Copilot] Failed to list models');
+			throw err;
+		}
 	}
 
 	/**
@@ -972,7 +977,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const sessionId = sessionConfig.session ? AgentSession.id(sessionConfig.session) : generateUuid();
 		const workingDirectory = await this._resolveCreateWorkingDirectory(sessionConfig, sessionId);
 		const client = await this._ensureClient();
+		const models = await client.listModels();
 
+		console.log(models);
 		// When forking, use the SDK's sessions.fork RPC. Forking from a source
 		// session that has no turns is equivalent to creating a fresh session;
 		// in that case the agent service drops `config.fork` before calling us,
