@@ -164,6 +164,32 @@ suite('getPermissionDisplay — cd-prefix stripping', () => {
 		const display = getPermissionDisplay(request, wd);
 		assert.strictEqual(display.toolInput, 'dir');
 	});
+
+});
+
+suite('getPermissionDisplay — read permission display', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses the view-tool invocation message for read permissions', () => {
+		const display = getPermissionDisplay({
+			kind: 'read',
+			path: '/Users/connor/Downloads/context7-copilot-debug-main.json',
+			intention: 'Read file: /Users/connor/Downloads/context7-copilot-debug-main.json',
+		} as ITypedPermissionRequest, URI.file('/repo/project'));
+
+		assert.deepStrictEqual({
+			invocationMessage: display.invocationMessage,
+			toolInput: display.toolInput,
+			permissionKind: display.permissionKind,
+			permissionPath: display.permissionPath,
+		}, {
+			invocationMessage: { markdown: 'Reading [context7-copilot-debug-main.json](file:///Users/connor/Downloads/context7-copilot-debug-main.json)' },
+			toolInput: undefined,
+			permissionKind: 'read',
+			permissionPath: '/Users/connor/Downloads/context7-copilot-debug-main.json',
+		});
+	});
 });
 
 suite('view tool — view_range display', () => {
