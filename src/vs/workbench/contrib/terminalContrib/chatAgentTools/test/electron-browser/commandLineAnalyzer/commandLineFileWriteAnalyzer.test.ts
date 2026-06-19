@@ -110,6 +110,9 @@ suite('CommandLineFileWriteAnalyzer', () => {
 			test('absolute path - /home - block', () => t('echo hello > /home/user/file.txt', 'outsideWorkspace', false, 1));
 			test('absolute path - root - block', () => t('echo hello > /file.txt', 'outsideWorkspace', false, 1));
 			test('absolute path - /dev/null - allow (null device)', () => t('echo hello > /dev/null', 'outsideWorkspace', true, 1));
+			test('triple-quoted absolute path outside workspace - block', () => t('echo hello > \'\'\'/tmp/file.txt\'\'\'', 'outsideWorkspace', false, 1));
+			test('triple-quoted settings path outside workspace - block', () => t('echo "{}" > \'\'\'/home/user/.config/Code/User/settings.json\'\'\'', 'outsideWorkspace', false, 1));
+			test('triple double-quoted absolute path outside workspace - block', () => t('echo hello > """/tmp/file.txt"""', 'outsideWorkspace', false, 1));
 
 			// Special cases
 			test('no workspace folders - block', () => t('echo hello > file.txt', 'outsideWorkspace', false, 1, []));
@@ -161,6 +164,7 @@ suite('CommandLineFileWriteAnalyzer', () => {
 				// /tmp writes are allowed only when session auto-approval is enabled
 				test('/tmp - allow when auto-approval enabled', () => tWithAutoApproval('echo hello > /tmp/file.txt', 'outsideWorkspace', true, true));
 				test('/tmp subdirectory - allow when auto-approval enabled', () => tWithAutoApproval('echo hello > /tmp/sub/file.txt', 'outsideWorkspace', true, true));
+				test('triple-quoted /tmp - allow when auto-approval enabled', () => tWithAutoApproval('echo hello > \'\'\'/tmp/file.txt\'\'\'', 'outsideWorkspace', true, true));
 				test('/tmp - block when auto-approval disabled', () => tWithAutoApproval('echo hello > /tmp/file.txt', 'outsideWorkspace', false, false));
 
 				// Other outside-workspace paths remain blocked even with auto-approval enabled
