@@ -24,15 +24,17 @@ import { ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotifi
 
 const QUOTA_NOTIFICATION_ID = 'copilot.quotaStatus';
 const THRESHOLDS = [50, 75, 90, 95];
-const TRAJECTORY_DAILY_USAGE_THRESHOLD = 4.5;
-const TRAJECTORY_MINIMUM_PERCENT_USED = 10;
-const TRAJECTORY_MAXIMUM_PERCENT_USED = 35;
-const BILLING_PERIOD_DAYS = 30;
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const TRAJECTORY_TREATMENT = 'config.chatQuotaTrajectoryNudge';
-const TRAJECTORY_SHOWN_STORAGE_KEY = 'chat.quotaTrajectory.shownPeriod';
-const CREDIT_EFFICIENCY_LEARN_MORE_URL = 'https://aka.ms/token-usage-tips';
-const CREDIT_EFFICIENCY_LEARN_MORE_COMMAND_ID = 'workbench.action.chat.learnMoreAboutCreditUsage';
+const TRAJECTORY_NUDGE_SPEC = {
+	treatment: 'config.chatQuotaTrajectoryNudge',
+	shownStorageKey: 'chat.quotaTrajectory.shownPeriod',
+	averageDailyUsageThreshold: 4.5,
+	minimumPercentUsed: 10,
+	maximumPercentUsed: 35,
+	billingPeriodDays: 30,
+	msPerDay: 24 * 60 * 60 * 1000,
+	learnMoreUrl: 'https://aka.ms/token-usage-tips',
+	learnMoreCommandId: 'workbench.action.chat.learnMoreAboutCreditUsage',
+} as const;
 
 type ChatQuotaTrajectoryNudgeEvent = {
 	severity: 'info';
@@ -116,13 +118,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		this._register(this._chatEntitlementService.onDidChangeQuotaRemaining(() => this._update()));
 		this._register(this._chatEntitlementService.onDidChangeQuotaExceeded(() => this._update()));
 		this._register(this._chatEntitlementService.onDidChangeEntitlement(() => this._update()));
-		this._register(this._chatInputNotificationService.onDidDismiss(id => {
-			if (id !== QUOTA_NOTIFICATION_ID) {
-				return;
-			}
-			this._activeTrajectoryTelemetryData = undefined;
-		}));
-		this._register(CommandsRegistry.registerCommand(CREDIT_EFFICIENCY_LEARN_MORE_COMMAND_ID, (accessor: ServicesAccessor) => this._handleCreditEfficiencyLearnMoreCommand(accessor)));
+		this._register(CommandsRegistry.registerCommand(TRAJECTORY_NUDGE_SPEC.learnMoreCommandId, (accessor: ServicesAccessor) => this._handleCreditEfficiencyLearnMoreCommand(accessor)));
 
 		// Re-evaluate when the selected model changes (e.g. switching between Copilot and BYOK).
 		// The chatModelId context key is widget-scoped and may not bubble to the global
@@ -160,7 +156,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	 * the user is actually assigned to a flight.
 	 */
 	private async _resolveTrajectoryTreatment(): Promise<void> {
-		const treatment = await this._assignmentService.getTreatment<boolean>(TRAJECTORY_TREATMENT);
+		const treatment = await this._assignmentService.getTreatment<boolean>(TRAJECTORY_NUDGE_SPEC.treatment);
 		this._trajectoryTreatment = treatment;
 		if (treatment !== undefined) {
 			this._logQuotaTrajectoryNudgeEnrolled(treatment);
@@ -321,19 +317,19 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			return undefined;
 		}
 
-		const periodStartTime = resetTime - (BILLING_PERIOD_DAYS * MS_PER_DAY);
-		const elapsedDays = Math.max(0, (Date.now() - periodStartTime) / MS_PER_DAY);
+		const periodStartTime = resetTime - (TRAJECTORY_NUDGE_SPEC.billingPeriodDays * TRAJECTORY_NUDGE_SPEC.msPerDay);
+		const elapsedDays = Math.max(0, (Date.now() - periodStartTime) / TRAJECTORY_NUDGE_SPEC.msPerDay);
 		if (elapsedDays <= 0) {
 			return undefined;
 		}
 
 		const percentUsed = 100 - snapshot.percentRemaining;
-		if (percentUsed < TRAJECTORY_MINIMUM_PERCENT_USED || percentUsed > TRAJECTORY_MAXIMUM_PERCENT_USED) {
+		if (percentUsed < TRAJECTORY_NUDGE_SPEC.minimumPercentUsed || percentUsed > TRAJECTORY_NUDGE_SPEC.maximumPercentUsed) {
 			return undefined;
 		}
 
 		const averageDailyUsage = percentUsed / elapsedDays;
-		if (averageDailyUsage < TRAJECTORY_DAILY_USAGE_THRESHOLD) {
+		if (averageDailyUsage < TRAJECTORY_NUDGE_SPEC.averageDailyUsageThreshold) {
 			return undefined;
 		}
 
@@ -355,14 +351,14 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		this._storeTrajectoryShown();
 		const learnMoreLink = createMarkdownCommandLink({
 			text: localize('quota.trajectory.learnMore', "Learn more about managing credits"),
-			id: CREDIT_EFFICIENCY_LEARN_MORE_COMMAND_ID,
+			id: TRAJECTORY_NUDGE_SPEC.learnMoreCommandId,
 			tooltip: localize('quota.trajectory.learnMoreTooltip', "Learn more about managing credits"),
 		});
 
 		this._setNotification({
 			id: QUOTA_NOTIFICATION_ID,
 			severity: ChatInputNotificationSeverity.Info,
-			message: new MarkdownString(localize({ key: 'quota.trajectory.message', comment: ['{Locked="]({0})"}'] }, "Based on recent usage, your monthly allowance may run out before it resets. {0}", learnMoreLink), { isTrusted: { enabledCommands: [CREDIT_EFFICIENCY_LEARN_MORE_COMMAND_ID] } }),
+			message: new MarkdownString(localize({ key: 'quota.trajectory.message', comment: ['{Locked="]({0})"}'] }, "Based on recent usage, your monthly allowance may run out before it resets. {0}", learnMoreLink), { isTrusted: { enabledCommands: [TRAJECTORY_NUDGE_SPEC.learnMoreCommandId] } }),
 			description: undefined,
 			actions: [],
 			dismissible: true,
@@ -375,7 +371,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			this._logQuotaTrajectoryNudgeLinkClicked(this._activeTrajectoryTelemetryData);
 			queueMicrotask(() => this._hideNotification());
 		}
-		await accessor.get(IOpenerService).open(URI.parse(CREDIT_EFFICIENCY_LEARN_MORE_URL));
+		await accessor.get(IOpenerService).open(URI.parse(TRAJECTORY_NUDGE_SPEC.learnMoreUrl));
 	}
 
 	private _logQuotaTrajectoryNudgeLinkClicked(data: ChatQuotaTrajectoryNudgeEvent): void {
@@ -638,13 +634,13 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	private _isTrajectoryShownInCurrentPeriod(): boolean {
 		const periodKey = this._getTrajectoryPeriodKey();
-		return !!periodKey && this._storageService.get(TRAJECTORY_SHOWN_STORAGE_KEY, StorageScope.APPLICATION) === periodKey;
+		return !!periodKey && this._storageService.get(TRAJECTORY_NUDGE_SPEC.shownStorageKey, StorageScope.APPLICATION) === periodKey;
 	}
 
 	private _storeTrajectoryShown(): void {
 		const periodKey = this._getTrajectoryPeriodKey();
 		if (periodKey) {
-			this._storageService.store(TRAJECTORY_SHOWN_STORAGE_KEY, periodKey, StorageScope.APPLICATION, StorageTarget.USER);
+			this._storageService.store(TRAJECTORY_NUDGE_SPEC.shownStorageKey, periodKey, StorageScope.APPLICATION, StorageTarget.USER);
 		}
 	}
 
