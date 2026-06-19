@@ -490,7 +490,7 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 
 	private _logRevealHiddenTerminal(telemetryService: ITelemetryService, via: 'single' | 'quickPick'): void {
 		type RevealHiddenChatTerminalEvent = {
-			via: string;
+			via: 'single' | 'quickPick';
 		};
 		type RevealHiddenChatTerminalClassification = {
 			owner: 'anthonykim1';

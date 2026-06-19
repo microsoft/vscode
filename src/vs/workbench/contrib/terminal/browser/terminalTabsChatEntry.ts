@@ -92,6 +92,9 @@ export class TerminalTabsChatEntry extends Disposable {
 
 	private async _deleteAllHiddenTerminals(): Promise<void> {
 		const hiddenTerminals = this._terminalChatService.getToolSessionTerminalInstances(true);
+		if (hiddenTerminals.length === 0) {
+			return;
+		}
 
 		type DeleteHiddenChatTerminalsEvent = {
 			count: number;
