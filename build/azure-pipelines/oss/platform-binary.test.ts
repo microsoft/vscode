@@ -41,6 +41,10 @@ const archYes = [
 	'@parcel/watcher-linux-x64-glibc',
 	'@parcel/watcher-win32-ia32',
 	'@github/copilot-linuxmusl-arm64',
+	'@esbuild/linux-x64',
+	'@esbuild/darwin-arm64',
+	'@esbuild/win32-x64',
+	'@esbuild/android-arm',
 ];
 for (const name of archYes) {
 	check(`match: ${name}`, isArchPackageName(name) === true && ARCH_SUFFIX_RE.test(name) === true);

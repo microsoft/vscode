@@ -527,12 +527,16 @@ function collectPackagesInNodeModules(nmDir: string): string[] {
  * followed by a libc/abi suffix. Used both to recognize an arch package and to
  * find the arch-bearing keys inside a parent's optionalDependencies.
  *
+ * The leading separator is [/-] to handle both dash-prefixed names
+ * (e.g. @img/sharp-win32-x64) and scope-separated names (e.g. @esbuild/linux-x64).
+ *
  * MATCHES:      @img/sharp-win32-x64, @img/sharp-libvips-darwin-arm64,
- *               @napi-rs/canvas-linux-arm-gnueabihf, @parcel/watcher-linux-x64-glibc.
+ *               @napi-rs/canvas-linux-arm-gnueabihf, @parcel/watcher-linux-x64-glibc,
+ *               @esbuild/linux-x64, @esbuild/darwin-arm64.
  * DOES NOT match the arch-independent parents: sharp, @napi-rs/canvas,
- *               @parcel/watcher, @github/copilot.
+ *               @parcel/watcher, @github/copilot, esbuild.
  */
-export const ARCH_SUFFIX_RE = /-(?:darwin|linux|linuxmusl|win32|android|freebsd|openbsd|netbsd|sunos|aix)-(?:x64|arm64|arm|ia32|ppc64|ppc64le|s390x|riscv64|loong64|mips64el|universal)(?:-(?:gnu|musl|msvc|glibc|gnueabihf|eabihf|androideabi))?$/;
+export const ARCH_SUFFIX_RE = /[/-](?:darwin|linux|linuxmusl|win32|android|freebsd|openbsd|netbsd|sunos|aix)-(?:x64|arm64|arm|ia32|ppc64|ppc64le|s390x|riscv64|loong64|mips64el|universal)(?:-(?:gnu|musl|msvc|glibc|gnueabihf|eabihf|androideabi))?$/;
 
 /** True when the package name ends in a platform+arch token (see ARCH_SUFFIX_RE). */
 export function isArchPackageName(name: string): boolean {
