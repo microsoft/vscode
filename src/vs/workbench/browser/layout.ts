@@ -438,7 +438,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.updateShadows();
 			}
 
-			// Floating Panels
+			// Modern UI Update (floating panels presentation)
 			if (e.affectsConfiguration(LayoutSettings.MODERN_UI)) {
 				this.updateFloatingPanels();
 				this.layout(); // re-layout so parts pick up the new floating margins
