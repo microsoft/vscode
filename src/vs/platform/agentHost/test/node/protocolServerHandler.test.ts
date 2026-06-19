@@ -1000,6 +1000,116 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
+	test('owned tool call is not failed while the owning client stays active on another transport', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			stateManager.createSession(makeSessionSummary());
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionActiveClientChanged,
+				activeClient: {
+					clientId: 'client-tools',
+					tools: [{ name: 'runTask', description: 'Runs a task' }]
+				},
+			});
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				message: { text: 'run it', origin: { kind: MessageKind.User } },
+			});
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'tool-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-tools' },
+			});
+
+			// The same logical clientId is served by two transports (e.g. a
+			// window that reconnected before its previous transport's close was
+			// observed). The server tracks one connection per clientId, so the
+			// SECOND handshake becomes the tracked connection and the first is
+			// left live-but-untracked.
+			const liveTransport = connectClient('client-tools', [sessionUri]);
+			const trackedTransport = connectClient('client-tools', [sessionUri]);
+
+			// Closing the tracked transport clears the record's `connection`
+			// pointer and arms the disconnect-grace timeout for the pending
+			// tool call — even though `liveTransport` is still connected.
+			trackedTransport.simulateClose();
+
+			let part = stateManager.getSessionState(sessionUri)?.activeTurn?.responseParts[0];
+			assert.strictEqual(part?.kind === ResponsePartKind.ToolCall ? part.toolCall.status : undefined, ToolCallStatus.Streaming);
+
+			// The live transport keeps sending frames across several grace
+			// windows. Each frame is fresh proof of life, so the tool call must
+			// never be force-failed.
+			for (let i = 0; i < 12; i++) {
+				await new Promise(r => setTimeout(r, 10_000));
+				liveTransport.simulateMessage(request(100 + i, 'ping'));
+			}
+
+			part = stateManager.getSessionState(sessionUri)?.activeTurn?.responseParts[0];
+			assert.strictEqual(part?.kind === ResponsePartKind.ToolCall ? part.toolCall.status : undefined, ToolCallStatus.Streaming);
+
+			liveTransport.simulateClose();
+		});
+	});
+
+	test('owned tool call is failed once the client stops sending frames on every transport', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			stateManager.createSession(makeSessionSummary());
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionActiveClientChanged,
+				activeClient: {
+					clientId: 'client-tools',
+					tools: [{ name: 'runTask', description: 'Runs a task' }]
+				},
+			});
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				message: { text: 'run it', origin: { kind: MessageKind.User } },
+			});
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'tool-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-tools' },
+			});
+
+			const liveTransport = connectClient('client-tools', [sessionUri]);
+			const trackedTransport = connectClient('client-tools', [sessionUri]);
+			trackedTransport.simulateClose();
+
+			// The live transport sends a few frames, then goes silent: the
+			// grace machinery must still fail the call once no frame has
+			// arrived for the full window (proving the fix does not simply
+			// disable the disconnect path for live-but-untracked transports).
+			liveTransport.simulateMessage(request(100, 'ping'));
+			await new Promise(r => setTimeout(r, 10_000));
+			liveTransport.simulateMessage(request(101, 'ping'));
+
+			await new Promise(r => setTimeout(r, 30_001));
+
+			const part = stateManager.getSessionState(sessionUri)?.activeTurn?.responseParts[0];
+			assert.deepStrictEqual(part?.kind === ResponsePartKind.ToolCall ? {
+				status: part.toolCall.status,
+				success: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.success : undefined,
+				error: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.error?.message : undefined,
+			} : undefined, {
+				status: ToolCallStatus.Completed,
+				success: false,
+				error: 'Client client-tools disconnected before completing Run Task',
+			});
+
+			liveTransport.simulateClose();
+		});
+	});
+
 	test('client reconnect without session subscription does not clear tool call disconnect timeout', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			stateManager.createSession(makeSessionSummary());

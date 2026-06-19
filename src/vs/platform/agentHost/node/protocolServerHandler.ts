@@ -193,11 +193,14 @@ interface IClientRecord {
 	/** Live connection while connected; `undefined` after disconnect (record retained for the grace window). */
 	connection: IConnectedClient | undefined;
 	/**
-	 * Epoch ms the client was last seen connected (handshake or disconnect).
-	 * `undefined` when the client has never connected. Drives the
-	 * disconnect-timeout grace window: a pending client tool call fails
-	 * `CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT` ms after this point, never instantly
-	 * and never never.
+	 * Epoch ms a live frame was last received from this client (handshake,
+	 * disconnect, or any subsequent inbound message). `undefined` when the
+	 * client has never been seen. Drives the disconnect-timeout grace window:
+	 * a pending client tool call fails `CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT` ms
+	 * after the client last sent anything — so a client that is still actively
+	 * sending frames is treated as alive even if its {@link connection} pointer
+	 * was transiently cleared (e.g. a reused clientId whose earlier transport
+	 * closed while a newer one is still live).
 	 */
 	lastSeenAt: number | undefined;
 	/**
@@ -338,6 +341,14 @@ export class ProtocolServerHandler extends Disposable {
 		let client: IConnectedClient | undefined;
 
 		disposables.add(transport.onMessage(msg => {
+			// Any inbound frame from an established client is fresh proof of
+			// life. Keep the per-client last-seen timestamp current from real
+			// traffic so the disconnect-grace machinery can distinguish a
+			// genuinely gone client from one that is still active (see
+			// IClientRecord.lastSeenAt).
+			if (client) {
+				this._markClientSeen(client.clientId);
+			}
 			if (isJsonRpcRequest(msg)) {
 				this._logService.trace(`[ProtocolServer] request: method=${msg.method} id=${msg.id}`);
 
@@ -798,9 +809,53 @@ export class ProtocolServerHandler extends Disposable {
 		const elapsed = Date.now() - record.lastSeenAt;
 		const delay = Math.max(0, CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT - elapsed);
 		record.disconnectTimeouts.set(session, disposableTimeout(() => {
-			record.disconnectTimeouts.deleteAndDispose(session);
-			this._completeDisconnectedClientToolCalls(clientId, session);
+			// Re-verify the client is genuinely gone before force-failing its
+			// pending tool calls. A client that is still sending frames is
+			// alive and may yet deliver the result, even if its `connection`
+			// pointer reads undefined (e.g. a reused clientId whose earlier
+			// transport closed while this one is still live).
+			if (this._isClientGraceExpired(record)) {
+				record.disconnectTimeouts.deleteAndDispose(session);
+				this._completeDisconnectedClientToolCalls(clientId, session);
+				return;
+			}
+			// The client is still alive. Keep the grace timer running only
+			// while it still owns a pending tool call; otherwise let it go so
+			// we don't leave a perpetual timer ticking for an active client.
+			const state = this._stateManager.getSessionState(session);
+			if (state && this._hasPendingClientToolCall(state, clientId)) {
+				this._startClientToolCallDisconnectTimeout(clientId, session);
+			} else {
+				record.disconnectTimeouts.deleteAndDispose(session);
+			}
 		}, delay));
+	}
+
+	/**
+	 * Record that a live frame was just received from `clientId`. Keeps
+	 * {@link IClientRecord.lastSeenAt} current from real traffic (not just the
+	 * handshake), so the disconnect-grace machinery can tell a genuinely gone
+	 * client from one that is still active. Only updates an existing record;
+	 * never creates one for an unknown client.
+	 */
+	private _markClientSeen(clientId: string): void {
+		const record = this._clients.get(clientId);
+		if (record) {
+			record.lastSeenAt = Date.now();
+		}
+	}
+
+	/**
+	 * True when no live frame has been received from `record`'s client within
+	 * the disconnect grace window — i.e. the client is genuinely gone, not
+	 * merely between transports. A never-seen record counts as expired. The
+	 * decision is intentionally based on traffic recency rather than the
+	 * `connection` pointer, which can transiently read undefined for a client
+	 * that is still alive on another transport.
+	 */
+	private _isClientGraceExpired(record: IClientRecord): boolean {
+		return record.lastSeenAt === undefined
+			|| (Date.now() - record.lastSeenAt) >= CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT;
 	}
 
 	/**
