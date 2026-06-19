@@ -45,7 +45,7 @@ jobs:
 
       - name: Extract node_modules cache
         if: steps.cache-node-modules.outputs.cache-hit == 'true'
-        run: tar -xzf .build/node_modules_cache/cache.tgz
+        run: ./.github/workflows/node_modules_cache/cache.sh extract
 
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -77,11 +77,7 @@ jobs:
 
       - name: Create node_modules archive
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: |
-          set -e
-          node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
-          mkdir -p .build/node_modules_cache
-          tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
+        run: ./.github/workflows/node_modules_cache/cache.sh archive
 
       - name: Create .build folder
         run: mkdir -p .build

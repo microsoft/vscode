@@ -49,7 +49,7 @@ jobs:
       - name: Extract node_modules cache
         if: steps.node-modules-cache.outputs.cache-hit == 'true'
         shell: pwsh
-        run: 7z.exe x .build/node_modules_cache/cache.7z -aoa
+        run: ./.github/workflows/node_modules_cache/cache.ps1 extract
 
       - name: Install dependencies
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
@@ -87,12 +87,7 @@ jobs:
       - name: Create node_modules archive
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
         shell: pwsh
-        run: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          exec { node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt }
-          exec { mkdir -Force .build/node_modules_cache }
-          exec { 7z.exe a .build/node_modules_cache/cache.7z -mx3 `@.build/node_modules_list.txt }
+        run: ./.github/workflows/node_modules_cache/cache.ps1 archive
 
       - name: Create .build folder
         shell: pwsh
