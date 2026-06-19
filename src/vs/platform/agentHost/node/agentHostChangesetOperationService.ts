@@ -11,27 +11,39 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, readSessionGitState, type ChangesetOperation, type ErrorInfo, type ISessionGitState } from '../common/state/sessionState.js';
-import type { IChangesetOperationContribution, IChangesetOperationContributionService, IChangesetOperationContext, IChangesetOperationHandler, IChangesetOperationRegistry } from '../common/changesetOperation.js';
+import type { IChangesetOperationContribution, IAgentHostChangesetOperationService, IChangesetOperationContext, IChangesetOperationHandler, IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
-import { AgentHostSessionGitStateService } from './agentHostSessionGitStateService.js';
+import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
+import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { AgentHostPullRequestOperationContribution } from './agentHostPullRequestOperationProvider.js';
+import { AgentHostCommitOperationContribution } from './agentHostCommitOperationProvider.js';
+import { AgentHostDiscardChangesOperationContribution } from './agentHostDiscardChangesOperationProvider.js';
 
-export class AgentHostChangesetOperationContributionService extends Disposable implements IChangesetOperationContributionService {
+export class AgentHostChangesetOperationService extends Disposable implements IAgentHostChangesetOperationService {
+	declare readonly _serviceBrand: undefined;
 
+	private readonly _registry: IChangesetOperationRegistry;
 	private readonly _handlerRegistrations = this._register(new DisposableMap<IChangesetOperationContribution>());
 	private readonly _changesetOperationHandlers = new Map<string, IChangesetOperationHandler>();
 	private readonly _inFlightOperations = new Map<string, Promise<InvokeChangesetOperationResult>>();
-	private readonly _registry: IChangesetOperationRegistry;
 
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
-		private readonly _sessionGitStateService: AgentHostSessionGitStateService,
+		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
+		@IAgentHostChangesetSubscriptionService private readonly _changesetSubscriptions: IAgentHostChangesetSubscriptionService,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super();
 		this._registry = {
 			registerChangesetOperationHandler: (operationId, handler) => this._registerChangesetOperationHandler(operationId, handler),
-			onDidChangeOperations: (sessionKey, changeset) => this.updateOperations(sessionKey, [changeset]),
-			refreshSessionGitState: (sessionKey, changeset) => this._refreshSessionGitStateAndOperations(sessionKey, changeset),
+			onDidChangeOperations: sessionKey => this.updateOperations(sessionKey),
+			refreshSessionGitState: sessionKey => this._refreshSessionGitStateAndOperations(sessionKey),
 		};
+
+		this._register(this.registerContribution(instantiationService.createInstance(AgentHostPullRequestOperationContribution, this._stateManager)));
+		this._register(this.registerContribution(instantiationService.createInstance(AgentHostCommitOperationContribution, this._stateManager)));
+		this._register(this.registerContribution(instantiationService.createInstance(AgentHostDiscardChangesOperationContribution, this._stateManager)));
 	}
 
 	registerContribution(contribution: IChangesetOperationContribution): IDisposable {
@@ -45,7 +57,7 @@ export class AgentHostChangesetOperationContributionService extends Disposable i
 		});
 	}
 
-	updateOperations(sessionKey: string, changesets: Iterable<string>, gitState?: ISessionGitState): void {
+	updateOperations(sessionKey: string, changeset?: string, gitState?: ISessionGitState): void {
 		if (!gitState) {
 			const sessionState = this._stateManager.getSessionState(sessionKey);
 			gitState = readSessionGitState(sessionState?._meta);
@@ -53,6 +65,10 @@ export class AgentHostChangesetOperationContributionService extends Disposable i
 				return;
 			}
 		}
+
+		const changesets = changeset
+			? [changeset]
+			: this._changesetSubscriptions.getSessionSubscriptions(sessionKey);
 
 		for (const changeset of changesets) {
 			const parsed = parseChangesetUri(changeset);
@@ -85,13 +101,13 @@ export class AgentHostChangesetOperationContributionService extends Disposable i
 		return operations.length > 0 ? operations : undefined;
 	}
 
-	private async _refreshSessionGitStateAndOperations(sessionKey: string, changeset: string): Promise<void> {
-		const gitState = await this._sessionGitStateService.refreshSessionGitState(sessionKey);
+	private async _refreshSessionGitStateAndOperations(sessionKey: string): Promise<void> {
+		const gitState = await this._gitStateService.refreshSessionGitState(sessionKey);
 		if (!gitState) {
 			return;
 		}
 
-		this.updateOperations(sessionKey, [changeset], gitState);
+		this.updateOperations(sessionKey, undefined, gitState);
 	}
 
 	async invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {

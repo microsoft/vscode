@@ -191,6 +191,54 @@ export class ClaudeAgentSession extends Disposable {
 	private readonly _onDidSessionProgress = this._register(new Emitter<AgentSignal>());
 	readonly onDidSessionProgress: Event<AgentSignal> = this._onDidSessionProgress.event;
 
+	/**
+	 * Real Copilot credits (in nano-AIU) billed by CAPI for the current
+	 * turn, summed across every `/v1/messages` request the SDK made
+	 * (including subagents). Fed by {@link recordTurnCredits} from the
+	 * proxy's `onDidReportCredits`, reset at the start of each {@link send},
+	 * and attached to the turn's `ChatUsage` signal by
+	 * {@link _enrichSignalWithCredits}. Unlike the SDK's `total_cost_usd`
+	 * (an Anthropic-list-price estimate), this is what CAPI actually bills.
+	 */
+	private _currentTurnNanoAiu = 0;
+
+	/**
+	 * Accumulate proxy-reported billed credits for the in-flight turn.
+	 * Called from {@link ClaudeAgent} for every proxy `onDidReportCredits`
+	 * routed to this session. Ignores non-positive / non-finite values.
+	 */
+	recordTurnCredits(totalNanoAiu: number): void {
+		if (Number.isFinite(totalNanoAiu) && totalNanoAiu > 0) {
+			this._currentTurnNanoAiu += totalNanoAiu;
+		}
+	}
+
+	/**
+	 * Inject the turn's accumulated Copilot credits into its `ChatUsage`
+	 * signal as `_meta.copilotUsage.totalNanoAiu` — the well-known key the
+	 * workbench prefers over `_meta.cost` when rendering per-turn credits.
+	 * All other signals pass through untouched.
+	 */
+	private _enrichSignalWithCredits(signal: AgentSignal): AgentSignal {
+		if (signal.kind !== 'action' || signal.action.type !== ActionType.ChatUsage || this._currentTurnNanoAiu <= 0) {
+			return signal;
+		}
+		const usage = signal.action.usage;
+		return {
+			...signal,
+			action: {
+				...signal.action,
+				usage: {
+					...usage,
+					_meta: {
+						...usage._meta,
+						copilotUsage: { totalNanoAiu: this._currentTurnNanoAiu },
+					},
+				},
+			},
+		};
+	}
+
 	constructor(
 		readonly sessionId: string,
 		readonly sessionUri: URI,
@@ -290,7 +338,7 @@ export class ClaudeAgentSession extends Disposable {
 			await warm[Symbol.asyncDispose]();
 			throw err;
 		}
-		this._register(pipeline.onDidProduceSignal(s => this._onDidSessionProgress.fire(s)));
+		this._register(pipeline.onDidProduceSignal(s => this._onDidSessionProgress.fire(this._enrichSignalWithCredits(s))));
 		this._pipeline = pipeline;
 		// On-disk Open Plugin bundle for SDK-discovered customizations.
 		// The bundle directory is content-addressed by the SDK snapshot
@@ -472,6 +520,9 @@ export class ClaudeAgentSession extends Disposable {
 	 */
 	async send(prompt: SDKUserMessage, turnId: string): Promise<void> {
 		const pipeline = this._requirePipeline();
+		// New turn: reset the per-turn credit accumulator so proxy reports
+		// for this turn's `/v1/messages` calls sum from zero.
+		this._currentTurnNanoAiu = 0;
 		if (this.toolDiff.hasDifference || this.clientCustomizationsDiff.hasDifference) {
 			await this._rebindForSyncedState();
 		} else {

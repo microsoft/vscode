@@ -357,6 +357,16 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		return result;
 	}
 
+	/**
+	 * Returns the annotations channel URI backing the given session's feedback,
+	 * or `undefined` when the session is not an agent-host session (or no channel
+	 * could be resolved). Each feedback item id is an annotation id on this
+	 * channel, so callers can reference specific comments by id.
+	 */
+	getAnnotationsChannelResource(sessionResource: URI): URI | undefined {
+		return this._ensureChannel(sessionResource)?.annotationsUri;
+	}
+
 	private _hasSnapshot(subscription: IAgentSubscription<AnnotationsState>): boolean {
 		const value = subscription.value;
 		return value !== undefined && !(value instanceof Error);

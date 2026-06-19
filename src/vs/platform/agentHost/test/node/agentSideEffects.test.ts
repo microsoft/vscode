@@ -23,7 +23,7 @@ import { ISessionDataService } from '../../common/sessionDataService.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
 import { ChangesSummary, CustomizationType } from '../../common/state/protocol/state.js';
 import { ActionType, ActionEnvelope, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
-import { buildSubagentSessionUri, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, customizationId, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
+import { buildSubagentSessionUri, buildChatUri, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, customizationId, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
@@ -57,9 +57,13 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	restorePersistedStaticChangesets(): { session?: undefined } { return {}; }
 	persistChangesSummary(session: string, changesSummary: ChangesSummary): void { /* no-op */ }
 	isStaticChangesetComputeActive(): boolean { return false; }
+	getListMetadataKeys(_sessionUri: string): Record<string, true> | undefined { return undefined; }
+	computeListEntryChanges(_sessionUri: string, _metadata: Record<string, string | undefined>): ChangesSummary | undefined { return undefined; }
 	refreshBranchChangeset(): void { /* no-op */ }
 	refreshSessionChangeset(): void { /* no-op */ }
-	setSubscriberProbe(): void { /* no-op */ }
+	onWorkingDirectoryAvailable(): void { /* no-op */ }
+	recomputeSubscribedChangesets(): void { /* no-op */ }
+	onSessionDisposed(): void { /* no-op */ }
 	async computeUncommittedChangeset(session: string): Promise<string> { return `${session}/changeset/uncommitted`; }
 	async computeTurnChangeset(session: string): Promise<string> { return `${session}/changeset/turn/x`; }
 	async computeCompareTurnsChangeset(session: string, originalTurnId: string, modifiedTurnId: string): Promise<string> {
@@ -917,6 +921,43 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(state?.summary.title, 'Queued Title');
 		});
 
+		test('drains a peer chat queued message to the owning session with the chat arg', () => {
+			setupSession();
+			const chatUri = URI.parse(buildChatUri(sessionUri, 'peer-q'));
+			stateManager.addChat(sessionUri.toString(), chatUri.toString());
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			// Start a turn on the peer chat, then queue a message behind it.
+			stateManager.dispatchClientAction(chatUri.toString(),
+				{ type: ActionType.ChatTurnStarted, turnId: 'pturn-1', message: { text: 'hi', origin: { kind: MessageKind.User } } },
+				{ clientId: 'test', clientSeq: 1 });
+			const setAction = {
+				type: ActionType.ChatPendingMessageSet as const,
+				kind: PendingMessageKind.Queued,
+				id: 'pq-1',
+				message: { text: 'peer queued', origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(chatUri.toString(), setAction, { clientId: 'test', clientSeq: 2 });
+			sideEffects.handleAction(chatUri.toString(), setAction);
+
+			assert.strictEqual(agent.sendMessageCalls.length, 0);
+
+			// Idle on the peer chat → the queued message drains to the parent
+			// session URI with the chat channel passed as the `chat` argument
+			// so the harness routes it to the right peer SDK conversation.
+			agent.fireProgress({
+				kind: 'action', session: chatUri,
+				action: { type: ActionType.ChatTurnComplete, turnId: 'pturn-1' },
+			});
+
+			assert.deepStrictEqual(agent.sendMessageCalls, [{
+				session: URI.parse(sessionUri.toString()),
+				prompt: 'peer queued',
+				attachments: undefined,
+				chat: URI.parse(chatUri.toString()),
+			}]);
+		});
+
 		test('does not consume queued message while a turn is active', () => {
 			setupSession();
 			startTurn('turn-1');
@@ -1563,8 +1604,8 @@ suite('AgentSideEffects', () => {
 			]);
 		});
 
-		test('auto-approves shell commands when autoApprove is set to autopilot', () => {
-			setupSessionWithConfig('autopilot');
+		test('auto-approves shell commands when autoApprove is set to bypass', () => {
+			setupSessionWithConfig('autoApprove');
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
 
@@ -1572,7 +1613,7 @@ suite('AgentSideEffects', () => {
 				kind: 'action', session: sessionUri,
 				action: {
 					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
-					toolCallId: 'tc-ap-shell-1', toolName: 'shell', displayName: 'Shell', contributor: undefined,
+					toolCallId: 'tc-bypass-shell-1', toolName: 'shell', displayName: 'Shell', contributor: undefined,
 					_meta: { toolKind: undefined, language: undefined },
 				},
 			});
@@ -1580,7 +1621,7 @@ suite('AgentSideEffects', () => {
 				kind: 'action', session: sessionUri,
 				action: {
 					type: ActionType.ChatToolCallReady, turnId: 'turn-1',
-					toolCallId: 'tc-ap-shell-1', invocationMessage: 'Run rm -rf /', toolInput: undefined,
+					toolCallId: 'tc-bypass-shell-1', invocationMessage: 'Run rm -rf /', toolInput: undefined,
 					confirmed: ToolCallConfirmationReason.NotNeeded,
 				},
 			});
@@ -1589,16 +1630,17 @@ suite('AgentSideEffects', () => {
 				kind: 'pending_confirmation', session: sessionUri,
 				state: {
 					status: ToolCallStatus.PendingConfirmation,
-					toolCallId: 'tc-ap-shell-1', toolName: '', displayName: '',
+					toolCallId: 'tc-bypass-shell-1', toolName: '', displayName: '',
 					invocationMessage: 'Run rm -rf /', toolInput: 'rm -rf /',
 					confirmationTitle: undefined, edits: undefined,
 				},
 				permissionKind: 'shell', permissionPath: undefined,
 			});
 
-			// Dangerous command would normally be blocked, but session-level auto-approve overrides
+			// Dangerous command would normally be blocked, but session-level
+			// bypass auto-approve overrides.
 			assert.deepStrictEqual(agent.respondToPermissionCalls, [
-				{ requestId: 'tc-ap-shell-1', approved: true },
+				{ requestId: 'tc-bypass-shell-1', approved: true },
 			]);
 		});
 

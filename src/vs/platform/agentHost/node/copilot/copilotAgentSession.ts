@@ -7,7 +7,7 @@ import type { CopilotSession, ExitPlanModeRequest, MessageOptions, PermissionReq
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { CancellationError } from '../../../../base/common/errors.js';
+import { CancellationError, getErrorMessage } from '../../../../base/common/errors.js';
 import { escapeMarkdownSyntaxTokens } from '../../../../base/common/htmlContent.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -31,6 +31,7 @@ import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmitter.js';
 import type { LanguageModelToolInvokedClassification, LanguageModelToolInvokedEvent } from '../../../telemetry/common/languageModelToolTelemetry.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { isAgentFeedbackAnnotationsAttachment, renderAgentFeedbackAnnotationsAttachment } from '../../common/agentFeedbackAttachments.js';
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
@@ -46,7 +47,7 @@ import { isPromptInvokedCopilotSlashCommand, isRuntimeCopilotSlashCommand, parse
 import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
 import { buildSandboxConfigForSdk } from './sandboxConfigForSdk.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
-import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getSubagentMetadata, getTaskCompleteSummary, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, isTaskCompleteTool, synthesizeSkillToolCall, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
+import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, isTaskCompleteTool, synthesizeSkillToolCall, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
 import { stripProxyErrorMarker, tryBuildChatErrorMeta, tryBuildChatErrorMetaFromFields } from '../shared/forwardedChatError.js';
 import { McpCustomizationController, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
@@ -55,12 +56,10 @@ import { buildPendingEditContentUri } from './pendingEditContentStore.js';
 import { McpServerStatus, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
 
 /**
- * The full set of agent modes the Copilot SDK accepts. Wider than the
- * {@link SessionMode} the AHP exposes — the SDK has a first-class
- * `'autopilot'` mode while AHP models that as
- * `mode='interactive', autoApprove='autopilot'`. The Copilot agent
- * translates between the two views in {@link CopilotAgentSession.send}
- * and the `session.mode_changed` listener.
+ * The full set of agent modes the Copilot SDK accepts. AHP now exposes the
+ * same three modes (`interactive` / `plan` / `autopilot`) on its `mode` axis,
+ * so the Copilot agent maps between the two views directly in
+ * {@link CopilotAgentSession.send} and the `session.mode_changed` listener.
  */
 export type CopilotSdkMode = 'interactive' | 'plan' | 'autopilot';
 type CopilotSdkAttachment = Required<MessageOptions>['attachments'][number];
@@ -338,6 +337,9 @@ export interface ICopilotAgentSessionOptions {
 export class CopilotAgentSession extends Disposable {
 	readonly sessionId: string;
 	readonly sessionUri: URI;
+
+	/** Working directory this session operates in, if any. */
+	get workingDirectory(): URI | undefined { return this._workingDirectory; }
 
 	/** Tracks active tool invocations so we can produce past-tense messages on completion. */
 	private readonly _activeToolCalls = new Map<string, { toolName: string; displayName: string; parameters: Record<string, unknown> | undefined; content: ToolResultContent[]; parentToolCallId: string | undefined; startTimeMs: number; mcpServerName: string | undefined; meta: Record<string, unknown> | undefined }>();
@@ -933,6 +935,11 @@ export class CopilotAgentSession extends Disposable {
 				await this._wrapper.session.rpc.history.compact();
 				this.emitInitialMarkdown(localize('copilotAgent.compactionCompleted', "Compaction completed"));
 			} catch (err) {
+				if (getErrorMessage(err).toLowerCase().includes('nothing to compact')) {
+					this.emitInitialMarkdown(localize('copilotAgent.compactionCompleted', "Compaction completed"));
+					this._completeActiveTurn();
+					return;
+				}
 				this._logService.error(err, `[Copilot:${this.sessionId}] rpc.history.compact failed`);
 				throw err;
 			}
@@ -1057,6 +1064,18 @@ export class CopilotAgentSession extends Disposable {
 	 * selection downgrades to a plain file reference.
 	 */
 	private async _toSdkAttachment(attachment: MessageAttachment): Promise<CopilotSdkAttachment | undefined> {
+		if (isAgentFeedbackAnnotationsAttachment(attachment)) {
+			const rendered = renderAgentFeedbackAnnotationsAttachment(attachment);
+			if (!rendered) {
+				return undefined;
+			}
+			return {
+				type: 'blob' as const,
+				data: encodeBase64(VSBuffer.fromString(rendered)),
+				mimeType: 'text/plain',
+				displayName: attachment.label,
+			};
+		}
 		if (attachment.type === MessageAttachmentKind.Simple) {
 			if (attachment.modelRepresentation) {
 				return {
@@ -1130,6 +1149,15 @@ export class CopilotAgentSession extends Disposable {
 		} catch (err) {
 			this._logService.error(err, `[Copilot:${this.sessionId}] rpc.mode.set failed: mode=${mode}`);
 		}
+	}
+
+	/**
+	 * `true` when the session's effective `mode` is `autopilot` — the
+	 * autonomous, continue-until-done mode in which no user is available to
+	 * answer questions or fill in elicitation forms.
+	 */
+	private _isAutopilotMode(): boolean {
+		return this._configurationService.getEffectiveValue(this.sessionUri.toString(), platformSessionSchema, SessionConfigKey.Mode) === 'autopilot';
 	}
 
 	async sendSteering(steeringMessage: PendingMessage): Promise<void> {
@@ -1631,7 +1659,7 @@ export class CopilotAgentSession extends Disposable {
 		request: UserInputRequest,
 		_invocation: { sessionId: string },
 	): Promise<UserInputResponse> {
-		const isAutopilot = this._configurationService.getEffectiveValue(this.sessionUri.toString(), platformSessionSchema, SessionConfigKey.AutoApprove) === 'autopilot';
+		const isAutopilot = this._isAutopilotMode();
 		if (isAutopilot) {
 			return {
 				answer: 'The user is not available to answer your question. Choose a pragmatic option best aligned with the context of the request.',
@@ -1719,7 +1747,7 @@ export class CopilotAgentSession extends Disposable {
 	 * be misleading to the MCP server.
 	 */
 	private async _handleElicitationRequest(context: ElicitationContext): Promise<ElicitationResult> {
-		const isAutopilot = this._configurationService.getEffectiveValue(this.sessionUri.toString(), platformSessionSchema, SessionConfigKey.AutoApprove) === 'autopilot';
+		const isAutopilot = this._isAutopilotMode();
 		if (isAutopilot) {
 			return { action: 'cancel' };
 		}
@@ -1878,12 +1906,40 @@ export class CopilotAgentSession extends Disposable {
 			return { approved: false };
 		}
 
+		// Reflect the chosen implementation path on the AHP `mode` axis right
+		// away so the mode picker updates as soon as the user approves the
+		// plan (e.g. Plan → Autopilot when they pick "Implement with
+		// Autopilot"). The SDK also fires `session.mode_changed`, but that is
+		// async; writing here makes the UI update deterministic. The patch is
+		// idempotent, so the later event is a no-op.
+		this._syncAhpModeFromExitPlanAction(selectedAction);
+
 		const isAutopilot = selectedAction === 'autopilot' || selectedAction === 'autopilot_fleet';
 		return {
 			approved: true,
 			selectedAction,
 			...(isAutopilot ? { autoApproveEdits: true } : {}),
 		};
+	}
+
+	/**
+	 * Translates an approved `exit_plan_mode` action into the AHP `mode` axis
+	 * and writes it so the mode picker reflects the choice immediately:
+	 *
+	 *  - `autopilot` / `autopilot_fleet` → `mode='autopilot'`.
+	 *  - `interactive` → `mode='interactive'`.
+	 *  - `exit_only` (approve plan without executing) leaves the mode untouched.
+	 */
+	private _syncAhpModeFromExitPlanAction(selectedAction: string): void {
+		switch (selectedAction) {
+			case 'autopilot':
+			case 'autopilot_fleet':
+				this._syncAhpConfigFromSdkMode('autopilot');
+				break;
+			case 'interactive':
+				this._syncAhpConfigFromSdkMode('interactive');
+				break;
+		}
 	}
 
 	private async _handlePreToolUse(input: PreToolUseHookInput): Promise<void> {
@@ -2195,7 +2251,7 @@ export class CopilotAgentSession extends Disposable {
 
 			if (isTaskCompleteTool(tracked.toolName)) {
 				this._sendToolInvokedTelemetry(e.data.success, e.data.error?.code, tracked);
-				const summary = getTaskCompleteSummary(tracked.parameters, toolOutput);
+				const summary = getTaskCompleteMarkdown(tracked.parameters, toolOutput);
 				if (summary) {
 					this._emitAction({
 						type: ActionType.ChatResponsePart,
@@ -2362,7 +2418,13 @@ export class CopilotAgentSession extends Disposable {
 					totalNanoAiu: this._turnCopilotUsageTotalNanoAiu,
 				};
 			}
-			this._logService.trace(`[Copilot:${sessionId}] Usage: model=${e.data.model}, in=${e.data.inputTokens ?? '?'}, out=${e.data.outputTokens ?? '?'}, cacheRead=${e.data.cacheReadTokens ?? '?'}, cost=${e.data.cost ?? '?'}, totalNanoAiu=${metadata.copilotUsage ? this._turnCopilotUsageTotalNanoAiu : '?'}`);
+			// `quotaSnapshots` is likewise `asInternal` in the SDK schema (not on the generated type) but is
+			// present at runtime. Forward the per-category snapshots on `_meta` so the client can keep the
+			// account quota UI current. Mirrors the extension-host CLI path, which feeds these into its quota service.
+			const quotaSnapshots = normalizeQuotaSnapshots((e.data as unknown as Record<string, unknown>).quotaSnapshots);
+			if (quotaSnapshots) {
+				metadata.quotaSnapshots = quotaSnapshots;
+			}
 			if (typeof e.data.model === 'string' && e.data.model) {
 				this._lastSeenModelId = e.data.model;
 			}
@@ -2390,10 +2452,8 @@ export class CopilotAgentSession extends Disposable {
 
 		// Sync the AHP session config when the SDK's `currentMode` changes
 		// (e.g. after the model approves a plan, or after we set the mode
-		// before sending). The SDK has three modes (`interactive` / `plan` /
-		// `autopilot`); AHP only models `interactive` / `plan` and treats
-		// autopilot as `mode='interactive', autoApprove='autopilot'`, so we
-		// translate before writing.
+		// before sending). The SDK and AHP share the same three modes
+		// (`interactive` / `plan` / `autopilot`), so we map directly.
 		this._register(wrapper.onSessionModeChanged(e => {
 			this._logService.info(`[Copilot:${sessionId}] session.mode_changed: ${e.data.previousMode} -> ${e.data.newMode}`);
 			const newMode = e.data.newMode;
@@ -2528,13 +2588,15 @@ export class CopilotAgentSession extends Disposable {
 
 	/**
 	 * Translates the SDK's three-mode space (`interactive` / `plan` /
-	 * `autopilot`) to AHP's two-axis model:
+	 * `autopilot`) to AHP's `mode` axis directly:
 	 *
 	 *  - SDK `plan` → AHP `mode='plan'`.
 	 *  - SDK `interactive` → AHP `mode='interactive'`.
-	 *  - SDK `autopilot` → AHP `mode='interactive', autoApprove='autopilot'`.
-	 *    Autopilot is exposed in AHP as the highest auto-approval level on
-	 *    the orthogonal `autoApprove` axis, not as a mode value.
+	 *  - SDK `autopilot` → AHP `mode='autopilot'`.
+	 *
+	 * Autopilot lives on the `mode` axis; the orthogonal `autoApprove` axis
+	 * (Default / Bypass) is left untouched so the user's chosen
+	 * approval level is preserved across SDK mode transitions.
 	 *
 	 * Patches that already match the current AHP values are still
 	 * dispatched (the reducer is a no-op in that case) but written values
@@ -2548,8 +2610,7 @@ export class CopilotAgentSession extends Disposable {
 				patch[SessionConfigKey.Mode] = 'plan';
 				break;
 			case 'autopilot':
-				patch[SessionConfigKey.Mode] = 'interactive';
-				patch[SessionConfigKey.AutoApprove] = 'autopilot';
+				patch[SessionConfigKey.Mode] = 'autopilot';
 				break;
 			case 'interactive':
 				patch[SessionConfigKey.Mode] = 'interactive';
@@ -2571,16 +2632,6 @@ export class CopilotAgentSession extends Disposable {
 		const questionId = generateUuid();
 		this._logService.info(`[Copilot:${this.sessionId}] exitPlanMode.request: rpcId=${requestId}, actions=[${data.actions.join(',')}], recommended=${data.recommendedAction}`);
 
-		// When the session's effective auto-approval level is `autopilot`,
-		// approve the plan automatically without surfacing a question to
-		// the user. Mirrors the "autopilot fast-path" in the Copilot CLI's
-		// own plan-mode handler.
-		const autoApprove = this._configurationService.getEffectiveValue(this.sessionUri.toString(), platformSessionSchema, SessionConfigKey.AutoApprove);
-		if (autoApprove === 'autopilot') {
-			const response = autoApproveExitPlanMode(data);
-			this._logService.info(`[Copilot:${this.sessionId}] exitPlanMode.request auto-accepted (autoApprove=autopilot): selectedAction=${response.selectedAction ?? '(none)'}`);
-			return response;
-		}
 
 		// Resolve the plan file path so we can embed a markdown link.
 		let planPath: string | null = null;
@@ -2909,47 +2960,6 @@ export class CopilotAgentSession extends Disposable {
 }
 
 /**
- * Builds the {@link IExitPlanModeResponse} used when the session is in
- * autopilot and we approve the plan without user interaction.
- *
- * Selection priority mirrors the Copilot CLI's own autopilot handler.
- *
- * 1. If the SDK's `recommendedAction` is offered, take it.
- * 2. Otherwise fall back to `autopilot` → `autopilot_fleet` → `interactive`
- *    → `exit_only`.
- * 3. As a last resort, approve without picking a `selectedAction` (the SDK
- *    keeps `currentMode='interactive'` in that case).
- *
- * `autoApproveEdits: true` is set whenever the chosen action is one of the
- * autopilot variants, mirroring the CLI behavior.
- */
-function autoApproveExitPlanMode(data: ExitPlanModeRequest): IExitPlanModeResponse {
-	const choices = data.actions ?? [];
-	const isAutopilotAction = (action: string) => action === 'autopilot' || action === 'autopilot_fleet';
-
-	if (data.recommendedAction && choices.includes(data.recommendedAction)) {
-		const selectedAction = data.recommendedAction;
-		return {
-			approved: true,
-			selectedAction,
-			...(isAutopilotAction(selectedAction) ? { autoApproveEdits: true } : {}),
-		};
-	}
-
-	for (const action of ['autopilot', 'autopilot_fleet', 'interactive', 'exit_only']) {
-		if (choices.includes(action)) {
-			return {
-				approved: true,
-				selectedAction: action,
-				...(isAutopilotAction(action) ? { autoApproveEdits: true } : {}),
-			};
-		}
-	}
-
-	return { approved: true, autoApproveEdits: true };
-}
-
-/**
  * Counts added/removed lines in a unified diff string. Ignores the `+++` and
  * `---` header rows and any non-hunk context.
  */
@@ -2970,4 +2980,40 @@ function countUnifiedDiffLines(diff: string): { added: number; removed: number }
 		return undefined;
 	}
 	return { added, removed };
+}
+
+/**
+ * Normalizes the SDK's internal `quotaSnapshots` field — present on the `assistant.usage` event at
+ * runtime but absent from the generated `AssistantUsageData` type — into the serializable shape
+ * carried on {@link UsageInfoMeta.quotaSnapshots}. Returns `undefined` when no usable snapshot is present.
+ */
+function normalizeQuotaSnapshots(raw: unknown): UsageInfoMeta['quotaSnapshots'] | undefined {
+	if (!raw || typeof raw !== 'object') {
+		return undefined;
+	}
+	const result: NonNullable<UsageInfoMeta['quotaSnapshots']> = {};
+	let hasAny = false;
+	for (const [quotaType, value] of Object.entries(raw as Record<string, unknown>)) {
+		if (!value || typeof value !== 'object') {
+			continue;
+		}
+		const v = value as Record<string, unknown>;
+		const resetDateRaw = v.resetDate;
+		const resetDate = typeof resetDateRaw === 'string'
+			? resetDateRaw
+			: resetDateRaw instanceof Date
+				? resetDateRaw.toISOString()
+				: undefined;
+		result[quotaType] = {
+			isUnlimitedEntitlement: typeof v.isUnlimitedEntitlement === 'boolean' ? v.isUnlimitedEntitlement : undefined,
+			entitlementRequests: typeof v.entitlementRequests === 'number' ? v.entitlementRequests : undefined,
+			usedRequests: typeof v.usedRequests === 'number' ? v.usedRequests : undefined,
+			remainingPercentage: typeof v.remainingPercentage === 'number' ? v.remainingPercentage : undefined,
+			overage: typeof v.overage === 'number' ? v.overage : undefined,
+			overageAllowedWithExhaustedQuota: typeof v.overageAllowedWithExhaustedQuota === 'boolean' ? v.overageAllowedWithExhaustedQuota : undefined,
+			resetDate,
+		};
+		hasAny = true;
+	}
+	return hasAny ? result : undefined;
 }

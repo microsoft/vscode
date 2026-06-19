@@ -2428,6 +2428,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * agent and model pickers. Re-selecting the active session clears the pending target and
 	 * restores the pickers.
 	 */
+	public continueInSession(provider: AgentSessionTarget): void {
+		this.setPendingDelegationTarget(provider);
+		this.focus();
+	}
+
 	private setPendingDelegationTarget(provider: AgentSessionTarget): void {
 		const isActive = this.getActiveSessionTypeForDelegation() === provider;
 		this._pendingDelegationTarget = isActive ? undefined : provider;

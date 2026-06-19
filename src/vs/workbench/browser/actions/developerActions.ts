@@ -793,6 +793,15 @@ class PolicyDiagnosticsAction extends Action2 {
 			content += `| Fetched at | ${fetchedAt ? new Date(fetchedAt).toLocaleString() : '*n/a*'} |\n`;
 			content += '\n';
 
+			const rawResponse = defaultAccountService.managedSettingsRawResponse;
+			if (rawResponse !== null && rawResponse !== undefined) {
+				content += '### Raw Response\n\n';
+				content += '```json\n';
+				content += JSON.stringify(rawResponse, null, 2);
+				content += '\n```\n\n';
+			}
+
+			content += '### Processed (after projection)\n\n';
 			const managedSettingsData = {
 				managedSettings: policyData?.managedSettings,
 			};
