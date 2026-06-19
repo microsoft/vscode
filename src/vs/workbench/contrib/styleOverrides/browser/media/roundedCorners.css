@@ -207,3 +207,15 @@
 	border-radius: var(--vscode-cornerRadius-large) !important;
 	overflow: hidden;
 }
+
+/* =============================================================================
+ * Sashes — round the hover/drag affordance ends (mirrors the Agents window).
+ * ========================================================================== */
+.style-override-roundedCorners .monaco-sash:before {
+	border-radius: calc(var(--vscode-sash-hover-size) / 2);
+}
+
+.style-override-roundedCorners .monaco-sash:not(.disabled) > .orthogonal-drag-handle {
+	border-radius: var(--vscode-sash-size);
+}
+
