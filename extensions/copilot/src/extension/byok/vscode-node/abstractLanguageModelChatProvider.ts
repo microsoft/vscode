@@ -22,6 +22,9 @@ export interface LanguageModelChatConfiguration {
 	readonly apiKey?: string;
 }
 
+/** How long model discovery waits for a `/models` response, so a hung endpoint cannot stall model resolution. */
+const MODELS_DISCOVERY_TIMEOUT_MS = 10_000;
+
 // Published hosts may not yet expose this proposed API.
 const apiTypes = LanguageModelChatApiType && {
 	chatCompletions: LanguageModelChatApiType.ChatCompletions,
@@ -135,8 +138,8 @@ export abstract class AbstractOpenAICompatibleLMProvider<T extends LanguageModel
 
 	protected async getAllModels(silent: boolean, apiKey: string | undefined, configuration: T | undefined): Promise<OpenAICompatibleLanguageModelChatInformation<T>[]> {
 		const modelsUrl = this.getModelsBaseUrl(configuration);
-		if (modelsUrl) {
-			const models = await this.getModelsFromEndpoint(modelsUrl, silent, apiKey);
+		if (modelsUrl && (apiKey || !silent)) {
+			const models = await this.getModelsFromEndpoint(modelsUrl, apiKey);
 			return byokKnownModelsToAPIInfoWithEffort(this._name, models).map(model => ({
 				...model,
 				url: modelsUrl
@@ -145,22 +148,23 @@ export abstract class AbstractOpenAICompatibleLMProvider<T extends LanguageModel
 		return [];
 	}
 
-	private async getModelsFromEndpoint(endpoint: string, silent: boolean, apiKey: string | undefined): Promise<BYOKKnownModels> {
-		if (!apiKey && silent) {
-			return {};
-		}
-
+	protected async getModelsFromEndpoint(endpoint: string, apiKey: string | undefined): Promise<BYOKKnownModels> {
+		const abortController = new AbortController();
+		const timeout = setTimeout(() => abortController.abort(), MODELS_DISCOVERY_TIMEOUT_MS);
 		try {
 			const headers: IStringDictionary<string> = {
-				'Content-Type': 'application/json',
-				'Authorization': `Bearer ${apiKey}`
+				'Content-Type': 'application/json'
 			};
+			if (apiKey) {
+				headers.Authorization = `Bearer ${apiKey}`;
+			}
 
 			const modelsEndpoint = this.getModelsDiscoveryUrl(endpoint);
 			const response = await this._fetcherService.fetch(modelsEndpoint, {
 				method: 'GET',
 				headers,
 				callSite: 'byok-models-discovery',
+				signal: abortController.signal,
 			});
 			const data = await response.json();
 			const modelList: BYOKKnownModels = {};
@@ -171,23 +175,18 @@ export abstract class AbstractOpenAICompatibleLMProvider<T extends LanguageModel
 			}
 
 			for (const model of models) {
-				let modelCapabilities = this._knownModels?.[model.id];
-				if (!modelCapabilities) {
-					modelCapabilities = this.resolveModelCapabilities(model);
-					if (!modelCapabilities) {
-						continue;
-					}
-					if (!this._knownModels) {
-						this._knownModels = {};
-					}
-					this._knownModels[model.id] = modelCapabilities;
+				const modelCapabilities = this.getDiscoveredModelCapabilities(model);
+				if (modelCapabilities) {
+					modelList[model.id] = modelCapabilities;
 				}
-				modelList[model.id] = modelCapabilities;
 			}
 			return modelList;
 		} catch (error) {
-			this._logService.error(error, `Error fetching available OpenRouter models`);
-			throw error;
+			const reportedError = abortController.signal.aborted ? new Error(`Timed out after ${MODELS_DISCOVERY_TIMEOUT_MS / 1000} seconds`) : error;
+			this._logService.error(reportedError, `[${this._name}] Error fetching available models from ${endpoint}`);
+			throw reportedError;
+		} finally {
+			clearTimeout(timeout);
 		}
 	}
 
@@ -205,6 +204,26 @@ export abstract class AbstractOpenAICompatibleLMProvider<T extends LanguageModel
 
 	protected resolveModelCapabilities(modelData: unknown): BYOKModelCapabilities | undefined {
 		return undefined;
+	}
+
+	/**
+	 * Returns the capabilities for one discovered model, preferring {@link _knownModels}
+	 * and memoizing newly resolved entries there by model id. Providers whose model
+	 * ids are not unique across endpoints should override this to skip the cache.
+	 */
+	protected getDiscoveredModelCapabilities(modelData: { id: string }): BYOKModelCapabilities | undefined {
+		let modelCapabilities = this._knownModels?.[modelData.id];
+		if (!modelCapabilities) {
+			modelCapabilities = this.resolveModelCapabilities(modelData);
+			if (!modelCapabilities) {
+				return undefined;
+			}
+			if (!this._knownModels) {
+				this._knownModels = {};
+			}
+			this._knownModels[modelData.id] = modelCapabilities;
+		}
+		return modelCapabilities;
 	}
 
 	protected abstract getModelsBaseUrl(configuration: T | undefined): string | undefined;
