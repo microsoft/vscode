@@ -438,8 +438,24 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			inputContainerEl.classList.toggle('voice-active', voiceActive);
 			inputContainerEl.classList.toggle('voice-listening', connected && voiceState === 'listening');
 
-			if (!connected || visible.length === 0 || !showTranscript) {
+			if (!connected) {
 				transcriptOverlay.style.display = 'none';
+				return;
+			}
+
+			// Show hint when connected but no transcript yet
+			if (visible.length === 0 || !showTranscript) {
+				if (voiceState === 'idle' && visible.length === 0) {
+					transcriptOverlay.style.display = '';
+					while (transcriptOverlay.childNodes.length > 1) {
+						transcriptOverlay.removeChild(transcriptOverlay.lastChild!);
+					}
+					const hint = $('span.partial');
+					hint.textContent = localize('voiceMode.listeningHint', "Listening...");
+					transcriptOverlay.append(hint);
+				} else {
+					transcriptOverlay.style.display = 'none';
+				}
 				return;
 			}
 

@@ -50,6 +50,7 @@ import { ChatAgentLocation } from '../../chat/common/constants.js';
 
 const AGENTS_VOICE_WINDOW_VISIBLE = new RawContextKey<boolean>('agentsVoiceWindowVisible', false);
 export const AGENTS_VOICE_WIDGET_FOCUSED = new RawContextKey<boolean>('agentsVoiceWidgetFocused', false);
+const AGENTS_VOICE_CONNECTED = new RawContextKey<boolean>('agentsVoiceConnected', false);
 
 // --- Context Key Binding ---
 
@@ -63,16 +64,37 @@ class AgentsVoiceContextKeyContribution extends Disposable implements IWorkbench
 	) {
 		super();
 
-		const contextKey = AGENTS_VOICE_WINDOW_VISIBLE.bindTo(contextKeyService);
-		contextKey.set(this.agentsVoiceWindowService.isOpen);
+		const windowKey = AGENTS_VOICE_WINDOW_VISIBLE.bindTo(contextKeyService);
+		windowKey.set(this.agentsVoiceWindowService.isOpen);
 
 		this._register(this.agentsVoiceWindowService.onDidChangeOpen(isOpen => {
-			contextKey.set(isOpen);
+			windowKey.set(isOpen);
 		}));
 	}
 }
 
 registerWorkbenchContribution2(AgentsVoiceContextKeyContribution.ID, AgentsVoiceContextKeyContribution, WorkbenchPhase.AfterRestored);
+
+// Separate contribution for voice connected state — runs later to avoid
+// forcing IVoiceSessionController instantiation too early.
+class AgentsVoiceConnectedKeyContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.agentsVoiceConnectedKey';
+
+	constructor(
+		@IVoiceSessionController voiceSessionController: IVoiceSessionController,
+		@IContextKeyService contextKeyService: IContextKeyService,
+	) {
+		super();
+
+		const connectedKey = AGENTS_VOICE_CONNECTED.bindTo(contextKeyService);
+		this._register(autorun(reader => {
+			connectedKey.set(voiceSessionController.isConnected.read(reader));
+		}));
+	}
+}
+
+registerWorkbenchContribution2(AgentsVoiceConnectedKeyContribution.ID, AgentsVoiceConnectedKeyContribution, WorkbenchPhase.Eventually);
 
 // --- Telemetry: track enable/disable ---
 
@@ -138,7 +160,7 @@ CommandsRegistry.registerCommand('_agentsVoice.openWindow', async (accessor) => 
 	}
 });
 
-// --- Mic button in Chat toolbar ---
+// --- Mic button in Chat toolbar (connect/disconnect toggle) ---
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -152,41 +174,91 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+					AGENTS_VOICE_CONNECTED.negate(),
 				),
 				group: 'navigation',
 				order: 4
-			}
+			},
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib + 1,
+				primary: KeyCode.Space,
+				when: ContextKeyExpr.and(
+					AGENTS_VOICE_CONNECTED.negate(),
+					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					ChatContextKeys.inChatInput,
+					ChatContextKeys.inputHasText.negate(),
+				),
+			},
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const voiceController = accessor.get(IVoiceSessionController);
 		const notificationService = accessor.get(INotificationService);
-		if (voiceController.isConnected.get()) {
-			voiceController.disconnect();
-		} else {
-			try {
-				await voiceController.connect(mainWindow);
-				// connect() resolves before the WebSocket handshake completes.
-				// Wait for isConnecting to settle (either connected or failed).
-				if (!voiceController.isConnected.get() && voiceController.isConnecting.get()) {
-					await new Promise<void>(resolve => {
-						const disposable = autorun(reader => {
-							const connecting = voiceController.isConnecting.read(reader);
-							if (!connecting) {
-								resolve();
-								// Dispose on next microtask to avoid disposing inside the autorun callback
-								queueMicrotask(() => disposable.dispose());
-							}
-						});
+		try {
+			await voiceController.connect(mainWindow);
+			// connect() resolves before the WebSocket handshake completes.
+			// Wait for isConnecting to settle (either connected or failed).
+			if (!voiceController.isConnected.get() && voiceController.isConnecting.get()) {
+				await new Promise<void>(resolve => {
+					const disposable = autorun(reader => {
+						const connecting = voiceController.isConnecting.read(reader);
+						if (!connecting) {
+							resolve();
+							queueMicrotask(() => disposable.dispose());
+						}
 					});
-				}
-				if (!voiceController.isConnected.get()) {
-					notificationService.error(nls.localize('agentsVoice.connectFailed', "Voice Mode: Could not connect to the voice backend. Please try again later."));
-				}
-			} catch (e) {
-				notificationService.error(nls.localize('agentsVoice.connectError', "Voice Mode: Connection failed — {0}", e instanceof Error ? e.message : String(e)));
+				});
 			}
+			if (!voiceController.isConnected.get()) {
+				notificationService.error(nls.localize('agentsVoice.connectFailed', "Voice Mode: Could not connect to the voice backend. Please try again later."));
+			} else {
+				// Start listening immediately — backend uses VAD to detect speech
+				voiceController.pttDown();
+			}
+		} catch (e) {
+			notificationService.error(nls.localize('agentsVoice.connectError', "Voice Mode: Connection failed — {0}", e instanceof Error ? e.message : String(e)));
 		}
+	}
+});
+
+// --- Disconnect Voice button (shown when connected) ---
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'agentsVoice.disconnect',
+			title: nls.localize2('agentsVoice.disconnect', "Disconnect Voice Mode"),
+			icon: Codicon.micFilled,
+			f1: true,
+			precondition: ContextKeyExpr.and(
+				ContextKeyExpr.equals('config.agents.voice.enabled', true),
+				AGENTS_VOICE_CONNECTED.isEqualTo(true),
+			),
+			menu: {
+				id: MenuId.ChatExecute,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					AGENTS_VOICE_CONNECTED.isEqualTo(true),
+					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+				),
+				group: 'navigation',
+				order: 4
+			},
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib + 1,
+				primary: KeyCode.Space,
+				when: ContextKeyExpr.and(
+					AGENTS_VOICE_CONNECTED.isEqualTo(true),
+					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					ChatContextKeys.inChatInput,
+					ChatContextKeys.inputHasText.negate(),
+				),
+			},
+		});
+	}
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const voiceController = accessor.get(IVoiceSessionController);
+		voiceController.disconnect();
 	}
 });
 
