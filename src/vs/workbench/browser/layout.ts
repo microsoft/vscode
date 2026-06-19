@@ -2201,11 +2201,19 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const seq = ++this.resizeWindowToKeepEditorSizeSeq;
 
 		try {
-			// Wait for the layout that the OS window resize triggers, then restore the
-			// editor to its previous size so that the panel absorbs the size change
-			const onDidRelayout = raceTimeout(Event.toPromise(Event.once(this.onDidLayoutMainContainer)), 1000);
+			const beforeWidth = this._mainContainerDimension.width;
+			const beforeHeight = this._mainContainerDimension.height;
+
 			await this.hostService.resizeMainWindow(resize.delta, resize.anchor);
-			await onDidRelayout;
+
+			const didRelayout = await raceTimeout(
+				Event.toPromise(Event.once(Event.filter(this.onDidLayoutMainContainer, d => d.width !== beforeWidth || d.height !== beforeHeight))),
+				1000
+			);
+
+			if (!didRelayout) {
+				return;
+			}
 		} catch (error) {
 			this.logService.warn('[layout] resizeWindowToKeepEditorSize failed', error);
 			return;

@@ -395,15 +395,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		const [minWidth, minHeight] = window.win.getMinimumSize();
 
 		const desiredBounds = getResizedWindowBounds(currentBounds, delta, anchor);
-		const width = Math.max(desiredBounds.width, minWidth);
-		const height = Math.max(desiredBounds.height, minHeight);
+		desiredBounds.width = Math.max(desiredBounds.width, minWidth);
+		desiredBounds.height = Math.max(desiredBounds.height, minHeight);
+		desiredBounds.x = anchor.right ? currentBounds.x + currentBounds.width - desiredBounds.width : currentBounds.x;
+		desiredBounds.y = anchor.bottom ? currentBounds.y + currentBounds.height - desiredBounds.height : currentBounds.y;
 
-		window.win.setBounds({
-			x: anchor.right ? currentBounds.x + currentBounds.width - width : currentBounds.x,
-			y: anchor.bottom ? currentBounds.y + currentBounds.height - height : currentBounds.y,
-			width,
-			height
-		});
+		window.win.setBounds(desiredBounds);
 	}
 
 	async updateWindowControls(windowId: number | undefined, options: INativeHostOptions & { height?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): Promise<void> {
