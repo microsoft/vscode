@@ -1581,8 +1581,16 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 				table.classList.add('has-long-context');
 			}
 
+			// Each value cell paints a dotted leader behind a right-aligned, background-masked
+			// number so the dots run right up to the number (and between the two columns).
 			const appendValueCell = (row: HTMLElement, cost: number | undefined): void => {
-				row.appendChild(dom.$('span.chat-model-hover-cost-value', undefined, cost !== undefined ? String(cost) : ''));
+				if (cost === undefined) {
+					row.appendChild(dom.$('span.chat-model-hover-cost-value.empty'));
+					return;
+				}
+				row.appendChild(dom.$('span.chat-model-hover-cost-value', undefined,
+					dom.$('span.chat-model-hover-cost-number', undefined, String(cost)),
+				));
 			};
 
 			// Header row: "Credits Per 1M Tokens" heading + (when long context) Default / Long Context labels
@@ -1591,14 +1599,19 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 			if (hasLongContext) {
 				headerRow.appendChild(dom.$('span.chat-model-hover-cost-value.subheader', undefined, localize('models.defaultContext', "Default")));
 				headerRow.appendChild(dom.$('span.chat-model-hover-cost-value.subheader', undefined, localize('models.longContext', "Long Context")));
+			} else {
+				// Placeholder so the header occupies the full row and grid columns stay aligned.
+				headerRow.appendChild(dom.$('span.chat-model-hover-cost-value.subheader'));
 			}
 			table.appendChild(headerRow);
 
 			// Cost rows: label on the left, dotted leader, then right-aligned credit value(s)
 			for (const metric of metrics) {
 				const row = dom.$('.chat-model-hover-cost-row');
-				row.appendChild(dom.$('span.chat-model-hover-cost-label', undefined, metric.label));
-				row.appendChild(dom.$('span.chat-model-hover-cost-leader'));
+				const labelCell = dom.$('.chat-model-hover-cost-label');
+				labelCell.appendChild(dom.$('span.chat-model-hover-cost-label-text', undefined, metric.label));
+				labelCell.appendChild(dom.$('span.chat-model-hover-cost-leader'));
+				row.appendChild(labelCell);
 				appendValueCell(row, metric.def);
 				if (hasLongContext) {
 					appendValueCell(row, metric.long);

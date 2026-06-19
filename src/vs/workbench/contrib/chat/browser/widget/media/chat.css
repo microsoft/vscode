@@ -4256,8 +4256,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-model-hover {
 	display: flex;
 	flex-direction: column;
-	gap: 8px;
-	max-width: 250px;
+	gap: 24px;
+	/* max-width: 250px; */
 }
 
 .chat-model-hover.has-long-context {
@@ -4265,8 +4265,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-model-hover-name {
-	font-weight: bold;
-	font-size: 13px;
+	font-weight: 500;
+	font-size: 14px;
 }
 
 .chat-model-hover-title-row {
@@ -4300,61 +4300,99 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .chat-model-hover-category {
 	font-size: 11px;
-	color: var(--vscode-descriptionForeground);
+	/* color: var(--vscode-descriptionForeground); */
 	white-space: nowrap;
 }
 
 .chat-model-hover-cost-table {
-	display: flex;
-	flex-direction: column;
-	gap: 3px;
+	display: grid;
+	grid-template-columns: auto auto;
+	column-gap: 0;
+	row-gap: 12px;
+	align-items: center;
 	font-size: 12px;
 }
 
+.chat-model-hover-cost-table.has-long-context {
+	grid-template-columns: auto auto auto;
+}
+
+/* Rows are transparent: their cells participate directly in the table grid so columns align. */
 .chat-model-hover-cost-row {
-	display: flex;
-	align-items: center;
-	gap: 6px;
+	display: contents;
 }
 
 .chat-model-hover-cost-heading {
-	flex: 1 1 auto;
-	font-weight: 600;
 	color: var(--vscode-foreground);
 	white-space: nowrap;
+	padding-right: 12px;
 }
 
+/* Label cell: the text plus a dotted leader that fills the rest of the (heading-wide) first column. */
 .chat-model-hover-cost-label {
-	flex: 0 0 auto;
+	display: flex;
+	align-items: center;
+	gap: 6px;
 	color: var(--vscode-descriptionForeground);
 	white-space: nowrap;
 }
 
+.chat-model-hover-cost-label-text {
+	flex: 0 0 auto;
+}
+
 .chat-model-hover-cost-leader {
 	flex: 1 1 auto;
-	min-width: 8px;
+	min-width: 12px;
 	height: 0;
 	border-bottom: 1px dotted var(--vscode-descriptionForeground);
 	opacity: 0.5;
 }
 
+/* Each value cell paints a dotted leader behind a right-aligned, background-masked number. */
 .chat-model-hover-cost-value {
-	flex: 0 0 auto;
-	min-width: 48px;
+	position: relative;
 	text-align: right;
-	font-weight: bold;
-	color: var(--vscode-foreground);
 	white-space: nowrap;
+	min-width: 0;
 }
 
-.chat-model-hover-cost-table.has-long-context .chat-model-hover-cost-value {
-	width: 80px;
-	min-width: 80px;
+.chat-model-hover-cost-value::before {
+	content: '';
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: 50%;
+	border-top: 1px dotted var(--vscode-descriptionForeground);
+	opacity: 0.5;
+}
+
+.chat-model-hover-cost-value.subheader::before,
+.chat-model-hover-cost-value.empty::before {
+	content: none;
+}
+
+/* Blank gap (no dots) separating the Default and Long Context value columns. */
+.chat-model-hover-cost-table.has-long-context .chat-model-hover-cost-value + .chat-model-hover-cost-value {
+	padding-left: 18px;
+}
+
+.chat-model-hover-cost-table.has-long-context .chat-model-hover-cost-value + .chat-model-hover-cost-value::before {
+	left: 18px;
+}
+
+.chat-model-hover-cost-number {
+	position: relative;
+	padding-left: 6px;
+	font-weight: 700;
+	color: var(--vscode-foreground);
+	background-color: var(--vscode-editorHoverWidget-background, var(--vscode-editorWidget-background));
 }
 
 .chat-model-hover-cost-value.subheader {
 	font-weight: normal;
 	color: var(--vscode-descriptionForeground);
+	padding-left: 6px;
 }
 
 .chat-model-hover-cost {
@@ -4385,7 +4423,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-model-hover-configurable-label {
-	flex: 1 1 auto;
+	flex: 0 0 auto;
 	color: var(--vscode-descriptionForeground);
 	white-space: nowrap;
 }
@@ -4393,7 +4431,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-model-hover-configurable-buttons {
 	display: flex;
 	flex-wrap: wrap;
-	justify-content: flex-end;
+	justify-content: flex-start;
 	gap: 6px;
 }
 
