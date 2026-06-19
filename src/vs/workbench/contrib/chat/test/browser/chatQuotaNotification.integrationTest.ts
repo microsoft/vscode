@@ -21,7 +21,7 @@ import { ITelemetryAppender } from '../../../../../platform/telemetry/common/tel
 import { ChatEntitlement, IChatEntitlementService, IChatSentiment, IQuotaSnapshot } from '../../../../services/chat/common/chatEntitlementService.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { ChatQuotaNotificationContribution } from '../../browser/chatQuotaNotification.js';
-import { IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
+import { ChatInputNotificationSeverity, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
 import { ChatInputNotificationWidget } from '../../browser/widget/input/chatInputNotificationWidget.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../common/languageModels.js';
 
@@ -55,14 +55,18 @@ class TestCommandService implements ICommandService {
 	}
 }
 
-function createQuotaSnapshot(percentRemaining: number): IQuotaSnapshot {
+function createQuotaSnapshot(percentRemaining: number, opts?: Partial<IQuotaSnapshot>): IQuotaSnapshot {
 	return {
 		percentRemaining,
 		unlimited: false,
+		...opts,
 	};
 }
 
-function createEntitlementService() {
+function createEntitlementService(opts?: {
+	entitlement?: ChatEntitlement;
+	quotas?: Partial<IChatEntitlementService['quotas']>;
+}) {
 	const onDidChangeQuotaRemaining = new Emitter<void>();
 	const onDidChangeQuotaExceeded = new Emitter<void>();
 	const onDidChangeEntitlement = new Emitter<void>();
@@ -70,8 +74,8 @@ function createEntitlementService() {
 
 	const service: IChatEntitlementService = {
 		_serviceBrand: undefined,
-		entitlement: ChatEntitlement.Pro,
-		entitlementObs: observableValue({}, ChatEntitlement.Pro),
+		entitlement: opts?.entitlement ?? ChatEntitlement.Pro,
+		entitlementObs: observableValue({}, opts?.entitlement ?? ChatEntitlement.Pro),
 		onDidChangeEntitlement: onDidChangeEntitlement.event,
 		onDidChangeQuotaExceeded: onDidChangeQuotaExceeded.event,
 		onDidChangeQuotaRemaining: onDidChangeQuotaRemaining.event,
@@ -80,6 +84,7 @@ function createEntitlementService() {
 			usageBasedBilling: true,
 			premiumChat: createQuotaSnapshot(0),
 			additionalUsageEnabled: false,
+			...opts?.quotas,
 		},
 		organisations: undefined,
 		isInternal: false,
@@ -108,11 +113,11 @@ function createEntitlementService() {
 suite('ChatQuotaNotificationContribution integration', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHarness() {
+	function createHarness(opts?: Parameters<typeof createEntitlementService>[0]) {
 		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
 		const telemetryAppender = new TestTelemetryAppender();
 		const telemetryService = store.add(instantiationService.createInstance(TelemetryService, { appenders: [telemetryAppender] }));
-		const entitlementService = createEntitlementService();
+		const entitlementService = createEntitlementService(opts);
 		const commandService = new TestCommandService();
 		const storageService = instantiationService.get(IStorageService);
 		storageService.store('chat.currentLanguageModel.panel', 'copilot/test-model', StorageScope.APPLICATION, StorageTarget.USER);
@@ -151,35 +156,205 @@ suite('ChatQuotaNotificationContribution integration', () => {
 		const contribution = store.add(childInstantiationService.createInstance(ChatQuotaNotificationContribution));
 		store.add(childInstantiationService.get(IChatInputNotificationService) as IChatInputNotificationService & IDisposable);
 
-		return { instantiationService: childInstantiationService, telemetryAppender, commandService, contribution };
+		return { instantiationService: childInstantiationService, telemetryAppender, commandService, contribution, entitlementService };
 	}
 
-	function getQuotaTelemetryEvents(telemetryAppender: TestTelemetryAppender): ILoggedTelemetryEvent[] {
-		return telemetryAppender.events.filter(e => e.eventName.startsWith('chat.quotaNotification'));
+	function getNotificationTelemetryEvents(telemetryAppender: TestTelemetryAppender): ILoggedTelemetryEvent[] {
+		return telemetryAppender.events.filter(e => e.eventName === 'chatInputNotificationShown' || e.eventName === 'chatInputNotificationDismissed');
 	}
 
-	test('emits shown telemetry through the real widget render path', () => {
+	function getRenderedText(widget: ChatInputNotificationWidget): string {
+		return widget.domNode.querySelector<HTMLElement>('.chat-input-notification')?.textContent ?? '';
+	}
+
+	function assertShownTelemetry(telemetryAppender: TestTelemetryAppender, telemetryId: string): void {
+		assert.deepStrictEqual(getNotificationTelemetryEvents(telemetryAppender), [{
+			eventName: 'chatInputNotificationShown',
+			data: {
+				id: 'copilot.quotaStatus',
+				telemetryId,
+			},
+		}]);
+	}
+
+	test('emits generic shown telemetry through the real widget render path', () => {
 		const { instantiationService, telemetryAppender } = createHarness();
 
-		assert.deepStrictEqual(getQuotaTelemetryEvents(telemetryAppender), []);
+		assert.deepStrictEqual(getNotificationTelemetryEvents(telemetryAppender), []);
 
 		const widget = store.add(instantiationService.createInstance(ChatInputNotificationWidget, undefined));
 		assert.ok(widget.domNode.querySelector('.chat-input-notification'));
 
-		assert.deepStrictEqual(getQuotaTelemetryEvents(telemetryAppender), [{
-			eventName: 'chat.quotaNotificationShown',
-			data: {
-				notificationType: 'quotaExhausted',
-				limitType: 'quota',
-				entitlement: 'Pro',
-				additionalUsageEnabled: false,
-				hasActions: true,
-				percentUsed: 100,
-			},
-		}]);
+		assertShownTelemetry(telemetryAppender, 'quotaExhausted');
 	});
 
-	test('emits action and dismissed telemetry from real DOM interaction', async () => {
+	test('emits shown telemetry for each quota notification variant through the real widget render path', () => {
+		const cases: readonly {
+			readonly name: string;
+			readonly setup: () => ReturnType<typeof createHarness>;
+			readonly expectedText: string;
+			readonly expectedTelemetryId: string;
+			readonly afterCreate?: (harness: ReturnType<typeof createHarness>) => void;
+		}[] = [
+				{
+					name: 'quota exhausted',
+					setup: () => createHarness({
+						quotas: {
+							premiumChat: createQuotaSnapshot(0),
+							additionalUsageEnabled: false,
+						},
+					}),
+					expectedText: 'Credit Limit Reached',
+					expectedTelemetryId: 'quotaExhausted',
+				},
+				{
+					name: 'overage activation',
+					setup: () => createHarness({
+						quotas: {
+							premiumChat: createQuotaSnapshot(50),
+							additionalUsageEnabled: true,
+						},
+					}),
+					expectedText: 'Additional budget is now covering extra usage.',
+					expectedTelemetryId: 'overageActivation',
+					afterCreate: ({ entitlementService }) => {
+						(entitlementService.service as IChatEntitlementService & { quotas: IChatEntitlementService['quotas'] }).quotas = {
+							...entitlementService.service.quotas,
+							premiumChat: createQuotaSnapshot(0),
+						};
+						entitlementService.onDidChangeQuotaRemaining.fire();
+					},
+				},
+				{
+					name: 'quota approaching',
+					setup: () => createHarness({
+						quotas: {
+							premiumChat: createQuotaSnapshot(50),
+						},
+					}),
+					expectedText: 'Credits at 75%',
+					expectedTelemetryId: 'quotaApproaching',
+					afterCreate: ({ entitlementService }) => {
+						(entitlementService.service as IChatEntitlementService & { quotas: IChatEntitlementService['quotas'] }).quotas = {
+							...entitlementService.service.quotas,
+							premiumChat: createQuotaSnapshot(25),
+						};
+						entitlementService.onDidChangeQuotaRemaining.fire();
+					},
+				},
+				{
+					name: 'rate limit warning',
+					setup: () => createHarness({
+						quotas: {
+							premiumChat: createQuotaSnapshot(50),
+							sessionRateLimit: { percentRemaining: 50, unlimited: false, resetDate: '2026-06-01T00:00:00Z' },
+						},
+					}),
+					expectedText: 'You\'ve used 75% of your session rate limit.',
+					expectedTelemetryId: 'sessionRateLimitWarning',
+					afterCreate: ({ entitlementService }) => {
+						(entitlementService.service as IChatEntitlementService & { quotas: IChatEntitlementService['quotas'] }).quotas = {
+							...entitlementService.service.quotas,
+							sessionRateLimit: { percentRemaining: 25, unlimited: false, resetDate: '2026-06-01T00:00:00Z' },
+						};
+						entitlementService.onDidChangeQuotaRemaining.fire();
+					},
+				},
+				{
+					name: 'managed plan blocked',
+					setup: () => createHarness({
+						entitlement: ChatEntitlement.Business,
+						quotas: {
+							premiumChat: createQuotaSnapshot(0, {
+								unlimited: true,
+								hasQuota: false,
+							}),
+						},
+					}),
+					expectedText: 'Usage Blocked',
+					expectedTelemetryId: 'managedPlanBlocked',
+				},
+			];
+
+		const results = cases.map(testCase => {
+			const harness = testCase.setup();
+			testCase.afterCreate?.(harness);
+
+			const widget = store.add(harness.instantiationService.createInstance(ChatInputNotificationWidget, undefined));
+			const renderedText = getRenderedText(widget);
+			assert.ok(renderedText.includes(testCase.expectedText), `${testCase.name} did not render expected text`);
+			assertShownTelemetry(harness.telemetryAppender, testCase.expectedTelemetryId);
+
+			return {
+				name: testCase.name,
+				renderedText: testCase.expectedText,
+				telemetry: getNotificationTelemetryEvents(harness.telemetryAppender),
+			};
+		});
+
+		assert.deepStrictEqual(results.map(result => result.name), [
+			'quota exhausted',
+			'overage activation',
+			'quota approaching',
+			'rate limit warning',
+			'managed plan blocked',
+		]);
+	});
+
+	test('emits shown telemetry when the same notification id changes telemetry context', () => {
+		const { instantiationService, telemetryAppender } = createHarness();
+		const widget = store.add(instantiationService.createInstance(ChatInputNotificationWidget, undefined));
+		const notificationService = instantiationService.get(IChatInputNotificationService);
+
+		notificationService.setNotification({
+			id: 'copilot.quotaStatus',
+			telemetryId: 'quotaApproaching',
+			severity: ChatInputNotificationSeverity.Info,
+			message: 'Credits at 75%',
+			description: undefined,
+			actions: [],
+			dismissible: true,
+			autoDismissOnMessage: true,
+		});
+
+		assert.ok(widget.domNode.querySelector('.chat-input-notification'));
+		assert.deepStrictEqual(getNotificationTelemetryEvents(telemetryAppender), [
+			{
+				eventName: 'chatInputNotificationShown',
+				data: {
+					id: 'copilot.quotaStatus',
+					telemetryId: 'quotaExhausted',
+				},
+			},
+			{
+				eventName: 'chatInputNotificationShown',
+				data: {
+					id: 'copilot.quotaStatus',
+					telemetryId: 'quotaApproaching',
+				},
+			},
+		]);
+	});
+
+	test('does not emit duplicate shown telemetry when the notification rerenders unchanged', () => {
+		const { instantiationService, telemetryAppender } = createHarness();
+		const widget = store.add(instantiationService.createInstance(ChatInputNotificationWidget, undefined));
+
+		widget.rerender();
+		widget.rerender();
+
+		assert.deepStrictEqual(getNotificationTelemetryEvents(telemetryAppender), [
+			{
+				eventName: 'chatInputNotificationShown',
+				data: {
+					id: 'copilot.quotaStatus',
+					telemetryId: 'quotaExhausted',
+				},
+			},
+		]);
+	});
+
+	test('emits existing action telemetry and generic dismissed telemetry from real DOM interaction', async () => {
 		const { instantiationService, telemetryAppender, commandService } = createHarness();
 		const widget = store.add(instantiationService.createInstance(ChatInputNotificationWidget, undefined));
 
@@ -194,39 +369,26 @@ suite('ChatQuotaNotificationContribution integration', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual(commandService.executedCommands, ['workbench.action.chat.manageAdditionalSpend']);
-		assert.deepStrictEqual(getQuotaTelemetryEvents(telemetryAppender), [
+		assert.deepStrictEqual(telemetryAppender.events.filter(e => e.eventName === 'workbenchActionExecuted' || e.eventName === 'chatInputNotificationShown' || e.eventName === 'chatInputNotificationDismissed'), [
 			{
-				eventName: 'chat.quotaNotificationShown',
+				eventName: 'chatInputNotificationShown',
 				data: {
-					notificationType: 'quotaExhausted',
-					limitType: 'quota',
-					entitlement: 'Pro',
-					additionalUsageEnabled: false,
-					hasActions: true,
-					percentUsed: 100,
+					id: 'copilot.quotaStatus',
+					telemetryId: 'quotaExhausted',
 				},
 			},
 			{
-				eventName: 'chat.quotaNotificationActionInvoked',
+				eventName: 'workbenchActionExecuted',
 				data: {
-					notificationType: 'quotaExhausted',
-					limitType: 'quota',
-					entitlement: 'Pro',
-					additionalUsageEnabled: false,
-					hasActions: true,
-					percentUsed: 100,
-					commandId: 'workbench.action.chat.manageAdditionalSpend',
+					id: 'workbench.action.chat.manageAdditionalSpend',
+					from: 'chatInputNotification',
 				},
 			},
 			{
-				eventName: 'chat.quotaNotificationDismissed',
+				eventName: 'chatInputNotificationDismissed',
 				data: {
-					notificationType: 'quotaExhausted',
-					limitType: 'quota',
-					entitlement: 'Pro',
-					additionalUsageEnabled: false,
-					hasActions: true,
-					percentUsed: 100,
+					id: 'copilot.quotaStatus',
+					telemetryId: 'quotaExhausted',
 				},
 			},
 		]);

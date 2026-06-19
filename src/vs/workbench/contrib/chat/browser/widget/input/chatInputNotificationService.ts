@@ -33,6 +33,7 @@ export interface IChatInputNotificationMuteAction {
 
 export interface IChatInputNotification {
 	readonly id: string;
+	readonly telemetryId?: string;
 	readonly severity: ChatInputNotificationSeverity;
 	readonly message: string | IMarkdownString;
 	readonly description: string | undefined;
@@ -54,11 +55,6 @@ export interface IChatInputNotification {
 	readonly mute?: IChatInputNotificationMuteAction;
 }
 
-export interface IChatInputNotificationActionEvent {
-	readonly notificationId: string;
-	readonly commandId: string;
-}
-
 export const IChatInputNotificationService = createDecorator<IChatInputNotificationService>('chatInputNotificationService');
 
 export interface IChatInputNotificationService {
@@ -68,12 +64,6 @@ export interface IChatInputNotificationService {
 
 	/** Fires when a notification is dismissed by the user (via the X button). */
 	readonly onDidDismiss: Event<string>;
-
-	/** Fires when a notification is rendered by a chat input widget. */
-	readonly onDidShow: Event<string>;
-
-	/** Fires when a notification action is invoked by the user. */
-	readonly onDidAction: Event<IChatInputNotificationActionEvent>;
 
 	/**
 	 * Set or update a notification. If a notification with the same ID already
@@ -91,16 +81,6 @@ export interface IChatInputNotificationService {
 	 * by {@link getActiveNotification} until it is re-pushed with new content.
 	 */
 	dismissNotification(id: string): void;
-
-	/**
-	 * Mark a notification as rendered by a chat input widget.
-	 */
-	showNotification(id: string): void;
-
-	/**
-	 * Mark a notification action as invoked by the user.
-	 */
-	actionNotification(id: string, commandId: string): void;
 
 	/**
 	 * Get the single active notification to display. Returns the highest-severity
@@ -122,7 +102,6 @@ class ChatInputNotificationService extends Disposable implements IChatInputNotif
 
 	private readonly _notifications = new Map<string, IChatInputNotification>();
 	private readonly _dismissed = new Set<string>();
-	private readonly _shown = new Set<string>();
 
 	/** Insertion order tracking — higher index = more recently set. */
 	private readonly _insertionOrder = new Map<string, number>();
@@ -134,12 +113,6 @@ class ChatInputNotificationService extends Disposable implements IChatInputNotif
 	private readonly _onDidDismiss = this._register(new Emitter<string>());
 	readonly onDidDismiss = this._onDidDismiss.event;
 
-	private readonly _onDidShow = this._register(new Emitter<string>());
-	readonly onDidShow = this._onDidShow.event;
-
-	private readonly _onDidAction = this._register(new Emitter<IChatInputNotificationActionEvent>());
-	readonly onDidAction = this._onDidAction.event;
-
 	/**
 	 * Signature of the last active notification we announced via ARIA, so we
 	 * don't re-announce the same content when the model fires `onDidChange`
@@ -150,7 +123,6 @@ class ChatInputNotificationService extends Disposable implements IChatInputNotif
 	setNotification(notification: IChatInputNotification): void {
 		this._notifications.set(notification.id, notification);
 		this._dismissed.delete(notification.id);
-		this._shown.delete(notification.id);
 		this._insertionOrder.set(notification.id, this._insertionCounter++);
 		this._fireDidChange();
 	}
@@ -158,7 +130,6 @@ class ChatInputNotificationService extends Disposable implements IChatInputNotif
 	deleteNotification(id: string): void {
 		if (this._notifications.delete(id)) {
 			this._dismissed.delete(id);
-			this._shown.delete(id);
 			this._insertionOrder.delete(id);
 			this._fireDidChange();
 		}
@@ -169,24 +140,6 @@ class ChatInputNotificationService extends Disposable implements IChatInputNotif
 			this._dismissed.add(id);
 			this._onDidDismiss.fire(id);
 			this._fireDidChange();
-		}
-	}
-
-	showNotification(id: string): void {
-		if (this._notifications.has(id) && !this._dismissed.has(id) && !this._shown.has(id)) {
-			this._shown.add(id);
-			this._onDidShow.fire(id);
-		}
-	}
-
-	actionNotification(id: string, commandId: string): void {
-		const notification = this._notifications.get(id);
-		if (notification && !this._dismissed.has(id)) {
-			// Validate that the commandId exists in the notification's actions
-			const hasAction = notification.actions.some(a => a.commandId === commandId);
-			if (hasAction) {
-				this._onDidAction.fire({ notificationId: id, commandId });
-			}
 		}
 	}
 

@@ -10,12 +10,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ChatEntitlement, IChatEntitlementService, IChatSentiment, IQuotaSnapshot, IRateLimitSnapshot } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ChatQuotaNotificationContribution } from '../../browser/chatQuotaNotification.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../common/languageModels.js';
-import { IChatInputNotification, IChatInputNotificationActionEvent, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
+import { IChatInputNotification, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
 
 // --- Mock IChatEntitlementService -------------------------------------------
 
@@ -86,32 +84,25 @@ function createMockNotificationService() {
 	let lastNotification: IChatInputNotification | undefined = undefined;
 	let deleted = false;
 	let dismissed = false;
-	let shown = false;
 	let setCount = 0;
 
 	const onDidChange = new Emitter<void>();
 	const onDidDismiss = new Emitter<string>();
-	const onDidShow = new Emitter<string>();
-	const onDidAction = new Emitter<IChatInputNotificationActionEvent>();
 
 	const service: IChatInputNotificationService = {
 		_serviceBrand: undefined,
 		onDidChange: onDidChange.event,
 		onDidDismiss: onDidDismiss.event,
-		onDidShow: onDidShow.event,
-		onDidAction: onDidAction.event,
 		setNotification(notification: IChatInputNotification) {
 			lastNotification = notification;
 			deleted = false;
 			dismissed = false;
-			shown = false;
 			setCount++;
 			onDidChange.fire();
 		},
 		deleteNotification(_id: string) {
 			deleted = true;
 			dismissed = false;
-			shown = false;
 			onDidChange.fire();
 		},
 		dismissNotification(id: string) {
@@ -121,23 +112,6 @@ function createMockNotificationService() {
 			dismissed = true;
 			onDidDismiss.fire(id);
 			onDidChange.fire();
-		},
-		showNotification(id: string) {
-			if (!lastNotification || lastNotification.id !== id || dismissed || shown) {
-				return;
-			}
-			shown = true;
-			onDidShow.fire(id);
-		},
-		actionNotification(id: string, commandId: string) {
-			if (!lastNotification || lastNotification.id !== id || dismissed || deleted) {
-				return;
-			}
-			// Validate that the commandId exists in the notification's actions
-			const hasAction = lastNotification.actions.some(a => a.commandId === commandId);
-			if (hasAction) {
-				onDidAction.fire({ notificationId: id, commandId });
-			}
 		},
 		getActiveNotification(filter?: (notification: IChatInputNotification) => boolean) {
 			if (deleted || dismissed || !lastNotification) {
@@ -153,37 +127,8 @@ function createMockNotificationService() {
 		getNotification(): IChatInputNotification | undefined { return deleted || dismissed ? undefined : lastNotification; },
 		get wasDeleted() { return deleted; },
 		get setCount() { return setCount; },
-		reset() { lastNotification = undefined; deleted = false; dismissed = false; shown = false; setCount = 0; },
+		reset() { lastNotification = undefined; deleted = false; dismissed = false; setCount = 0; },
 	};
-}
-
-// --- Mock ITelemetryService -------------------------------------------------
-
-interface ILoggedTelemetryData {
-	readonly notificationType?: string;
-	readonly limitType?: string;
-	readonly entitlement?: string;
-	readonly additionalUsageEnabled?: boolean;
-	readonly hasActions?: boolean;
-	readonly percentUsed?: number;
-	readonly commandId?: string;
-}
-
-interface ILoggedTelemetryEvent {
-	readonly eventName: string;
-	readonly data: ILoggedTelemetryData | undefined;
-}
-
-function createMockTelemetryService() {
-	const events: ILoggedTelemetryEvent[] = [];
-	const service = {
-		...NullTelemetryService,
-		publicLog2(eventName: string, data?: ILoggedTelemetryData): void {
-			events.push({ eventName, data });
-		},
-	} as ITelemetryService;
-
-	return { service, events };
 }
 
 // --- Helpers ---------------------------------------------------------------
@@ -214,7 +159,6 @@ suite('ChatQuotaNotificationContribution', () => {
 	function createContribution(entitlementOpts?: Parameters<typeof createMockEntitlementService>[0], modelOpts?: { vendor?: string }) {
 		const entitlementMock = createMockEntitlementService(entitlementOpts);
 		const notificationMock = createMockNotificationService();
-		const telemetryMock = createMockTelemetryService();
 		const contextKeyService = store.add(new MockContextKeyService());
 		const storageService = store.add(new InMemoryStorageService());
 		const vendor = modelOpts?.vendor ?? 'copilot';
@@ -242,10 +186,9 @@ suite('ChatQuotaNotificationContribution', () => {
 			contextKeyService as IContextKeyService,
 			languageModelsService,
 			storageService,
-			telemetryMock.service,
 		));
 
-		return { contribution, entitlementMock, notificationMock, storageService, telemetryMock };
+		return { contribution, entitlementMock, notificationMock, storageService };
 	}
 
 	function updateQuotas(
@@ -260,132 +203,6 @@ suite('ChatQuotaNotificationContribution', () => {
 		svc.quotas = { ...svc.quotas, ...quotas };
 		entitlementMock.onDidChangeQuotaRemaining.fire();
 	}
-
-	// --- Telemetry -----------------------------------------------------------
-
-	suite('telemetry', () => {
-		test('logs shown telemetry when quota notification is rendered', () => {
-			const { notificationMock, telemetryMock } = createContribution({
-				quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0) },
-			});
-
-			assert.deepStrictEqual(telemetryMock.events, []);
-
-			notificationMock.service.showNotification('copilot.quotaStatus');
-
-			assert.deepStrictEqual(telemetryMock.events, [{
-				eventName: 'chat.quotaNotificationShown',
-				data: {
-					notificationType: 'quotaExhausted',
-					limitType: 'quota',
-					entitlement: 'Pro',
-					additionalUsageEnabled: false,
-					hasActions: true,
-					percentUsed: 100,
-				},
-			}]);
-		});
-
-		test('does not duplicate shown telemetry while the same notification remains active', () => {
-			const { entitlementMock, notificationMock, telemetryMock } = createContribution({
-				quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0) },
-			});
-
-			notificationMock.service.showNotification('copilot.quotaStatus');
-			updateQuotas(entitlementMock, { premiumChat: makeQuotaSnapshot(0) });
-			notificationMock.service.showNotification('copilot.quotaStatus');
-
-			assert.deepStrictEqual(telemetryMock.events, [{
-				eventName: 'chat.quotaNotificationShown',
-				data: {
-					notificationType: 'quotaExhausted',
-					limitType: 'quota',
-					entitlement: 'Pro',
-					additionalUsageEnabled: false,
-					hasActions: true,
-					percentUsed: 100,
-				},
-			}]);
-		});
-
-		test('logs dismissed telemetry when quota notification is dismissed', () => {
-			const { notificationMock, telemetryMock } = createContribution({
-				quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0) },
-			});
-
-			notificationMock.service.showNotification('copilot.quotaStatus');
-			notificationMock.service.dismissNotification('copilot.quotaStatus');
-
-			const expectedData = {
-				notificationType: 'quotaExhausted',
-				limitType: 'quota',
-				entitlement: 'Pro',
-				additionalUsageEnabled: false,
-				hasActions: true,
-				percentUsed: 100,
-			};
-			assert.deepStrictEqual(telemetryMock.events, [
-				{ eventName: 'chat.quotaNotificationShown', data: expectedData },
-				{ eventName: 'chat.quotaNotificationDismissed', data: expectedData },
-			]);
-		});
-
-		test('logs action telemetry when quota notification action is invoked', () => {
-			const { notificationMock, telemetryMock } = createContribution({
-				quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0) },
-			});
-
-			notificationMock.service.showNotification('copilot.quotaStatus');
-			notificationMock.service.actionNotification('copilot.quotaStatus', 'workbench.action.chat.manageAdditionalSpend');
-
-			assert.deepStrictEqual(telemetryMock.events, [
-				{
-					eventName: 'chat.quotaNotificationShown',
-					data: {
-						notificationType: 'quotaExhausted',
-						limitType: 'quota',
-						entitlement: 'Pro',
-						additionalUsageEnabled: false,
-						hasActions: true,
-						percentUsed: 100,
-					},
-				},
-				{
-					eventName: 'chat.quotaNotificationActionInvoked',
-					data: {
-						notificationType: 'quotaExhausted',
-						limitType: 'quota',
-						entitlement: 'Pro',
-						additionalUsageEnabled: false,
-						hasActions: true,
-						percentUsed: 100,
-						commandId: 'workbench.action.chat.manageAdditionalSpend',
-					},
-				},
-			]);
-		});
-
-		test('logs approaching notification details', () => {
-			const { entitlementMock, notificationMock, telemetryMock } = createContribution({
-				quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(60) },
-			});
-
-			updateQuotas(entitlementMock, { premiumChat: makeQuotaSnapshot(50) });
-			notificationMock.service.showNotification('copilot.quotaStatus');
-
-			assert.deepStrictEqual(telemetryMock.events, [{
-				eventName: 'chat.quotaNotificationShown',
-				data: {
-					notificationType: 'quotaApproaching',
-					limitType: 'quota',
-					entitlement: 'Pro',
-					additionalUsageEnabled: false,
-					hasActions: true,
-					percentUsed: 50,
-				},
-			}]);
-		});
-	});
 
 	// --- Quota exhausted ---------------------------------------------------
 
@@ -807,7 +624,6 @@ suite('ChatQuotaNotificationContribution', () => {
 				quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0) },
 			});
 			const notificationMock = createMockNotificationService();
-			const telemetryMock = createMockTelemetryService();
 			const contextKeyService = store.add(new MockContextKeyService());
 			const storageService = store.add(new InMemoryStorageService());
 			// Start with BYOK model
@@ -833,7 +649,6 @@ suite('ChatQuotaNotificationContribution', () => {
 				contextKeyService as IContextKeyService,
 				languageModelsService,
 				storageService,
-				telemetryMock.service,
 			));
 
 			// Initially deferred — BYOK model
