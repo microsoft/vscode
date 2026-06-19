@@ -329,7 +329,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// Voice bar — hidden by default, voice is activated via mic button in toolbar.
 		// The widget is still created for PTT keybinding support and session binding.
-		this._voiceBarContainer = $('.voice-agent-bar');
+		this._voiceBarContainer = $('.voice-agent-bar-host');
 		this._voiceBarContainer.style.display = 'none';
 		this._updateVoiceBar(this._voiceBarContainer);
 

@@ -4446,15 +4446,16 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 /* Voice mode: color the mic icon blue when listening, purple when speaking */
+/* Voice mode: color the mic icon when listening/speaking */
 .chat-input-container.voice-active.voice-listening .chat-input-toolbars .action-label.codicon-mic-filled {
-	color: #58a6ff !important;
+	color: var(--vscode-charts-blue, #58a6ff);
 }
 
 .chat-input-container.voice-active:not(.voice-listening) .chat-input-toolbars .action-label.codicon-mic-filled {
-	color: #a371f7 !important;
+	color: var(--vscode-charts-purple, #a371f7);
 }
 
 /* Voice mode: green disconnect button */
 .chat-input-container .chat-input-toolbars .codicon-debug-disconnect {
-	color: #3fb950 !important;
+	color: var(--vscode-charts-green, #3fb950);
 }
