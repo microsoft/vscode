@@ -39,6 +39,10 @@ export type ChatQuotaResumeState = 'none' | 'blocked' | 'resumed';
 
 type ChatQuotas = IChatEntitlementService['quotas'];
 
+function isTrackedEntitlement(entitlement: ChatEntitlement): boolean {
+	return entitlement === ChatEntitlement.Free || entitlement === ChatEntitlement.Business || entitlement === ChatEntitlement.Enterprise;
+}
+
 function isQuotaBlocked(entitlement: ChatEntitlement, quotas: ChatQuotas): boolean {
 	if (entitlement === ChatEntitlement.Free) {
 		return quotas.chat?.percentRemaining === 0 || quotas.completions?.percentRemaining === 0;
@@ -70,8 +74,13 @@ function hasResolvedQuota(entitlement: ChatEntitlement, quotas: ChatQuotas): boo
  * - Moves `blocked` -> `none` when unblocked via additional spend (not a reset).
  * - Keeps `blocked` while fresh quota has not been resolved yet (e.g. offline) to avoid false positives.
  * - Otherwise preserves the previous state, so `resumed` persists until dismissed.
+ * - Resets to `none` for entitlements this entry doesn't track, so the state can't get stuck (e.g. upgrading from Free while `blocked`).
  */
 export function computeQuotaResumeState(previous: ChatQuotaResumeState, entitlement: ChatEntitlement, quotas: ChatQuotas): ChatQuotaResumeState {
+	if (!isTrackedEntitlement(entitlement)) {
+		return 'none';
+	}
+
 	const additionalSpend = quotas.additionalUsageEnabled === true;
 
 	if (!additionalSpend && isQuotaBlocked(entitlement, quotas)) {

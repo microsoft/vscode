@@ -67,6 +67,8 @@ suite('ChatStatusBarEntry - computeQuotaResumeState', () => {
 
 		// Untracked audience (paid individual): not blocked here
 		{ name: 'pro exhausted not tracked stays none', previous: 'none', entitlement: ChatEntitlement.Pro, quotas: { premiumChat: exhausted }, expected: 'none' },
+		{ name: 'upgrade from free to pro while blocked clears to none', previous: 'blocked', entitlement: ChatEntitlement.Pro, quotas: {}, expected: 'none' },
+		{ name: 'resumed on untracked plan clears to none', previous: 'resumed', entitlement: ChatEntitlement.Pro, quotas: {}, expected: 'none' },
 	];
 
 	test('state transitions', () => {
