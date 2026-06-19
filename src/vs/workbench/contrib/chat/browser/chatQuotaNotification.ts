@@ -118,19 +118,21 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		const entitlement = this._chatEntitlementService.entitlement;
 		const isCopilot = this._isCopilotModelSelected();
 
+		// Once quota recovers (credit is positively available again) drop any
+		// persisted dismissal so the quota-exceeded notification can show the next
+		// time quota runs out. Done before the Copilot/BYOK gate so a recovery is
+		// always observed, even while a BYOK model is selected. Guarded on a
+		// present snapshot so the transient "no quota data yet" state at
+		// startup/reload does not wipe the flag.
+		if (this._isQuotaKnownAvailable()) {
+			this._clearExhaustedDismissed();
+		}
+
 		// Defer new notifications when a BYOK model is selected or the model
 		// selection hasn't loaded yet — quota only applies to Copilot models.
 		// Already-shown notifications stay visible.
 		if (!isCopilot) {
 			return;
-		}
-
-		// Once quota recovers (credit is positively available again) drop any
-		// persisted dismissal so the quota-exceeded notification can show the next
-		// time quota runs out. Guarded on a present snapshot so the transient
-		// "no quota data yet" state at startup/reload does not wipe the flag.
-		if (this._isQuotaKnownAvailable()) {
-			this._clearExhaustedDismissed();
 		}
 
 		// Skip quota notifications for PRU users — only show for UBB.

@@ -275,6 +275,7 @@ suite('ChatQuotaNotificationContribution', () => {
 			const notification = first.notificationMock.getNotification();
 			assert.ok(notification);
 			first.notificationMock.dismiss(notification!.id);
+			first.contribution.dispose();
 
 			// Reload: new contribution with the same (persisted) storage and still-exhausted quota.
 			const second = createContribution(
@@ -298,6 +299,7 @@ suite('ChatQuotaNotificationContribution', () => {
 
 			// Quota recovers — persisted dismissal is cleared.
 			updateQuotas(first.entitlementMock, { premiumChat: makeQuotaSnapshot(50) });
+			first.contribution.dispose();
 
 			// Reload while exhausted again — notification shows because the flag was cleared.
 			const second = createContribution(
@@ -319,6 +321,7 @@ suite('ChatQuotaNotificationContribution', () => {
 				storageService,
 			);
 			first.notificationMock.dismiss(first.notificationMock.getNotification()!.id);
+			first.contribution.dispose();
 
 			// Reload: quota snapshots have not been fetched yet (no relevant snapshot),
 			// so the dismissal must NOT be cleared by the transient "no data" state.
@@ -332,6 +335,85 @@ suite('ChatQuotaNotificationContribution', () => {
 			// Quota data arrives showing it is still exhausted — banner stays suppressed.
 			updateQuotas(second.entitlementMock, { premiumChat: makeQuotaSnapshot(0) });
 			assert.strictEqual(second.notificationMock.getNotification(), undefined);
+		});
+
+		test('does not re-show managed-plan-blocked notification after reload when previously dismissed', () => {
+			const storageService = store.add(new InMemoryStorageService());
+
+			// Managed plan with org budget exceeded (hasQuota=false): blocked notification shown, then dismissed.
+			const first = createContribution(
+				{ entitlement: ChatEntitlement.Business, quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0, { unlimited: true, hasQuota: false }) } },
+				undefined,
+				storageService,
+			);
+			assert.strictEqual(first.notificationMock.getNotification()!.message, 'Usage Blocked');
+			first.notificationMock.dismiss(first.notificationMock.getNotification()!.id);
+			first.contribution.dispose();
+
+			// Reload while still blocked — notification stays suppressed.
+			const second = createContribution(
+				{ entitlement: ChatEntitlement.Business, quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0, { unlimited: true, hasQuota: false }) } },
+				undefined,
+				storageService,
+			);
+			assert.strictEqual(second.notificationMock.getNotification(), undefined);
+		});
+
+		test('re-shows managed-plan-blocked notification after budget recovers and is blocked again', () => {
+			const storageService = store.add(new InMemoryStorageService());
+
+			// Blocked and dismissed.
+			const first = createContribution(
+				{ entitlement: ChatEntitlement.Business, quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0, { unlimited: true, hasQuota: false }) } },
+				undefined,
+				storageService,
+			);
+			first.notificationMock.dismiss(first.notificationMock.getNotification()!.id);
+
+			// Budget recovers (hasQuota=true) — persisted dismissal is cleared.
+			updateQuotas(first.entitlementMock, { premiumChat: makeQuotaSnapshot(0, { unlimited: true, hasQuota: true }) });
+			first.contribution.dispose();
+
+			// Reload while blocked again — notification shows because the flag was cleared.
+			const second = createContribution(
+				{ entitlement: ChatEntitlement.Business, quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0, { unlimited: true, hasQuota: false }) } },
+				undefined,
+				storageService,
+			);
+			assert.strictEqual(second.notificationMock.getNotification()!.message, 'Usage Blocked');
+		});
+
+		test('clears dismissal when quota recovers while a BYOK model is selected', () => {
+			const storageService = store.add(new InMemoryStorageService());
+
+			// Copilot model, exhausted: notification shown and dismissed.
+			const first = createContribution(
+				{ quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0) } },
+				undefined,
+				storageService,
+			);
+			first.notificationMock.dismiss(first.notificationMock.getNotification()!.id);
+			first.contribution.dispose();
+
+			// Reload with a BYOK model selected and quota recovered. The dismissal must be
+			// cleared even though notifications are deferred while a BYOK model is selected.
+			const second = createContribution(
+				{ quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(50) } },
+				{ vendor: 'customendpoint' },
+				storageService,
+			);
+			assert.strictEqual(second.notificationMock.getNotification(), undefined);
+			second.contribution.dispose();
+
+			// Reload on Copilot while exhausted again — notification shows because the flag
+			// was cleared during quota recovery even though BYOK was selected at the time.
+			const third = createContribution(
+				{ quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0) } },
+				undefined,
+				storageService,
+			);
+			assert.ok(third.notificationMock.getNotification());
+			assert.strictEqual(third.notificationMock.getNotification()!.message, 'Credit Limit Reached');
 		});
 	});
 
