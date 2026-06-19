@@ -742,8 +742,8 @@ export class PluginListWidget extends Disposable {
 
 		const createPluginLabel = localize('createPlugin', "Create Plugin");
 		this.createPluginButton = this._register(new Button(this.buttonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: createPluginLabel, ariaLabel: createPluginLabel }));
-		this.createPluginButton.element.classList.add('list-icon-button');
-		this.createPluginButton.label = `$(${Codicon.newFile.id})`;
+		this.createPluginButton.element.classList.add('list-add-button');
+		this.createPluginButton.label = `$(${Codicon.newFile.id}) ${createPluginLabel}`;
 		this._register(this.createPluginButton.onDidClick(() => this.runCreatePluginAction()));
 
 		// Empty state
@@ -983,6 +983,7 @@ export class PluginListWidget extends Disposable {
 		}
 
 		this.backButtonContainer.style.display = this.browseMode ? '' : 'none';
+		this.backButtonContainer.style.display = 'none';
 		this.browseButton.element.parentElement!.style.display = 'none';
 		this.browseButton.label = `$(${Codicon.library.id}) ${localize('browseMarketplace', "Browse Marketplace")}`;
 		this.browseButton.enabled = browseMarketplaceAvailable;
@@ -993,6 +994,7 @@ export class PluginListWidget extends Disposable {
 		this.browseButton.element.setAttribute('aria-label', browseTitle);
 
 		this.updateAddButton();
+		this.createPluginButton.element.style.display = this.browseMode ? 'none' : '';
 		this.createPluginButton.enabled = true;
 	}
 
@@ -1152,7 +1154,13 @@ export class PluginListWidget extends Disposable {
 				this.appendInstalledPluginCard(installedGrid, item);
 			}
 		} else {
-			this.appendPluginHomeEmptyState(content);
+			const installedGrid = this.renderCardSection(
+				content,
+				localize('installedPluginsSection', "Installed"),
+				localize('installedPluginsSectionDescription', "Plugins available in this client and ready to extend your agent."),
+				'installed-plugins-section'
+			);
+			this.appendPluginHomeEmptyState(installedGrid);
 		}
 
 		const installedNames = new Set(this.installedItems.map(item => item.name.toLowerCase()));
@@ -1177,8 +1185,6 @@ export class PluginListWidget extends Disposable {
 
 	private appendPluginHomeEmptyState(parent: HTMLElement): void {
 		const empty = DOM.append(parent, $('.plugin-home-empty-card'));
-		const icon = DOM.append(empty, $('.plugin-card-icon.plugin-card-icon-large'));
-		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.plug));
 		const title = DOM.append(empty, $('h3.plugin-home-empty-title'));
 		title.textContent = localize('pluginHomeEmptyTitle', "No plugins installed yet");
 		const description = DOM.append(empty, $('.plugin-home-empty-description'));
@@ -1190,6 +1196,7 @@ export class PluginListWidget extends Disposable {
 		this.rememberCardFocusElement(browse.element);
 		this.cardDisposables.add(browse.onDidClick(() => this.showBrowseMarketplace()));
 		const add = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, supportIcons: true, ariaLabel: localize('installFromSource', "Install Plugin from Source") }));
+		add.element.classList.add('plugin-install-from-source-button');
 		add.label = `$(${Codicon.add.id}) ${localize('installFromSource', "Install Plugin from Source")}`;
 		this.cardDisposables.add(add.onDidClick(() => this.runInstallFromSourceAction()));
 	}
@@ -1315,11 +1322,11 @@ export class PluginListWidget extends Disposable {
 		const description = DOM.append(text, $('.plugin-card-section-description'));
 		description.textContent = localize('discoverMorePluginsDescription', "A curated snapshot from configured marketplaces.");
 		const installFromSource = this.cardDisposables.add(new Button(header, { ...defaultButtonStyles, secondary: true, supportIcons: true, ariaLabel: localize('installFromSource', "Install Plugin from Source") }));
-		installFromSource.element.classList.add('plugin-card-ghost-button');
+		installFromSource.element.classList.add('plugin-card-ghost-button', 'plugin-install-from-source-button');
 		installFromSource.label = `$(${Codicon.add.id}) ${localize('installFromSource', "Install Plugin from Source")}`;
 		this.cardDisposables.add(installFromSource.onDidClick(() => this.runInstallFromSourceAction()));
 		const action = this.cardDisposables.add(new Button(header, { ...defaultButtonStyles, secondary: true, supportIcons: true, ariaLabel: localize('browseAllPlugins', "Browse All Plugins") }));
-		action.element.classList.add('plugin-card-ghost-button');
+		action.element.classList.add('plugin-browse-all-button');
 		action.label = `$(${Codicon.library.id}) ${localize('browseAllPlugins', "Browse All Plugins")}`;
 		this.cardDisposables.add(action.onDidClick(() => this.showBrowseMarketplace()));
 		const grid = DOM.append(section, $('.plugin-card-grid'));
@@ -1342,6 +1349,12 @@ export class PluginListWidget extends Disposable {
 
 		this.showCardSurface();
 		const content = DOM.append(this.cardContainer, $('.plugin-card-scroll'));
+		const header = DOM.append(content, $('.plugin-marketplace-page-header'));
+		const back = this.cardDisposables.add(new Button(header, { ...defaultButtonStyles, secondary: true, supportIcons: true, ariaLabel: localize('backToInstalledPlugins', "Back to Installed") }));
+		back.element.classList.add('plugin-card-ghost-button');
+		back.label = `$(${Codicon.arrowLeft.id}) ${localize('backToInstalledPlugins', "Back to Installed")}`;
+		this.rememberCardFocusElement(back.element);
+		this.cardDisposables.add(back.onDidClick(() => this.toggleBrowseMode(false)));
 		const recommendedKeys = this.pluginMarketplaceService.recommendedPlugins.get();
 		const recommended = marketplaceItems.filter(item => recommendedKeys.has(getMarketplaceRecommendationKey(item)));
 		const allPlugins = marketplaceItems.filter(item => !recommendedKeys.has(getMarketplaceRecommendationKey(item)));
@@ -1433,6 +1446,7 @@ export class PluginListWidget extends Disposable {
 
 	private toggleBrowseMode(browse: boolean): void {
 		this.browseMode = browse;
+		this.element.classList.toggle('browse-mode', browse);
 		this.searchInput.value = '';
 		this.searchQuery = '';
 

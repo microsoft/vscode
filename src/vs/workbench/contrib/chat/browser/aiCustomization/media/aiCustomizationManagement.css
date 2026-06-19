@@ -261,9 +261,20 @@
 .mcp-list-widget .list-search-and-button-container {
 	display: flex;
 	align-items: center;
-	gap: 8px;
 	flex-shrink: 0;
 	padding: 16px 0;
+}
+
+.ai-customization-list-widget .list-search-and-button-container {
+	gap: var(--vscode-spacing-size80);
+}
+
+.mcp-list-widget .list-search-and-button-container {
+	gap: var(--vscode-spacing-size40);
+}
+
+.plugin-list-widget.browse-mode .list-search-and-button-container {
+	gap: var(--vscode-spacing-sizeNone);
 }
 
 .ai-customization-list-widget .list-search-container,
@@ -895,6 +906,7 @@
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-status-badge {
 	flex-shrink: 0;
+	margin-top: 1px;
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-title-actions .embedded-detail-disable-button.monaco-button {
@@ -903,12 +915,12 @@
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-title-actions .embedded-detail-uninstall-button.monaco-button {
 	color: var(--vscode-errorForeground);
-	border-color: color-mix(in srgb, var(--vscode-errorForeground) 35%, transparent);
-	background: transparent;
+	border-color: transparent !important;
+	background: transparent !important;
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-title-actions .embedded-detail-uninstall-button.monaco-button:hover {
-	background: color-mix(in srgb, var(--vscode-errorForeground) 12%, transparent);
+	background: color-mix(in srgb, var(--vscode-errorForeground) 12%, transparent) !important;
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-name {
@@ -1057,16 +1069,19 @@
 	flex-direction: column;
 	gap: var(--vscode-spacing-size60);
 	min-width: 0;
-	padding: var(--vscode-spacing-size100) var(--vscode-spacing-size120);
-	border: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
-	border-radius: var(--vscode-cornerRadius-medium);
-	background: var(--vscode-editor-background);
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-contribution-group-title {
+	display: flex;
+	align-items: baseline;
+	gap: var(--vscode-spacing-size60);
 	font-size: var(--vscode-agents-fontSize-label1);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-weight: var(--vscode-agents-fontWeight-regular);
 	color: var(--vscode-foreground);
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-contribution-title-count {
+	color: var(--vscode-descriptionForeground);
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-contribution-list {
@@ -1538,6 +1553,12 @@
 	margin-bottom: var(--vscode-spacing-size240);
 }
 
+.plugin-list-widget .plugin-marketplace-page-header {
+	display: flex;
+	align-items: center;
+	margin-bottom: var(--vscode-spacing-size120);
+}
+
 .plugin-list-widget .plugin-discovery-section {
 	margin-bottom: 0;
 }
@@ -1594,7 +1615,7 @@
 
 .plugin-list-widget .plugin-marketplace-card {
 	gap: var(--vscode-spacing-sizeNone);
-	min-height: 80px;
+	min-height: 55px;
 }
 
 .plugin-list-widget .plugin-installed-card {
@@ -1712,15 +1733,18 @@
 }
 
 .plugin-list-widget .plugin-card-actions .plugin-card-ghost-button.monaco-button,
-.plugin-list-widget .plugin-card-section-header .plugin-card-ghost-button.monaco-button {
+.plugin-list-widget .plugin-card-section-header .plugin-card-ghost-button.monaco-button,
+.plugin-list-widget .plugin-marketplace-page-header .plugin-card-ghost-button.monaco-button {
 	background: transparent !important;
 	color: var(--vscode-foreground) !important;
 	border-color: transparent !important;
 	width: auto !important;
+	flex: 0 0 auto;
 }
 
 .plugin-list-widget .plugin-card-actions .plugin-card-ghost-button.monaco-button:hover,
-.plugin-list-widget .plugin-card-section-header .plugin-card-ghost-button.monaco-button:hover {
+.plugin-list-widget .plugin-card-section-header .plugin-card-ghost-button.monaco-button:hover,
+.plugin-list-widget .plugin-marketplace-page-header .plugin-card-ghost-button.monaco-button:hover {
 	background: var(--vscode-toolbar-hoverBackground) !important;
 	color: var(--vscode-foreground) !important;
 }
@@ -1728,18 +1752,20 @@
 .plugin-list-widget .plugin-home-empty-card {
 	display: flex;
 	flex-direction: column;
-	align-items: flex-start;
-	gap: var(--vscode-spacing-size100);
-	padding: var(--vscode-spacing-size200);
-	margin-bottom: var(--vscode-spacing-size240);
-	border: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
-	border-radius: var(--vscode-cornerRadius-large);
-	background: var(--vscode-editor-background);
+	grid-column: 1 / -1;
+	align-items: center;
+	justify-content: center;
+	gap: var(--vscode-spacing-size120);
+	min-height: 160px;
+	padding: var(--vscode-spacing-size360) var(--vscode-spacing-size160);
+	margin: var(--vscode-spacing-size40) 0 var(--vscode-spacing-size240);
+	text-align: center;
+	box-sizing: border-box;
 }
 
 .plugin-list-widget .plugin-home-empty-title {
 	margin: 0;
-	font-size: var(--vscode-agents-fontSize-heading3);
+	font-size: var(--vscode-agents-fontSize-heading2);
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 }
@@ -1749,6 +1775,20 @@
 	font-size: var(--vscode-agents-fontSize-body1);
 	line-height: 1.45;
 	color: var(--vscode-descriptionForeground);
+}
+
+.plugin-list-widget .plugin-home-empty-card .plugin-card-actions {
+	justify-content: center;
+	flex-wrap: wrap;
+}
+
+.plugin-list-widget .plugin-install-from-source-button .codicon-add::before {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.plugin-list-widget .plugin-browse-all-button.monaco-button {
+	width: fit-content;
+	flex: 0 0 auto;
 }
 
 .vscode-high-contrast .plugin-list-widget .plugin-card,

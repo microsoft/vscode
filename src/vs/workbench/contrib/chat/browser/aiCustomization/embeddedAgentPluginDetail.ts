@@ -209,6 +209,18 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			return;
 		}
 
+		if (item.plugin.remove) {
+			const uninstallAction = this.renderDisposables.add(new UninstallPluginAction(item.plugin));
+			const uninstallButton = this.renderDisposables.add(new Button(this.titleActionsEl, { ...defaultButtonStyles, secondary: true, supportIcons: true, ariaLabel: uninstallAction.label }));
+			uninstallButton.element.classList.add('embedded-detail-uninstall-button');
+			uninstallButton.label = uninstallAction.label;
+			uninstallButton.enabled = uninstallAction.enabled;
+			this.renderDisposables.add(uninstallButton.onDidClick(async () => {
+				await uninstallAction.run();
+				this._onDidUninstall.fire();
+			}));
+		}
+
 		const enablementAction = isPluginPolicyBlocked(item.plugin)
 			? createPolicyBlockedEnableAction(item.plugin, this.notificationService)
 			: isContributionEnabled(item.plugin.enablement.get())
@@ -223,18 +235,6 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			this.renderItem();
 		}));
 		this.renderDisposables.add(enablementAction);
-
-		if (item.plugin.remove) {
-			const uninstallAction = this.renderDisposables.add(new UninstallPluginAction(item.plugin));
-			const uninstallButton = this.renderDisposables.add(new Button(this.titleActionsEl, { ...defaultButtonStyles, secondary: true, supportIcons: true, ariaLabel: uninstallAction.label }));
-			uninstallButton.element.classList.add('embedded-detail-uninstall-button');
-			uninstallButton.label = uninstallAction.label;
-			uninstallButton.enabled = uninstallAction.enabled;
-			this.renderDisposables.add(uninstallButton.onDidClick(async () => {
-				await uninstallAction.run();
-				this._onDidUninstall.fire();
-			}));
-		}
 	}
 
 	private getInstalledPluginForMarketplaceItem(item: Extract<IAgentPluginItem, { kind: AgentPluginItemKind.Marketplace }>): IAgentPluginItem | undefined {
@@ -344,7 +344,10 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		for (const entry of entries) {
 			const section = DOM.append(this.contributionsListEl, $('.plugin-detail-contribution-section'));
 			const header = DOM.append(section, $('.plugin-detail-contribution-group-title'));
-			header.textContent = entry.label;
+			const label = DOM.append(header, $('span.plugin-detail-contribution-title-label'));
+			label.textContent = entry.label;
+			const count = DOM.append(header, $('span.plugin-detail-contribution-title-count'));
+			count.textContent = String(entry.items.length);
 			const group = DOM.append(section, $('.plugin-detail-contribution-group'));
 			const list = DOM.append(group, $('.plugin-detail-contribution-list'));
 			for (const contribution of entry.items) {
@@ -389,12 +392,12 @@ interface IPluginContributionEntry {
 function getInstalledPluginContributionEntries(item: Extract<IAgentPluginItem, { kind: AgentPluginItemKind.Installed }>): IPluginContributionEntry[] {
 	const plugin = item.plugin;
 	const entries: IPluginContributionEntry[] = [];
-	appendContributionEntry(entries, 'agents', localize('pluginDetailAgents', "Agents {0}", plugin.agents.get().length), plugin.agents.get());
-	appendContributionEntry(entries, 'skills', localize('pluginDetailSkills', "Skills {0}", plugin.skills.get().length), plugin.skills.get());
-	appendContributionEntry(entries, 'commands', localize('pluginDetailCommands', "Commands {0}", plugin.commands.get().length), plugin.commands.get());
-	appendContributionEntry(entries, 'instructions', localize('pluginDetailInstructions', "Instructions {0}", plugin.instructions.get().length), plugin.instructions.get());
-	appendContributionEntry(entries, 'mcp', localize('pluginDetailMcpServers', "MCP Servers {0}", plugin.mcpServerDefinitions.get().length), plugin.mcpServerDefinitions.get().map(server => ({ name: server.name })));
-	appendContributionEntry(entries, 'hooks', localize('pluginDetailHooks', "Hooks {0}", plugin.hooks.get().length), plugin.hooks.get().map(hook => ({ name: hook.originalId, description: localize('pluginDetailHookCommands', "{0} commands", hook.hooks.length) })));
+	appendContributionEntry(entries, 'agents', localize('pluginDetailAgents', "Agents"), plugin.agents.get());
+	appendContributionEntry(entries, 'skills', localize('pluginDetailSkills', "Skills"), plugin.skills.get());
+	appendContributionEntry(entries, 'commands', localize('pluginDetailCommands', "Commands"), plugin.commands.get());
+	appendContributionEntry(entries, 'instructions', localize('pluginDetailInstructions', "Instructions"), plugin.instructions.get());
+	appendContributionEntry(entries, 'mcp', localize('pluginDetailMcpServers', "MCP Servers"), plugin.mcpServerDefinitions.get().map(server => ({ name: server.name })));
+	appendContributionEntry(entries, 'hooks', localize('pluginDetailHooks', "Hooks"), plugin.hooks.get().map(hook => ({ name: hook.originalId, description: localize('pluginDetailHookCommands', "{0} commands", hook.hooks.length) })));
 	return entries;
 }
 
