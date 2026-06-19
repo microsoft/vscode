@@ -53,6 +53,7 @@ import { changesetFileToChange, mapProtocolStatus } from './agentHostDiffs.js';
 import { createChangesets } from './agentHostSessionChangesets.js';
 
 const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.sessionConfigPicker.selectedValues';
+const TRACE_PREFIX = '[PR-ICON-TRACE]';
 const UNSAFE_SESSION_CONFIG_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
 function isSafeSessionConfigKey(property: string): boolean {
@@ -301,7 +302,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		resourceScheme: string,
 		logicalSessionType: string,
 		private readonly _options: IAgentHostAdapterOptions,
-		@ISessionsService private readonly _sessionsService: ISessionsService
+		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 		const rawId = AgentSession.id(metadata.session);
@@ -360,11 +362,13 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this.gitHubInfo = derived<IGitHubInfo | undefined>(this, reader => {
 			const coords = gitHubCoords.read(reader);
 			if (!coords) {
+				this._logService.trace(`${TRACE_PREFIX} [IconAdapter] Session ${this.sessionId} has no GitHub coords (missing owner/repo/branch in git state); no PR icon`);
 				return undefined;
 			}
 			const innerObs = pullRequestNumberObs.read(reader);
 			const prNumber = innerObs?.read(reader)?.value;
 			if (prNumber === undefined) {
+				this._logService.trace(`${TRACE_PREFIX} [IconAdapter] Session ${this.sessionId} coords ${coords.owner}/${coords.repo}@${coords.branch}: PR number not resolved yet; emitting gitHubInfo without pullRequest`);
 				return { owner: coords.owner, repo: coords.repo };
 			}
 			const uri = URI.parse(`https://github.com/${coords.owner}/${coords.repo}/pull/${prNumber}`);
@@ -383,7 +387,12 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 						hasUnresolvedComments = reviewThreadsRef.object.reviewThreads.read(reader).some(thread => !thread.isResolved);
 					}
 					icon = computePullRequestIcon(livePR.isDraft ? 'draft' : livePR.state, { hasFailingChecks, hasUnresolvedComments });
+					this._logService.trace(`${TRACE_PREFIX} [IconAdapter] Session ${this.sessionId} PR ${coords.owner}/${coords.repo}#${prNumber}: livePR present (state ${livePR.state}, isDraft ${livePR.isDraft}, headSha ${livePR.headSha}), hasFailingChecks ${hasFailingChecks}, hasUnresolvedComments ${hasUnresolvedComments} -> icon ${icon?.id ?? 'none'}`);
+				} else {
+					this._logService.trace(`${TRACE_PREFIX} [IconAdapter] Session ${this.sessionId} PR ${coords.owner}/${coords.repo}#${prNumber}: livePR not loaded yet; icon undefined (waiting for PR model refresh)`);
 				}
+			} else {
+				this._logService.trace(`${TRACE_PREFIX} [IconAdapter] Session ${this.sessionId} PR ${coords.owner}/${coords.repo}#${prNumber}: no GitHub service available; icon undefined`);
 			}
 			return {
 				owner: coords.owner,
