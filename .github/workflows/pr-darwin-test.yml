@@ -136,6 +136,7 @@ jobs:
           DEBUG: "*browser*"
 
       - name: Build integration tests
+        if: ${{ inputs.unit_and_integration_tests }}
         run: |
           set -e
           npm run gulp \
@@ -187,9 +188,9 @@ jobs:
         run: npm run compile
 
       - name: Diagnostics before smoke test run
+        if: ${{ inputs.smoke_tests && always() }}
         run: ps -ef
         continue-on-error: true
-        if: always()
 
       - name: 🧪 Run smoke tests (Electron)
         if: ${{ inputs.electron_tests && inputs.smoke_tests }}
@@ -207,9 +208,9 @@ jobs:
         run: npm run smoketest-no-compile -- --remote --tracing
 
       - name: Diagnostics after smoke test run
+        if: ${{ inputs.smoke_tests && always() }}
         run: ps -ef
         continue-on-error: true
-        if: always()
 
       - name: Publish Crash Reports
         uses: actions/upload-artifact@v7

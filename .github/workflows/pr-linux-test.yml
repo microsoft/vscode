@@ -290,6 +290,7 @@ jobs:
           DEBUG: "*browser*"
 
       - name: Build integration tests
+        if: ${{ inputs.unit_and_integration_tests }}
         run: |
           set -e
           npm run gulp \
@@ -310,9 +311,6 @@ jobs:
             compile-extension:vscode-colorize-tests \
             compile-extension:vscode-colorize-perf-tests \
             compile-extension:vscode-test-resolver
-
-      - name: Compile Copilot extension
-        run: npm --prefix extensions/copilot run compile
 
       - name: 🧪 Run integration tests (Electron)
         if: ${{ inputs.electron_tests && inputs.unit_and_integration_tests }}
@@ -365,7 +363,7 @@ jobs:
           cat /proc/sys/fs/inotify/max_user_watches
           lsof | wc -l
         continue-on-error: true
-        if: always()
+        if: ${{ inputs.smoke_tests && always() }}
 
       - name: 🧪 Run smoke tests (Electron)
         if: ${{ inputs.electron_tests && inputs.smoke_tests }}
@@ -387,13 +385,13 @@ jobs:
           DISPLAY: ":10"
 
       - name: Diagnostics after smoke test run (processes, max_user_watches, number of opened file handles)
+        if: ${{ inputs.smoke_tests && always() }}
         run: |
           set -e
           ps -ef
           cat /proc/sys/fs/inotify/max_user_watches
           lsof | wc -l
         continue-on-error: true
-        if: always()
 
       - name: Publish Crash Reports
         uses: actions/upload-artifact@v7
