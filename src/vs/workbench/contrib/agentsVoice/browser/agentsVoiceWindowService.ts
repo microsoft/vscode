@@ -342,16 +342,17 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 	// --- Bounds persistence ---
 
 	private _defaultBounds(): IRectangle {
-		// Position the aux window at the bottom-center of the main VS Code window.
-		// Use screen-relative coordinates: place it so its bottom edge is ~100px
-		// above the bottom of the main window.
-		const screenX = mainWindow.screenX ?? 0;
-		const screenY = mainWindow.screenY ?? 0;
-		const winWidth = mainWindow.outerWidth ?? 1920;
-		const winHeight = mainWindow.outerHeight ?? 1080;
+		// Position the aux window at the bottom-center of the screen the main
+		// window is on. This avoids issues with multi-window setups or incorrect
+		// outerWidth values.
+		const screen = mainWindow.screen;
+		const screenLeft = (screen as unknown as { availLeft?: number }).availLeft ?? 0;
+		const screenTop = (screen as unknown as { availTop?: number }).availTop ?? 0;
+		const screenWidth = screen?.availWidth ?? 1920;
+		const screenHeight = screen?.availHeight ?? 1080;
 
-		const x = Math.round(screenX + (winWidth - AGENTS_VOICE_WINDOW_DEFAULT_WIDTH) / 2);
-		const y = screenY + winHeight - AGENTS_VOICE_WINDOW_DEFAULT_HEIGHT - 100;
+		const x = Math.round(screenLeft + (screenWidth - AGENTS_VOICE_WINDOW_DEFAULT_WIDTH) / 2);
+		const y = screenTop + screenHeight - AGENTS_VOICE_WINDOW_DEFAULT_HEIGHT - 100;
 		return {
 			x,
 			y,

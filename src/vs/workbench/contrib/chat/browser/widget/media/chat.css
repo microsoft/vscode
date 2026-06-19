@@ -4393,3 +4393,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-input-container.voice-active:not(.voice-listening) .chat-input-toolbars .action-label.codicon-mic-filled {
 	color: #a371f7 !important;
 }
+
+/* Voice mode: green disconnect button */
+.chat-input-container .chat-input-toolbars .action-label.codicon-debug-disconnect {
+	color: #3fb950 !important;
+}
