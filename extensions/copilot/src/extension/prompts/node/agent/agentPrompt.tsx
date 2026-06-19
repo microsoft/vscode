@@ -259,7 +259,7 @@ export class AgentPrompt extends PromptElement<AgentPromptProps> {
 		if (!firstTurn) {
 			return undefined;
 		}
-		const variable = this.props.promptContext.chatVariables.find(isCustomizationsIndex);
+		const variable = this.props.promptContext.chatVariables.find(v => isCustomizationsIndex(v.reference));
 		const currentValue = variable && typeof variable.value === 'string' ? variable.value : undefined;
 		const currentToolReferences = variable?.reference.toolReferences;
 
@@ -597,7 +597,9 @@ class CurrentDatePrompt extends PromptElement<BasePromptElementProps> {
 	}
 
 	async render(state: void, sizing: PromptSizing) {
-		const dateStr = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+		// Use the local date in ISO 8601 format (no localized words) so the prompt is not affected by the user's system language (issue #309008)
+		const now = new Date();
+		const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 		// Only include current date when not running simulations, since if we generate cache entries with the current date, the cache will be invalidated every day
 		return (
 			!this.envService.isSimulation() && <>The current date is {dateStr}.</>
@@ -680,7 +682,7 @@ class SkillAdherenceReminder extends PromptElement<SkillAdherenceReminderProps> 
 
 	async render() {
 		// Check if any skills are available from the instruction index
-		const indexVariable = this.props.chatVariables.find(isCustomizationsIndex);
+		const indexVariable = this.props.chatVariables.find(p => isCustomizationsIndex(p.reference));
 		if (!indexVariable || !isString(indexVariable.value)) {
 			return undefined;
 		}

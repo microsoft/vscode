@@ -35,12 +35,12 @@ suite('HasByokModelsContribution', () => {
 			readonly nonCopilotUserSelectable?: boolean;
 		};
 		readonly configuration?: {
-			readonly offlineByok?: boolean;
 			readonly aiDisabled?: boolean;
 		};
 		readonly storage?: {
 			readonly lastKnown?: boolean;
 		};
+		readonly deferConfigReady?: boolean;
 	}
 
 	class FakeLanguageModelsConfigurationService {
@@ -49,6 +49,19 @@ suite('HasByokModelsContribution', () => {
 		private readonly _onDidChangeLanguageModelGroups = new Emitter<readonly ILanguageModelsProviderGroup[]>();
 		readonly onDidChangeLanguageModelGroups = this._onDidChangeLanguageModelGroups.event;
 		private _groups: readonly FakeProviderGroup[] = [];
+		private _resolveReady!: () => void;
+		readonly whenReady: Promise<void>;
+
+		constructor(defer: boolean) {
+			this.whenReady = new Promise<void>(resolve => { this._resolveReady = resolve; });
+			if (!defer) {
+				this._resolveReady();
+			}
+		}
+
+		resolveReady(): void {
+			this._resolveReady();
+		}
 
 		setGroups(groups: readonly FakeProviderGroup[]): void {
 			this._groups = groups;
@@ -79,7 +92,6 @@ suite('HasByokModelsContribution', () => {
 
 	function createScenario(store: DisposableStore, options: IScenarioOptions = {}): IScenario {
 		const configurationService = new TestConfigurationService();
-		configurationService.setUserConfiguration(ChatConfiguration.OfflineByok, options.configuration?.offlineByok ?? true);
 		configurationService.setUserConfiguration(ChatConfiguration.AIDisabled, options.configuration?.aiDisabled ?? false);
 
 		const contextKeyService = store.add(new ContextKeyService(configurationService));
@@ -94,7 +106,7 @@ suite('HasByokModelsContribution', () => {
 			storage.store('chat.hasByokModels.lastKnown', options.storage.lastKnown, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		}
 
-		const configService = new FakeLanguageModelsConfigurationService();
+		const configService = new FakeLanguageModelsConfigurationService(options.deferConfigReady ?? false);
 		store.add({ dispose: () => configService.dispose() });
 		if (options.groups) {
 			(configService as unknown as { _groups: readonly FakeProviderGroup[] })._groups = options.groups;
@@ -151,18 +163,6 @@ suite('HasByokModelsContribution', () => {
 		assert.deepStrictEqual(snapshot(scenario, true), { hasByokModels: false, persistedLastKnown: false });
 	});
 
-	test('feature disabled (offlineByok=false) → result is false', async () => {
-		const store = disposables.add(new DisposableStore());
-		const scenario = createScenario(store, {
-			groups: [{ vendor: 'ollama', name: 'Ollama' }],
-			configuration: { offlineByok: false },
-			storage: { lastKnown: true },
-		});
-		await flush();
-
-		assert.deepStrictEqual(snapshot(scenario, true), { hasByokModels: false, persistedLastKnown: false });
-	});
-
 	test('signal already on → result true and persisted', async () => {
 		const store = disposables.add(new DisposableStore());
 		const scenario = createScenario(store, {
@@ -208,18 +208,38 @@ suite('HasByokModelsContribution', () => {
 		assert.deepStrictEqual(snapshot(scenario, true), { hasByokModels: false, persistedLastKnown: false });
 	});
 
-	test('signal flipping on later updates the persisted value', async () => {
+	test('configured BYOK group is sufficient — extensions registered, no signal → result true', async () => {
 		const store = disposables.add(new DisposableStore());
 		const scenario = createScenario(store, {
 			groups: [{ vendor: 'ollama', name: 'Ollama' }],
 		});
 		await flush();
+
+		assert.deepStrictEqual(snapshot(scenario), { hasByokModels: true, persistedLastKnown: true });
+	});
+
+	test('pre-registration: signal flipping on optimistically updates the persisted value', () => {
+		const store = disposables.add(new DisposableStore());
+		const scenario = createScenario(store, {});
+		// No flush — extensions are not yet registered.
 		assert.deepStrictEqual(snapshot(scenario), { hasByokModels: false, persistedLastKnown: false });
 
 		scenario.nonCopilotUserSelectable.set(true);
-		await flush();
 
 		assert.deepStrictEqual(snapshot(scenario), { hasByokModels: true, persistedLastKnown: true });
+	});
+
+	test('stale signal is ignored once extensions register and no BYOK groups remain', async () => {
+		const store = disposables.add(new DisposableStore());
+		const scenario = createScenario(store, {
+			// The signal is on (e.g. the language-model cache still has a model whose underlying
+			// BYOK group was just removed) but no non-Copilot vendor group is configured anymore.
+			contextKeys: { nonCopilotUserSelectable: true },
+			storage: { lastKnown: true },
+		});
+		await flush();
+
+		assert.deepStrictEqual(snapshot(scenario, true), { hasByokModels: false, persistedLastKnown: false });
 	});
 
 	test('removing all BYOK groups at runtime → result false', async () => {
@@ -253,5 +273,42 @@ suite('HasByokModelsContribution', () => {
 		scenario.clientByokEnabled.set(true);
 		await flush();
 		assert.deepStrictEqual(snapshot(scenario), { hasByokModels: true, persistedLastKnown: true });
+	});
+
+	// Regression for #319121: during cold start, the language-models configuration file load is
+	// async. A previously-persisted `true` must survive until that load completes; otherwise
+	// BYOK-gated UI (e.g. the Copilot signed-out placeholder) flickers on every restart.
+	test('persisted true survives while config load is pending (#319121)', async () => {
+		const store = disposables.add(new DisposableStore());
+		const scenario = createScenario(store, {
+			storage: { lastKnown: true },
+			deferConfigReady: true,
+		});
+		await flush();
+
+		// Extensions have registered but configuration has not loaded yet — keep restored value.
+		assert.deepStrictEqual(snapshot(scenario, true), { hasByokModels: true, persistedLastKnown: true });
+
+		// Once the config loads and reports a BYOK group, the value stays true.
+		(scenario.configService as unknown as { _groups: readonly FakeProviderGroup[] })._groups = [{ vendor: 'ollama', name: 'Ollama' }];
+		scenario.configService.resolveReady();
+		await flush();
+
+		assert.deepStrictEqual(snapshot(scenario), { hasByokModels: true, persistedLastKnown: true });
+	});
+
+	test('persisted true cleared once config load completes with no BYOK groups', async () => {
+		const store = disposables.add(new DisposableStore());
+		const scenario = createScenario(store, {
+			storage: { lastKnown: true },
+			deferConfigReady: true,
+		});
+		await flush();
+		assert.strictEqual(scenario.hasByokModels.get(), true);
+
+		scenario.configService.resolveReady();
+		await flush();
+
+		assert.deepStrictEqual(snapshot(scenario, true), { hasByokModels: false, persistedLastKnown: false });
 	});
 });

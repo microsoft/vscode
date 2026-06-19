@@ -64,7 +64,10 @@ export interface RequestDetails {
 	 * recoverable from the persisted SDK event log).
 	 */
 	responseModelId?: string;
-
+	/**
+	 * Whether the request was made with Auto model.
+	 */
+	isUsingAutoModel?: boolean;
 	/**
 	 * Total credits consumed for this request turn. Persisted so that rebuilt history
 	 * can display credit usage alongside the model name.

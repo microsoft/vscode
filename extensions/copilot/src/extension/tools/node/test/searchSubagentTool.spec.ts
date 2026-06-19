@@ -5,13 +5,14 @@
 
 import type * as vscode from 'vscode';
 import { expect, suite, test } from 'vitest';
+import { ChatFetchResponseType } from '../../../../platform/chat/common/commonTypes';
 import { ConfigKey } from '../../../../platform/configuration/common/configurationService';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { toolCategories, ToolCategory, ToolName } from '../../common/toolNames';
 import { ToolRegistry } from '../../common/toolsRegistry';
 
 // Ensure side-effect registration
-import '../searchSubagentTool';
+import { CONTEXT_OVERFLOW_FALLBACK, mapLoopResponseToText } from '../searchSubagentTool';
 
 /**
  * Returns an invokeFunction stub that dequeues outcomes in call order.
@@ -271,5 +272,67 @@ suite('SearchSubagentTool', () => {
 
 			expect(result).toBe(`File: \`${uri.fsPath}\`, lines 1-2:\n\`\`\`\n${fileText}\n\`\`\``);
 		});
+	});
+});
+
+suite('mapLoopResponseToText', () => {
+	function makeRound(response: string) {
+		return { id: 'r', response, toolInputRetry: 0, toolCalls: [] };
+	}
+
+	test('success returns the last tool-call round response', () => {
+		const text = mapLoopResponseToText({
+			response: { type: ChatFetchResponseType.Success },
+			toolCallRounds: [makeRound('first'), makeRound('last')],
+			round: makeRound('final-round'),
+		} as any);
+		expect(text).toBe('last');
+	});
+
+	test('success falls back to round.response when toolCallRounds is empty', () => {
+		const text = mapLoopResponseToText({
+			response: { type: ChatFetchResponseType.Success },
+			toolCallRounds: [],
+			round: makeRound('final-round'),
+		} as any);
+		expect(text).toBe('final-round');
+	});
+
+	test('success returns empty string when no responses are available', () => {
+		const text = mapLoopResponseToText({
+			response: { type: ChatFetchResponseType.Success },
+			toolCallRounds: [],
+			round: makeRound(''),
+		} as any);
+		expect(text).toBe('');
+	});
+
+	test('context-overflow BadRequest is converted to the benign final_answer fallback', () => {
+		const overflowReasons = [
+			'context_length_exceeded',
+			'Request too large for model',
+			'prompt is too long for this model',
+			'maximum context length is 200000 tokens',
+		];
+
+		for (const reason of overflowReasons) {
+			const text = mapLoopResponseToText({
+				response: { type: ChatFetchResponseType.BadRequest, reason },
+				toolCallRounds: [],
+				round: makeRound('ignored'),
+			} as any);
+			expect(text, `reason "${reason}" should map to fallback`).toBe(CONTEXT_OVERFLOW_FALLBACK);
+		}
+	});
+
+	test('non-overflow failures surface the response type and reason to the main agent', () => {
+		const text = mapLoopResponseToText({
+			response: { type: ChatFetchResponseType.Failed, reason: 'network down' },
+			toolCallRounds: [],
+			round: makeRound(''),
+		} as any);
+		expect(text).toContain(ChatFetchResponseType.Failed);
+		expect(text).toContain('network down');
+		expect(text).not.toBe(CONTEXT_OVERFLOW_FALLBACK);
 	});
 });

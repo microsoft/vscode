@@ -25,7 +25,7 @@ export const enum Parts {
 	SIDEBAR_PART = 'workbench.parts.sidebar',
 	PANEL_PART = 'workbench.parts.panel',
 	AUXILIARYBAR_PART = 'workbench.parts.auxiliarybar',
-	CHATBAR_PART = 'workbench.parts.chatbar',
+	SESSIONS_PART = 'workbench.parts.sessions',
 	EDITOR_PART = 'workbench.parts.editor',
 	STATUSBAR_PART = 'workbench.parts.statusbar'
 }
@@ -49,8 +49,18 @@ export const enum LayoutSettings {
 	EDITOR_ACTIONS_LOCATION = 'workbench.editor.editorActionsLocation',
 	COMMAND_CENTER = 'window.commandCenter',
 	LAYOUT_ACTIONS = 'workbench.layoutControl.enabled',
-	SHADOWS = 'workbench.shadows'
+	SHADOWS = 'workbench.shadows',
+	FLOATING_PANELS = 'workbench.experimental.floatingPanels'
 }
+
+/**
+ * The margin (in pixels) reserved on each side of a part when the floating
+ * panels experiment (`LayoutSettings.FLOATING_PANELS`) is enabled. Parts grow
+ * or shrink their content by this amount to leave room for the card margin and
+ * border applied in CSS (`part.css`, `.floating-panels`). This value must be
+ * kept in sync with the `--floating-panel-margin` custom property defined there.
+ */
+export const FLOATING_PANEL_MARGIN = 6;
 
 export const enum ActivityBarPosition {
 	DEFAULT = 'default',
@@ -213,6 +223,13 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Returns whether the given part has the keyboard focus or not.
 	 */
 	hasFocus(part: Parts): boolean;
+
+	/**
+	 * Returns whether the floating panels experiment is enabled for this
+	 * workbench. Always `false` for the agents window, which has its own floating
+	 * card design and must not apply the experiment's content insets.
+	 */
+	isFloatingPanelsEnabled(): boolean;
 
 	/**
 	 * Focuses the part in the target window. If the part is not visible this is a noop.

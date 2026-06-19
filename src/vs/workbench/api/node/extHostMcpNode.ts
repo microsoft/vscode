@@ -178,7 +178,7 @@ class McpHTTPHandleNode extends McpHTTPHandle {
 		return {
 			status: undiciResponse.status,
 			statusText: undiciResponse.statusText,
-			headers: undiciResponse.headers,
+			headers: undiciResponse.headers as unknown as Headers, // undici `Headers` class no longer overlaps with lib.dom `Headers` (`SpecIterableIterator` vs `HeadersIterator`)
 			body: undiciResponse.body as ReadableStream, // Way down in `ReadableStreamReadDoneResult<T>`, `value` is optional in the undici type but required (yet can be `undefined`) in the standard type
 			url: undiciResponse.url,
 			json: () => undiciResponse.json(),

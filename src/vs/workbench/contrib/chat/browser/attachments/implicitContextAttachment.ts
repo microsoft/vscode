@@ -157,7 +157,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 			}));
 		}
 
-		const label = this.resourceLabels.create(contextNode, { supportIcons: true });
+		const label = this.renderDisposables.add(this.resourceLabels.create(contextNode, { supportIcons: true }));
 
 		let title: string | undefined;
 		let markdownTooltip: IMarkdownString | undefined;

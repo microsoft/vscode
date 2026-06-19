@@ -1445,7 +1445,6 @@ suite('ChatTipService', () => {
 
 	for (const { tipId, settingKey } of [
 		{ tipId: 'tip.thinkingPhrases', settingKey: 'chat.agent.thinking.phrases' },
-		{ tipId: 'tip.agenticBrowser', settingKey: 'workbench.browser.enableChatTools' },
 	]) {
 		test(`shows ${tipId} with correct setting link when setting is at default`, async () => {
 			const service = createService();
@@ -1470,7 +1469,6 @@ suite('ChatTipService', () => {
 
 	for (const tipId of [
 		'tip.thinkingPhrases',
-		'tip.agenticBrowser',
 	]) {
 		test(`dismisses ${tipId} after clicking its settings link`, async () => {
 			const service = createService();

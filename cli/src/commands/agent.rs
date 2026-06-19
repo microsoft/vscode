@@ -9,9 +9,11 @@ use ahp::{Client, Transport, TransportError, TransportMessage};
 use ahp_types::commands::{AuthenticateParams, AuthenticateResult};
 use ahp_types::errors::ahp_error_codes;
 use ahp_types::state::ProtectedResourceMetadata;
-use ahp_types::PROTOCOL_VERSION;
+use ahp_types::{ROOT_RESOURCE_URI, PROTOCOL_VERSION};
 use futures::{SinkExt, StreamExt};
+use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_tungstenite::tungstenite::Message;
+use tokio_tungstenite::{connect_async, WebSocketStream};
 
 use crate::auth::{Auth, AuthProvider};
 use crate::constants::AGENT_HOST_PORT;
@@ -46,7 +48,7 @@ pub async fn connect(
 	};
 
 	client
-		.initialize("code-cli".into(), PROTOCOL_VERSION as i64, vec![])
+		.initialize("code-cli".into(), vec![PROTOCOL_VERSION.to_string()], vec![])
 		.await
 		.map_err(|e| wrap(e, "AHP initialize failed"))?;
 
@@ -55,50 +57,39 @@ pub async fn connect(
 
 /// Opens a WebSocket connection and creates an AHP client.
 async fn connect_ws(address: &str) -> Result<Client, AnyError> {
-	let transport = ahp_ws::WebSocketTransport::connect(address)
+	let (ws_stream, _) = connect_async(address)
 		.await
 		.map_err(|e| wrap(e, format!("Failed to connect to agent host at {address}")))?;
+
+	let transport = WsTransport::new(ws_stream, ());
 
 	Client::connect(transport, ahp::ClientConfig::default())
 		.await
 		.map_err(|e| wrap(e, "Failed to establish AHP session").into())
 }
 
-/// Connects to an agent host over a dev tunnel relay. Looks up the tunnel
-/// by name, opens a direct-tcpip channel to the agent host port, performs
-/// a WebSocket handshake over the raw stream, then creates an AHP client.
-async fn connect_via_tunnel(ctx: &CommandContext, name: &str) -> Result<Client, AnyError> {
-	let auth = Auth::new(&ctx.paths, ctx.log.clone());
-	let mut dt = DevTunnels::new_remote_tunnel(&ctx.log, auth, &ctx.paths);
-
-	let (port_conn, _relay_handle) = dt.connect_to_tunnel_port(name, AGENT_HOST_PORT).await?;
-
-	let rw = port_conn.into_rw();
-	let (ws_stream, _) = tokio_tungstenite::client_async("ws://localhost/", rw)
-		.await
-		.map_err(|e| wrap(e, "WebSocket handshake over tunnel failed"))?;
-
-	let transport = TunnelWsTransport {
-		inner: ws_stream,
-		// Keep the relay handle alive so the SSH session isn't dropped.
-		_relay_handle,
-	};
-
-	Client::connect(transport, ahp::ClientConfig::default())
-		.await
-		.map_err(|e| wrap(e, "Failed to establish AHP session over tunnel").into())
+/// A [`Transport`] backed by a `tokio-tungstenite` WebSocket stream.
+///
+/// `_guard` keeps an auxiliary resource alive for the lifetime of the
+/// transport; the tunnel connection uses it to retain the relay handle so
+/// the underlying SSH session isn't dropped. Use `()` when no such
+/// resource is needed.
+struct WsTransport<S, G = ()> {
+	inner: WebSocketStream<S>,
+	_guard: G,
 }
 
-/// A [`Transport`] backed by a WebSocket stream running over a tunnel
-/// relay channel (via `PortConnectionRW`).
-struct TunnelWsTransport {
-	inner: tokio_tungstenite::WebSocketStream<tunnels::connections::PortConnectionRW>,
-	/// Prevent the relay handle from being dropped, which would close the
-	/// underlying SSH session.
-	_relay_handle: tunnels::connections::ClientRelayHandle,
+impl<S, G> WsTransport<S, G> {
+	fn new(inner: WebSocketStream<S>, guard: G) -> Self {
+		Self { inner, _guard: guard }
+	}
 }
 
-impl Transport for TunnelWsTransport {
+impl<S, G> Transport for WsTransport<S, G>
+where
+	S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+	G: Send + 'static,
+{
 	async fn send(&mut self, msg: TransportMessage) -> Result<(), TransportError> {
 		let frame = match msg {
 			TransportMessage::Parsed(m) => {
@@ -138,6 +129,28 @@ impl Transport for TunnelWsTransport {
 			.await
 			.map_err(|e| TransportError::Io(e.to_string()))
 	}
+}
+
+/// Connects to an agent host over a dev tunnel relay. Looks up the tunnel
+/// by name, opens a direct-tcpip channel to the agent host port, performs
+/// a WebSocket handshake over the raw stream, then creates an AHP client.
+async fn connect_via_tunnel(ctx: &CommandContext, name: &str) -> Result<Client, AnyError> {
+	let auth = Auth::new(&ctx.paths, ctx.log.clone());
+	let mut dt = DevTunnels::new_remote_tunnel(&ctx.log, auth, &ctx.paths);
+
+	let (port_conn, relay_handle) = dt.connect_to_tunnel_port(name, AGENT_HOST_PORT).await?;
+
+	let rw = port_conn.into_rw();
+	let (ws_stream, _) = tokio_tungstenite::client_async("ws://localhost/", rw)
+		.await
+		.map_err(|e| wrap(e, "WebSocket handshake over tunnel failed"))?;
+
+	// Keep the relay handle alive so the SSH session isn't dropped.
+	let transport = WsTransport::new(ws_stream, relay_handle);
+
+	Client::connect(transport, ahp::ClientConfig::default())
+		.await
+		.map_err(|e| wrap(e, "Failed to establish AHP session over tunnel").into())
 }
 
 /// Issues a JSON-RPC request, automatically handling `-32007` auth errors
@@ -236,6 +249,7 @@ async fn authenticate_from_error(
 			.request(
 				"authenticate",
 				AuthenticateParams {
+					channel: ROOT_RESOURCE_URI.to_string(),
 					resource: resource.resource.clone(),
 					token: credential.access_token().to_string(),
 				},

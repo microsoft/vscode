@@ -7,8 +7,8 @@ import assert from 'assert';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, type ActiveTurn, type ICompletedToolCall, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent, type IChatUsage } from '../../../common/chatService/chatService.js';
+import { MessageKind, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, type ActiveTurn, type ICompletedToolCall, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent, type IChatProgressMessage, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, toolCallStateToInvocation as rawToolCallStateToInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
@@ -43,7 +43,7 @@ function createCompletedToolCall(overrides?: Partial<ICompletedToolCall>): IComp
 function createTurn(overrides?: Partial<Turn>): Turn {
 	return {
 		id: 'turn-1',
-		userMessage: { text: 'Hello' },
+		message: { text: 'Hello', origin: { kind: MessageKind.User } },
 		responseParts: [],
 		usage: undefined,
 		state: TurnState.Complete,
@@ -51,12 +51,16 @@ function createTurn(overrides?: Partial<Turn>): Turn {
 	};
 }
 
+function message(text: string, kind = MessageKind.User): Message {
+	return { text, origin: { kind } };
+}
+
 function toolCallStateToInvocation(tc: Parameters<typeof rawToolCallStateToInvocation>[0], subAgentInvocationId?: string) {
-	return rawToolCallStateToInvocation(tc, subAgentInvocationId, URI.file('/'), undefined);
+	return rawToolCallStateToInvocation(tc, subAgentInvocationId, URI.file('/'), 'local');
 }
 
 function finalizeToolInvocation(invocation: Parameters<typeof rawFinalizeToolInvocation>[0], tc: Parameters<typeof rawFinalizeToolInvocation>[1]) {
-	return rawFinalizeToolInvocation(invocation, tc, URI.file('/'), undefined);
+	return rawFinalizeToolInvocation(invocation, tc, URI.file('/'), 'local');
 }
 
 function turnsToHistory(backendSession: Parameters<typeof rawTurnsToHistory>[0], turns: Parameters<typeof rawTurnsToHistory>[1], participantId: Parameters<typeof rawTurnsToHistory>[2], lookup?: Parameters<typeof rawTurnsToHistory>[4]) {
@@ -84,11 +88,11 @@ function makeLookup(prefix: string, displayNames: Record<string, string>, fallba
 }
 
 function activeTurnToProgress(sessionResource: Parameters<typeof rawActiveTurnToProgress>[0], activeTurn: Parameters<typeof rawActiveTurnToProgress>[1], connectionAuthority?: Parameters<typeof rawActiveTurnToProgress>[2]) {
-	return rawActiveTurnToProgress(sessionResource, activeTurn, connectionAuthority);
+	return rawActiveTurnToProgress(sessionResource, activeTurn, connectionAuthority || 'local');
 }
 
 function updateRunningToolSpecificData(existing: Parameters<typeof rawUpdateRunningToolSpecificData>[0], tc: Parameters<typeof rawUpdateRunningToolSpecificData>[1]) {
-	return rawUpdateRunningToolSpecificData(existing, tc, undefined);
+	return rawUpdateRunningToolSpecificData(existing, tc, URI.file('/'), 'local');
 }
 
 function assertInputOutputDetails(details: unknown): asserts details is IToolResultInputOutputDetails {
@@ -110,7 +114,7 @@ suite('stateToProgressAdapter', () => {
 
 		test('single turn produces request + response pair', () => {
 			const turn = createTurn({
-				userMessage: { text: 'Do something' },
+				message: message('Do something'),
 				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall() } as ToolCallResponsePart],
 			});
 
@@ -132,6 +136,33 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(serialized.toolCallId, 'tc-1');
 			assert.strictEqual(serialized.toolId, 'test_tool');
 			assert.strictEqual(serialized.isComplete, true);
+		});
+
+		test('system-initiated turn preserves compact request label', () => {
+			const turn = createTurn({
+				message: message('`sleep 6` completed', MessageKind.SystemNotification),
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'participant-1');
+			assert.strictEqual(history[0].type, 'request');
+			if (history[0].type !== 'request') { return; }
+			assert.strictEqual(history[0].isSystemInitiated, true);
+			assert.strictEqual(history[0].prompt, '`sleep 6` completed');
+			assert.strictEqual(history[0].systemInitiatedLabel, undefined);
+		});
+
+		test('system notification response part restores as progress message', () => {
+			const turn = createTurn({
+				responseParts: [{ kind: ResponsePartKind.SystemNotification, content: 'Shell command completed' }],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'participant-1');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const progress = response.parts[0] as IChatProgressMessage;
+			assert.strictEqual(progress.kind, 'progressMessage');
+			assert.strictEqual(progress.content.value, 'Shell command completed');
 		});
 
 		test('generic completed tool call in history includes input/output details', () => {
@@ -205,19 +236,24 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(details.output.length, 2);
 			assert.deepStrictEqual(details.output[0], { type: 'embed', value: 'aW1hZ2U=', mimeType: 'image/png' });
 			assert.strictEqual(details.output[1].type, 'ref');
-			assert.strictEqual(details.output[1].uri.toString(), 'agenthost-content:/session/result.txt');
+			// Resource URI is wrapped via toAgentHostUri so it resolves through the
+			// agent host filesystem provider on the client when the session is backed
+			// by a remote agent host.
+			assert.strictEqual(details.output[1].uri.scheme, 'vscode-agent-host');
+			assert.strictEqual(details.output[1].uri.authority, 'local');
+			assert.strictEqual(details.output[1].uri.path, '/session/result.txt');
 			assert.strictEqual(details.output[1].mimeType, 'text/plain');
 		});
 
 		test('per-turn model id and display name flow from usage.model', () => {
 			const turn1 = createTurn({
 				id: 'turn-1',
-				userMessage: { text: 'first' },
+				message: message('first'),
 				usage: { model: 'gpt-5' },
 			});
 			const turn2 = createTurn({
 				id: 'turn-2',
-				userMessage: { text: 'second' },
+				message: message('second'),
 				usage: { model: 'opus-4.7' },
 			});
 
@@ -238,7 +274,7 @@ suite('stateToProgressAdapter', () => {
 		});
 
 		test('falls back to session-level model when turn has no usage.model', () => {
-			const turn = createTurn({ userMessage: { text: 'first' } });
+			const turn = createTurn({ message: message('first') });
 			const lookup = makeLookup('agent-host-copilot:', { 'gpt-5': 'GPT-5' }, 'gpt-5');
 			const history = turnsToHistory(URI.file('/'), [turn], 'p', lookup);
 
@@ -277,7 +313,7 @@ suite('stateToProgressAdapter', () => {
 
 		test('request history includes restored model id', () => {
 			const turn = createTurn({
-				userMessage: { text: 'Use restored model' },
+				message: message('Use restored model'),
 			});
 
 			const lookup = makeLookup('agent-host-copilot:', {}, 'gpt-5');
@@ -463,8 +499,8 @@ suite('stateToProgressAdapter', () => {
 			if (response.type !== 'response') { return; }
 			const part = response.parts[0] as IChatMarkdownContent;
 			assert.deepStrictEqual(part.content.value,
-				'See [](vscode-agent-host://my-host/file/-/a/b.ts), ' +
-				'[](vscode-agent-host://my-host/agenthost-content/-/s/x), ' +
+				'See [](vscode-agent-host://my-host/a/b.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0), ' +
+				'[](vscode-agent-host://my-host/s/x?_ah%3DeyJzY2hlbWUiOiJhZ2VudGhvc3QtY29udGVudCJ9), ' +
 				'[external](https://example.com) and ' +
 				'[rel](./foo.md).'
 			);
@@ -489,8 +525,8 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(response.type, 'response');
 			if (response.type !== 'response') { return; }
 			const value = (response.parts[0] as IChatMarkdownContent).content.value;
-			assert.ok(value.includes('[](vscode-agent-host://my-host/file/-/a.ts)'));
-			assert.ok(value.includes('[](vscode-agent-host://my-host/file/-/c.ts)'));
+			assert.ok(value.includes('[](vscode-agent-host://my-host/a.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0)'));
+			assert.ok(value.includes('[](vscode-agent-host://my-host/c.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0)'));
 			// The link inside the fenced code block must NOT be rewritten.
 			assert.ok(value.includes('[fake](file:///b.ts)'));
 			assert.ok(!value.includes('[fake](vscode-agent-host'));
@@ -508,7 +544,7 @@ suite('stateToProgressAdapter', () => {
 			if (response.type !== 'response') { return; }
 			const value = (response.parts[0] as IChatMarkdownContent).content.value;
 			assert.strictEqual(value,
-				'Real [](vscode-agent-host://my-host/file/-/a.ts) and literal `[two](file:///b.ts)` here.'
+				'Real [](vscode-agent-host://my-host/a.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0) and literal `[two](file:///b.ts)` here.'
 			);
 		});
 
@@ -527,8 +563,8 @@ suite('stateToProgressAdapter', () => {
 			if (response.type !== 'response') { return; }
 			const value = (response.parts[0] as IChatMarkdownContent).content.value;
 			assert.strictEqual(value,
-				'Loaded [plan](vscode-agent-host://my-host/file/-/abs/repo/skills/plan/SKILL.md?vscodeLinkType%3Dskill) ' +
-				'and [](vscode-agent-host://my-host/file/-/abs/repo/foo.ts).'
+				'Loaded [plan](vscode-agent-host://my-host/abs/repo/skills/plan/SKILL.md?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0%26vscodeLinkType%3Dskill) ' +
+				'and [](vscode-agent-host://my-host/abs/repo/foo.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0).'
 			);
 		});
 
@@ -546,10 +582,10 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(response.type, 'response');
 			if (response.type !== 'response') { return; }
 			const value = (response.parts[0] as IChatMarkdownContent).content.value;
-			assert.strictEqual(value, 'See ![diagram](vscode-agent-host://my-host/file/-/a/b.png).');
+			assert.strictEqual(value, 'See ![diagram](vscode-agent-host://my-host/a/b.png?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0).');
 		});
 
-		test('error turn produces error message in history', () => {
+		test('error turn produces error details in history', () => {
 			const turn = createTurn({
 				state: TurnState.Error,
 				error: { errorType: 'test', message: 'boom' },
@@ -559,8 +595,25 @@ suite('stateToProgressAdapter', () => {
 			const response = history[1];
 			assert.strictEqual(response.type, 'response');
 			if (response.type !== 'response') { return; }
-			const errorPart = response.parts.find(p => p.kind === 'markdownContent' && (p as IChatMarkdownContent).content.value.includes('boom'));
-			assert.ok(errorPart, 'Should have a markdownContent part containing the error message');
+			assert.strictEqual(response.errorDetails?.message, 'Error: (test) boom');
+			assert.ok(!response.parts.some(p => p.kind === 'markdownContent' && (p as IChatMarkdownContent).content.value.includes('boom')), 'Error should not be duplicated as a markdown part');
+		});
+
+		test('forwarded quota error turn produces quota-exceeded error details', () => {
+			const turn = createTurn({
+				state: TurnState.Error,
+				error: {
+					errorType: 'quota',
+					message: 'raw',
+					_meta: { chatError: { fetchError: { type: 'quotaExceeded', capiError: { code: 'quota_exceeded' } } } },
+				},
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			assert.strictEqual(response.errorDetails?.isQuotaExceeded, true);
 		});
 
 		test('failed tool in history has exitCode 1', () => {
@@ -643,6 +696,63 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.commandLine.original, 'ls -la');
 		});
 
+		test('sets terminal toolSpecificData for built-in bash via _meta.toolKind (no Terminal content block)', () => {
+			// The SDK's built-in bash tool (used when the Custom Terminal tool
+			// is disabled) runs outside AHP's terminal infra and does not emit
+			// a Terminal content block. The terminal pill must still render so
+			// the user can expand the full multi-line command and output.
+			const tc = createToolCallState({
+				toolName: 'bash',
+				displayName: 'Run Shell Command',
+				toolInput: 'ls -la\nwc -l',
+				_meta: { toolKind: 'terminal' },
+			});
+
+			const invocation = toolCallStateToInvocation(tc);
+			assert.ok(invocation.toolSpecificData);
+			assert.strictEqual(invocation.toolSpecificData.kind, 'terminal');
+			const termData = invocation.toolSpecificData as { kind: 'terminal'; commandLine: { original: string }; language?: string; terminalToolSessionId?: string; terminalCommandUri?: URI };
+			assert.strictEqual(termData.commandLine.original, 'ls -la\nwc -l');
+			assert.strictEqual(termData.language, 'shellscript');
+			assert.strictEqual(termData.terminalToolSessionId, undefined, 'no AHP terminal session for built-in bash');
+			assert.strictEqual(termData.terminalCommandUri, undefined, 'no AHP terminal URI for built-in bash');
+		});
+
+		test('built-in bash terminal toolSpecificData picks up streaming text output (running)', () => {
+			const tc = createToolCallState({
+				toolName: 'bash',
+				toolInput: 'echo hi',
+				_meta: { toolKind: 'terminal' },
+				status: ToolCallStatus.Running,
+				content: [
+					{ type: ToolResultContentType.Text, text: 'hi\n' },
+				],
+			});
+
+			const invocation = toolCallStateToInvocation(tc);
+			assert.strictEqual(invocation.toolSpecificData?.kind, 'terminal');
+			const termData = invocation.toolSpecificData as { kind: 'terminal'; terminalCommandOutput?: { text: string } };
+			assert.strictEqual(termData.terminalCommandOutput?.text, 'hi\r\n', 'normalizes \\n to \\r\\n for xterm');
+		});
+
+		test('does not render terminal pill for terminal toolKind without a command (falls back to invocationMessage)', () => {
+			// The built-in bash tool advertises `_meta.toolKind === 'terminal'`
+			// from the tool-open seam, but the command only arrives once the
+			// tool input has streamed in. Until then there is nothing to show in
+			// the terminal pill, so we must fall back to the generic tool widget
+			// (the `invocationMessage`) rather than rendering an empty command.
+			const tc = createToolCallState({
+				toolName: 'bash',
+				invocationMessage: 'Running shell command',
+				_meta: { toolKind: 'terminal' },
+				status: ToolCallStatus.Running,
+			});
+
+			const invocation = toolCallStateToInvocation(tc);
+			assert.strictEqual(invocation.toolSpecificData, undefined, 'no terminal pill without a command');
+			assert.strictEqual(invocation.invocationMessage, 'Running shell command');
+		});
+
 		test('creates invocation without toolArguments', () => {
 			const tc = createToolCallState({});
 
@@ -692,7 +802,7 @@ suite('stateToProgressAdapter', () => {
 			assert.ok(invocation.pastTenseMessage);
 			assert.strictEqual(typeof invocation.pastTenseMessage, 'object');
 			const value = (invocation.pastTenseMessage as { value: string }).value;
-			assert.strictEqual(value, 'Read [](vscode-agent-host://ssh__macbook-air/file/-/path/to/foo.ts)');
+			assert.strictEqual(value, 'Read [](vscode-agent-host://ssh__macbook-air/path/to/foo.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0)');
 		});
 
 		test('finalizes terminal tool with output and exit code', () => {
@@ -727,6 +837,36 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.terminalCommandOutput.text, 'output text');
 			assert.strictEqual(termData.terminalCommandState.exitCode, 0);
 			assert.strictEqual(IChatToolInvocation.resultDetails(invocation), undefined);
+		});
+
+		test('normalizes LF line endings to CRLF in terminal output for xterm rendering', () => {
+			const tc = createToolCallState({
+				toolInput: 'grep -n foo',
+				status: ToolCallStatus.Running,
+				content: [
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///t5', title: 'Terminal' },
+				],
+			});
+			const invocation = toolCallStateToInvocation(tc);
+
+			finalizeToolInvocation(invocation, {
+				status: ToolCallStatus.Completed,
+				toolCallId: 'tc-1',
+				toolName: 'test_tool',
+				displayName: 'Test Tool',
+				invocationMessage: 'Running test tool...',
+				toolInput: 'grep -n foo',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				success: true,
+				pastTenseMessage: 'Ran grep -n foo',
+				content: [
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///t5', title: 'Terminal' },
+					{ type: ToolResultContentType.Text, text: 'line1\nline2\r\nline3\n' },
+				],
+			});
+
+			const termData = invocation.toolSpecificData as { kind: 'terminal'; terminalCommandOutput: { text: string } };
+			assert.strictEqual(termData.terminalCommandOutput.text, 'line1\r\nline2\r\nline3\r\n');
 		});
 
 		test('finalizes generic tool with input/output details', () => {
@@ -963,7 +1103,7 @@ suite('stateToProgressAdapter', () => {
 		function createActiveTurnState(responseParts?: ActiveTurn['responseParts']): ActiveTurn {
 			return {
 				id: 'turn-active',
-				userMessage: { text: 'Do things' },
+				message: message('Do things'),
 				responseParts: responseParts ?? [],
 				usage: undefined,
 			};
@@ -993,6 +1133,15 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(result.length, 1);
 			assert.strictEqual(result[0].kind, 'markdownContent');
 			assert.strictEqual((result[0] as IChatMarkdownContent).content.value, 'Hello world');
+		});
+
+		test('produces progress message for system notification', () => {
+			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([
+				{ kind: ResponsePartKind.SystemNotification, content: 'Shell command completed' },
+			]), undefined);
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0].kind, 'progressMessage');
+			assert.strictEqual((result[0] as IChatProgressMessage).content.value, 'Shell command completed');
 		});
 
 		test('produces thinking progress for reasoning', () => {
@@ -1220,7 +1369,7 @@ suite('stateToProgressAdapter', () => {
 			const invocation = toolCallStateToInvocation(tc);
 			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
 
-			// Simulate subagent content arriving via SessionToolCallContentChanged
+			// Simulate subagent content arriving via ChatToolCallContentChanged
 			const runningTc: ToolCallRunningState = {
 				...tc,
 				status: ToolCallStatus.Running,
@@ -1267,6 +1416,69 @@ suite('stateToProgressAdapter', () => {
 
 			updateRunningToolSpecificData(invocation, runningTc);
 			assert.strictEqual(invocation.toolSpecificData, originalData, 'toolSpecificData should not change');
+		});
+
+		test('refreshes terminal output as text content streams (built-in bash)', () => {
+			const tc = createToolCallState({
+				toolName: 'bash',
+				toolInput: 'sleep 1; echo hi',
+				_meta: { toolKind: 'terminal' },
+			});
+			const invocation = toolCallStateToInvocation(tc);
+			assert.strictEqual(invocation.toolSpecificData?.kind, 'terminal');
+			assert.strictEqual((invocation.toolSpecificData as { terminalCommandOutput?: { text: string } }).terminalCommandOutput, undefined);
+
+			const runningTc: ToolCallRunningState = {
+				...tc,
+				status: ToolCallStatus.Running,
+				content: [{ type: ToolResultContentType.Text, text: 'hi\n' }],
+			};
+
+			updateRunningToolSpecificData(invocation, runningTc);
+			const termData = invocation.toolSpecificData as { kind: 'terminal'; terminalCommandOutput?: { text: string } };
+			assert.strictEqual(termData.kind, 'terminal');
+			assert.strictEqual(termData.terminalCommandOutput?.text, 'hi\r\n');
+		});
+
+		test('preserves AHP terminal fields (terminalToolSessionId, terminalCommandUri) when refreshing output', () => {
+			// Simulates the race where `_reviveTerminalIfNeeded` has populated
+			// AHP terminal fields and a subsequent content change triggers
+			// `updateRunningToolSpecificData`. The async-populated fields
+			// must survive the refresh.
+			const tc = createToolCallState({
+				toolName: 'bash',
+				toolInput: 'echo hi',
+				_meta: { toolKind: 'terminal' },
+			});
+			const invocation = toolCallStateToInvocation(tc);
+			const reviveUri = URI.parse('agenthost-terminal:///t9');
+			invocation.toolSpecificData = {
+				kind: 'terminal',
+				commandLine: { original: 'echo hi' },
+				language: 'shellscript',
+				terminalToolSessionId: 'session-id-from-revive',
+				terminalCommandUri: reviveUri,
+				terminalCommandId: 'cmd-id-from-revive',
+			};
+
+			const runningTc: ToolCallRunningState = {
+				...tc,
+				status: ToolCallStatus.Running,
+				content: [{ type: ToolResultContentType.Text, text: 'hi\n' }],
+			};
+
+			updateRunningToolSpecificData(invocation, runningTc);
+			const termData = invocation.toolSpecificData as {
+				kind: 'terminal';
+				terminalToolSessionId?: string;
+				terminalCommandUri?: URI;
+				terminalCommandId?: string;
+				terminalCommandOutput?: { text: string };
+			};
+			assert.strictEqual(termData.terminalToolSessionId, 'session-id-from-revive');
+			assert.strictEqual(termData.terminalCommandUri, reviveUri);
+			assert.strictEqual(termData.terminalCommandId, 'cmd-id-from-revive');
+			assert.strictEqual(termData.terminalCommandOutput?.text, 'hi\r\n');
 		});
 	});
 });

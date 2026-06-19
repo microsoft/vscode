@@ -39,6 +39,36 @@
     ],
     "policies": [
         {
+            "key": "mcp.enterpriseManagedAuth.idp",
+            "name": "McpEnterpriseManagedAuthIdp",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.122",
+            "localization": {
+                "description": {
+                    "key": "mcp.enterpriseManagedAuth.idp.policy",
+                    "value": "The OAuth/OIDC IdP configuration used for enterprise-managed Model Context Protocol (MCP) server authentication. Delivered through enterprise policy (Windows Group Policy, macOS managed preferences, Linux `/etc/vscode/policy.json`)."
+                }
+            },
+            "type": "object",
+            "default": {},
+            "included": false
+        },
+        {
+            "key": "chat.plugins.extraMarketplaces",
+            "name": "ChatExtraMarketplaces",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.122",
+            "localization": {
+                "description": {
+                    "key": "chat.plugins.extraMarketplaces.policy",
+                    "value": "Additional plugin marketplaces to query. Keys are marketplace names; values are GitHub shorthand (`owner/repo[#ref]`) or Git URIs (`<url>[#ref]`)."
+                }
+            },
+            "type": "object",
+            "default": {},
+            "included": false
+        },
+        {
             "key": "chat.mcp.gallery.serviceUrl",
             "name": "McpGalleryServiceUrl",
             "category": "InteractiveSession",
@@ -96,6 +126,21 @@
             },
             "type": "object",
             "default": "*",
+            "included": true
+        },
+        {
+            "key": "chat.agentHost.codexAgent.enabled",
+            "name": "Codex3PIntegration",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.126",
+            "localization": {
+                "description": {
+                    "key": "chat.agentHost.codexAgent.enabled.policy",
+                    "value": "Enable Codex Agent sessions in VS Code. Start and resume agentic coding sessions powered by OpenAI Codex SDK. Uses your existing Copilot subscription."
+                }
+            },
+            "type": "boolean",
+            "default": false,
             "included": true
         },
         {
@@ -193,6 +238,21 @@
             "included": true
         },
         {
+            "key": "chat.agentHost.enabled",
+            "name": "ChatAgentHostEnabled",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.126",
+            "localization": {
+                "description": {
+                    "key": "chat.agentHost.enabled",
+                    "value": "When enabled, some agents run in a separate agent host process."
+                }
+            },
+            "type": "boolean",
+            "default": true,
+            "included": true
+        },
+        {
             "key": "chat.plugins.enabled",
             "name": "ChatPluginsEnabled",
             "category": "InteractiveSession",
@@ -205,6 +265,36 @@
             },
             "type": "boolean",
             "default": true,
+            "included": true
+        },
+        {
+            "key": "chat.plugins.enabledPlugins",
+            "name": "ChatEnabledPlugins",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.122",
+            "localization": {
+                "description": {
+                    "key": "chat.plugins.enabledPlugins.policy",
+                    "value": "Plugin enablement. Keys are plugin IDs in `<plugin>@<marketplace>` form; values enable or disable the plugin."
+                }
+            },
+            "type": "object",
+            "default": {},
+            "included": true
+        },
+        {
+            "key": "chat.plugins.strictMarketplaces",
+            "name": "ChatStrictMarketplaces",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.122",
+            "localization": {
+                "description": {
+                    "key": "chat.plugins.strictMarketplaces.policy",
+                    "value": "Only trust marketplaces supplied via enterprise policy; plugins from any other marketplace will not load."
+                }
+            },
+            "type": "boolean",
+            "default": false,
             "included": true
         },
         {
@@ -268,21 +358,6 @@
             "included": true
         },
         {
-            "key": "chat.editMode.hidden",
-            "name": "DeprecatedEditModeHidden",
-            "category": "InteractiveSession",
-            "minimumVersion": "1.112",
-            "localization": {
-                "description": {
-                    "key": "chat.editMode.hidden",
-                    "value": "When enabled, hides the Edit mode from the chat mode picker."
-                }
-            },
-            "type": "boolean",
-            "default": true,
-            "included": true
-        },
-        {
             "key": "chat.useHooks",
             "name": "ChatHooks",
             "category": "InteractiveSession",
@@ -295,6 +370,50 @@
             },
             "type": "boolean",
             "default": true,
+            "included": true
+        },
+        {
+            "key": "extensions.autoUpdate",
+            "name": "ExtensionsAutoUpdate",
+            "category": "Extensions",
+            "minimumVersion": "1.125",
+            "localization": {
+                "description": {
+                    "key": "extensions.autoUpdate",
+                    "value": "Controls the automatic update behavior of extensions. The updates are fetched from a Microsoft online service."
+                },
+                "enumDescriptions": [
+                    {
+                        "key": "extensions.autoUpdate.on",
+                        "value": "Download and install updates automatically only for enabled extensions."
+                    },
+                    {
+                        "key": "extensions.autoUpdate.off",
+                        "value": "Extensions are not automatically updated."
+                    }
+                ]
+            },
+            "type": "string",
+            "default": "on",
+            "enum": [
+                "on",
+                "off"
+            ],
+            "included": true
+        },
+        {
+            "key": "extensions.autoUpdateDelay",
+            "name": "ExtensionsAutoUpdateDelay",
+            "category": "Extensions",
+            "minimumVersion": "1.125",
+            "localization": {
+                "description": {
+                    "key": "extensions.autoUpdateDelay",
+                    "value": "Controls the delay in hours after an extension update is published before it is automatically installed. Only applies when `#extensions.autoUpdate#` is set to `on`. This delay helps avoid installing potentially problematic updates immediately after release."
+                }
+            },
+            "type": "number",
+            "default": 2,
             "included": true
         },
         {
@@ -359,21 +478,6 @@
             },
             "type": "boolean",
             "default": true,
-            "included": true
-        },
-        {
-            "key": "chat.agent.sandbox.autoApproveUnsandboxedCommands",
-            "name": "ChatAgentSandboxAutoApproveUnsandboxedCommands",
-            "category": "IntegratedTerminal",
-            "minimumVersion": "1.116",
-            "localization": {
-                "description": {
-                    "key": "agentSandbox.autoApproveUnsandboxedCommands",
-                    "value": "Controls whether agent mode terminal commands that run outside the sandbox are auto-approved. This applies only when both `#chat.agent.sandbox.enabled#` and `#chat.agent.sandbox.allowUnsandboxedCommands#` are enabled."
-                }
-            },
-            "type": "boolean",
-            "default": false,
             "included": true
         },
         {
@@ -496,7 +600,7 @@
                 }
             },
             "type": "boolean",
-            "default": false,
+            "default": true,
             "included": true
         },
         {
@@ -557,7 +661,10 @@
             },
             "type": "boolean",
             "default": true,
-            "included": true
+            "included": true,
+            "referencedSettings": [
+                "chat.agentHost.claudeAgent.enabled"
+            ]
         }
     ]
 }

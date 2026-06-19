@@ -22,7 +22,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { TestProductService } from '../../../../test/common/workbenchTestServices.js';
 import { DefaultAccountService } from '../../../accounts/browser/defaultAccount.js';
 import { AccountPolicyService } from '../../common/accountPolicyService.js';
-import { MultiplexPolicyService } from '../../common/multiplexPolicyService.js';
+import { MultiplexPolicyService } from '../../../../../platform/policy/common/multiplexPolicyService.js';
 
 const BASE_DEFAULT_ACCOUNT: IDefaultAccount = {
 	authenticationProvider: {
@@ -41,6 +41,9 @@ class DefaultAccountProvider implements IDefaultAccountProvider {
 	readonly onDidChangePolicyData = Event.None;
 	readonly copilotTokenInfo = null;
 	readonly onDidChangeCopilotTokenInfo = Event.None;
+	readonly managedSettingsFetchStatus: null = null;
+	readonly managedSettingsFetchedAt: null = null;
+	readonly managedSettingsRawResponse: unknown = null;
 
 	constructor(
 		readonly defaultAccount: IDefaultAccount,

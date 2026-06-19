@@ -43,9 +43,7 @@ async function main(artifacts: string[]): Promise<void> {
 	throw new Error(`ERROR: Artifacts (${artifacts.join(', ')}) were not uploaded within 60 minutes.`);
 }
 
-main(process.argv.splice(2)).then(() => {
-	process.exit(0);
-}, err => {
+main(process.argv.splice(2)).catch(err => {
 	console.error(err);
-	process.exit(1);
+	process.exitCode = 1;
 });

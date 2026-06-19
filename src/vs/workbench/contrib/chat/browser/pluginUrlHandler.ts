@@ -21,7 +21,7 @@ import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.
 import { AgentPluginEditorInput } from './agentPluginEditor/agentPluginEditorInput.js';
 import { AgentPluginItemKind, IMarketplacePluginItem } from './agentPluginEditor/agentPluginItems.js';
 import { ChatConfiguration } from '../common/constants.js';
-import { MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences } from '../common/plugins/marketplaceReference.js';
+import { MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from '../common/plugins/marketplaceReference.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
 
 /**
@@ -184,12 +184,12 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 			return true;
 		}
 
-		const existing = this._configurationService.getValue<string[]>(ChatConfiguration.PluginMarketplaces) ?? [];
-		const existingRefs = parseMarketplaceReferences(existing);
+		const { userValues, effectiveValues } = readConfiguredMarketplaces(this._configurationService);
+		const existingRefs = parseMarketplaceReferences(effectiveValues);
 		if (!existingRefs.some(e => e.canonicalId === ref.canonicalId)) {
 			await this._configurationService.updateValue(
 				ChatConfiguration.PluginMarketplaces,
-				[...existing, refValue],
+				[...userValues, refValue],
 				ConfigurationTarget.USER,
 			);
 		}

@@ -105,9 +105,19 @@ Model picker widgets that back the new-chat `/models` slash command also inject 
 
 | Menu | Purpose | Examples |
 |------|---------|----------|
-| `Menus.NewSessionConfig` | Session configuration (mode, model) | `ModePicker`, `CloudModelPicker`, unified model picker (CLI + Claude) |
+| `Menus.NewSessionConfig` | Session configuration (mode, model) | `ModePicker`; the model picker is the sessions-core `ModelPicker` (see below) |
 | `Menus.NewSessionControl` | Session controls (permissions) | `PermissionPicker`, `ClaudePermissionModePicker` |
 | `Menus.NewSessionRepositoryConfig` | Repository configuration | `IsolationPicker`, `BranchPicker` |
+
+### Model Picker
+
+The model picker is no longer contributed per provider. The sessions core contributes a single `ModelPicker` (`contrib/chat/browser/modelPicker.ts`) into `Menus.NewSessionConfig` that wraps the shared workbench `ModelPickerActionItem`. It reads the available models from the active session's provider via `ISessionsProvider.getModels(sessionId)`, the picker presentation options via `ISessionsProvider.getModelPickerOptions(sessionId)`, remembers the last used model per provider per session type, and applies the selection through `ISessionsProvider.setModel(sessionId, modelId)`.
+
+This provider returns models from `getModels` based on the active session:
+- **CLI / Claude** sessions return registered language models whose `targetChatSessionType` matches the session type.
+- **Cloud** sessions synthesize `ILanguageModelChatMetadataAndIdentifier` entries from the extension-host `models` option group; `setModel` additionally persists the choice as the option-group value so the extension host honours it.
+
+`getModelPickerOptions` returns grouped models with featured models shown and no "Manage Models" action (that action is offered only by the local provider).
 
 ### Context Key Gating
 
