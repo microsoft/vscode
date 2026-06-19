@@ -161,8 +161,8 @@ CommandsRegistry.registerCommand('_agentsVoice.openWindow', async (accessor) => 
 });
 
 // --- Mic button in Chat toolbar ---
-// When disconnected: shows mic icon, click to connect.
-// When connected: shows mic-filled icon, click to toggle PTT.
+// Always shows mic (unfilled). Click to connect if disconnected, or toggle PTT if connected.
+// The disconnect button (shown when connected) is the visual indicator of active voice mode.
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -176,7 +176,6 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
-					AGENTS_VOICE_CONNECTED.negate(),
 				),
 				group: 'navigation',
 				order: 4
@@ -186,42 +185,18 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const voiceController = accessor.get(IVoiceSessionController);
 		const agentsVoiceWindowService = accessor.get(IAgentsVoiceWindowService);
-		await voiceController.connect(mainWindow);
-		if (!agentsVoiceWindowService.isOpen) {
-			await agentsVoiceWindowService.openWindow();
-		}
-	}
-});
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'agentsVoice.pttInChat',
-			title: nls.localize2('agentsVoice.pttInChat', "Voice Mode: Push to Talk"),
-			icon: Codicon.micFilled,
-			precondition: ContextKeyExpr.and(
-				ContextKeyExpr.equals('config.agents.voice.enabled', true),
-				AGENTS_VOICE_CONNECTED.isEqualTo(true),
-			),
-			menu: {
-				id: MenuId.ChatExecute,
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('config.agents.voice.enabled', true),
-					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
-					AGENTS_VOICE_CONNECTED.isEqualTo(true),
-				),
-				group: 'navigation',
-				order: 4
+		if (!voiceController.isConnected.get()) {
+			await voiceController.connect(mainWindow);
+			if (!agentsVoiceWindowService.isOpen) {
+				await agentsVoiceWindowService.openWindow();
 			}
-		});
-	}
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const voiceController = accessor.get(IVoiceSessionController);
-		// Simulate a tap (pttDown + pttUp).
-		// A short tap enters toggle mode (recording continues until next tap).
-		// If already in toggle mode, pttDown finishes recording and sends.
-		voiceController.pttDown();
-		voiceController.pttUp();
+		} else {
+			// Simulate a tap (pttDown + pttUp).
+			// A short tap enters toggle mode (recording continues until next tap).
+			// If already in toggle mode, pttDown finishes recording and sends.
+			voiceController.pttDown();
+			voiceController.pttUp();
+		}
 	}
 });
 
