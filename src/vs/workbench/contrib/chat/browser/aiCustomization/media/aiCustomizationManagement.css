@@ -2217,14 +2217,15 @@ per-word capitalization does not survive translation. */
 	box-sizing: border-box;
 }
 
-.plugin-list-widget .plugin-card-section {
-	margin-bottom: var(--vscode-spacing-size240);
-}
-
-.plugin-list-widget .plugin-marketplace-page-header {
+.plugin-list-widget .plugin-marketplace-back-container {
+	flex-shrink: 0;
 	display: flex;
 	align-items: center;
-	margin-bottom: var(--vscode-spacing-size120);
+	padding: var(--vscode-spacing-size120) 0 0;
+}
+
+.plugin-list-widget .plugin-card-section {
+	margin-bottom: var(--vscode-spacing-size240);
 }
 
 .plugin-list-widget .plugin-discovery-section {
@@ -2433,14 +2434,14 @@ per-word capitalization does not survive translation. */
 
 .plugin-list-widget .plugin-home-empty-title {
 	margin: 0;
-	font-size: var(--vscode-agents-fontSize-heading2);
+	font-size: var(--vscode-agents-fontSize-heading3);
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 }
 
 .plugin-list-widget .plugin-home-empty-description {
 	max-width: 520px;
-	font-size: var(--vscode-agents-fontSize-body1);
+	font-size: var(--vscode-agents-fontSize-body2);
 	line-height: 1.45;
 	color: var(--vscode-descriptionForeground);
 }
