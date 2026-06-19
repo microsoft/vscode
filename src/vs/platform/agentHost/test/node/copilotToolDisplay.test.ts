@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, synthesizeSkillToolCall, type ITypedPermissionRequest } from '../../node/copilot/copilotToolDisplay.js';
+import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind, getToolMarkdownContent, isEditTool, isHiddenTool, isMarkdownRenderedTool, synthesizeSkillToolCall, type ITypedPermissionRequest } from '../../node/copilot/copilotToolDisplay.js';
 
 suite('copilotToolDisplay — friendly tool names', () => {
 
@@ -98,6 +98,32 @@ suite('copilotToolDisplay — edit tool classification', () => {
 	});
 });
 
+suite('copilotToolDisplay — markdown-rendered tools', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('task_complete renders as markdown, other tools do not', () => {
+		assert.strictEqual(isMarkdownRenderedTool('task_complete'), true);
+		assert.strictEqual(isMarkdownRenderedTool('bash'), false);
+		assert.strictEqual(isMarkdownRenderedTool('report_intent'), false);
+	});
+
+	test('getToolMarkdownContent returns the task_complete summary when present', () => {
+		assert.strictEqual(getToolMarkdownContent('task_complete', { summary: 'All tests pass.' }), '\n\n**Task completed:** All tests pass.');
+	});
+
+	test('getToolMarkdownContent returns undefined for empty, missing, or non-string summaries', () => {
+		assert.strictEqual(getToolMarkdownContent('task_complete', { summary: '' }), undefined);
+		assert.strictEqual(getToolMarkdownContent('task_complete', {}), undefined);
+		assert.strictEqual(getToolMarkdownContent('task_complete', undefined), undefined);
+		assert.strictEqual(getToolMarkdownContent('task_complete', { summary: 42 }), undefined);
+	});
+
+	test('getToolMarkdownContent returns undefined for non-markdown tools', () => {
+		assert.strictEqual(getToolMarkdownContent('bash', { summary: 'ignored' }), undefined);
+	});
+});
+
 suite('getPermissionDisplay — cd-prefix stripping', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -163,6 +189,32 @@ suite('getPermissionDisplay — cd-prefix stripping', () => {
 		} as ITypedPermissionRequest;
 		const display = getPermissionDisplay(request, wd);
 		assert.strictEqual(display.toolInput, 'dir');
+	});
+
+});
+
+suite('getPermissionDisplay — read permission display', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses the view-tool invocation message for read permissions', () => {
+		const display = getPermissionDisplay({
+			kind: 'read',
+			path: '/Users/connor/Downloads/context7-copilot-debug-main.json',
+			intention: 'Read file: /Users/connor/Downloads/context7-copilot-debug-main.json',
+		} as ITypedPermissionRequest, URI.file('/repo/project'));
+
+		assert.deepStrictEqual({
+			invocationMessage: display.invocationMessage,
+			toolInput: display.toolInput,
+			permissionKind: display.permissionKind,
+			permissionPath: display.permissionPath,
+		}, {
+			invocationMessage: { markdown: 'Reading [context7-copilot-debug-main.json](file:///Users/connor/Downloads/context7-copilot-debug-main.json)' },
+			toolInput: undefined,
+			permissionKind: 'read',
+			permissionPath: '/Users/connor/Downloads/context7-copilot-debug-main.json',
+		});
 	});
 });
 

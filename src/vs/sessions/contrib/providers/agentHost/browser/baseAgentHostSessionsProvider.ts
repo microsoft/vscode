@@ -22,7 +22,8 @@ import { AgentSession, IAgentConnection, IAgentSessionMetadata } from '../../../
 import { buildSessionChangesetUri } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
-import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { KNOWN_MODE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/common/agentHostSchema.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, AgentSelection, ChangesSummary, type ChangesetFile, Customization, CustomizationType, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -37,7 +38,7 @@ import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatSendRequestOptions, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel, type IAgentSessionDefaultConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
@@ -59,11 +60,18 @@ function isSafeSessionConfigKey(property: string): boolean {
 }
 
 function normalizeAutoApproveValue(value: unknown, policyRestricted: boolean): ChatPermissionLevel | undefined {
-	if (typeof value !== 'string' || !KNOWN_AUTO_APPROVE_VALUES.has(value)) {
+	// `KNOWN_AUTO_APPROVE_VALUES` is intentionally tolerant of forward/legacy
+	// compatibility values (e.g. `assisted`) that are not real
+	// `ChatPermissionLevel`s. Validate against the enum here so this function
+	// never returns a value outside its declared contract.
+	if (!isChatPermissionLevel(value)) {
 		return undefined;
 	}
-	const normalized = value as ChatPermissionLevel;
-	if (policyRestricted && (normalized === ChatPermissionLevel.AutoApprove || normalized === ChatPermissionLevel.Autopilot)) {
+	const normalized = value;
+	// Bypass and (legacy) Autopilot auto-approve at least some
+	// tool calls, so clamp them to Default when enterprise policy disables
+	// global auto-approval.
+	if (policyRestricted && normalized !== ChatPermissionLevel.Default) {
 		return ChatPermissionLevel.Default;
 	}
 	return normalized;
@@ -74,7 +82,7 @@ function isAutoApprovePolicyRestricted(configurationService: IConfigurationServi
 }
 
 function normalizeSessionConfigValue(property: string, value: unknown, policyRestricted: boolean): unknown {
-	if (property === SessionConfigKey.AutoApprove && policyRestricted && (value === ChatPermissionLevel.AutoApprove || value === ChatPermissionLevel.Autopilot)) {
+	if (property === SessionConfigKey.AutoApprove && policyRestricted && value !== ChatPermissionLevel.Default) {
 		return ChatPermissionLevel.Default;
 	}
 	return value;
@@ -1743,38 +1751,58 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * Initial session-config values applied to a brand-new agent-host session
 	 * before its schema is resolved. Values are seeded from the profile-scoped
 	 * remembered session-config map (plus legacy isolation fallback) and then
-	 * normalized against policy/feature constraints. For `autoApprove`,
-	 * `chat.permissions.default` takes precedence over remembered values.
+	 * normalized against policy/feature constraints.
+	 *
+	 * The agent-host defaults are controlled by the single
+	 * `chat.agentSessions.defaultConfiguration` object setting (with `mode` and
+	 * `approvals` properties), which takes precedence over remembered values.
+	 * The local-only `chat.permissions.default` setting is intentionally NOT
+	 * consulted here.
 	 *
 	 * If enterprise policy disables global auto-approval
-	 * (`chat.tools.global.autoApprove` policy value `false`), the seed is
-	 * clamped to `default` so the agent host never starts in an elevated
+	 * (`chat.tools.global.autoApprove` policy value `false`), the approval seed
+	 * is clamped to `default` so the agent host never starts in an elevated
 	 * permission level the user is not allowed to pick.
 	 */
 	protected _initialNewSessionConfig(): Record<string, unknown> | undefined {
 		const config = Object.create(null) as Record<string, unknown>;
 		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService);
 
-		// Seed session config values from the last user picks.
+		// Seed session config values from the last user picks, then migrate any
+		// legacy `autoApprove='autopilot'` remembered value into the new
+		// `mode='autopilot'` shape *first*, so the configured agent-host
+		// defaults applied below cleanly take precedence over it (rather than
+		// the migration overwriting a configured mode afterwards).
 		const rememberedValues = this._storageService.getObject<Record<string, unknown>>(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {});
 		for (const [property, value] of Object.entries(rememberedValues)) {
 			if (typeof value === 'string' && isSafeSessionConfigKey(property)) {
 				config[property] = value;
 			}
 		}
+		const remembered = migrateLegacyAutopilotConfig(config);
 
-		const configured = this._baseConfigurationService.getValue<string>(ChatConfiguration.DefaultPermissionLevel);
-		const normalizedConfiguredAutoApprove = normalizeAutoApproveValue(configured, policyRestricted);
-		const normalizedRememberedAutoApprove = normalizeAutoApproveValue(config[SessionConfigKey.AutoApprove], policyRestricted);
+		// Configured agent-host defaults (a single object setting controlling
+		// both axes) win over remembered values.
+		const configuredDefaults = this._baseConfigurationService.getValue<IAgentSessionDefaultConfiguration>(ChatConfiguration.AgentSessionDefaultConfiguration);
+
+		// Approval axis.
+		const normalizedConfiguredAutoApprove = normalizeAutoApproveValue(configuredDefaults?.approvals, policyRestricted);
+		const normalizedRememberedAutoApprove = normalizeAutoApproveValue(remembered[SessionConfigKey.AutoApprove], policyRestricted);
 		if (normalizedConfiguredAutoApprove) {
-			config[SessionConfigKey.AutoApprove] = normalizedConfiguredAutoApprove;
+			remembered[SessionConfigKey.AutoApprove] = normalizedConfiguredAutoApprove;
 		} else if (normalizedRememberedAutoApprove) {
-			config[SessionConfigKey.AutoApprove] = normalizedRememberedAutoApprove;
+			remembered[SessionConfigKey.AutoApprove] = normalizedRememberedAutoApprove;
 		} else {
-			delete config[SessionConfigKey.AutoApprove];
+			delete remembered[SessionConfigKey.AutoApprove];
 		}
 
-		return Object.keys(config).length > 0 ? config : undefined;
+		// Mode axis.
+		const configuredMode = configuredDefaults?.mode;
+		if (typeof configuredMode === 'string' && KNOWN_MODE_VALUES.has(configuredMode)) {
+			remembered[SessionConfigKey.Mode] = configuredMode;
+		}
+
+		return Object.keys(remembered).length > 0 ? remembered : undefined;
 	}
 
 	// -- Dynamic session config ----------------------------------------------

@@ -154,6 +154,8 @@ export class AgentService extends Disposable implements IAgentService {
 	 * for it.
 	 */
 	private readonly _resourceSubscribers = new ResourceMap<Set<string>>();
+	private readonly _restoreSessionInFlight = new Map<string, Promise<void>>();
+	private readonly _restoreSubagentInFlight = new Map<string, Promise<void>>();
 
 	/**
 	 * Pending {@link _runSessionGc} timers, keyed by session URI. A timer is
@@ -1395,6 +1397,27 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 
+		const inFlight = this._restoreSessionInFlight.get(sessionStr);
+		if (inFlight) {
+			return inFlight;
+		}
+
+		const restore = this._doRestoreSession(session, sessionStr);
+		this._restoreSessionInFlight.set(sessionStr, restore);
+		try {
+			await restore;
+		} finally {
+			if (this._restoreSessionInFlight.get(sessionStr) === restore) {
+				this._restoreSessionInFlight.delete(sessionStr);
+			}
+		}
+	}
+
+	private async _doRestoreSession(session: URI, sessionStr: string): Promise<void> {
+		if (this._stateManager.getSessionState(sessionStr)) {
+			return;
+		}
+
 		const agent = this._findProviderForSession(session);
 		if (!agent) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `No agent for session: ${sessionStr}`);
@@ -2064,6 +2087,27 @@ export class AgentService extends Disposable implements IAgentService {
 	 * turns from those events.
 	 */
 	private async _restoreSubagentSession(subagentUri: string, parentSession: URI): Promise<void> {
+		if (this._stateManager.getSessionState(subagentUri)) {
+			return;
+		}
+
+		const inFlight = this._restoreSubagentInFlight.get(subagentUri);
+		if (inFlight) {
+			return inFlight;
+		}
+
+		const restore = this._doRestoreSubagentSession(subagentUri, parentSession);
+		this._restoreSubagentInFlight.set(subagentUri, restore);
+		try {
+			await restore;
+		} finally {
+			if (this._restoreSubagentInFlight.get(subagentUri) === restore) {
+				this._restoreSubagentInFlight.delete(subagentUri);
+			}
+		}
+	}
+
+	private async _doRestoreSubagentSession(subagentUri: string, parentSession: URI): Promise<void> {
 		// Ensure the parent session is loaded first
 		const parentSessionKey = parentSession.toString();
 		if (!this._stateManager.getSessionState(parentSessionKey)) {

@@ -30,7 +30,7 @@ import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import { createAgentModelPricingMeta } from '../../common/agentModelPricing.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
-import { AgentHostSessionSyncEnabledConfigKey, AutoApproveLevel, ISchemaProperty, SessionMode, createSchema, platformRootSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
+import { AgentHostSessionSyncEnabledConfigKey, AutoApproveLevel, ISchemaProperty, SessionMode, createSchema, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IMcpNotification } from '../../common/agentService.js';
 import { getEffectiveAgents } from '../../common/customAgents.js';
@@ -1240,7 +1240,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			...(branchProperty ? { [SessionConfigKey.Branch]: branchProperty } : {}),
 		});
 
-		const values = sessionSchema.validateOrDefault(params.config, {
+		const values = sessionSchema.validateOrDefault(migrateLegacyAutopilotConfig(params.config), {
 			[SessionConfigKey.Isolation]: isolationValue,
 			[SessionConfigKey.AutoApprove]: 'default' satisfies AutoApproveLevel,
 			[SessionConfigKey.Mode]: 'interactive' satisfies SessionMode,
@@ -1380,17 +1380,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Translates the AHP-side `(mode, autoApprove)` pair to the Copilot
-	 * SDK's three-mode space (`interactive` / `plan` / `autopilot`):
+	 * Translates the AHP-side `mode` to the Copilot SDK's three-mode space
+	 * (`interactive` / `plan` / `autopilot`). With Autopilot living on the
+	 * `mode` axis the mapping is now direct:
 	 *
-	 *  - `mode='plan'` → SDK `plan` (auto-approval is irrelevant; the
-	 *    agent host's existing session-state auto-approval logic handles
-	 *    `plan.md` writes).
-	 *  - `mode='interactive'` + `autoApprove='autopilot'` → SDK `autopilot`
-	 *    (the SDK auto-approves all tool calls).
-	 *  - `mode='interactive'` + any other autoApprove → SDK `interactive`
-	 *    (the agent host's own auto-approval logic continues to gate tool
-	 *    calls based on `autoApprove`).
+	 *  - `mode='plan'` → SDK `plan`.
+	 *  - `mode='autopilot'` → SDK `autopilot` (autonomous, continue-until-done).
+	 *  - `mode='interactive'` → SDK `interactive`.
+	 *
+	 * Tool auto-approval is governed independently by the orthogonal
+	 * `autoApprove` axis (Default / Bypass), enforced by the agent
+	 * host's own permission handler — which the SDK still invokes even under
+	 * autopilot mode.
 	 *
 	 * Returns `undefined` when no mode is configured for the session, so
 	 * the SDK's current mode is left untouched.
@@ -1398,14 +1399,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _resolveSdkMode(session: URI): CopilotSdkMode | undefined {
 		const sessionKey = session.toString();
 		const mode = this._configurationService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.Mode);
-		if (mode === 'plan') {
-			return 'plan';
+		switch (mode) {
+			case 'plan':
+				return 'plan';
+			case 'autopilot':
+				return 'autopilot';
+			case 'interactive':
+				return 'interactive';
+			default:
+				return undefined;
 		}
-		if (mode === 'interactive') {
-			const autoApprove = this._configurationService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.AutoApprove);
-			return autoApprove === 'autopilot' ? 'autopilot' : 'interactive';
-		}
-		return undefined;
 	}
 
 	setPendingMessages(session: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): void {

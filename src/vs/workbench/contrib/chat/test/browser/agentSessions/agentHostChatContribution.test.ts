@@ -40,7 +40,7 @@ import { IOpenerService } from '../../../../../../platform/opener/common/opener.
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
-import { AgentHostContribution, AgentHostSessionListController, AgentHostSessionHandler } from '../../../browser/agentSessions/agentHost/agentHostChatContribution.js';
+import { AgentHostContribution, AgentHostSessionListController, AgentHostSessionHandler, CoalescingAgentHostSessionListConnection } from '../../../browser/agentSessions/agentHost/agentHostChatContribution.js';
 import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestFileService } from '../../../../../test/common/workbenchTestServices.js';
@@ -1232,6 +1232,78 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(listController.items.length, 1);
 		});
 
+		test('refresh shares an in-flight listSessions RPC', async () => {
+			const { listController, agentHostService } = createContribution(disposables);
+
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'aaa'), startTime: 1000, modifiedTime: 2000, summary: 'My session' });
+
+			let listCalls = 0;
+			const originalListSessions = agentHostService.listSessions.bind(agentHostService);
+			const releaseListSessions = disposables.add(new Emitter<void>());
+			const released = Event.toPromise(releaseListSessions.event);
+			agentHostService.listSessions = async () => {
+				listCalls++;
+				await released;
+				return originalListSessions();
+			};
+
+			const firstRefresh = listController.refresh(CancellationToken.None);
+			const secondRefresh = listController.refresh(CancellationToken.None);
+			await timeout(0);
+			assert.strictEqual(listCalls, 1);
+
+			releaseListSessions.fire();
+			await Promise.all([firstRefresh, secondRefresh]);
+
+			assert.deepStrictEqual({
+				listCalls,
+				labels: listController.items.map(item => item.label),
+			}, {
+				listCalls: 1,
+				labels: ['My session'],
+			});
+		});
+
+		test('controllers sharing a connection coalesce their listSessions RPCs', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'aaa'), startTime: 1000, modifiedTime: 2000, summary: 'Copilot session' });
+
+			let listCalls = 0;
+			const originalListSessions = agentHostService.listSessions.bind(agentHostService);
+			const releaseListSessions = disposables.add(new Emitter<void>());
+			const released = Event.toPromise(releaseListSessions.event);
+			agentHostService.listSessions = async () => {
+				listCalls++;
+				await released;
+				return originalListSessions();
+			};
+
+			// One shared connection, two controllers for different providers — the
+			// agent host should only be asked to enumerate sessions once.
+			const connection = new CoalescingAgentHostSessionListConnection(agentHostService);
+			const copilotController = disposables.add(instantiationService.createInstance(AgentHostSessionListController, 'agent-host-copilot', 'copilot', connection, undefined, 'local'));
+			const otherController = disposables.add(instantiationService.createInstance(AgentHostSessionListController, 'agent-host-other', 'other', connection, undefined, 'local'));
+
+			const refreshCopilot = copilotController.refresh(CancellationToken.None);
+			const refreshOther = otherController.refresh(CancellationToken.None);
+			await timeout(0);
+			assert.strictEqual(listCalls, 1);
+
+			releaseListSessions.fire();
+			await Promise.all([refreshCopilot, refreshOther]);
+
+			assert.deepStrictEqual({
+				listCalls,
+				copilot: copilotController.items.map(item => item.label),
+				other: otherController.items.map(item => item.label),
+			}, {
+				listCalls: 1,
+				copilot: ['Copilot session'],
+				other: [],
+			});
+		});
+
 		test('refresh retries listSessions if the first call failed', async () => {
 			const { listController, agentHostService } = createContribution(disposables);
 
@@ -1336,10 +1408,19 @@ suite('AgentHostChatContribution', () => {
 
 			// Open a workspace folder → only the in-workspace session should remain.
 			folders = [{ uri: workspaceFolder, name: 'root', index: 0, toResource: () => workspaceFolder }];
+			let listCalls = 0;
+			const originalListSessions = agentHostService.listSessions.bind(agentHostService);
+			agentHostService.listSessions = async () => { listCalls++; return originalListSessions(); };
 			onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] });
 			await timeout(0);
 
-			assert.deepStrictEqual(listController.items.map(item => item.label), ['In workspace']);
+			assert.deepStrictEqual({
+				listCalls,
+				labels: listController.items.map(item => item.label),
+			}, {
+				listCalls: 1,
+				labels: ['In workspace'],
+			});
 		});
 
 		test('sessionAdded notification filters out sessions outside the workspace', async () => {
@@ -1556,6 +1637,91 @@ suite('AgentHostChatContribution', () => {
 				singleFolder: false,
 				sessionsWindow: false,
 				nonAgentHost: false,
+			});
+		});
+	});
+
+	suite('CoalescingAgentHostSessionListConnection', () => {
+
+		test('coalesces concurrent listSessions into a single delegate call', async () => {
+			const { agentHostService } = createTestServices(disposables);
+
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'aaa'), startTime: 1000, modifiedTime: 2000, summary: 'My session' });
+
+			let listCalls = 0;
+			const originalListSessions = agentHostService.listSessions.bind(agentHostService);
+			const releaseListSessions = disposables.add(new Emitter<void>());
+			const released = Event.toPromise(releaseListSessions.event);
+			agentHostService.listSessions = async () => {
+				listCalls++;
+				await released;
+				return originalListSessions();
+			};
+
+			const connection = new CoalescingAgentHostSessionListConnection(agentHostService);
+			const first = connection.listSessions();
+			const second = connection.listSessions();
+			await timeout(0);
+			assert.strictEqual(listCalls, 1);
+
+			releaseListSessions.fire();
+			const [a,] = await Promise.all([first, second]);
+
+			assert.deepStrictEqual({
+				listCalls,
+				summaries: a.map(s => s.summary),
+			}, {
+				listCalls: 1,
+				summaries: ['My session'],
+			});
+		});
+
+		test('issues a fresh delegate call once the in-flight request settles', async () => {
+			const { agentHostService } = createTestServices(disposables);
+
+			let listCalls = 0;
+			const originalListSessions = agentHostService.listSessions.bind(agentHostService);
+			agentHostService.listSessions = async () => { listCalls++; return originalListSessions(); };
+
+			const connection = new CoalescingAgentHostSessionListConnection(agentHostService);
+			await connection.listSessions();
+			await connection.listSessions();
+
+			assert.strictEqual(listCalls, 2);
+		});
+
+		test('delivers a rejected listSessions to all callers and clears the in-flight slot', async () => {
+			const { agentHostService } = createTestServices(disposables);
+
+			let listCalls = 0;
+			const originalListSessions = agentHostService.listSessions.bind(agentHostService);
+			agentHostService.listSessions = async () => {
+				listCalls++;
+				if (listCalls === 1) {
+					throw new Error('boom');
+				}
+				return originalListSessions();
+			};
+
+			const connection = new CoalescingAgentHostSessionListConnection(agentHostService);
+			const first = connection.listSessions();
+			const second = connection.listSessions();
+			const firstError = await first.then(() => undefined, err => err.message);
+			const secondError = await second.then(() => undefined, err => err.message);
+
+			// The failed request must not be cached; a subsequent call re-fetches.
+			const retried = await connection.listSessions();
+
+			assert.deepStrictEqual({
+				firstError,
+				secondError,
+				listCalls,
+				retried,
+			}, {
+				firstError: 'boom',
+				secondError: 'boom',
+				listCalls: 2,
+				retried: [],
 			});
 		});
 	});

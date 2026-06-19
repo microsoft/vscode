@@ -57,6 +57,7 @@ import { ChatSlashCommandService, IChatSlashCommandService } from '../common/par
 import { ChatArtifactsService, IChatArtifactsService } from '../common/tools/chatArtifactsService.js';
 import { ChatTodoListService, IChatTodoListService } from '../common/tools/chatTodoListService.js';
 import { ChatTransferService, IChatTransferService } from '../common/model/chatTransferService.js';
+import { LocalAgentDisabledInputTipContribution } from './agentSessions/localAgentDisabledInputTipContribution.js';
 import { IChatVariablesService } from '../common/attachments/chatVariables.js';
 import { ChatWidgetHistoryService, IChatWidgetHistoryService } from '../common/widget/chatWidgetHistoryService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatNotificationMode, ChatPermissionLevel } from '../common/constants.js';
@@ -487,8 +488,37 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.permissions.default.autoApprove.description', "Start new chat sessions in Bypass Approvals mode."),
 				nls.localize('chat.permissions.default.autopilot.description', "Start new chat sessions in Autopilot mode."),
 			],
-			description: nls.localize('chat.permissions.default.settingDescription', "Controls the default permissions picker mode for new chat sessions. You can still change the permission mode per session, and each session remembers the permission mode that was used. If enterprise policy disables auto approval, new sessions use Default Approvals."),
+			description: nls.localize('chat.permissions.default.settingDescription', "Controls the default permissions picker mode for new local chat sessions. You can still change the permission mode per session, and each session remembers the permission mode that was used. If enterprise policy disables auto approval, new sessions use Default Approvals."),
 			default: ChatPermissionLevel.Default,
+		},
+		[ChatConfiguration.AgentSessionDefaultConfiguration]: {
+			type: 'object',
+			additionalProperties: false,
+			properties: {
+				mode: {
+					type: 'string',
+					enum: ['interactive', 'plan', 'autopilot'],
+					enumDescriptions: [
+						nls.localize('chat.agentSessions.defaultConfiguration.mode.interactive', "Interactive — step-by-step collaboration."),
+						nls.localize('chat.agentSessions.defaultConfiguration.mode.plan', "Plan — plan first, execute when ready."),
+						nls.localize('chat.agentSessions.defaultConfiguration.mode.autopilot', "Autopilot — autonomously iterate from start to finish."),
+					],
+					default: 'interactive',
+					description: nls.localize('chat.agentSessions.defaultConfiguration.mode.description', "The starting mode for new agent sessions."),
+				},
+				approvals: {
+					type: 'string',
+					enum: [ChatPermissionLevel.Default, ChatPermissionLevel.AutoApprove],
+					enumDescriptions: [
+						nls.localize('chat.agentSessions.defaultConfiguration.approvals.default', "Default Approvals — Copilot uses your configured settings."),
+						nls.localize('chat.agentSessions.defaultConfiguration.approvals.autoApprove', "Bypass Approvals — all tool calls are auto-approved."),
+					],
+					default: ChatPermissionLevel.Default,
+					description: nls.localize('chat.agentSessions.defaultConfiguration.approvals.description', "The starting approval behavior for new agent sessions. If enterprise policy disables auto approval, new sessions use Default Approvals."),
+				},
+			},
+			default: { mode: 'interactive', approvals: ChatPermissionLevel.Default },
+			markdownDescription: nls.localize('chat.agentSessions.defaultConfiguration.settingDescription', "Controls the default configuration (mode and approval behavior) for new agent sessions (such as Copilot CLI). You can still change the mode and approval level per session, and each session remembers what was used."),
 		},
 		[ChatConfiguration.GlobalAutoApprove]: {
 			default: false,
@@ -2389,6 +2419,7 @@ registerWorkbenchContribution2(ChatViewsWelcomeHandler.ID, ChatViewsWelcomeHandl
 registerWorkbenchContribution2(ChatGettingStartedContribution.ID, ChatGettingStartedContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatSetupContribution.ID, ChatSetupContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatQuotaNotificationContribution.ID, ChatQuotaNotificationContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(LocalAgentDisabledInputTipContribution.ID, LocalAgentDisabledInputTipContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(HasByokModelsContribution.ID, HasByokModelsContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatTeardownContribution.ID, ChatTeardownContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatStatusBarEntry.ID, ChatStatusBarEntry, WorkbenchPhase.BlockRestore);

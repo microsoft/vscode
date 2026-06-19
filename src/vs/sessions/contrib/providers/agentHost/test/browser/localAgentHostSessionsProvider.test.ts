@@ -1316,11 +1316,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(provider.getSessionConfig(session.sessionId), undefined);
 	});
 
-	test('createNewSession seeds autoApprove from chat.permissions.default and forwards it to resolveSessionConfig', async () => {
+	test('createNewSession seeds autoApprove from chat.agentSessions.defaultConfiguration and forwards it to resolveSessionConfig', async () => {
 		const config = new TestConfigurationService();
-		await config.setUserConfiguration('chat.permissions.default', 'autoApprove');
+		await config.setUserConfiguration('chat.agentSessions.defaultConfiguration', { approvals: 'autoApprove' });
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: { autoApprove: { type: 'string', enum: ['default', 'autoApprove', 'autopilot'], title: 'Auto-approve' } } },
+			schema: { type: 'object', properties: { autoApprove: { type: 'string', enum: ['default', 'autoApprove'], title: 'Auto-approve' } } },
 			values: { autoApprove: 'autoApprove' },
 		};
 		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config });
@@ -1336,9 +1336,25 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('createNewSession seeds mode from chat.agentSessions.defaultConfiguration and forwards it to resolveSessionConfig', async () => {
+		const config = new TestConfigurationService();
+		await config.setUserConfiguration('chat.agentSessions.defaultConfiguration', { mode: 'autopilot' });
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config });
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await waitForSessionConfig(provider, session.sessionId, c => c?.values.mode === 'autopilot');
+
+		assert.deepStrictEqual({
+			seededImmediately: provider.getSessionConfig(session.sessionId)?.values.mode,
+			forwardedToAgentHost: agentHost.resolveSessionConfigRequests.at(-1)?.config?.mode,
+		}, {
+			seededImmediately: 'autopilot',
+			forwardedToAgentHost: 'autopilot',
+		});
+	});
+
 	test('createNewSession forwards seeded config to eager createSession', async () => {
 		const config = new TestConfigurationService();
-		await config.setUserConfiguration('chat.permissions.default', 'autoApprove');
+		await config.setUserConfiguration('chat.agentSessions.defaultConfiguration', { approvals: 'autoApprove' });
 		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config });
 		provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 		await timeout(0);
@@ -1346,7 +1362,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(agentHost.createSessionConfigs[0]?.config, { autoApprove: 'autoApprove' });
 	});
 
-	test('createNewSession does not seed autoApprove when chat.permissions.default is the default value', () => {
+	test('createNewSession does not seed autoApprove when chat.agentSessions.defaultConfiguration approvals is the default value', () => {
 		const provider = createProvider(disposables, agentHost);
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 
@@ -1361,7 +1377,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	test('createNewSession clamps seeded autoApprove to default when policy disables global auto-approve', async () => {
 		const config = createPolicyRestrictedConfigurationService();
-		await config.setUserConfiguration('chat.permissions.default', 'autopilot');
+		await config.setUserConfiguration('chat.agentSessions.defaultConfiguration', { approvals: 'autoApprove' });
 		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config });
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 
@@ -1421,21 +1437,21 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('createNewSession gives chat.permissions.default precedence over remembered autoApprove while normalizing by policy', async () => {
+	test('createNewSession gives chat.agentSessions.defaultConfiguration precedence over remembered autoApprove while normalizing by policy', async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({
-			[SessionConfigKey.AutoApprove]: 'autopilot',
+			[SessionConfigKey.AutoApprove]: 'autoApprove',
 		}), StorageScope.PROFILE, StorageTarget.MACHINE);
 
 		// Case 1: policy restricts auto-approve — setting 'autoApprove' is clamped to 'default'
 		const policyRestrictedConfig = createPolicyRestrictedConfigurationService();
-		await policyRestrictedConfig.setUserConfiguration('chat.permissions.default', 'autoApprove');
+		await policyRestrictedConfig.setUserConfiguration('chat.agentSessions.defaultConfiguration', { approvals: 'autoApprove' });
 		const policyRestrictedProvider = createProvider(disposables, agentHost, undefined, { configurationService: policyRestrictedConfig, storageService });
 		policyRestrictedProvider.createNewSession(URI.parse('file:///home/user/project'), policyRestrictedProvider.sessionTypes[0].id);
 
-		// Case 2: configured 'default' wins over remembered 'autopilot'
+		// Case 2: configured 'default' wins over remembered 'autoApprove'
 		const configuredDefaultConfig = new TestConfigurationService();
-		await configuredDefaultConfig.setUserConfiguration('chat.permissions.default', 'default');
+		await configuredDefaultConfig.setUserConfiguration('chat.agentSessions.defaultConfiguration', { approvals: 'default' });
 		const configuredDefaultProvider = createProvider(disposables, agentHost, undefined, { configurationService: configuredDefaultConfig, storageService });
 		configuredDefaultProvider.createNewSession(URI.parse('file:///home/user/project'), configuredDefaultProvider.sessionTypes[0].id);
 
@@ -1447,6 +1463,21 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}, {
 			policyRestricted: 'default',
 			configuredDefault: 'default',
+		});
+	});
+
+	test('createNewSession migrates a remembered legacy autoApprove=autopilot to mode=autopilot', async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({
+			[SessionConfigKey.AutoApprove]: 'autopilot',
+		}), StorageScope.PROFILE, StorageTarget.MACHINE);
+		const provider = createProvider(disposables, agentHost, undefined, { storageService });
+		provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await timeout(0);
+
+		assert.deepStrictEqual(agentHost.resolveSessionConfigRequests.at(-1)?.config, {
+			mode: 'autopilot',
+			autoApprove: 'default',
 		});
 	});
 
