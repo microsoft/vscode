@@ -23,6 +23,8 @@ import { TerminalSettingId, type ITerminalProfile } from '../../../../../../plat
 import { ITerminalProfileResolverService, ITerminalProfileService, type IShellLaunchConfigResolveOptions } from '../../../../terminal/common/terminal.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
 import { AgentHostTerminalContribution } from '../../../browser/agentSessions/agentHost/agentHostTerminalContribution.js';
+import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
+import { TestWorkspaceTrustManagementService } from '../../../../../test/common/workbenchTestServices.js';
 
 // ---- Mock agent host service (minimal — only what the contribution touches) ----
 
@@ -177,6 +179,7 @@ function setup(disposables: DisposableStore, agentHostEnabled: boolean = true): 
 	instantiationService.stub(IConfigurationService, configurationService);
 	instantiationService.stub(ITerminalProfileResolverService, resolver);
 	instantiationService.stub(ITerminalProfileService, profileService);
+	instantiationService.stub(IWorkspaceTrustManagementService, disposables.add(new TestWorkspaceTrustManagementService(true)));
 	instantiationService.stub(IAgentHostTerminalService, {
 		registerEntry: (): IDisposable => ({ dispose() { } }),
 		profiles: observableValue('test', []),
@@ -441,4 +444,3 @@ suite('AgentHostTerminalContribution', () => {
 		assert.deepStrictEqual(agentHostService.dispatchedActions as readonly unknown[], []);
 	});
 });
-

@@ -65,6 +65,7 @@ import { IAgentHostActiveClientService } from './agentHostActiveClientService.js
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 import { AgentHostSnapshotController } from './agentHostSnapshotController.js';
+import { AgentHostWorkspaceTrust } from './agentHostWorkspaceTrust.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, getTerminalContentUri, isSubagentTool, makeAhpTerminalToolSessionId, messageToVariableData, parseAhpTerminalToolSessionId, rawMarkdownToString, stringOrMarkdownToString, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, usageInfoToChatUsage, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
@@ -453,6 +454,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * a resource that carries a chatId fragment (see {@link _resolveChatUri}).
 	 */
 	private readonly _additionalChatSubscriptions = new Map<string, IReference<IAgentSubscription<ChatState>>>();
+	private readonly _workspaceTrust: AgentHostWorkspaceTrust;
 
 	constructor(
 		config: IAgentHostSessionHandlerConfig,
@@ -476,6 +478,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	) {
 		super();
 		this._config = config;
+		this._workspaceTrust = this._instantiationService.createInstance(AgentHostWorkspaceTrust);
 
 		this._register(autorun(reader => {
 			const defs = this._activeClientService.clientTools.read(reader);
@@ -2812,6 +2815,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const requestedSession = fork ? undefined : this._resolveSessionUri(sessionResource);
 
 		this._logService.trace(`[AgentHost] Creating new session, model=${model?.id ?? '(default)'}, provider=${this._config.provider}${fork ? `, fork from ${fork.session.toString()} at index ${fork.turnIndex}` : ''}`);
+
+		if (workingDirectory) {
+			await this._workspaceTrust.requireTrusted(workingDirectory);
+		}
 
 		// Eagerly authenticate before creating the session if the agent
 		// declares required protected resources. This avoids a wasted

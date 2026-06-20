@@ -8,27 +8,29 @@ import { IWorkbenchContribution } from '../../../../workbench/common/contributio
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceEditingService } from '../../../../workbench/services/workspaces/common/workspaceEditing.js';
-import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { URI } from '../../../../base/common/uri.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { IWorkspaceFolderCreationData } from '../../../../platform/workspaces/common/workspaces.js';
 import { Queue } from '../../../../base/common/async.js';
 import { ISession } from '../../../services/sessions/common/session.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { AgentHostWorkspaceTrust } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostWorkspaceTrust.js';
 
 export class WorkspaceFolderManagementContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.workspaceFolderManagement';
 	private queue = this._register(new Queue<void>());
+	private readonly workspaceTrust: AgentHostWorkspaceTrust;
 
 	constructor(
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
-		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
+		this.workspaceTrust = instantiationService.createInstance(AgentHostWorkspaceTrust);
 		this._register(autorun(reader => {
 			const activeSession = this.sessionsService.activeSession.read(reader);
 			activeSession?.workspace.read(reader);
@@ -37,7 +39,9 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 	}
 
 	private async updateWorkspaceFoldersForSession(session: ISession | undefined): Promise<void> {
-		await this.manageTrustWorkspaceForSession(session);
+		if (!await this.manageTrustWorkspaceForSession(session)) {
+			return;
+		}
 		const activeSessionFolderData = this.getActiveSessionFolderData(session);
 		const currentRepo = this.workspaceContextService.getWorkspace().folders[0]?.uri;
 
@@ -78,23 +82,17 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 		};
 	}
 
-	private async manageTrustWorkspaceForSession(session: ISession | undefined): Promise<void> {
+	private async manageTrustWorkspaceForSession(session: ISession | undefined): Promise<boolean> {
 		const workspace = session?.workspace.get();
 		if (!workspace?.requiresWorkspaceTrust) {
-			return;
+			return true;
 		}
 
 		const folder = workspace?.folders[0];
 		if (!folder) {
-			return;
+			return true;
 		}
 
-		if (!this.isUriTrusted(folder.workingDirectory)) {
-			await this.workspaceTrustManagementService.setUrisTrust([folder.workingDirectory], true);
-		}
-	}
-
-	private isUriTrusted(uri: URI): boolean {
-		return this.workspaceTrustManagementService.getTrustedUris().some(trustedUri => this.uriIdentityService.extUri.isEqual(trustedUri, uri));
+		return this.workspaceTrust.ensureTrusted(folder.workingDirectory);
 	}
 }

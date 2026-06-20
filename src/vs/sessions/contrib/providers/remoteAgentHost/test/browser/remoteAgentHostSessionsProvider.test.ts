@@ -38,6 +38,8 @@ import { CopilotCLISessionType } from '../../../agentHost/browser/baseAgentHostS
 import { IObservable, constObservable } from '../../../../../../base/common/observable.js';
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, type ResourceTrustRequestOptions } from '../../../../../../platform/workspace/common/workspaceTrust.js';
+import { TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 
 // ---- Mock connection --------------------------------------------------------
 
@@ -189,7 +191,7 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 	};
 }
 
-function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { address?: string; connectionName?: string | undefined; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; storageService?: IStorageService; noConnection?: boolean; isWebPlatform?: boolean }): RemoteAgentHostSessionsProvider {
+function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { address?: string; connectionName?: string | undefined; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; storageService?: IStorageService; noConnection?: boolean; isWebPlatform?: boolean; workspaceTrustManagementService?: TestWorkspaceTrustManagementService; workspaceTrustRequestService?: TestWorkspaceTrustRequestService }): RemoteAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IFileDialogService, {});
@@ -210,6 +212,8 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 		lookupLanguageModel: () => undefined,
 	});
 	instantiationService.stub(IStorageService, overrides?.storageService ?? disposables.add(new InMemoryStorageService()));
+	instantiationService.stub(IWorkspaceTrustManagementService, overrides?.workspaceTrustManagementService ?? disposables.add(new TestWorkspaceTrustManagementService(true)));
+	instantiationService.stub(IWorkspaceTrustRequestService, overrides?.workspaceTrustRequestService ?? disposables.add(new TestWorkspaceTrustRequestService(true)));
 	instantiationService.stub(ILabelService, {
 		getUriLabel: (uri: URI) => uri.path,
 	});
@@ -239,6 +243,16 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 		provider.setConnection(connection);
 	}
 	return provider;
+}
+
+class RecordingWorkspaceTrustRequestService extends TestWorkspaceTrustRequestService {
+
+	readonly resourceTrustRequests: URI[] = [];
+
+	override async requestResourcesTrust(options: ResourceTrustRequestOptions): Promise<boolean | undefined> {
+		this.resourceTrustRequests.push(options.uri);
+		return super.requestResourcesTrust(options);
+	}
 }
 
 async function waitForSessionConfig(provider: RemoteAgentHostSessionsProvider, sessionId: string, predicate: (config: ResolveSessionConfigResult | undefined) => boolean): Promise<void> {
@@ -471,10 +485,12 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			label: workspace?.label,
 			repository: workspace?.folders[0]?.root.toString(),
 			workingDirectory: workspace?.folders[0]?.workingDirectory?.toString(),
+			requiresWorkspaceTrust: workspace?.requiresWorkspaceTrust,
 		}, {
 			label: 'vscode',
 			repository: projectUri.toString(),
 			workingDirectory: workingDirectory.toString(),
+			requiresWorkspaceTrust: true,
 		});
 	}));
 
@@ -900,6 +916,34 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			() => provider.sendRequest('nonexistent', URI.parse('untitled:chat'), { query: 'test' }),
 			/not found or not a new session/,
 		);
+	});
+
+	test('sendRequest requires workspace trust for the underlying remote folder', async () => {
+		const workspaceTrustManagementService = disposables.add(new TestWorkspaceTrustManagementService(false));
+		const workspaceTrustRequestService = disposables.add(new RecordingWorkspaceTrustRequestService(false));
+		const provider = createProvider(disposables, connection, {
+			openSession: true,
+			workspaceTrustManagementService,
+			workspaceTrustRequestService,
+		});
+		const session = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/project'), provider.sessionTypes[0].id);
+		provider.setAuthenticationPending(false);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			loading: session.loading.get(),
+			createdSessions: connection.createdSessionUris.length,
+		}, {
+			loading: false,
+			createdSessions: 0,
+		});
+
+		const chat = await provider.createNewChat(session.sessionId);
+		await assert.rejects(
+			() => provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' }),
+			/Workspace trust is required/,
+		);
+		assert.deepStrictEqual(workspaceTrustRequestService.resourceTrustRequests.map(uri => uri.toString()), ['file:///home/user/project']);
 	});
 
 	test('sendRequest forwards resolved session config to chat service', async () => {

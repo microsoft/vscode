@@ -33,6 +33,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
+import { AgentHostWorkspaceTrust } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostWorkspaceTrust.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatSendRequestOptions, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -1396,6 +1397,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	/** True while a {@link _refreshSessions} call is awaiting `listSessions()`. */
 	private _sessionRefreshInFlight = false;
+	private readonly _workspaceTrust: AgentHostWorkspaceTrust;
 
 	constructor(
 		@IChatSessionsService protected readonly _chatSessionsService: IChatSessionsService,
@@ -1411,6 +1413,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		@IStorageService protected readonly _storageService: IStorageService,
 	) {
 		super();
+		this._workspaceTrust = this._instantiationService.createInstance(AgentHostWorkspaceTrust);
 		this._register(toDisposable(() => {
 			for (const cached of this._sessionCache.values()) {
 				cached.dispose();
@@ -1552,6 +1555,22 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		this._rootConfig = next;
 		this._onDidChangeRootConfig.fire();
+	}
+
+	protected _clearRootState(): void {
+		if (this._lastAgents !== undefined) {
+			this._lastAgents = undefined;
+			this._onDidChangeCustomAgents.fire();
+			this._onDidChangeCustomizations.fire();
+		}
+		if (this._sessionTypes.length) {
+			this._sessionTypes = [];
+			this._onDidChangeSessionTypes.fire();
+		}
+		if (this._rootConfig) {
+			this._rootConfig = undefined;
+			this._onDidChangeRootConfig.fire();
+		}
 	}
 
 	abstract resolveWorkspace(repositoryUri: URI): ISessionWorkspace | undefined;
@@ -1698,8 +1717,16 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	private _startNewSessionBackend(newSession: NewSession, connection: IAgentConnection): void {
-		void this._refreshNewSessionConfig(newSession);
-		newSession.eagerCreate(connection);
+		void (async () => {
+			if (!await this._workspaceTrust.isTrusted(newSession.workspaceUri)) {
+				newSession.endResolveConfigSync();
+				newSession.setLoading(false);
+				this._onDidChangeSessionConfig.fire(newSession.sessionId);
+				return;
+			}
+			void this._refreshNewSessionConfig(newSession);
+			newSession.eagerCreate(connection);
+		})().catch(err => this._logService.warn(`[${this.id}] Failed to start new session backend: ${err}`));
 	}
 
 	/**
@@ -2351,6 +2378,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!newSession) {
 			throw new Error(`Session '${chatId}' not found or not a new session`);
 		}
+
+		await this._workspaceTrust.requireTrusted(newSession.workspaceUri);
 
 		const connection = this.connection;
 		if (!connection) {

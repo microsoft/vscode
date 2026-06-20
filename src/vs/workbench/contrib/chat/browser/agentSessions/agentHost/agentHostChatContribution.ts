@@ -16,6 +16,7 @@ import { IDefaultAccountService } from '../../../../../../platform/defaultAccoun
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
+import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
@@ -51,8 +52,13 @@ async function waitForLocalAgentHostActivation(accessor: ServicesAccessor, sessi
 	}
 
 	const agentHostService = accessor.get(IAgentHostService);
+	const workspaceTrustManagementService = accessor.get(IWorkspaceTrustManagementService);
 	const environmentService = accessor.get(IWorkbenchEnvironmentService);
+	await workspaceTrustManagementService.workspaceTrustInitialized;
 	while (true) {
+		if (!workspaceTrustManagementService.isWorkspaceTrusted()) {
+			return false;
+		}
 		const rootState = agentHostService.rootState.value;
 		if (rootState instanceof Error) {
 			return false;
@@ -97,6 +103,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	private readonly _modelProviders = new Map<AgentProvider, AgentHostLanguageModelProvider>();
 	/** List controllers keyed by agent provider, for cache resets on reconnect. */
 	private readonly _listControllers = new Map<AgentProvider, AgentHostSessionListController>();
+	private _workspaceTrusted = false;
 
 	/** Dedupes redundant `authenticate` RPCs when the resolved token hasn't changed. */
 	private readonly _authTokenCache = new AgentHostAuthTokenCache();
@@ -117,6 +124,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		@ICustomizationHarnessService private readonly _customizationHarnessService: ICustomizationHarnessService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
+		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
 
@@ -128,6 +136,29 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		}
 
 		this._register(_agentHostFileSystemService.registerAuthority('local', this._agentHostService));
+		this._workspaceTrusted = this._workspaceTrustManagementService.isWorkspaceTrusted();
+		void this._workspaceTrustManagementService.workspaceTrustInitialized.then(() => {
+			this._workspaceTrusted = this._workspaceTrustManagementService.isWorkspaceTrusted();
+			if (!this._workspaceTrusted) {
+				this._clearAgentRegistrations();
+			} else {
+				const current = this._agentHostService.rootState.value;
+				if (current && !(current instanceof Error)) {
+					this._handleRootStateChange(current);
+				}
+			}
+		});
+		this._register(this._workspaceTrustManagementService.onDidChangeTrust(trusted => {
+			this._workspaceTrusted = trusted;
+			if (!trusted) {
+				this._clearAgentRegistrations();
+			} else {
+				const current = this._agentHostService.rootState.value;
+				if (current && !(current instanceof Error)) {
+					this._handleRootStateChange(current);
+				}
+			}
+		}));
 
 		// React to root state changes (agent discovery / removal)
 		this._register(this._agentHostService.rootState.onDidChange(rootState => {
@@ -189,6 +220,11 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	}
 
 	private _handleRootStateChange(rootState: RootState): void {
+		if (!this._workspaceTrusted) {
+			this._clearAgentRegistrations();
+			return;
+		}
+
 		const allowed = rootState.agents.filter(a => this._shouldRegisterAgent(a.provider));
 		const incoming = new Set(allowed.map(a => a.provider));
 
@@ -217,6 +253,13 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 				modelProvider?.updateModels(agent.models);
 			}
 		}
+	}
+
+	private _clearAgentRegistrations(): void {
+		this._agentRegistrations.clearAndDisposeAll();
+		this._modelProviders.clear();
+		this._listControllers.clear();
+		this._authTokenCache.clear();
 	}
 
 	private _registerAgent(agent: AgentInfo): void {

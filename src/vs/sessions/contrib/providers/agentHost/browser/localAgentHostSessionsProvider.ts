@@ -18,6 +18,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -52,6 +53,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 
 	/** `true` when running in the dedicated Agents window vs. a regular editor window. */
 	private readonly _isSessionsWindow: boolean;
+	private _workspaceTrusted = false;
 
 	protected override getLogOutputChannelId(): string | undefined {
 		return AGENT_HOST_LOG_OUTPUT_CHANNEL_ID;
@@ -83,6 +85,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		@IAgentHostActiveClientService activeClientService: IAgentHostActiveClientService,
 		@IStorageService storageService: IStorageService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, storageService);
 
@@ -93,13 +96,48 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		this.browseActions = [];
 
 		this._attachConnectionListeners(this._agentHostService, this._store);
+		this._workspaceTrusted = this._workspaceTrustManagementService.isWorkspaceTrusted();
+		void this._workspaceTrustManagementService.workspaceTrustInitialized.then(() => {
+			this._workspaceTrusted = this._workspaceTrustManagementService.isWorkspaceTrusted();
+			if (this._workspaceTrusted) {
+				const current = this._agentHostService.rootState.value;
+				if (current && !(current instanceof Error)) {
+					this._syncSessionTypesFromRootState(current);
+					this._syncRootConfigFromRootState(current);
+				}
+			} else {
+				this._clearRootState();
+			}
+		});
+		this._register(this._workspaceTrustManagementService.onDidChangeTrust(trusted => {
+			this._workspaceTrusted = trusted;
+			if (trusted) {
+				const current = this._agentHostService.rootState.value;
+				if (current && !(current instanceof Error)) {
+					this._syncSessionTypesFromRootState(current);
+					this._syncRootConfigFromRootState(current);
+				}
+				this._cancelSessionRefreshRetry();
+				if (!this._agentHostService.authenticationPending.get()) {
+					this._refreshSessions();
+					this._resumeNewSessionAfterAuthenticationSettles();
+				}
+			} else {
+				this._cancelSessionRefreshRetry();
+				this._clearRootState();
+			}
+		}));
 
 		const rootStateValue = this._agentHostService.rootState.value;
-		if (rootStateValue && !(rootStateValue instanceof Error)) {
+		if (this._workspaceTrusted && rootStateValue && !(rootStateValue instanceof Error)) {
 			this._syncSessionTypesFromRootState(rootStateValue);
 			this._syncRootConfigFromRootState(rootStateValue);
 		}
 		this._register(this._agentHostService.rootState.onDidChange(rootState => {
+			if (!this._workspaceTrusted) {
+				this._clearRootState();
+				return;
+			}
 			this._syncSessionTypesFromRootState(rootState);
 			this._syncRootConfigFromRootState(rootState);
 		}));
@@ -115,6 +153,9 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		// `_refreshSessions()` at most once for the eager-load case.
 		this._register(autorun(reader => {
 			if (this._agentHostService.authenticationPending.read(reader)) {
+				return;
+			}
+			if (!this._workspaceTrusted) {
 				return;
 			}
 			this._refreshSessions();
@@ -134,6 +175,10 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 				this._onDidChangeSessionTypes.fire();
 			}
 			if (e.affectsConfiguration(preferAgentHostClaudeSettingId)) {
+				if (!this._workspaceTrusted) {
+					this._clearRootState();
+					return;
+				}
 				const current = this._agentHostService.rootState.value;
 				if (current && !(current instanceof Error)) {
 					this._syncSessionTypesFromRootState(current);
@@ -151,7 +196,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 
 	// -- BaseAgentHostSessionsProvider hooks ---------------------------------
 
-	protected get connection(): IAgentConnection { return this._agentHostService; }
+	protected get connection(): IAgentConnection | undefined { return this._workspaceTrusted ? this._agentHostService : undefined; }
 
 	protected get authenticationPending(): IObservable<boolean> { return this._agentHostService.authenticationPending; }
 
