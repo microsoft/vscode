@@ -7,10 +7,11 @@ import type * as vscode from 'vscode';
 import { AsyncIterableProducer, AsyncIterableSource, RunOnceScheduler } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { CancellableRequestMap } from '../../../base/common/cancellableRequestMap.js';
 import { SerializedError, transformErrorForSerialization, transformErrorFromSerialization } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Iterable } from '../../../base/common/iterator.js';
-import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { DisposableMap, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { IJSONSchema } from '../../../base/common/jsonSchema.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
@@ -125,8 +126,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 	// TODO @lramos15 - Remove the need for both info and metadata as it's a lot of redundancy. Should just need one
 	private readonly _localModels = new Map<string, { group: string | undefined; metadata: ILanguageModelChatMetadata; info: vscode.LanguageModelChatInformation }>();
 	private readonly _modelAccessList = new ExtensionIdentifierMap<ExtensionIdentifierSet>();
-	private readonly _pendingRequest = new Map<number, { languageModelId: string; res: LanguageModelResponse; cancelListener: IDisposable }>();
-	private readonly _pendingCancelTokens = new Map<number, CancellationTokenSource>();
+	private readonly _pendingRequest = new CancellableRequestMap<{ languageModelId: string; res: LanguageModelResponse }>();
+	private readonly _pendingCancelCTS = new DisposableMap<number, CancellationTokenSource>();
 	private readonly _ignoredFileProviders = new Map<number, vscode.LanguageModelIgnoredFileProvider>();
 	private _languageModelProxyProvider: vscode.LanguageModelProxyProvider | undefined;
 
@@ -142,14 +143,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		this._onDidChangeModelAccess.dispose();
 		this._onDidChangeProviders.dispose();
 		this._onDidChangeModelProxyAvailability.dispose();
-		for (const [, data] of this._pendingRequest) {
-			data.cancelListener.dispose();
-		}
-		this._pendingRequest.clear();
-		for (const [, cts] of this._pendingCancelTokens) {
-			cts.dispose();
-		}
-		this._pendingCancelTokens.clear();
+		this._pendingRequest.dispose();
+		this._pendingCancelCTS.dispose();
 	}
 
 	registerLanguageModelChatProvider(extension: IExtensionDescription, vendor: string, provider: vscode.LanguageModelChatProvider): IDisposable {
@@ -293,7 +288,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		// $cancelLanguageModelChatRequest even after the RPC cancel handler
 		// for the original token has been removed.
 		const cts = new CancellationTokenSource(token);
-		this._pendingCancelTokens.set(requestId, cts);
+		this._pendingCancelCTS.set(requestId, cts);
 
 		const providerToken = cts.token;
 
@@ -355,20 +350,17 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 		} catch (err) {
 			// synchronously failed
-			cts.dispose();
-			this._pendingCancelTokens.delete(requestId);
+			this._pendingCancelCTS.deleteAndDispose(requestId);
 			throw err;
 		}
 
 		Promise.resolve(value).then(() => {
 			sendNow();
-			cts.dispose();
-			this._pendingCancelTokens.delete(requestId);
+			this._pendingCancelCTS.deleteAndDispose(requestId);
 			this._proxy.$reportResponseDone(requestId, undefined);
 		}, err => {
 			sendNow();
-			cts.dispose();
-			this._pendingCancelTokens.delete(requestId);
+			this._pendingCancelCTS.deleteAndDispose(requestId);
 			this._proxy.$reportResponseDone(requestId, transformErrorForSerialization(err));
 		});
 	}
@@ -376,7 +368,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 	//#region --- token counting
 
 	$cancelLanguageModelChatRequest(requestId: number): void {
-		this._pendingCancelTokens.get(requestId)?.cancel();
+		this._pendingCancelCTS.get(requestId)?.cancel();
 	}
 
 	$provideTokenLength(modelId: string, value: string, token: CancellationToken): Promise<number> {
@@ -522,10 +514,9 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 		const requestId = (Math.random() * 1e6) | 0;
 		const res = new LanguageModelResponse();
-		const cancelListener = token.onCancellationRequested(() => {
+		this._pendingRequest.set(requestId, { languageModelId, res }, token, () => {
 			this._proxy.$cancelLanguageModelChatRequest(requestId);
 		});
-		this._pendingRequest.set(requestId, { languageModelId, res, cancelListener });
 
 		try {
 			await this._proxy.$tryStartChatRequest(from, languageModelId, requestId, new SerializableObjectWithBuffers(internalMessages), options, token);
@@ -533,7 +524,6 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		} catch (error) {
 			// error'ing here means that the request could NOT be started/made, e.g. wrong model, no access, etc, but
 			// later the response can fail as well. Those failures are communicated via the stream-object
-			cancelListener.dispose();
 			this._pendingRequest.delete(requestId);
 			throw extHostTypes.LanguageModelError.tryDeserialize(error) ?? error;
 		}
@@ -568,7 +558,6 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		if (!data) {
 			return;
 		}
-		data.cancelListener.dispose();
 		this._pendingRequest.delete(requestId);
 		if (error) {
 			// we error the stream because that's the only way to signal

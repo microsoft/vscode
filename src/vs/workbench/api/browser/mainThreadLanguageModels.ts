@@ -6,6 +6,7 @@
 import { AsyncIterableSource, DeferredPromise } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { CancellableRequestMap } from '../../../base/common/cancellableRequestMap.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { SerializedError, transformErrorForSerialization, transformErrorFromSerialization } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
@@ -33,7 +34,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 	private readonly _store = new DisposableStore();
 	private readonly _providerRegistrations = new DisposableMap<string>();
 	private readonly _lmProviderChange = new Emitter<{ vendor: string }>();
-	private readonly _pendingProgress = new Map<number, { defer: DeferredPromise<unknown>; stream: AsyncIterableSource<IChatResponsePart | IChatResponsePart[]>; cancelListener: IDisposable }>();
+	private readonly _pendingProgress = new CancellableRequestMap<{ defer: DeferredPromise<unknown>; stream: AsyncIterableSource<IChatResponsePart | IChatResponsePart[]> }>();
 	private readonly _pendingCancelCTS = new DisposableMap<number, CancellationTokenSource>();
 	private readonly _ignoredFileProviderRegistrations = new DisposableMap<number>();
 
@@ -66,6 +67,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 	dispose(): void {
 		this._lmProviderChange.dispose();
 		this._providerRegistrations.dispose();
+		this._pendingProgress.dispose();
 		this._pendingCancelCTS.dispose();
 		this._ignoredFileProviderRegistrations.dispose();
 		this._store.dispose();
@@ -96,12 +98,10 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 					defer.p.catch(() => { });
 					const stream = new AsyncIterableSource<IChatResponsePart | IChatResponsePart[]>();
 
-					const cancelListener = token.onCancellationRequested(() => {
-						this._proxy.$cancelLanguageModelChatRequest(requestId);
-					});
-
 					try {
-						this._pendingProgress.set(requestId, { defer, stream, cancelListener });
+						this._pendingProgress.set(requestId, { defer, stream }, token, () => {
+							this._proxy.$cancelLanguageModelChatRequest(requestId);
+						});
 						await Promise.all(
 							messages.flatMap(msg => msg.content)
 								.filter(part => part.type === 'image_url')
@@ -111,7 +111,6 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 						);
 						await this._proxy.$startChatRequest(modelId, requestId, from, new SerializableObjectWithBuffers(messages), options, token);
 					} catch (err) {
-						cancelListener.dispose();
 						this._pendingProgress.delete(requestId);
 						throw err;
 					}
@@ -148,7 +147,6 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		const data = this._pendingProgress.get(requestId);
 		this._logService.trace('[LM] report response DONE', Boolean(data), requestId, err);
 		if (data) {
-			data.cancelListener.dispose();
 			this._pendingProgress.delete(requestId);
 			if (err) {
 				const error = LanguageModelError.tryDeserialize(err) ?? transformErrorFromSerialization(err);
