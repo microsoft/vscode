@@ -4230,16 +4230,16 @@ suite('AgentHostChatContribution', () => {
 			]);
 		});
 
-		test('local agent contribution does not append Agent Host to Copilot display name', () => {
+		test('local agent contribution uses advertised display name', () => {
 			const services = createTestServices(disposables);
 			disposables.add(services.instantiationService.createInstance(AgentHostContribution));
 
 			services.agentHostService.setRootState({
-				agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: 'test', models: [] }],
+				agents: [{ provider: 'testagent', displayName: 'Test Agent', description: 'test', models: [] }],
 				activeSessions: 0,
 			});
 
-			assert.strictEqual(services.chatSessionContributions[0].displayName, 'Copilot');
+			assert.strictEqual(services.chatSessionContributions[0].displayName, 'Test Agent');
 		});
 	});
 

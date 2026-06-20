@@ -197,7 +197,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		};
 	}
 
-	protected _formatSessionTypeLabel(agentLabel: string, _provider: string): string {
+	protected _formatSessionTypeLabel(agentLabel: string): string {
 		return agentLabel;
 	}
 

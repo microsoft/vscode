@@ -32,7 +32,6 @@ import { AgentHostSessionHandler } from './agentHostSessionHandler.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { AgentHostSessionListController, IAgentHostSessionListConnection } from './agentHostSessionListController.js';
 import { AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
-import { AgentSessionProviders, getAgentSessionProviderName } from '../agentSessions.js';
 
 const LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX = 'agent-host-';
 
@@ -274,8 +273,6 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		const agentId = sessionType;
 		const vendor = sessionType;
 
-		const displayName = this._getAgentDisplayName(agent, sessionType);
-
 		// Chat session contribution.
 		// Keep the delegation picker available for local agent host sessions in
 		// both VS Code and the Agents app so users can hand off (continue) their
@@ -283,7 +280,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		store.add(this._chatSessionsService.registerChatSessionContribution({
 			type: sessionType,
 			name: agentId,
-			displayName,
+			displayName: agent.displayName,
 			description: agent.description,
 			customAgentTarget: this._isSessionsWindow ? undefined : Target.GitHubCopilot,
 			canDelegate: true,
@@ -325,7 +322,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			provider: agent.provider,
 			agentId,
 			sessionType,
-			fullName: displayName,
+			fullName: agent.displayName,
 			description: agent.description,
 			connection: this._agentHostService,
 			connectionAuthority: 'local',
@@ -355,16 +352,6 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			const agents = this._getRootAgents();
 			this._authenticateWithServer(agents).catch(() => { /* best-effort */ });
 		}));
-	}
-
-	private _getAgentDisplayName(agent: AgentInfo, sessionType: string): string {
-		if (sessionType === AgentSessionProviders.AgentHostCopilot) {
-			return getAgentSessionProviderName(AgentSessionProviders.AgentHostCopilot);
-		}
-
-		return this._isSessionsWindow
-			? agent.displayName
-			: localize('agentHost.displayName', "{0} - Agent Host", agent.displayName);
 	}
 
 	private _getRootAgents(): readonly AgentInfo[] {
