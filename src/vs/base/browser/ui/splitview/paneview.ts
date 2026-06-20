@@ -5,7 +5,7 @@
 
 import { isFirefox } from '../../browser.js';
 import { DataTransfers } from '../../dnd.js';
-import { $, addDisposableListener, append, clearNode, EventHelper, EventType, getWindow, isHTMLElement, trackFocus } from '../../dom.js';
+import { $, addDisposableListener, append, clearNode, EventHelper, EventType, getWindow, isHTMLElement, scheduleAtNextAnimationFrame, trackFocus } from '../../dom.js';
 import { DomEmitter } from '../../event.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { Gesture, EventType as TouchEventType } from '../../touch.js';
@@ -13,7 +13,7 @@ import { IBoundarySashes, Orientation } from '../sash/sash.js';
 import { Color, RGBA } from '../../../common/color.js';
 import { Emitter, Event } from '../../../common/event.js';
 import { KeyCode } from '../../../common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../common/lifecycle.js';
 import { ScrollEvent } from '../../../common/scrollable.js';
 import './paneview.css';
 import { localize } from '../../../../nls.js';
@@ -84,6 +84,15 @@ export abstract class Pane extends Disposable implements IView {
 	 * memoized and only re-read once per {@link Pane.layout} pass.
 	 */
 	private _headerSize: number | undefined = undefined;
+
+	/**
+	 * Deferred re-clamp scheduled when {@link Pane.layout} detects that the header
+	 * size changed between passes (e.g. the `--pane-header-size` CSS variable was
+	 * overridden at runtime). Fires {@link Pane.onDidChange} on the next frame so
+	 * the split view re-clamps the size it reserves for this pane without
+	 * reentering the current layout pass.
+	 */
+	private readonly _headerSizeRelayout = this._register(new MutableDisposable());
 
 	private readonly _onDidChange = this._register(new Emitter<number | undefined>());
 	readonly onDidChange: Event<number | undefined> = this._onDidChange.event;
@@ -327,8 +336,20 @@ export abstract class Pane extends Disposable implements IView {
 	layout(size: number): void {
 		// Re-read the header size from CSS once per layout pass; subsequent
 		// `minimumSize` / `maximumSize` reads within the pass reuse the cache.
+		const previousHeaderSize = this._headerSize;
 		this._headerSize = undefined;
 		const headerSize = this.headerSize;
+
+		// If the header size changed since the previous pass — e.g. the
+		// `--pane-header-size` CSS variable was overridden at runtime (a style
+		// override toggled) — the containing split view still reserves the old
+		// size for this pane, most visibly when it is collapsed. Refresh the
+		// header and, on the next frame, fire `onDidChange` so the split view
+		// re-clamps the reservation. Deferring avoids reentering this layout pass.
+		if (previousHeaderSize !== undefined && previousHeaderSize !== headerSize) {
+			this.updateHeader();
+			this._headerSizeRelayout.value = scheduleAtNextAnimationFrame(getWindow(this.element), () => this._onDidChange.fire(undefined));
+		}
 
 		const width = this._orientation === Orientation.VERTICAL ? this.orthogonalSize : size;
 		const height = this._orientation === Orientation.VERTICAL ? size - headerSize : this.orthogonalSize - headerSize;

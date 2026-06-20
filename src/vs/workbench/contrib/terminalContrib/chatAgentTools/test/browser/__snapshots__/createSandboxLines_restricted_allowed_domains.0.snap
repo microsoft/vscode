@@ -27,6 +27,17 @@
   "requestAllowNetworkReason": {
     "type": "string",
     "description": "A short explanation of why this sandboxed command needs unrestricted network access. Only provide this when requestAllowNetwork is true."
+  },
+  "requestFileValidationCheck": {
+    "type": "array",
+    "description": "Sandbox write access checks to perform before running the command. Provide the file paths that the command needs to write.",
+    "items": {
+      "type": "string"
+    }
+  },
+  "requestFileValidationCheckReason": {
+    "type": "string",
+    "description": "A short explanation of why this sandboxed command needs these file paths. Only provide this when requestFileValidationCheck is not empty."
   }
 }
 ----
@@ -35,6 +46,7 @@ Sandboxing:
 - Commands run inside a sandbox by default. The sandbox restricts two things independently: the filesystem and the network.
 - Filesystem: read-only outside the workspace and $TMPDIR, which stay read-write. Parts of $HOME are hidden for privacy, but common developer tools (git, package managers, language toolchains) still work because their $HOME config and cache paths are automatically made readable.
 - Use $TMPDIR for temporary files; /tmp may not be writable. On macOS and Linux the TMPDIR env var is set to a writable path.
+- If a command needs sandboxed write access to specific file paths outside workspace, pass requestFileValidationCheck with those paths. VS Code checks sandbox access before execution and returns Access Denied without running the command when access is unavailable.
 - Network: only these domains are reachable in the sandbox: github.com, registry.npmjs.org. Other domains fail unless requestAllowNetwork=true is set.
 - To get more access (each prompts the user — never ask the user for permission yourself):
   - Need a blocked domain? Set requestAllowNetwork=true and provide requestAllowNetworkReason. This keeps the filesystem sandbox in place and only relaxes the network, so prefer it for network-only needs. Do this proactively when network use is obvious (git fetch/pull/push/clone; npm/yarn/pnpm/pip/cargo/go/brew installs; curl; wget), or reactively after a network failure (e.g. 'Network request failed', HTTP code 403).
