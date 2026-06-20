@@ -143,7 +143,7 @@
 .survey-editor-pane .survey-list-option {
 	display: block;
 	padding: 6px 10px;
-	border: 1px solid transparent;
+	border: var(--vscode-strokeThickness) solid transparent;
 	cursor: pointer;
 	transition: background-color 0.1s;
 	user-select: none;
@@ -215,9 +215,11 @@
 }
 
 .survey-editor-pane .survey-success .survey-success-icon {
-	font-size: 32px;
+	font-size: var(--vscode-codiconFontSize, 16px);
+	transform: scale(2);
+	transform-origin: center;
 	color: var(--vscode-charts-green);
-	margin-bottom: 12px;
+	margin-bottom: 24px;
 }
 
 .survey-editor-pane .survey-success .survey-success-message {
