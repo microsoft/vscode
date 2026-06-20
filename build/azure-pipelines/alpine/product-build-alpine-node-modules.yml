@@ -88,11 +88,20 @@ jobs:
           mkdir -p .build/nodejs-musl
           NODE_VERSION=$(grep '^target=' remote/.npmrc | cut -d '"' -f 2)
           BUILD_ID=$(grep '^ms_build_id=' remote/.npmrc | cut -d '"' -f 2)
-          gh release download "v${NODE_VERSION}-${BUILD_ID}" -R microsoft/vscode-node -p "node-v${NODE_VERSION}-linux-${VSCODE_ARCH}-musl.tar.gz" --dir .build/nodejs-musl --clobber
+          az extension add --name azure-devops --upgrade --only-show-errors
+          az artifacts universal download \
+            --organization "https://dev.azure.com/monacotools" \
+            --project "Monaco" \
+            --scope project \
+            --feed "vscode-node" \
+            --name "node-v${NODE_VERSION}-linux-${VSCODE_ARCH}-musl.tar" \
+            --version "${NODE_VERSION}-${BUILD_ID}" \
+            --path .build/nodejs-musl \
+            --only-show-errors
           tar -xzf ".build/nodejs-musl/node-v${NODE_VERSION}-linux-${VSCODE_ARCH}-musl.tar.gz" -C ".build/nodejs-musl" --strip-components=1
           rm ".build/nodejs-musl/node-v${NODE_VERSION}-linux-${VSCODE_ARCH}-musl.tar.gz"
         env:
-          GITHUB_TOKEN: "$(github-token-code-oss)"
+          AZURE_DEVOPS_EXT_PAT: "$(System.AccessToken)"
         displayName: Download NodeJS MUSL
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
