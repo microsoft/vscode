@@ -265,6 +265,8 @@ steps:
         echo "##vso[task.setvariable variable=SERVER_UNARCHIVE_PATH]$UNARCHIVE_PATH"
       env:
         GITHUB_TOKEN: "$(github-token-code-oss)"
+        VSCODE_NODEJS_INTERNAL_FEED: vscode-node
+        AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
       displayName: Build server
 
     - script: |
@@ -277,6 +279,8 @@ steps:
         echo "##vso[task.setvariable variable=WEB_PATH]$ARCHIVE_PATH"
       env:
         GITHUB_TOKEN: "$(github-token-code-oss)"
+        VSCODE_NODEJS_INTERNAL_FEED: vscode-node
+        AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
       displayName: Build server (web)
 
   - ${{ if or(eq(parameters.VSCODE_ARCH, 'x64'), eq(parameters.VSCODE_ARCH, 'arm64')) }}:

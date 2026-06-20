@@ -202,6 +202,8 @@ steps:
       echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(CodeSigningFolderPath),$(Agent.BuildDirectory)/vscode-server-win32-$(VSCODE_ARCH)"
     env:
       GITHUB_TOKEN: "$(github-token-code-oss)"
+      VSCODE_NODEJS_INTERNAL_FEED: vscode-node
+      AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
     displayName: Build server
 
   - powershell: |
@@ -216,6 +218,8 @@ steps:
       echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(CodeSigningFolderPath),$(Agent.BuildDirectory)/vscode-server-win32-$(VSCODE_ARCH)-web"
     env:
       GITHUB_TOKEN: "$(github-token-code-oss)"
+      VSCODE_NODEJS_INTERNAL_FEED: vscode-node
+      AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
     displayName: Build server (web)
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:

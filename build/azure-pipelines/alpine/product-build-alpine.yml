@@ -224,6 +224,8 @@ jobs:
           echo "##vso[task.setvariable variable=SERVER_PATH]$ARCHIVE_PATH"
         env:
           GITHUB_TOKEN: "$(github-token-code-oss)"
+          VSCODE_NODEJS_INTERNAL_FEED: vscode-node
+          AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
         displayName: Build server
 
       - script: |
@@ -239,4 +241,6 @@ jobs:
           echo "##vso[task.setvariable variable=WEB_PATH]$ARCHIVE_PATH"
         env:
           GITHUB_TOKEN: "$(github-token-code-oss)"
+          VSCODE_NODEJS_INTERNAL_FEED: vscode-node
+          AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
         displayName: Build server (web)
