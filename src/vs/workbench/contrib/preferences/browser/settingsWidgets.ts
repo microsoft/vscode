@@ -27,6 +27,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { defaultButtonStyles, getInputBoxStyle, getSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { getIconRegistry } from '../../../../platform/theme/common/iconRegistry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
 import { SettingValueType } from '../../../services/preferences/common/preferences.js';
@@ -37,6 +38,7 @@ import './media/settingsWidgets.css';
 import { settingsDiscardIcon, settingsEditIcon, settingsRemoveIcon } from './preferencesIcons.js';
 
 const $ = DOM.$;
+const enumDescriptionIconRegex = /^(\$\([A-Za-z0-9-]+(?:~[A-Za-z]+)?\))(?:\s+)?([\s\S]*)$/;
 
 type EditKey = 'none' | 'create' | number;
 
@@ -256,7 +258,7 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 	}
 
 	protected createBasicSelectBox(value: IObjectEnumData): SelectBox {
-		const selectBoxOptions = value.options.map(({ value, description }) => ({ text: value, description }));
+		const selectBoxOptions = value.options.map(({ value, description, descriptionIsMarkdown, icon }) => ({ text: value, description, descriptionIsMarkdown, icon }));
 		const selected = value.options.findIndex(option => value.data === option.value);
 
 		const styles = getSelectBoxStyles({
@@ -268,7 +270,7 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 
 
 		const selectBox = new SelectBox(selectBoxOptions, selected, this.contextViewService, styles, {
-			useCustomDrawn: !hasNativeContextMenu(this.configurationService) || !(isIOS && BrowserFeatures.pointerEvents)
+			useCustomDrawn: value.options.some(option => !!option.icon) || !hasNativeContextMenu(this.configurationService) || !(isIOS && BrowserFeatures.pointerEvents)
 		});
 		return selectBox;
 	}
@@ -864,6 +866,8 @@ interface IObjectStringData {
 export interface IObjectEnumOption {
 	value: string;
 	description?: string;
+	descriptionIsMarkdown?: boolean;
+	icon?: ThemeIcon;
 }
 
 interface IObjectEnumData {
@@ -888,6 +892,28 @@ export interface IObjectDataItem {
 	source?: string;
 	removable: boolean;
 	resetable: boolean;
+}
+
+export function getEnumItemDescriptionAndIcon(description: string | undefined, descriptionIsMarkdown: boolean | undefined): { description?: string; icon?: ThemeIcon } {
+	if (!description || !descriptionIsMarkdown) {
+		return { description };
+	}
+
+	const match = enumDescriptionIconRegex.exec(description.trimStart());
+	if (!match) {
+		return { description };
+	}
+
+	const icon = ThemeIcon.fromString(match[1]);
+	if (!icon || !getIconRegistry().getIcon(icon.id)) {
+		return { description };
+	}
+
+	const remainingDescription = match[2].trimStart();
+	return {
+		icon,
+		description: remainingDescription || undefined
+	};
 }
 
 export interface IIncludeExcludeDataItem {
