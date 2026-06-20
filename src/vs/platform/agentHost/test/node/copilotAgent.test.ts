@@ -476,7 +476,7 @@ function createAgentSessionThroughAgent(agent: CopilotAgent, instantiationServic
 		sessionId: 'test-session-1',
 		workingDirectory: undefined,
 		resolvedAgentName: undefined,
-		snapshot: { tools: [], plugins: [] },
+		snapshot: { tools: [], plugins: [], mcpServers: {} },
 		shellManager,
 		githubToken: 'token',
 		model: undefined,
@@ -519,6 +519,19 @@ async function disposeAgent(agent: CopilotAgent): Promise<void> {
 
 suite('CopilotAgent', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('advertises Copilot as its display name', async () => {
+		const agent = createTestAgent(disposables);
+		try {
+			assert.deepStrictEqual(agent.getDescriptor(), {
+				provider: 'copilotcli',
+				displayName: 'Copilot',
+				description: 'Copilot SDK agent running in a dedicated process',
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
 
 	test('uses the Copilot CLI sibling worktrees root convention', () => {
 		assert.strictEqual(
