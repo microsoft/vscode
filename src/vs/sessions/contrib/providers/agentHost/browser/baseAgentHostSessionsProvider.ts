@@ -1763,7 +1763,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * normalized against policy/feature constraints.
 	 *
 	 * The agent-host defaults are controlled by the single
-	 * `chat.agentSessions.defaultConfiguration` object setting (with `mode` and
+	 * `chat.defaultConfiguration` object setting (with `mode` and
 	 * `approvals` properties), which takes precedence over remembered values.
 	 * The local-only `chat.permissions.default` setting is intentionally NOT
 	 * consulted here.

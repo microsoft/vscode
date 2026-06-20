@@ -604,7 +604,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	 *
 	 * - `isolation`: workbench has no isolation picker, so always `'folder'`.
 	 * - `mode` / `autoApprove`: seeded from the single
-	 *   `chat.agentSessions.defaultConfiguration` object setting (`mode` and
+	 *   `chat.defaultConfiguration` object setting (`mode` and
 	 *   `approvals` properties). The approval seed is clamped to `'default'`
 	 *   when the `chat.tools.global.autoApprove` policy is off. The local-only
 	 *   `chat.permissions.default` setting is NOT used.
