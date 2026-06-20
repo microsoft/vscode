@@ -2483,6 +2483,31 @@ suite('RunInTerminalTool', () => {
 			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionResource2), 'Session 2 terminal association should remain');
 		});
 
+		test('should not dispose user-revealed terminals when chat session is disposed', () => {
+			const sessionId = 'test-session-revealed';
+			const mockTerminal1 = createMockTerminal(11111);
+			const mockTerminal2 = createMockTerminal(22222);
+
+			let terminal1Disposed = false;
+			let terminal2Disposed = false;
+			mockTerminal1.dispose = () => { terminal1Disposed = true; };
+			mockTerminal2.dispose = () => { terminal2Disposed = true; };
+
+			const sessionResource = LocalChatSessionUri.forSession(sessionId);
+			runInTerminalTool.sessionTerminalInstances.set(sessionResource, new Set([mockTerminal1, mockTerminal2]));
+
+			// Simulate that terminal2 was revealed by the user (it's in foregroundInstances)
+			(instantiationService.get(ITerminalService).foregroundInstances as ITerminalInstance[]).push(mockTerminal2);
+
+			chatServiceDisposeEmitter.fire({ sessionResources: [sessionResource], reason: 'cleared' });
+
+			strictEqual(terminal1Disposed, true, 'Hidden terminal should have been disposed');
+			strictEqual(terminal2Disposed, false, 'User-revealed terminal should NOT have been disposed');
+
+			// Clean up
+			(instantiationService.get(ITerminalService).foregroundInstances as ITerminalInstance[]).length = 0;
+		});
+
 		test('should handle disposal of non-existent session gracefully', () => {
 			strictEqual(runInTerminalTool.sessionTerminalAssociations.size, 0, 'No associations should exist initially');
 			chatServiceDisposeEmitter.fire({ sessionResources: [LocalChatSessionUri.forSession('non-existent-session')], reason: 'cleared' });

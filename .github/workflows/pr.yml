@@ -103,6 +103,15 @@ jobs:
     with:
       job_name: Electron
       electron_tests: true
+      smoke_tests: false
+
+  linux-electron-smoke-tests:
+    name: Linux
+    uses: ./.github/workflows/pr-linux-test.yml
+    with:
+      job_name: Electron-Smoke
+      electron_tests: true
+      unit_and_integration_tests: false
 
   linux-browser-tests:
     name: Linux
@@ -124,6 +133,15 @@ jobs:
     with:
       job_name: Electron
       electron_tests: true
+      smoke_tests: false
+
+  macos-electron-smoke-tests:
+    name: macOS
+    uses: ./.github/workflows/pr-darwin-test.yml
+    with:
+      job_name: Electron-Smoke
+      electron_tests: true
+      unit_and_integration_tests: false
 
   macos-browser-tests:
     name: macOS
@@ -145,6 +163,15 @@ jobs:
     with:
       job_name: Electron
       electron_tests: true
+      smoke_tests: false
+
+  windows-electron-smoke-tests:
+    name: Windows
+    uses: ./.github/workflows/pr-win32-test.yml
+    with:
+      job_name: Electron-Smoke
+      electron_tests: true
+      unit_and_integration_tests: false
 
   windows-browser-tests:
     name: Windows

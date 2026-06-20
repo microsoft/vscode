@@ -67,7 +67,7 @@ import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderSe
 import { AgentHostSnapshotController } from './agentHostSnapshotController.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
-import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, getTerminalContentUri, isSubagentTool, makeAhpTerminalToolSessionId, messageToVariableData, parseAhpTerminalToolSessionId, rawMarkdownToString, stringOrMarkdownToString, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, usageInfoToChatUsage, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
+import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, getTerminalContentUri, isSubagentTool, makeAhpTerminalToolSessionId, messageToVariableData, parseAhpTerminalToolSessionId, rawMarkdownToString, stringOrMarkdownToString, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, usageInfoToChatUsage, usageInfoToQuotas, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
 export { toolDataToDefinition };
 
 // =============================================================================
@@ -1575,6 +1575,32 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				}
 				lastUsage = usage;
 				opts.sink([usage]);
+			}));
+
+			// Surface the account quota snapshots the agent host reports on each model-call usage event
+			// into the entitlement service, keeping the quota UI current for agent-host sessions (mirrors
+			// the extension-host CLI path). `acceptQuotas` replaces state, so shallow-merge the top-level
+			// container and deep-merge each per-category snapshot to preserve fields the usage event
+			// doesn't carry (e.g. `hasQuota`, `usageBasedBilling` from a prior full entitlement fetch).
+			let lastQuotaSignature: string | undefined;
+			store.add(autorun(reader => {
+				const quotaUpdate = usageInfoToQuotas(usage$.read(reader));
+				if (!quotaUpdate) {
+					return;
+				}
+				const signature = JSON.stringify(quotaUpdate);
+				if (signature === lastQuotaSignature) {
+					return;
+				}
+				lastQuotaSignature = signature;
+				const existing = this._chatEntitlementService.quotas;
+				this._chatEntitlementService.acceptQuotas({
+					...existing,
+					...quotaUpdate,
+					chat: quotaUpdate.chat ? { ...existing.chat, ...quotaUpdate.chat } : existing.chat,
+					completions: quotaUpdate.completions ? { ...existing.completions, ...quotaUpdate.completions } : existing.completions,
+					premiumChat: quotaUpdate.premiumChat ? { ...existing.premiumChat, ...quotaUpdate.premiumChat } : existing.premiumChat,
+				});
 			}));
 
 			store.add(autorunPerKeyedItem(
