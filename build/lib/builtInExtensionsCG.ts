@@ -5,7 +5,6 @@
 
 import fs from 'fs';
 import path from 'path';
-import url from 'url';
 import ansiColors from 'ansi-colors';
 import type { IExtensionDefinition } from './builtInExtensions.ts';
 
@@ -26,7 +25,7 @@ async function downloadExtensionDetails(extension: IExtensionDefinition): Promis
 		return;
 	}
 
-	const repository = url.parse(extension.repo).path!.substr(1);
+	const repository = new URL(extension.repo).pathname.slice(1);
 	// Do NOT embed a token in the URL userinfo (`https://<token>@host/...`):
 	// Node's native fetch() throws "Request cannot be constructed from a URL that
 	// includes credentials" on such URLs, which silently emptied extensionsCG/ in
@@ -70,10 +69,10 @@ async function downloadExtensionDetails(extension: IExtensionDefinition): Promis
 
 	// Validation
 	if (!results.find(r => r.fileName === 'package.json')?.body) {
-		// throw new Error(`The "package.json" file could not be found for the built-in extension - ${extensionLabel}`);
+		console.warn(`WARN: The "package.json" file could not be found for the built-in extension - ${extensionLabel}`);
 	}
 	if (!results.find(r => r.fileName === 'package-lock.json')?.body) {
-		// throw new Error(`The "package-lock.json" could not be found for the built-in extension - ${extensionLabel}`);
+		console.warn(`WARN: The "package-lock.json" could not be found for the built-in extension - ${extensionLabel}`);
 	}
 }
 

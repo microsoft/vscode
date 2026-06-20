@@ -16,6 +16,7 @@
 
 import * as fs from 'fs';
 import { applyOverrides, readCglicenses } from './apply-overrides.js';
+import { parseArgs } from './utils.js';
 
 interface NoticeEntry {
 	name: string;
@@ -104,10 +105,6 @@ function parseNoticeFile(filePath: string): NoticeEntry[] {
 	}
 
 	return entries;
-}
-
-function main(): void {
-	void mainAsync();
 }
 
 async function mainAsync(): Promise<void> {
@@ -411,15 +408,4 @@ required to debug changes to any libraries licensed under the GNU Lesser General
 	console.log(`  Output: ${outputPath} (${sizeMB} MB)`);
 }
 
-function parseArgs(argv: string[]): Record<string, string> {
-	const args: Record<string, string> = {};
-	for (let i = 0; i < argv.length; i++) {
-		if (argv[i].startsWith('--') && i + 1 < argv.length) {
-			args[argv[i].substring(2)] = argv[i + 1];
-			i++;
-		}
-	}
-	return args;
-}
-
-main();
+mainAsync().catch(err => { console.error(err); process.exit(1); });

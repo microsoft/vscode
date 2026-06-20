@@ -147,8 +147,12 @@ export function readCglicenses(filePath: string): CglicenseEntry[] {
  * Fetch text content from an http/https URL. Returns undefined on any failure
  * so the caller can decide whether to warn or hard-fail.
  */
-export function fetchUriText(uri: string, timeoutMs = 10_000): Promise<string | undefined> {
+export function fetchUriText(uri: string, timeoutMs = 10_000, maxRedirects = 5): Promise<string | undefined> {
 	return new Promise(resolve => {
+		if (maxRedirects <= 0) {
+			resolve(undefined);
+			return;
+		}
 		let url: URL;
 		try {
 			url = new URL(uri);
@@ -166,7 +170,7 @@ export function fetchUriText(uri: string, timeoutMs = 10_000): Promise<string | 
 				const loc = res.headers.location;
 				res.resume();
 				if (loc) {
-					resolve(fetchUriText(loc, timeoutMs));
+					resolve(fetchUriText(loc, timeoutMs, maxRedirects - 1));
 				} else {
 					resolve(undefined);
 				}

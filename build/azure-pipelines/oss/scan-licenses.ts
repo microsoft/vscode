@@ -29,6 +29,7 @@ import * as path from 'path';
 import * as https from 'https';
 import { fetchUriText } from './apply-overrides.js';
 import { parseNoticeFile } from './parse-notices.js';
+import { parseArgs } from './utils.js';
 
 interface LicenseEntry {
 	name: string;
@@ -47,6 +48,9 @@ interface LicenseEntry {
  */
 // allow-any-unicode-next-line
 const COPYRIGHT_PATTERN = /copyright|(\(c\)|©)/i;
+
+/** Minimum length for a license body to be considered real (not a symlink stub or SPDX stub). */
+const MIN_LICENSE_BODY_LENGTH = 40;
 
 function validateCopyright(name: string, licenseText: string, source: string): void {
 	if (!COPYRIGHT_PATTERN.test(licenseText)) {
@@ -115,7 +119,7 @@ export async function fetchLicenseFromGitRepo(repositoryUrl: string, commitHash:
 		}
 		const trimmed = text.trim();
 		// Reject symlink-target stubs (short relative paths) and empty bodies.
-		if (trimmed.length > 40 && !/^\.{1,2}\//.test(trimmed)) {
+		if (trimmed.length > MIN_LICENSE_BODY_LENGTH && !/^\.{1,2}\//.test(trimmed)) {
 			return trimmed;
 		}
 	}
@@ -241,13 +245,13 @@ export function isSpdxStub(body: string): boolean {
 	if (trimmed.split(/\n/).filter(l => l.trim()).length > 1) {
 		return false;
 	}
-	// Gate 4 (checked before the regex): no license-prose words. A real license
+	// Gate 3: no license-prose words. A real license
 	// always has at least one; an SPDX stub never does. (Case-insensitive.)
 	// allow-any-unicode-next-line
 	if (/copyright|permission|redistribution|warranty|\(c\)|©/i.test(trimmed)) {
 		return false;
 	}
-	// Gate 3: SPDX-expression shape. Tokens separated by uppercase OR/AND/WITH
+	// Gate 4: SPDX-expression shape. Tokens separated by uppercase OR/AND/WITH
 	// operators OR the deprecated "/" disjunction (e.g. winapi's "MIT/Apache-2.0").
 	// Operators are case-sensitive (uppercase) — this is what separates an SPDX
 	// expression from prose like "Permission is granted...". Parens are stripped
@@ -339,7 +343,7 @@ function githubOwnerRepo(repositoryUrl: string): { owner: string; repo: string }
  */
 function isRealLicenseBody(text: string): boolean {
 	const t = text.trim();
-	if (t.length <= 40) {
+	if (t.length <= MIN_LICENSE_BODY_LENGTH) {
 		return false;
 	}
 	if (/^\.{1,2}\//.test(t)) {
@@ -936,9 +940,10 @@ export function parentTextIfCompatible(parentLicenseId: string, childLicenseId: 
 }
 
 /**
- * Recursively find all cgmanifest.json files in the repo (excluding node_modules).
+ * Recursively find all files with a given name in the repo (excluding node_modules,
+ * .git, out, test directories and symlinks).
  */
-function findCgManifestFiles(repoRoot: string): string[] {
+function findFilesRecursive(repoRoot: string, targetFileName: string): string[] {
 	const results: string[] = [];
 
 	function walk(dir: string): void {
@@ -948,7 +953,7 @@ function findCgManifestFiles(repoRoot: string): string[] {
 					continue;
 				}
 				const full = path.join(dir, entry);
-				if (entry === 'cgmanifest.json') {
+				if (entry === targetFileName) {
 					results.push(full);
 				} else if (fs.statSync(full).isDirectory() && !fs.lstatSync(full).isSymbolicLink()) {
 					walk(full);
@@ -961,32 +966,12 @@ function findCgManifestFiles(repoRoot: string): string[] {
 	return results;
 }
 
-/**
- * Recursively find all Cargo.lock files in the repo, excluding the same dirs as
- * the cgmanifest walk (node_modules, .git, out, test). Known files in this repo:
- * cli/Cargo.lock and build/win32/Cargo.lock.
- */
+function findCgManifestFiles(repoRoot: string): string[] {
+	return findFilesRecursive(repoRoot, 'cgmanifest.json');
+}
+
 function findCargoLockFiles(repoRoot: string): string[] {
-	const results: string[] = [];
-
-	function walk(dir: string): void {
-		try {
-			for (const entry of fs.readdirSync(dir)) {
-				if (entry === 'node_modules' || entry === '.git' || entry === 'out' || entry === 'test') {
-					continue;
-				}
-				const full = path.join(dir, entry);
-				if (entry === 'Cargo.lock') {
-					results.push(full);
-				} else if (fs.statSync(full).isDirectory() && !fs.lstatSync(full).isSymbolicLink()) {
-					walk(full);
-				}
-			}
-		} catch { /* skip */ }
-	}
-
-	walk(repoRoot);
-	return results;
+	return findFilesRecursive(repoRoot, 'Cargo.lock');
 }
 
 async function main(): Promise<void> {
@@ -1462,74 +1447,74 @@ async function main(): Promise<void> {
 
 	const cargoTasks = pending.map(p => async (): Promise<void> => {
 		try {
-		const info = await fetchCratesIoJson(p.name);
-		if (!info) {
-			cargoApiFailed++;
-			console.warn(`  CRATES.IO FAILED: ${p.name}@${p.version} — no crate info`);
-			return;
-		}
-		// Shape guard: fetchCratesIoJson only guarantees "HTTP 200 + JSON.parse
-		// succeeded" — NOT object shape. A 200 with an unexpected body (error
-		// envelope `{errors:[…]}`, schema drift, missing `versions`/`crate`)
-		// would make the dereferences below throw a TypeError, rejecting the
-		// task → Promise.all → main() → process.exit(1), crashing the build.
-		// Spec sec. 6.6: a failed crates.io call must log and continue, never crash.
-		if (!Array.isArray(info.versions) || !info.crate || typeof info.crate.id !== 'string') {
-			cargoApiFailed++;
-			console.warn(`  CRATES.IO FAILED: ${p.name}@${p.version} — unexpected response shape (no versions/crate)`);
-			return;
-		}
-		const versionInfo = info.versions.find(v => v.num === p.version);
-		const license = versionInfo?.license || '';
-		if (!versionInfo) {
-			console.warn(`  WARN: version ${p.version} not found for crate ${p.name} — using repo default`);
-		}
-		const repoUrl = getCrateRepository(info);
-		if (!repoUrl) {
-			cargoFetchFailed++;
-			console.warn(`  FETCH FAILED: ${p.name}@${p.version} — no repository URL`);
-			return;
-		}
+			const info = await fetchCratesIoJson(p.name);
+			if (!info) {
+				cargoApiFailed++;
+				console.warn(`  CRATES.IO FAILED: ${p.name}@${p.version} — no crate info`);
+				return;
+			}
+			// Shape guard: fetchCratesIoJson only guarantees "HTTP 200 + JSON.parse
+			// succeeded" — NOT object shape. A 200 with an unexpected body (error
+			// envelope `{errors:[…]}`, schema drift, missing `versions`/`crate`)
+			// would make the dereferences below throw a TypeError, rejecting the
+			// task → Promise.all → main() → process.exit(1), crashing the build.
+			// Spec sec. 6.6: a failed crates.io call must log and continue, never crash.
+			if (!Array.isArray(info.versions) || !info.crate || typeof info.crate.id !== 'string') {
+				cargoApiFailed++;
+				console.warn(`  CRATES.IO FAILED: ${p.name}@${p.version} — unexpected response shape (no versions/crate)`);
+				return;
+			}
+			const versionInfo = info.versions.find(v => v.num === p.version);
+			const license = versionInfo?.license || '';
+			if (!versionInfo) {
+				console.warn(`  WARN: version ${p.version} not found for crate ${p.name} — using repo default`);
+			}
+			const repoUrl = getCrateRepository(info);
+			if (!repoUrl) {
+				cargoFetchFailed++;
+				console.warn(`  FETCH FAILED: ${p.name}@${p.version} — no repository URL`);
+				return;
+			}
 
-		// SPDX-id-driven, tag-pinned fetch. For OR expressions, fetching the
-		// first available license's text is correct (licensee's choice). For AND
-		// expressions, ALL named licenses are legally required but we currently
-		// emit only the first — warn loudly so an AND-licensed crate can never
-		// silently ship a one-sided (deficient) notice. See hasSpdxAnd / spec sec. 6.
-		const result = await fetchCargoLicense(repoUrl, p.name, p.version, license);
-		if (!result) {
-			cargoFetchFailed++;
-			console.warn(`  FETCH FAILED: ${p.name}@${p.version} (${repoUrl}) — no LICENSE resolved at any ref (needs cglicenses.json override)`);
-			return;
-		}
-		if (hasSpdxAnd(license)) {
-			cargoAndIncomplete++;
-			console.warn(`  AND-LICENSE INCOMPLETE: ${p.name}@${p.version} — SPDX "${license}" is conjunctive (AND); only one license's text was fetched. ALL named licenses are legally required — add a cglicenses.json override with the full combined text.`);
-		}
-		const fetched = result.text;
-		const usedRef = result.ref;
+			// SPDX-id-driven, tag-pinned fetch. For OR expressions, fetching the
+			// first available license's text is correct (licensee's choice). For AND
+			// expressions, ALL named licenses are legally required but we currently
+			// emit only the first — warn loudly so an AND-licensed crate can never
+			// silently ship a one-sided (deficient) notice. See hasSpdxAnd / spec sec. 6.
+			const result = await fetchCargoLicense(repoUrl, p.name, p.version, license);
+			if (!result) {
+				cargoFetchFailed++;
+				console.warn(`  FETCH FAILED: ${p.name}@${p.version} (${repoUrl}) — no LICENSE resolved at any ref (needs cglicenses.json override)`);
+				return;
+			}
+			if (hasSpdxAnd(license)) {
+				cargoAndIncomplete++;
+				console.warn(`  AND-LICENSE INCOMPLETE: ${p.name}@${p.version} — SPDX "${license}" is conjunctive (AND); only one license's text was fetched. ALL named licenses are legally required — add a cglicenses.json override with the full combined text.`);
+			}
+			const fetched = result.text;
+			const usedRef = result.ref;
 
-		const key = p.name.toLowerCase();
-		// Relaxed copyright validation for Cargo source: many crates ship license
-		// files with no copyright line. Per CELA this is acceptable for cargo
-		// components (legacy item.ts:286 skips the check for ItemSource.CARGO_LOCK),
-		// so we deliberately do NOT call validateCopyright() here.
-		entries.set(key, {
-			name: p.name,
-			version: p.version,
-			license,
-			url: repoUrl,
-			licenseText: fetched,
-			fromExtension: p.isStubOverride ? `(cargo-stub-override: ${p.relPath})` : `(cargo: ${p.relPath})`,
-		});
-		if (p.isStubOverride) {
-			cargoStubOverride++;
-			stubOverrideKeys.add(`${key}@${p.version}`);
-			console.log(`  STUB OVERRIDE: ${p.name}@${p.version} (${repoUrl}@${usedRef})`);
-		} else {
-			cargoFetched++;
-			console.log(`  FETCHED LICENSE: ${p.name}@${p.version} (${repoUrl}@${usedRef})`);
-		}
+			const key = p.name.toLowerCase();
+			// Relaxed copyright validation for Cargo source: many crates ship license
+			// files with no copyright line. Per CELA this is acceptable for cargo
+			// components (legacy item.ts:286 skips the check for ItemSource.CARGO_LOCK),
+			// so we deliberately do NOT call validateCopyright() here.
+			entries.set(key, {
+				name: p.name,
+				version: p.version,
+				license,
+				url: repoUrl,
+				licenseText: fetched,
+				fromExtension: p.isStubOverride ? `(cargo-stub-override: ${p.relPath})` : `(cargo: ${p.relPath})`,
+			});
+			if (p.isStubOverride) {
+				cargoStubOverride++;
+				stubOverrideKeys.add(`${key}@${p.version}`);
+				console.log(`  STUB OVERRIDE: ${p.name}@${p.version} (${repoUrl}@${usedRef})`);
+			} else {
+				cargoFetched++;
+				console.log(`  FETCHED LICENSE: ${p.name}@${p.version} (${repoUrl}@${usedRef})`);
+			}
 		} catch (err) {
 			// Defense-in-depth: any unexpected throw in this task must log and
 			// continue, never reject (which would crash the build per sec. 6.6).
@@ -2181,17 +2166,6 @@ async function main(): Promise<void> {
 		console.error(`--strict-builtin-extensions: failing build — ${s7MissingLockfiles.length} built-in extension lockfile(s) unobtainable (disk or self-fetch): ${s7MissingLockfiles.join(', ')}`);
 		process.exit(1);
 	}
-}
-
-function parseArgs(argv: string[]): Record<string, string> {
-	const args: Record<string, string> = {};
-	for (let i = 0; i < argv.length; i++) {
-		if (argv[i].startsWith('--') && i + 1 < argv.length) {
-			args[argv[i].substring(2)] = argv[i + 1];
-			i++;
-		}
-	}
-	return args;
 }
 
 // Only run main() when scan-licenses is the entry point — not when a test or
