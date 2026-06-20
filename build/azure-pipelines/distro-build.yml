@@ -14,6 +14,16 @@ resources:
       name: microsoft/vscode-distro
       ref: main
       endpoint: Monaco
+    - repository: encrypt
+      type: github
+      name: microsoft/vscode-encrypt
+      ref: main
+      endpoint: Monaco
+    - repository: vsda
+      type: github
+      name: microsoft/vsda
+      ref: main
+      endpoint: Monaco
 
 steps:
   - checkout: self

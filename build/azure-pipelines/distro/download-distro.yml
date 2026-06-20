@@ -22,3 +22,31 @@ steps:
 
   - script: git lfs pull
     displayName: Pull Git LFS objects
+
+  # Check out the private microsoft/vscode-encrypt and microsoft/vsda repositories
+  # using the agent's GitHub App (Monaco) credentials. The distro's npm dependencies
+  # reference both as git dependencies; npm resolves these over ssh while cargo (CLI
+  # build) resolves them over https. We redirect both public GitHub URLs to these
+  # local checkouts via git's insteadOf so no PAT is required to resolve them.
+  - checkout: encrypt
+    path: s/.build/vscode-encrypt
+    fetchDepth: 0
+    retryCountOnTaskFailure: 3
+    displayName: Checkout microsoft/vscode-encrypt
+
+  - checkout: vsda
+    path: s/.build/vsda
+    fetchDepth: 0
+    retryCountOnTaskFailure: 3
+    displayName: Checkout microsoft/vsda
+
+  - script: |
+      git config --global url."file://$(Build.SourcesDirectory)/.build/vscode-encrypt".insteadOf "https://github.com/microsoft/vscode-encrypt"
+      git config --global --add url."file://$(Build.SourcesDirectory)/.build/vscode-encrypt".insteadOf "https://github.com/microsoft/vscode-encrypt.git"
+      git config --global --add url."file://$(Build.SourcesDirectory)/.build/vscode-encrypt".insteadOf "ssh://git@github.com/microsoft/vscode-encrypt"
+      git config --global --add url."file://$(Build.SourcesDirectory)/.build/vscode-encrypt".insteadOf "ssh://git@github.com/microsoft/vscode-encrypt.git"
+      git config --global url."file://$(Build.SourcesDirectory)/.build/vsda".insteadOf "https://github.com/microsoft/vsda"
+      git config --global --add url."file://$(Build.SourcesDirectory)/.build/vsda".insteadOf "https://github.com/microsoft/vsda.git"
+      git config --global --add url."file://$(Build.SourcesDirectory)/.build/vsda".insteadOf "ssh://git@github.com/microsoft/vsda"
+      git config --global --add url."file://$(Build.SourcesDirectory)/.build/vsda".insteadOf "ssh://git@github.com/microsoft/vsda.git"
+    displayName: Redirect private git dependencies to local checkouts
