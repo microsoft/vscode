@@ -95,6 +95,31 @@ interface IRemoteAgentHostExtensionCommandMap {
 	'shutdown': { params: undefined; result: void };
 }
 
+interface IPendingRequest {
+	readonly deferred: DeferredPromise<unknown>;
+	readonly suppressNotFoundWarning: boolean;
+	readonly sentAt: number;
+}
+
+function isFileResourceRead(method: string, params: unknown): boolean {
+	if (method !== 'resourceRead' || !hasUriParam(params)) {
+		return false;
+	}
+	const uri = params.uri;
+	if (typeof uri !== 'string') {
+		return false;
+	}
+	try {
+		return URI.parse(uri).scheme === Schemas.file;
+	} catch {
+		return false;
+	}
+}
+
+function hasUriParam(params: unknown): params is { readonly uri: unknown } {
+	return typeof params === 'object' && params !== null && hasKey(params, { uri: true });
+}
+
 /**
  * High-level connection state of a {@link RemoteAgentHostProtocolClient}.
  * Exposed via {@link RemoteAgentHostProtocolClient.onDidChangeConnectionState}
@@ -215,7 +240,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	private _state: ClientState = { kind: AgentHostClientState.Connecting };
 
 	/** Pending JSON-RPC requests keyed by request id. */
-	private readonly _pendingRequests = new Map<number, { deferred: DeferredPromise<unknown>; sentAt: number }>();
+	private readonly _pendingRequests = new Map<number, IPendingRequest>();
 	private _nextRequestId = 1;
 
 	/**
@@ -1029,7 +1054,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			if (pending) {
 				this._pendingRequests.delete(msg.id);
 				if (hasKey(msg, { error: true })) {
-					this._logService.warn(`[RemoteAgentHostProtocol] Request ${msg.id} failed:`, msg.error);
+					if (this._shouldLogFailedRequest(pending, msg.error)) {
+						this._logService.warn(`[RemoteAgentHostProtocol] Request ${msg.id} failed:`, msg.error);
+					}
 					pending.deferred.error(this._toProtocolError(msg.error));
 				} else {
 					pending.deferred.complete(msg.result);
@@ -1326,10 +1353,17 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 		const id = this._nextRequestId++;
 		const deferred = new DeferredPromise<unknown>();
-		this._pendingRequests.set(id, { deferred, sentAt: Date.now() });
+		this._pendingRequests.set(id, { deferred, suppressNotFoundWarning: isFileResourceRead(method, params), sentAt: Date.now() });
 		const request: JsonRpcRequest = { jsonrpc: '2.0', id, method, params };
 		this._transport.send(request);
 		return deferred.p as Promise<TResult>;
+	}
+
+	private _shouldLogFailedRequest(request: IPendingRequest, error: JsonRpcErrorResponse['error']): boolean {
+		if (error.code === AhpErrorCodes.NotFound && request.suppressNotFoundWarning) {
+			return false;
+		}
+		return true;
 	}
 
 	private _toProtocolError(error: JsonRpcErrorResponse['error']): ProtocolError {
