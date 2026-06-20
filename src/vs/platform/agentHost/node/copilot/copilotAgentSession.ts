@@ -805,21 +805,29 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private _emitMarkdownDelta(content: string, parentToolCallId?: string): void {
 		const turn = this._currentTurn;
+		if (!turn) {
+			// A markdown delta should only ever arrive while a turn is active.
+			// Without a turn we can't persist the part id (so every delta would
+			// allocate a fresh part) and the action would carry an empty turnId.
+			// Drop it and surface the unexpected state.
+			this._logService.error(`[Copilot:${this.sessionId}] Markdown delta emitted with no active turn; dropping`);
+			return;
+		}
 		const markdownScope = parentToolCallId ?? '';
-		let partId = turn?.markdownPartIds.get(markdownScope);
+		let partId = turn.markdownPartIds.get(markdownScope);
 		if (!partId) {
 			partId = generateUuid();
-			turn?.markdownPartIds.set(markdownScope, partId);
+			turn.markdownPartIds.set(markdownScope, partId);
 			this._emitAction({
 				type: ActionType.ChatResponsePart,
-				turnId: this._turnId,
+				turnId: turn.id,
 				part: { kind: ResponsePartKind.Markdown, id: partId, content },
 			}, parentToolCallId);
 			return;
 		}
 		this._emitAction({
 			type: ActionType.ChatDelta,
-			turnId: this._turnId,
+			turnId: turn.id,
 			partId,
 			content,
 		}, parentToolCallId);
@@ -828,21 +836,25 @@ export class CopilotAgentSession extends Disposable {
 	/** Emits a reasoning delta, similar to {@link _emitMarkdownDelta} but for reasoning parts. */
 	private _emitReasoningDelta(content: string, parentToolCallId?: string): void {
 		const turn = this._currentTurn;
+		if (!turn) {
+			this._logService.error(`[Copilot:${this.sessionId}] Reasoning delta emitted with no active turn; dropping`);
+			return;
+		}
 		const reasoningScope = parentToolCallId ?? '';
-		let partId = turn?.reasoningPartIds.get(reasoningScope);
+		let partId = turn.reasoningPartIds.get(reasoningScope);
 		if (!partId) {
 			partId = generateUuid();
-			turn?.reasoningPartIds.set(reasoningScope, partId);
+			turn.reasoningPartIds.set(reasoningScope, partId);
 			this._emitAction({
 				type: ActionType.ChatResponsePart,
-				turnId: this._turnId,
+				turnId: turn.id,
 				part: { kind: ResponsePartKind.Reasoning, id: partId, content },
 			}, parentToolCallId);
 			return;
 		}
 		this._emitAction({
 			type: ActionType.ChatReasoning,
-			turnId: this._turnId,
+			turnId: turn.id,
 			partId,
 			content,
 		}, parentToolCallId);
@@ -2428,10 +2440,12 @@ export class CopilotAgentSession extends Disposable {
 			// queued-message case; reading `e.data.aborted` is the authoritative
 			// SDK signal that lets us also tear down the aborted running turn.
 			if (e.data.aborted) {
-				this._logService.trace(`[Copilot:${sessionId}] Idle from abort; leaving turn ${turn.id} (${turn.state}) open`);
 				if (turn.isRunning) {
+					this._logService.trace(`[Copilot:${sessionId}] Idle from abort; tearing down running turn ${turn.id}`);
 					turn.markAborted();
 					this._currentTurn = undefined;
+				} else {
+					this._logService.trace(`[Copilot:${sessionId}] Idle from abort; leaving ${turn.state} turn ${turn.id} open`);
 				}
 				return;
 			}

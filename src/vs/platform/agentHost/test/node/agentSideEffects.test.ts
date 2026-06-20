@@ -905,7 +905,7 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(state?.queuedMessages, undefined);
 		});
 
-		test('does NOT drain queued messages when the active turn is cancelled', () => {
+		test('does not drain queued messages when the active turn is cancelled', () => {
 			// Cancelling a turn means "stop": messages queued behind it must stay
 			// queued for the user to dequeue/run manually, not auto-start. (A
 			// message the user sends *after* the abort is consumed separately via

@@ -1657,8 +1657,9 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual((turnComplete as { turnId: string }).turnId, turnStarted.turnId);
 		});
 
-		test('events after a completed turn do not target the stale previous turn id', async () => {
-			const { session, mockSession, signals } = await createAgentSession(disposables);
+		test('a late event after a completed turn is dropped and logged (never targets the stale turn id)', async () => {
+			const logService = new CapturingLogService();
+			const { session, mockSession, signals } = await createAgentSession(disposables, { logService });
 			session.resetTurnState('turn-old');
 
 			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
@@ -1666,12 +1667,13 @@ suite('CopilotAgentSession', () => {
 				deltaContent: 'late text',
 			} as SessionEventPayload<'assistant.message_delta'>['data']);
 
-			const lateMarkdownActions = getActions(signals)
-				.filter(a => a.type === ActionType.ChatResponsePart && a.part.kind === ResponsePartKind.Markdown)
-				.map(a => a as ChatResponsePartAction);
-			const lateMarkdown = lateMarkdownActions[lateMarkdownActions.length - 1];
-			assert.ok(lateMarkdown, 'late event still emits a no-op action for the reducer');
-			assert.notStrictEqual(lateMarkdown.turnId, 'turn-old');
+			// With no active turn, the late delta is dropped (not emitted even as a
+			// no-op), so it can never be attributed to the stale 'turn-old', and the
+			// unexpected state is surfaced via an error log.
+			const markdownActions = getActions(signals)
+				.filter(a => a.type === ActionType.ChatResponsePart && a.part.kind === ResponsePartKind.Markdown);
+			assert.strictEqual(markdownActions.length, 0, 'the late delta must be dropped, not emitted');
+			assert.ok(logService.errors.some(e => /no active turn/i.test(String(e.first))), 'the dropped delta should be logged');
 		});
 	});
 
@@ -2103,6 +2105,24 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(signals.length, 0);
 		});
 
+		test('drops and logs a markdown delta emitted with no active turn', async () => {
+			// A delta should only arrive while a turn is active. With none, we
+			// can't persist the part id (so every delta would allocate a fresh
+			// part) and the action would carry an empty turnId — drop it and log.
+			const logService = new CapturingLogService();
+			const { mockSession, signals } = await createAgentSession(disposables, { logService });
+
+			// No resetTurnState → no active turn.
+			mockSession.fire('assistant.message_delta', {
+				deltaContent: 'orphan text',
+			} as SessionEventPayload<'assistant.message_delta'>['data']);
+
+			const parts = getActions(signals).filter(a => a.type === ActionType.ChatResponsePart || a.type === ActionType.ChatDelta);
+			assert.strictEqual(parts.length, 0, 'no response part/delta should be emitted without an active turn');
+			assert.strictEqual(logService.errors.length, 1, 'should log an error');
+			assert.match(String(logService.errors[0].first), /no active turn/i);
+		});
+
 		test('abort-induced idle does not complete a pending queued turn', async () => {
 			// Repro for the blank-response-after-abort race: a running turn is
 			// aborted while a queued message exists. The queued message's
@@ -2191,7 +2211,8 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('message delta is forwarded', async () => {
-			const { mockSession, signals } = await createAgentSession(disposables);
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-1');
 			mockSession.fire('assistant.message_delta', {
 				messageId: 'msg-1',
 				deltaContent: 'Hello ',
@@ -2436,7 +2457,8 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('reasoning delta after tool_start starts a new reasoning response part', async () => {
-			const { mockSession, signals } = await createAgentSession(disposables);
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-1');
 
 			// First reasoning delta — allocates a fresh reasoning response part.
 			mockSession.fire('assistant.reasoning_delta', {
@@ -3599,6 +3621,7 @@ suite('CopilotAgentSession', () => {
 
 		test('handleExitPlanModeRequest produces a single-select input request with options and recommended', async () => {
 			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
+			session.resetTurnState('turn-plan');
 
 			mockSession.planReadResult = { exists: true, content: '## Plan', path: '/sessions/abc/plan.md' };
 
