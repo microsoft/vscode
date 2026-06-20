@@ -32,6 +32,7 @@ import { IWorkbenchLayoutService } from '../../../services/layout/browser/layout
 import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
 import { ACTION_ID_NEW_CHAT, CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../browser/actions/chatActions.js';
 import { AgentHostContribution } from '../browser/agentSessions/agentHost/agentHostChatContribution.js';
+import { AgentHostSessionListContribution } from '../browser/agentSessions/agentHost/agentHostSessionListContribution.js';
 import { AgentHostTerminalContribution } from '../browser/agentSessions/agentHost/agentHostTerminalContribution.js';
 import { AgentSessionProviders, getAgentSessionProviderName } from '../browser/agentSessions/agentSessions.js';
 import { IAgentSessionsService } from '../browser/agentSessions/agentSessionsService.js';
@@ -260,6 +261,7 @@ registerWorkbenchContribution2(ChatCommandLineHandler.ID, ChatCommandLineHandler
 registerWorkbenchContribution2(ChatSuspendThrottlingHandler.ID, ChatSuspendThrottlingHandler, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatLifecycleHandler.ID, ChatLifecycleHandler, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentHostContribution.ID, AgentHostContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AgentHostSessionListContribution.ID, AgentHostSessionListContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentHostTerminalContribution.ID, AgentHostTerminalContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(OpenWorkspaceInAgentsContribution.ID, OpenWorkspaceInAgentsContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(AgentsHandoffInputTipContribution.ID, AgentsHandoffInputTipContribution, WorkbenchPhase.Eventually);

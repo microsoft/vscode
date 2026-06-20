@@ -2418,7 +2418,13 @@ export class CopilotAgentSession extends Disposable {
 					totalNanoAiu: this._turnCopilotUsageTotalNanoAiu,
 				};
 			}
-			this._logService.trace(`[Copilot:${sessionId}] Usage: model=${e.data.model}, in=${e.data.inputTokens ?? '?'}, out=${e.data.outputTokens ?? '?'}, cacheRead=${e.data.cacheReadTokens ?? '?'}, cost=${e.data.cost ?? '?'}, totalNanoAiu=${metadata.copilotUsage ? this._turnCopilotUsageTotalNanoAiu : '?'}`);
+			// `quotaSnapshots` is likewise `asInternal` in the SDK schema (not on the generated type) but is
+			// present at runtime. Forward the per-category snapshots on `_meta` so the client can keep the
+			// account quota UI current. Mirrors the extension-host CLI path, which feeds these into its quota service.
+			const quotaSnapshots = normalizeQuotaSnapshots((e.data as unknown as Record<string, unknown>).quotaSnapshots);
+			if (quotaSnapshots) {
+				metadata.quotaSnapshots = quotaSnapshots;
+			}
 			if (typeof e.data.model === 'string' && e.data.model) {
 				this._lastSeenModelId = e.data.model;
 			}
@@ -2974,4 +2980,40 @@ function countUnifiedDiffLines(diff: string): { added: number; removed: number }
 		return undefined;
 	}
 	return { added, removed };
+}
+
+/**
+ * Normalizes the SDK's internal `quotaSnapshots` field — present on the `assistant.usage` event at
+ * runtime but absent from the generated `AssistantUsageData` type — into the serializable shape
+ * carried on {@link UsageInfoMeta.quotaSnapshots}. Returns `undefined` when no usable snapshot is present.
+ */
+function normalizeQuotaSnapshots(raw: unknown): UsageInfoMeta['quotaSnapshots'] | undefined {
+	if (!raw || typeof raw !== 'object') {
+		return undefined;
+	}
+	const result: NonNullable<UsageInfoMeta['quotaSnapshots']> = {};
+	let hasAny = false;
+	for (const [quotaType, value] of Object.entries(raw as Record<string, unknown>)) {
+		if (!value || typeof value !== 'object') {
+			continue;
+		}
+		const v = value as Record<string, unknown>;
+		const resetDateRaw = v.resetDate;
+		const resetDate = typeof resetDateRaw === 'string'
+			? resetDateRaw
+			: resetDateRaw instanceof Date
+				? resetDateRaw.toISOString()
+				: undefined;
+		result[quotaType] = {
+			isUnlimitedEntitlement: typeof v.isUnlimitedEntitlement === 'boolean' ? v.isUnlimitedEntitlement : undefined,
+			entitlementRequests: typeof v.entitlementRequests === 'number' ? v.entitlementRequests : undefined,
+			usedRequests: typeof v.usedRequests === 'number' ? v.usedRequests : undefined,
+			remainingPercentage: typeof v.remainingPercentage === 'number' ? v.remainingPercentage : undefined,
+			overage: typeof v.overage === 'number' ? v.overage : undefined,
+			overageAllowedWithExhaustedQuota: typeof v.overageAllowedWithExhaustedQuota === 'boolean' ? v.overageAllowedWithExhaustedQuota : undefined,
+			resetDate,
+		};
+		hasAny = true;
+	}
+	return hasAny ? result : undefined;
 }

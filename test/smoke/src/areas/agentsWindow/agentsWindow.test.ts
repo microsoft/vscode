@@ -215,8 +215,9 @@ export function setup(logger: Logger) {
 					await app.workbench.agentsWindow.selectSessionType(session.name);
 
 					const requestsBefore = mockServer.requestCount();
+					const firstPrompt = `hello world [scenario:${session.scenarioId}]`;
 					logger.log(`[Agents Window/${session.name}] submitting prompt; requestCount=${requestsBefore}`);
-					await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${session.scenarioId}]`);
+					await app.workbench.agentsWindow.submitNewSessionPrompt(firstPrompt);
 					logger.log(`[Agents Window/${session.name}] prompt submitted; waiting for assistant text '${session.reply}'; requestCount=${mockServer.requestCount()}`);
 
 					const text = await app.workbench.agentsWindow.waitForAssistantText(session.reply);
@@ -229,10 +230,15 @@ export function setup(logger: Logger) {
 					// than continuing the existing one. Click back into the
 					// just-completed session before sending message 2 so the
 					// follow-up lands in the same session. Identify the row by
-					// its msg1 reply text since the sessions list also contains
-					// workspace folder group headers and historical sessions.
+					// EITHER the first prompt or the msg1 reply: the row text is
+					// the session title, which starts as the prompt (synchronous
+					// fallback) and is asynchronously replaced by a generated
+					// title (the reply, in the mock). Matching either avoids a
+					// race on when title generation lands. The sessions list also
+					// contains workspace folder group headers and historical
+					// sessions, so we can't just click the topmost row.
 					if (session.name === 'Copilot CLI') {
-						await app.workbench.agentsWindow.activateSessionByLabel(session.reply);
+						await app.workbench.agentsWindow.activateSessionByLabel([firstPrompt, session.reply], session.reply);
 					}
 
 					if (!session.skipReply2) {
@@ -244,10 +250,12 @@ export function setup(logger: Logger) {
 						// a fresh untitled session between `activateSessionByLabel`
 						// returning and the send-button click).
 						const expectedActiveLabel = session.name === 'Copilot CLI' ? session.reply : undefined;
+						const activeRowMatch = session.name === 'Copilot CLI' ? [firstPrompt, session.reply] : undefined;
 						await app.workbench.agentsWindow.sendFollowUpMessage(
 							`hello again [scenario:${session.scenarioId2}]`,
 							undefined,
 							expectedActiveLabel,
+							activeRowMatch,
 						);
 
 						const secondTurnTimeout = session.name === 'Copilot CLI' ? 180_000 : 60_000;

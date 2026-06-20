@@ -2776,6 +2776,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._sessionTerminalInstances.delete(chatSessionResource);
 
 		for (const terminal of terminalsToDispose) {
+			// Only dispose if the terminal is still hidden from the user. Once
+			// the user reveals it (via the terminal panel or the outputLocation
+			// setting), it joins foregroundInstances and should persist so they
+			// can inspect/interact with it. This prevents user-revealed
+			// terminals from being destroyed when switching between sessions.
+			if (this._terminalService.foregroundInstances.includes(terminal)) {
+				this._logService.debug(`RunInTerminalTool: Skipping disposal of user-revealed terminal ${terminal.instanceId} for session ${chatSessionResource}`);
+				continue;
+			}
 			// Skip redundant map walks in onDidDispose since this session has already been removed.
 			this._terminalsBeingDisposedBySessionCleanup.add(terminal);
 			terminal.dispose();
@@ -2785,6 +2794,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const terminalToRemove: string[] = [];
 		for (const [termId, execution] of RunInTerminalTool._activeExecutions.entries()) {
 			if (terminalsToDispose.has(execution.instance)) {
+				// Skip active executions for terminals that were preserved above
+				if (this._terminalService.foregroundInstances.includes(execution.instance)) {
+					continue;
+				}
 				execution.dispose();
 				terminalToRemove.push(termId);
 			}
