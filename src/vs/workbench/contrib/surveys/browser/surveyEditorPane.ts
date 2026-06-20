@@ -221,10 +221,15 @@ export class SurveyEditorPane extends EditorPane {
 			answersSnapshot[key] = [...value];
 		}
 
-		// Extract the PMF score as a top-level measure if defined
-		const pmfScore = survey.pmfQuestionId
-			? (answersSnapshot[survey.pmfQuestionId]?.[0] ?? '')
-			: '';
+		// PMF score as numeric 0-4 (index in the options array, low=not disappointed, high=extremely)
+		let pmfScore = -1;
+		if (survey.pmfQuestionId) {
+			const pmfQuestion = survey.questions.find(q => q.id === survey.pmfQuestionId);
+			const pmfAnswer = answersSnapshot[survey.pmfQuestionId]?.[0];
+			if (pmfQuestion && pmfAnswer) {
+				pmfScore = pmfQuestion.options.findIndex(o => o.id === pmfAnswer);
+			}
+		}
 
 		// Get the source from the input (what feature triggered the survey)
 		const source = (this.input as SurveyEditorInput)?.source ?? '';
@@ -232,18 +237,16 @@ export class SurveyEditorPane extends EditorPane {
 		type SurveySubmitEvent = {
 			surveyId: string;
 			source: string;
-			pmfScore: string;
+			pmfScore: number;
 			primaryBenefit: string;
 			primaryFriction: string;
-			answers: string;
 		};
 		type SurveySubmitClassification = {
 			surveyId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The survey identifier.' };
 			source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Copilot feature source that triggered the survey (e.g. completions, panel.agent, agent.codeEdit).' };
-			pmfScore: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The PMF disappointment score: not-at-all, slightly, somewhat, very, extremely.' };
+			pmfScore: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'PMF disappointment score 0-4 (0=not at all, 1=slightly, 2=somewhat, 3=very, 4=extremely disappointed).' };
 			primaryBenefit: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The primary value driver selected by the user.' };
 			primaryFriction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The primary friction point selected by the user.' };
-			answers: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'JSON-encoded full survey answers keyed by question ID with stable option ID arrays.' };
 			owner: 'digitarald';
 			comment: 'Tracks in-product survey submissions for product-market fit analysis.';
 		};
@@ -253,7 +256,6 @@ export class SurveyEditorPane extends EditorPane {
 			pmfScore,
 			primaryBenefit: answersSnapshot['primary-benefit']?.[0] ?? '',
 			primaryFriction: answersSnapshot['primary-friction']?.[0] ?? '',
-			answers: JSON.stringify(answersSnapshot),
 		});
 
 		const submittedInput = this.input;
