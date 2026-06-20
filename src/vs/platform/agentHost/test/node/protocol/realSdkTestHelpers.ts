@@ -38,6 +38,7 @@ import {
 	type ChatToolCallStartAction,
 } from '../../../common/state/sessionActions.js';
 import type { SessionAddedParams } from '../../../common/state/protocol/notifications.js';
+import { AgentHostConfigKey } from '../../../common/agentHostCustomizationConfig.js';
 import {
 	getActionEnvelope, isActionNotification, IServerHandle, startRealServer, TestProtocolClient,
 } from './testHelpers.js';
@@ -224,7 +225,14 @@ export function getAcceptedAnswers(request: ChatInputRequest): Record<string, Ch
 					value: { kind: ChatInputAnswerValueKind.Boolean, value: question.defaultValue ?? true },
 				} satisfies ChatInputAnswer];
 			case ChatInputQuestionKind.SingleSelect: {
-				const preferredOption = question.options.find(option => /interactive/i.test(option.id) || /interactive/i.test(option.label))
+				// For plan-mode reviews, prefer approving the plan WITHOUT
+				// auto-executing it (`exit_only`) so the turn ends instead of
+				// continuing to implement in-turn — which would surface
+				// tool-call confirmations the planning test asserts against.
+				// Fall back to an `interactive` option, then the recommended
+				// option, then the first.
+				const preferredOption = question.options.find(option => /exit_only/i.test(option.id))
+					?? question.options.find(option => /interactive/i.test(option.id) || /interactive/i.test(option.label))
 					?? question.options.find(option => option.recommended)
 					?? question.options[0];
 				return [question.id, {
@@ -306,10 +314,11 @@ async function driveTurn(c: TestProtocolClient, session: string, turnId: string,
 			if (!action.confirmed) {
 				sawPendingConfirmation = true;
 				c.notify('dispatchAction', {
+					channel: session,
 					clientSeq: nextClientSeq++,
 					action: {
 						type: 'chat/toolCallConfirmed',
-						session, turnId,
+						turnId,
 						toolCallId: action.toolCallId,
 						approved: true,
 					},
@@ -322,10 +331,10 @@ async function driveTurn(c: TestProtocolClient, session: string, turnId: string,
 			sawInputRequest = true;
 			const action = getActionEnvelope(notification).action as ChatInputRequestedAction;
 			c.notify('dispatchAction', {
+				channel: session,
 				clientSeq: nextClientSeq++,
 				action: {
 					type: 'chat/inputCompleted',
-					session,
 					requestId: action.request.id,
 					response: ChatInputResponseKind.Accept,
 					answers: getAcceptedAnswers(action.request),
@@ -760,6 +769,16 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: `real-sdk-worktree-${config.provider}` });
 			await client.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: resolveGitHubToken() });
 
+			// The host's custom terminal tool is opt-in (default off). This test
+			// asserts on the host-managed terminal's cwd / `pwd` output, so the
+			// shell tool must route through the host terminal manager. Enable it
+			// before the session materializes on the first turn dispatch.
+			client.notify('dispatchAction', {
+				channel: ROOT_STATE_URI,
+				clientSeq: 0,
+				action: { type: 'root/configChanged', config: { [AgentHostConfigKey.EnableCustomTerminalTool]: true } },
+			});
+
 			const sessionUri = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
 			await client.call('createSession', {
 				channel: sessionUri, provider: config.provider, workingDirectory: workingDirUri,
@@ -768,6 +787,10 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			createdSessions.push(sessionUri);
 
 			await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+			// Conversation contents (turns, tool calls, …) live on the
+			// session's default chat channel in the multi-chat protocol;
+			// subscribe to it so `chat/*` action notifications are delivered.
+			await client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
 
 			client.notify('dispatchAction', {
 				channel: sessionUri,
@@ -866,6 +889,7 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			writeFileSync(`${tempDir}/file-b.txt`, 'beta');
 
 			const sessionUri = await createRealSession(client, config, `real-sdk-subagent-${config.provider}`, createdSessions, URI.file(tempDir).toString());
+			const sessionChatUri = buildDefaultChatUri(sessionUri);
 
 			let approvalsActive = true;
 			let approvalSeq = 1000;
@@ -913,7 +937,7 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 				}
 				const envelope = getActionEnvelope(n);
 				const action = envelope.action as { content: readonly ToolResultContent[] };
-				return envelope.channel === sessionUri && action.content.some(c => c.type === ToolResultContentType.Subagent);
+				return envelope.channel === sessionChatUri && action.content.some(c => c.type === ToolResultContentType.Subagent);
 			}, 120_000);
 
 			const parentContent = (getActionEnvelope(subagentContentNotif).action as { content: readonly ToolResultContent[] }).content;
@@ -921,14 +945,19 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			const subagentSessionUri = subagentRef.resource as unknown as string;
 			assert.ok(typeof subagentSessionUri === 'string' && isSubagentSession(subagentSessionUri),
 				`subagent session URI should be subagent-shaped, got: ${JSON.stringify(subagentSessionUri)}`);
+			const subagentChatUri = buildDefaultChatUri(subagentSessionUri);
 
 			await client.call<SubscribeResult>('subscribe', { channel: subagentSessionUri });
+			// The subagent's conversation contents (its inner tool calls) are
+			// emitted on its own default chat channel; subscribe so we observe
+			// them separately from the parent.
+			await client.call<SubscribeResult>('subscribe', { channel: subagentChatUri });
 
 			await client.waitForNotification(n => {
 				if (!isActionNotification(n, 'chat/turnComplete')) {
 					return false;
 				}
-				return getActionEnvelope(n).channel === sessionUri;
+				return getActionEnvelope(n).channel === sessionChatUri;
 			}, 150_000);
 
 			approvalsActive = false;
@@ -937,8 +966,8 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			const toolStarts = client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'))
 				.map(n => ({ channel: getActionEnvelope(n).channel, action: getActionEnvelope(n).action as ChatToolCallStartAction }));
 
-			const parentStarts = toolStarts.filter(t => t.channel === sessionUri).map(t => t.action);
-			const subagentStarts = toolStarts.filter(t => t.channel === subagentSessionUri).map(t => t.action);
+			const parentStarts = toolStarts.filter(t => t.channel === sessionChatUri).map(t => t.action);
+			const subagentStarts = toolStarts.filter(t => t.channel === subagentChatUri).map(t => t.action);
 
 			const subagentToolNames = new Set<string>(config.subagentToolNames);
 			const parentNonTaskStarts = parentStarts.filter(a => !subagentToolNames.has(a.toolName));

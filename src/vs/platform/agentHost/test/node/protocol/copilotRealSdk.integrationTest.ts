@@ -27,7 +27,7 @@ import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { MessageAttachmentKind, type MessageAttachment } from '../../../common/state/sessionState.js';
+import { MessageAttachmentKind, buildDefaultChatUri, type MessageAttachment } from '../../../common/state/sessionState.js';
 import type { ChatUsageAction } from '../../../common/state/sessionActions.js';
 import {
 	createRealSession, defineSharedRealSdkTests, dispatchTurn, driveTurnWithAttachmentsToCompletion,
@@ -100,7 +100,7 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 		const usageNotif = await client.waitForNotification(n => isActionNotification(n, 'chat/usage'), 90_000);
 		const usageEnvelope = getActionEnvelope(usageNotif);
 		const usageAction = usageEnvelope.action as ChatUsageAction;
-		assert.strictEqual(usageEnvelope.channel, sessionUri);
+		assert.strictEqual(usageEnvelope.channel, buildDefaultChatUri(sessionUri));
 		assert.strictEqual(usageAction.turnId, 'turn-usage');
 		assert.strictEqual(typeof usageAction.usage.model, 'string');
 		assert.ok(usageAction.usage.model);
