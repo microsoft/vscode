@@ -4230,12 +4230,12 @@ suite('AgentHostChatContribution', () => {
 			]);
 		});
 
-		test('local agent contribution uses simplified Copilot display name', () => {
+		test('local agent contribution does not append Agent Host to Copilot display name', () => {
 			const services = createTestServices(disposables);
 			disposables.add(services.instantiationService.createInstance(AgentHostContribution));
 
 			services.agentHostService.setRootState({
-				agents: [{ provider: 'copilotcli', displayName: 'Copilot CLI', description: 'test', models: [] }],
+				agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: 'test', models: [] }],
 				activeSessions: 0,
 			});
 
