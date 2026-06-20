@@ -63,7 +63,7 @@ export {
 	type ConfigSchema,
 	type ContentRef, type Customization, type CustomizationDegradedState,
 	type CustomizationErrorState, type CustomizationLoadedState, type CustomizationLoadingState, type CustomizationLoadState, type DirectoryCustomization, type ErrorInfo, type HookCustomization, type FileEdit as ISessionFileDiff, type ToolResultEmbeddedResourceContent as IToolResultBinaryContent, type MarkdownResponsePart, type McpServerCustomization, type MessageAttachment,
-	type MessageResourceAttachment, type ModelSelection, type PendingMessage, type PluginCustomization, type ProjectInfo, type PromptCustomization, type ReasoningResponsePart,
+	type MessageResourceAttachment, type MessageAnnotationsAttachment, type ModelSelection, type PendingMessage, type PluginCustomization, type ProjectInfo, type PromptCustomization, type ReasoningResponsePart,
 	type ResponsePart,
 	type RootState, type RuleCustomization, type SessionActiveClient,
 	type SessionConfigState, type ChatInputAnswer as SessionInputAnswer,
@@ -88,6 +88,39 @@ export {
 	type Turn, type URI, type UsageInfo,
 	type Message
 } from './protocol/state.js';
+
+/**
+ * Well-known keys that may appear on {@link UsageInfo._meta}.
+ * Clients MAY read these to provide enhanced UI (e.g. credit cost display).
+ */
+export interface UsageInfoMeta {
+	/** Per-turn credit cost reported by the backend. */
+	cost?: number;
+	/** Copilot-specific usage breakdown, including nano-AIU totals. */
+	copilotUsage?: {
+		totalNanoAiu?: number;
+		[key: string]: unknown;
+	};
+	/**
+	 * Per-category account quota snapshots reported by the backend on the
+	 * model-call usage event, keyed by quota type (e.g. `chat`,
+	 * `premium_interactions`). Clients MAY use these to keep the account quota
+	 * UI current without a separate quota fetch.
+	 */
+	quotaSnapshots?: {
+		[quotaType: string]: {
+			readonly isUnlimitedEntitlement?: boolean;
+			readonly entitlementRequests?: number;
+			readonly usedRequests?: number;
+			readonly remainingPercentage?: number;
+			readonly overage?: number;
+			readonly overageAllowedWithExhaustedQuota?: boolean;
+			/** ISO 8601 date when the quota resets, if applicable. */
+			readonly resetDate?: string;
+		} | undefined;
+	};
+	[key: string]: unknown;
+}
 
 export {
 	ChangesetOperationTargetKind, type ChangesetOperationFollowUp, type ChangesetOperationTarget
@@ -493,35 +526,50 @@ export type ComponentToState = {
 /** Scheme used by chat channel URIs (`ahp-chat://...`). */
 export const AHP_CHAT_SCHEME = 'ahp-chat';
 
+/** Chat id of the default chat that every session owns. */
+export const DEFAULT_CHAT_ID = 'default';
+
 /**
- * Derives the deterministic default-chat channel URI for a session. While the
- * protocol allows a session to contain many chats, VS Code currently models
- * every session as having exactly one chat — its default chat — whose URI is
- * derived from the owning session URI so producers and consumers can compute
- * it without a lookup table.
+ * Derives the deterministic channel URI for a chat within a session. Every chat
+ * — the default chat and any additional peer chats — encodes its owning session
+ * URI into the path so producers and consumers can recover the session without a
+ * lookup table (see {@link parseChatUri}). The chat id is carried in the URI
+ * authority.
  *
- * The session URI is encoded into the path so {@link parseDefaultChatUri} can
- * recover it.
+ * `ahp-chat://<chatId>/<base64(sessionUri)>`
  */
-export function buildDefaultChatUri(sessionUri: ProtocolURI | ResourceURI): string {
+export function buildChatUri(sessionUri: ProtocolURI | ResourceURI, chatId: string): string {
 	const session = typeof sessionUri === 'string' ? sessionUri : sessionUri.toString();
 	const encoded = encodeBase64(VSBuffer.fromString(session), false, true);
-	return `${AHP_CHAT_SCHEME}://default/${encoded}`;
+	return `${AHP_CHAT_SCHEME}://${chatId}/${encoded}`;
 }
 
 /**
- * Inverse of {@link buildDefaultChatUri}: recovers the owning session URI from
- * a default-chat channel URI. Returns `undefined` when `uri` is not a
- * well-formed default-chat URI.
+ * Derives the deterministic default-chat channel URI for a session. While the
+ * protocol allows a session to contain many chats, every session always owns a
+ * default chat whose URI is derived from the owning session URI so producers and
+ * consumers can compute it without a lookup table.
+ *
+ * The session URI is encoded into the path so {@link parseChatUri} can recover
+ * it.
  */
-export function parseDefaultChatUri(uri: ProtocolURI | ResourceURI): string | undefined {
+export function buildDefaultChatUri(sessionUri: ProtocolURI | ResourceURI): string {
+	return buildChatUri(sessionUri, DEFAULT_CHAT_ID);
+}
+
+/**
+ * Inverse of {@link buildChatUri}: recovers the owning session URI and chat id
+ * from any chat channel URI. Returns `undefined` when `uri` is not a well-formed
+ * chat URI.
+ */
+export function parseChatUri(uri: ProtocolURI | ResourceURI): { session: string; chatId: string } | undefined {
 	let parsed: ResourceURI;
 	try {
 		parsed = typeof uri === 'string' ? ResourceURI.parse(uri) : uri;
 	} catch {
 		return undefined;
 	}
-	if (parsed.scheme !== AHP_CHAT_SCHEME || parsed.authority !== 'default') {
+	if (parsed.scheme !== AHP_CHAT_SCHEME || !parsed.authority) {
 		return undefined;
 	}
 	const encoded = parsed.path.replace(/^\//, '');
@@ -529,10 +577,25 @@ export function parseDefaultChatUri(uri: ProtocolURI | ResourceURI): string | un
 		return undefined;
 	}
 	try {
-		return decodeBase64(encoded).toString();
+		return { session: decodeBase64(encoded).toString(), chatId: parsed.authority };
 	} catch {
 		return undefined;
 	}
+}
+
+/**
+ * Inverse of {@link buildDefaultChatUri}: recovers the owning session URI from a
+ * chat channel URI. Returns `undefined` when `uri` is not a well-formed chat URI.
+ * Accepts any chat URI (default or additional) so callers that only need the
+ * parent session can use it uniformly.
+ */
+export function parseDefaultChatUri(uri: ProtocolURI | ResourceURI): string | undefined {
+	return parseChatUri(uri)?.session;
+}
+
+/** Returns `true` when `uri` is the default chat of its session. */
+export function isDefaultChatUri(uri: ProtocolURI | ResourceURI): boolean {
+	return parseChatUri(uri)?.chatId === DEFAULT_CHAT_ID;
 }
 
 /** Returns `true` when `uri` identifies a chat channel. */

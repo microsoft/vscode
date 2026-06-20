@@ -10,6 +10,7 @@ import { getDevDeviceId, getMachineId } from '../../../../base/node/id.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
+import { COPILOT_LICENSE_AGREEMENT } from '../../../endpoint/common/licenseAgreement.js';
 
 // #region Types
 
@@ -27,19 +28,6 @@ import { IProductService } from '../../../product/common/productService.js';
 export interface ICopilotApiServiceRequestOptions {
 	readonly headers?: Readonly<Record<string, string>>;
 	readonly signal?: AbortSignal;
-
-	/**
-	 * Suppress the `Copilot-Integration-Id` header on this request.
-	 *
-	 * When unset, `@vscode/copilot-api` derives the integration id from the
-	 * discovered Copilot SKU: a `no_auth_limited_copilot` SKU maps to
-	 * `vscode-nl`, which the CAPI backend treats as the limited/no-auth
-	 * integration and refuses premium models such as `claude-opus-4.7`.
-	 * Setting this to `true` omits the header so CAPI authorizes against the
-	 * token's real entitlement. Mirrors the Copilot Chat extension's
-	 * `ClaudeStreamingPassThroughEndpoint.getEndpointFetchOptions()`.
-	 */
-	readonly suppressIntegrationId?: boolean;
 }
 
 /**
@@ -578,9 +566,6 @@ export class CopilotApiService implements ICopilotApiService {
 					'X-Request-Id': requestId,
 					'OpenAI-Intent': 'conversation',
 				},
-				// Opt-in per request — see
-				// `ICopilotApiServiceRequestOptions.suppressIntegrationId`.
-				suppressIntegrationId: options?.suppressIntegrationId,
 				body,
 				signal: options?.signal,
 			},
@@ -765,7 +750,6 @@ export class CopilotApiService implements ICopilotApiService {
 					// paths already omit it). Thread a real per-turn initiator here if
 					// that signal ever becomes available at the proxy boundary.
 				},
-				suppressIntegrationId: options?.suppressIntegrationId,
 				body,
 				signal: options?.signal,
 			},
@@ -830,7 +814,7 @@ export class CopilotApiService implements ICopilotApiService {
 	private async _buildClientForToken(githubToken: string): Promise<ICachedClient> {
 		const { extensionInfo, userUrl } = await this._getCapiBase();
 		const fetch = this._fetch;
-		const capiClient = new CAPIClient(extensionInfo, undefined, {
+		const capiClient = new CAPIClient(extensionInfo, COPILOT_LICENSE_AGREEMENT, {
 			fetch: (url, options) => fetch(url, {
 				method: options.method ?? 'GET',
 				headers: options.headers,

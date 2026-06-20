@@ -11,16 +11,35 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agentService.js';
-import { buildDefaultChangesetCatalogue, buildSessionChangesetUri } from '../../common/changesetUri.js';
+import { buildBranchChangesetUri, buildDefaultChangesetCatalogue, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js';
 import { ChangesetStatus, SessionStatus, withSessionGitState, type Changeset } from '../../common/state/sessionState.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
+import { IAgentHostChangesetSubscriptionService } from '../../common/agentHostChangesetSubscriptionService.js';
 import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostGitService } from '../../node/agentHostGitService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { META_CHECKPOINT_WORKING_DIR } from '../../node/agentHostCheckpointService.js';
+
+/**
+ * Builds a test subscription service backed by a mutable set of subscribed
+ * changeset URIs, so service tests can simulate subscribe / unsubscribe
+ * without wiring up the coordinator.
+ */
+function createSubscriptionService(...changesets: string[]): IAgentHostChangesetSubscriptionService & { readonly subscriptions: Set<string> } {
+	const subscriptions = new Set(changesets);
+	return {
+		_serviceBrand: undefined,
+		subscriptions,
+		getSessionSubscriptions: () => subscriptions,
+		addSubscription: (_session, changeset) => { subscriptions.add(changeset); },
+		removeSubscription: (_session, changeset) => { subscriptions.delete(changeset); },
+		clearSessionSubscriptions: () => { subscriptions.clear(); },
+	};
+}
 
 suite.skip('AgentHostChangesetService', () => {
 
@@ -53,6 +72,8 @@ suite.skip('AgentHostChangesetService', () => {
 			createNullSessionDataService(),
 			createNoopGitService(),
 			NULL_CHECKPOINT_SERVICE,
+			disposables.add(new AgentConfigurationService(stateManager, new NullLogService())),
+			createSubscriptionService(buildUncommittedChangesetUri(sessionUri.toString())),
 		));
 	});
 
@@ -237,7 +258,7 @@ suite.skip('AgentHostChangesetService', () => {
 			} as unknown as IAgentHostGitService;
 
 			const localChangesets = disposables.add(new AgentHostChangesetService(
-				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE));
+				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createSubscriptionService(buildUncommittedChangesetUri(sessionUri.toString()))));
 
 			localStateManager.createSession({
 				resource: sessionUri.toString(),
@@ -256,9 +277,8 @@ suite.skip('AgentHostChangesetService', () => {
 			}));
 
 			// Trigger a turn-complete (which fires the immediate diff path).
-			// Enable the uncommitted probe so the on-turn-complete uncommitted
-			// compute fires alongside the session-wide one.
-			localChangesets.setUncommittedSubscriberProbe(() => true);
+			// The uncommitted subscription makes on-turn-complete compute that
+			// slot alongside the session-wide one.
 			localChangesets.onTurnComplete(sessionUri.toString(), 'turn-1');
 
 			// Turn-complete recomputes both the uncommitted and the
@@ -315,7 +335,7 @@ suite.skip('AgentHostChangesetService', () => {
 				},
 			} as unknown as IAgentHostGitService;
 			const localChangesets = disposables.add(new AgentHostChangesetService(
-				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE));
+				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createSubscriptionService(buildUncommittedChangesetUri(sessionUri.toString()))));
 			const sessionStr = sessionUri.toString();
 
 			localStateManager.createSession({
@@ -351,7 +371,7 @@ suite.skip('AgentHostChangesetService', () => {
 				},
 			} as unknown as IAgentHostGitService;
 			const localChangesets = disposables.add(new AgentHostChangesetService(
-				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE));
+				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createSubscriptionService()));
 			const sessionStr = sessionUri.toString();
 
 			localStateManager.createSession({
@@ -384,7 +404,7 @@ suite.skip('AgentHostChangesetService', () => {
 			} as unknown as IAgentHostGitService;
 
 			const localChangesets = disposables.add(new AgentHostChangesetService(
-				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE));
+				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createSubscriptionService()));
 
 			localStateManager.createSession({
 				resource: sessionUri.toString(),
@@ -443,7 +463,7 @@ suite.skip('AgentHostChangesetService', () => {
 			} as unknown as IAgentHostGitService;
 
 			const localChangesets = disposables.add(new AgentHostChangesetService(
-				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE));
+				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createSubscriptionService()));
 
 			const sessionStr = sessionUri.toString();
 			localStateManager.createSession({
@@ -517,7 +537,7 @@ suite.skip('AgentHostChangesetService', () => {
 			} as unknown as IAgentHostGitService;
 			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 			const localChangesets = disposables.add(new AgentHostChangesetService(
-				localStateManager, new NullLogService(), createNullSessionDataService(), stubGit, NULL_CHECKPOINT_SERVICE));
+				localStateManager, new NullLogService(), createNullSessionDataService(), stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createSubscriptionService(buildUncommittedChangesetUri(sessionUri.toString()))));
 
 			const sessionStr = sessionUri.toString();
 			localStateManager.createSession({
@@ -544,6 +564,116 @@ suite.skip('AgentHostChangesetService', () => {
 				errorType: 'computeFailed',
 				message: 'git command failed',
 			});
+		});
+	});
+
+	suite('deferred refresh (working directory unknown)', () => {
+
+		function createDeferringService(subscriptions: Iterable<string> = []): { service: AgentHostChangesetService; localStateManager: AgentHostStateManager; computes: string[]; subscriptions: Set<string> } {
+			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const computes: string[] = [];
+			const stubGit = {
+				computeSessionFileDiffs: async () => { computes.push('session'); return []; },
+				computeUncommittedFileDiffs: async () => { computes.push('uncommitted'); return []; },
+			} as unknown as IAgentHostGitService;
+			const subscriptionService = createSubscriptionService(...subscriptions);
+			const service = disposables.add(new AgentHostChangesetService(
+				localStateManager,
+				new NullLogService(),
+				createNullSessionDataService(),
+				stubGit,
+				NULL_CHECKPOINT_SERVICE,
+				disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())),
+				subscriptionService,
+			));
+			return { service, localStateManager, computes, subscriptions: subscriptionService.subscriptions };
+		}
+
+		function createSessionState(localStateManager: AgentHostStateManager, workingDirectory?: string): string {
+			const sessionStr = sessionUri.toString();
+			localStateManager.createSession({
+				resource: sessionStr,
+				provider: 'mock',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: Date.now(),
+				modifiedAt: Date.now(),
+				workingDirectory,
+			});
+			localStateManager.setSessionChangesets(sessionStr, buildDefaultChangesetCatalogue(sessionStr));
+			return sessionStr;
+		}
+
+		test('refreshSessionChangeset / refreshBranchChangeset defer until the working directory is known, then drain the subscribed changesets', async () => {
+			const sessionStr = sessionUri.toString();
+			const { service, localStateManager, computes } = createDeferringService([
+				buildBranchChangesetUri(sessionStr),
+				buildSessionChangesetUri(sessionStr),
+			]);
+			createSessionState(localStateManager, undefined);
+
+			service.refreshBranchChangeset(sessionStr);
+			service.refreshSessionChangeset(sessionStr);
+			await timeout(0);
+			assert.deepStrictEqual(computes, [], 'nothing computed while the working directory is unknown');
+
+			const summary = localStateManager.getSessionState(sessionStr)!.summary;
+			localStateManager.markSessionPersisted(sessionStr, { ...summary, workingDirectory: 'file:///wd' });
+			service.onWorkingDirectoryAvailable(sessionStr);
+			await timeout(0);
+			assert.deepStrictEqual(computes.sort(), ['session', 'session']);
+		});
+
+		test('computeUncommittedChangeset defers until the working directory is known, then drains', async () => {
+			const sessionStr = sessionUri.toString();
+			const { service, localStateManager, computes } = createDeferringService([buildUncommittedChangesetUri(sessionStr)]);
+			createSessionState(localStateManager, undefined);
+
+			await service.computeUncommittedChangeset(sessionStr);
+			assert.deepStrictEqual(computes, [], 'uncommitted compute deferred while the working directory is unknown');
+
+			const summary = localStateManager.getSessionState(sessionStr)!.summary;
+			localStateManager.markSessionPersisted(sessionStr, { ...summary, workingDirectory: 'file:///wd' });
+			service.onWorkingDirectoryAvailable(sessionStr);
+			await timeout(0);
+			assert.deepStrictEqual(computes, ['uncommitted']);
+		});
+
+		test('a changeset unsubscribed before materialization is naturally skipped on drain', async () => {
+			const sessionStr = sessionUri.toString();
+			const { service, localStateManager, computes, subscriptions } = createDeferringService([buildSessionChangesetUri(sessionStr)]);
+			createSessionState(localStateManager, undefined);
+
+			service.refreshSessionChangeset(sessionStr);
+			// Last subscriber leaves before the working directory is known.
+			subscriptions.delete(buildSessionChangesetUri(sessionStr));
+
+			const summary = localStateManager.getSessionState(sessionStr)!.summary;
+			localStateManager.markSessionPersisted(sessionStr, { ...summary, workingDirectory: 'file:///wd' });
+			service.onWorkingDirectoryAvailable(sessionStr);
+			await timeout(0);
+			assert.deepStrictEqual(computes, []);
+		});
+
+		test('onSessionDisposed clears every pending refresh for the session', async () => {
+			const sessionStr = sessionUri.toString();
+			const { service, localStateManager, computes } = createDeferringService([
+				buildBranchChangesetUri(sessionStr),
+				buildSessionChangesetUri(sessionStr),
+				buildUncommittedChangesetUri(sessionStr),
+			]);
+			createSessionState(localStateManager, undefined);
+
+			service.refreshBranchChangeset(sessionStr);
+			service.refreshSessionChangeset(sessionStr);
+			await service.computeUncommittedChangeset(sessionStr);
+			service.onSessionDisposed(sessionStr);
+
+			const summary = localStateManager.getSessionState(sessionStr)!.summary;
+			localStateManager.markSessionPersisted(sessionStr, { ...summary, workingDirectory: 'file:///wd' });
+			service.onWorkingDirectoryAvailable(sessionStr);
+			await timeout(0);
+			assert.deepStrictEqual(computes, []);
 		});
 	});
 
@@ -763,20 +893,24 @@ suite.skip('AgentHostChangesetService', () => {
 			}
 		}
 
+		let subscriptions: Set<string>;
 		function makeService(): CountingChangesetService {
+			const subscriptionService = createSubscriptionService();
+			subscriptions = subscriptionService.subscriptions;
 			return disposables.add(new CountingChangesetService(
 				stateManager,
 				new NullLogService(),
 				createNullSessionDataService(),
 				createNoopGitService(),
 				NULL_CHECKPOINT_SERVICE,
+				disposables.add(new AgentConfigurationService(stateManager, new NullLogService())),
+				subscriptionService,
 			));
 		}
-
-		test('onTurnComplete schedules a per-turn recompute when the probe says someone is subscribed', async () => {
+		test('onTurnComplete schedules a per-turn recompute when someone is subscribed', async () => {
 			setupSession();
 			const svc = makeService();
-			svc.setTurnSubscriberProbe(() => true);
+			subscriptions.add(buildTurnChangesetUri(sessionUri.toString(), 'turn-1'));
 
 			svc.onTurnComplete(sessionUri.toString(), 'turn-1');
 
@@ -791,10 +925,9 @@ suite.skip('AgentHostChangesetService', () => {
 			);
 		});
 
-		test('onTurnComplete does NOT schedule a per-turn recompute when the probe says nobody is subscribed', async () => {
+		test('onTurnComplete does NOT schedule a per-turn recompute when nobody is subscribed', async () => {
 			setupSession();
 			const svc = makeService();
-			svc.setTurnSubscriberProbe(() => false);
 
 			svc.onTurnComplete(sessionUri.toString(), 'turn-1');
 
@@ -804,10 +937,10 @@ suite.skip('AgentHostChangesetService', () => {
 			assert.deepStrictEqual(svc.turnComputeCalls, [], 'no per-turn compute when nothing observes the turn URI');
 		});
 
-		test('onTurnComplete schedules an uncommitted recompute when the uncommitted probe says someone is subscribed', async () => {
+		test('onTurnComplete schedules an uncommitted recompute when someone is subscribed', async () => {
 			setupSession();
 			const svc = makeService();
-			svc.setUncommittedSubscriberProbe(() => true);
+			subscriptions.add(buildUncommittedChangesetUri(sessionUri.toString()));
 
 			svc.onTurnComplete(sessionUri.toString(), 'turn-1');
 
@@ -821,10 +954,9 @@ suite.skip('AgentHostChangesetService', () => {
 			);
 		});
 
-		test('onTurnComplete does NOT schedule an uncommitted recompute when the uncommitted probe says nobody is subscribed', async () => {
+		test('onTurnComplete does NOT schedule an uncommitted recompute when nobody is subscribed', async () => {
 			setupSession();
 			const svc = makeService();
-			svc.setUncommittedSubscriberProbe(() => false);
 
 			svc.onTurnComplete(sessionUri.toString(), 'turn-1');
 
@@ -838,7 +970,7 @@ suite.skip('AgentHostChangesetService', () => {
 			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
 				setupSession();
 				const svc = makeService();
-				svc.setTurnSubscriberProbe(() => true);
+				subscriptions.add(buildTurnChangesetUri(sessionUri.toString(), 'turn-1'));
 
 				// 1) edits with subscriber -> after debounce, exactly one per-turn compute fires.
 				svc.onToolCallEditsApplied(sessionUri.toString(), 'turn-1');
@@ -854,9 +986,9 @@ suite.skip('AgentHostChangesetService', () => {
 				await timeout(10);
 				assert.strictEqual(svc.turnComputeCalls.length, 2, 'onTurnComplete cancels pending debounce and runs exactly one final compute');
 
-				// 3) flipping the probe off mid-stream silences future
+				// 3) clearing the subscription mid-stream silences future
 				// per-turn computes even if more edits arrive.
-				svc.setTurnSubscriberProbe(() => false);
+				subscriptions.clear();
 				svc.onToolCallEditsApplied(sessionUri.toString(), 'turn-1');
 				await timeout(6_000);
 				assert.strictEqual(svc.turnComputeCalls.length, 2, 'unsubscribed turn must not get any further per-turn computes');
@@ -877,8 +1009,9 @@ suite.skip('AgentHostChangesetService', () => {
 				createSessionDataService(sessionDb),
 				createNoopGitService(),
 				NULL_CHECKPOINT_SERVICE,
+				disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())),
+				createSubscriptionService(buildTurnChangesetUri(sessionUri.toString(), 'turn-1')),
 			));
-			svc.setTurnSubscriberProbe(() => true);
 
 			localStateManager.createSession({
 				resource: sessionUri.toString(),
@@ -955,6 +1088,8 @@ suite.skip('AgentHostChangesetService', () => {
 					'orig': { parent: 'ref-orig-parent', current: 'ref-orig' },
 					'mod': { parent: 'ref-orig', current: 'ref-mod' },
 				}),
+				disposables.add(new AgentConfigurationService(stateManager, new NullLogService())),
+				createSubscriptionService(),
 			));
 
 			const compareUri = await svc.computeCompareTurnsChangeset(sessionStr, 'orig', 'mod');
@@ -985,6 +1120,8 @@ suite.skip('AgentHostChangesetService', () => {
 					'orig': { parent: 'ref-orig-parent', current: 'ref-orig' },
 					// 'mod' is intentionally absent
 				}),
+				disposables.add(new AgentConfigurationService(stateManager, new NullLogService())),
+				createSubscriptionService(),
 			));
 
 			const compareUri = await svc.computeCompareTurnsChangeset(sessionStr, 'orig', 'mod');
@@ -1012,6 +1149,8 @@ suite.skip('AgentHostChangesetService', () => {
 					'orig': { parent: 'p1', current: 'same-ref' },
 					'mod': { parent: 'same-ref', current: 'same-ref' },
 				}),
+				disposables.add(new AgentConfigurationService(stateManager, new NullLogService())),
+				createSubscriptionService(),
 			));
 
 			const compareUri = await svc.computeCompareTurnsChangeset(sessionStr, 'orig', 'mod');
@@ -1040,6 +1179,8 @@ suite.skip('AgentHostChangesetService', () => {
 					'orig': { parent: 'p', current: 'ref-orig' },
 					'mod': { parent: 'ref-orig', current: 'ref-mod' },
 				}),
+				disposables.add(new AgentConfigurationService(stateManager, new NullLogService())),
+				createSubscriptionService(),
 			));
 
 			const compareUri = await svc.computeCompareTurnsChangeset(sessionStr, 'orig', 'mod');

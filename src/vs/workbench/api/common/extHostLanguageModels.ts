@@ -232,6 +232,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 					longContextCacheCost: m.longContextCacheCost,
 					longContextCacheWriteCost: m.longContextCacheWriteCost,
 					priceCategory: m.priceCategory,
+					category: m.category,
 					maxInputTokens: m.maxInputTokens,
 					maxOutputTokens: m.maxOutputTokens,
 					auth,
@@ -438,6 +439,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			longContextCacheCost: model.metadata.longContextCacheCost,
 			longContextCacheWriteCost: model.metadata.longContextCacheWriteCost,
 			priceCategory: model.metadata.priceCategory,
+			category: model.metadata.category,
 			capabilities: {
 				supportsImageToText: model.metadata.capabilities?.vision ?? false,
 				supportsToolCalling: !!model.metadata.capabilities?.toolCalling,

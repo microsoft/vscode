@@ -26,7 +26,6 @@ declare module '@vscode/copilot-api' {
 		json?: unknown;
 		method?: 'GET' | 'POST' | 'PUT';
 		signal?: IAbortSignal;
-		suppressIntegrationId?: boolean;
 	}
 
 	export type MakeRequestOptions = Omit<FetchOptions, 'callSite'> & {
