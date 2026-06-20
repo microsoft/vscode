@@ -376,9 +376,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				const knownProvider = getAgentSessionProvider(type);
 				if (knownProvider) {
 					// Well-known provider — use hardcoded name
-					const label = knownProvider === AgentSessionProviders.AgentHostCopilot
-						? (this._contributions.get(type)?.contribution.displayName ?? getAgentSessionProviderName(knownProvider))
-						: getAgentSessionProviderName(knownProvider);
+					const label = getAgentSessionProviderName(knownProvider);
 					reader.store.add(registerNewSessionInPlaceAction(type, label));
 				} else {
 					// Extension-contributed — use contribution metadata
