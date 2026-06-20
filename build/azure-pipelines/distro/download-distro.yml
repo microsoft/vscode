@@ -49,16 +49,25 @@ steps:
     displayName: Checkout microsoft/vscode-regexp-languagedetection
 
   - script: |
-      git config --global url."file://$(Build.SourcesDirectory)/.build/vscode-encrypt".insteadOf "https://github.com/microsoft/vscode-encrypt"
-      git config --global --add url."file://$(Build.SourcesDirectory)/.build/vscode-encrypt".insteadOf "https://github.com/microsoft/vscode-encrypt.git"
-      git config --global --add url."file://$(Build.SourcesDirectory)/.build/vscode-encrypt".insteadOf "ssh://git@github.com/microsoft/vscode-encrypt"
-      git config --global --add url."file://$(Build.SourcesDirectory)/.build/vscode-encrypt".insteadOf "ssh://git@github.com/microsoft/vscode-encrypt.git"
-      git config --global url."file://$(Build.SourcesDirectory)/.build/vsda".insteadOf "https://github.com/microsoft/vsda"
-      git config --global --add url."file://$(Build.SourcesDirectory)/.build/vsda".insteadOf "https://github.com/microsoft/vsda.git"
-      git config --global --add url."file://$(Build.SourcesDirectory)/.build/vsda".insteadOf "ssh://git@github.com/microsoft/vsda"
-      git config --global --add url."file://$(Build.SourcesDirectory)/.build/vsda".insteadOf "ssh://git@github.com/microsoft/vsda.git"
-      git config --global url."file://$(Build.SourcesDirectory)/.build/vscode-regexp-languagedetection".insteadOf "https://github.com/microsoft/vscode-regexp-languagedetection"
-      git config --global --add url."file://$(Build.SourcesDirectory)/.build/vscode-regexp-languagedetection".insteadOf "https://github.com/microsoft/vscode-regexp-languagedetection.git"
-      git config --global --add url."file://$(Build.SourcesDirectory)/.build/vscode-regexp-languagedetection".insteadOf "ssh://git@github.com/microsoft/vscode-regexp-languagedetection"
-      git config --global --add url."file://$(Build.SourcesDirectory)/.build/vscode-regexp-languagedetection".insteadOf "ssh://git@github.com/microsoft/vscode-regexp-languagedetection.git"
+      set -e
+      # Redirect the private git dependencies referenced by the distro's npm and
+      # cargo manifests to the local checkouts above, so no PAT is required to
+      # resolve them. npm resolves these over ssh while cargo resolves them over
+      # https, with and without a trailing `.git`, so we register every form.
+      # We write two sets of redirects: the global config is used by builds that
+      # run on the agent directly (host paths), while .build/.gitconfig-distro
+      # uses the paths seen inside the Alpine dependency container (which mounts
+      # the sources at /root/vscode) and is bind-mounted as /root/.gitconfig.
+      CONTAINER_GITCONFIG="$(Build.SourcesDirectory)/.build/.gitconfig-distro"
+      rm -f "$CONTAINER_GITCONFIG"
+      for repo in vscode-encrypt vsda vscode-regexp-languagedetection; do
+        for url in \
+          "https://github.com/microsoft/$repo" \
+          "https://github.com/microsoft/$repo.git" \
+          "ssh://git@github.com/microsoft/$repo" \
+          "ssh://git@github.com/microsoft/$repo.git"; do
+          git config --global --add url."file://$(Build.SourcesDirectory)/.build/$repo".insteadOf "$url"
+          git config --file "$CONTAINER_GITCONFIG" --add url."file:///root/vscode/.build/$repo".insteadOf "$url"
+        done
+      done
     displayName: Redirect private git dependencies to local checkouts
