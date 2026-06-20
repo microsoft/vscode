@@ -10,9 +10,10 @@ import { ITreeContextMenuEvent, ITreeElement, ITreeFilter } from '../../../../..
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
-import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ScrollEvent } from '../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { localize } from '../../../../../nls.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -25,11 +26,12 @@ import { asCssVariable, buttonSecondaryBackground, buttonSecondaryForeground, bu
 import { katexContainerClassName } from '../../../markdown/common/markedKatexExtension.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatFollowup, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatScrollbarPromptMarkerClickBehavior } from '../../common/constants.js';
 import { IChatRequestModeInfo } from '../../common/model/chatModel.js';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatAccessibilityProvider } from '../accessibility/chatAccessibilityProvider.js';
 import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions } from '../chat.js';
+import { applyScrollbarPromptMarkerClickBehavior, getFocusedScrollbarPromptMarkerRequestId, getScrollbarPromptMarkerRequests } from '../actions/chatPromptNavigationActions.js';
 import { CodeBlockPart } from './chatContentParts/codeBlockPart.js';
 import { ChatListDelegate, ChatListItemRenderer, IChatListItemTemplate, IChatRendererDelegate } from './chatListRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
@@ -41,9 +43,6 @@ export interface IChatListWidgetStyles {
 }
 
 export interface IChatListWidgetOptions {
-	/**
-	 * Options for the list item renderer.
-	 */
 	readonly rendererOptions?: IChatListItemRendererOptions;
 
 	/**
@@ -113,6 +112,11 @@ export interface IChatListWidgetOptions {
 	readonly getCurrentModeInfo?: () => IChatRequestModeInfo | undefined;
 
 	/**
+	 * Whether scrollbar prompt markers should be shown for this list.
+	 */
+	readonly scrollbarPromptMarkersEnabled?: boolean;
+
+	/**
 	 * The render style for the chat widget. Affects minimum height behavior.
 	 */
 	readonly renderStyle?: 'compact' | 'minimal';
@@ -138,6 +142,9 @@ export class ChatListWidget extends Disposable {
 
 	private readonly _onDidFocus = this._register(new Emitter<void>());
 	readonly onDidFocus: Event<void> = this._onDidFocus.event;
+
+	private readonly _onDidChangeFocus = this._register(new Emitter<void>());
+	readonly onDidChangeFocus: Event<void> = this._onDidChangeFocus.event;
 
 	private readonly _onDidChangeItemHeight = this._register(new Emitter<{ element: ChatTreeItem; height: number }>());
 	/** Event fired when an item's height changes. Used for dynamic layout mode. */
@@ -195,6 +202,7 @@ export class ChatListWidget extends Disposable {
 	private readonly _getCurrentLanguageModelId: (() => string | undefined) | undefined;
 	private readonly _getCurrentModeInfo: (() => IChatRequestModeInfo | undefined) | undefined;
 	private readonly _renderStyle: 'compact' | 'minimal' | undefined;
+	private readonly _scrollbarPromptMarkerController: ChatScrollbarPromptMarkerController | undefined;
 
 	//#endregion
 
@@ -335,6 +343,7 @@ export class ChatListWidget extends Disposable {
 			}
 
 			this._onDidChangeItemHeight.fire(e);
+			this._scrollbarPromptMarkerController?.refresh();
 		}));
 
 		// Handle rerun with agent or command detection internally
@@ -425,6 +434,7 @@ export class ChatListWidget extends Disposable {
 		// Handle content height changes (fires high-level event, internal scroll handling)
 		this._register(this._tree.onDidChangeContentHeight(() => {
 			this._onDidChangeContentHeight.fire();
+			this._scrollbarPromptMarkerController?.refresh();
 		}));
 
 		this._register(this._tree.onDidFocus(() => {
@@ -442,12 +452,15 @@ export class ChatListWidget extends Disposable {
 					this._mostRecentlyFocusedItemIndex = idx;
 				}
 			}
+			this._onDidChangeFocus.fire();
+			this._scrollbarPromptMarkerController?.refresh();
 		}));
 
 		// Handle scroll events (fire public event and manage scroll-down button)
 		this._register(this._tree.onDidScroll((e) => {
 			this._onDidScroll.fire(e);
 			this.updateScrollDownButtonVisibility();
+			this._scrollbarPromptMarkerController?.refresh();
 		}));
 
 		// Set initial at-bottom state (scrollLock defaults to true)
@@ -464,6 +477,8 @@ export class ChatListWidget extends Disposable {
 				this.refresh();
 			}
 		}));
+
+		this._scrollbarPromptMarkerController = options.scrollbarPromptMarkersEnabled ? this._register(new ChatScrollbarPromptMarkerController(this, this.configurationService)) : undefined;
 	}
 
 	//#region Internal event handlers
@@ -525,6 +540,7 @@ export class ChatListWidget extends Disposable {
 			this._tree.setChildren(null, []);
 			this._lastItem = undefined;
 			this._lastItemIdContextKey.set([]);
+			this._scrollbarPromptMarkerController?.refresh();
 			return;
 		}
 
@@ -572,6 +588,7 @@ export class ChatListWidget extends Disposable {
 				}
 			});
 		});
+		this._scrollbarPromptMarkerController?.refresh();
 	}
 
 	/**
@@ -623,7 +640,7 @@ export class ChatListWidget extends Disposable {
 		this._tree.rerender();
 	}
 
-	private getItems(): ChatTreeItem[] {
+	getItems(): ChatTreeItem[] {
 		const items: ChatTreeItem[] = [];
 		const root = this._tree.getNode(null);
 		for (const child of root.children) {
@@ -658,6 +675,18 @@ export class ChatListWidget extends Disposable {
 				this._tree.updateElementHeight(element, height);
 			});
 		}
+	}
+
+	getElementTop(element: ChatTreeItem): number {
+		return this._tree.getElementTop(element);
+	}
+
+	getElementHeight(element: ChatTreeItem): number {
+		return this._tree.getElementHeight(element);
+	}
+
+	getOverviewRulerLayoutInfo() {
+		return this._tree.getOverviewRulerLayoutInfo();
 	}
 
 	/**
@@ -848,6 +877,7 @@ export class ChatListWidget extends Disposable {
 	setVisible(visible: boolean): void {
 		this._visible = visible;
 		this._renderer.setVisible(visible);
+		this._scrollbarPromptMarkerController?.setVisible(visible);
 	}
 
 	/**
@@ -858,6 +888,7 @@ export class ChatListWidget extends Disposable {
 		this.updateLastItemMinHeight();
 		this._tree.layout(height, width);
 		this._renderer.layout(width ?? this._container.clientWidth);
+		this._scrollbarPromptMarkerController?.layout();
 	}
 
 	private _bodyDimension: dom.Dimension | null = null;
@@ -892,4 +923,180 @@ export class ChatListWidget extends Disposable {
 
 	//#endregion
 
+}
+
+class ChatScrollbarPromptMarkerController extends Disposable {
+	private readonly container = document.createElement('div');
+	private readonly markerByRequestId = new Map<string, HTMLElement>();
+	private readonly requestByRequestId = new Map<string, IChatRequestViewModel>();
+	private readonly parentPointerDownListener = this._register(new MutableDisposable());
+	private readonly parentClickListener = this._register(new MutableDisposable());
+	private pointerDownListenerParent: HTMLElement | undefined;
+	private visible = true;
+
+	constructor(
+		private readonly host: ChatListWidget,
+		private readonly configurationService: IConfigurationService,
+	) {
+		super();
+
+		this._register(toDisposable(() => this.container.remove()));
+		this.container.classList.add('chat-scrollbar-prompt-markers');
+		this.container.setAttribute('aria-hidden', 'true');
+		this.container.style.position = 'absolute';
+		this.container.style.top = '0';
+		this.container.style.bottom = '0';
+		this.container.style.pointerEvents = 'none';
+		this.container.style.display = 'none';
+	}
+
+	setVisible(visible: boolean): void {
+		this.visible = visible;
+		this.updateContainerVisibility();
+	}
+
+	layout(): void {
+		const layoutInfo = this.host.getOverviewRulerLayoutInfo();
+		if (!layoutInfo) {
+			return;
+		}
+
+		if (this.container.parentElement !== layoutInfo.parent || this.container.nextElementSibling !== layoutInfo.insertBefore) {
+			layoutInfo.parent.insertBefore(this.container, layoutInfo.insertBefore);
+		}
+
+		const scrollbarWidth = Math.max(0, Math.round(layoutInfo.insertBefore.getBoundingClientRect().width));
+		this.container.style.right = '0';
+		this.container.style.height = `${this.host.renderHeight}px`;
+		this.container.style.width = `${Math.max(scrollbarWidth, 8)}px`;
+		if (this.pointerDownListenerParent !== layoutInfo.parent) {
+			this.pointerDownListenerParent = layoutInfo.parent;
+			this.parentPointerDownListener.value = dom.addDisposableListener(layoutInfo.parent, dom.EventType.POINTER_DOWN, event => this.onOverviewRulerPointerDown(event), true);
+			this.parentClickListener.value = dom.addDisposableListener(layoutInfo.parent, dom.EventType.CLICK, event => this.onOverviewRulerClick(event), true);
+		}
+		this.updateContainerVisibility();
+		this.renderMarkers();
+	}
+
+	refresh(): void {
+		this.renderMarkers();
+	}
+
+	private updateContainerVisibility(): void {
+		const shouldShow = this.visible && this.host.renderHeight > 0;
+		this.container.style.display = shouldShow ? '' : 'none';
+	}
+
+	private renderMarkers(): void {
+		if (!this.visible) {
+			this.updateContainerVisibility();
+			return;
+		}
+
+		if (!this.host.getOverviewRulerLayoutInfo()) {
+			return;
+		}
+
+		const scrollHeight = this.host.scrollHeight;
+		const rulerHeight = this.host.renderHeight;
+		if (scrollHeight <= 0 || rulerHeight <= 0) {
+			dom.clearNode(this.container);
+			this.markerByRequestId.clear();
+			this.requestByRequestId.clear();
+			this.updateContainerVisibility();
+			return;
+		}
+
+		const markers = getScrollbarPromptMarkerRequests(this.host.getItems()).filter(item => this.host.hasElement(item));
+		const activeRequestId = this.getFocusedRequestId();
+		const markerHeightScale = rulerHeight / scrollHeight;
+
+		const nextMarkerByRequestId = new Map<string, HTMLElement>();
+		const nextRequestByRequestId = new Map<string, IChatRequestViewModel>();
+		dom.clearNode(this.container);
+
+		for (const request of markers) {
+			const marker = dom.$('.chat-scrollbar-prompt-marker');
+			marker.style.position = 'absolute';
+			marker.style.left = '0';
+			marker.style.right = '0';
+			const top = Math.max(0, Math.round(this.host.getElementTop(request) * markerHeightScale));
+			const height = Math.max(4, Math.round(this.host.getElementHeight(request) * markerHeightScale));
+			const clampedTop = Math.min(top, Math.max(rulerHeight - height, 0));
+
+			marker.dataset.requestId = request.id;
+			marker.title = localize('chat.scrollbarPromptMarker.reveal', "Go to Prompt");
+			marker.style.top = `${clampedTop}px`;
+			marker.style.height = `${Math.min(height, rulerHeight)}px`;
+			marker.classList.toggle('active', request.id === activeRequestId);
+
+			this.container.appendChild(marker);
+			nextMarkerByRequestId.set(request.id, marker);
+			nextRequestByRequestId.set(request.id, request);
+		}
+
+		this.markerByRequestId.clear();
+		for (const [requestId, marker] of nextMarkerByRequestId) {
+			this.markerByRequestId.set(requestId, marker);
+		}
+		this.requestByRequestId.clear();
+		for (const [requestId, request] of nextRequestByRequestId) {
+			this.requestByRequestId.set(requestId, request);
+		}
+		this.updateContainerVisibility();
+	}
+
+	private onOverviewRulerPointerDown(event: PointerEvent): void {
+		const request = this.getRequestAtPoint(event.clientX, event.clientY);
+		if (!request) {
+			return;
+		}
+
+		event.preventDefault();
+		event.stopPropagation();
+		this.revealRequest(request);
+	}
+
+	private onOverviewRulerClick(event: MouseEvent): void {
+		const request = this.getRequestAtPoint(event.clientX, event.clientY);
+		if (!request) {
+			return;
+		}
+
+		// The click that follows pointerdown can still be observed by the list/scrollbar.
+		// Swallow it so focus remains on the target request.
+		event.preventDefault();
+		event.stopPropagation();
+	}
+
+	private getRequestAtPoint(clientX: number, clientY: number): IChatRequestViewModel | undefined {
+		if (!this.visible || this.container.style.display === 'none') {
+			return undefined;
+		}
+
+		for (const [requestId, marker] of this.markerByRequestId) {
+			const rect = marker.getBoundingClientRect();
+			if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) {
+				continue;
+			}
+
+			return this.requestByRequestId.get(requestId);
+		}
+
+		return undefined;
+	}
+
+	private getFocusedRequestId(): string | undefined {
+		const focused = this.host.getFocus()[0];
+		if (!focused || (!isRequestVM(focused) && !isResponseVM(focused))) {
+			return undefined;
+		}
+
+		return getFocusedScrollbarPromptMarkerRequestId(focused);
+	}
+
+	private revealRequest(request: IChatRequestViewModel): void {
+		const behavior = this.configurationService.getValue<ChatScrollbarPromptMarkerClickBehavior>(ChatConfiguration.ScrollbarPromptMarkerClickBehavior);
+		applyScrollbarPromptMarkerClickBehavior(this.host, request, behavior);
+	}
 }

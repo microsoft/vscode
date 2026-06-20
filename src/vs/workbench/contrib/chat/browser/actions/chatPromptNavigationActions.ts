@@ -11,7 +11,62 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { CHAT_CATEGORY } from './chatActions.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { IChatRequestViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
+import { ChatScrollbarPromptMarkerClickBehavior } from '../../common/constants.js';
+import { IChatPendingDividerViewModel, IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
+
+type ChatPromptNavigationItem = IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel;
+
+export interface IChatScrollbarPromptMarkerTarget {
+	reveal(request: IChatRequestViewModel): void;
+	focusItem(request: IChatRequestViewModel): void;
+}
+
+export function getUserPromptRequests(items: readonly ChatPromptNavigationItem[]): IChatRequestViewModel[] {
+	return items.filter((item): item is IChatRequestViewModel => isRequestVM(item));
+}
+
+export function getScrollbarPromptMarkerRequests(items: readonly ChatPromptNavigationItem[]): IChatRequestViewModel[] {
+	const latestByPromptText = new Map<string, IChatRequestViewModel>();
+
+	for (const item of items) {
+		if (!isRequestVM(item) || item.isSystemInitiated) {
+			continue;
+		}
+
+		const previous = latestByPromptText.get(item.messageText);
+		if (!previous || item.attempt > previous.attempt || (item.attempt === previous.attempt && item.timestamp >= previous.timestamp)) {
+			latestByPromptText.set(item.messageText, item);
+		}
+	}
+
+	return getUserPromptRequests(items).filter(item => !item.isSystemInitiated && latestByPromptText.get(item.messageText) === item);
+}
+
+export function getFocusedScrollbarPromptMarkerRequestId(item: IChatRequestViewModel | IChatResponseViewModel | undefined): string | undefined {
+	if (!item) {
+		return undefined;
+	}
+
+	if (isRequestVM(item)) {
+		return item.id;
+	}
+
+	if (isResponseVM(item)) {
+		return item.requestId;
+	}
+
+	return undefined;
+}
+
+export function applyScrollbarPromptMarkerClickBehavior(target: IChatScrollbarPromptMarkerTarget, request: IChatRequestViewModel, behavior: ChatScrollbarPromptMarkerClickBehavior): void {
+	if (behavior === ChatScrollbarPromptMarkerClickBehavior.Reveal) {
+		target.reveal(request);
+		return;
+	}
+
+	target.reveal(request);
+	target.focusItem(request);
+}
 
 export function registerChatPromptNavigationActions() {
 	registerAction2(class NextUserPromptAction extends Action2 {
@@ -70,7 +125,7 @@ function navigateUserPrompts(accessor: ServicesAccessor, reverse: boolean) {
 	}
 
 	// Get all user prompts (requests) in the conversation
-	const userPrompts = items.filter((item): item is IChatRequestViewModel => isRequestVM(item));
+	const userPrompts = getUserPromptRequests(items);
 	if (userPrompts.length === 0) {
 		return;
 	}

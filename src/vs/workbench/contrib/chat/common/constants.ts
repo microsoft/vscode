@@ -36,6 +36,7 @@ export enum ChatConfiguration {
 	RepoInfoEnabled = 'chat.repoInfo.enabled',
 	EditRequests = 'chat.editRequests',
 	InlineReferencesStyle = 'chat.inlineReferences.style',
+	ScrollbarPromptMarkerClickBehavior = 'chat.scrollbarPromptMarkers.clickBehavior',
 	AutoReply = 'chat.autoReply',
 	GlobalAutoApprove = 'chat.tools.global.autoApprove',
 	AutoApproveEdits = 'chat.tools.edits.autoApprove',
@@ -180,6 +181,11 @@ export enum ChatNotificationMode {
 	Off = 'off',
 	WindowNotFocused = 'windowNotFocused',
 	Always = 'always',
+}
+
+export enum ChatScrollbarPromptMarkerClickBehavior {
+	RevealAndFocus = 'revealAndFocus',
+	Reveal = 'reveal',
 }
 
 export type RawChatParticipantLocation = 'panel' | 'terminal' | 'notebook' | 'editing-session';

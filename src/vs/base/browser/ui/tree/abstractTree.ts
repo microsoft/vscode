@@ -38,6 +38,7 @@ import { autorun, constObservable } from '../../../common/observable.js';
 import { alert } from '../aria/aria.js';
 import { IMouseWheelEvent } from '../../mouseEvent.js';
 import { type IHoverLifecycleOptions } from '../hover/hover.js';
+import { IOverviewRulerLayoutInfo } from '../scrollbar/scrollableElement.js';
 
 class TreeElementsDragAndDropData<T, TFilterData, TContext> extends ElementsDragAndDropData<T, TContext> {
 
@@ -2778,6 +2779,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		return this.view.getHTMLElement();
 	}
 
+	getOverviewRulerLayoutInfo(): IOverviewRulerLayoutInfo {
+		return this.view.getOverviewRulerLayoutInfo();
+	}
+
 	get contentHeight(): number {
 		return this.view.contentHeight;
 	}
@@ -2812,6 +2817,14 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	get scrollHeight(): number {
 		return this.view.scrollHeight;
+	}
+
+	getElementTop(element: TRef): number {
+		return this.view.getElementTop(this.model.getListIndex(element));
+	}
+
+	getElementHeight(element: TRef): number {
+		return this.view.getElementHeight(this.model.getListIndex(element));
 	}
 
 	get renderHeight(): number {

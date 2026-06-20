@@ -437,6 +437,16 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.inlineReferences.style', "Controls how file and symbol references are displayed in chat messages."),
 			default: 'box'
 		},
+		[ChatConfiguration.ScrollbarPromptMarkerClickBehavior]: {
+			type: 'string',
+			enum: ['revealAndFocus', 'reveal'],
+			enumDescriptions: [
+				nls.localize('chat.scrollbarPromptMarkers.clickBehavior.revealAndFocus', "Reveal the target prompt and move keyboard focus to it."),
+				nls.localize('chat.scrollbarPromptMarkers.clickBehavior.reveal', "Reveal the target prompt without changing keyboard focus."),
+			],
+			description: nls.localize('chat.scrollbarPromptMarkers.clickBehavior', "Controls what happens when you click a chat scrollbar prompt marker in the transcript scrollbar."),
+			default: 'revealAndFocus'
+		},
 		[ChatConfiguration.EditorAssociations]: {
 			type: 'object',
 			markdownDescription: nls.localize('chat.editorAssociations', "Configure [glob patterns](https://aka.ms/vscode-glob-patterns) to editors for opening files from chat (for example `\"*.md\": \"vscode.markdown.preview.editor\"`)."),
