@@ -347,12 +347,10 @@ export class AgentSideEffects extends Disposable {
 		if (signal.kind === 'pending_confirmation') {
 			const subagentSession = this._findSubagentSessionForToolCall(sessionKey, signal.state.toolCallId);
 			if (subagentSession) {
-				const subTurnId = this._stateManager.getActiveTurnId(subagentSession);
-				if (subTurnId) {
-					void this._handleToolReady(signal, subagentSession, subTurnId, agent).catch(err => {
-						this._logService.error('[AgentSideEffects] _handleToolReady failed', err);
-					});
-				}
+				const subTurnId = this._stateManager.getActiveTurnId(subagentSession) ?? '';
+				void this._handleToolReady(signal, subagentSession, subTurnId, agent).catch(err => {
+					this._logService.error('[AgentSideEffects] _handleToolReady failed', err);
+				});
 				return;
 			}
 		}
@@ -368,6 +366,19 @@ export class AgentSideEffects extends Disposable {
 		// such as customizations, title, or configuration. A turnComplete
 		// action also drives post-turn side effects even when the matching
 		// turnStarted was not observed by this side-effects instance.
+		//
+		// pending_confirmation signals must also be handled here: when a
+		// hook-triggered continuation runs after the protocol turn has
+		// already completed, tool actions are dispatched (below) with an
+		// empty turnId. Without this, the pending_confirmation is silently
+		// dropped, the permission deferred never resolves, and the session
+		// hangs indefinitely.
+		if (signal.kind === 'pending_confirmation') {
+			void this._handleToolReady(signal, sessionKey, '', agent).catch(err => {
+				this._logService.error('[AgentSideEffects] _handleToolReady failed', err);
+			});
+			return;
+		}
 		if (signal.kind === 'action') {
 			this._stateManager.dispatchServerAction(sessionKey, signal.action);
 			if (signal.action.type === ActionType.ChatTurnComplete) {
