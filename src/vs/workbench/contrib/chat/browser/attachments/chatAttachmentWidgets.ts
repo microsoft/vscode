@@ -233,6 +233,10 @@ function modelSupportsVision(currentLanguageModel: ILanguageModelChatMetadataAnd
 	return currentLanguageModel?.metadata.capabilities?.vision ?? false;
 }
 
+export function isCopilotPreviewFeaturesDisabledForModel(currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined, previewFeaturesDisabled: boolean | undefined): boolean {
+	return currentLanguageModel?.metadata.vendor === 'copilot' && previewFeaturesDisabled === true;
+}
+
 
 export class FileAttachmentWidget extends AbstractChatAttachmentWidget {
 
@@ -603,7 +607,7 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 	clickHandler: () => void,
 	currentLanguageModel?: ILanguageModelChatMetadataAndIdentifier,
 	omittedState?: OmittedState,
-	previewFeaturesDisabled?: boolean): IDisposable {
+	copilotPreviewFeaturesDisabled?: boolean): IDisposable {
 
 	const disposable = new DisposableStore();
 	if (omittedState === OmittedState.Partial) {
@@ -617,6 +621,7 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 		element.style.cursor = 'pointer';
 	}
 	const supportsVision = modelSupportsVision(currentLanguageModel);
+	const previewFeaturesDisabled = isCopilotPreviewFeaturesDisabledForModel(currentLanguageModel, copilotPreviewFeaturesDisabled);
 	const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$((supportsVision && !previewFeaturesDisabled) ? 'span.codicon.codicon-file-media' : 'span.codicon.codicon-warning'));
 	const textLabel = dom.$('span.chat-attached-context-custom-text', {}, name);
 	element.appendChild(pillIcon);

@@ -36,6 +36,19 @@ export interface HistoricalImageProps extends BasePromptElementProps {
 	mimeType?: string;
 }
 
+function canRenderImageInput(promptEndpoint: IPromptEndpoint, authService: IAuthenticationService): boolean {
+	if (!promptEndpoint.supportsVision) {
+		return false;
+	}
+
+	// Extension-contributed providers declare image support through the model capability.
+	if (promptEndpoint.isExtensionContributed) {
+		return true;
+	}
+
+	return !!authService.copilotToken?.isEditorPreviewFeaturesEnabled();
+}
+
 /**
  * Renders an image from conversation history.
  * Checks if the current model supports vision and omits the image if not.
@@ -51,7 +64,7 @@ export class HistoricalImage extends PromptElement<HistoricalImageProps, unknown
 
 	override async render(_state: unknown, sizing: PromptSizing) {
 		// If the model doesn't support vision, omit historical images
-		if (!this.promptEndpoint.supportsVision || !this.authService.copilotToken?.isEditorPreviewFeaturesEnabled()) {
+		if (!canRenderImageInput(this.promptEndpoint, this.authService)) {
 			return undefined;
 		}
 
@@ -78,7 +91,7 @@ export class Image extends PromptElement<ImageProps, unknown> {
 		const fillerUri: Uri = this.props.reference ?? Uri.parse('Attached Image');
 
 		try {
-			if (!this.promptEndpoint.supportsVision || !this.authService.copilotToken?.isEditorPreviewFeaturesEnabled()) {
+			if (!canRenderImageInput(this.promptEndpoint, this.authService)) {
 				if (this.props.omitReferences) {
 					return;
 				}
