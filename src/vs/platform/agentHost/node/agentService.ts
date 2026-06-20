@@ -1697,14 +1697,15 @@ export class AgentService extends Disposable implements IAgentService {
 				contentType: 'text/plain',
 			};
 		} catch (e) {
-			const result = toFileOperationResult(e as Error);
+			const error = e instanceof Error ? e : new Error(String(e));
+			const result = toFileOperationResult(error);
 			if (result === FileOperationResult.FILE_NOT_FOUND) {
 				throw new ProtocolError(AhpErrorCodes.NotFound, `Content not found: ${uri.toString()}`);
 			}
 			if (result === FileOperationResult.FILE_PERMISSION_DENIED) {
 				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${uri.toString()}`);
 			}
-			throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Failed to read content: ${uri.toString()}: ${toErrorMessage(e)}`);
+			throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Failed to read content: ${uri.toString()}: ${toErrorMessage(error)}`);
 		}
 	}
 

@@ -42,6 +42,7 @@ import type { OtlpExportLogsParams } from '../common/state/protocol/channels-otl
 import type { TelemetryCapabilities } from '../common/state/protocol/channels-otlp/state.js';
 import type { InitializeResult } from '../common/state/protocol/common/commands.js';
 import { dirname } from '../../../base/common/resources.js';
+import { isFileResourceRead } from '../common/resourceReadLogging.js';
 
 const AHP_CLIENT_CONNECTION_CLOSED = -32000;
 
@@ -99,25 +100,6 @@ interface IPendingRequest {
 	readonly deferred: DeferredPromise<unknown>;
 	readonly suppressNotFoundWarning: boolean;
 	readonly sentAt: number;
-}
-
-function isFileResourceRead(method: string, params: unknown): boolean {
-	if (method !== 'resourceRead' || !hasUriParam(params)) {
-		return false;
-	}
-	const uri = params.uri;
-	if (typeof uri !== 'string') {
-		return false;
-	}
-	try {
-		return URI.parse(uri).scheme === Schemas.file;
-	} catch {
-		return false;
-	}
-}
-
-function hasUriParam(params: unknown): params is { readonly uri: unknown } {
-	return typeof params === 'object' && params !== null && hasKey(params, { uri: true });
 }
 
 /**

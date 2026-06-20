@@ -21,7 +21,6 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { hasKey } from '../../../../base/common/types.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { FileService } from '../../../files/common/fileService.js';
-import { createFileSystemProviderError, FileSystemProviderErrorCode } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agentService.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
@@ -184,7 +183,7 @@ suite('AgentService (node dispatcher)', () => {
 			const originalReadFile = fileService.readFile.bind(fileService);
 			fileService.readFile = async resource => {
 				if (resource.toString() === uri.toString()) {
-					throw createFileSystemProviderError('Injected unknown read failure', FileSystemProviderErrorCode.Unknown);
+					return Promise.reject('Injected unknown read failure');
 				}
 				return originalReadFile(resource);
 			};

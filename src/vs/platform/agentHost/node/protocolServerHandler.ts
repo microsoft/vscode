@@ -7,7 +7,6 @@ import { disposableTimeout } from '../../../base/common/async.js';
 import { Emitter } from '../../../base/common/event.js';
 import { isJsonRpcResponse } from '../../../base/common/jsonRpcProtocol.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
-import { Schemas } from '../../../base/common/network.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
@@ -52,6 +51,7 @@ import {
 	type IOtlpLogRecord,
 	type OtlpLogLevelName,
 } from '../common/otlp/otlpLogEmitter.js';
+import { isFileResourceRead } from '../common/resourceReadLogging.js';
 
 /** Default capacity of the server-side action replay buffer. */
 const REPLAY_BUFFER_CAPACITY = 1000;
@@ -89,25 +89,6 @@ function shouldLogFailedRequest(method: string, params: unknown, err: unknown): 
 		return true;
 	}
 	return false;
-}
-
-function isFileResourceRead(method: string, params: unknown): boolean {
-	if (method !== 'resourceRead' || !hasUriParam(params)) {
-		return false;
-	}
-	const uri = params.uri;
-	if (typeof uri !== 'string') {
-		return false;
-	}
-	try {
-		return URI.parse(uri).scheme === Schemas.file;
-	} catch {
-		return false;
-	}
-}
-
-function hasUriParam(params: unknown): params is { readonly uri: unknown } {
-	return typeof params === 'object' && params !== null && hasKey(params, { uri: true });
 }
 
 /** True when `value` is a non-null params object (as opposed to an array or primitive). */
