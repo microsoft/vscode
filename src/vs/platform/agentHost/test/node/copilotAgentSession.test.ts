@@ -1493,6 +1493,35 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual((consumed as { id: string }).id, 'steer-1');
 		});
 
+		test('an abort during a steering turn tears it down without completing it', async () => {
+			// A steering turn is promoted mid-loop while the SDK is actively
+			// producing its response, so it must be `running` (not `pending`).
+			// Otherwise an abort's terminal idle would treat it as a not-yet-
+			// started queued turn and leave it open, and a later idle would
+			// orphan-complete it.
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-original');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-0' } as SessionEventPayload<'assistant.turn_start'>['data']);
+
+			await session.sendSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			mockSession.fire('user.message', {
+				content: 'focus on tests',
+				interactionId: 'interaction-steer',
+			} as SessionEventPayload<'user.message'>['data']);
+
+			const steeringTurnId = getActions(signals).find(a => a.type === ActionType.ChatTurnStarted)?.turnId;
+			assert.ok(steeringTurnId && steeringTurnId !== 'turn-original', 'steering should start its own turn');
+
+			// Abort: the running steering turn is finalized by the client's
+			// ChatTurnCancelled, so its terminal idle must tear it down rather
+			// than complete it — and a subsequent stray idle must find no turn.
+			mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+
+			const steeringCompletions = getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete && a.turnId === steeringTurnId);
+			assert.strictEqual(steeringCompletions.length, 0, 'an aborted steering turn must not be completed');
+		});
+
 		test('does not signal cleanup when send fails', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 
@@ -2072,6 +2101,76 @@ suite('CopilotAgentSession', () => {
 			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
 
 			assert.strictEqual(signals.length, 0);
+		});
+
+		test('abort-induced idle does not complete a pending queued turn', async () => {
+			// Repro for the blank-response-after-abort race: a running turn is
+			// aborted while a queued message exists. The queued message's
+			// `send()` creates a fresh (pending) turn before the abort's
+			// terminal `session.idle` is delivered. That idle must not complete
+			// the queued turn — structurally, because it has not started running
+			// yet, and because the idle carries `aborted: true`.
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+
+			// The queued message has started its (pending) turn by the time the
+			// abort's terminal idle arrives — no SDK event has run it yet.
+			session.resetTurnState('turn-queued');
+			mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+
+			assert.strictEqual(
+				getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete).length,
+				0,
+				'abort-induced idle must not complete the pending queued turn',
+			);
+
+			// The queued turn now actually runs (first SDK event) and then
+			// completes on its own (non-abort) idle.
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-0' } as SessionEventPayload<'assistant.turn_start'>['data']);
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+
+			const completions = getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete);
+			assert.strictEqual(completions.length, 1, 'the queued turn should complete on its real idle');
+			assert.strictEqual((completions[0] as ChatTurnCompleteAction).turnId, 'turn-queued');
+		});
+
+		test('abort-induced idle tears down a running turn without completing it', async () => {
+			// Plain abort (no queued message): the running turn is finalized by
+			// the client-dispatched ChatTurnCancelled, so the abort's idle must
+			// not also emit a ChatTurnComplete. The turn handle is dropped so a
+			// later stray idle cannot complete it.
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+
+			session.resetTurnState('turn-aborted');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-0' } as SessionEventPayload<'assistant.turn_start'>['data']);
+			mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+
+			assert.strictEqual(
+				getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete).length,
+				0,
+				'abort-induced idle must not complete the running aborted turn',
+			);
+
+			// A subsequent stray idle has no turn to act on.
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			assert.strictEqual(getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete).length, 0);
+		});
+
+		test('a running turn after a prior abort still completes on its idle', async () => {
+			// No lingering state across turns: the next turn completes normally.
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+
+			session.resetTurnState('turn-aborted');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-0' } as SessionEventPayload<'assistant.turn_start'>['data']);
+			mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+			assert.strictEqual(getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete).length, 0);
+
+			session.resetTurnState('turn-next');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-1' } as SessionEventPayload<'assistant.turn_start'>['data']);
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+
+			const completions = getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete);
+			assert.strictEqual(completions.length, 1);
+			assert.strictEqual((completions[0] as ChatTurnCompleteAction).turnId, 'turn-next');
 		});
 
 		test('error event is forwarded', async () => {
