@@ -5,7 +5,6 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
-import { renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { getBaseLayerHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegate2.js';
@@ -20,7 +19,6 @@ import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 import { formatTokenCount } from '../../../../../../base/common/numbers.js';
-import { isMacintosh } from '../../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
@@ -222,7 +220,7 @@ function createModelItem(
 	onConfigure?: (model: ILanguageModelChatMetadataAndIdentifier, group: string) => void,
 ): IActionListItem<IActionWidgetDropdownAction> {
 	const hover = model && openerService
-		? getModelHoverContent(model, openerService, isUBB, onConfigure ? (group) => onConfigure(model, group) : undefined)
+		? getModelHoverContent(model, isUBB, onConfigure ? (group) => onConfigure(model, group) : undefined)
 		: undefined;
 	return {
 		item: action,
@@ -316,26 +314,22 @@ function isHighCostCategory(priceCategory: string | undefined): boolean {
 }
 
 /**
- * Resolves the context-size column headers (e.g. "200K" / "1M") from the model's
- * context-size configuration. The smallest window is treated as the default context
- * and the largest as the long context. Falls back to the model's max input tokens.
+ * Returns a display label for the model category tag (e.g. "Versatile", "Powerful").
  */
-function getContextSizeLabels(model: ILanguageModelChatMetadataAndIdentifier): { defaultLabel?: string; longLabel?: string } {
-	const properties = model.metadata.configurationSchema?.properties;
-	if (properties) {
-		for (const propSchema of Object.values(properties)) {
-			if (propSchema.group !== 'tokens' || !propSchema.enum || propSchema.enum.length < 2) {
-				continue;
-			}
-			const entries = propSchema.enum.map((value, index) => ({
-				value: Number(value),
-				label: propSchema.enumItemLabels?.[index] ?? formatTokenCount(Number(value)),
-			}));
-			entries.sort((a, b) => a.value - b.value);
-			return { defaultLabel: entries[0].label, longLabel: entries[entries.length - 1].label };
-		}
+function getCategoryLabel(category: string | undefined): string | undefined {
+	switch (category) {
+		case undefined:
+		case '':
+			return undefined;
+		case 'lightweight':
+			return localize('chat.category.lightweight', "Lightweight");
+		case 'versatile':
+			return localize('chat.category.versatile', "Versatile");
+		case 'powerful':
+			return localize('chat.category.powerful', "Powerful");
+		default:
+			return category.charAt(0).toUpperCase() + category.slice(1);
 	}
-	return { defaultLabel: model.metadata.maxInputTokens ? formatTokenCount(model.metadata.maxInputTokens) : undefined };
 }
 
 /**
@@ -1480,20 +1474,16 @@ export class ModelPickerWidget extends Disposable {
 
 		const previouslyFocusedElement = dom.getActiveElement();
 		const delegate = {
-			onSelect: async (action: IActionWidgetDropdownAction, _preview?: boolean, keepOpen?: boolean) => {
-				if (keepOpen) {
-					// Focus the clicked item immediately so the focus highlight
-					// doesn't flicker while waiting for the async config write.
-					this._actionWidgetService.focusItemById(action.id);
-					// Wait for the (async) config write to resolve so the rebuilt
-					// items read back the new value, then refresh in place keeping
-					// focus on the item that was just selected.
-					await action.run();
-					this._actionWidgetService.updateItems(this._buildConfigItems(), action.id);
-				} else {
-					action.run();
-					this._actionWidgetService.hide();
-				}
+			onSelect: async (action: IActionWidgetDropdownAction) => {
+				// The config picker stays open until dismissed so users can adjust
+				// multiple options. Focus the clicked item immediately so the focus
+				// highlight doesn't flicker while waiting for the async config write,
+				// then refresh in place keeping focus on the just-selected item.
+				this._actionWidgetService.focusItemById(action.id);
+				// Wait for the (async) config write to resolve so the rebuilt items
+				// read back the new value before refreshing.
+				await action.run();
+				this._actionWidgetService.updateItems(this._buildConfigItems(), action.id);
 			},
 			onHide: () => {
 				this._configButton?.setAttribute('aria-expanded', 'false');
@@ -1523,7 +1513,6 @@ export class ModelPickerWidget extends Disposable {
 			{
 				headerText: localize('chat.config.costHint', "Non-default options may increase cost"),
 				headerIcon: Codicon.info,
-				footerText: localize('chat.config.keepOpenTip', "Tip: Hold {0} to keep open", isMacintosh ? '\u2318' : localize('chat.config.ctrlKey', "Ctrl")),
 			}
 		);
 
@@ -1546,57 +1535,45 @@ export class ModelPickerWidget extends Disposable {
  */
 const SUPPORTED_CONFIG_GROUPS: readonly string[] = ['navigation', 'tokens'];
 
-export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, openerService: IOpenerService, isUBB?: boolean, onConfigure?: (group: string) => void): { element: HTMLElement; disposable: DisposableStore } | undefined {
+export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, isUBB?: boolean, onConfigure?: (group: string) => void): { element: HTMLElement; disposable: DisposableStore } | undefined {
 	const isAuto = isAutoModel(model);
 	const container = dom.$('.chat-model-hover');
 	const disposables = new DisposableStore();
 
-	// --- Title row: model name + price category badge (top-right) ---
+	// --- Title row: model name + category tag + price category badge (top-right) ---
 	const titleRow = dom.$('.chat-model-hover-title-row');
 	titleRow.appendChild(dom.$('.chat-model-hover-name', undefined, model.metadata.name));
+	const tags = dom.$('.chat-model-hover-title-tags');
+	const categoryLabel = !isAuto ? getCategoryLabel(model.metadata.category) : undefined;
+	if (categoryLabel) {
+		tags.appendChild(dom.$('span.chat-model-hover-category', undefined, categoryLabel));
+	}
 	const priceCategoryLabel = (!isAuto && isUBB) ? getPriceCategoryLabel(model.metadata.priceCategory) : undefined;
 	if (priceCategoryLabel) {
 		const badge = dom.$('span.chat-model-hover-price-badge', undefined, priceCategoryLabel);
 		if (isHighCostCategory(model.metadata.priceCategory)) {
 			badge.classList.add('high-cost');
 		}
-		titleRow.appendChild(badge);
+		tags.appendChild(badge);
+	}
+	if (tags.childElementCount > 0) {
+		titleRow.appendChild(tags);
 	}
 	container.appendChild(titleRow);
-
-	// --- Description (tooltip as markdown) ---
-	if (model.metadata.tooltip) {
-		const descriptionContainer = dom.$('.chat-model-hover-description');
-		const md = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
-		if (model.metadata.statusIcon) {
-			md.appendMarkdown(`$(${model.metadata.statusIcon.id})&nbsp;`);
-		}
-		md.appendMarkdown(model.metadata.tooltip);
-		const rendered = renderMarkdown(md, {
-			actionHandler: (url: string) => {
-				openerService.open(URI.parse(url), { allowCommands: true });
-			},
-		});
-		disposables.add(rendered);
-		descriptionContainer.appendChild(rendered.element);
-		container.appendChild(descriptionContainer);
-	}
 
 	// --- Cost info (UBB only) ---
 	let costTableRendered = false;
 	if (!isAuto && isUBB) {
 		const metrics: { label: string; def: number | undefined; long: number | undefined }[] = [
 			{ label: localize('models.inputCostLabel', "Input"), def: model.metadata.inputCost, long: model.metadata.longContextInputCost },
-			{ label: localize('models.cacheCostLabel', "Cached input"), def: model.metadata.cacheCost, long: model.metadata.longContextCacheCost },
 			{ label: localize('models.outputCostLabel', "Output"), def: model.metadata.outputCost, long: model.metadata.longContextOutputCost },
+			{ label: localize('models.cacheCostLabel', "Cache Read"), def: model.metadata.cacheCost, long: model.metadata.longContextCacheCost },
+			{ label: localize('models.cacheWriteCostLabel', "Cache Write"), def: model.metadata.cacheWriteCost, long: model.metadata.longContextCacheWriteCost },
 		].filter(m => m.def !== undefined || m.long !== undefined);
 
 		if (metrics.length > 0) {
-			const contextLabels = getContextSizeLabels(model);
 			// Show the long-context column whenever any metric has a long-context price.
 			const hasLongContext = metrics.some(m => m.long !== undefined);
-
-			container.appendChild(dom.$('.chat-model-hover-separator'));
 
 			const table = dom.$('.chat-model-hover-cost-table');
 			if (hasLongContext) {
@@ -1604,50 +1581,42 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 				table.classList.add('has-long-context');
 			}
 
-			const appendCell = (text: string, ...classNames: string[]): void => {
-				table.appendChild(dom.$(`.chat-model-hover-cost-cell${classNames.map(c => '.' + c).join('')}`, undefined, text));
-			};
-
-			// Renders a "<count> credits" value cell with the count visually emphasized.
-			const appendCostCell = (cost: number | undefined): void => {
+			// Each value cell paints a dotted leader behind a right-aligned, background-masked
+			// number so the dots run right up to the number (and between the two columns).
+			const appendValueCell = (row: HTMLElement, cost: number | undefined): void => {
 				if (cost === undefined) {
-					table.appendChild(dom.$('.chat-model-hover-cost-cell.value'));
+					row.appendChild(dom.$('span.chat-model-hover-cost-value.empty'));
 					return;
 				}
-				const unit = cost === 1
-					? localize('models.creditUnitSingular', "credit")
-					: localize('models.creditUnitPlural', "credits");
-				table.appendChild(dom.$('.chat-model-hover-cost-cell.value', undefined,
-					dom.$('span.chat-model-hover-cost-count', undefined, String(cost)),
-					dom.$('span.chat-model-hover-cost-unit', undefined, ` ${unit}`),
+				row.appendChild(dom.$('span.chat-model-hover-cost-value', undefined,
+					dom.$('span.chat-model-hover-cost-number', undefined, String(cost)),
 				));
 			};
 
-			// Header row: "Cost" + context-size value(s) — context columns only shown with long context
-			appendCell(localize('models.priceTitle', "Cost"), 'header', 'title');
+			// Header row: "Credits Per 1M Tokens" heading + (when long context) Default / Long Context labels
+			const headerRow = dom.$('.chat-model-hover-cost-row.header');
+			headerRow.appendChild(dom.$('span.chat-model-hover-cost-heading', undefined, localize('models.creditsPerMillionTokens', "Credits Per 1M Tokens")));
 			if (hasLongContext) {
-				appendCell(contextLabels.defaultLabel ?? '', 'header', 'value');
-				appendCell(contextLabels.longLabel ?? '', 'header', 'value');
-
-				// Subheader row: "per 1M tokens" + context column labels
-				appendCell(localize('models.perMillionTokens', "per 1M tokens"), 'subheader', 'label');
-				appendCell(localize('models.defaultContext', "Default Context"), 'subheader', 'value');
-				appendCell(localize('models.longContext', "Long Context"), 'subheader', 'value');
+				headerRow.appendChild(dom.$('span.chat-model-hover-cost-value.subheader', undefined, localize('models.defaultContext', "Default")));
+				headerRow.appendChild(dom.$('span.chat-model-hover-cost-value.subheader', undefined, localize('models.longContext', "Long Context")));
 			} else {
-				// Single price: still surface the (max) context size in the header,
-				// and keep "per 1M tokens" beneath the "Cost" label.
-				appendCell(contextLabels.defaultLabel ?? '', 'header', 'value');
-				appendCell(localize('models.perMillionTokens', "per 1M tokens"), 'subheader', 'label');
-				appendCell(localize('models.defaultContext', "Default Context"), 'subheader', 'value');
+				// Placeholder so the header occupies the full row and grid columns stay aligned.
+				headerRow.appendChild(dom.$('span.chat-model-hover-cost-value.subheader'));
 			}
+			table.appendChild(headerRow);
 
-			// Cost rows
+			// Cost rows: label on the left, dotted leader, then right-aligned credit value(s)
 			for (const metric of metrics) {
-				appendCell(metric.label, 'label');
-				appendCostCell(metric.def);
+				const row = dom.$('.chat-model-hover-cost-row');
+				const labelCell = dom.$('.chat-model-hover-cost-label');
+				labelCell.appendChild(dom.$('span.chat-model-hover-cost-label-text', undefined, metric.label));
+				labelCell.appendChild(dom.$('span.chat-model-hover-cost-leader'));
+				row.appendChild(labelCell);
+				appendValueCell(row, metric.def);
 				if (hasLongContext) {
-					appendCostCell(metric.long);
+					appendValueCell(row, metric.long);
 				}
+				table.appendChild(row);
 			}
 
 			container.appendChild(table);
@@ -1682,18 +1651,19 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 			}
 		}
 		if (configButtons.length > 0) {
-			container.appendChild(dom.$('.chat-model-hover-separator'));
 			const configRow = dom.$('.chat-model-hover-configurable');
+			configRow.appendChild(dom.$('span.chat-model-hover-configurable-label', undefined, localize('models.configurable', "Configurable")));
+			const buttonsContainer = dom.$('.chat-model-hover-configurable-buttons');
 			for (const { group, label } of configButtons) {
-				const button = disposables.add(new Button(configRow, {
+				const button = disposables.add(new Button(buttonsContainer, {
 					...defaultButtonStyles,
 					secondary: true,
-					supportIcons: true,
 					title: label,
 				}));
-				button.label = `$(${Codicon.settingsGear.id}) ${label}`;
+				button.label = label;
 				disposables.add(button.onDidClick(() => onConfigure?.(group)));
 			}
+			configRow.appendChild(buttonsContainer);
 			container.appendChild(configRow);
 		}
 	}

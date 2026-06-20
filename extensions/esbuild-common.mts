@@ -87,10 +87,19 @@ async function watchWithParcel(options: esbuild.BuildOptions, srcDir: string, di
 	};
 
 	const watcher = await import('@parcel/watcher');
+	// Ignore the build's own output directory so emitted files never re-trigger the watcher
+	// (which would cause an infinite rebuild loop when `outdir` lives inside `srcDir`).
+	const ignore = ['**/node_modules/**', '**/dist/**', '**/out/**'];
+	if (options.outdir) {
+		// `@parcel/watcher` matches `ignore` entries as globs with forward slashes, so normalize the
+		// path separators and append `/**` so that every file emitted inside `outdir` is ignored too.
+		const outdirGlob = options.outdir.replace(/\\/g, '/').replace(/\/$/, '');
+		ignore.push(outdirGlob, `${outdirGlob}/**`);
+	}
 	await watcher.subscribe(srcDir, (_err, _events) => {
 		rebuild();
 	}, {
-		ignore: ['**/node_modules/**', '**/dist/**', '**/out/**']
+		ignore
 	});
 	rebuild();
 }

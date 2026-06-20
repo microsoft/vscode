@@ -2750,6 +2750,7 @@ export interface IChatUsageDto {
 	promptTokens: number;
 	completionTokens: number;
 	outputBuffer?: number;
+	copilotCredits?: number;
 	promptTokenDetails?: readonly { category: string; label: string; percentageOfPrompt: number }[];
 }
 

@@ -113,7 +113,6 @@ suite('RunInTerminalTool', () => {
 		setConfig(TerminalChatAgentToolsSettingId.BlockDetectedFileWrites, 'outsideWorkspace');
 		setConfig(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, true);
 		setConfig(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
-		setConfig(AgentSandboxSettingId.AgentSandboxAutoApproveUnsandboxedCommands, false);
 		setConfig(AgentSandboxSettingId.AgentSandboxAllowAutoApprove, false);
 		sandboxEnabled = false;
 		sandboxPrereqResult = {
@@ -417,8 +416,8 @@ suite('RunInTerminalTool', () => {
 
 			const toolData = await instantiationService.invokeFunction(createRunInTerminalToolData);
 
-			ok(toolData.modelDescription?.includes('must utilize the $TMPDIR environment variable'), 'Expected sandboxed tool description to require $TMPDIR usage');
-			ok(toolData.modelDescription?.includes('The /tmp directory is not guaranteed to be accessible or writable and must be avoided'), 'Expected sandboxed tool description to discourage /tmp usage');
+			ok(toolData.modelDescription?.includes('Use $TMPDIR for temporary files'), 'Expected sandboxed tool description to require $TMPDIR usage');
+			ok(toolData.modelDescription?.includes('/tmp may not be writable'), 'Expected sandboxed tool description to discourage /tmp usage');
 		});
 
 		test('should include sandbox escalation requests in schema when sandbox is enabled', async () => {
@@ -427,18 +426,13 @@ suite('RunInTerminalTool', () => {
 
 			const toolData = await instantiationService.invokeFunction(createRunInTerminalToolData);
 			const properties = toolData.inputSchema?.properties as Record<string, object> | undefined;
-			const allowToRunUnsandboxedCommandsProperty = properties?.['allowToRunUnsandboxedCommands'] as { const?: boolean; default?: boolean; description?: string } | undefined;
 			const requestUnsandboxedExecutionProperty = properties?.['requestUnsandboxedExecution'] as { description?: string } | undefined;
 			const requestUnsandboxedExecutionReasonProperty = properties?.['requestUnsandboxedExecutionReason'] as { description?: string } | undefined;
 			const requestAllowNetworkProperty = properties?.['requestAllowNetwork'] as { description?: string } | undefined;
 			const requestAllowNetworkReasonProperty = properties?.['requestAllowNetworkReason'] as { description?: string } | undefined;
-			const requestFileValidationCheckProperty = properties?.['requestFileValidationCheck'] as { description?: string; type?: string; items?: { properties?: Record<string, { type?: string; enum?: string[]; items?: { type?: string } }>; required?: string[] } } | undefined;
+			const requestFileValidationCheckProperty = properties?.['requestFileValidationCheck'] as { description?: string; type?: string; items?: { type?: string } } | undefined;
 			const requestFileValidationCheckReasonProperty = properties?.['requestFileValidationCheckReason'] as { description?: string } | undefined;
 
-			ok(properties?.['allowToRunUnsandboxedCommands'], 'Expected allowToRunUnsandboxedCommands in schema when sandbox is enabled');
-			strictEqual(allowToRunUnsandboxedCommandsProperty?.const, true, 'Expected allowToRunUnsandboxedCommands const to match the setting value');
-			strictEqual(allowToRunUnsandboxedCommandsProperty?.default, true, 'Expected allowToRunUnsandboxedCommands to default to the setting value');
-			ok(allowToRunUnsandboxedCommandsProperty?.description?.includes('chat.agent.sandbox.allowUnsandboxedCommands'), 'Expected allowToRunUnsandboxedCommands description to mention the source setting');
 			ok(properties?.['requestUnsandboxedExecution'], 'Expected requestUnsandboxedExecution in schema when sandbox is enabled');
 			ok(properties?.['requestUnsandboxedExecutionReason'], 'Expected requestUnsandboxedExecutionReason in schema when sandbox is enabled');
 			ok(properties?.['requestAllowNetwork'], 'Expected requestAllowNetwork in schema when sandbox is enabled');
@@ -449,31 +443,24 @@ suite('RunInTerminalTool', () => {
 			ok(requestUnsandboxedExecutionReasonProperty?.description?.includes('why this command must run outside the terminal sandbox'), 'Expected reason schema description to require concrete sandbox justification');
 			ok(requestAllowNetworkProperty?.description?.includes('remain in the terminal sandbox but run with unrestricted network access'), 'Expected network schema description to retain sandboxing');
 			ok(requestAllowNetworkReasonProperty?.description?.includes('needs unrestricted network access'), 'Expected network reason schema description to request justification');
-			strictEqual(requestFileValidationCheckProperty?.type, 'array', 'Expected file validation schema to accept structured access checks');
-			strictEqual(requestFileValidationCheckProperty?.items?.properties?.['permission']?.type, 'string', 'Expected file validation schema to include a permission property');
-			strictEqual(requestFileValidationCheckProperty?.items?.properties?.['permission']?.enum?.join(','), 'read,write', 'Expected file validation permission to be read or write');
-			strictEqual(requestFileValidationCheckProperty?.items?.properties?.['paths']?.type, 'array', 'Expected file validation schema to include paths');
-			strictEqual(requestFileValidationCheckProperty?.items?.properties?.['paths']?.items?.type, 'string', 'Expected file validation paths to be strings');
+			strictEqual(requestFileValidationCheckProperty?.type, 'array', 'Expected file validation schema to accept file paths');
+			strictEqual(requestFileValidationCheckProperty?.items?.type, 'string', 'Expected file validation paths to be strings');
 			ok(requestFileValidationCheckProperty?.description?.includes('before running the command'), 'Expected file validation schema description to describe pre-execution access checks');
 			ok(requestFileValidationCheckReasonProperty?.description?.includes('these file paths'), 'Expected file validation reason schema description to request justification');
 		});
 
-		test('should set allowToRunUnsandboxedCommands from setting in schema when unsandboxed commands are disabled', async () => {
+		test('should omit unsandboxed execution requests from schema when unsandboxed commands are disabled', async () => {
 			setConfig(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, false);
 			setConfig(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
 			sandboxEnabled = true;
 
 			const toolData = await instantiationService.invokeFunction(createRunInTerminalToolData);
 			const properties = toolData.inputSchema?.properties as Record<string, object> | undefined;
-			const allowToRunUnsandboxedCommandsProperty = properties?.['allowToRunUnsandboxedCommands'] as { const?: boolean; default?: boolean } | undefined;
 
-			ok(properties?.['allowToRunUnsandboxedCommands'], 'Expected allowToRunUnsandboxedCommands in schema when sandbox is enabled');
-			strictEqual(allowToRunUnsandboxedCommandsProperty?.const, false, 'Expected allowToRunUnsandboxedCommands const to reflect the disabled setting');
-			strictEqual(allowToRunUnsandboxedCommandsProperty?.default, false, 'Expected allowToRunUnsandboxedCommands to reflect the disabled setting');
-			ok(properties?.['requestUnsandboxedExecution'], 'Expected requestUnsandboxedExecution to remain in schema when sandbox is enabled');
-			ok(properties?.['requestUnsandboxedExecutionReason'], 'Expected requestUnsandboxedExecutionReason to remain in schema when sandbox is enabled');
-			ok(properties?.['requestAllowNetwork'], 'Expected requestAllowNetwork to remain in schema when unsandboxed commands are disabled');
-			ok(properties?.['requestAllowNetworkReason'], 'Expected requestAllowNetworkReason to remain in schema when unsandboxed commands are disabled');
+			ok(!properties?.['requestUnsandboxedExecution'], 'Expected no requestUnsandboxedExecution in schema when unsandboxed commands are disabled');
+			ok(!properties?.['requestUnsandboxedExecutionReason'], 'Expected no requestUnsandboxedExecutionReason in schema when unsandboxed commands are disabled');
+			ok(properties?.['requestAllowNetwork'], 'Expected requestAllowNetwork to remain in schema when per-command network access is enabled');
+			ok(properties?.['requestAllowNetworkReason'], 'Expected requestAllowNetworkReason to remain in schema when per-command network access is enabled');
 			ok(toolData.modelDescription?.includes('Running commands outside the sandbox is disabled'), 'Expected model description to explain that unsandboxed commands are disabled');
 		});
 
@@ -484,8 +471,8 @@ suite('RunInTerminalTool', () => {
 			const toolData = await instantiationService.invokeFunction(createRunInTerminalToolData);
 			const properties = toolData.inputSchema?.properties as Record<string, object> | undefined;
 
-			ok(properties?.['requestAllowNetwork'], 'Expected requestAllowNetwork to remain in schema so disabled requests can fail with a clear message');
-			ok(properties?.['requestAllowNetworkReason'], 'Expected requestAllowNetworkReason to remain in schema so disabled requests can fail with a clear message');
+			ok(!properties?.['requestAllowNetwork'], 'Expected no requestAllowNetwork in schema when per-command network access is disabled');
+			ok(!properties?.['requestAllowNetworkReason'], 'Expected no requestAllowNetworkReason in schema when per-command network access is disabled');
 			ok(!toolData.modelDescription?.includes('requestAllowNetwork=true'), 'Expected model description not to recommend allow-network requests when per-command network access is disabled');
 		});
 
@@ -520,10 +507,6 @@ suite('RunInTerminalTool', () => {
 
 			const toolDataAfter = await instantiationService.invokeFunction(createRunInTerminalToolData);
 			const propertiesAfter = toolDataAfter.inputSchema?.properties as Record<string, object> | undefined;
-			const allowToRunUnsandboxedCommandsProperty = propertiesAfter?.['allowToRunUnsandboxedCommands'] as { const?: boolean; default?: boolean } | undefined;
-			ok(propertiesAfter?.['allowToRunUnsandboxedCommands'], 'Expected allowToRunUnsandboxedCommands after enabling sandbox');
-			strictEqual(allowToRunUnsandboxedCommandsProperty?.const, true, 'Expected allowToRunUnsandboxedCommands const to reflect the setting after enabling sandbox');
-			strictEqual(allowToRunUnsandboxedCommandsProperty?.default, true, 'Expected allowToRunUnsandboxedCommands to reflect the setting after enabling sandbox');
 			ok(propertiesAfter?.['requestUnsandboxedExecution'], 'Expected requestUnsandboxedExecution after enabling sandbox');
 			ok(toolDataAfter.modelDescription?.includes('Sandboxing:'), 'Expected sandbox instructions in description after enabling sandbox');
 		});
@@ -621,8 +604,8 @@ suite('RunInTerminalTool', () => {
 			ok(toolData.modelDescription?.includes('github.com, npmjs.org'), 'Expected allowed domains in description');
 			ok(toolData.modelDescription?.includes('evil.com'), 'Expected denied domains in description');
 			ok(toolData.modelDescription?.includes('requestAllowNetwork=true'), 'Expected model description to recommend network-enabled sandbox execution first');
-			ok(toolData.modelDescription?.includes('Only set requestAllowNetwork=true when there is evidence of network failures caused by the sandbox'), 'Expected model description to constrain allow-network requests to sandbox network failures');
-			ok(toolData.modelDescription?.includes('Received HTTP code 403 from proxy after CONNECT'), 'Expected model description to recognize CONNECT proxy HTTP 403 responses as evidence of blocked network access');
+			ok(toolData.modelDescription?.includes('reactively after a network failure'), 'Expected model description to allow reactive allow-network requests after a sandbox network failure');
+			ok(toolData.modelDescription?.includes('HTTP code 403'), 'Expected model description to contain HTTP code 403 as evidence of blocked network access');
 		});
 
 		test('should exclude denied domains from effective allowed list', async () => {
@@ -977,17 +960,6 @@ suite('RunInTerminalTool', () => {
 			await assertAutomaticUnsandboxRetryElicitation(runInTerminalTool, LocalChatSessionUri.forSession('auto-retry-sandbox-force-approved-session'), 'rm dangerous-file.txt', 'bash', undefined);
 		});
 
-		test('should auto-retry without elicitation when unsandboxed command auto approve is enabled', async () => {
-			setConfig(AgentSandboxSettingId.AgentSandboxAutoApproveUnsandboxedCommands, true);
-			const sessionResource = LocalChatSessionUri.forSession('auto-retry-unsandboxed-setting-session');
-
-			const model = createChatModelWithRequest(sessionResource);
-			const shouldRetry = await confirmAutomaticUnsandboxRetry(runInTerminalTool, sessionResource, 'rm dangerous-file.txt', 'bash', undefined);
-
-			strictEqual(shouldRetry, true, 'Expected unsandboxed auto approve setting to retry without prompting');
-			const elicitation = model.getRequests().at(-1)?.response?.response.value.find(part => part.kind === 'elicitation2');
-			ok(!elicitation, 'Expected no elicitation when unsandboxed auto approve setting is enabled');
-		});
 	});
 
 	suite('default auto-approve rules', () => {
@@ -1344,10 +1316,13 @@ suite('RunInTerminalTool', () => {
 				sandboxConfigPath: '/tmp/sandbox.json',
 				failedCheck: undefined,
 			};
-			terminalSandboxService.checkFileAccess = async (_permission, paths) => ({ allowed: false, denied: [...paths] });
+			terminalSandboxService.checkFileAccess = async (permission, paths) => {
+				strictEqual(permission, 'write', 'Expected file validation to check write access');
+				return { allowed: false, denied: [...paths] };
+			};
 
 			const result = await invokeToolTest({
-				requestFileValidationCheck: [{ permission: 'write', paths: ['/home/user/outside-workspace-file'] }],
+				requestFileValidationCheck: ['/home/user/outside-workspace-file'],
 				requestFileValidationCheckReason: 'The command writes an outside-workspace file',
 			});
 
@@ -1464,56 +1439,6 @@ suite('RunInTerminalTool', () => {
 			ok(result.toolResultError, 'Expected the rejected request to be returned as a tool error');
 			ok(result.content[0].kind === 'text' && result.content[0].value.includes('The command was not executed'));
 			ok(result.content[0].kind === 'text' && result.content[0].value.includes('chat.agent.sandbox.allowUnsandboxedCommands'));
-		});
-
-		test('should auto-approve explicit unsandboxed execution requests when unsandboxed auto approve is enabled', async () => {
-			setConfig(AgentSandboxSettingId.AgentSandboxAutoApproveUnsandboxedCommands, true);
-			setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, false);
-			sandboxEnabled = true;
-			sandboxPrereqResult = {
-				enabled: true,
-				sandboxConfigPath: '/tmp/sandbox.json',
-				failedCheck: undefined,
-			};
-			runInTerminalTool.setBackendOs(OperatingSystem.Linux);
-
-			const result = await executeToolTest({
-				requestUnsandboxedExecution: true,
-				requestUnsandboxedExecutionReason: 'Needs network access outside the sandbox',
-			});
-
-			assertAutoApproved(result);
-			const terminalData = result!.toolSpecificData as IChatTerminalToolInvocationData;
-			strictEqual(terminalData.requestUnsandboxedExecution, true);
-			strictEqual(terminalData.requestUnsandboxedExecutionReason, 'Needs network access outside the sandbox');
-			strictEqual(terminalData.commandLine.toolEdited, 'unsandboxed:echo hello');
-		});
-
-		test('should auto-approve blocked-domain unsandboxed fallback when unsandboxed auto approve is enabled', async () => {
-			setConfig(AgentSandboxSettingId.AgentSandboxAutoApproveUnsandboxedCommands, true);
-			setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, false);
-			sandboxEnabled = true;
-			sandboxPrereqResult = {
-				enabled: true,
-				sandboxConfigPath: '/tmp/sandbox.json',
-				failedCheck: undefined,
-			};
-			runInTerminalTool.setBackendOs(OperatingSystem.Linux);
-			terminalSandboxService.wrapCommand = async (command: string) => ({
-				command: `unsandboxed:${command}`,
-				isSandboxWrapped: false,
-				requiresUnsandboxConfirmation: true,
-				blockedDomains: ['evil.com'],
-				deniedDomains: ['evil.com'],
-			});
-
-			const result = await executeToolTest({ command: 'curl https://evil.com' });
-
-			assertAutoApproved(result);
-			const terminalData = result!.toolSpecificData as IChatTerminalToolInvocationData;
-			strictEqual(terminalData.requestUnsandboxedExecution, true);
-			strictEqual(terminalData.commandLine.toolEdited, 'unsandboxed:curl https://evil.com');
-			strictEqual(terminalData.requestUnsandboxedExecutionReason, 'This command accesses evil.com, which is blocked by chat.agent.deniedNetworkDomains.');
 		});
 
 		test('should auto-approve sandboxed commands when sandbox auto approve is enabled', async () => {
@@ -3387,10 +3312,6 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 		const toolDataAfter = registeredToolData.get(TerminalToolId.RunInTerminal);
 		ok(toolDataAfter, 'Expected run_in_terminal tool to still be registered');
 		const propertiesAfter = toolDataAfter.inputSchema?.properties as Record<string, object> | undefined;
-		const allowToRunUnsandboxedCommandsProperty = propertiesAfter?.['allowToRunUnsandboxedCommands'] as { const?: boolean; default?: boolean } | undefined;
-		ok(propertiesAfter?.['allowToRunUnsandboxedCommands'], 'Expected allowToRunUnsandboxedCommands after enabling sandbox');
-		strictEqual(allowToRunUnsandboxedCommandsProperty?.const, true, 'Expected allowToRunUnsandboxedCommands const to match the setting value after enabling sandbox');
-		strictEqual(allowToRunUnsandboxedCommandsProperty?.default, true, 'Expected allowToRunUnsandboxedCommands to default to the setting value after enabling sandbox');
 		ok(propertiesAfter?.['requestUnsandboxedExecution'], 'Expected requestUnsandboxedExecution after enabling sandbox');
 	});
 
@@ -3401,9 +3322,6 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 		const toolDataBefore = registeredToolData.get(TerminalToolId.RunInTerminal);
 		ok(toolDataBefore, 'Expected run_in_terminal tool to be registered');
 		const propertiesBefore = toolDataBefore.inputSchema?.properties as Record<string, object> | undefined;
-		const allowToRunUnsandboxedCommandsPropertyBefore = propertiesBefore?.['allowToRunUnsandboxedCommands'] as { const?: boolean; default?: boolean } | undefined;
-		strictEqual(allowToRunUnsandboxedCommandsPropertyBefore?.const, true, 'Expected allowToRunUnsandboxedCommands const to start enabled');
-		strictEqual(allowToRunUnsandboxedCommandsPropertyBefore?.default, true, 'Expected allowToRunUnsandboxedCommands to start enabled');
 		ok(propertiesBefore?.['requestUnsandboxedExecution'], 'Expected requestUnsandboxedExecution before disabling unsandboxed commands');
 
 		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, false);
@@ -3419,10 +3337,7 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 		const toolDataAfter = registeredToolData.get(TerminalToolId.RunInTerminal);
 		ok(toolDataAfter, 'Expected run_in_terminal tool to still be registered');
 		const propertiesAfter = toolDataAfter.inputSchema?.properties as Record<string, object> | undefined;
-		const allowToRunUnsandboxedCommandsPropertyAfter = propertiesAfter?.['allowToRunUnsandboxedCommands'] as { const?: boolean; default?: boolean } | undefined;
-		strictEqual(allowToRunUnsandboxedCommandsPropertyAfter?.const, false, 'Expected allowToRunUnsandboxedCommands const to reflect disabled setting after refresh');
-		strictEqual(allowToRunUnsandboxedCommandsPropertyAfter?.default, false, 'Expected allowToRunUnsandboxedCommands to reflect disabled setting after refresh');
-		ok(propertiesAfter?.['requestUnsandboxedExecution'], 'Expected requestUnsandboxedExecution to remain after disabling unsandboxed commands');
+		ok(!propertiesAfter?.['requestUnsandboxedExecution'], 'Expected requestUnsandboxedExecution to be removed after disabling unsandboxed commands');
 	});
 
 	test('should refresh run_in_terminal tool data when sandbox network setting changes', async () => {
