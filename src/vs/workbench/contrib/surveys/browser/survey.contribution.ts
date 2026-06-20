@@ -8,6 +8,7 @@ import { Categories } from '../../../../platform/action/common/actionCommonCateg
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { AccessibleViewRegistry, IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { IsDevelopmentContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -33,7 +34,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	[new SyncDescriptor(SurveyEditorInput)]
 );
 
-// Register test command
+// Register test command (developer-only, visible in command palette)
 class OpenSurveyAction extends Action2 {
 	static readonly ID = 'workbench.action.openSurvey';
 
@@ -48,23 +49,32 @@ class OpenSurveyAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const instantiationService = accessor.get(IInstantiationService);
-		const editorService = accessor.get(IEditorService);
-		const editorGroupsService = accessor.get(IEditorGroupsService);
-		const environmentService = accessor.get(IWorkbenchEnvironmentService);
-
-		const input = instantiationService.createInstance(SurveyEditorInput, CopilotPMFSurvey);
-
-		// In the sessions window, open in the main editor part (not modal)
-		const preferredGroup = environmentService.isSessionsWindow
-			? editorGroupsService.mainPart.activeGroup
-			: undefined;
-
-		await editorService.openEditor(input, { pinned: true }, preferredGroup);
+		return openSurveyEditor(accessor);
 	}
 }
 
 registerAction2(OpenSurveyAction);
+
+// Programmatic command for extensions to trigger the survey (e.g. from Copilot survey service)
+CommandsRegistry.registerCommand('_workbench.action.openCopilotSurvey', (accessor: ServicesAccessor, source?: string) => {
+	return openSurveyEditor(accessor, source);
+});
+
+function openSurveyEditor(accessor: ServicesAccessor, source?: string): Promise<void> {
+	const instantiationService = accessor.get(IInstantiationService);
+	const editorService = accessor.get(IEditorService);
+	const editorGroupsService = accessor.get(IEditorGroupsService);
+	const environmentService = accessor.get(IWorkbenchEnvironmentService);
+
+	const input = instantiationService.createInstance(SurveyEditorInput, CopilotPMFSurvey, source);
+
+	// In the sessions window, open in the main editor part (not modal)
+	const preferredGroup = environmentService.isSessionsWindow
+		? editorGroupsService.mainPart.activeGroup
+		: undefined;
+
+	return editorService.openEditor(input, { pinned: true }, preferredGroup).then(() => undefined);
+}
 
 // Accessibility help for the survey pane
 class SurveyAccessibilityHelp implements IAccessibleViewImplementation {

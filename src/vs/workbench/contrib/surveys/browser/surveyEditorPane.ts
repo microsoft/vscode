@@ -221,18 +221,38 @@ export class SurveyEditorPane extends EditorPane {
 			answersSnapshot[key] = [...value];
 		}
 
+		// Extract the PMF score as a top-level measure if defined
+		const pmfScore = survey.pmfQuestionId
+			? (answersSnapshot[survey.pmfQuestionId]?.[0] ?? '')
+			: '';
+
+		// Get the source from the input (what feature triggered the survey)
+		const source = (this.input as SurveyEditorInput)?.source ?? '';
+
 		type SurveySubmitEvent = {
 			surveyId: string;
+			source: string;
+			pmfScore: string;
+			primaryBenefit: string;
+			primaryFriction: string;
 			answers: string;
 		};
 		type SurveySubmitClassification = {
 			surveyId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The survey identifier.' };
-			answers: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'JSON-encoded survey answers keyed by question ID with stable option ID arrays.' };
+			source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Copilot feature source that triggered the survey (e.g. completions, panel.agent, agent.codeEdit).' };
+			pmfScore: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The PMF disappointment score: not-at-all, slightly, somewhat, very, extremely.' };
+			primaryBenefit: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The primary value driver selected by the user.' };
+			primaryFriction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The primary friction point selected by the user.' };
+			answers: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'JSON-encoded full survey answers keyed by question ID with stable option ID arrays.' };
 			owner: 'digitarald';
 			comment: 'Tracks in-product survey submissions for product-market fit analysis.';
 		};
 		this.telemetryService.publicLog2<SurveySubmitEvent, SurveySubmitClassification>('survey/submit', {
 			surveyId: survey.id,
+			source,
+			pmfScore,
+			primaryBenefit: answersSnapshot['primary-benefit']?.[0] ?? '',
+			primaryFriction: answersSnapshot['primary-friction']?.[0] ?? '',
 			answers: JSON.stringify(answersSnapshot),
 		});
 

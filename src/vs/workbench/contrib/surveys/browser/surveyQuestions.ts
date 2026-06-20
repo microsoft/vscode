@@ -37,6 +37,8 @@ export interface ISurveyDefinition {
 	readonly title: string;
 	readonly description: string;
 	readonly questions: readonly ISurveyQuestion[];
+	/** The question ID whose answer is the primary PMF score (reported as a top-level telemetry measure). */
+	readonly pmfQuestionId?: string;
 }
 
 /**
@@ -47,6 +49,7 @@ export const CopilotPMFSurvey: ISurveyDefinition = {
 	id: 'copilot-pmf',
 	title: localize('survey.copilotPmf.title', "Help Us Improve GitHub Copilot"),
 	description: localize('survey.copilotPmf.description', "This short survey helps us understand how well Copilot fits into your workflow."),
+	pmfQuestionId: 'disappointment',
 	questions: [
 		{
 			type: SurveyQuestionType.Segment,
@@ -62,7 +65,7 @@ export const CopilotPMFSurvey: ISurveyDefinition = {
 		},
 		{
 			type: SurveyQuestionType.Radio,
-			id: 'main-benefit',
+			id: 'primary-benefit',
 			label: localize('survey.copilotPmf.q2', "What has Copilot helped you with most recently?"),
 			columns: 2,
 			options: [
@@ -78,7 +81,7 @@ export const CopilotPMFSurvey: ISurveyDefinition = {
 		},
 		{
 			type: SurveyQuestionType.Radio,
-			id: 'blockers',
+			id: 'primary-friction',
 			label: localize('survey.copilotPmf.q3', "What most gets in your way?"),
 			columns: 2,
 			options: [
