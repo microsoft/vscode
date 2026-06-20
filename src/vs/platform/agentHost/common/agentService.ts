@@ -895,6 +895,19 @@ export interface IAgent {
 	getChats?(session: URI): Promise<readonly URI[]>;
 
 	/**
+	 * Resolves the backing agent-session id for a chat — the id that names the
+	 * chat's on-disk log / session-state directory. For the default chat this
+	 * is the owning session's id; for a peer chat it is the harness's
+	 * per-chat session id, which differs from the chat's `ahp-chat` URI.
+	 *
+	 * Lets the agent service publish the id under
+	 * {@link SessionState._meta} so clients can locate a specific chat's logs.
+	 * Optional: harnesses that name every chat's logs by the session id (so the
+	 * client can derive it from the chat resource) omit it.
+	 */
+	getChatSessionId?(session: URI, chat: URI): Promise<string | undefined>;
+
+	/**
 	 * Called when the session's pending (steering) message changes.
 	 * The agent harness decides how to react — e.g. inject steering
 	 * mid-turn via `mode: 'immediate'`.

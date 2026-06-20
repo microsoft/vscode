@@ -766,6 +766,65 @@ export function withSessionGitState(meta: SessionMeta | undefined, gitState: ISe
 	return Object.keys(next).length > 0 ? next : undefined;
 }
 
+/**
+ * Reserved key under {@link SessionMeta} for the map of each chat's backing
+ * agent-session id (the id that names the chat's on-disk log directory).
+ *
+ * A peer chat is addressed by an `ahp-chat` URI whose path is the *owning
+ * session's* id and whose fragment is the AHP chat id — neither of which is
+ * the id the harness uses to name the chat's own log/session-state directory.
+ * Hosts that back chats by a distinct per-chat session id (e.g. the Copilot
+ * CLI harness) publish that id here, keyed by AHP chat id, so clients can
+ * locate a specific chat's logs without reconstructing host-private paths.
+ *
+ * The default chat is omitted: its log directory is already named by the
+ * owning session id, which clients can read straight off the chat resource.
+ */
+export const SESSION_META_CHAT_SESSION_IDS_KEY = 'chatSessionIds';
+
+/**
+ * Reads the {@link SESSION_META_CHAT_SESSION_IDS_KEY} map from
+ * {@link SessionMeta}: AHP chat id → backing agent-session id. Returns
+ * `undefined` when absent or malformed; entries with a non-string value are
+ * dropped so a partial map still propagates.
+ */
+export function readChatSessionIds(meta: SessionMeta | undefined): Record<string, string> | undefined {
+	const value = meta?.[SESSION_META_CHAT_SESSION_IDS_KEY];
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+	const result: Record<string, string> = {};
+	for (const [chatId, sessionId] of Object.entries(value as Record<string, unknown>)) {
+		if (typeof sessionId === 'string') {
+			result[chatId] = sessionId;
+		}
+	}
+	return Object.keys(result).length > 0 ? result : undefined;
+}
+
+/**
+ * Returns a new {@link SessionMeta} with `chatId` mapped to `sessionId` under
+ * {@link SESSION_META_CHAT_SESSION_IDS_KEY} (or with the entry removed when
+ * `sessionId` is `undefined`). Existing entries for other chats are preserved.
+ * Returns `undefined` if the result would be empty.
+ */
+export function withChatSessionId(meta: SessionMeta | undefined, chatId: string, sessionId: string | undefined): SessionMeta | undefined {
+	const existing = readChatSessionIds(meta);
+	const map: Record<string, string> = { ...existing };
+	if (sessionId !== undefined) {
+		map[chatId] = sessionId;
+	} else {
+		delete map[chatId];
+	}
+	const next: { [key: string]: unknown } = { ...meta };
+	if (Object.keys(map).length > 0) {
+		next[SESSION_META_CHAT_SESSION_IDS_KEY] = map;
+	} else {
+		delete next[SESSION_META_CHAT_SESSION_IDS_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
 // ---- RootState _meta accessors ---------------------------------------------
 
 /**

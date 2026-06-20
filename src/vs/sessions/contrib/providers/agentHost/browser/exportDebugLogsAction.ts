@@ -47,7 +47,20 @@ export class ExportAgentHostDebugLogsAction extends Action2 {
 		// Sessions can contain multiple chats and the events file is per-chat,
 		// so prefer the focused chat tab's resource for the active session.
 		const focusedChat = activeAgentHostSession?.activeChat.get();
-		const eventsResource = focusedChat?.resource ?? sessionForEvents?.resource;
+		const chatResource = focusedChat?.resource ?? sessionForEvents?.resource;
+
+		// A peer chat's events.jsonl (and its shared-log lines) live under a
+		// host-private backing session id that the chat resource does not
+		// encode. Ask the provider to map the focused chat to a session-shaped
+		// resource carrying that id so the export collects the right files;
+		// fall back to the chat resource for the default chat.
+		let eventsResource = chatResource;
+		if (activeAgentHostSession && chatResource) {
+			const provider = sessionsProvidersService.getProvider(activeAgentHostSession.providerId);
+			if (provider instanceof BaseAgentHostSessionsProvider) {
+				eventsResource = provider.getChatSdkSessionResource(chatResource) ?? chatResource;
+			}
+		}
 
 		const activeSessionContext: IActiveAgentHostSessionForExport | undefined = sessionForEvents && eventsResource
 			? {
