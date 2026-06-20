@@ -53,10 +53,12 @@ function createCopilotToken(previewFeaturesEnabled: boolean): CopilotToken {
 	return new CopilotToken(createTestExtendedTokenInfo({ token: `editor_preview_features=${previewFlag}:test-token` }));
 }
 
-async function renderImage(endpoint: IChatEndpoint, previewFeaturesEnabled: boolean): Promise<Raw.ChatMessage[]> {
+async function renderImage(endpoint: IChatEndpoint, previewFeaturesEnabled?: boolean): Promise<Raw.ChatMessage[]> {
 	const testingServiceCollection = createExtensionUnitTestingServices();
 	const accessor = testingServiceCollection.createTestingAccessor();
-	setCopilotToken(accessor.get(IAuthenticationService), createCopilotToken(previewFeaturesEnabled));
+	if (previewFeaturesEnabled !== undefined) {
+		setCopilotToken(accessor.get(IAuthenticationService), createCopilotToken(previewFeaturesEnabled));
+	}
 	const renderer = PromptRenderer.create(
 		accessor.get(IInstantiationService),
 		endpoint,
@@ -71,6 +73,12 @@ async function renderImage(endpoint: IChatEndpoint, previewFeaturesEnabled: bool
 }
 
 describe('Image', () => {
+	test('renders image input for extension-contributed BYOK models without a Copilot token', async () => {
+		const messages = await renderImage(createMockEndpoint({ isExtensionContributed: true }), undefined);
+
+		expect(hasImageContentPart(messages)).toBe(true);
+	});
+
 	test('renders image input for extension-contributed BYOK models without Copilot preview features', async () => {
 		const messages = await renderImage(createMockEndpoint({ isExtensionContributed: true }), false);
 
