@@ -490,7 +490,7 @@ export class CopilotAgentSession extends Disposable {
 		this._customizationDirectory = options.customizationDirectory;
 		this._serverToolHost = options.serverToolHost;
 
-		this._appliedSnapshot = options.clientSnapshot ?? { tools: [], plugins: [] };
+		this._appliedSnapshot = options.clientSnapshot ?? { tools: [], plugins: [], mcpServers: {} };
 		this._clientToolNames = new Set(this._appliedSnapshot.tools.map(t => t.name));
 		// Share the agent's live ActiveClientState when provided so clientId
 		// changes are observed at stamp time. Standalone / test construction

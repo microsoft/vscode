@@ -30,7 +30,7 @@ import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import { createAgentModelPricingMeta } from '../../common/agentModelPricing.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
-import { AgentHostSessionSyncEnabledConfigKey, AutoApproveLevel, ISchemaProperty, SessionMode, createSchema, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
+import { AgentHostMcpServersConfigKey, AgentHostSessionSyncEnabledConfigKey, AutoApproveLevel, ISchemaProperty, SessionMode, createSchema, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IMcpNotification } from '../../common/agentService.js';
 import { getEffectiveAgents } from '../../common/customAgents.js';
@@ -1902,7 +1902,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		let client = this._activeClients.get(session);
 		if (!client) {
 			const pluginController = this._plugins.createSessionController(directory);
-			client = new ActiveClient(session, pluginController, this._onDidSessionProgress);
+			client = this._instantiationService.createInstance(ActiveClient, session, pluginController, this._onDidSessionProgress);
 			this._activeClients.set(session, client);
 		} else if (directory) {
 			client.pluginController.setDirectory(directory);
@@ -3101,6 +3101,7 @@ class ActiveClient extends Disposable {
 		private readonly _sessionUri: URI,
 		pluginController: SessionPluginController,
 		onDidSessionProgress: Emitter<AgentSignal>,
+		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 	) {
 		super();
 		this.pluginController = this._register(pluginController);
@@ -3116,7 +3117,17 @@ class ActiveClient extends Disposable {
 	}
 
 	async snapshot(): Promise<IActiveClientSnapshot> {
-		return { tools: this.state.tools, plugins: await this.pluginController.getAppliedPlugins() };
+		return {
+			tools: this.state.tools,
+			plugins: await this.pluginController.getAppliedPlugins(),
+			mcpServers: this._getMcpServers(),
+		};
+	}
+
+	private _getMcpServers(): AgentHostMcpServers {
+		const servers = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpServersConfigKey) ?? {};
+
+		return structuredClone(servers);
 	}
 
 	/**
@@ -3129,6 +3140,9 @@ class ActiveClient extends Disposable {
 	async requiresRestart(snap: IActiveClientSnapshot): Promise<boolean> {
 		const plugins = await this.pluginController.getAppliedPlugins();
 		if (!parsedPluginsEqual(snap.plugins, plugins)) {
+			return true;
+		}
+		if (!equals(snap.mcpServers, this._getMcpServers())) {
 			return true;
 		}
 		return !this.state.structuralEquals({ tools: snap.tools });
