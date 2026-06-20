@@ -9,7 +9,7 @@
 	display: flex;
 	justify-content: center;
 	align-items: flex-start;
-	padding: 40px 20px;
+	padding: 40px 20px 60px;
 }
 
 .survey-editor-pane .survey-form {
@@ -41,7 +41,7 @@
 /* Questions */
 
 .survey-editor-pane .survey-question {
-	margin-bottom: 24px;
+	margin-bottom: 20px;
 }
 
 .survey-editor-pane .survey-question-label {
@@ -133,7 +133,7 @@
 .survey-editor-pane .survey-list-group {
 	display: grid;
 	grid-template-columns: 1fr;
-	gap: 4px;
+	gap: 2px;
 }
 
 .survey-editor-pane .survey-list-group.columns-2 {
@@ -142,9 +142,8 @@
 
 .survey-editor-pane .survey-list-option {
 	display: block;
-	padding: 8px 10px;
-	border-radius: var(--vscode-cornerRadius-small, 4px);
-	border-left: 2px solid transparent;
+	padding: 6px 10px;
+	border: 1px solid transparent;
 	cursor: pointer;
 	transition: background-color 0.1s;
 	user-select: none;
@@ -169,7 +168,7 @@
 .survey-editor-pane .survey-list-option:has(.survey-list-input:checked) {
 	background-color: var(--vscode-list-activeSelectionBackground);
 	color: var(--vscode-list-activeSelectionForeground);
-	border-left-color: var(--vscode-focusBorder);
+	border-color: var(--vscode-focusBorder);
 }
 
 .survey-editor-pane .survey-list-option:has(.survey-list-input:focus-visible) {
@@ -194,7 +193,7 @@
 /* Submit */
 
 .survey-editor-pane .survey-submit-row {
-	margin-top: 28px;
+	margin-top: 20px;
 }
 
 .survey-editor-pane .survey-submit-hint {
@@ -249,13 +248,9 @@
 	}
 }
 
-/* Responsive: collapse to single column on narrow editors */
+/* Responsive: segment stacks vertically on narrow editors */
 
-@container (max-width: 600px) {
-	.survey-editor-pane .survey-list-group.columns-2 {
-		grid-template-columns: 1fr;
-	}
-
+@container (max-width: 560px) {
 	.survey-editor-pane .survey-segment-group {
 		flex-direction: column;
 	}
@@ -274,5 +269,13 @@
 	.survey-editor-pane .survey-segment-group .survey-segment-label:last-of-type {
 		border-bottom: none;
 		border-radius: 0 0 var(--vscode-cornerRadius-small, 4px) var(--vscode-cornerRadius-small, 4px);
+	}
+}
+
+/* Responsive: list grid collapses to single column on very narrow editors */
+
+@container (max-width: 480px) {
+	.survey-editor-pane .survey-list-group.columns-2 {
+		grid-template-columns: 1fr;
 	}
 }
