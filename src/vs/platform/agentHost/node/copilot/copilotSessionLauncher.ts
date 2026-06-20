@@ -22,6 +22,8 @@ import { toSdkCustomAgents, toSdkHooks, toSdkInstructionDirectories, toSdkMcpSer
 import { buildSandboxConfigForSdk, type ISdkSandboxConfig } from './sandboxConfigForSdk.js';
 import type { ITypedPermissionRequest } from './copilotToolDisplay.js';
 import type { ICopilotPluginInfo } from './copilotAgent.js';
+import { agentHostPromptRegistry, type IAgentHostPromptContext } from './prompts/promptRegistry.js';
+import './prompts/allPrompts.js';
 
 export const ThinkingLevelConfigKey = 'thinkingLevel';
 export const ContextTierConfigKey = 'contextTier';
@@ -46,16 +48,6 @@ type CopilotSessionLaunchConfig = ResumeSessionConfig & {
 	readonly pluginDirectories?: string[];
 	readonly remoteSession?: 'export';
 };
-
-export const COPILOT_AGENT_HOST_SYSTEM_MESSAGE = {
-	mode: 'customize',
-	sections: {
-		identity: {
-			action: 'replace',
-			content: 'You are an AI assistant using Copilot CLI runtime in VS Code. You help users with software engineering tasks. When asked about your identity, you must state that you are an AI assistant using Copilot CLI runtime in VS Code.',
-		},
-	},
-} satisfies NonNullable<ResumeSessionConfig['systemMessage']>;
 
 /**
  * Immutable snapshot of the active client's structural contributions at
@@ -311,6 +303,10 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const customAgents = await toSdkCustomAgents(pluginsWithoutDirs.flatMap(p => p.agents), this._fileService);
 		const skillDirectories = toSdkSkillDirectories(pluginsWithoutDirs.flatMap(p => p.skills));
 		const instructionDirectories = toSdkInstructionDirectories(plugins.flatMap(p => p.instructions));
+		const model = plan.kind === 'create' ? plan.model : plan.fallback.model;
+		const promptContext: IAgentHostPromptContext = {
+			getSetting: key => this._configurationService.getRootValue(agentHostCustomizationConfigSchema, key),
+		};
 		return {
 			clientName: 'vscode',
 			enableMcpApps: true,
@@ -327,7 +323,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			customAgents,
 			skillDirectories,
 			instructionDirectories,
-			systemMessage: COPILOT_AGENT_HOST_SYSTEM_MESSAGE,
+			systemMessage: agentHostPromptRegistry.resolveSystemMessageConfig(model, promptContext),
 			pluginDirectories: coalesce(plugins.map(p => p.pluginDir))
 				.filter(d => d.scheme === Schemas.file).map(d => d.fsPath),
 			tools: [...shellTools, ...runtime.createClientSdkTools(), ...runtime.createServerSdkTools()],
