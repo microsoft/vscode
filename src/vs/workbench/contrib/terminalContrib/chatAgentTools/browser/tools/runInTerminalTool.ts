@@ -189,7 +189,6 @@ export function createSandboxLines(sandboxingOptions: ISandboxingOnOptions): str
 			: '- Commands run inside a sandbox by default. The sandbox restricts two things independently: the filesystem and the network.',
 		'- Filesystem: read-only outside the workspace and $TMPDIR, which stay read-write. Parts of $HOME are hidden for privacy, but common developer tools (git, package managers, language toolchains) still work because their $HOME config and cache paths are automatically made readable.',
 		'- Use $TMPDIR for temporary files; /tmp may not be writable. On macOS and Linux the TMPDIR env var is set to a writable path.',
-		'- If the Git commands fail while chained together (using && or ;), rewrite and run them as separate, individual commands',
 		'- If a command needs sandboxed write access to specific file paths outside workspace, pass requestFileValidationCheck with those paths. VS Code checks sandbox access before execution and returns Access Denied without running the command when access is unavailable.',
 	];
 
