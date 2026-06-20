@@ -175,7 +175,7 @@ export class ChatSuggestNextWidget extends Disposable {
 				const actions = availableContributions.map(contrib => {
 					const provider = getAgentSessionProvider(contrib.type)!;
 					const icon = getAgentSessionProviderIcon(provider);
-					const name = getAgentSessionProviderName(provider, this.configurationService);
+					const name = getAgentSessionProviderName(provider);
 					return new Action(
 						contrib.type,
 						localize('continueIn', "Continue in {0}", name),

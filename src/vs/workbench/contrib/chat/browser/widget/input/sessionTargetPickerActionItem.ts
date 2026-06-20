@@ -180,7 +180,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 				// Well-known session type — use hardcoded metadata
 				allAgentSessionItems.push({
 					type: agentSessionType,
-					label: getAgentSessionProviderName(agentSessionType, this.configurationService),
+					label: getAgentSessionProviderName(agentSessionType),
 					hoverDescription: getAgentSessionProviderDescription(agentSessionType),
 					commandId: contribution.canDelegate ?
 						`workbench.action.chat.openNewChatSessionInPlace.${contribution.type}` :
@@ -275,7 +275,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		// TODO: Remove hardcoded providers from core
 		const knownType = getAgentSessionProvider(currentType);
 		const label = knownType
-			? getAgentSessionProviderName(knownType, this.configurationService)
+			? getAgentSessionProviderName(knownType)
 			: (this.chatSessionsService.getChatSessionContribution(currentType)?.displayName ?? currentType);
 		const icon = this._getSessionIcon({ type: currentType, label, hoverDescription: '', commandId: '' });
 

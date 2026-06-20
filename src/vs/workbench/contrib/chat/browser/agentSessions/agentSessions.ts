@@ -8,11 +8,9 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { foreground, listActiveSelectionForeground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
-import type { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { isAgentHostTarget, SessionType } from '../../common/chatSessionsService.js';
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
-import { ChatConfiguration } from '../../common/constants.js';
 
 export enum AgentSessionProviders {
 	Local = SessionType.Local,
@@ -58,7 +56,7 @@ export function getAgentSessionProvider(sessionResource: URI | string): AgentSes
 	}
 }
 
-export function getAgentSessionProviderName(provider: AgentSessionTarget, configurationService?: IConfigurationService): string {
+export function getAgentSessionProviderName(provider: AgentSessionTarget): string {
 	switch (provider) {
 		case AgentSessionProviders.Local:
 			return localize('chat.session.providerLabel.local', "Local");
@@ -75,10 +73,7 @@ export function getAgentSessionProviderName(provider: AgentSessionTarget, config
 		case AgentSessionProviders.Growth:
 			return 'Growth';
 		case AgentSessionProviders.AgentHostCopilot:
-			if (configurationService?.getValue<boolean>(ChatConfiguration.EditorLocalAgentEnabled) === false) {
-				return localize('chat.session.providerLabel.agentHostCopilot.simple', "Copilot");
-			}
-			return localize('chat.session.providerLabel.agentHostCopilot', "Copilot CLI [Agent Host]");
+			return localize('chat.session.providerLabel.agentHostCopilot', "Copilot");
 		default:
 			return provider;
 	}

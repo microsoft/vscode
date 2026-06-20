@@ -359,7 +359,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 
 	private _getAgentDisplayName(agent: AgentInfo, sessionType: string): string {
 		if (sessionType === AgentSessionProviders.AgentHostCopilot) {
-			return getAgentSessionProviderName(AgentSessionProviders.AgentHostCopilot, this._configurationService);
+			return getAgentSessionProviderName(AgentSessionProviders.AgentHostCopilot);
 		}
 
 		return this._isSessionsWindow

@@ -200,7 +200,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 
 	protected _formatSessionTypeLabel(agentLabel: string, provider: string): string {
 		if (provider === 'copilotcli') {
-			return getAgentSessionProviderName(AgentSessionProviders.AgentHostCopilot, this._configurationService);
+			return getAgentSessionProviderName(AgentSessionProviders.AgentHostCopilot);
 		}
 
 		// Use the unadorned agent label (e.g. "Copilot") rather than tagging it

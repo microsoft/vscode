@@ -17,8 +17,7 @@ import { timeout } from '../../../../../../base/common/async.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { AgentHostEnabledSettingId, IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/agentFeedbackAttachments.js';
 import { ActionType, isSessionAction, isChatAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
@@ -30,7 +29,7 @@ import { IDefaultAccountService } from '../../../../../../platform/defaultAccoun
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ChatAgentLocation, ChatConfiguration } from '../../../common/constants.js';
+import { ChatAgentLocation } from '../../../common/constants.js';
 import { ChatRequestQueueKind, ElicitationState, IChatService, IChatMarkdownContent, IChatProgress, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -4231,35 +4230,16 @@ suite('AgentHostChatContribution', () => {
 			]);
 		});
 
-		test('local agent contribution uses simplified Copilot display name when editor local agent is disabled', () => {
-			const defaultServices = createTestServices(disposables);
-			disposables.add(defaultServices.instantiationService.createInstance(AgentHostContribution));
+		test('local agent contribution uses simplified Copilot display name', () => {
+			const services = createTestServices(disposables);
+			disposables.add(services.instantiationService.createInstance(AgentHostContribution));
 
-			defaultServices.agentHostService.setRootState({
+			services.agentHostService.setRootState({
 				agents: [{ provider: 'copilotcli', displayName: 'Copilot CLI', description: 'test', models: [] }],
 				activeSessions: 0,
 			});
 
-			const disabledServices = createTestServices(disposables);
-			disabledServices.instantiationService.stub(IConfigurationService, new TestConfigurationService({
-				[AgentHostEnabledSettingId]: true,
-				[ChatConfiguration.EditorLocalAgentEnabled]: false,
-				'chat.agentHost.clientTools': [],
-			}));
-			disposables.add(disabledServices.instantiationService.createInstance(AgentHostContribution));
-
-			disabledServices.agentHostService.setRootState({
-				agents: [{ provider: 'copilotcli', displayName: 'Copilot CLI', description: 'test', models: [] }],
-				activeSessions: 0,
-			});
-
-			assert.deepStrictEqual({
-				defaultDisplayName: defaultServices.chatSessionContributions[0].displayName,
-				disabledDisplayName: disabledServices.chatSessionContributions[0].displayName,
-			}, {
-				defaultDisplayName: 'Copilot CLI [Agent Host]',
-				disabledDisplayName: 'Copilot',
-			});
+			assert.strictEqual(services.chatSessionContributions[0].displayName, 'Copilot');
 		});
 	});
 

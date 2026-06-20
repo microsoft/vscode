@@ -14,7 +14,6 @@ import { ipcRenderer } from '../../../../base/parts/sandbox/electron-browser/glo
 import { localize } from '../../../../nls.js';
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILocalGitService } from '../../../../platform/git/common/localGitService.js';
@@ -333,11 +332,10 @@ async function openNewAgentHostSession(accessor: ServicesAccessor, position: Cha
 	// accessor for the downstream `openChatSession` call.
 	const agentHostService = accessor.get(IAgentHostService);
 	const instantiationService = accessor.get(IInstantiationService);
-	const configurationService = accessor.get(IConfigurationService);
 	const sessionType = await resolveAgentHostSessionType(agentHostService);
 	return instantiationService.invokeFunction(innerAccessor => openChatSession(innerAccessor, {
 		type: sessionType,
-		displayName: getAgentSessionProviderName(sessionType, configurationService),
+		displayName: getAgentSessionProviderName(sessionType),
 		position,
 	}));
 }
