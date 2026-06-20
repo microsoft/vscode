@@ -5,6 +5,7 @@
 
 import { CAPIClient, MakeRequestOptions, RequestMetadata, RequestType } from '@vscode/copilot-api';
 import { createServiceIdentifier } from '../../../util/common/services';
+import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { IEnvService } from '../../env/common/envService';
 import { IFetcherService, NO_FETCH_TELEMETRY } from '../../networking/common/fetcherService';
 import type { FetchOptions, Response } from '../../networking/common/fetcherService';
@@ -21,13 +22,16 @@ export interface ICAPIClientService extends CAPIClient {
 
 /**
  * Wraps an IFetcherService to intercept LLM requests through a proxy for token compression.
- * When COPILOT_PROXY_URL is set and the request targets an LLM endpoint, the request is
- * routed through the proxy with X-Original-Url and X-Original-Host headers.
+ * On every fetch(), calls `_getProxyUrl()` to resolve the current proxy URL so that
+ * VS Code setting changes take effect without requiring an extension host restart.
  */
 class ProxyInterceptingFetcherService implements IFetcherService {
 	declare readonly _serviceBrand: undefined;
 
-	constructor(private readonly _inner: IFetcherService) { }
+	constructor(
+		private readonly _inner: IFetcherService,
+		private readonly _getProxyUrl: () => string | undefined,
+	) { }
 
 	get onDidFetch() { return this._inner.onDidFetch; }
 	get onDidCompleteFetch() { return this._inner.onDidCompleteFetch; }
@@ -43,7 +47,7 @@ class ProxyInterceptingFetcherService implements IFetcherService {
 	createWebSocket(url: string, options?: any) { return this._inner.createWebSocket(url, options); }
 
 	fetch(url: string, options: FetchOptions): Promise<Response> {
-		const proxyUrl = getConfiguredProxyUrl();
+		const proxyUrl = this._getProxyUrl();
 		if (proxyUrl && isLLMEndpoint(url)) {
 			const headers: Record<string, string> = { ...(options.headers as Record<string, string> ?? {}) };
 			const originalUrl = url;
@@ -62,10 +66,16 @@ export abstract class BaseCAPIClientService extends CAPIClient implements ICAPIC
 		hmac: string | undefined,
 		integrationId: string | undefined,
 		fetcherService: IFetcherService,
-		envService: IEnvService
+		envService: IEnvService,
+		configService?: IConfigurationService,
 	) {
-		const proxyUrl = getConfiguredProxyUrl();
-		const effectiveFetcher = proxyUrl ? new ProxyInterceptingFetcherService(fetcherService) : fetcherService;
+		// Build a lambda so the proxy URL is resolved on every request, picking up
+		// VS Code setting changes without restarting the extension host.
+		const getProxyUrl = (): string | undefined => {
+			const vsCodeUrl = configService?.getConfig(ConfigKey.Advanced.HeadroomProxyUrl) || undefined;
+			return getConfiguredProxyUrl(vsCodeUrl);
+		};
+		const effectiveFetcher = new ProxyInterceptingFetcherService(fetcherService, getProxyUrl);
 		super({
 			machineId: envService.machineId,
 			deviceId: envService.devDeviceId,

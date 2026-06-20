@@ -21,7 +21,18 @@ export function isLLMEndpoint(url: string): boolean {
 	}
 }
 
-export function getConfiguredProxyUrl(): string | undefined {
+/**
+ * Returns the configured headroom proxy URL, if any.
+ *
+ * Priority order:
+ * 1. `vsCodeSettingUrl` — value of the `github.copilot.chat.proxy.url` VS Code setting
+ *    (persists regardless of how VS Code is launched).
+ * 2. `COPILOT_PROXY_URL` environment variable — fallback for dev / terminal-launched VS Code.
+ */
+export function getConfiguredProxyUrl(vsCodeSettingUrl?: string): string | undefined {
+	if (vsCodeSettingUrl) {
+		return vsCodeSettingUrl;
+	}
 	if (typeof process !== 'undefined' && process.env) {
 		return process.env['COPILOT_PROXY_URL'];
 	}

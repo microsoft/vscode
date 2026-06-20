@@ -120,5 +120,48 @@ suite('Proxy Utils', () => {
 				}
 			}
 		});
+
+		test('should prefer vsCodeSettingUrl over env var', () => {
+			const originalEnv = process.env['COPILOT_PROXY_URL'];
+			try {
+				process.env['COPILOT_PROXY_URL'] = 'http://env-proxy:8787/v1';
+				const result = getConfiguredProxyUrl('http://vscode-setting-proxy:9000/v1');
+				assert.strictEqual(result, 'http://vscode-setting-proxy:9000/v1');
+			} finally {
+				if (originalEnv !== undefined) {
+					process.env['COPILOT_PROXY_URL'] = originalEnv;
+				} else {
+					delete process.env['COPILOT_PROXY_URL'];
+				}
+			}
+		});
+
+		test('should fall back to env var when vsCodeSettingUrl is empty string', () => {
+			const originalEnv = process.env['COPILOT_PROXY_URL'];
+			try {
+				process.env['COPILOT_PROXY_URL'] = 'http://env-proxy:8787/v1';
+				const result = getConfiguredProxyUrl('');
+				assert.strictEqual(result, 'http://env-proxy:8787/v1');
+			} finally {
+				if (originalEnv !== undefined) {
+					process.env['COPILOT_PROXY_URL'] = originalEnv;
+				} else {
+					delete process.env['COPILOT_PROXY_URL'];
+				}
+			}
+		});
+
+		test('should return undefined when vsCodeSettingUrl is empty and env var is not set', () => {
+			const originalEnv = process.env['COPILOT_PROXY_URL'];
+			try {
+				delete process.env['COPILOT_PROXY_URL'];
+				const result = getConfiguredProxyUrl('');
+				assert.strictEqual(result, undefined);
+			} finally {
+				if (originalEnv !== undefined) {
+					process.env['COPILOT_PROXY_URL'] = originalEnv;
+				}
+			}
+		});
 	});
 });
