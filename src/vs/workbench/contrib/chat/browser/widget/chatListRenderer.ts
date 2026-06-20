@@ -109,7 +109,7 @@ import { HookType } from '../../common/promptSyntax/hookTypes.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { AccessibilityWorkbenchSettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { isMcpToolInvocation } from './chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
-import { isAgentHostTarget } from '../agentSessions/agentSessions.js';
+import { AgentSessionProviders, isAgentHostTarget } from '../agentSessions/agentSessions.js';
 
 const $ = dom.$;
 
@@ -184,6 +184,13 @@ export interface IChatRendererDelegate {
 }
 
 const mostRecentResponseClassName = 'chat-most-recent-response';
+
+export function shouldHideChatUserIdentity(username: string, sessionResource: URI, isResponse: boolean, isSessionsWindow: boolean, isSystemInitiatedRequest: boolean): boolean {
+	return username === COPILOT_USERNAME ||
+		(isResponse && getChatSessionType(sessionResource) === AgentSessionProviders.AgentHostCopilot) ||
+		isSessionsWindow ||
+		isSystemInitiatedRequest;
+}
 
 function upvoteAnimationSettingToEnum(value: string | undefined): ClickAnimation | undefined {
 	switch (value) {
@@ -808,8 +815,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const isSystemInitiatedRequest = isRequestVM(element) && !!element.isSystemInitiated;
 
 		templateData.username.textContent = element.username;
-		templateData.username.classList.toggle('hidden', element.username === COPILOT_USERNAME || this.environmentService.isSessionsWindow || isSystemInitiatedRequest);
-		templateData.avatarContainer.classList.toggle('hidden', element.username === COPILOT_USERNAME || this.environmentService.isSessionsWindow || isSystemInitiatedRequest);
+		const hideChatUserIdentity = shouldHideChatUserIdentity(element.username, element.sessionResource, isResponseVM(element), this.environmentService.isSessionsWindow, isSystemInitiatedRequest);
+		templateData.username.classList.toggle('hidden', hideChatUserIdentity);
+		templateData.avatarContainer.classList.toggle('hidden', hideChatUserIdentity);
 
 		this.hoverHidden(templateData.requestHover);
 		dom.clearNode(templateData.detail);
