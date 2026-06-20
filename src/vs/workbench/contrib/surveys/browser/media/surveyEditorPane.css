@@ -53,7 +53,9 @@
 /* Segmented control — uses --vscode-radio-* tokens from the Radio widget palette */
 
 .survey-editor-pane .survey-segment-group {
+	position: relative;
 	display: flex;
+	flex-wrap: nowrap;
 	border: var(--vscode-strokeThickness) solid var(--vscode-radio-inactiveBorder, var(--vscode-input-border, transparent));
 	border-radius: var(--vscode-cornerRadius-small, 4px);
 }
