@@ -15,16 +15,33 @@ import { extractLeadingSlashToken } from '../agentHostSlashCompletion.js';
  * Slash-command name and the token we surface to the user / round-trip on
  * the {@link MessageAttachmentKind.Simple} attachment's `_meta`.
  */
-export type CopilotSlashCommandName = 'plan' | 'compact' | 'research' | 'rubber-duck';
+export type CopilotSlashCommandName = 'plan' | 'compact' | 'research' | 'rubber-duck' | 'env' | 'review' | 'security-review';
 
-const COMMANDS: readonly CopilotSlashCommandName[] = ['plan', 'compact', 'research', 'rubber-duck'];
+const COMMANDS: readonly CopilotSlashCommandName[] = ['plan', 'compact', 'research', 'rubber-duck', 'env', 'review', 'security-review'];
+const RUNTIME_RPC_INVOKED_COMMANDS = new Set<CopilotSlashCommandName>(['env']);
+const PROMPT_INVOKED_COMMANDS = new Set<CopilotSlashCommandName>(['research', 'review', 'security-review']);
 function getCommandDescription(command: CopilotSlashCommandName): string {
 	switch (command) {
 		case 'plan': return localize('copilotSlashCommand.plan.description', "Create an implementation plan before coding");
 		case 'compact': return localize('copilotSlashCommand.compact.description', "Free up context by compacting the conversation history");
 		case 'research': return localize('copilotSlashCommand.research.description', "Run deep research on a topic using search and web sources");
 		case 'rubber-duck': return localize('copilotSlashCommand.rubberDuck.description', "Get an independent critique of the current approach");
+		case 'env': return localize('copilotSlashCommand.env.description', "Show loaded environment details");
+		case 'review': return localize('copilotSlashCommand.review.description', "Run code review agent to analyze changes");
+		case 'security-review': return localize('copilotSlashCommand.securityReview.description', "Analyze staged and unstaged changes for security vulnerabilities");
 	}
+}
+
+export function isRuntimeCopilotSlashCommand(command: CopilotSlashCommandName): boolean {
+	return RUNTIME_RPC_INVOKED_COMMANDS.has(command);
+}
+
+export function isPromptInvokedCopilotSlashCommand(command: CopilotSlashCommandName): boolean {
+	return PROMPT_INVOKED_COMMANDS.has(command);
+}
+
+function commandExpectsInput(command: CopilotSlashCommandName): boolean {
+	return command !== 'compact' && command !== 'env';
 }
 /**
  * Lookup hook used by {@link CopilotSlashCommandCompletionProvider} to
@@ -35,6 +52,13 @@ function getCommandDescription(command: CopilotSlashCommandName): string {
 export interface ICopilotSlashCommandSessionInfo {
 	/** `sessionId` is the raw id (URI path without the leading slash). */
 	hasHistory(sessionId: string): boolean;
+	/**
+	 * Whether the experimental rubber duck critic subagent is enabled via
+	 * the agent host config. When absent or `false`, `/rubber-duck` is hidden.
+	 */
+	isRubberDuckEnabled?(): boolean;
+	/** Whether the runtime reports the given slash command as available. */
+	hasRuntimeSlashCommand?(sessionId: string, command: string): Promise<boolean>;
 }
 
 /**
@@ -49,13 +73,13 @@ export interface IParsedLeadingSlashCommand {
 /**
  * Parses a Copilot CLI slash command at the very start of `prompt`.
  *
- * The command must be `/plan`, `/compact`, `/research`, or `/rubber-duck`,
+ * The command must be `/plan`, `/compact`, `/research`, `/rubber-duck`, `/env`, `/review`, or `/security-review`,
  * followed either by end-of-input or by at least one whitespace character.
  * `/compact-hello`, `/plans`, or a leading-space `/compact` all return
  * `undefined`. Match is case-sensitive.
  */
 export function parseLeadingSlashCommand(prompt: string): IParsedLeadingSlashCommand | undefined {
-	const match = /^\/(plan|compact|research|rubber-duck)(?:$|\s+([\s\S]*))/.exec(prompt);
+	const match = /^\/(plan|compact|research|rubber-duck|env|review|security-review)(?:$|\s+([\s\S]*))/.exec(prompt);
 	if (!match) {
 		return undefined;
 	}
@@ -97,6 +121,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 
 		// `/abc` → typed = 'abc'; empty after just '/' → typed = ''.
 		const typed = leading.typed;
+		const rubberDuckEnabled = this._sessionInfo?.isRubberDuckEnabled?.() ?? false;
 		const items: CompletionItem[] = [];
 		for (const command of COMMANDS) {
 			if (typed.length > 0 && !command.startsWith(typed)) {
@@ -107,11 +132,14 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 				continue;
 			}
 			// `/rubber-duck` is only available when the feature is enabled.
-			if (command === 'rubber-duck' && !process.env['RUBBER_DUCK_AGENT']) {
+			if (command === 'rubber-duck' && !rubberDuckEnabled) {
+				continue;
+			}
+			if (isRuntimeCopilotSlashCommand(command) && !(await this._sessionInfo?.hasRuntimeSlashCommand?.(sessionId, command))) {
 				continue;
 			}
 			items.push({
-				insertText: command === 'compact' ? '/' + command : '/' + command + ' ',
+				insertText: commandExpectsInput(command) ? '/' + command + ' ' : '/' + command,
 				rangeStart: 0,
 				rangeEnd: leading.rangeEnd,
 				attachment: {

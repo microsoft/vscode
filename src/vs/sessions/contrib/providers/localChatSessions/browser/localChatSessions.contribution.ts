@@ -4,20 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { LocalChatSessionsProvider, LOCAL_SESSION_ENABLED_SETTING } from './localChatSessionsProvider.js';
+import { LocalChatSessionsProvider, LOCAL_PROVIDER_ID, LOCAL_SESSION_ENABLED_SETTING } from './localChatSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
-import { localize } from '../../../../../nls.js';
+import { localize, localize2 } from '../../../../../nls.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ForkConversationAction } from '../../../../../workbench/contrib/chat/browser/actions/chatForkActions.js';
-import { registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { raceTimeout } from '../../../../../base/common/async.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ChatSessionProviderIdContext } from '../../../../common/contextkeys.js';
+import { ISession } from '../../../../services/sessions/common/session.js';
+import { confirmAndDeleteSessions } from '../../../sessions/browser/deleteSessionHelper.js';
+import { SessionItemContextMenuId } from '../../../sessions/browser/views/sessionsList.js';
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'sessions',
@@ -59,6 +65,7 @@ registerAction2(class extends ForkConversationAction {
 	protected override _openForkedSession(instantiationService: IInstantiationService, parentSessionResource: URI, forkedSessionResource: URI): Promise<void> {
 		return instantiationService.invokeFunction(async accessor => {
 			const sessionsManagementService = accessor.get(ISessionsManagementService);
+			const sessionsService = accessor.get(ISessionsService);
 			const logService = accessor.get(ILogService);
 
 			const parentSession = sessionsManagementService.getSession(parentSessionResource);
@@ -87,9 +94,28 @@ registerAction2(class extends ForkConversationAction {
 					return;
 				}
 			}
-			await sessionsManagementService.openSession(forkedSessionResource);
+			await sessionsService.openSession(forkedSessionResource);
 
 		});
+	}
+});
+
+registerAction2(class DeleteLocalSessionAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsViewPane.local.deleteSession',
+			title: localize2('deleteLocalSession', "Delete..."),
+			menu: [{
+				id: SessionItemContextMenuId,
+				group: '1_edit',
+				order: 4,
+				when: ContextKeyExpr.equals(ChatSessionProviderIdContext.key, LOCAL_PROVIDER_ID),
+			}]
+		});
+	}
+
+	run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
+		return confirmAndDeleteSessions(accessor, context);
 	}
 });
 

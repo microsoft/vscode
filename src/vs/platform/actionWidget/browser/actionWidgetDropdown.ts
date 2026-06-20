@@ -8,6 +8,7 @@ import { BaseDropdown, IActionProvider, IBaseDropdownOptions } from '../../../ba
 import { IListAccessibilityProvider } from '../../../base/browser/ui/list/listWidget.js';
 import { IAction } from '../../../base/common/actions.js';
 import { Codicon } from '../../../base/common/codicons.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { IKeybindingService } from '../../keybinding/common/keybinding.js';
@@ -18,7 +19,7 @@ import { IActionWidgetService } from './actionWidget.js';
 export interface IActionWidgetDropdownAction extends IAction {
 	category?: { label: string; order: number; showHeader?: boolean };
 	icon?: ThemeIcon;
-	description?: string;
+	description?: string | IMarkdownString;
 	/**
 	 * Optional detail text displayed as a second line below the label.
 	 */
@@ -216,9 +217,23 @@ export class ActionWidgetDropdown extends BaseDropdown {
 			}
 		}
 
+		const nonSeparatorItems = actionWidgetItems.filter(i => i.kind === ActionListItemKind.Action);
+
 		const accessibilityProvider: Partial<IListAccessibilityProvider<IActionListItem<IActionWidgetDropdownAction>>> = {
 			isChecked(element) {
 				return element.kind === ActionListItemKind.Action && !!element?.item?.checked;
+			},
+			getSetSize: () => nonSeparatorItems.length,
+			getPosInSet: (_element, index) => {
+				// Count only Action items up to this index; clamp to at least 1
+				// since aria-posinset must be in the range 1..aria-setsize
+				let pos = 0;
+				for (let i = 0; i <= index && i < actionWidgetItems.length; i++) {
+					if (actionWidgetItems[i].kind === ActionListItemKind.Action) {
+						pos++;
+					}
+				}
+				return Math.max(pos, 1);
 			},
 			getRole: (e) => {
 				switch (e.kind) {

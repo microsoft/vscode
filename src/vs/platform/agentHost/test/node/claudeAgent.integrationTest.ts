@@ -259,8 +259,12 @@ class StubCopilotApiService implements ICopilotApiService {
 		return this.availableModels;
 	}
 
+	async responses(): Promise<Response> {
+		throw new Error('responses not used in Claude integration tests');
+	}
+
 	async utilityChatCompletion(): Promise<never> {
-		throw new Error('utilityChatCompletion not implemented in this test');
+		throw new Error('utilityChatCompletion not used in Claude integration tests');
 	}
 }
 
@@ -458,6 +462,7 @@ class RoundTripQuery implements AsyncGenerator<SDKMessage, void> {
 	supportedAgents(): never { throw new Error('not modeled'); }
 	mcpServerStatus(): never { throw new Error('not modeled'); }
 	getContextUsage(): never { throw new Error('not modeled'); }
+	usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET(): never { throw new Error('not modeled'); }
 	reloadPlugins(): never { throw new Error('not modeled'); }
 	accountInfo(): never { throw new Error('not modeled'); }
 	rewindFiles(): never { throw new Error('not modeled'); }
@@ -468,6 +473,8 @@ class RoundTripQuery implements AsyncGenerator<SDKMessage, void> {
 	setMcpServers(): never { throw new Error('not modeled'); }
 	streamInput(): never { throw new Error('not modeled'); }
 	stopTask(): never { throw new Error('not modeled'); }
+	reloadSkills(): never { throw new Error('not modeled'); }
+	backgroundTasks(): never { throw new Error('not modeled'); }
 	close(): void { /* no-op */ }
 	[Symbol.asyncDispose](): Promise<void> { return Promise.resolve(); }
 }
@@ -832,19 +839,19 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			if (s.kind === 'action') {
 				const a = s.action;
 				switch (a.type) {
-					case ActionType.SessionResponsePart:
+					case ActionType.ChatResponsePart:
 						return { kind: 'action', type: a.type, partKind: a.part.kind, content: a.part.kind === ResponsePartKind.Markdown ? a.part.content : undefined };
-					case ActionType.SessionDelta:
+					case ActionType.ChatDelta:
 						return { kind: 'action', type: a.type, content: a.content };
-					case ActionType.SessionToolCallStart:
+					case ActionType.ChatToolCallStart:
 						return { kind: 'action', type: a.type, toolCallId: a.toolCallId, toolName: a.toolName };
-					case ActionType.SessionToolCallDelta:
+					case ActionType.ChatToolCallDelta:
 						return { kind: 'action', type: a.type, toolCallId: a.toolCallId, content: a.content };
-					case ActionType.SessionToolCallComplete:
+					case ActionType.ChatToolCallComplete:
 						return { kind: 'action', type: a.type, toolCallId: a.toolCallId, success: a.result.success, content: a.result.content };
-					case ActionType.SessionUsage:
+					case ActionType.ChatUsage:
 						return { kind: 'action', type: a.type };
-					case ActionType.SessionTurnComplete:
+					case ActionType.ChatTurnComplete:
 						return { kind: 'action', type: a.type };
 					default:
 						return { kind: 'action', type: a.type };
@@ -858,21 +865,21 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			canUseToolResults: sdk.canUseToolResults,
 		}, {
 			summary: [
-				{ kind: 'action', type: ActionType.SessionResponsePart, partKind: ResponsePartKind.Markdown, content: '' },
-				{ kind: 'action', type: ActionType.SessionDelta, content: 'reading' },
-				{ kind: 'action', type: ActionType.SessionToolCallStart, toolCallId: TOOL_USE_ID, toolName: 'Read' },
-				{ kind: 'action', type: ActionType.SessionToolCallDelta, toolCallId: TOOL_USE_ID, content: '{"file_path":"/tmp/x"}' },
-				// Phase 8.5 — mapper emits `SessionToolCallReady` at
+				{ kind: 'action', type: ActionType.ChatResponsePart, partKind: ResponsePartKind.Markdown, content: '' },
+				{ kind: 'action', type: ActionType.ChatDelta, content: 'reading' },
+				{ kind: 'action', type: ActionType.ChatToolCallStart, toolCallId: TOOL_USE_ID, toolName: 'Read' },
+				{ kind: 'action', type: ActionType.ChatToolCallDelta, toolCallId: TOOL_USE_ID, content: '{"file_path":"/tmp/x"}' },
+				// Phase 8.5 — mapper emits `ChatToolCallReady` at
 				// `content_block_stop` so auto-allowed tools transition out of
 				// `Streaming`; `sessionPermissions` then emits a second Ready
 				// for the pending_confirmation card below.
-				{ kind: 'action', type: ActionType.SessionToolCallReady },
+				{ kind: 'action', type: ActionType.ChatToolCallReady },
 				{ kind: 'pending_confirmation', toolCallId: TOOL_USE_ID, toolName: 'Read', permissionKind: 'read', permissionPath: '/tmp/x' },
-				{ kind: 'action', type: ActionType.SessionToolCallComplete, toolCallId: TOOL_USE_ID, success: true, content: [{ type: ToolResultContentType.Text, text: 'file contents' }] },
-				{ kind: 'action', type: ActionType.SessionResponsePart, partKind: ResponsePartKind.Markdown, content: '' },
-				{ kind: 'action', type: ActionType.SessionDelta, content: 'done' },
-				{ kind: 'action', type: ActionType.SessionUsage },
-				{ kind: 'action', type: ActionType.SessionTurnComplete },
+				{ kind: 'action', type: ActionType.ChatToolCallComplete, toolCallId: TOOL_USE_ID, success: true, content: [{ type: ToolResultContentType.Text, text: 'file contents' }] },
+				{ kind: 'action', type: ActionType.ChatResponsePart, partKind: ResponsePartKind.Markdown, content: '' },
+				{ kind: 'action', type: ActionType.ChatDelta, content: 'done' },
+				{ kind: 'action', type: ActionType.ChatUsage },
+				{ kind: 'action', type: ActionType.ChatTurnComplete },
 			],
 			canUseToolResults: [
 				{ behavior: 'allow', updatedInput: { file_path: '/tmp/x' } },

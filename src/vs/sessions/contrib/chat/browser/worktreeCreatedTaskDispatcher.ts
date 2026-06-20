@@ -72,9 +72,6 @@ export class WorktreeCreatedTaskDispatcher extends Disposable implements IWorkbe
 		const store = new DisposableStore();
 		this._sessionDisposables.set(session.sessionId, store);
 
-		// Wait for the session to finish loading and report an actual worktree,
-		// then dispatch any pending worktreeCreated tasks once. When dispatched,
-		// dispose the per-session subscription store to tear down this autorun.
 		registerAutorunSelfDisposable(store, reader => {
 			if (session.loading.read(reader)) {
 				return;
@@ -85,7 +82,7 @@ export class WorktreeCreatedTaskDispatcher extends Disposable implements IWorkbe
 			if (!session.workspace.read(reader)?.folders.some(folder => !!folder.gitRepository?.workTreeUri)) {
 				return;
 			}
-			this._sessionDisposables.deleteAndDispose(session.sessionId);
+			reader.dispose();
 			this._dispatchWorktreeCreatedTasks(session);
 		});
 	}

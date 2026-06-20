@@ -9,11 +9,11 @@ import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ActionEnvelope, ChangesetAction, IRootConfigChangedAction, SessionAction, StateAction, isChangesetAction, isSessionAction } from './sessionActions.js';
-import { changesetReducer, rootReducer, sessionReducer } from './sessionReducers.js';
+import { ActionEnvelope, ActionType, ChangesetAction, ChatAction, AnnotationsAction, ClientAnnotationsAction, IRootConfigChangedAction, SessionAction, StateAction, isChangesetAction, isChatAction, isAnnotationsAction, isSessionAction } from './sessionActions.js';
+import { changesetReducer, chatReducer, annotationsReducer, rootReducer, sessionReducer } from './sessionReducers.js';
 import { terminalReducer } from './protocol/reducers.js';
-import type { RootAction, SessionAction as IProtocolSessionAction, TerminalAction } from './protocol/action-origin.generated.js';
-import type { ChangesetState, RootState, SessionState, TerminalState } from './protocol/state.js';
+import type { RootAction, SessionAction as IProtocolSessionAction, ChatAction as IProtocolChatAction, TerminalAction } from './protocol/action-origin.generated.js';
+import type { AnnotationsState, ChangesetState, ChatState, RootState, SessionState, TerminalState } from './protocol/state.js';
 import type { IStateSnapshot } from './sessionProtocol.js';
 import { isAhpRootChannel, ROOT_STATE_URI, StateComponents } from './sessionState.js';
 
@@ -51,6 +51,38 @@ export interface IAgentSubscription<T> {
 
 	/** Fires after a server-originated action is applied to this subscription's state. */
 	readonly onDidApplyAction: Event<ActionEnvelope>;
+}
+
+/**
+ * Read-only snapshot describing a single active resource subscription. Used by
+ * inspection/debug surfaces that enumerate everything a connection is currently
+ * subscribed to. Does not include the always-live root state.
+ */
+export interface IActiveSubscriptionInfo {
+	/** The protocol resource URI subscribed to. */
+	readonly resource: URI;
+	/** Which state component this subscription tracks. */
+	readonly kind: StateComponents;
+	/** Number of outstanding {@link IReference} holders. */
+	readonly refCount: number;
+	/**
+	 * The named owners currently holding a reference to this subscription,
+	 * with how many references each holds. Names come from the `owner`
+	 * argument passed to {@link AgentSubscriptionManager.getSubscription}.
+	 */
+	readonly holders: readonly IActiveSubscriptionHolder[];
+	/**
+	 * Lifecycle status derived from the subscription's value:
+	 * `pending` before the first snapshot, `error` if it failed, otherwise
+	 * `snapshot`.
+	 */
+	readonly status: 'pending' | 'snapshot' | 'error';
+}
+
+/** A named owner holding one or more references to a subscription. */
+export interface IActiveSubscriptionHolder {
+	readonly owner: string;
+	readonly count: number;
 }
 
 // --- Base Implementation -----------------------------------------------------
@@ -202,9 +234,18 @@ interface IPendingAction {
 	readonly action: SessionAction;
 }
 
-export interface IPendingSessionAction extends IPendingAction {
-	/** URI of the session this action targets, as stored on the subscription. */
-	readonly sessionUri: string;
+/**
+ * A pending optimistic action awaiting server confirmation, paired with the
+ * channel it was dispatched to so it can be replayed across a reconnect. The
+ * channel is a session channel for {@link SessionStateSubscription} actions and
+ * a chat channel for {@link ChatStateSubscription} actions.
+ */
+export interface IPendingDispatchAction {
+	readonly clientSeq: number;
+	/** The optimistic action awaiting confirmation. */
+	readonly action: SessionAction | ChatAction;
+	/** URI of the channel this action targets, as stored on the subscription. */
+	readonly channel: string;
 }
 
 /**
@@ -325,8 +366,8 @@ export class SessionStateSubscription extends BaseAgentSubscription<SessionState
 	 * to reflect them — the client must explicitly drop entries echoed back
 	 * by the server.
 	 */
-	getPendingActions(): IPendingSessionAction[] {
-		return this._pendingActions.map(p => ({ clientSeq: p.clientSeq, action: p.action, sessionUri: this._sessionUri }));
+	getPendingActions(): IPendingDispatchAction[] {
+		return this._pendingActions.map(p => ({ clientSeq: p.clientSeq, action: p.action, channel: this._sessionUri }));
 	}
 
 	/**
@@ -334,6 +375,154 @@ export class SessionStateSubscription extends BaseAgentSubscription<SessionState
 	 * Used during reconnect to evict actions the server already echoed back
 	 * in the replay buffer so they're not resent.
 	 */
+	dropPendingByClientSeq(clientSeq: number): boolean {
+		const idx = this._pendingActions.findIndex(p => p.clientSeq === clientSeq);
+		if (idx === -1) {
+			return false;
+		}
+		this._pendingActions.splice(idx, 1);
+		return true;
+	}
+}
+
+// --- Chat State Subscription -------------------------------------------------
+
+interface IPendingChatAction {
+	readonly clientSeq: number;
+	readonly action: ChatAction;
+}
+
+/**
+ * Subscription to a chat channel (e.g. a session's default chat URI). Turns,
+ * tool calls and pending/input state moved off the session onto the chat
+ * channel in the multi-chat protocol, so this subscription carries the
+ * conversation contents. Supports write-ahead reconciliation for
+ * client-dispatchable chat actions (turn starts, confirmations, etc.).
+ */
+export class ChatStateSubscription extends BaseAgentSubscription<ChatState> {
+
+	private readonly _pendingActions: IPendingChatAction[] = [];
+	private _optimisticState: ChatState | undefined;
+	private readonly _chatUri: string;
+	private readonly _seqAllocator: () => number;
+
+	constructor(
+		chatUri: string,
+		clientId: string,
+		seqAllocator: () => number,
+		log: (msg: string) => void,
+	) {
+		super(clientId, log);
+		this._chatUri = chatUri;
+		this._seqAllocator = seqAllocator;
+	}
+
+	/**
+	 * Optimistically apply a chat action. Returns the clientSeq to send to
+	 * the server so it can echo back for reconciliation.
+	 */
+	applyOptimistic(action: ChatAction): number {
+		const clientSeq = this._seqAllocator();
+		this._pendingActions.push({ clientSeq, action });
+		const base = this._optimisticState ?? this.verifiedValue;
+		if (base) {
+			this._optimisticState = chatReducer(base, action as IProtocolChatAction, this._log);
+			this._onDidChange.fire(this._optimisticState);
+		}
+		return clientSeq;
+	}
+
+	protected override _getOptimisticState(): ChatState | undefined {
+		return this._optimisticState;
+	}
+
+	protected override _applyReducer(state: ChatState, action: StateAction): ChatState {
+		return chatReducer(state, action as IProtocolChatAction, this._log);
+	}
+
+	protected override _isRelevantEnvelope(envelope: ActionEnvelope): boolean {
+		return isChatAction(envelope.action) && envelope.channel === this._chatUri;
+	}
+
+	protected override _onSnapshotApplied(fromSeq: number): void {
+		super._onSnapshotApplied(fromSeq);
+		this._recomputeOptimistic();
+	}
+
+	protected override _reconcile(envelope: ActionEnvelope, isOwnAction: boolean): void {
+		if (isOwnAction && envelope.origin) {
+			const idx = this._pendingActions.findIndex(p => p.clientSeq === envelope.origin!.clientSeq);
+			if (idx !== -1) {
+				if (envelope.rejectionReason) {
+					this._pendingActions.splice(idx, 1);
+				} else {
+					this._confirmedApply(envelope.action);
+					this._pendingActions.splice(idx, 1);
+				}
+			} else {
+				this._confirmedApply(envelope.action);
+			}
+		} else {
+			this._promotePendingTurnStartIfTerminal(envelope.action);
+			this._confirmedApply(envelope.action);
+		}
+		this._recomputeOptimistic();
+	}
+
+	private _promotePendingTurnStartIfTerminal(action: StateAction): void {
+		// A backend-originated terminal turn action may arrive without the clientSeq
+		// that would normally confirm our optimistic turn start. Promote that start
+		// first so the terminal action can close it instead of leaving it pending.
+		if (!isChatAction(action)) {
+			return;
+		}
+		if (action.type !== ActionType.ChatTurnComplete && action.type !== ActionType.ChatTurnCancelled && action.type !== ActionType.ChatError) {
+			return;
+		}
+		const index = this._pendingActions.findIndex(p => p.action.type === ActionType.ChatTurnStarted && p.action.turnId === action.turnId);
+		if (index === -1) {
+			return;
+		}
+		const [{ action: pendingAction }] = this._pendingActions.splice(index, 1);
+		if (this._confirmedState && (!this._confirmedState.activeTurn || this._confirmedState.activeTurn.id !== action.turnId)) {
+			this._confirmedState = this._applyReducer(this._confirmedState, pendingAction);
+		}
+	}
+
+	private _confirmedApply(action: StateAction): void {
+		if (this._confirmedState) {
+			this._confirmedState = this._applyReducer(this._confirmedState, action);
+		}
+	}
+
+	private _recomputeOptimistic(): void {
+		const confirmed = this._confirmedState;
+		if (!confirmed) {
+			this._optimisticState = undefined;
+			return;
+		}
+		if (this._pendingActions.length === 0) {
+			this._optimisticState = undefined;
+			this._onDidChange.fire(confirmed);
+			return;
+		}
+		let state = confirmed;
+		for (const pending of this._pendingActions) {
+			state = chatReducer(state, pending.action as IProtocolChatAction, this._log);
+		}
+		this._optimisticState = state;
+		this._onDidChange.fire(state);
+	}
+
+	clearPending(): void {
+		this._pendingActions.length = 0;
+		this._optimisticState = undefined;
+	}
+
+	getPendingActions(): IPendingDispatchAction[] {
+		return this._pendingActions.map(p => ({ clientSeq: p.clientSeq, action: p.action, channel: this._chatUri }));
+	}
+
 	dropPendingByClientSeq(clientSeq: number): boolean {
 		const idx = this._pendingActions.findIndex(p => p.clientSeq === clientSeq);
 		if (idx === -1) {
@@ -401,7 +590,121 @@ export class ChangesetStateSubscription extends BaseAgentSubscription<ChangesetS
 	}
 }
 
+type ManagedSubscription = SessionStateSubscription | ChatStateSubscription | TerminalStateSubscription | ChangesetStateSubscription | AnnotationsStateSubscription;
+
+// --- Annotations State Subscription ------------------------------------------
+
+interface IPendingAnnotationsAction {
+	readonly clientSeq: number;
+	readonly action: AnnotationsAction;
+}
+
+/**
+ * Subscription to a session's annotations channel (e.g.
+ * `<sessionUri>/annotations`).
+ *
+ * Annotations actions are client-dispatchable, so this subscription supports
+ * write-ahead reconciliation: optimistic state is layered on top of confirmed
+ * state and reconciled as the server echoes the client's own actions back.
+ *
+ * Like {@link ChangesetStateSubscription}, the subscription does NOT
+ * self-tear-down on lifecycle events; cleanup is driven externally by the
+ * holder releasing its `IReference`.
+ */
+export class AnnotationsStateSubscription extends BaseAgentSubscription<AnnotationsState> {
+
+	private readonly _pendingActions: IPendingAnnotationsAction[] = [];
+	private _optimisticState: AnnotationsState | undefined;
+	private readonly _annotationsUri: string;
+	private readonly _seqAllocator: () => number;
+
+	constructor(annotationsUri: string, clientId: string, seqAllocator: () => number, log: (msg: string) => void) {
+		super(clientId, log);
+		this._annotationsUri = annotationsUri;
+		this._seqAllocator = seqAllocator;
+	}
+
+	/**
+	 * Optimistically apply an annotations action. Returns the clientSeq to
+	 * send to the server so it can echo back for reconciliation.
+	 */
+	applyOptimistic(action: AnnotationsAction): number {
+		const clientSeq = this._seqAllocator();
+		this._pendingActions.push({ clientSeq, action });
+		const base = this._optimisticState ?? this.verifiedValue;
+		if (base) {
+			this._optimisticState = annotationsReducer(base, action, this._log);
+			this._onDidChange.fire(this._optimisticState);
+		}
+		return clientSeq;
+	}
+
+	protected override _getOptimisticState(): AnnotationsState | undefined {
+		return this._optimisticState;
+	}
+
+	protected override _applyReducer(state: AnnotationsState, action: StateAction): AnnotationsState {
+		return annotationsReducer(state, action as AnnotationsAction, this._log);
+	}
+
+	protected override _isRelevantEnvelope(envelope: ActionEnvelope): boolean {
+		return isAnnotationsAction(envelope.action) && envelope.channel === this._annotationsUri;
+	}
+
+	protected override _onSnapshotApplied(fromSeq: number): void {
+		super._onSnapshotApplied(fromSeq);
+		this._recomputeOptimistic();
+	}
+
+	protected override _reconcile(envelope: ActionEnvelope, isOwnAction: boolean): void {
+		if (isOwnAction && envelope.origin) {
+			const idx = this._pendingActions.findIndex(p => p.clientSeq === envelope.origin!.clientSeq);
+			if (idx !== -1) {
+				if (!envelope.rejectionReason) {
+					this._confirmedApply(envelope.action);
+				}
+				this._pendingActions.splice(idx, 1);
+			} else {
+				this._confirmedApply(envelope.action);
+			}
+		} else {
+			this._confirmedApply(envelope.action);
+		}
+		this._recomputeOptimistic();
+	}
+
+	private _confirmedApply(action: StateAction): void {
+		if (this._confirmedState) {
+			this._confirmedState = this._applyReducer(this._confirmedState, action);
+		}
+	}
+
+	private _recomputeOptimistic(): void {
+		const confirmed = this._confirmedState;
+		if (!confirmed) {
+			this._optimisticState = undefined;
+			return;
+		}
+
+		if (this._pendingActions.length === 0) {
+			this._optimisticState = undefined; // No pending → value falls through to confirmed
+			this._onDidChange.fire(confirmed);
+			return;
+		}
+
+		let state = confirmed;
+		for (const pending of this._pendingActions) {
+			state = annotationsReducer(state, pending.action, this._log);
+		}
+		this._optimisticState = state;
+		this._onDidChange.fire(state);
+	}
+}
+
+type ManagedSubscriptionEntry = { sub: ManagedSubscription; kind: StateComponents; refCount: number; holders: Map<number, string> };
+
 // --- Subscription Manager ----------------------------------------------------
+
 
 /**
  * Manages the lifecycle of resource subscriptions for an agent connection.
@@ -415,8 +718,9 @@ export class ChangesetStateSubscription extends BaseAgentSubscription<ChangesetS
  */
 export class AgentSubscriptionManager extends Disposable {
 
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	private readonly _subscriptions = new ResourceMap<{ sub: BaseAgentSubscription<any>; refCount: number }>();
+	private readonly _subscriptions = new ResourceMap<ManagedSubscriptionEntry>();
+	private readonly _inflightCreates = new ResourceMap<Promise<unknown>>();
+	private _referenceOwnerIds = 0;
 	private readonly _rootState: RootStateSubscription;
 	private readonly _clientId: string;
 	private readonly _seqAllocator: () => number;
@@ -463,43 +767,126 @@ export class AgentSubscriptionManager extends Disposable {
 	}
 
 	/**
+	 * Returns the in-flight `createSession` Promise for this URI, or `undefined` if no create is pending. Used by
+	 * callers that need to gate their own work on a still-running eager `createSession` (e.g. the chat handler awaits
+	 * this before deciding whether the sessions provider's eager-create raced first send).
+	 */
+	getInflightSessionCreate(resource: URI): Promise<unknown> | undefined {
+		return this._inflightCreates.get(resource);
+	}
+
+	/**
+	 * Register an in-flight `createSession` Promise for a session URI. Any
+	 * subscribe issued for this resource while the create is pending waits
+	 * for the Promise before issuing the wire-level subscribe.
+	 */
+	trackSessionCreate(resource: URI, promise: Promise<unknown>): void {
+		this._inflightCreates.set(resource, promise);
+		void promise.finally(() => {
+			if (this._inflightCreates.get(resource) === promise) {
+				this._inflightCreates.delete(resource);
+			}
+		});
+	}
+
+	/**
 	 * Get or create a refcounted subscription to any resource. Disposing
 	 * the returned reference decrements the refcount; when it reaches zero
 	 * the subscription is torn down and the server is notified.
+	 *
+	 * `owner` names the caller holding the reference so inspection surfaces
+	 * (see {@link getActiveSubscriptions}) can attribute who is retaining a
+	 * subscription. Use a stable, human-readable identifier such as the
+	 * acquiring class name.
 	 */
-	getSubscription<T>(kind: StateComponents, resource: URI): IReference<IAgentSubscription<T>> {
+	getSubscription<T>(kind: StateComponents, resource: URI, owner: string): IReference<IAgentSubscription<T>> {
 		const existing = this._subscriptions.get(resource);
 		if (existing) {
-			existing.refCount++;
-			return {
-				object: existing.sub,
-				dispose: () => this._releaseSubscription(resource),
-			};
+			if (existing.sub.value instanceof Error) {
+				// Failed subscriptions should not poison the resource forever. Evict
+				// the errored entry so this acquire performs a fresh subscribe.
+				this._subscriptions.delete(resource);
+				this._disposeSubscriptionEntry(resource, existing);
+			} else {
+				existing.refCount++;
+				return this._acquireReference<T>(resource, existing, owner);
+			}
 		}
 
 		// Create new subscription based on caller-specified kind
 		const key = resource.toString();
 		const sub = this._createSubscription(kind, key);
-		const entry = { sub, refCount: 1 };
+		const entry: ManagedSubscriptionEntry = { sub, kind, refCount: 1, holders: new Map() };
 		this._subscriptions.set(resource, entry);
 
 		// Kick off server subscription asynchronously.
 		// Capture the entry reference so we can validate it hasn't been
 		// replaced by a new subscription for the same key (race guard).
-		this._subscribe(resource).then(snapshot => {
-			if (this._subscriptions.get(resource) === entry) {
-				sub.handleSnapshot(snapshot.state as never, snapshot.fromSeq);
+		void (async () => {
+			const inflight = this._inflightCreates.get(resource);
+			if (inflight) {
+				try {
+					await inflight;
+				} catch {
+					// Swallow — fall through to subscribe so the error
+					// surfaces consistently via setError() on the
+					// subscription, matching the no-inflight path.
+				}
 			}
-		}).catch(err => {
-			if (this._subscriptions.get(resource) === entry) {
-				sub.setError(err instanceof Error ? err : new Error(String(err)));
+			try {
+				const snapshot = await this._subscribe(resource);
+				if (this._subscriptions.get(resource) === entry) {
+					sub.handleSnapshot(snapshot.state as never, snapshot.fromSeq);
+				}
+			} catch (err) {
+				if (this._subscriptions.get(resource) === entry) {
+					sub.setError(err instanceof Error ? err : new Error(String(err)));
+				}
 			}
-		});
+		})();
 
+		return this._acquireReference<T>(resource, entry, owner);
+	}
+
+	/**
+	 * Register `owner` as a holder of `entry` and return a reference whose
+	 * disposal removes that holder and releases the subscription. The
+	 * caller is responsible for the matching refcount increment (a fresh
+	 * entry starts at 1; an existing entry is bumped before calling this).
+	 */
+	private _acquireReference<T>(resource: URI, entry: ManagedSubscriptionEntry, owner: string): IReference<IAgentSubscription<T>> {
+		const ownerId = ++this._referenceOwnerIds;
+		entry.holders.set(ownerId, owner);
+
+		let isDisposed = false;
 		return {
-			object: sub,
-			dispose: () => this._releaseSubscription(resource),
+			object: entry.sub as unknown as IAgentSubscription<T>,
+			dispose: () => {
+				if (isDisposed) {
+					return;
+				}
+				isDisposed = true;
+				entry.holders.delete(ownerId);
+				this._releaseSubscription(resource, entry);
+			},
 		};
+	}
+
+	private _disposeSubscriptionEntry(resource: URI, entry: ManagedSubscriptionEntry): void {
+		this._tryUnsubscribe(resource);
+		if (entry.sub instanceof SessionStateSubscription || entry.sub instanceof ChatStateSubscription) {
+			entry.sub.clearPending();
+		}
+		entry.sub.dispose();
+	}
+
+	private _tryUnsubscribe(resource: URI): void {
+		try {
+			this._unsubscribe(resource);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			this._log(`Failed to unsubscribe ${resource.toString()}: ${message}`);
+		}
 	}
 
 	/**
@@ -521,10 +908,20 @@ export class AgentSubscriptionManager extends Disposable {
 	 * `channel` is the protocol URI string identifying the channel the
 	 * action targets (a session URI for session actions, etc.).
 	 */
-	dispatchOptimistic(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): number {
+	dispatchOptimistic(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): number {
 		if (isSessionAction(action)) {
 			const entry = this._subscriptions.get(URI.parse(channel));
 			if (entry?.sub instanceof SessionStateSubscription) {
+				return entry.sub.applyOptimistic(action);
+			}
+		} else if (isChatAction(action)) {
+			const entry = this._subscriptions.get(URI.parse(channel));
+			if (entry?.sub instanceof ChatStateSubscription) {
+				return entry.sub.applyOptimistic(action);
+			}
+		} else if (isAnnotationsAction(action)) {
+			const entry = this._subscriptions.get(URI.parse(channel));
+			if (entry?.sub instanceof AnnotationsStateSubscription) {
 				return entry.sub.applyOptimistic(action);
 			}
 		}
@@ -544,16 +941,42 @@ export class AgentSubscriptionManager extends Disposable {
 	}
 
 	/**
+	 * Read-only descriptors of every active resource subscription, for
+	 * inspection/debug surfaces. Does NOT include the always-live root
+	 * state, which the connection exposes separately via {@link rootState}.
+	 */
+	getActiveSubscriptions(): readonly IActiveSubscriptionInfo[] {
+		const out: IActiveSubscriptionInfo[] = [];
+		for (const [resource, entry] of this._subscriptions) {
+			const value = entry.sub.value;
+			const status = value === undefined ? 'pending' : value instanceof Error ? 'error' : 'snapshot';
+			out.push({ resource, kind: entry.kind, refCount: entry.refCount, holders: this._summarizeHolders(entry), status });
+		}
+		return out;
+	}
+
+	/** Group an entry's holders by owner name, sorted by descending count. */
+	private _summarizeHolders(entry: ManagedSubscriptionEntry): IActiveSubscriptionHolder[] {
+		const counts = new Map<string, number>();
+		for (const owner of entry.holders.values()) {
+			counts.set(owner, (counts.get(owner) ?? 0) + 1);
+		}
+		return [...counts.entries()]
+			.map(([owner, count]) => ({ owner, count }))
+			.sort((a, b) => b.count - a.count);
+	}
+
+	/**
 	 * Snapshot of every pending optimistic action across all session
 	 * subscriptions. Callers use this to replay actions after a transport
 	 * reconnect; entries are kept on their subscriptions until they're
 	 * either echoed back by the server or explicitly dropped via
 	 * {@link dropPendingSessionAction}.
 	 */
-	getPendingSessionActions(): IPendingSessionAction[] {
-		const out: IPendingSessionAction[] = [];
+	getPendingSessionActions(): IPendingDispatchAction[] {
+		const out: IPendingDispatchAction[] = [];
 		for (const { sub } of this._subscriptions.values()) {
-			if (sub instanceof SessionStateSubscription) {
+			if (sub instanceof SessionStateSubscription || sub instanceof ChatStateSubscription) {
 				out.push(...sub.getPendingActions());
 			}
 		}
@@ -567,7 +990,7 @@ export class AgentSubscriptionManager extends Disposable {
 	 */
 	dropPendingSessionAction(sessionUri: string, clientSeq: number): void {
 		const entry = this._subscriptions.get(URI.parse(sessionUri));
-		if (entry?.sub instanceof SessionStateSubscription) {
+		if (entry?.sub instanceof SessionStateSubscription || entry?.sub instanceof ChatStateSubscription) {
 			entry.sub.dropPendingByClientSeq(clientSeq);
 		}
 	}
@@ -591,7 +1014,7 @@ export class AgentSubscriptionManager extends Disposable {
 		// Clear any pending optimistic actions before reseating confirmed
 		// state \u2014 they were predicated on the pre-disconnect confirmed
 		// state and won't reconcile correctly against a fresh snapshot.
-		if (entry.sub instanceof SessionStateSubscription) {
+		if (entry.sub instanceof SessionStateSubscription || entry.sub instanceof ChatStateSubscription) {
 			entry.sub.clearPending();
 		}
 		entry.sub.handleSnapshot(state as never, fromSeq);
@@ -607,7 +1030,7 @@ export class AgentSubscriptionManager extends Disposable {
 		for (const resource of missing) {
 			const entry = this._subscriptions.get(resource);
 			if (entry) {
-				if (entry.sub instanceof SessionStateSubscription) {
+				if (entry.sub instanceof SessionStateSubscription || entry.sub instanceof ChatStateSubscription) {
 					entry.sub.clearPending();
 				}
 				entry.sub.setError(new Error(`Subscription no longer available after reconnect: ${resource.toString()}`));
@@ -615,15 +1038,18 @@ export class AgentSubscriptionManager extends Disposable {
 		}
 	}
 
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	private _createSubscription(kind: StateComponents, key: string): BaseAgentSubscription<any> {
+	private _createSubscription(kind: StateComponents, key: string): ManagedSubscription {
 		switch (kind) {
 			case StateComponents.Session:
 				return new SessionStateSubscription(key, this._clientId, this._seqAllocator, this._log);
+			case StateComponents.Chat:
+				return new ChatStateSubscription(key, this._clientId, this._seqAllocator, this._log);
 			case StateComponents.Terminal:
 				return new TerminalStateSubscription(key, this._clientId, this._log);
 			case StateComponents.Changeset:
 				return new ChangesetStateSubscription(key, this._clientId, this._log);
+			case StateComponents.Annotations:
+				return new AnnotationsStateSubscription(key, this._clientId, this._seqAllocator, this._log);
 			case StateComponents.Root:
 				throw new Error('_createSubscription: root subscription is managed separately');
 			default:
@@ -631,25 +1057,23 @@ export class AgentSubscriptionManager extends Disposable {
 		}
 	}
 
-	private _releaseSubscription(resource: URI): void {
+	private _releaseSubscription(resource: URI, expected?: ManagedSubscriptionEntry): void {
 		const entry = this._subscriptions.get(resource);
-		if (!entry) {
+		// A failed subscription can be evicted and replaced while old references
+		// still exist; stale disposals must not release the replacement entry.
+		if (!entry || (expected && entry !== expected)) {
 			return;
 		}
 		entry.refCount--;
 		if (entry.refCount <= 0) {
 			this._subscriptions.delete(resource);
-			try { this._unsubscribe(resource); } catch { /* best-effort */ }
-			if (entry.sub instanceof SessionStateSubscription) {
-				entry.sub.clearPending();
-			}
-			entry.sub.dispose();
+			this._disposeSubscriptionEntry(resource, entry);
 		}
 	}
 
 	override dispose(): void {
 		for (const [resource, entry] of this._subscriptions) {
-			try { this._unsubscribe(resource); } catch { /* best-effort */ }
+			this._tryUnsubscribe(resource);
 			entry.sub.dispose();
 		}
 		this._subscriptions.clear();

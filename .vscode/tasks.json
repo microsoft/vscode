@@ -101,7 +101,27 @@
 				"group": "buildWatchers",
 				"close": false
 			},
-			"problemMatcher": "$esbuild-watch"
+			"problemMatcher": [
+				"$esbuild-watch",
+				{
+					"owner": "typescript",
+					"applyTo": "closedDocuments",
+					"fileLocation": [
+						"relative",
+						"${workspaceFolder}/extensions/copilot"
+					],
+					"pattern": {
+						"regexp": "\\] ([^(]+)\\((\\d+,\\d+)\\): (.*)$",
+						"file": 1,
+						"location": 2,
+						"message": 3
+					},
+					"background": {
+						"beginsPattern": "File change detected\\. Starting incremental compilation",
+						"endsPattern": "Found \\d+ errors?\\. Watching for file changes"
+					}
+				}
+			]
 		},
 		{
 			"label": "VS Code - Build",
@@ -246,15 +266,6 @@
 				"echo": true,
 				"reveal": "always"
 			}
-		},
-		{
-			"label": "Run Dev",
-			"type": "shell",
-			"command": "./scripts/code.sh",
-			"windows": {
-				"command": ".\\scripts\\code.bat"
-			},
-			"problemMatcher": []
 		},
 		{
 			"label": "Run Dev Agents",
@@ -428,6 +439,48 @@
 			]
 		},
 		{
+			"label": "Run Dev",
+			"type": "shell",
+			"command": "./scripts/code.sh",
+			"windows": {
+				"command": ".\\scripts\\code.bat"
+			},
+			"problemMatcher": [],
+			"inAgents": true
+		},
+		{
+			"type": "npm",
+			"script": "watch-client",
+			"label": "Watch Client",
+			"isBackground": true,
+			"presentation": {
+				"reveal": "never",
+				"group": "buildWatchers",
+				"close": false
+			},
+			"problemMatcher": {
+				"owner": "typescript",
+				"applyTo": "closedDocuments",
+				"fileLocation": [
+					"relative",
+					"${workspaceFolder}"
+				],
+				"source": "ts",
+				"pattern": {
+					"regexp": "\\] (.+)\\(([\\d,]+)\\): error TS(\\d+): (.*)$",
+					"file": 1,
+					"location": 2,
+					"code": 3,
+					"message": 4
+				},
+				"background": {
+					"beginsPattern": "Starting compilation\\.\\.\\.",
+					"endsPattern": "Finished compilation with"
+				}
+			},
+			"inAgents": true
+		},
+		{
 			"label": "Component Explorer Server",
 			"type": "shell",
 			"command": "npx component-explorer serve -p ./test/componentFixtures/component-explorer.json -vv --kill-if-running",
@@ -452,9 +505,9 @@
 		{
 			"label": "Install & Watch",
 			"type": "shell",
-			"command": "npm ci && npm run watch",
+			"command": "npm install && npm run watch-transpile",
 			"windows": {
-				"command": "cmd /c \"npm ci && npm run watch\""
+				"command": "cmd /c \"npm install && npm run watch-transpile\""
 			},
 			"inAgents": true,
 			"runOptions": {

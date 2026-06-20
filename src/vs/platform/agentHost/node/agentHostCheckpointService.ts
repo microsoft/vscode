@@ -174,6 +174,15 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 		}
 	}
 
+	async getBaselineCheckpointRef(sessionUri: URI): Promise<string | undefined> {
+		const ref = this._sessionDataService.openDatabase(sessionUri);
+		try {
+			return await ref.object.getMetadata(META_CHECKPOINT_BASE_REF);
+		} finally {
+			ref.dispose();
+		}
+	}
+
 	async disposeSessionData(sessionUri: URI): Promise<void> {
 		await this._sequencer.queue(sessionUri.toString(), () => this._disposeSessionData(sessionUri));
 	}

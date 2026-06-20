@@ -13,7 +13,7 @@ import { parseAgentHostDebugPort } from '../../environment/node/environmentServi
 import { ILogService } from '../../log/common/log.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
-import { AgentHostClaudeAgentSdkPathSettingId, AgentHostClaudeSdkPathEnvVar, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, AgentHostRubberDuckEnabledSettingId, buildAgentHostOTelEnv } from '../common/agentService.js';
+import { AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostCodexAgentSdkRootSettingId, AgentHostCodexAgentCodexHomeSettingId, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, buildAgentHostOTelEnv, buildAgentSdkEnv } from '../common/agentService.js';
 import '../common/agentHostStarter.config.contribution.js';
 
 /**
@@ -74,17 +74,17 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 			VSCODE_VERBOSE_LOGGING: 'true',
 		};
 
-		// Gate optional providers via env vars consumed by `agentHostMain.ts`.
-		// The Claude agent is opt-in: enabled when the user points the SDK path
-		// setting at a locally-installed `@anthropic-ai/claude-agent-sdk` package,
-		// or when the env var is already set on the parent process (developer
-		// override). The SDK itself is intentionally not bundled with VS Code.
-		const claudeSdkPath = this._configurationService.getValue<string>(AgentHostClaudeAgentSdkPathSettingId)
-			|| process.env[AgentHostClaudeSdkPathEnvVar]
-			|| '';
-		if (claudeSdkPath) {
-			env[AgentHostClaudeSdkPathEnvVar] = claudeSdkPath;
-		}
+		// Forward the Claude/Codex SDK overrides + codex home/args from
+		// workbench settings to the agent host process. Parent env wins on
+		// collision — see `buildAgentSdkEnv` for the precedence rule.
+		const sdkEnv = buildAgentSdkEnv({
+			codexSdkRoot: this._configurationService.getValue<string>(AgentHostCodexAgentSdkRootSettingId),
+			codexHome: this._configurationService.getValue<string>(AgentHostCodexAgentCodexHomeSettingId),
+			codexBinaryArgs: this._configurationService.getValue<readonly string[]>(AgentHostCodexAgentBinaryArgsSettingId),
+			claudeAgentEnabled: this._configurationService.getValue<boolean>(AgentHostClaudeAgentEnabledSettingId),
+			codexAgentEnabled: this._configurationService.getValue<boolean>(AgentHostCodexAgentEnabledSettingId),
+		}, process.env);
+		Object.assign(env, sdkEnv);
 
 		// Translate `chat.agentHost.otel.*` settings into the env vars consumed by
 		// the agent host process. Any value already present on `process.env` wins
@@ -98,11 +98,6 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 			dbSpanExporterEnabled: this._configurationService.getValue<boolean>(AgentHostOTelDbSpanExporterEnabledSettingId),
 		}, process.env);
 		Object.assign(env, otelEnv);
-
-		// Enable rubber duck critic subagent when the setting is on.
-		if (this._configurationService.getValue<boolean>(AgentHostRubberDuckEnabledSettingId)) {
-			env['RUBBER_DUCK_AGENT'] = 'true';
-		}
 
 		// Forward WebSocket server configuration to the child process via env vars
 		if (this._wsConfig) {

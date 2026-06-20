@@ -19,9 +19,9 @@ dependencies = [
 
 [[package]]
 name = "ahp"
-version = "0.1.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8c974ae2da70e455e9e72de59ccc5279afc660ce267ab994474734d3310401f0"
+checksum = "6ff1c5fceb94cf9e8a852eb84dd7f835827a7a2a07b8c23916d192075345e0ea"
 dependencies = [
  "ahp-types",
  "serde",
@@ -33,28 +33,13 @@ dependencies = [
 
 [[package]]
 name = "ahp-types"
-version = "0.1.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "299233ec34afadd8dd8c24fc63c50e24eb376c9588dd5b48804e33f60b1ecaf5"
+checksum = "b556a5958c99e73aee87d8e638baf648bc902ff0dabc00393522f8e6e88830b2"
 dependencies = [
  "serde",
  "serde_json",
  "serde_repr",
-]
-
-[[package]]
-name = "ahp-ws"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "516267592f4f77df2cecb21b4945ae6eb5a7cf2b2d07062e6423fa2e56a1caa6"
-dependencies = [
- "ahp",
- "futures-util",
- "serde_json",
- "thiserror 2.0.18",
- "tokio",
- "tokio-tungstenite",
- "url",
 ]
 
 [[package]]
@@ -427,7 +412,6 @@ version = "0.1.0"
 dependencies = [
  "ahp",
  "ahp-types",
- "ahp-ws",
  "base64",
  "bytes",
  "cfg-if",

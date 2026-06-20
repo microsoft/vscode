@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { CancellationError } from '../../../../../../base/common/errors.js';
+import { CancellationToken, CancellationTokenPool } from '../../../../../../base/common/cancellation.js';
+import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { parse as parseJSONC } from '../../../../../../base/common/json.js';
+import { ParseError, parse as parseJSONC } from '../../../../../../base/common/json.js';
+import { getParseErrorMessage } from '../../../../../../base/common/jsonErrorMessages.js';
 import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { autorun, IReader } from '../../../../../../base/common/observable.js';
@@ -33,7 +34,7 @@ import { PROMPT_LANGUAGE_ID, PromptFileSource, PromptsType, Target, getPromptsTy
 import { IWorkspaceInstructionFile, PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { evaluateApplyToPattern, PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
 import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, IConfiguredHooksInfo, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPluginPromptPath, IPromptPath, IPromptsService, IAgentSkill, IInstructionDiscoveryInfo, IInstructionDiscoveryResult, IInstructionFile, IUserPromptPath, PromptsStorage, IPromptFileContext, IPromptFileResource, IPromptDiscoveryInfo, IPromptFileDiscoveryResult, IPromptSourceFolderResult, ICustomAgentVisibility, IAgentInstructionFile, AgentInstructionFileType, Logger, ISlashCommandDiscoveryInfo, ISlashCommandDiscoveryResult, IAgentDiscoveryInfo, IAgentDiscoveryResult, IHookDiscoveryInfo, IResolvedChatPromptSlashCommand, matchesSessionType } from './promptsService.js';
-import { Delayer } from '../../../../../../base/common/async.js';
+import { Delayer, raceCancellationError } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { ChatRequestHooks, parseSubagentHooksFromYaml } from '../hookSchema.js';
 import { type IParsedHookCommand } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
@@ -430,9 +431,14 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const useAgentSkills = this.configurationService.getValue(PromptsConfig.USE_AGENT_SKILLS);
 		const skills = useAgentSkills ? await this.listPromptFiles(PromptsType.skill, token) : [];
 		const disabledSkills = this.getDisabledPromptFiles(PromptsType.skill);
+		// Order skills by precedence before parsing so that the duplicate-name
+		// dedup below keeps a deterministic winner (e.g. workspace over personal).
+		const enabledSkills = skills
+			.filter(s => !disabledSkills.has(s.uri))
+			.sort((a, b) => this.getSkillPriority(a) - this.getSkillPriority(b));
 		const slashCommandFiles = [
 			...promptFiles,
-			...skills.filter(s => !disabledSkills.has(s.uri)),
+			...enabledSkills,
 		];
 
 		const parseResults = await Promise.all(slashCommandFiles.map(async promptPath => {
@@ -461,7 +467,27 @@ export class PromptsService extends Disposable implements IPromptsService {
 			}
 		}));
 
-		const files = parseResults;
+		// Deduplicate skills that resolve to the same canonical name. This can
+		// happen when two skill locations point at the same files, e.g. when
+		// `~/.claude/skills` is a symlink to `~/.agents/skills` (created by
+		// `npx skills`). Without this, every such skill would appear twice in
+		// the `/` menu. `parseResults` preserves input order, so skills are
+		// already sorted by precedence; the first occurrence of a name wins.
+		const seenSkillNames = new Set<string>();
+		const files: ISlashCommandDiscoveryResult[] = [];
+		for (const result of parseResults) {
+			if (result.status === 'loaded' && result.promptPath.type === PromptsType.skill) {
+				const name = result.promptPath.name;
+				if (name !== undefined) {
+					if (seenSkillNames.has(name)) {
+						files.push({ status: 'skipped', skipReason: 'duplicate-name', promptPath: result.promptPath });
+						continue;
+					}
+					seenSkillNames.add(name);
+				}
+			}
+			files.push(result);
+		}
 
 		const promptSourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.prompt);
 		const sourceFolders = [...promptSourceFolders];
@@ -639,7 +665,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				const error = e instanceof Error ? e : new Error(String(e));
 				if (error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
 					this.logger.warn(`[computeAgentDiscoveryInfo] Skipping agent file that does not exist: ${uri}`, error.message);
-				} else {
+				} else if (!isCancellationError(e)) {
 					this.logger.error(`[computeAgentDiscoveryInfo] Failed to parse agent file: ${uri}`, error);
 				}
 				return {
@@ -1089,7 +1115,21 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 			try {
 				const content = await this.fileService.readFile(hookFile.uri);
-				const json = parseJSONC(content.value.toString());
+				const parseErrors: ParseError[] = [];
+				const json = parseJSONC(content.value.toString(), parseErrors);
+
+				if (parseErrors.length > 0) {
+					const first = parseErrors[0];
+					const message = getParseErrorMessage(first.error) || 'Invalid JSON';
+					return {
+						file: {
+							status: 'skipped',
+							skipReason: 'parse-error',
+							errorMessage: `${message} at offset ${first.offset}`,
+							promptPath: this.withPromptPathMetadata(hookFile, name, hookFile.description),
+						},
+					};
+				}
 
 				// Validate it's an object
 				if (!json || typeof json !== 'object') {
@@ -1229,6 +1269,30 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	/**
+	 * Precedence used when deduplicating skills that share the same canonical
+	 * name: workspace > personal > plugin > extension API > extension contribution.
+	 * Lower numbers win.
+	 */
+	private getSkillPriority(skill: IPromptPath): number {
+		if (skill.storage === PromptsStorage.local) {
+			return 0; // workspace
+		}
+		if (skill.storage === PromptsStorage.user) {
+			return 1; // personal
+		}
+		if (skill.storage === PromptsStorage.plugin) {
+			return 2; // plugin
+		}
+		if (skill.source === PromptFileSource.ExtensionAPI) {
+			return 3;
+		}
+		if (skill.source === PromptFileSource.ExtensionContribution) {
+			return 4;
+		}
+		return 5;
+	}
+
+	/**
 	 * Returns the discovery results for skill files.
 	 */
 	private async computeSkillDiscoveryInfo(token: CancellationToken): Promise<IPromptFileDiscoveryResult[]> {
@@ -1243,26 +1307,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const pluginSkills = this._pluginPromptFilesByType.get(PromptsType.skill) ?? [];
 		allSkills.push(...discoveredSkills, ...extensionSkills, ...pluginSkills);
 
-		const getPriority = (skill: IPromptPath): number => {
-			if (skill.storage === PromptsStorage.local) {
-				return 0; // workspace
-			}
-			if (skill.storage === PromptsStorage.user) {
-				return 1; // personal
-			}
-			if (skill.storage === PromptsStorage.plugin) {
-				return 2; // plugin
-			}
-			if (skill.source === PromptFileSource.ExtensionAPI) {
-				return 3;
-			}
-			if (skill.source === PromptFileSource.ExtensionContribution) {
-				return 4;
-			}
-			return 5;
-		};
 		// Stable sort; we should keep order consistent to the order in the user's configuration object
-		allSkills.sort((a, b) => getPriority(a) - getPriority(b));
+		allSkills.sort((a, b) => this.getSkillPriority(a) - this.getSkillPriority(b));
 
 		for (const skill of allSkills) {
 			const uri = skill.uri;
@@ -1349,6 +1395,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 class CachedPromise<T> extends Disposable {
 	private cachedPromise: Promise<T> | undefined = undefined;
+	private cachedPool: CancellationTokenPool | undefined = undefined;
 	private readonly onDidUpdatePromiseEmitter: Emitter<void>;
 
 	constructor(private readonly computeFn: (token: CancellationToken) => Promise<T>, private readonly getEvent: () => Event<void>, private readonly delay: number = 0) {
@@ -1366,17 +1413,38 @@ class CachedPromise<T> extends Disposable {
 	}
 
 	public get(token: CancellationToken): Promise<T> {
-		if (this.cachedPromise !== undefined) {
-			return this.cachedPromise;
+		// If a previous in-flight computation had all of its callers cancel, the pool's
+		// token will have fired and the computation may have rejected/aborted. A new
+		// caller arriving in that window must not inherit that cancellation, so start
+		// fresh.
+		if (this.cachedPool?.token.isCancellationRequested) {
+			this.cachedPromise = undefined;
+			this.cachedPool = undefined;
 		}
-		const promise = this.computeFn(token).catch(err => {
-			if (this.cachedPromise === promise) {
-				this.cachedPromise = undefined;
-			}
-			throw err;
-		});
-		this.cachedPromise = promise;
-		return promise;
+		let pool = this.cachedPool;
+		if (this.cachedPromise === undefined) {
+			// Aggregate callers' tokens so the shared computation is cancelled
+			// only after every live caller has cancelled. A single caller's
+			// cancellation no longer aborts the work for the others.
+			pool = new CancellationTokenPool();
+			const promise = this.computeFn(pool.token).catch(err => {
+				if (this.cachedPromise === promise) {
+					this.cachedPromise = undefined;
+				}
+				throw err;
+			});
+			// The pool is only meaningful while the computation is in flight.
+			promise.finally(() => {
+				if (this.cachedPool === pool) {
+					this.cachedPool = undefined;
+				}
+				pool!.dispose();
+			});
+			this.cachedPromise = promise;
+			this.cachedPool = pool;
+		}
+		pool?.add(token);
+		return raceCancellationError(this.cachedPromise, token);
 	}
 
 	public refresh(): void {
@@ -1474,10 +1542,11 @@ export namespace CustomAgent {
 		const name = ast.header?.name ?? extra.name ?? getCleanPromptName(uri);
 		const description = ast.header?.description ?? extra.description;
 		const target = getTarget(PromptsType.agent, ast.header ?? uri);
+		const id = uri.toString();
 
 		const source = extra.source;
 		if (!ast.header) {
-			return { uri, name, agentInstructions, source, target, visibility: { userInvocable: true, agentInvocable: true }, sessionTypes, hooks, enabled };
+			return { id, uri, name, agentInstructions, source, target, visibility: { userInvocable: true, agentInvocable: true }, sessionTypes, hooks, enabled };
 		}
 		const visibility = {
 			userInvocable: ast.header.userInvocable !== false,
@@ -1492,7 +1561,7 @@ export namespace CustomAgent {
 		if (target === Target.Claude && tools) {
 			tools = mapClaudeTools(tools);
 		}
-		return { uri, name, description, model, tools, handOffs, argumentHint, target, visibility, agents, agentInstructions, source, sessionTypes, hooks, enabled };
+		return { id, uri, name, description, model, tools, handOffs, argumentHint, target, visibility, agents, agentInstructions, source, sessionTypes, hooks, enabled };
 
 	}
 }

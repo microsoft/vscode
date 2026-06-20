@@ -346,7 +346,7 @@ export class SessionDatabase implements ISessionDatabase {
 
 	async getTurnCheckpointRef(turnId: string): Promise<string | undefined> {
 		const db = await this._ensureDb();
-		const row = await dbGet(db, 'SELECT checkpoint_ref FROM turns WHERE id = ?', [turnId]);
+		const row = await dbGet(db, 'SELECT checkpoint_ref FROM turns WHERE id = ?1 OR event_id = ?1 LIMIT 1', [turnId]);
 		return row?.checkpoint_ref as string | undefined ?? undefined;
 	}
 
@@ -355,7 +355,7 @@ export class SessionDatabase implements ISessionDatabase {
 		const row = await dbGet(
 			db,
 			`SELECT checkpoint_ref FROM turns
-				WHERE rowid < (SELECT rowid FROM turns WHERE id = ?)
+				WHERE rowid < (SELECT rowid FROM turns WHERE id = ?1 OR event_id = ?1 LIMIT 1)
 					AND checkpoint_ref IS NOT NULL
 				ORDER BY rowid DESC LIMIT 1`,
 			[turnId],

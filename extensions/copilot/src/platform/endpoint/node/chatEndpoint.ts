@@ -138,6 +138,7 @@ export class ChatEndpoint implements IChatEndpoint {
 	public readonly restrictedToSkus?: string[] | undefined;
 	public readonly tokenPricing?: IChatEndpointTokenPricing | undefined;
 	public readonly priceCategory?: string | undefined;
+	public readonly modelPickerCategory?: string | undefined;
 	public readonly customModel?: CustomModel | undefined;
 	public readonly maxPromptImages?: number | undefined;
 
@@ -164,17 +165,18 @@ export class ChatEndpoint implements IChatEndpoint {
 		this.version = modelMetadata.version;
 		const capabilityOverride = getModelCapabilityOverride(this.model, this._configurationService);
 		this.family = capabilityOverride?.family ?? modelMetadata.capabilities.family;
-		this.tokenizer = modelMetadata.capabilities.tokenizer;
+		this.tokenizer = modelMetadata.capabilities.tokenizer ?? TokenizerType.O200K;
 		this.showInModelPicker = modelMetadata.model_picker_enabled;
 		this.isPremium = modelMetadata.billing?.is_premium;
 		this.multiplier = modelMetadata.billing?.multiplier;
 		this.restrictedToSkus = modelMetadata.billing?.restricted_to;
 		const normalized = normalizeTokenPrices(modelMetadata.billing?.token_prices);
 		this.tokenPricing = normalized ? {
-			default: { inputPrice: normalized.default.inputPrice, outputPrice: normalized.default.outputPrice, cacheReadTokenPrice: normalized.default.cachePrice ?? 0, contextMax: normalized.default.contextMax },
-			longContext: normalized.longContext ? { inputPrice: normalized.longContext.inputPrice, outputPrice: normalized.longContext.outputPrice, cacheReadTokenPrice: normalized.longContext.cachePrice ?? 0, contextMax: normalized.longContext.contextMax } : undefined,
+			default: { inputPrice: normalized.default.inputPrice, outputPrice: normalized.default.outputPrice, cacheReadTokenPrice: normalized.default.cachePrice, cacheWriteTokenPrice: normalized.default.cacheWritePrice, contextMax: normalized.default.contextMax },
+			longContext: normalized.longContext ? { inputPrice: normalized.longContext.inputPrice, outputPrice: normalized.longContext.outputPrice, cacheReadTokenPrice: normalized.longContext.cachePrice, cacheWriteTokenPrice: normalized.longContext.cacheWritePrice, contextMax: normalized.longContext.contextMax } : undefined,
 		} : undefined;
 		this.priceCategory = modelMetadata.model_picker_price_category;
+		this.modelPickerCategory = modelMetadata.model_picker_category;
 		this.isFallback = modelMetadata.is_chat_fallback;
 		this.supportsToolCalls = !!modelMetadata.capabilities.supports.tool_calls;
 		this.supportsVision = !!modelMetadata.capabilities.supports.vision;
@@ -372,6 +374,17 @@ export class ChatEndpoint implements IChatEndpoint {
 			// Only override tool_choice if experiment provides a value and user hasn't specified a function call
 			if (geminiFunctionCallingMode && typeof body.tool_choice !== 'object') {
 				body.tool_choice = geminiFunctionCallingMode;
+			}
+		}
+
+		// Force low reasoning effort for Gemini 3 models when the experiment is enabled
+		if (this.family.toLowerCase().includes('gemini-3')) {
+			const lowReasoningEnabled = this._configurationService.getExperimentBasedConfig(
+				ConfigKey.EnableGemini3LowReasoningEffort,
+				this._expService
+			);
+			if (lowReasoningEnabled) {
+				body.reasoning_effort = 'low';
 			}
 		}
 

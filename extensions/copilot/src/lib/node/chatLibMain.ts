@@ -48,6 +48,7 @@ import { ICompletionsTextDocumentManagerService, TextDocumentChangeEvent, TextDo
 import { Event } from '../../extension/completions-core/vscode-node/lib/src/util/event';
 import { ICompletionsPromiseQueueService, PromiseQueue } from '../../extension/completions-core/vscode-node/lib/src/util/promiseQueue';
 import { ICompletionsRuntimeModeService, RuntimeMode } from '../../extension/completions-core/vscode-node/lib/src/util/runtimeMode';
+import { setExternalTokenizerProvider, TokenizerName, type ExternalTokenizerProvider, type Tokenizer } from '../../extension/completions-core/vscode-node/prompt/src/tokenization';
 import { DocumentContext, WorkspaceFolder } from '../../extension/completions-core/vscode-node/types/src';
 import { DebugRecorder } from '../../extension/inlineEdits/node/debugRecorder';
 import { INextEditProvider, NESInlineCompletionContext, NextEditProvider } from '../../extension/inlineEdits/node/nextEditProvider';
@@ -127,6 +128,8 @@ import { IInstantiationService } from '../../util/vs/platform/instantiation/comm
 export {
 	IAuthenticationService, ICAPIClientService, IEndpointProvider, IExperimentationService, IIgnoreService, ILanguageContextProviderService
 };
+export { TokenizerName };
+export type { ExternalTokenizerProvider, Tokenizer };
 
 /**
  * Log levels (taken from vscode.d.ts)
@@ -194,6 +197,14 @@ export interface INESProviderOptions {
 	 * {@link TestLanguageDiagnosticsService} that returns empty diagnostics
 	 */
 	readonly languageDiagnosticsService?: ILanguageDiagnosticsService;
+	/**
+	 * Tokenizer provider backing prompt rendering and token budgeting. When
+	 * omitted, falls back to the built-in {@link TokenizerProvider}, which
+	 * loads its own BPE dictionaries. Embedders that already have the
+	 * cl100k/o200k dictionaries in memory can supply a provider here to avoid
+	 * loading a second copy (~100 MB per encoder).
+	 */
+	readonly tokenizerProvider?: ITokenizerProvider;
 }
 
 export interface INESResult {
@@ -203,6 +214,13 @@ export interface INESResult {
 			readonly start: number;
 			readonly endExclusive: number;
 		};
+		/**
+		 * URI of the document the edit should be applied to. When omitted, the
+		 * edit targets the document that was passed to {@link INESProvider.getNextEdit}.
+		 * For cross-file suggestions this points at a different document, and the
+		 * {@link range} offsets are resolved against that target document.
+		 */
+		readonly targetDocumentUri?: string;
 	};
 }
 
@@ -332,6 +350,7 @@ class NESProvider extends Disposable implements INESProvider<NESResult> {
 				result: internalResult.result?.edit ? {
 					newText: internalResult.result.edit.newText,
 					range: internalResult.result.edit.replaceRange,
+					...(internalResult.result.targetDocumentId ? { targetDocumentUri: internalResult.result.targetDocumentId.uri } : {}),
 				} : undefined,
 				docId,
 				requestUuid: context.requestUuid,
@@ -395,7 +414,7 @@ function setupServices(options: INESProviderOptions) {
 	builder.define(IChatQuotaService, new SyncDescriptor(ChatQuotaService));
 	builder.define(IInteractionService, new SyncDescriptor(InteractionService));
 	builder.define(IRequestLogger, new SyncDescriptor(NullRequestLogger));
-	builder.define(ITokenizerProvider, new SyncDescriptor(TokenizerProvider, [false]));
+	builder.define(ITokenizerProvider, options.tokenizerProvider ?? new SyncDescriptor(TokenizerProvider, [false]));
 	builder.define(IConversationOptions, {
 		_serviceBrand: undefined,
 		maxResponseTokens: undefined,
@@ -750,6 +769,15 @@ export interface IInlineCompletionsProviderOptions {
 	readonly citationHandler?: IInlineCompletionsCitationHandler;
 	readonly configOverrides?: Map<ConfigKeyType, unknown>;
 	readonly languageDiagnosticsService?: ILanguageDiagnosticsService;
+	/**
+	 * Tokenizer backing prompt token counting/truncation in the completions
+	 * (ghost text) path. When omitted, this module lazily loads its own
+	 * cl100k/o200k BPE dictionaries. Embedders that already hold those
+	 * dictionaries can supply a provider here to avoid loading a second copy
+	 * (~100 MB per encoder). Installed synchronously when the provider is
+	 * created, so it must be passed at construction time.
+	 */
+	readonly tokenizerProvider?: ExternalTokenizerProvider;
 }
 
 export type IGetInlineCompletionsOptions = Exclude<Partial<GetGhostTextOptions>, 'promptOnly'> & {
@@ -765,6 +793,11 @@ export interface IInlineCompletionsProvider {
 }
 
 export function createInlineCompletionsProvider(options: IInlineCompletionsProviderOptions): IInlineCompletionsProvider {
+	if (options.tokenizerProvider) {
+		// Install before building the provider (which constructs GhostText and
+		// tokenizes), so the host's tokenizer is in effect for the first prompt.
+		setExternalTokenizerProvider(options.tokenizerProvider);
+	}
 	const svc = setupCompletionServices(options);
 	return svc.createInstance(InlineCompletionsProvider);
 }

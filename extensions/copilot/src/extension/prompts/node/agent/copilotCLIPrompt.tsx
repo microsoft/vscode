@@ -68,7 +68,7 @@ class CopilotCLIAgentUserMessage extends PromptElement<AgentUserMessageProps> {
 		const hasVariables = resourceVariables.hasVariables() || nonResourceVariables.hasVariables();
 		const hasEditedFileEvents = (this.props.editedFileEvents?.length ?? 0) > 0;
 		const hasCustomContext = hasVariables || hasEditedFileEvents;
-		const promptVariable = resourceVariables.find(v => isPromptFile(v));
+		const promptVariable = resourceVariables.find(v => isPromptFile(v.reference));
 		// If we have a prompt file, we want to direct the model to follow instructions in that file.
 		// Otherwise we add a generic reminder to only use the context if its relevant.
 		// Also today we have a generic prompt that reads `Implement this.` and we have attachments.
@@ -172,7 +172,7 @@ async function renderResourceVariables(chatVariables: ChatVariablesCollection, f
 		if (!URI.isUri(uri)) {
 			return;
 		}
-		if (uri.scheme === Schemas.untitled || isPromptFile(variable) || isScmEntry(uri)) {
+		if (uri.scheme === Schemas.untitled || isPromptFile(variable.reference) || isScmEntry(uri)) {
 			// If its an untitled document, we always include a summary, as CLI cannot read untitled documents.
 			// Similarly prompt file contents need to be included in the prompt.
 			// Except when its attached as a regular file (but in that case `isPromptFile` would return false).

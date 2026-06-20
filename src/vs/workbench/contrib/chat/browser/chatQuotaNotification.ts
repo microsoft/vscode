@@ -10,8 +10,8 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ChatEntitlement, IChatEntitlementService, IQuotaSnapshot, IRateLimitSnapshot } from '../../../services/chat/common/chatEntitlementService.js';
-import { getSelectedModelVendor, SELECTED_MODEL_STORAGE_KEY_PREFIX } from '../common/chatSelectedModel.js';
-import { COPILOT_VENDOR_ID, ILanguageModelsService } from '../common/languageModels.js';
+import { isSelectedModelCopilot, SELECTED_MODEL_STORAGE_KEY_PREFIX } from '../common/chatSelectedModel.js';
+import { ILanguageModelsService } from '../common/languageModels.js';
 import { ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from './widget/input/chatInputNotificationService.js';
 
 const QUOTA_NOTIFICATION_ID = 'copilot.quotaStatus';
@@ -233,6 +233,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 		this._setNotification({
 			id: QUOTA_NOTIFICATION_ID,
+			telemetryId: 'quotaExhausted',
 			severity: ChatInputNotificationSeverity.Info,
 			message: localize('quota.exhausted.title', "Credit Limit Reached"),
 			description,
@@ -249,6 +250,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 		this._setNotification({
 			id: QUOTA_NOTIFICATION_ID,
+			telemetryId: 'overageActivation',
 			severity: ChatInputNotificationSeverity.Info,
 			message: localize('quota.overage.title', "Credit Limit Reached"),
 			description: localize('quota.overage.desc', "Additional budget is now covering extra usage."),
@@ -285,6 +287,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 		this._setNotification({
 			id: QUOTA_NOTIFICATION_ID,
+			telemetryId: 'quotaApproaching',
 			severity: ChatInputNotificationSeverity.Info,
 			message: localize('quota.approaching.title', "Credits at {0}%", warning.percentUsed),
 			description,
@@ -344,6 +347,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 		this._setNotification({
 			id: QUOTA_NOTIFICATION_ID,
+			telemetryId: warning.type === 'session' ? 'sessionRateLimitWarning' : 'weeklyRateLimitWarning',
 			severity: ChatInputNotificationSeverity.Info,
 			message,
 			description,
@@ -361,11 +365,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	 * or if the selected model is from a non-Copilot vendor (BYOK).
 	 */
 	private _isCopilotModelSelected(): boolean {
-		const vendor = getSelectedModelVendor(this._contextKeyService, this._storageService, this._languageModelsService);
-		if (!vendor) {
-			return true;
-		}
-		return vendor === COPILOT_VENDOR_ID;
+		return isSelectedModelCopilot(this._contextKeyService, this._storageService, this._languageModelsService);
 	}
 
 	private _isManagedPlan(entitlement: ChatEntitlement): boolean {
@@ -382,6 +382,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 		this._setNotification({
 			id: QUOTA_NOTIFICATION_ID,
+			telemetryId: 'managedPlanBlocked',
 			severity: ChatInputNotificationSeverity.Info,
 			message: localize('quota.blocked.managed.title', "Usage Blocked"),
 			description: localize('quota.blocked.managed', "Your organization or enterprise has exceeded its Copilot budget. Contact your admin to resume usage."),
