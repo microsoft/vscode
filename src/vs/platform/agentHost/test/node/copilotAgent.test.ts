@@ -520,6 +520,19 @@ async function disposeAgent(agent: CopilotAgent): Promise<void> {
 suite('CopilotAgent', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('advertises Copilot as its display name', async () => {
+		const agent = createTestAgent(disposables);
+		try {
+			assert.deepStrictEqual(agent.getDescriptor(), {
+				provider: 'copilotcli',
+				displayName: 'Copilot',
+				description: 'Copilot SDK agent running in a dedicated process',
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('uses the Copilot CLI sibling worktrees root convention', () => {
 		assert.strictEqual(
 			getCopilotWorktreesRoot(URI.file('/Users/me/src/vscode')).fsPath,

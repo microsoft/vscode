@@ -4266,6 +4266,18 @@ suite('AgentHostChatContribution', () => {
 
 			assert.deepStrictEqual(chatSessionItemControllers.map(c => c.type), []);
 		});
+
+		test('local agent contribution uses advertised display name', () => {
+			const services = createTestServices(disposables);
+			disposables.add(services.instantiationService.createInstance(AgentHostContribution));
+
+			services.agentHostService.setRootState({
+				agents: [{ provider: 'testagent', displayName: 'Test Agent', description: 'test', models: [] }],
+				activeSessions: 0,
+			});
+
+			assert.strictEqual(services.chatSessionContributions[0].displayName, 'Test Agent');
+		});
 	});
 
 	// ---- IAgentConnection unification -------------------------------------
