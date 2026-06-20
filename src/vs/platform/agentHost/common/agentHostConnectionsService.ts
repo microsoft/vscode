@@ -88,9 +88,9 @@ export interface IAgentHostConnectionsService {
 
 	/**
 	 * All known connections as `[ambient, ...remotes]`. The ambient entry is
-	 * always present (its `connection` may be momentarily `undefined` while the
-	 * ambient host is (re)starting); remote entries reflect the current
-	 * `IRemoteAgentHostService` registry.
+	 * always present with a live `connection`; only remote entries may have
+	 * `connection: undefined` (e.g. while connecting/disconnected). Remote
+	 * entries reflect the current `IRemoteAgentHostService` registry.
 	 */
 	readonly connections: readonly IAgentHostConnectionInfo[];
 

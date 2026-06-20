@@ -3126,7 +3126,8 @@ class ActiveClient extends Disposable {
 
 	private _getMcpServers(): AgentHostMcpServers {
 		const servers = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpServersConfigKey) ?? {};
-		return JSON.parse(JSON.stringify(servers)) as AgentHostMcpServers;
+
+		return structuredClone(servers);
 	}
 
 	/**

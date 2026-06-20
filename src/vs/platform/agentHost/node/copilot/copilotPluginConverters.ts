@@ -38,13 +38,41 @@ export function toSdkMcpServers(defs: readonly IMcpServerDefinition[]): Record<s
 
 /**
  * Converts root MCP server config maps into the SDK's `mcpServers` config.
+ *
+ * The map originates from user-controlled root config, where the schema cannot
+ * express per-entry validation (no `additionalProperties`). Entries are
+ * therefore treated as `unknown` and silently skipped unless they match one of
+ * the two supported shapes (`stdio` with a `command`, or `http` with a `url`),
+ * so a malformed entry can't surface as `command`/`url: undefined` in the SDK
+ * config.
  */
-export function toSdkMcpServersFromConfigMap(servers: Record<string, IMcpServerConfiguration>): Record<string, MCPServerConfig> {
+export function toSdkMcpServersFromConfigMap(servers: Record<string, unknown>): Record<string, MCPServerConfig> {
 	const result: Record<string, MCPServerConfig> = {};
 	for (const [name, config] of Object.entries(servers)) {
-		result[name] = toSdkMcpServer(name, config);
+		if (isSupportedMcpServerConfiguration(config)) {
+			result[name] = toSdkMcpServer(name, config);
+		}
 	}
 	return result;
+}
+
+/**
+ * Narrows an untrusted value to a supported {@link IMcpServerConfiguration}:
+ * a `stdio` server with a string `command`, or an `http` server with a string
+ * `url`.
+ */
+function isSupportedMcpServerConfiguration(value: unknown): value is IMcpServerConfiguration {
+	if (!value || typeof value !== 'object') {
+		return false;
+	}
+	const candidate = value as { type?: unknown; command?: unknown; url?: unknown };
+	if (candidate.type === McpServerType.LOCAL) {
+		return typeof candidate.command === 'string';
+	}
+	if (candidate.type === McpServerType.REMOTE) {
+		return typeof candidate.url === 'string';
+	}
+	return false;
 }
 
 function toSdkMcpServer(_name: string, config: IMcpServerConfiguration): MCPServerConfig {
