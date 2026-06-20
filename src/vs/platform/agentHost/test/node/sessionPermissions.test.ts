@@ -53,9 +53,13 @@ suite('SessionPermissionManager', () => {
 		// Prefer the CI runner temp dir (a plain long path) over `os.tmpdir()`,
 		// which on Windows CI is an 8.3 short path (`C:\Users\RUNNER~1\...`) that
 		// `assertPathIsSafe` rejects for its `~1` segment — which would make every
-		// auto-approval fail. `realpathSync` keeps macOS `/var` -> `/private/var`
-		// consistent so the symlink-resolution checks compare like-for-like.
-		const baseTmp = process.env.RUNNER_TEMP || tmpdir();
+		// write auto-approval fail. `AGENT_TEMPDIRECTORY` is set by Azure DevOps
+		// (VS Code's CI) and `RUNNER_TEMP` by GitHub Actions. Note that the JS
+		// `fs.realpathSync` does not expand 8.3 short names to their long form, so
+		// the short-path fallback can't be repaired afterwards. `realpathSync`
+		// keeps macOS `/var` -> `/private/var` consistent so the symlink-resolution
+		// checks compare like-for-like.
+		const baseTmp = process.env.AGENT_TEMPDIRECTORY || process.env.RUNNER_TEMP || tmpdir();
 		workDir = realpathSync(mkdtempSync(join(baseTmp, 'sesperm-work-')));
 		outsideDir = realpathSync(mkdtempSync(join(baseTmp, 'sesperm-out-')));
 
