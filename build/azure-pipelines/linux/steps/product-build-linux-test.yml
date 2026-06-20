@@ -119,8 +119,13 @@ steps:
   - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
     - script: |
         set -e
-        npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)"
-      timeoutInMinutes: 20
+        # NOTE: Temporarily looping smoke tests to flush out flaky Chat Sessions / Agents Window tests. Do not merge.
+        for i in $(seq 1 10); do
+          echo "##[group]Smoke test run $i of 10"
+          npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)"
+          echo "##[endgroup]"
+        done
+      timeoutInMinutes: 120
       displayName: 🧪 Run smoke tests (Electron)
 
   - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
