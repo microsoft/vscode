@@ -10,7 +10,7 @@ import * as crypto from 'crypto';
 import type * as vscode from 'vscode';
 import type { ChatParticipantToolToken } from 'vscode';
 import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
-import { IChatQuotaService } from '../../../../platform/chat/common/chatQuotaService';
+import { IChatQuotaService, QuotaSnapshot, QuotaSnapshots } from '../../../../platform/chat/common/chatQuotaService';
 import { getQuotaMessageForPlan } from '../../../../platform/chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { IGitService } from '../../../../platform/git/common/gitService';
@@ -1443,6 +1443,12 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 						copilotUsageNanoAiu = totalNanoAiu;
 						this._chatQuotaService.setLastCopilotUsage(totalNanoAiu, request.id);
 					}
+				}
+				// Sync the live per-category quota state the SDK reports (internal-only field) so the
+				// quota UI stays current without a separate `copilot_internal/user` fetch. This mirrors
+				// the extension-host chat path, which processes `copilot_quota_snapshots` from CAPI.
+				if (event.data.quotaSnapshots) {
+					this._chatQuotaService.processQuotaSnapshots(toChatQuotaSnapshots(event.data.quotaSnapshots));
 				}
 				// Record this model turn so we can synthesize a `chat` span for it at request completion.
 				modelTurnUsages.push({
@@ -3148,6 +3154,54 @@ interface IModelTurnUsage {
 	readonly copilotUsageNanoAiu?: number;
 	/** Set when the turn originates from a subagent (nested under a parent tool call). */
 	readonly parentToolCallId?: string;
+}
+
+/**
+ * Shape of a single quota snapshot on the SDK's `assistant.usage` event (`quotaSnapshots`). The
+ * field is marked internal-only by the SDK, so although the published types say `entitlementRequests`
+ * is a number and `resetDate` is a `Date`, the runtime shape can drift (e.g. a sibling SDK delivers
+ * `resetDate` as an ISO string). Mark the fields optional and validate at runtime below.
+ */
+interface ISdkQuotaSnapshot {
+	readonly isUnlimitedEntitlement?: boolean;
+	readonly entitlementRequests?: number;
+	readonly overage?: number;
+	readonly overageAllowedWithExhaustedQuota?: boolean;
+	readonly remainingPercentage?: number;
+	readonly resetDate?: Date | string;
+}
+
+/** Maps the SDK `assistant.usage` quota snapshots to the shared {@link QuotaSnapshots} shape. */
+function toChatQuotaSnapshots(snapshots: Record<string, ISdkQuotaSnapshot>): QuotaSnapshots {
+	const result: Record<string, QuotaSnapshot> = {};
+	for (const [key, snapshot] of Object.entries(snapshots)) {
+		if (!snapshot || typeof snapshot !== 'object') {
+			continue;
+		}
+		const unlimited = snapshot.isUnlimitedEntitlement === true;
+		const entitlement = unlimited
+			? '-1'
+			: typeof snapshot.entitlementRequests === 'number' ? String(snapshot.entitlementRequests) : undefined;
+		if (entitlement === undefined || typeof snapshot.remainingPercentage !== 'number') {
+			continue;
+		}
+		result[key] = {
+			entitlement,
+			percent_remaining: snapshot.remainingPercentage,
+			overage_permitted: snapshot.overageAllowedWithExhaustedQuota ?? false,
+			overage_count: typeof snapshot.overage === 'number' ? snapshot.overage : 0,
+			reset_date: toResetDateIsoString(snapshot.resetDate),
+		};
+	}
+	return result;
+}
+
+/** Coerces an SDK `resetDate` (a `Date` per the published type, but possibly an ISO string at runtime) to an ISO string. */
+function toResetDateIsoString(resetDate: Date | string | undefined): string | undefined {
+	if (resetDate instanceof Date) {
+		return resetDate.toISOString();
+	}
+	return typeof resetDate === 'string' ? resetDate : undefined;
 }
 
 function buildPromptTokenDetails(usageInfo: UsageInfoData | undefined): { category: string; label: string; percentageOfPrompt: number }[] | undefined {

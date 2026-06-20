@@ -162,6 +162,7 @@ interface IFeedbackAnnotationMeta {
 	readonly codeSelection?: string;
 	readonly diffHunks?: string;
 	readonly sourcePRReviewCommentId?: string;
+	readonly pendingAgentReveal?: boolean;
 }
 
 function toTextRange(range: IRange): TextRange {
@@ -200,6 +201,7 @@ function feedbackToAnnotation(feedback: IAgentFeedback): Annotation {
 		codeSelection: feedback.codeSelection,
 		diffHunks: feedback.diffHunks,
 		sourcePRReviewCommentId: feedback.sourcePRReviewCommentId,
+		pendingAgentReveal: feedback.pendingAgentReveal,
 	};
 	return {
 		id: feedback.id,
@@ -236,6 +238,7 @@ function annotationToFeedback(annotation: Annotation, sessionResource: URI): IAg
 		sourcePRReviewCommentId: meta?.sourcePRReviewCommentId,
 		replies: replies.length ? replies : undefined,
 		state: annotation.resolved ? AgentFeedbackState.Resolved : (meta?.state ?? AgentFeedbackState.Accepted),
+		pendingAgentReveal: meta?.pendingAgentReveal,
 	};
 }
 
@@ -268,6 +271,13 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 	private readonly _sessionResourceByKey = new Map<string, URI>();
 	/** Local cache so reads work before the first snapshot arrives. */
 	private readonly _cacheBySession = new Map<string, IAgentFeedback[]>();
+	/**
+	 * Signature of the feedback set we last fired {@link onDidChangeItems} for,
+	 * per session. The annotations channel is shared and may carry non-feedback
+	 * annotations; comparing signatures means churn from those does not fire a
+	 * spurious feedback-items change (which would bump recency / navigation).
+	 */
+	private readonly _signatureBySession = new Map<string, string>();
 
 	constructor(
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
@@ -347,6 +357,16 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		return result;
 	}
 
+	/**
+	 * Returns the annotations channel URI backing the given session's feedback,
+	 * or `undefined` when the session is not an agent-host session (or no channel
+	 * could be resolved). Each feedback item id is an annotation id on this
+	 * channel, so callers can reference specific comments by id.
+	 */
+	getAnnotationsChannelResource(sessionResource: URI): URI | undefined {
+		return this._ensureChannel(sessionResource)?.annotationsUri;
+	}
+
 	private _hasSnapshot(subscription: IAgentSubscription<AnnotationsState>): boolean {
 		const value = subscription.value;
 		return value !== undefined && !(value instanceof Error);
@@ -365,6 +385,51 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 			}
 		}
 		return items;
+	}
+
+	/**
+	 * Fire {@link onDidChangeItems} only when the session's feedback set actually
+	 * changed. The annotations channel is generic and may carry annotations from
+	 * other features; without this guard their churn would bump feedback recency
+	 * ordering and navigation even though no feedback changed.
+	 */
+	private _onAnnotationsChange(sessionResource: URI): void {
+		const key = sessionResource.toString();
+		const channel = this._channelBySession.get(key);
+		if (!channel) {
+			return;
+		}
+		const signature = this._feedbackSignature(channel.subscription);
+		if (this._signatureBySession.get(key) === signature) {
+			return;
+		}
+		this._signatureBySession.set(key, signature);
+		this._onDidChangeItems.fire(sessionResource);
+	}
+
+	/**
+	 * A stable signature of the feedback-bearing annotations in the
+	 * subscription's current snapshot (sorted by id). Excludes annotations
+	 * without feedback metadata so unrelated annotation activity on the shared
+	 * channel is ignored.
+	 */
+	private _feedbackSignature(subscription: IAgentSubscription<AnnotationsState>): string {
+		const value = subscription.value;
+		if (!value || value instanceof Error) {
+			return '';
+		}
+		const feedback = value.annotations
+			.filter(annotation => annotation._meta?.[FEEDBACK_ANNOTATION_META_KEY] !== undefined && (annotation.entries?.length ?? 0) > 0)
+			.map(annotation => ({
+				id: annotation.id,
+				resource: annotation.resource,
+				range: annotation.range,
+				resolved: annotation.resolved,
+				entries: annotation.entries,
+				meta: annotation._meta?.[FEEDBACK_ANNOTATION_META_KEY],
+			}))
+			.sort((a, b) => a.id.localeCompare(b.id));
+		return JSON.stringify(feedback);
 	}
 
 	private _cacheUpsert(feedback: IAgentFeedback): void {
@@ -400,6 +465,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		this._channelBySession.delete(key);
 		this._sessionResourceByKey.delete(key);
 		this._cacheBySession.delete(key);
+		this._signatureBySession.delete(key);
 	}
 
 	private _ensureChannel(sessionResource: URI): ITrackedChannel | undefined {
@@ -429,7 +495,8 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 			annotationsUri: resolved.annotationsUri,
 			subscription: ref.object,
 		};
-		store.add(ref.object.onDidChange(() => this._onDidChangeItems.fire(sessionResource)));
+		this._signatureBySession.set(key, this._feedbackSignature(ref.object));
+		store.add(ref.object.onDidChange(() => this._onAnnotationsChange(sessionResource)));
 
 		this._channels.set(key, store);
 		this._channelBySession.set(key, channel);

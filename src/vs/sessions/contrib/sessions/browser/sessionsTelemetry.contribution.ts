@@ -20,7 +20,7 @@ import { AgentFeedbackKind, IAgentFeedbackAddedEvent, IAgentFeedbackConvertedEve
 import { ISessionsTasksService } from '../../chat/browser/sessionsTasksService.js';
 import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsViewService } from '../../../services/sessions/browser/sessionsViewService.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISendRequestOptions, ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
@@ -49,7 +49,7 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 
 	constructor(
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
-		@ISessionsViewService private readonly _sessionsViewService: ISessionsViewService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IStorageService private readonly _storageService: IStorageService,
@@ -86,7 +86,8 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 		this._register(this._sessionsManagementService.onDidDeleteSession(session => this._logSessionDeleted(session)));
 		this._register(this._sessionsManagementService.onDidDeleteChat(session => this._logChatDeleted(session)));
 		this._register(this._sessionsManagementService.onDidRenameChat(session => this._logChatRenamed(session)));
-		this._register(this._sessionsViewService.onDidToggleSessionStickiness(e => this._logSessionStickinessToggled(e.session, e.sticky)));
+		this._register(this._sessionsManagementService.onDidRenameSession(session => this._logSessionRenamed(session)));
+		this._register(this._sessionsService.onDidToggleSessionStickiness(e => this._logSessionStickinessToggled(e.session, e.sticky)));
 		this._register(sessionsPartService.onDidToggleMaximizeSession(e => this._logSessionMaximizeToggled(e.session, e.maximized)));
 		this._register(this._sessionsManagementService.onDidChangeSessions(e => this._onDidChangeSessions(e)));
 
@@ -195,7 +196,7 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 		}
 
 		const allSessions = this._sessionsManagementService.getSessions();
-		const visibleSessionsCount = this._sessionsViewService.visibleSessions.get().filter(s => s !== undefined).length;
+		const visibleSessionsCount = this._sessionsService.visibleSessions.get().filter(s => s !== undefined).length;
 		// Snapshot all synchronous fields now so the event reflects the state at
 		// the time of the send, not when the async file-count fetch resolves.
 		const workspace = session.workspace.get();
@@ -250,6 +251,13 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 		this._lifecycleTracker.bumpCounter(session, 'chatRenamed');
 		void this._getSessionActionPayload(session).then(payload => {
 			this._telemetryService.publicLog2<SessionActionEvent, ChatRenamedClassification>('agents/chatRenamed', payload);
+		});
+	}
+
+	private _logSessionRenamed(session: ISession): void {
+		this._lifecycleTracker.bumpCounter(session, 'sessionRenamed');
+		void this._getSessionActionPayload(session).then(payload => {
+			this._telemetryService.publicLog2<SessionActionEvent, SessionRenamedClassification>('agents/sessionRenamed', payload);
 		});
 	}
 
@@ -963,6 +971,23 @@ type ChatRenamedClassification = {
 	sessionLinesDeleted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines deleted across all changed files in the session at the time of the action.' };
 };
 
+type SessionRenamedClassification = {
+	owner: 'benibenj';
+	comment: 'Reports when the user renames a session in the Agents window.';
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Globally unique session id (providerId:resourceUri), used to correlate events for the same session.' };
+	providerId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The sessions provider identifier (e.g., remote agent host or local).' };
+	providerType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session type identifier provided by the sessions provider.' };
+	chatCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of chats currently in the session.' };
+	isolationKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Isolation mode used by the session (worktree or folder).' };
+	workspaceHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Non-reversible hash of the workspace URI, used to correlate events across the same workspace without disclosing the path.' };
+	hasGitRepository: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether any of the workspace folders has a git repository.' };
+	isVirtualWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the workspace URI uses a non-file scheme (virtual/remote).' };
+	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes); -1 if the workspace could not be scanned.' };
+	sessionFilesChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files changed in the session at the time of the action.' };
+	sessionLinesAdded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines added across all changed files in the session at the time of the action.' };
+	sessionLinesDeleted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines deleted across all changed files in the session at the time of the action.' };
+};
+
 type CreatePullRequestClassification = {
 	owner: 'benibenj';
 	comment: 'Reports when the user runs the Create Pull Request command for a session in the Agents window.';
@@ -1395,6 +1420,7 @@ type SessionSummaryClassification = {
 	maximizeToggled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of times the user toggled the session view\'s maximized state in this client.' };
 	chatDeleted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of times the user deleted a chat from the session in this client.' };
 	chatRenamed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of times the user renamed a chat in the session in this client.' };
+	sessionRenamed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of times the user renamed the session in this client.' };
 	fixCIChecks: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of times the user ran the Fix CI Checks action for this session in this client.' };
 	taskRun: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of times the user ran a task from the session toolbar for this session in this client.' };
 	filesChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of changed files in the session at the moment the summary was emitted.' };

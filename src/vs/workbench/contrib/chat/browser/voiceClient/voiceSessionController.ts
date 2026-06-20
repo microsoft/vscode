@@ -6,6 +6,7 @@
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, autorun, transaction, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { disposableWindowInterval } from '../../../../../base/browser/dom.js';
+import { disposableTimeout } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -103,6 +104,9 @@ export interface IVoiceSessionController {
 	 * client state, environment info). Returns success/failure.
 	 */
 	submitFeedback(feedbackText: string): Promise<{ ok: boolean; error?: string }>;
+
+	/** DEV ONLY: Simulate a connected session with fake transcript for UI testing. */
+	simulateConnection(): void;
 }
 
 export const IVoiceSessionController = createDecorator<IVoiceSessionController>('voiceSessionController');
@@ -369,7 +373,22 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 									const questions = params?.['questions'];
 									let desc = '';
 									if (Array.isArray(questions) && questions.length > 0) {
-										desc = questions.map((q: Record<string, unknown>) => q['header'] || q['question']).filter(Boolean).join(', ');
+										desc = questions.map((q: Record<string, unknown>) => {
+											const title = q['header'] || q['question'];
+											if (!title) {
+												return '';
+											}
+											const options = q['options'];
+											if (Array.isArray(options) && options.length > 0) {
+												const labels = options
+													.map((o: Record<string, unknown>) => o['label'])
+													.filter(Boolean);
+												if (labels.length > 0) {
+													return `${title}: ${labels.join(', ')}`;
+												}
+											}
+											return title;
+										}).filter(Boolean).join('; ');
 									}
 									toolConfirmations.push({
 										type: 'input',
@@ -822,7 +841,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				this._isReconnecting.set(false, undefined);
 				this._voiceState.set('idle', undefined);
 				this._statusText.set('Tap to start', undefined);
-			} else if (!this._isConnecting.get()) {
+			} else if (this._isConnecting.get()) {
+				// Connection failed during initial handshake (e.g. fatal WS close).
+				// Clear isConnecting so callers awaiting the state settle properly.
+				this._isConnecting.set(false, undefined);
+				this._voiceState.set('idle', undefined);
+				this._statusText.set('Tap to start', undefined);
+			} else {
 				this._voiceState.set('idle', undefined);
 			}
 		}));
@@ -1002,6 +1027,43 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._sessionAudioCache.clear();
 	}
 
+	/** DEV ONLY: Simulate a connected session with fake transcript for UI testing. */
+	simulateConnection(): void {
+		this._isConnected.set(true, undefined);
+		this._isConnecting.set(false, undefined);
+		this._voiceState.set('idle', undefined);
+		this._statusText.set('Hold to speak...', undefined);
+
+		// Simulate a user speaking after 1s
+		this._voiceEventDisposables.add(disposableTimeout(() => {
+			if (!this._isConnected.get()) { return; }
+			this._voiceState.set('listening', undefined);
+			this._transcriptTurns.set([{ speaker: 'user', text: 'Create a', committed: '', isPartial: true }], undefined);
+		}, 1000));
+
+		// Partial grows
+		this._voiceEventDisposables.add(disposableTimeout(() => {
+			if (!this._isConnected.get()) { return; }
+			this._transcriptTurns.set([{ speaker: 'user', text: 'Create a new React component', committed: 'Create a ', isPartial: true }], undefined);
+		}, 2000));
+
+		// Final user turn
+		this._voiceEventDisposables.add(disposableTimeout(() => {
+			if (!this._isConnected.get()) { return; }
+			this._transcriptTurns.set([{ speaker: 'user', text: 'Create a new React component for the dashboard', committed: 'Create a new React component for the dashboard', isPartial: false }], undefined);
+			this._voiceState.set('idle', undefined);
+		}, 3000));
+
+		// Assistant response
+		this._voiceEventDisposables.add(disposableTimeout(() => {
+			if (!this._isConnected.get()) { return; }
+			this._transcriptTurns.set([
+				{ speaker: 'user', text: 'Create a new React component for the dashboard', committed: 'Create a new React component for the dashboard', isPartial: false },
+				{ speaker: 'assistant', text: 'I\'ll create a Dashboard component with some widgets...', committed: '', isPartial: false },
+			], undefined);
+		}, 4500));
+	}
+
 	private _onConnectionLost(): void {
 		this.logService.warn('[voice] connection lost, preserving state for reconnect');
 		// Don't stop the mic here — keep the MediaStream alive across the
@@ -1146,26 +1208,62 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private async _sendTranscriptionToChat(text: string): Promise<void> {
 		const target = this._targetSession.get();
 		if (target) {
-			// Try switching to the session via the workbench chat pane first
-			const switched = await this.commandService.executeCommand<boolean>('_chat.voice.switchToSession', target.toString()).catch(() => false);
-			if (switched) {
-				// Small delay to let the widget load the session model
-				await new Promise(resolve => setTimeout(resolve, 200));
+			// Check if target is the currently visible session
+			const currentSession = await this.commandService.executeCommand<string | undefined>('_chat.voice.getCurrentSession').catch(() => undefined);
+			const isTargetVisible = currentSession === target.toString();
+
+			if (isTargetVisible) {
+				// Target is visible — send via the chat pane directly
 				await this.commandService.executeCommand('_chat.voice.acceptInput', text).catch(err => {
-					this.logService.warn('[voice] acceptInput failed after switch:', err);
+					this.logService.warn('[voice] acceptInput failed for visible target:', err);
 				});
 			} else {
-				// Not in workbench chat — try agents window openAndSend
-				const handled = await this.commandService.executeCommand<boolean>('_sessions.voice.openAndSend', target.toString(), text).catch(() => false);
-				if (!handled) {
-					// Last resort: try sendRequest directly
-					this.chatService.sendRequest(target, text).then(result => {
-						if (result.kind === 'rejected') {
-							this.logService.warn('[voice] Failed to send transcription to target session:', result.reason);
+				// Target is NOT visible — ensure session is loaded, then send
+				const cts = new CancellationTokenSource();
+				const ref = await this.chatService.acquireOrLoadSession(target, ChatAgentLocation.Chat, cts.token, 'voice-send').catch(err => {
+					this.logService.warn('[voice] Failed to load target session:', err);
+					return undefined;
+				});
+				cts.dispose();
+				if (!ref) {
+					this.logService.warn('[voice] Could not load target session, falling back to switch');
+					// Fallback: switch to the session and send via the UI
+					const switched = await this.commandService.executeCommand<boolean>('_chat.voice.switchToSession', target.toString()).catch(() => false);
+					if (switched) {
+						await new Promise(resolve => setTimeout(resolve, 200));
+						await this.commandService.executeCommand('_chat.voice.acceptInput', text).catch(() => { });
+					}
+					return;
+				}
+				const result = await this.chatService.sendRequest(target, text).catch(err => {
+					this.logService.warn('[voice] Error sending transcription to target session:', err);
+					return undefined;
+				});
+				if (result && result.kind !== 'rejected') {
+					// Surface response in floating window
+					this._watchResponseForFloatingWindow(target);
+					// Open the floating window so user can see the response
+					this.commandService.executeCommand('_agentsVoice.openWindow').catch(() => { /* ignore */ });
+					// Keep the session model loaded until the response completes
+					// so the autorun can observe state transitions and trigger narration.
+					const model = this.chatService.getSession(target);
+					if (model) {
+						const lastReq = model.getRequests().at(-1);
+						if (lastReq?.response && !lastReq.response.isComplete && !lastReq.response.isCanceled) {
+							const responseDisposable = lastReq.response.onDidChange(() => {
+								if (lastReq.response!.isComplete || lastReq.response!.isCanceled) {
+									responseDisposable.dispose();
+									ref.dispose();
+								}
+							});
+						} else {
+							ref.dispose();
 						}
-					}).catch(err => {
-						this.logService.warn('[voice] Error sending transcription to target session:', err);
-					});
+					} else {
+						ref.dispose();
+					}
+				} else {
+					ref.dispose();
 				}
 			}
 		} else {
@@ -1209,10 +1307,77 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					});
 				}
 			}
+
+			// Ensure the chat view is visible so the user sees/hears the response
+			this.commandService.executeCommand('workbench.panel.chat.view.copilot.focus').catch(() => { /* ignore */ });
+		}
+	}
+
+	/**
+	 * Watch a session's latest response and surface it in the floating window
+	 * transcript. Called when voice sends to a non-visible session so the user
+	 * can see the reply without switching the chat panel.
+	 */
+	private _watchResponseForFloatingWindow(sessionResource: URI): void {
+		const model = this.chatService.getSession(sessionResource);
+		if (!model) {
+			return;
 		}
 
-		// Ensure the chat view is visible so the user sees/hears the response
-		this.commandService.executeCommand('workbench.panel.chat.view.copilot.focus').catch(() => { /* ignore */ });
+		// Seed the state cache so the delta mechanism sees thinking→idle as a transition
+		// and includes last_response_summary in the patch.
+		this._prevSessionStates.set(sessionResource.toString(), { state: 'thinking', detail: '' });
+		this._sendContext();
+
+		const disposables = new DisposableStore();
+		let lastText = '';
+
+		const updateFromResponse = () => {
+			const lastReq = model.lastRequest;
+			const response = lastReq?.response;
+			if (!response) {
+				return;
+			}
+
+			const markdown = response.response.getMarkdown();
+			// Only first ~200 chars for the floating window transcript preview
+			const previewText = markdown.length > 200 ? markdown.slice(0, 200) + '…' : markdown;
+			if (previewText && previewText !== lastText) {
+				const isFirst = lastText === '';
+				lastText = previewText;
+				this._setAssistantTurn(previewText, { startNewTurn: isFirst });
+			}
+
+			if (response.isComplete || response.isCanceled) {
+				// Notify the voice backend of the state transition so it can
+				// narrate the response for this non-focused session.
+				this._prevSessionStates.set(sessionResource.toString(), { state: 'idle', detail: '' });
+				this._sendContext();
+				this.voiceClientService.flushSessionContext();
+				disposables.dispose();
+			}
+		};
+
+		// Listen for response changes
+		const checkResponse = () => {
+			const lastReq = model.lastRequest;
+			if (lastReq?.response) {
+				disposables.add(lastReq.response.onDidChange(() => updateFromResponse()));
+				updateFromResponse();
+			}
+		};
+
+		// The response may not exist yet — listen for model changes
+		disposables.add(model.onDidChange(e => {
+			if (e.kind === 'addResponse') {
+				checkResponse();
+			}
+		}));
+		checkResponse();
+
+		// Safety: dispose after 5 minutes in case the response never completes
+		const timeout = setTimeout(() => disposables.dispose(), 5 * 60 * 1000);
+		disposables.add({ dispose: () => clearTimeout(timeout) });
 	}
 
 	// --- Transcript buffer helpers ---
@@ -1743,8 +1908,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			return false;
 		});
 
+		const targetSessionId = this._targetSession.get()?.toString();
+
 		const sessionList = sessions.map(s => {
 			const model = this.chatService.getSession(s.resource);
+			const isActive = s.resource.toString() === targetSessionId;
 			if (!model) {
 				const fallbackState = s.status === AgentSessionStatus.InProgress ? 'thinking'
 					: s.status === AgentSessionStatus.NeedsInput ? 'waiting_for_confirmation'
@@ -1752,14 +1920,14 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 							: 'unknown';
 				return {
 					id: s.resource.toString(),
-					is_active: false,
+					is_active: isActive,
 					agent_state: fallbackState,
 				};
 			}
 			const stateInfo = this._getAgentStateInfo(model);
 			return {
 				id: s.resource.toString(),
-				is_active: false,
+				is_active: isActive,
 				agent_state: stateInfo.state,
 				...(stateInfo.detail ? { agent_state_detail: stateInfo.detail } : {}),
 				...(stateInfo.last_response_summary ? { last_response_summary: stateInfo.last_response_summary } : {}),
@@ -1781,7 +1949,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 			sessionList.push({
 				id: key,
-				is_active: false,
+				is_active: key === targetSessionId,
 				agent_state: stateInfo.state,
 				...(stateInfo.detail ? { agent_state_detail: stateInfo.detail } : {}),
 				...(stateInfo.last_response_summary ? { last_response_summary: stateInfo.last_response_summary } : {}),

@@ -10,6 +10,7 @@ import { getDevDeviceId, getMachineId } from '../../../../base/node/id.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
+import { COPILOT_LICENSE_AGREEMENT } from '../../../endpoint/common/licenseAgreement.js';
 
 // #region Types
 
@@ -27,19 +28,6 @@ import { IProductService } from '../../../product/common/productService.js';
 export interface ICopilotApiServiceRequestOptions {
 	readonly headers?: Readonly<Record<string, string>>;
 	readonly signal?: AbortSignal;
-
-	/**
-	 * Suppress the `Copilot-Integration-Id` header on this request.
-	 *
-	 * When unset, `@vscode/copilot-api` derives the integration id from the
-	 * discovered Copilot SKU: a `no_auth_limited_copilot` SKU maps to
-	 * `vscode-nl`, which the CAPI backend treats as the limited/no-auth
-	 * integration and refuses premium models such as `claude-opus-4.7`.
-	 * Setting this to `true` omits the header so CAPI authorizes against the
-	 * token's real entitlement. Mirrors the Copilot Chat extension's
-	 * `ClaudeStreamingPassThroughEndpoint.getEndpointFetchOptions()`.
-	 */
-	readonly suppressIntegrationId?: boolean;
 }
 
 /**
@@ -147,6 +135,36 @@ const CAPI_CONTEXT_REFRESH_BUFFER_SECONDS = 5 * 60;
 const CAPI_CONTEXT_TTL_SECONDS = 30 * 60;
 
 const USER_API_VERSION = '2025-04-01';
+
+/**
+ * Test/debug override for the CAPI base URL. When set to a **loopback** URL,
+ * {@link CopilotApiService} skips the `api.github.com/copilot_internal/user`
+ * endpoint-discovery round-trip (which requires a real GitHub token) and routes
+ * every CAPI request — `models`, `responses`, `messages` — straight at this URL
+ * instead. Only ever set by the smoke-test harness (see `setupAgentHostSuite`)
+ * so the agent host's shared CAPI client can talk to the mock LLM server; never
+ * set in production, so normal per-token discovery is unchanged.
+ *
+ * The override is **restricted to loopback hosts** ({@link isLoopbackUrl}):
+ * subsequent CAPI calls carry the user's GitHub bearer token in an
+ * `Authorization` header, so honoring an arbitrary remote URL here would be a
+ * token-exfiltration vector. A non-loopback or unparseable value is ignored
+ * (with a warning) and normal discovery proceeds.
+ */
+const CAPI_URL_OVERRIDE_ENV = 'VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE';
+
+/** True iff `url` parses and its host is a loopback address (localhost / 127.0.0.0/8 / ::1). */
+function isLoopbackUrl(url: string): boolean {
+	let hostname: string;
+	try {
+		hostname = new URL(url).hostname;
+	} catch {
+		return false;
+	}
+	// Strip IPv6 brackets if present (e.g. `[::1]`).
+	const host = hostname.replace(/^\[|\]$/g, '').toLowerCase();
+	return host === 'localhost' || host === '::1' || /^127(?:\.\d{1,3}){3}$/.test(host);
+}
 
 /**
  * Re-mint the Copilot session token this many seconds before its
@@ -548,9 +566,6 @@ export class CopilotApiService implements ICopilotApiService {
 					'X-Request-Id': requestId,
 					'OpenAI-Intent': 'conversation',
 				},
-				// Opt-in per request — see
-				// `ICopilotApiServiceRequestOptions.suppressIntegrationId`.
-				suppressIntegrationId: options?.suppressIntegrationId,
 				body,
 				signal: options?.signal,
 			},
@@ -735,7 +750,6 @@ export class CopilotApiService implements ICopilotApiService {
 					// paths already omit it). Thread a real per-turn initiator here if
 					// that signal ever becomes available at the proxy boundary.
 				},
-				suppressIntegrationId: options?.suppressIntegrationId,
 				body,
 				signal: options?.signal,
 			},
@@ -800,7 +814,7 @@ export class CopilotApiService implements ICopilotApiService {
 	private async _buildClientForToken(githubToken: string): Promise<ICachedClient> {
 		const { extensionInfo, userUrl } = await this._getCapiBase();
 		const fetch = this._fetch;
-		const capiClient = new CAPIClient(extensionInfo, undefined, {
+		const capiClient = new CAPIClient(extensionInfo, COPILOT_LICENSE_AGREEMENT, {
 			fetch: (url, options) => fetch(url, {
 				method: options.method ?? 'GET',
 				headers: options.headers,
@@ -810,6 +824,25 @@ export class CopilotApiService implements ICopilotApiService {
 		});
 
 		this._logService.debug('[CopilotApiService] Discovering CAPI endpoints via /copilot_internal/user');
+
+		// Test/debug override: when an explicit **loopback** CAPI base URL is
+		// provided, skip the api.github.com discovery (which needs a real GitHub
+		// token) and route CAPI straight at the override. Restricted to loopback
+		// hosts because subsequent CAPI calls carry the GitHub bearer token —
+		// honoring a remote URL would leak it. A non-loopback/invalid value is
+		// ignored and normal discovery proceeds. Only ever set by the smoke harness.
+		const overrideApi = process.env[CAPI_URL_OVERRIDE_ENV];
+		if (overrideApi) {
+			if (isLoopbackUrl(overrideApi)) {
+				this._logService.info(`[CopilotApiService] Using CAPI URL override ${overrideApi}; skipping endpoint discovery`);
+				capiClient.updateDomains({ endpoints: { api: overrideApi, proxy: overrideApi }, sku: '' }, undefined);
+				return {
+					capiClient,
+					expiresAt: Date.now() / 1000 + CAPI_CONTEXT_TTL_SECONDS,
+				};
+			}
+			this._logService.warn(`[CopilotApiService] Ignoring non-loopback CAPI URL override ${overrideApi}; falling back to normal endpoint discovery`);
+		}
 
 		const response = await this._fetch(userUrl, {
 			method: 'GET',

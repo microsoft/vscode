@@ -38,6 +38,7 @@ class DefaultAccountProvider implements IDefaultAccountProvider {
 	readonly onDidChangeCopilotTokenInfo = Event.None;
 	readonly managedSettingsFetchStatus: null = null;
 	readonly managedSettingsFetchedAt: null = null;
+	readonly managedSettingsRawResponse: unknown = null;
 
 	constructor(
 		readonly defaultAccount: IDefaultAccount,
@@ -283,9 +284,10 @@ suite('AccountPolicyService', () => {
 		});
 	});
 
-	test('managed settings: native MDM value overrides the server value for the same declared key', async () => {
-		// MDM says 'disable', server says 'enable'. The merged, declaration-projected bag must
-		// let MDM win, so the gated policy resolves to `false`.
+	test('managed settings: server value wins over native MDM for the same declared key', async () => {
+		// Server says 'enable', native MDM says 'disable'. The server is the authoritative
+		// source when present, so native MDM is ignored entirely and the gated policy is NOT
+		// forced to `false`.
 		const copilotManagedSettingsService = disposables.add(new FakeCopilotManagedSettingsService({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' }));
 		policyService = disposables.add(new AccountPolicyService(logService, defaultAccountService, undefined, copilotManagedSettingsService));
 		const defaultConfiguration = disposables.add(new DefaultConfiguration(new NullLogService()));
@@ -294,6 +296,23 @@ suite('AccountPolicyService', () => {
 
 		const policyData: IPolicyData = { managedSettings: { [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'enable' } };
 		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, policyData));
+		await defaultAccountService.refresh();
+
+		await policyConfiguration.initialize();
+
+		assert.strictEqual(policyService.getPolicyValue('PolicySettingF'), undefined);
+	});
+
+	test('managed settings: native MDM applies when the server provides no managed settings', async () => {
+		// No server managed settings — native MDM is the authoritative source and forces the
+		// gated policy to `false`.
+		const copilotManagedSettingsService = disposables.add(new FakeCopilotManagedSettingsService({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' }));
+		policyService = disposables.add(new AccountPolicyService(logService, defaultAccountService, undefined, copilotManagedSettingsService));
+		const defaultConfiguration = disposables.add(new DefaultConfiguration(new NullLogService()));
+		await defaultConfiguration.initialize();
+		policyConfiguration = disposables.add(new PolicyConfiguration(defaultConfiguration, policyService, new NullLogService()));
+
+		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, {}));
 		await defaultAccountService.refresh();
 
 		await policyConfiguration.initialize();
