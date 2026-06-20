@@ -56,7 +56,6 @@
 	display: flex;
 	border: var(--vscode-strokeThickness) solid var(--vscode-radio-inactiveBorder, var(--vscode-input-border, transparent));
 	border-radius: var(--vscode-cornerRadius-small, 4px);
-	overflow: hidden;
 }
 
 .survey-editor-pane .survey-segment-group .survey-segment-input {
@@ -73,18 +72,27 @@
 
 .survey-editor-pane .survey-segment-group .survey-segment-label {
 	flex: 1;
+	min-width: 0;
 	text-align: center;
-	padding: 8px 12px;
+	padding: 8px 6px;
 	cursor: pointer;
 	border-right: var(--vscode-strokeThickness) solid var(--vscode-radio-inactiveBorder, var(--vscode-input-border, transparent));
 	color: var(--vscode-radio-inactiveForeground, inherit);
 	background-color: var(--vscode-radio-inactiveBackground, transparent);
 	transition: background-color 0.1s;
 	user-select: none;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.survey-editor-pane .survey-segment-group .survey-segment-label:first-of-type {
+	border-radius: var(--vscode-cornerRadius-small, 4px) 0 0 var(--vscode-cornerRadius-small, 4px);
 }
 
 .survey-editor-pane .survey-segment-group .survey-segment-label:last-of-type {
 	border-right: none;
+	border-radius: 0 var(--vscode-cornerRadius-small, 4px) var(--vscode-cornerRadius-small, 4px) 0;
 }
 
 .survey-editor-pane .survey-segment-group .survey-segment-label:hover {
@@ -101,6 +109,7 @@
 	outline: 2px solid var(--vscode-focusBorder);
 	outline-offset: -2px;
 	z-index: 1;
+	position: relative;
 }
 
 /* HC: distinct border on selected segment */
@@ -226,11 +235,22 @@
 	}
 
 	.survey-editor-pane .survey-segment-group {
-		flex-wrap: wrap;
+		flex-direction: column;
 	}
 
 	.survey-editor-pane .survey-segment-group .survey-segment-label {
-		flex-basis: 33%;
-		flex-grow: 1;
+		border-right: none;
+		border-bottom: var(--vscode-strokeThickness) solid var(--vscode-radio-inactiveBorder, var(--vscode-input-border, transparent));
+		text-align: left;
+		padding: 8px 12px;
+	}
+
+	.survey-editor-pane .survey-segment-group .survey-segment-label:first-of-type {
+		border-radius: var(--vscode-cornerRadius-small, 4px) var(--vscode-cornerRadius-small, 4px) 0 0;
+	}
+
+	.survey-editor-pane .survey-segment-group .survey-segment-label:last-of-type {
+		border-bottom: none;
+		border-radius: 0 0 var(--vscode-cornerRadius-small, 4px) var(--vscode-cornerRadius-small, 4px);
 	}
 }

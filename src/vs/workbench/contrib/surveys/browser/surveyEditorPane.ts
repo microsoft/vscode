@@ -46,6 +46,8 @@ export class SurveyEditorPane extends EditorPane {
 
 	protected override createEditor(parent: HTMLElement): void {
 		this.container = append(parent, $('div.survey-editor-pane'));
+		this.container.setAttribute('role', 'form');
+		this.container.setAttribute('aria-label', localize('survey.pane.ariaLabel', "Survey"));
 	}
 
 	override async setInput(
@@ -240,12 +242,12 @@ export class SurveyEditorPane extends EditorPane {
 		success.tabIndex = -1;
 		success.focus();
 
-		// Auto-close after 3 seconds
+		// Auto-close after 5 seconds (longer than visual to allow screen readers to finish)
 		const timeout = setTimeout(() => {
 			if (submittedInput) {
 				this.editorService.closeEditor({ editor: submittedInput, groupId: this.group.id });
 			}
-		}, 3000);
+		}, 5000);
 
 		this.inputDisposables.add({ dispose: () => clearTimeout(timeout) });
 	}
