@@ -1,0 +1,10 @@
+.git
+node_modules
+**/node_modules
+**/dist
+out
+.build
+.eslintcache
+*.vsix
+dist-vsix
+.vscode-test

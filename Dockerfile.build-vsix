@@ -1,0 +1,19 @@
+FROM node:24-slim
+
+WORKDIR /workspace
+
+COPY extensions/copilot/package.json extensions/copilot/package-lock.json ./
+
+# Install without running scripts: postinstall.ts needs source files not yet present
+RUN --mount=type=cache,target=/root/.npm \
+    npm install --ignore-scripts
+
+# Copy sources before running any scripts that read them
+COPY extensions/copilot/ .
+
+RUN npm run postinstall && \
+    npm run build && \
+    mkdir -p /output && \
+    npm run package -- --out /output/copilot-proxy.vsix
+
+CMD ["sh", "-c", "cp /output/copilot-proxy.vsix /dist/ && echo 'Done:' && ls /dist/*.vsix"]
