@@ -9,6 +9,7 @@ import { Button } from '../../../../base/browser/ui/button/button.js';
 import { $, addDisposableListener, append, clearNode } from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
@@ -30,6 +31,7 @@ export class SurveyEditorPane extends EditorPane {
 	static readonly ID = 'workbench.editor.survey';
 
 	private container: HTMLElement | undefined;
+	private firstInput: HTMLInputElement | undefined;
 	private readonly inputDisposables = this._register(new DisposableStore());
 	private answers: Map<string, string[]> = new Map();
 	private renderNonce = 0;
@@ -73,6 +75,7 @@ export class SurveyEditorPane extends EditorPane {
 	private resetState(): void {
 		this.inputDisposables.clear();
 		this.answers.clear();
+		this.firstInput = undefined;
 		this.renderNonce++;
 		if (this.container) {
 			clearNode(this.container);
@@ -104,9 +107,17 @@ export class SurveyEditorPane extends EditorPane {
 		submitButton.label = localize('survey.submitFeedback', "Submit feedback");
 		submitButton.enabled = false;
 
+		const hintId = `survey-hint-${this.renderNonce}`;
+		const hint = append(submitRow, $('div.survey-submit-hint'));
+		hint.id = hintId;
+		hint.textContent = localize('survey.submitHint', "Answer all questions to submit");
+		submitButton.element.setAttribute('aria-describedby', hintId);
+
 		const updateSubmitState = () => {
-			submitButton.enabled = this.answers.size >= survey.questions.length
+			const allAnswered = this.answers.size >= survey.questions.length
 				&& ![...this.answers.values()].some(v => v.length === 0);
+			submitButton.enabled = allAnswered;
+			hint.style.display = allAnswered ? 'none' : '';
 		};
 
 		this.inputDisposables.add(submitButton.onDidClick(() => {
@@ -143,6 +154,7 @@ export class SurveyEditorPane extends EditorPane {
 		const group = append(parent, $('div.survey-segment-group'));
 		group.setAttribute('role', 'radiogroup');
 		group.setAttribute('aria-labelledby', labelId);
+		group.setAttribute('aria-required', 'true');
 
 		for (let i = 0; i < question.options.length; i++) {
 			const option = question.options[i];
@@ -151,6 +163,10 @@ export class SurveyEditorPane extends EditorPane {
 			radio.name = namePrefix;
 			radio.value = option.id;
 			radio.id = `survey-seg-${namePrefix}-${i}`;
+
+			if (!this.firstInput) {
+				this.firstInput = radio;
+			}
 
 			const optionLabel = append(group, $('label.survey-segment-label')) as HTMLLabelElement;
 			optionLabel.htmlFor = radio.id;
@@ -168,6 +184,7 @@ export class SurveyEditorPane extends EditorPane {
 		const group = append(parent, $('div.survey-list-group'));
 		group.setAttribute('role', 'radiogroup');
 		group.setAttribute('aria-labelledby', labelId);
+		group.setAttribute('aria-required', 'true');
 
 		if (question.columns === 2) {
 			group.classList.add('columns-2');
@@ -181,6 +198,10 @@ export class SurveyEditorPane extends EditorPane {
 			radio.type = 'radio';
 			radio.name = namePrefix;
 			radio.value = option.id;
+
+			if (!this.firstInput) {
+				this.firstInput = radio;
+			}
 
 			const text = append(optionLabel, $('span'));
 			text.textContent = option.label;
@@ -245,11 +266,16 @@ export class SurveyEditorPane extends EditorPane {
 		// Auto-close after 5 seconds (longer than visual to allow screen readers to finish)
 		const timeout = setTimeout(() => {
 			if (submittedInput) {
-				this.editorService.closeEditor({ editor: submittedInput, groupId: this.group.id });
+				this.editorService.closeEditor({ editor: submittedInput, groupId: this.group.id }).catch(onUnexpectedError);
 			}
 		}, 5000);
 
 		this.inputDisposables.add({ dispose: () => clearTimeout(timeout) });
+	}
+
+	override focus(): void {
+		super.focus();
+		this.firstInput?.focus();
 	}
 
 	override layout(): void {

@@ -119,6 +119,13 @@
 	outline-offset: -1px;
 }
 
+/* HC: focus must be visually distinct from checked */
+.hc-black .survey-editor-pane .survey-segment-group .survey-segment-input:focus-visible + .survey-segment-label,
+.hc-light .survey-editor-pane .survey-segment-group .survey-segment-input:focus-visible + .survey-segment-label {
+	outline: 2px dashed var(--vscode-focusBorder);
+	outline-offset: -2px;
+}
+
 /* List-row selection — full-width clickable rows with hidden native radios */
 
 .survey-editor-pane .survey-list-group {
@@ -175,10 +182,23 @@
 	outline-offset: -1px;
 }
 
+/* HC: focus must be visually distinct from checked */
+.hc-black .survey-editor-pane .survey-list-option:has(.survey-list-input:focus-visible),
+.hc-light .survey-editor-pane .survey-list-option:has(.survey-list-input:focus-visible) {
+	outline: 2px dashed var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
 /* Submit */
 
 .survey-editor-pane .survey-submit-row {
 	margin-top: 28px;
+}
+
+.survey-editor-pane .survey-submit-hint {
+	margin-top: 8px;
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
 }
 
 /* Success / "sent" state */

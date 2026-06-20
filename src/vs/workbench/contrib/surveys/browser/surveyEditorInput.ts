@@ -17,7 +17,6 @@ const surveyIcon = registerIcon('survey', Codicon.feedback, localize('surveyIcon
 export class SurveyEditorInput extends EditorInput {
 
 	static readonly ID = 'workbench.input.survey';
-	static readonly RESOURCE = URI.from({ scheme: 'vscode-survey', path: 'survey' });
 
 	constructor(
 		readonly survey: ISurveyDefinition,
@@ -34,7 +33,7 @@ export class SurveyEditorInput extends EditorInput {
 	}
 
 	override get resource(): URI | undefined {
-		return SurveyEditorInput.RESOURCE;
+		return URI.from({ scheme: 'vscode-survey', path: `/${this.survey.id}` });
 	}
 
 	override getName(): string {
