@@ -23,11 +23,13 @@ steps:
   - script: git lfs pull
     displayName: Pull Git LFS objects
 
-  # Check out the private microsoft/vscode-encrypt and microsoft/vsda repositories
-  # using the agent's GitHub App (Monaco) credentials. The distro's npm dependencies
-  # reference both as git dependencies; npm resolves these over ssh while cargo (CLI
-  # build) resolves them over https. We redirect both public GitHub URLs to these
-  # local checkouts via git's insteadOf so no PAT is required to resolve them.
+  # Check out the private microsoft/vscode-encrypt, microsoft/vsda and
+  # microsoft/vscode-regexp-languagedetection repositories using the agent's GitHub
+  # App (Monaco) credentials. The distro's npm dependencies reference vsda and
+  # vscode-regexp-languagedetection as git dependencies, and the CLI cargo patches
+  # reference vsda and vscode-encrypt; npm resolves these over ssh while cargo
+  # resolves them over https. We redirect both public GitHub URLs to these local
+  # checkouts via git's insteadOf so no PAT is required to resolve them.
   - checkout: encrypt
     path: s/.build/vscode-encrypt
     fetchDepth: 0
@@ -40,6 +42,12 @@ steps:
     retryCountOnTaskFailure: 3
     displayName: Checkout microsoft/vsda
 
+  - checkout: regexp
+    path: s/.build/vscode-regexp-languagedetection
+    fetchDepth: 0
+    retryCountOnTaskFailure: 3
+    displayName: Checkout microsoft/vscode-regexp-languagedetection
+
   - script: |
       git config --global url."file://$(Build.SourcesDirectory)/.build/vscode-encrypt".insteadOf "https://github.com/microsoft/vscode-encrypt"
       git config --global --add url."file://$(Build.SourcesDirectory)/.build/vscode-encrypt".insteadOf "https://github.com/microsoft/vscode-encrypt.git"
@@ -49,4 +57,8 @@ steps:
       git config --global --add url."file://$(Build.SourcesDirectory)/.build/vsda".insteadOf "https://github.com/microsoft/vsda.git"
       git config --global --add url."file://$(Build.SourcesDirectory)/.build/vsda".insteadOf "ssh://git@github.com/microsoft/vsda"
       git config --global --add url."file://$(Build.SourcesDirectory)/.build/vsda".insteadOf "ssh://git@github.com/microsoft/vsda.git"
+      git config --global url."file://$(Build.SourcesDirectory)/.build/vscode-regexp-languagedetection".insteadOf "https://github.com/microsoft/vscode-regexp-languagedetection"
+      git config --global --add url."file://$(Build.SourcesDirectory)/.build/vscode-regexp-languagedetection".insteadOf "https://github.com/microsoft/vscode-regexp-languagedetection.git"
+      git config --global --add url."file://$(Build.SourcesDirectory)/.build/vscode-regexp-languagedetection".insteadOf "ssh://git@github.com/microsoft/vscode-regexp-languagedetection"
+      git config --global --add url."file://$(Build.SourcesDirectory)/.build/vscode-regexp-languagedetection".insteadOf "ssh://git@github.com/microsoft/vscode-regexp-languagedetection.git"
     displayName: Redirect private git dependencies to local checkouts

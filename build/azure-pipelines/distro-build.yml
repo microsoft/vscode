@@ -24,6 +24,11 @@ resources:
       name: microsoft/vsda
       ref: main
       endpoint: Monaco
+    - repository: regexp
+      type: github
+      name: microsoft/vscode-regexp-languagedetection
+      ref: main
+      endpoint: Monaco
 
 steps:
   - checkout: self
