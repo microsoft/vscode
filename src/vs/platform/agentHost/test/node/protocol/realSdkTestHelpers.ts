@@ -26,7 +26,7 @@ import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registr
 import {
 	MessageKind,
 	ResponsePartKind, ROOT_STATE_URI, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind,
-	ChatInputResponseKind, ToolResultContentType, buildDefaultChatUri, isSubagentSession,
+	ChatInputResponseKind, ToolResultContentType, ToolCallConfirmationReason, ToolCallCancellationReason, buildDefaultChatUri, isSubagentSession,
 	type MessageAttachment, type ChatInputAnswer, type ChatInputRequest, type SessionState, type TerminalState,
 	type ToolResultContent, type ToolResultSubagentContent,
 } from '../../../common/state/sessionState.js';
@@ -321,6 +321,7 @@ async function driveTurn(c: TestProtocolClient, session: string, turnId: string,
 						turnId,
 						toolCallId: action.toolCallId,
 						approved: true,
+						confirmed: ToolCallConfirmationReason.UserAction,
 					},
 				});
 			}
@@ -437,6 +438,7 @@ export function startBackgroundApprovalLoop(c: TestProtocolClient, options: IBac
 							type: 'chat/toolCallConfirmed',
 							turnId: action.turnId,
 							toolCallId: action.toolCallId, approved: false,
+							reason: ToolCallCancellationReason.Denied,
 						},
 					});
 					continue;
@@ -452,6 +454,7 @@ export function startBackgroundApprovalLoop(c: TestProtocolClient, options: IBac
 						type: 'chat/toolCallConfirmed',
 						turnId: action.turnId,
 						toolCallId: action.toolCallId, approved: true,
+						confirmed: ToolCallConfirmationReason.UserAction,
 					},
 				});
 			} catch (e) {
@@ -658,6 +661,7 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 						type: 'chat/toolCallConfirmed',
 						turnId: 'turn-perm',
 						toolCallId: action.toolCallId, approved: true,
+						confirmed: ToolCallConfirmationReason.UserAction,
 					},
 				});
 			}
@@ -854,6 +858,7 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 						type: 'chat/toolCallConfirmed',
 						turnId: 'turn-wt-terminal',
 						toolCallId: toolStartAction.toolCallId, approved: true,
+						confirmed: ToolCallConfirmationReason.UserAction,
 					},
 				});
 			}
@@ -917,6 +922,7 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 										type: 'chat/toolCallConfirmed',
 										turnId: action.turnId,
 										toolCallId: action.toolCallId, approved: true,
+										confirmed: ToolCallConfirmationReason.UserAction,
 									},
 								});
 							}
