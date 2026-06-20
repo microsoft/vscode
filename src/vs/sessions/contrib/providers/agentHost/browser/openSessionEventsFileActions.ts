@@ -15,9 +15,12 @@ import { IsAgentHostSession } from './agentHostSkillButtons.js';
 
 /**
  * Sessions-app variant of "Open Copilot CLI State File". Uses the Agents
- * window's `ISessionsService.activeSession` to find the active
- * Copilot CLI session, then defers to the shared workbench helper for
- * the actual resolution and editor opening.
+ * window's `ISessionsService.activeSession` to find the focused chat tab
+ * of the active Copilot CLI session, then defers to the shared workbench
+ * helper for the actual resolution and editor opening.
+ *
+ * Sessions can contain multiple chats; the state file is per-chat, so we
+ * resolve the focused chat's resource rather than the session's main chat.
  *
  * The vscode workbench registers a separate action class
  * (`OpenCopilotCliStateFileAction` in
@@ -40,7 +43,8 @@ export class OpenSessionEventsFileAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const sessionsService = accessor.get(ISessionsService);
-		const sessionResource = sessionsService.activeSession.get()?.resource;
+		const activeSession = sessionsService.activeSession.get();
+		const sessionResource = activeSession?.activeChat.get()?.resource ?? activeSession?.resource;
 		await openCopilotCliStateFile(accessor, sessionResource);
 	}
 }

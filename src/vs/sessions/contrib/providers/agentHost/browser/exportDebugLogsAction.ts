@@ -44,11 +44,16 @@ export class ExportAgentHostDebugLogsAction extends Action2 {
 		const activeAgentHostSession = isAgentHostSession(activeSession, sessionsProvidersService) ? activeSession : undefined;
 		const sessionForEvents = activeAgentHostSession ?? getMostRecentAgentHostSession(sessionsManagementService.getSessions(), sessionsProvidersService);
 
-		const activeSessionContext: IActiveAgentHostSessionForExport | undefined = sessionForEvents
+		// Sessions can contain multiple chats and the events file is per-chat,
+		// so prefer the focused chat tab's resource for the active session.
+		const focusedChat = activeAgentHostSession?.activeChat.get();
+		const eventsResource = focusedChat?.resource ?? sessionForEvents?.resource;
+
+		const activeSessionContext: IActiveAgentHostSessionForExport | undefined = sessionForEvents && eventsResource
 			? {
-				resource: sessionForEvents.resource,
-				title: activeAgentHostSession?.title.get(),
-				isLocal: sessionForEvents.resource.scheme.startsWith('agent-host-'),
+				resource: eventsResource,
+				title: focusedChat?.title.get() ?? activeAgentHostSession?.title.get(),
+				isLocal: eventsResource.scheme.startsWith('agent-host-'),
 			}
 			: undefined;
 
@@ -56,7 +61,7 @@ export class ExportAgentHostDebugLogsAction extends Action2 {
 	}
 }
 
-function isAgentHostSession(session: ISession | undefined, sessionsProvidersService: ISessionsProvidersService): session is ISession {
+function isAgentHostSession<T extends ISession>(session: T | undefined, sessionsProvidersService: ISessionsProvidersService): session is T {
 	return !!session && sessionsProvidersService.getProvider(session.providerId) instanceof BaseAgentHostSessionsProvider;
 }
 
