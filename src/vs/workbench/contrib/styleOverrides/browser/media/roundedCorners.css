@@ -218,3 +218,4 @@
 .style-override-roundedCorners .monaco-sash:not(.disabled) > .orthogonal-drag-handle {
 	border-radius: var(--vscode-sash-size);
 }
+
