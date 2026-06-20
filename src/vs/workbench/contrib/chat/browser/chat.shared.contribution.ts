@@ -491,7 +491,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.permissions.default.settingDescription', "Controls the default permissions picker mode for new local chat sessions. You can still change the permission mode per session, and each session remembers the permission mode that was used. If enterprise policy disables auto approval, new sessions use Default Approvals."),
 			default: ChatPermissionLevel.Default,
 		},
-		[ChatConfiguration.AgentSessionDefaultConfiguration]: {
+		[ChatConfiguration.DefaultConfiguration]: {
 			type: 'object',
 			additionalProperties: false,
 			properties: {
@@ -1890,6 +1890,13 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	]
 );
 Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).registerConfigurationMigrations([
+	{
+		key: 'chat.agentSessions.defaultConfiguration',
+		migrateFn: (value, _accessor) => ([
+			['chat.agentSessions.defaultConfiguration', { value: undefined }],
+			[ChatConfiguration.DefaultConfiguration, { value }]
+		])
+	},
 	{
 		key: 'chat.experimental.detectParticipant.enabled',
 		migrateFn: (value, _accessor) => ([
