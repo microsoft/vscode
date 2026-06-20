@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/surveyEditorPane.css';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
 import { $, addDisposableListener, append, clearNode } from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -17,6 +19,7 @@ import { IEditorGroup } from '../../../services/editor/common/editorGroupsServic
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ISurveyDefinition, ISurveyQuestion, ISurveyRadioQuestion, ISurveySegmentQuestion, SurveyQuestionType } from './surveyQuestions.js';
 import { SurveyEditorInput } from './surveyEditorInput.js';
@@ -77,10 +80,11 @@ export class SurveyEditorPane extends EditorPane {
 	private renderForm(container: HTMLElement, survey: ISurveyDefinition): void {
 		const form = append(container, $('div.survey-form'));
 
-		// Title with icon
+		// Title with decorative icon
 		const title = append(form, $('div.survey-title'));
 		const titleIcon = append(title, $('span.survey-title-icon'));
 		titleIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.sparkle));
+		titleIcon.setAttribute('aria-hidden', 'true');
 		const titleText = append(title, $('span'));
 		titleText.textContent = survey.title;
 
@@ -92,20 +96,19 @@ export class SurveyEditorPane extends EditorPane {
 			this.renderQuestion(form, question);
 		}
 
-		// Submit button
+		// Submit button (shared Button widget for consistent theming)
 		const submitRow = append(form, $('div.survey-submit-row'));
-		const submitButton = append(submitRow, $('button.survey-submit-button')) as HTMLButtonElement;
-		submitButton.textContent = localize('survey.submitFeedback', "Submit feedback");
-		submitButton.type = 'button';
-		submitButton.disabled = true;
+		const submitButton = this.inputDisposables.add(new Button(submitRow, { ...defaultButtonStyles }));
+		submitButton.label = localize('survey.submitFeedback', "Submit feedback");
+		submitButton.enabled = false;
 
 		const updateSubmitState = () => {
-			submitButton.disabled = this.answers.size < survey.questions.length
-				|| [...this.answers.values()].some(v => v.length === 0);
+			submitButton.enabled = this.answers.size >= survey.questions.length
+				&& ![...this.answers.values()].some(v => v.length === 0);
 		};
 
-		this.inputDisposables.add(addDisposableListener(submitButton, 'click', () => {
-			submitButton.disabled = true;
+		this.inputDisposables.add(submitButton.onDidClick(() => {
+			submitButton.enabled = false;
 			this.handleSubmit(container, survey);
 		}));
 
@@ -139,20 +142,21 @@ export class SurveyEditorPane extends EditorPane {
 		group.setAttribute('role', 'radiogroup');
 		group.setAttribute('aria-labelledby', labelId);
 
-		for (const option of question.options) {
+		for (let i = 0; i < question.options.length; i++) {
+			const option = question.options[i];
 			const radio = append(group, $('input.survey-segment-input')) as HTMLInputElement;
 			radio.type = 'radio';
 			radio.name = namePrefix;
-			radio.value = option;
-			radio.id = `survey-seg-${namePrefix}-${option.replace(/\s+/g, '-').toLowerCase()}`;
+			radio.value = option.id;
+			radio.id = `survey-seg-${namePrefix}-${i}`;
 
 			const optionLabel = append(group, $('label.survey-segment-label')) as HTMLLabelElement;
 			optionLabel.htmlFor = radio.id;
-			optionLabel.textContent = option;
+			optionLabel.textContent = option.label;
 
 			this.inputDisposables.add(addDisposableListener(radio, 'change', () => {
 				if (radio.checked) {
-					this.answers.set(question.id, [option]);
+					this.answers.set(question.id, [option.id]);
 				}
 			}));
 		}
@@ -167,27 +171,28 @@ export class SurveyEditorPane extends EditorPane {
 			group.classList.add('columns-2');
 		}
 
-		for (const option of question.options) {
+		for (let i = 0; i < question.options.length; i++) {
+			const option = question.options[i];
 			const optionLabel = append(group, $('label.survey-list-option')) as HTMLLabelElement;
 
 			const radio = append(optionLabel, $('input.survey-list-input')) as HTMLInputElement;
 			radio.type = 'radio';
 			radio.name = namePrefix;
-			radio.value = option;
+			radio.value = option.id;
 
 			const text = append(optionLabel, $('span'));
-			text.textContent = option;
+			text.textContent = option.label;
 
 			this.inputDisposables.add(addDisposableListener(radio, 'change', () => {
 				if (radio.checked) {
-					this.answers.set(question.id, [option]);
+					this.answers.set(question.id, [option.id]);
 				}
 			}));
 		}
 	}
 
 	private handleSubmit(container: HTMLElement, survey: ISurveyDefinition): void {
-		// Snapshot answers
+		// Snapshot answers at submit time
 		const answersSnapshot: Record<string, string[]> = {};
 		for (const [key, value] of this.answers) {
 			answersSnapshot[key] = [...value];
@@ -199,7 +204,7 @@ export class SurveyEditorPane extends EditorPane {
 		};
 		type SurveySubmitClassification = {
 			surveyId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The survey identifier.' };
-			answers: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'JSON-encoded survey answers (all values are string arrays).' };
+			answers: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'JSON-encoded survey answers keyed by question ID with stable option ID arrays.' };
 			owner: 'digitarald';
 			comment: 'Tracks in-product survey submissions for product-market fit analysis.';
 		};
@@ -216,15 +221,24 @@ export class SurveyEditorPane extends EditorPane {
 		clearNode(container);
 
 		const success = append(container, $('div.survey-success'));
+		success.setAttribute('role', 'status');
+		success.setAttribute('aria-live', 'polite');
 
 		const icon = append(success, $('div.survey-success-icon'));
 		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.checkAll));
+		icon.setAttribute('aria-hidden', 'true');
 
+		const successMessage = localize('survey.success.message', "Response sent");
 		const message = append(success, $('div.survey-success-message'));
-		message.textContent = localize('survey.success.message', "Response sent");
+		message.textContent = successMessage;
 
 		const detail = append(success, $('div.survey-success-detail'));
 		detail.textContent = localize('survey.success.detail', "Your answer helps us understand who needs this most. Thank you.");
+
+		// Announce to screen readers and move focus to success container
+		status(successMessage);
+		success.tabIndex = -1;
+		success.focus();
 
 		// Auto-close after 3 seconds
 		const timeout = setTimeout(() => {

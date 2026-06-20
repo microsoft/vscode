@@ -6,6 +6,7 @@
 import { localize, localize2 } from '../../../../nls.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IsDevelopmentContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -38,6 +39,7 @@ class OpenSurveyAction extends Action2 {
 			title: localize2('openSurvey', "Open Survey"),
 			category: Categories.Developer,
 			f1: true,
+			precondition: IsDevelopmentContext,
 		});
 	}
 

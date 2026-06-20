@@ -54,7 +54,7 @@
 
 .survey-editor-pane .survey-segment-group {
 	display: flex;
-	border: 1px solid var(--vscode-radio-inactiveBorder, var(--vscode-input-border, transparent));
+	border: var(--vscode-strokeThickness) solid var(--vscode-radio-inactiveBorder, var(--vscode-input-border, transparent));
 	border-radius: var(--vscode-cornerRadius-small, 4px);
 	overflow: hidden;
 }
@@ -76,7 +76,7 @@
 	text-align: center;
 	padding: 8px 12px;
 	cursor: pointer;
-	border-right: 1px solid var(--vscode-radio-inactiveBorder, var(--vscode-input-border, transparent));
+	border-right: var(--vscode-strokeThickness) solid var(--vscode-radio-inactiveBorder, var(--vscode-input-border, transparent));
 	color: var(--vscode-radio-inactiveForeground, inherit);
 	background-color: var(--vscode-radio-inactiveBackground, transparent);
 	transition: background-color 0.1s;
@@ -124,7 +124,7 @@
 
 .survey-editor-pane .survey-list-option {
 	display: block;
-	padding: 7px 10px;
+	padding: 8px 10px;
 	border-radius: var(--vscode-cornerRadius-small, 4px);
 	border-left: 2px solid transparent;
 	cursor: pointer;
@@ -170,28 +170,6 @@
 
 .survey-editor-pane .survey-submit-row {
 	margin-top: 28px;
-}
-
-.survey-editor-pane .survey-submit-button {
-	padding: 8px 20px;
-	border: none;
-	border-radius: var(--vscode-cornerRadius-small, 4px);
-	background-color: var(--vscode-button-background);
-	color: var(--vscode-button-foreground);
-	font-size: inherit;
-	font-family: inherit;
-	font-weight: 600;
-	cursor: pointer;
-	transition: background-color 0.1s;
-}
-
-.survey-editor-pane .survey-submit-button:hover {
-	background-color: var(--vscode-button-hoverBackground);
-}
-
-.survey-editor-pane .survey-submit-button:disabled {
-	opacity: 0.5;
-	cursor: default;
 }
 
 /* Success / "sent" state */
