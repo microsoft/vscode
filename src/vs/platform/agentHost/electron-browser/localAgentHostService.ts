@@ -16,7 +16,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentHostAhpJsonlLoggingSettingId, AgentHostIpcChannels, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostService, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IAgentHostSocketInfo, IConnectionTrackerService, isAgentHostEnabled, IMcpNotification } from '../common/agentService.js';
+import { AgentHostAhpJsonlLoggingSettingId, AgentHostEnabledSettingId, AgentHostIpcChannels, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostService, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IAgentHostSocketInfo, IConnectionTrackerService, isAgentHostEnabled, IMcpNotification } from '../common/agentService.js';
 import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
 import { wrapAgentServiceWithAhpLogging } from './localAhpJsonlLogging.js';
 import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
@@ -125,6 +125,9 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			if (e.affectsConfiguration(SESSION_SYNC_ENABLED_SETTING_ID)) {
 				this._updateSessionSyncEnabled();
 			}
+			if (e.affectsConfiguration(AgentHostEnabledSettingId)) {
+				this._syncConnectionState();
+			}
 		}));
 
 		this._register(this._workspaceTrustManagementService.onDidChangeTrust(trusted => this._setWorkspaceTrusted(trusted)));
@@ -147,14 +150,16 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		}
 
 		this._workspaceTrusted = trusted;
-		if (!trusted) {
+		this._syncConnectionState();
+	}
+
+	private _syncConnectionState(): void {
+		if (!this._canCommunicate()) {
 			this._disconnect();
 			return;
 		}
 
-		if (isAgentHostEnabled(this._configurationService)) {
-			void this._connect().catch(err => this._logService.error('[AgentHost:renderer] Failed to connect to agent host', err));
-		}
+		void this._connect().catch(err => this._logService.error('[AgentHost:renderer] Failed to connect to agent host', err));
 	}
 
 	private _disconnect(): void {
@@ -169,13 +174,19 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return !this._isDisposed && this._workspaceTrusted && isAgentHostEnabled(this._configurationService);
 	}
 
-	private _createWorkspaceTrustError(): Error {
-		return new ErrorNoTelemetry(localize('agentHost.workspaceTrustRequired', "The local agent host is unavailable because this workspace is not trusted."));
+	private _createUnavailableError(): Error {
+		if (!this._workspaceTrusted) {
+			return new ErrorNoTelemetry(localize('agentHost.workspaceTrustRequired', "The local agent host is unavailable because this workspace is not trusted."));
+		}
+		if (!isAgentHostEnabled(this._configurationService)) {
+			return new ErrorNoTelemetry(localize('agentHost.disabled', "The local agent host is disabled."));
+		}
+		return new ErrorNoTelemetry(localize('agentHost.unavailable', "The local agent host is unavailable."));
 	}
 
 	private async _getConnection(): Promise<ILocalAgentHostConnection> {
 		if (!this._canCommunicate()) {
-			throw this._createWorkspaceTrustError();
+			throw this._createUnavailableError();
 		}
 
 		const existing = this._connection.value;
@@ -185,7 +196,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 		const connection = await this._connect();
 		if (!connection || !this._canCommunicate()) {
-			throw this._createWorkspaceTrustError();
+			throw this._createUnavailableError();
 		}
 
 		return connection;
@@ -194,7 +205,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	private async _withProxy<T>(callback: (proxy: IAgentService) => Promise<T>): Promise<T> {
 		const connection = await this._getConnection();
 		if (!this._canCommunicate() || this._connection.value !== connection) {
-			throw this._createWorkspaceTrustError();
+			throw this._createUnavailableError();
 		}
 		return callback(connection.proxy);
 	}
@@ -251,6 +262,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			connectionTracker,
 			dispose: () => store.dispose(),
 		};
+		if (!this._canCommunicate() || generation !== this._connectionGeneration) {
+			store.dispose();
+			return undefined;
+		}
 		this._connection.value = connection;
 		const subscriptionsToRestore = this._subscriptionManager.getActiveSubscriptions().map(subscription => subscription.resource);
 		this._updateTelemetryLevel();
