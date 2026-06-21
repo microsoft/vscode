@@ -11,8 +11,15 @@ import path from 'path';
 // from our Azure Artifacts universal package feeds using the `az` CLI, instead
 // of fetching them from private GitHub releases (which would require a
 // long-lived Personal Access Token).
-const ORGANIZATION = 'https://dev.azure.com/monacotools';
-const PROJECT = 'Monaco';
+
+// Reads a required environment variable, throwing if it is not set.
+function getEnv(name: string): string {
+	const value = process.env[name];
+	if (!value) {
+		throw new Error(`Missing required environment variable: ${name}`);
+	}
+	return value;
+}
 
 function azExecFile(args: string[]): Promise<void> {
 	return new Promise((resolve, reject) => {
@@ -56,8 +63,8 @@ export async function downloadFeedPackage(root: string, cacheDir: string, pkg: I
 		await ensureAzureDevOpsExtension();
 		await azExecFile([
 			'artifacts', 'universal', 'download',
-			'--organization', ORGANIZATION,
-			'--project', PROJECT,
+			'--organization', getEnv('SYSTEM_COLLECTIONURI').replace(/\/+$/, ''),
+			'--project', getEnv('SYSTEM_TEAMPROJECT'),
 			'--scope', 'project',
 			'--feed', pkg.feed,
 			'--name', pkg.name,
