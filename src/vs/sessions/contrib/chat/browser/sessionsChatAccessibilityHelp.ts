@@ -27,6 +27,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		content.push(localize('sessionsChat.input', "You are in the chat input. Type a message and press Enter to send it."));
 		content.push(localize('sessionsChat.inputBackground', "Press Alt+Enter to start the session in the background without navigating into it. The started session appears in the Chat Sessions view."));
 		content.push(localize('sessionsChat.workspace', "Shift+Tab to navigate to the workspace picker and choose a workspace for your session."));
+		content.push(localize('sessionsChat.configureTools', "For local sessions, Tab from the input to reach the Configure Tools button, then press Enter or Space to choose which tools are available to the agent."));
 		content.push(localize('sessionsChat.mobileConfig', "On mobile, the mode and model pickers appear as tappable chips below the input. Tap a chip to open a bottom sheet where you can change the selection."));
 		content.push(localize('sessionsChat.history', "Use up and down arrows to navigate your request history in the input box."));
 		content.push(localize('sessionsChat.navigatePreviousSession', "Navigate to the previous session in the list{0}.", '<keybinding:sessionsViewPane.navigatePreviousSession>'));

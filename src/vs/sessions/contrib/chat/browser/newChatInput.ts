@@ -9,6 +9,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
@@ -53,10 +54,15 @@ import { AgentHostInputCompletionHandler } from './agentHostInputCompletions.js'
 import { IChatModelInputState } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, toFileVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
+import { ChatSelectedTools } from '../../../../workbench/contrib/chat/browser/widget/input/chatSelectedTools.js';
+import { ChatMode } from '../../../../workbench/contrib/chat/common/chatModes.js';
+import { showToolsPicker } from '../../../../workbench/contrib/chat/browser/actions/chatToolPicker.js';
+import { ILanguageModelsService, ILanguageModelChatMetadataAndIdentifier } from '../../../../workbench/contrib/chat/common/languageModels.js';
+import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatHistoryNavigator } from '../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { registerAndCreateHistoryNavigationContext, IHistoryNavigationContext } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
-import { autorun, IObservable } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable } from '../../../../base/common/observable.js';
 import { ChatInputNotificationWidget } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationWidget.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
 import { ModelPicker, ModelPickerActionViewItem } from './modelPicker.js';
@@ -147,6 +153,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	// Attached context
 	private readonly _contextAttachments: NewChatContextAttachments;
 
+	// Tool selection (local sessions only)
+	private readonly _toolsModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
+	private readonly _selectedTools: ChatSelectedTools;
+
 	// Slash commands
 	private _slashCommandHandler: SlashCommandHandler | undefined;
 	private _agentHostInputCompletionHandler: AgentHostInputCompletionHandler | undefined;
@@ -185,12 +195,28 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		@IStorageService private readonly storageService: IStorageService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 	) {
 		super();
 		this._scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection(
 			[INewChatModelPickerService, new NewChatModelPickerService()],
 			[ISessionContext, new SessionContext(this.options.session)],
 		)));
+		// Tool selection for the new-session composer. Local sessions always run
+		// in Agent mode (their chat mode is never set, so the provider defaults
+		// to Agent), so the picker is bound to the builtin Agent mode and the
+		// session's selected model. It edits the same global tool-enablement
+		// memento the local provider reads when it dispatches the first send, so
+		// no extra plumbing through the send path is needed.
+		this._toolsModel = derived(reader => {
+			const id = this.options.session.read(reader)?.modelId.read(reader);
+			if (!id) {
+				return undefined;
+			}
+			const metadata = this.languageModelsService.lookupLanguageModel(id);
+			return metadata ? { identifier: id, metadata } : undefined;
+		});
+		this._selectedTools = this._register(this._scopedInstantiationService.createInstance(ChatSelectedTools, constObservable(ChatMode.Agent), this._toolsModel));
 		this._history = this._register(this.instantiationService.createInstance(ChatHistoryNavigator, ChatAgentLocation.Chat));
 		if (this.options.historyKey) {
 			this._register(autorun(reader => this._setHistoryKey(this.options.historyKey?.read(reader))));
@@ -490,6 +516,60 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}));
 	}
 
+	/**
+	 * Renders the "Configure Tools..." button, mirroring the tool selector in
+	 * the normal chat input. Shown only for local sessions, where tool selection
+	 * actually affects the dispatched request; other providers route to backends
+	 * that own their own tool set, so the button stays hidden for them.
+	 */
+	private _createToolsButton(container: HTMLElement): void {
+		const toolsButton = dom.append(container, dom.$('.sessions-chat-attach-button.sessions-chat-tools-button'));
+		const toolsButtonLabel = localize("configureTools", "Configure Tools...");
+		toolsButton.tabIndex = 0;
+		toolsButton.role = 'button';
+		toolsButton.ariaLabel = toolsButtonLabel;
+		this._register(this.hoverService.setupDelayedHover(toolsButton, {
+			content: toolsButtonLabel,
+			position: { hoverPosition: HoverPosition.BELOW },
+			appearance: { showPointer: true }
+		}));
+		// Decorative icon — the button itself carries the accessible name, so
+		// hide the icon from the accessibility tree to avoid a spurious announcement.
+		const toolsIcon = dom.append(toolsButton, renderIcon(Codicon.settings));
+		toolsIcon.setAttribute('aria-hidden', 'true');
+		// Activate on click and on Enter/Space, matching native button behavior.
+		const openToolsPicker = () => this._showToolsPicker();
+		this._register(dom.addDisposableListener(toolsButton, dom.EventType.CLICK, () => openToolsPicker()));
+		this._register(dom.addDisposableListener(toolsButton, dom.EventType.KEY_DOWN, e => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+				event.preventDefault();
+				event.stopPropagation();
+				openToolsPicker();
+			}
+		}));
+		this._register(autorun(reader => {
+			const isLocal = this.options.session.read(reader)?.sessionType === SessionType.Local;
+			toolsButton.style.display = isLocal ? '' : 'none';
+		}));
+	}
+
+	private async _showToolsPicker(): Promise<void> {
+		const placeholder = localize("configureTools.placeholder", "Select tools that are available to chat.");
+		const description = localize("configureTools.description", "The selected tools are applied to new local sessions that use the default agent.");
+		const result = await this.instantiationService.invokeFunction(
+			showToolsPicker,
+			placeholder,
+			'sessionsNewChatInput',
+			description,
+			() => this._selectedTools.entriesMap.get(),
+			this._toolsModel.get()?.metadata,
+		);
+		if (result) {
+			this._selectedTools.set(result, false);
+		}
+	}
+
 	private _createInputToolbar(container: HTMLElement): void {
 		const toolbar = dom.append(container, dom.$('.sessions-chat-toolbar'));
 
@@ -508,6 +588,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				return undefined;
 			},
 		}));
+
+		// Tools picker, grouped with the mode/model pickers to match the normal
+		// chat input where "Configure Tools..." sits alongside them.
+		this._createToolsButton(configContainer);
 
 		dom.append(toolbar, dom.$('.sessions-chat-toolbar-spacer'));
 

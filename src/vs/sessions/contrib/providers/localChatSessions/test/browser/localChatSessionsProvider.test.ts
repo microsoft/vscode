@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI, UriComponents } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -21,13 +21,22 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../../
 import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import { ChatAgentLocation } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { IChatModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
-import { IChatModelReference, IChatService, IChatSessionStartOptions, IChatSessionTiming } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatModelReference, IChatSendRequestOptions, IChatService, IChatSessionStartOptions, IChatSessionTiming } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
-import { ILanguageModelToolsService } from '../../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IGitService } from '../../../../../../workbench/contrib/git/common/gitService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { LocalChatSessionsProvider, LocalSessionType, LOCAL_SESSION_ENABLED_SETTING } from '../../browser/localChatSessionsProvider.js';
+
+/** Prompt-referenceable tool the fake tools service advertises, so a send's tool selection is non-empty. */
+const TEST_TOOL: IToolData = {
+	id: 'test.tool',
+	source: ToolDataSource.Internal,
+	displayName: 'Test Tool',
+	modelDescription: 'A tool used by the local chat sessions provider tests',
+	canBeReferencedInPrompt: true,
+};
 
 // ---- Mock chat service ----------------------------------------------------
 
@@ -49,7 +58,7 @@ class MockChatService extends Disposable {
 	private readonly _models = new Map<string, IChatModel>();
 	private _counter = 0;
 
-	readonly sendRequestCalls: { resource: URI; query: string }[] = [];
+	readonly sendRequestCalls: { resource: URI; query: string; options?: IChatSendRequestOptions }[] = [];
 
 	/** When a query matches an entry here, sendRequest reports a rejection. */
 	readonly rejectQueries = new Set<string>();
@@ -79,8 +88,8 @@ class MockChatService extends Disposable {
 		return undefined;
 	}
 
-	async sendRequest(resource: URI, query: string) {
-		this.sendRequestCalls.push({ resource, query });
+	async sendRequest(resource: URI, query: string, options?: IChatSendRequestOptions) {
+		this.sendRequestCalls.push({ resource, query, options });
 		if (this.rejectQueries.has(query)) {
 			return { kind: 'rejected', reason: 'test-rejected' };
 		}
@@ -126,7 +135,10 @@ function createFixture(store: DisposableStore): ITestFixture {
 		override getUriLabel(uri: URI): string { return uri.fsPath; }
 	}());
 	instantiationService.stub(ILanguageModelsService, new class extends mock<ILanguageModelsService>() { }());
-	instantiationService.stub(ILanguageModelToolsService, new class extends mock<ILanguageModelToolsService>() { }());
+	instantiationService.stub(ILanguageModelToolsService, new class extends mock<ILanguageModelToolsService>() {
+		override observeTools() { return constObservable<readonly IToolData[]>([TEST_TOOL]); }
+		override getToolSetsForModel() { return []; }
+	}());
 	instantiationService.stub(IGitService, new class extends mock<IGitService>() {
 		override async openRepository() { return undefined; }
 	}());
@@ -201,6 +213,19 @@ suite('LocalChatSessionsProvider', () => {
 		const chat = await provider.createNewChat(newSession.sessionId);
 		await provider.sendRequest(newSession.sessionId, chat.resource, { query: 'hi' });
 		assert.strictEqual(provider.getSessions().length, 1);
+	});
+
+	test('first request to a new session carries the resolved tool selection', async () => {
+		const store = leaks.add(new DisposableStore());
+		const { instantiationService, chatService } = createFixture(store);
+		const provider = store.add(instantiationService.createInstance(LocalChatSessionsProvider));
+
+		await commitNewSession(provider);
+
+		// Regression: the headless first send used to omit userSelectedTools, so
+		// extHostChatAgents2.getToolsForRequest mapped it to an empty tool set.
+		const sent = chatService.sendRequestCalls.at(-1);
+		assert.deepStrictEqual(sent?.options?.userSelectedTools?.get(), { [TEST_TOOL.id]: true });
 	});
 
 	test('createNewSession rejects unknown session types', () => {
