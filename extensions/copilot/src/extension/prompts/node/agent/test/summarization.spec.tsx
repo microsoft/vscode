@@ -27,6 +27,7 @@ import { IBuildPromptContext, IToolCall } from '../../../../prompt/common/intent
 import { ToolCallRound } from '../../../../prompt/common/toolCallRound';
 import { createExtensionUnitTestingServices } from '../../../../test/node/services';
 import { ToolName } from '../../../../tools/common/toolNames';
+import { IToolsService } from '../../../../tools/common/toolsService';
 import { PromptRenderer } from '../../base/promptRenderer';
 import { AgentPrompt, AgentPromptProps } from '../agentPrompt';
 import { PromptRegistry } from '../promptRegistry';
@@ -87,6 +88,22 @@ suite('Agent Summarization', () => {
 		normalizeSummariesOnRounds(promptContext.history);
 		if (!promptContext.conversation) {
 			promptContext = { ...promptContext, conversation };
+		}
+
+		// Real agent requests always advertise the non-deferred memory tool, which gates the
+		// memory context blocks. Advertise it here so the rendered Agent prompt matches real usage.
+		if (!promptContext.tools?.availableTools.some(t => t.name === ToolName.Memory)) {
+			const memoryTool = accessor.get(IToolsService).tools.find(t => t.name === ToolName.Memory);
+			if (memoryTool) {
+				promptContext = {
+					...promptContext,
+					tools: {
+						toolInvocationToken: promptContext.tools?.toolInvocationToken ?? (null as never),
+						toolReferences: promptContext.tools?.toolReferences ?? [],
+						availableTools: [...(promptContext.tools?.availableTools ?? []), memoryTool],
+					}
+				};
+			}
 		}
 
 		const baseProps = {
