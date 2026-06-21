@@ -12,6 +12,7 @@ import { CodeGenerationTextInstruction, ConfigKey, IConfigurationService } from 
 import { MockEndpoint } from '../../../../../platform/endpoint/test/node/mockEndpoint';
 import { messageToMarkdown } from '../../../../../platform/log/common/messageStringify';
 import { IResponseDelta } from '../../../../../platform/networking/common/fetch';
+import { IMakeChatRequestOptions } from '../../../../../platform/networking/common/networking';
 import { ITestingServicesAccessor } from '../../../../../platform/test/node/services';
 import { TestWorkspaceService } from '../../../../../platform/test/node/testWorkspaceService';
 import { IWorkspaceService } from '../../../../../platform/workspace/common/workspaceService';
@@ -481,6 +482,26 @@ suite('Agent Summarization', () => {
 		expect(summaryMeta).toBeDefined();
 		expect(summaryMeta!.text).toBe('summarized successfully!');
 		expect(summaryMeta!.toolCallRoundId).toBeTruthy();
+	});
+
+	test('summarization request does not force stream:false (would break SSE-processed streaming models like Gemini) #321085', async () => {
+		chatResponse[0] = 'summarized successfully!';
+		const { instaService, endpoint, historyProps } = createSummarizationTestContext();
+
+		const capturedRequests: IMakeChatRequestOptions[] = [];
+		const originalMakeChatRequest2 = endpoint.makeChatRequest2.bind(endpoint);
+		endpoint.makeChatRequest2 = (options, token) => {
+			capturedRequests.push(options);
+			return originalMakeChatRequest2(options, token);
+		};
+
+		const renderer = PromptRenderer.create(instaService, endpoint, SummarizedConversationHistory, historyProps);
+		await renderer.render();
+
+		expect(capturedRequests.length).toBeGreaterThan(0);
+		for (const request of capturedRequests) {
+			expect(request.requestOptions?.stream).not.toBe(false);
+		}
 	});
 
 	test('failed summarization does not set round.summary', async () => {
