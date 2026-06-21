@@ -2215,7 +2215,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const chat = await provider.createNewChat(session.sessionId);
 		const committed = await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
 		assert.strictEqual(committed.resource.scheme, 'agent-host-codex', `expected the committed session to be the codex session, got ${committed.resource.toString()}`);
-		assert.strictEqual(committed.resource.scheme, 'agent-host-codex', `expected the committed session to be the codex session, got ${committed.resource.toString()}`);
 	});
 
 	test('sendRequest forwards resolved session config to chat service', async () => {
