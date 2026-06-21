@@ -13,7 +13,7 @@ import { Categories } from '../../../../../platform/action/common/actionCommonCa
 import { Action2 } from '../../../../../platform/actions/common/actions.js';
 import { agentHostAuthority, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentHostEnabledSettingId, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
-import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, remoteAgentHostLogOutputChannelId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, remoteAgentHostLogOutputChannelId, AGENT_HOST_LOG_OUTPUT_CHANNEL_ID } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsWebContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -24,6 +24,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IChatWidgetService } from '../chat.js';
@@ -31,7 +32,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { buildLocalCopilotLogsUri, buildRemoteCopilotLogsUri, COPILOT_CLI_LOCAL_AH_SCHEME, getCopilotCliSessionRawId, parseRemoteAuthorityFromScheme, resolveEventsUri } from '../copilotCliEventsUri.js';
 
 /** Output channel ID for the agent host process logger (forwarded via RemoteLoggerChannelClient). */
-const AGENT_HOST_LOGGER_CHANNEL_ID = 'agenthost';
+const AGENT_HOST_LOGGER_CHANNEL_ID = AGENT_HOST_LOG_OUTPUT_CHANNEL_ID;
 /** Output channel ID for the current window's renderer log. */
 const WINDOW_LOG_CHANNEL_ID = 'rendererLog';
 /** Output channel ID for the shared process compound log. */
@@ -63,7 +64,7 @@ export const IAgentHostDebugLogsExportService = createDecorator<IAgentHostDebugL
 
 export interface IAgentHostDebugLogsExportService {
 	readonly _serviceBrand: undefined;
-	save(exportName: string, files: readonly { path: string; contents: string }[]): Promise<void>;
+	save(exportName: string, files: readonly { path: string; contents: string }[]): Promise<boolean>;
 }
 
 export class BrowserAgentHostDebugLogsExportService implements IAgentHostDebugLogsExportService {
@@ -74,8 +75,8 @@ export class BrowserAgentHostDebugLogsExportService implements IAgentHostDebugLo
 		@IFileService private readonly fileService: IFileService,
 	) { }
 
-	async save(exportName: string, files: readonly { path: string; contents: string }[]): Promise<void> {
-		await exportFilesToLocalFolder(this.fileDialogService, this.fileService, exportName, files);
+	async save(exportName: string, files: readonly { path: string; contents: string }[]): Promise<boolean> {
+		return exportFilesToLocalFolder(this.fileDialogService, this.fileService, exportName, files);
 	}
 }
 
@@ -334,12 +335,18 @@ export async function exportAgentHostDebugLogs(
 ): Promise<void> {
 	const exportService = accessor.get(IAgentHostDebugLogsExportService);
 	const notificationService = accessor.get(INotificationService);
+	const chatEntitlementService = accessor.get(IChatEntitlementService);
 	const logs = await collectAgentHostDebugLogs(accessor, activeSession);
 	if (!logs) {
 		return;
 	}
 	try {
-		await exportService.save(logs.exportName, logs.files);
+		const saved = await exportService.save(logs.exportName, logs.files);
+		if (saved) {
+			notificationService.warn(chatEntitlementService.isInternal
+				? localize('exportDebugLogs.privacyWarning.internal', "Note: This log may contain personal information such as auth tokens, file contents, or terminal output. It MUST be shared privately via Slack or in an issue filed on the microsoft/vscode-internalbacklog repo.")
+				: localize('exportDebugLogs.privacyWarning', "Note: This log may contain personal information such as auth tokens, file contents, or terminal output. Please consider sharing privately or reviewing the contents carefully before sharing."));
+		}
 	} catch (error) {
 		notificationService.notify({
 			severity: Severity.Error,
@@ -397,7 +404,8 @@ export function toActiveAgentHostSession(resource: URI, title: string | undefine
 }
 
 function getRemoteConnectionForSession(sessionResource: URI, connections: readonly IRemoteAgentHostConnectionInfo[]): IRemoteAgentHostConnectionInfo | undefined {
-	return connections.find(connection => sessionResource.scheme.startsWith(`remote-${agentHostAuthority(connection.address)}-`));
+	const authority = parseRemoteAuthorityFromScheme(sessionResource.scheme);
+	return authority ? connections.find(connection => agentHostAuthority(connection.address) === authority) : undefined;
 }
 
 function sanitizeFilePart(value: string): string {
@@ -409,7 +417,7 @@ async function exportFilesToLocalFolder(
 	fileService: IFileService,
 	exportName: string,
 	files: readonly { path: string; contents: string }[],
-): Promise<void> {
+): Promise<boolean> {
 	const folders = await fileDialogService.showOpenDialog({
 		title: localize('exportDebugLogs.folderDialogTitle', "Select Folder for Agent Host Debug Logs"),
 		canSelectFiles: false,
@@ -420,7 +428,7 @@ async function exportFilesToLocalFolder(
 
 	const parentFolder = folders?.[0];
 	if (!parentFolder) {
-		return;
+		return false;
 	}
 
 	const exportFolder = joinPath(parentFolder, exportName);
@@ -438,6 +446,7 @@ async function exportFilesToLocalFolder(
 		}
 		await fileService.writeFile(joinPath(folder, segments[segments.length - 1]), VSBuffer.fromString(file.contents));
 	}
+	return true;
 }
 
 function toSafeRelativePathSegments(path: string): string[] {

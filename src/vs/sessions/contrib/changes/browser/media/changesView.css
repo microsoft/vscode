@@ -35,15 +35,9 @@
 	gap: 8px;
 }
 
-.changes-view-body .changes-welcome-icon.codicon {
-	font-size: 32px !important;
-	color: var(--vscode-descriptionForeground);
-	opacity: 0.4;
-}
-
 .changes-view-body .changes-welcome-message {
 	color: var(--vscode-descriptionForeground);
-	font-size: 12px;
+	font-size: var(--vscode-agents-fontSize-label1);
 }
 
 /* Main container */
@@ -62,8 +56,8 @@
 	gap: 6px;
 	padding: 2px 0;
 	min-height: 22px;
-	font-weight: 500;
-	font-size: 12px;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-agents-fontSize-label1);
 }
 
 .changes-view-body .changes-files-header-toolbar {
@@ -72,7 +66,7 @@
 }
 
 .changes-view-body .changes-files-header-toolbar .action-label {
-	font-size: 12px;
+	font-size: var(--vscode-agents-fontSize-label1);
 	align-items: center;
 
 	> span {
@@ -80,10 +74,10 @@
 	}
 
 	> .codicon {
-		font-size: 10px !important;
+		font-size: var(--vscode-codiconFontSize-compact) !important;
 		padding-left: 4px;
-		width: 10px;
-		height: 10px;
+		width: 12px;
+		height: 12px;
 	}
 }
 
@@ -97,8 +91,8 @@
 	display: inline-flex;
 	align-items: center;
 	gap: 4px;
-	font-size: 12px;
-	font-weight: 500;
+	font-size: var(--vscode-agents-fontSize-label1);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	padding: 2px 4px;
 }
 
@@ -129,7 +123,7 @@
 .changes-view-body .chat-editing-session-actions.outside-card .monaco-button {
 	height: 26px;
 	padding: 4px;
-	font-size: 12px;
+	font-size: var(--vscode-agents-fontSize-label1);
 	line-height: 18px;
 }
 
@@ -236,8 +230,8 @@
 	gap: 6px;
 	padding: 2px 0;
 	min-height: 22px;
-	font-weight: 500;
-	font-size: 12px;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-agents-fontSize-label1);
 }
 
 /* List rows */
@@ -251,7 +245,7 @@
 
 /* Action bar in list rows */
 .changes-file-list .monaco-list-row .chat-collapsible-list-action-bar {
-	padding-left: 5px;
+	padding-left: 6px;
 	display: none;
 }
 
@@ -275,8 +269,8 @@
 	justify-content: center;
 	width: 16px;
 	min-width: 16px;
-	font-size: 11px;
-	font-weight: 600;
+	font-size: var(--vscode-agents-fontSize-body2);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	margin-right: 2px;
 	opacity: 0.9;
 }
@@ -299,20 +293,20 @@
 	display: inline-flex;
 	align-items: center;
 	gap: 4px;
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-body2);
 }
 
 .changes-file-list .changes-review-comments-badge {
 	display: inline-flex;
 	align-items: center;
 	gap: 4px;
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-body2);
 	margin-right: 6px;
 	color: var(--vscode-descriptionForeground);
 }
 
 .changes-file-list .changes-review-comments-badge .codicon {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .changes-file-list .changes-agent-feedback-badge {
@@ -320,12 +314,12 @@
 	align-items: center;
 	vertical-align: middle;
 	gap: 4px;
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-body2);
 	color: var(--vscode-descriptionForeground);
 }
 
 .changes-file-list .changes-agent-feedback-badge .codicon {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .changes-file-list .working-set-lines-added {

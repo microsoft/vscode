@@ -48,7 +48,7 @@ export class MockAgent implements IAgent {
 	private readonly _activeTurnIds = new Map<string, string>();
 
 
-	readonly sendMessageCalls: { session: URI; prompt: string; attachments?: readonly MessageAttachment[] }[] = [];
+	readonly sendMessageCalls: { session: URI; prompt: string; attachments?: readonly MessageAttachment[]; chat?: URI }[] = [];
 	readonly setPendingMessagesCalls: { session: URI; steeringMessage: PendingMessage | undefined; queuedMessages: readonly PendingMessage[] }[] = [];
 	readonly disposeSessionCalls: URI[] = [];
 	readonly abortSessionCalls: URI[] = [];
@@ -120,8 +120,10 @@ export class MockAgent implements IAgent {
 		return { items: [] };
 	}
 
-	async sendMessage(session: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string): Promise<void> {
-		this.sendMessageCalls.push({ session, prompt, attachments });
+	async sendMessage(session: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, chat?: URI): Promise<void> {
+		// Only record `chat` when defined so existing single-chat assertions
+		// that compare against `{ session, prompt, attachments }` still match.
+		this.sendMessageCalls.push(chat ? { session, prompt, attachments, chat } : { session, prompt, attachments });
 		if (turnId) {
 			this._activeTurnIds.set(uriKey(session), turnId);
 		}
@@ -490,6 +492,55 @@ export class ScriptedMockAgent implements IAgent {
 				break;
 			}
 
+			case 'orphan-confirmation': {
+				// Regression scenario for a `pending_confirmation` that
+				// arrives without an active protocol turn (the session would
+				// otherwise hang forever). Reproduces a hook-triggered
+				// continuation that runs *after* the protocol turn has
+				// already completed:
+				//   1. A tool runs and the turn completes — the state manager
+				//      no longer has an active turn.
+				//   2. The continuation dispatches a new tool with an empty
+				//      turnId and emits `pending_confirmation` while there is
+				//      no active turn.
+				// The read targets a path inside the working directory, so the
+				// host auto-approves it and calls `respondToPermissionRequest`,
+				// which resolves the callback below and lets the session
+				// continue. Without the fix the signal is dropped, the callback
+				// never fires, and the session hangs.
+				(async () => {
+					await timeout(10);
+					for (const s of _toolStart(session, sessionStr, tid, 'tc-orphan-initial', 'bash', 'Run Command', 'Run command')) {
+						this._onDidSessionProgress.fire(s);
+					}
+					await timeout(5);
+					this._onDidSessionProgress.fire(_toolComplete(session, sessionStr, tid, 'tc-orphan-initial', { pastTenseMessage: 'Ran command', content: [{ type: ToolResultContentType.Text, text: 'ok' }], success: true }));
+					await timeout(5);
+					// Complete the turn — the state manager clears the active turn.
+					this._onDidSessionProgress.fire(_idle(session, sessionStr, tid));
+
+					// Hook-triggered continuation: a new tool starts with an
+					// empty turnId and `pending_confirmation` arrives while
+					// there is no active turn.
+					await timeout(10);
+					for (const s of _toolStart(session, sessionStr, '', 'tc-orphan', 'view', 'Read', 'Read file')) {
+						this._onDidSessionProgress.fire(s);
+					}
+					await timeout(5);
+					this._onDidSessionProgress.fire(_pendingConfirmation(session, 'tc-orphan', 'Read file', { permissionKind: 'read', permissionPath: '/workspace/file.ts' }));
+				})();
+				this._pendingPermissions.set('tc-orphan', (approved) => {
+					if (approved) {
+						this._fireSequence([
+							_toolComplete(session, sessionStr, tid, 'tc-orphan', { pastTenseMessage: 'Read file', content: [{ type: ToolResultContentType.Text, text: 'contents' }], success: true }),
+							_markdown(session, sessionStr, tid, 'continued-after-hook'),
+							_idle(session, sessionStr, tid),
+						]);
+					}
+				});
+				break;
+			}
+
 			case 'with-usage':
 				this._fireSequence([
 					_markdown(session, sessionStr, tid, 'Usage response.'),
@@ -500,14 +551,14 @@ export class ScriptedMockAgent implements IAgent {
 
 			case 'with-reasoning': {
 				const initialReasoning = _reasoning(session, sessionStr, tid, 'Let me think');
-				const partId = initialReasoning.action.type === ActionType.SessionResponsePart
+				const partId = initialReasoning.action.type === ActionType.ChatResponsePart
 					&& hasKey(initialReasoning.action.part, { id: true })
 					? initialReasoning.action.part.id
 					: '';
 				this._fireSequence([
 					initialReasoning,
 					_action(session, {
-						type: ActionType.SessionReasoning,
+						type: ActionType.ChatReasoning,
 						turnId: tid,
 						partId,
 						content: ' about this...',
@@ -548,7 +599,7 @@ export class ScriptedMockAgent implements IAgent {
 					await timeout(10);
 					// Client tools don't get auto-ready — toolStart with toolClientId only emits tool_start
 					this._onDidSessionProgress.fire(_action(session, {
-						type: ActionType.SessionToolCallStart,
+						type: ActionType.ChatToolCallStart,
 						turnId: tid,
 						toolCallId: 'tc-client-1',
 						toolName: 'runTests',
@@ -574,7 +625,7 @@ export class ScriptedMockAgent implements IAgent {
 				(async () => {
 					await timeout(10);
 					this._onDidSessionProgress.fire(_action(session, {
-						type: ActionType.SessionToolCallStart,
+						type: ActionType.ChatToolCallStart,
 						turnId: tid,
 						toolCallId: 'tc-client-perm-1',
 						toolName: 'runTests',
@@ -770,14 +821,14 @@ export class ScriptedMockAgent implements IAgent {
 let _mockPartIdCounter = 0;
 
 /** Wraps a session action into an {@link IAgentActionSignal}. */
-function _action(session: URI, action: import('../../common/state/sessionActions.js').SessionAction, parentToolCallId?: string): IAgentActionSignal {
+function _action(session: URI, action: import('../../common/state/sessionActions.js').SessionAction | import('../../common/state/sessionActions.js').ChatAction, parentToolCallId?: string): IAgentActionSignal {
 	return { kind: 'action', session, action, parentToolCallId };
 }
 
 /** Creates a markdown {@link ResponsePartKind.Markdown} response part signal. */
 function _markdown(session: URI, sessionStr: string, turnId: string, content: string, parentToolCallId?: string): IAgentActionSignal {
 	return _action(session, {
-		type: ActionType.SessionResponsePart,
+		type: ActionType.ChatResponsePart,
 		turnId,
 		part: { kind: ResponsePartKind.Markdown, id: `mock-md-${++_mockPartIdCounter}`, content },
 	}, parentToolCallId);
@@ -786,20 +837,20 @@ function _markdown(session: URI, sessionStr: string, turnId: string, content: st
 /** Creates a reasoning {@link ResponsePartKind.Reasoning} response part signal. */
 function _reasoning(session: URI, sessionStr: string, turnId: string, content: string): IAgentActionSignal {
 	return _action(session, {
-		type: ActionType.SessionResponsePart,
+		type: ActionType.ChatResponsePart,
 		turnId,
 		part: { kind: ResponsePartKind.Reasoning, id: `mock-rs-${++_mockPartIdCounter}`, content },
 	});
 }
 
-/** Creates a {@link ActionType.SessionTurnComplete} signal. */
+/** Creates a {@link ActionType.ChatTurnComplete} signal. */
 function _idle(session: URI, sessionStr: string, turnId: string): IAgentActionSignal {
-	return _action(session, { type: ActionType.SessionTurnComplete, turnId });
+	return _action(session, { type: ActionType.ChatTurnComplete, turnId });
 }
 
-/** Creates a {@link ActionType.SessionError} signal. */
+/** Creates a {@link ActionType.ChatError} signal. */
 function _error(session: URI, sessionStr: string, turnId: string, errorType: string, message: string, stack?: string): IAgentActionSignal {
-	return _action(session, { type: ActionType.SessionError, turnId, error: { errorType, message, stack } });
+	return _action(session, { type: ActionType.ChatError, turnId, error: { errorType, message, stack } });
 }
 
 /** Creates a {@link ActionType.SessionTitleChanged} signal. */
@@ -807,14 +858,14 @@ function _titleChanged(session: URI, sessionStr: string, title: string): IAgentA
 	return _action(session, { type: ActionType.SessionTitleChanged, title });
 }
 
-/** Creates a {@link ActionType.SessionUsage} signal. */
+/** Creates a {@link ActionType.ChatUsage} signal. */
 function _usage(session: URI, sessionStr: string, turnId: string, usage: UsageInfo): IAgentActionSignal {
-	return _action(session, { type: ActionType.SessionUsage, turnId, usage });
+	return _action(session, { type: ActionType.ChatUsage, turnId, usage });
 }
 
 /**
- * Creates tool-start signals: a {@link ActionType.SessionToolCallStart} and,
- * for non-client tools, an auto-ready {@link ActionType.SessionToolCallReady}.
+ * Creates tool-start signals: a {@link ActionType.ChatToolCallStart} and,
+ * for non-client tools, an auto-ready {@link ActionType.ChatToolCallReady}.
  */
 function _toolStart(session: URI, sessionStr: string, turnId: string, toolCallId: string, toolName: string, displayName: string, invocationMessage: StringOrMarkdown, opts?: {
 	toolInput?: string;
@@ -835,7 +886,7 @@ function _toolStart(session: URI, sessionStr: string, turnId: string, toolCallId
 		meta.subagentDescription = opts.subagentDescription;
 	}
 	const signals: IAgentActionSignal[] = [_action(session, {
-		type: ActionType.SessionToolCallStart,
+		type: ActionType.ChatToolCallStart,
 		turnId,
 		toolCallId,
 		toolName,
@@ -845,7 +896,7 @@ function _toolStart(session: URI, sessionStr: string, turnId: string, toolCallId
 	}, opts?.parentToolCallId)];
 	if (!opts?.toolClientId) {
 		signals.push(_action(session, {
-			type: ActionType.SessionToolCallReady,
+			type: ActionType.ChatToolCallReady,
 			turnId,
 			toolCallId,
 			invocationMessage,
@@ -856,9 +907,9 @@ function _toolStart(session: URI, sessionStr: string, turnId: string, toolCallId
 	return signals;
 }
 
-/** Creates a {@link ActionType.SessionToolCallComplete} signal. */
+/** Creates a {@link ActionType.ChatToolCallComplete} signal. */
 function _toolComplete(session: URI, sessionStr: string, turnId: string, toolCallId: string, result: ToolCallResult, parentToolCallId?: string): IAgentActionSignal {
-	return _action(session, { type: ActionType.SessionToolCallComplete, turnId, toolCallId, result }, parentToolCallId);
+	return _action(session, { type: ActionType.ChatToolCallComplete, turnId, toolCallId, result }, parentToolCallId);
 }
 
 /** Creates a {@link IAgentToolPendingConfirmationSignal}. */

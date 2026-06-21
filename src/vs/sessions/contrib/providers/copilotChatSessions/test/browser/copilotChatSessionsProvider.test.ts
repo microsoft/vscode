@@ -33,6 +33,7 @@ import { ISessionChangeEvent } from '../../../../../services/sessions/common/ses
 import { GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { CLAUDE_CODE_ENABLED_SETTING, CopilotChatSessionsProvider, COPILOT_PROVIDER_ID, ClaudeCodeSessionType, ICopilotChatSession } from '../../browser/copilotChatSessionsProvider.js';
+import { ClaudePreferAgentHostAgentsSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -101,6 +102,17 @@ class MockAgentSessionsModel {
 		}
 	}
 
+	replaceSession(session: IAgentSession): void {
+		const idx = this._sessions.findIndex(s => s.resource.toString() === session.resource.toString());
+		assert.ok(idx >= 0, 'session should exist before replacing');
+		this._sessions.splice(idx, 1, session);
+		this._onDidChangeSessions.fire();
+	}
+
+	fireDidChangeSessions(): void {
+		this._onDidChangeSessions.fire();
+	}
+
 	async resolve(): Promise<void> { }
 
 	dispose(): void {
@@ -113,7 +125,7 @@ class MockAgentSessionsModel {
 function createProvider(
 	disposables: DisposableStore,
 	model: MockAgentSessionsModel,
-	opts?: { multiChatEnabled?: boolean; claudeEnabled?: boolean },
+	opts?: { multiChatEnabled?: boolean; claudeEnabled?: boolean; preferAgentHost?: boolean; hideCopilotCli?: boolean },
 ): CopilotChatSessionsProvider {
 	return createProviderWithConfig(disposables, model, opts).provider;
 }
@@ -121,13 +133,15 @@ function createProvider(
 function createProviderWithConfig(
 	disposables: DisposableStore,
 	model: MockAgentSessionsModel,
-	opts?: { multiChatEnabled?: boolean; claudeEnabled?: boolean },
+	opts?: { multiChatEnabled?: boolean; claudeEnabled?: boolean; preferAgentHost?: boolean; hideCopilotCli?: boolean },
 ): { provider: CopilotChatSessionsProvider; configService: TestConfigurationService } {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	const configService = new TestConfigurationService();
 	configService.setUserConfiguration('sessions.github.copilot.multiChatSessions', opts?.multiChatEnabled ?? true);
 	configService.setUserConfiguration(CLAUDE_CODE_ENABLED_SETTING, opts?.claudeEnabled ?? true);
+	configService.setUserConfiguration(ClaudePreferAgentHostAgentsSettingId, opts?.preferAgentHost ?? false);
+	configService.setUserConfiguration(ChatConfiguration.CopilotCliHideExtensionHostAgents, opts?.hideCopilotCli ?? false);
 
 	instantiationService.stub(IConfigurationService, configService);
 	instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
@@ -294,6 +308,22 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.ok(!provider.sessionTypes.some(t => t.id === ClaudeCodeSessionType.id));
 	});
 
+	test('sessionTypes excludes Claude when preferAgentHost is true', () => {
+		// When the user has opted into the agent host implementation of
+		// Claude, this provider must yield so the picker shows a single
+		// Claude entry (the agent host's). Otherwise both register and the
+		// user sees Claude twice.
+		const provider = createProvider(disposables, model, { claudeEnabled: true, preferAgentHost: true });
+		assert.strictEqual(provider.sessionTypes.length, 2);
+		assert.ok(!provider.sessionTypes.some(t => t.id === ClaudeCodeSessionType.id));
+	});
+
+	test('sessionTypes includes Claude when claudeEnabled and preferAgentHost is false', () => {
+		const provider = createProvider(disposables, model, { claudeEnabled: true, preferAgentHost: false });
+		assert.strictEqual(provider.sessionTypes.length, 3);
+		assert.ok(provider.sessionTypes.some(t => t.id === ClaudeCodeSessionType.id));
+	});
+
 	test('onDidChangeSessionTypes fires when claude setting changes', () => {
 		const { provider, configService } = createProviderWithConfig(disposables, model);
 		assert.strictEqual(provider.sessionTypes.length, 3);
@@ -312,6 +342,59 @@ suite('CopilotChatSessionsProvider', () => {
 
 		assert.ok(fired, 'onDidChangeSessionTypes should have fired');
 		assert.strictEqual(provider.sessionTypes.length, 2);
+	});
+
+	test('onDidChangeSessionTypes fires when preferAgentHost setting changes', () => {
+		// Symmetric with the claude-enabled case above. Must respond live so
+		// flipping the EXP-backed preference unregisters this provider's
+		// Claude entry without requiring a window reload.
+		const { provider, configService } = createProviderWithConfig(disposables, model);
+		assert.strictEqual(provider.sessionTypes.length, 3);
+
+		let fired = false;
+		disposables.add(provider.onDidChangeSessionTypes(() => { fired = true; }));
+
+		configService.setUserConfiguration(ClaudePreferAgentHostAgentsSettingId, true);
+		configService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([ClaudePreferAgentHostAgentsSettingId]),
+			change: { keys: [ClaudePreferAgentHostAgentsSettingId], overrides: [] },
+			affectsConfiguration: (key: string) => key === ClaudePreferAgentHostAgentsSettingId,
+		});
+
+		assert.ok(fired, 'onDidChangeSessionTypes should have fired');
+		assert.strictEqual(provider.sessionTypes.length, 2);
+		assert.ok(!provider.sessionTypes.some(t => t.id === ClaudeCodeSessionType.id));
+	});
+
+	test('sessionTypes excludes Copilot CLI when hideExtensionHost is true', () => {
+		// When the user hides the Extension Host Copilot CLI, this provider
+		// must drop the entry so the Agents window picker only surfaces the
+		// Agent Host Copilot CLI.
+		const provider = createProvider(disposables, model, { hideCopilotCli: true });
+		assert.ok(!provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id));
+	});
+
+	test('onDidChangeSessionTypes fires when hideExtensionHost setting changes', () => {
+		// Symmetric with the claude cases above. Must respond live so flipping
+		// the EXP-backed preference unregisters this provider's Copilot CLI
+		// entry without requiring a window reload.
+		const { provider, configService } = createProviderWithConfig(disposables, model);
+		assert.ok(provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id));
+
+		let fired = false;
+		disposables.add(provider.onDidChangeSessionTypes(() => { fired = true; }));
+
+		configService.setUserConfiguration(ChatConfiguration.CopilotCliHideExtensionHostAgents, true);
+		configService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([ChatConfiguration.CopilotCliHideExtensionHostAgents]),
+			change: { keys: [ChatConfiguration.CopilotCliHideExtensionHostAgents], overrides: [] },
+			affectsConfiguration: (key: string) => key === ChatConfiguration.CopilotCliHideExtensionHostAgents,
+		});
+
+		assert.ok(fired, 'onDidChangeSessionTypes should have fired');
+		assert.ok(!provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id));
 	});
 
 	test('toggling claude setting refreshes sessions list', () => {
@@ -428,6 +511,44 @@ suite('CopilotChatSessionsProvider', () => {
 
 		assert.ok(changes.length > 0);
 		assert.strictEqual(changes[0].added.length, 1);
+	});
+
+	test('onDidChangeSessions does not fire when cached agent session is unchanged', () => {
+		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/existing-session' });
+		model.addSession(createMockAgentSession(resource, { title: 'Existing Session', createdAt: 1 }));
+
+		const provider = createProvider(disposables, model);
+		provider.getSessions(); // Initialize cache
+
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
+
+		model.fireDidChangeSessions();
+
+		assert.deepStrictEqual(changes, []);
+	});
+
+	test('onDidChangeSessions fires changed session when cached agent session changes', () => {
+		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/existing-session' });
+		model.addSession(createMockAgentSession(resource, { title: 'Existing Session', createdAt: 1 }));
+
+		const provider = createProvider(disposables, model);
+		provider.getSessions(); // Initialize cache
+
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
+
+		model.replaceSession(createMockAgentSession(resource, { title: 'Updated Session', createdAt: 1 }));
+
+		assert.deepStrictEqual(changes.map(e => ({
+			added: e.added.length,
+			removed: e.removed.length,
+			changed: e.changed.map(session => session.title.get()),
+		})), [{
+			added: 0,
+			removed: 0,
+			changed: ['Updated Session'],
+		}]);
 	});
 
 	// ---- Session creation -------
@@ -1313,5 +1434,55 @@ suite('CopilotChatSessionsProvider', () => {
 
 			assert.strictEqual(session?.permissionLevel.get(), ChatPermissionLevel.Default);
 		});
+	});
+
+	// ---- In-flight commit protection -------
+
+	test('concurrent model re-resolve does not spuriously remove an in-flight committed session', async () => {
+		// This reproduces the race condition from the smoke test failure:
+		// 1. Claude session is created and committed (added to model)
+		// 2. _sendFirstChat is waiting for the committed adapter in the cache
+		// 3. A concurrent model re-resolve transiently removes the session
+		//    from agentSessionsService.model.sessions
+		// 4. _refreshSessionCache should NOT fire `removed` for the in-flight
+		//    session because it is protected by _inFlightCommits
+
+		const { provider, commitSession, realResource } = makeClaudeInFlightProvider();
+		const workspace = URI.file('/test/project');
+		const session = provider.createNewSession(workspace, ClaudeCodeSessionType.id);
+
+		const removals: string[] = [];
+		disposables.add(provider.onDidChangeSessions(e => {
+			for (const r of e.removed) {
+				removals.push(r.resource.toString());
+			}
+		}));
+
+		const added = waitForSessionAdded(provider);
+		const chat = await provider.createNewChat(session.sessionId);
+		const sendPromise = provider.sendRequest(session.sessionId, chat.resource, { query: 'test' });
+		await added;
+
+		// Commit: adds the real session to the model, triggering
+		// _refreshSessionCache which populates the AgentSessionAdapter.
+		commitSession();
+
+		// Simulate a concurrent model re-resolve transiently dropping the
+		// session: remove it from the model (fires onDidChangeSessions →
+		// _refreshSessionCache). Because _sendFirstChat holds the resource
+		// in _inFlightCommits, _refreshSessionCache must NOT fire `removed`.
+		model.removeSession(realResource);
+
+		// The committed session resource must NOT appear in removals
+		assert.ok(
+			!removals.includes(realResource.toString()),
+			`In-flight committed session ${realResource.toString()} should not be spuriously removed. ` +
+			`Removals seen: [${removals.join(', ')}]`,
+		);
+
+		// Re-add the session so _waitForSessionInCache can resolve
+		model.addSession(createMockAgentSession(realResource, { providerType: AgentSessionProviders.Claude }));
+
+		await sendPromise;
 	});
 });

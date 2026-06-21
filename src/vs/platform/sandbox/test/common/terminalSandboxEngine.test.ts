@@ -18,6 +18,7 @@ import type { ISandboxDependencyStatus, IWindowsMxcConfig, IWindowsMxcFilesystem
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../common/settings.js';
 import { ITerminalSandboxEngineHost, ITerminalSandboxRuntimeInfo, TerminalSandboxEngine } from '../../common/terminalSandboxEngine.js';
 import { IWindowsMxcTerminalSandboxRuntime, WindowsMxcTerminalSandboxRuntime } from '../../common/terminalSandboxMxcRuntime.js';
+import { TerminalSandboxPrerequisiteCheck, TerminalSandboxPreCheckRemediation } from '../../common/terminalSandboxService.js';
 
 suite('TerminalSandboxEngine', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -126,7 +127,7 @@ suite('TerminalSandboxEngine', () => {
 			getWorkspaceStorageReadRoot: () => Promise.resolve(undefined),
 			getWriteRoots: () => [URI.file('/workspace')],
 			onDidChangeRoots: rootsEmitter.event,
-			checkSandboxDependencies: (): Promise<ISandboxDependencyStatus | undefined> => Promise.resolve({ bubblewrapInstalled: true, socatInstalled: true }),
+			checkSandboxDependencies: (): Promise<ISandboxDependencyStatus | undefined> => Promise.resolve({ bubblewrapInstalled: true, bubblewrapUsable: true, socatInstalled: true }),
 			getWindowsMxcFilesystemPolicy: (): Promise<IWindowsMxcFilesystemPolicy | undefined> => Promise.resolve(undefined),
 			getWindowsMxcEnvironment: (): Promise<string[] | undefined> => Promise.resolve(undefined),
 			buildWindowsMxcSandboxPayload: (commandLine, policy, workingDirectory, containerName, containment): Promise<IWindowsMxcConfig | undefined> => Promise.resolve(buildMockWindowsMxcSandboxPayload(commandLine, policy, workingDirectory, containerName, containment)),
@@ -293,6 +294,30 @@ suite('TerminalSandboxEngine', () => {
 		ok(!config.filesystem.allowWrite.includes('/workspace-a'), 'Refreshed config should drop the old write root');
 	});
 
+	test('always denies reads of the sandbox config file on Linux and macOS', async () => {
+		for (const os of [OperatingSystem.Linux, OperatingSystem.Macintosh]) {
+			const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost({
+				getOS: () => Promise.resolve(os),
+			})));
+
+			const configPath = await engine.getSandboxConfigPath();
+			ok(configPath, 'Config path should be defined');
+			const tempDirPath = engine.getTempDir()?.path;
+			ok(tempDirPath, 'Temp dir path should be defined');
+			const config = JSON.parse(createdFiles.get(configPath)!);
+
+			deepStrictEqual({
+				denyRead: config.filesystem.denyRead.includes(configPath),
+				configAllowWrite: config.filesystem.allowWrite.includes(configPath),
+				tempDirAllowWrite: config.filesystem.allowWrite.includes(tempDirPath),
+			}, {
+				denyRead: true,
+				configAllowWrite: false,
+				tempDirAllowWrite: true,
+			});
+		}
+	});
+
 	test('preserves filesystem symlink paths and resolves their targets on Linux when writing the config', async () => {
 		setSandboxSetting(AgentSandboxSettingId.AgentSandboxLinuxFileSystem, {
 			allowRead: ['~/read-link'],
@@ -352,6 +377,60 @@ suite('TerminalSandboxEngine', () => {
 		ok(config.filesystem.allowRead.includes('/home/user/read-plain'), 'Configured allowRead without symlink should expand ~ and be preserved');
 		ok(config.filesystem.denyRead.includes('/home/user/deny-read-plain'), 'Configured denyRead without symlink should expand ~ and be preserved');
 		ok(config.filesystem.denyWrite.includes('/deny-write-plain'), 'Configured denyWrite without symlink should be preserved');
+	});
+
+	test('checkFileAccess validates write paths against allowWrite and denyWrite on Linux', async () => {
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxLinuxFileSystem, {
+			allowWrite: ['/configured/write', '/glob/**/*.ts'],
+			denyWrite: ['/workspace/blocked'],
+		});
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost()));
+
+		const result = await engine.checkFileAccess('write', [
+			'/workspace/file.txt',
+			'/configured/write/file.txt',
+			'/glob/nested/file.ts',
+			'/outside/file.txt',
+			'/workspace/blocked/file.txt',
+		]);
+
+		deepStrictEqual(result, {
+			allowed: false,
+			denied: ['/outside/file.txt', '/workspace/blocked/file.txt'],
+		});
+	});
+
+	test('checkFileAccess validates read paths against denyRead and allowRead on Linux', async () => {
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxLinuxFileSystem, {
+			allowRead: ['~/.allowed-read'],
+			allowWrite: ['~/.allowed-write'],
+		});
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost()));
+
+		const result = await engine.checkFileAccess('read', [
+			'/home/user/private.txt',
+			'/home/user/.allowed-read/config.json',
+			'/home/user/.allowed-write/file.txt',
+			'/etc/hosts',
+		]);
+
+		deepStrictEqual(result, {
+			allowed: false,
+			denied: ['/home/user/private.txt'],
+		});
+	});
+
+	test('checkFileAccess preserves symlink source and target permissions on Linux', async () => {
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxLinuxFileSystem, {
+			allowWrite: ['/write-link'],
+		});
+		fileService.setRealpath('/write-link', '/real/write');
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost()));
+
+		deepStrictEqual(await engine.checkFileAccess('write', ['/write-link/file.txt', '/real/write/file.txt']), {
+			allowed: true,
+			denied: [],
+		});
 	});
 
 	test('cleanupTempDir is a no-op when no temp dir was ever created', async () => {
@@ -583,7 +662,7 @@ suite('TerminalSandboxEngine', () => {
 	});
 
 	test('checkForSandboxingPrereqs reports missing dependencies', async () => {
-		let status: ISandboxDependencyStatus = { bubblewrapInstalled: false, socatInstalled: true };
+		let status: ISandboxDependencyStatus = { bubblewrapInstalled: false, bubblewrapUsable: false, socatInstalled: true };
 		const host = createHost({
 			checkSandboxDependencies: () => Promise.resolve(status),
 		});
@@ -594,8 +673,55 @@ suite('TerminalSandboxEngine', () => {
 		strictEqual(result.failedCheck, 'dependencies');
 		strictEqual(result.missingDependencies?.[0], 'bubblewrap');
 
-		status = { bubblewrapInstalled: true, socatInstalled: true };
+		status = { bubblewrapInstalled: true, bubblewrapUsable: true, socatInstalled: true };
 		const result2 = await engine.checkForSandboxingPrereqs(true);
 		strictEqual(result2.failedCheck, undefined);
+	});
+
+	test('checkForSandboxingPrereqs caches missing dependencies until force refresh', async () => {
+		let callCount = 0;
+		let status: ISandboxDependencyStatus = { bubblewrapInstalled: false, bubblewrapUsable: false, socatInstalled: true };
+		const host = createHost({
+			checkSandboxDependencies: () => {
+				callCount++;
+				return Promise.resolve(status);
+			},
+		});
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));
+
+		const first = await engine.checkForSandboxingPrereqs();
+		const second = await engine.checkForSandboxingPrereqs();
+
+		strictEqual(first.failedCheck, TerminalSandboxPrerequisiteCheck.Dependencies);
+		strictEqual(second.failedCheck, TerminalSandboxPrerequisiteCheck.Dependencies);
+		strictEqual(callCount, 1, 'Missing dependencies should be checked once and cached');
+
+		status = { bubblewrapInstalled: true, bubblewrapUsable: true, socatInstalled: true };
+		const cached = await engine.checkForSandboxingPrereqs();
+		strictEqual(cached.failedCheck, TerminalSandboxPrerequisiteCheck.Dependencies, 'Non-forced checks should keep using the cached missing status');
+		strictEqual(callCount, 1);
+
+		const refreshed = await engine.checkForSandboxingPrereqs(true);
+		strictEqual(refreshed.failedCheck, undefined);
+		strictEqual(callCount, 2, 'Force refresh should re-check dependencies after install or repair');
+	});
+
+	test('checkForSandboxingPrereqs reports remediation when bubblewrap is unusable', async () => {
+		const host = createHost({
+			checkSandboxDependencies: () => Promise.resolve({
+				bubblewrapInstalled: true,
+				bubblewrapUsable: false,
+				bubblewrapError: 'Creating new namespace failed',
+				socatInstalled: true,
+			}),
+		});
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));
+
+		const result = await engine.checkForSandboxingPrereqs();
+
+		strictEqual(result.failedCheck, TerminalSandboxPrerequisiteCheck.Bubblewrap);
+		deepStrictEqual(result.remediations, [TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespaceRestriction]);
+		strictEqual(result.detail, 'Creating new namespace failed');
+		strictEqual(result.missingDependencies, undefined);
 	});
 });

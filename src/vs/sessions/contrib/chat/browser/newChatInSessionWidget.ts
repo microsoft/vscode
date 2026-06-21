@@ -8,7 +8,7 @@ import './media/newChatInSession.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { constObservable, derived, IObservable } from '../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -17,7 +17,10 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { NewChatInputWidget } from './newChatInput.js';
+import { sessionHasNoSelectableModel } from './modelPicker.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IChatViewOptions } from '../../../browser/parts/chatView.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 
@@ -41,18 +44,32 @@ export class NewChatInSessionWidget extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsService private readonly sessionsService: ISessionsService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
 
 		this._session = derived(reader => {
-			const activeSession = this.sessionsManagementService.activeSession.read(reader);
+			const activeSession = this.sessionsService.activeSession.read(reader);
 			return activeSession;
 		});
 
 		const canSendRequest = derived(reader => {
 			const session = this._session.read(reader);
-			return !!session;
+			if (!session) {
+				return false;
+			}
+			// Re-evaluate the no-available-model gate whenever the active
+			// session's provider reports a model-list change. The provider
+			// aggregates both language-model registry changes and (for cloud
+			// sessions) option-group changes, matching the model picker's own
+			// reactivity so the gate never goes stale.
+			const provider = this.sessionsProvidersService.getProvider(session.providerId);
+			if (provider) {
+				observableSignalFromEvent(this, provider.onDidChangeModels).read(reader);
+			}
+			return !sessionHasNoSelectableModel(session, this.sessionsProvidersService);
 		});
 
 		const loading = derived(_reader => false);
@@ -90,7 +107,7 @@ export class NewChatInSessionWidget extends Disposable {
 		const tipContainer = dom.append(container, dom.$('.sub-session-tip-container'));
 		const tipWidget = dom.append(tipContainer, dom.$('.sub-session-tip-widget'));
 		tipWidget.setAttribute('role', 'status');
-		tipWidget.setAttribute('aria-label', localize('subSessionTip.ariaLabel', "Sub-session tip"));
+		tipWidget.setAttribute('aria-label', localize('subSessionTip.ariaLabel', "New chat tip"));
 
 		// Tip icon
 		const iconEl = dom.append(tipWidget, renderIcon(Codicon.lightbulb));
@@ -100,7 +117,7 @@ export class NewChatInSessionWidget extends Disposable {
 		const textEl = dom.append(tipWidget, dom.$('span.sub-session-tip-text'));
 		textEl.textContent = localize(
 			'subSessionTip.message',
-			"This is a sub-session, a new chat in the same workspace. Use it to ask questions, run tasks, or explore ideas with fresh context."
+			"Start a parallel conversation to build on all the changes made in this session."
 		);
 
 		// Dismiss button
@@ -157,6 +174,10 @@ export class NewChatInSessionWidget extends Disposable {
 
 	focusInput(): void {
 		this._newChatInput.focus();
+	}
+
+	attach(uris: URI[]): void {
+		this._newChatInput.attach(uris);
 	}
 }
 

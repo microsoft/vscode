@@ -36,7 +36,7 @@ class NullAgentFeedbackService extends Disposable implements IAgentFeedbackServi
 			resourceUri,
 			range,
 			sessionResource,
-			kind: 'user',
+			kind: AgentFeedbackKind.UserReview,
 			state,
 		};
 	}

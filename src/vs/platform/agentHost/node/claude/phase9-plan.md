@@ -340,7 +340,7 @@ Or use the `unit-tests` skill. Specific suites:
 
 Type-check:
 ```
-npm run compile-check-ts-native
+npm run typecheck-client
 npm run valid-layers-check
 ```
 

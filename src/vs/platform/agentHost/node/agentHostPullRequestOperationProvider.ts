@@ -7,7 +7,7 @@ import { disposableTimeout } from '../../../base/common/async.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
-import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationRegistry } from '../common/changesetOperation.js';
+import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetOperation } from '../common/state/sessionState.js';
 import { AgentHostPullRequestOperationHandler, type PullRequestCreatedEvent } from './agentHostPullRequestOperationHandler.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
@@ -75,18 +75,20 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 			{
 				id: 'create-pr',
 				label: localize('agentHost.changeset.createPR', "Create Pull Request"),
+				icon: 'git-pull-request-create',
+				group: 'pull-request',
 				scopes: [ChangesetOperationScope.Changeset],
-				icon: 'git-pull-request',
 				status: ChangesetOperationStatus.Idle,
 			},
 			{
 				id: 'create-draft-pr',
 				label: localize('agentHost.changeset.createDraftPR', "Create Draft Pull Request"),
-				scopes: [ChangesetOperationScope.Changeset],
 				icon: 'git-pull-request-draft',
+				group: 'pull-request',
+				scopes: [ChangesetOperationScope.Changeset],
 				status: ChangesetOperationStatus.Idle,
 			},
-		];
+		] satisfies ChangesetOperation[];
 	}
 
 	private _key(sessionKey: string, branchName: string): string {

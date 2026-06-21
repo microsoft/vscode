@@ -51,20 +51,6 @@ const COMPARE_ORIGINAL_TEMPLATE_VARIABLE = '{originalTurnId}';
 /** Template variable name for the modified turn in the compare-turns URI template. */
 const COMPARE_MODIFIED_TEMPLATE_VARIABLE = '{modifiedTurnId}';
 
-/**
- * Reserved id used in place of an `originalTurnId` to mean "the
- * session's baseline checkpoint" (captured before the first turn).
- *
- * Compare-turns URIs of the form
- * `<sessionUri>/changeset/compare/baseline/<modifiedTurnId>` ask the
- * server to diff from the baseline ref (stored in session metadata
- * under `META_CHECKPOINT_BASE_REF`) to `modifiedTurnId`'s checkpoint.
- * The sentinel is only valid on the `original` side; using it as a
- * `modifiedTurnId` or as a `turnId` for a per-turn changeset URI is
- * rejected by the corresponding builders.
- */
-export const BASELINE_TURN_ID = 'baseline';
-
 /** Localized human-readable label for the branch changeset entry. */
 export const branchChangesetLabel = (): string => localize('branchChangeset.label', "Branch Changes");
 
@@ -159,9 +145,6 @@ export function buildTurnChangesetUri(sessionUri: URI, turnId: string): URI {
 	if (!turnId || turnId.includes('/')) {
 		throw new Error(`buildTurnChangesetUri: turnId must be non-empty and not contain '/' (got ${JSON.stringify(turnId)})`);
 	}
-	if (turnId === BASELINE_TURN_ID) {
-		throw new Error(`buildTurnChangesetUri: '${BASELINE_TURN_ID}' is reserved for the original side of compare-turns URIs`);
-	}
 	return `${sessionUri}${CHANGESET_PATH_SEGMENT}${TURN_CHANGESET_PREFIX}${turnId}`;
 }
 
@@ -179,10 +162,6 @@ export function buildCompareTurnsChangesetUriTemplate(sessionUri: URI): URI {
  * Returns the subscribable URI for the compare-turns changeset between
  * `originalTurnId` (the "from" endpoint) and `modifiedTurnId` (the "to"
  * endpoint). Diff direction is `originalTurnId → modifiedTurnId`.
- *
- * Pass {@link BASELINE_TURN_ID} as `originalTurnId` to diff from the
- * session's baseline checkpoint. The sentinel is not accepted on the
- * `modified` side.
  */
 export function buildCompareTurnsChangesetUri(sessionUri: URI, originalTurnId: string, modifiedTurnId: string): URI {
 	if (!originalTurnId || originalTurnId.includes('/')) {
@@ -190,9 +169,6 @@ export function buildCompareTurnsChangesetUri(sessionUri: URI, originalTurnId: s
 	}
 	if (!modifiedTurnId || modifiedTurnId.includes('/')) {
 		throw new Error(`buildCompareTurnsChangesetUri: modifiedTurnId must be non-empty and not contain '/' (got ${JSON.stringify(modifiedTurnId)})`);
-	}
-	if (modifiedTurnId === BASELINE_TURN_ID) {
-		throw new Error(`buildCompareTurnsChangesetUri: '${BASELINE_TURN_ID}' is only valid as originalTurnId`);
 	}
 	return `${sessionUri}${CHANGESET_PATH_SEGMENT}${COMPARE_CHANGESET_PREFIX}${originalTurnId}/${modifiedTurnId}`;
 }

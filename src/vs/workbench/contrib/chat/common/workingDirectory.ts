@@ -49,15 +49,21 @@ export class WorkingDirectory {
 	 * Resolves a workspace-relative file path to a URI.
 	 * When a working directory is set, resolves against it.
 	 * Otherwise resolves against the first workspace folder.
+	 *
+	 * The resolved URI is guaranteed to stay within the base directory: a
+	 * `filePath` containing parent-directory segments (e.g. `../outside.ts`)
+	 * that escapes the base directory is rejected and `undefined` is returned.
+	 * This prevents path traversal out of the working directory boundary.
 	 */
 	resolveRelativePath(filePath: string): URI | undefined {
-		if (this._uri) {
-			return joinPath(this._uri, filePath);
+		const base = this._uri ?? this._workspaceContextService.getWorkspace().folders.at(0)?.uri;
+		if (!base) {
+			return undefined;
 		}
-		const folders = this._workspaceContextService.getWorkspace().folders;
-		if (folders.length > 0) {
-			return folders[0].toResource(filePath);
+		const resolved = joinPath(base, filePath);
+		if (!extUriBiasedIgnorePathCase.isEqualOrParent(resolved, base)) {
+			return undefined;
 		}
-		return undefined;
+		return resolved;
 	}
 }
