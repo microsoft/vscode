@@ -480,9 +480,10 @@ export function modelSupportsToolSearch(model: LanguageModelChat | IChatEndpoint
 
 /**
  * Context editing is supported by:
+ * - Claude Fable 5
  * - Claude Haiku 4.5
  * - Claude Sonnet 4 / 4.5 / 4.6
- * - Claude Opus 4 / 4.1 / 4.5 / 4.6
+ * - Claude Opus 4 / 4.1 / 4.5 / 4.6 / 4.7 / 4.8
  *
  * Accepts either an id string, a {@link LanguageModelChat}, or an
  * {@link IChatEndpoint} — when given an endpoint/chat the model **family**
@@ -504,10 +505,13 @@ export function modelSupportsContextEditing(model: LanguageModelChat | IChatEndp
 		return false;
 	}
 	const matches = (n: string) =>
+		n.startsWith('claude-fable-5') ||
 		n.startsWith('claude-haiku-4-5') ||
 		n.startsWith('claude-sonnet-4-6') ||
 		n.startsWith('claude-sonnet-4-5') ||
 		n.startsWith('claude-sonnet-4') ||
+		n.startsWith('claude-opus-4-8') ||
+		n.startsWith('claude-opus-4-7') ||
 		n.startsWith('claude-opus-4-6') ||
 		n.startsWith('claude-opus-4-5') ||
 		n.startsWith('claude-opus-4-1') ||

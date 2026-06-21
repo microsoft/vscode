@@ -608,7 +608,7 @@ class AnthropicReminderInstructionsOptimized extends PromptElement<ReminderInstr
 			{this.props.hasMultiReplaceStringTool && <>For multiple independent edits, use {ToolName.MultiReplaceString} simultaneously rather than sequential {ToolName.ReplaceString} calls.<br /></>}
 			{this.props.hasEditFileTool && this.props.hasReplaceStringTool && <>Prefer {ToolName.ReplaceString}{this.props.hasMultiReplaceStringTool ? <> or {ToolName.MultiReplaceString}</> : ''} over {ToolName.EditFile}.<br /></>}
 			Do NOT create markdown files to document changes unless requested.<br />
-			{contextEditingEnabled && <>
+			{contextEditingEnabled && this.props.hasMemoryTool && <>
 				Do NOT view your memory directory before every task. Your context is managed automatically. Only use memory as described in memoryInstructions.<br />
 			</>}
 		</>;
@@ -691,7 +691,7 @@ class AnthropicReminderInstructions extends PromptElement<ReminderInstructionsPr
 		return <>
 			{getEditingReminder(this.props.hasEditFileTool, this.props.hasReplaceStringTool, false /* useStrongReplaceStringHint */, this.props.hasMultiReplaceStringTool)}
 			Do NOT create a new markdown file to document each change or summarize your work unless specifically requested by the user.<br />
-			{contextEditingEnabled && <>
+			{contextEditingEnabled && this.props.hasMemoryTool && <>
 				<br />
 				IMPORTANT: Do NOT view your memory directory before every task. Do NOT assume your context will be interrupted or reset. Your context is managed automatically — you do not need to urgently save progress to memory. Only use memory as described in the memoryInstructions section. Do not create memory files to record routine progress or status updates unless the user explicitly asks you to.<br />
 			</>}
