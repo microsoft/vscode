@@ -1734,6 +1734,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (newSession.requiresWorkspaceTrust) {
 			void (async () => {
 				const { trusted } = await this._workspaceTrustManagementService.getUriTrustInfo(newSession.workspaceUri);
+				// Bail if the draft was abandoned/replaced while we awaited
+				// trust info (e.g. deleteNewSession, connection drop) — don't
+				// spawn a backend session for a stale entry.
+				if (this._newSessions.get(newSession.sessionId) !== newSession) {
+					return;
+				}
 				if (!trusted) {
 					this._logService.trace(`[${this.id}] Skipping eager createSession for untrusted folder ${newSession.workspaceUri.toString()}`);
 					newSession.setLoading(false);

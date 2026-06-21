@@ -115,10 +115,12 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 	let folderService: IAgentHostNewSessionFolderService;
 	let cleanup: DisposableStore;
 	let workspaceTrusted: boolean;
+	let untrustedFolders: Set<string>;
 
 	setup(async () => {
 		agentHost = new MockAgentHostService();
 		workspaceTrusted = true;
+		untrustedFolders = new Set<string>();
 		const insta = ds.add(new TestInstantiationService());
 		insta.stub(IAgentHostService, agentHost);
 		insta.stub(ILogService, new NullLogService());
@@ -127,6 +129,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		insta.stub(IWorkbenchEnvironmentService, { isSessionsWindow: false } as Partial<IWorkbenchEnvironmentService>);
 		insta.stub(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() {
 			override isWorkspaceTrusted(): boolean { return workspaceTrusted; }
+			override async getUriTrustInfo(uri: URI) { return { uri, trusted: !untrustedFolders.has(uri.toString()) }; }
 		});
 		folderService = ds.add(insta.createInstance(AgentHostNewSessionFolderService));
 		insta.stub(IAgentHostNewSessionFolderService, folderService);
@@ -151,6 +154,27 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		assert.strictEqual(result, undefined);
 		assert.strictEqual(agentHost.createCalls.length, 0);
 		assert.strictEqual(provisional.get(ui), undefined);
+	});
+
+	test('getOrCreate does not spawn a backend provisional in an untrusted working directory folder', async () => {
+		// Workspace is trusted, but the target working directory is a
+		// standalone untrusted folder (e.g. a per-session folder outside the
+		// open workspace).
+		const workingDirectory = URI.from({ scheme: 'file', path: '/untrusted-folder' });
+		untrustedFolders.add(workingDirectory.toString());
+		const ui = untitledChatUri('untrusted-folder');
+		const result = await provisional.getOrCreate(ui, 'copilot', workingDirectory);
+		assert.strictEqual(result, undefined);
+		assert.strictEqual(agentHost.createCalls.length, 0);
+		assert.strictEqual(provisional.get(ui), undefined);
+	});
+
+	test('getOrCreate spawns a backend provisional in a trusted working directory folder', async () => {
+		const workingDirectory = URI.from({ scheme: 'file', path: '/trusted-folder' });
+		const ui = untitledChatUri('trusted-folder');
+		const result = await provisional.getOrCreate(ui, 'copilot', workingDirectory);
+		assert.strictEqual(result?.toString(), expectedBackendUri('trusted-folder').toString());
+		assert.strictEqual(agentHost.createCalls.length, 1);
 	});
 
 	test('applyConfigChange dispatches SessionConfigChanged synchronously after mutating entry.config', async () => {

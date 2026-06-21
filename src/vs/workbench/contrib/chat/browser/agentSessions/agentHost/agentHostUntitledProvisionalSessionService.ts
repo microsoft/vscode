@@ -271,13 +271,6 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		provider: string,
 		workingDirectory: URI | undefined,
 	): Promise<URI | undefined> {
-		// Don't eagerly spawn a provisional backend session in an untrusted
-		// workspace — that would start an agent in the folder before the user
-		// has opted in. This pre-warm is a silent optimization; trust is
-		// requested interactively on first Send (see AgentHostSessionHandler).
-		if (!this._workspaceTrustManagementService.isWorkspaceTrusted()) {
-			return Promise.resolve(undefined);
-		}
 		const existing = this.get(sessionResource);
 		if (existing) {
 			return Promise.resolve(existing);
@@ -296,6 +289,14 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			const settled = this.get(sessionResource);
 			if (settled) {
 				return settled;
+			}
+			// Don't eagerly spawn a provisional backend session in an
+			// untrusted target folder — that would start an agent in the
+			// folder before the user has opted in. This pre-warm is a silent
+			// optimization; trust is requested interactively on first Send
+			// (see AgentHostSessionHandler).
+			if (!await this._isTargetFolderTrusted(workingDirectory)) {
+				return undefined;
 			}
 			const backendSession = this._toBackendUri(sessionResource, provider);
 			const initialConfig = this._getInitialConfig();
@@ -321,6 +322,20 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			}
 		});
 		return work;
+	}
+
+	/**
+	 * Whether the folder the provisional agent would run in is trusted. When a
+	 * working directory is known (it may be a standalone folder outside the
+	 * open workspace, e.g. a per-session folder), gate on that folder's trust;
+	 * otherwise fall back to whole-workspace trust.
+	 */
+	private async _isTargetFolderTrusted(workingDirectory: URI | undefined): Promise<boolean> {
+		if (workingDirectory) {
+			const { trusted } = await this._workspaceTrustManagementService.getUriTrustInfo(workingDirectory);
+			return trusted;
+		}
+		return this._workspaceTrustManagementService.isWorkspaceTrusted();
 	}
 
 	async tryRebind(
