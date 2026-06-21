@@ -38,7 +38,7 @@ const _allApiProposals = {
 	},
 	authSessionAccountIcon: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.authSessionAccountIcon.d.ts',
-  },
+	},
 	authSessionAudience: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.authSessionAudience.d.ts',
 	},
