@@ -519,11 +519,18 @@ pre.frontmatter {
 	color: var(--vscode-editor-foreground);
 	cursor: pointer;
 	opacity: 0;
+	pointer-events: none;
 	transition: opacity 0.1s, color 0.1s;
 }
 
-pre:hover .code-copy-button {
+pre:hover .code-copy-button, pre:focus-within .code-copy-button {
 	opacity: 1;
+	pointer-events: auto;
+}
+
+.code-copy-button:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
 }
 
 .code-copy-button:hover {
