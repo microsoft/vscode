@@ -905,6 +905,40 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(state?.queuedMessages, undefined);
 		});
 
+		test('does not drain queued messages when the active turn is cancelled', () => {
+			// Cancelling a turn means "stop": messages queued behind it must stay
+			// queued for the user to dequeue/run manually, not auto-start. (A
+			// message the user sends *after* the abort is consumed separately via
+			// the ChatPendingMessageSet path once cancellation clears the turn.)
+			setupSession();
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			// Queue a message while a turn is active.
+			startTurn('turn-1');
+			const setAction = {
+				type: ActionType.ChatPendingMessageSet as const,
+				kind: PendingMessageKind.Queued,
+				id: 'q-after-abort',
+				message: { text: 'queued behind abort', origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(sessionUri.toString(), setAction, { clientId: 'test', clientSeq: 1 });
+			sideEffects.handleAction(sessionUri.toString(), setAction);
+
+			// Not consumed yet — the turn is still active.
+			assert.strictEqual(agent.sendMessageCalls.length, 0);
+
+			// Cancel the active turn (client abort).
+			const cancelAction = { type: ActionType.ChatTurnCancelled as const, turnId: 'turn-1' };
+			stateManager.dispatchClientAction(sessionUri.toString(), cancelAction, { clientId: 'test', clientSeq: 2 });
+			sideEffects.handleAction(sessionUri.toString(), cancelAction);
+
+			// The queued message must NOT auto-start, and must remain queued.
+			assert.strictEqual(agent.sendMessageCalls.length, 0, 'cancelling must not drain queued messages');
+			const state = stateManager.getSessionState(sessionUri.toString());
+			assert.strictEqual(state?.queuedMessages?.length, 1, 'queued message should remain for manual dequeue');
+			assert.strictEqual(state?.queuedMessages?.[0].id, 'q-after-abort');
+		});
+
 		test('intercepts queued /rename and drains the message queued behind it', () => {
 			setupSession();
 			// `/rename` persists the new title, so use a side effects instance
