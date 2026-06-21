@@ -134,6 +134,34 @@ export function isServerError(context: IRequestContext): boolean {
 	return !!context.res.statusCode && context.res.statusCode >= 500 && context.res.statusCode < 600;
 }
 
+/**
+ * Reads a header value from an {@link IHeaders} map, tolerating array-shaped
+ * values and case-insensitive lookups.
+ */
+export function readHeader(headers: IHeaders | undefined, name: string): string | undefined {
+	if (!headers) {
+		return undefined;
+	}
+	const value = headers[name] ?? headers[name.toLowerCase()];
+	if (Array.isArray(value)) {
+		return value[0];
+	}
+	return value;
+}
+
+/**
+ * Parses the `Retry-After` header as a number of seconds. Returns `undefined`
+ * if absent or not a finite positive number. The HTTP-date form is not parsed.
+ */
+export function retryAfterFromHeaders(headers: IHeaders | undefined): number | undefined {
+	const value = readHeader(headers, 'retry-after');
+	if (!value) {
+		return undefined;
+	}
+	const parsed = parseInt(value, 10);
+	return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
 export function hasNoContent(context: IRequestContext): boolean {
 	return context.res.statusCode === 204;
 }

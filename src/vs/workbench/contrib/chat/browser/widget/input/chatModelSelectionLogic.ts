@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
+import { COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
 
 /**
  * Describes the context needed for model selection decisions.
@@ -97,6 +97,27 @@ export function isModelValidForSession(
 		return model.metadata.targetChatSessionType === sessionType;
 	}
 	return !model.metadata.targetChatSessionType;
+}
+
+/**
+ * Find a model in `pool` that matches `previous` by id, then family, then
+ * name (case-insensitive). Used to carry a selection across model pools
+ * (e.g. `copilot/claude-sonnet-4.6` → `agent-host-copilotcli:claude-sonnet-4.6`).
+ * Returns `undefined` when no candidate matches.
+ */
+export function findBestMatchingModel(
+	previous: ILanguageModelChatMetadataAndIdentifier | undefined,
+	pool: readonly ILanguageModelChatMetadataAndIdentifier[],
+): ILanguageModelChatMetadataAndIdentifier | undefined {
+	if (!previous || pool.length === 0) {
+		return undefined;
+	}
+	const id = previous.metadata.id?.trim().toLowerCase();
+	const family = previous.metadata.family?.trim().toLowerCase();
+	const name = previous.metadata.name?.trim().toLowerCase();
+	return (id ? pool.find(m => m.metadata.id?.trim().toLowerCase() === id) : undefined)
+		?? (family ? pool.find(m => m.metadata.family?.trim().toLowerCase() === family) : undefined)
+		?? (name ? pool.find(m => m.metadata.name?.trim().toLowerCase() === name) : undefined);
 }
 
 /**
@@ -201,14 +222,14 @@ export function resolveModelFromSyncState(
 	sessionType: string | undefined,
 	context?: IModelSelectionContext,
 ): { action: 'keep' | 'apply' | 'default' } {
-	// Already the same model — nothing to do
-	if (currentModel && currentModel.identifier === stateModel.identifier) {
-		return { action: 'keep' };
-	}
-
-	// Validate the state model belongs to this session's model pool
+	// Validate the state model belongs to this session's model pool first.
 	if (!isModelValidForSession(stateModel, allModels, sessionType)) {
 		return { action: 'default' };
+	}
+
+	// Already the same model and valid for the new pool — nothing to do
+	if (currentModel && currentModel.identifier === stateModel.identifier) {
+		return { action: 'keep' };
 	}
 
 	// When a UI context is available, also validate mode and inline-chat compatibility
@@ -225,15 +246,15 @@ export function resolveModelFromSyncState(
 }
 
 /**
- * Merges live models with cached models per-vendor, evicting cache for vendors
- * no longer contributed.
+ * Merges live models with cached models per-vendor, evicting cache for vendors no longer contributed.
  *
- * - `resolvedVendors`: vendors whose providers have produced at least one
- *   result. An empty live list for these is authoritative (e.g. BYOK key
- *   removed) and their cache entries are dropped.
- * - When no contributor info is available yet and there are no live models
- *   (startup / extension reload), the full cache is returned to avoid
- *   flickering the picker to empty.
+ * - `resolvedVendors`: vendors that have finished resolving. An empty live list for these is authoritative
+ *   (e.g. BYOK key removed), so their cache is dropped.
+ * - Copilot is the exception: its models are gated on an async token that can resolve slower than fast/local BYOK
+ *   providers, so an early empty resolution is transient. Keeping its cache avoids resetting (and persisting) a
+ *   restored Copilot selection to a BYOK default, which also preserves the selection across sign-out/in (see #321037).
+ * - When nothing is contributed yet and there are no live models (startup / reload), the full cache is returned to
+ *   avoid flickering the picker to empty.
  */
 export function mergeModelsWithCache(
 	liveModels: ILanguageModelChatMetadataAndIdentifier[],
@@ -245,11 +266,18 @@ export function mergeModelsWithCache(
 		return cachedModels;
 	}
 	const liveVendors = new Set(liveModels.map(m => m.metadata.vendor));
-	const usableCached = cachedModels.filter(m =>
-		contributedVendors.has(m.metadata.vendor) &&
-		!liveVendors.has(m.metadata.vendor) &&
-		!resolvedVendors?.has(m.metadata.vendor)
-	);
+	const usableCached = cachedModels.filter(m => {
+		const vendor = m.metadata.vendor;
+		if (!contributedVendors.has(vendor) || liveVendors.has(vendor)) {
+			return false;
+		}
+		// A resolved vendor with no live models is authoritatively empty and its cache is dropped — except Copilot, whose
+		// empty resolution is transient while its token is still pending (see doc comment above).
+		if (resolvedVendors?.has(vendor) && vendor !== COPILOT_VENDOR_ID) {
+			return false;
+		}
+		return true;
+	});
 	return [...liveModels, ...usableCached];
 }
 

@@ -8,7 +8,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { isString } from '../../../../base/common/types.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
-import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type ResponsePart, type StringOrMarkdown, type ToolCallCompletedState, type ToolResultContent, type Turn } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type Message, type ResponsePart, type StringOrMarkdown, type ToolCallCompletedState, type ToolResultContent, type Turn } from '../../common/state/sessionState.js';
 import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, synthesizeSkillToolCall } from '../../node/copilot/copilotToolDisplay.js';
 import { buildSessionDbUri } from '../../node/shared/fileEditTracker.js';
 import type { ISessionEvent, ISessionEventMessage, ISessionEventSkillInvoked, ISessionEventSubagentStarted, ISessionEventToolComplete, ISessionEventToolStart } from '../../node/copilot/mapSessionEvents.js';
@@ -117,7 +117,7 @@ export function buildTurnsFromHistory(messages: readonly IHistoryRecord[]): Turn
 	const subagentsByToolCallId = new Map<string, IHistorySubagentStartedRecord>();
 	let currentTurn: {
 		id: string;
-		userMessage: { text: string };
+		message: Message;
 		responseParts: ResponsePart[];
 		pendingTools: Map<string, IHistoryToolStartRecord>;
 	} | undefined;
@@ -125,7 +125,7 @@ export function buildTurnsFromHistory(messages: readonly IHistoryRecord[]): Turn
 	const finalizeTurn = (turn: NonNullable<typeof currentTurn>, state: TurnState): void => {
 		turns.push({
 			id: turn.id,
-			userMessage: turn.userMessage,
+			message: turn.message,
 			responseParts: turn.responseParts,
 			usage: undefined,
 			state,
@@ -134,7 +134,7 @@ export function buildTurnsFromHistory(messages: readonly IHistoryRecord[]): Turn
 
 	const startTurn = (id: string, text: string): NonNullable<typeof currentTurn> => ({
 		id,
-		userMessage: { text },
+		message: { text, origin: { kind: MessageKind.User } },
 		responseParts: [],
 		pendingTools: new Map(),
 	});
@@ -338,7 +338,7 @@ export function buildSubagentTurnsFromHistory(
 
 	return [{
 		id: generateUuid(),
-		userMessage: { text: '' },
+		message: { text: '', origin: { kind: MessageKind.User } },
 		responseParts,
 		usage: undefined,
 		state: TurnState.Complete,

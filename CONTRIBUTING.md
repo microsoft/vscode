@@ -44,7 +44,7 @@ If you cannot find an existing issue that describes your bug or feature, create 
 
 File a single issue per problem and feature request. Do not enumerate multiple bugs or feature requests in the same issue.
 
-Do not add your issue as a comment to an existing issue unless it's for the identical input. Many issues look similar but have different causes.
+Do not add your issue as a comment to an existing issue unless it's for the identical issue. Many issues look similar but have different causes.
 
 The more information you can provide, the more likely someone will be successful at reproducing the issue and finding a fix.
 

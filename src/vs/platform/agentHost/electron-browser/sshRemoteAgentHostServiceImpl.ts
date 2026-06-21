@@ -13,13 +13,14 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { ISharedProcessService } from '../../ipc/electron-browser/services.js';
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
-import { IRemoteAgentHostService, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../common/remoteAgentHostService.js';
+import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../common/remoteAgentHostService.js';
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { IQuickInputService } from '../../quickinput/common/quickInput.js';
 import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
 import { AgentHostAhpJsonlLoggingSettingId } from '../common/agentService.js';
 import { SSHRelayTransport } from './sshRelayTransport.js';
 import { RemoteAgentHostProtocolClient } from '../browser/remoteAgentHostProtocolClient.js';
+import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import {
 	ISSHRemoteAgentHostService,
 	SSH_REMOTE_AGENT_HOST_CHANNEL,
@@ -185,25 +186,57 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 	private async _setupConnection(result: ISSHConnectResult): Promise<ISSHAgentHostConnection> {
 		const existing = this._connections.get(result.connectionId);
 		if (existing) {
-			this._logService.trace('[SSHRemoteAgentHost] Returning existing connection handle');
-			return existing;
+			// Reuse the existing handle only if the managed entry is still
+			// in a usable state. After a `reconnect` that replaced the
+			// underlying SSH relay (e.g. following a CLI-driven server
+			// upgrade), the previous protocol client is bound to a
+			// torn-down transport and — if its handshake had failed with
+			// `incompatible` — will never re-handshake on its own. Drop
+			// the stale local state and fall through to a fresh
+			// handshake; the subsequent `addManagedConnection` call
+			// disposes the stale protocol client by replacing the entry.
+			if (this._remoteAgentHostService.getConnection(result.address)) {
+				this._logService.trace('[SSHRemoteAgentHost] Returning existing connection handle');
+				return existing;
+			}
+			this._logService.info(`[SSHRemoteAgentHost] Replacing stale connection handle for ${result.address}`);
+			this._connections.delete(result.connectionId);
+			// Mark closed-by-main so disposing the handle does NOT call
+			// disconnect() — the main service kept the SSH client alive
+			// across `replaceRelay`, and we'd kill the brand-new tunnel
+			// otherwise.
+			existing.fireClose();
+			existing.dispose();
+			this._onDidChangeConnections.fire();
 		}
-
-		let protocolClient: RemoteAgentHostProtocolClient | undefined;
-		let handle: SSHAgentHostConnectionHandle | undefined;
 		let registeredHandle = false;
+		const protocolClient = this._createRelayClient(result);
+		let status = RemoteAgentHostConnectionStatus.connected;
+		let connectError: unknown;
 		try {
-			protocolClient = this._createRelayClient(result);
 			await protocolClient.connect();
 			this._logService.trace('[SSHRemoteAgentHost] Protocol handshake completed');
+		} catch (err) {
+			const incompatible = RemoteAgentHostConnectionStatus.fromConnectError(err, [PROTOCOL_VERSION]);
+			if (!RemoteAgentHostConnectionStatus.isIncompatible(incompatible)) {
+				this._logService.error('[SSHRemoteAgentHost] Connection setup failed', err);
+				protocolClient.dispose();
+				this._mainService.disconnect(result.connectionId).catch(() => { /* best effort */ });
+				throw err;
+			}
+			this._logService.warn(`[SSHRemoteAgentHost] Incompatible with ${result.address}: ${incompatible.message}`);
+			status = incompatible;
+			connectError = err;
+		}
 
-			handle = new SSHAgentHostConnectionHandle(
-				result.config,
-				result.address,
-				result.name,
-				() => this._mainService.disconnect(result.connectionId),
-			);
+		const handle = new SSHAgentHostConnectionHandle(
+			result.config,
+			result.address,
+			result.name,
+			() => this._mainService.disconnect(result.connectionId),
+		);
 
+		try {
 			this._connections.set(result.connectionId, handle);
 			registeredHandle = true;
 			this._onDidChangeConnections.fire();
@@ -219,20 +252,24 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 					user: result.config.username || undefined,
 					port: result.config.port,
 				},
-			}, protocolClient, this._createTransportDisposable(result.connectionId, handle));
-
-			return handle;
+			}, protocolClient, this._createTransportDisposable(result.connectionId, handle), status);
 		} catch (err) {
 			this._logService.error('[SSHRemoteAgentHost] Connection setup failed', err);
 			if (registeredHandle && this._connections.get(result.connectionId) === handle) {
 				this._connections.delete(result.connectionId);
 				this._onDidChangeConnections.fire();
 			}
-			handle?.dispose();
-			protocolClient?.dispose();
+			handle.dispose();
+			protocolClient.dispose();
 			this._mainService.disconnect(result.connectionId).catch(() => { /* best effort */ });
 			throw err;
 		}
+
+		if (connectError) {
+			throw connectError;
+		}
+
+		return handle;
 	}
 
 	/**

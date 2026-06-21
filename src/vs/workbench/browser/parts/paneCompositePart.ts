@@ -12,7 +12,7 @@ import { IPaneComposite } from '../../common/panecomposite.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../common/views.js';
 import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IView } from '../../../base/browser/ui/grid/grid.js';
-import { IWorkbenchLayoutService, Parts, SINGLE_WINDOW_PARTS } from '../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts, SINGLE_WINDOW_PARTS, FLOATING_PANEL_MARGIN } from '../../services/layout/browser/layoutService.js';
 import { CompositePart, ICompositePartOptions, ICompositeTitleLabel } from './compositePart.js';
 import { IPaneCompositeBarOptions, PaneCompositeBar } from './paneCompositeBar.js';
 import { Dimension, EventHelper, trackFocus, $, addDisposableListener, EventType, prepend, getWindow } from '../../../base/browser/dom.js';
@@ -37,6 +37,7 @@ import { Composite } from '../composite.js';
 import { ViewsSubMenu } from './views/viewPaneContainer.js';
 import { getActionBarActions } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
 import { DeferredPromise } from '../../../base/common/async.js';
 
@@ -109,6 +110,13 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 	private static readonly MIN_COMPOSITE_BAR_WIDTH = 50;
 
+	/**
+	 * Additional right margin for the secondary side bar (it sits at the window
+	 * edge), doubling the standard margin. Must match the `margin-right` override
+	 * in `part.css`.
+	 */
+	private static readonly FLOATING_AUXBAR_EXTRA_RIGHT = FLOATING_PANEL_MARGIN;
+
 	get snap(): boolean {
 		// Always allow snapping closed
 		// Only allow dragging open if the panel contains view containers
@@ -155,6 +163,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IMenuService protected readonly menuService: IMenuService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
 	) {
 		super(
 			notificationService,
@@ -590,6 +599,14 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 			return;
 		}
 
+		// When the floating panels experiment is enabled, shrink the content to
+		// leave room for the card margin and border applied via CSS on the part.
+		const floatingInset = this.getFloatingInset();
+		if (floatingInset.width > 0 || floatingInset.height > 0) {
+			width = Math.max(0, width - floatingInset.width);
+			height = Math.max(0, height - floatingInset.height);
+		}
+
 		this.contentDimension = new Dimension(width, height);
 
 		// Layout contents
@@ -600,6 +617,29 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 		// Add empty pane message
 		this.layoutEmptyMessage();
+	}
+
+	/**
+	 * Amount (in pixels) to subtract from each axis when the floating panels
+	 * experiment is enabled: a margin on each side plus a 1px border on each side
+	 * (the border is drawn inside the box, as `.monaco-workbench .part` is
+	 * `box-sizing: border-box` in `part.css`). The side bars sit directly under the
+	 * title bar, so they have no top margin; the secondary side bar gets an extra
+	 * right margin, so its width inset is larger.
+	 */
+	private getFloatingInset(): { width: number; height: number } {
+		if (!this.layoutService.isFloatingPanelsEnabled()) {
+			return { width: 0, height: 0 };
+		}
+
+		const borderTotal = 2; // 1px border on each side
+		const margin = FLOATING_PANEL_MARGIN;
+		const topMargin = this.partId === Parts.PANEL_PART ? margin : 0; // side bars are flush with the title bar
+		const rightMargin = this.partId === Parts.AUXILIARYBAR_PART ? margin + AbstractPaneCompositePart.FLOATING_AUXBAR_EXTRA_RIGHT : margin;
+		return {
+			width: margin + rightMargin + borderTotal,
+			height: topMargin + margin + borderTotal
+		};
 	}
 
 	private layoutCompositeBar(): void {

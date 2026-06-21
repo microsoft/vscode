@@ -8,12 +8,12 @@ import { derived, IObservable, IReader, observableSignal } from '../../../../../
 import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { narrowClaudePermissionMode } from '../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { IPermissionPickerDelegate } from '../../copilotChatSessions/browser/permissionPicker.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 
 const REQUIRED_AUTO_APPROVE_VALUE = 'default';
 const REQUIRED_MODE_VALUE = 'interactive';
@@ -64,8 +64,20 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 	readonly currentPermissionLevel: IObservable<ChatPermissionLevel>;
 	readonly isApplicable: IObservable<boolean>;
 
+	/**
+	 * Agent-host sessions expose Autopilot on the orthogonal `mode` axis, so
+	 * the permissions picker offers `Default` / `Bypass` here.
+	 */
+	readonly availableLevels: readonly ChatPermissionLevel[] = [
+		ChatPermissionLevel.Default,
+		ChatPermissionLevel.AutoApprove,
+	];
+
+	/** Agent-host sessions seed their default approval level from this setting. */
+	readonly defaultSettingKey = ChatConfiguration.DefaultConfiguration;
+
 	constructor(
-		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		private readonly _session: IObservable<IActiveSession | undefined>,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
@@ -84,7 +96,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 	}
 
 	setPermissionLevel(level: ChatPermissionLevel): void {
-		const session = this._sessionsManagementService.activeSession.get();
+		const session = this._session.get();
 		if (!session) {
 			return;
 		}
@@ -103,7 +115,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 
 	private _readLevel(reader: IReader): ChatPermissionLevel {
 		this._configChangedSignal.read(reader);
-		const session = this._sessionsManagementService.activeSession.read(reader);
+		const session = this._session.read(reader);
 		if (!session) {
 			return ChatPermissionLevel.Default;
 		}
@@ -112,12 +124,19 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 			return ChatPermissionLevel.Default;
 		}
 		const value = provider.getSessionConfig(session.sessionId)?.values[SessionConfigKey.AutoApprove];
+		// Defensive: a legacy `autopilot` value on the autoApprove axis (from
+		// before Autopilot moved onto the mode axis) is no longer a valid
+		// approval level — surface it as Default rather than a level the picker
+		// doesn't offer.
+		if (value === ChatPermissionLevel.Autopilot) {
+			return ChatPermissionLevel.Default;
+		}
 		return isChatPermissionLevel(value) ? value : ChatPermissionLevel.Default;
 	}
 
 	private _readIsWellKnown(reader: IReader): boolean {
 		this._configChangedSignal.read(reader);
-		const session = this._sessionsManagementService.activeSession.read(reader);
+		const session = this._session.read(reader);
 		if (!session) {
 			return false;
 		}

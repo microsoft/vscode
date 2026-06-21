@@ -68,6 +68,8 @@ suite('PluginInstallService', () => {
 		updatePluginSourceCalls: { plugin: IMarketplacePlugin; options?: IPullRepositoryOptions }[];
 		/** Whether the marketplace is already trusted */
 		marketplaceTrusted: boolean;
+		/** Whether the strict-marketplace enterprise policy is active */
+		strictMarketplacePolicyActive?: boolean;
 		/** Canonical IDs that were trusted via trustMarketplace() */
 		trustedMarketplaces: string[];
 		/** Plugins returned by readPluginsFromDirectory */
@@ -99,6 +101,7 @@ suite('PluginInstallService', () => {
 			pullRepositoryCalls: [],
 			updatePluginSourceCalls: [],
 			marketplaceTrusted: true,
+			strictMarketplacePolicyActive: false,
 			trustedMarketplaces: [],
 			readPluginsResult: [],
 			singlePluginManifestResult: undefined,
@@ -269,6 +272,7 @@ suite('PluginInstallService', () => {
 				state.addedPlugins.push({ uri: uri.toString(), plugin });
 			},
 			isMarketplaceTrusted: () => state.marketplaceTrusted,
+			isStrictMarketplacePolicyActive: () => state.strictMarketplacePolicyActive ?? false,
 			trustMarketplace: (ref: IMarketplaceReference) => {
 				state.trustedMarketplaces.push(ref.canonicalId);
 			},
@@ -283,6 +287,12 @@ suite('PluginInstallService', () => {
 					return state.configuredMarketplaces;
 				}
 				return undefined;
+			},
+			inspect: (key: string) => {
+				if (key === ChatConfiguration.PluginMarketplaces) {
+					return { userValue: state.configuredMarketplaces, defaultValue: undefined, policyValue: undefined };
+				}
+				return { userValue: undefined, defaultValue: undefined, policyValue: undefined };
 			},
 			updateValue: async (key: string, value: unknown) => {
 				if (key === ChatConfiguration.PluginMarketplaces) {

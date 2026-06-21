@@ -18,7 +18,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../../../platform/actions/common/actions.js';
-import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
@@ -48,7 +48,7 @@ import { CHAT_PROVIDER_ID } from '../../../common/participants/chatParticipantCo
 import { IChatModelReference, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { LocalChatSessionUri, getChatSessionType } from '../../../common/model/chatUri.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getDefaultNewChatSessionResource, getDefaultNewChatSessionType } from '../../../common/constants.js';
 import { AgentSessionsControl } from '../../agentSessions/agentSessionsControl.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
 import { ChatWidget } from '../../widget/chatWidget.js';
@@ -66,8 +66,14 @@ import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidg
 import { IAgentSession } from '../../agentSessions/agentSessionsModel.js';
 import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
-import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
+import { IMicCaptureService } from '../../voiceClient/micCaptureService.js';
+import { ITtsPlaybackService } from '../../voiceClient/ttsPlaybackService.js';
+import { IVoiceSessionController } from '../../voiceClient/voiceSessionController.js';
+import { IAgentsVoiceWindowService } from '../../../../agentsVoice/common/agentsVoice.js';
+import { IAgentTitleBarStatusService } from '../../agentSessions/experiments/agentTitleBarStatusService.js';
+import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 
 interface IChatViewPaneState extends Partial<IChatModelInputState> {
 	/**
@@ -105,7 +111,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	constructor(
 		options: IViewPaneOptions,
-		@IKeybindingService keybindingService: IKeybindingService,
+		@IKeybindingService keybindingService2: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -128,10 +134,16 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IActivityService private readonly activityService: IActivityService,
-		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IHostService private readonly hostService: IHostService,
+		@IMicCaptureService private readonly micCaptureService: IMicCaptureService,
+		@ITtsPlaybackService private readonly ttsPlaybackService: ITtsPlaybackService,
+		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
+		@IAgentsVoiceWindowService private readonly agentsVoiceWindowService: IAgentsVoiceWindowService,
+		@IAgentTitleBarStatusService _agentTitleBarStatusService: IAgentTitleBarStatusService,
+		@IVoicePlaybackService _voicePlaybackService: IVoicePlaybackService,
+		@IWorkbenchEnvironmentService _workbenchEnvironmentService: IWorkbenchEnvironmentService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+		super(options, keybindingService2, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		// View state for the ViewPane is currently global per-provider basically,
 		// but some other strictly per-model state will require a separate memento.
@@ -264,9 +276,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private onDidChangeAgents(): void {
 		if (this.chatAgentService.getDefaultAgent(ChatAgentLocation.Chat)) {
 			if (!this._widget?.viewModel && !this.restoringSession) {
-				const sessionResource = this.getTransferredOrPersistedSessionInfo();
 				this.restoringSession =
-					(sessionResource ? this.chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None, 'ChatViewPane#onDidChangeAgents') : Promise.resolve(undefined)).then(async modelRef => {
+					this.acquireTransferredOrPersistedSession(CancellationToken.None, 'ChatViewPane#onDidChangeAgents').then(async modelRef => {
 						if (!this._widget) {
 							return; // renderBody has not been called yet
 						}
@@ -278,7 +289,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 						try {
 							this._widget.setVisible(false);
 
-							await this.showModel(CancellationToken.None, modelRef);
+							await this.showModel(CancellationToken.None, modelRef, true, !modelRef);
 						} finally {
 							this._widget.setVisible(wasVisible);
 						}
@@ -312,7 +323,27 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.viewPaneContainer.classList.add('chat-viewpane');
 		this.updateViewPaneClasses(false);
 
-		this.createControls(parent);
+		// Controls wrapper — sessions + chat live inside here
+		const controlsWrapper = append(parent, $('.voice-agent-controls-wrapper'));
+		this.createControls(controlsWrapper);
+
+		// Voice bar — hidden by default, voice is activated via mic button in toolbar.
+		// The widget is still created for PTT keybinding support and session binding.
+		this._voiceBarContainer = $('.voice-agent-bar-host');
+		this._voiceBarContainer.style.display = 'none';
+		this._updateVoiceBar(this._voiceBarContainer);
+
+		// Transcript overlay — shown inside the input container when voice is active
+		const inputContainerEl = this._widget.inputPart.inputContainerElement;
+		if (inputContainerEl) {
+			this._setupVoiceTranscriptOverlay(inputContainerEl);
+		}
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('agents.voice.enabled')) {
+				this._updateVoiceBar(this._voiceBarContainer!);
+			}
+		}));
 
 		this.setupContextMenu(parent);
 
@@ -336,6 +367,212 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Update sessions control visibility when all controls are created
 		this.updateSessionsControlVisibility();
 	}
+
+	//#region Voice Agent Bar
+
+	private _voiceBarContainer: HTMLElement | undefined;
+	private readonly _voiceBarDisposables = this._register(new DisposableStore());
+
+	private _updateVoiceBar(container: HTMLElement): void {
+		this._voiceBarDisposables.clear();
+		container.replaceChildren();
+
+		// Always keep the container hidden — voice UI is now the mic toolbar
+		// button + transcript overlay. We still register the command bridges
+		// needed by VoiceSessionController.
+		container.style.display = 'none';
+
+		if (this.configurationService.getValue<boolean>('agents.voice.enabled')) {
+			// Voice command bridge — lets the VoiceSessionController reach into the chat widget
+			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.acceptInput', (_accessor, text: string) => {
+				if (text && this._widget?.viewModel) {
+					this._widget.acceptInput(text, { preserveFocus: true });
+				}
+			}));
+			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.switchToSession', (_accessor, resourceStr: string): boolean => {
+				if (!resourceStr) {
+					return false;
+				}
+				try {
+					this.viewState.sessionResource = URI.parse(resourceStr);
+					this.applyModel();
+					return true;
+				} catch {
+					return false;
+				}
+			}));
+			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.getCurrentSession', (_accessor): string | undefined => {
+				return this._widget?.viewModel?.sessionResource?.toString();
+			}));
+		}
+	}
+
+	private _setupVoiceTranscriptOverlay(inputContainerEl: HTMLElement): void {
+		inputContainerEl.style.position = 'relative';
+		const transcriptOverlay = $('.voice-transcript-overlay');
+		// Leave bottom 36px for the toolbar (Agent, model picker, mic, send)
+		transcriptOverlay.style.cssText = 'display:none;position:absolute;top:0;left:0;right:0;bottom:36px;z-index:10;padding:8px 12px;font-size:13px;line-height:1.4;word-break:break-word;overflow:hidden;pointer-events:none;background:var(--vscode-input-background, transparent);border-radius:inherit;border-bottom-left-radius:0;border-bottom-right-radius:0;';
+		inputContainerEl.append(transcriptOverlay);
+
+		const style = document.createElement('style');
+		style.textContent = `
+			@keyframes voiceTextPulse { 0%,100%{opacity:0.9} 50%{opacity:0.4} }
+			.voice-transcript-overlay .committed { color: var(--vscode-foreground); }
+			.voice-transcript-overlay .partial { color: var(--vscode-foreground); opacity:0.6; font-style:italic; animation: voiceTextPulse 1.5s ease-in-out infinite; }
+			.voice-transcript-overlay .assistant-text { color: var(--vscode-descriptionForeground); display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+		`;
+		transcriptOverlay.append(style);
+
+		// Dynamic audio-reactive glow animation (matches aux window behavior)
+		let animFrameId: number | undefined;
+		let glowDataArray: Uint8Array | undefined;
+		const win = getWindow(inputContainerEl);
+		const startGlowAnimation = () => {
+			if (animFrameId !== undefined) { return; }
+			const animate = () => {
+				animFrameId = win.requestAnimationFrame(animate);
+				const connected = this.voiceSessionController.isConnected.get();
+				const voiceState = this.voiceSessionController.voiceState.get();
+				const glowActive = connected && (voiceState === 'listening' || voiceState === 'speaking');
+
+				if (!glowActive) {
+					inputContainerEl.style.borderColor = '';
+					inputContainerEl.style.boxShadow = '';
+					inputContainerEl.classList.remove('voice-active', 'voice-listening');
+					return;
+				}
+
+				// Get audio intensity from analyser
+				const analyser = this.ttsPlaybackService.analyserNode
+					?? (voiceState === 'listening' ? this.micCaptureService.analyserNode : null)
+					?? null;
+				let intensity: number;
+				if (!analyser) {
+					intensity = 0.3;
+				} else {
+					if (!glowDataArray || glowDataArray.length !== analyser.frequencyBinCount) {
+						glowDataArray = new Uint8Array(analyser.frequencyBinCount);
+					}
+					analyser.getByteFrequencyData(glowDataArray as Uint8Array<ArrayBuffer>);
+					let sum = 0;
+					for (let i = 0; i < glowDataArray.length; i++) {
+						sum += glowDataArray[i];
+					}
+					intensity = Math.min(1, (sum / glowDataArray.length) / 80);
+				}
+
+				// Blue when listening, purple when speaking
+				const rgb = voiceState === 'speaking' ? '163,113,247' : '88,166,255';
+				const borderAlpha = 0.4 + intensity * 0.5;
+				const shadowSpread = 4 + intensity * 12;
+				const shadowAlpha = 0.15 + intensity * 0.35;
+				inputContainerEl.style.borderColor = `rgba(${rgb},${borderAlpha})`;
+				inputContainerEl.style.boxShadow = `0 0 ${shadowSpread}px rgba(${rgb},${shadowAlpha}), inset 0 0 ${shadowSpread * 0.4}px rgba(${rgb},${shadowAlpha * 0.3})`;
+				inputContainerEl.classList.add('voice-active');
+				inputContainerEl.classList.toggle('voice-listening', voiceState === 'listening');
+			};
+			animFrameId = win.requestAnimationFrame(animate);
+		};
+		const stopGlowAnimation = () => {
+			if (animFrameId !== undefined) {
+				win.cancelAnimationFrame(animFrameId);
+				animFrameId = undefined;
+			}
+			inputContainerEl.style.borderColor = '';
+			inputContainerEl.style.boxShadow = '';
+			inputContainerEl.classList.remove('voice-active', 'voice-listening');
+		};
+
+		this._register(autorun(reader => {
+			const connected = this.voiceSessionController.isConnected.read(reader);
+			const voiceState = this.voiceSessionController.voiceState.read(reader);
+			if (connected && (voiceState === 'listening' || voiceState === 'speaking')) {
+				startGlowAnimation();
+			} else {
+				stopGlowAnimation();
+			}
+		}));
+		this._register({ dispose: () => stopGlowAnimation() });
+
+		this._register(autorun(reader => {
+			const turns = this.voiceSessionController.transcriptTurns.read(reader);
+			const connected = this.voiceSessionController.isConnected.read(reader);
+			const voiceState = this.voiceSessionController.voiceState.read(reader);
+			const showTranscript = this.configurationService.getValue<boolean>('agents.voice.showTranscript') !== false;
+			const visible = turns.filter(t => t.text.length > 0 || (t.speaker === 'user' && t.isPartial));
+
+			if (!connected) {
+				transcriptOverlay.style.display = 'none';
+				return;
+			}
+
+			// If aux window is open and voice is targeting a different session,
+			// don't show transcript in the chat input — it's shown in aux window instead.
+			const targetSession = this.voiceSessionController.targetSession.read(reader);
+			const currentSession = this._widget?.viewModel?.sessionResource;
+			if (this.agentsVoiceWindowService.isOpen && targetSession && currentSession && targetSession.toString() !== currentSession.toString()) {
+				transcriptOverlay.style.display = 'none';
+				return;
+			}
+
+			// Show hint when connected but no transcript yet
+			if (visible.length === 0 || !showTranscript) {
+				if (voiceState === 'idle' && visible.length === 0) {
+					transcriptOverlay.style.display = '';
+					while (transcriptOverlay.childNodes.length > 1) {
+						transcriptOverlay.removeChild(transcriptOverlay.lastChild!);
+					}
+					const hint = $('span.partial');
+					const kb = this.keybindingService.lookupKeybinding('agentsVoice.pushToTalk');
+					const kbLabel = kb?.getLabel();
+					hint.textContent = kbLabel
+						? localize('voiceMode.pttHint', "Press {0} to talk", kbLabel)
+						: localize('voiceMode.clickMicHint', "Click mic to talk");
+					transcriptOverlay.append(hint);
+				} else {
+					transcriptOverlay.style.display = 'none';
+				}
+				return;
+			}
+
+			transcriptOverlay.style.display = '';
+			// Show only the latest turn: user question first, then assistant reply replaces it
+			const lastTurn = visible[visible.length - 1];
+			const contentElements: HTMLElement[] = [];
+			if (lastTurn.speaker === 'user') {
+				const span = $('span');
+				if (lastTurn.isPartial) {
+					const committedPart = lastTurn.committed || '';
+					const unsurePart = lastTurn.text.slice(committedPart.length);
+					if (committedPart) {
+						const c = $('span.committed');
+						c.textContent = committedPart;
+						span.append(c);
+					}
+					const u = $('span.partial');
+					u.textContent = unsurePart + '\u2589';
+					span.append(u);
+				} else {
+					span.className = 'committed';
+					span.textContent = lastTurn.text;
+				}
+				contentElements.push(span);
+			} else {
+				const div = $('div.assistant-text');
+				div.textContent = lastTurn.text;
+				contentElements.push(div);
+			}
+			// Keep the style element, replace content
+			while (transcriptOverlay.childNodes.length > 1) {
+				transcriptOverlay.removeChild(transcriptOverlay.lastChild!);
+			}
+			for (const el of contentElements) {
+				transcriptOverlay.append(el);
+			}
+		}));
+	}
+
+	//#endregion
 
 	//#region Sessions Control
 
@@ -395,7 +632,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const newSessionButtonContainer = this.sessionsNewButtonContainer = append(sessionsContainer, $('.agent-sessions-new-button-container'));
 		const newSessionButton = this._register(new Button(newSessionButtonContainer, { ...defaultButtonStyles, secondary: true }));
 		newSessionButton.label = localize('newSession', "New Session");
-		this._register(newSessionButton.onDidClick(() => this.commandService.executeCommand(ACTION_ID_NEW_CHAT)));
+		this._register(newSessionButton.onDidClick(() => this.commandService.executeCommand(ACTION_ID_NEW_CHAT, this.getActionsContext())));
 
 		// Sessions Control
 		this.sessionsControlContainer = append(sessionsContainer, $('.agent-sessions-control-container'));
@@ -528,10 +765,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const editorOverflowWidgetsDomNode = this.layoutService.getContainer(getWindow(chatControlsContainer)).appendChild($('.chat-editor-overflow.monaco-editor'));
 		this._register(toDisposable(() => editorOverflowWidgetsDomNode.remove()));
 
-		// Chat Title (unless we are hosted in the chat bar)
-		if (this.viewDescriptorService.getViewLocationById(this.id) !== ViewContainerLocation.ChatBar) {
-			this.createChatTitleControl(chatControlsContainer);
-		}
+		// Chat Title
+		this.createChatTitleControl(chatControlsContainer);
 
 		// Chat Widget
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
@@ -553,13 +788,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				},
 				editorOverflowWidgetsDomNode,
 				enableImplicitContext: true,
-				enableWorkingSet: this.workbenchEnvironmentService.isSessionsWindow
-					? 'implicit'
-					: 'explicit',
+				enableWorkingSet: 'explicit',
 				supportsChangingModes: true,
 				dndContainer: parent,
-				inputEditorMinLines: this.workbenchEnvironmentService.isSessionsWindow ? 2 : undefined,
-				isSessionsWindow: this.workbenchEnvironmentService.isSessionsWindow,
 			},
 			{
 				listForeground: SIDE_BAR_FOREGROUND,
@@ -720,20 +951,81 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	private async _applyModel(): Promise<void> {
-		const sessionResource = this.getTransferredOrPersistedSessionInfo();
-		const modelRef = sessionResource ? await this.chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None, 'ChatViewPane#applyModel') : undefined;
-		await this.showModel(CancellationToken.None, modelRef);
+		const modelRef = await this.acquireTransferredOrPersistedSession(CancellationToken.None, 'ChatViewPane#applyModel');
+		await this.showModel(CancellationToken.None, modelRef, true, !modelRef);
 	}
 
-	private async showModel(token: CancellationToken, modelRef?: IChatModelReference | undefined, startNewSession = true): Promise<IChatModel | undefined> {
+	/**
+	 * Force-start a new local chat session in the view, bypassing the
+	 * default-provider override applied by `showModel()`. Used by the
+	 * picker when the user explicitly selects "Local".
+	 */
+	async startNewLocalSession(): Promise<IChatModel | undefined> {
+		const ref = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { debugOwner: 'ChatViewPane#startNewLocalSession' });
+		return this.showModel(CancellationToken.None, ref);
+	}
+
+	/**
+	 * When the experimental `chat.editor.defaultProvider` setting selects a
+	 * provider other than local and that contribution is registered, return a
+	 * new session reference for it instead of the built-in local provider.
+	 * Returns `undefined` to fall back to `startNewLocalSession`.
+	 */
+	private async acquireDefaultNewSession(token: CancellationToken): Promise<IChatModelReference | undefined> {
+		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService);
+		if (defaultType === localChatSessionType) {
+			return undefined;
+		}
+		const resource = getDefaultNewChatSessionResource(this.configurationService, this.chatSessionsService);
+		try {
+			return await this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatViewPane#acquireDefaultNewSession');
+		} catch (error) {
+			this.logService.warn(`[ChatViewPane] Failed to acquire default agent-host session, falling back to local`, error);
+			return undefined;
+		}
+	}
+
+	private async acquireTransferredOrPersistedSession(token: CancellationToken, debugOwner: string): Promise<IChatModelReference | undefined> {
+		const sessionResource = this.getTransferredOrPersistedSessionInfo();
+		if (!sessionResource) {
+			return undefined;
+		}
+
+		const modelRef = await this.chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, token, debugOwner);
+		if (!modelRef) {
+			return undefined;
+		}
+
+		if (this.shouldSkipRestoredLocalSession(sessionResource, modelRef.object)) {
+			modelRef.dispose();
+			return undefined;
+		}
+
+		return modelRef;
+	}
+
+	private shouldSkipRestoredLocalSession(sessionResource: URI, model: IChatModel): boolean {
+		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService);
+		const prefersAgentHostCopilot = this.configurationService.getValue<boolean>(ChatConfiguration.EditorLocalAgentEnabled) === false
+			&& this.configurationService.getValue<string>(ChatConfiguration.EditorDefaultProvider) === 'copilotAh';
+		return (defaultType !== localChatSessionType || prefersAgentHostCopilot)
+			&& getChatSessionType(sessionResource) === localChatSessionType
+			&& !model.hasRequests;
+	}
+
+	private async showModel(token: CancellationToken, modelRef?: IChatModelReference | undefined, startNewSession = true, ignoreTransferredSession = false): Promise<IChatModel | undefined> {
 		const oldModelResource = this.modelRef.value?.object.sessionResource;
 		this.modelRef.value = undefined;
 
 		let ref: IChatModelReference | undefined;
 		if (startNewSession) {
-			ref = modelRef ?? (this.chatService.transferredSessionResource
-				? await this.chatService.acquireOrLoadSession(this.chatService.transferredSessionResource, ChatAgentLocation.Chat, token, 'ChatViewPane#showModel')
-				: this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { debugOwner: 'ChatViewPane#showModel' }));
+			if (modelRef) {
+				ref = modelRef;
+			} else if (!ignoreTransferredSession && this.chatService.transferredSessionResource) {
+				ref = await this.chatService.acquireOrLoadSession(this.chatService.transferredSessionResource, ChatAgentLocation.Chat, token, 'ChatViewPane#showModel');
+			} else {
+				ref = await this.acquireDefaultNewSession(token) ?? this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { debugOwner: 'ChatViewPane#showModel' });
+			}
 			if (!ref) {
 				throw new Error('Could not start chat session');
 			}
@@ -804,7 +1096,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		const contribution = this.chatSessionsService.getChatSessionContribution(sessionType);
 		if (contribution) {
-			this._widget.lockToCodingAgent(contribution.name, contribution.displayName, sessionType);
+			this._widget.lockToCodingAgent(contribution.name, contribution.displayName, sessionType, contribution.agentHostProviderId);
 		} else {
 			this._widget.unlockFromCodingAgent();
 		}
@@ -947,6 +1239,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		let remainingHeight = height;
 		const remainingWidth = width;
 
+		// Voice bar is now inside the input container, no separate height deduction needed
+
 		// Title Control
 		const titleHeight = this.titleControl?.getHeight() ?? 0;
 		remainingHeight -= titleHeight;
@@ -1006,7 +1300,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 			// Switching to side-by-side, reveal the current session after elements have loaded
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
-				updatePromise.then(() => {
+				updatePromise.then(didUpdate => {
+					if (!didUpdate) {
+						return;
+					}
+
 					const sessionResource = this._widget?.viewModel?.sessionResource;
 					if (sessionResource) {
 						this.sessionsControl?.reveal(sessionResource);

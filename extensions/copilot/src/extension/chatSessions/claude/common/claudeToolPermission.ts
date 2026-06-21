@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PermissionMode, PermissionUpdate } from '@anthropic-ai/claude-agent-sdk';
+import type { PermissionMode, PermissionUpdate } from '@anthropic-ai/claude-agent-sdk';
 import type * as vscode from 'vscode';
 import { ClaudeToolInputMap, ClaudeToolNames } from './claudeTools';
 
