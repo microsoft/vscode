@@ -871,14 +871,14 @@ export class AgentSideEffects extends Disposable {
 			}
 			case ActionType.SessionModelChanged: {
 				const agent = this._options.getAgent(channel);
-				agent?.changeModel?.(URI.parse(channel), action.model).catch(err => {
+				agent?.changeModel?.(URI.parse(channel), action.model, chatChannel ? URI.parse(chatChannel) : undefined).catch(err => {
 					this._logService.error('[AgentSideEffects] changeModel failed', err);
 				});
 				break;
 			}
 			case ActionType.SessionAgentChanged: {
 				const agent = this._options.getAgent(channel);
-				agent?.changeAgent?.(URI.parse(channel), action.agent).catch(err => {
+				agent?.changeAgent?.(URI.parse(channel), action.agent, chatChannel ? URI.parse(chatChannel) : undefined).catch(err => {
 					this._logService.error('[AgentSideEffects] changeAgent failed', err);
 				});
 				break;
