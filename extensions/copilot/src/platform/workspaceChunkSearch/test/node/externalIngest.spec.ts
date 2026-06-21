@@ -590,9 +590,25 @@ class RecordingGithubApiFetcherService extends mock<IGithubApiFetcherService>() 
 suite('ExternalIngestClient finalize retry', () => {
 	const disposables = new DisposableStore();
 
+	beforeEach(() => {
+		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+	});
+
 	afterEach(() => {
+		vi.useRealTimers();
 		disposables.clear();
 	});
+
+	/**
+	 * Drives `updateIndex` to completion while flushing the fake finalize-retry backoff
+	 * timers, so the test never waits on real wall-clock time.
+	 */
+	function runUpdateIndex(client: ExternalIngestClient, fileSet: ExternalIngestFileSet): Promise<Result<ExternalIngestUpdateIndexResult, Error>> {
+		const promise = client.updateIndex('fileset-1', fileSet, new CallTracker('externalIngest.spec.ts'), CancellationToken.None, emptyProgressCb);
+		// Run all (current and subsequently scheduled) timers, flushing microtasks between
+		// each, so the backoff `timeout(...)` calls resolve and the promise settles.
+		return vi.runAllTimersAsync().then(() => promise);
+	}
 
 	function createIngestFile(relativePath: string, content: string): ExternalIngestFile {
 		const bytes = new TextEncoder().encode(content);
@@ -623,7 +639,7 @@ suite('ExternalIngestClient finalize retry', () => {
 		const client = createClient(fetcher);
 
 		const fileSet: ExternalIngestFileSet = { files: [file], checkpoint: 'checkpoint-1' };
-		const result = await client.updateIndex('fileset-1', fileSet, new CallTracker('externalIngest.spec.ts'), CancellationToken.None, emptyProgressCb);
+		const result = await runUpdateIndex(client, fileSet);
 
 		assert.ok(result.isOk(), `updateIndex should succeed, got: ${result.isError() ? result.err.message : ''}`);
 		assert.strictEqual(fetcher.finalizeCallCount, 2, 'Finalize should be retried once after the 412');
@@ -641,7 +657,7 @@ suite('ExternalIngestClient finalize retry', () => {
 		const client = createClient(fetcher);
 
 		const fileSet: ExternalIngestFileSet = { files: [file], checkpoint: 'checkpoint-1' };
-		const result = await client.updateIndex('fileset-1', fileSet, new CallTracker('externalIngest.spec.ts'), CancellationToken.None, emptyProgressCb);
+		const result = await runUpdateIndex(client, fileSet);
 
 		assert.ok(result.isOk(), `updateIndex should succeed, got: ${result.isError() ? result.err.message : ''}`);
 		assert.strictEqual(fetcher.finalizeCallCount, 2, 'Finalize should be retried once after the 412');
@@ -658,7 +674,7 @@ suite('ExternalIngestClient finalize retry', () => {
 		const client = createClient(fetcher);
 
 		const fileSet: ExternalIngestFileSet = { files: [file], checkpoint: 'checkpoint-1' };
-		const result = await client.updateIndex('fileset-1', fileSet, new CallTracker('externalIngest.spec.ts'), CancellationToken.None, emptyProgressCb);
+		const result = await runUpdateIndex(client, fileSet);
 
 		assert.ok(result.isError(), 'updateIndex should fail after exhausting finalize retries');
 		assert.strictEqual(fetcher.finalizeCallCount, 3, 'Finalize should be attempted the maximum number of times');
@@ -675,7 +691,7 @@ suite('ExternalIngestClient finalize retry', () => {
 		const client = createClient(fetcher);
 
 		const fileSet: ExternalIngestFileSet = { files: [file], checkpoint: 'checkpoint-1' };
-		const result = await client.updateIndex('fileset-1', fileSet, new CallTracker('externalIngest.spec.ts'), CancellationToken.None, emptyProgressCb);
+		const result = await runUpdateIndex(client, fileSet);
 
 		assert.ok(result.isError(), 'updateIndex should fail after exhausting finalize retries');
 		assert.strictEqual(fetcher.finalizeCallCount, 3, 'Finalize should be attempted the maximum number of times');
@@ -698,7 +714,7 @@ suite('ExternalIngestClient finalize retry', () => {
 		const client = createClient(fetcher);
 
 		const fileSet: ExternalIngestFileSet = { files: [file], checkpoint: 'checkpoint-1' };
-		const result = await client.updateIndex('fileset-1', fileSet, new CallTracker('externalIngest.spec.ts'), CancellationToken.None, emptyProgressCb);
+		const result = await runUpdateIndex(client, fileSet);
 
 		assert.ok(result.isError(), 'updateIndex should fail when a document upload fails');
 		const message = result.isError() ? result.err.message : '';
@@ -723,11 +739,31 @@ suite('ExternalIngestClient finalize retry', () => {
 		const client = createClient(fetcher);
 
 		const fileSet: ExternalIngestFileSet = { files: [file], checkpoint: 'checkpoint-1' };
-		const result = await client.updateIndex('fileset-1', fileSet, new CallTracker('externalIngest.spec.ts'), CancellationToken.None, emptyProgressCb);
+		const result = await runUpdateIndex(client, fileSet);
 
 		assert.ok(result.isError(), 'updateIndex should fail when the ingest is gone (404)');
 		assert.match(result.isError() ? result.err.message : '', /Ingest not found \(404\)/i, 'Error should describe the missing ingest');
 		assert.strictEqual(fetcher.finalizeCallCount, 0, 'Finalize should never be attempted after a 404');
 	});
-});
 
+	test('fails deterministically when the server requests a docSha with no local mapping', async () => {
+		const file = createIngestFile('src/file1.ts', 'const x = 1;');
+
+		// The server asks for a docSha the client never advertised (no local mapping).
+		// The pass must fail deterministically with a descriptive error and never reach
+		// finalize, rather than swallowing the mismatch and stranding the server.
+		const unmappedDocShaId = Buffer.from('doc-sha-the-client-never-advertised').toString('base64');
+		const fetcher = new RecordingGithubApiFetcherService([unmappedDocShaId], /* finalize412Count */ 0, /* batchPollsWithDocs */ 1);
+		const client = createClient(fetcher);
+
+		const fileSet: ExternalIngestFileSet = { files: [file], checkpoint: 'checkpoint-1' };
+		const result = await runUpdateIndex(client, fileSet);
+
+		assert.ok(result.isError(), 'updateIndex should fail when the server requests an unmapped docSha');
+		const message = result.isError() ? result.err.message : '';
+		assert.match(message, /Failed to upload 1 document/i, 'Error should describe the upload failure');
+		assert.match(message, /unmapped docSha/i, 'Error should identify the unmapped docSha');
+		assert.strictEqual(fetcher.documentUploadCount, 0, 'No document upload should be attempted for an unmapped docSha');
+		assert.strictEqual(fetcher.finalizeCallCount, 0, 'Finalize should never be attempted for an unmapped docSha');
+	});
+});

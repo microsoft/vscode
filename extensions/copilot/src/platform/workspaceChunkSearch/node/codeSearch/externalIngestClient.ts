@@ -333,10 +333,12 @@ export class ExternalIngestClient extends Disposable implements IExternalIngestC
 
 		// Phase 3 + 4: Upload documents, then finalize.
 		const maxFinalizeAttempts = 3;
-		let totalUploaded = 0;
+		// Unique docShas the server accepted across all finalize passes. Using a set (rather
+		// than summing per-pass counts) prevents over-reporting `updatedFileCount` when the
+		// same document is re-uploaded after a finalize 412.
+		const uploadedDocShas = new Set<string>();
 		for (let finalizeAttempt = 0; ; finalizeAttempt++) {
-			const uploadedThisPass = await this.uploadDocuments(authToken, ingestId, mappings, callTracker, token, onProgress);
-			totalUploaded += uploadedThisPass;
+			const uploadedThisPass = await this.uploadDocuments(authToken, ingestId, mappings, uploadedDocShas, callTracker, token, onProgress);
 
 			// Phase 4: Finalize
 			onProgress?.(l10n.t('Finalizing index...'));
@@ -375,7 +377,7 @@ export class ExternalIngestClient extends Disposable implements IExternalIngestC
 			}
 		}
 
-		return Result.ok({ checkpoint: newCheckpoint, totalFileCount: mappings.size, updatedFileCount: Math.min(totalUploaded, mappings.size) });
+		return Result.ok({ checkpoint: newCheckpoint, totalFileCount: mappings.size, updatedFileCount: uploadedDocShas.size });
 	}
 
 	/**
@@ -391,6 +393,7 @@ export class ExternalIngestClient extends Disposable implements IExternalIngestC
 		authToken: string,
 		ingestId: string,
 		mappings: Map<string, ExternalIngestFile>,
+		uploadedDocShas: Set<string>,
 		callTracker: CallTracker,
 		token: CancellationToken,
 		onProgress?: (message: string) => void,
@@ -469,7 +472,9 @@ export class ExternalIngestClient extends Disposable implements IExternalIngestC
 						const p = (async () => {
 							const fileEntry = mappings.get(requestedDocSha);
 							if (!fileEntry) {
-								throw new Error(`No mapping for docSha: ${requestedDocSha}`);
+								this.logService.error(`ExternalIngestClient::performIngestion(): Server requested a docSha with no local mapping: ${requestedDocSha}`);
+								failedUploads.push({ relativePath: `<unmapped docSha ${requestedDocSha}>` });
+								return;
 							}
 
 							try {
@@ -495,6 +500,7 @@ export class ExternalIngestClient extends Disposable implements IExternalIngestC
 
 								// Only successful uploads are counted.
 								uploaded += 1;
+								uploadedDocShas.add(requestedDocSha);
 							} catch (e) {
 								if (isCancellationError(e) || isConflictError(e)) {
 									throw e;
