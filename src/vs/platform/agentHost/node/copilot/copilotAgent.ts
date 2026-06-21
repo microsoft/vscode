@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CopilotClient, RuntimeConnection, type CopilotClientOptions, type ModelInfo } from '@github/copilot-sdk';
+import { CopilotClient, RuntimeConnection, type CopilotClientOptions } from '@github/copilot-sdk';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import { CancelablePromise, createCancelablePromise, Delayer, Limiter, SequencerByKey } from '../../../../base/common/async.js';
@@ -30,7 +30,7 @@ import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import { createAgentModelPricingMeta } from '../../common/agentModelPricing.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
-import { AgentHostSessionSyncEnabledConfigKey, AutoApproveLevel, ISchemaProperty, SessionMode, createSchema, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
+import { AgentHostMcpServersConfigKey, AgentHostSessionSyncEnabledConfigKey, AutoApproveLevel, ISchemaProperty, SessionMode, createSchema, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IMcpNotification } from '../../common/agentService.js';
 import { getEffectiveAgents } from '../../common/customAgents.js';
@@ -42,7 +42,6 @@ import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDa
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ProtectedResourceMetadata, type AgentSelection, type ChildCustomizationType, type ConfigPropertySchema, type ConfigSchema, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
-import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { AgentCustomization, CustomizationLoadStatus, CustomizationType, ResponsePartKind, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildChatUri, isDefaultChatUri, parseChatUri, parseSubagentSessionUri, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ResponsePart, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { ActiveClientState } from '../activeClientState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
@@ -121,7 +120,9 @@ interface IProvisionalSession {
 	readonly project: IAgentSessionProjectInfo | undefined;
 }
 
-export { COPILOT_AGENT_HOST_SYSTEM_MESSAGE } from './copilotSessionLauncher.js';
+export { COPILOT_AGENT_HOST_SYSTEM_MESSAGE } from './prompts/systemMessage.js';
+
+type ModelInfo = Awaited<ReturnType<CopilotClient['rpc']['models']['list']>>['models'][number];
 
 interface ISerializedModelSelection {
 	id?: unknown;
@@ -421,7 +422,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	getDescriptor(): IAgentDescriptor {
 		return {
 			provider: 'copilotcli',
-			displayName: 'Copilot CLI',
+			displayName: 'Copilot',
 			description: 'Copilot SDK agent running in a dedicated process',
 		};
 	}
@@ -475,10 +476,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._githubToken = token;
 		this._updateRestrictedTelemetry(token);
 		this._logService.info(`[Copilot] Auth token ${tokenChanged ? 'updated' : 'unchanged'}`);
-		if (tokenChanged && this._client && this._sessions.size === 0) {
-			this._logService.info('[Copilot] Restarting CopilotClient with new token');
-			await this._stopClient();
-		}
 		if (tokenChanged) {
 			void this._refreshModels();
 		}
@@ -501,7 +498,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return;
 		}
 		try {
-			const models = await this._listModels();
+			const models = await this._listModels(tokenAtRefreshStart);
 			if (this._githubToken === tokenAtRefreshStart) {
 				this._models.set(models, undefined);
 			}
@@ -561,10 +558,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 	// ---- client lifecycle ---------------------------------------------------
 
 	private async _ensureClient(): Promise<CopilotClient> {
-		const tokenAtStartup = this._githubToken;
-		if (!tokenAtStartup) {
-			throw new ProtocolError(AHP_AUTH_REQUIRED, 'Authentication is required to use Copilot', this.getProtectedResources());
-		}
 		if (this._client) {
 			return this._client;
 		}
@@ -577,7 +570,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const sessionSyncAtStartup = this._isSessionSyncEnabled();
 		const rubberDuckAtStartup = this._isRubberDuckEnabled();
 		const clientStarting = (async () => {
-			this._logService.info('[Copilot] Starting CopilotClient... (with token)');
+			this._logService.info('[Copilot] Starting CopilotClient...');
 
 			// Build a clean env for the CLI subprocess, stripping Electron/VS Code vars
 			// that can interfere with the Node.js process the SDK spawns.
@@ -654,7 +647,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const telemetry = await this._otelService.getSdkTelemetryConfig();
 
 			const clientOptions: CopilotClientOptions = {
-				gitHubToken: tokenAtStartup,
 				useLoggedInUser: false,
 				connection: RuntimeConnection.forStdio({ path: cliPath }),
 				env,
@@ -664,10 +656,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			};
 			const client = this._createCopilotClient(clientOptions);
 			await client.start();
-			if (this._githubToken !== tokenAtStartup) {
-				await client.stop();
-				throw new Error('Copilot authentication changed while the client was starting');
-			}
 			if (this._isSessionSyncEnabled() !== sessionSyncAtStartup || this._isRubberDuckEnabled() !== rubberDuckAtStartup) {
 				await client.stop();
 				throw new Error('Copilot startup config changed while the client was starting');
@@ -712,7 +700,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * `ModelBilling` type — narrow through {@link ICopilotModelBilling} until the SDK catches up.
 	 */
 	private _createContextTierConfigSchemaProperty(billing: ModelInfo['billing'] | undefined): ConfigPropertySchema | undefined {
-		const tokenPrices = (billing as ICopilotModelBilling | undefined)?.tokenPrices;
+		const tokenPrices = billing?.tokenPrices;
 		const defaultMax = tokenPrices?.contextMax;
 		const longContextMax = tokenPrices?.longContext?.contextMax;
 		if (!defaultMax || !longContextMax || defaultMax >= longContextMax) {
@@ -748,25 +736,25 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * `billing.tokenPrices` / `billing.priceCategory` are present on the runtime CAPI `/models` payload but not yet
 	 * declared on the published SDK `ModelBilling` type — narrow through {@link ICopilotModelBilling}.
 	 */
-	private _createModelPricingMeta(billing: ModelInfo['billing'] | undefined): Record<string, unknown> | undefined {
-		const typedBilling = billing as ICopilotModelBilling | undefined;
-		const tokenPrices = typedBilling?.tokenPrices;
+	private _createModelPricingMeta(modelInfo: ModelInfo | undefined): Record<string, unknown> | undefined {
+		const billing = modelInfo?.billing;
+		const tokenPrices = billing?.tokenPrices;
 		const longContext = tokenPrices?.longContext;
 
 		const differsFromDefault = (longValue: number | undefined, defaultValue: number | undefined): number | undefined =>
 			longValue !== undefined && longValue !== defaultValue ? longValue : undefined;
 
 		return createAgentModelPricingMeta({
-			multiplierNumeric: typeof typedBilling?.multiplier === 'number' ? typedBilling.multiplier : undefined,
+			multiplierNumeric: typeof billing?.multiplier === 'number' ? billing.multiplier : undefined,
 			inputCost: tokenPrices?.inputPrice,
 			cacheCost: tokenPrices?.cachePrice,
-			cacheWriteCost: tokenPrices?.cacheWritePrice,
+			cacheWriteCost: tokenPrices?.cachePrice,
 			outputCost: tokenPrices?.outputPrice,
 			longContextInputCost: differsFromDefault(longContext?.inputPrice, tokenPrices?.inputPrice),
 			longContextCacheCost: differsFromDefault(longContext?.cachePrice, tokenPrices?.cachePrice),
-			longContextCacheWriteCost: differsFromDefault(longContext?.cacheWritePrice, tokenPrices?.cacheWritePrice),
+			longContextCacheWriteCost: differsFromDefault(longContext?.cachePrice, tokenPrices?.cachePrice),
 			longContextOutputCost: differsFromDefault(longContext?.outputPrice, tokenPrices?.outputPrice),
-			priceCategory: typeof typedBilling?.priceCategory === 'string' ? typedBilling.priceCategory : undefined,
+			priceCategory: typeof modelInfo?.modelPickerPriceCategory === 'string' ? modelInfo.modelPickerPriceCategory : undefined,
 		});
 	}
 
@@ -929,10 +917,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		};
 	}
 
-	private async _listModels(): Promise<IAgentModelInfo[]> {
+	private async _listModels(gitHubToken: string): Promise<IAgentModelInfo[]> {
 		this._logService.info('[Copilot] Listing models...');
 		const client = await this._ensureClient();
-		const models = await client.listModels();
+		const { models } = await client.rpc.models.list({ gitHubToken });
 		const result = models.map((m): IAgentModelInfo => ({
 			provider: this.id,
 			id: m.id,
@@ -943,9 +931,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			supportsVision: !!m.capabilities?.supports?.vision,
 			configSchema: this._createModelConfigSchema(m),
 			policyState: m.policy?.state as PolicyState | undefined,
-			_meta: this._createModelPricingMeta(m.billing),
+			_meta: this._createModelPricingMeta(m),
 		}));
-		this._logService.info(`[Copilot] Found ${result.length} models`);
+		this._logService.info(`[Copilot] Found ${result.length} models: ${result.map(m => m.name).join(', ')}`);
 		return result;
 	}
 
@@ -972,7 +960,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const sessionId = sessionConfig.session ? AgentSession.id(sessionConfig.session) : generateUuid();
 		const workingDirectory = await this._resolveCreateWorkingDirectory(sessionConfig, sessionId);
 		const client = await this._ensureClient();
-
 		// When forking, use the SDK's sessions.fork RPC. Forking from a source
 		// session that has no turns is equivalent to creating a fresh session;
 		// in that case the agent service drops `config.fork` before calling us,
@@ -1915,7 +1902,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		let client = this._activeClients.get(session);
 		if (!client) {
 			const pluginController = this._plugins.createSessionController(directory);
-			client = new ActiveClient(session, pluginController, this._onDidSessionProgress);
+			client = this._instantiationService.createInstance(ActiveClient, session, pluginController, this._onDidSessionProgress);
 			this._activeClients.set(session, client);
 		} else if (directory) {
 			client.pluginController.setDirectory(directory);
@@ -3125,6 +3112,7 @@ class ActiveClient extends Disposable {
 		private readonly _sessionUri: URI,
 		pluginController: SessionPluginController,
 		onDidSessionProgress: Emitter<AgentSignal>,
+		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 	) {
 		super();
 		this.pluginController = this._register(pluginController);
@@ -3140,7 +3128,17 @@ class ActiveClient extends Disposable {
 	}
 
 	async snapshot(): Promise<IActiveClientSnapshot> {
-		return { tools: this.state.tools, plugins: await this.pluginController.getAppliedPlugins() };
+		return {
+			tools: this.state.tools,
+			plugins: await this.pluginController.getAppliedPlugins(),
+			mcpServers: this._getMcpServers(),
+		};
+	}
+
+	private _getMcpServers(): AgentHostMcpServers {
+		const servers = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpServersConfigKey) ?? {};
+
+		return structuredClone(servers);
 	}
 
 	/**
@@ -3153,6 +3151,9 @@ class ActiveClient extends Disposable {
 	async requiresRestart(snap: IActiveClientSnapshot): Promise<boolean> {
 		const plugins = await this.pluginController.getAppliedPlugins();
 		if (!parsedPluginsEqual(snap.plugins, plugins)) {
+			return true;
+		}
+		if (!equals(snap.mcpServers, this._getMcpServers())) {
 			return true;
 		}
 		return !this.state.structuralEquals({ tools: snap.tools });

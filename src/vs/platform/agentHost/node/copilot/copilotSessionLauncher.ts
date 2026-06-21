@@ -10,7 +10,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
-import { AgentHostSessionSyncEnabledConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
+import { AgentHostSessionSyncEnabledConfigKey, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
@@ -18,10 +18,12 @@ import type { ModelSelection, ToolDefinition } from '../../common/state/protocol
 import type { ActiveClientState } from '../activeClientState.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { ShellManager, createShellTools, type IUnsandboxedCommandConfirmationRequest } from './copilotShellTools.js';
-import { toSdkCustomAgents, toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkSkillDirectories } from './copilotPluginConverters.js';
+import { toSdkCustomAgents, toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSkillDirectories } from './copilotPluginConverters.js';
 import { buildSandboxConfigForSdk, type ISdkSandboxConfig } from './sandboxConfigForSdk.js';
 import type { ITypedPermissionRequest } from './copilotToolDisplay.js';
 import type { ICopilotPluginInfo } from './copilotAgent.js';
+import { agentHostPromptRegistry, type IAgentHostPromptContext } from './prompts/promptRegistry.js';
+import './prompts/allPrompts.js';
 
 export const ThinkingLevelConfigKey = 'thinkingLevel';
 export const ContextTierConfigKey = 'contextTier';
@@ -47,26 +49,19 @@ type CopilotSessionLaunchConfig = ResumeSessionConfig & {
 	readonly remoteSession?: 'export';
 };
 
-export const COPILOT_AGENT_HOST_SYSTEM_MESSAGE = {
-	mode: 'customize',
-	sections: {
-		identity: {
-			action: 'replace',
-			content: 'You are an AI assistant using Copilot CLI runtime in VS Code. You help users with software engineering tasks. When asked about your identity, you must state that you are an AI assistant using Copilot CLI runtime in VS Code.',
-		},
-	},
-} satisfies NonNullable<ResumeSessionConfig['systemMessage']>;
-
 /**
  * Immutable snapshot of the active client's structural contributions at
  * session creation time. Used to detect when the session needs to be
- * refreshed. The owning `clientId` is deliberately NOT part of this snapshot:
- * client identity is tracked live via {@link ActiveClientState} so a window
+ * refreshed. Root MCP servers participate in restart detection because they
+ * are merged into the SDK session config. The owning `clientId` is
+ * deliberately NOT part of this snapshot: client identity is tracked live via
+ * {@link ActiveClientState} so a window
  * reload (new `clientId`, identical tools/plugins) does not force a restart.
  */
 export interface IActiveClientSnapshot {
 	readonly tools: readonly ToolDefinition[];
 	readonly plugins: readonly ICopilotPluginInfo[];
+	readonly mcpServers: AgentHostMcpServers;
 }
 
 export interface ICopilotSessionRuntime {
@@ -308,6 +303,10 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const customAgents = await toSdkCustomAgents(pluginsWithoutDirs.flatMap(p => p.agents), this._fileService);
 		const skillDirectories = toSdkSkillDirectories(pluginsWithoutDirs.flatMap(p => p.skills));
 		const instructionDirectories = toSdkInstructionDirectories(plugins.flatMap(p => p.instructions));
+		const model = plan.kind === 'create' ? plan.model : plan.fallback.model;
+		const promptContext: IAgentHostPromptContext = {
+			getSetting: key => this._configurationService.getRootValue(agentHostCustomizationConfigSchema, key),
+		};
 		return {
 			clientName: 'vscode',
 			enableMcpApps: true,
@@ -318,13 +317,13 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				onPreToolUse: input => runtime.handlePreToolUse(input),
 				onPostToolUse: input => runtime.handlePostToolUse(input),
 			}),
-			mcpServers: toSdkMcpServers(pluginsWithoutDirs.flatMap(p => p.mcpServers)),
+			mcpServers: { ...toSdkMcpServersFromConfigMap(plan.snapshot.mcpServers), ...toSdkMcpServers(pluginsWithoutDirs.flatMap(p => p.mcpServers)) },
 			onExitPlanModeRequest: (request, invocation) => runtime.handleExitPlanModeRequest(request, invocation),
 			workingDirectory: plan.workingDirectory?.fsPath,
 			customAgents,
 			skillDirectories,
 			instructionDirectories,
-			systemMessage: COPILOT_AGENT_HOST_SYSTEM_MESSAGE,
+			systemMessage: agentHostPromptRegistry.resolveSystemMessageConfig(model, promptContext),
 			pluginDirectories: coalesce(plugins.map(p => p.pluginDir))
 				.filter(d => d.scheme === Schemas.file).map(d => d.fsPath),
 			tools: [...shellTools, ...runtime.createClientSdkTools(), ...runtime.createServerSdkTools()],

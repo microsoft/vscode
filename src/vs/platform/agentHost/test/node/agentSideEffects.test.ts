@@ -164,6 +164,36 @@ suite('AgentSideEffects', () => {
 		);
 	}
 
+	/**
+	 * Resolves with the first non-`undefined` value returned by `match`,
+	 * re-evaluating it immediately and after every envelope emitted by the
+	 * state manager. Used to await the async tool-approval pipeline
+	 * (`_handleToolReady` -> `getAutoApproval` -> `realpath`) deterministically
+	 * instead of depending on a fixed settle delay.
+	 */
+	function waitForState<T>(manager: AgentHostStateManager, match: () => T | undefined): Promise<T> {
+		return new Promise<T>((resolve, reject) => {
+			const initial = match();
+			if (initial !== undefined) {
+				resolve(initial);
+				return;
+			}
+			const store = new DisposableStore();
+			const timer = setTimeout(() => {
+				store.dispose();
+				reject(new Error('waitForState: condition was not met'));
+			}, 5000);
+			store.add(toDisposable(() => clearTimeout(timer)));
+			store.add(manager.onDidEmitEnvelope(() => {
+				const value = match();
+				if (value !== undefined) {
+					store.dispose();
+					resolve(value);
+				}
+			}));
+		});
+	}
+
 	setup(async () => {
 		fileService = disposables.add(new FileService(new NullLogService()));
 		const memFs = disposables.add(new InMemoryFileSystemProvider());
@@ -875,6 +905,40 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(state?.queuedMessages, undefined);
 		});
 
+		test('does not drain queued messages when the active turn is cancelled', () => {
+			// Cancelling a turn means "stop": messages queued behind it must stay
+			// queued for the user to dequeue/run manually, not auto-start. (A
+			// message the user sends *after* the abort is consumed separately via
+			// the ChatPendingMessageSet path once cancellation clears the turn.)
+			setupSession();
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			// Queue a message while a turn is active.
+			startTurn('turn-1');
+			const setAction = {
+				type: ActionType.ChatPendingMessageSet as const,
+				kind: PendingMessageKind.Queued,
+				id: 'q-after-abort',
+				message: { text: 'queued behind abort', origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(sessionUri.toString(), setAction, { clientId: 'test', clientSeq: 1 });
+			sideEffects.handleAction(sessionUri.toString(), setAction);
+
+			// Not consumed yet — the turn is still active.
+			assert.strictEqual(agent.sendMessageCalls.length, 0);
+
+			// Cancel the active turn (client abort).
+			const cancelAction = { type: ActionType.ChatTurnCancelled as const, turnId: 'turn-1' };
+			stateManager.dispatchClientAction(sessionUri.toString(), cancelAction, { clientId: 'test', clientSeq: 2 });
+			sideEffects.handleAction(sessionUri.toString(), cancelAction);
+
+			// The queued message must NOT auto-start, and must remain queued.
+			assert.strictEqual(agent.sendMessageCalls.length, 0, 'cancelling must not drain queued messages');
+			const state = stateManager.getSessionState(sessionUri.toString());
+			assert.strictEqual(state?.queuedMessages?.length, 1, 'queued message should remain for manual dequeue');
+			assert.strictEqual(state?.queuedMessages?.[0].id, 'q-after-abort');
+		});
+
 		test('intercepts queued /rename and drains the message queued behind it', () => {
 			setupSession();
 			// `/rename` persists the new title, so use a side effects instance
@@ -1389,7 +1453,7 @@ suite('AgentSideEffects', () => {
 
 	suite('tool_ready dispatches progress actions to advance tool call state', () => {
 
-		test('tool_ready for a non-permission tool dispatches ChatToolCallReady and advances state from Streaming to Running', () => {
+		test('tool_ready for a non-permission tool dispatches ChatToolCallReady and advances state from Streaming to Running', async () => {
 			setupSession();
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
@@ -1422,14 +1486,18 @@ suite('AgentSideEffects', () => {
 				permissionKind: undefined, permissionPath: undefined,
 			});
 
-			const stateAfterReady = stateManager.getSessionState(sessionUri.toString());
+			const stateAfterReady = await waitForState(stateManager, () => {
+				const s = stateManager.getSessionState(sessionUri.toString());
+				const p = s?.activeTurn?.responseParts[0];
+				return p?.kind === ResponsePartKind.ToolCall && p.toolCall.status === ToolCallStatus.Running ? s : undefined;
+			});
 			const partAfterReady = stateAfterReady?.activeTurn?.responseParts[0];
 			assert.strictEqual(partAfterReady?.kind, ResponsePartKind.ToolCall);
 			assert.strictEqual(partAfterReady?.kind === ResponsePartKind.ToolCall ? partAfterReady.toolCall.status : undefined, ToolCallStatus.Running,
 				'tool call should advance from Streaming to Running after tool_ready');
 		});
 
-		test('tool_ready for a permission-gated tool dispatches ChatToolCallReady and advances state to PendingConfirmation', () => {
+		test('tool_ready for a permission-gated tool dispatches ChatToolCallReady and advances state to PendingConfirmation', async () => {
 			setupSession();
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
@@ -1456,14 +1524,18 @@ suite('AgentSideEffects', () => {
 				permissionKind: undefined, permissionPath: undefined,
 			});
 
-			const state = stateManager.getSessionState(sessionUri.toString());
+			const state = await waitForState(stateManager, () => {
+				const s = stateManager.getSessionState(sessionUri.toString());
+				const p = s?.activeTurn?.responseParts[0];
+				return p?.kind === ResponsePartKind.ToolCall && p.toolCall.status === ToolCallStatus.PendingConfirmation ? s : undefined;
+			});
 			const part = state?.activeTurn?.responseParts[0];
 			assert.strictEqual(part?.kind, ResponsePartKind.ToolCall);
 			assert.strictEqual(part?.kind === ResponsePartKind.ToolCall ? part.toolCall.status : undefined, ToolCallStatus.PendingConfirmation,
 				'tool call should advance to PendingConfirmation for permission-gated tool_ready');
 		});
 
-		test('pending_confirmation for a tool inside a subagent routes to the subagent session', () => {
+		test('pending_confirmation for a tool inside a subagent routes to the subagent session', async () => {
 			// Regression: a `pending_confirmation` signal for a client tool
 			// inside a subagent must dispatch ChatToolCallReady against
 			// the subagent session, not the parent. Otherwise the parent
@@ -1519,7 +1591,13 @@ suite('AgentSideEffects', () => {
 
 			// The subagent session must contain the ChatToolCallReady.
 			const subagentUri = buildSubagentSessionUri(sessionUri.toString(), 'tc-parent');
-			const subState = stateManager.getSessionState(subagentUri);
+			const subState = await waitForState(stateManager, () => {
+				const s = stateManager.getSessionState(subagentUri);
+				const inner = s?.activeTurn?.responseParts.find(
+					rp => rp.kind === ResponsePartKind.ToolCall && rp.toolCall.toolCallId === 'tc-inner'
+				);
+				return inner?.kind === ResponsePartKind.ToolCall && inner.toolCall.status === ToolCallStatus.Running ? s : undefined;
+			});
 			const innerPart = subState?.activeTurn?.responseParts.find(
 				rp => rp.kind === ResponsePartKind.ToolCall && rp.toolCall.toolCallId === 'tc-inner'
 			);
@@ -1538,6 +1616,77 @@ suite('AgentSideEffects', () => {
 				rp => rp.kind === ResponsePartKind.ToolCall && rp.toolCall.toolCallId === 'tc-inner'
 			);
 			assert.strictEqual(parentInner, undefined, 'parent session must not contain the inner tool call');
+		});
+
+		test('pending_confirmation without an active turn still dispatches (does not hang)', async () => {
+			// Regression: when a hook-triggered continuation runs after
+			// the protocol turn has completed, the state manager has no
+			// active turn. Action signals go through a fallback path, but
+			// pending_confirmation was silently dropped — causing the
+			// permission deferred to never resolve and the session to hang.
+			setupSession(URI.file('/workspace').toString());
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			// Start a tool in the active turn
+			agent.fireProgress({
+				kind: 'action', session: sessionUri,
+				action: {
+					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
+					toolCallId: 'tc-noop', toolName: 'view', displayName: 'Read',
+					contributor: undefined,
+					_meta: { toolKind: undefined, language: undefined },
+				},
+			});
+
+			// Complete the turn — state manager no longer has an active turn
+			agent.fireProgress({
+				kind: 'action', session: sessionUri,
+				action: {
+					type: ActionType.ChatToolCallComplete, turnId: 'turn-1',
+					toolCallId: 'tc-noop', result: { success: true, pastTenseMessage: 'Read file' },
+				},
+			});
+			agent.fireProgress({
+				kind: 'action', session: sessionUri,
+				action: { type: ActionType.ChatTurnComplete, turnId: 'turn-1' },
+			});
+
+			// Verify no active turn
+			assert.strictEqual(stateManager.getActiveTurnId(sessionUri.toString()), undefined);
+
+			// Simulate the hook-triggered continuation: tool actions
+			// arrive without a new protocol turn being started
+			agent.fireProgress({
+				kind: 'action', session: sessionUri,
+				action: {
+					type: ActionType.ChatToolCallStart, turnId: '',
+					toolCallId: 'tc-orphan', toolName: 'view', displayName: 'Read',
+					contributor: undefined,
+					_meta: { toolKind: undefined, language: undefined },
+				},
+			});
+
+			// Now the pending_confirmation arrives — this must NOT be dropped
+			agent.fireProgress({
+				kind: 'pending_confirmation', session: sessionUri,
+				state: {
+					status: ToolCallStatus.PendingConfirmation,
+					toolCallId: 'tc-orphan', toolName: 'view', displayName: 'Read',
+					invocationMessage: 'Reading file.ts', toolInput: '{"path":"file.ts"}',
+					confirmationTitle: undefined, edits: undefined,
+				},
+				permissionKind: 'read', permissionPath: '/workspace/file.ts',
+			});
+
+			// The respondToPermissionRequest should have been called
+			// (auto-approved because read is inside the working directory).
+			// _handleToolReady is async (awaits getAutoApproval -> realpath),
+			// so wait for the approval to settle deterministically.
+			await waitForState(stateManager, () => agent.respondToPermissionCalls.length > 0 || undefined);
+			assert.deepStrictEqual(agent.respondToPermissionCalls, [
+				{ requestId: 'tc-orphan', approved: true },
+			], 'pending_confirmation without active turn should still be processed and auto-approved');
 		});
 	});
 
@@ -1565,7 +1714,7 @@ suite('AgentSideEffects', () => {
 			});
 		}
 
-		test('auto-approves all writes when autoApprove is set to bypass', () => {
+		test('auto-approves all writes when autoApprove is set to bypass', async () => {
 			setupSessionWithConfig('autoApprove');
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
@@ -1598,13 +1747,14 @@ suite('AgentSideEffects', () => {
 				permissionKind: 'write', permissionPath: '/workspace/.env',
 			});
 
+			await waitForState(stateManager, () => agent.respondToPermissionCalls.length > 0 || undefined);
 			// .env would normally be blocked, but session-level auto-approve overrides
 			assert.deepStrictEqual(agent.respondToPermissionCalls, [
 				{ requestId: 'tc-bypass-1', approved: true },
 			]);
 		});
 
-		test('auto-approves shell commands when autoApprove is set to bypass', () => {
+		test('auto-approves shell commands when autoApprove is set to bypass', async () => {
 			setupSessionWithConfig('autoApprove');
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
@@ -1637,6 +1787,7 @@ suite('AgentSideEffects', () => {
 				permissionKind: 'shell', permissionPath: undefined,
 			});
 
+			await waitForState(stateManager, () => agent.respondToPermissionCalls.length > 0 || undefined);
 			// Dangerous command would normally be blocked, but session-level
 			// bypass auto-approve overrides.
 			assert.deepStrictEqual(agent.respondToPermissionCalls, [
@@ -1644,7 +1795,7 @@ suite('AgentSideEffects', () => {
 			]);
 		});
 
-		test('marks pending client tool approval for client-side auto-approval in bypass mode', () => {
+		test('marks pending client tool approval for client-side auto-approval in bypass mode', async () => {
 			setupSessionWithConfig('autoApprove');
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
@@ -1669,7 +1820,11 @@ suite('AgentSideEffects', () => {
 				permissionKind: 'custom-tool', permissionPath: undefined,
 			});
 
-			const state = stateManager.getSessionState(sessionUri.toString());
+			const state = await waitForState(stateManager, () => {
+				const s = stateManager.getSessionState(sessionUri.toString());
+				const p = s?.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === 'tc-client-approve-1');
+				return p?.kind === ResponsePartKind.ToolCall && p.toolCall.status === ToolCallStatus.PendingConfirmation ? s : undefined;
+			});
 			const part = state?.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === 'tc-client-approve-1');
 			assert.ok(part?.kind === ResponsePartKind.ToolCall);
 			assert.deepStrictEqual({
@@ -1732,7 +1887,7 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(agent.respondToPermissionCalls.length, 0);
 		});
 
-		test('respects mid-session config change via SessionConfigChanged', () => {
+		test('respects mid-session config change via SessionConfigChanged', async () => {
 			setupSessionWithConfig('default');
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
@@ -1771,6 +1926,7 @@ suite('AgentSideEffects', () => {
 				permissionKind: 'write', permissionPath: '/workspace/.env',
 			});
 
+			await waitForState(stateManager, () => agent.respondToPermissionCalls.length > 0 || undefined);
 			// Should now be auto-approved after config change
 			assert.deepStrictEqual(agent.respondToPermissionCalls, [
 				{ requestId: 'tc-mid-1', approved: true },
@@ -1815,6 +1971,7 @@ suite('AgentSideEffects', () => {
 				permissionKind: 'write', permissionPath: '/workspace/src/app.ts',
 			});
 
+			await waitForState(stateManager, () => agent.respondToPermissionCalls.length > 0 || undefined);
 			// Auto-approved writes call respondToPermissionRequest directly
 			assert.deepStrictEqual(agent.respondToPermissionCalls, [
 				{ requestId: 'tc-auto-1', approved: true },
@@ -1978,7 +2135,7 @@ suite('AgentSideEffects', () => {
 
 	suite('read auto-approve', () => {
 
-		test('auto-approves reads inside working directory', () => {
+		test('auto-approves reads inside working directory', async () => {
 			setupSession(URI.file('/workspace').toString());
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
@@ -2011,6 +2168,7 @@ suite('AgentSideEffects', () => {
 				permissionKind: 'read', permissionPath: '/workspace/src/app.ts',
 			});
 
+			await waitForState(stateManager, () => agent.respondToPermissionCalls.length > 0 || undefined);
 			assert.deepStrictEqual(agent.respondToPermissionCalls, [
 				{ requestId: 'tc-read-1', approved: true },
 			]);
@@ -2547,7 +2705,7 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(parentInnerTool, undefined, 'inner tool must not leak into parent session');
 		});
 
-		test('reads inside parent working directory are auto-approved for tools in subagent sessions', () => {
+		test('reads inside parent working directory are auto-approved for tools in subagent sessions', async () => {
 			// Subagent sessions don't carry their own workingDirectory or
 			// autoApprove config. Without inheritance from the parent, every
 			// tool call inside a subagent (even a read in the workspace) would
@@ -2590,12 +2748,13 @@ suite('AgentSideEffects', () => {
 				permissionKind: 'read', permissionPath: '/workspace/src/app.ts',
 			});
 
+			await waitForState(stateManager, () => agent.respondToPermissionCalls.length > 0 || undefined);
 			assert.deepStrictEqual(agent.respondToPermissionCalls, [
 				{ requestId: 'inner-read-1', approved: true },
 			]);
 		});
 
-		test('session-level autoApprove on the parent is inherited by tools in subagent sessions', () => {
+		test('session-level autoApprove on the parent is inherited by tools in subagent sessions', async () => {
 			setupSession(URI.file('/workspace').toString());
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
@@ -2650,6 +2809,7 @@ suite('AgentSideEffects', () => {
 				permissionKind: 'write', permissionPath: '/tmp/foo',
 			});
 
+			await waitForState(stateManager, () => agent.respondToPermissionCalls.length > 0 || undefined);
 			assert.deepStrictEqual(agent.respondToPermissionCalls, [
 				{ requestId: 'inner-write-1', approved: true },
 			]);
@@ -2660,7 +2820,7 @@ suite('AgentSideEffects', () => {
 
 	suite('session permissions', () => {
 
-		test('tool_ready action includes confirmation options when confirmation is needed', () => {
+		test('tool_ready action includes confirmation options when confirmation is needed', async () => {
 			setupSession();
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
@@ -2693,7 +2853,13 @@ suite('AgentSideEffects', () => {
 				permissionKind: 'custom-tool', permissionPath: undefined,
 			});
 
-			const state = stateManager.getSessionState(sessionUri.toString());
+			const state = await waitForState(stateManager, () => {
+				const s = stateManager.getSessionState(sessionUri.toString());
+				const found = s?.activeTurn?.responseParts.find(
+					rp => rp.kind === ResponsePartKind.ToolCall && rp.toolCall.toolCallId === 'tc-perm-1'
+				);
+				return found?.kind === ResponsePartKind.ToolCall && found.toolCall.status === ToolCallStatus.PendingConfirmation ? s : undefined;
+			});
 			const tc = state!.activeTurn!.responseParts.find(
 				rp => rp.kind === ResponsePartKind.ToolCall && rp.toolCall.toolCallId === 'tc-perm-1'
 			);
@@ -2756,7 +2922,7 @@ suite('AgentSideEffects', () => {
 			);
 		});
 
-		test('subsequent tool_ready for same tool is auto-approved after allow-session permission', () => {
+		test('subsequent tool_ready for same tool is auto-approved after allow-session permission', async () => {
 			setupSession();
 			stateManager.setSessionConfig(sessionUri.toString(), {
 				schema: { type: 'object', properties: {} },
@@ -2793,12 +2959,13 @@ suite('AgentSideEffects', () => {
 				permissionKind: 'custom-tool', permissionPath: undefined,
 			});
 
+			await waitForState(stateManager, () => agent.respondToPermissionCalls.length > 0 || undefined);
 			assert.deepStrictEqual(agent.respondToPermissionCalls, [
 				{ requestId: 'tc-perm-3', approved: true },
 			]);
 		});
 
-		test('subagent tool calls inherit parent session permissions', () => {
+		test('subagent tool calls inherit parent session permissions', async () => {
 			setupSession();
 			stateManager.setSessionConfig(sessionUri.toString(), {
 				schema: { type: 'object', properties: {} },
@@ -2859,6 +3026,7 @@ suite('AgentSideEffects', () => {
 				permissionKind: 'custom-tool', permissionPath: undefined,
 			});
 
+			await waitForState(stateManager, () => agent.respondToPermissionCalls.length > 0 || undefined);
 			assert.deepStrictEqual(agent.respondToPermissionCalls, [
 				{ requestId: 'inner-perm-1', approved: true },
 			]);

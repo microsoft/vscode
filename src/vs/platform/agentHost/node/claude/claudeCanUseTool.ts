@@ -61,7 +61,7 @@ export interface IClaudeCanUseToolOptions {
  *
  * Note: protocol-level auto-approve for write tools lives in
  * `agentSideEffects.ts:_handleToolReady`, which subscribes to the
- * `pending_confirmation` signal and synchronously calls
+ * `pending_confirmation` signal and calls
  * `respondToPermissionRequest`. The atomic register-then-fire
  * invariant lives inside {@link ClaudeAgentSession.requestPermission}
  * (via `PendingRequestRegistry.registerAndFire`).

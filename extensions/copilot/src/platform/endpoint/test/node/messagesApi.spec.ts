@@ -566,8 +566,12 @@ suite('addToolsAndSystemCacheControl', function () {
 
 suite('modelSupportsExtendedCacheTtl', function () {
 
-	test('matches Opus 4.5/4.6/4.7, Sonnet 4.5/4.6, and Haiku 4.5 variants and rejects everything else', function () {
+	test('matches Fable 5, Opus 4.5/4.6/4.7/4.8, Sonnet 4.5/4.6, and Haiku 4.5 variants and rejects everything else', function () {
 		expect({
+			'claude-fable-5': modelSupportsExtendedCacheTtl('claude-fable-5'),
+			'claude-opus-4.8': modelSupportsExtendedCacheTtl('claude-opus-4.8'),
+			'claude-opus-4-8': modelSupportsExtendedCacheTtl('claude-opus-4-8'),
+			'claude-opus-4-8-1m': modelSupportsExtendedCacheTtl('claude-opus-4-8-1m'),
 			'claude-opus-4.6-1m': modelSupportsExtendedCacheTtl('claude-opus-4.6-1m'),
 			'claude-opus-4-6-1m': modelSupportsExtendedCacheTtl('claude-opus-4-6-1m'),
 			'claude-opus-4.7-1m-internal': modelSupportsExtendedCacheTtl('claude-opus-4.7-1m-internal'),
@@ -583,6 +587,10 @@ suite('modelSupportsExtendedCacheTtl', function () {
 			'claude-haiku-4-5': modelSupportsExtendedCacheTtl('claude-haiku-4-5'),
 			'gpt-5': modelSupportsExtendedCacheTtl('gpt-5'),
 		}).toEqual({
+			'claude-fable-5': true,
+			'claude-opus-4.8': true,
+			'claude-opus-4-8': true,
+			'claude-opus-4-8-1m': true,
 			'claude-opus-4.6-1m': true,
 			'claude-opus-4-6-1m': true,
 			'claude-opus-4.7-1m-internal': true,
@@ -617,6 +625,26 @@ suite('modelSupportsExtendedCacheTtl', function () {
 });
 
 suite('modelSupportsMemory', function () {
+	test('matches Claude id strings', function () {
+		expect({
+			'claude-fable-5': modelSupportsMemory('claude-fable-5'),
+			'claude-opus-4.7': modelSupportsMemory('claude-opus-4.7'),
+			'claude-opus-4.8': modelSupportsMemory('claude-opus-4.8'),
+			'claude-opus-4-8': modelSupportsMemory('claude-opus-4-8'),
+			'claude-haiku-4-5': modelSupportsMemory('claude-haiku-4-5'),
+			'claude-opus-4-1': modelSupportsMemory('claude-opus-4-1'),
+			'gpt-5': modelSupportsMemory('gpt-5'),
+		}).toEqual({
+			'claude-fable-5': true,
+			'claude-opus-4.7': true,
+			'claude-opus-4.8': true,
+			'claude-opus-4-8': true,
+			'claude-haiku-4-5': true,
+			'claude-opus-4-1': true,
+			'gpt-5': false,
+		});
+	});
+
 	test('matches via endpoint.family when the model id is unknown', function () {
 		const fake = (family: string, model: string): IChatEndpoint => ({ family, model } as unknown as IChatEndpoint);
 		expect({

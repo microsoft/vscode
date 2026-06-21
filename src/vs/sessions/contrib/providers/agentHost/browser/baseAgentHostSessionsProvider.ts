@@ -38,7 +38,7 @@ import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatSendRequestOptions, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel, type IAgentSessionDefaultConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel, type IChatDefaultConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
@@ -53,6 +53,7 @@ import { changesetFileToChange, mapProtocolStatus } from './agentHostDiffs.js';
 import { createChangesets } from './agentHostSessionChangesets.js';
 
 const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.sessionConfigPicker.selectedValues';
+const TRACE_PREFIX = '[PR-ICON-TRACE]';
 const UNSAFE_SESSION_CONFIG_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
 function isSafeSessionConfigKey(property: string): boolean {
@@ -301,7 +302,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		resourceScheme: string,
 		logicalSessionType: string,
 		private readonly _options: IAgentHostAdapterOptions,
-		@ISessionsService private readonly _sessionsService: ISessionsService
+		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 		const rawId = AgentSession.id(metadata.session);
@@ -360,11 +362,13 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this.gitHubInfo = derived<IGitHubInfo | undefined>(this, reader => {
 			const coords = gitHubCoords.read(reader);
 			if (!coords) {
+				this._logService.trace(`${TRACE_PREFIX} [IconAdapter] Session ${this.sessionId} has no GitHub coords (missing owner/repo/branch in git state); no PR icon`);
 				return undefined;
 			}
 			const innerObs = pullRequestNumberObs.read(reader);
 			const prNumber = innerObs?.read(reader)?.value;
 			if (prNumber === undefined) {
+				this._logService.trace(`${TRACE_PREFIX} [IconAdapter] Session ${this.sessionId} coords ${coords.owner}/${coords.repo}@${coords.branch}: PR number not resolved yet; emitting gitHubInfo without pullRequest`);
 				return { owner: coords.owner, repo: coords.repo };
 			}
 			const uri = URI.parse(`https://github.com/${coords.owner}/${coords.repo}/pull/${prNumber}`);
@@ -383,7 +387,12 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 						hasUnresolvedComments = reviewThreadsRef.object.reviewThreads.read(reader).some(thread => !thread.isResolved);
 					}
 					icon = computePullRequestIcon(livePR.isDraft ? 'draft' : livePR.state, { hasFailingChecks, hasUnresolvedComments });
+					this._logService.trace(`${TRACE_PREFIX} [IconAdapter] Session ${this.sessionId} PR ${coords.owner}/${coords.repo}#${prNumber}: livePR present (state ${livePR.state}, isDraft ${livePR.isDraft}, headSha ${livePR.headSha}), hasFailingChecks ${hasFailingChecks}, hasUnresolvedComments ${hasUnresolvedComments} -> icon ${icon?.id ?? 'none'}`);
+				} else {
+					this._logService.trace(`${TRACE_PREFIX} [IconAdapter] Session ${this.sessionId} PR ${coords.owner}/${coords.repo}#${prNumber}: livePR not loaded yet; icon undefined (waiting for PR model refresh)`);
 				}
+			} else {
+				this._logService.trace(`${TRACE_PREFIX} [IconAdapter] Session ${this.sessionId} PR ${coords.owner}/${coords.repo}#${prNumber}: no GitHub service available; icon undefined`);
 			}
 			return {
 				owner: coords.owner,
@@ -1476,7 +1485,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 */
 	protected abstract resourceSchemeForProvider(provider: string): string;
 
-	/** Format the human-readable label for a session type entry (e.g. `Copilot CLI`). */
+	/** Format the human-readable label for a session type entry (e.g. `Copilot`). */
 	protected abstract _formatSessionTypeLabel(agentLabel: string): string;
 
 	/**
@@ -1754,7 +1763,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * normalized against policy/feature constraints.
 	 *
 	 * The agent-host defaults are controlled by the single
-	 * `chat.agentSessions.defaultConfiguration` object setting (with `mode` and
+	 * `chat.defaultConfiguration` object setting (with `mode` and
 	 * `approvals` properties), which takes precedence over remembered values.
 	 * The local-only `chat.permissions.default` setting is intentionally NOT
 	 * consulted here.
@@ -1783,7 +1792,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 		// Configured agent-host defaults (a single object setting controlling
 		// both axes) win over remembered values.
-		const configuredDefaults = this._baseConfigurationService.getValue<IAgentSessionDefaultConfiguration>(ChatConfiguration.AgentSessionDefaultConfiguration);
+		const configuredDefaults = this._baseConfigurationService.getValue<IChatDefaultConfiguration>(ChatConfiguration.DefaultConfiguration);
 
 		// Approval axis.
 		const normalizedConfiguredAutoApprove = normalizeAutoApproveValue(configuredDefaults?.approvals, policyRestricted);
@@ -2482,7 +2491,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._onDidChangeSessions.fire({ added: [skeleton], removed: [], changed: [] });
 
 		try {
-			const committedSession = await this._waitForNewSession(existingKeys);
+			const committedSession = await this._waitForNewSession(existingKeys, chatResource.scheme);
 			if (committedSession) {
 				this._preserveNewSessionConfig(newSession, committedSession.sessionId);
 				// Session graduated: release the eager subscription without
@@ -2880,10 +2889,21 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 
-	private async _waitForNewSession(existingKeys: Set<string>): Promise<ISession | undefined> {
+	/**
+	 * Resolve the freshly-committed backend session for an in-flight send.
+	 *
+	 * The local agent host runs a single provider whose session cache holds
+	 * **every** agent-host session type (codex, claude, copilot, …). A send
+	 * therefore has to identify *its own* new session by both novelty (a raw id
+	 * not present before the send) **and** type: `expectedScheme` is the
+	 * `chatResource` scheme (e.g. `agent-host-codex`), so a session of another
+	 * type that happens to appear mid-send — a slow codex send racing against a
+	 * restored claude session, say — is never mistaken for this send's commit.
+	 */
+	private async _waitForNewSession(existingKeys: Set<string>, expectedScheme: string): Promise<ISession | undefined> {
 		await this._refreshSessions();
 		for (const [key, cached] of this._sessionCache) {
-			if (!existingKeys.has(key)) {
+			if (!existingKeys.has(key) && cached.resource.scheme === expectedScheme) {
 				return cached;
 			}
 		}
@@ -2894,7 +2914,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				waitDisposables.add(this._onDidChangeSessions.event(e => {
 					const newSession = e.added.find(s => {
 						const rawId = s.resource.path.substring(1);
-						return !existingKeys.has(rawId);
+						return !existingKeys.has(rawId) && s.resource.scheme === expectedScheme;
 					});
 					if (newSession) {
 						resolve(newSession);
