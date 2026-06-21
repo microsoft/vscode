@@ -39,6 +39,22 @@ function readFileHead(path: string, length: number): Buffer | undefined {
 }
 
 /**
+ * Reads a little-endian unsigned 64-bit integer expected to fit in a safe JS
+ * integer, or `undefined` if the bytes are unavailable or the value is out of
+ * range.
+ */
+function readSafeUInt64LE(buffer: Buffer, offset: number): number | undefined {
+	if (offset < 0 || offset + 8 > buffer.length) {
+		return undefined;
+	}
+	const value = buffer.readBigUInt64LE(offset);
+	if (value > BigInt(Number.MAX_SAFE_INTEGER)) {
+		return undefined;
+	}
+	return Number(value);
+}
+
+/**
  * Extracts the `PT_INTERP` program interpreter (dynamic linker) path from the
  * head of a 64-bit little-endian ELF binary, or `undefined` if it cannot be
  * parsed from the bytes available.
@@ -51,23 +67,33 @@ function elfInterpreterPath(elf: Buffer): string | undefined {
 		return undefined; // not ELF magic
 	}
 	if (elf.readUInt8(4) !== 2) {
-		return undefined; // not 64-bit
+		return undefined; // not 64-bit (ELFCLASS64)
 	}
 	if (elf.readUInt8(5) !== 1) {
 		return undefined; // not little-endian
 	}
-	const programHeaderOffset = elf.readUInt32LE(32);
+	// ELF64 header: e_phoff is a 64-bit file offset at byte 32; e_phentsize and
+	// e_phnum are 16-bit at bytes 54 and 56. Each program header entry
+	// (Elf64_Phdr) is at least 56 bytes, with the 64-bit p_offset at +8 and the
+	// 64-bit p_filesz at +32.
+	const programHeaderOffset = readSafeUInt64LE(elf, 32);
 	const entrySize = elf.readUInt16LE(54);
 	const entryCount = elf.readUInt16LE(56);
+	if (programHeaderOffset === undefined || entrySize < 56) {
+		return undefined;
+	}
 	const PT_INTERP = 3;
 	for (let i = 0; i < entryCount; i++) {
 		const headerOffset = programHeaderOffset + (i * entrySize);
-		if (headerOffset + 36 > elf.length) {
+		if (headerOffset + 40 > elf.length) {
 			break;
 		}
 		if (elf.readUInt32LE(headerOffset) === PT_INTERP) {
-			const fileOffset = elf.readUInt32LE(headerOffset + 8);
-			const fileSize = elf.readUInt32LE(headerOffset + 32);
+			const fileOffset = readSafeUInt64LE(elf, headerOffset + 8);
+			const fileSize = readSafeUInt64LE(elf, headerOffset + 32);
+			if (fileOffset === undefined || fileSize === undefined) {
+				return undefined;
+			}
 			return elf.subarray(fileOffset, fileOffset + fileSize).toString().replace(/\0.*$/, '');
 		}
 	}
