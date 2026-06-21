@@ -9,6 +9,7 @@ import type { CCAModel } from '@vscode/copilot-api';
 import { mkdtempSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -25,7 +26,7 @@ import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/ag
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, customizationId, isSubagentSession, type ChangesetState, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart } from '../../common/state/sessionState.js';
+import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, parseSubagentSessionUri, type ChangesetState, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { type MessageResourceAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -36,6 +37,7 @@ import { createNoopGitService, createSessionDataService, TestSessionDatabase } f
 import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
+import { AhpErrorCodes, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../../common/state/sessionProtocol.js';
 
 /**
  * Loads a JSONL fixture of raw Copilot SDK events, runs them through
@@ -160,6 +162,39 @@ suite('AgentService (node dispatcher)', () => {
 				action: { type: ActionType.ChatResponsePart, turnId: 'turn-1', part: { kind: ResponsePartKind.Markdown, id: 'msg-1', content: 'hello' } },
 			});
 			assert.ok(envelopes.some(e => e.action.type === ActionType.ChatResponsePart));
+		});
+	});
+
+	suite('resourceRead', () => {
+
+		test('maps missing files to NotFound', async () => {
+			const uri = URI.from({ scheme: Schemas.inMemory, path: '/missing.txt' });
+
+			await assert.rejects(
+				() => service.resourceRead(uri),
+				(error: unknown) => error instanceof ProtocolError
+					&& error.code === AhpErrorCodes.NotFound
+					&& error.message === `Content not found: ${uri.toString()}`
+			);
+		});
+
+		test('does not map all read failures to NotFound', async () => {
+			const uri = URI.from({ scheme: Schemas.inMemory, path: '/testDir/file.txt' });
+			const originalReadFile = fileService.readFile.bind(fileService);
+			fileService.readFile = async resource => {
+				if (resource.toString() === uri.toString()) {
+					return Promise.reject('Injected unknown read failure');
+				}
+				return originalReadFile(resource);
+			};
+			disposables.add(toDisposable(() => fileService.readFile = originalReadFile));
+
+			await assert.rejects(
+				() => service.resourceRead(uri),
+				(error: unknown) => error instanceof ProtocolError
+					&& error.code === JSON_RPC_INTERNAL_ERROR
+					&& error.message === `Failed to read content: ${uri.toString()}: Injected unknown read failure`
+			);
 		});
 	});
 
@@ -1222,6 +1257,7 @@ suite('AgentService (node dispatcher)', () => {
 				branchExists: async () => false,
 				hasUncommittedChanges: async () => false,
 				commitAll: async () => { },
+				restore: async () => { },
 				hasUpstream: async () => false,
 				pushBranch: async () => { },
 				getSessionGitState: async (uri: URI) => { calls.push(uri.fsPath); return gitState; },
@@ -1317,6 +1353,7 @@ suite('AgentService (node dispatcher)', () => {
 				commitAll: async () => { },
 				hasUpstream: async () => false,
 				pushBranch: async () => { },
+				restore: async () => { },
 				getSessionGitState: async () => undefined,
 				computeSessionFileDiffs: async () => undefined,
 				showBlob: async () => undefined,
@@ -1867,6 +1904,119 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('coalesces concurrent restores for the same session', async () => {
+			class BlockingRestoreAgent extends MockAgent {
+				readonly metadataReached = new DeferredPromise<void>();
+				readonly metadataGate = new DeferredPromise<void>();
+				getSessionMetadataCalls = 0;
+				getSessionMessagesCalls = 0;
+
+				override async getSessionMetadata(session: URI) {
+					this.getSessionMetadataCalls++;
+					this.metadataReached.complete();
+					await this.metadataGate.p;
+					return super.getSessionMetadata(session);
+				}
+
+				override async getSessionMessages(session: URI): Promise<readonly Turn[]> {
+					this.getSessionMessagesCalls++;
+					return super.getSessionMessages(session);
+				}
+			}
+
+			const agent = disposables.add(new BlockingRestoreAgent('copilot'));
+			service.registerProvider(agent);
+			const { session } = await agent.createSession();
+			service.stateManager.deleteSession(session.toString());
+			agent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'Hi', toolRequests: [] },
+			];
+
+			const firstRestore = service.restoreSession(session);
+			await agent.metadataReached.p;
+			const secondRestore = service.restoreSession(session);
+
+			assert.strictEqual(agent.getSessionMetadataCalls, 1);
+			agent.metadataGate.complete();
+			await Promise.all([firstRestore, secondRestore]);
+
+			assert.deepStrictEqual({
+				metadataCalls: agent.getSessionMetadataCalls,
+				messageCalls: agent.getSessionMessagesCalls,
+				restored: !!service.stateManager.getSessionState(session.toString()),
+			}, {
+				metadataCalls: 1,
+				messageCalls: 1,
+				restored: true,
+			});
+		});
+
+		test('hydrates session customizations when restoring an existing session', async () => {
+			service.registerProvider(copilotAgent);
+			const { session } = await copilotAgent.createSession();
+			service.stateManager.deleteSession(session.toString());
+
+			copilotAgent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'Hi', toolRequests: [] },
+			];
+			let getSessionCustomizationsCalls = 0;
+			copilotAgent.getSessionCustomizations = async () => {
+				getSessionCustomizationsCalls++;
+				return [
+					{ type: CustomizationType.Plugin, id: customizationId('file:///restore-skill'), uri: 'file:///restore-skill', name: 'Restore Skill', enabled: true },
+				];
+			};
+
+			await service.restoreSession(session);
+
+			const customizations = service.stateManager.getSessionState(session.toString())?.customizations;
+			assert.strictEqual(getSessionCustomizationsCalls, 1);
+			assert.strictEqual(customizations?.length, 1);
+			assert.strictEqual(customizations?.[0]?.type, CustomizationType.Plugin);
+			assert.strictEqual(customizations?.[0]?.name, 'Restore Skill');
+			assert.strictEqual(customizations?.[0]?.id, customizationId('file:///restore-skill'));
+			assert.strictEqual(customizations?.[0]?.enabled, true);
+		});
+
+		test('clears failed restore attempts so sessions can be retried', async () => {
+			class FailingOnceRestoreAgent extends MockAgent {
+				shouldFailRestore = true;
+				getSessionMessagesCalls = 0;
+
+				override async getSessionMessages(session: URI): Promise<readonly Turn[]> {
+					this.getSessionMessagesCalls++;
+					if (this.shouldFailRestore) {
+						throw new Error('restore failed');
+					}
+					return super.getSessionMessages(session);
+				}
+			}
+
+			const agent = disposables.add(new FailingOnceRestoreAgent('copilot'));
+			service.registerProvider(agent);
+			const { session } = await agent.createSession();
+			service.stateManager.deleteSession(session.toString());
+			agent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'Hi', toolRequests: [] },
+			];
+
+			await assert.rejects(() => service.restoreSession(session), /restore failed/);
+
+			agent.shouldFailRestore = false;
+			await service.restoreSession(session);
+
+			assert.deepStrictEqual({
+				messageCalls: agent.getSessionMessagesCalls,
+				restored: !!service.stateManager.getSessionState(session.toString()),
+			}, {
+				messageCalls: 2,
+				restored: true,
+			});
+		});
+
 		test('restores a session with subagent tool calls', async () => {
 			service.registerProvider(copilotAgent);
 			const { session } = await copilotAgent.createSession();
@@ -1978,9 +2128,206 @@ suite('AgentService (node dispatcher)', () => {
 			const mdParts = state!.turns[0].responseParts.filter((p): p is MarkdownResponsePart => p.kind === ResponsePartKind.Markdown);
 			assert.ok(mdParts.length > 0, 'Should have markdown content');
 		});
+
+		test('coalesces concurrent restores for the same subagent session', async () => {
+			class BlockingSubagentAgent extends MockAgent {
+				readonly subagentReached = new DeferredPromise<void>();
+				readonly subagentGate = new DeferredPromise<void>();
+				subagentGetSessionMessagesCalls = 0;
+
+				override async getSessionMessages(session: URI): Promise<readonly Turn[]> {
+					if (parseSubagentSessionUri(session)) {
+						this.subagentGetSessionMessagesCalls++;
+						this.subagentReached.complete();
+						await this.subagentGate.p;
+					}
+					return super.getSessionMessages(session);
+				}
+			}
+
+			const agent = disposables.add(new BlockingSubagentAgent('copilot'));
+			service.registerProvider(agent);
+			const { session } = await agent.createSession();
+			const sessions = await agent.listSessions();
+			const sessionResource = sessions[0].session;
+
+			agent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Review', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: '', toolRequests: [{ toolCallId: 'tc-sub', name: 'task' }] },
+				{ type: 'tool_start', session, toolCallId: 'tc-sub', toolName: 'task', displayName: 'Task', invocationMessage: 'Delegating...', toolKind: 'subagent' as const, subagentDescription: 'Find related files', subagentAgentName: 'explore' },
+				{ type: 'subagent_started', session, toolCallId: 'tc-sub', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores the codebase' },
+				{ type: 'tool_start', session, toolCallId: 'tc-inner', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running ls...', parentToolCallId: 'tc-sub' },
+				{ type: 'tool_complete', session, toolCallId: 'tc-inner', result: { success: true, pastTenseMessage: 'Ran ls', content: [{ type: ToolResultContentType.Text, text: 'file1.ts' }] }, parentToolCallId: 'tc-sub' },
+				{ type: 'tool_complete', session, toolCallId: 'tc-sub', result: { success: true, pastTenseMessage: 'Delegated task', content: [{ type: ToolResultContentType.Text, text: 'Found files' }] } },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-3', content: 'Done.', toolRequests: [] },
+			];
+			await service.restoreSession(sessionResource);
+
+			const childSessionUri = URI.parse(buildSubagentSessionUri(sessionResource.toString(), 'tc-sub'));
+			const firstSubscribe = service.subscribe(childSessionUri, 'client-1');
+			await agent.subagentReached.p;
+			const secondSubscribe = service.subscribe(childSessionUri, 'client-2');
+
+			assert.strictEqual(agent.subagentGetSessionMessagesCalls, 1);
+			agent.subagentGate.complete();
+			await Promise.all([firstSubscribe, secondSubscribe]);
+
+			assert.deepStrictEqual({
+				messageCalls: agent.subagentGetSessionMessagesCalls,
+				childTurns: service.stateManager.getSessionState(childSessionUri.toString())?.turns.length,
+			}, {
+				messageCalls: 1,
+				childTurns: 1,
+			});
+		});
 	});
 
-	// ---- subscriber refcount + idle eviction ----------------------------
+	// ---- createChat (multi-chat) ----------------------------------------
+
+	suite('createChat', () => {
+
+		test('routes to the provider for a restored session not tracked in the provider map', async () => {
+			// A session restored after a host restart lives in the state manager
+			// but is not recorded in the session→provider map (only createSession
+			// records that). createChat must still resolve the provider via the
+			// scheme fallback instead of throwing `no provider for session`.
+			const created: { session: string; chat: string }[] = [];
+			class MultiChatAgent extends MockAgent {
+				async createChat(session: URI, chat: URI): Promise<void> {
+					created.push({ session: session.toString(), chat: chat.toString() });
+				}
+			}
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			service.registerProvider(agent);
+			const { session } = await agent.createSession();
+			// Drop any tracking so only the scheme fallback can resolve the agent.
+			service.stateManager.deleteSession(session.toString());
+			await service.restoreSession(session);
+
+			const chatUri = URI.parse(buildChatUri(session, 'peer-1'));
+			await service.createChat(session, chatUri);
+
+			const state = service.stateManager.getSessionState(session.toString());
+			assert.deepStrictEqual({
+				created,
+				inCatalog: !!state?.chats.some(c => c.resource.toString() === chatUri.toString()),
+			}, {
+				created: [{ session: session.toString(), chat: chatUri.toString() }],
+				inCatalog: true,
+			});
+		});
+
+		test('routes a tracked session and registers the chat with its title in the catalog', async () => {
+			class MultiChatAgent extends MockAgent {
+				async createChat(_session: URI, _chat: URI): Promise<void> { }
+			}
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			service.registerProvider(agent);
+			const session = await service.createSession({ provider: 'copilot' });
+
+			const chatUri = URI.parse(buildChatUri(session, 'peer-1'));
+			await service.createChat(session, chatUri, { title: 'Peer Chat' });
+
+			const state = service.stateManager.getSessionState(session.toString());
+			assert.deepStrictEqual(
+				state?.chats.find(c => c.resource.toString() === chatUri.toString())?.title,
+				'Peer Chat',
+			);
+		});
+
+		test('creates the backing conversation before registering the chat in the catalog', async () => {
+			let catalogHadChatDuringCreate: boolean | undefined;
+			class MultiChatAgent extends MockAgent {
+				async createChat(session: URI, chat: URI): Promise<void> {
+					const state = service.stateManager.getSessionState(session.toString());
+					catalogHadChatDuringCreate = !!state?.chats.some(c => c.resource.toString() === chat.toString());
+				}
+			}
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			service.registerProvider(agent);
+			const session = await service.createSession({ provider: 'copilot' });
+
+			const chatUri = URI.parse(buildChatUri(session, 'peer-1'));
+			await service.createChat(session, chatUri);
+
+			assert.strictEqual(catalogHadChatDuringCreate, false);
+		});
+
+		test('throws when the provider does not support multiple chats', async () => {
+			service.registerProvider(copilotAgent);
+			const session = await service.createSession({ provider: 'copilot' });
+			const chatUri = URI.parse(buildChatUri(session, 'peer-1'));
+
+			await assert.rejects(
+				() => service.createChat(session, chatUri),
+				/does not support multiple chats/,
+			);
+		});
+
+		test('disposeChat removes the chat from the catalog and tears down the conversation', async () => {
+			const disposed: string[] = [];
+			class MultiChatAgent extends MockAgent {
+				async createChat(_session: URI, _chat: URI): Promise<void> { }
+				async disposeChat(_session: URI, chat: URI): Promise<void> {
+					disposed.push(chat.toString());
+				}
+			}
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			service.registerProvider(agent);
+			const session = await service.createSession({ provider: 'copilot' });
+			const chatUri = URI.parse(buildChatUri(session, 'peer-1'));
+			await service.createChat(session, chatUri);
+
+			await service.disposeChat(session, chatUri);
+
+			const state = service.stateManager.getSessionState(session.toString());
+			assert.deepStrictEqual({
+				disposed,
+				inCatalog: !!state?.chats.some(c => c.resource.toString() === chatUri.toString()),
+			}, {
+				disposed: [chatUri.toString()],
+				inCatalog: false,
+			});
+		});
+
+		test('restoreSession re-registers persisted peer chats with their history', async () => {
+			class MultiChatAgent extends MockAgent {
+				async createChat(_session: URI, _chat: URI): Promise<void> { }
+				async getChats(session: URI): Promise<readonly URI[]> {
+					return [URI.parse(buildChatUri(session, 'peer-1'))];
+				}
+				override async getSessionMessages(session: URI): Promise<readonly Turn[]> {
+					if (session.scheme === 'ahp-chat') {
+						return [{
+							id: 'peer-turn-1',
+							state: TurnState.Complete,
+							message: { text: 'hi peer', origin: { kind: MessageKind.User } },
+							responseParts: [],
+							usage: undefined,
+						}];
+					}
+					return [];
+				}
+			}
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			service.registerProvider(agent);
+			const { session } = await agent.createSession();
+			service.stateManager.deleteSession(session.toString());
+
+			await service.restoreSession(session);
+
+			const state = service.stateManager.getSessionState(session.toString());
+			const peerUri = buildChatUri(session, 'peer-1');
+			const peerChatState = service.stateManager.getChatState(URI.parse(peerUri).toString());
+			assert.deepStrictEqual({
+				inCatalog: !!state?.chats.some(c => c.resource.toString() === peerUri),
+				peerTurnIds: peerChatState?.turns.map(t => t.id) ?? [],
+			}, {
+				inCatalog: true,
+				peerTurnIds: ['peer-turn-1'],
+			});
+		});
+	});
 
 	suite('subscriber refcount eviction', () => {
 

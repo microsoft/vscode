@@ -43,6 +43,7 @@ import type { ITerminalExecuteStrategy, ITerminalExecuteStrategyResult } from '.
 import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
 import { RichExecuteStrategy } from '../executeStrategy/richExecuteStrategy.js';
 import { getOutput } from '../outputHelpers.js';
+import { LargeOutputFileWriter } from '../largeOutputFileWriter.js';
 import { buildCommandDisplayText, extractCdPrefix, isFish, isPowerShell, isWindowsPowerShell, isZsh, normalizeTerminalCommandForDisplay } from '../runInTerminalHelpers.js';
 import type { ICommandLinePresenter } from './commandLinePresenter/commandLinePresenter.js';
 import { NodeCommandLinePresenter } from './commandLinePresenter/nodeCommandLinePresenter.js';
@@ -93,7 +94,25 @@ const TOOL_REFERENCE_NAME = 'runInTerminal';
 const LEGACY_TOOL_REFERENCE_FULL_NAMES = ['runCommands/runInTerminal'];
 const INPUT_NEEDED_NOTIFICATION_THROTTLE_MS = 5000;
 
-function createPowerShellModelDescription(shell: string, isSandboxEnabled: boolean, allowToRunUnsandboxedCommands: boolean, retryWithAllowNetworkRequests: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string {
+export interface ISandboxingOnNetworkRestrictedOptions {
+	sandboxMode: 'on-network-restricted';
+	allowToRunUnsandboxedCommands: boolean;
+	retryWithAllowNetworkRequests: boolean;
+	networkDomains?: ITerminalSandboxResolvedNetworkDomains;
+}
+export interface ISandboxingOnNetworkAvailableOptions {
+	sandboxMode: 'on-network-available';
+	allowToRunUnsandboxedCommands: boolean;
+	retryWithAllowNetworkRequests: false;
+	networkDomains: undefined;
+}
+export type ISandboxingOnOptions = ISandboxingOnNetworkRestrictedOptions | ISandboxingOnNetworkAvailableOptions;
+export interface ISandboxingDisabledOptions {
+	sandboxMode: 'off';
+}
+export type ISandboxingOptions = ISandboxingOnOptions | ISandboxingDisabledOptions;
+
+function createPowerShellModelDescription(shell: string, sandboxingOptions: ISandboxingOptions): string {
 	const isWinPwsh = isWindowsPowerShell(shell);
 	const parts = [
 		`This tool allows you to execute ${isWinPwsh ? 'Windows PowerShell 5.1' : 'PowerShell'} commands in a persistent terminal session, preserving environment variables, working directory, and other context across multiple commands.`,
@@ -126,14 +145,14 @@ function createPowerShellModelDescription(shell: string, isSandboxEnabled: boole
 		`Use ${TerminalToolId.SendToTerminal} to send commands or input to a terminal session.`,
 	];
 
-	if (isSandboxEnabled) {
-		parts.push(...createSandboxLines(allowToRunUnsandboxedCommands, retryWithAllowNetworkRequests, networkDomains));
+	if (sandboxingOptions.sandboxMode !== 'off') {
+		parts.push(...createSandboxLines(sandboxingOptions));
 	}
 
 	parts.push(
 		'',
 		'Output Management:',
-		'- Output is automatically truncated if longer than 60KB to prevent context overflow',
+		'- Output exceeding 20KB is saved to a temp file; the result includes the file path so you can read the full output with readFile or search it with grep',
 		'- Use Select-Object, Where-Object, Format-Table to filter output',
 		'- Use -First/-Last parameters to limit results',
 		'- For pager commands, add | Out-String or | Format-List',
@@ -160,46 +179,97 @@ function createPowerShellModelDescription(shell: string, isSandboxEnabled: boole
 	return parts.join('\n');
 }
 
-function createSandboxLines(allowToRunUnsandboxedCommands: boolean, retryWithAllowNetworkRequests: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string[] {
+export function createSandboxLines(sandboxingOptions: ISandboxingOnOptions): string[] {
+	const isNetworkAvailable = sandboxingOptions.sandboxMode === 'on-network-available';
 	const lines = [
 		'',
 		'Sandboxing:',
-		'- ATTENTION: Terminal sandboxing is enabled, commands run in a sandbox by default',
-		'- When executing commands within the sandboxed environment, all operations requiring a temporary directory must utilize the $TMPDIR environment variable. The /tmp directory is not guaranteed to be accessible or writable and must be avoided',
-		'- Tools and scripts should respect the TMPDIR environment variable, which is automatically set to an appropriate path within the sandbox',
+		isNetworkAvailable
+			? '- Commands run inside a sandbox by default. The sandbox keeps the filesystem mostly read-only.'
+			: '- Commands run inside a sandbox by default. The sandbox restricts two things independently: the filesystem and the network.',
+		'- Filesystem: read-only outside the workspace and $TMPDIR, which stay read-write. Parts of $HOME are hidden for privacy, but common developer tools (git, package managers, language toolchains) still work because their $HOME config and cache paths are automatically made readable.',
+		'- Use $TMPDIR for temporary files; /tmp may not be writable. On macOS and Linux the TMPDIR env var is set to a writable path.',
+		'- If a command needs sandboxed write access to specific file paths outside workspace, pass requestFileValidationCheck with those paths. VS Code checks sandbox access before execution and returns Access Denied without running the command when access is unavailable.',
 	];
-	if (retryWithAllowNetworkRequests) {
-		lines.push(
-			'- When a command fails due to network access being blocked by the sandbox, immediately re-run it with requestAllowNetwork=true and provide requestAllowNetworkReason. This keeps the command in the sandbox with unrestricted network access and automatically shows a confirmation prompt to the user',
-			'- Only set requestAllowNetwork=true when there is evidence of network failures caused by the sandbox, e.g. \'Network request failed\' errors, API call failures, or other indications of blocked network access in the command output',
-			'- When setting requestAllowNetwork=true, also provide requestAllowNetworkReason explaining why the command needs network access',
-		);
-	}
-	if (allowToRunUnsandboxedCommands) {
-		lines.push(
-			'- When a command fails due to sandbox restrictions, immediately re-run it with requestUnsandboxedExecution=true. Do NOT ask the user for permission — setting this flag automatically shows a confirmation prompt to the user',
-			'- Only set requestUnsandboxedExecution=true when there is evidence of failures caused by the sandbox, e.g. \'Operation not permitted\' errors, network failures, or file access errors, etc',
-			'- When setting requestUnsandboxedExecution=true, also provide requestUnsandboxedExecutionReason explaining why the command needs unsandboxed access',
-		);
-	} else {
-		lines.push('- Running commands outside the sandbox is disabled by the current chat.agent.sandbox.allowUnsandboxedCommands setting. Do not set requestUnsandboxedExecution=true.');
-	}
-	if (networkDomains) {
-		const deniedSet = new Set(networkDomains.deniedDomains);
-		const effectiveAllowed = networkDomains.allowedDomains.filter(d => !deniedSet.has(d));
+
+	if (!isNetworkAvailable) {
+		const deniedDomains = sandboxingOptions.networkDomains?.deniedDomains ?? [];
+		const allowedDomains = sandboxingOptions.networkDomains?.allowedDomains ?? [];
+		const deniedSet = new Set(deniedDomains);
+		const effectiveAllowed = allowedDomains.filter(d => !deniedSet.has(d));
+
+		const retrySuffix = sandboxingOptions.retryWithAllowNetworkRequests ? ' unless requestAllowNetwork=true is set' : '';
 		if (effectiveAllowed.length === 0) {
-			lines.push('- All network access is blocked in the sandbox');
+			lines.push(`- Network: blocked in the sandbox; commands that need the network fail${retrySuffix}.`);
 		} else {
-			lines.push(`- Only the following domains are accessible in the sandbox (all other network access is blocked): ${effectiveAllowed.join(', ')}`);
+			lines.push(`- Network: only these domains are reachable in the sandbox: ${effectiveAllowed.join(', ')}. Other domains fail${retrySuffix}.`);
 		}
-		if (networkDomains.deniedDomains.length > 0) {
-			lines.push(`- The following domains are explicitly blocked in the sandbox: ${networkDomains.deniedDomains.join(', ')}`);
+		if (deniedDomains.length > 0) {
+			lines.push(`- These domains are explicitly blocked in the sandbox: ${deniedDomains.join(', ')}`);
 		}
 	}
+
+	if (sandboxingOptions.retryWithAllowNetworkRequests || sandboxingOptions.allowToRunUnsandboxedCommands) {
+		lines.push('- To get more access (each prompts the user — never ask the user for permission yourself):');
+		if (sandboxingOptions.retryWithAllowNetworkRequests) {
+			lines.push(
+				'  - Need a blocked domain? Set requestAllowNetwork=true and provide requestAllowNetworkReason. This keeps the filesystem sandbox in place and only relaxes the network, so prefer it for network-only needs. Do this proactively when network use is obvious (git fetch/pull/push/clone; npm/yarn/pnpm/pip/cargo/go/brew installs; curl; wget), or reactively after a network failure (e.g. \'Network request failed\', HTTP code 403).',
+			);
+		}
+		if (sandboxingOptions.allowToRunUnsandboxedCommands) {
+			const removesAllClause = sandboxingOptions.retryWithAllowNetworkRequests
+				? 'This grants full filesystem AND network access by removing all sandbox protection, so for network-only needs prefer requestAllowNetwork and use this only when filesystem (or other non-network) access is also blocked.'
+				: 'This grants full filesystem and network access by removing all sandbox protection, so use it only when the command truly needs it.';
+			lines.push(
+				`  - Need filesystem or other access the sandbox blocks? Set requestUnsandboxedExecution=true and provide requestUnsandboxedExecutionReason. ${removesAllClause} Do this proactively when it clearly needs it (writing/deleting files outside the workspace and $TMPDIR like $HOME, /usr, /etc; installing to system locations; elevated privileges), or reactively after a sandbox failure (e.g. \'Operation not permitted\').`,
+			);
+		}
+	}
+	if (!sandboxingOptions.allowToRunUnsandboxedCommands) {
+		lines.push('- Running commands outside the sandbox is disabled by chat.agent.sandbox.allowUnsandboxedCommands. Do not set requestUnsandboxedExecution=true.');
+	}
+
 	return lines;
 }
 
-function createGenericDescription(isSandboxEnabled: boolean, allowToRunUnsandboxedCommands: boolean, retryWithAllowNetworkRequests: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string {
+export function createSandboxProperties(sandboxingOptions: ISandboxingOnOptions): IJSONSchemaMap {
+	const isNetworkAvailable = sandboxingOptions.sandboxMode === 'on-network-available';
+	return {
+		...(sandboxingOptions.allowToRunUnsandboxedCommands ? {
+			requestUnsandboxedExecution: {
+				type: 'boolean',
+				description: 'Request that this command run outside the terminal sandbox. Only set this when the command clearly needs unsandboxed access. The user will be prompted before the command runs unsandboxed.'
+			},
+			requestUnsandboxedExecutionReason: {
+				type: 'string',
+				description: 'A short explanation of why this command must run outside the terminal sandbox. Only provide this when requestUnsandboxedExecution is true.'
+			}
+		} : {}),
+		...(isNetworkAvailable || !sandboxingOptions.retryWithAllowNetworkRequests ? {} : {
+			requestAllowNetwork: {
+				type: 'boolean',
+				description: 'Request that this command remain in the terminal sandbox but run with unrestricted network access. Only set this when the command clearly needs network access but the required network access was blocked. The user will be prompted before network restrictions are relaxed.'
+			},
+			requestAllowNetworkReason: {
+				type: 'string',
+				description: 'A short explanation of why this sandboxed command needs unrestricted network access. Only provide this when requestAllowNetwork is true.'
+			}
+		}),
+		requestFileValidationCheck: {
+			type: 'array',
+			description: 'Sandbox write access checks to perform before running the command. Provide the file paths that the command needs to write.',
+			items: {
+				type: 'string'
+			}
+		},
+		requestFileValidationCheckReason: {
+			type: 'string',
+			description: 'A short explanation of why this sandboxed command needs these file paths. Only provide this when requestFileValidationCheck is not empty.'
+		}
+	};
+}
+
+function createGenericDescription(sandboxingOptions: ISandboxingOptions): string {
 	const parts = [`
 Command Execution:
 - Use && to chain simple commands on one line
@@ -225,14 +295,14 @@ Execution Mode:
 
 Use ${TerminalToolId.SendToTerminal} to send commands or input to a terminal session.`];
 
-	if (isSandboxEnabled) {
-		parts.push(createSandboxLines(allowToRunUnsandboxedCommands, retryWithAllowNetworkRequests, networkDomains).join('\n'));
+	if (sandboxingOptions.sandboxMode !== 'off') {
+		parts.push(createSandboxLines(sandboxingOptions).join('\n'));
 	}
 
 	parts.push(`
 
 Output Management:
-- Output is automatically truncated if longer than 60KB to prevent context overflow
+- Output exceeding 20KB is saved to a temp file; the result includes the file path so you can read the full output with readFile or search it with grep
 - Use head, tail, grep, awk to filter and limit output size
 - For pager commands, disable paging: git --no-pager or add | cat
 - Use wc -l to count lines before displaying large outputs
@@ -255,19 +325,19 @@ Interactive Input Handling:
 	return parts.join('');
 }
 
-function createBashModelDescription(isSandboxEnabled: boolean, allowToRunUnsandboxedCommands: boolean, retryWithAllowNetworkRequests: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string {
+function createBashModelDescription(sandboxingOptions: ISandboxingOptions): string {
 	return [
 		'This tool allows you to execute shell commands in a persistent bash terminal session, preserving environment variables, working directory, and other context across multiple commands.',
-		createGenericDescription(isSandboxEnabled, allowToRunUnsandboxedCommands, retryWithAllowNetworkRequests, networkDomains),
+		createGenericDescription(sandboxingOptions),
 		'- Use [[ ]] for conditional tests instead of [ ]',
 		'- Prefer $() over backticks for command substitution'
 	].join('\n');
 }
 
-function createZshModelDescription(isSandboxEnabled: boolean, allowToRunUnsandboxedCommands: boolean, retryWithAllowNetworkRequests: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string {
+function createZshModelDescription(sandboxingOptions: ISandboxingOptions): string {
 	return [
 		'This tool allows you to execute shell commands in a persistent zsh terminal session, preserving environment variables, working directory, and other context across multiple commands.',
-		createGenericDescription(isSandboxEnabled, allowToRunUnsandboxedCommands, retryWithAllowNetworkRequests, networkDomains),
+		createGenericDescription(sandboxingOptions),
 		'- Use type to check command type (builtin, function, alias)',
 		'- Use jobs, fg, bg for job control',
 		'- Use [[ ]] for conditional tests instead of [ ]',
@@ -280,10 +350,10 @@ function createZshModelDescription(isSandboxEnabled: boolean, allowToRunUnsandbo
 	].join('\n');
 }
 
-function createFishModelDescription(isSandboxEnabled: boolean, allowToRunUnsandboxedCommands: boolean, retryWithAllowNetworkRequests: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string {
+function createFishModelDescription(sandboxingOptions: ISandboxingOptions): string {
 	return [
 		'This tool allows you to execute shell commands in a persistent fish terminal session, preserving environment variables, working directory, and other context across multiple commands.',
-		createGenericDescription(isSandboxEnabled, allowToRunUnsandboxedCommands, retryWithAllowNetworkRequests, networkDomains),
+		createGenericDescription(sandboxingOptions),
 		'- Use type to check command type (builtin, function, alias)',
 		'- Use jobs, fg, bg for job control',
 		'- Use test expressions for conditionals (no [[ ]] syntax)',
@@ -309,19 +379,33 @@ export async function createRunInTerminalToolData(
 		terminalSandboxService.isEnabled(),
 		terminalSandboxService.isSandboxAllowNetworkEnabled(),
 	]);
-	const retryWithAllowNetworkRequests = isSandboxEnabled && !isSandboxAllowNetworkEnabled && retryWithAllowNetworkRequestsSetting;
 
-	const networkDomains = isSandboxEnabled && !isSandboxAllowNetworkEnabled ? terminalSandboxService.getResolvedNetworkDomains() : undefined;
+	const sandboxingOptions: ISandboxingOptions = (
+		isSandboxEnabled
+			? (isSandboxAllowNetworkEnabled ? {
+				sandboxMode: 'on-network-available',
+				allowToRunUnsandboxedCommands,
+				retryWithAllowNetworkRequests: false,
+				networkDomains: undefined
+			} : {
+				sandboxMode: 'on-network-restricted',
+				allowToRunUnsandboxedCommands,
+				retryWithAllowNetworkRequests: retryWithAllowNetworkRequestsSetting,
+				networkDomains: terminalSandboxService.getResolvedNetworkDomains()
+			}) : {
+				sandboxMode: 'off'
+			}
+	);
 
 	let modelDescription: string;
 	if (shell && os && isPowerShell(shell, os)) {
-		modelDescription = createPowerShellModelDescription(shell, isSandboxEnabled, allowToRunUnsandboxedCommands, retryWithAllowNetworkRequests, networkDomains);
+		modelDescription = createPowerShellModelDescription(shell, sandboxingOptions);
 	} else if (shell && os && isZsh(shell, os)) {
-		modelDescription = createZshModelDescription(isSandboxEnabled, allowToRunUnsandboxedCommands, retryWithAllowNetworkRequests, networkDomains);
+		modelDescription = createZshModelDescription(sandboxingOptions);
 	} else if (shell && os && isFish(shell, os)) {
-		modelDescription = createFishModelDescription(isSandboxEnabled, allowToRunUnsandboxedCommands, retryWithAllowNetworkRequests, networkDomains);
+		modelDescription = createFishModelDescription(sandboxingOptions);
 	} else {
-		modelDescription = createBashModelDescription(isSandboxEnabled, allowToRunUnsandboxedCommands, retryWithAllowNetworkRequests, networkDomains);
+		modelDescription = createBashModelDescription(sandboxingOptions);
 	}
 
 	const sharedProperties: IJSONSchemaMap = {
@@ -338,37 +422,14 @@ export async function createRunInTerminalToolData(
 			description: 'A short description of the goal or purpose of the command (e.g., "Install dependencies", "Start development server").'
 		},
 	};
-	const sandboxProperties: IJSONSchemaMap = isSandboxEnabled ? {
-		allowToRunUnsandboxedCommands: {
-			type: 'boolean',
-			const: allowToRunUnsandboxedCommands,
-			default: allowToRunUnsandboxedCommands,
-			description: 'Whether this tool invocation is allowed to run commands outside the terminal sandbox. This value is set by VS Code based on chat.agent.sandbox.allowUnsandboxedCommands.'
-		},
-		requestUnsandboxedExecution: {
-			type: 'boolean',
-			description: 'Request that this command run outside the terminal sandbox. Only set this when the command clearly needs unsandboxed access. The user will be prompted before the command runs unsandboxed.'
-		},
-		requestUnsandboxedExecutionReason: {
-			type: 'string',
-			description: 'A short explanation of why this command must run outside the terminal sandbox. Only provide this when requestUnsandboxedExecution is true.'
-		},
-		requestAllowNetwork: {
-			type: 'boolean',
-			description: 'Request that this command remain in the terminal sandbox but run with unrestricted network access. Only set this when the command clearly needs network access but the required network access was blocked. The user will be prompted before network restrictions are relaxed.'
-		},
-		requestAllowNetworkReason: {
-			type: 'string',
-			description: 'A short explanation of why this sandboxed command needs unrestricted network access. Only provide this when requestAllowNetwork is true.'
-		}
-	} : {};
+	const sandboxProperties: IJSONSchemaMap = sandboxingOptions.sandboxMode === 'off' ? {} : createSandboxProperties(sandboxingOptions);
 
 	return {
 		id: TerminalToolId.RunInTerminal,
 		toolReferenceName: TOOL_REFERENCE_NAME,
 		legacyToolReferenceFullNames: LEGACY_TOOL_REFERENCE_FULL_NAMES,
 		displayName: localize('runInTerminalTool.displayName', 'Run in Terminal'),
-		modelDescription: `${modelDescription}\n\nExecution mode:\n- mode='sync' (strongly preferred): waits for the command to complete and returns full output inline. Use for ALL one-shot commands (builds, tests, installs, compilation, scripts). Omit timeout to let the command run to completion — the tool handles idle detection and input prompts automatically.\n- mode='async': waits for an initial idle/output signal from the command, then returns a terminal ID and output snapshot while the process continues running. Use ONLY for processes that must keep running indefinitely (servers, watchers, daemons). Timeout caps how long to wait for the initial idle/output signal.\n\nTimeout parameter: Usually omit timeout entirely for sync commands — the tool returns automatically on completion, input-needed, or cancellation. Only set a timeout as a safety net for commands you suspect might hang. Use 0 to explicitly indicate no timeout.\n\nSync output is final: When a sync command completes, the full output is returned inline — do NOT call ${TerminalToolId.GetTerminalOutput} afterward. Only use ${TerminalToolId.GetTerminalOutput} if the tool result explicitly indicates the command was moved to background, timed out, or needs input.\n\nTerminal notifications: When an async command finishes or a sync command times out, you will be automatically notified on your next turn with the exit code and terminal output. You will also be notified if the terminal needs input. Do NOT poll or sleep to wait for completion.`,
+		modelDescription: `${modelDescription}\n\nExecution mode:\n- mode='sync' (strongly preferred): waits for the command to complete and returns full output inline. Use for ALL one-shot commands (builds, tests, installs, compilation, scripts). Omit timeout to let the command run to completion — the tool handles idle detection and input prompts automatically.\n- mode='async': waits for an initial idle/output signal from the command, then returns a terminal ID and output snapshot while the process continues running. Use ONLY for processes that must keep running indefinitely (servers, watchers, daemons). Timeout caps how long to wait for the initial idle/output signal.\n\nTimeout parameter: Usually omit timeout entirely for sync commands — the tool returns automatically on completion, input-needed, or cancellation. Only set a timeout as a safety net for commands you suspect might hang. Use 0 to explicitly indicate no timeout.\n\nSync output is final: When a sync command completes, the full output is returned inline — do NOT call ${TerminalToolId.GetTerminalOutput} afterward. Only use ${TerminalToolId.GetTerminalOutput} if the tool result explicitly indicates the command was moved to background, timed out, or needs input. Do NOT tell the user to check the terminal panel — all command output is already included in the tool result.\n\nTerminal notifications: When an async command finishes or a sync command times out, you will be automatically notified on your next turn with the exit code and terminal output. You will also be notified if the terminal needs input. Do NOT poll or sleep to wait for completion.`,
 		userDescription: localize('runInTerminalTool.userDescription', 'Run commands in the terminal'),
 		source: ToolDataSource.Internal,
 		icon: Codicon.terminal,
@@ -429,6 +490,8 @@ export interface IRunInTerminalInputParams {
 	requestUnsandboxedExecutionReason?: string;
 	requestAllowNetwork?: boolean;
 	requestAllowNetworkReason?: string;
+	requestFileValidationCheck?: string[];
+	requestFileValidationCheckReason?: string;
 	allowToRunUnsandboxedCommands?: boolean;
 }
 
@@ -581,6 +644,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	private readonly _telemetry: RunInTerminalToolTelemetry;
 	private readonly _commandArtifactCollector: TerminalCommandArtifactCollector;
 	protected readonly _profileFetcher: TerminalProfileFetcher;
+	private readonly _largeOutputFileWriter: LargeOutputFileWriter;
 
 	private readonly _commandLineRewriters: ICommandLineRewriter[];
 	private readonly _commandLineAnalyzers: ICommandLineAnalyzer[];
@@ -695,10 +759,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		return this._configurationService.getValue<boolean>(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands) === true;
 	}
 
-	private get _autoApproveUnsandboxedCommands(): boolean {
-		return this._allowUnsandboxedCommands && this._configurationService.getValue<boolean>(AgentSandboxSettingId.AgentSandboxAutoApproveUnsandboxedCommands) === true;
-	}
-
 	private get _retryWithAllowNetworkRequests(): boolean {
 		return this._configurationService.getValue<boolean>(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests) === true;
 	}
@@ -730,6 +790,24 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		return localize(
 			'runInTerminal.allowNetwork.disabled.result',
 			"The command was not executed because it requested unrestricted network access in the terminal sandbox, but per-command network access is disabled by chat.agent.sandbox.retryWithAllowNetworkRequests. Run the command with restricted network access instead, or enable the setting to allow network access requests."
+		);
+	}
+
+	private async _getDeniedSandboxFileAccess(paths: readonly string[] | undefined, sandboxPrecheckInputs: ITerminalSandboxPrecheckInputs | undefined): Promise<string[]> {
+		if (!paths?.length) {
+			return [];
+		}
+
+		const result = await this._terminalSandboxService.checkFileAccess('write', paths, sandboxPrecheckInputs);
+		return result.denied;
+	}
+
+	private _buildSandboxFileAccessDeniedMessage(deniedPaths: readonly string[]): string {
+		const deniedPathsMessage = deniedPaths.map(path => `write: ${path}`).join('\n');
+		return localize(
+			'runInTerminal.sandbox.fileAccessDenied',
+			"Access Denied: The command was not executed because the terminal sandbox does not allow access to the requested file paths:\n{0}",
+			deniedPathsMessage
 		);
 	}
 
@@ -775,6 +853,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._telemetry = this._instantiationService.createInstance(RunInTerminalToolTelemetry);
 		this._commandArtifactCollector = this._instantiationService.createInstance(TerminalCommandArtifactCollector);
 		this._profileFetcher = this._instantiationService.createInstance(TerminalProfileFetcher);
+		this._largeOutputFileWriter = this._register(this._instantiationService.createInstance(LargeOutputFileWriter));
 
 		this._commandLineRewriters = [
 			this._register(this._instantiationService.createInstance(CommandLineCdPrefixRewriter)),
@@ -822,11 +901,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._removeTerminalAssociations(e);
 		}));
 
-		// Listen for chat session disposal to clean up associated terminals
+		// Listen for chat session disposal to clean up associated terminals and temp files
 		this._register(this._chatService.onDidDisposeSession(e => {
 			for (const resource of e.sessionResources) {
 				this._cleanupSessionTerminals(resource);
 			}
+			this._largeOutputFileWriter.cleanup();
 		}));
 
 	}
@@ -1094,9 +1174,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			// Would be auto-approved based on rules
 			wouldBeAutoApproved
 		);
-		const isUnsandboxedAutoApproved = isSandboxEnabled && requiresUnsandboxConfirmation === true && this._autoApproveUnsandboxedCommands;
 		const isSandboxAutoApproved = isSandboxEnabled && toolSpecificData.commandLine.isSandboxWrapped === true && !requiresAllowNetworkConfirmation && this._allowSandboxAutoApprove;
-		const isFinalAutoApproved = isUnsandboxedAutoApproved || isSandboxAutoApproved || isAutoApprovedByRules || commandLineAnalyzerResults.some(e => e.forceAutoApproval);
+		const isFinalAutoApproved = isSandboxAutoApproved || isAutoApprovedByRules || commandLineAnalyzerResults.some(e => e.forceAutoApproval);
 
 		// Pass auto approve info if the command:
 		// - Was auto approved
@@ -1331,9 +1410,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	}
 
 	private async _confirmAutomaticSandboxRetry(retryKind: AutomaticSandboxRetryKind, sessionResource: URI | undefined, command: string, shell: string, blockedDomains: string[] | undefined, riskAssessment: { toolId: string; parameters: unknown } | undefined, token: CancellationToken): Promise<boolean> {
-		if (retryKind === 'unsandboxed' && this._autoApproveUnsandboxedCommands) {
-			return true;
-		}
 		const chatModel = sessionResource && this._chatService.getSession(sessionResource);
 		if (!(chatModel instanceof ChatModel)) {
 			return false;
@@ -1838,6 +1914,25 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
+		}
+
+		if (didSandboxWrapCommand) {
+			const deniedAccess = await this._getDeniedSandboxFileAccess(args.requestFileValidationCheck, sandboxPrecheckInputs);
+			if (deniedAccess.length > 0) {
+				const message = this._buildSandboxFileAccessDeniedMessage(deniedAccess);
+				return {
+					toolResultError: message,
+					toolResultDetails: {
+						input: args.command,
+						output: [{ type: 'embed', isText: true, value: message }],
+						isError: true,
+					},
+					content: [{
+						kind: 'text',
+						value: message,
+					}],
+				};
+			}
 		}
 
 		let error: string | undefined;
@@ -2398,7 +2493,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		if (outputAnalyzerMessage) {
 			resultText.push(`${outputAnalyzerMessage}\n`);
 		}
-		resultText.push(terminalResult);
+		// Process large output: write to file if needed, then truncate with file path
+		const processedOutput = await this._largeOutputFileWriter.processOutput(terminalResult);
+		resultText.push(processedOutput);
 
 		const isError = exitCode !== undefined && exitCode !== 0;
 		const endCwd = await toolTerminal.instance.getCwdResource();
@@ -2730,6 +2827,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._sessionTerminalInstances.delete(chatSessionResource);
 
 		for (const terminal of terminalsToDispose) {
+			// Only dispose if the terminal is still hidden from the user. Once
+			// the user reveals it (via the terminal panel or the outputLocation
+			// setting), it joins foregroundInstances and should persist so they
+			// can inspect/interact with it. This prevents user-revealed
+			// terminals from being destroyed when switching between sessions.
+			if (this._terminalService.foregroundInstances.includes(terminal)) {
+				this._logService.debug(`RunInTerminalTool: Skipping disposal of user-revealed terminal ${terminal.instanceId} for session ${chatSessionResource}`);
+				continue;
+			}
 			// Skip redundant map walks in onDidDispose since this session has already been removed.
 			this._terminalsBeingDisposedBySessionCleanup.add(terminal);
 			terminal.dispose();
@@ -2739,6 +2845,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const terminalToRemove: string[] = [];
 		for (const [termId, execution] of RunInTerminalTool._activeExecutions.entries()) {
 			if (terminalsToDispose.has(execution.instance)) {
+				// Skip active executions for terminals that were preserved above
+				if (this._terminalService.foregroundInstances.includes(execution.instance)) {
+					continue;
+				}
 				execution.dispose();
 				terminalToRemove.push(termId);
 			}

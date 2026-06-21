@@ -14,6 +14,7 @@ import { IPosition } from '../../../../editor/common/core/position.js';
 import { isRemoteAgentHostSessionType } from '../../../../platform/agentHost/common/agentHostSessionType.js';
 import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
+import { LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from './participants/chatAgents.js';
 import { IChatEditingSession } from './editing/chatEditingService.js';
 import { IChatRequestModeInstructions, IChatRequestVariableData, ISerializableChatModelInputState } from './model/chatModel.js';
@@ -76,9 +77,11 @@ export interface IChatSessionProviderOptionModelMetadata {
 	readonly inputCost?: number;
 	readonly outputCost?: number;
 	readonly cacheCost?: number;
+	readonly cacheWriteCost?: number;
 	readonly longContextInputCost?: number;
 	readonly longContextOutputCost?: number;
 	readonly longContextCacheCost?: number;
+	readonly longContextCacheWriteCost?: number;
 	readonly priceCategory?: string;
 	readonly maxInputTokens?: number;
 	readonly maxOutputTokens?: number;
@@ -176,6 +179,12 @@ export interface IChatSessionsExtensionPoint {
 	 * CLI agent host).
 	 */
 	readonly supportsAutoModel?: boolean;
+	/**
+	 * Logical Agent Host provider ID for Agent Host-backed chat sessions.
+	 * For example, both local `agent-host-copilotcli` and remote
+	 * `remote-{authority}-copilotcli` sessions use `copilotcli`.
+	 */
+	readonly agentHostProviderId?: string;
 	/**
 	 * When false, the delegation picker is hidden for this session type.
 	 * Defaults to true.
@@ -296,6 +305,8 @@ export namespace SessionType {
 	export const Codex = 'openai-codex';
 	export const Growth = 'copilot-growth';
 	export const AgentHostCopilot = 'agent-host-copilotcli';
+	export const AgentHostClaude = 'agent-host-claude';
+	export const AgentHostCodex = 'agent-host-codex';
 }
 
 /**
@@ -303,7 +314,7 @@ export namespace SessionType {
  */
 export function isLocalAgentHostTarget(target: string): boolean {
 	return target === SessionType.AgentHostCopilot ||
-		target.startsWith('agent-host-');
+		target.startsWith(LOCAL_AGENT_HOST_SCHEME_PREFIX);
 }
 
 /**

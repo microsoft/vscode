@@ -294,6 +294,30 @@ suite('TerminalSandboxEngine', () => {
 		ok(!config.filesystem.allowWrite.includes('/workspace-a'), 'Refreshed config should drop the old write root');
 	});
 
+	test('always denies reads of the sandbox config file on Linux and macOS', async () => {
+		for (const os of [OperatingSystem.Linux, OperatingSystem.Macintosh]) {
+			const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost({
+				getOS: () => Promise.resolve(os),
+			})));
+
+			const configPath = await engine.getSandboxConfigPath();
+			ok(configPath, 'Config path should be defined');
+			const tempDirPath = engine.getTempDir()?.path;
+			ok(tempDirPath, 'Temp dir path should be defined');
+			const config = JSON.parse(createdFiles.get(configPath)!);
+
+			deepStrictEqual({
+				denyRead: config.filesystem.denyRead.includes(configPath),
+				configAllowWrite: config.filesystem.allowWrite.includes(configPath),
+				tempDirAllowWrite: config.filesystem.allowWrite.includes(tempDirPath),
+			}, {
+				denyRead: true,
+				configAllowWrite: false,
+				tempDirAllowWrite: true,
+			});
+		}
+	});
+
 	test('preserves filesystem symlink paths and resolves their targets on Linux when writing the config', async () => {
 		setSandboxSetting(AgentSandboxSettingId.AgentSandboxLinuxFileSystem, {
 			allowRead: ['~/read-link'],
@@ -353,6 +377,60 @@ suite('TerminalSandboxEngine', () => {
 		ok(config.filesystem.allowRead.includes('/home/user/read-plain'), 'Configured allowRead without symlink should expand ~ and be preserved');
 		ok(config.filesystem.denyRead.includes('/home/user/deny-read-plain'), 'Configured denyRead without symlink should expand ~ and be preserved');
 		ok(config.filesystem.denyWrite.includes('/deny-write-plain'), 'Configured denyWrite without symlink should be preserved');
+	});
+
+	test('checkFileAccess validates write paths against allowWrite and denyWrite on Linux', async () => {
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxLinuxFileSystem, {
+			allowWrite: ['/configured/write', '/glob/**/*.ts'],
+			denyWrite: ['/workspace/blocked'],
+		});
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost()));
+
+		const result = await engine.checkFileAccess('write', [
+			'/workspace/file.txt',
+			'/configured/write/file.txt',
+			'/glob/nested/file.ts',
+			'/outside/file.txt',
+			'/workspace/blocked/file.txt',
+		]);
+
+		deepStrictEqual(result, {
+			allowed: false,
+			denied: ['/outside/file.txt', '/workspace/blocked/file.txt'],
+		});
+	});
+
+	test('checkFileAccess validates read paths against denyRead and allowRead on Linux', async () => {
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxLinuxFileSystem, {
+			allowRead: ['~/.allowed-read'],
+			allowWrite: ['~/.allowed-write'],
+		});
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost()));
+
+		const result = await engine.checkFileAccess('read', [
+			'/home/user/private.txt',
+			'/home/user/.allowed-read/config.json',
+			'/home/user/.allowed-write/file.txt',
+			'/etc/hosts',
+		]);
+
+		deepStrictEqual(result, {
+			allowed: false,
+			denied: ['/home/user/private.txt'],
+		});
+	});
+
+	test('checkFileAccess preserves symlink source and target permissions on Linux', async () => {
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxLinuxFileSystem, {
+			allowWrite: ['/write-link'],
+		});
+		fileService.setRealpath('/write-link', '/real/write');
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost()));
+
+		deepStrictEqual(await engine.checkFileAccess('write', ['/write-link/file.txt', '/real/write/file.txt']), {
+			allowed: true,
+			denied: [],
+		});
 	});
 
 	test('cleanupTempDir is a no-op when no temp dir was ever created', async () => {

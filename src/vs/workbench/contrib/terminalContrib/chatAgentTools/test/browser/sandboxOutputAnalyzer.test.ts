@@ -100,6 +100,7 @@ suite('outputLooksSandboxNetworkBlocked', () => {
 		['dns unavailable', 'getaddrinfo EAI_AGAIN registry.npmjs.org'],
 		['socket permission failure', 'connect: Operation not permitted'],
 		['network unreachable', 'connect: Network is unreachable'],
+		['CONNECT proxy HTTP 403', 'fatal: unable to access \'https://example.com/owner/repository.git/\':\nReceived HTTP code 403 from proxy after CONNECT'],
 	];
 
 	for (const [label, output] of positives) {

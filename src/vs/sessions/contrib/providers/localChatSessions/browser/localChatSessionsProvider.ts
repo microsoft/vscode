@@ -395,7 +395,7 @@ class LocalSession extends Disposable {
 export class LocalChatSessionsProvider extends Disposable implements ISessionsProvider {
 
 	readonly id = LOCAL_PROVIDER_ID;
-	readonly label = localize('localChatSessionsProvider', "Local Chat");
+	readonly label = localize('localChatSessionsProvider', "Copilot Chat");
 	readonly icon = Codicon.vm;
 	readonly order = 0;
 	readonly browseActions: readonly [] = [];
@@ -855,6 +855,13 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 		}
 	}
 
+	async renameSession(sessionId: string, title: string): Promise<void> {
+		const session = this._findSession(sessionId);
+		if (session) {
+			await this.renameChat(sessionId, session.resource, title);
+		}
+	}
+
 	async createNewChat(sessionId: string, _prompt?: string): Promise<IChat> {
 		const currentNewSession = this._newSessions.get(sessionId);
 		if (currentNewSession) {
@@ -1195,6 +1202,7 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 			mainChat: primary.mainChat,
 			capabilities: {
 				supportsMultipleChats: true,
+				supportsRename: true,
 			},
 		};
 	}

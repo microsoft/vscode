@@ -5,10 +5,12 @@
 
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { Event } from '../../../base/common/event.js';
+import { match as globMatch } from '../../../base/common/glob.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { posix, win32 } from '../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../base/common/platform.js';
 import { arch } from '../../../base/common/process.js';
+import { ExtUri } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IFileService } from '../../files/common/files.js';
@@ -20,13 +22,20 @@ import { AgentSandboxEnabledValue, AgentSandboxSettingId } from './settings.js';
 import { IWindowsMxcTerminalSandboxRuntime } from './terminalSandboxMxcRuntime.js';
 import { getTerminalSandboxReadAllowListForCommands } from './terminalSandboxReadAllowList.js';
 import { getTerminalSandboxRuntimeConfigurationForCommands } from './terminalSandboxRuntimeConfigurationPerOperation.js';
-import { ITerminalSandboxCommand, ITerminalSandboxPrecheckInputs, ITerminalSandboxPrerequisiteCheckResult, ITerminalSandboxResolvedNetworkDomains, ITerminalSandboxWrapResult, TerminalSandboxPrerequisiteCheck, TerminalSandboxPreCheckRemediation } from './terminalSandboxService.js';
+import { ITerminalSandboxCommand, ITerminalSandboxFileAccessCheckResult, ITerminalSandboxPrecheckInputs, ITerminalSandboxPrerequisiteCheckResult, ITerminalSandboxResolvedNetworkDomains, ITerminalSandboxWrapResult, TerminalSandboxFileAccessPermission, TerminalSandboxPrerequisiteCheck, TerminalSandboxPreCheckRemediation } from './terminalSandboxService.js';
 
 interface ITerminalSandboxFileSystemSetting {
 	denyRead?: string[];
 	allowRead?: string[];
 	allowWrite?: string[];
 	denyWrite?: string[];
+}
+
+interface ITerminalSandboxFileSystemAccessPaths {
+	allowReadPaths: string[];
+	allowWritePaths: string[];
+	denyReadPaths: string[];
+	denyWritePaths: string[] | undefined;
 }
 
 /** Runtime information needed to launch the sandbox-runtime CLI. */
@@ -133,6 +142,7 @@ export class TerminalSandboxEngine extends Disposable {
 	private _commandAllowNetwork = false;
 	private _os: OperatingSystem = OS;
 	private readonly _defaultWritePaths: string[] = [];
+	private readonly _fileSystemPathExtUri = new ExtUri(() => this._os === OperatingSystem.Windows);
 
 	constructor(
 		private readonly _host: ITerminalSandboxEngineHost,
@@ -164,11 +174,6 @@ export class TerminalSandboxEngine extends Disposable {
 
 	areRetryWithAllowNetworkRequestsAllowed(): boolean {
 		return this._areRetryWithAllowNetworkRequestsAllowed();
-	}
-
-	isAutoApproveUnsandboxedCommands(): boolean {
-		return this._areUnsandboxedCommandsAllowed()
-			&& this._getSettingValue<boolean>(AgentSandboxSettingId.AgentSandboxAutoApproveUnsandboxedCommands) === true;
 	}
 
 	async getOS(): Promise<OperatingSystem> {
@@ -338,6 +343,28 @@ export class TerminalSandboxEngine extends Disposable {
 			sandboxConfigPath,
 			failedCheck: undefined,
 		};
+	}
+
+	async checkFileAccess(permission: TerminalSandboxFileAccessPermission, paths: readonly string[], precheckInputs?: ITerminalSandboxPrecheckInputs): Promise<ITerminalSandboxFileAccessCheckResult> {
+		if (!(await this._isSandboxConfiguredEnabled(precheckInputs))) {
+			return { allowed: true, denied: [] };
+		}
+
+		await this._resolveRuntimeInfo();
+		if (!this._tempDir) {
+			await this._initTempDir();
+		}
+
+		const configFilePath = this._tempDir ? this._getUriPath(URI.joinPath(this._tempDir, `vscode-sandbox-settings-${this._sandboxSettingsId}.json`)) : undefined;
+		const accessPaths = await this._getFileSystemAccessPaths(configFilePath);
+		const denied: string[] = [];
+		for (const path of paths) {
+			if (!path || !await this._hasFileSystemAccess(permission, path, accessPaths)) {
+				denied.push(path);
+			}
+		}
+
+		return { allowed: denied.length === 0, denied };
 	}
 
 	async getSandboxConfigPath(forceRefresh: boolean = false, precheckInputs?: ITerminalSandboxPrecheckInputs): Promise<string | undefined> {
@@ -605,6 +632,7 @@ export class TerminalSandboxEngine extends Disposable {
 		const commandRuntimeAllowReadPaths = this._getCommandRuntimeFileSystemPaths(commandRuntimeSetting, 'allowRead');
 		const commandRuntimeAllowWritePaths = this._getCommandRuntimeFileSystemPaths(commandRuntimeSetting, 'allowWrite');
 		const configFileUri = URI.joinPath(this._tempDir, `vscode-sandbox-settings-${this._sandboxSettingsId}.json`);
+		const configFilePath = this._getUriPath(configFileUri);
 		let allowWritePaths: string[] = [];
 		let allowReadPaths: string[] = [];
 		let denyReadPaths: string[] = [];
@@ -620,14 +648,14 @@ export class TerminalSandboxEngine extends Disposable {
 			denyReadPaths = await this._resolveFileSystemPaths(windowsFileSystemSetting.denyRead ?? []);
 			this._windowsMxcEnvironment = env;
 		} else if (this._os === OperatingSystem.Macintosh) {
-			allowWritePaths = await this._resolveFileSystemPaths(await this._updateAllowWritePathsWithWorkspaceFolders(macFileSystemSetting.allowWrite, commandRuntimeAllowWritePaths));
+			allowWritePaths = (await this._resolveFileSystemPaths(await this._updateAllowWritePathsWithWorkspaceFolders(macFileSystemSetting.allowWrite, commandRuntimeAllowWritePaths))).filter(path => path !== configFilePath);
 			allowReadPaths = await this._resolveFileSystemPaths(await this._updateAllowReadPathsWithAllowWrite(macFileSystemSetting.allowRead, allowWritePaths, commandRuntimeAllowReadPaths));
-			denyReadPaths = await this._resolveFileSystemPaths(this._updateDenyReadPathsWithHome(macFileSystemSetting.denyRead));
+			denyReadPaths = await this._resolveFileSystemPaths(this._updateDenyReadPathsWithHome([...(macFileSystemSetting.denyRead ?? []), configFilePath]));
 			denyWritePaths = macFileSystemSetting.denyWrite ? await this._resolveFileSystemPaths(macFileSystemSetting.denyWrite) : undefined;
 		} else if (this._os === OperatingSystem.Linux) {
-			allowWritePaths = await this._resolveFileSystemPaths(await this._updateAllowWritePathsWithWorkspaceFolders(linuxFileSystemSetting.allowWrite, commandRuntimeAllowWritePaths));
+			allowWritePaths = (await this._resolveFileSystemPaths(await this._updateAllowWritePathsWithWorkspaceFolders(linuxFileSystemSetting.allowWrite, commandRuntimeAllowWritePaths))).filter(path => path !== configFilePath);
 			allowReadPaths = await this._resolveFileSystemPaths(await this._updateAllowReadPathsWithAllowWrite(linuxFileSystemSetting.allowRead, allowWritePaths, commandRuntimeAllowReadPaths));
-			denyReadPaths = await this._resolveFileSystemPaths(this._updateDenyReadPathsWithHome(linuxFileSystemSetting.denyRead));
+			denyReadPaths = await this._resolveFileSystemPaths(this._updateDenyReadPathsWithHome([...(linuxFileSystemSetting.denyRead ?? []), configFilePath]));
 			denyWritePaths = await this._resolveFileSystemPaths(linuxFileSystemSetting.denyWrite);
 		}
 		const sandboxSettings = this._os === OperatingSystem.Windows ? await this._windowsMxcRuntime.createConfig({
@@ -655,9 +683,142 @@ export class TerminalSandboxEngine extends Disposable {
 			this._mergeAdditionalSandboxConfigProperties(sandboxSettings as Record<string, unknown>, allowNetwork ? this._withoutNetworkRuntimeSetting(runtimeSetting) : runtimeSetting);
 			this._mergeAdditionalSandboxConfigProperties(sandboxSettings as Record<string, unknown>, commandRuntimeSetting);
 		}
-		this._sandboxConfigPath = this._getUriPath(configFileUri);
+		this._sandboxConfigPath = configFilePath;
 		await this._fileService.createFile(configFileUri, VSBuffer.fromString(JSON.stringify(sandboxSettings, null, '\t')), { overwrite: true });
 		return this._sandboxConfigPath;
+	}
+
+	private async _getFileSystemAccessPaths(configFilePath: string | undefined): Promise<ITerminalSandboxFileSystemAccessPaths> {
+		const linuxFileSystemSetting = this._os === OperatingSystem.Linux
+			? this._getSettingValue<ITerminalSandboxFileSystemSetting>(AgentSandboxSettingId.AgentSandboxLinuxFileSystem) ?? {}
+			: {};
+		const macFileSystemSetting = this._os === OperatingSystem.Macintosh
+			? this._getSettingValue<ITerminalSandboxFileSystemSetting>(AgentSandboxSettingId.AgentSandboxMacFileSystem) ?? {}
+			: {};
+		const windowsFileSystemSetting = this._os === OperatingSystem.Windows
+			? this._getSettingValue<ITerminalSandboxFileSystemSetting>(AgentSandboxSettingId.AgentSandboxWindowsFileSystem) ?? {}
+			: {};
+		const commandRuntimeSetting = getTerminalSandboxRuntimeConfigurationForCommands(this._os, this._commandAllowListCommandDetails);
+		const commandRuntimeAllowReadPaths = this._getCommandRuntimeFileSystemPaths(commandRuntimeSetting, 'allowRead');
+		const commandRuntimeAllowWritePaths = this._getCommandRuntimeFileSystemPaths(commandRuntimeSetting, 'allowWrite');
+		let allowWritePaths: string[] = [];
+		let allowReadPaths: string[] = [];
+		let denyReadPaths: string[] = [];
+		let denyWritePaths: string[] | undefined;
+		if (this._os === OperatingSystem.Windows) {
+			const filesystemPolicy = await this._getWindowsMxcFilesystemPolicy();
+			allowWritePaths = await this._resolveFileSystemPaths([
+				...await this._updateAllowWritePathsWithWorkspaceFolders(windowsFileSystemSetting.allowWrite),
+				...filesystemPolicy.readwritePaths
+			]);
+			allowReadPaths = await this._resolveFileSystemPaths([...(windowsFileSystemSetting.allowRead ?? []), ...filesystemPolicy.readonlyPaths]);
+			denyReadPaths = await this._resolveFileSystemPaths(windowsFileSystemSetting.denyRead ?? []);
+		} else if (this._os === OperatingSystem.Macintosh) {
+			allowWritePaths = (await this._resolveFileSystemPaths(await this._updateAllowWritePathsWithWorkspaceFolders(macFileSystemSetting.allowWrite, commandRuntimeAllowWritePaths))).filter(path => path !== configFilePath);
+			allowReadPaths = await this._resolveFileSystemPaths(await this._updateAllowReadPathsWithAllowWrite(macFileSystemSetting.allowRead, allowWritePaths, commandRuntimeAllowReadPaths));
+			denyReadPaths = await this._resolveFileSystemPaths(this._updateDenyReadPathsWithHome([...(macFileSystemSetting.denyRead ?? []), ...(configFilePath ? [configFilePath] : [])]));
+			denyWritePaths = macFileSystemSetting.denyWrite ? await this._resolveFileSystemPaths(macFileSystemSetting.denyWrite) : undefined;
+		} else if (this._os === OperatingSystem.Linux) {
+			allowWritePaths = (await this._resolveFileSystemPaths(await this._updateAllowWritePathsWithWorkspaceFolders(linuxFileSystemSetting.allowWrite, commandRuntimeAllowWritePaths))).filter(path => path !== configFilePath);
+			allowReadPaths = await this._resolveFileSystemPaths(await this._updateAllowReadPathsWithAllowWrite(linuxFileSystemSetting.allowRead, allowWritePaths, commandRuntimeAllowReadPaths));
+			denyReadPaths = await this._resolveFileSystemPaths(this._updateDenyReadPathsWithHome([...(linuxFileSystemSetting.denyRead ?? []), ...(configFilePath ? [configFilePath] : [])]));
+			denyWritePaths = await this._resolveFileSystemPaths(linuxFileSystemSetting.denyWrite);
+		}
+
+		return { allowReadPaths, allowWritePaths, denyReadPaths, denyWritePaths };
+	}
+
+	private async _hasFileSystemAccess(permission: TerminalSandboxFileAccessPermission, path: string, accessPaths: ITerminalSandboxFileSystemAccessPaths): Promise<boolean> {
+		const resolvedPaths = await this._resolveFileSystemPath(path);
+		if (permission === 'write') {
+			if (this._os === OperatingSystem.Windows && this._matchesAnyFileSystemPath(resolvedPaths, accessPaths.denyReadPaths)) {
+				return false;
+			}
+			if (this._matchesAnyFileSystemPath(resolvedPaths, accessPaths.denyWritePaths ?? [])) {
+				return false;
+			}
+			return this._matchesAnyFileSystemPath(resolvedPaths, accessPaths.allowWritePaths);
+		}
+
+		if (this._matchesAnyFileSystemPath(resolvedPaths, [...accessPaths.allowReadPaths, ...accessPaths.allowWritePaths])) {
+			return true;
+		}
+		return !this._matchesAnyFileSystemPath(resolvedPaths, accessPaths.denyReadPaths);
+	}
+
+	private _matchesAnyFileSystemPath(paths: readonly string[], matchers: readonly string[]): boolean {
+		return paths.some(path => matchers.some(matcher => this._matchesFileSystemPath(path, matcher)));
+	}
+
+	/**
+	 * Returns whether a candidate filesystem path is covered by a sandbox allow/deny
+	 * matcher. Both values are normalized with the target sandbox OS semantics before
+	 * comparison. Non-glob matchers are treated as exact-or-parent matches; glob
+	 * matchers are evaluated with VS Code's glob matcher.
+	 *
+	 * Examples:
+	 * - Linux/macOS: `/workspace/project/src/file.ts` matches `/workspace/project`.
+	 * - Linux/macOS: `/workspace/project2/file.ts` does not match `/workspace/project`.
+	 * - Windows: `C:\Repo\src\file.ts` matches `c:/repo` because matching is
+	 *   case-insensitive and backslashes are normalized to `/`.
+	 * - Glob: `/workspace/project/package.json` matches `/workspace/project/*.json`.
+	 */
+	private _matchesFileSystemPath(path: string, matcher: string): boolean {
+		const normalizedPath = this._normalizeFileSystemAccessPath(path);
+		const normalizedMatcher = this._normalizeFileSystemAccessPath(matcher, true);
+		const ignoreCase = this._os === OperatingSystem.Windows;
+		if (this._containsGlobPattern(normalizedMatcher)) {
+			return globMatch(normalizedMatcher, normalizedPath, { ignoreCase });
+		}
+		return this._fileSystemPathExtUri.isEqualOrParent(this._toFileSystemAccessUri(normalizedPath), this._toFileSystemAccessUri(normalizedMatcher));
+	}
+
+	/**
+	 * Converts a normalized sandbox filesystem path into a pseudo URI so the common
+	 * `ExtUri.isEqualOrParent` comparer can be used instead of deprecated string
+	 * path helpers. A non-`file` scheme is intentional: it keeps comparison on the
+	 * URI path component and avoids converting through the host OS' native `fsPath`
+	 * rules, which may differ from the sandbox target OS.
+	 *
+	 * Examples:
+	 * - `/workspace/project` becomes `terminal-sandbox-path:/workspace/project`.
+	 * - `C:/Repo` becomes `terminal-sandbox-path:/C:/Repo` so Windows drive paths
+	 *   are still valid URI paths for comparison.
+	 */
+	private _toFileSystemAccessUri(path: string): URI {
+		return URI.from({ scheme: 'terminal-sandbox-path', path: path.startsWith('/') ? path : `/${path}` });
+	}
+
+	/**
+	 * Normalizes a path or matcher into the form used for sandbox access checks.
+	 * On Windows, backslashes are converted to `/` and URI-shaped drive paths like
+	 * `/C:/Users/me` are converted to `C:/Users/me`. Unless `preserveGlob` is true
+	 * for a glob matcher, the path is POSIX-normalized to remove redundant `.`/`..`
+	 * segments. Trailing slashes are removed except for filesystem roots.
+	 *
+	 * Examples:
+	 * - Linux/macOS: `/workspace/../workspace/app/` becomes `/workspace/app`.
+	 * - Windows: `C:\Users\me\project\` becomes `C:/Users/me/project`.
+	 * - Windows: `/C:/Users/me/project` becomes `C:/Users/me/project`.
+	 * - Glob with `preserveGlob=true`: `/workspace/project/*.json` keeps the glob
+	 *   pattern intact for `globMatch`.
+	 */
+	private _normalizeFileSystemAccessPath(path: string, preserveGlob: boolean = false): string {
+		let normalizedPath = this._os === OperatingSystem.Windows ? path.replace(/\\/g, '/') : path;
+		if (this._os === OperatingSystem.Windows && /^\/[a-zA-Z]:($|\/)/.test(normalizedPath)) {
+			normalizedPath = normalizedPath.slice(1);
+		}
+		if (!preserveGlob || !this._containsGlobPattern(normalizedPath)) {
+			normalizedPath = posix.normalize(normalizedPath);
+		}
+		if (normalizedPath.length > 1 && normalizedPath.endsWith('/') && !/^[a-zA-Z]:\/$/.test(normalizedPath)) {
+			normalizedPath = normalizedPath.replace(/\/+$/, '');
+		}
+		return normalizedPath;
+	}
+
+	private _containsGlobPattern(path: string): boolean {
+		return /[*?{\[]/.test(path);
 	}
 
 	private readonly _buildSandboxPayload = (commandLine: string, policy: IWindowsMxcSandboxPolicy, workingDirectory?: string, containerName?: string, containment?: IWindowsMxcPolicyContainment): Promise<IWindowsMxcConfig | undefined> => {
