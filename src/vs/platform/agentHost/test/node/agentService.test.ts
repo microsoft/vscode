@@ -32,7 +32,7 @@ import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
 import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
 import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
-import { type ISessionEvent } from '../../node/copilot/mapSessionEvents.js';
+import { type ISessionEvent } from './copilotTestEvents.js';
 import { createNoopGitService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
@@ -2127,6 +2127,61 @@ suite('AgentService (node dispatcher)', () => {
 			// Should have the final markdown
 			const mdParts = state!.turns[0].responseParts.filter((p): p is MarkdownResponsePart => p.kind === ResponsePartKind.Markdown);
 			assert.ok(mdParts.length > 0, 'Should have markdown content');
+		});
+
+		test('inner assistant messages from subagent route via envelope agentId (fixture)', async () => {
+			// Regression for the SDK migration away from the deprecated
+			// `data.parentToolCallId` to the envelope-level `agentId`. Newer
+			// session logs only tag subagent events with `agentId`, so the
+			// reopen/replay path must resolve those back to the parent tool
+			// call id — otherwise the subagent's assistant messages leak into
+			// the main session as extra turns.
+			service.registerProvider(copilotAgent);
+			const { session } = await copilotAgent.createSession();
+			const sessions = await copilotAgent.listSessions();
+			const sessionResource = sessions[0].session;
+
+			copilotAgent.sessionMessages = await loadFixtureMessages('subagent-session-agentid.jsonl', session);
+
+			await service.restoreSession(sessionResource);
+
+			const state = service.stateManager.getSessionState(sessionResource.toString());
+			assert.ok(state);
+			assert.strictEqual(state!.turns.length, 1, `Expected 1 turn but got ${state!.turns.length}: ${state!.turns.map(t => `"${t.message.text.substring(0, 40)}"`).join(', ')}`);
+			assert.strictEqual(state!.turns[0].message.text, 'Run a sync subagent to do some searches, just testing subagent rendering');
+			assert.strictEqual(state!.turns[0].state, TurnState.Complete);
+
+			// Should have the parent subagent tool call with subagent content.
+			const toolCallParts = state!.turns[0].responseParts.filter((p): p is ToolCallResponsePart => p.kind === ResponsePartKind.ToolCall);
+			const parentTc = toolCallParts.find(p => p.toolCall.toolName === 'task');
+			assert.ok(parentTc, 'Should have a task tool call');
+			assert.strictEqual(parentTc!.toolCall._meta?.toolKind, 'subagent');
+
+			// Inner tool calls should NOT be in the parent turn — they belong
+			// to the child subagent session.
+			const parentToolCallId = parentTc!.toolCall.toolCallId;
+			const nonParentTools = toolCallParts.filter(p => p.toolCall.toolCallId !== parentToolCallId);
+			assert.strictEqual(nonParentTools.length, 0, `Parent turn should only contain the task tool call, but found ${nonParentTools.length} extra tool calls`);
+
+			// The subagent's inner assistant message must not surface in the
+			// parent transcript.
+			const mdParts = state!.turns[0].responseParts.filter((p): p is MarkdownResponsePart => p.kind === ResponsePartKind.Markdown);
+			assert.ok(
+				mdParts.every(p => !p.content.startsWith('Perfect! I now have enough information')),
+				'Subagent inner assistant message should not leak into the parent turn',
+			);
+			assert.ok(mdParts.length > 0, 'Should have markdown content');
+
+			// Subscribe to the child subagent session and verify inner tools
+			// and the subagent's assistant message landed there.
+			const childSessionUri = buildSubagentSessionUri(sessionResource.toString(), parentToolCallId);
+			const snapshot = await service.subscribe(URI.parse(childSessionUri), 'client-test');
+			assert.ok(snapshot?.state, 'Child session snapshot should exist');
+			const childState = service.stateManager.getSessionState(childSessionUri);
+			assert.ok(childState, 'Child session state should exist');
+			assert.strictEqual(childState!.turns.length, 1, 'Child session should have 1 turn');
+			const childToolParts = childState!.turns[0].responseParts.filter((p): p is ToolCallResponsePart => p.kind === ResponsePartKind.ToolCall);
+			assert.ok(childToolParts.length > 0, `Child session should have inner tool calls but got ${childToolParts.length}`);
 		});
 
 		test('coalesces concurrent restores for the same subagent session', async () => {
