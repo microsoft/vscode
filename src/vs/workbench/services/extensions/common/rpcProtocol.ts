@@ -118,7 +118,7 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 
 	[_RPCProtocolSymbol] = true;
 
-	private static readonly UNRESPONSIVE_TIME = 3 * 1000; // 3s
+	private static readonly UNRESPONSIVE_TIME = 30 * 1000; // 30s
 
 	private readonly _onDidChangeResponsiveState: Emitter<ResponsiveState> = this._register(new Emitter<ResponsiveState>());
 	public readonly onDidChangeResponsiveState: Event<ResponsiveState> = this._onDidChangeResponsiveState.event;
