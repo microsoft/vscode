@@ -1206,18 +1206,27 @@ registerAction2(class extends Action2 {
 		const notificationService = accessor.get(INotificationService);
 		const instantiationService = accessor.get(IInstantiationService);
 
-		const upgradable = sessionsProvidersService.getProviders()
+		const remoteHosts = sessionsProvidersService.getProviders()
 			.filter(isAgentHostProvider)
-			.filter(provider => !!provider.remoteAddress)
+			.filter(provider => !!provider.remoteAddress);
+		let incompatibleCount = 0;
+		const upgradable = remoteHosts
 			.map(provider => {
 				const status = provider.connectionStatus?.get();
-				const method = RemoteAgentHostConnectionStatus.isIncompatible(status) ? status.vscodeUpgradeMethod : undefined;
-				return method ? { provider, method } : undefined;
+				if (!RemoteAgentHostConnectionStatus.isIncompatible(status)) {
+					return undefined;
+				}
+				incompatibleCount++;
+				return status.vscodeUpgradeMethod ? { provider, method: status.vscodeUpgradeMethod } : undefined;
 			})
 			.filter((entry): entry is { provider: IAgentHostSessionsProvider; method: string } => !!entry);
 
 		if (upgradable.length === 0) {
-			notificationService.info(localize('updateRemoteAgentHost.none', "No remote agent hosts need updating."));
+			// Distinguish "nothing is incompatible" from "incompatible hosts exist
+			// but none was spawned by a VS Code CLI that can update it in place".
+			notificationService.info(incompatibleCount > 0
+				? localize('updateRemoteAgentHost.noneUpgradable', "No remote agent hosts can be updated from here. Incompatible hosts must be updated manually, then reconnected.")
+				: localize('updateRemoteAgentHost.none', "No remote agent hosts need updating."));
 			return;
 		}
 
