@@ -18,6 +18,7 @@ import { ILogService } from '../../../log/common/log.js';
 import type { AgentsDiscoverRequest } from './copilotRCP.js';
 import { AgentCustomization, ChildCustomization, CustomizationLoadStatus, CustomizationType, DirectoryCustomization, RuleCustomization, SkillCustomization, customizationId } from '../../common/state/sessionState.js';
 import { ChildCustomizationType } from '../../common/state/protocol/state.js';
+import { toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 
 /**
  * The kinds of customizations the agent host discovers from disk.
@@ -249,7 +250,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 			for (const agent of agentDiscovery.agents) {
 				if (agent.path) {
 					const uri = URI.file(agent.path);
-					agents.push({ type: CustomizationType.Agent, uri: uri.toString(), id: agent.id, name: agent.name, description: agent.description, _meta: { userInvocable: agent.userInvocable } });
+					agents.push({ type: CustomizationType.Agent, uri: uri.toString(), id: agent.id, name: agent.name, description: agent.description, _meta: toAgentCustomizationMeta({ userInvocable: agent.userInvocable }) });
 				}
 			}
 

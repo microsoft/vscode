@@ -11,7 +11,7 @@
 // helpers and re-exports.
 
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
-import { hasKey } from '../../../../base/common/types.js';
+import { hasKey, type Mutable } from '../../../../base/common/types.js';
 import { URI as ResourceURI } from '../../../../base/common/uri.js';
 import type { IProductService } from '../../../product/common/productService.js';
 import {
@@ -40,6 +40,7 @@ import {
 	type ToolResultContent,
 	type ToolResultSubagentContent,
 	type ToolResultTextContent,
+	type UsageInfo,
 	type Message,
 } from './protocol/state.js';
 
@@ -120,6 +121,57 @@ export interface UsageInfoMeta {
 		} | undefined;
 	};
 	[key: string]: unknown;
+}
+
+type AccountQuotaSnapshot = NonNullable<NonNullable<UsageInfoMeta['quotaSnapshots']>[string]>;
+
+function readAccountQuotaSnapshot(value: unknown): AccountQuotaSnapshot | undefined {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+	const raw = value as Record<string, unknown>;
+	const snapshot: Mutable<AccountQuotaSnapshot> = {};
+	if (typeof raw['isUnlimitedEntitlement'] === 'boolean') { snapshot.isUnlimitedEntitlement = raw['isUnlimitedEntitlement']; }
+	if (typeof raw['entitlementRequests'] === 'number') { snapshot.entitlementRequests = raw['entitlementRequests']; }
+	if (typeof raw['usedRequests'] === 'number') { snapshot.usedRequests = raw['usedRequests']; }
+	if (typeof raw['remainingPercentage'] === 'number') { snapshot.remainingPercentage = raw['remainingPercentage']; }
+	if (typeof raw['overage'] === 'number') { snapshot.overage = raw['overage']; }
+	if (typeof raw['overageAllowedWithExhaustedQuota'] === 'boolean') { snapshot.overageAllowedWithExhaustedQuota = raw['overageAllowedWithExhaustedQuota']; }
+	if (typeof raw['resetDate'] === 'string') { snapshot.resetDate = raw['resetDate']; }
+	return snapshot;
+}
+
+/**
+ * Reads the well-known {@link UsageInfoMeta} keys from a usage report's open
+ * `_meta` bag, ignoring unrelated provider-specific keys and validating each
+ * field's type. Always read {@link UsageInfo._meta} through this helper rather
+ * than casting the bag to {@link UsageInfoMeta}, so a malformed or partial bag
+ * degrades to absent fields instead of producing values of the wrong runtime
+ * type. Returns an empty object when the bag is absent.
+ */
+export function readUsageInfoMeta(usage: UsageInfo | undefined): UsageInfoMeta {
+	const meta = usage?._meta;
+	if (!meta) {
+		return {};
+	}
+	const result: Mutable<UsageInfoMeta> = {};
+	if (typeof meta['cost'] === 'number') { result.cost = meta['cost']; }
+	const copilotUsage = meta['copilotUsage'];
+	if (copilotUsage && typeof copilotUsage === 'object' && !Array.isArray(copilotUsage)) {
+		const rawUsage = copilotUsage as Record<string, unknown>;
+		const usage: Mutable<NonNullable<UsageInfoMeta['copilotUsage']>> = {};
+		if (typeof rawUsage['totalNanoAiu'] === 'number') { usage.totalNanoAiu = rawUsage['totalNanoAiu']; }
+		result.copilotUsage = usage;
+	}
+	const quotaSnapshots = meta['quotaSnapshots'];
+	if (quotaSnapshots && typeof quotaSnapshots === 'object' && !Array.isArray(quotaSnapshots)) {
+		const snapshots: Mutable<NonNullable<UsageInfoMeta['quotaSnapshots']>> = {};
+		for (const [quotaType, value] of Object.entries(quotaSnapshots as Record<string, unknown>)) {
+			snapshots[quotaType] = readAccountQuotaSnapshot(value);
+		}
+		result.quotaSnapshots = snapshots;
+	}
+	return result;
 }
 
 export {
@@ -721,6 +773,10 @@ export interface ISessionGitState {
  * the git key is not a plain object (e.g. an array or a primitive).
  * Individual fields with wrong types are silently dropped so partial state
  * still propagates.
+ *
+ * Unlike the other typed readers, this takes the raw {@link SessionMeta} value
+ * rather than its parent {@link SessionState}: the sessions provider stores and
+ * reads a detached meta snapshot without retaining the owning state.
  */
 export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitState | undefined {
 	const value = meta?.[SESSION_META_GIT_KEY];
@@ -821,7 +877,8 @@ export function hostBuildInfoFromProduct(productService: IProductService): IHost
  * key is not a plain object with a string `version`. Optional fields with wrong
  * types are silently dropped.
  */
-export function readHostBuildInfo(meta: RootMeta | undefined): IHostBuildInfo | undefined {
+export function readHostBuildInfo(state: RootState | undefined): IHostBuildInfo | undefined {
+	const meta = state?._meta;
 	const value = meta?.[ROOT_META_HOST_BUILD_KEY];
 	if (!value || typeof value !== 'object' || Array.isArray(value)) {
 		return undefined;
