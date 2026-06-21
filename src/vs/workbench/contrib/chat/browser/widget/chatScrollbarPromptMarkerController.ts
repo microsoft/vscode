@@ -4,17 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
-import { VSBuffer } from '../../../../../base/common/buffer.js';
 import {
 	Disposable,
 	MutableDisposable,
 	toDisposable,
 } from '../../../../../base/common/lifecycle.js';
-import { hasKey } from '../../../../../base/common/types.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
 import {
 	ChatConfiguration,
 	ChatScrollbarPromptMarkerClickBehavior,
@@ -50,62 +45,6 @@ export interface IChatScrollbarPromptMarkerHost {
 }
 
 /**
- * Fixed file path for debug logging of marker render diagnostics.
- * Each render pass appends a JSONL line with the full item list, descriptor
- * set, and computed layout, enabling offline analysis of marker behavior.
- */
-const CHAT_SCROLLBAR_MARKER_DEBUG_LOG = URI.file('/Users/core/out.txt');
-
-/**
- * Serializes a chat tree item (request, response, or pending divider) into a
- * plain object suitable for JSON debug logging. Includes only the fields
- * relevant to marker classification and layout.
- */
-function serializeChatTreeItem(item: ChatTreeItem) {
-	if (isRequestVM(item)) {
-		return {
-			kind: 'request',
-			id: item.id,
-			messageText: item.messageText,
-			attempt: item.attempt,
-			slashCommand: item.slashCommand?.name,
-			isSystemInitiated: item.isSystemInitiated,
-			systemInitiatedLabel: item.systemInitiatedLabel,
-			editedFileEvents: item.editedFileEvents?.map(event => ({
-				uri: event.uri.toString(),
-				eventKind: event.eventKind,
-			})),
-			currentRenderedHeight: item.currentRenderedHeight,
-		};
-	}
-
-	if (isResponseVM(item)) {
-		return {
-			kind: 'response',
-			id: item.id,
-			requestId: item.requestId,
-			errorDetails: item.errorDetails ? { message: item.errorDetails.message, responseIsFiltered: item.errorDetails.responseIsFiltered } : undefined,
-			parts: item.model.entireResponse.value.map(part => ({
-				kind: part.kind,
-				toolId: (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') ? part.toolId : undefined,
-				toolSpecificKind: (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') ? part.toolSpecificData?.kind : undefined,
-				isExternalEdit: (hasKey(part, { isExternalEdit: true }) && typeof part.isExternalEdit === 'boolean') ? part.isExternalEdit : undefined,
-				editKind: part.kind === 'externalEdit' ? part.editKind : undefined,
-			})),
-			currentRenderedHeight: item.currentRenderedHeight,
-		};
-	}
-
-	return {
-		kind: 'pendingDivider',
-		id: item.id,
-		dividerKind: item.dividerKind,
-		isSystemInitiated: item.isSystemInitiated,
-		currentRenderedHeight: item.currentRenderedHeight,
-	};
-}
-
-/**
  * Manages the lifecycle, layout, and interaction of scrollbar markers on the
  * chat overview ruler.
  *
@@ -136,14 +75,11 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 	);
 	private pointerDownListenerParent: HTMLElement | undefined;
 	private visible = true;
-	private debugLogWrite = Promise.resolve();
 	private markerActivated = false;
 
 	constructor(
 		private readonly host: IChatScrollbarPromptMarkerHost,
 		private readonly configurationService: IConfigurationService,
-		private readonly fileService: IFileService,
-		private readonly logService: ILogService,
 	) {
 		super();
 
@@ -341,48 +277,7 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 		for (const [id, target] of nextTargetById) {
 			this.targetById.set(id, target);
 		}
-		this.appendDebugLog({
-			event: 'renderMarkers',
-			timestamp: new Date().toISOString(),
-			renderHeight: rulerHeight,
-			scrollHeight,
-			activeMarkerId,
-			focusedItems: this.host.getFocus().map(item => ({ id: item.id, kind: isRequestVM(item) ? 'request' : isResponseVM(item) ? 'response' : 'pendingDivider' })),
-			items: this.host.getItems().map(serializeChatTreeItem),
-			descriptors: markerLayouts.map(({ descriptor, top, height }) => ({
-				id: descriptor.id,
-				requestId: descriptor.requestId,
-				targetId: descriptor.target.id,
-				targetKind: isRequestVM(descriptor.target) ? 'request' : 'response',
-				markerType: descriptor.markerType,
-				lane: descriptor.lane,
-				priority: descriptor.priority,
-				minHeight: descriptor.minHeight,
-				elementTop: this.host.getElementTop(descriptor.target),
-				elementHeight: this.host.getElementHeight(descriptor.target),
-				currentRenderedHeight: descriptor.target.currentRenderedHeight,
-				topRatio: descriptor.topRatio,
-				heightRatio: descriptor.heightRatio,
-				computedTop: top,
-				computedHeight: height,
-				inlineLeft: descriptor.lane === 'right' ? 'auto' : '0',
-				inlineRight: descriptor.lane === 'left' ? 'auto' : '0',
-				inlineWidth: descriptor.lane === 'full' ? 'auto' : '6px',
-			})),
-		});
 		this.updateContainerVisibility();
-	}
-
-	private appendDebugLog(data: unknown): void {
-		const line = JSON.stringify(data) + '\n';
-		this.debugLogWrite = this.debugLogWrite
-			.then(() => {
-				return this.fileService.writeFile(CHAT_SCROLLBAR_MARKER_DEBUG_LOG, VSBuffer.fromString(line), { append: true });
-			})
-			.then(() => undefined)
-			.catch(error => {
-				this.logService.warn('[ChatScrollbarPromptMarkerDebug] Failed to append debug log', error);
-			});
 	}
 
 	private onOverviewRulerPointerDown(event: PointerEvent): void {

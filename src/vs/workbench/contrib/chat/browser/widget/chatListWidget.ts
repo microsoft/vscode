@@ -609,8 +609,6 @@ export class ChatListWidget extends Disposable {
 					new ChatScrollbarPromptMarkerController(
 						this,
 						this.configurationService,
-						this.fileService,
-						this.logService,
 					),
 				)
 				: undefined;

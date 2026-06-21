@@ -26,7 +26,7 @@ The repository already provides mature, purpose-built tooling. **Maximize reuse 
 2. **`npm run perf:chat-leak`** (`scripts/chat-simulation/test-chat-mem-leaks.js`) — Dedicated memory leak checker. Uses a **state-based approach**: open fresh chat → measure (forced double-GC + `Runtime.getHeapUsage` + DOM node count) → cycle through all 16 scenarios → open new chat → measure again → delta = leaked memory. Runs multiple iterations. Configurable threshold (`--threshold <MB>`, default 10 MB from config).
 
 3. **`scripts/chat-simulation/common/`** — Shared infrastructure:
-   - `utils.js` — `launchVSCode()`, `waitForCDP()`, `findWorkbenchPage()`, `buildEnv()` (sets `IS_SCENARIO_AUTOMATION=1`, `VSCODE_COPILOT_CHAT_TOKEN`), `writeSettings()` (points copilot at mock server), `preseedStorage()`, `robustStats()`, `welchTTest()`, `linearRegressionSlope()`, `measure()` pattern (double GC + settle delays).
+   - `utils.js` — `launchVSCode()`, `waitForCDP()`, `findWorkbenchPage()`, `buildEnv()` (sets `IS_SCENARIO_AUTOMATION=1`, `VSCODE_COPILOT_CHAT_TOKEN`), `writeSettings()` (points copilot at mock server), `preseedStorage()`, `robustStats()`, `welchTTest()`, `linearRegressionSlope()`. Note: the `measure()` pattern (double GC + settle delays) is defined locally in `test-chat-mem-leaks.js`, not exported from `utils.js`.
    - `perf-scenarios.js` — 16 scenarios across 3 groups: **Content** (`text-only`, `large-codeblock`, `many-small-chunks`, `mixed-content`, `many-codeblocks`, `long-prose`, `rich-markdown`, `giant-codeblock`, `rapid-stream`, `file-links`), **Tool-call** (`tool-read-file`, `tool-edit-file`, `tool-terminal`), **Multi-turn** (`thinking-response`, `multi-turn-user`, `long-conversation`).
    - `mock-llm-server.ts` — Full mock CAPI server with `ScenarioBuilder` API (`stream()`, `emit()`, `wait()`, `burst()`) and `registerScenario()` for custom scenarios.
 
@@ -167,19 +167,19 @@ This creates multiple chat sessions with different content types and repeatedly 
 
 ### 4. Custom scenarios (true gaps — no existing tool covers these)
 
-These are the scenarios that the existing harnesses do **not** cover. Implement each as a scratchpad script under `/tmp/chat-validation-<timestamp>/` that reuses the `launch` skill + `@playwright/cli` patterns from `auto-perf-optimize`. **Critical:** the launched instance must have the mock LLM server configured — set `IS_SCENARIO_AUTOMATION=1`, `VSCODE_COPILOT_CHAT_TOKEN`, write settings pointing to the mock server, and `--disable-extension=vscode.vscode-api-tests`. Alternatively, use `chat-memory-smoke.mts` as the launch vehicle (it handles this setup).
+These are the scenarios that the existing harnesses do **not** cover. Implement each as a scratchpad script under `/tmp/chat-validation-<timestamp>/` that reuses the `launch` skill + `@playwright/cli` patterns from `auto-perf-optimize`. **Critical:** the launched instance must have the mock LLM server configured — set `IS_SCENARIO_AUTOMATION=1`, `VSCODE_COPILOT_CHAT_TOKEN`, and write settings pointing to the mock server. The `--disable-extension=vscode.vscode-api-tests` flag is auto-added by `buildArgs()` in `utils.js` for dev builds; if using the `launch` skill instead of `buildArgs()`, add it manually. Note: `chat-memory-smoke.mts` handles Code OSS launch and auth pre-seeding but does **not** start the mock LLM server or write mock server settings — you must start the mock server separately and write the matching settings before launching (see §6's note on `chat-memory-smoke.mts` limitations).
 
 **Mock LLM server setup (required before Scenarios C, D, E, I, J, K):** Scenarios that send chat messages and expect responses (C, D, E, I, J, K) require a running mock LLM server. Start the mock server standalone:
 ```bash
 node scripts/chat-simulation/common/mock-llm-server.ts <port>
 ```
-This loads the 16 built-in scenarios from `perf-scenarios.js` automatically. The server prints its URL and registered scenario IDs on startup. The mock server port must match the `github.copilot.advanced.debug.overrideCAPIUrl` setting written to the launched instance's user data (use `writeSettings()` from `scripts/chat-simulation/common/utils.js`, or write the settings JSON manually). Scenarios A and L do not require the mock server (A tests empty chat; L observes file I/O during D).
+This loads the 16 built-in scenarios from `perf-scenarios.js` automatically. The server prints its URL and registered scenario IDs on startup. The mock server port must match the `github.copilot.advanced.debug.overrideCapiUrl` setting written to the launched instance's user data (use `writeSettings()` from `scripts/chat-simulation/common/utils.js`, or write the settings JSON manually). Scenarios A and L do not require the mock server (A tests empty chat; L observes file I/O during D).
 
 **Scenario selection:** The mock server matches scenarios by looking for a `[scenario:<id>]` tag in the user's message content. To trigger a specific scenario, send a chat message containing `[scenario:<id>]` (e.g., `[scenario:long-conversation]`).
 
 **Scenario I (error response) — known limitation:** The mock LLM server does **not** have a built-in error scenario, and the `registerScenario()` / `ScenarioBuilder` API only supports content chunks and multi-turn sequences — it cannot produce HTTP errors or `errorDetails` on the response. The `errorDetails` field that triggers the Error marker is set by the Copilot extension when the API returns an error or the stream fails. To produce an error marker **without modifying repo files**, use one of these approaches:
 1. **Kill the mock server mid-stream** — start a prompt, then stop the mock server so the response stream aborts. The extension should set `errorDetails` on the partial response.
-2. **Point the settings to a dead port** — configure `overrideCAPIUrl` to a port with nothing listening, send a prompt, and wait for the connection error.
+2. **Point the settings to a dead port** — configure `github.copilot.advanced.debug.overrideCapiUrl` to a port with nothing listening, send a prompt, and wait for the connection error.
 3. If neither approach produces an `errorDetails` marker, **skip Scenario I and document the blocker** in the report. Do not modify the mock server source.
 
 **Scenario J (compaction marker) — known limitation:** The compaction marker is triggered when `request.slashCommand?.name === 'compact'`. The `/compact` slash command is handled by the Copilot extension, not the mock LLM server. To trigger it:
@@ -226,7 +226,7 @@ For each scenario, capture:
 
 1. In the 50+ turn chat, click 10 different markers at various vertical positions (top, middle, bottom, overlapping markers).
 2. For each click, verify the chat scrolls to and focuses the correct turn.
-3. **Test both `Reveal` and `RevealAndFocus` config modes** — run the scenario twice with `--test-setting chat.scrollbarPromptMarkers.clickBehavior=reveal` and `--test-setting chat.scrollbarPromptMarkers.clickBehavior=revealAndFocus`.
+3. **Test both `Reveal` and `RevealAndFocus` config modes** — the `--test-setting` flag is only available on `perf:chat`, not on `chat-memory-smoke.mts` or the `launch` skill. For custom scenario driving, write the setting `chat.scrollbarPromptMarkers.clickBehavior` to the launched instance's `settings.json` manually (`"reveal"` for the first run, `"revealAndFocus"` for the second). Alternatively, use `perf:chat --test-setting chat.scrollbarPromptMarkers.clickBehavior=reveal --scenario long-conversation` to test via the built-in harness.
 4. For `RevealAndFocus`, verify focus lands on the target row (not the scrollbar) after the animation-frame retry loop completes — especially for virtualized rows where `hasElement` returns false initially.
 5. Test **full-width hit-testing**: click the opposite lane from a marker (e.g., click the left side when a right-lane prompt marker is at that Y position) — it should still activate the marker.
 6. Test **overlapping markers at the same Y**: verify right-lane (prompt) wins over left-lane wins over full-lane.
@@ -321,9 +321,9 @@ findRetainerPaths(graph, 'ChatScrollbarPromptMarkerController', { maxPaths: 5 })
 
 ### 6. Open/close cycle accumulation (per-iteration sampling, not end-only snapshot)
 
-**Prerequisites:** This section requires a running Code OSS instance with CDP access. Do **not** rely on §4's instance — §4 scenarios may have torn down their instance. Launch a fresh instance using `chat-memory-smoke.mts` (which handles mock server setup) or the `launch` skill with `IS_SCENARIO_AUTOMATION=1` and `VSCODE_COPILOT_CHAT_TOKEN` set. The instance must have the mock LLM server running so that chat open/close cycles produce real responses (exercising marker controller creation/disposal). Verify CDP connectivity before starting the measurement loop.
+**Prerequisites:** This section requires a running Code OSS instance with CDP access. Do **not** rely on §4's instance — §4 scenarios may have torn down their instance. Launch a fresh instance using `chat-memory-smoke.mts` (which handles Code OSS launch and auth pre-seeding) or the `launch` skill with `IS_SCENARIO_AUTOMATION=1` and `VSCODE_COPILOT_CHAT_TOKEN` set. The instance must have the mock LLM server running so that chat open/close cycles produce real responses (exercising marker controller creation/disposal). Verify CDP connectivity before starting the measurement loop.
 
-**Note on `chat-memory-smoke.mts`:** This script launches via `scripts/code.sh` (no `--build` flag) and does **not** start the mock LLM server itself — despite the plan referencing it as handling mock server setup, it only handles the Code OSS launch and auth pre-seeding. You must start the mock LLM server separately (see §4's mock server setup instructions) and write the matching settings before launching. Alternatively, use the `launch` skill with `IS_SCENARIO_AUTOMATION=1`, `VSCODE_COPILOT_CHAT_TOKEN`, and settings pointing to the mock server.
+**Note on `chat-memory-smoke.mts`:** This script launches via `scripts/code.sh` (no `--build` flag) and does **not** start the mock LLM server itself — it only handles the Code OSS launch and auth pre-seeding. You must start the mock LLM server separately (see §4's mock server setup instructions) and write the matching settings before launching. Alternatively, use the `launch` skill with `IS_SCENARIO_AUTOMATION=1`, `VSCODE_COPILOT_CHAT_TOKEN`, and settings pointing to the mock server.
 
 For the open/close accumulation check (original Scenario H):
 

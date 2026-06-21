@@ -6,8 +6,6 @@
 import assert from 'assert';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ChatScrollbarPromptMarkerClickBehavior } from '../../../common/constants.js';
 import { IChatRequestViewModel, IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
@@ -122,15 +120,6 @@ function makeResponse(requestId: string, parts: unknown[] = []): IChatResponseVi
 }
 
 /**
- * Creates a fake file service that accepts writes without error.
- */
-function makeFileService(): IFileService {
-	const fake: IFileService = new (mock<IFileService>() as unknown as { new(): IFileService })();
-	fake.writeFile = async () => ({}) as never;
-	return fake;
-}
-
-/**
  * Creates a configuration service pre-configured with the given click behavior.
  */
 function makeConfigService(behavior: ChatScrollbarPromptMarkerClickBehavior): TestConfigurationService {
@@ -164,8 +153,6 @@ suite('ChatScrollbarPromptMarkerController', () => {
 		return disposables.add(new ChatScrollbarPromptMarkerController(
 			host,
 			makeConfigService(behavior),
-			makeFileService(),
-			new NullLogService(),
 		));
 	}
 
@@ -845,8 +832,6 @@ suite('ChatScrollbarPromptMarkerController', () => {
 			const controller = disposables.add(new ChatScrollbarPromptMarkerController(
 				host,
 				makeConfigService(ChatScrollbarPromptMarkerClickBehavior.Reveal),
-				makeFileService(),
-				new NullLogService(),
 			));
 
 			controller.layout();
