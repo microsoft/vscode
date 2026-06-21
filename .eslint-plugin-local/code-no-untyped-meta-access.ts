@@ -14,10 +14,12 @@ import { TSESTree } from '@typescript-eslint/utils';
  * `x._meta?.['foo']`) or casting it to an interface (`x._meta as Foo`) bypasses
  * any validation and lets well-known keys drift between producers and consumers.
  *
- * Instead, pass the whole bag to a validating reader declared in a common module
- * (e.g. `readToolCallMeta(x._meta)`), which checks each field and drops
- * wrong-typed values. Passing `_meta` itself as a value (the leaf reference) is
- * allowed — only further member access or casts off `_meta` are flagged.
+ * Instead, read well-known keys through a validating reader declared in a common
+ * module (e.g. `readToolCallMeta(toolCall)`), which takes the parent object,
+ * reads its `_meta` internally, checks each field, and drops wrong-typed values.
+ * Referencing `_meta` itself as a value (the leaf reference, e.g.
+ * `const meta = source._meta`) is allowed — only further member access or casts
+ * off `_meta` are flagged.
  *
  * This rule is purely syntactic (no type information): it keys off the `_meta`
  * identifier, so the reader modules that perform the one sanctioned first hop
@@ -28,8 +30,8 @@ export default new class NoUntypedMetaAccess implements eslint.Rule.RuleModule {
 
 	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {
-			noMetaFieldAccess: 'Do not read fields off `_meta` directly. Pass the whole `_meta` bag to a validating reader (e.g. `readToolCallMeta(x._meta)`) declared in a common module.',
-			noMetaCast: 'Do not cast `_meta` to an interface. Pass the whole `_meta` bag to a validating reader (e.g. `readToolCallMeta(x._meta)`) declared in a common module.',
+			noMetaFieldAccess: 'Do not read fields off `_meta` directly. Read well-known keys through a validating reader that takes the parent object (e.g. `readToolCallMeta(toolCall)`) declared in a common module.',
+			noMetaCast: 'Do not cast `_meta` to an interface. Read well-known keys through a validating reader that takes the parent object (e.g. `readToolCallMeta(toolCall)`) declared in a common module.',
 		},
 		schema: false,
 	};

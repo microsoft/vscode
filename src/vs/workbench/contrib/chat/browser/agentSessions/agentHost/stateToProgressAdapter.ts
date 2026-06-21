@@ -92,11 +92,8 @@ function getMcpAppData(tc: ToolCallState, _sessionResource: URI): ChatMcpAppData
 		return undefined;
 	}
 	const resourceUri = ui.resourceUri;
-	if (resourceUri.length === 0) {
-		return undefined;
-	}
 	const channelValue = ui.channel;
-	if (channelValue === undefined || channelValue.length === 0) {
+	if (channelValue === undefined) {
 		// No channel yet — the App's sub-RPCs would have nowhere to go.
 		// Skip mounting until the customization reaches Ready and the
 		// producer re-emits with the channel populated.

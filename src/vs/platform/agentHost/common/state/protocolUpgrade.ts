@@ -104,5 +104,5 @@ export function readUnsupportedProtocolVersionErrorMeta(data: unknown): Unsuppor
 	if (typeof raw['vscodeUpgradeMethod'] === 'string') {
 		result.vscodeUpgradeMethod = raw['vscodeUpgradeMethod'];
 	}
-	return result;
+	return Object.keys(result).length > 0 ? result : undefined;
 }
