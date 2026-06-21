@@ -286,12 +286,16 @@ async function main(): Promise<void> {
 		console.log(`   +${added.length} added, -${removed.length} removed`);
 
 		// Removed deps: stale-override check.
+		// NOTE: This is a best-effort warning, not a hard error. A package removed
+		// from one manifest may still be present in other manifests (e.g., jschardet
+		// appears in 3 package.json files). The full-build pipeline's stale-override
+		// detection is the authoritative check.
 		for (const dep of removed) {
 			if (overrideNames.has(dep.name.toLowerCase())) {
-				errors.push(
-					`Stale override: package "${dep.name}" was removed (in ${relPath}) but still ` +
+				warnings.push(
+					`Possibly stale override: package "${dep.name}" was removed (in ${relPath}) but still ` +
 					`has an entry in ${path.basename(args.cglicensesPath || 'cglicenses.json')}. ` +
-					`Please delete the override entry in the same PR.`
+					`Verify it's not still needed by another manifest before deleting.`
 				);
 			}
 		}

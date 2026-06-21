@@ -45,7 +45,7 @@ export interface NoticeEntry {
  */
 const LICENSE_PROSE_STARTS = /^(copyright|license|licen[cs]e|permission|the |this |all |end |terms|conditions|disclaimer|granted|redistribution|neither|no |software|unless|provided|except|in |of |for |under |above|note|#|\*|\(|\d+[\.\)]\s)/i;
 
-function isPackageHeader(line: string): boolean {
+export function isPackageHeader(line: string): boolean {
 	// License prose almost always starts with a common English/legal word
 	if (LICENSE_PROSE_STARTS.test(line)) {
 		return false;

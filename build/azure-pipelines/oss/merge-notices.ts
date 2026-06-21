@@ -16,6 +16,7 @@
 
 import * as fs from 'fs';
 import { applyOverrides, readCglicenses } from './apply-overrides.js';
+import { isPackageHeader } from './parse-notices.js';
 import { parseArgs } from './utils.js';
 
 interface NoticeEntry {
@@ -60,6 +61,12 @@ function parseNoticeFile(filePath: string): NoticeEntry[] {
 
 		// Skip file header lines
 		if (headerLine.startsWith('NOTICES AND INFORMATION') || headerLine.startsWith('Do Not Translate')) {
+			continue;
+		}
+
+		// Validate this looks like a real package header, not license prose
+		// following a decorative dash line inside a LICENSE body.
+		if (!isPackageHeader(headerLine)) {
 			continue;
 		}
 
