@@ -491,7 +491,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.permissions.default.settingDescription', "Controls the default permissions picker mode for new local chat sessions. You can still change the permission mode per session, and each session remembers the permission mode that was used. If enterprise policy disables auto approval, new sessions use Default Approvals."),
 			default: ChatPermissionLevel.Default,
 		},
-		[ChatConfiguration.AgentSessionDefaultConfiguration]: {
+		[ChatConfiguration.DefaultConfiguration]: {
 			type: 'object',
 			additionalProperties: false,
 			properties: {
@@ -499,26 +499,26 @@ configurationRegistry.registerConfiguration({
 					type: 'string',
 					enum: ['interactive', 'plan', 'autopilot'],
 					enumDescriptions: [
-						nls.localize('chat.agentSessions.defaultConfiguration.mode.interactive', "Interactive — step-by-step collaboration."),
-						nls.localize('chat.agentSessions.defaultConfiguration.mode.plan', "Plan — plan first, execute when ready."),
-						nls.localize('chat.agentSessions.defaultConfiguration.mode.autopilot', "Autopilot — autonomously iterate from start to finish."),
+						nls.localize('chat.defaultConfiguration.mode.interactive', "Interactive — step-by-step collaboration."),
+						nls.localize('chat.defaultConfiguration.mode.plan', "Plan — plan first, execute when ready."),
+						nls.localize('chat.defaultConfiguration.mode.autopilot', "Autopilot — autonomously iterate from start to finish."),
 					],
 					default: 'interactive',
-					description: nls.localize('chat.agentSessions.defaultConfiguration.mode.description', "The starting mode for new agent sessions."),
+					description: nls.localize('chat.defaultConfiguration.mode.description', "The starting mode for new agent sessions."),
 				},
 				approvals: {
 					type: 'string',
 					enum: [ChatPermissionLevel.Default, ChatPermissionLevel.AutoApprove],
 					enumDescriptions: [
-						nls.localize('chat.agentSessions.defaultConfiguration.approvals.default', "Default Approvals — Copilot uses your configured settings."),
-						nls.localize('chat.agentSessions.defaultConfiguration.approvals.autoApprove', "Bypass Approvals — all tool calls are auto-approved."),
+						nls.localize('chat.defaultConfiguration.approvals.default', "Default Approvals — Copilot uses your configured settings."),
+						nls.localize('chat.defaultConfiguration.approvals.autoApprove', "Bypass Approvals — all tool calls are auto-approved."),
 					],
 					default: ChatPermissionLevel.Default,
-					description: nls.localize('chat.agentSessions.defaultConfiguration.approvals.description', "The starting approval behavior for new agent sessions. If enterprise policy disables auto approval, new sessions use Default Approvals."),
+					description: nls.localize('chat.defaultConfiguration.approvals.description', "The starting approval behavior for new agent sessions. If enterprise policy disables auto approval, new sessions use Default Approvals."),
 				},
 			},
 			default: { mode: 'interactive', approvals: ChatPermissionLevel.Default },
-			markdownDescription: nls.localize('chat.agentSessions.defaultConfiguration.settingDescription', "Controls the default configuration (mode and approval behavior) for new agent sessions (such as Copilot CLI). You can still change the mode and approval level per session, and each session remembers what was used."),
+			markdownDescription: nls.localize('chat.defaultConfiguration.settingDescription', "Controls the default configuration (mode and approval behavior) for new agent sessions (such as Copilot CLI). You can still change the mode and approval level per session, and each session remembers what was used."),
 		},
 		[ChatConfiguration.GlobalAutoApprove]: {
 			default: false,
@@ -1896,6 +1896,13 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	]
 );
 Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).registerConfigurationMigrations([
+	{
+		key: 'chat.agentSessions.defaultConfiguration',
+		migrateFn: (value, _accessor) => ([
+			['chat.agentSessions.defaultConfiguration', { value: undefined }],
+			[ChatConfiguration.DefaultConfiguration, { value }]
+		])
+	},
 	{
 		key: 'chat.experimental.detectParticipant.enabled',
 		migrateFn: (value, _accessor) => ([
