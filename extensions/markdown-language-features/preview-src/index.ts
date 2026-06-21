@@ -104,6 +104,7 @@ onceDocumentLoaded(() => {
 	// Restore
 	const scrollProgress = state.scrollProgress;
 	addImageContexts();
+	addCopyButtons();
 	applyLineChanges(lineChanges);
 	if (typeof scrollProgress === 'number' && !settings.settings.fragment) {
 		doAfterImagesLoaded(() => {
@@ -335,6 +336,7 @@ window.addEventListener('message', async event => {
 
 			window.dispatchEvent(new CustomEvent('vscode.markdown.updateContent'));
 			addImageContexts();
+			addCopyButtons();
 			applyLineChanges(lineChanges);
 			break;
 		}
@@ -626,7 +628,31 @@ function getDiffMarkerPairs(root: Element): DiffMarkerPair[] {
 	return pairs;
 }
 
-
+function addCopyButtons() {
+	for (const pre of document.querySelectorAll('pre')) {
+		if (pre.querySelector('.code-copy-button')) {
+			continue; // already added
+		}
+		const button = document.createElement('button');
+		button.className = 'code-copy-button';
+		button.title = 'Copy';
+		button.innerHTML = `<i class="codicon codicon-copy"></i>`;
+		button.addEventListener('click', () => {
+			const code = pre.querySelector('code');
+			const text = code ? code.innerText : pre.innerText;
+			navigator.clipboard.writeText(text).then(() => {
+				button.innerHTML = `<i class="codicon codicon-check"></i>`;
+				button.classList.add('code-copy-button-copied');
+				setTimeout(() => {
+					button.innerHTML = `<i class="codicon codicon-copy"></i>`;
+					button.classList.remove('code-copy-button-copied');
+				}, 2000);
+			});
+		});
+		pre.style.position = 'relative';
+		pre.appendChild(button);
+	}
+}
 
 document.addEventListener('dblclick', event => {
 	if (!settings.settings.doubleClickToSwitchToEditor) {

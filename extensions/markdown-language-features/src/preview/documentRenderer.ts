@@ -236,6 +236,8 @@ export class MdDocumentRenderer {
 		for (const resource of this.#contributionProvider.contributions.previewStyles) {
 			baseStyles.push(`<link rel="stylesheet" type="text/css" href="${escapeAttribute(resourceProvider.asWebviewUri(resource))}">`);
 		}
+		const codiconUri = resourceProvider.asWebviewUri(vscode.Uri.joinPath(this.#context.extensionUri, 'node_modules', '@vscode', 'codicons', 'dist', 'codicon.css'));
+		baseStyles.push(`<link rel="stylesheet" type="text/css" href="${escapeAttribute(codiconUri)}">`);
 
 		return `${baseStyles.join('\n')}
 			${this.#computeCustomStyleSheetIncludes(resourceProvider, resource, config)}
