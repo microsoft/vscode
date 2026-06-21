@@ -4,8 +4,6 @@
 
 You are working in the `microsoft/vscode` repository on the worktree branch `agents/chat-scrollbar-markers-impl`. This branch adds a **chat scrollbar prompt marker** feature (colored markers on the chat transcript overview ruler for prompts, ask-question responses, file-change responses, compaction, and errors) plus supporting base-layer additions (`getOverviewRulerLayoutInfo`, `getElementTop`, `getElementHeight` on list/tree widgets) and a `ChatScrollbarPromptMarkerController` that owns DOM, event listeners, and per-render marker maps.
 
-A prior effort hardened the unit tests. A prior validation pass confirmed no perf regression and no additional memory leak (the pre-existing leak is identical between branch and baseline). The `appendDebugLog` hardcoded-path issue has been fixed (removed from source). **Your job is to re-validate after the fix** — confirm the application remains stable and has matching performance characteristics across the full chat lifecycle — startup, rendering new multi-step chats, re-rendering existing chats, scrolling, clicking markers, closing chats, and idle wait periods — and to surface any memory leaks or regressions, comparing this branch against `main`.
-
 This is an **autonomous AI-agent task**: you will leverage the repository's existing perf/leak harnesses, launch Code OSS from sources, drive the workbench via Playwright, capture heap snapshots and run summaries, and save all artifacts for archival.
 
 ## Hard guardrail
@@ -65,6 +63,19 @@ The repo requires Node 24.15.0 (per `.nvmrc`). The system default may be differe
 ```bash
 export NVM_DIR="$HOME/.nvm" && . "$NVM_DIR/nvm.sh" && nvm use 24.15.0
 ```
+
+### Issue 7: `perf:chat-leak` never closes/disposes the chat pane — disposal leaks are invisible
+
+The built-in leak checker (`test-chat-mem-leaks.js`) transitions between iterations by calling `openNewChat()`, which presses `Meta+KeyL` to start a **new** chat session. It does **not** close, hide, or dispose the previous chat widget. The old `ChatWidget` (and its `ChatScrollbarPromptMarkerController`, DOM markers, event listeners, and per-render marker maps) remains alive in memory — just hidden behind the new session.
+
+This means the harness measures "residual after switching to a new chat," **not** "residual after properly disposing a chat." For the scrollbar marker feature specifically, this is a significant blind spot: the marker controller's `dispose()` is only called when the chat widget is torn down (e.g., closing the chat editor tab or the panel), which **never happens** in this harness.
+
+Consequences:
+- Disposal leaks (event listeners not unregistered, DOM nodes not removed, `DisposableStore` not disposed) are **invisible** to `perf:chat-leak`.
+- The harness can detect leaks from *accumulation within a single live chat* (e.g., markers piling up across renders), but not leaks from *chat widget lifecycle*.
+- DOM node counts will grow monotonically because old chat widgets are never torn down — this is expected noise, not a signal.
+
+**Workaround:** Run `perf:chat-leak` as-is for standardized comparison numbers (and to compare with prior validation passes), but **also** run the supplementary close-and-dispose leak check in §6, which actually closes the chat pane between cycles. The §6 check is the authoritative disposal-leak detector; `perf:chat-leak` is a secondary data point. Document this limitation explicitly in the report.
 
 ## Existing tooling to use (read these before starting)
 
@@ -219,14 +230,16 @@ cp .chat-simulation-data/chat-simulation-leak-results.json "$ARTDIR/main-leak-re
 
 This uses the **state-based approach**: open fresh chat → force GC (double-call with 500ms + 300ms settle delays) → measure heap + DOM nodes → cycle through all 16 scenarios → open new chat → measure again → delta = leaked memory. Runs 3 iterations to distinguish consistent leaks from one-time caching.
 
+**⚠️ Known limitation (see Known Issues §7):** `openNewChat()` starts a new chat session but does **not** close or dispose the previous chat widget. The old `ChatWidget` and its `ChatScrollbarPromptMarkerController` remain alive in memory. This means `perf:chat-leak` can detect accumulation-within-a-live-chat leaks but **cannot** detect disposal leaks (event listeners, DOM nodes, or disposable stores that survive chat widget teardown). The supplementary close-and-dispose check in §6 is the authoritative disposal-leak detector. Run both — `perf:chat-leak` for standardized comparison, §6 for disposal lifecycle coverage.
+
 **Output locations:** The leak checker prints its full results table to **stdout** (captured via `tee`) and also writes structured output to `.chat-simulation-data/chat-simulation-leak-results.json`.
 
 **Comparison methodology:** Compare the two JSON files. The key metrics are:
-- **Total residual heap growth** (MB) — should be nearly identical between builds if no new leak
-- **Total residual DOM growth** (nodes) — should be identical if marker DOM elements are properly disposed
+- **Total residual heap growth** (MB) — should be nearly identical between builds if no new leak. Note: this includes retained-but-hidden chat widgets, so absolute numbers are inflated; focus on the **delta between branch and baseline**.
+- **Total residual DOM growth** (nodes) — will grow monotonically because old chat widgets are never torn down (see Known Issues §7). Compare the **delta between branch and baseline**, not absolute values. If the branch shows significantly more DOM growth than baseline, that indicates marker DOM elements are accumulating within live chats.
 - **Per-iteration residual** — iteration 1 has a large one-time caching cost (~21MB); iterations 2-3 show the steady-state leak rate (~7MB). Both should be identical between builds.
 
-**What this covers:** Scenarios F (close/open chat), G (idle memory growth), and H (repeated open/close accumulation) from the original plan. The leak checker calls `openNewChat()` between iterations and cycles through all scenario types.
+**What this covers:** Partial coverage of Scenarios F (close/open chat) and G (idle memory growth). Scenario H (repeated open/close accumulation with proper disposal) is **not** covered by this harness — see §6 for that coverage. The leak checker calls `openNewChat()` between iterations and cycles through all scenario types, but never disposes a chat widget.
 
 ### 3. Session switch leak check — use `chat-session-switch-smoke.mts`
 
@@ -371,18 +384,40 @@ const heap = await cdp.send('Runtime.getHeapUsage');
 ```
 A single GC call may not finalize V8's concurrent marking.
 
-### 6. Open/close cycle accumulation (per-iteration sampling, not end-only snapshot)
+### 6. Open/close cycle accumulation with proper chat pane disposal (per-iteration sampling)
 
 **Prerequisites:** This section requires a running Code OSS instance with CDP access. Do **not** rely on §4's instance — §4 scenarios may have torn down their instance. Launch a fresh instance using `chat-memory-smoke.mts` (which handles Code OSS launch and auth pre-seeding) or the `launch` skill with `IS_SCENARIO_AUTOMATION=1` and `VSCODE_COPILOT_CHAT_TOKEN` set. The instance must have the mock LLM server running so that chat open/close cycles produce real responses (exercising marker controller creation/disposal). Verify CDP connectivity before starting the measurement loop.
 
 **Note on `chat-memory-smoke.mts`:** This script launches via `scripts/code.sh` (no `--build` flag) and does **not** start the mock LLM server itself — it only handles the Code OSS launch and auth pre-seeding. You must start the mock LLM server separately (see §4's mock server setup instructions) and write the matching settings before launching. Alternatively, use the `launch` skill with `IS_SCENARIO_AUTOMATION=1`, `VSCODE_COPILOT_CHAT_TOKEN`, and settings pointing to the mock server. **Pass `--no-heap-snapshots`** to avoid the broken heap snapshot capture (see Known Issues §3).
 
-For the open/close accumulation check (original Scenario H):
+**⚠️ Critical: This section is the authoritative disposal-leak detector (see Known Issues §7).** Unlike `perf:chat-leak` (§2), which only calls `openNewChat()` and never disposes the chat widget, this section **actually closes the chat pane** between cycles, forcing the `ChatWidget` and its `ChatScrollbarPromptMarkerController` through the full `dispose()` lifecycle. This is the only way to detect disposal leaks — event listeners that survive teardown, DOM marker nodes that aren't removed, or `DisposableStore` instances that aren't disposed.
 
-1. Capture a `measure()` sample (forced double-GC + `Runtime.getHeapUsage` + `document.querySelectorAll('.chat-scrollbar-prompt-marker').length`) **after each of 20 open/close cycles**, not just at the end.
-2. Compute `linearRegressionSlope()` (available in `scripts/chat-simulation/common/utils.js`) on the 20 heap samples.
-3. A positive slope with low variance is the leak signal.
-4. Do NOT take 20 full heap snapshots — use the lightweight `measure()` approach per iteration. Reserve full snapshots for baseline and final states only.
+**How to close the chat pane (not just open a new chat):** Use one of these approaches via the command palette or keyboard:
+- `workbench.action.closePanel` — closes the entire panel containing the chat view, tearing down the chat widget.
+- Close the chat editor tab if chat is open as an editor (`workbench.action.closeActiveEditor`).
+- `Chat: Open Chat` command to reopen — this creates a **new** `ChatWidget` instance with a fresh `ChatScrollbarPromptMarkerController`.
+
+The key difference from `openNewChat()`: closing the panel/editor triggers `ChatWidget.dispose()`, which calls `ChatScrollbarPromptMarkerController.dispose()`, which should remove all DOM markers, unregister all event listeners, and dispose all `DisposableStore` entries. If any of those are missing, the old controller survives GC and heap/DOM counts grow.
+
+For the open/close accumulation check (original Scenario H), write a throwaway script under `/tmp/chat-validation-<timestamp>/` that:
+
+1. **Opens** the chat pane (via `Chat: Open Chat` command or `Control+Meta+KeyI`).
+2. **Sends a message** to the mock server and waits for the response to complete (this creates markers on the scrollbar).
+3. **Closes** the chat pane (via `workbench.action.closePanel` or `workbench.action.closeActiveEditor`) — this triggers `ChatWidget.dispose()`.
+4. **Forces GC** (double-call with 500ms + 300ms settle delays via CDP `HeapProfiler.collectGarbage`).
+5. **Measures**: `Runtime.getHeapUsage` (heap MB) + `document.querySelectorAll('.chat-scrollbar-prompt-marker').length` (marker DOM count) + `document.querySelectorAll('*').length` (total DOM nodes).
+6. **Reopens** the chat pane and repeats from step 2.
+7. Run **20 cycles** and record all 20 measurements to `artifacts/open-close-cycle-samples.json`.
+8. Compute `linearRegressionSlope()` (available in `scripts/chat-simulation/common/utils.js`) on the 20 heap samples.
+9. A positive slope with low variance is the leak signal. Also check that `.chat-scrollbar-prompt-marker` DOM count returns to **0** after each close+GC cycle — if it doesn't, marker DOM nodes are leaking (not removed in `dispose()`).
+10. Do NOT take 20 full heap snapshots — use the lightweight `measure()` approach per iteration. Reserve full snapshots for baseline and final states only.
+
+**Pass criteria:**
+- Heap slope ≈ 0 MB/iteration (or at least not significantly worse than baseline). A small positive slope from one-time caching is acceptable; a consistent positive slope across iterations 5-20 indicates a leak.
+- `.chat-scrollbar-prompt-marker` DOM count returns to 0 after each close+GC cycle. If markers persist after close, that is a disposal bug.
+- Total DOM node count does not grow linearly with cycle count. Some growth from VS Code internals is expected, but marker-related DOM should be fully reclaimed.
+
+**Comparison:** Run this check against both the branch and baseline builds. The baseline does not have the marker controller, so its DOM count for `.chat-scrollbar-prompt-marker` will always be 0 — compare the **heap slope** and **total DOM node growth** between the two builds. If the branch shows significantly more heap or DOM growth per cycle than baseline, that indicates a marker-controller disposal leak.
 
 ## Deliverables
 
@@ -394,7 +429,7 @@ Save everything under `/tmp/chat-validation-<timestamp>/`:
    - **Perf comparison table (from §1)**: `perf:chat` metrics for `main` vs branch with % delta, threshold, and statistical significance (p-value). Incorporate the `ci-summary.md` output.
    - **Leak comparison table (from §2)**: per-build residual heap growth (MB) and DOM node growth from `perf:chat-leak`, with pass/fail against the 10 MB threshold.
    - **Session switch findings (from §3)**: heap delta and DOM marker count across 10 switch iterations, from `chat-session-switch-smoke.mts` `summary.json`.
-   - **Open/close cycle findings (from §6)**: per-iteration heap slope (MB/iteration) from `linearRegressionSlope()` over 20 samples, with leak determination.
+   - **Open/close cycle findings (from §6)**: per-iteration heap slope (MB/iteration) from `linearRegressionSlope()` over 20 close-and-dispose cycles, with leak determination. Must include `.chat-scrollbar-prompt-marker` DOM count after each close+GC (should be 0) and total DOM node growth. This is the authoritative disposal-leak check — note explicitly whether `perf:chat-leak` (§2) missed anything that §6 caught, due to the harness not closing the chat pane (Known Issues §7).
    - **Marker-specific findings (from §5)**: `.chat-scrollbar-prompt-marker` DOM count delta per scenario, `Runtime.getHeapUsage` delta per scenario, comparison of leak residuals between branch and baseline.
    - **Log findings**: any errors or warnings from renderer/extension-host/agent-host logs during scenarios.
    - **Blocked scenarios**: list any scenarios that could not be completed (with reason), so reviewers know what was not covered.
@@ -429,6 +464,7 @@ If `perf:chat` or `perf:chat-leak` fails to launch, check these in order:
 - All artifacts go to `/tmp/chat-validation-<timestamp>/`; do not commit them.
 - **Maximize reuse of existing tooling:** use `perf:chat --no-baseline --verbose` for perf comparison (run separately per build), `perf:chat-leak --verbose` for leak checking, `chat-session-switch-smoke.mts --no-heap-snapshots` for session switching, `chat-memory-smoke.mts` for smoke runs. Only write custom scripts for the true gaps (scenarios A, C, D, E, I, J, K).
 - **Compare per-build deltas**, not absolute cross-build heap snapshots. Node IDs are process-local.
+- **Run both leak checks:** `perf:chat-leak` (§2) for standardized accumulation-within-live-chat numbers, and the close-and-dispose cycle check (§6) for disposal-leak coverage. The §6 check is authoritative for disposal leaks because `perf:chat-leak` never closes the chat pane (Known Issues §7).
 - **Use the double-GC pattern** (500ms + 300ms settle delays) before any memory measurement.
 - **Use trace events for frame-rate analysis**, not CPU profiles. Use 50ms threshold, not 16ms.
 - **Use existing thresholds** (20% global, `100ms` absolute for `timeToFirstToken`) with Welch's t-test significance (p < 0.05).
