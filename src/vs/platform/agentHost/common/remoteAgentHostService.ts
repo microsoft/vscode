@@ -241,6 +241,16 @@ export interface IRemoteAgentHostService {
 	getConnection(address: string): IAgentConnection | undefined;
 
 	/**
+	 * Get a per-connection {@link IAgentConnection} by its sanitized
+	 * connection authority (as produced by `agentHostAuthority`), rather than
+	 * its raw address. Useful for callers that only have the authority
+	 * component of a remote session URI scheme (`remote-<authority>-<provider>`).
+	 *
+	 * Returns `undefined` if no active connection matches the authority.
+	 */
+	getConnectionByAuthority(authority: string): IAgentConnection | undefined;
+
+	/**
 	 * Adds or updates a configured remote host and resolves once a connection
 	 * to that host is available.
 	 */
@@ -335,6 +345,7 @@ export class NullRemoteAgentHostService implements IRemoteAgentHostService {
 	readonly connections: readonly IRemoteAgentHostConnectionInfo[] = [];
 	readonly configuredEntries: readonly IRemoteAgentHostEntry[] = [];
 	getConnection(): IAgentConnection | undefined { return undefined; }
+	getConnectionByAuthority(): IAgentConnection | undefined { return undefined; }
 	async addRemoteAgentHost(): Promise<IRemoteAgentHostConnectionInfo> {
 		throw new Error('Remote agent host connections are not supported in this environment.');
 	}

@@ -348,12 +348,10 @@ export class AgentSideEffects extends Disposable {
 		if (signal.kind === 'pending_confirmation') {
 			const subagentSession = this._findSubagentSessionForToolCall(sessionKey, signal.state.toolCallId);
 			if (subagentSession) {
-				const subTurnId = this._stateManager.getActiveTurnId(subagentSession);
-				if (subTurnId) {
-					void this._handleToolReady(signal, subagentSession, subTurnId, agent).catch(err => {
-						this._logService.error('[AgentSideEffects] _handleToolReady failed', err);
-					});
-				}
+				const subTurnId = this._stateManager.getActiveTurnId(subagentSession) ?? '';
+				void this._handleToolReady(signal, subagentSession, subTurnId, agent).catch(err => {
+					this._logService.error('[AgentSideEffects] _handleToolReady failed', err);
+				});
 				return;
 			}
 		}
@@ -369,6 +367,19 @@ export class AgentSideEffects extends Disposable {
 		// such as customizations, title, or configuration. A turnComplete
 		// action also drives post-turn side effects even when the matching
 		// turnStarted was not observed by this side-effects instance.
+		//
+		// pending_confirmation signals must also be handled here: when a
+		// hook-triggered continuation runs after the protocol turn has
+		// already completed, tool actions are dispatched (below) with an
+		// empty turnId. Without this, the pending_confirmation is silently
+		// dropped, the permission deferred never resolves, and the session
+		// hangs indefinitely.
+		if (signal.kind === 'pending_confirmation') {
+			void this._handleToolReady(signal, sessionKey, '', agent).catch(err => {
+				this._logService.error('[AgentSideEffects] _handleToolReady failed', err);
+			});
+			return;
+		}
 		if (signal.kind === 'action') {
 			this._stateManager.dispatchServerAction(sessionKey, signal.action);
 			if (signal.action.type === ActionType.ChatTurnComplete) {
@@ -852,6 +863,11 @@ export class AgentSideEffects extends Disposable {
 				agent?.abortSession(URI.parse(channel), chatChannel ? URI.parse(chatChannel) : undefined).catch(err => {
 					this._logService.error('[AgentSideEffects] abortSession failed', err);
 				});
+				// Intentionally do NOT drain queued messages here: cancelling means
+				// "stop", so messages queued behind the turn stay queued for the
+				// user to dequeue/run manually. (A message the user sends *after*
+				// the abort is still consumed via the ChatPendingMessageSet path
+				// once cancellation has cleared the active turn.)
 				break;
 			}
 			case ActionType.SessionModelChanged: {
