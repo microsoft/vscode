@@ -39,6 +39,27 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		private readonly storageService: IStorageService,
 	) {
 		super();
+
+		// Language model providers register asynchronously, so a model's schema
+		// defaults and profile-global configuration may not be available the first
+		// time `getModelConfiguration` is called (e.g. when the model picker or the
+		// context-usage widget reads it during initial layout). The empty snapshot
+		// resolved at that point would otherwise be memoized forever, pinning the
+		// model to its schema default while the request path — resolved later —
+		// uses the configured value. When the set of language models changes, drop
+		// the cached snapshots so the next read recomputes against the now-available
+		// configuration, and notify consumers (picker, context-usage widget) so any
+		// already-rendered value refreshes.
+		this._register(this.languageModelsService.onDidChangeLanguageModels(() => {
+			if (this._overrides.size === 0) {
+				return;
+			}
+			const staleModelIds = [...this._overrides.keys()];
+			this._overrides.clear();
+			for (const modelId of staleModelIds) {
+				this._onDidChange.fire(modelId);
+			}
+		}));
 	}
 
 	/**
@@ -54,17 +75,34 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	getModelConfiguration(modelId: string): IStringDictionary<unknown> | undefined {
 		let override = this._overrides.get(modelId);
 		if (!override) {
-			override = resolveModelConfiguration(
-				this._readBucket()[modelId],
-				this._schemaDefaults(modelId),
-				this.languageModelsService.getModelConfiguration(modelId),
-			);
+			const bucketEntry = this._readBucket()[modelId];
+			const schemaDefaults = this._schemaDefaults(modelId);
+			const globalConfig = this.languageModelsService.getModelConfiguration(modelId);
+			override = resolveModelConfiguration(bucketEntry, schemaDefaults, globalConfig);
 			this._overrides.set(modelId, override);
 		}
 		return Object.keys(override).length > 0 ? override : undefined;
 	}
 
 	async setModelConfiguration(modelId: string, values: IStringDictionary<unknown>): Promise<void> {
+		this._applyLocalModelConfiguration(modelId, values);
+
+		// Mirror the change to the profile-global model configuration. The
+		// per-editor bucket is the source of truth for this editor, but the
+		// global value is what newly created stores read as their migration
+		// fallback (see `getModelConfiguration`) and what other surfaces (e.g. the
+		// Models management view) display. Without this, changing the dropdown
+		// would only update the editor-scoped bucket and leave a stale global
+		// value behind, so a previously chosen value (e.g. the full context
+		// window) could get "stuck" and reappear as the apparent default whenever
+		// the bucket is absent. This restores the pre-#320393 behaviour where the
+		// picker wrote straight to the global. `setModelConfiguration` on the
+		// service strips values equal to their schema default, so selecting the
+		// default cleanly clears the global override.
+		await this.languageModelsService.setModelConfiguration(modelId, values);
+	}
+
+	private _applyLocalModelConfiguration(modelId: string, values: IStringDictionary<unknown>): void {
 		const schemaDefaults = this._schemaDefaults(modelId);
 		const stored = computeStoredConfiguration(this.getModelConfiguration(modelId) ?? {}, values, schemaDefaults);
 		const nextOverride = { ...schemaDefaults, ...stored };
@@ -114,9 +152,11 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	 */
 	restoreModelConfiguration(modelId: string, values: IStringDictionary<unknown>): void {
 		const filtered = filterConfigurationToSchema(values, this.languageModelsService.lookupLanguageModel(modelId)?.configurationSchema);
-		// Intentionally fire-and-forget: `setModelConfiguration` completes synchronously
-		// (no awaits) and the interface only returns a Promise for API symmetry.
-		void this.setModelConfiguration(modelId, filtered);
+		// Restore only seeds this editor's scoped snapshot; unlike a user-made
+		// change it must NOT write the profile-global value, since restoring a
+		// session is not an intentional reconfiguration and runs on every
+		// input-state sync.
+		this._applyLocalModelConfiguration(modelId, filtered);
 	}
 
 	/**

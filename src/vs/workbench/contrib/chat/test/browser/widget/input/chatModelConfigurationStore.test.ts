@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
+import { Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
@@ -22,8 +23,10 @@ const KEY = 'chat.modelConfiguration.panel';
 
 function createStubService(global?: IStringDictionary<unknown>): ILanguageModelsService {
 	return {
+		onDidChangeLanguageModels: Event.None,
 		lookupLanguageModel: (_id: string) => ({ configurationSchema: schema } as ILanguageModelChatMetadata),
 		getModelConfiguration: (_id: string) => global,
+		setModelConfiguration: async (_id: string, _values: IStringDictionary<unknown>) => { },
 	} as unknown as ILanguageModelsService;
 }
 

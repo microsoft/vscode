@@ -310,7 +310,15 @@ export class ChatContextUsageWidget extends Disposable {
 		const modelMetadata = this.languageModelsService.lookupLanguageModel(modelId);
 		const modelConfiguration = this._modelConfigurationResolver?.(modelId) ?? this.languageModelsService.getModelConfiguration(modelId);
 		const configuredContextSize = typeof modelConfiguration?.contextSize === 'number' ? modelConfiguration.contextSize : undefined;
-		const maxInputTokens = configuredContextSize ?? modelMetadata?.maxInputTokens;
+		// Fall back to the same schema default the model picker advertises before
+		// the model's native max window, so the context size shown here always
+		// matches the picker. Otherwise a model whose resolved configuration has no
+		// numeric `contextSize` (e.g. one using a string `contextTier`) would paint
+		// its full native window here while the picker shows the schema default.
+		const schemaDefaultContextSize = typeof modelMetadata?.configurationSchema?.properties?.contextSize?.default === 'number'
+			? modelMetadata.configurationSchema.properties.contextSize.default
+			: undefined;
+		const maxInputTokens = configuredContextSize ?? schemaDefaultContextSize ?? modelMetadata?.maxInputTokens;
 		const maxOutputTokens = modelMetadata?.maxOutputTokens;
 
 		const totalContextWindow = (maxInputTokens ?? 0) + (maxOutputTokens ?? 0);
