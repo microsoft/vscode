@@ -220,9 +220,16 @@ jobs:
 
       - name: 🧪 Run smoke tests (Electron)
         if: ${{ inputs.electron_tests && inputs.smoke_tests }}
-        timeout-minutes: 20
+        timeout-minutes: 120
         shell: pwsh
-        run: npm run smoketest-no-compile -- --tracing
+        run: |
+          # NOTE: Temporarily looping smoke tests to flush out flaky Chat Sessions / Agents Window tests. Do not merge.
+          for ($i = 1; $i -le 10; $i++) {
+            Write-Host "::group::Smoke test run $i of 10"
+            npm run smoketest-no-compile -- --tracing
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            Write-Host "::endgroup::"
+          }
 
       - name: 🧪 Run smoke tests (Browser, Chromium)
         if: ${{ inputs.browser_tests && inputs.smoke_tests }}
