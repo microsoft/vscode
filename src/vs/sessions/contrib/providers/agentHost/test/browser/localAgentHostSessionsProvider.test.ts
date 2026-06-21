@@ -24,6 +24,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { IDialogService, IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService, type ChatSendResult, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService, isIChatSessionFileChange2 } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -283,11 +284,15 @@ function createPolicyRestrictedConfigurationService(): TestConfigurationService 
 
 function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = [
 	{ type: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
-], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; storageService?: IStorageService; isSessionsWindow?: boolean; confirmDelete?: boolean }): LocalAgentHostSessionsProvider {
+], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; storageService?: IStorageService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean }): LocalAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IAgentHostService, agentHostService);
 	instantiationService.stub(IConfigurationService, options?.configurationService ?? new TestConfigurationService());
+	instantiationService.stub(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() {
+		override isWorkspaceTrusted(): boolean { return options?.workspaceTrusted ?? true; }
+		override async getUriTrustInfo(uri: URI) { return { uri, trusted: options?.workspaceTrusted ?? true }; }
+	});
 	instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: options?.isSessionsWindow ?? true } as IWorkbenchEnvironmentService);
 	instantiationService.stub(IFileDialogService, {});
 	instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: options?.confirmDelete ?? true }) });
@@ -1515,6 +1520,19 @@ suite('LocalAgentHostSessionsProvider', () => {
 			agentHost.sessionSubscribeCounts.get(expectedBackendUri.toString()),
 			1,
 			'a state subscription should be held while the new session view is active',
+		);
+	});
+
+	test('createNewSession does not eagerly create the backend session in an untrusted folder', async () => {
+		const provider = createProvider(disposables, agentHost, undefined, { workspaceTrusted: false });
+		const workspaceUri = URI.parse('file:///home/user/untrusted-project');
+		provider.createNewSession(workspaceUri, provider.sessionTypes[0].id);
+		await timeout(0); // let the (suppressed) eager createSession path settle
+
+		assert.deepStrictEqual(
+			agentHost.createdSessionUris.map(u => u.toString()),
+			[],
+			'no eager createSession should be invoked for an untrusted folder',
 		);
 	});
 
