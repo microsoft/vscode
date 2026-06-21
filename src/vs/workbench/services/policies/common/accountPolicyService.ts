@@ -179,23 +179,21 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 
 	private getPolicyData(managedSettings?: ManagedSettingsData): IPolicyData | undefined {
 		const accountPolicyData = this.defaultAccountService.policyData ?? undefined;
-		const managedPolicyData = managedSettings ?? this.copilotManagedSettingsService?.managedSettings;
-		const hasManagedPolicyData = managedPolicyData && Object.keys(managedPolicyData).length > 0;
-		if (!accountPolicyData && !hasManagedPolicyData) {
+		const nativeManagedSettings = managedSettings ?? this.copilotManagedSettingsService?.managedSettings;
+		const hasNativeManagedSettings = nativeManagedSettings && Object.keys(nativeManagedSettings).length > 0;
+		if (!accountPolicyData && !hasNativeManagedSettings) {
 			return undefined;
 		}
 
-		// Managed settings arrive from two delivery channels: the server `managed_settings`
-		// endpoint (carried on `accountPolicyData`) and native MDM (the Copilot managed-settings
-		// service). Merge them — MDM overrides server — then project the result onto the schema
-		// declared by policy definitions so both channels honor the same declaration-driven keys
-		// and value types.
+		// Single authoritative source: server-delivered managed settings win over native MDM.
+		// See `.github/skills/add-policy/github-managed-settings.md` for the precedence rationale.
+		const serverManagedSettings = accountPolicyData?.managedSettings;
+		const hasServerManagedSettings = serverManagedSettings && Object.keys(serverManagedSettings).length > 0;
+		const winningManagedSettings = hasServerManagedSettings ? serverManagedSettings : nativeManagedSettings;
+
 		const declaredManagedSettings = collectManagedSettingsDefinitions(this.policyDefinitions);
 		const managedSettingsData = projectManagedSettings(
-			{
-				...accountPolicyData?.managedSettings,
-				...managedPolicyData,
-			},
+			{ ...winningManagedSettings },
 			declaredManagedSettings,
 			msg => this.logService.warn(`[AccountPolicy] ${msg}`)
 		);

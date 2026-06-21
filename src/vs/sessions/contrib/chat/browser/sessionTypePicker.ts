@@ -241,7 +241,17 @@ export class SessionTypePicker extends Disposable {
 				groups.set(groupTitle, [folderType]);
 			}
 		}
-		const showSectionHeaders = groups.size > 1;
+		// Section headers exist to disambiguate session types that share a
+		// label across providers (e.g. two providers both offering "Claude").
+		// When every type's label is unique there is nothing to disambiguate,
+		// so render a flat list without group headers even if multiple
+		// providers contribute.
+		const labelCounts = new Map<string, number>();
+		for (const { sessionType } of folderTypes) {
+			labelCounts.set(sessionType.label, (labelCounts.get(sessionType.label) ?? 0) + 1);
+		}
+		const hasDuplicateLabels = Array.from(labelCounts.values()).some(count => count > 1);
+		const showSectionHeaders = groups.size > 1 && hasDuplicateLabels;
 
 		const groupedItems: IActionListItem<ISessionTypePickerItem>[] = [];
 		for (const [groupTitle, types] of groups) {

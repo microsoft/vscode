@@ -25,6 +25,8 @@ import { IChatCodeBlockInfo, IChatWidgetService } from '../../../chat.js';
 import { IChatToolRiskAssessmentService } from '../../../tools/chatToolRiskAssessmentService.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
+import { renderFileWidgets } from '../chatInlineAnchorWidget.js';
+import { IChatMarkdownAnchorService } from '../chatMarkdownAnchorService.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from '../chatReferencesContentPart.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { AbstractToolConfirmationSubPart } from './abstractToolConfirmationSubPart.js';
@@ -43,6 +45,7 @@ export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmati
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@ILanguageModelToolsService languageModelToolsService: ILanguageModelToolsService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
+		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IChatToolRiskAssessmentService riskAssessmentService: IChatToolRiskAssessmentService,
@@ -106,6 +109,7 @@ export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmati
 
 		if (message) {
 			const renderedMessage = this._register(this.markdownRendererService.render(typeof message === 'string' ? new MarkdownString(message) : message));
+			renderFileWidgets(renderedMessage.element, this.instantiationService, this.chatMarkdownAnchorService, this._store);
 			container.append(renderedMessage.element);
 		}
 

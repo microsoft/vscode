@@ -376,7 +376,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				const knownProvider = getAgentSessionProvider(type);
 				if (knownProvider) {
 					// Well-known provider — use hardcoded name
-					reader.store.add(registerNewSessionInPlaceAction(type, getAgentSessionProviderName(knownProvider)));
+					const label = getAgentSessionProviderName(knownProvider);
+					reader.store.add(registerNewSessionInPlaceAction(type, label));
 				} else {
 					// Extension-contributed — use contribution metadata
 					const contrib = this._contributions.get(type);
@@ -425,7 +426,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			for await (const result of this.getChatSessionItems([chatSessionType], CancellationToken.None)) {
 				items.push(...result.items);
 			}
-			const inProgress = items.filter(item => item.status && isSessionInProgressStatus(item.status));
+			const inProgress = items.filter(item => !item.archived && item.status && isSessionInProgressStatus(item.status));
 			this.reportInProgress(chatSessionType, inProgress.length);
 		} catch (error) {
 			this._logService.warn(`Failed to update in-progress status for chat session type '${chatSessionType}':`, error);

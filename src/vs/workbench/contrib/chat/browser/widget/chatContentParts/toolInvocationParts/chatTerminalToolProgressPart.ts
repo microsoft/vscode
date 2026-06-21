@@ -712,7 +712,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			const action = new Action(
 				TerminalContribCommandId.ContinueInBackground,
 				localize('continueInBackground', 'Continue in Background'),
-				ThemeIcon.asClassName(Codicon.debugContinue),
+				ThemeIcon.asClassName(Codicon.debugContinueSmall),
 				true,
 				() => this.continueInBackground()
 			);

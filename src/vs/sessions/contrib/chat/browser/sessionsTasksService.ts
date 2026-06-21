@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { joinPath, dirname, isEqual } from '../../../../base/common/resources.js';
 import { parse } from '../../../../base/common/jsonc.js';
@@ -146,8 +146,11 @@ export interface ISessionsTasksService {
 	/**
 	 * Runs a task via the task service, looking it up by label in the
 	 * workspace folder corresponding to the session worktree.
+	 *
+	 * May resolve to an {@link IDisposable} that stops the launched task; see
+	 * {@link ISessionTaskRunner.runTask}.
 	 */
-	runTask(task: ITaskEntry, session: ISession): Promise<void>;
+	runTask(task: ITaskEntry, session: ISession): Promise<IDisposable | undefined>;
 
 	/**
 	 * Observable label of the pinned task for the given repository.
@@ -385,13 +388,14 @@ export class SessionsTasksService extends Disposable implements ISessionsTasksSe
 		}
 	}
 
-	async runTask(task: ITaskEntry, session: ISession): Promise<void> {
+	async runTask(task: ITaskEntry, session: ISession): Promise<IDisposable | undefined> {
 		const runner = this._taskRunnerRegistry.getRunner(session);
 		if (!runner) {
-			return;
+			return undefined;
 		}
-		await runner.runTask(task, session);
+		const handle = await runner.runTask(task, session);
 		this._onDidRunTask.fire({ task, session });
+		return handle;
 	}
 
 	getPinnedTaskLabel(repository: URI | undefined): IObservable<string | undefined> {

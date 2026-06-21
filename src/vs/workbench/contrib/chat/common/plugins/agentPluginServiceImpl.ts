@@ -11,7 +11,7 @@ import { untildify } from '../../../../../base/common/labels.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { equals } from '../../../../../base/common/objects.js';
-import { autorun, derived, derivedOpts, IObservable, ISettableObservable, ITransaction, observableFromEvent, observableSignalFromEvent, ObservablePromise, observableSignal, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, derived, derivedOpts, IObservable, ISettableObservable, ITransaction, observableFromEvent, ObservablePromise, observableSignal, observableValue, transaction } from '../../../../../base/common/observable.js';
 import {
 	posix,
 	win32
@@ -54,7 +54,7 @@ import { HookType } from '../promptSyntax/hookTypes.js';
 import { IAgentPluginRepositoryService } from './agentPluginRepositoryService.js';
 import { agentPluginDiscoveryRegistry, IAgentPlugin, IAgentPluginDiscovery, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginMcpServerDefinition, IAgentPluginService } from './agentPluginService.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from './pluginMarketplaceService.js';
-import { type IMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from './marketplaceReference.js';
+import { type IMarketplaceReference } from './marketplaceReference.js';
 
 // Re-export shared helpers so existing consumers (including tests) continue to work.
 export { shellQuotePluginRootInCommand, resolveMcpServersMap, convertBareEnvVarsToVsCodeSyntax } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
@@ -98,7 +98,6 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
-		@IPluginMarketplaceService pluginMarketplaceService: IPluginMarketplaceService,
 		@ILogService logService: ILogService,
 	) {
 		super();
@@ -122,11 +121,6 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 			Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.EnabledPlugins)),
 			() => configurationService.inspect<Record<string, boolean>>(ChatConfiguration.EnabledPlugins).policyValue,
 		);
-		const strictMarketplaces = observableConfigValue<boolean>(ChatConfiguration.StrictMarketplaces, false, configurationService);
-		// Re-evaluate marketplace trust when the policy-delivered extra
-		// marketplaces change (consulted under strict mode).
-		const extraMarketplacesChanged = observableSignalFromEvent('extraMarketplaces',
-			Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.ExtraMarketplaces)));
 
 		this.plugins = derived(read => {
 			if (!pluginsEnabled.read(read)) {
@@ -141,14 +135,9 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 		this._register(autorun(reader => {
 			const plugins = this.plugins.read(reader);
 			const policy = enabledPluginsPolicy.read(reader);
-			const strict = strictMarketplaces.read(reader);
-			extraMarketplacesChanged.read(reader);
-			const trustedExtras = strict
-				? parseMarketplaceReferences(readConfiguredMarketplaces(configurationService).extraValues)
-				: [];
 			transaction(tx => {
 				for (const plugin of plugins) {
-					setPolicyBlocked(plugin, this._isBlockedByPolicy(plugin, policy, strict, trustedExtras, pluginMarketplaceService, logService), tx);
+					setPolicyBlocked(plugin, this._isBlockedByPolicy(plugin, policy, logService), tx);
 				}
 			});
 		}));
@@ -158,22 +147,18 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 	 * Determines whether a plugin is blocked by enterprise policy:
 	 * - If `chat.plugins.enabledPlugins` (policy-managed via `ChatEnabledPlugins`)
 	 *   is set, only plugins whose ID appears with value `true` are allowed.
-	 * - If `chat.plugins.strictMarketplaces` is on, only plugins from a
-	 *   marketplace listed in `chat.plugins.extraMarketplaces` are allowed.
+	 *
+	 * Marketplace trust (`chat.plugins.strictMarketplaces`) is enforced at
+	 * install time only, already-installed plugins are not
+	 * retroactively unloaded.
 	 *
 	 * Plugins without a marketplace provenance (e.g. user-configured filesystem
 	 * paths from `chat.pluginLocations`) are never blocked — they are user-side
-	 * concerns outside the enterprise enforcement boundary. Copilot-CLI-installed
-	 * plugins under `~/.copilot/installed-plugins/<marketplace>/<plugin>/` are
-	 * gated using their install-path identity even when they lack rich
-	 * marketplace metadata.
+	 * concerns outside the enterprise enforcement boundary.
 	 */
 	private _isBlockedByPolicy(
 		plugin: IAgentPlugin,
 		enabledPluginsPolicy: Record<string, boolean> | undefined,
-		strictMarketplaces: boolean,
-		trustedExtras: readonly IMarketplaceReference[],
-		pluginMarketplaceService: IPluginMarketplaceService,
 		logService: ILogService,
 	): boolean {
 		const identity = getPolicyIdentity(plugin);
@@ -184,15 +169,6 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 		if (enabledPluginsPolicy && Object.keys(enabledPluginsPolicy).length > 0) {
 			if (enabledPluginsPolicy[pluginId] !== true) {
 				logService.debug(`[AgentPluginService] Plugin '${pluginId}' blocked — not enabled by ChatEnabledPlugins policy`);
-				return true;
-			}
-		}
-		if (strictMarketplaces) {
-			const trusted = identity.marketplaceReference
-				? pluginMarketplaceService.isMarketplaceTrusted(identity.marketplaceReference)
-				: isCliBucketTrusted(identity.marketplace, trustedExtras);
-			if (!trusted) {
-				logService.debug(`[AgentPluginService] Plugin '${pluginId}' blocked — marketplace not trusted under strict mode`);
 				return true;
 			}
 		}
@@ -278,28 +254,6 @@ function getPolicyIdentity(plugin: IAgentPlugin): IPolicyIdentity | undefined {
 		return undefined;
 	}
 	return { name, marketplace };
-}
-
-/**
- * Under strict mode, decide whether a Copilot-CLI-installed plugin's bucket
- * name (the `<marketplace>` segment of its install path) corresponds to a
- * trusted marketplace listed in `chat.plugins.extraMarketplaces`. Uses
- * heuristics covering common CLI bucket-naming conventions (GitHub repo name,
- * shorthand `owner/repo`, raw reference value, canonical id tail).
- */
-function isCliBucketTrusted(bucket: string, trustedExtras: readonly IMarketplaceReference[]): boolean {
-	return trustedExtras.some(ref => {
-		if (ref.githubRepo && ref.githubRepo.split('/').pop() === bucket) {
-			return true;
-		}
-		if (ref.displayLabel === bucket || ref.displayLabel.endsWith(`/${bucket}`)) {
-			return true;
-		}
-		if (ref.canonicalId.endsWith(`/${bucket}`) || ref.canonicalId.endsWith(`/${bucket}.git`)) {
-			return true;
-		}
-		return false;
-	});
 }
 
 /**

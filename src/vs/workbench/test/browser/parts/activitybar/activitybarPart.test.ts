@@ -74,7 +74,7 @@ suite('ActivitybarPart', () => {
 	function createActivitybarPart(compact: boolean, floatingPanelsEnabled = false): { part: ActivitybarPart; configService: TestConfigurationService; layoutService: TestFloatingPanelsLayoutService } {
 		const configService = new TestConfigurationService({
 			[LayoutSettings.ACTIVITY_BAR_COMPACT]: compact,
-			[LayoutSettings.FLOATING_PANELS]: floatingPanelsEnabled,
+			[LayoutSettings.MODERN_UI]: floatingPanelsEnabled,
 		});
 		const storageService = disposables.add(new TestStorageService());
 		const themeService = new TestThemeService();
@@ -244,8 +244,8 @@ suite('ActivitybarPart', () => {
 		disposables.add(part.onDidChange(e => events.push(e)));
 
 		layoutService.floatingPanelsEnabled = true;
-		configService.setUserConfiguration(LayoutSettings.FLOATING_PANELS, true);
-		fireConfigChange(configService, LayoutSettings.FLOATING_PANELS);
+		configService.setUserConfiguration(LayoutSettings.MODERN_UI, true);
+		fireConfigChange(configService, LayoutSettings.MODERN_UI);
 
 		assert.deepStrictEqual(events, [undefined]);
 		assert.strictEqual(part.minimumWidth, ActivitybarPart.ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN);

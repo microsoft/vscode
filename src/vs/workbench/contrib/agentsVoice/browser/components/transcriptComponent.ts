@@ -37,28 +37,30 @@ const TRANSCRIPT_CSS = `
 
 export interface TranscriptProps {
 	readonly turns: readonly ITranscriptTurn[];
+	readonly chatStyle?: boolean;
 }
 
-function createUserTurn(turn: ITranscriptTurn): HTMLElement {
+function createUserTurn(turn: ITranscriptTurn, chatStyle?: boolean): HTMLElement {
 	const wrapper = dom.$('div.voice-user-transcript');
 	wrapper.style.cssText = USER_CONTAINER_STYLE;
+	const userColor = chatStyle ? 'var(--vscode-foreground)' : COLOR.userTranscript;
 
 	const inner = dom.$('div');
 	if (!turn.isPartial) {
 		const span = dom.$('span');
-		span.style.color = COLOR.userTranscript;
+		span.style.color = userColor;
 		span.textContent = turn.text;
 		inner.append(span);
 	} else {
 		const unsure = turn.committed ? turn.text.slice(turn.committed.length) : turn.text;
 		if (turn.committed) {
 			const committedSpan = dom.$('span');
-			committedSpan.style.color = COLOR.userTranscript;
+			committedSpan.style.color = userColor;
 			committedSpan.textContent = turn.committed;
 			inner.append(committedSpan);
 		}
 		const unsureSpan = dom.$('span');
-		unsureSpan.style.cssText = `color:${COLOR.userTranscript};opacity:0.6;font-style:italic;animation:textPulse 1.5s ease-in-out infinite;`;
+		unsureSpan.style.cssText = `color:${userColor};opacity:0.6;font-style:italic;animation:textPulse 1.5s ease-in-out infinite;`;
 		unsureSpan.textContent = unsure;
 		const cursor = dom.$('span');
 		cursor.style.fontStyle = 'normal';
@@ -71,9 +73,13 @@ function createUserTurn(turn: ITranscriptTurn): HTMLElement {
 	return wrapper;
 }
 
-function createAssistantTurn(turn: ITranscriptTurn): HTMLElement {
+function createAssistantTurn(turn: ITranscriptTurn, chatStyle?: boolean): HTMLElement {
 	const el = dom.$('div');
-	el.style.cssText = ASSISTANT_STYLE;
+	if (chatStyle) {
+		el.style.cssText = ASSISTANT_STYLE.replace(`color:${COLOR.assistantTranscript}`, 'color:var(--vscode-descriptionForeground)');
+	} else {
+		el.style.cssText = ASSISTANT_STYLE;
+	}
 	el.textContent = turn.text;
 	return el;
 }
@@ -101,6 +107,10 @@ export function createTranscript(): TranscriptComponent {
 				visible[visible.length - 2].speaker === 'assistant') {
 				visible = [visible[visible.length - 1]];
 			}
+			// In chat style, only show the most recent turn (matches collapsed behavior)
+			if (props.chatStyle && visible.length > 0) {
+				visible = [visible[visible.length - 1]];
+			}
 			dom.clearNode(container);
 			if (visible.length === 0) {
 				container.style.display = 'none';
@@ -108,7 +118,7 @@ export function createTranscript(): TranscriptComponent {
 			}
 			container.style.display = 'flex';
 			for (const turn of visible) {
-				container.append(turn.speaker === 'user' ? createUserTurn(turn) : createAssistantTurn(turn));
+				container.append(turn.speaker === 'user' ? createUserTurn(turn, props.chatStyle) : createAssistantTurn(turn, props.chatStyle));
 			}
 		}
 	};

@@ -4,22 +4,60 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Application, Logger } from '../../../../automation';
+import { Application, Chat, Logger } from '../../../../automation';
 import { dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, installAllHandlers, MockLlmServer } from '../../utils';
 
 /**
- * Per-test scenarios. Each test uses a unique scenario id so that the mock
- * reply is distinct — this catches stale-content bugs where the previous
- * test's response is mistakenly accepted as the current test's response.
+ * Per-session scenarios. Each session uses a pair of unique scenario ids so
+ * that the mock reply is distinct — this catches stale-content bugs where a
+ * previous response is mistakenly accepted as the current one. We send two
+ * prompts per session to also exercise the follow-up message path.
+ *
+ * `kind` selects between the two chat surfaces in the VS Code window:
+ *  - 'editor': the chat opens as an editor tab (Copilot CLI, Claude).
+ *  - 'view':   the default chat panel in the sidebar / aux bar (Local).
  */
-const COPILOT_CLI_SCENARIO_ID = 'smoke-chat-sessions-copilot-cli';
-const COPILOT_CLI_REPLY = 'MOCKED_CHAT_SESSIONS_COPILOT_CLI_RESPONSE';
+interface SessionConfig {
+	readonly name: string;
+	readonly command: string;
+	readonly kind: 'editor' | 'view';
+	readonly scenarioId: string;
+	readonly reply: string;
+	readonly scenarioId2: string;
+	readonly reply2: string;
+	/** Skip the second message/assertion (e.g. while a known flake is being investigated). */
+	readonly skipReply2?: boolean;
+}
 
-const CLAUDE_SCENARIO_ID = 'smoke-chat-sessions-claude';
-const CLAUDE_REPLY = 'MOCKED_CHAT_SESSIONS_CLAUDE_RESPONSE';
+const SESSIONS: readonly SessionConfig[] = [
+	{ name: 'Copilot CLI', command: 'smoketest.openCopilotCliChat', kind: 'editor', scenarioId: 'smoke-chat-sessions-copilot-cli', reply: 'MOCKED_CHAT_SESSIONS_COPILOT_CLI_RESPONSE', scenarioId2: 'smoke-chat-sessions-copilot-cli-2', reply2: 'MOCKED_CHAT_SESSIONS_COPILOT_CLI_RESPONSE_2', skipReply2: true },
+	{ name: 'Claude', command: 'smoketest.openClaudeChat', kind: 'editor', scenarioId: 'smoke-chat-sessions-claude', reply: 'MOCKED_CHAT_SESSIONS_CLAUDE_RESPONSE', scenarioId2: 'smoke-chat-sessions-claude-2', reply2: 'MOCKED_CHAT_SESSIONS_CLAUDE_RESPONSE_2' },
+	{ name: 'Local', command: 'workbench.action.chat.open', kind: 'view', scenarioId: 'smoke-chat-sessions-local', reply: 'MOCKED_CHAT_SESSIONS_LOCAL_RESPONSE', scenarioId2: 'smoke-chat-sessions-local-2', reply2: 'MOCKED_CHAT_SESSIONS_LOCAL_RESPONSE_2' },
+];
 
-const LOCAL_SCENARIO_ID = 'smoke-chat-sessions-local';
-const LOCAL_REPLY = 'MOCKED_CHAT_SESSIONS_LOCAL_RESPONSE';
+async function openSession(app: Application, session: SessionConfig): Promise<void> {
+	await app.workbench.quickaccess.runCommand(session.command);
+	if (session.kind === 'editor') {
+		await app.workbench.chat.waitForChatEditor(600);
+	} else {
+		await app.workbench.chat.waitForChatView();
+	}
+}
+
+async function sendAndWaitForReply(chat: Chat, session: SessionConfig, message: string, expectedReply: string): Promise<string> {
+	if (session.kind === 'editor') {
+		await chat.sendEditorMessage(message);
+		// Poll for the actual reply text rather than just waiting for a
+		// completed response bubble. Copilot CLI keeps the
+		// `chat-response-loading` class on the bubble even after streaming
+		// finishes, which would otherwise cause the follow-up assertion to
+		// time out. Each scenario emits a unique reply so a single text
+		// match unambiguously identifies the current response.
+		return (await chat.waitForEditorResponseText(expectedReply, 120_000)).trim();
+	}
+	await chat.sendMessage(message);
+	return (await chat.waitForResponseText(expectedReply, 120_000)).trim();
+}
 
 export function setup(logger: Logger) {
 
@@ -39,10 +77,12 @@ export function setup(logger: Logger) {
 			registerScenario('text-only', new ScenarioBuilder().emit('OK').build());
 
 			// One scenario per session type, each emitting a distinct reply
-			// so the assertion is unambiguous.
-			registerScenario(COPILOT_CLI_SCENARIO_ID, new ScenarioBuilder().emit(COPILOT_CLI_REPLY).build());
-			registerScenario(CLAUDE_SCENARIO_ID, new ScenarioBuilder().emit(CLAUDE_REPLY).build());
-			registerScenario(LOCAL_SCENARIO_ID, new ScenarioBuilder().emit(LOCAL_REPLY).build());
+			// so the assertion is unambiguous. A second scenario per session
+			// covers the follow-up message in the same chat surface.
+			for (const session of SESSIONS) {
+				registerScenario(session.scenarioId, new ScenarioBuilder().emit(session.reply).build());
+				registerScenario(session.scenarioId2, new ScenarioBuilder().emit(session.reply2).build());
+			}
 
 			mockServer = await startServer(0, { logger: (msg: string) => logger.log(`[mock-llm] ${msg}`) });
 			logger.log(`[Chat Sessions] mock LLM server started at ${mockServer.url} (platform=${process.platform}, arch=${process.arch}, node=${process.version})`);
@@ -99,121 +139,53 @@ export function setup(logger: Logger) {
 			await mockServer?.close();
 		});
 
-		it('Test Copilot CLI session', async function () {
-			const app = this.app as Application;
-			const requestsBefore = mockServer.requestCount();
-			logger.log(`[Chat Sessions/Copilot CLI] starting test; requestCount=${requestsBefore}`);
+		for (const session of SESSIONS) {
+			it(`Test ${session.name} session`, async function () {
+				const app = this.app as Application;
+				const requestsBefore = mockServer.requestCount();
+				logger.log(`[Chat Sessions/${session.name}] starting test; requestCount=${requestsBefore}`);
 
-			try {
-				logger.log(`[Chat Sessions/Copilot CLI] running command smoketest.openCopilotCliChat`);
-				await app.workbench.quickaccess.runCommand('smoketest.openCopilotCliChat');
-				logger.log(`[Chat Sessions/Copilot CLI] waiting for chat editor (timeout=600); requestCount=${mockServer.requestCount()}`);
-				await app.workbench.chat.waitForChatEditor(600);
-				logger.log(`[Chat Sessions/Copilot CLI] sending editor message; requestCount=${mockServer.requestCount()}`);
-				await app.workbench.chat.sendEditorMessage(`hello world [scenario:${COPILOT_CLI_SCENARIO_ID}]`);
-				logger.log(`[Chat Sessions/Copilot CLI] waiting for editor response (timeout=1500); requestCount=${mockServer.requestCount()}`);
-				await app.workbench.chat.waitForEditorResponse(1500);
-				logger.log(`[Chat Sessions/Copilot CLI] editor response received; requestCount=${mockServer.requestCount()}`);
+				try {
+					await openSession(app, session);
 
-				const responseText = (await app.workbench.chat.getLatestEditorResponseText()).trim();
-				logger.log(`[Chat Sessions/Copilot CLI] response (length=${responseText.length}): ${responseText}`);
+					// First message + first scenario reply.
+					logger.log(`[Chat Sessions/${session.name}] running command and waiting for chat editor`);
+					const responseText = await sendAndWaitForReply(app.workbench.chat, session, `hello world [scenario:${session.scenarioId}]`, session.reply);
+					logger.log(`Chat Sessions (${session.name}) response 1: ${responseText}`);
 
-				assert.ok(
-					responseText.includes(COPILOT_CLI_REPLY),
-					`Expected Copilot CLI response to include mocked scenario response "${COPILOT_CLI_REPLY}".\n\nResponse:\n${responseText}`
-				);
-				assert.ok(
-					mockServer.requestCount() > requestsBefore,
-					`expected the mock LLM server to have received a new request from the Copilot CLI session (before=${requestsBefore}, after=${mockServer.requestCount()})`
-				);
-			} catch (error) {
-				logger.log(`[Chat Sessions/Copilot CLI] FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
-				logger.log(`[Chat Sessions/Copilot CLI] mock server requestCount at failure: ${mockServer.requestCount()} (before=${requestsBefore})`);
-				await dumpFailureDiagnostics(app, logger, 'Chat Sessions/Copilot CLI');
-				throw error;
-			} finally {
-				// Close the editor to avoid focus interference with the next test
-				await app.workbench.quickaccess.runCommand('workbench.action.closeAllEditors');
-			}
-		});
+					assert.ok(
+						responseText.includes(session.reply),
+						`Expected ${session.name} response 1 to include mocked scenario response "${session.reply}".\n\nResponse:\n${responseText}`
+					);
 
-		it('Test Claude session', async function () {
-			const app = this.app as Application;
-			const requestsBefore = mockServer.requestCount();
-			logger.log(`[Chat Sessions/Claude] starting test; requestCount=${requestsBefore}`);
+					// Follow-up message + second scenario reply, sent in the same
+					// chat surface to exercise the follow-up code path.
+					if (!session.skipReply2) {
+						logger.log(`[Chat Sessions/${session.name}] running second command and waiting for chat editor`);
+						const responseText2 = await sendAndWaitForReply(app.workbench.chat, session, `hello again [scenario:${session.scenarioId2}]`, session.reply2);
+						logger.log(`Chat Sessions (${session.name}) response 2: ${responseText2}`);
 
-			try {
-				logger.log(`[Chat Sessions/Claude] running command smoketest.openClaudeChat`);
-				await app.workbench.quickaccess.runCommand('smoketest.openClaudeChat');
-				logger.log(`[Chat Sessions/Claude] waiting for chat editor; requestCount=${mockServer.requestCount()}`);
-				await app.workbench.chat.waitForChatEditor(600);
-				logger.log(`[Chat Sessions/Claude] sending editor message; requestCount=${mockServer.requestCount()}`);
-				await app.workbench.chat.sendEditorMessage(`hello world [scenario:${CLAUDE_SCENARIO_ID}]`);
-				logger.log(`[Chat Sessions/Claude] mock requests after submit: ${mockServer.requestCount()}`);
-				await app.workbench.chat.waitForEditorResponse(1500);
-				logger.log(`[Chat Sessions/Claude] editor response received; requestCount=${mockServer.requestCount()}`);
-
-				const responseText = (await app.workbench.chat.getLatestEditorResponseText()).trim();
-				logger.log(`[Chat Sessions/Claude] response (length=${responseText.length}): ${responseText}`);
-				logger.log(`[Chat Sessions/Claude] mock requests after response: ${mockServer.requestCount()}`);
-
-				assert.ok(
-					responseText.includes(CLAUDE_REPLY),
-					`Expected Claude response to include mocked scenario response "${CLAUDE_REPLY}".\n\nResponse:\n${responseText}`
-				);
-				assert.ok(
-					mockServer.requestCount() > requestsBefore,
-					`expected the mock LLM server to have received a new request from the Claude session (before=${requestsBefore}, after=${mockServer.requestCount()})`
-				);
-			} catch (error) {
-				logger.log(`[Chat Sessions/Claude] FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
-				logger.log(`[Chat Sessions/Claude] mock server requestCount at failure: ${mockServer.requestCount()} (before=${requestsBefore})`);
-				await dumpFailureDiagnostics(app, logger, 'Chat Sessions/Claude');
-				throw error;
-			} finally {
-				// Close the editor to avoid focus interference with the next test
-				await app.workbench.quickaccess.runCommand('workbench.action.closeAllEditors');
-			}
-		});
-
-		it('Test Local session', async function () {
-			const app = this.app as Application;
-			const requestsBefore = mockServer.requestCount();
-			logger.log(`[Chat Sessions/Local] starting test; requestCount=${requestsBefore}`);
-
-			try {
-				// "Local" in the regular VS Code window is the default chat
-				// experience in the chat view (sidebar / aux bar).
-				logger.log(`[Chat Sessions/Local] running command workbench.action.chat.open`);
-				await app.workbench.quickaccess.runCommand('workbench.action.chat.open');
-				logger.log(`[Chat Sessions/Local] waiting for chat view; requestCount=${mockServer.requestCount()}`);
-				await app.workbench.chat.waitForChatView();
-				logger.log(`[Chat Sessions/Local] sending message; requestCount=${mockServer.requestCount()}`);
-				await app.workbench.chat.sendMessage(`hello world [scenario:${LOCAL_SCENARIO_ID}]`);
-				logger.log(`[Chat Sessions/Local] waiting for response (timeout=1500); requestCount=${mockServer.requestCount()}`);
-				await app.workbench.chat.waitForResponse(1500);
-				logger.log(`[Chat Sessions/Local] response received; requestCount=${mockServer.requestCount()}`);
-
-				const responseText = (await app.workbench.chat.getLatestResponseText()).trim();
-				logger.log(`[Chat Sessions/Local] response (length=${responseText.length}): ${responseText}`);
-
-				assert.ok(
-					responseText.includes(LOCAL_REPLY),
-					`Expected Local response to include mocked scenario response "${LOCAL_REPLY}".\n\nResponse:\n${responseText}`
-				);
-				assert.ok(
-					mockServer.requestCount() > requestsBefore,
-					`expected the mock LLM server to have received a new request from the Local session (before=${requestsBefore}, after=${mockServer.requestCount()})`
-				);
-			} catch (error) {
-				logger.log(`[Chat Sessions/Local] FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
-				logger.log(`[Chat Sessions/Local] mock server requestCount at failure: ${mockServer.requestCount()} (before=${requestsBefore})`);
-				await dumpFailureDiagnostics(app, logger, 'Chat Sessions/Local');
-				throw error;
-			} finally {
-				// Close the chat view to leave a clean state
-				await app.workbench.quickaccess.runCommand('workbench.action.closeAllEditors');
-			}
-		});
+						assert.ok(
+							responseText2.includes(session.reply2),
+							`Expected ${session.name} response 2 to include mocked scenario response "${session.reply2}".\n\nResponse:\n${responseText2}`
+						);
+					} else {
+						logger.log(`[Chat Sessions/${session.name}] skipping second reply assertion (skipReply2=true)`);
+					}
+					assert.ok(
+						mockServer.requestCount() > requestsBefore,
+						`expected the mock LLM server to have received a new request from the ${session.name} session (before=${requestsBefore}, after=${mockServer.requestCount()})`
+					);
+				} catch (error) {
+					logger.log(`[Chat Sessions/${session.name}] FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+					logger.log(`[Chat Sessions/${session.name}] mock server requestCount at failure: ${mockServer.requestCount()} (before=${requestsBefore})`);
+					await dumpFailureDiagnostics(app, logger, `Chat Sessions/${session.name}`);
+					throw error;
+				} finally {
+					// Close the editor to avoid focus interference with the next test
+					await app.workbench.quickaccess.runCommand('workbench.action.closeAllEditors');
+				}
+			});
+		}
 	});
 }

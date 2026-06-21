@@ -1890,7 +1890,7 @@ platform-shared properties).
 | | Shape |
 |---|---|
 | Returns | `IAgentDescriptor { provider, displayName, description }` ([agentService.ts:160-165](../../common/agentService.ts#L160-L165)) |
-| CopilotAgent | Hardcoded literal `{ provider: 'copilotcli', displayName: 'Copilot CLI', description: '…' }` ([copilotAgent.ts:256-262](../copilot/copilotAgent.ts#L256-L262)) |
+| CopilotAgent | Hardcoded literal `{ provider: 'copilotcli', displayName: 'Copilot', description: '…' }` ([copilotAgent.ts:256-262](../copilot/copilotAgent.ts#L256-L262)) |
 | Claude provider | Hardcoded literal `{ provider: 'claude', displayName: 'Claude', description: '…' }` |
 
 `AgentProvider` is `type AgentProvider = string` ([agentService.ts:158](../../common/agentService.ts#L158))

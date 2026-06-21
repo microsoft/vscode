@@ -906,28 +906,34 @@ export class QuickInputController extends Disposable {
 				const isElement = dom.isHTMLElement(target);
 				const anchorWindow = isElement ? dom.getWindow(target) : dom.getActiveWindow();
 				const container = this.layoutService.getContainer(anchorWindow).getBoundingClientRect();
-				let anchor = getAnchorRect(target);
+				const verticalPadding = 6 + 26 + 16; // Accounts for input box and padding
 
+				let anchor = getAnchorRect(target);
+				let preferredAnchorPosition = AnchorPosition.ABOVE;
 				let listHeightRatio = 0.2;
+				let maxListHeight = 200;
+
 				if (this.controller.anchorPosition === 'overlay') {
 					width = anchor.width + 12;
 					listHeightRatio = 0.4;
 					anchor = {
-						...anchor,
-						top: anchor.top - 7 - anchor.height,
+						top: anchor.top - 7,
 						left: anchor.left - 7,
+						width: anchor.width,
+						height: 0
 					};
+					maxListHeight = Math.min(400, container.bottom - anchor.top - verticalPadding);
+					preferredAnchorPosition = AnchorPosition.BELOW;
 				} else {
 					width = 380;
 				}
 
-				const maxListHeight = listHeightRatio * 1000;
 				listHeight = this.dimension ? Math.min(this.dimension.height * listHeightRatio, maxListHeight) : maxListHeight;
 
 				// Beware:
 				// We need to add some extra pixels to the height to account for the input and padding.
-				const containerHeight = Math.floor(listHeight) + 6 + 26 + 16;
-				const { top, left, right, bottom, anchorAlignment, anchorPosition } = layout2d(container, { width, height: containerHeight }, anchor, { anchorPosition: AnchorPosition.ABOVE });
+				const containerHeight = Math.floor(listHeight) + verticalPadding;
+				const { top, left, right, bottom, anchorAlignment, anchorPosition } = layout2d(container, { width, height: containerHeight }, anchor, { anchorPosition: preferredAnchorPosition });
 
 				if (anchorAlignment === AnchorAlignment.RIGHT) {
 					style.right = `${right}px`;

@@ -716,11 +716,7 @@ export async function createShellTools(
 						);
 					}
 
-					const autoApproveUnsandboxed = engine.isAutoApproveUnsandboxedCommands();
 					const requestUnsandboxedConfirmation = async (blockedDomains?: readonly string[]): Promise<boolean | ToolResultObject> => {
-						if (autoApproveUnsandboxed) {
-							return true;
-						}
 						if (!confirmUnsandboxedExecution) {
 							const blocked = blockedDomains?.join(', ') ?? '(unknown)';
 							return makeFailureResult(

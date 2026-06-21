@@ -39,29 +39,19 @@ export interface IEditSurvivalReporterLaunchParams {
 	readonly afterText: string;
 	/** Whether the tool created a new file (no prior content existed). */
 	readonly isCreate: boolean;
+	/** Name of the edit tool, e.g. `Edit`, `apply_patch`. Empty if unknown. */
+	readonly toolName?: string;
 	/**
-	 * The model that produced this edit (e.g. `claude-sonnet-4.5`,
-	 * `gpt-5-mini`). Used to slice survival telemetry by model in
-	 * dashboards. Expected to always be populated in practice (Claude
-	 * reads it off every assistant message; Copilot tracks the session's
-	 * last-seen model via setModel and onUsage). The field is optional
-	 * so a missing model can't suppress the survival sample, but
-	 * `undefined` here is a bug -- the resulting event is emitted with
-	 * `modelId=''` and the caller is expected to log a warning.
+	 * Model that produced this edit, e.g. `claude-sonnet-4.5`. Optional
+	 * defensively, but always expected to be set
 	 */
 	readonly modelId?: string;
 	/**
-	 * The explicit text chunks the AI wrote, extracted from the tool
-	 * input (e.g. `Edit.new_string`, each `MultiEdit.edits[*].new_string`,
-	 * or `Write.content`). When provided, the reporter computes
-	 * `survivalRateFourGram` with the chunked, search-within math -- so
-	 * the score does not decay as the file grows around the chunks.
-	 *
-	 * In practice every known file-edit tool produces chunks (see the
-	 * coverage invariant in `editChunkExtractor.ts`). Omitting or
-	 * passing an empty array is a safety-net path for unknown / drifted
-	 * tool shapes; the reporter then falls back to whole-file scoring
-	 * and tags the telemetry event with `scoringMode='whole-file'`.
+	 * Explicit AI-written text chunks extracted from the tool input
+	 * (see `editChunkExtractor.ts`). When provided, survival is scored
+	 * against just these chunks; when omitted or empty, the reporter
+	 * falls back to whole-file scoring and tags the event with
+	 * `scoringMode='whole-file'`.
 	 */
 	readonly aiChunks?: readonly string[];
 }
@@ -93,6 +83,7 @@ export class NullEditSurvivalReporterFactory implements IEditSurvivalReporterFac
 interface IEditSurvivalTelemetryEvent {
 	provider: string;
 	modelId: string;
+	toolName: string;
 	agentSessionId: string;
 	turnId: string;
 	toolCallId: string;
@@ -113,6 +104,7 @@ interface IEditSurvivalTelemetryEvent {
 type IEditSurvivalTelemetryClassification = {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
 	modelId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model that produced the edit, e.g. "claude-sonnet-4.5" or "gpt-5-mini". Empty if the host could not determine the per-edit model.' };
+	toolName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Name of the edit tool that produced the edit, e.g. "Edit", "apply_patch". Empty if unknown.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
 	turnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host turn identifier this edit belongs to.' };
 	toolCallId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The tool call identifier that produced the edit.' };
@@ -204,6 +196,7 @@ class SessionEditSurvivalReporter extends Disposable {
 				{
 					provider: AgentSession.provider(this._params.sessionUri) ?? 'unknown',
 					modelId: this._params.modelId ?? '',
+					toolName: this._params.toolName ?? '',
 					agentSessionId: AgentSession.id(this._params.sessionUri),
 					turnId: this._params.turnId,
 					toolCallId: this._params.toolCallId,

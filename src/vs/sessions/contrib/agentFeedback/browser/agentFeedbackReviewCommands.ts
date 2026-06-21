@@ -25,7 +25,7 @@ function kindLabel(kind: AgentFeedbackKind): string | undefined {
 		case AgentFeedbackKind.PRReview:
 			return localize('agentFeedbackReview.prReview', "PR Review");
 		case AgentFeedbackKind.AgentReview:
-			return localize('agentFeedbackReview.codeReview', "Code Review");
+			return localize('agentFeedbackReview.agentReview', "Agent Review");
 		default:
 			return undefined;
 	}

@@ -10,7 +10,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IObjectTreeElement, ITreeSorter } from '../../../../base/browser/ui/tree/tree.js';
-import { ActionRunner, IAction, SubmenuAction, toAction } from '../../../../base/common/actions.js';
+import { ActionRunner, IAction, Separator, SubmenuAction, toAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
@@ -59,7 +59,7 @@ import { getChangesEditorLabels } from './changesEditorLabels.js';
 import { getChangesMultiDiffSourceUri } from './changesMultiDiffSourceResolver.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { CIStatusWidget } from './checksWidget.js';
-import { GITHUB_REMOTE_FILE_SCHEME, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus } from '../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISessionChangesetOperation, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus } from '../../../services/sessions/common/session.js';
 import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
 import { IView, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
@@ -251,44 +251,86 @@ class ChangesWorkbenchButtonBarWidget extends Disposable {
 			return getActionBarActions(menu.getActions({ shouldForwardArgs: true }));
 		});
 
-		const operationActionsObs = derived(reader => {
+		const operationActionGroupsObs = derived<IAction[][]>(reader => {
 			const changeset = viewModel.activeSessionChangesetObs.read(reader);
 			if (!changeset) {
 				return [];
 			}
 
 			const operations = viewModel.activeSessionChangesetOperationsObs.read(reader);
-			return operations.filter(op => op.scopes.includes(SessionChangesetOperationScope.Changeset))
-				.map(op => toAction({
-					id: op.id,
-					label: op.icon
-						? op.status === SessionChangesetOperationStatus.Running
-							? `$(loading) ${op.label}`
-							: `$(${op.icon.id}) ${op.label}`
-						: op.status === SessionChangesetOperationStatus.Running
-							? `$(loading) ${op.label}`
-							: op.label,
-					tooltip: op.description,
-					enabled: op.status !== SessionChangesetOperationStatus.Disabled && op.status !== SessionChangesetOperationStatus.Running,
-					run: () => changeset.invokeOperation(op.id),
-				}));
+			const changesetOperations = operations
+				.filter(op => op.scopes.includes(SessionChangesetOperationScope.Changeset));
+
+			const toOperationAction = (op: ISessionChangesetOperation) => toAction({
+				id: op.id,
+				label: op.icon
+					? op.status === SessionChangesetOperationStatus.Running
+						? `$(loading) ${op.label}`
+						: `$(${op.icon.id}) ${op.label}`
+					: op.status === SessionChangesetOperationStatus.Running
+						? `$(loading) ${op.label}`
+						: op.label,
+				tooltip: op.description,
+				enabled: op.status !== SessionChangesetOperationStatus.Disabled && op.status !== SessionChangesetOperationStatus.Running,
+				run: () => changeset.invokeOperation(op.id),
+			});
+
+			// Group the remaining changeset-scoped operations by their
+			// group identifier, preserving the order in which groups
+			// are first encountered.
+			const groups = new Map<string | undefined, IAction[]>();
+			for (const op of changesetOperations) {
+				// Skip the running operations as they will be handled separately
+				if (op.status === SessionChangesetOperationStatus.Running) {
+					continue;
+				}
+
+				const action = toOperationAction(op);
+				const groupActions = groups.get(op.group);
+				if (groupActions) {
+					groupActions.push(action);
+				} else {
+					groups.set(op.group, [action]);
+				}
+			}
+
+			// Running operations are extracted into a dedicated group that appears first
+			// so that the running operation acts as the primary action of the dropdown.
+			const runningActions = changesetOperations
+				.filter(op => op.status === SessionChangesetOperationStatus.Running)
+				.map(toOperationAction);
+
+			return [
+				...(runningActions.length > 0
+					? [runningActions]
+					: []),
+				...groups.values(),
+			];
 		});
 
 		this._register(autorun(reader => {
-			const operationActions = operationActionsObs.read(reader);
+			const operationActionGroups = operationActionGroupsObs.read(reader);
 			const menuActions = menuActionsObs.read(reader);
 
 			const primaryActions: IAction[] = [];
+			const operationActions = operationActionGroups.flat();
 
 			if (operationActions.length > 1) {
-				// Dropdown action
-				const actions = operationActions.slice();
-				const runningActionIndex = actions.findIndex(action =>
-					action.label.startsWith('$(loading)') && !action.enabled);
-				const primaryActionIndex = runningActionIndex !== -1 ? runningActionIndex : 0;
-				const primaryAction = actions.splice(primaryActionIndex, 1)[0];
+				// The action groups are build so that the
+				// running action(s) appear in the first group
+				const primaryAction = operationActions[0];
 
-				primaryActions.push(new SubmenuAction('changesView.operations.primary.dropdown', primaryAction.label, [primaryAction, ...actions]));
+				// Join the groups with separators to
+				// visually separate related operations.
+				const dropdownActions: IAction[] = [];
+				for (const group of operationActionGroups) {
+					if (dropdownActions.length > 0) {
+						dropdownActions.push(new Separator());
+					}
+					dropdownActions.push(...group);
+				}
+
+				primaryActions.push(new SubmenuAction('changesView.operations.primary.dropdown', primaryAction.label, dropdownActions));
 			} else {
 				primaryActions.push(...operationActions);
 			}

@@ -8,11 +8,9 @@ import { localize, localize2 } from '../../../../nls.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
-import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IViewContainersRegistry, ViewContainerLocation, IViewsRegistry, Extensions as ViewContainerExtensions, WindowEnablement } from '../../../../workbench/common/views.js';
 import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
 import { ChangesViewPane, ChangesViewPaneContainer } from './changesView.js';
-import { ChangesTitleBarContribution } from './changesTitleBarWidget.js';
 import { IsPhoneLayoutContext } from '../../../common/contextkeys.js';
 import './changesActions.js';
 import './changesViewActions.js';
@@ -60,8 +58,6 @@ viewsRegistry.registerViews([{
 	when: IsPhoneLayoutContext.negate(),
 	windowEnablement: WindowEnablement.Sessions,
 }], changesViewContainer);
-
-registerWorkbenchContribution2(ChangesTitleBarContribution.ID, ChangesTitleBarContribution, WorkbenchPhase.AfterRestored);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'sessions',

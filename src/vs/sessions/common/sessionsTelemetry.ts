@@ -38,18 +38,18 @@ export function logSessionsInteraction(telemetryService: ITelemetryService, butt
 
 // --- Changes panel interactions ---
 
-type ChangesViewTogglePanelEvent = {
+type SidePanelToggleEvent = {
 	visible: boolean;
 };
 
-type ChangesViewTogglePanelClassification = {
-	owner: 'osortega';
-	comment: 'Tracks when the user toggles the Changes panel open or closed.';
-	visible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the Changes panel is now visible.' };
+type SidePanelToggleClassification = {
+	owner: 'sandy081';
+	comment: 'Tracks when the user toggles the Agents window side panel (editor area + auxiliary bar) open or closed.';
+	visible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the side panel is now visible.' };
 };
 
-export function logChangesViewToggle(telemetryService: ITelemetryService, visible: boolean): void {
-	telemetryService.publicLog2<ChangesViewTogglePanelEvent, ChangesViewTogglePanelClassification>('vscodeAgents.changesView/togglePanel', { visible });
+export function logSidePanelToggle(telemetryService: ITelemetryService, visible: boolean): void {
+	telemetryService.publicLog2<SidePanelToggleEvent, SidePanelToggleClassification>('vscodeAgents.layout/toggleSidePanel', { visible });
 }
 
 type ChangesViewVersionModeChangeEvent = {

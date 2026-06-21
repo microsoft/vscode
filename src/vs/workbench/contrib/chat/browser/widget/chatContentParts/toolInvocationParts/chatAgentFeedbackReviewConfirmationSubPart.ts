@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../../../../base/browser/ui/actionbar/actionbar.js';
+import { getDefaultHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { Checkbox } from '../../../../../../../base/browser/ui/toggle/toggle.js';
 import { Action } from '../../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
@@ -15,10 +16,13 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../../nls.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
+import { FileKind } from '../../../../../../../platform/files/common/files.js';
+import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
 import { ILogService } from '../../../../../../../platform/log/common/log.js';
 import { defaultCheckboxStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
+import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../../../browser/labels.js';
 import { AgentFeedbackReviewCommandId, IChatAgentFeedbackReviewComment, IChatToolInvocation, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { ILanguageModelToolsService } from '../../../../common/tools/languageModelToolsService.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
@@ -50,6 +54,7 @@ export class ChatAgentFeedbackReviewConfirmationSubPart extends AbstractToolConf
 
 	private readonly _rows = new Map<string, ICommentRow>();
 	private readonly _rowStores = this._register(new DisposableMap<string, DisposableStore>());
+	private readonly _resourceLabels: ResourceLabels;
 
 	constructor(
 		toolInvocation: IChatToolInvocation,
@@ -62,6 +67,7 @@ export class ChatAgentFeedbackReviewConfirmationSubPart extends AbstractToolConf
 		@IChatToolRiskAssessmentService riskAssessmentService: IChatToolRiskAssessmentService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ILogService private readonly logService: ILogService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super(toolInvocation, context, instantiationService, keybindingService, contextKeyService, chatWidgetService, languageModelToolsService, riskAssessmentService);
 
@@ -69,6 +75,8 @@ export class ChatAgentFeedbackReviewConfirmationSubPart extends AbstractToolConf
 		if (!data || data.kind !== 'agentFeedbackReviewConfirmation') {
 			throw new Error('Agent feedback review confirmation data is missing');
 		}
+
+		this._resourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
 
 		const listElement = dom.$('.chat-agent-feedback-review-list');
 		void this._populate(listElement);
@@ -159,12 +167,14 @@ export class ChatAgentFeedbackReviewConfirmationSubPart extends AbstractToolConf
 			dom.append(header, dom.$('.chat-agent-feedback-review-kind', undefined, comment.kindLabel));
 		}
 		const fileUri = URI.revive(comment.fileUri);
-		const fileLabel = dom.append(header, dom.$('span.chat-agent-feedback-review-file'));
-		fileLabel.textContent = basename(fileUri);
-		fileLabel.title = fileUri.fsPath || fileUri.path;
+		const fileLabel = rowStore.add(this._resourceLabels.create(header));
+		fileLabel.element.classList.add('chat-agent-feedback-review-file');
+		fileLabel.setResource(
+			{ resource: fileUri, name: basename(fileUri) },
+			{ fileKind: FileKind.FILE, title: fileUri.fsPath || fileUri.path },
+		);
 
-		const textElement = dom.append(main, dom.$('.chat-agent-feedback-review-text'));
-		textElement.textContent = comment.text;
+		this._renderCommentText(rowStore, main, comment.text);
 
 		const actionsContainer = dom.append(rowElement, dom.$('.chat-agent-feedback-review-actions'));
 		const actionBar = rowStore.add(new ActionBar(actionsContainer));
@@ -184,6 +194,85 @@ export class ChatAgentFeedbackReviewConfirmationSubPart extends AbstractToolConf
 		)), { icon: true, label: false });
 
 		this._rows.set(comment.id, { comment, checkbox, element: rowElement });
+	}
+
+	/**
+	 * Renders the comment body clamped to two visual lines by default, with an
+	 * expand/collapse toggle in the bottom-right corner. The toggle and the
+	 * fade/ellipsis affordance only appear when the text actually overflows two
+	 * lines; overflow is re-evaluated whenever the available width changes.
+	 */
+	private _renderCommentText(rowStore: DisposableStore, main: HTMLElement, text: string): void {
+		const container = dom.append(main, dom.$('.chat-agent-feedback-review-text-container'));
+		const textElement = dom.append(container, dom.$('.chat-agent-feedback-review-text'));
+		textElement.textContent = text;
+
+		const toggle = dom.append(container, dom.$<HTMLButtonElement>('button.chat-agent-feedback-review-expand-toggle'));
+		toggle.type = 'button';
+		toggle.tabIndex = 0;
+		const toggleIcon = dom.append(toggle, dom.$('span.codicon'));
+		toggleIcon.setAttribute('aria-hidden', 'true');
+
+		const expandLabel = localize('agentFeedback.expandComment', "Show More");
+		const collapseLabel = localize('agentFeedback.collapseComment', "Show Less");
+
+		let expanded = false;
+
+		const renderState = () => {
+			container.classList.toggle('collapsed', !expanded);
+			container.classList.toggle('expanded', expanded);
+			toggleIcon.classList.toggle('codicon-chevron-down', !expanded);
+			toggleIcon.classList.toggle('codicon-chevron-up', expanded);
+			toggle.setAttribute('aria-label', expanded ? collapseLabel : expandLabel);
+			toggle.setAttribute('aria-expanded', String(expanded));
+		};
+
+		const isOverflowing = (): boolean => {
+			// `scrollHeight` reflects the full content height even while clamped,
+			// so compare it against the (clamped) `clientHeight`. Measure in the
+			// collapsed state, restoring the previous state in the same frame so
+			// no intermediate layout is painted.
+			const wasExpanded = expanded;
+			if (wasExpanded) {
+				container.classList.add('collapsed');
+				container.classList.remove('expanded');
+			}
+			const overflowing = textElement.scrollHeight - textElement.clientHeight > 1;
+			if (wasExpanded) {
+				container.classList.remove('collapsed');
+				container.classList.add('expanded');
+			}
+			return overflowing;
+		};
+
+		const updateOverflow = () => {
+			const overflowing = isOverflowing();
+			container.classList.toggle('overflowing', overflowing);
+			if (!overflowing && expanded) {
+				expanded = false;
+				renderState();
+			}
+		};
+
+		rowStore.add(this.hoverService.setupManagedHover(
+			getDefaultHoverDelegate('element'),
+			toggle,
+			() => expanded ? collapseLabel : expandLabel,
+		));
+
+		rowStore.add(dom.addDisposableListener(toggle, dom.EventType.CLICK, e => {
+			e.preventDefault();
+			e.stopPropagation();
+			expanded = !expanded;
+			renderState();
+		}));
+
+		renderState();
+
+		const targetWindow = dom.getWindow(container);
+		const observer = new targetWindow.ResizeObserver(() => updateOverflow());
+		observer.observe(textElement);
+		rowStore.add(toDisposable(() => observer.disconnect()));
 	}
 
 	private async _reveal(commentId: string): Promise<void> {

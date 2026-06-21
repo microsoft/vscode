@@ -50,15 +50,15 @@ export const enum LayoutSettings {
 	COMMAND_CENTER = 'window.commandCenter',
 	LAYOUT_ACTIONS = 'workbench.layoutControl.enabled',
 	SHADOWS = 'workbench.shadows',
-	FLOATING_PANELS = 'workbench.experimental.floatingPanels'
+	MODERN_UI = 'workbench.experimental.modernUI'
 }
 
 /**
- * The margin (in pixels) reserved on each side of a part when the floating
- * panels experiment (`LayoutSettings.FLOATING_PANELS`) is enabled. Parts grow
- * or shrink their content by this amount to leave room for the card margin and
- * border applied in CSS (`part.css`, `.floating-panels`). This value must be
- * kept in sync with the `--floating-panel-margin` custom property defined there.
+ * The margin (in pixels) reserved on each side of a part when the Modern UI Update
+ * experiment (`LayoutSettings.MODERN_UI`) is enabled. Parts grow or shrink their
+ * content by this amount to leave room for the margin/border applied in CSS
+ * (`src/vs/workbench/browser/media/floatingPanels.css`, `.floating-panels`).
+ * Keep in sync with the `--vscode-spacing-size60` (6px) token used there.
  */
 export const FLOATING_PANEL_MARGIN = 6;
 
@@ -225,9 +225,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	hasFocus(part: Parts): boolean;
 
 	/**
-	 * Returns whether the floating panels experiment is enabled for this
-	 * workbench. Always `false` for the agents window, which has its own floating
-	 * card design and must not apply the experiment's content insets.
+	 * Returns whether the floating panels presentation is enabled for this
+	 * workbench, i.e. whether the Modern UI Update experiment
+	 * (`LayoutSettings.MODERN_UI`) is on. Always `false` for the agents window,
+	 * which has its own floating card design and must not apply the experiment's
+	 * content insets.
 	 */
 	isFloatingPanelsEnabled(): boolean;
 

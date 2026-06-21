@@ -105,7 +105,7 @@ export class ActivitybarPart extends Part {
 
 			// Floating panels changes the reserved left/bottom gutter (and therefore
 			// the fixed part width): signal the grid that the size constraint changed.
-			if (e.affectsConfiguration(LayoutSettings.FLOATING_PANELS)) {
+			if (e.affectsConfiguration(LayoutSettings.MODERN_UI)) {
 				this._onDidChange.fire(undefined);
 			}
 		}));

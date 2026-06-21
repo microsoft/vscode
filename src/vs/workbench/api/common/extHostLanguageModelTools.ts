@@ -372,6 +372,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			icon: typeConvert.IconPath.from(definition.icon),
 			models: definition.models,
 			toolSet: definition.toolSet,
+			tags: definition.tags,
 			fullReferenceName: undefined, // will be filled in on the main thread based on the extension ID and tool reference name
 		};
 

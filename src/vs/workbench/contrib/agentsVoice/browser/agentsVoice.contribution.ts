@@ -21,9 +21,11 @@ import '../common/voiceTranscriptStore.js';
 import './transcriptsView/voiceTranscripts.contribution.js';
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { autorun } from '../../../../base/common/observable.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import * as nls from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -31,6 +33,7 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+
 import { IAgentsVoiceWindowService, AgentsVoiceStorageKeys } from '../common/agentsVoice.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -39,11 +42,18 @@ import {
 	VoiceDisabledClassification, VoiceDisabledEvent,
 } from '../../chat/browser/voiceClient/voiceTelemetry.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
+import { ChatAgentLocation } from '../../chat/common/constants.js';
 
 // --- Context Keys ---
 
 const AGENTS_VOICE_WINDOW_VISIBLE = new RawContextKey<boolean>('agentsVoiceWindowVisible', false);
 export const AGENTS_VOICE_WIDGET_FOCUSED = new RawContextKey<boolean>('agentsVoiceWidgetFocused', false);
+const AGENTS_VOICE_CONNECTED = new RawContextKey<boolean>('agentsVoiceConnected', false);
+const AGENTS_VOICE_CONNECTING = new RawContextKey<boolean>('agentsVoiceConnecting', false);
+const AGENTS_VOICE_LISTENING = new RawContextKey<boolean>('agentsVoiceListening', false);
+const AGENTS_VOICE_ACTIVE = new RawContextKey<boolean>('agentsVoiceActive', false);
 
 // --- Context Key Binding ---
 
@@ -57,16 +67,44 @@ class AgentsVoiceContextKeyContribution extends Disposable implements IWorkbench
 	) {
 		super();
 
-		const contextKey = AGENTS_VOICE_WINDOW_VISIBLE.bindTo(contextKeyService);
-		contextKey.set(this.agentsVoiceWindowService.isOpen);
+		const windowKey = AGENTS_VOICE_WINDOW_VISIBLE.bindTo(contextKeyService);
+		windowKey.set(this.agentsVoiceWindowService.isOpen);
 
 		this._register(this.agentsVoiceWindowService.onDidChangeOpen(isOpen => {
-			contextKey.set(isOpen);
+			windowKey.set(isOpen);
 		}));
 	}
 }
 
 registerWorkbenchContribution2(AgentsVoiceContextKeyContribution.ID, AgentsVoiceContextKeyContribution, WorkbenchPhase.AfterRestored);
+
+// Separate contribution for voice connected state — runs later to avoid
+// forcing IVoiceSessionController instantiation too early.
+class AgentsVoiceConnectedKeyContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.agentsVoiceConnectedKey';
+
+	constructor(
+		@IVoiceSessionController voiceSessionController: IVoiceSessionController,
+		@IContextKeyService contextKeyService: IContextKeyService,
+	) {
+		super();
+
+		const connectedKey = AGENTS_VOICE_CONNECTED.bindTo(contextKeyService);
+		const connectingKey = AGENTS_VOICE_CONNECTING.bindTo(contextKeyService);
+		const listeningKey = AGENTS_VOICE_LISTENING.bindTo(contextKeyService);
+		const activeKey = AGENTS_VOICE_ACTIVE.bindTo(contextKeyService);
+		this._register(autorun(reader => {
+			connectedKey.set(voiceSessionController.isConnected.read(reader));
+			connectingKey.set(voiceSessionController.isConnecting.read(reader));
+			const state = voiceSessionController.voiceState.read(reader);
+			listeningKey.set(state === 'listening');
+			activeKey.set(state === 'listening' || state === 'speaking');
+		}));
+	}
+}
+
+registerWorkbenchContribution2(AgentsVoiceConnectedKeyContribution.ID, AgentsVoiceConnectedKeyContribution, WorkbenchPhase.Eventually);
 
 // --- Telemetry: track enable/disable ---
 
@@ -108,18 +146,194 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'agentsVoice.toggleWindow',
 			title: nls.localize2('toggleAgentsVoiceWindow', "Voice Mode"),
-			menu: {
+			icon: Codicon.openInWindow,
+			menu: [{
 				id: MenuId.MenubarViewMenu,
 				group: '5_copilot',
 				order: 1,
 				when: ContextKeyExpr.equals('config.agents.voice.enabled', true),
-			},
+			}, {
+				id: MenuId.ChatExecute,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					AGENTS_VOICE_CONNECTED.isEqualTo(true),
+					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+				),
+				group: 'navigation',
+				order: 6
+			}],
 			toggled: AGENTS_VOICE_WINDOW_VISIBLE.isEqualTo(true),
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const service = accessor.get(IAgentsVoiceWindowService);
 		await service.toggleWindow();
+	}
+});
+
+// Internal command: open the floating window without toggling (used by voice
+// controller to surface responses for non-visible sessions).
+CommandsRegistry.registerCommand('_agentsVoice.openWindow', async (accessor) => {
+	const service = accessor.get(IAgentsVoiceWindowService);
+	if (!service.isOpen) {
+		await service.openWindow();
+	}
+});
+
+// --- Mic button in Chat toolbar ---
+// Shows mic (unfilled) normally, mic-filled when actively listening.
+// Click to connect if disconnected, or toggle PTT if connected.
+// The disconnect button (shown when connected) indicates active voice mode.
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'agentsVoice.connecting',
+			title: nls.localize2('agentsVoice.connecting', "Connecting..."),
+			icon: Codicon.loading,
+			precondition: ContextKeyExpr.and(
+				ContextKeyExpr.equals('config.agents.voice.enabled', true),
+				AGENTS_VOICE_CONNECTING.isEqualTo(true),
+			),
+			menu: {
+				id: MenuId.ChatExecute,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+					AGENTS_VOICE_CONNECTING.isEqualTo(true),
+				),
+				group: 'navigation',
+				order: 4
+			}
+		});
+	}
+	async run(): Promise<void> {
+		// No-op — just a visual indicator
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'agentsVoice.startVoiceInChat',
+			title: nls.localize2('agentsVoice.startVoiceInChat', "Voice Mode"),
+			icon: Codicon.mic,
+			precondition: ContextKeyExpr.equals('config.agents.voice.enabled', true),
+			menu: {
+				id: MenuId.ChatExecute,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+					AGENTS_VOICE_ACTIVE.negate(),
+					AGENTS_VOICE_CONNECTING.negate(),
+				),
+				group: 'navigation',
+				order: 4
+			},
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					ChatContextKeys.inChatInput,
+				),
+			},
+		});
+	}
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const voiceController = accessor.get(IVoiceSessionController);
+		if (!voiceController.isConnected.get()) {
+			await voiceController.connect(mainWindow);
+		} else {
+			voiceController.pttDown();
+			voiceController.pttUp();
+		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'agentsVoice.pttStopInChat',
+			title: nls.localize2('agentsVoice.pttStopInChat', "Voice Mode: Stop Recording"),
+			icon: Codicon.micFilled,
+			precondition: ContextKeyExpr.and(
+				ContextKeyExpr.equals('config.agents.voice.enabled', true),
+				AGENTS_VOICE_ACTIVE.isEqualTo(true),
+			),
+			menu: {
+				id: MenuId.ChatExecute,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+					AGENTS_VOICE_ACTIVE.isEqualTo(true),
+				),
+				group: 'navigation',
+				order: 4
+			},
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					ChatContextKeys.inChatInput,
+					AGENTS_VOICE_ACTIVE.isEqualTo(true),
+				),
+			},
+		});
+	}
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const voiceController = accessor.get(IVoiceSessionController);
+		// Stop recording and send
+		voiceController.pttDown();
+		voiceController.pttUp();
+	}
+});
+
+// --- Disconnect Voice (command palette + separate toolbar button when connected) ---
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'agentsVoice.disconnect',
+			title: nls.localize2('agentsVoice.disconnect', "Disconnect Voice Mode"),
+			icon: Codicon.debugDisconnect,
+			f1: true,
+			precondition: ContextKeyExpr.and(
+				ContextKeyExpr.equals('config.agents.voice.enabled', true),
+				AGENTS_VOICE_CONNECTED.isEqualTo(true),
+			),
+			menu: {
+				id: MenuId.ChatExecute,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					AGENTS_VOICE_CONNECTED.isEqualTo(true),
+					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+				),
+				group: 'navigation',
+				order: 5
+			},
+		});
+	}
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const voiceController = accessor.get(IVoiceSessionController);
+		voiceController.disconnect();
+	}
+});
+
+// --- Simulate Voice Connection (dev utility, backend down) ---
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'agentsVoice.simulateConnection',
+			title: nls.localize2('agentsVoice.simulateConnection', "Voice: Simulate Connection (Dev)"),
+			f1: true,
+		});
+	}
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const voiceController = accessor.get(IVoiceSessionController);
+		voiceController.simulateConnection();
 	}
 });
 
@@ -150,7 +364,7 @@ registerAction2(class extends Action2 {
 			precondition: ContextKeyExpr.equals('config.agents.voice.enabled', true),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyCode.Space,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space,
 				when: ContextKeyExpr.and(
 					AGENTS_VOICE_WIDGET_FOCUSED,
 					ContextKeyExpr.not('inputFocus'),
@@ -207,6 +421,14 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			included: false,
+		},
+		'agents.voice.showTranscript': {
+			type: 'boolean',
+			description: nls.localize('agents.voice.showTranscript', "Show the voice transcript overlay in the chat input area while voice mode is active."),
+			default: true,
+			scope: ConfigurationScope.APPLICATION,
+			included: false,
+			tags: ['advanced'],
 		},
 	}
 });

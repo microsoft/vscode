@@ -25,7 +25,7 @@
  *
  * All rules are gated behind the `.style-override-fontRamp` class, which the
  * StyleOverridesContribution toggles onto the workbench container(s) when the
- * `workbench.experimental.styleOverrides` setting includes "fontRamp". Without
+ * `workbench.experimental.modernUI` (Modern UI Update) setting is enabled. Without
  * that class these rules never apply.
  */
 
@@ -114,9 +114,15 @@
 .style-override-fontRamp .monaco-pane-view .pane > .pane-header > .title,
 /* Part titles (sidebar, auxiliary bar, panel) — but never editor filenames. */
 .style-override-fontRamp.monaco-workbench .part:not(.editor) > .title > .title-label h2,
-/* Panel / composite bar action-item labels. */
-.style-override-fontRamp.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item,
-.style-override-fontRamp.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item,
+/*
+ * Panel / composite bar action-item labels. The font-size must land on the
+ * `.action-label` (the `<a>`), not the `.action-item` (the `<li>`): the base
+ * `.monaco-action-bar .action-label` rule (actionbar.css) sets font-size
+ * directly on the label, and a direct value always beats one inherited from the
+ * parent item, so targeting the item alone leaves the visible text at 11px.
+ */
+.style-override-fontRamp.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label,
+.style-override-fontRamp.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label,
 /* Notifications center header. */
 .style-override-fontRamp.monaco-workbench > .notifications-center > .notifications-center-header > .notifications-center-header-title,
 /* Debug call-stack session state labels. */

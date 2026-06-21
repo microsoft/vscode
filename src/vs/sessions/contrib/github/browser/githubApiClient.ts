@@ -10,6 +10,7 @@ import { IRequestService, asJson } from '../../../../platform/request/common/req
 import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 
 const LOG_PREFIX = '[GitHubApiClient]';
+const TRACE_PREFIX = '[PR-ICON-TRACE]';
 const GITHUB_API_BASE = 'https://api.github.com';
 const GITHUB_GRAPHQL_ENDPOINT = `${GITHUB_API_BASE}/graphql`;
 
@@ -94,6 +95,7 @@ export class GitHubApiClient extends Disposable {
 		const token = await this._getAuthToken();
 
 		this._logService.trace(`${LOG_PREFIX} ${method} ${pathForLogging}`);
+		this._logService.trace(`${TRACE_PREFIX} [GitHubApiClient] -> ${method} ${pathForLogging} (callSite ${callSite}${options?.etag !== undefined ? `, ifNoneMatch ${options.etag}` : ''})`);
 
 		const response = await this._requestService.request({
 			type: method,
@@ -116,6 +118,8 @@ export class GitHubApiClient extends Disposable {
 
 		const statusCode = response.res.statusCode ?? 0;
 		const responseETag = response.res.headers?.['etag'];
+
+		this._logService.trace(`${TRACE_PREFIX} [GitHubApiClient] <- ${method} ${pathForLogging} status ${statusCode}${responseETag ? `, etag ${responseETag}` : ''}${rateLimitRemaining !== undefined ? `, rateLimitRemaining ${rateLimitRemaining}` : ''} (callSite ${callSite})`);
 
 		if (
 			statusCode === 204 /* No Content */ ||

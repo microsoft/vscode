@@ -69,6 +69,12 @@ declare module 'vscode' {
 		 * Displayed in the model picker as a visual indicator of relative cost.
 		 */
 		readonly priceCategory?: string;
+
+		/**
+		 * Optional model category describing the model's tier (e.g. "lightweight", "versatile", "powerful").
+		 * Displayed in the model picker as a tag. Clients should be resilient to additional categories.
+		 */
+		readonly category?: string;
 	}
 
 	export interface LanguageModelChat {
@@ -127,5 +133,11 @@ declare module 'vscode' {
 		 * Displayed in the model picker as a visual indicator of relative cost.
 		 */
 		readonly priceCategory?: string;
+
+		/**
+		 * Optional model category describing the model's tier (e.g. "lightweight", "versatile", "powerful").
+		 * Displayed in the model picker as a tag. Clients should be resilient to additional categories.
+		 */
+		readonly category?: string;
 	}
 }

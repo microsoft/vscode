@@ -24,6 +24,12 @@ export const enum AgentHostConfigKey {
 	EnableCustomTerminalTool = 'enableCustomTerminalTool',
 	/** When true, Copilot SDK sessions enable the rubber duck critic subagent. */
 	RubberDuck = 'rubberDuck',
+	/**
+	 * When true, Copilot SDK sessions running a Claude Opus 4.8 model apply the
+	 * Opus 4.8-tuned system-prompt section overrides on top of the SDK
+	 * foundation prompt. Opt-in; disabled by default.
+	 */
+	Opus48Prompt = 'opus48Prompt',
 }
 
 /**
@@ -80,6 +86,12 @@ export const agentHostCustomizationConfigSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.rubberDuck.title', "Rubber Duck Agent"),
 		description: localize('agentHost.config.rubberDuck.description', "When enabled, the coding agent uses a rubber duck critic subagent to review code changes using a complementary model."),
+		default: false,
+	}),
+	[AgentHostConfigKey.Opus48Prompt]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.opus48Prompt.title', "Opus 4.8 Agent Prompt"),
+		description: localize('agentHost.config.opus48Prompt.description', "When enabled, Copilot SDK sessions running a Claude Opus 4.8 model apply Opus 4.8-tuned system-prompt section overrides on top of the default system message."),
 		default: false,
 	}),
 });

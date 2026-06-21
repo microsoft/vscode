@@ -2174,6 +2174,11 @@ suite('AgentSessions', () => {
 			assert.strictEqual(icon.id, Codicon.copilot.id);
 		});
 
+		test('should return simplified AgentHostCopilot name', () => {
+			const name = getAgentSessionProviderName(AgentSessionProviders.AgentHostCopilot);
+			assert.strictEqual(name, 'Copilot');
+		});
+
 		test('should return correct name for Growth provider', () => {
 			const name = getAgentSessionProviderName(AgentSessionProviders.Growth);
 			assert.strictEqual(name, 'Growth');

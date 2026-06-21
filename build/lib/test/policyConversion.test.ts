@@ -7,7 +7,7 @@ import assert from 'assert';
 import { suite, test } from 'node:test';
 import { promises as fs } from 'fs';
 import path from 'path';
-import type { ExportedPolicyDataDto, CategoryDto } from '../policies/policyDto.ts';
+import type { ExportedPolicyDataDto, CategoryDto, PolicyDto } from '../policies/policyDto.ts';
 import { BooleanPolicy } from '../policies/booleanPolicy.ts';
 import { NumberPolicy } from '../policies/numberPolicy.ts';
 import { ObjectPolicy } from '../policies/objectPolicy.ts';
@@ -519,5 +519,67 @@ suite('Policy E2E conversion', () => {
 		const parsed = parsePolicies(policyData);
 		assert.ok(parsed.length > 0, 'Should parse at least one policy from policyData.jsonc');
 	});
+
+	test('ObjectPolicy.from accepts a union type (e.g. array | null)', () => {
+		const category: CategoryDto = { key: 'Extensions', name: { key: 'Extensions', value: 'Extensions' } };
+		const policy: PolicyDto = {
+			key: 'chat.plugins.strictMarketplaces',
+			name: 'ChatStrictMarketplaces',
+			category: 'Extensions',
+			minimumVersion: '1.0',
+			localization: { description: { key: 'desc', value: 'desc' } },
+			type: ['array', 'null'],
+			default: null,
+		};
+		assert.ok(ObjectPolicy.from(category, policy), 'A union array|null type should be classified as an object policy');
+	});
+
+	test('descriptions containing angle brackets are escaped in ADML output (#320551)', () => {
+		const policyData: ExportedPolicyDataDto = {
+			categories: [{ key: 'InteractiveSession', name: { key: 'interactiveSessionConfigurationTitle', value: 'Chat' } }],
+			policies: [
+				{
+					key: 'chat.plugins.enabledPlugins',
+					name: 'ChatEnabledPlugins',
+					category: 'InteractiveSession',
+					minimumVersion: '1.122',
+					localization: {
+						description: {
+							key: 'chat.plugins.enabledPlugins.policy',
+							value: 'Plugin enablement. Keys are plugin IDs in `<plugin>@<marketplace>` form; values enable or disable the plugin.'
+						}
+					},
+					type: 'object',
+					default: {},
+				},
+				{
+					key: 'chat.plugins.extraMarketplaces',
+					name: 'ChatExtraMarketplaces',
+					category: 'InteractiveSession',
+					minimumVersion: '1.122',
+					localization: {
+						description: {
+							key: 'chat.plugins.extraMarketplaces.policy',
+							value: 'Additional plugin marketplaces to query. Keys are marketplace names; values are GitHub shorthand (`owner/repo[#ref]`) or Git URIs (`<url>[#ref]`).'
+						}
+					},
+					type: 'object',
+					default: {},
+				}
+			]
+		};
+
+		const parsed = parsePolicies(policyData);
+		const { adml } = renderGP(mockProduct, parsed, []);
+		const enUs = adml.find(a => a.languageId === 'en-us');
+		assert.ok(enUs, 'en-us ADML should exist');
+
+		// Angle brackets must be escaped so the output is valid XML
+		assert.ok(enUs.contents.includes('&lt;plugin&gt;@&lt;marketplace&gt;'), 'angle brackets in descriptions must be XML-escaped');
+		assert.ok(enUs.contents.includes('&lt;url&gt;'), 'angle brackets in descriptions must be XML-escaped');
+		assert.ok(!enUs.contents.includes('<plugin>'), 'raw angle brackets must not appear in ADML output');
+		assert.ok(!enUs.contents.includes('<url>'), 'raw angle brackets must not appear in ADML output');
+	});
+
 
 });

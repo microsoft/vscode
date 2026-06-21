@@ -190,6 +190,7 @@ suite('ComputeAutomaticInstructions', () => {
 
 		instaService.stub(IRemoteAgentService, {
 			getEnvironment: () => Promise.resolve(null),
+			getConnection: () => null,
 		});
 
 		instaService.stub(IContextKeyService, new MockContextKeyService());
@@ -2797,5 +2798,31 @@ suite('getFilePath', () => {
 		const uri = URI.file('/workspace/src/file.ts');
 		const result = getFilePath(uri, undefined);
 		assert.strictEqual(result, uri.fsPath);
+	});
+
+	test('should return vscode-local:/ URI string for file:// URIs when connected to a remote', () => {
+		const uri = URI.file('/C:/Users/user/AppData/Roaming/agent-plugins/my-skill/SKILL.md');
+		const result = getFilePath(uri, OperatingSystem.Linux, /* isRemote */ true);
+		assert.strictEqual(result, uri.with({ scheme: 'vscode-local' }).toString());
+	});
+
+	test('should return vscode-local:/ URI string for file:// URIs when connected to a Windows remote', () => {
+		const uri = URI.file('/C:/Users/user/AppData/Roaming/agent-plugins/my-skill/SKILL.md');
+		const result = getFilePath(uri, OperatingSystem.Windows, /* isRemote */ true);
+		assert.strictEqual(result, uri.with({ scheme: 'vscode-local' }).toString());
+	});
+
+	test('should not convert file:// URIs to vscode-local:/ when not connected to a remote', () => {
+		const uri = URI.file('/home/user/.copilot/agent-plugins/my-skill/SKILL.md');
+		const result = getFilePath(uri, undefined, /* isRemote */ false);
+		assert.strictEqual(result, uri.fsPath);
+	});
+
+	test('should not convert vscode-remote:// URIs when connected to a remote', () => {
+		const uri = URI.from({ scheme: Schemas.vscodeRemote, authority: 'wsl+ubuntu', path: '/home/user/project/file.ts' });
+		const result = getFilePath(uri, OperatingSystem.Linux, /* isRemote */ true);
+		// Do not use uri.fsPath here — it is host-OS-dependent and returns
+		// backslashes on Windows CI, but the function normalizes to the remote OS.
+		assert.strictEqual(result, '/home/user/project/file.ts');
 	});
 });

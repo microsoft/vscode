@@ -28,6 +28,7 @@ export interface IAgentHostSessionEnumPickerItem {
 	readonly value: string;
 	readonly label: string;
 	readonly description?: string;
+	readonly checked?: boolean;
 }
 
 function getModeIcon(value: string | undefined): ThemeIcon | undefined {
@@ -235,7 +236,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 			label: item.label,
 			detail: item.description,
 			group: { title: '', icon: this._getActionItemIcon(item, ctx.currentValue) },
-			item,
+			item: { ...item, checked: item.value === ctx.currentValue },
 		}));
 		actionItems.push(...this._getFooterActionItems());
 

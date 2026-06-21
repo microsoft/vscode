@@ -41,12 +41,19 @@ suite('adaptManagedSettings', () => {
 		});
 	});
 
-	test('carries strictKnownMarketplaces as a boolean managed setting', () => {
-		assert.deepStrictEqual(adaptManagedSettings({ strictKnownMarketplaces: true }), {
-			managedSettings: { strictKnownMarketplaces: true },
+	test('carries strictKnownMarketplaces as a canonical JSON string under a single key', () => {
+		assert.deepStrictEqual(adaptManagedSettings({
+			strictKnownMarketplaces: [{ source: 'github', repo: 'rwoll/markdown-review' }],
+		}), {
+			managedSettings: {
+				strictKnownMarketplaces: '[{"source":"github","repo":"rwoll/markdown-review"}]',
+			},
 		});
-		assert.deepStrictEqual(adaptManagedSettings({ strictKnownMarketplaces: false }), {
-			managedSettings: { strictKnownMarketplaces: false },
+	});
+
+	test('carries an empty strictKnownMarketplaces array (lockdown) as a JSON string', () => {
+		assert.deepStrictEqual(adaptManagedSettings({ strictKnownMarketplaces: [] }), {
+			managedSettings: { strictKnownMarketplaces: '[]' },
 		});
 	});
 
@@ -95,10 +102,10 @@ suite('adaptManagedSettings', () => {
 			extraKnownMarketplaces: {
 				'a': { source: { source: 'github', repo: 'a/b', ref: 'r' } },
 			},
-			strictKnownMarketplaces: true,
+			strictKnownMarketplaces: [{ source: 'github', repo: 'a/b' }],
 		}), {
 			managedSettings: {
-				strictKnownMarketplaces: true,
+				strictKnownMarketplaces: '[{"source":"github","repo":"a/b"}]',
 				enabledPlugins: '{"p@m":true}',
 				extraKnownMarketplaces: '{"a":"a/b#r"}',
 			},
@@ -108,11 +115,11 @@ suite('adaptManagedSettings', () => {
 	test('resilience: unknown scalar keys flatten into the bag alongside structured keys', () => {
 		assert.deepStrictEqual(adaptManagedSettings({
 			enabledPlugins: { 'p@m': true },
-			strictKnownMarketplaces: false,
+			strictKnownMarketplaces: [],
 			joshsFakeSetting: true,
 		} as IManagedSettingsResponse), {
 			managedSettings: {
-				strictKnownMarketplaces: false,
+				strictKnownMarketplaces: '[]',
 				joshsFakeSetting: true,
 				enabledPlugins: '{"p@m":true}',
 			},

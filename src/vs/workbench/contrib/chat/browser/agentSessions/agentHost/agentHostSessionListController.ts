@@ -5,13 +5,14 @@
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Emitter } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { ChangesSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import type { INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { ChatSessionStatus, IChatNewSessionRequest, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../../common/chatSessionsService.js';
@@ -29,6 +30,15 @@ function mapSessionStatus(status: SessionStatus | undefined): ChatSessionStatus 
 		return ChatSessionStatus.Failed;
 	}
 	return ChatSessionStatus.Completed;
+}
+
+/**
+ * Minimal agent-host connection surface needed by the session list controller.
+ */
+export interface IAgentHostSessionListConnection {
+	readonly onDidNotification: Event<INotification>;
+	listSessions(): Promise<IAgentSessionMetadata[]>;
+	disposeSession(session: URI): Promise<void>;
 }
 
 /**
@@ -60,6 +70,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 	 * replacement), so this flag naturally resets on reconnect.
 	 */
 	private _cacheValid = false;
+	private _refreshInFlight: Promise<void> | undefined;
 	/**
 	 * Incremented whenever the in-memory list is mutated outside of
 	 * {@link refresh}. Used to detect races where a `root/sessionAdded`,
@@ -73,7 +84,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 	constructor(
 		private readonly _sessionType: string,
 		private readonly _provider: string,
-		private readonly _connection: IAgentConnection,
+		private readonly _connection: IAgentHostSessionListConnection,
 		private readonly _description: string | undefined,
 		_connectionAuthority: string,
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisional: IAgentHostUntitledProvisionalSessionService,
@@ -217,6 +228,19 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 	}
 
 	async refresh(token: CancellationToken): Promise<void> {
+		if (this._refreshInFlight) {
+			return this._refreshInFlight;
+		}
+
+		this._refreshInFlight = this._doRefresh(token);
+		try {
+			await this._refreshInFlight;
+		} finally {
+			this._refreshInFlight = undefined;
+		}
+	}
+
+	private async _doRefresh(token: CancellationToken): Promise<void> {
 		if (this._cacheValid) {
 			// Cache is kept in sync by notify/sessionAdded,
 			// notify/sessionRemoved, and notify/sessionSummaryChanged. No
@@ -252,7 +276,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		// instead of overwriting the just-updated `_items` /
 		// `_cachedSummaries`.
 		if (startGeneration !== this._mutationGeneration) {
-			return this.refresh(token);
+			return this._doRefresh(token);
 		}
 		const filtered = sessions.filter(s =>
 			AgentSession.provider(s.session) === this._provider

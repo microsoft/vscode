@@ -51,7 +51,6 @@ export interface IModePickerDelegate {
 const builtinDefaultIcon = (mode: IChatMode) => {
 	switch (mode.name.get().toLowerCase()) {
 		case 'ask': return Codicon.ask;
-		case 'edit': return Codicon.edit;
 		case 'plan': return Codicon.tasklist;
 		default: return undefined;
 	}
@@ -325,13 +324,9 @@ function isModeConsideredBuiltIn(mode: IChatMode, productService: IProductServic
 }
 
 function shouldShowBuiltInMode(mode: IChatMode, assignments: { showOldAskMode: boolean }, agentModeDisabledViaPolicy: boolean): boolean {
-	// The built-in "Edit" mode is deprecated, but still supported for older conversations and agent disablement.
-	if (mode.id === ChatMode.Edit.id || mode.name.get().toLowerCase() === 'edit') {
-		if (mode.id === ChatMode.Edit.id) {
-			return agentModeDisabledViaPolicy;
-		} else {
-			return !agentModeDisabledViaPolicy;
-		}
+	// The built-in "Edit" mode is deprecated, but still shown when agent mode is disabled via policy.
+	if (mode.id === ChatMode.Edit.id) {
+		return agentModeDisabledViaPolicy;
 	}
 
 	// The "Ask" mode is a special case - we want to show either the old or new version based on the assignment or agent disablement, but not both

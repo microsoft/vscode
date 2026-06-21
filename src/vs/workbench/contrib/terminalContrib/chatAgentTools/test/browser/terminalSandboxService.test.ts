@@ -484,6 +484,25 @@ suite('TerminalSandboxService - network domains', () => {
 		deepStrictEqual(config, {}, 'Git GPG runtime values should not apply on Windows');
 	});
 
+	test('should add GnuPG runtime values for chains of compatible commands', () => {
+		const config = getTerminalSandboxRuntimeConfigurationForCommands(OperatingSystem.Linux, [
+			{ keyword: 'git', args: ['rebase', 'main'] },
+			{ keyword: 'gh', args: ['pr', 'list'] },
+			{ keyword: 'gpg', args: ['--list-keys'] },
+			{ keyword: 'gpg2', args: ['--list-keys'] },
+		]);
+
+		deepStrictEqual(config, {
+			network: {
+				allowAllUnixSockets: true
+			},
+			filesystem: {
+				allowRead: ['~/.gnupg'],
+				allowWrite: ['~/.gnupg']
+			}
+		});
+	});
+
 	test('should skip unsafe command-specific runtime values for chained commands', () => {
 		const config = getTerminalSandboxRuntimeConfigurationForCommands(OperatingSystem.Linux, [{ keyword: 'git', args: ['rebase', 'main'] }, { keyword: 'npm', args: ['install'] }]);
 

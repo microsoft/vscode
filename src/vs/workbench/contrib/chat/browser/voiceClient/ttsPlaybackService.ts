@@ -86,6 +86,11 @@ export class TtsPlaybackService extends Disposable implements ITtsPlaybackServic
 		if (!this._playbackCtx) {
 			this._playbackCtx = new window.AudioContext({ sampleRate: PLAYBACK_SAMPLE_RATE });
 		}
+		// AudioContext may be suspended if no user gesture occurred on this window yet.
+		// Resume it to ensure playback works regardless of which window initiated the action.
+		if (this._playbackCtx.state === 'suspended') {
+			this._playbackCtx.resume().catch(() => { /* ignore - best effort */ });
+		}
 		return this._playbackCtx;
 	}
 

@@ -20,6 +20,7 @@ import { VSCODE_UPGRADE_METHOD, type UnsupportedProtocolVersionErrorDataEx } fro
 import { getAgentHostManagementSocketPath, requestAgentHostUpgrade } from './agentHostUpgradeChannel.js';
 import {
 	AHP_AUTH_REQUIRED,
+	AhpErrorCodes,
 	AHP_PROVIDER_NOT_FOUND,
 	AHP_SESSION_NOT_FOUND,
 	AHP_UNSUPPORTED_PROTOCOL_VERSION,
@@ -50,6 +51,7 @@ import {
 	type IOtlpLogRecord,
 	type OtlpLogLevelName,
 } from '../common/otlp/otlpLogEmitter.js';
+import { isFileResourceRead } from '../common/resourceReadLogging.js';
 
 /** Default capacity of the server-side action replay buffer. */
 const REPLAY_BUFFER_CAPACITY = 1000;
@@ -80,6 +82,13 @@ function jsonRpcErrorFrom(id: number, err: unknown): JsonRpcResponse {
 	}
 	const message = err instanceof Error ? (err.stack ?? err.message) : String(err);
 	return jsonRpcError(id, JSON_RPC_INTERNAL_ERROR, message);
+}
+
+function shouldLogFailedRequest(method: string, params: unknown, err: unknown): boolean {
+	if (!(err instanceof ProtocolError) || err.code !== AhpErrorCodes.NotFound || !isFileResourceRead(method, params)) {
+		return true;
+	}
+	return false;
 }
 
 /** True when `value` is a non-null params object (as opposed to an array or primitive). */
@@ -1204,7 +1213,9 @@ export class ProtocolServerHandler extends Disposable {
 				this._logService.trace(`[ProtocolServer] Request '${method}' id=${id} succeeded`);
 				client.transport.send(jsonRpcSuccess(id, result ?? null));
 			}).catch(err => {
-				this._logService.error(`[ProtocolServer] Request '${method}' failed`, err);
+				if (shouldLogFailedRequest(method, params, err)) {
+					this._logService.error(`[ProtocolServer] Request '${method}' failed`, err);
+				}
 				client.transport.send(jsonRpcErrorFrom(id, err));
 			});
 			return;

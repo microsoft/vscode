@@ -20,11 +20,13 @@ import { ICustomizationHarnessService, isPluginCustomizationItem } from '../../c
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
-import { AICustomizationItemNormalizer, IAICustomizationItemSource, IAICustomizationListItem, ItemProviderItemSource, PureItemProviderItemSource } from './aiCustomizationItemSource.js';
+import { AICustomizationItemNormalizer, EmptyItemProviderItemSource, IAICustomizationItemSource, IAICustomizationListItem, ItemProviderItemSource, PureItemProviderItemSource } from './aiCustomizationItemSource.js';
 import { PromptsServiceCustomizationItemProvider } from './promptsServiceCustomizationItemProvider.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { isAgentHostTarget } from '../agentSessions/agentSessions.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+
 
 /**
  * The set of sections whose items are sourced from the customization
@@ -152,6 +154,7 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 		@IProductService productService: IProductService,
 		@IFileService private readonly fileService: IFileService,
 		@IPathService private readonly pathService: IPathService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -233,16 +236,21 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 	}
 
 	private getOrCreateSource(sessionResource: URI): IAICustomizationItemSource {
-		if (this.sourceCache.value && isEqual(sessionResource, this.sourceCache.value.sessionResource)) {
-			return this.sourceCache.value;
+		const cached = this.sourceCache.value;
+		if (cached && isEqual(sessionResource, cached.sessionResource) && !(cached instanceof EmptyItemProviderItemSource)) {
+			return cached;
 		}
 		const sessionType = getChatSessionType(sessionResource);
 		const descriptor = this.harnessService.findHarnessById(sessionType);
 
 		const getItemSource = () => {
 			if (isAgentHostTarget(sessionType)) {
-				if (!descriptor?.itemProvider) {
-					throw new Error(`Agent host targets must have an item provider`);
+				if (!descriptor) {
+					this.logService.warn(`Agent-host session type ${sessionType} has no harness descriptor`);
+					return new EmptyItemProviderItemSource(sessionResource);
+				} else if (!descriptor.itemProvider) {
+					this.logService.warn(`Agent-host session type ${sessionType} has no item provider`);
+					return new EmptyItemProviderItemSource(sessionResource);
 				}
 				return new PureItemProviderItemSource(sessionResource, descriptor.itemProvider, this.itemNormalizer);
 			} else {

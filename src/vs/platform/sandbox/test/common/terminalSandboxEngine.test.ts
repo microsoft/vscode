@@ -379,6 +379,60 @@ suite('TerminalSandboxEngine', () => {
 		ok(config.filesystem.denyWrite.includes('/deny-write-plain'), 'Configured denyWrite without symlink should be preserved');
 	});
 
+	test('checkFileAccess validates write paths against allowWrite and denyWrite on Linux', async () => {
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxLinuxFileSystem, {
+			allowWrite: ['/configured/write', '/glob/**/*.ts'],
+			denyWrite: ['/workspace/blocked'],
+		});
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost()));
+
+		const result = await engine.checkFileAccess('write', [
+			'/workspace/file.txt',
+			'/configured/write/file.txt',
+			'/glob/nested/file.ts',
+			'/outside/file.txt',
+			'/workspace/blocked/file.txt',
+		]);
+
+		deepStrictEqual(result, {
+			allowed: false,
+			denied: ['/outside/file.txt', '/workspace/blocked/file.txt'],
+		});
+	});
+
+	test('checkFileAccess validates read paths against denyRead and allowRead on Linux', async () => {
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxLinuxFileSystem, {
+			allowRead: ['~/.allowed-read'],
+			allowWrite: ['~/.allowed-write'],
+		});
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost()));
+
+		const result = await engine.checkFileAccess('read', [
+			'/home/user/private.txt',
+			'/home/user/.allowed-read/config.json',
+			'/home/user/.allowed-write/file.txt',
+			'/etc/hosts',
+		]);
+
+		deepStrictEqual(result, {
+			allowed: false,
+			denied: ['/home/user/private.txt'],
+		});
+	});
+
+	test('checkFileAccess preserves symlink source and target permissions on Linux', async () => {
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxLinuxFileSystem, {
+			allowWrite: ['/write-link'],
+		});
+		fileService.setRealpath('/write-link', '/real/write');
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost()));
+
+		deepStrictEqual(await engine.checkFileAccess('write', ['/write-link/file.txt', '/real/write/file.txt']), {
+			allowed: true,
+			denied: [],
+		});
+	});
+
 	test('cleanupTempDir is a no-op when no temp dir was ever created', async () => {
 		const host = createHost();
 		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));

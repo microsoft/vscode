@@ -15,6 +15,7 @@ import { IChatModel } from '../../common/model/chatModel.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
 import { IVoiceToolCall } from '../../common/voiceClient/voiceClientService.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 
 /**
  * Callbacks that require access to the chat widget or view state.
@@ -204,6 +205,16 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 								model = chatModel;
 								break;
 							}
+						}
+					}
+					// Session not loaded — acquire it so we can confirm the tool invocation
+					if (!model && agentSession) {
+						const cts = new CancellationTokenSource();
+						const ref = await this.chatService.acquireOrLoadSession(agentSession.resource, ChatAgentLocation.Chat, cts.token, 'voice-confirm').catch(() => undefined);
+						cts.dispose();
+						if (ref) {
+							model = this.chatService.getSession(agentSession.resource);
+							ref.dispose();
 						}
 					}
 				}

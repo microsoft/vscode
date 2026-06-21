@@ -36,7 +36,7 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { IAgentMaterializeSessionEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agentService.js';
-import { AgentFeedbackAttachmentDisplayKind } from '../../common/agentFeedbackAttachments.js';
+import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, buildSubagentSessionUri, customizationId, type ClientPluginCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
@@ -699,6 +699,12 @@ suite('ClaudeAgent', () => {
 			authorization_servers: ['https://github.com/login/oauth'],
 			scopes_supported: ['read:user', 'user:email'],
 			required: true,
+		}, {
+			resource: 'https://api.github.com/repos',
+			resource_name: 'GitHub Repository',
+			authorization_servers: ['https://github.com/login/oauth'],
+			scopes_supported: ['repo'],
+			required: false,
 		}]);
 	});
 
@@ -2528,6 +2534,36 @@ suite('ClaudeAgent', () => {
 			{
 				type: 'text',
 				text: 'Feedback text for the model',
+			},
+		]);
+	});
+
+	test('agent feedback annotations attachments reference the attached comment ids', () => {
+		const blocks = resolvePromptToContentBlocks('/act-on-feedback', [{
+			type: MessageAttachmentKind.Annotations,
+			label: '2 comments',
+			displayKind: AgentFeedbackAttachmentDisplayKind,
+			resource: 'ahp-session:/s/annotations',
+			annotationIds: ['feedback-1'],
+		}, {
+			type: MessageAttachmentKind.Annotations,
+			label: '2 comments',
+			displayKind: AgentFeedbackAttachmentDisplayKind,
+			resource: 'ahp-session:/s/annotations',
+			annotationIds: ['feedback-2'],
+		}]);
+
+		assert.deepStrictEqual(blocks, [
+			{ type: 'text', text: '/act-on-feedback' },
+			{
+				type: 'text',
+				text:
+					'The user attached specific feedback comments to act on (comment ids):\n' +
+					'- feedback-1\n\n' +
+					'Use the `listComments` tool to read their content and focus on these comments.\n\n' +
+					'The user attached specific feedback comments to act on (comment ids):\n' +
+					'- feedback-2\n\n' +
+					'Use the `listComments` tool to read their content and focus on these comments.',
 			},
 		]);
 	});

@@ -11,7 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { type ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSession, type AgentProvider, type AgentSignal, type IAgent, type IAgentActionSignal, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, type IHistoryRecord } from './historyRecordFixtures.js';
-import { ProtectedResourceMetadata, ToolCallContributorKind, type MessageAttachment, type ModelSelection } from '../../common/state/protocol/state.js';
+import { ProtectedResourceMetadata, ToolCallContributorKind, type AgentSelection, type MessageAttachment, type ModelSelection } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, CustomizationLoadStatus, parseSubagentSessionUri, type ClientPluginCustomization, type Customization, type PendingMessage, type StringOrMarkdown, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
@@ -53,7 +53,8 @@ export class MockAgent implements IAgent {
 	readonly disposeSessionCalls: URI[] = [];
 	readonly abortSessionCalls: URI[] = [];
 	readonly respondToPermissionCalls: { requestId: string; approved: boolean }[] = [];
-	readonly changeModelCalls: { session: URI; model: ModelSelection }[] = [];
+	readonly changeModelCalls: { session: URI; model: ModelSelection; chat?: URI }[] = [];
+	readonly changeAgentCalls: { session: URI; agent: AgentSelection | undefined; chat?: URI }[] = [];
 	readonly authenticateCalls: { resource: string; token: string }[] = [];
 	readonly setClientCustomizationsCalls: { clientId: string; customizations: ClientPluginCustomization[] }[] = [];
 	readonly setCustomizationEnabledCalls: { id: string; enabled: boolean }[] = [];
@@ -158,8 +159,12 @@ export class MockAgent implements IAgent {
 		// no-op for tests
 	}
 
-	async changeModel(session: URI, model: ModelSelection): Promise<void> {
-		this.changeModelCalls.push({ session, model });
+	async changeModel(session: URI, model: ModelSelection, chat?: URI): Promise<void> {
+		this.changeModelCalls.push({ session, model, chat });
+	}
+
+	async changeAgent(session: URI, agent: AgentSelection | undefined, chat?: URI): Promise<void> {
+		this.changeAgentCalls.push({ session, agent, chat });
 	}
 
 	async authenticate(resource: string, token: string): Promise<boolean> {
@@ -485,6 +490,55 @@ export class ScriptedMockAgent implements IAgent {
 					if (approved) {
 						this._fireSequence([
 							_toolComplete(session, sessionStr, tid, 'tc-shell-deny-1', { pastTenseMessage: 'Ran command', content: [{ type: ToolResultContentType.Text, text: '' }], success: true }),
+							_idle(session, sessionStr, tid),
+						]);
+					}
+				});
+				break;
+			}
+
+			case 'orphan-confirmation': {
+				// Regression scenario for a `pending_confirmation` that
+				// arrives without an active protocol turn (the session would
+				// otherwise hang forever). Reproduces a hook-triggered
+				// continuation that runs *after* the protocol turn has
+				// already completed:
+				//   1. A tool runs and the turn completes — the state manager
+				//      no longer has an active turn.
+				//   2. The continuation dispatches a new tool with an empty
+				//      turnId and emits `pending_confirmation` while there is
+				//      no active turn.
+				// The read targets a path inside the working directory, so the
+				// host auto-approves it and calls `respondToPermissionRequest`,
+				// which resolves the callback below and lets the session
+				// continue. Without the fix the signal is dropped, the callback
+				// never fires, and the session hangs.
+				(async () => {
+					await timeout(10);
+					for (const s of _toolStart(session, sessionStr, tid, 'tc-orphan-initial', 'bash', 'Run Command', 'Run command')) {
+						this._onDidSessionProgress.fire(s);
+					}
+					await timeout(5);
+					this._onDidSessionProgress.fire(_toolComplete(session, sessionStr, tid, 'tc-orphan-initial', { pastTenseMessage: 'Ran command', content: [{ type: ToolResultContentType.Text, text: 'ok' }], success: true }));
+					await timeout(5);
+					// Complete the turn — the state manager clears the active turn.
+					this._onDidSessionProgress.fire(_idle(session, sessionStr, tid));
+
+					// Hook-triggered continuation: a new tool starts with an
+					// empty turnId and `pending_confirmation` arrives while
+					// there is no active turn.
+					await timeout(10);
+					for (const s of _toolStart(session, sessionStr, '', 'tc-orphan', 'view', 'Read', 'Read file')) {
+						this._onDidSessionProgress.fire(s);
+					}
+					await timeout(5);
+					this._onDidSessionProgress.fire(_pendingConfirmation(session, 'tc-orphan', 'Read file', { permissionKind: 'read', permissionPath: '/workspace/file.ts' }));
+				})();
+				this._pendingPermissions.set('tc-orphan', (approved) => {
+					if (approved) {
+						this._fireSequence([
+							_toolComplete(session, sessionStr, tid, 'tc-orphan', { pastTenseMessage: 'Read file', content: [{ type: ToolResultContentType.Text, text: 'contents' }], success: true }),
+							_markdown(session, sessionStr, tid, 'continued-after-hook'),
 							_idle(session, sessionStr, tid),
 						]);
 					}

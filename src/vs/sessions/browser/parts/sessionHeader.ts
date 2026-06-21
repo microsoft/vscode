@@ -369,8 +369,9 @@ export class SessionHeader extends Disposable {
 	}
 
 	/**
-	 * Builds the workspace hover content for the current session: the complete
-	 * absolute folder path and git branch, mirroring the session list hover.
+	 * Builds the workspace hover content for the current session. Shows the repo
+	 * folder and, when the working directory differs from the repo root, the
+	 * working directory on a separate line, followed by the git branch.
 	 * Returns `undefined` when there is no workspace to describe.
 	 */
 	private _buildWorkspaceHover(): IManagedHoverTooltipMarkdownString | undefined {
@@ -380,25 +381,22 @@ export class SessionHeader extends Disposable {
 			return undefined;
 		}
 
-		const path = folder.root.fsPath;
+		const workingDirPath = folder.workingDirectory.fsPath;
 		const branch = folder.gitRepository?.branchName?.trim();
 
 		const md = new MarkdownString('', { supportThemeIcons: true });
-
-		// Folder icon + absolute path. Mirror the meta-row icon logic: cloud for
-		// virtual workspaces, folder when the session runs in the repo checkout,
-		// worktree otherwise.
-		const isWorkspaceFolder = folder.gitRepository?.workTreeUri === undefined;
-		const folderIcon = workspace.isVirtualWorkspace ? Codicon.cloud : isWorkspaceFolder ? Codicon.folder : Codicon.worktree;
-		md.appendMarkdown(`$(${folderIcon.id}) `);
-		md.appendText(path);
+		const fallbackLines: string[] = [];
+		md.appendMarkdown(`$(${Codicon.folder.id}) `);
+		md.appendText(workingDirPath);
+		fallbackLines.push(workingDirPath);
 
 		if (branch) {
-			md.appendMarkdown(' · $(git-branch) ');
+			md.appendMarkdown('\n\n$(git-branch) ');
 			md.appendText(branch);
+			fallbackLines.push(branch);
 		}
 
-		return { markdown: md, markdownNotSupportedFallback: branch ? `${path} · ${branch}` : path };
+		return { markdown: md, markdownNotSupportedFallback: fallbackLines.join('\n') };
 	}
 
 	private _setVisible(visible: boolean): void {

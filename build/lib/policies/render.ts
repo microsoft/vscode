@@ -5,6 +5,13 @@
 
 import type { NlsString, LanguageTranslations, Category, Policy, Translations, ProductJson } from './types.ts';
 
+export function escapeXml(value: string): string {
+	return value
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;');
+}
+
 export function renderADMLString(prefix: string, moduleName: string, nlsString: NlsString, translations?: LanguageTranslations): string {
 	let value: string | undefined;
 
@@ -20,7 +27,7 @@ export function renderADMLString(prefix: string, moduleName: string, nlsString: 
 		value = nlsString.value;
 	}
 
-	return `<string id="${prefix}_${nlsString.nlsKey.replace(/\./g, '_')}">${value}</string>`;
+	return `<string id="${prefix}_${nlsString.nlsKey.replace(/\./g, '_')}">${escapeXml(value)}</string>`;
 }
 
 export function renderProfileString(_prefix: string, moduleName: string, nlsString: NlsString, translations?: LanguageTranslations): string {
@@ -38,7 +45,7 @@ export function renderProfileString(_prefix: string, moduleName: string, nlsStri
 		value = nlsString.value;
 	}
 
-	return value;
+	return escapeXml(value);
 }
 
 export function renderADMX(regKey: string, versions: string[], categories: Category[], policies: Policy[]) {

@@ -89,7 +89,7 @@ testFamilies.forEach(family => {
 			accessor.dispose();
 		});
 
-		async function agentPromptToString(accessor: ITestingServicesAccessor, promptContext: IBuildPromptContext, otherProps?: Partial<AgentPromptProps>): Promise<string> {
+		async function agentPromptToString(accessor: ITestingServicesAccessor, promptContext: IBuildPromptContext, otherProps?: Partial<AgentPromptProps>, includeMemoryTool = true): Promise<string> {
 			const instaService = accessor.get(IInstantiationService);
 			const endpoint = family === 'default'
 				? instaService.createInstance(MockEndpoint, undefined)
@@ -97,6 +97,24 @@ testFamilies.forEach(family => {
 			const isMessagesApi = family.startsWith('claude-');
 			if (!promptContext.conversation) {
 				promptContext = { ...promptContext, conversation };
+			}
+
+			// Real agent requests always advertise the non-deferred memory tool, which gates
+			// the memory instructions/context blocks. Advertise it here so scenarios that don't
+			// otherwise pass tools still exercise the memory-enabled prompt by default; the
+			// `memory tool disabled` test opts out to cover the gated-off behavior.
+			if (includeMemoryTool && !promptContext.tools?.availableTools.some(t => t.name === ToolName.Memory)) {
+				const memoryTool = accessor.get(IToolsService).tools.find(t => t.name === ToolName.Memory);
+				if (memoryTool) {
+					promptContext = {
+						...promptContext,
+						tools: {
+							toolInvocationToken: promptContext.tools?.toolInvocationToken ?? (null as never),
+							toolReferences: promptContext.tools?.toolReferences ?? [],
+							availableTools: [...(promptContext.tools?.availableTools ?? []), memoryTool],
+						}
+					};
+				}
 			}
 
 			const customizations = await PromptRegistry.resolveAllCustomizations(instaService, endpoint);
@@ -176,6 +194,24 @@ testFamilies.forEach(family => {
 					toolReferences: [],
 				}
 			}, undefined)).toMatchFileSnapshot(getSnapshotFile('all_non_edit_tools'));
+		});
+
+		test('memory tool disabled omits memory instructions and context', async () => {
+			const toolsService = accessor.get(IToolsService);
+			const rendered = await agentPromptToString(accessor, {
+				chatVariables: new ChatVariablesCollection(),
+				history: [],
+				query: 'hello',
+				tools: {
+					availableTools: toolsService.tools.filter(t => t.name !== ToolName.Memory),
+					toolInvocationToken: null as never,
+					toolReferences: [],
+				}
+			}, undefined, /* includeMemoryTool */ false);
+			expect(rendered).not.toContain('memoryInstructions');
+			expect(rendered).not.toContain('userMemory');
+			expect(rendered).not.toContain('sessionMemory');
+			expect(rendered).not.toContain('repoMemory');
 		});
 
 		test('one attachment', async () => {

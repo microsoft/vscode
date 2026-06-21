@@ -55,6 +55,7 @@ suite('agentHost editSurvivalReporter', () => {
 			afterText: 'after-text',
 			isCreate: false,
 			modelId: 'claude-sonnet-4.5',
+			toolName: 'Edit',
 			aiChunks: ['after-text'],
 		});
 		disposables.add(reporter);
@@ -68,6 +69,7 @@ suite('agentHost editSurvivalReporter', () => {
 		const data = first.data as Record<string, unknown>;
 		assert.strictEqual(data.provider, 'claude');
 		assert.strictEqual(data.modelId, 'claude-sonnet-4.5');
+		assert.strictEqual(data.toolName, 'Edit');
 		assert.strictEqual(data.agentSessionId, 'session-1');
 		assert.strictEqual(data.turnId, 'turn-1');
 		assert.strictEqual(data.toolCallId, 'tc-1');

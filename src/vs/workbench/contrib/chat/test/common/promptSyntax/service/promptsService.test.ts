@@ -194,6 +194,7 @@ suite('PromptsService', () => {
 
 		instaService.stub(IRemoteAgentService, {
 			getEnvironment: () => Promise.resolve(null),
+			getConnection: () => null,
 		});
 
 		instaService.stub(IContextKeyService, new MockContextKeyService());

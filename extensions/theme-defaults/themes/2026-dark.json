@@ -48,9 +48,9 @@
 		"inputValidation.errorBorder": "#BE1100",
 		"inputValidation.errorForeground": "#bfbfbf",
 		"scrollbar.shadow": "#191B1D4D",
-		"scrollbarSlider.background": "#83848533",
-		"scrollbarSlider.hoverBackground": "#83848566",
-		"scrollbarSlider.activeBackground": "#83848599",
+		"scrollbarSlider.background": "#A8A9AA85",
+		"scrollbarSlider.hoverBackground": "#A8A9AA90",
+		"scrollbarSlider.activeBackground": "#A8A9AA9C",
 		"badge.background": "#3994BCF0",
 		"badge.foreground": "#FFFFFF",
 		"progressBar.background": "#878889",
@@ -276,9 +276,9 @@
 		"charts.green": "#86CF86",
 		"charts.purple": "#AD80D7",
 		"inlineChat.border": "#00000000",
-		"minimapSlider.background": "#83848533",
-		"minimapSlider.hoverBackground": "#83848566",
-		"minimapSlider.activeBackground": "#83848599",
+		"minimapSlider.background": "#A8A9AA85",
+		"minimapSlider.hoverBackground": "#A8A9AA90",
+		"minimapSlider.activeBackground": "#A8A9AA9C",
 
 		"agents.background": "#121314",
 		"agentsPanel.background": "#191A1B",
@@ -353,7 +353,7 @@
 				"meta.embedded.expression"
 			],
 			"settings": {
-				"foreground": "#ffa657"
+				"foreground": "#c9d1d9"
 			}
 		},
 		{
@@ -426,17 +426,7 @@
 		{
 			"scope": "variable.other",
 			"settings": {
-				"foreground": "#ffa657"
-			}
-		},
-		{
-			"scope": [
-				"variable.other.readwrite.alias",
-				"meta.import variable.other",
-				"meta.export variable.other"
-			],
-			"settings": {
-				"foreground": "#79c0ff"
+				"foreground": "#c9d1d9"
 			}
 		},
 		{
@@ -604,8 +594,8 @@
 				"punctuation.definition.deleted"
 			],
 			"settings": {
-				"foreground": "#f48771",
-				"background": "#f4877126"
+				"foreground": "#ffa198",
+				"background": "#490202"
 			}
 		},
 		{
@@ -623,8 +613,8 @@
 				"punctuation.definition.inserted"
 			],
 			"settings": {
-				"foreground": "#73c991",
-				"background": "#73c99126"
+				"foreground": "#7ee787",
+				"background": "#04260f"
 			}
 		},
 		{
@@ -633,8 +623,8 @@
 				"punctuation.definition.changed"
 			],
 			"settings": {
-				"foreground": "#e5ba7d",
-				"background": "#e5ba7d26"
+				"foreground": "#ffa657",
+				"background": "#5a1e02"
 			}
 		},
 		{

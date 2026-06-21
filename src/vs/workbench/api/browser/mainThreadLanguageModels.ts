@@ -86,6 +86,12 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 				sendChatRequest: async (modelId, messages, from, options, token) => {
 					const requestId = (Math.random() * 1e6) | 0;
 					const defer = new DeferredPromise<unknown>();
+					// `result` mirrors the stream's terminal status and is rejected together with the
+					// stream on error (see `$reportResponseDone`). Consumers that read the stream let the
+					// for-await throw and never reach `await response.result`, leaving its rejection (e.g.
+					// an expected `ChatQuotaExceeded`) unobserved. Attach a no-op handler so it cannot
+					// surface as an unhandled rejection; real awaiters of `result` still see the error.
+					defer.p.catch(() => { });
 					const stream = new AsyncIterableSource<IChatResponsePart | IChatResponsePart[]>();
 
 					try {

@@ -292,6 +292,21 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 			Event.map(onStderr.event, o => ({ data: `%c${o}`, format: ['color: red'] }))
 		);
 
+		// Persist the raw extension host process output (stdout/stderr) to the
+		// renderer log. The output is otherwise only forwarded (debounced) to the
+		// renderer DevTools console. A native crash of the extension host process
+		// - e.g. a faulty native addon - prints to the process' stderr but never
+		// reaches the JavaScript layer, so it has no JS stack and (for utility
+		// processes) frequently produces no crash dump; it also cannot go through
+		// the extension host's own log service, which lives in the dying process.
+		// Capturing the raw output from the (surviving) renderer keeps such
+		// crashes diagnosable from the logs. Gated to smoke tests
+		// (`--enable-smoke-test-driver`) so it does not affect regular sessions.
+		if (this._environmentService.args['enable-smoke-test-driver']) {
+			this._register(onStdout.event(line => this._logService.info(`[Extension Host (stdout)] ${line.replace(/\r?\n$/, '')}`)));
+			this._register(onStderr.event(line => this._logService.error(`[Extension Host (stderr)] ${line.replace(/\r?\n$/, '')}`)));
+		}
+
 		// Debounce all output, so we can render it in the Chrome console as a group
 		const onDebouncedOutput = Event.debounce<Output>(onOutput, (r, o) => {
 			return r

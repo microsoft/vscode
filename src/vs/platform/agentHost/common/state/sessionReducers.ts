@@ -9,6 +9,7 @@
 // Re-export reducers from the protocol layer
 export { rootReducer, sessionReducer, chatReducer, changesetReducer, annotationsReducer, softAssertNever, isClientDispatchable } from './protocol/reducers.js';
 
+import { readToolCallMeta, type ToolKind } from '../meta/agentToolCallMeta.js';
 import type { ICompletedToolCall, ToolCallState } from './sessionState.js';
 
 /**
@@ -16,6 +17,6 @@ import type { ICompletedToolCall, ToolCallState } from './sessionState.js';
  * bag. This is not part of the protocol and is injected by the agent adapter
  * (e.g. `copilotEventMapper`).
  */
-export function getToolKind(tc: ToolCallState | ICompletedToolCall): 'terminal' | 'subagent' | 'search' | undefined {
-	return tc._meta?.toolKind as 'terminal' | 'subagent' | 'search' | undefined;
+export function getToolKind(tc: ToolCallState | ICompletedToolCall): ToolKind | undefined {
+	return readToolCallMeta(tc).toolKind;
 }

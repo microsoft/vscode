@@ -37,6 +37,8 @@ export interface IDefaultAccountProvider {
 	readonly managedSettingsFetchStatus: ManagedSettingsFetchStatus;
 	/** Timestamp (ms) of the last managed-settings fetch, or `null` if never fetched. */
 	readonly managedSettingsFetchedAt: number | null;
+	/** The raw JSON response from the managed-settings endpoint, for diagnostics. */
+	readonly managedSettingsRawResponse: unknown;
 	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider;
 
 	/**
@@ -66,6 +68,8 @@ export interface IDefaultAccountService {
 	readonly managedSettingsFetchStatus: ManagedSettingsFetchStatus;
 	/** Timestamp (ms) of the last managed-settings fetch, or `null` if never fetched. */
 	readonly managedSettingsFetchedAt: number | null;
+	/** The raw JSON response from the managed-settings endpoint, for diagnostics. */
+	readonly managedSettingsRawResponse: unknown;
 	getDefaultAccount(): Promise<IDefaultAccount | null>;
 	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider;
 	setDefaultAccountProvider(provider: IDefaultAccountProvider): void;

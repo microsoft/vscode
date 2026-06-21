@@ -93,6 +93,8 @@ src/vs/sessions/contrib/providers/
 
 Providers can import from all layers below them (core, services, non-provider contribs). **Non-provider contribs must NOT import from providers.** Shared symbols should be extracted to `services/` or `common/`.
 
+The sessions-layer `AgentHostCustomizationService` adapts the workbench customization service contract to `IAgentHostSessionsProvider`. It reads session MCP servers through the owning provider and writes root MCP server definitions by merging the provider's current root `mcpServers` config map before calling `setRootConfigValue`, so additions preserve existing host-level servers.
+
 #### Provider internals stay in the provider (`IAgentSessionsService`)
 
 `IAgentSessionsService` (`vs/workbench/contrib/chat/browser/agentSessions/agentSessionsService`) is a **Copilot-provider internal** and must be consumed **only** by the Copilot chat sessions provider (`contrib/providers/copilotChatSessions/`). The rest of the Agents window — core, services, and non-provider contribs (e.g. the sessions list, the visible-sessions grid) — must stay **provider-agnostic** and interact with sessions exclusively through `ISession`/`ISessionsManagementService`. Reaching into `IAgentSessionsService` from shared code (for example to call `model.observeSession(...)` for lazy loading) couples the whole window to one provider and is prohibited. If a provider needs to react to provider-agnostic signals (such as a session becoming visible), surface that signal on the shared services and subscribe to it **inside the provider**. This rule is enforced by an ESLint `no-restricted-imports` ban scoped to `src/vs/sessions/**` (with the Copilot provider folder exempted).
@@ -190,9 +192,10 @@ Sessions produce file changes organized into **`ISessionChangeset`** groups — 
    → Provider creates the backend chat model and returns an IChat
    → Management fires onWillSendRequest(session); the view follows the send to
      keep the newest chat active in the visible slot
-  → ChatView locks the embedded ChatWidget to the contributed chat session type
-    (for example agent-host-codex) before setting the model, so follow-up turns
-    keep routing to the provider that owns the session; local chat sessions unlock
+  → ChatView clears the embedded ChatWidget before loading a different chat,
+    then locks it to the contributed chat session type (for example
+    agent-host-codex) before setting the model, so follow-up turns keep routing
+    to the provider that owns the session; local chat sessions unlock
    → Delegates to provider.sendRequest(sessionId, chatResource, options)
    → Provider sends request, returns committed session
    → Management fires onDidStartSession(committedSession) + onDidSendRequest(...)
