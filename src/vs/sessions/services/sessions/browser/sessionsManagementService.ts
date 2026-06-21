@@ -501,6 +501,29 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._onDidDeleteSession.fire(session);
 	}
 
+	async deleteSessions(sessions: readonly ISession[]): Promise<void> {
+		const byProvider = new Map<ISessionsProvider, ISession[]>();
+		for (const session of sessions) {
+			const provider = this._getProvider(session);
+			if (!provider) {
+				continue;
+			}
+			const group = byProvider.get(provider);
+			if (group) {
+				group.push(session);
+			} else {
+				byProvider.set(provider, [session]);
+			}
+		}
+
+		for (const [provider, providerSessions] of byProvider) {
+			await provider.deleteSessions(providerSessions.map(session => session.sessionId));
+			for (const session of providerSessions) {
+				this._onDidDeleteSession.fire(session);
+			}
+		}
+	}
+
 	async deleteChat(session: ISession, chatUri: URI): Promise<void> {
 		await this._getProvider(session)?.deleteChat(session.sessionId, chatUri);
 		this._onDidDeleteChat.fire(session);

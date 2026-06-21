@@ -1653,6 +1653,24 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(provider.getSessions().find(s => s.title.get() === 'To Delete'), undefined);
 	});
 
+	test('deleteSessions disposes all sessions and removes them from cache', async () => {
+		const provider = createProvider(disposables, agentHost);
+		fireSessionAdded(agentHost, 'del-1', { title: 'First' });
+		fireSessionAdded(agentHost, 'del-2', { title: 'Second' });
+
+		const first = provider.getSessions().find(s => s.title.get() === 'First');
+		const second = provider.getSessions().find(s => s.title.get() === 'Second');
+		assert.ok(first);
+		assert.ok(second);
+
+		await provider.deleteSessions([first!.sessionId, second!.sessionId]);
+
+		assert.strictEqual(agentHost.disposedSessions.length, 2);
+		assert.deepStrictEqual(agentHost.disposedSessions.map(uri => AgentSession.id(uri)).sort(), ['del-1', 'del-2']);
+		assert.strictEqual(provider.getSessions().find(s => s.title.get() === 'First'), undefined);
+		assert.strictEqual(provider.getSessions().find(s => s.title.get() === 'Second'), undefined);
+	});
+
 	// ---- Rename -------
 
 	test('renameSession dispatches SessionTitleChanged on the session channel', async () => {

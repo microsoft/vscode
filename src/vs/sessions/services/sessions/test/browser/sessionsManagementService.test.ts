@@ -153,6 +153,7 @@ class TestSessionsProvider extends mock<ISessionsProvider>() {
 	override async archiveSession(): Promise<void> { }
 	override async unarchiveSession(): Promise<void> { }
 	override async deleteSession(): Promise<void> { }
+	override async deleteSessions(): Promise<void> { }
 	override async deleteChat(): Promise<void> { }
 	override deleteNewSession(): void { }
 	override async sendRequest(_sessionId: string, _chatResource: URI, _options: ISendRequestOptions): Promise<ISession> { return this._session; }

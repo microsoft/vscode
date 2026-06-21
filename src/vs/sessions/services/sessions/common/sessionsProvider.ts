@@ -232,6 +232,14 @@ export interface ISessionsProvider {
 	deleteSession(sessionId: string): Promise<void>;
 
 	/**
+	 * Delete multiple sessions at once. Providers that can remove several
+	 * sessions more efficiently (or want to emit a single change event)
+	 * override the default per-session behavior.
+	 * @param sessionIds The IDs of the sessions to delete.
+	 */
+	deleteSessions(sessionIds: readonly string[]): Promise<void>;
+
+	/**
 	 * Delete a single chat from a session.
 	 * @param sessionId The ID of the session containing the chat to delete.
 	 * @param chatUri The URI of the chat to delete.
