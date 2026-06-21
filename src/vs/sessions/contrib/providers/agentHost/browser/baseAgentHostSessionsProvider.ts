@@ -96,7 +96,7 @@ function normalizeSessionConfigValue(property: string, value: unknown, policyRes
 /** Copilot CLI session type */
 export const CopilotCLISessionType: ISessionType = {
 	id: 'copilotcli',
-	label: localize('copilotCLI', "Copilot CLI"),
+	label: localize('copilotCLI', "Copilot"),
 	icon: Codicon.copilot,
 };
 
