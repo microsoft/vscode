@@ -575,7 +575,7 @@ export class ChatListWidget extends Disposable {
 			this._tree.onDidScroll((e) => {
 				this._onDidScroll.fire(e);
 				this.updateScrollDownButtonVisibility();
-				this._scrollbarPromptMarkerController?.refresh();
+				this._scrollbarPromptMarkerController?.refreshIfDimensionsChanged();
 			}),
 		);
 

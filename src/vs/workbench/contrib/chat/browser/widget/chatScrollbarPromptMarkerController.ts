@@ -76,6 +76,9 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 	private pointerDownListenerParent: HTMLElement | undefined;
 	private visible = true;
 	private markerActivated = false;
+	private _lastScrollHeight = -1;
+	private _lastRenderHeight = -1;
+	private readonly _focusRetryDisposable = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly host: IChatScrollbarPromptMarkerHost,
@@ -89,6 +92,10 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 			}),
 		);
 		this.container.classList.add('chat-scrollbar-prompt-markers');
+		// The marker overlay is a mouse-only visual aid. It is hidden from the
+		// accessibility tree because it has no keyboard interaction path.
+		// Keyboard users can navigate prompts via the Next/Previous User Prompt
+		// commands, which are documented in the chat accessibility help dialog.
 		this.container.setAttribute('aria-hidden', 'true');
 		this.container.style.position = 'absolute';
 		this.container.style.top = '0';
@@ -149,6 +156,19 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 
 	refresh(): void {
 		this.renderMarkers();
+	}
+
+	/**
+	 * Refreshes markers only when the scroll dimensions (scrollHeight or
+	 * renderHeight) have changed since the last render. This is used for
+	 * scroll events, where the viewport moves but marker geometry — which
+	 * is computed from element positions relative to total scroll height —
+	 * does not change unless virtualization re-measures row heights.
+	 */
+	refreshIfDimensionsChanged(): void {
+		if (this.host.scrollHeight !== this._lastScrollHeight || this.host.renderHeight !== this._lastRenderHeight) {
+			this.renderMarkers();
+		}
 	}
 
 	private updateContainerVisibility(): void {
@@ -277,6 +297,8 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 		for (const [id, target] of nextTargetById) {
 			this.targetById.set(id, target);
 		}
+		this._lastScrollHeight = scrollHeight;
+		this._lastRenderHeight = rulerHeight;
 		this.updateContainerVisibility();
 	}
 
@@ -409,10 +431,10 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 				}
 				attempts++;
 				if (attempts < maxAttempts) {
-					dom.scheduleAtNextAnimationFrame(targetWindow, tryFocus);
+					this._focusRetryDisposable.value = dom.scheduleAtNextAnimationFrame(targetWindow, tryFocus);
 				}
 			};
-			dom.scheduleAtNextAnimationFrame(targetWindow, tryFocus);
+			this._focusRetryDisposable.value = dom.scheduleAtNextAnimationFrame(targetWindow, tryFocus);
 		}
 	}
 }
