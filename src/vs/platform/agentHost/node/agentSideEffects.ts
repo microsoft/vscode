@@ -862,6 +862,11 @@ export class AgentSideEffects extends Disposable {
 				agent?.abortSession(URI.parse(channel), chatChannel ? URI.parse(chatChannel) : undefined).catch(err => {
 					this._logService.error('[AgentSideEffects] abortSession failed', err);
 				});
+				// Intentionally do NOT drain queued messages here: cancelling means
+				// "stop", so messages queued behind the turn stay queued for the
+				// user to dequeue/run manually. (A message the user sends *after*
+				// the abort is still consumed via the ChatPendingMessageSet path
+				// once cancellation has cleared the active turn.)
 				break;
 			}
 			case ActionType.SessionModelChanged: {
