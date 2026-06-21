@@ -1298,14 +1298,24 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// in the middle of a turn.
 		this._ensureActiveClientForMessage(session);
 
+		// Model and agent selections are dispatched to the per-chat turn
+		// channel, not the session URI: for an additional (peer) chat the
+		// `turnChannel` carries a chatId fragment so the host applies the
+		// change to that chat's own conversation rather than the session's
+		// default chat. The model/agent equality guards read session-level
+		// `summary` which only tracks the default chat, so they only apply to
+		// the default chat; peer chats (`request.sessionResource.fragment`)
+		// dispatch whenever a model/agent is selected.
+		const isPeerChat = !!request.sessionResource.fragment;
+
 		// If the user selected a different model since the session was created
 		// (or since the last turn), dispatch a model change action first so the
 		// agent backend picks up the new model before processing the turn.
 		const selectedModel = this._createModelSelection(request.userSelectedModelId, request.modelConfiguration);
 		if (selectedModel) {
-			const currentModel = this._getSessionState(session.toString())?.summary.model;
+			const currentModel = isPeerChat ? undefined : this._getSessionState(session.toString())?.summary.model;
 			if (!this._modelSelectionsEqual(currentModel, selectedModel)) {
-				this._config.connection.dispatch(session.toString(), {
+				this._config.connection.dispatch(turnChannel, {
 					type: ActionType.SessionModelChanged,
 					model: selectedModel,
 				});
@@ -1317,9 +1327,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// new-session picker so a graduating session's `summary.agent` reflects
 		// the user's choice; on subsequent turns this also handles a swap.
 		const requestedAgentUri = request.modeInstructions?.uri?.toString();
-		const currentAgentUri = this._getSessionState(session.toString())?.summary.agent?.uri.toString();
+		const currentAgentUri = isPeerChat ? undefined : this._getSessionState(session.toString())?.summary.agent?.uri.toString();
 		if (requestedAgentUri !== currentAgentUri) {
-			this._config.connection.dispatch(session.toString(), {
+			this._config.connection.dispatch(turnChannel, {
 				type: ActionType.SessionAgentChanged,
 				...(requestedAgentUri ? { agent: { uri: requestedAgentUri } } : {}),
 			});

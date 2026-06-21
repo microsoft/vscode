@@ -1807,7 +1807,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 		});
 	}
 
-	async changeModel(session: URI, model: ModelSelection): Promise<void> {
+	async changeModel(session: URI, model: ModelSelection, chat?: URI): Promise<void> {
+		// Additional (non-default) chats are backed by their own SDK
+		// conversation tracked in `_chatSessions`; apply the change there and
+		// skip the session-level metadata store (peer chats are not persisted
+		// per-chat).
+		if (chat && !isDefaultChatUri(chat)) {
+			await this._chatSessions.get(chat.toString())?.setModel(model.id, getCopilotReasoningEffort(model), getCopilotContextTier(model));
+			return;
+		}
 		const sessionId = AgentSession.id(session);
 		const provisional = this._provisionalSessions.get(sessionId);
 		if (provisional) {
@@ -1821,7 +1829,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 		await this._storeSessionMetadata(session, model, undefined, undefined, undefined);
 	}
 
-	async changeAgent(session: URI, agent: AgentSelection | undefined): Promise<void> {
+	async changeAgent(session: URI, agent: AgentSelection | undefined, chat?: URI): Promise<void> {
+		// Additional (non-default) chats own their SDK conversation in
+		// `_chatSessions`. Apply the agent to that conversation (resolving the
+		// URI → SDK name against its own applied snapshot) and skip the
+		// session-level metadata store.
+		if (chat && !isDefaultChatUri(chat)) {
+			const chatEntry = this._chatSessions.get(chat.toString());
+			if (chatEntry) {
+				const resolvedAgentName = agent ? await this._resolveAgentName(session, chatEntry.appliedSnapshot, agent) : undefined;
+				await chatEntry.setAgent(resolvedAgentName);
+			}
+			return;
+		}
 		const sessionId = AgentSession.id(session);
 		const provisional = this._provisionalSessions.get(sessionId);
 		if (provisional) {
