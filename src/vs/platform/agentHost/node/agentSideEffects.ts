@@ -805,7 +805,7 @@ export class AgentSideEffects extends Disposable {
 
 				const state = this._stateManager.getSessionState(channel);
 				if (!state) {
-					this._logService.info(`[AgentSideEffects] Turn started for session not in state manager: ${channel} — status/summary updates will be dropped`);
+					this._logService.info(`[AgentSideEffects] Turn started for session not in state manager: ${channel}, turnId=${action.turnId} - status/summary updates may be dropped unless the session is restored`);
 				}
 				this._titleController.seedTitleFromFirstMessage(channel, action.message.text, chatChannel);
 
