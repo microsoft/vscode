@@ -31,7 +31,6 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
 import {
 	asCssVariable,
 	buttonSecondaryBackground,
@@ -321,7 +320,6 @@ export class ChatListWidget extends Disposable {
 		private readonly configurationService: IConfigurationService,
 		@IChatAccessibilityService
 		private readonly chatAccessibilityService: IChatAccessibilityService,
-		@IFileService private readonly fileService: IFileService,
 	) {
 		super();
 
