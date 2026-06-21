@@ -123,7 +123,7 @@ The sections below must be executed in this order. Each section lists its prereq
 4. **§3 (session-switch-smoke)** — ~15 min. Depends on §0 (branch build). Launches its own instance; does not need the mock server. Produces `summary.json` in `artifacts/session-switch/`. Does NOT use `--heap-snapshot-label` (broken — see Known Issues §3).
 5. **§4 (custom scenarios)** — ~30–60 min. Depends on §0 (branch build). Requires mock LLM server started before scenarios C, D, E, I, J, K. Produces screenshots and DOM marker counts in `artifacts/custom-scenarios/`.
 6. **§5 (runtime marker analysis)** — ~15 min. Depends on §1, §2, §3, and §4. Uses runtime DOM counts and `Runtime.getHeapUsage` data (NOT heap snapshots — see Known Issues §3). Analyzes marker controller lifecycle from the data already collected.
-7. **§6 (open/close cycle)** — ~30 min. Depends on §0 (branch build). Launches its own fresh instance with mock server. Produces per-iteration heap samples.
+7. **§6 (open/close cycle with disposal)** — ~30 min per build, ~60 min total. Depends on §0 (both builds). Launches its own fresh instance with mock server. Produces per-iteration heap samples from 20 close-and-dispose cycles per build. This is the authoritative disposal-leak check (see Known Issues §7).
 8. **Deliverables** — ~15 min. Compile `report.md` from all artifacts produced by §1–§6.
 9. **Cleanup** — ~2 min. Remove the `/tmp/vscode-main-baseline` worktree and throwaway scripts.
 
@@ -254,7 +254,7 @@ node .github/skills/auto-perf-optimize/scripts/chat-session-switch-smoke.mts \
   --output /tmp/chat-validation-<timestamp>/artifacts/session-switch
 ```
 
-This creates multiple chat sessions with different content types and repeatedly switches between them — exercising per-session marker controller creation/disposal. Save `summary.json` to `artifacts/session-switch/`. The `summary.json` contains per-iteration heap samples that are used in §5 (runtime marker analysis).
+This creates multiple chat sessions with different content types and repeatedly switches between them — exercising marker controller **re-rendering** when the chat model changes. **⚠️ Note (see Known Issues §7):** Session switching does **not** create or dispose the marker controller. It reuses the same `ChatWidget` and `ChatScrollbarPromptMarkerController`, just swaps the chat model. The controller's `dispose()` is never called. So §3 has the same disposal blind spot as §2 — it can detect accumulation within a live chat but not disposal leaks. The authoritative disposal-leak check is §6. Save `summary.json` to `artifacts/session-switch/`. The `summary.json` contains per-iteration heap samples that are used in §5 (runtime marker analysis).
 
 ### 4. Custom scenarios (true gaps — no existing tool covers these)
 
@@ -354,9 +354,10 @@ For each scenario, capture:
 
 **Prerequisites:** This section consumes runtime data produced by earlier sections. Before starting, verify the following data sources exist:
 - **From §1 (`perf:chat`):** `results.json` per build with per-scenario `heapDelta` and `heapDeltaPostGC` metrics.
-- **From §2 (`perf:chat-leak`):** leak results JSON per build with per-iteration residual heap and DOM node growth.
-- **From §3 (`chat-session-switch-smoke.mts`):** `summary.json` with per-iteration heap samples across 10 switch iterations.
+- **From §2 (`perf:chat-leak`):** leak results JSON per build with per-iteration residual heap and DOM node growth. Note: these numbers include retained-but-hidden chat widgets (Known Issues §7) — use for branch-vs-baseline delta comparison only.
+- **From §3 (`chat-session-switch-smoke.mts`):** `summary.json` with per-iteration heap samples across 10 switch iterations. Note: session switching does not dispose the controller (same blind spot as §2).
 - **From §4 (custom scenarios):** `<scenario>-markers.json` files with before/after DOM marker counts and heap usage for scenarios C, D, E, I, J, K.
+- **From §6 (close-and-dispose cycles):** `open-close-cycle-samples.json` with per-cycle heap, marker DOM count, and total DOM node count across 20 close-and-dispose cycles. This is the authoritative disposal-leak data source.
 
 If any source is missing, note it in the report and proceed with available data.
 
@@ -364,15 +365,19 @@ If any source is missing, note it in the report and proceed with available data.
 
 #### Analysis methodology
 
-1. **DOM marker count comparison:** Compare `.chat-scrollbar-prompt-marker` DOM element counts before and after each custom scenario (from §4 `<scenario>-markers.json` files). If markers persist after chat disposal/reload, that indicates a DOM leak.
+1. **DOM marker count comparison:** Compare `.chat-scrollbar-prompt-marker` DOM element counts before and after each custom scenario (from §4 `<scenario>-markers.json` files). If markers persist after chat disposal/reload, that indicates a DOM leak. **Note:** The authoritative disposal-leak data comes from §6 (close-and-dispose cycles), not from §4 scenarios. §4 Scenario C (window reload) also exercises disposal, but §6 is the systematic per-cycle check. Incorporate §6's `open-close-cycle-samples.json` into this analysis.
 
 2. **Heap usage comparison:** Compare `Runtime.getHeapUsage` before and after each custom scenario (with double-GC). If the branch shows significantly more residual heap than baseline for the same scenario, that indicates a memory leak.
 
-3. **Leak check comparison (from §2):** Compare the total residual heap growth and DOM node growth between branch and baseline. The first pass showed 34.76MB (branch) vs 34.79MB (baseline) — a 0.03MB difference, confirming no additional leak. The re-validation should show similar parity.
+3. **Leak check comparison (from §2):** Compare the total residual heap growth and DOM node growth between branch and baseline. Note: these numbers are inflated by retained hidden chat widgets (Known Issues §7) — focus on the delta, not absolute values. The first pass showed 34.76MB (branch) vs 34.79MB (baseline) — a 0.03MB difference, confirming no additional accumulation leak. The re-validation should show similar parity. **For disposal leaks, rely on §6 data instead.**
 
 4. **Session switch comparison (from §3):** Check `summary.json` for heap growth across 10 switch iterations. If heap grows linearly with switch count, that indicates per-session controller leak.
 
 5. **Perf memory metrics (from §1):** Compare `heapDelta` and `heapDeltaPostGC` medians per scenario between branch and baseline. Large deltas (>20%) in memory metrics could indicate marker-related memory overhead.
+6. **Disposal leak analysis (from §6):** This is the authoritative disposal-leak check. Analyze `open-close-cycle-samples.json` for both builds:
+   - Compute `linearRegressionSlope()` on the 20 heap samples per build. A positive slope with low variance across iterations 5-20 indicates a disposal leak.
+   - Check that `.chat-scrollbar-prompt-marker` DOM count returns to **0** after each close+GC cycle. If markers persist after close, the `ChatScrollbarPromptMarkerController.dispose()` is not removing DOM nodes — that is a disposal bug.
+   - Compare heap slope and total DOM node growth between branch and baseline. The baseline has no marker controller, so its `.chat-scrollbar-prompt-marker` count is always 0. If the branch shows significantly more heap or DOM growth per cycle, that indicates a marker-controller disposal leak that §2 and §3 cannot detect.
 
 **Double-GC pattern for runtime measurements:** When capturing `Runtime.getHeapUsage` via CDP, always force GC first:
 ```
@@ -392,21 +397,26 @@ A single GC call may not finalize V8's concurrent marking.
 
 **⚠️ Critical: This section is the authoritative disposal-leak detector (see Known Issues §7).** Unlike `perf:chat-leak` (§2), which only calls `openNewChat()` and never disposes the chat widget, this section **actually closes the chat pane** between cycles, forcing the `ChatWidget` and its `ChatScrollbarPromptMarkerController` through the full `dispose()` lifecycle. This is the only way to detect disposal leaks — event listeners that survive teardown, DOM marker nodes that aren't removed, or `DisposableStore` instances that aren't disposed.
 
-**How to close the chat pane (not just open a new chat):** Use one of these approaches via the command palette or keyboard:
-- `workbench.action.closePanel` — closes the entire panel containing the chat view, tearing down the chat widget.
-- Close the chat editor tab if chat is open as an editor (`workbench.action.closeActiveEditor`).
-- `Chat: Open Chat` command to reopen — this creates a **new** `ChatWidget` instance with a fresh `ChatScrollbarPromptMarkerController`.
+**How to actually dispose the chat widget (not just hide it):**
 
-The key difference from `openNewChat()`: closing the panel/editor triggers `ChatWidget.dispose()`, which calls `ChatScrollbarPromptMarkerController.dispose()`, which should remove all DOM markers, unregister all event listeners, and dispose all `DisposableStore` entries. If any of those are missing, the old controller survives GC and heap/DOM counts grow.
+⚠️ **Critical:** Closing the panel (`workbench.action.closePanel` / "View: Close Panel") or toggling chat (`workbench.action.chat.toggle` / "Chat: Toggle Chat") only **hides** the `ChatViewPane` — the `ChatWidget` and its `ChatScrollbarPromptMarkerController` stay alive in memory. This does **not** trigger `dispose()`. This is the same blind spot as `perf:chat-leak` (Known Issues §7).
+
+The only way to trigger `ChatWidget.dispose()` → `ChatScrollbarPromptMarkerController.dispose()` is to open chat as an **editor** and then close the editor tab:
+1. **Open chat as editor:** Execute `workbench.action.openChat` ("Chat: New Chat Editor") via command palette. This opens a `ChatEditorInput` in the active editor group, creating a `ChatEditor` that owns a `ChatWidget` via `this._register(...)`. The `_register` call ensures the widget is disposed when the editor pane is disposed.
+2. **Send a message** to create markers on the scrollbar.
+3. **Close the editor tab:** Execute `workbench.action.closeActiveEditor` ("View: Close Editor") via command palette. This disposes the `ChatEditor` pane, which disposes the `ChatWidget`, which calls `ChatScrollbarPromptMarkerController.dispose()`. This removes all DOM markers, unregisters all event listeners, and disposes all `DisposableStore` entries.
+4. **Reopen** via step 1 — this creates a **new** `ChatWidget` instance with a fresh `ChatScrollbarPromptMarkerController`.
+
+If any disposal step is missing (event listener not unregistered, DOM node not removed, `DisposableStore` not disposed), the old controller survives GC and heap/DOM counts grow across cycles.
 
 For the open/close accumulation check (original Scenario H), write a throwaway script under `/tmp/chat-validation-<timestamp>/` that:
 
-1. **Opens** the chat pane (via `Chat: Open Chat` command or `Control+Meta+KeyI`).
+1. **Opens chat as an editor** via `workbench.action.openChat` ("Chat: New Chat Editor") command palette — NOT as a panel view. Only the editor path triggers disposal on close.
 2. **Sends a message** to the mock server and waits for the response to complete (this creates markers on the scrollbar).
-3. **Closes** the chat pane (via `workbench.action.closePanel` or `workbench.action.closeActiveEditor`) — this triggers `ChatWidget.dispose()`.
+3. **Closes the editor tab** via `workbench.action.closeActiveEditor` ("View: Close Editor") — this triggers `ChatEditor.dispose()` → `ChatWidget.dispose()` → `ChatScrollbarPromptMarkerController.dispose()`.
 4. **Forces GC** (double-call with 500ms + 300ms settle delays via CDP `HeapProfiler.collectGarbage`).
 5. **Measures**: `Runtime.getHeapUsage` (heap MB) + `document.querySelectorAll('.chat-scrollbar-prompt-marker').length` (marker DOM count) + `document.querySelectorAll('*').length` (total DOM nodes).
-6. **Reopens** the chat pane and repeats from step 2.
+6. **Reopens** chat as editor (step 1) and repeats from step 2.
 7. Run **20 cycles** and record all 20 measurements to `artifacts/open-close-cycle-samples.json`.
 8. Compute `linearRegressionSlope()` (available in `scripts/chat-simulation/common/utils.js`) on the 20 heap samples.
 9. A positive slope with low variance is the leak signal. Also check that `.chat-scrollbar-prompt-marker` DOM count returns to **0** after each close+GC cycle — if it doesn't, marker DOM nodes are leaking (not removed in `dispose()`).
@@ -427,7 +437,7 @@ Save everything under `/tmp/chat-validation-<timestamp>/`:
 2. **`report.md`** — a markdown report with:
    - **Summary table**: one row per scenario (A, C, D, E, I, J, K) with pass/fail/blocked status and key metric.
    - **Perf comparison table (from §1)**: `perf:chat` metrics for `main` vs branch with % delta, threshold, and statistical significance (p-value). Incorporate the `ci-summary.md` output.
-   - **Leak comparison table (from §2)**: per-build residual heap growth (MB) and DOM node growth from `perf:chat-leak`, with pass/fail against the 10 MB threshold.
+   - **Leak comparison table (from §2)**: per-build residual heap growth (MB) and DOM node growth from `perf:chat-leak`. Note that the 10 MB threshold applies to accumulation-within-live-chat, **not** disposal leaks — `perf:chat-leak` never disposes the chat widget (Known Issues §7), so absolute numbers are inflated by retained hidden widgets. Focus on the **delta between branch and baseline**. The authoritative disposal-leak pass/fail comes from §6.
    - **Session switch findings (from §3)**: heap delta and DOM marker count across 10 switch iterations, from `chat-session-switch-smoke.mts` `summary.json`.
    - **Open/close cycle findings (from §6)**: per-iteration heap slope (MB/iteration) from `linearRegressionSlope()` over 20 close-and-dispose cycles, with leak determination. Must include `.chat-scrollbar-prompt-marker` DOM count after each close+GC (should be 0) and total DOM node growth. This is the authoritative disposal-leak check — note explicitly whether `perf:chat-leak` (§2) missed anything that §6 caught, due to the harness not closing the chat pane (Known Issues §7).
    - **Marker-specific findings (from §5)**: `.chat-scrollbar-prompt-marker` DOM count delta per scenario, `Runtime.getHeapUsage` delta per scenario, comparison of leak residuals between branch and baseline.
