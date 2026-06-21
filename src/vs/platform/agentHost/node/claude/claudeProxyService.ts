@@ -8,6 +8,7 @@ import type { CCAModel } from '@vscode/copilot-api';
 import type * as http from 'http';
 import { once } from 'events';
 import { AddressInfo } from 'net';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
@@ -49,8 +50,32 @@ export interface IClaudeProxyHandle extends IDisposable {
 	readonly nonce: string;
 }
 
+/**
+ * A per-request credits report. CAPI returns the actual billed credits
+ * for a `/v1/messages` request as `copilot_usage.total_nano_aiu` on the
+ * Anthropic SSE stream. The Claude SDK subprocess strips this field from
+ * its `result` message, so the proxy — which sees the raw CAPI response —
+ * is the only place the real billed amount survives. `sessionId` is
+ * decoded from the proxy Bearer token (`<nonce>.<sessionId>`) so consumers
+ * can attribute credits to the originating session/turn.
+ */
+export interface IClaudeProxyCreditsReport {
+	readonly sessionId: string;
+	/** Billed credits for the request, in nano-AIU (1 credit = 1e9 nano-AIU). */
+	readonly totalNanoAiu: number;
+}
+
 export interface IClaudeProxyService {
 	readonly _serviceBrand: undefined;
+
+	/**
+	 * Fires once per completed CAPI `/v1/messages` request that reported
+	 * `copilot_usage.total_nano_aiu`. Consumers accumulate per turn to
+	 * surface real per-turn Copilot credits (the SDK-computed
+	 * `total_cost_usd` is an Anthropic-list-price estimate, not the
+	 * amount CAPI actually bills).
+	 */
+	readonly onDidReportCredits: Event<IClaudeProxyCreditsReport>;
 
 	/**
 	 * Start the proxy (if not already running) and return a refcounted
@@ -124,6 +149,26 @@ function generateNonce(): string {
 }
 
 /**
+ * CAPI augments the Anthropic `/v1/messages` response with the request's
+ * billed credits under `copilot_usage.total_nano_aiu`. The published
+ * Anthropic SDK types don't declare it, so narrow through this shape
+ * (mirrors `messagesApi.ts` in the Copilot extension).
+ */
+interface ICopilotUsageEnvelope {
+	readonly copilot_usage?: { readonly total_nano_aiu?: number };
+}
+
+/**
+ * Read `copilot_usage.total_nano_aiu` off an Anthropic stream event or
+ * message, returning `undefined` unless it is a finite, non-negative
+ * number.
+ */
+function readCopilotUsageNanoAiu(event: unknown): number | undefined {
+	const value = (event as ICopilotUsageEnvelope | undefined)?.copilot_usage?.total_nano_aiu;
+	return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
+}
+
+/**
  * Local HTTP proxy that speaks the Anthropic Messages API on the inbound
  * side and {@link ICopilotApiService} on the outbound side. The Claude
  * Agent SDK connects via `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN`
@@ -140,6 +185,9 @@ export class ClaudeProxyService implements IClaudeProxyService {
 	private _runtime: IProxyRuntime | undefined;
 	private _starting: Promise<IProxyRuntime> | undefined;
 	private _disposed = false;
+
+	private readonly _onDidReportCredits = new Emitter<IClaudeProxyCreditsReport>();
+	readonly onDidReportCredits: Event<IClaudeProxyCreditsReport> = this._onDidReportCredits.event;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -187,6 +235,20 @@ export class ClaudeProxyService implements IClaudeProxyService {
 		}
 		this._disposed = true;
 		this._teardownRuntime();
+		this._onDidReportCredits.dispose();
+	}
+
+	/**
+	 * Fire {@link onDidReportCredits} for a completed request. No-op when
+	 * the request carried no credits (`copilot_usage` absent) or the
+	 * Bearer token lacked a session id (shouldn't happen post-auth).
+	 */
+	private _reportCredits(sessionId: string | undefined, totalNanoAiu: number | undefined): void {
+		if (sessionId === undefined || totalNanoAiu === undefined) {
+			return;
+		}
+		this._logService.trace(`[${PROXY_USER_FACING_NAME}] credits: session=${sessionId} totalNanoAiu=${totalNanoAiu}`);
+		this._onDidReportCredits.fire({ sessionId, totalNanoAiu });
 	}
 
 	/**
@@ -347,7 +409,7 @@ export class ClaudeProxyService implements IClaudeProxyService {
 		}
 
 		if (method === 'POST' && pathname === '/v1/messages') {
-			await this._handleMessages(req, res, runtime);
+			await this._handleMessages(req, res, runtime, auth.sessionId);
 			return;
 		}
 
@@ -409,6 +471,7 @@ export class ClaudeProxyService implements IClaudeProxyService {
 		req: http.IncomingMessage,
 		res: http.ServerResponse,
 		runtime: IProxyRuntime,
+		sessionId: string | undefined,
 	): Promise<void> {
 		let bodyString: string;
 		try {
@@ -446,6 +509,9 @@ export class ClaudeProxyService implements IClaudeProxyService {
 			writeJsonError(res, 404, 'not_found_error', `Unknown model: ${sdkModelId}`);
 			return;
 		}
+		// The SDK/CLI sends the model in SDK format (dashed, `claude-haiku-4-5`);
+		// CAPI's `/v1/messages` expects the endpoint format (dotted,
+		// `claude-haiku-4.5`). Rewrite on the way out.
 		const endpointModelId = parsedModel.toEndpointModelId();
 		body.model = endpointModelId;
 
@@ -473,6 +539,7 @@ export class ClaudeProxyService implements IClaudeProxyService {
 					entry,
 					runtime,
 					sdkModelId,
+					sessionId,
 				);
 			} else {
 				await this._sendNonStreamingMessage(
@@ -482,6 +549,7 @@ export class ClaudeProxyService implements IClaudeProxyService {
 					entry,
 					runtime,
 					sdkModelId,
+					sessionId,
 				);
 			}
 		} finally {
@@ -497,8 +565,9 @@ export class ClaudeProxyService implements IClaudeProxyService {
 		entry: IInFlight,
 		runtime: IProxyRuntime,
 		originalSdkModelId: string,
+		sessionId: string | undefined,
 	): Promise<void> {
-		const options: ICopilotApiServiceRequestOptions = { headers, signal: entry.ac.signal, suppressIntegrationId: true };
+		const options: ICopilotApiServiceRequestOptions = { headers, signal: entry.ac.signal };
 		let message: Anthropic.Message;
 		try {
 			message = await this._copilotApiService.messages(runtime.githubToken, body, options);
@@ -512,6 +581,8 @@ export class ClaudeProxyService implements IClaudeProxyService {
 			this._writeUpstreamErrorResponse(res, err, true);
 			return;
 		}
+
+		this._reportCredits(sessionId, readCopilotUsageNanoAiu(message));
 
 		// Rewrite outbound `model` to SDK format. Failure to re-parse
 		// shouldn't normally happen because we just translated it on
@@ -530,8 +601,9 @@ export class ClaudeProxyService implements IClaudeProxyService {
 		entry: IInFlight,
 		runtime: IProxyRuntime,
 		_originalSdkModelId: string,
+		sessionId: string | undefined,
 	): Promise<void> {
-		const options: ICopilotApiServiceRequestOptions = { headers, signal: entry.ac.signal, suppressIntegrationId: true };
+		const options: ICopilotApiServiceRequestOptions = { headers, signal: entry.ac.signal };
 		let stream: AsyncGenerator<Anthropic.MessageStreamEvent>;
 		try {
 			stream = this._copilotApiService.messages(runtime.githubToken, body, options);
@@ -588,8 +660,14 @@ export class ClaudeProxyService implements IClaudeProxyService {
 			return true;
 		};
 
+		// Tracks the latest `copilot_usage.total_nano_aiu` seen on the
+		// stream; CAPI sends the request's running total on `message_delta`
+		// (assign-last-wins). Reported once on clean stream end.
+		let reportedNanoAiu: number | undefined;
+
 		try {
 			if (!first.done) {
+				reportedNanoAiu = readCopilotUsageNanoAiu(first.value) ?? reportedNanoAiu;
 				const ok = await writeFrame(first.value);
 				if (!ok) {
 					return;
@@ -623,6 +701,7 @@ export class ClaudeProxyService implements IClaudeProxyService {
 				if (next.done) {
 					break;
 				}
+				reportedNanoAiu = readCopilotUsageNanoAiu(next.value) ?? reportedNanoAiu;
 				const ok = await writeFrame(next.value);
 				if (!ok) {
 					return;
@@ -631,6 +710,12 @@ export class ClaudeProxyService implements IClaudeProxyService {
 			if (!res.writableEnded) {
 				res.end();
 			}
+			// CAPI reports the request's billed credits as the last
+			// `copilot_usage.total_nano_aiu` seen on the stream
+			// (assign-last-wins, matching the Copilot messages client).
+			// Fire only after a clean end so we never attribute credits
+			// for a request the client abandoned mid-stream.
+			this._reportCredits(sessionId, reportedNanoAiu);
 		} catch (err) {
 			// Defense in depth — should not be reached.
 			this._logService.warn(`[${PROXY_USER_FACING_NAME}] stream loop unexpected error: ${stringifyError(err)}`);

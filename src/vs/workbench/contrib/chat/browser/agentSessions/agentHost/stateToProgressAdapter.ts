@@ -8,21 +8,23 @@ import { escapeMarkdownLinkLabel, IMarkdownString, MarkdownString } from '../../
 import { marked, type Token, type Tokens, type TokensList } from '../../../../../../base/common/marked/marked.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { MessageKind, ToolCallContributorKind, ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, getToolSubagentContent, type ActiveTurn, type ICompletedToolCall, type Message, type ToolCallState, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { MessageKind, ToolCallContributorKind, ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, getToolSubagentContent, type ActiveTurn, type ICompletedToolCall, type Message, type ToolCallState, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo, type UsageInfoMeta } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { getChatErrorDetailsFromMeta, IChatErrorContext } from '../../../common/chatErrorMessages.js';
 import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAttachment } from '../../../../../../platform/agentHost/common/agentFeedbackAttachments.js';
+import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAnnotationsAttachment, isAgentFeedbackAttachment } from '../../../../../../platform/agentHost/common/agentFeedbackAttachments.js';
+import { isViewUnreviewedCommentsTool } from '../../../../../../platform/agentHost/common/agentFeedbackAnnotations.js';
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { type ChatExternalEditKind, type ChatMcpAppData, type IChatExternalEdit, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatExternalEdit, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
+import { type IQuotaSnapshot } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { type IChatRequestVariableData } from '../../../common/model/chatModel.js';
-import { AgentHostCompletionReferenceKind, toAgentHostCompletionVariableEntryFromMetadata, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { AgentHostCompletionReferenceKind, restorePasteVariableEntryFromAttachment, toAgentHostCompletionVariableEntryFromMetadata, type IAgentFeedbackVariableEntry, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { type IToolConfirmationMessages, type IToolData, type IToolResult, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
 import { basename, isEqual } from '../../../../../../base/common/resources.js';
-import { hasKey } from '../../../../../../base/common/types.js';
+import { hasKey, type Mutable } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
 import type { IRange } from '../../../../../../editor/common/core/range.js';
 
@@ -167,14 +169,117 @@ export interface TurnModelLookup {
 }
 
 export function usageInfoToChatUsage(usage: UsageInfo | undefined): IChatUsage | undefined {
-	if (typeof usage?.inputTokens !== 'number' && typeof usage?.outputTokens !== 'number') {
+	const hasTokens = typeof usage?.inputTokens === 'number' || typeof usage?.outputTokens === 'number';
+	const copilotCredits = getCopilotCredits(usage);
+	if (!hasTokens && copilotCredits === undefined) {
 		return undefined;
 	}
 	return {
 		kind: 'usage',
-		promptTokens: usage.inputTokens ?? 0,
-		completionTokens: usage.outputTokens ?? 0,
+		promptTokens: usage?.inputTokens ?? 0,
+		completionTokens: usage?.outputTokens ?? 0,
+		copilotCredits,
 	};
+}
+
+function getCopilotCredits(usage: UsageInfo | undefined): number | undefined {
+	const meta = usage?._meta as UsageInfoMeta | undefined;
+	const totalNanoAiu = meta?.copilotUsage?.totalNanoAiu;
+	if (typeof totalNanoAiu === 'number' && totalNanoAiu >= 0) {
+		return totalNanoAiu / 1_000_000_000;
+	}
+	const cost = meta?.cost;
+	return typeof cost === 'number' && cost >= 0
+		? cost
+		: undefined;
+}
+
+/**
+ * A partial quota update derived from a usage report's `_meta.quotaSnapshots`. Structurally a
+ * subset of the entitlement service's quota state, so callers merge it onto the existing quotas.
+ */
+export interface IAgentHostQuotaUpdate {
+	readonly chat?: IQuotaSnapshot;
+	readonly completions?: IQuotaSnapshot;
+	readonly premiumChat?: IQuotaSnapshot;
+	readonly additionalUsageEnabled?: boolean;
+	readonly additionalUsageCount?: number;
+	readonly resetDate?: string;
+}
+
+type AccountQuotaSnapshot = NonNullable<NonNullable<UsageInfoMeta['quotaSnapshots']>[string]>;
+
+function mapAccountQuotaSnapshot(snapshot: AccountQuotaSnapshot): IQuotaSnapshot | undefined {
+	const unlimited = snapshot.isUnlimitedEntitlement ?? false;
+	const entitlement = typeof snapshot.entitlementRequests === 'number' ? snapshot.entitlementRequests : undefined;
+
+	// Skip categories with no allocated entitlement (e.g. free-tier premium with 0 credits),
+	// mirroring `parseQuotas` so we don't surface an empty premium bucket.
+	if (!unlimited && entitlement === 0) {
+		return undefined;
+	}
+
+	// `remainingPercentage` is required to express a usable snapshot. Treat its absence as
+	// "no data" and skip the category rather than defaulting to 0, which would otherwise
+	// masquerade as an exhausted quota (matching `parseQuotas`, where `percent_remaining` is required).
+	if (typeof snapshot.remainingPercentage !== 'number') {
+		return undefined;
+	}
+
+	const used = typeof snapshot.usedRequests === 'number' ? snapshot.usedRequests : undefined;
+	const resetAt = snapshot.resetDate ? Date.parse(snapshot.resetDate) : NaN;
+	return {
+		percentRemaining: Math.min(100, Math.max(0, snapshot.remainingPercentage)),
+		unlimited,
+		entitlement: !unlimited && entitlement !== undefined && entitlement >= 0 ? entitlement : undefined,
+		quotaRemaining: !unlimited && entitlement !== undefined && used !== undefined ? Math.max(0, entitlement - used) : undefined,
+		resetAt: Number.isFinite(resetAt) ? resetAt : undefined,
+	};
+}
+
+/**
+ * Maps the per-category quota snapshots carried on a usage report's `_meta.quotaSnapshots`
+ * (reported by the model-call usage event) into a partial quota update for the entitlement
+ * service. Returns `undefined` when no usable snapshot is present.
+ */
+export function usageInfoToQuotas(usage: UsageInfo | undefined): IAgentHostQuotaUpdate | undefined {
+	const meta = usage?._meta as UsageInfoMeta | undefined;
+	const snapshots = meta?.quotaSnapshots;
+	if (!snapshots) {
+		return undefined;
+	}
+
+	const update: Mutable<IAgentHostQuotaUpdate> = {};
+	let hasAny = false;
+
+	const chat = snapshots['chat'] && mapAccountQuotaSnapshot(snapshots['chat']);
+	if (chat) {
+		update.chat = chat;
+		hasAny = true;
+	}
+	const completions = snapshots['completions'] && mapAccountQuotaSnapshot(snapshots['completions']);
+	if (completions) {
+		update.completions = completions;
+		hasAny = true;
+	}
+	const premiumRaw = snapshots['premium_interactions'];
+	const premiumChat = premiumRaw && mapAccountQuotaSnapshot(premiumRaw);
+	if (premiumChat) {
+		update.premiumChat = premiumChat;
+		hasAny = true;
+	}
+	if (premiumRaw) {
+		update.additionalUsageEnabled = premiumRaw.overageAllowedWithExhaustedQuota ?? false;
+		update.additionalUsageCount = typeof premiumRaw.overage === 'number' ? premiumRaw.overage : 0;
+		hasAny = true;
+	}
+
+	const resetDate = premiumRaw?.resetDate ?? snapshots['chat']?.resetDate;
+	if (resetDate) {
+		update.resetDate = resetDate;
+	}
+
+	return hasAny ? update : undefined;
 }
 
 /**
@@ -282,13 +387,64 @@ export function messageAttachmentsToVariableData(attachments: readonly MessageAt
 		return undefined;
 	}
 	const variables: IChatRequestVariableEntry[] = [];
+	// Agent feedback is sent as one annotations attachment per comment; restore
+	// them into a single aggregated agentFeedback entry so history shows one
+	// "N comments" chip rather than one chip per comment.
+	const aggregatedFeedback = aggregateAgentFeedbackAnnotationAttachments(attachments, connectionAuthority);
+	if (aggregatedFeedback) {
+		variables.push(aggregatedFeedback);
+	}
 	for (const a of attachments) {
+		if (isAgentFeedbackAnnotationsAttachment(a)) {
+			continue; // handled by the aggregation above
+		}
 		const v = messageAttachmentToVariableEntry(a, connectionAuthority);
 		if (v) {
 			variables.push(v);
 		}
 	}
 	return variables.length > 0 ? { variables } : undefined;
+}
+
+function aggregateAgentFeedbackAnnotationAttachments(attachments: readonly MessageAttachment[], connectionAuthority: string): IAgentFeedbackVariableEntry | undefined {
+	const feedbackAttachments = attachments.filter(isAgentFeedbackAnnotationsAttachment);
+	if (feedbackAttachments.length === 0) {
+		return undefined;
+	}
+	let sessionResource: string | undefined;
+	let annotationsResource: string | undefined;
+	const feedbackItems: IAgentFeedbackVariableEntry['feedbackItems'][number][] = [];
+	for (const attachment of feedbackAttachments) {
+		annotationsResource ??= attachment.resource;
+		const metadata = getAgentFeedbackAttachmentMetadata(attachment);
+		if (!metadata) {
+			continue;
+		}
+		sessionResource ??= metadata.sessionResource;
+		for (const item of metadata.feedbackItems) {
+			feedbackItems.push({
+				id: item.id,
+				text: item.text,
+				resourceUri: toAgentHostUri(URI.parse(item.resourceUri), connectionAuthority),
+				range: textRangeToIRange(item.range),
+				...(item.replies?.length ? { replies: item.replies } : {}),
+			});
+		}
+	}
+	if (feedbackItems.length === 0 || !sessionResource) {
+		return undefined;
+	}
+	return {
+		kind: 'agentFeedback',
+		id: generateUuid(),
+		name: feedbackItems.length === 1
+			? localize('agentFeedback.one', "1 comment")
+			: localize('agentFeedback.many', "{0} comments", feedbackItems.length),
+		value: feedbackAttachments[0].label,
+		sessionResource: URI.parse(sessionResource),
+		annotationsResource: annotationsResource ? URI.parse(annotationsResource) : undefined,
+		feedbackItems,
+	};
 }
 
 function messageAttachmentToVariableEntry(attachment: MessageAttachment, connectionAuthority: string): IChatRequestVariableEntry | undefined {
@@ -374,6 +530,15 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 	}
 
 	const modelRepresentation = attachment.type === MessageAttachmentKind.Simple ? attachment.modelRepresentation : undefined;
+	const pasteEntry = restorePasteVariableEntryFromAttachment({
+		label: attachment.label,
+		displayKind: attachment.displayKind,
+		modelRepresentation,
+		_meta: attachment._meta,
+	});
+	if (pasteEntry) {
+		return pasteEntry;
+	}
 	return {
 		kind: 'generic',
 		id: generateUuid(),
@@ -1032,16 +1197,30 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 		// mapper auto-emits `tool_ready` with `confirmed: NotNeeded` paired
 		// with `tool_start`. So no special-case for subagents is needed here.)
 		const confirmationMessages: IToolConfirmationMessages = {
-			title: stringOrMarkdownToString(tc.confirmationTitle, connectionAuthority) ?? tc.displayName,
-			message: stringOrMarkdownToString(tc.invocationMessage, connectionAuthority),
+			title: isViewUnreviewedCommentsTool(tc.toolName)
+				? localize('agentFeedback.reviewTitle', "Reveal unreviewed comments?")
+				: stringOrMarkdownToString(tc.confirmationTitle, connectionAuthority) ?? tc.displayName,
+			message: isViewUnreviewedCommentsTool(tc.toolName)
+				? localize('agentFeedback.reviewMessage', "Choose which comments to reveal to the agent. Unchecked comments stay hidden.")
+				: stringOrMarkdownToString(tc.invocationMessage, connectionAuthority),
 		};
 		if (tc.options) {
 			confirmationMessages.customOptions = tc.options;
 		}
 
-		let toolSpecificData: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatModifiedFilesConfirmationData | undefined;
+		let toolSpecificData: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | undefined;
 		const pendingEdits = tc.edits?.items;
-		if (pendingEdits?.length) {
+		if (isViewUnreviewedCommentsTool(tc.toolName)) {
+			// The agent host surfaces this server tool as a confirmation (it is
+			// excluded from auto-approve). Render a custom confirmation that lets
+			// the user pick which unreviewed comments to reveal; the renderer
+			// fetches the comments and applies the selection via feedback
+			// commands, so this layer carries only the button labels.
+			toolSpecificData = {
+				kind: 'agentFeedbackReviewConfirmation',
+				options: [localize('agentFeedback.reveal', "Reveal Selected")],
+			};
+		} else if (pendingEdits?.length) {
 			const wrap = (uri: URI) => connectionAuthority ? toAgentHostUri(uri, connectionAuthority) : uri;
 			const mapped = mapFileEdits(pendingEdits, tc.toolCallId);
 			toolSpecificData = {

@@ -55,7 +55,8 @@ import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { equals } from '../../../../../../base/common/objects.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { KNOWN_AUTO_APPROVE_VALUES, KNOWN_MODE_VALUES, SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { migrateLegacyAutopilotConfig } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -63,7 +64,7 @@ import { InstantiationType, registerSingleton } from '../../../../../../platform
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
-import { ChatConfiguration } from '../../../common/constants.js';
+import { ChatConfiguration, type IChatDefaultConfiguration } from '../../../common/constants.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 
@@ -602,8 +603,11 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	 * drops the workbench defaults.
 	 *
 	 * - `isolation`: workbench has no isolation picker, so always `'folder'`.
-	 * - `autoApprove`: seeded from `chat.permissions.default`, clamped to
-	 *   `'default'` when the `chat.tools.global.autoApprove` policy is off.
+	 * - `mode` / `autoApprove`: seeded from the single
+	 *   `chat.defaultConfiguration` object setting (`mode` and
+	 *   `approvals` properties). The approval seed is clamped to `'default'`
+	 *   when the `chat.tools.global.autoApprove` policy is off. The local-only
+	 *   `chat.permissions.default` setting is NOT used.
 	 *
 	 * Skipped entirely in the Agents window, where the sessions provider
 	 * supplies config via `request.agentHostSessionConfig` instead.
@@ -613,13 +617,24 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			return undefined;
 		}
 		const config: Record<string, unknown> = { [SessionConfigKey.Isolation]: 'folder' };
-		const configured = this._configurationService.getValue<string>(ChatConfiguration.DefaultPermissionLevel);
+
+		const configuredDefaults = this._configurationService.getValue<IChatDefaultConfiguration>(ChatConfiguration.DefaultConfiguration);
 		const policyValue = this._configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue;
-		if (typeof configured === 'string' && KNOWN_AUTO_APPROVE_VALUES.has(configured)) {
+
+		const configuredApprovals = configuredDefaults?.approvals;
+		if (typeof configuredApprovals === 'string' && KNOWN_AUTO_APPROVE_VALUES.has(configuredApprovals)) {
 			const policyRestricted = policyValue === false;
-			config[SessionConfigKey.AutoApprove] = policyRestricted ? 'default' : configured;
+			// Bypass and (legacy) Autopilot auto-approve at least some tool
+			// calls, so clamp anything but Default under policy.
+			config[SessionConfigKey.AutoApprove] = policyRestricted && configuredApprovals !== 'default' ? 'default' : configuredApprovals;
 		}
-		return config;
+
+		const configuredMode = configuredDefaults?.mode;
+		if (typeof configuredMode === 'string' && KNOWN_MODE_VALUES.has(configuredMode)) {
+			config[SessionConfigKey.Mode] = configuredMode;
+		}
+
+		return migrateLegacyAutopilotConfig(config);
 	}
 }
 

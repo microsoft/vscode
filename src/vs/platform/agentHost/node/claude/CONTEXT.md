@@ -361,7 +361,7 @@ test/node/
 Phase 2 is "done" when all of the following pass:
 
 **Hygiene (must run frequently during development, not as a final step):**
-- [ ] `compile-check-ts-native` clean
+- [ ] `typecheck-client` clean
 - [ ] `eslint` clean
 - [ ] `valid-layers-check` clean
 - [ ] Hygiene check (gulp `hygiene`) clean — copyright headers, tabs,
@@ -1890,7 +1890,7 @@ platform-shared properties).
 | | Shape |
 |---|---|
 | Returns | `IAgentDescriptor { provider, displayName, description }` ([agentService.ts:160-165](../../common/agentService.ts#L160-L165)) |
-| CopilotAgent | Hardcoded literal `{ provider: 'copilotcli', displayName: 'Copilot CLI', description: '…' }` ([copilotAgent.ts:256-262](../copilot/copilotAgent.ts#L256-L262)) |
+| CopilotAgent | Hardcoded literal `{ provider: 'copilotcli', displayName: 'Copilot', description: '…' }` ([copilotAgent.ts:256-262](../copilot/copilotAgent.ts#L256-L262)) |
 | Claude provider | Hardcoded literal `{ provider: 'claude', displayName: 'Claude', description: '…' }` |
 
 `AgentProvider` is `type AgentProvider = string` ([agentService.ts:158](../../common/agentService.ts#L158))

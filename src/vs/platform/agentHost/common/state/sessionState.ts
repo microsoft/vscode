@@ -19,8 +19,14 @@ import {
 	TerminalState,
 	ToolResultContentType,
 	ToolResultFileEditContent,
+	ChatOriginKind,
 	type ActiveTurn,
 	type ChangesetState,
+	type ChatState,
+	type ChatSummary,
+	type ChatInputRequest,
+	type PendingMessage,
+	type Turn,
 	type AnnotationsState,
 	type URI as ProtocolURI,
 	type RootState,
@@ -44,23 +50,24 @@ export {
 	PendingMessageKind,
 	PolicyState,
 	ResponsePartKind,
-	SessionInputAnswerState,
-	SessionInputAnswerValueKind,
-	SessionInputQuestionKind,
-	SessionInputResponseKind,
+	ChatInputAnswerState as SessionInputAnswerState,
+	ChatInputAnswerValueKind as SessionInputAnswerValueKind,
+	ChatInputQuestionKind as SessionInputQuestionKind,
+	ChatInputResponseKind as SessionInputResponseKind,
+	ChatOriginKind,
 	SessionLifecycle,
 	SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus,
 	ToolResultContentType,
 	TurnState, type ActiveTurn, type AgentCustomization, type AgentInfo, type AgentSelection, type Annotation, type AnnotationEntry, type AnnotationsState, type AnnotationsSummary, type Changeset, type ChangesetFile,
-	type ChangesetOperation, type ChangesetState, type ChildCustomization, type ClientPluginCustomization, type ConfigPropertySchema,
+	type ChangesetOperation, type ChangesetState, type ChatState, type ChatSummary, type ChatInteractivity, type ChatOrigin, type ChildCustomization, type ClientPluginCustomization, type ConfigPropertySchema,
 	type ConfigSchema,
 	type ContentRef, type Customization, type CustomizationDegradedState,
 	type CustomizationErrorState, type CustomizationLoadedState, type CustomizationLoadingState, type CustomizationLoadState, type DirectoryCustomization, type ErrorInfo, type HookCustomization, type FileEdit as ISessionFileDiff, type ToolResultEmbeddedResourceContent as IToolResultBinaryContent, type MarkdownResponsePart, type McpServerCustomization, type MessageAttachment,
-	type MessageResourceAttachment, type ModelSelection, type PendingMessage, type PluginCustomization, type ProjectInfo, type PromptCustomization, type ReasoningResponsePart,
+	type MessageResourceAttachment, type MessageAnnotationsAttachment, type ModelSelection, type PendingMessage, type PluginCustomization, type ProjectInfo, type PromptCustomization, type ReasoningResponsePart,
 	type ResponsePart,
 	type RootState, type RuleCustomization, type SessionActiveClient,
-	type SessionConfigState, type SessionInputAnswer,
-	type SessionInputOption, type SessionInputQuestion, type SessionInputRequest, type SessionModelInfo,
+	type SessionConfigState, type ChatInputAnswer as SessionInputAnswer,
+	type ChatInputOption as SessionInputOption, type ChatInputQuestion as SessionInputQuestion, type ChatInputRequest as SessionInputRequest, type SessionModelInfo,
 	type SessionState,
 	type SessionSummary, type SkillCustomization, type Snapshot, type StringOrMarkdown, type TerminalState, type TextRange,
 	type ToolAnnotations,
@@ -82,9 +89,57 @@ export {
 	type Message
 } from './protocol/state.js';
 
+/**
+ * Well-known keys that may appear on {@link UsageInfo._meta}.
+ * Clients MAY read these to provide enhanced UI (e.g. credit cost display).
+ */
+export interface UsageInfoMeta {
+	/** Per-turn credit cost reported by the backend. */
+	cost?: number;
+	/** Copilot-specific usage breakdown, including nano-AIU totals. */
+	copilotUsage?: {
+		totalNanoAiu?: number;
+		[key: string]: unknown;
+	};
+	/**
+	 * Per-category account quota snapshots reported by the backend on the
+	 * model-call usage event, keyed by quota type (e.g. `chat`,
+	 * `premium_interactions`). Clients MAY use these to keep the account quota
+	 * UI current without a separate quota fetch.
+	 */
+	quotaSnapshots?: {
+		[quotaType: string]: {
+			readonly isUnlimitedEntitlement?: boolean;
+			readonly entitlementRequests?: number;
+			readonly usedRequests?: number;
+			readonly remainingPercentage?: number;
+			readonly overage?: number;
+			readonly overageAllowedWithExhaustedQuota?: boolean;
+			/** ISO 8601 date when the quota resets, if applicable. */
+			readonly resetDate?: string;
+		} | undefined;
+	};
+	[key: string]: unknown;
+}
+
 export {
 	ChangesetOperationTargetKind, type ChangesetOperationFollowUp, type ChangesetOperationTarget
 } from './protocol/commands.js';
+
+// Canonical chat-input type names (the protocol renamed the former
+// `SessionInput*` types to `ChatInput*` when input requests moved onto the
+// chat channel). Re-exported here so consumers can import them from the glue
+// layer alongside the legacy `SessionInput*` aliases above.
+export {
+	ChatInputAnswerState,
+	ChatInputAnswerValueKind,
+	ChatInputQuestionKind,
+	ChatInputResponseKind,
+	type ChatInputAnswer,
+	type ChatInputOption,
+	type ChatInputQuestion,
+	type ChatInputRequest,
+} from './protocol/state.js';
 
 // ---- File edit kind ---------------------------------------------------------
 
@@ -368,9 +423,75 @@ export function createSessionState(summary: SessionSummary): SessionState {
 	return {
 		summary,
 		lifecycle: SessionLifecycle.Creating,
+		chats: [],
+		defaultChat: undefined,
+	};
+}
+
+/**
+ * Creates an empty {@link ChatState} for a chat. The summary fields are
+ * denormalized onto the chat state per the protocol contract; callers pass
+ * the chat's catalog summary and this seeds an empty conversation.
+ */
+export function createChatState(summary: ChatSummary): ChatState {
+	return {
+		resource: summary.resource,
+		title: summary.title,
+		status: summary.status,
+		activity: summary.activity,
+		modifiedAt: summary.modifiedAt,
+		model: summary.model,
+		agent: summary.agent,
+		origin: summary.origin,
+		interactivity: summary.interactivity,
+		workingDirectory: summary.workingDirectory,
 		turns: [],
 		activeTurn: undefined,
 	};
+}
+
+/**
+ * Derives the default-chat {@link ChatSummary} for a session from its
+ * {@link SessionSummary}. The default chat inherits the session's title,
+ * status, activity, model, agent and working directory, and is marked as a
+ * {@link ChatOriginKind.User | user-originated} chat. `modifiedAt` is
+ * converted from the session's epoch-millis timestamp to the ISO-8601 string
+ * the chat protocol uses.
+ */
+export function createDefaultChatSummary(session: SessionSummary, chatUri: ProtocolURI): ChatSummary {
+	const summary: ChatSummary = {
+		resource: chatUri,
+		title: session.title,
+		status: session.status,
+		modifiedAt: new Date(session.modifiedAt).toISOString(),
+		origin: { kind: ChatOriginKind.User },
+	};
+	if (session.activity !== undefined) { summary.activity = session.activity; }
+	if (session.model !== undefined) { summary.model = session.model; }
+	if (session.agent !== undefined) { summary.agent = session.agent; }
+	if (session.workingDirectory !== undefined) { summary.workingDirectory = session.workingDirectory; }
+	return summary;
+}
+
+/**
+ * Derives a {@link ChatSummary} from a fully-populated {@link ChatState} by
+ * projecting out the denormalized summary fields. Used to keep the parent
+ * session's `chats` catalog in sync with a chat's denormalized state.
+ */
+export function chatSummaryFromState(state: ChatState): ChatSummary {
+	const summary: ChatSummary = {
+		resource: state.resource,
+		title: state.title,
+		status: state.status,
+		modifiedAt: state.modifiedAt,
+	};
+	if (state.activity !== undefined) { summary.activity = state.activity; }
+	if (state.model !== undefined) { summary.model = state.model; }
+	if (state.agent !== undefined) { summary.agent = state.agent; }
+	if (state.origin !== undefined) { summary.origin = state.origin; }
+	if (state.interactivity !== undefined) { summary.interactivity = state.interactivity; }
+	if (state.workingDirectory !== undefined) { summary.workingDirectory = state.workingDirectory; }
+	return summary;
 }
 
 export function createActiveTurn(id: string, message: Message): ActiveTurn {
@@ -385,6 +506,7 @@ export function createActiveTurn(id: string, message: Message): ActiveTurn {
 export const enum StateComponents {
 	Root,
 	Session,
+	Chat,
 	Terminal,
 	Changeset,
 	Annotations,
@@ -393,10 +515,156 @@ export const enum StateComponents {
 export type ComponentToState = {
 	[StateComponents.Root]: RootState;
 	[StateComponents.Session]: SessionState;
+	[StateComponents.Chat]: ChatState;
 	[StateComponents.Terminal]: TerminalState;
 	[StateComponents.Changeset]: ChangesetState;
 	[StateComponents.Annotations]: AnnotationsState;
 };
+
+// ---- Default chat URI helpers ----------------------------------------------
+
+/** Scheme used by chat channel URIs (`ahp-chat://...`). */
+export const AHP_CHAT_SCHEME = 'ahp-chat';
+
+/** Chat id of the default chat that every session owns. */
+export const DEFAULT_CHAT_ID = 'default';
+
+/**
+ * Derives the deterministic channel URI for a chat within a session. Every chat
+ * — the default chat and any additional peer chats — encodes its owning session
+ * URI into the path so producers and consumers can recover the session without a
+ * lookup table (see {@link parseChatUri}). The chat id is carried in the URI
+ * authority.
+ *
+ * `ahp-chat://<chatId>/<base64(sessionUri)>`
+ */
+export function buildChatUri(sessionUri: ProtocolURI | ResourceURI, chatId: string): string {
+	const session = typeof sessionUri === 'string' ? sessionUri : sessionUri.toString();
+	const encoded = encodeBase64(VSBuffer.fromString(session), false, true);
+	return `${AHP_CHAT_SCHEME}://${chatId}/${encoded}`;
+}
+
+/**
+ * Derives the deterministic default-chat channel URI for a session. While the
+ * protocol allows a session to contain many chats, every session always owns a
+ * default chat whose URI is derived from the owning session URI so producers and
+ * consumers can compute it without a lookup table.
+ *
+ * The session URI is encoded into the path so {@link parseChatUri} can recover
+ * it.
+ */
+export function buildDefaultChatUri(sessionUri: ProtocolURI | ResourceURI): string {
+	return buildChatUri(sessionUri, DEFAULT_CHAT_ID);
+}
+
+/**
+ * Inverse of {@link buildChatUri}: recovers the owning session URI and chat id
+ * from any chat channel URI. Returns `undefined` when `uri` is not a well-formed
+ * chat URI.
+ */
+export function parseChatUri(uri: ProtocolURI | ResourceURI): { session: string; chatId: string } | undefined {
+	let parsed: ResourceURI;
+	try {
+		parsed = typeof uri === 'string' ? ResourceURI.parse(uri) : uri;
+	} catch {
+		return undefined;
+	}
+	if (parsed.scheme !== AHP_CHAT_SCHEME || !parsed.authority) {
+		return undefined;
+	}
+	const encoded = parsed.path.replace(/^\//, '');
+	if (!encoded) {
+		return undefined;
+	}
+	try {
+		return { session: decodeBase64(encoded).toString(), chatId: parsed.authority };
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * Inverse of {@link buildDefaultChatUri}: recovers the owning session URI from a
+ * chat channel URI. Returns `undefined` when `uri` is not a well-formed chat URI.
+ * Accepts any chat URI (default or additional) so callers that only need the
+ * parent session can use it uniformly.
+ */
+export function parseDefaultChatUri(uri: ProtocolURI | ResourceURI): string | undefined {
+	return parseChatUri(uri)?.session;
+}
+
+/** Returns `true` when `uri` is the default chat of its session. */
+export function isDefaultChatUri(uri: ProtocolURI | ResourceURI): boolean {
+	return parseChatUri(uri)?.chatId === DEFAULT_CHAT_ID;
+}
+
+/** Returns `true` when `uri` identifies a chat channel. */
+export function isAhpChatChannel(uri: string): boolean {
+	try {
+		return ResourceURI.parse(uri).scheme === AHP_CHAT_SCHEME;
+	} catch {
+		return false;
+	}
+}
+
+// ---- Session + default-chat composite --------------------------------------
+
+/**
+ * A {@link SessionState} merged with the conversation contents of its default
+ * {@link ChatState}. The protocol moved turns and pending/input state off the
+ * session and onto a per-chat channel; VS Code recombines the session summary
+ * with its single default chat into this composite so consumers can read
+ * `turns`/`activeTurn`/pending state through one object as they did before
+ * multi-chat.
+ */
+export interface ISessionWithDefaultChat extends SessionState {
+	/** Completed turns of the default chat. */
+	turns: Turn[];
+	/** Currently in-progress turn of the default chat. */
+	activeTurn?: ActiveTurn;
+	/** Steering message pending on the default chat. */
+	steeringMessage?: PendingMessage;
+	/** Queued messages pending on the default chat. */
+	queuedMessages?: PendingMessage[];
+	/** Input requests outstanding on the default chat. */
+	inputRequests?: ChatInputRequest[];
+}
+
+/**
+ * Merges a {@link SessionState} with its default {@link ChatState} into an
+ * {@link ISessionWithDefaultChat}. When the chat state is absent (e.g. not yet
+ * hydrated) the conversation fields default to empty.
+ */
+export function mergeSessionWithDefaultChat(session: SessionState, chat: ChatState | undefined): ISessionWithDefaultChat {
+	return {
+		...session,
+		turns: chat?.turns ?? [],
+		activeTurn: chat?.activeTurn,
+		steeringMessage: chat?.steeringMessage,
+		queuedMessages: chat?.queuedMessages,
+		inputRequests: chat?.inputRequests,
+	};
+}
+
+/**
+ * Resolves the active turn of a session's default chat, if any.
+ */
+export function getActiveTurn(chat: ChatState | undefined): ActiveTurn | undefined {
+	return chat?.activeTurn;
+}
+
+/**
+ * Resolves the default chat's catalog summary from a session, if present.
+ */
+export function getDefaultChat(session: SessionState): ChatSummary | undefined {
+	if (session.defaultChat !== undefined) {
+		const match = session.chats.find(c => c.resource === session.defaultChat);
+		if (match) {
+			return match;
+		}
+	}
+	return session.chats[0];
+}
 
 // ---- SessionMeta accessors -------------------------------------------------
 

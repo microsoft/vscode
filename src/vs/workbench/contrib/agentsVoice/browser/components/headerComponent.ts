@@ -90,6 +90,15 @@ export function createHeader(): HeaderComponent {
 	connIndicator.append(connDot, connDisc);
 	addKeyboardActivation(connIndicator);
 
+	// Placeholder text — clickable, shows PTT keybinding
+	const placeholderText = dom.$('span.voice-placeholder-text');
+	placeholderText.role = 'button';
+	placeholderText.tabIndex = 0;
+	placeholderText.style.cssText = `font-size:${FONT_SIZE.body};color:var(--vscode-input-placeholderForeground, var(--vscode-descriptionForeground));cursor:pointer;-webkit-app-region:no-drag;user-select:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
+	placeholderText.addEventListener('mouseenter', () => { placeholderText.style.color = 'var(--vscode-foreground)'; });
+	placeholderText.addEventListener('mouseleave', () => { placeholderText.style.color = 'var(--vscode-input-placeholderForeground, var(--vscode-descriptionForeground))'; });
+	addKeyboardActivation(placeholderText);
+
 	// Spacer
 	const spacer = dom.$('span');
 	spacer.style.flex = '1';
@@ -100,7 +109,7 @@ export function createHeader(): HeaderComponent {
 		localize('agentsVoice.sendFeedback', "Send feedback"));
 
 	// Popout button
-	const popoutBtn = hoverButton('codicon-link-external',
+	const popoutBtn = hoverButton('codicon-open-in-window',
 		localize('agentsVoice.openMiniView', "Open mini-view"),
 		localize('agentsVoice.openMiniView', "Open mini-view"));
 
@@ -116,7 +125,7 @@ export function createHeader(): HeaderComponent {
 		.voice-conn-indicator:hover .voice-conn-disconnect { display: inline-block !important; color: var(--vscode-errorForeground, #f44) !important; }
 	`;
 
-	container.append(copilotIcon, micBtn, gearBtn, connIndicator, spacer, feedbackBtn, popoutBtn, closeBtn, connStyle);
+	container.append(copilotIcon, micBtn, placeholderText, gearBtn, connIndicator, spacer, popoutBtn, closeBtn, connStyle);
 
 	return {
 		element: container,
@@ -127,18 +136,31 @@ export function createHeader(): HeaderComponent {
 			copilotIcon.style.display = props.showCopilotIcon ? '' : 'none';
 			copilotIcon.src = props.copilotIconSrc;
 
-			// Mic color
-			const micColor = props.voiceState === 'listening' ? 'var(--vscode-editorInfo-foreground)'
-				: props.voiceState === 'speaking' ? 'var(--vscode-agentsVoice-speakingForeground)'
-					: 'var(--vscode-descriptionForeground)';
+			const showConnected = props.isConnected || props.isReconnecting;
+
+			// Mic button — shown only when connected
+			micBtn.style.display = showConnected ? '' : 'none';
+			const micColor = props.voiceState === 'error' ? 'var(--vscode-editorError-foreground)'
+				: props.voiceState === 'listening' ? 'var(--vscode-editorInfo-foreground)'
+					: props.voiceState === 'speaking' ? 'var(--vscode-agentsVoice-speakingForeground)'
+						: 'var(--vscode-descriptionForeground)';
 			micBtn.style.color = micColor;
 			micBtn.onmouseenter = () => { micBtn.style.color = 'var(--vscode-foreground)'; };
 			micBtn.onmouseleave = () => { micBtn.style.color = micColor; };
 			micBtn.onmousedown = props.onMicDown;
 			micBtn.onmouseup = () => props.onMicUp();
 
+			// Placeholder text — shown when not connected, displays PTT keybinding
+			placeholderText.style.display = showConnected ? 'none' : '';
+			const keyLabel = props.pttKeyLabel;
+			const holdText = keyLabel
+				? localize('agentsVoice.holdToTalk', "Hold {0} to talk", keyLabel)
+				: localize('agentsVoice.clickMicToTalk', "Click mic to talk");
+			placeholderText.textContent = holdText;
+			placeholderText.ariaLabel = holdText;
+			placeholderText.onclick = props.onConnectClick;
+
 			// Gear
-			const showConnected = props.isConnected || props.isReconnecting;
 			gearBtn.style.display = props.isConnected ? '' : 'none';
 			gearBtn.onclick = props.onPttKeyClick;
 
