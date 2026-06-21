@@ -50,6 +50,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 	readonly icon: ThemeIcon = Codicon.vm;
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 	readonly supportsLocalWorkspaces = true;
+
 	/** `true` when running in the dedicated Agents window vs. a regular editor window. */
 	private readonly _isSessionsWindow: boolean;
 
@@ -152,7 +153,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 
 	// -- BaseAgentHostSessionsProvider hooks ---------------------------------
 
-	protected get connection(): IAgentConnection | undefined { return this._agentHostService; }
+	protected get connection(): IAgentConnection { return this._agentHostService; }
 
 	protected get authenticationPending(): IObservable<boolean> { return this._agentHostService.authenticationPending; }
 

@@ -29,7 +29,9 @@ Registered by `LocalAgentHostContribution` in `browser/localAgentHost.contributi
 - **Not hidden by workspace trust.** The local agent host is host-level, not
   workspace-specific, so the provider and its session types remain visible in
   untrusted windows. Trust is enforced only when a concrete workspace folder
-  would be used to create or send an agent session.
+  would be used to create or send an agent session. Do not gate host-level
+  plumbing (local connection, provider listing, terminal entry registration, or
+  root config sync) on workspace trust.
 - Creates `LocalAgentHostSessionsProvider` via `IInstantiationService` and registers it through `ISessionsProvidersService.registerProvider`.
 - Registers a per-session-type **working-directory resolver** (`IAgentHostSessionWorkingDirectoryResolver`) for each `agent-host-${sessionType.id}` scheme, refreshed on `onDidChangeSessionTypes`.
 - The same module also wires the heavy lifting from the workbench chat layer at `WorkbenchPhase.AfterRestored`:

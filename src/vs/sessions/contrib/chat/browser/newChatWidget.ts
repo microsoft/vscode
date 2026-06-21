@@ -25,7 +25,6 @@ import { sessionHasNoSelectableModel } from './modelPicker.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { NoAgentHostEmptyState } from './noAgentHostEmptyState.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { defaultAgentHostWorkspaceTrustRequestMessage } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostWorkspaceTrust.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
 import { IChatViewOptions } from '../../../browser/parts/chatView.js';
 
@@ -415,7 +414,7 @@ export class NewChatWidget extends Disposable {
 	private async _requestFolderTrust(folderUri: URI): Promise<boolean> {
 		const trusted = await this.workspaceTrustRequestService.requestResourcesTrust({
 			uri: folderUri,
-			message: defaultAgentHostWorkspaceTrustRequestMessage,
+			message: localize('trustFolderMessage', "An agent session will be able to read files, run commands, and make changes in this folder."),
 		});
 		if (!trusted) {
 			this._workspacePicker.removeFromRecents(folderUri);

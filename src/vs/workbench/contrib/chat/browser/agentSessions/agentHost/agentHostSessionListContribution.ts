@@ -66,6 +66,7 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 	private readonly _agentRegistrations = this._register(new DisposableMap<AgentProvider, DisposableStore>());
 	private readonly _listControllers = new Map<AgentProvider, AgentHostSessionListController>();
 	private readonly _sessionListConnection: CoalescingAgentHostSessionListConnection;
+
 	private readonly _isSessionsWindow: boolean;
 
 	constructor(
@@ -145,5 +146,4 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 		store.add(this._chatSessionsService.registerChatSessionItemController(sessionType, listController));
 		store.add(this._workingDirectoryResolver.registerResolver(sessionType, _sessionResource => undefined, sessionResource => listController.isNewSession(sessionResource)));
 	}
-
 }

@@ -12,7 +12,6 @@ import { ActionType } from '../../../../../../platform/agentHost/common/state/pr
 import { ROOT_STATE_URI } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TerminalSettingId } from '../../../../../../platform/terminal/common/terminal.js';
-import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchContribution } from '../../../../../../workbench/common/contributions.js';
 import { ITerminalProfileResolverService, ITerminalProfileService } from '../../../../../../workbench/contrib/terminal/common/terminal.js';
 import { IAgentHostTerminalService } from '../../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
@@ -66,7 +65,6 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 
 	private readonly _localEntry = this._register(new MutableDisposable());
 	private readonly _conditionalListeners = this._register(new MutableDisposable<DisposableStore>());
-	private _workspaceTrusted = false;
 
 	/** Declarative table of the root-config keys we manage. */
 	private readonly _managedKeys: readonly IManagedRootConfigKey[];
@@ -84,7 +82,6 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
-		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
 
@@ -119,21 +116,12 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 				this._updateEnabled();
 			}
 		}));
-		this._workspaceTrusted = this._workspaceTrustManagementService.isWorkspaceTrusted();
-		void this._workspaceTrustManagementService.workspaceTrustInitialized.then(() => {
-			this._workspaceTrusted = this._workspaceTrustManagementService.isWorkspaceTrusted();
-			this._updateEnabled();
-		});
-		this._register(this._workspaceTrustManagementService.onDidChangeTrust(trusted => {
-			this._workspaceTrusted = trusted;
-			this._updateEnabled();
-		}));
 
 		this._updateEnabled();
 	}
 
 	private _updateEnabled(): void {
-		if (this._configurationService.getValue<boolean>(AgentHostEnabledSettingId) && this._workspaceTrusted) {
+		if (this._configurationService.getValue<boolean>(AgentHostEnabledSettingId)) {
 			if (!this._conditionalListeners.value) {
 				const store = new DisposableStore();
 				store.add(this._agentHostService.onAgentHostStart(() => this._reconcile()));

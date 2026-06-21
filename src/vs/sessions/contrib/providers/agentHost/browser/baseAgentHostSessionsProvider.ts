@@ -1576,22 +1576,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._onDidChangeRootConfig.fire();
 	}
 
-	protected _clearRootState(): void {
-		if (this._lastAgents !== undefined) {
-			this._lastAgents = undefined;
-			this._onDidChangeCustomAgents.fire();
-			this._onDidChangeCustomizations.fire();
-		}
-		if (this._sessionTypes.length) {
-			this._sessionTypes = [];
-			this._onDidChangeSessionTypes.fire();
-		}
-		if (this._rootConfig) {
-			this._rootConfig = undefined;
-			this._onDidChangeRootConfig.fire();
-		}
-	}
-
 	abstract resolveWorkspace(repositoryUri: URI): ISessionWorkspace | undefined;
 
 	/** Optional event fired when the underlying connection is lost; used to short-circuit `_waitForNewSession`. */

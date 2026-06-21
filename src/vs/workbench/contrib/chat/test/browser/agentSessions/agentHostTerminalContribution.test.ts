@@ -18,13 +18,11 @@ import { AgentHostConfigKey } from '../../../../../../platform/agentHost/common/
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ActionEnvelope, IRootConfigChangedAction, INotification, SessionAction, TerminalAction, ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { ROOT_STATE_URI, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import type { RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { TerminalSettingId, type ITerminalProfile } from '../../../../../../platform/terminal/common/terminal.js';
 import { ITerminalProfileResolverService, ITerminalProfileService, type IShellLaunchConfigResolveOptions } from '../../../../terminal/common/terminal.js';
-import { IAgentHostTerminalService, type IAgentHostEntry } from '../../../../terminal/browser/agentHostTerminalService.js';
+import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
 import { AgentHostTerminalContribution } from '../../../browser/agentSessions/agentHost/agentHostTerminalContribution.js';
-import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
-import { TestWorkspaceTrustManagementService } from '../../../../../test/common/workbenchTestServices.js';
 
 // ---- Mock agent host service (minimal — only what the contribution touches) ----
 
@@ -123,25 +121,6 @@ class MockTerminalProfileService extends mock<ITerminalProfileService>() {
 	}
 }
 
-class MockAgentHostTerminalService extends mock<IAgentHostTerminalService>() {
-	declare readonly _serviceBrand: undefined;
-
-	override readonly profiles = observableValue('test', []);
-	readonly entries: IAgentHostEntry[] = [];
-
-	override registerEntry(entry: IAgentHostEntry): IDisposable {
-		this.entries.push(entry);
-		return {
-			dispose: () => {
-				const index = this.entries.indexOf(entry);
-				if (index >= 0) {
-					this.entries.splice(index, 1);
-				}
-			}
-		};
-	}
-}
-
 // ---- Helpers ----
 
 function makeRootStateWithSchema(properties: Record<string, unknown>): RootState {
@@ -177,22 +156,18 @@ function rootStateWithEnableCustomTerminalToolKey(): RootState {
 interface ITestSetup {
 	contribution: AgentHostTerminalContribution;
 	agentHostService: MockAgentHostService;
-	terminalService: MockAgentHostTerminalService;
 	resolver: MockTerminalProfileResolverService;
 	profileService: MockTerminalProfileService;
 	configurationService: TestConfigurationService;
-	workspaceTrustManagementService: TestWorkspaceTrustManagementService;
 }
 
-function setup(disposables: DisposableStore, agentHostEnabled: boolean = true, workspaceTrusted: boolean = true): ITestSetup {
+function setup(disposables: DisposableStore, agentHostEnabled: boolean = true): ITestSetup {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const agentHostService = new MockAgentHostService();
 	disposables.add({ dispose: () => agentHostService.dispose() });
 	const resolver = new MockTerminalProfileResolverService();
 	const profileService = new MockTerminalProfileService();
 	disposables.add({ dispose: () => profileService.dispose() });
-	const terminalService = new MockAgentHostTerminalService();
-	const workspaceTrustManagementService = disposables.add(new TestWorkspaceTrustManagementService(workspaceTrusted));
 	const configurationService = new TestConfigurationService({
 		[AgentHostEnabledSettingId]: agentHostEnabled,
 		[AgentHostCustomTerminalToolEnabledSettingId]: true,
@@ -202,11 +177,13 @@ function setup(disposables: DisposableStore, agentHostEnabled: boolean = true, w
 	instantiationService.stub(IConfigurationService, configurationService);
 	instantiationService.stub(ITerminalProfileResolverService, resolver);
 	instantiationService.stub(ITerminalProfileService, profileService);
-	instantiationService.stub(IWorkspaceTrustManagementService, workspaceTrustManagementService);
-	instantiationService.stub(IAgentHostTerminalService, terminalService);
+	instantiationService.stub(IAgentHostTerminalService, {
+		registerEntry: (): IDisposable => ({ dispose() { } }),
+		profiles: observableValue('test', []),
+	});
 
 	const contribution = disposables.add(instantiationService.createInstance(AgentHostTerminalContribution));
-	return { contribution, agentHostService, terminalService, resolver, profileService, configurationService, workspaceTrustManagementService };
+	return { contribution, agentHostService, resolver, profileService, configurationService };
 }
 
 /** Wait for any in-flight `_pushDefaultShell` promises to settle. */
@@ -236,36 +213,6 @@ suite('AgentHostTerminalContribution', () => {
 		await flush();
 
 		assert.deepStrictEqual(agentHostService.dispatchedActions, []);
-	});
-
-	test('does not register or dispatch until workspace is trusted', async () => {
-		const { agentHostService, terminalService, workspaceTrustManagementService } = setup(disposables, true, false);
-
-		agentHostService.setRootState(rootStateWithDefaultShellKey());
-		agentHostService.fireAgentHostStart();
-		await flush();
-
-		assert.deepStrictEqual({
-			entries: terminalService.entries.length,
-			actions: agentHostService.dispatchedActions,
-		}, {
-			entries: 0,
-			actions: [],
-		});
-
-		await workspaceTrustManagementService.setWorkspaceTrust(true);
-		await flush();
-
-		assert.deepStrictEqual({
-			entries: terminalService.entries.map(entry => ({ name: entry.name, address: entry.address })),
-			actions: agentHostService.dispatchedActions.map(({ channel, action }) => ({ channel, action })),
-		}, {
-			entries: [{ name: 'Local', address: '__local__' }],
-			actions: [{
-				channel: ROOT_STATE_URI.toString(),
-				action: { type: ActionType.RootConfigChanged, config: { [AgentHostConfigKey.DefaultShell]: '/bin/bash' } },
-			}],
-		});
 	});
 
 	test('does not dispatch while rootState has not hydrated', async () => {
@@ -494,3 +441,4 @@ suite('AgentHostTerminalContribution', () => {
 		assert.deepStrictEqual(agentHostService.dispatchedActions as readonly unknown[], []);
 	});
 });
+
