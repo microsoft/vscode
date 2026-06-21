@@ -587,7 +587,50 @@ suite('AgentSideEffects', () => {
 
 			await new Promise(r => setTimeout(r, 10));
 
-			assert.deepStrictEqual(agent.changeModelCalls, [{ session: URI.parse(sessionUri.toString()), model: { id: 'gpt-5' } }]);
+			assert.deepStrictEqual(agent.changeModelCalls, [{ session: URI.parse(sessionUri.toString()), model: { id: 'gpt-5' }, chat: undefined }]);
+		});
+
+		test('forwards the chat channel for an additional (peer) chat', async () => {
+			setupSession();
+			const chatChannel = `${sessionUri.toString()}#peer-1`;
+			sideEffects.handleAction(sessionUri.toString(), {
+				type: ActionType.SessionModelChanged,
+				model: { id: 'gpt-5' },
+			}, chatChannel);
+
+			await new Promise(r => setTimeout(r, 10));
+
+			assert.deepStrictEqual(agent.changeModelCalls, [{ session: URI.parse(sessionUri.toString()), model: { id: 'gpt-5' }, chat: URI.parse(chatChannel) }]);
+		});
+	});
+
+	// ---- handleAction: session/agentChanged -----------------------------
+
+	suite('handleAction — session/agentChanged', () => {
+
+		test('calls changeAgent on the agent for the session default chat', async () => {
+			setupSession();
+			sideEffects.handleAction(sessionUri.toString(), {
+				type: ActionType.SessionAgentChanged,
+				agent: { uri: 'file:///agents/reviewer.md' },
+			});
+
+			await new Promise(r => setTimeout(r, 10));
+
+			assert.deepStrictEqual(agent.changeAgentCalls, [{ session: URI.parse(sessionUri.toString()), agent: { uri: 'file:///agents/reviewer.md' }, chat: undefined }]);
+		});
+
+		test('forwards the chat channel for an additional (peer) chat', async () => {
+			setupSession();
+			const chatChannel = `${sessionUri.toString()}#peer-1`;
+			sideEffects.handleAction(sessionUri.toString(), {
+				type: ActionType.SessionAgentChanged,
+				agent: { uri: 'file:///agents/reviewer.md' },
+			}, chatChannel);
+
+			await new Promise(r => setTimeout(r, 10));
+
+			assert.deepStrictEqual(agent.changeAgentCalls, [{ session: URI.parse(sessionUri.toString()), agent: { uri: 'file:///agents/reviewer.md' }, chat: URI.parse(chatChannel) }]);
 		});
 	});
 
@@ -903,6 +946,40 @@ suite('AgentSideEffects', () => {
 			// Queued message should be removed from state
 			const state = stateManager.getSessionState(sessionUri.toString());
 			assert.strictEqual(state?.queuedMessages, undefined);
+		});
+
+		test('does not drain queued messages when the active turn is cancelled', () => {
+			// Cancelling a turn means "stop": messages queued behind it must stay
+			// queued for the user to dequeue/run manually, not auto-start. (A
+			// message the user sends *after* the abort is consumed separately via
+			// the ChatPendingMessageSet path once cancellation clears the turn.)
+			setupSession();
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			// Queue a message while a turn is active.
+			startTurn('turn-1');
+			const setAction = {
+				type: ActionType.ChatPendingMessageSet as const,
+				kind: PendingMessageKind.Queued,
+				id: 'q-after-abort',
+				message: { text: 'queued behind abort', origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(sessionUri.toString(), setAction, { clientId: 'test', clientSeq: 1 });
+			sideEffects.handleAction(sessionUri.toString(), setAction);
+
+			// Not consumed yet — the turn is still active.
+			assert.strictEqual(agent.sendMessageCalls.length, 0);
+
+			// Cancel the active turn (client abort).
+			const cancelAction = { type: ActionType.ChatTurnCancelled as const, turnId: 'turn-1' };
+			stateManager.dispatchClientAction(sessionUri.toString(), cancelAction, { clientId: 'test', clientSeq: 2 });
+			sideEffects.handleAction(sessionUri.toString(), cancelAction);
+
+			// The queued message must NOT auto-start, and must remain queued.
+			assert.strictEqual(agent.sendMessageCalls.length, 0, 'cancelling must not drain queued messages');
+			const state = stateManager.getSessionState(sessionUri.toString());
+			assert.strictEqual(state?.queuedMessages?.length, 1, 'queued message should remain for manual dequeue');
+			assert.strictEqual(state?.queuedMessages?.[0].id, 'q-after-abort');
 		});
 
 		test('intercepts queued /rename and drains the message queued behind it', () => {
@@ -1582,6 +1659,77 @@ suite('AgentSideEffects', () => {
 				rp => rp.kind === ResponsePartKind.ToolCall && rp.toolCall.toolCallId === 'tc-inner'
 			);
 			assert.strictEqual(parentInner, undefined, 'parent session must not contain the inner tool call');
+		});
+
+		test('pending_confirmation without an active turn still dispatches (does not hang)', async () => {
+			// Regression: when a hook-triggered continuation runs after
+			// the protocol turn has completed, the state manager has no
+			// active turn. Action signals go through a fallback path, but
+			// pending_confirmation was silently dropped — causing the
+			// permission deferred to never resolve and the session to hang.
+			setupSession(URI.file('/workspace').toString());
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			// Start a tool in the active turn
+			agent.fireProgress({
+				kind: 'action', session: sessionUri,
+				action: {
+					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
+					toolCallId: 'tc-noop', toolName: 'view', displayName: 'Read',
+					contributor: undefined,
+					_meta: { toolKind: undefined, language: undefined },
+				},
+			});
+
+			// Complete the turn — state manager no longer has an active turn
+			agent.fireProgress({
+				kind: 'action', session: sessionUri,
+				action: {
+					type: ActionType.ChatToolCallComplete, turnId: 'turn-1',
+					toolCallId: 'tc-noop', result: { success: true, pastTenseMessage: 'Read file' },
+				},
+			});
+			agent.fireProgress({
+				kind: 'action', session: sessionUri,
+				action: { type: ActionType.ChatTurnComplete, turnId: 'turn-1' },
+			});
+
+			// Verify no active turn
+			assert.strictEqual(stateManager.getActiveTurnId(sessionUri.toString()), undefined);
+
+			// Simulate the hook-triggered continuation: tool actions
+			// arrive without a new protocol turn being started
+			agent.fireProgress({
+				kind: 'action', session: sessionUri,
+				action: {
+					type: ActionType.ChatToolCallStart, turnId: '',
+					toolCallId: 'tc-orphan', toolName: 'view', displayName: 'Read',
+					contributor: undefined,
+					_meta: { toolKind: undefined, language: undefined },
+				},
+			});
+
+			// Now the pending_confirmation arrives — this must NOT be dropped
+			agent.fireProgress({
+				kind: 'pending_confirmation', session: sessionUri,
+				state: {
+					status: ToolCallStatus.PendingConfirmation,
+					toolCallId: 'tc-orphan', toolName: 'view', displayName: 'Read',
+					invocationMessage: 'Reading file.ts', toolInput: '{"path":"file.ts"}',
+					confirmationTitle: undefined, edits: undefined,
+				},
+				permissionKind: 'read', permissionPath: '/workspace/file.ts',
+			});
+
+			// The respondToPermissionRequest should have been called
+			// (auto-approved because read is inside the working directory).
+			// _handleToolReady is async (awaits getAutoApproval -> realpath),
+			// so wait for the approval to settle deterministically.
+			await waitForState(stateManager, () => agent.respondToPermissionCalls.length > 0 || undefined);
+			assert.deepStrictEqual(agent.respondToPermissionCalls, [
+				{ requestId: 'tc-orphan', approved: true },
+			], 'pending_confirmation without active turn should still be processed and auto-approved');
 		});
 	});
 
