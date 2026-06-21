@@ -51,17 +51,32 @@ The repository already provides mature, purpose-built tooling. **Maximize reuse 
 
 ## Methodology
 
+### Execution order summary
+
+The sections below must be executed in this order. Each section lists its prerequisites explicitly; do not skip ahead.
+
+1. **§0 (Pre-flight)** — builds both worktrees, creates artifacts directory. No dependencies.
+2. **§1 (perf:chat)** — depends on §0 (both builds must exist). Produces `ci-summary.md`, run-summary JSON, and optional heap snapshots in `artifacts/perf-chat-heap-snapshots/`.
+3. **§2 (perf:chat-leak)** — depends on §0 (both builds must exist). Independent of §1 (each harness launches its own instance + mock server). Produces leak reports.
+4. **§3 (session-switch-smoke)** — depends on §0 (branch build must exist). Launches its own instance; does not need the mock server. Produces snapshots in `artifacts/session-switch/`.
+5. **§4 (custom scenarios)** — depends on §0 (branch build). Requires mock LLM server started before scenarios C, D, E, I, J, K. Scenario L runs concurrently with D (same instance). Produces snapshots in `artifacts/custom-scenarios/`.
+6. **§5 (heap snapshot analysis)** — depends on §1, §3, and §4 having produced snapshots. Analyzes them offline (no running instance needed).
+7. **§6 (open/close cycle)** — depends on §0 (branch build). Launches its own fresh instance with mock server; does not depend on §4's instance. Produces per-iteration heap samples.
+8. **Deliverables** — compile `report.md` from all artifacts produced by §1–§6.
+
 ### 0. Pre-flight
 
-1. Confirm the build is up to date: check the `VS Code - Build` watch task output, or run `npm run typecheck-client`. Do not proceed if there are compilation errors.
-2. Create the artifacts directory: `/tmp/chat-validation-<timestamp>/artifacts/`.
-3. Record the git SHA of this branch and of `main` for reproducibility (`artifacts/git-sha.txt`).
-4. **Build `main` in a separate worktree** (only to get a compiled executable — do NOT manually launch or drive it):
+1. Confirm the branch build is up to date: check the `VS Code - Build` watch task output, or run `npm run typecheck-client`. Do not proceed if there are compilation errors.
+2. Confirm the branch's compiled Electron app exists at `.build/electron/Code - OSS.app/Contents/MacOS/Code - OSS`. If it does not, run `npm run electron` (downloads Electron) and ensure the watch task has produced the compiled output. This path is referenced by §1, §2, §4, §5, and §6 — it must exist before any of them run.
+3. Create the artifacts directory: `/tmp/chat-validation-<timestamp>/artifacts/`.
+4. Record the git SHA of this branch and of `main` for reproducibility (`artifacts/git-sha.txt`).
+5. **Build `main` in a separate worktree** (only to get a compiled executable — do NOT manually launch or drive it):
    ```bash
    git worktree add /tmp/vscode-main-baseline main
-   cd /tmp/vscode-main-baseline && npm run transpile-client
+   cd /tmp/vscode-main-baseline && npm install && npm run electron && npm run transpile-client
    ```
-   Both builds must be in the same build mode (both dev). Dev-build memory numbers are not representative of production — note this in the report.
+   This produces the baseline executable at `/tmp/vscode-main-baseline/.build/electron/Code - OSS.app/Contents/MacOS/Code - OSS`, which is referenced by §1 (`--baseline-build`) and §2 (`--build` for the main run). Verify this path exists before proceeding to §1.
+6. Both builds must be in the same build mode (both dev). Dev-build memory numbers are not representative of production — note this in the report.
 
 ### 1. Perf regression comparison (branch vs main) — use `perf:chat` natively
 
@@ -76,9 +91,13 @@ npm run perf:chat -- \
 
 This runs all 16 scenarios against both builds, does statistical comparison (Welch's t-test, p < 0.05), and writes `ci-summary.md`. Save `ci-summary.md` and all run-summary JSON to `artifacts/`.
 
+**Heap snapshots from `--heap-snapshots`:** The harness writes `.heapsnapshot` files alongside its run-summary output. After the run completes, locate all `.heapsnapshot` files produced (check the harness output for paths) and copy them to `artifacts/perf-chat-heap-snapshots/`. These snapshots are consumed by §5 (heap snapshot analysis). If no snapshots are produced, note this in the report — §5 will rely on §3 and §4 snapshots instead.
+
 **Thresholds:** Use the existing `config.jsonc` thresholds (20% global, `100ms` absolute for `timeToFirstToken`). A metric is flagged as a regression **only when it both exceeds the threshold AND is statistically significant** (p < 0.05). Do not invent a new 10% threshold — it is below dev-build noise floor (cv ≈ 20%).
 
 **What this covers:** Scenarios B (multi-step chat with tool calls, file edits, thinking blocks) and partially D (long conversations) from the original plan are fully covered by the 16 built-in scenarios (`tool-read-file`, `tool-edit-file`, `tool-terminal`, `multi-turn-user`, `long-conversation`).
+
+**Independence note:** `perf:chat` and `perf:chat-leak` (§2) each launch their own VS Code instance and mock LLM server internally. They do not share state or artifacts and can be run in any order. No port coordination is needed — the harnesses pick ephemeral ports.
 
 ### 2. Memory leak check — use `perf:chat-leak` natively
 
@@ -102,6 +121,8 @@ Save both outputs to `artifacts/branch-leak-report.txt` and `artifacts/main-leak
 
 ### 3. Session switch leak check — use `chat-session-switch-smoke.mts`
 
+This script launches its own Code OSS instance (it does not require a pre-existing instance). It uses the branch build at `.build/electron/Code - OSS.app/Contents/MacOS/Code - OSS` (established in §0). It does **not** require the mock LLM server — it creates sessions with pre-seeded content, not live chat responses.
+
 ```bash
 node .github/skills/auto-perf-optimize/scripts/chat-session-switch-smoke.mts \
   --switch-iterations 10 \
@@ -110,11 +131,15 @@ node .github/skills/auto-perf-optimize/scripts/chat-session-switch-smoke.mts \
   --output /tmp/chat-validation-<timestamp>/artifacts/session-switch
 ```
 
-This creates multiple chat sessions with different content types and repeatedly switches between them — exercising per-session marker controller creation/disposal. Save `summary.json` and snapshots to `artifacts/`.
+This creates multiple chat sessions with different content types and repeatedly switches between them — exercising per-session marker controller creation/disposal. Save `summary.json` and snapshots to `artifacts/session-switch/`. The `.heapsnapshot` files produced here are consumed by §5 (heap snapshot analysis).
 
 ### 4. Custom scenarios (true gaps — no existing tool covers these)
 
 These are the scenarios that the existing harnesses do **not** cover. Implement each as a scratchpad script under `/tmp/chat-validation-<timestamp>/` that reuses the `launch` skill + `@playwright/cli` patterns from `auto-perf-optimize`. **Critical:** the launched instance must have the mock LLM server configured — set `IS_SCENARIO_AUTOMATION=1`, `VSCODE_COPILOT_CHAT_TOKEN`, write settings pointing to the mock server, and `--disable-extension=vscode.vscode-api-tests`. Alternatively, use `chat-memory-smoke.mts` as the launch vehicle (it handles this setup).
+
+**Mock LLM server setup (required before Scenarios C, D, E, I, J, K):** Scenarios that send chat messages and expect responses (C, D, E, I, J, K) require a running mock LLM server. Start the mock server from `scripts/chat-simulation/common/mock-llm-server.ts` before launching the Code OSS instance for these scenarios. For Scenarios I and J, register custom scenarios on the mock server (error response for I, compaction response for J) using the `ScenarioBuilder` API before sending the prompt. The mock server port must match the settings written to the launched instance's user data. Scenarios A and L do not require the mock server (A tests empty chat; L observes file I/O during D).
+
+**Heap snapshot capture for §5:** For scenarios that exercise marker creation/disposal (C, D, E, I, J, K), capture a baseline `.heapsnapshot` before the scenario and an after `.heapsnapshot` after the scenario (following the double-GC pattern from §5). Save these to `artifacts/custom-scenarios/<scenario>-baseline.heapsnapshot` and `artifacts/custom-scenarios/<scenario>-after.heapsnapshot`. These are consumed by §5 alongside snapshots from §1 and §3.
 
 For each scenario, capture:
 - Screenshots at start and end (`artifacts/<scenario>-start.png`, `artifacts/<scenario>-end.png`).
@@ -185,6 +210,8 @@ For each scenario, capture:
 
 #### Scenario L — Debug log file I/O measurement (new — flag potential bug)
 
+**Dependency:** This scenario runs concurrently with Scenario D (scrolling). It does not launch its own instance — it observes the same Code OSS instance and renderer log produced by Scenario D. Run L's measurement steps during or immediately after D, before the instance from D is torn down.
+
 1. The controller calls `appendDebugLog()` on **every `renderMarkers` call**, writing a JSONL line to a hardcoded path (`/Users/core/out.txt`) via `fileService.writeFile()`. This is:
    - A **hardcoded absolute path** that will fail on any machine that isn't the developer's.
    - A **performance concern** — during scrolling, `renderMarkers` may be called dozens of times per second.
@@ -193,6 +220,13 @@ For each scenario, capture:
 4. **Flag this as a finding in the report** — the hardcoded path and per-render write are a performance and stability risk.
 
 ### 5. Heap snapshot analysis (per-build deltas, not cross-build absolute comparison)
+
+**Prerequisites:** This section consumes heap snapshots produced by earlier sections. Before starting, verify the following snapshot sources exist:
+- **From §1 (`perf:chat --heap-snapshots`):** snapshots in `artifacts/perf-chat-heap-snapshots/` (if the harness produced them — see §1's note).
+- **From §3 (`chat-session-switch-smoke.mts`):** snapshots in `artifacts/session-switch/` (labeled `04-switch-01`, `04-switch-10`).
+- **From §4 (custom scenarios):** baseline/after snapshot pairs in `artifacts/custom-scenarios/` for scenarios C, D, E, I, J, K.
+
+If any source is missing, note it in the report and proceed with available snapshots. If all sources are missing, this section cannot be completed — flag as a blocker.
 
 **Critical methodology note:** Node IDs are process-local. `compareSnapshots()` groups by constructor name (stable across builds) but its `newObjectGroups` feature (IDs present in "after" but not "before") is **meaningless across different process instances** — every object in the branch snapshot will appear "new" relative to main. **Compare per-build deltas, not absolute cross-build snapshots.**
 
@@ -236,6 +270,8 @@ findRetainerPaths(graph, 'ChatScrollbarPromptMarkerController', { maxPaths: 5 })
 **For large snapshots (>2 GiB):** use `streamSnapshot.mjs` streaming primitives instead of `parseSnapshot.ts` (which uses `readFileSync` and will fail with `ERR_FS_FILE_TOO_LARGE`).
 
 ### 6. Open/close cycle accumulation (per-iteration sampling, not end-only snapshot)
+
+**Prerequisites:** This section requires a running Code OSS instance with CDP access. Do **not** rely on §4's instance — §4 scenarios may have torn down their instance. Launch a fresh instance using `chat-memory-smoke.mts` (which handles mock server setup) or the `launch` skill with `IS_SCENARIO_AUTOMATION=1` and `VSCODE_COPILOT_CHAT_TOKEN` set. The instance must have the mock LLM server running so that chat open/close cycles produce real responses (exercising marker controller creation/disposal). Verify CDP connectivity before starting the measurement loop.
 
 For the open/close accumulation check (original Scenario H):
 
