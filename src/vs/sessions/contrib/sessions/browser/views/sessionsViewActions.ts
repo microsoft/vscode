@@ -751,7 +751,7 @@ registerAction2(class DeleteSessionAction extends Action2 {
 		if (!context) {
 			return;
 		}
-		const sessions = Array.isArray(context) ? context : [context];
+		const sessions = (Array.isArray(context) ? context : [context]).filter(session => session.capabilities.supportsDelete);
 		if (sessions.length === 0) {
 			return;
 		}
@@ -773,7 +773,9 @@ registerAction2(class DeleteSessionAction extends Action2 {
 		try {
 			await sessionsManagementService.deleteSessions(sessions);
 		} catch (err) {
-			dialogService.error(localize('deleteSession.error', "Failed to delete sessions: {0}", toErrorMessage(err)));
+			dialogService.error(sessions.length === 1
+				? localize('deleteSession.error', "Failed to delete the session: {0}", toErrorMessage(err))
+				: localize('deleteSessions.error', "Failed to delete the sessions: {0}", toErrorMessage(err)));
 		}
 	}
 });

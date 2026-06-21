@@ -516,11 +516,20 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			}
 		}
 
+		let firstError: unknown;
 		for (const [provider, providerSessions] of byProvider) {
-			await provider.deleteSessions(providerSessions.map(session => session.sessionId));
-			for (const session of providerSessions) {
-				this._onDidDeleteSession.fire(session);
+			try {
+				await provider.deleteSessions(providerSessions.map(session => session.sessionId));
+				for (const session of providerSessions) {
+					this._onDidDeleteSession.fire(session);
+				}
+			} catch (error) {
+				firstError ??= error;
 			}
+		}
+
+		if (firstError !== undefined) {
+			throw firstError;
 		}
 	}
 

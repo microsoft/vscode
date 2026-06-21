@@ -232,9 +232,9 @@ export interface ISessionsProvider {
 	deleteSession(sessionId: string): Promise<void>;
 
 	/**
-	 * Delete multiple sessions at once. Providers that can remove several
-	 * sessions more efficiently (or want to emit a single change event)
-	 * override the default per-session behavior.
+	 * Delete multiple sessions at once. Implementations may delete the
+	 * sessions more efficiently in a batch, or simply delegate to
+	 * {@link deleteSession} for each id.
 	 * @param sessionIds The IDs of the sessions to delete.
 	 */
 	deleteSessions(sessionIds: readonly string[]): Promise<void>;
