@@ -50,8 +50,9 @@ class TestLanguageModelsService implements Partial<ILanguageModelsService> {
 class TestContribution extends DefaultModelContribution {
 	constructor(
 		arrays: DefaultModelArrays,
-		storageFormat: 'qualifiedName' | 'vendorAndId' | undefined,
+		storageFormat: 'qualifiedName' | 'vendorAndId' | 'id' | undefined,
 		languageModelsService: ILanguageModelsService,
+		includeAgentHostModels?: boolean,
 	) {
 		super(
 			arrays,
@@ -60,6 +61,7 @@ class TestContribution extends DefaultModelContribution {
 				configSectionId: undefined,
 				logPrefix: '[Test]',
 				storageFormat,
+				includeAgentHostModels,
 			},
 			languageModelsService,
 			new NullLogService(),
@@ -84,7 +86,7 @@ function makeMetadata(overrides: Partial<ILanguageModelChatMetadata> & Pick<ILan
 suite('DefaultModelContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(opts?: { models?: ILanguageModelChatMetadata[]; vendors?: ILanguageModelProviderDescriptor[]; storageFormat?: 'qualifiedName' | 'vendorAndId' }) {
+	function setup(opts?: { models?: ILanguageModelChatMetadata[]; vendors?: ILanguageModelProviderDescriptor[]; storageFormat?: 'qualifiedName' | 'vendorAndId' | 'id'; includeAgentHostModels?: boolean }) {
 		const service = new TestLanguageModelsService();
 		store.add({ dispose: () => service.dispose() });
 
@@ -96,7 +98,7 @@ suite('DefaultModelContribution', () => {
 		}
 
 		const arrays = createDefaultModelArrays();
-		const contribution = store.add(new TestContribution(arrays, opts?.storageFormat, service as unknown as ILanguageModelsService));
+		const contribution = store.add(new TestContribution(arrays, opts?.storageFormat, service as unknown as ILanguageModelsService, opts?.includeAgentHostModels));
 		return { arrays, contribution, service };
 	}
 
@@ -187,6 +189,42 @@ suite('DefaultModelContribution', () => {
 				labels: ['Auto (Vendor Default)', 'Claude Sonnet 4.5 (Anthropic)'],
 			},
 		);
+	});
+
+	test('agent-host (session-scoped) models are excluded by default but included with includeAgentHostModels and stored by bare id', () => {
+		const opts = {
+			vendors: [{ vendor: 'copilotcli', displayName: 'Copilot CLI', isDefault: false, configuration: undefined, managementCommand: undefined, when: undefined }],
+			models: [makeMetadata({ id: 'gpt-5', name: 'GPT 5', vendor: 'copilotcli', targetChatSessionType: 'agent-host-copilot' })],
+		};
+		const excluded = setup({ ...opts, storageFormat: 'id' });
+		const included = setup({ ...opts, storageFormat: 'id', includeAgentHostModels: true });
+		assert.deepStrictEqual({
+			excluded: excluded.arrays.modelIds,
+			included: included.arrays.modelIds,
+		}, {
+			excluded: [''],
+			included: ['', 'gpt-5'],
+		});
+	});
+
+	test('ambiguous bare id — duplicate ids across providers are excluded when stored by id', () => {
+		const { arrays } = setup({
+			storageFormat: 'id',
+			includeAgentHostModels: true,
+			vendors: [
+				{ vendor: 'copilotcli', displayName: 'Copilot CLI', isDefault: false, configuration: undefined, managementCommand: undefined, when: undefined },
+				{ vendor: 'claude', displayName: 'Claude', isDefault: false, configuration: undefined, managementCommand: undefined, when: undefined },
+			],
+			models: [
+				// Same bare id from two agent-host providers — ambiguous when
+				// stored by id, so neither must appear.
+				makeMetadata({ id: 'gpt-5', name: 'GPT 5', vendor: 'copilotcli', targetChatSessionType: 'agent-host-copilot' }),
+				makeMetadata({ id: 'gpt-5', name: 'GPT 5', vendor: 'claude', targetChatSessionType: 'agent-host-claude' }),
+				// A non-conflicting id must remain.
+				makeMetadata({ id: 'sonnet-4.5', name: 'Sonnet 4.5', vendor: 'claude', targetChatSessionType: 'agent-host-claude' }),
+			],
+		});
+		assert.deepStrictEqual(arrays.modelIds, ['', 'sonnet-4.5']);
 	});
 
 	test('utility model settings exclude Copilot vendor models', () => {

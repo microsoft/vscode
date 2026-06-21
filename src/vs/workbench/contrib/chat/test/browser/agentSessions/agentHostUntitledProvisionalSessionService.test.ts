@@ -20,6 +20,7 @@ import type { ResolveSessionConfigResult } from '../../../../../../platform/agen
 import type { ConfigSchema } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { AgentHostUntitledProvisionalSessionService, IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { AgentHostNewSessionFolderService, IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 
@@ -112,6 +113,8 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 	let agentHost: MockAgentHostService;
 	let provisional: IAgentHostUntitledProvisionalSessionService;
 	let folderService: IAgentHostNewSessionFolderService;
+	let configService: TestConfigurationService;
+	let environmentService: { isSessionsWindow: boolean };
 	let cleanup: DisposableStore;
 
 	setup(async () => {
@@ -120,8 +123,10 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		insta.stub(IAgentHostService, agentHost);
 		insta.stub(ILogService, new NullLogService());
 		insta.stub(IChatService, new MockChatService());
-		insta.stub(IConfigurationService, new TestConfigurationService());
-		insta.stub(IWorkbenchEnvironmentService, { isSessionsWindow: false } as Partial<IWorkbenchEnvironmentService>);
+		configService = new TestConfigurationService();
+		insta.stub(IConfigurationService, configService);
+		environmentService = { isSessionsWindow: false };
+		insta.stub(IWorkbenchEnvironmentService, environmentService as Partial<IWorkbenchEnvironmentService>);
 		folderService = ds.add(insta.createInstance(AgentHostNewSessionFolderService));
 		insta.stub(IAgentHostNewSessionFolderService, folderService);
 		provisional = ds.add(insta.createInstance(AgentHostUntitledProvisionalSessionService));
@@ -136,6 +141,52 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		assert.strictEqual(a?.toString(), expectedBackendUri('a').toString());
 		assert.strictEqual(b?.toString(), a.toString());
 		assert.strictEqual(agentHost.createCalls.length, 1);
+	});
+
+	test('getOrCreate seeds the default model from chat.defaultConfiguration', async () => {
+		agentHost.resolveQueue = [];
+		await configService.setUserConfiguration(ChatConfiguration.DefaultConfiguration, { model: 'gpt-5' });
+		const ui = untitledChatUri('model-a');
+		await provisional.getOrCreate(ui, 'copilot', undefined);
+		assert.deepStrictEqual(agentHost.createCalls[0].model, { id: 'gpt-5' });
+	});
+
+	test('getOrCreate omits the model when none is configured', async () => {
+		agentHost.resolveQueue = [];
+		const ui = untitledChatUri('model-b');
+		await provisional.getOrCreate(ui, 'copilot', undefined);
+		assert.strictEqual(agentHost.createCalls[0].model, undefined);
+	});
+
+	test('getOrCreate omits the model when configured value is empty', async () => {
+		agentHost.resolveQueue = [];
+		await configService.setUserConfiguration(ChatConfiguration.DefaultConfiguration, { model: '' });
+		const ui = untitledChatUri('model-c');
+		await provisional.getOrCreate(ui, 'copilot', undefined);
+		assert.strictEqual(agentHost.createCalls[0].model, undefined);
+	});
+
+	test('getOrCreate omits the model in the Agents window', async () => {
+		agentHost.resolveQueue = [];
+		environmentService.isSessionsWindow = true;
+		await configService.setUserConfiguration(ChatConfiguration.DefaultConfiguration, { model: 'gpt-5' });
+		const ui = untitledChatUri('model-d');
+		await provisional.getOrCreate(ui, 'copilot', undefined);
+		assert.strictEqual(agentHost.createCalls[0].model, undefined);
+	});
+
+	test('tryRebind preserves the seeded model on the new provisional', async () => {
+		agentHost.resolveQueue = [];
+		await configService.setUserConfiguration(ChatConfiguration.DefaultConfiguration, { model: 'gpt-5' });
+		const ui = untitledChatUri('model-e');
+		await provisional.getOrCreate(ui, 'copilot', undefined);
+
+		const newUi = URI.from({ scheme: 'agent-host-copilot', path: '/real-model-e' });
+		await provisional.tryRebind(ui, newUi, 'copilot', undefined);
+
+		const reboundCreate = agentHost.createCalls.find(c => c.session?.path === '/real-model-e');
+		assert.ok(reboundCreate, 'rebind triggered a createSession');
+		assert.deepStrictEqual(reboundCreate!.model, { id: 'gpt-5' });
 	});
 
 	test('applyConfigChange dispatches SessionConfigChanged synchronously after mutating entry.config', async () => {
@@ -401,6 +452,23 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			recreatedCwd: folderB.toString(),
 			recreatedConfig: 'worktree',
 		});
+	});
+
+	test('folder change recreates the provisional at the new cwd preserving the seeded model', async () => {
+		await configService.setUserConfiguration(ChatConfiguration.DefaultConfiguration, { model: 'gpt-5' });
+		const folderA = URI.file('/repoA');
+		const folderB = URI.file('/repoB');
+		const ui = untitledChatUri('cwd-model');
+		await provisional.getOrCreate(ui, 'copilot', folderA);
+		assert.deepStrictEqual(agentHost.createCalls[0].model, { id: 'gpt-5' });
+
+		// Re-resolve response for the recreation at the new cwd.
+		agentHost.resolveQueue = [{ schema: makeSchema(false), values: { isolation: 'folder' } }];
+		folderService.setFolder(ui, folderB);
+		await flush();
+
+		const recreate = agentHost.createCalls[agentHost.createCalls.length - 1];
+		assert.deepStrictEqual(recreate.model, { id: 'gpt-5' });
 	});
 
 	test('folder change to the same folder is a no-op', async () => {

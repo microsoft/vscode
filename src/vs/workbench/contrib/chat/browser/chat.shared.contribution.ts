@@ -206,6 +206,7 @@ import { ChatTipService, IChatTipService } from './chatTipService.js';
 import { ChatQueuePickerRendering } from './widget/input/chatQueuePickerActionItem.js';
 import { ExploreAgentDefaultModel } from './exploreAgentDefaultModel.js';
 import { PlanAgentDefaultModel } from './planAgentDefaultModel.js';
+import { AgentSessionDefaultModel } from './agentSessionDefaultModel.js';
 import { UtilityModelContribution, UtilitySmallModelContribution } from './utilityModelContribution.js';
 import { ChatImageCarouselService, IChatImageCarouselService } from './chatImageCarouselService.js';
 import { browserChatToolReferenceNames } from '../../browserView/common/browserChatToolReferenceNames.js';
@@ -516,9 +517,16 @@ configurationRegistry.registerConfiguration({
 					default: ChatPermissionLevel.Default,
 					description: nls.localize('chat.defaultConfiguration.approvals.description', "The starting approval behavior for new agent sessions. If enterprise policy disables auto approval, new sessions use Default Approvals."),
 				},
+				model: {
+					type: 'string',
+					enum: AgentSessionDefaultModel.modelIds,
+					enumDescriptions: AgentSessionDefaultModel.modelDescriptions,
+					default: '',
+					description: nls.localize('chat.defaultConfiguration.model.description', "The starting language model for new agent sessions. Leave empty to use the provider's default model. The model is provider-specific; when it does not apply to the active provider, the agent falls back to its default."),
+				},
 			},
-			default: { mode: 'interactive', approvals: ChatPermissionLevel.Default },
-			markdownDescription: nls.localize('chat.defaultConfiguration.settingDescription', "Controls the default configuration (mode and approval behavior) for new agent sessions (such as Copilot CLI). You can still change the mode and approval level per session, and each session remembers what was used."),
+			default: { mode: 'interactive', approvals: ChatPermissionLevel.Default, model: '' },
+			markdownDescription: nls.localize('chat.defaultConfiguration.settingDescription', "Controls the default configuration (mode, approval behavior and model) for new agent sessions (such as Copilot CLI). You can still change these per session, and each session remembers what was used."),
 		},
 		[ChatConfiguration.GlobalAutoApprove]: {
 			default: false,

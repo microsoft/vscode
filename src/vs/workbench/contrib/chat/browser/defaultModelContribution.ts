@@ -28,14 +28,23 @@ export interface DefaultModelContributionOptions {
 	/** Additional filter beyond `isUserSelectable`. Return `true` to include the model. */
 	readonly filter?: (metadata: ILanguageModelChatMetadata) => boolean;
 	/**
+	 * Whether to include models scoped to a specific chat session type (e.g.
+	 * agent-host providers like Copilot CLI). These are hidden from general
+	 * model pickers by default; set to `true` for settings that drive
+	 * agent-host sessions.
+	 */
+	readonly includeAgentHostModels?: boolean;
+	/**
 	 * How model identifiers are encoded in the stored setting value.
 	 * - `'qualifiedName'` (default): `${name} (${vendor})` — matches
 	 *   {@link ILanguageModelChatMetadata.asQualifiedName}. Kept for backward
 	 *   compatibility with existing settings (plan/explore agent).
 	 * - `'vendorAndId'`: `${vendor}/${id}` — stable composite of API-stable
 	 *   fields, directly usable with `vscode.lm.selectChatModels`.
+	 * - `'id'`: the bare model `id`. Used for agent-host sessions where the
+	 *   stored value is threaded back as a `ModelSelection.id`.
 	 */
-	readonly storageFormat?: 'qualifiedName' | 'vendorAndId';
+	readonly storageFormat?: 'qualifiedName' | 'vendorAndId' | 'id';
 	/**
 	 * Optional override for the label of the default ("empty") enum entry.
 	 * When omitted, defaults to `"Auto (Vendor Default)"`.
@@ -80,7 +89,7 @@ export abstract class DefaultModelContribution extends Disposable {
 
 	private _updateModelValues(): void {
 		const { modelIds, modelLabels, modelDescriptions } = this._arrays;
-		const { configKey, configSectionId, logPrefix, filter, storageFormat, defaultEntryLabel, defaultEntryDescription } = this._options;
+		const { configKey, configSectionId, logPrefix, filter, storageFormat, defaultEntryLabel, defaultEntryDescription, includeAgentHostModels } = this._options;
 
 		try {
 			// Clear arrays
@@ -119,8 +128,9 @@ export abstract class DefaultModelContribution extends Disposable {
 					return false;
 				}
 				// Models scoped to a specific chat session type (e.g. agent-host
-				// providers) are intentionally hidden from general model pickers.
-				if (model.metadata?.targetChatSessionType !== undefined) {
+				// providers) are intentionally hidden from general model pickers
+				// unless the setting opts into them.
+				if (!includeAgentHostModels && model.metadata?.targetChatSessionType !== undefined) {
 					return false;
 				}
 				if (filter && !filter(model.metadata)) {
@@ -139,18 +149,29 @@ export abstract class DefaultModelContribution extends Disposable {
 				vendorDisplayNames.set(vendor.vendor, vendor.displayName);
 			}
 
-			// When the storage format is `vendorAndId`, two models can collapse
-			// to the same `${vendor}/${id}` key. The override resolver does not
+			const computeStoredId = (metadata: ILanguageModelChatMetadata): string => {
+				switch (storageFormat) {
+					case 'vendorAndId':
+						return `${metadata.vendor}/${metadata.id}`;
+					case 'id':
+						return metadata.id;
+					default:
+						return ILanguageModelChatMetadata.asQualifiedName(metadata);
+				}
+			};
+
+			// When the storage format is `vendorAndId` or `id`, two models can
+			// collapse to the same stored key. The override resolver does not
 			// filter on `isUserSelectable`, so a hidden/internal model with the
-			// same vendor/id as a visible one would make the chosen value
-			// silently fall back to the default at runtime. Compute ambiguity
-			// across *all* models (not just `supportedModels`) so any such
-			// collision excludes the visible entry from the picker too.
+			// same key as a visible one would make the chosen value silently
+			// fall back to the default at runtime. Compute ambiguity across
+			// *all* models (not just `supportedModels`) so any such collision
+			// excludes the visible entry from the picker too.
 			const ambiguousVendorIds = new Set<string>();
-			if (storageFormat === 'vendorAndId') {
+			if (storageFormat === 'vendorAndId' || storageFormat === 'id') {
 				const counts = new Map<string, number>();
 				for (const model of models) {
-					const key = `${model.metadata.vendor}/${model.metadata.id}`;
+					const key = computeStoredId(model.metadata);
 					counts.set(key, (counts.get(key) ?? 0) + 1);
 				}
 				for (const [key, count] of counts) {
@@ -162,9 +183,7 @@ export abstract class DefaultModelContribution extends Disposable {
 
 			for (const model of supportedModels) {
 				try {
-					const storedId = storageFormat === 'vendorAndId'
-						? `${model.metadata.vendor}/${model.metadata.id}`
-						: ILanguageModelChatMetadata.asQualifiedName(model.metadata);
+					const storedId = computeStoredId(model.metadata);
 					if (ambiguousVendorIds.has(storedId)) {
 						this._logService.trace(`${logPrefix} Skipping model '${model.metadata.name}' (${storedId}): key collides with another registered model.`);
 						continue;
