@@ -1389,7 +1389,20 @@ export namespace CoreNavigationCommands {
 					desiredTopModelLineNumber = Math.min(viewModel.model.getLineCount(), visibleModelRange.startLineNumber + args.value);
 				}
 
-				const viewPosition = viewModel.coordinatesConverter.convertModelPositionToViewPosition(new Position(desiredTopModelLineNumber, 1));
+				// When scrolling down and the target model line falls inside a collapsed (hidden)
+				// region, resolve it to the first visible line *after* the fold. Otherwise the
+				// target maps back to the fold's already-visible first line, the scroll position
+				// does not change and downward scrolling stalls at folded regions (#171865). Only
+				// do this when a visible line still exists after the target; a fold extending to
+				// the end of the file keeps the default mapping so we never resolve past the last
+				// view line.
+				let belowHiddenRanges = false;
+				if (args.direction === EditorScroll_.Direction.Down) {
+					const lastVisibleModelLineNumber = viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(viewModel.getLineCount(), 1)).lineNumber;
+					belowHiddenRanges = desiredTopModelLineNumber <= lastVisibleModelLineNumber;
+				}
+
+				const viewPosition = viewModel.coordinatesConverter.convertModelPositionToViewPosition(new Position(desiredTopModelLineNumber, 1), undefined, undefined, belowHiddenRanges);
 				return viewModel.viewLayout.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
 			}
 
