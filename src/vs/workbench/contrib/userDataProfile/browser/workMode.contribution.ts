@@ -12,6 +12,7 @@ import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/c
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, IPromptChoice, NeverShowAgainScope, NotificationPriority, Severity } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
@@ -95,6 +96,7 @@ export class WorkModeContribution extends Disposable implements IWorkbenchContri
 		@IDebugService private readonly debugService: IDebugService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 		this.registerActions();
@@ -212,7 +214,7 @@ export class WorkModeContribution extends Disposable implements IWorkbenchContri
 					}
 				},
 				{
-					label: localize('workMode.activity.dismiss', "Not Now"),
+					label: localize('workMode.activity.dismissWorkspace', "Don't Ask Again in This Workspace"),
 					run: () => {
 						this.storageService.store(dismissStorageKey, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 						this.reportActionTelemetry('activity-dismiss', modeId);
@@ -274,12 +276,13 @@ export class WorkModeContribution extends Disposable implements IWorkbenchContri
 				{
 					label: localize('workMode.suggestion.browse', "Browse Work Modes..."),
 					run: () => {
-						this.workModeService.dismissSuggestion();
+						// Do not dismiss permanently — user wants to pick another mode via the picker.
 						this.reportActionTelemetry('browse', primary.mode.id);
+						this.commandService.executeCommand('workbench.profiles.actions.switchWorkMode');
 					}
 				},
 				{
-					label: localize('workMode.suggestion.dismiss', "Not Now"),
+					label: localize('workMode.suggestion.dismissWorkspace', "Don't Ask Again in This Workspace"),
 					run: () => {
 						this.workModeService.dismissSuggestion();
 						this.reportActionTelemetry('dismiss', primary.mode.id);
@@ -312,9 +315,15 @@ export class WorkModeContribution extends Disposable implements IWorkbenchContri
 
 		if (preset) {
 			const tip = preset.tips[0];
-			this.notificationService.info(
-				localize('workMode.switched', "Switched to {0} mode{1}", preset.name, tip ? ` — ${tip}` : '')
-			);
+			if (tip) {
+				this.notificationService.info(
+					localize('workMode.switchedWithTip', "Switched to {0} mode — {1}", preset.name, tip)
+				);
+			} else {
+				this.notificationService.info(
+					localize('workMode.switched', "Switched to {0} mode", preset.name)
+				);
+			}
 		}
 
 		if (this.extensionsEnabled()) {
@@ -610,17 +619,13 @@ export class WorkModeContribution extends Disposable implements IWorkbenchContri
 				const detection = await workModeService.detectWorkModes();
 				const env = detection.environment;
 
-				const envLine = [
-					env.isRemote ? `remote=${env.remoteName}` : 'local',
-					env.isTrusted ? 'trusted' : 'untrusted',
-					env.isWeb ? 'web' : 'desktop',
-				].join(', ');
+				const envLine = that.formatEnvironmentSummary(env);
 
 				if (!detection.primary) {
 					notificationService.info(localize(
 						'workMode.detect.none',
 						"No strong project signal detected. Kinds: {0}. Environment: {1}. Run \"Switch Work Mode...\" to pick manually.",
-						detection.detectedProjectKinds.join(', ') || 'unknown',
+						detection.detectedProjectKinds.join(', ') || localize('workMode.detect.unknownKinds', "unknown"),
 						envLine
 					));
 					return;
@@ -666,21 +671,18 @@ export class WorkModeContribution extends Disposable implements IWorkbenchContri
 				const switchLines = Object.entries(stats.switchesByMode)
 					.sort((a, b) => b[1] - a[1])
 					.map(([id, count]) => `  ${id}: ${count}`)
-					.join('\n') || '  (none yet)';
+					.join('\n') || localize('workMode.stats.noneYet', "  (none yet)");
 
 				const summary = [
 					localize('workMode.stats.header', "Work Mode usage (local)"),
-					localize('workMode.stats.current', "Current mode: {0}", current?.name ?? 'Default'),
-					localize('workMode.stats.env', "Environment: {0}", [
-						env.isRemote ? `remote/${env.remoteName}` : 'local',
-						env.isTrusted ? 'trusted' : 'untrusted',
-					].join(', ')),
+					localize('workMode.stats.current', "Current mode: {0}", current?.name ?? localize('workMode.stats.defaultProfile', "Default")),
+					localize('workMode.stats.env', "Environment: {0}", that.formatEnvironmentSummary(env)),
 					localize('workMode.stats.suggestions', "Suggestions shown: {0}, accepted: {1}, dismissed: {2}", stats.suggestionsShown, stats.suggestionsAccepted, stats.suggestionsDismissed),
 					localize('workMode.stats.activity', "Activity triggers: {0}", stats.activityTriggers),
 					localize('workMode.stats.extensions', "Extension install batches: {0}", stats.extensionsInstalled),
 					localize('workMode.stats.switches', "Switches by mode:\n{0}", switchLines),
 					stats.lastSwitchAt
-						? localize('workMode.stats.last', "Last switch: {0} via {1}", stats.lastModeId ?? '?', stats.lastSwitchSource ?? '?')
+						? localize('workMode.stats.last', "Last switch: {0} via {1}", stats.lastModeId ?? localize('workMode.stats.unknown', "?"), stats.lastSwitchSource ?? localize('workMode.stats.unknown', "?"))
 						: '',
 				].filter(Boolean).join('\n');
 
@@ -690,6 +692,24 @@ export class WorkModeContribution extends Disposable implements IWorkbenchContri
 	}
 
 	//#endregion
+
+	private formatEnvironmentSummary(env: { isRemote: boolean; remoteName?: string; isTrusted: boolean; isWeb?: boolean }): string {
+		const parts: string[] = [];
+		if (env.isRemote) {
+			parts.push(localize('workMode.env.remote', "Remote: {0}", env.remoteName ?? localize('workMode.env.remoteGeneric', "remote")));
+		} else {
+			parts.push(localize('workMode.env.local', "Local"));
+		}
+		parts.push(env.isTrusted
+			? localize('workMode.env.trusted', "Trusted")
+			: localize('workMode.env.untrusted', "Untrusted"));
+		if (typeof env.isWeb === 'boolean') {
+			parts.push(env.isWeb
+				? localize('workMode.env.web', "Web")
+				: localize('workMode.env.desktop', "Desktop"));
+		}
+		return parts.join(', ');
+	}
 
 	private toQuickPickItem(mode: IWorkModePreset, suggestion?: IWorkModeSuggestion, isCurrent?: boolean): IQuickPickItem & { modeId: WorkModeId } {
 		const icon = ThemeIcon.isThemeIcon(mode.icon) ? `$(${mode.icon.id}) ` : '';

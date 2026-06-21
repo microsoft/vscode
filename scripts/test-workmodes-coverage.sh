@@ -15,9 +15,22 @@ fi
 
 COVERAGE_PATH="${COVERAGE_PATH:-$ROOT/.build/coverage}"
 
+ALLOW_FAIL="${WORK_MODES_COVERAGE_ALLOW_FAIL:-0}"
+
 if [[ -x "$ROOT/.build/electron/code-oss" ]] || [[ -x "$ROOT/.build/electron/Code - OSS.app/Contents/MacOS/Electron" ]]; then
 	echo "[coverage] Running Work Modes via scripts/test.sh --coverage"
-	./scripts/test.sh --coverage --coveragePath "$COVERAGE_PATH" --grep "Work Modes" || true
+	set +e
+	./scripts/test.sh --coverage --coveragePath "$COVERAGE_PATH" --grep "Work Modes"
+	status=$?
+	set -e
+	if [[ $status -ne 0 ]]; then
+		echo "[coverage] Work Modes tests failed (exit $status)"
+		if [[ "$ALLOW_FAIL" == "1" ]]; then
+			echo "[coverage] WORK_MODES_COVERAGE_ALLOW_FAIL=1 — continuing despite failure"
+		else
+			exit "$status"
+		fi
+	fi
 else
 	echo "[coverage] Electron runner not available; run when possible:"
 	echo "  ./scripts/test.sh --coverage --coveragePath .build/coverage --grep \"Work Modes\""

@@ -238,8 +238,10 @@ suite('Work Modes — Presets & Contracts', () => {
 		for (const entry of STABLE_MODE_CONTRACT) {
 			const preset = getWorkModePreset(entry.id);
 			assert.ok(preset, `mode ${entry.id} was removed — breaks existing telemetry & docs`);
-			assert.strictEqual(preset!.name, entry.name, `mode ${entry.id} renamed from "${entry.name}" to "${preset!.name}" — breaks existing named profiles`);
+			// profileName is locale-stable and backs the user data profile; name may be localized in UI only
+			assert.strictEqual(preset!.profileName, entry.name, `mode ${entry.id} profileName changed from "${entry.name}" to "${preset!.profileName}" — breaks existing named profiles`);
 			assert.ok(isWorkModeProfileName(entry.name), `profile name "${entry.name}" no longer detected as work mode`);
+			assert.strictEqual(getWorkModeProfileName(preset!), entry.name);
 		}
 	});
 
@@ -297,7 +299,7 @@ suite('Work Modes — Presets & Contracts', () => {
 	test('BACK-COMPAT: existing non-mode profiles are not misclassified', () => {
 		// Users may have profiles named anything; only exact mode names count
 		assert.ok(!isWorkModeProfileName('Work'));
-		assert.ok(!isWorkModeProfileName('frontend')); // case-sensitive; profiles use localized title case
+		assert.ok(!isWorkModeProfileName('frontend')); // case-sensitive; profiles use stable English title case
 		assert.ok(!isWorkModeProfileName('FullStack'));
 		assert.ok(!isWorkModeProfileName(''));
 	});

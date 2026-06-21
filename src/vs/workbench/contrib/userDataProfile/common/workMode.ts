@@ -47,6 +47,12 @@ export interface IWorkModeLayoutPreset {
 
 export interface IWorkModePreset {
 	readonly id: WorkModeId;
+	/**
+	 * Locale-stable profile name used when creating/matching the backing user data profile.
+	 * Must not be localized — persisted profile names must survive language changes.
+	 */
+	readonly profileName: string;
+	/** Localized display name shown in UI (picker, notifications, tips). */
 	readonly name: string;
 	readonly description: string;
 	readonly icon: ThemeIcon;
@@ -190,11 +196,11 @@ export function getWorkModePreset(id: WorkModeId): IWorkModePreset | undefined {
 }
 
 export function getWorkModeProfileName(preset: IWorkModePreset): string {
-	return preset.name;
+	return preset.profileName;
 }
 
 export function isWorkModeProfileName(name: string): boolean {
-	return WORK_MODE_PRESETS.some(p => p.name === name);
+	return WORK_MODE_PRESETS.some(p => p.profileName === name);
 }
 
 export function createEmptyUsageStats(): IWorkModeUsageStats {
@@ -211,6 +217,7 @@ export function createEmptyUsageStats(): IWorkModeUsageStats {
 const WORK_MODE_PRESETS: readonly IWorkModePreset[] = [
 	{
 		id: WorkModeId.Frontend,
+		profileName: 'Frontend',
 		name: localize('workMode.frontend.name', "Frontend"),
 		description: localize('workMode.frontend.desc', "UI-focused development with browser tools, CSS/HTML helpers, and a lean sidebar."),
 		icon: Codicon.browser,
@@ -257,6 +264,7 @@ const WORK_MODE_PRESETS: readonly IWorkModePreset[] = [
 	},
 	{
 		id: WorkModeId.Backend,
+		profileName: 'Backend',
 		name: localize('workMode.backend.name', "Backend"),
 		description: localize('workMode.backend.desc', "API and service work with terminal, tests, and language tooling front-and-center."),
 		icon: Codicon.serverProcess,
@@ -301,6 +309,7 @@ const WORK_MODE_PRESETS: readonly IWorkModePreset[] = [
 	},
 	{
 		id: WorkModeId.Debugging,
+		profileName: 'Debugging',
 		name: localize('workMode.debugging.name', "Debugging"),
 		description: localize('workMode.debugging.desc', "Deep debugging with breakpoints, watch, call stack, and the debug console prioritized."),
 		icon: Codicon.debugAlt,
@@ -335,6 +344,7 @@ const WORK_MODE_PRESETS: readonly IWorkModePreset[] = [
 	},
 	{
 		id: WorkModeId.Documentation,
+		profileName: 'Documentation',
 		name: localize('workMode.documentation.name', "Documentation"),
 		description: localize('workMode.documentation.desc', "Writing docs and READMEs with Markdown preview, spell check, and distraction-free focus."),
 		icon: Codicon.book,
@@ -377,6 +387,7 @@ const WORK_MODE_PRESETS: readonly IWorkModePreset[] = [
 	},
 	{
 		id: WorkModeId.Teaching,
+		profileName: 'Teaching',
 		name: localize('workMode.teaching.name', "Teaching"),
 		description: localize('workMode.teaching.desc', "Larger fonts, zoom, and simple UI — ideal for live instruction and screen sharing."),
 		icon: Codicon.mortarBoard,
@@ -411,6 +422,7 @@ const WORK_MODE_PRESETS: readonly IWorkModePreset[] = [
 	},
 	{
 		id: WorkModeId.Demo,
+		profileName: 'Demo',
 		name: localize('workMode.demo.name', "Demo"),
 		description: localize('workMode.demo.desc', "Presentation-ready layout: large text, clean UI, and zen-mode-friendly settings."),
 		icon: Codicon.deviceCameraVideo,
@@ -446,6 +458,7 @@ const WORK_MODE_PRESETS: readonly IWorkModePreset[] = [
 	},
 	{
 		id: WorkModeId.Troubleshooting,
+		profileName: 'Troubleshooting',
 		name: localize('workMode.troubleshooting.name', "Troubleshooting"),
 		description: localize('workMode.troubleshooting.desc', "Diagnostics-first: output, problems, extensions, and developer tools within easy reach."),
 		icon: Codicon.tools,
@@ -476,6 +489,7 @@ const WORK_MODE_PRESETS: readonly IWorkModePreset[] = [
 	},
 	{
 		id: WorkModeId.Fullstack,
+		profileName: 'Full Stack',
 		name: localize('workMode.fullstack.name', "Full Stack"),
 		description: localize('workMode.fullstack.desc', "Balanced setup for projects spanning frontend and backend in one workspace."),
 		icon: Codicon.layers,
@@ -514,6 +528,7 @@ const WORK_MODE_PRESETS: readonly IWorkModePreset[] = [
 	},
 	{
 		id: WorkModeId.DataScience,
+		profileName: 'Data Science',
 		name: localize('workMode.datascience.name', "Data Science"),
 		description: localize('workMode.datascience.desc', "Notebooks, interactive Python, and plot-friendly editor settings."),
 		icon: Codicon.graph,
@@ -529,7 +544,7 @@ const WORK_MODE_PRESETS: readonly IWorkModePreset[] = [
 		],
 		fileSignals: [
 			'requirements.txt', 'environment.yml', 'pyproject.toml',
-			'*.ipynb', 'setup.py', 'setup.cfg',
+			'setup.py', 'setup.cfg',
 		],
 		recommendedExtensions: [
 			'ms-python.python',
@@ -551,6 +566,7 @@ const WORK_MODE_PRESETS: readonly IWorkModePreset[] = [
 	},
 	{
 		id: WorkModeId.Mobile,
+		profileName: 'Mobile',
 		name: localize('workMode.mobile.name', "Mobile"),
 		description: localize('workMode.mobile.desc', "Mobile and cross-platform app development with emulators and device tooling in mind."),
 		icon: Codicon.deviceMobile,

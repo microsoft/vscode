@@ -191,7 +191,6 @@ export class WorkModeService extends Disposable implements IWorkModeService {
 	async switchToMode(modeId: WorkModeId, options?: IWorkModeSwitchOptions): Promise<IUserDataProfile> {
 		const profile = await this.ensureModeProfile(modeId);
 		await this.userDataProfileManagementService.switchProfile(profile);
-		this.storageService.store(WORK_MODE_LAST_SUGGESTED_KEY, modeId, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 
 		const applyLayout = options?.applyLayout !== false
 			&& this.configurationService.getValue<boolean>(WORK_MODE_LAYOUT_CONFIG_KEY) !== false;
@@ -322,7 +321,7 @@ export class WorkModeService extends Disposable implements IWorkModeService {
 			return false;
 		}
 
-		// Untrusted: still allow suggestion but detection is limited; skip auto-prompt to avoid noise
+		// Untrusted: skip auto-prompt (detection is limited; avoid noisy/unhelpful suggestions)
 		if (!this.workspaceTrustService.isWorkspaceTrusted()) {
 			return false;
 		}
@@ -343,7 +342,17 @@ export class WorkModeService extends Disposable implements IWorkModeService {
 		}
 
 		const detection = await this.detectWorkModes();
-		return !!detection.primary && detection.primary.score >= PRIMARY_SCORE_THRESHOLD;
+		if (!detection.primary || detection.primary.score < PRIMARY_SCORE_THRESHOLD) {
+			return false;
+		}
+
+		// Avoid re-prompting the same primary mode the user already saw suggested in this workspace
+		const lastSuggested = this.storageService.get(WORK_MODE_LAST_SUGGESTED_KEY, StorageScope.WORKSPACE);
+		if (lastSuggested === detection.primary.mode.id) {
+			return false;
+		}
+
+		return true;
 	}
 
 	dismissSuggestion(): void {
@@ -356,6 +365,9 @@ export class WorkModeService extends Disposable implements IWorkModeService {
 		switch (event) {
 			case 'suggested':
 				stats.suggestionsShown++;
+				if (modeId) {
+					this.storageService.store(WORK_MODE_LAST_SUGGESTED_KEY, modeId, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+				}
 				break;
 			case 'accepted':
 				stats.suggestionsAccepted++;
