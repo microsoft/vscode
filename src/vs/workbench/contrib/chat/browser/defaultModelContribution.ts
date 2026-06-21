@@ -167,7 +167,7 @@ export abstract class DefaultModelContribution extends Disposable {
 			// fall back to the default at runtime. Compute ambiguity across
 			// *all* models (not just `supportedModels`) so any such collision
 			// excludes the visible entry from the picker too.
-			const ambiguousVendorIds = new Set<string>();
+			const ambiguousStoredIds = new Set<string>();
 			if (storageFormat === 'vendorAndId' || storageFormat === 'id') {
 				const counts = new Map<string, number>();
 				for (const model of models) {
@@ -176,7 +176,7 @@ export abstract class DefaultModelContribution extends Disposable {
 				}
 				for (const [key, count] of counts) {
 					if (count > 1) {
-						ambiguousVendorIds.add(key);
+						ambiguousStoredIds.add(key);
 					}
 				}
 			}
@@ -184,7 +184,7 @@ export abstract class DefaultModelContribution extends Disposable {
 			for (const model of supportedModels) {
 				try {
 					const storedId = computeStoredId(model.metadata);
-					if (ambiguousVendorIds.has(storedId)) {
+					if (ambiguousStoredIds.has(storedId)) {
 						this._logService.trace(`${logPrefix} Skipping model '${model.metadata.name}' (${storedId}): key collides with another registered model.`);
 						continue;
 					}

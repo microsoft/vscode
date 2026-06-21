@@ -53,6 +53,7 @@ class TestContribution extends DefaultModelContribution {
 		storageFormat: 'qualifiedName' | 'vendorAndId' | 'id' | undefined,
 		languageModelsService: ILanguageModelsService,
 		includeAgentHostModels?: boolean,
+		filter?: (metadata: ILanguageModelChatMetadata) => boolean,
 	) {
 		super(
 			arrays,
@@ -62,6 +63,7 @@ class TestContribution extends DefaultModelContribution {
 				logPrefix: '[Test]',
 				storageFormat,
 				includeAgentHostModels,
+				filter,
 			},
 			languageModelsService,
 			new NullLogService(),
@@ -86,7 +88,7 @@ function makeMetadata(overrides: Partial<ILanguageModelChatMetadata> & Pick<ILan
 suite('DefaultModelContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(opts?: { models?: ILanguageModelChatMetadata[]; vendors?: ILanguageModelProviderDescriptor[]; storageFormat?: 'qualifiedName' | 'vendorAndId' | 'id'; includeAgentHostModels?: boolean }) {
+	function setup(opts?: { models?: ILanguageModelChatMetadata[]; vendors?: ILanguageModelProviderDescriptor[]; storageFormat?: 'qualifiedName' | 'vendorAndId' | 'id'; includeAgentHostModels?: boolean; filter?: (metadata: ILanguageModelChatMetadata) => boolean }) {
 		const service = new TestLanguageModelsService();
 		store.add({ dispose: () => service.dispose() });
 
@@ -98,7 +100,7 @@ suite('DefaultModelContribution', () => {
 		}
 
 		const arrays = createDefaultModelArrays();
-		const contribution = store.add(new TestContribution(arrays, opts?.storageFormat, service as unknown as ILanguageModelsService, opts?.includeAgentHostModels));
+		const contribution = store.add(new TestContribution(arrays, opts?.storageFormat, service as unknown as ILanguageModelsService, opts?.includeAgentHostModels, opts?.filter));
 		return { arrays, contribution, service };
 	}
 
@@ -205,6 +207,24 @@ suite('DefaultModelContribution', () => {
 			excluded: [''],
 			included: ['', 'gpt-5'],
 		});
+	});
+
+	test('agent-host model setting config (includeAgentHostModels + targetChatSessionType filter) keeps only session-scoped models', () => {
+		const { arrays } = setup({
+			storageFormat: 'id',
+			includeAgentHostModels: true,
+			filter: metadata => metadata.targetChatSessionType !== undefined,
+			vendors: [
+				{ vendor: 'copilotcli', displayName: 'Copilot CLI', isDefault: false, configuration: undefined, managementCommand: undefined, when: undefined },
+				{ vendor: 'copilot', displayName: 'Copilot', isDefault: true, configuration: undefined, managementCommand: undefined, when: undefined },
+			],
+			models: [
+				makeMetadata({ id: 'gpt-5', name: 'GPT 5', vendor: 'copilotcli', targetChatSessionType: 'agent-host-copilot' }),
+				// A general (non session-scoped) model must be filtered out.
+				makeMetadata({ id: 'gpt-4o-mini', name: 'GPT 4o mini', vendor: 'copilot' }),
+			],
+		});
+		assert.deepStrictEqual(arrays.modelIds, ['', 'gpt-5']);
 	});
 
 	test('ambiguous bare id — duplicate ids across providers are excluded when stored by id', () => {

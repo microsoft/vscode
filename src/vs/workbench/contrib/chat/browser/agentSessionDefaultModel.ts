@@ -39,6 +39,10 @@ export class AgentSessionDefaultModel extends DefaultModelContribution {
 			logPrefix: '[AgentSessionDefaultModel]',
 			storageFormat: 'id',
 			includeAgentHostModels: true,
+			// Restrict to agent-host (session-scoped) models so the setting
+			// only offers models that apply to agent-host providers and avoids
+			// pulling in general chat models.
+			filter: metadata => metadata.targetChatSessionType !== undefined,
 			defaultEntryLabel,
 			defaultEntryDescription,
 		}, languageModelsService, logService);
