@@ -19,6 +19,7 @@ import { ActionType } from '../../../../../../platform/agentHost/common/state/pr
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import type { ConfigSchema } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { AgentHostUntitledProvisionalSessionService, IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
@@ -116,9 +117,13 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 	let configService: TestConfigurationService;
 	let environmentService: { isSessionsWindow: boolean };
 	let cleanup: DisposableStore;
+	let workspaceTrusted: boolean;
+	let untrustedFolders: Set<string>;
 
 	setup(async () => {
 		agentHost = new MockAgentHostService();
+		workspaceTrusted = true;
+		untrustedFolders = new Set<string>();
 		const insta = ds.add(new TestInstantiationService());
 		insta.stub(IAgentHostService, agentHost);
 		insta.stub(ILogService, new NullLogService());
@@ -127,6 +132,10 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		insta.stub(IConfigurationService, configService);
 		environmentService = { isSessionsWindow: false };
 		insta.stub(IWorkbenchEnvironmentService, environmentService as Partial<IWorkbenchEnvironmentService>);
+		insta.stub(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() {
+			override isWorkspaceTrusted(): boolean { return workspaceTrusted; }
+			override async getUriTrustInfo(uri: URI) { return { uri, trusted: !untrustedFolders.has(uri.toString()) }; }
+		});
 		folderService = ds.add(insta.createInstance(AgentHostNewSessionFolderService));
 		insta.stub(IAgentHostNewSessionFolderService, folderService);
 		provisional = ds.add(insta.createInstance(AgentHostUntitledProvisionalSessionService));
@@ -187,6 +196,36 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		const reboundCreate = agentHost.createCalls.find(c => c.session?.path === '/real-model-e');
 		assert.ok(reboundCreate, 'rebind triggered a createSession');
 		assert.deepStrictEqual(reboundCreate!.model, { id: 'gpt-5' });
+	});
+
+	test('getOrCreate does not spawn a backend provisional in an untrusted workspace', async () => {
+		workspaceTrusted = false;
+		const ui = untitledChatUri('untrusted');
+		const result = await provisional.getOrCreate(ui, 'copilot', undefined);
+		assert.strictEqual(result, undefined);
+		assert.strictEqual(agentHost.createCalls.length, 0);
+		assert.strictEqual(provisional.get(ui), undefined);
+	});
+
+	test('getOrCreate does not spawn a backend provisional in an untrusted working directory folder', async () => {
+		// Workspace is trusted, but the target working directory is a
+		// standalone untrusted folder (e.g. a per-session folder outside the
+		// open workspace).
+		const workingDirectory = URI.from({ scheme: 'file', path: '/untrusted-folder' });
+		untrustedFolders.add(workingDirectory.toString());
+		const ui = untitledChatUri('untrusted-folder');
+		const result = await provisional.getOrCreate(ui, 'copilot', workingDirectory);
+		assert.strictEqual(result, undefined);
+		assert.strictEqual(agentHost.createCalls.length, 0);
+		assert.strictEqual(provisional.get(ui), undefined);
+	});
+
+	test('getOrCreate spawns a backend provisional in a trusted working directory folder', async () => {
+		const workingDirectory = URI.from({ scheme: 'file', path: '/trusted-folder' });
+		const ui = untitledChatUri('trusted-folder');
+		const result = await provisional.getOrCreate(ui, 'copilot', workingDirectory);
+		assert.strictEqual(result?.toString(), expectedBackendUri('trusted-folder').toString());
+		assert.strictEqual(agentHost.createCalls.length, 1);
 	});
 
 	test('applyConfigChange dispatches SessionConfigChanged synchronously after mutating entry.config', async () => {

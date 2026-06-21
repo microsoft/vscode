@@ -34,6 +34,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatSendRequestOptions, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -96,7 +97,7 @@ function normalizeSessionConfigValue(property: string, value: unknown, policyRes
 /** Copilot CLI session type */
 export const CopilotCLISessionType: ISessionType = {
 	id: 'copilotcli',
-	label: localize('copilotCLI', "Copilot CLI"),
+	label: localize('copilotCLI', "Copilot"),
 	icon: Codicon.copilot,
 };
 
@@ -880,6 +881,7 @@ class NewSession extends Disposable {
 	readonly sessionId: string;
 	readonly agentProvider: string;
 	readonly workspaceUri: URI;
+	readonly requiresWorkspaceTrust: boolean;
 
 	private readonly _status: ISettableObservable<SessionStatus>;
 	private readonly _title: ISettableObservable<string>;
@@ -942,6 +944,7 @@ class NewSession extends Disposable {
 			throw new Error('Workspace has no repository URI');
 		}
 		this.workspaceUri = workspaceUri;
+		this.requiresWorkspaceTrust = !!ctx.workspace.requiresWorkspaceTrust;
 		this.agentProvider = ctx.sessionType.id;
 		this._providerId = ctx.providerId;
 		this._logService = ctx.logService;
@@ -1428,6 +1431,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		@IAgentHostActiveClientService protected readonly _activeClientService: IAgentHostActiveClientService,
 		@IStorageService protected readonly _storageService: IStorageService,
 		@IDialogService protected readonly _dialogService: IDialogService,
+		@IWorkspaceTrustManagementService protected readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
 		this._register(toDisposable(() => {
@@ -1717,7 +1721,34 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	private _startNewSessionBackend(newSession: NewSession, connection: IAgentConnection): void {
+		// Resolving the session config (schema + defaults for the picker chips)
+		// is part of viewing the new-session UI and stays ungated.
 		void this._refreshNewSessionConfig(newSession);
+
+		// Defense-in-depth: never eagerly spawn an agent backend in an
+		// untrusted folder. The interactive trust prompt lives at folder-pick
+		// time (newChatWidget) and a backstop runs on first Send
+		// (AgentHostSessionHandler), so in the normal flow the folder is
+		// already trusted here. This guards alternate entry points (e.g.
+		// delegation). No-op for providers that don't require trust (remote).
+		if (newSession.requiresWorkspaceTrust) {
+			void (async () => {
+				const { trusted } = await this._workspaceTrustManagementService.getUriTrustInfo(newSession.workspaceUri);
+				// Bail if the draft was abandoned/replaced while we awaited
+				// trust info (e.g. deleteNewSession, connection drop) — don't
+				// spawn a backend session for a stale entry.
+				if (this._newSessions.get(newSession.sessionId) !== newSession) {
+					return;
+				}
+				if (!trusted) {
+					this._logService.trace(`[${this.id}] Skipping eager createSession for untrusted folder ${newSession.workspaceUri.toString()}`);
+					newSession.setLoading(false);
+					return;
+				}
+				newSession.eagerCreate(connection);
+			})();
+			return;
+		}
 		newSession.eagerCreate(connection);
 	}
 

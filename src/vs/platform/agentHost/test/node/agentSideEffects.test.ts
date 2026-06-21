@@ -587,7 +587,50 @@ suite('AgentSideEffects', () => {
 
 			await new Promise(r => setTimeout(r, 10));
 
-			assert.deepStrictEqual(agent.changeModelCalls, [{ session: URI.parse(sessionUri.toString()), model: { id: 'gpt-5' } }]);
+			assert.deepStrictEqual(agent.changeModelCalls, [{ session: URI.parse(sessionUri.toString()), model: { id: 'gpt-5' }, chat: undefined }]);
+		});
+
+		test('forwards the chat channel for an additional (peer) chat', async () => {
+			setupSession();
+			const chatChannel = `${sessionUri.toString()}#peer-1`;
+			sideEffects.handleAction(sessionUri.toString(), {
+				type: ActionType.SessionModelChanged,
+				model: { id: 'gpt-5' },
+			}, chatChannel);
+
+			await new Promise(r => setTimeout(r, 10));
+
+			assert.deepStrictEqual(agent.changeModelCalls, [{ session: URI.parse(sessionUri.toString()), model: { id: 'gpt-5' }, chat: URI.parse(chatChannel) }]);
+		});
+	});
+
+	// ---- handleAction: session/agentChanged -----------------------------
+
+	suite('handleAction — session/agentChanged', () => {
+
+		test('calls changeAgent on the agent for the session default chat', async () => {
+			setupSession();
+			sideEffects.handleAction(sessionUri.toString(), {
+				type: ActionType.SessionAgentChanged,
+				agent: { uri: 'file:///agents/reviewer.md' },
+			});
+
+			await new Promise(r => setTimeout(r, 10));
+
+			assert.deepStrictEqual(agent.changeAgentCalls, [{ session: URI.parse(sessionUri.toString()), agent: { uri: 'file:///agents/reviewer.md' }, chat: undefined }]);
+		});
+
+		test('forwards the chat channel for an additional (peer) chat', async () => {
+			setupSession();
+			const chatChannel = `${sessionUri.toString()}#peer-1`;
+			sideEffects.handleAction(sessionUri.toString(), {
+				type: ActionType.SessionAgentChanged,
+				agent: { uri: 'file:///agents/reviewer.md' },
+			}, chatChannel);
+
+			await new Promise(r => setTimeout(r, 10));
+
+			assert.deepStrictEqual(agent.changeAgentCalls, [{ session: URI.parse(sessionUri.toString()), agent: { uri: 'file:///agents/reviewer.md' }, chat: URI.parse(chatChannel) }]);
 		});
 	});
 
