@@ -22,9 +22,11 @@ let _cacheValid = false;
  * not peg the CPU on busy hosts. When detection is inconclusive we assume
  * `glibc`, the dominant Linux libc.
  *
- * Cached after first call; libc never changes mid-process.
+ * Cached after first call; libc never changes mid-process. This is the
+ * synchronous variant; add a promise-based `detectLibc` wrapping
+ * `detect-libc`'s async `family()` if a non-blocking caller ever needs one.
  */
-export function detectLibc(): LibcFamily | undefined {
+export function detectLibcSync(): LibcFamily | undefined {
 	if (_cacheValid) {
 		return _cached;
 	}
