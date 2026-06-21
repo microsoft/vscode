@@ -36,29 +36,60 @@
 }
 
 .chat-scrollbar-prompt-markers {
-	width: 12px;
 	overflow: hidden;
 	/* Scrollbar .visible layer uses z-index 11; keep markers above it so marker clicks are not swallowed by the scrollbar. */
 	z-index: 12;
-	pointer-events: none;
+	pointer-events: auto;
 }
 
 .chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker {
 	position: absolute;
 	left: 0;
 	right: 0;
-	min-height: 4px;
-	border-radius: 999px;
+	min-height: 3px;
+	border-radius: 0;
 	background-color: var(--vscode-scrollbarSlider-background);
-	box-shadow: inset 0 0 0 1px var(--vscode-contrastBorder);
 	opacity: 0.85;
 	pointer-events: auto;
+	transition: top 0.15s ease-out, height 0.15s ease-out;
 }
 
-.chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker:hover,
-.chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker.active {
-	background-color: var(--vscode-focusBorder);
-	opacity: 1;
+.chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker.chat-scrollbar-prompt-marker-lane-left {
+	left: 0;
+	right: auto;
+	width: 50%;
+}
+
+.chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker.chat-scrollbar-prompt-marker-lane-right {
+	left: auto;
+	right: 0;
+	width: 50%;
+}
+
+.chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker.chat-scrollbar-prompt-marker-lane-full {
+	left: 0;
+	right: 0;
+	width: auto;
+}
+
+.chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker.chat-scrollbar-prompt-marker-type-prompt {
+	background-color: var(--vscode-charts-purple, #a371f7);
+}
+
+.chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker.chat-scrollbar-prompt-marker-type-askQuestion {
+	background-color: var(--vscode-charts-yellow, #e5c07b);
+}
+
+.chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker.chat-scrollbar-prompt-marker-type-fileChange {
+	background-color: var(--vscode-charts-green, #3fb950);
+}
+
+.chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker.chat-scrollbar-prompt-marker-type-compaction {
+	background-color: var(--vscode-charts-yellow, #e5c07b);
+}
+
+.chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker.chat-scrollbar-prompt-marker-type-error {
+	background-color: var(--vscode-charts-red, #f85149);
 }
 
 .interactive-item-container {
