@@ -12,6 +12,7 @@ import { CommandsRegistry } from '../../../../platform/commands/common/commands.
 import { IsDevelopmentContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
@@ -49,15 +50,34 @@ class OpenSurveyAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		return openSurveyEditor(accessor);
+		const productService = accessor.get(IProductService);
+		if (productService.quality === 'stable') {
+			return; // Never open dev survey in stable builds
+		}
+		return openSurveyEditor(accessor, 'dev-command');
 	}
 }
 
 registerAction2(OpenSurveyAction);
 
+// Known survey sources (allowlist for telemetry safety)
+const KNOWN_SURVEY_SOURCES = new Set([
+	'completions', 'panel', 'inline-chat', 'terminal',
+	'panel.agent', 'agent.codeEdit', 'agent.ask', 'agent.generate',
+	'sessions',
+]);
+
+function sanitizeSurveySource(source: unknown): string {
+	if (typeof source !== 'string') {
+		return 'unknown';
+	}
+	const trimmed = source.trim().slice(0, 64);
+	return KNOWN_SURVEY_SOURCES.has(trimmed) ? trimmed : 'unknown';
+}
+
 // Programmatic command for extensions to trigger the survey (e.g. from Copilot survey service)
-CommandsRegistry.registerCommand('_workbench.action.openCopilotSurvey', (accessor: ServicesAccessor, source?: string) => {
-	return openSurveyEditor(accessor, source);
+CommandsRegistry.registerCommand('_workbench.action.openCopilotSurvey', (accessor: ServicesAccessor, source?: unknown) => {
+	return openSurveyEditor(accessor, sanitizeSurveySource(source));
 });
 
 function openSurveyEditor(accessor: ServicesAccessor, source?: string): Promise<void> {
@@ -67,6 +87,14 @@ function openSurveyEditor(accessor: ServicesAccessor, source?: string): Promise<
 	const environmentService = accessor.get(IWorkbenchEnvironmentService);
 
 	const input = instantiationService.createInstance(SurveyEditorInput, CopilotPMFSurvey, source);
+
+	// If the same survey is already open (singleton match), update its source
+	for (const editor of editorService.editors) {
+		if (editor instanceof SurveyEditorInput && editor.matches(input)) {
+			editor.updateSource(source);
+			break;
+		}
+	}
 
 	// In the sessions window, open in the main editor part (not modal)
 	const preferredGroup = environmentService.isSessionsWindow
@@ -83,7 +111,8 @@ class SurveyAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly type = AccessibleViewType.Help;
 	readonly when = ActiveEditorContext.isEqualTo(SurveyEditorPane.ID);
 
-	getProvider(_accessor: ServicesAccessor) {
+	getProvider(accessor: ServicesAccessor) {
+		const editorService = accessor.get(IEditorService);
 		const helpText = [
 			localize('survey.help.overview', "You are in a survey form. Use Tab to move between questions and options."),
 			localize('survey.help.select', "Use arrow keys within a question to navigate between options, and Space or Enter to select."),
@@ -93,7 +122,7 @@ class SurveyAccessibilityHelp implements IAccessibleViewImplementation {
 			AccessibleViewProviderId.Survey,
 			{ type: AccessibleViewType.Help },
 			() => helpText,
-			() => { /* focus returns to survey pane automatically */ },
+			() => { editorService.activeEditorPane?.focus(); },
 			AccessibilityVerbositySettingId.Survey,
 		);
 	}

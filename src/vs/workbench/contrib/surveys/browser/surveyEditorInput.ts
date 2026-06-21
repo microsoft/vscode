@@ -18,12 +18,24 @@ export class SurveyEditorInput extends EditorInput {
 
 	static readonly ID = 'workbench.input.survey';
 
+	private _source: string | undefined;
+
 	constructor(
 		readonly survey: ISurveyDefinition,
 		/** The Copilot feature source that triggered this survey (e.g. 'completions', 'panel.agent', 'agent.codeEdit'). */
-		readonly source?: string,
+		source?: string,
 	) {
 		super();
+		this._source = source;
+	}
+
+	get source(): string | undefined {
+		return this._source;
+	}
+
+	/** Update the source when re-triggered while already open. */
+	updateSource(source: string | undefined): void {
+		this._source = source;
 	}
 
 	override get typeId(): string {

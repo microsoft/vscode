@@ -212,7 +212,11 @@ export class SurveyService implements ISurveyService {
 
 			if (accepted) {
 				// Open in-editor survey pane with the source context
-				vscode.commands.executeCommand('_workbench.action.openCopilotSurvey', source);
+				try {
+					await vscode.commands.executeCommand('_workbench.action.openCopilotSurvey', source);
+				} catch {
+					// Command may be unavailable in older VS Code versions - silently ignore
+				}
 			} else if (postponed) {
 				await this.updateNextSurveyDate(DAYS_LATER);
 			}
