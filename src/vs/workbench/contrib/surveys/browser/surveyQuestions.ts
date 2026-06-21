@@ -15,18 +15,25 @@ export interface ISurveyOption {
 	readonly label: string;
 }
 
-export interface ISurveySegmentQuestion {
-	readonly type: SurveyQuestionType.Segment;
+interface ISurveyQuestionBase {
 	readonly id: string;
 	readonly label: string;
 	readonly options: readonly ISurveyOption[];
+	/**
+	 * The telemetry field name this answer maps to in the `survey/submit` event.
+	 * When set, the selected option ID (or numeric index if {@link asMeasurement} is true) is emitted under this key.
+	 */
+	readonly telemetryKey?: string;
+	/** When true, the answer is logged as a numeric index into the options array (0-based) with `isMeasurement`. */
+	readonly asMeasurement?: boolean;
 }
 
-export interface ISurveyRadioQuestion {
+export interface ISurveySegmentQuestion extends ISurveyQuestionBase {
+	readonly type: SurveyQuestionType.Segment;
+}
+
+export interface ISurveyRadioQuestion extends ISurveyQuestionBase {
 	readonly type: SurveyQuestionType.Radio;
-	readonly id: string;
-	readonly label: string;
-	readonly options: readonly ISurveyOption[];
 	readonly columns?: number;
 }
 
@@ -37,8 +44,6 @@ export interface ISurveyDefinition {
 	readonly title: string;
 	readonly description: string;
 	readonly questions: readonly ISurveyQuestion[];
-	/** The question ID whose answer is the primary PMF score (reported as a top-level telemetry measure). */
-	readonly pmfQuestionId?: string;
 }
 
 /**
@@ -49,11 +54,12 @@ export const CopilotPMFSurvey: ISurveyDefinition = {
 	id: 'copilot-pmf',
 	title: localize('survey.copilotPmf.title', "Help Us Improve GitHub Copilot"),
 	description: localize('survey.copilotPmf.description', "This short survey helps us understand how well Copilot fits into your workflow."),
-	pmfQuestionId: 'disappointment',
 	questions: [
 		{
 			type: SurveyQuestionType.Segment,
 			id: 'disappointment',
+			telemetryKey: 'score',
+			asMeasurement: true,
 			label: localize('survey.copilotPmf.q1', "How disappointed would you be if you could no longer use Copilot?"),
 			options: [
 				{ id: 'not-at-all', label: localize('survey.copilotPmf.q1.notAtAll', "Not at all") },
@@ -66,6 +72,7 @@ export const CopilotPMFSurvey: ISurveyDefinition = {
 		{
 			type: SurveyQuestionType.Radio,
 			id: 'primary-benefit',
+			telemetryKey: 'primaryBenefit',
 			label: localize('survey.copilotPmf.q2', "What has Copilot helped you with most recently?"),
 			columns: 2,
 			options: [
@@ -82,6 +89,7 @@ export const CopilotPMFSurvey: ISurveyDefinition = {
 		{
 			type: SurveyQuestionType.Radio,
 			id: 'primary-friction',
+			telemetryKey: 'primaryFriction',
 			label: localize('survey.copilotPmf.q3', "What most gets in your way?"),
 			columns: 2,
 			options: [
@@ -94,6 +102,20 @@ export const CopilotPMFSurvey: ISurveyDefinition = {
 				{ id: 'setup', label: localize('survey.copilotPmf.q3.setup', "Setup or integrations are hard") },
 				{ id: 'security', label: localize('survey.copilotPmf.q3.security', "Security or permissions friction") },
 				{ id: 'cost', label: localize('survey.copilotPmf.q3.cost', "Limits, cost, or billing") },
+			],
+		},
+		{
+			type: SurveyQuestionType.Radio,
+			id: 'programming-experience',
+			telemetryKey: 'programmingExperience',
+			asMeasurement: true,
+			label: localize('survey.copilotPmf.q4', "How long have you been programming?"),
+			options: [
+				{ id: 'less-than-3', label: localize('survey.copilotPmf.q4.lessThan3', "Less than 3 years") },
+				{ id: '3-to-5', label: localize('survey.copilotPmf.q4.3to5', "3 - 5 years") },
+				{ id: '6-to-9', label: localize('survey.copilotPmf.q4.6to9', "6 - 9 years") },
+				{ id: '10-to-19', label: localize('survey.copilotPmf.q4.10to19', "10 - 19 years") },
+				{ id: '20-plus', label: localize('survey.copilotPmf.q4.20plus', "20+ years") },
 			],
 		},
 	],

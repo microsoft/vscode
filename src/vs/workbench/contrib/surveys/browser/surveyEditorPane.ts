@@ -221,13 +221,28 @@ export class SurveyEditorPane extends EditorPane {
 			answersSnapshot[key] = [...value];
 		}
 
-		// PMF score as numeric 0-4 (index in the options array, low=not disappointed, high=extremely)
-		let pmfScore = -1;
-		if (survey.pmfQuestionId) {
-			const pmfQuestion = survey.questions.find(q => q.id === survey.pmfQuestionId);
-			const pmfAnswer = answersSnapshot[survey.pmfQuestionId]?.[0];
-			if (pmfQuestion && pmfAnswer) {
-				pmfScore = pmfQuestion.options.findIndex(o => o.id === pmfAnswer);
+		// Build telemetry from question telemetryKey declarations
+		let score = -1;
+		let primaryBenefit = '';
+		let primaryFriction = '';
+		let programmingExperience = -1;
+
+		for (const question of survey.questions) {
+			if (!question.telemetryKey) {
+				continue;
+			}
+			const answer = answersSnapshot[question.id]?.[0] ?? '';
+			if (question.asMeasurement) {
+				const index = answer ? question.options.findIndex(o => o.id === answer) : -1;
+				switch (question.telemetryKey) {
+					case 'score': score = index; break;
+					case 'programmingExperience': programmingExperience = index; break;
+				}
+			} else {
+				switch (question.telemetryKey) {
+					case 'primaryBenefit': primaryBenefit = answer; break;
+					case 'primaryFriction': primaryFriction = answer; break;
+				}
 			}
 		}
 
@@ -237,25 +252,28 @@ export class SurveyEditorPane extends EditorPane {
 		type SurveySubmitEvent = {
 			surveyId: string;
 			source: string;
-			pmfScore: number;
+			score: number;
 			primaryBenefit: string;
 			primaryFriction: string;
+			programmingExperience: number;
 		};
 		type SurveySubmitClassification = {
 			surveyId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The survey identifier.' };
-			source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Copilot feature source that triggered the survey (e.g. completions, panel.agent, agent.codeEdit).' };
-			pmfScore: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'PMF disappointment score 0-4 (0=not at all, 1=slightly, 2=somewhat, 3=very, 4=extremely disappointed).' };
-			primaryBenefit: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The primary value driver selected by the user.' };
-			primaryFriction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The primary friction point selected by the user.' };
+			source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The feature source that triggered the survey (e.g. completions, panel.agent, nps).' };
+			score: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Primary score as option index (e.g. PMF disappointment 0-4, NPS 0-10). -1 if not answered.' };
+			primaryBenefit: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The primary value driver option ID selected by the user, empty if not applicable.' };
+			primaryFriction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The primary friction point option ID selected by the user, empty if not applicable.' };
+			programmingExperience: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Programming experience bracket as option index (0=<3yr, 1=3-5yr, 2=6-9yr, 3=10-19yr, 4=20+yr). -1 if not answered.' };
 			owner: 'digitarald';
-			comment: 'Tracks in-product survey submissions for product-market fit analysis.';
+			comment: 'Tracks in-product survey submissions. Fields are populated based on the survey definition telemetryKey mappings.';
 		};
 		this.telemetryService.publicLog2<SurveySubmitEvent, SurveySubmitClassification>('survey/submit', {
 			surveyId: survey.id,
 			source,
-			pmfScore,
-			primaryBenefit: answersSnapshot['primary-benefit']?.[0] ?? '',
-			primaryFriction: answersSnapshot['primary-friction']?.[0] ?? '',
+			score,
+			primaryBenefit,
+			primaryFriction,
+			programmingExperience,
 		});
 
 		const submittedInput = this.input;
