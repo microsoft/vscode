@@ -35,6 +35,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
 import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import {
@@ -464,6 +465,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
+		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 	) {
 		super();
 		this._config = config;
@@ -843,6 +845,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		cancellationToken: CancellationToken,
 	): Promise<IChatAgentResult> {
 		this._logService.info(`[AgentHost] _invokeAgent called for resource: ${request.sessionResource.toString()}`);
+
+		// Gate spawning an agent on workspace trust. Viewing chat and the
+		// agent list does not require trust, but sending a message does, since
+		// the agent reads files, runs commands, and makes changes in the
+		// target folder. Mirrors how extension-host chat is gated. If the user
+		// declines, abort without starting a session.
+		if (!await this._ensureWorkspaceTrust(request.sessionResource)) {
+			return {};
+		}
 
 		const resolvedSession = this._resolveSessionUri(request.sessionResource);
 		const sessionKey = resolvedSession.toString();
@@ -3031,6 +3042,28 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			?? this._newSessionFolderService.getFolder(sessionResource)
 			?? this._workingDirectoryResolver.resolve(sessionResource)
 			?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
+	}
+
+	/**
+	 * Ensures the workspace/folder the agent will run in is trusted before a
+	 * session is spawned. Returns `false` if the user declines.
+	 *
+	 * When the agent runs inside the currently open workspace (editor window),
+	 * gate on workspace trust to match how extension-host chat is gated. When
+	 * it targets a standalone folder outside the open workspace (Agents window
+	 * per-session folders), gate on that folder's trust instead. Both request
+	 * helpers resolve immediately when the target is already trusted, so this
+	 * never double-prompts.
+	 */
+	private async _ensureWorkspaceTrust(sessionResource: URI): Promise<boolean> {
+		const message = localize('agentHost.workspaceTrust', "AI features are currently only supported in trusted workspaces.");
+		const workingDirectory = this._resolveRequestedWorkingDirectory(sessionResource);
+
+		if (!workingDirectory || this._workspaceContextService.getWorkspaceFolder(workingDirectory)) {
+			return !!await this._workspaceTrustRequestService.requestWorkspaceTrust({ message });
+		}
+
+		return !!await this._workspaceTrustRequestService.requestResourcesTrust({ uri: workingDirectory, message });
 	}
 
 	private _convertVariablesToAttachments(request: IChatAgentRequest): MessageAttachment[] {

@@ -19,6 +19,7 @@ import { ActionType } from '../../../../../../platform/agentHost/common/state/pr
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import type { ConfigSchema } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { AgentHostUntitledProvisionalSessionService, IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { AgentHostNewSessionFolderService, IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
@@ -113,15 +114,20 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 	let provisional: IAgentHostUntitledProvisionalSessionService;
 	let folderService: IAgentHostNewSessionFolderService;
 	let cleanup: DisposableStore;
+	let workspaceTrusted: boolean;
 
 	setup(async () => {
 		agentHost = new MockAgentHostService();
+		workspaceTrusted = true;
 		const insta = ds.add(new TestInstantiationService());
 		insta.stub(IAgentHostService, agentHost);
 		insta.stub(ILogService, new NullLogService());
 		insta.stub(IChatService, new MockChatService());
 		insta.stub(IConfigurationService, new TestConfigurationService());
 		insta.stub(IWorkbenchEnvironmentService, { isSessionsWindow: false } as Partial<IWorkbenchEnvironmentService>);
+		insta.stub(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() {
+			override isWorkspaceTrusted(): boolean { return workspaceTrusted; }
+		});
 		folderService = ds.add(insta.createInstance(AgentHostNewSessionFolderService));
 		insta.stub(IAgentHostNewSessionFolderService, folderService);
 		provisional = ds.add(insta.createInstance(AgentHostUntitledProvisionalSessionService));
@@ -136,6 +142,15 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		assert.strictEqual(a?.toString(), expectedBackendUri('a').toString());
 		assert.strictEqual(b?.toString(), a.toString());
 		assert.strictEqual(agentHost.createCalls.length, 1);
+	});
+
+	test('getOrCreate does not spawn a backend provisional in an untrusted workspace', async () => {
+		workspaceTrusted = false;
+		const ui = untitledChatUri('untrusted');
+		const result = await provisional.getOrCreate(ui, 'copilot', undefined);
+		assert.strictEqual(result, undefined);
+		assert.strictEqual(agentHost.createCalls.length, 0);
+		assert.strictEqual(provisional.get(ui), undefined);
 	});
 
 	test('applyConfigChange dispatches SessionConfigChanged synchronously after mutating entry.config', async () => {

@@ -63,6 +63,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ChatConfiguration, type IChatDefaultConfiguration } from '../../../common/constants.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
@@ -218,6 +219,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
+		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
 
@@ -269,6 +271,13 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		provider: string,
 		workingDirectory: URI | undefined,
 	): Promise<URI | undefined> {
+		// Don't eagerly spawn a provisional backend session in an untrusted
+		// workspace — that would start an agent in the folder before the user
+		// has opted in. This pre-warm is a silent optimization; trust is
+		// requested interactively on first Send (see AgentHostSessionHandler).
+		if (!this._workspaceTrustManagementService.isWorkspaceTrusted()) {
+			return Promise.resolve(undefined);
+		}
 		const existing = this.get(sessionResource);
 		if (existing) {
 			return Promise.resolve(existing);
