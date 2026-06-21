@@ -288,3 +288,34 @@ The live check performs bounded network calls to crates.io and GitHub. It is use
 ## Pending
 
 The scanner does not yet consume the bundled `ThirdPartyNotices` files from externally-built, pre-built built-in extensions downloaded into the product. The planned addition under investigation is to read those notices for `js-debug`, `js-debug-companion`, and `js-profile-table`, so their own bundled dependencies are covered even though those extensions are built outside this repo.
+
+### `audit-notices.ts`
+
+Purpose: pre-ship sanity check that validates a generated NOTICE file against the repo's declared dependencies.
+
+Invocation:
+
+```sh
+npx tsx build/azure-pipelines/oss/audit-notices.ts \
+  --notice <path-to-ThirdPartyNotices.new.txt> \
+  --repo .
+```
+
+What it checks:
+
+1. **NOTICE stats** — total entries, duplicate detection (same name@version = bug), multi-version packages (expected), license type breakdown.
+2. **Repo manifest cross-reference** — walks all `package.json` (direct deps), `package-lock.json` (full transitive tree, dev filtered out), `Cargo.lock`, and `cgmanifest.json`. Reports overlap, NOTICE-only entries (CG transitive deps), and manifest-only gaps (packages missing from the NOTICE).
+3. **Summary** — coverage percentage and actionable gap list.
+4. **Package source breakdown** — per-lockfile package counts sorted by size. Shows which extensions/directories contribute the most dependencies (e.g., `extensions/copilot: 329 packages`).
+
+Key behavior:
+
+- Lockfile parsing filters out `dev: true` and `devOptional: true` entries — only non-dev (shipping) packages are counted.
+- Cross-reference uses lowercase package names for matching.
+- The "manifest-only" gap list is the primary ship-readiness signal: each gap should be explainable (binary component, known TODO, platform-specific absence).
+
+When to use:
+
+- Before opening a PR: download `notice_output` from the latest CI build and run locally.
+- After a build: verify the .new.txt artifact covers all declared dependencies.
+- The script does NOT require `node_modules` on disk — it reads lockfiles as the ground truth for the full transitive dependency tree.
