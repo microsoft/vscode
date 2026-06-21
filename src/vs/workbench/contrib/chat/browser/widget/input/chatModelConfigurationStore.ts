@@ -47,17 +47,26 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		// resolved at that point would otherwise be memoized forever, pinning the
 		// model to its schema default while the request path — resolved later —
 		// uses the configured value. When the set of language models changes, drop
-		// the cached snapshots so the next read recomputes against the now-available
-		// configuration, and notify consumers (picker, context-usage widget) so any
-		// already-rendered value refreshes.
+		// only those poisoned snapshots so the next read recomputes against the
+		// now-available configuration, and notify consumers (picker, context-usage
+		// widget) so the stale value refreshes.
+		//
+		// This event also fires for model-configuration changes (e.g. our own global
+		// mirror in `setModelConfiguration`), so we must NOT clear stable snapshots:
+		// an entry that resolved to a non-empty value, or that is backed by a scoped
+		// bucket entry, is the editor's intended value and clearing it would discard
+		// it and cause a duplicate refresh for a single user action. Only an entry
+		// that resolved empty with no bucket entry can be a pre-config-load artifact.
 		this._register(this.languageModelsService.onDidChangeLanguageModels(() => {
 			if (this._overrides.size === 0) {
 				return;
 			}
-			const staleModelIds = [...this._overrides.keys()];
-			this._overrides.clear();
-			for (const modelId of staleModelIds) {
-				this._onDidChange.fire(modelId);
+			const bucket = this._readBucket();
+			for (const [modelId, override] of [...this._overrides]) {
+				if (Object.keys(override).length === 0 && bucket[modelId] === undefined) {
+					this._overrides.delete(modelId);
+					this._onDidChange.fire(modelId);
+				}
 			}
 		}));
 	}
@@ -85,7 +94,15 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	}
 
 	async setModelConfiguration(modelId: string, values: IStringDictionary<unknown>): Promise<void> {
-		this._applyLocalModelConfiguration(modelId, values);
+		const changed = this._applyLocalModelConfiguration(modelId, values);
+		if (!changed) {
+			// No-op (e.g. re-selecting the already-current value): skip the global
+			// write to avoid a redundant profile-file write and the resulting
+			// `onDidChangeLanguageModels` event. Any real change — including
+			// selecting the schema default — still falls through and syncs the
+			// global value.
+			return;
+		}
 
 		// Mirror the change to the profile-global model configuration. The
 		// per-editor bucket is the source of truth for this editor, but the
@@ -102,7 +119,12 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		await this.languageModelsService.setModelConfiguration(modelId, values);
 	}
 
-	private _applyLocalModelConfiguration(modelId: string, values: IStringDictionary<unknown>): void {
+	/**
+	 * Applies the change to this editor's scoped state only (in-memory snapshot
+	 * and persisted bucket). Returns `true` when something actually changed, so
+	 * callers can skip propagating no-op updates to the profile-global value.
+	 */
+	private _applyLocalModelConfiguration(modelId: string, values: IStringDictionary<unknown>): boolean {
 		const schemaDefaults = this._schemaDefaults(modelId);
 		const stored = computeStoredConfiguration(this.getModelConfiguration(modelId) ?? {}, values, schemaDefaults);
 		const nextOverride = { ...schemaDefaults, ...stored };
@@ -112,7 +134,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		// storage writes and onDidChange listeners when nothing actually changes.
 		const bucket = this._readBucket();
 		if (equals(this._overrides.get(modelId), nextOverride) && equals(bucket[modelId], stored)) {
-			return;
+			return false;
 		}
 
 		// In-memory snapshot keeps the full effective config (defaults + overrides).
@@ -127,6 +149,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		this._writeBucket(bucket);
 
 		this._onDidChange.fire(modelId);
+		return true;
 	}
 
 	getModelConfigurationActions(modelId: string): IAction[] {
