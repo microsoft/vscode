@@ -14,7 +14,10 @@ import { CancellationToken } from '../../../../util/vs/base/common/cancellation'
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { ResourceMap } from '../../../../util/vs/base/common/map';
 import { URI } from '../../../../util/vs/base/common/uri';
+import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
+import { IAuthenticationService } from '../../../authentication/common/authentication';
+import { StaticGitHubAuthenticationService } from '../../../authentication/common/staticGitHubAuthenticationService';
 import { IFileSystemService } from '../../../filesystem/common/fileSystemService';
 import { FileType } from '../../../filesystem/common/fileTypes';
 import { GithubRequestOptions, IGithubApiFetcherService } from '../../../github/common/githubApiFetcherService';
@@ -624,6 +627,9 @@ suite('ExternalIngestClient finalize retry', () => {
 	function createClient(fetcher: IGithubApiFetcherService): ExternalIngestClient {
 		const testingServiceCollection = disposables.add(createPlatformServices());
 		testingServiceCollection.set(IGithubApiFetcherService, fetcher);
+		// Provide a static GitHub token so `getAuthToken()` resolves without real
+		// credentials - CI has no GITHUB_PAT/GITHUB_OAUTH_TOKEN set.
+		testingServiceCollection.define(IAuthenticationService, new SyncDescriptor(StaticGitHubAuthenticationService, [() => 'test-github-token']));
 		const accessor = disposables.add(testingServiceCollection.createTestingAccessor());
 		const instantiationService = accessor.get(IInstantiationService);
 		return disposables.add(instantiationService.createInstance(ExternalIngestClient));
