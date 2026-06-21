@@ -105,8 +105,24 @@ function main() {
 		__mkdirPInTests: (/** @type {string} */ path) => fs.promises.mkdir(path, { recursive: true }),
 	});
 
+	// Configure Node.js diagnostic reports for crash investigation.
+	// Reports are written to .build/crashes so the existing CI artifact
+	// collection picks them up alongside Electron crash dumps.
+	const crashDir = path.join(REPO_ROOT, '.build', 'crashes');
+	fs.mkdirSync(crashDir, { recursive: true });
+	if (process.report) {
+		process.report.directory = crashDir;
+		process.report.reportOnFatalError = true;
+		process.report.reportOnUncaughtException = true;
+	}
+
 	process.on('uncaughtException', function(e) {
 		console.error(e.stack || e);
+	});
+
+	process.on('unhandledRejection', function(reason) {
+		console.error('Unhandled promise rejection:');
+		console.error(reason && (/** @type {Error} */ (reason)).stack || reason);
 	});
 
 	/**

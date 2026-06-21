@@ -63,27 +63,53 @@ suite('AgentHostSkillCompletionProvider', () => {
 		assert.deepStrictEqual([...completions.triggerCharacters], [CompletionTriggerCharacter.Slash]);
 	});
 
-	test('returns session-effective skills with attachment metadata and trailing space', async () => {
+	test('complete skills from a plugin', async () => {
 		const agent = new MockAgent('mock');
 		agent.getSessionCustomizations = async () => [
-			plugin('skills', [skill('agent-host-docs', 'Use this skill when working on Agent Host code')]),
+			plugin('my-skill', [skill('agent-host-docs', 'Use this skill when working on Agent Host code')]),
 		];
 		const provider = createProvider(agent);
 
 		const result = await run(provider, '/');
 
 		assert.deepStrictEqual(result, [{
-			insertText: '/agent-host-docs ',
+			insertText: '/my-skill:agent-host-docs ',
 			rangeStart: 0,
 			rangeEnd: 1,
 			attachment: {
 				type: MessageAttachmentKind.Simple,
-				label: '/agent-host-docs',
+				label: '/my-skill:agent-host-docs',
 				_meta: {
 					uri: 'file:///skills/agent-host-docs/SKILL.md',
 					name: 'agent-host-docs',
-					displayName: 'agent-host-docs',
+					displayName: 'my-skill:agent-host-docs',
 					description: 'Use this skill when working on Agent Host code',
+				},
+			},
+		}]);
+	});
+
+	test('complete skills from a plugin with the same name as the skill', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [
+			plugin('monitor-pr', [skill('monitor-pr', 'Use this skill when working with PRs')]),
+		];
+		const provider = createProvider(agent);
+
+		const result = await run(provider, '/');
+
+		assert.deepStrictEqual(result, [{
+			insertText: '/monitor-pr ',
+			rangeStart: 0,
+			rangeEnd: 1,
+			attachment: {
+				type: MessageAttachmentKind.Simple,
+				label: '/monitor-pr',
+				_meta: {
+					uri: 'file:///skills/monitor-pr/SKILL.md',
+					name: 'monitor-pr',
+					displayName: 'monitor-pr',
+					description: 'Use this skill when working with PRs',
 				},
 			},
 		}]);
@@ -99,7 +125,7 @@ suite('AgentHostSkillCompletionProvider', () => {
 
 		const result = await run(provider, '/');
 
-		assert.deepStrictEqual(result.map(item => item.insertText), ['/session-skill ', '/global-skill ']);
+		assert.deepStrictEqual(result.map(item => item.insertText), ['/first:session-skill ', '/second:global-skill ']);
 	});
 
 	test('ignores disabled customization containers', async () => {
@@ -112,7 +138,7 @@ suite('AgentHostSkillCompletionProvider', () => {
 
 		const result = await run(provider, '/');
 
-		assert.deepStrictEqual(result.map(item => item.insertText), ['/visible-skill ']);
+		assert.deepStrictEqual(result.map(item => item.insertText), ['/enabled:visible-skill ']);
 	});
 
 	test('returns an empty list when the agent has no session customizations hook', async () => {
@@ -129,19 +155,68 @@ suite('AgentHostSkillCompletionProvider', () => {
 		agent.getSessionCustomizations = async () => [plugin('skills', [skill('alpha'), skill('beta')])];
 		const provider = createProvider(agent);
 
-		const result = await run(provider, '/b extra', 2);
+		const result = await run(provider, '/skills:b extra', '/skills:b'.length);
 
 		assert.deepStrictEqual(result.map(item => ({ insertText: item.insertText, rangeStart: item.rangeStart, rangeEnd: item.rangeEnd })), [
-			{ insertText: '/beta ', rangeStart: 0, rangeEnd: 2 },
+			{ insertText: '/skills:beta ', rangeStart: 0, rangeEnd: 9 },
 		]);
+	});
+
+	test('filters skills by an in-message slash prefix and replaces only that token', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [plugin('skills', [skill('alpha'), skill('beta')])];
+		const provider = createProvider(agent);
+		const text = 'use /skills:b extra';
+
+		const result = await run(provider, text, text.indexOf('/skills:b') + '/skills:b'.length);
+
+		assert.deepStrictEqual(result.map(item => ({ insertText: item.insertText, rangeStart: item.rangeStart, rangeEnd: item.rangeEnd })), [
+			{ insertText: '/skills:beta ', rangeStart: 4, rangeEnd: 13 },
+		]);
+	});
+
+	test('returns skills for a slash token after whitespace', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [plugin('skills', [skill('alpha'), skill('beta')])];
+		const provider = createProvider(agent);
+		const text = 'use /';
+
+		const result = await run(provider, text);
+
+		assert.deepStrictEqual(result.map(item => ({ insertText: item.insertText, rangeStart: item.rangeStart, rangeEnd: item.rangeEnd })), [
+			{ insertText: '/skills:alpha ', rangeStart: 4, rangeEnd: 5 },
+			{ insertText: '/skills:beta ', rangeStart: 4, rangeEnd: 5 },
+		]);
+	});
+
+	test('does not complete slash tokens embedded in non-whitespace text', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [plugin('skills', [skill('alpha')])];
+		const provider = createProvider(agent);
+
+		const result = await run(provider, 'foo/bar', 'foo/bar'.length);
+
+		assert.deepStrictEqual(result, []);
+	});
+
+	test('returns an empty list when the cursor is past an in-message slash token', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [plugin('skills', [skill('cached-skill')])];
+		const provider = createProvider(agent);
+		const text = 'use /skills:cached-skill trailing';
+
+		const result = await run(provider, text, text.indexOf('trailing'));
+
+		assert.deepStrictEqual(result, []);
 	});
 
 	test('returns an empty list when the cursor is past the leading slash token', async () => {
 		const agent = new MockAgent('mock');
 		agent.getSessionCustomizations = async () => [plugin('skills', [skill('cached-skill')])];
 		const provider = createProvider(agent);
+		const text = '/skills:cached-skill trailing';
 
-		const result = await run(provider, '/cached-skill trailing', 14);
+		const result = await run(provider, text, text.indexOf('trailing'));
 
 		assert.deepStrictEqual(result, []);
 	});

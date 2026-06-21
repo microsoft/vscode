@@ -16,7 +16,7 @@ import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabe
 import { createMatches, FuzzyScore, IMatch } from '../../../../../base/common/filters.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { IObservable, IReader, autorun } from '../../../../../base/common/observable.js';
+import { IObservable, IReader, autorun, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { fromNow } from '../../../../../base/common/date.js';
@@ -26,7 +26,7 @@ import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/to
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
-import { ChatSessionProviderIdContext, ChatSessionTypeContext, IsPhoneLayoutContext, SessionIsArchivedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
+import { ChatSessionProviderIdContext, ChatSessionSupportsRenameContext, ChatSessionTypeContext, IsPhoneLayoutContext, SessionIsArchivedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -38,14 +38,29 @@ import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SessionStatus }
 import { AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
-import { Action, IAction, Separator } from '../../../../../base/common/actions.js';
+import { Action, ActionRunner, IAction, Separator } from '../../../../../base/common/actions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { ISessionsManagementService, IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsViewService } from '../../../../browser/sessionsViewService.js';
-import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
+import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
+// =============================================================================
+// TEMPORARY (tracked by https://github.com/microsoft/vscode/issues/320480)
+// -----------------------------------------------------------------------------
+// `IAgentSessionsService` is a Copilot-provider internal and must normally only
+// be consumed by the Copilot chat sessions provider — the rest of the Agents
+// window stays provider-agnostic (see SESSIONS.md). This single, deliberate
+// exception lets the sessions list trigger lazy resolution of expensive session
+// properties (e.g. changes) for rows that scroll into view, until Don
+// re-implements it the right way (driven from inside the Copilot provider, or
+// via a provider-agnostic visibility signal on the shared services).
+// DO NOT add further usages of this import in the sessions workbench, and DO NOT
+// copy this suppression elsewhere.
+// =============================================================================
+// eslint-disable-next-line no-restricted-imports
+import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
 import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../../../browser/dnd.js';
@@ -164,6 +179,27 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 
 //#region Session Item Renderer
 
+/**
+ * Resolves the inline toolbar action context to the current multi-selection so
+ * that session item actions (e.g. Restore) operate on all selected sessions
+ * when the clicked session is part of the selection, and on just the clicked
+ * session otherwise.
+ */
+class SessionItemActionRunner extends ActionRunner {
+
+	constructor(private readonly getMultiSelectedSessions: (session: ISession) => ISession[]) {
+		super();
+	}
+
+	protected override async runAction(action: IAction, context?: unknown): Promise<void> {
+		if (context && !Array.isArray(context)) {
+			await super.runAction(action, this.getMultiSelectedSessions(context as ISession));
+			return;
+		}
+		await super.runAction(action, context);
+	}
+}
+
 interface ISessionItemTemplate {
 	readonly container: HTMLElement;
 	readonly statusIcon: SessionStatusIcon;
@@ -195,14 +231,15 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	readonly onDidChangeItemHeight: Event<ISession> = this._onDidChangeItemHeight.event;
 
 	constructor(
-		private readonly options: { grouping: () => SessionsGrouping; sorting: () => SessionsSorting; isPinned: (session: ISession) => boolean; isRead: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> },
+		private readonly options: { grouping: () => SessionsGrouping; sorting: () => SessionsSorting; isPinned: (session: ISession) => boolean; isRead: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[] },
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly instantiationService: IInstantiationService,
 		private readonly contextKeyService: IContextKeyService,
 		private readonly markdownRendererService: IMarkdownRendererService,
 		private readonly hoverService: IHoverService,
-		private readonly agentSessionsService: IAgentSessionsService,
 		private readonly sessionsProvidersService: ISessionsProvidersService,
+		// TEMPORARY — see the note on the `IAgentSessionsService` import above (#320480).
+		private readonly agentSessionsService: IAgentSessionsService,
 	) {
 	}
 
@@ -237,8 +274,10 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 		const contextKeyService = disposables.add(this.contextKeyService.createScoped(container));
 		const scopedInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
+		const actionRunner = disposables.add(new SessionItemActionRunner(this.options.getMultiSelectedSessions));
 		const titleToolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, titleToolbarContainer, SessionItemToolbarMenuId, {
 			menuOptions: { shouldForwardArgs: true },
+			actionRunner,
 		}));
 
 		return { container, statusIcon, title, titleToolbar, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, contextKeyService, disposables, elementDisposables };
@@ -255,10 +294,11 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	private renderSession(element: ISession, template: ISessionItemTemplate, matches?: IMatch[]): void {
 		template.elementDisposables.clear();
 
-		// Trigger lazy resolve for expensive session properties (e.g. changes)
-		// so that providers which populate them on demand deliver fresh data
-		// by the time the row renders. Only fires for sessions that become
-		// visible in the viewport (O(visible rows), not O(all sessions)).
+		// TEMPORARY (#320480): trigger lazy resolve of expensive session
+		// properties (e.g. changes) for rows that scroll into view, so providers
+		// that populate them on demand deliver fresh data by the time the row
+		// renders. This reaches into a Copilot-provider internal and must be
+		// moved into the provider — see the note on the import above.
 		this.agentSessionsService.model.observeSession(element.resource);
 
 		// Rich hover on the row showing folder, branch, diff stats and provider.
@@ -833,7 +873,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private static readonly EXCLUDE_ARCHIVED_KEY = 'sessionsListControl.excludeArchived';
 	private static readonly EXCLUDE_READ_KEY = 'sessionsListControl.excludeRead';
 	private static readonly WORKSPACE_GROUP_CAPPED_KEY = 'sessionsListControl.workspaceGroupCapped';
-	private static readonly WORKSPACE_GROUP_LIMIT = 5;
+	private static readonly DEFAULT_WORKSPACE_GROUP_LIMIT = 5;
+
+	/**
+	 * Experiment treatment that overrides how many sessions are shown per
+	 * workspace group before the "show more" affordance appears. Falls back to
+	 * {@link DEFAULT_WORKSPACE_GROUP_LIMIT} when the treatment is not set.
+	 */
+	private static readonly WORKSPACE_GROUP_LIMIT_TREATMENT = 'sessions.workspaceGroupLimit';
 
 	private readonly listContainer: HTMLElement;
 	private readonly tree: WorkbenchObjectTree<SessionListItem, FuzzyScore>;
@@ -844,6 +891,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private _excludeArchived: boolean;
 	private _excludeRead: boolean;
 	private workspaceGroupCapped: boolean;
+
+	/**
+	 * Maximum number of sessions shown per workspace group before "show more"
+	 * is rendered. Backed by an experiment treatment (see
+	 * {@link WORKSPACE_GROUP_LIMIT_TREATMENT}) and refreshed whenever the
+	 * assignment service refetches its treatments.
+	 */
+	private readonly workspaceGroupLimit = observableValue<number>(this, SessionsList.DEFAULT_WORKSPACE_GROUP_LIMIT);
 	private readonly expandedWorkspaceGroups = new Set<string>();
 	private expandedMoreFolders = false;
 	private openWindowSourceFolder: URI | undefined;
@@ -862,7 +917,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		container: HTMLElement,
 		private readonly options: ISessionsListControlOptions,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
-		@ISessionsViewService private readonly _sessionsViewService: ISessionsViewService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@ISessionsListModelService private readonly _sessionsListModelService: ISessionsListModelService,
 		@IAgentHostFilterService private readonly _agentHostFilterService: IAgentHostFilterService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -872,6 +927,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IMenuService private readonly menuService: IMenuService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
 	) {
 		super();
 
@@ -897,17 +953,18 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const approvalModel = this._register(instantiationService.createInstance(AgentSessionApprovalModel));
 		const markdownRendererService = instantiationService.invokeFunction(accessor => accessor.get(IMarkdownRendererService));
 		const hoverService = instantiationService.invokeFunction(accessor => accessor.get(IHoverService));
-		const agentSessionsService = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
 		const sessionsProvidersService = instantiationService.invokeFunction(accessor => accessor.get(ISessionsProvidersService));
+		// TEMPORARY (#320480): see the note on the `IAgentSessionsService` import.
+		const agentSessionsService = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
 		const sessionRenderer = new SessionItemRenderer(
-			{ grouping: this.options.grouping, sorting: this.options.sorting, isPinned: s => this.isSessionPinned(s), isRead: s => this.isSessionRead(s), visibleSessions: this._sessionsViewService.visibleSessions },
+			{ grouping: this.options.grouping, sorting: this.options.sorting, isPinned: s => this.isSessionPinned(s), isRead: s => this.isSessionRead(s), visibleSessions: this._sessionsService.visibleSessions, getMultiSelectedSessions: s => this.getMultiSelectedSessions(s) },
 			approvalModel,
 			instantiationService,
 			contextKeyService,
 			markdownRendererService,
 			hoverService,
-			agentSessionsService,
 			sessionsProvidersService,
+			agentSessionsService,
 		);
 
 		const showMoreRenderer = new SessionShowMoreRenderer();
@@ -949,7 +1006,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 						if (isSessionShowMore(element)) {
 							return NotSelectableGroupId;
 						}
-						return 1;
+						// Use a distinct group for archived (done) sessions so that
+						// multi-selection cannot span the workspace and done sections.
+						return element.isArchived.get() ? 2 : 1;
 					}
 				},
 				horizontalScrolling: false,
@@ -1090,7 +1149,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// session becomes visible while active and hides again when unselected.
 		// Also mark the newly active session as read.
 		this._register(autorun(reader => {
-			const activeSession = this._sessionsManagementService.activeSession.read(reader);
+			const activeSession = this._sessionsService.activeSession.read(reader);
 			if (activeSession) {
 				this._sessionsListModelService.markRead(activeSession);
 			}
@@ -1099,7 +1158,31 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}));
 
+		// Resolve the per-workspace session limit from the experiment service and
+		// keep it current when treatments are refetched. The async fetch is
+		// confined to `updateWorkspaceGroupLimit`; the rest of the list reads the
+		// resolved value synchronously off `workspaceGroupLimit`. The autorun runs
+		// immediately for the initial fetch and again whenever treatments refetch.
+		const assignmentRefetchSignal = observableSignalFromEvent(this, this.assignmentService.onDidRefetchAssignments);
+		this._register(autorun(reader => {
+			assignmentRefetchSignal.read(reader);
+			this.updateWorkspaceGroupLimit();
+		}));
+
 		this.refresh();
+	}
+
+	/**
+	 * Fetches the workspace group limit treatment and updates the backing
+	 * observable. Invalid or unset treatments fall back to the default limit.
+	 */
+	private updateWorkspaceGroupLimit(): void {
+		this.assignmentService.getTreatment<number>(SessionsList.WORKSPACE_GROUP_LIMIT_TREATMENT).then(value => {
+			const limit = typeof value === 'number' && Number.isInteger(value) && value > 0
+				? value
+				: SessionsList.DEFAULT_WORKSPACE_GROUP_LIMIT;
+			this.workspaceGroupLimit.set(limit, undefined);
+		});
 	}
 
 	refresh(): void {
@@ -1108,7 +1191,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	update(expandAll?: boolean): void {
-		const activeSession = this._sessionsManagementService.activeSession.get();
+		const activeSession = this._sessionsService.activeSession.get();
 
 		// Filter by session type and status
 		let filtered = this.sessions;
@@ -1193,19 +1276,21 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const children: IObjectTreeElement<SessionListItem>[] = [];
 
+		const workspaceGroupLimit = this.workspaceGroupLimit.get();
+
 		const renderSection = (section: ISessionSection): IObjectTreeElement<SessionListItem> => {
 			const isWorkspaceGroup = grouping === SessionsGrouping.Workspace
 				&& section.id.startsWith('workspace:');
 			const exceedsLimit = isWorkspaceGroup
 				&& !this.hasFindPattern
-				&& section.sessions.length > SessionsList.WORKSPACE_GROUP_LIMIT;
+				&& section.sessions.length > workspaceGroupLimit;
 			const isExpanded = exceedsLimit && (this.expandedWorkspaceGroups.has(section.label) || !this.workspaceGroupCapped);
 			const isCapped = exceedsLimit && !isExpanded;
 
 			let sectionChildren: IObjectTreeElement<SessionListItem>[];
 			if (isCapped) {
-				const visible = section.sessions.slice(0, SessionsList.WORKSPACE_GROUP_LIMIT);
-				const remainingCount = section.sessions.length - SessionsList.WORKSPACE_GROUP_LIMIT;
+				const visible = section.sessions.slice(0, workspaceGroupLimit);
+				const remainingCount = section.sessions.length - workspaceGroupLimit;
 				sectionChildren = [
 					...visible.map(session => ({ element: session as SessionListItem })),
 					{ element: { showMore: true as const, kind: 'sessions' as const, mode: 'more' as const, sectionLabel: section.label, remainingCount } },
@@ -1364,14 +1449,24 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	// Context menu
 
+	/**
+	 * Resolves the sessions an action should operate on for a given clicked
+	 * session: when the clicked session is part of the current multi-selection
+	 * the full selection is returned (clicked session first), otherwise just the
+	 * clicked session.
+	 */
+	private getMultiSelectedSessions(session: ISession): ISession[] {
+		const selection = this.tree.getSelection().filter((s): s is ISession => !!s && !isSessionSection(s) && !isSessionShowMore(s));
+		return selection.includes(session) ? [session, ...selection.filter(s => s !== session)] : [session];
+	}
+
 	private onContextMenu(e: ITreeContextMenuEvent<SessionListItem | null>): void {
 		const element = e.element;
 		if (!element || isSessionSection(element) || isSessionShowMore(element)) {
 			return;
 		}
 
-		const selection = this.tree.getSelection().filter((s): s is ISession => !!s && !isSessionSection(s) && !isSessionShowMore(s));
-		const selectedSessions = selection.includes(element) ? [element, ...selection.filter(s => s !== element)] : [element];
+		const selectedSessions = this.getMultiSelectedSessions(element);
 
 		const contextOverlay: [string, boolean | string][] = [
 			[IsSessionPinnedContext.key, this.isSessionPinned(element)],
@@ -1380,6 +1475,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[SessionItemHasBranchNameContext.key, !!element.workspace.get()?.folders[0]?.gitRepository?.branchName?.trim()],
 			[ChatSessionTypeContext.key, element.sessionType],
 			[ChatSessionProviderIdContext.key, element.providerId],
+			[ChatSessionSupportsRenameContext.key, element.capabilities.supportsRename ?? false],
 		];
 
 		const menu = this.menuService.createMenu(SessionItemContextMenuId, this.contextKeyService.createOverlay(contextOverlay));

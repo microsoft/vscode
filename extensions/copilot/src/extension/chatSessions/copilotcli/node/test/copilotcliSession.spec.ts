@@ -7,9 +7,11 @@ import type { SessionOptions } from '@github/copilot/sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChatParticipantToolToken, ChatResponseStream } from 'vscode';
 import { ConfigKey, IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
+import { QuotaSnapshots } from '../../../../../platform/chat/common/chatQuotaService';
 import { MockGitService } from '../../../../../platform/ignore/node/test/mockGitService';
 import { ILogService } from '../../../../../platform/log/common/logService';
-import { NoopOTelService, resolveOTelConfig } from '../../../../../platform/otel/common/index';
+import { GenAiAttr, IOTelService, NoopOTelService, resolveOTelConfig, SpanKind } from '../../../../../platform/otel/common/index';
+import { CapturingOTelService } from '../../../../../platform/otel/common/test/capturingOTelService';
 import { IRequestLogger } from '../../../../../platform/requestLogger/common/requestLogger';
 import { NullRequestLogger } from '../../../../../platform/requestLogger/node/nullRequestLogger';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/nullTelemetryService';
@@ -224,6 +226,7 @@ describe('CopilotCLISession', () => {
 	let authInfo: NonNullable<SessionOptions['authInfo']>;
 	let userQuestionAnswer: IQuestionAnswer | undefined;
 	let telemetryService: ITelemetryService;
+	let processedQuotaSnapshots: QuotaSnapshots[];
 	beforeEach(async () => {
 		const services = disposables.add(createExtensionUnitTestingServices());
 		const accessor = services.createTestingAccessor();
@@ -245,6 +248,7 @@ describe('CopilotCLISession', () => {
 		toolsService = new FakeToolsService();
 		userQuestionAnswer = undefined;
 		telemetryService = new NullTelemetryService();
+		processedQuotaSnapshots = [];
 	});
 
 	afterEach(() => {
@@ -254,6 +258,10 @@ describe('CopilotCLISession', () => {
 
 
 	async function createSession(): Promise<CopilotCLISession> {
+		return createSessionWith(new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })));
+	}
+
+	async function createSessionWith(otelService: IOTelService): Promise<CopilotCLISession> {
 		class FakeUserQuestionHandler implements IUserQuestionHandler {
 			_serviceBrand: undefined;
 			async askUserQuestion(question: IQuestion, toolInvocationToken: ChatParticipantToolToken, token: CancellationToken, toolCallId?: string): Promise<IQuestionAnswer | undefined> {
@@ -275,10 +283,10 @@ describe('CopilotCLISession', () => {
 			toolsService,
 			new FakeUserQuestionHandler(),
 			configurationService,
-			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })),
+			otelService,
 			new MockGitService(),
 			{ _serviceBrand: undefined } as any,
-			{ _serviceBrand: undefined, resetTurnCredits() { }, getCreditsForTurn() { return undefined; }, setLastCopilotUsage() { } } as any,
+			{ _serviceBrand: undefined, resetTurnCredits() { }, getCreditsForTurn() { return undefined; }, setLastCopilotUsage() { }, processQuotaSnapshots(snapshots: QuotaSnapshots) { processedQuotaSnapshots.push(snapshots); } } as any,
 			telemetryService
 		));
 	}
@@ -294,6 +302,63 @@ describe('CopilotCLISession', () => {
 		expect(session.status).toBe(ChatSessionStatus.Completed);
 		expect(stream.output.join('\n')).toContain('Echo: Hello');
 		// Listeners are disposed after completion, so we only assert original streamed content.
+	});
+
+	it('synthesizes chat and execute_tool spans for the in-process CLI turn', async () => {
+		sdkSession.send = async ({ prompt }) => {
+			sdkSession.emit('user.message', { content: prompt });
+			sdkSession.emit('assistant.turn_start', {});
+			sdkSession.emit('tool.execution_start', { toolCallId: 'tc1', toolName: 'bash', arguments: { command: 'ls' } });
+			sdkSession.emit('tool.execution_complete', { toolCallId: 'tc1', success: true, result: { content: 'file.txt' } });
+			sdkSession.emit('assistant.usage', { model: 'claude-x', inputTokens: 100, outputTokens: 20, cacheReadTokens: 5 });
+			sdkSession.emit('assistant.message', { messageId: 'm1', content: 'Done!' });
+			sdkSession.emit('assistant.turn_end', {});
+		};
+
+		const otel = new CapturingOTelService();
+		const session = await createSessionWith(otel);
+		session.attachStream(new MockChatResponseStream());
+		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Run ls' }, [], undefined, authInfo, CancellationToken.None);
+
+		const [chatSpan] = otel.findSpans('chat');
+		const [toolSpan] = otel.findSpans('execute_tool');
+		expect({
+			chat: {
+				name: chatSpan?.name,
+				kind: chatSpan?.kind,
+				model: chatSpan?.attributes[GenAiAttr.REQUEST_MODEL],
+				inputTokens: chatSpan?.attributes[GenAiAttr.USAGE_INPUT_TOKENS],
+				outputTokens: chatSpan?.attributes[GenAiAttr.USAGE_OUTPUT_TOKENS],
+				cacheReadTokens: chatSpan?.attributes[GenAiAttr.USAGE_CACHE_READ_INPUT_TOKENS],
+				outputMessages: chatSpan?.attributes[GenAiAttr.OUTPUT_MESSAGES],
+				parent: chatSpan?.parentTraceContext !== undefined,
+			},
+			tool: {
+				name: toolSpan?.name,
+				kind: toolSpan?.kind,
+				toolName: toolSpan?.attributes[GenAiAttr.TOOL_NAME],
+				result: toolSpan?.attributes[GenAiAttr.TOOL_CALL_RESULT],
+				parent: toolSpan?.parentTraceContext !== undefined,
+			},
+		}).toEqual({
+			chat: {
+				name: 'chat claude-x',
+				kind: SpanKind.CLIENT,
+				model: 'claude-x',
+				inputTokens: 100,
+				outputTokens: 20,
+				cacheReadTokens: 5,
+				outputMessages: JSON.stringify([{ role: 'assistant', parts: [{ type: 'text', content: 'Done!' }] }]),
+				parent: true,
+			},
+			tool: {
+				name: 'execute_tool bash',
+				kind: SpanKind.INTERNAL,
+				toolName: 'bash',
+				result: 'file.txt',
+				parent: true,
+			},
+		});
 	});
 
 	it('routes in-flight output to the latest attached stream', async () => {
@@ -2447,6 +2512,105 @@ describe('CopilotCLISession', () => {
 			const usageFromEvent = stream.usages.find(u => u.promptTokens === 200 && u.completionTokens === 80);
 			expect(usageFromEvent).toBeDefined();
 			expect(session.getLastResponseModelId()).toBe('claude-opus-4.7');
+		});
+
+		it('syncs quota snapshots from assistant.usage event into the quota service', async () => {
+			sdkSession.send = async (options: any) => {
+				sdkSession.emit('user.message', { content: options.prompt });
+				sdkSession.emit('assistant.usage', {
+					model: 'claude-opus-4.7',
+					inputTokens: 200,
+					outputTokens: 80,
+					quotaSnapshots: {
+						premium_interactions: {
+							isUnlimitedEntitlement: false,
+							entitlementRequests: 300,
+							usedRequests: 75,
+							usageAllowedWithExhaustedQuota: true,
+							overage: 1.5,
+							overageAllowedWithExhaustedQuota: true,
+							remainingPercentage: 75,
+							resetDate: new Date('2026-07-01T00:00:00.000Z'),
+						},
+						chat: {
+							isUnlimitedEntitlement: true,
+							entitlementRequests: -1,
+							usedRequests: 10,
+							usageAllowedWithExhaustedQuota: false,
+							overage: 0,
+							overageAllowedWithExhaustedQuota: false,
+							remainingPercentage: 100,
+						},
+					},
+				});
+				sdkSession.emit('assistant.turn_end', {});
+			};
+
+			const session = await createSession();
+			session.attachStream(new UsageCapturingStream());
+
+			await session.handleRequest({ id: 'req-1', toolInvocationToken: undefined as never }, { prompt: 'Hello' }, [], undefined, authInfo, CancellationToken.None);
+
+			expect(processedQuotaSnapshots).toEqual([{
+				premium_interactions: {
+					entitlement: '300',
+					percent_remaining: 75,
+					overage_permitted: true,
+					overage_count: 1.5,
+					reset_date: '2026-07-01T00:00:00.000Z',
+				},
+				chat: {
+					entitlement: '-1',
+					percent_remaining: 100,
+					overage_permitted: false,
+					overage_count: 0,
+					reset_date: undefined,
+				},
+			}]);
+		});
+
+		it('tolerates a string resetDate and skips malformed snapshots from assistant.usage', async () => {
+			sdkSession.send = async (options: any) => {
+				sdkSession.emit('user.message', { content: options.prompt });
+				sdkSession.emit('assistant.usage', {
+					model: 'claude-opus-4.7',
+					inputTokens: 200,
+					outputTokens: 80,
+					quotaSnapshots: {
+						// The internal field can drift from the published type: `resetDate` may arrive as an
+						// ISO string and a snapshot may be missing `remainingPercentage` entirely.
+						premium_interactions: {
+							isUnlimitedEntitlement: false,
+							entitlementRequests: 300,
+							overage: 1.5,
+							overageAllowedWithExhaustedQuota: true,
+							remainingPercentage: 75,
+							resetDate: '2026-07-01T00:00:00.000Z',
+						},
+						completions: {
+							isUnlimitedEntitlement: false,
+							entitlementRequests: 50,
+							// remainingPercentage absent — snapshot must be skipped rather than producing "undefined".
+						},
+					},
+				});
+				sdkSession.emit('assistant.turn_end', {});
+			};
+
+			const session = await createSession();
+			session.attachStream(new UsageCapturingStream());
+
+			await session.handleRequest({ id: 'req-1', toolInvocationToken: undefined as never }, { prompt: 'Hello' }, [], undefined, authInfo, CancellationToken.None);
+
+			expect(processedQuotaSnapshots).toEqual([{
+				premium_interactions: {
+					entitlement: '300',
+					percent_remaining: 75,
+					overage_permitted: true,
+					overage_count: 1.5,
+					reset_date: '2026-07-01T00:00:00.000Z',
+				},
+			}]);
 		});
 
 		it('reports usage from session.usage_info event immediately', async () => {

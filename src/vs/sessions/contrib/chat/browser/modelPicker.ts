@@ -4,16 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, observableValue } from '../../../../base/common/observable.js';
+import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { localize2 } from '../../../../nls.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IChatInputPickerOptions } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { IModelPickerDelegate, ModelPickerActionItem } from '../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
@@ -22,7 +20,7 @@ import { IsPhoneLayoutContext, ActiveSessionUsesCombinedConfigPickerContext } fr
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionModelPickerOptions } from '../../../services/sessions/common/sessionsProvider.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { INewChatModelPickerService } from './newChatModelPicker.js';
 import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
 
@@ -48,6 +46,25 @@ function getModelsForSession(session: ISession | undefined, sessionsProvidersSer
 function getModelPickerOptionsForSession(session: ISession | undefined, sessionsProvidersService: ISessionsProvidersService): ISessionModelPickerOptions {
 	const provider = session ? sessionsProvidersService.getProvider(session.providerId) : undefined;
 	return provider?.getModelPickerOptions(session!.sessionId) ?? DEFAULT_MODEL_PICKER_OPTIONS;
+}
+
+/**
+ * Whether the session cannot currently produce a request because it has no
+ * selectable model and cannot fall back to Auto (its provider reports
+ * {@link ISessionModelPickerOptions.showAutoModel} as `false`). Used to
+ * disable sending — e.g. the Claude agent for a Copilot Free / Student user
+ * shows "No models available" and must not send. Not reactive on its own;
+ * callers should re-evaluate when the session provider's
+ * {@link ISessionsProvider.onDidChangeModels} fires.
+ */
+export function sessionHasNoSelectableModel(session: ISession | undefined, sessionsProvidersService: ISessionsProvidersService): boolean {
+	if (!session) {
+		return false;
+	}
+	if (getModelsForSession(session, sessionsProvidersService).length > 0) {
+		return false;
+	}
+	return !getModelPickerOptionsForSession(session, sessionsProvidersService).showAutoModel;
 }
 
 const DEFAULT_MODEL_PICKER_OPTIONS: ISessionModelPickerOptions = {
@@ -83,9 +100,9 @@ export class ModelPicker extends Disposable {
 	private _settingModelInternally = false;
 
 	constructor(
+		private readonly _session: IObservable<IActiveSession | undefined>,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
-		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -98,7 +115,7 @@ export class ModelPicker extends Disposable {
 			setModel: (model: ILanguageModelChatMetadataAndIdentifier) => {
 				const previousModel = this._currentModel.get();
 				this._currentModel.set(model, undefined);
-				const session = this._sessionsManagementService.activeSession.get();
+				const session = this._session.get();
 				if (session) {
 					this._storageService.store(modelPickerStorageKey(session.providerId, session.sessionType), model.identifier, StorageScope.PROFILE, StorageTarget.MACHINE);
 					this._sessionsProvidersService.getProvider(session.providerId)?.setModel(session.sessionId, model.identifier);
@@ -114,11 +131,12 @@ export class ModelPicker extends Disposable {
 					});
 				}
 			},
-			getModels: () => [...getModelsForSession(this._sessionsManagementService.activeSession.get(), this._sessionsProvidersService)],
-			useGroupedModelPicker: () => getModelPickerOptionsForSession(this._sessionsManagementService.activeSession.get(), this._sessionsProvidersService).useGroupedModelPicker,
-			showManageModelsAction: () => getModelPickerOptionsForSession(this._sessionsManagementService.activeSession.get(), this._sessionsProvidersService).showManageModelsAction,
-			showUnavailableFeatured: () => getModelPickerOptionsForSession(this._sessionsManagementService.activeSession.get(), this._sessionsProvidersService).showUnavailableFeatured,
-			showFeatured: () => getModelPickerOptionsForSession(this._sessionsManagementService.activeSession.get(), this._sessionsProvidersService).showFeatured,
+			getModels: () => [...getModelsForSession(this._session.get(), this._sessionsProvidersService)],
+			useGroupedModelPicker: () => getModelPickerOptionsForSession(this._session.get(), this._sessionsProvidersService).useGroupedModelPicker,
+			showManageModelsAction: () => getModelPickerOptionsForSession(this._session.get(), this._sessionsProvidersService).showManageModelsAction,
+			showUnavailableFeatured: () => getModelPickerOptionsForSession(this._session.get(), this._sessionsProvidersService).showUnavailableFeatured,
+			showFeatured: () => getModelPickerOptionsForSession(this._session.get(), this._sessionsProvidersService).showFeatured,
+			showAutoModel: () => !!getModelPickerOptionsForSession(this._session.get(), this._sessionsProvidersService).showAutoModel,
 		};
 
 		const pickerOptions: IChatInputPickerOptions = {
@@ -136,7 +154,7 @@ export class ModelPicker extends Disposable {
 		// forwards to the provider, so no additional provider.setModel() call is
 		// needed.
 		this._register(autorun(reader => {
-			const session = this._sessionsManagementService.activeSession.read(reader);
+			const session = this._session.read(reader);
 			// Re-run when the provider restores model state for an existing
 			// session, or when an untitled session becomes established after send.
 			session?.modelId.read(reader);
@@ -151,7 +169,7 @@ export class ModelPicker extends Disposable {
 	}
 
 	private _initModel(): void {
-		const session = this._sessionsManagementService.activeSession.get();
+		const session = this._session.get();
 		const sessionKey = session ? `${session.providerId}/${session.sessionType}` : undefined;
 
 		// Reset the current model when switching provider/session type so we
@@ -162,12 +180,28 @@ export class ModelPicker extends Disposable {
 		}
 
 		const models = getModelsForSession(session, this._sessionsProvidersService);
-		this._modelPicker.setEnabled(models.length > 0);
-		// Drive the picker's visibility directly from the provider's model
-		// list rather than mirroring this state into a context key. The picker
-		// hides itself when the active session's provider offers no models.
-		this._updateVisibility(models.length > 0);
+		// When a session type's Auto model is unavailable (e.g. the Claude
+		// agent for a Copilot Free / Student user), keep the picker visible even
+		// with no models so the shared widget can render its "No models
+		// available" state (with an upgrade prompt). Otherwise fall back to the
+		// historical behavior of hiding the picker when the provider offers no
+		// models.
+		const showPicker = this._shouldShowPicker(session);
+		this._modelPicker.setEnabled(showPicker);
+		this._updateVisibility(showPicker);
 		if (models.length === 0) {
+			// Clear any stale selection so the shared picker widget re-renders
+			// its label (it refreshes on `currentModel` changes). Without this a
+			// carried-over "Auto" selection would keep showing instead of the
+			// "No models available" empty state.
+			if (this._currentModel.get() !== undefined) {
+				this._settingModelInternally = true;
+				try {
+					this._currentModel.set(undefined, undefined);
+				} finally {
+					this._settingModelInternally = false;
+				}
+			}
 			return;
 		}
 
@@ -224,12 +258,25 @@ export class ModelPicker extends Disposable {
 	render(container: HTMLElement): void {
 		this._container = container;
 		this._modelPicker.render(container);
-		this._updateVisibility(getModelsForSession(this._sessionsManagementService.activeSession.get(), this._sessionsProvidersService).length > 0);
+		this._updateVisibility(this._shouldShowPicker(this._session.get()));
 	}
 
-	private _updateVisibility(hasModels: boolean): void {
+	/**
+	 * Whether the model picker should be shown for the given session. Visible
+	 * when the session has models, or when its Auto model is unavailable (so the
+	 * widget can render the "No models available" empty state). Otherwise hidden,
+	 * matching the historical behavior for providers that offer no models.
+	 */
+	private _shouldShowPicker(session: ISession | undefined): boolean {
+		if (getModelsForSession(session, this._sessionsProvidersService).length > 0) {
+			return true;
+		}
+		return !getModelPickerOptionsForSession(session, this._sessionsProvidersService).showAutoModel;
+	}
+
+	private _updateVisibility(visible: boolean): void {
 		if (this._container) {
-			this._container.style.display = hasModels ? '' : 'none';
+			this._container.style.display = visible ? '' : 'none';
 		}
 	}
 }
@@ -255,9 +302,9 @@ registerAction2(class extends Action2 {
 	override async run(): Promise<void> { /* handled by action view item */ }
 });
 
-// -- Action View Item + Context Key Contribution --
+// -- Action View Item --
 
-class ModelPickerActionViewItem extends BaseActionViewItem {
+export class ModelPickerActionViewItem extends BaseActionViewItem {
 	constructor(private readonly picker: ModelPicker) {
 		super(undefined, { id: '', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } });
 	}
@@ -271,24 +318,3 @@ class ModelPickerActionViewItem extends BaseActionViewItem {
 		super.dispose();
 	}
 }
-
-class ModelPickerContribution extends Disposable implements IWorkbenchContribution {
-
-	static readonly ID = 'sessions.contrib.modelPicker';
-
-	constructor(
-		@IActionViewItemService actionViewItemService: IActionViewItemService,
-	) {
-		super();
-
-		this._register(actionViewItemService.register(
-			Menus.NewSessionConfig, 'sessions.modelPicker',
-			(_action, _options, scopedInstantiationService) => {
-				const picker = scopedInstantiationService.createInstance(ModelPicker);
-				return new ModelPickerActionViewItem(picker);
-			},
-		));
-	}
-}
-
-registerWorkbenchContribution2(ModelPickerContribution.ID, ModelPickerContribution, WorkbenchPhase.AfterRestored);

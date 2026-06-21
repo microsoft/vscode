@@ -144,6 +144,12 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.opy', "'Copy as' submenu in the top level Edit menu")
 	},
 	{
+		key: 'chat/input/status',
+		id: MenuId.ChatInputStatus,
+		description: localize('menus.chatInputStatus', "The status indicator area at the rightmost end of the toolbar shown beneath the chat input"),
+		supportsSubmenus: false
+	},
+	{
 		key: 'scm/title',
 		id: MenuId.SCMTitle,
 		description: localize('menus.scmTitle', "The Source Control title menu")

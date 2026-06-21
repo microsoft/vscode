@@ -17,7 +17,7 @@ import { IChatModelReference, IChatService } from '../../../../workbench/contrib
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { IChatSessionsService, localChatSessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { AbstractChatView, ChatViewKind } from '../../../browser/parts/chatView.js';
+import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../../browser/parts/chatView.js';
 import { IChat } from '../../../services/sessions/common/session.js';
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
 import { NewChatWidget } from './newChatWidget.js';
@@ -41,13 +41,16 @@ export class NewChatView extends AbstractChatView {
 
 	constructor(
 		isNewChatInSession: boolean,
+		options: IChatViewOptions,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super();
 
 		this.element.classList.add('chat-view-new');
 		this.kind = isNewChatInSession ? 'newChatInSession' : 'newSession';
-		this._widget = this._register(instantiationService.createInstance(isNewChatInSession ? NewChatInSessionWidget : NewChatWidget));
+		this._widget = this._register(isNewChatInSession
+			? instantiationService.createInstance(NewChatInSessionWidget, options)
+			: instantiationService.createInstance(NewChatWidget, options));
 		this._widget.render(this.element);
 	}
 
@@ -79,6 +82,10 @@ export class NewChatView extends AbstractChatView {
 		if (this._widget instanceof NewChatWidget) {
 			this._widget.sendQuery(text);
 		}
+	}
+
+	override attach(uris: URI[]): void {
+		this._widget.attach(uris);
 	}
 }
 
@@ -154,6 +161,11 @@ export class ChatView extends AbstractChatView {
 		}));
 	}
 
+	override dispose(): void {
+		this._loadCts.value?.cancel();
+		super.dispose();
+	}
+
 	private _buildStyles(active: boolean) {
 		return {
 			listForeground: active ? activeSessionViewForeground : inactiveSessionViewForeground,
@@ -179,15 +191,20 @@ export class ChatView extends AbstractChatView {
 			return;
 		}
 
+		const previousChatResource = this._currentChatResource;
 		this._currentChatResource = resource;
 
 		// Cancel any in-flight load for the previous chat and start a fresh one.
+		this._loadCts.value?.cancel();
+		if (previousChatResource) {
+			this._clearCurrentChat();
+		}
 		const cts = new CancellationTokenSource();
 		this._loadCts.value = cts;
 		const token = cts.token;
 
 		const loadPromise = this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatView').then(ref => {
-			if (token.isCancellationRequested || !ref) {
+			if (token.isCancellationRequested || !ref || !isEqual(this._currentChatResource, resource)) {
 				ref?.dispose();
 				return;
 			}
@@ -198,7 +215,7 @@ export class ChatView extends AbstractChatView {
 			if (!token.isCancellationRequested) {
 				this.logService.error('[ChatView] Failed to load chat model for chat', err);
 			}
-			if (resource === this._currentChatResource) { // might have changed while we were waiting, only reset if it is still the same
+			if (isEqual(this._currentChatResource, resource)) { // might have changed while we were waiting, only reset if it is still the same
 				this._currentChatResource = undefined;
 			}
 		});
@@ -207,6 +224,12 @@ export class ChatView extends AbstractChatView {
 		// matching how each editor group shows progress independently. The short
 		// delay avoids flashing the bar for fast cached loads.
 		this.showProgressWhile(loadPromise, 800);
+	}
+
+	private _clearCurrentChat(): void {
+		this._widget.clear().catch(err => this.logService.error('[ChatView] Failed to clear chat widget', err));
+		this._widget.setModel(undefined);
+		this._modelRef.clear();
 	}
 
 	private _applyHistoryKey(): void {
@@ -222,7 +245,7 @@ export class ChatView extends AbstractChatView {
 
 		const contribution = this.chatSessionsService.getChatSessionContribution(sessionType);
 		if (contribution) {
-			this._widget.lockToCodingAgent(contribution.name, contribution.displayName, sessionType);
+			this._widget.lockToCodingAgent(contribution.name, contribution.displayName, sessionType, contribution.agentHostProviderId);
 		} else {
 			this._widget.unlockFromCodingAgent();
 		}
@@ -238,6 +261,12 @@ export class ChatView extends AbstractChatView {
 
 	override focus(): void {
 		this._widget.focusInput();
+	}
+
+	override attach(uris: URI[]): void {
+		for (const uri of uris) {
+			this._widget.attachmentModel.addFile(uri).catch(err => this.logService.error('[ChatView] Failed to attach file as context', err));
+		}
 	}
 
 	override setActive(active: boolean): void {
@@ -262,8 +291,8 @@ export class ChatViewFactory implements IChatViewFactory {
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) { }
 
-	createNewChatView(isNewChatInSession: boolean): AbstractChatView {
-		return this.instantiationService.createInstance(NewChatView, isNewChatInSession);
+	createNewChatView(isNewChatInSession: boolean, options: IChatViewOptions): AbstractChatView {
+		return this.instantiationService.createInstance(NewChatView, isNewChatInSession, options);
 	}
 
 	createChatView(): AbstractChatView {

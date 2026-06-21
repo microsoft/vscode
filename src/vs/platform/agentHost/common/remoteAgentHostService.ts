@@ -190,6 +190,13 @@ export function remoteAgentHostLogOutputChannelId(address: string): string {
 	return `agentHost.otlp.${address}`;
 }
 
+/**
+ * Output channel id for the local agent host process logger (forwarded
+ * from the utility process via `RemoteLoggerChannelClient`). Matches the
+ * logger id registered in `agentHostMain.ts`.
+ */
+export const AGENT_HOST_LOG_OUTPUT_CHANNEL_ID = 'agenthost';
+
 export const enum RemoteAgentHostInputValidationError {
 	Empty = 'empty',
 	Invalid = 'invalid',
@@ -232,6 +239,16 @@ export interface IRemoteAgentHostService {
 	 * Returns `undefined` if no active connection exists for the address.
 	 */
 	getConnection(address: string): IAgentConnection | undefined;
+
+	/**
+	 * Get a per-connection {@link IAgentConnection} by its sanitized
+	 * connection authority (as produced by `agentHostAuthority`), rather than
+	 * its raw address. Useful for callers that only have the authority
+	 * component of a remote session URI scheme (`remote-<authority>-<provider>`).
+	 *
+	 * Returns `undefined` if no active connection matches the authority.
+	 */
+	getConnectionByAuthority(authority: string): IAgentConnection | undefined;
 
 	/**
 	 * Adds or updates a configured remote host and resolves once a connection
@@ -328,6 +345,7 @@ export class NullRemoteAgentHostService implements IRemoteAgentHostService {
 	readonly connections: readonly IRemoteAgentHostConnectionInfo[] = [];
 	readonly configuredEntries: readonly IRemoteAgentHostEntry[] = [];
 	getConnection(): IAgentConnection | undefined { return undefined; }
+	getConnectionByAuthority(): IAgentConnection | undefined { return undefined; }
 	async addRemoteAgentHost(): Promise<IRemoteAgentHostConnectionInfo> {
 		throw new Error('Remote agent host connections are not supported in this environment.');
 	}
@@ -423,21 +441,9 @@ export interface IRawRemoteAgentHostEntry {
 	readonly sshHostName?: string;
 	readonly sshUser?: string;
 	readonly sshPort?: number;
-	readonly wslDistro?: string;
 }
 
 export function rawEntryToEntry(raw: IRawRemoteAgentHostEntry): IRemoteAgentHostEntry | undefined {
-	if (raw.wslDistro) {
-		return {
-			name: raw.name,
-			connectionToken: raw.connectionToken,
-			connection: {
-				type: RemoteAgentHostEntryType.WSL,
-				address: raw.address,
-				distro: raw.wslDistro,
-			},
-		};
-	}
 	if (raw.sshConfigHost || raw.sshHostName || raw.sshUser || raw.sshPort) {
 		return {
 			name: raw.name,
@@ -474,19 +480,13 @@ export function entryToRawEntry(entry: IRemoteAgentHostEntry): IRawRemoteAgentHo
 				sshUser: entry.connection.user,
 				sshPort: entry.connection.port,
 			};
-		case RemoteAgentHostEntryType.WSL:
-			return {
-				address: entry.connection.address,
-				name: entry.name,
-				connectionToken: entry.connectionToken,
-				wslDistro: entry.connection.distro,
-			};
 		case RemoteAgentHostEntryType.WebSocket:
 			return {
 				address: entry.connection.address,
 				name: entry.name,
 				connectionToken: entry.connectionToken,
 			};
+		case RemoteAgentHostEntryType.WSL:
 		case RemoteAgentHostEntryType.Tunnel:
 			return undefined;
 	}

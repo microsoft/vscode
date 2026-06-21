@@ -4,13 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
-import { IBrowserViewWorkbenchService, IBrowserViewCDPService, IBrowserViewModel, IBrowserEditorViewState } from '../common/browserView.js';
+import { IBrowserViewWorkbenchService, IBrowserViewCDPService, IBrowserViewModel, IBrowserEditorViewState, IBrowserViewContextualFilter, IBrowserViewOpenHandler } from '../common/browserView.js';
 import { Event } from '../../../../base/common/event.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { CDPEvent, CDPRequest, CDPResponse } from '../../../../platform/browserView/common/cdp/types.js';
+import { ITunnelProxyInfo } from '../../../../platform/tunnel/common/tunnelProxy.js';
 import { BrowserEditorInput } from '../common/browserEditorInput.js';
 
 class WebBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 	declare readonly _serviceBrand: undefined;
+
+	willUseRemoteProxy(): boolean {
+		return false;
+	}
+
+	setRemoteProxyInfo(_info: ITunnelProxyInfo | undefined): void { }
 
 	readonly onDidChangeBrowserViews = Event.None;
 	readonly onDidChangeSharingAvailable = Event.None;
@@ -20,6 +28,18 @@ class WebBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 
 	getKnownBrowserViews(): Map<string, BrowserEditorInput> {
 		return this._known;
+	}
+
+	registerContextualFilter(_filter: IBrowserViewContextualFilter): IDisposable {
+		return Disposable.None;
+	}
+
+	getContextualBrowserViews(): Map<string, BrowserEditorInput> {
+		return this._known;
+	}
+
+	registerOpenHandler(_handler: IBrowserViewOpenHandler): IDisposable {
+		return Disposable.None;
 	}
 
 	getOrCreateLazy(_id: string, _state: IBrowserEditorViewState): BrowserEditorInput {

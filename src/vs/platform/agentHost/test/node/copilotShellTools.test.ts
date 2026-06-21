@@ -122,6 +122,7 @@ suite('CopilotShellTools', () => {
 			getRootValue: ((_schema: unknown, key: string) => configValues[key]) as IAgentConfigurationService['getRootValue'],
 			updateRootConfig: () => { /* no-op */ },
 			persistRootConfig: () => { /* no-op */ },
+			whenIdle: async () => { /* no-op */ },
 		};
 		return {
 			service,
@@ -940,39 +941,4 @@ suite('CopilotShellTools', () => {
 		assert.strictEqual(terminalManager.sentTexts.length, 0, 'Disallowed command should not be sent to the terminal');
 	});
 
-	test('primary shell tool skips confirmation when autoApproveUnsandboxedCommands is enabled', async function () {
-		const { instantiationService, terminalManager, agentConfigurationService } = createServices({ sandboxEnabled: true });
-		agentConfigurationService.setSandboxValue(AgentHostSandboxKey.AllowUnsandboxedCommands, true);
-		agentConfigurationService.setSandboxValue(AgentHostSandboxKey.AutoApproveUnsandboxedCommands, true);
-		terminalManager.commandDetectionSupported = true;
-		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
-		const confirmationRequests: IUnsandboxedCommandConfirmationRequest[] = [];
-		const tools = await createShellTools(shellManager, terminalManager, new NullLogService(), async request => {
-			confirmationRequests.push(request);
-			return true;
-		});
-		const bashTool = tools.find(tool => tool.name === 'bash');
-		assert.ok(bashTool);
-
-		const invocation: ToolInvocation = {
-			sessionId: 'session-1',
-			toolCallId: 'tool-1',
-			toolName: 'bash',
-			arguments: { command: 'curl https://example.com' },
-		};
-		const resultPromise = bashTool.handler!({ command: 'curl https://example.com' }, invocation);
-		await terminalManager.commandFinishedListenerRegistered.p;
-		terminalManager.fireCommandFinished({
-			commandId: 'cmd-1',
-			exitCode: 0,
-			command: 'curl https://example.com',
-			output: '',
-		});
-		const result = await resultPromise as ToolResultObject;
-
-		assert.strictEqual(confirmationRequests.length, 0, 'No confirmation should have been requested when auto-approve is enabled');
-		assert.ok(terminalManager.sentTexts.length >= 1, 'Auto-approved command should be sent to the terminal unsandboxed');
-		assert.ok(terminalManager.sentTexts.every(entry => !entry.data.includes('sandbox-runtime')), 'Auto-approved command should run unsandboxed');
-		assert.strictEqual(result.resultType, 'success');
-	});
 });

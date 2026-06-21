@@ -15,13 +15,20 @@ import { IContextKey, IContextKeyService } from '../../../platform/contextkey/co
 import { asCssVariable } from '../../../platform/theme/common/colorUtils.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
-import { AbstractChatView, ChatViewKind } from './chatView.js';
+import { AbstractChatView, ChatViewKind, IChatViewOptions } from './chatView.js';
 import { ChatCompositeBar } from './chatCompositeBar.js';
 import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
-import { autorun } from '../../../base/common/observable.js';
-import { SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsReadContext, SessionIsStickyContext, SessionSupportsMultipleChatsContext, ChatSessionProviderIdContext, ChatSessionTypeContext } from '../../common/contextkeys.js';
+import { ISessionContext, SessionContext } from '../../services/sessions/browser/sessionContext.js';
+import { autorun, observableValue } from '../../../base/common/observable.js';
+import { SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsReadContext, SessionIsStickyContext, SessionSupportsMultipleChatsContext, ChatSessionProviderIdContext, ChatSessionTypeContext, SessionHasChangesContext } from '../../common/contextkeys.js';
 import { activeSessionViewBackground, activeSessionViewForeground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../common/theme.js';
 import { SessionStatus } from '../../services/sessions/common/session.js';
+
+/**
+ * Options passed to {@link SessionView.openSession}. Extends the chat view
+ * options so they can be forwarded to the new-chat views the host creates.
+ */
+export interface ISessionViewOptions extends IChatViewOptions { }
 
 /**
  * A stable single-slot grid leaf that handles switching between concrete
@@ -35,6 +42,7 @@ import { SessionStatus } from '../../services/sessions/common/session.js';
 export class SessionView extends Disposable implements ISerializableView {
 
 	static readonly TYPE = 'sessions.sessionView';
+	private static readonly CENTERED_CONTENT_MAX_WIDTH = 950;
 	private static readonly ACTIVE_BACKGROUND = asCssVariable(activeSessionViewBackground);
 	private static readonly ACTIVE_FOREGROUND = asCssVariable(activeSessionViewForeground);
 	private static readonly INACTIVE_BACKGROUND = asCssVariable(inactiveSessionViewBackground);
@@ -53,6 +61,7 @@ export class SessionView extends Disposable implements ISerializableView {
 	private readonly _header: SessionHeader;
 	private readonly _compositeBar: ChatCompositeBar;
 	private readonly _floatingToolbar: SessionViewFloatingToolbar;
+	private readonly _centeredContentContainer: HTMLElement;
 	private readonly _contentContainer: HTMLElement;
 
 	private readonly _currentView = this._register(new MutableDisposable<AbstractChatView>());
@@ -70,9 +79,12 @@ export class SessionView extends Disposable implements ISerializableView {
 	private readonly _sessionIsArchivedKey: IContextKey<boolean>;
 	private readonly _chatSessionProviderIdKey: IContextKey<string>;
 	private readonly _chatSessionTypeKey: IContextKey<string>;
+	private readonly _sessionHasChangesKey: IContextKey<boolean>;
 
 	/** Whether this view currently hosts the active session in the grid. */
 	private _isActive = true;
+
+	private readonly _sessionObs = observableValue<IActiveSession | undefined>(this, undefined);
 
 	constructor(
 		@IChatViewFactory private readonly chatViewFactory: IChatViewFactory,
@@ -92,14 +104,34 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._sessionIsArchivedKey = SessionIsArchivedContext.bindTo(scopedContextKeyService);
 		this._chatSessionProviderIdKey = ChatSessionProviderIdContext.bindTo(scopedContextKeyService);
 		this._chatSessionTypeKey = ChatSessionTypeContext.bindTo(scopedContextKeyService);
+		this._sessionHasChangesKey = SessionHasChangesContext.bindTo(scopedContextKeyService);
 
-		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
+		// Scoped service exposing this view's session so toolbars and contributed
+		// action view items (e.g. the changes diff stats in the header) can read it.
+		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection(
+			[IContextKeyService, scopedContextKeyService],
+			[ISessionContext, new SessionContext(this._sessionObs)],
+		)));
+
+
+		// Expose the centered-content cap as a CSS variable so styles that need
+		// to align with the centered band (e.g. the chat-view progress bar) can
+		// reference it without duplicating the constant.
+		this.element.style.setProperty('--session-view-centered-content-max-width', `${SessionView.CENTERED_CONTENT_MAX_WIDTH}px`);
+
+		// The header and composite bar (tabs) are hosted in a centered, width-capped
+		// container so they align with the centered chat content. The chat content
+		// itself lives in a full-width container so its transcript list spans the
+		// whole session view and its scrollbar stays pinned to the right edge; the
+		// chat rows and input self-center at the same max-width via CSS.
+		this._centeredContentContainer = $('.session-view-centered-content');
+		this.element.appendChild(this._centeredContentContainer);
 
 		this._header = this._register(scopedInstantiationService.createInstance(SessionHeader));
-		this.element.appendChild(this._header.element);
+		this._centeredContentContainer.appendChild(this._header.element);
 
 		this._compositeBar = this._register(scopedInstantiationService.createInstance(ChatCompositeBar));
-		this.element.appendChild(this._compositeBar.element);
+		this._centeredContentContainer.appendChild(this._compositeBar.element);
 
 		this._contentContainer = $('.session-view-content');
 		this.element.appendChild(this._contentContainer);
@@ -116,12 +148,13 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._register(this._compositeBar.onDidChangeHeight(() => this._layoutChildren()));
 	}
 
-	openSession(session: IActiveSession | undefined): void {
+	openSession(session: IActiveSession | undefined, options: ISessionViewOptions): void {
 		if (this._hasOpenedSession && this._currentSession === session) {
 			return;
 		}
 		this._hasOpenedSession = true;
 		this._currentSession = session;
+		this._sessionObs.set(session, undefined);
 		this._openSessionDisposables.clear();
 
 		this._openSessionDisposables.add(this._handleContextKeys(session));
@@ -141,7 +174,7 @@ export class SessionView extends Disposable implements ISerializableView {
 			if (!view || view.kind !== desiredKind) {
 				view = desiredKind === 'chat'
 					? this.chatViewFactory.createChatView()
-					: this.chatViewFactory.createNewChatView(desiredKind === 'newChatInSession');
+					: this.chatViewFactory.createNewChatView(desiredKind === 'newChatInSession', options);
 				this._contentContainer.replaceChildren(view.element);
 				this._currentView.value = view;
 				view.setActive(this._isActive);
@@ -167,6 +200,7 @@ export class SessionView extends Disposable implements ISerializableView {
 			this._sessionIsArchivedKey.set(false);
 			this._chatSessionProviderIdKey.set('');
 			this._chatSessionTypeKey.set('');
+			this._sessionHasChangesKey.set(false);
 			return Disposable.None;
 		}
 
@@ -187,6 +221,19 @@ export class SessionView extends Disposable implements ISerializableView {
 			this._sessionIsArchivedKey.set(session.isArchived.read(reader));
 		}));
 
+		// Drives the visibility of the diff-stats menu item contributed by the
+		// changes view into the session header meta row.
+		disposables.add(autorun(reader => {
+			const changes = session.changes.read(reader);
+			let insertions = 0;
+			let deletions = 0;
+			for (const change of changes) {
+				insertions += change.insertions;
+				deletions += change.deletions;
+			}
+			this._sessionHasChangesKey.set(insertions > 0 || deletions > 0);
+		}));
+
 		this._sessionSupportsMultipleChatsKey.set(session.capabilities.supportsMultipleChats);
 		this._chatSessionProviderIdKey.set(session.providerId);
 		this._chatSessionTypeKey.set(session.sessionType);
@@ -205,9 +252,24 @@ export class SessionView extends Disposable implements ISerializableView {
 			return;
 		}
 		const { width, height, top, left } = this._lastLayout;
+
+		// Apply the centered band's width first so the header and tabs wrap to
+		// their final layout before we measure their combined height. Measuring
+		// before the width is applied could read a stale (pre-cap) height and
+		// cause a transient overlap until a later layout pass corrects it.
+		const centeredWidth = Math.min(width, SessionView.CENTERED_CONTENT_MAX_WIDTH);
+		this._centeredContentContainer.style.width = `${centeredWidth}px`;
+
 		const headerHeight = this._header.visible ? this._header.height : 0;
 		const tabsHeight = this._compositeBar.visible ? this._compositeBar.height : 0;
 		const barHeight = headerHeight + tabsHeight;
+
+		// Cap the band's height to the header + tabs (it is horizontally centered
+		// via CSS `margin: 0 auto`) so the full-width chat content sits below it.
+		size(this._centeredContentContainer, centeredWidth, barHeight);
+
+		// Lay out the chat content at full width so its scrollbar reaches the
+		// right edge; the chat rows and input center themselves via CSS.
 		this._currentView.value?.layout(width, height - barHeight, top + barHeight, left);
 	}
 
@@ -233,6 +295,13 @@ export class SessionView extends Disposable implements ISerializableView {
 
 	sendQuery(text: string): void {
 		this._currentView.value?.sendQuery(text);
+	}
+
+	/**
+	 * Attaches the given resources as context to the hosted chat view's input.
+	 */
+	attach(uris: URI[]): void {
+		this._currentView.value?.attach(uris);
 	}
 
 	/**

@@ -132,6 +132,11 @@ export interface ISessionsManagementService {
 	getSession(resource: URI): ISession | undefined;
 
 	/**
+	 * Get the session and chat that own the given chat resource URI.
+	 */
+	getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined;
+
+	/**
 	 * Get all session types from all registered providers.
 	 */
 	getAllSessionTypes(): ISessionType[];
@@ -189,25 +194,12 @@ export interface ISessionsManagementService {
 	readonly onDidDeleteChat: Event<ISession>;
 	/** Fires after a chat was successfully renamed via {@link renameChat}. */
 	readonly onDidRenameChat: Event<ISession>;
+	/** Fires after a session was successfully renamed via {@link renameSession}. */
+	readonly onDidRenameSession: Event<ISession>;
 	/** Fires after a provider replaced a session (e.g. a draft graduating into a committed session). */
 	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }>;
 
-	// -- Active Session --
-
-	/**
-	 * Observable for the currently active session as {@link IActiveSession}.
-	 *
-	 * The canonical truth, set via {@link setActiveSession} by the
-	 * `ISessionsViewService` whenever the visible active slot changes.
-	 */
-	readonly activeSession: IObservable<IActiveSession | undefined>;
-
-	/**
-	 * Set the canonical active session. Called by the `ISessionsViewService`
-	 * to mirror the visible active slot into the model; not intended for other
-	 * callers (open a session via the view service instead).
-	 */
-	setActiveSession(session: IActiveSession | undefined): void;
+	// -- New Session --
 
 	/**
 	 * Observable for the in-progress new session (composed but not yet sent),
@@ -227,7 +219,7 @@ export interface ISessionsManagementService {
 	 * the folder.
 	 *
 	 * Tracks the created session as the new session and returns it. Does not
-	 * make it active/visible — the `ISessionsViewService` shows it.
+	 * make it active/visible — the `ISessionsService` shows it.
 	 */
 	createNewSession(folderUri: URI, options?: ICreateNewSessionOptions): ISession;
 
@@ -293,6 +285,9 @@ export interface ISessionsManagementService {
 
 	/** Rename a chat within a session. */
 	renameChat(session: ISession, chatUri: URI, title: string): Promise<void>;
+
+	/** Rename a session, independently of its chats. */
+	renameSession(session: ISession, title: string): Promise<void>;
 }
 
 export const ISessionsManagementService = createDecorator<ISessionsManagementService>('sessionsManagementService');

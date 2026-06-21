@@ -4,48 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { Emitter } from '../../../../../../base/common/event.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import type { ChangesetSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
+import type { ChangesSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import type { INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { ChatSessionStatus, IChatNewSessionRequest, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../../common/chatSessionsService.js';
-import { getAgentHostIcon } from '../agentSessions.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
-
-/**
- * Picks the default catalogue entry to render the sidebar chip from.
- *
- * The default is always `summary.changesets[0]` — the first entry of
- * the ordered catalogue. Templated entries (with `{...}` variables in
- * their `uriTemplate`) are skipped because they require expansion the
- * sidebar cannot perform.
- */
-function pickDefaultChangeset(catalogue: readonly ChangesetSummary[] | undefined): ChangesetSummary | undefined {
-	return catalogue?.find(c => !c.uriTemplate.includes('{'));
-}
-
-/**
- * Maps the catalogue counts onto the aggregate-counts shape supported by
- * {@link IChatSessionItem.changes}. Returns `undefined` when the
- * catalogue entry is missing or carries no counts so the sidebar
- * doesn't render an empty chip.
- */
-function changesetCountsToChanges(summary: ChangesetSummary | undefined): IChatSessionItem['changes'] {
-	if (!summary || summary.files === undefined || summary.files === 0) {
-		return undefined;
-	}
-	return {
-		files: summary.files,
-		insertions: summary.additions ?? 0,
-		deletions: summary.deletions ?? 0,
-	};
-}
+import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 
 function mapSessionStatus(status: SessionStatus | undefined): ChatSessionStatus {
 	if (status !== undefined && (status & SessionStatus.InputNeeded) === SessionStatus.InputNeeded) {
@@ -58,6 +30,15 @@ function mapSessionStatus(status: SessionStatus | undefined): ChatSessionStatus 
 		return ChatSessionStatus.Failed;
 	}
 	return ChatSessionStatus.Completed;
+}
+
+/**
+ * Minimal agent-host connection surface needed by the session list controller.
+ */
+export interface IAgentHostSessionListConnection {
+	readonly onDidNotification: Event<INotification>;
+	listSessions(): Promise<IAgentSessionMetadata[]>;
+	disposeSession(session: URI): Promise<void>;
 }
 
 /**
@@ -89,6 +70,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 	 * replacement), so this flag naturally resets on reconnect.
 	 */
 	private _cacheValid = false;
+	private _refreshInFlight: Promise<void> | undefined;
 	/**
 	 * Incremented whenever the in-memory list is mutated outside of
 	 * {@link refresh}. Used to detect races where a `root/sessionAdded`,
@@ -102,12 +84,12 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 	constructor(
 		private readonly _sessionType: string,
 		private readonly _provider: string,
-		private readonly _connection: IAgentConnection,
+		private readonly _connection: IAgentHostSessionListConnection,
 		private readonly _description: string | undefined,
 		_connectionAuthority: string,
-		@IProductService private readonly _productService: IProductService,
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisional: IAgentHostUntitledProvisionalSessionService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
 	) {
 		super();
 		void _connectionAuthority;
@@ -132,15 +114,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 				}
 				this._onDidChangeChatSessionItems.fire({ addedOrUpdated: [item] });
 			} else if (n.type === 'root/sessionRemoved' && AgentSession.provider(n.session) === this._provider) {
-				const removedId = AgentSession.id(n.session);
-				this._pendingNewSessions.delete(removedId);
-				const idx = this._items.findIndex(item => item.resource.path === `/${removedId}`);
-				if (idx >= 0) {
-					this._mutationGeneration++;
-					const [removed] = this._items.splice(idx, 1);
-					this._cachedSummaries.delete(removedId);
-					this._onDidChangeChatSessionItems.fire({ removed: [removed.resource] });
-				}
+				this._removeItemByRawId(AgentSession.id(n.session));
 			} else if (n.type === 'root/sessionSummaryChanged' && AgentSession.provider(n.session) === this._provider) {
 				const rawId = AgentSession.id(n.session);
 				const cached = this._cachedSummaries.get(rawId);
@@ -208,14 +182,65 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		// fails, the handler falls through to its standard
 		// `_createAndSubscribe` path with no user selections.
 		if (request.untitledResource) {
-			const workingDirectory = this._workspaceContextService.getWorkspace().folders[0]?.uri;
+			const workingDirectory = this._newSessionFolderService.getFolder(request.untitledResource)
+				?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
+			// Carry the chosen folder forward onto the real resource so the
+			// handler's working-directory resolution stays consistent after the
+			// untitled-to-real rebind. The untitled entry is left in place and
+			// cleaned up when its compose model disposes; clearing it here would
+			// briefly fire a change while the widget still points at the untitled
+			// resource, flickering the chip back to the first folder.
+			if (workingDirectory) {
+				this._newSessionFolderService.setFolder(item.resource, workingDirectory);
+			}
 			await this._provisional.tryRebind(request.untitledResource, item.resource, this._provider, workingDirectory);
 		}
 
 		return item;
 	}
 
+	async deleteChatSessionItem(resource: URI, _token: CancellationToken): Promise<void> {
+		if (resource.scheme !== this._sessionType) {
+			return;
+		}
+
+		// Map the chat-session-item resource (scheme = sessionType) to the backend session URI (scheme = provider) and
+		// ask the agent host to dispose it.
+		const rawId = AgentSession.id(resource);
+		const backendSession = AgentSession.uri(this._provider, rawId);
+		await this._connection.disposeSession(backendSession);
+
+		// `root/sessionRemoved` only fires for sessions the backend had previously announced, so remove the item from
+		// our cache directly. If the notification does fire as well, the second call is a no-op.
+		this._removeItemByRawId(rawId);
+	}
+
+	private _removeItemByRawId(rawId: string): void {
+		this._pendingNewSessions.delete(rawId);
+		const idx = this._items.findIndex(item => item.resource.path === `/${rawId}`);
+		if (idx < 0) {
+			return;
+		}
+		this._mutationGeneration++;
+		const [removed] = this._items.splice(idx, 1);
+		this._cachedSummaries.delete(rawId);
+		this._onDidChangeChatSessionItems.fire({ removed: [removed.resource] });
+	}
+
 	async refresh(token: CancellationToken): Promise<void> {
+		if (this._refreshInFlight) {
+			return this._refreshInFlight;
+		}
+
+		this._refreshInFlight = this._doRefresh(token);
+		try {
+			await this._refreshInFlight;
+		} finally {
+			this._refreshInFlight = undefined;
+		}
+	}
+
+	private async _doRefresh(token: CancellationToken): Promise<void> {
 		if (this._cacheValid) {
 			// Cache is kept in sync by notify/sessionAdded,
 			// notify/sessionRemoved, and notify/sessionSummaryChanged. No
@@ -251,7 +276,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		// instead of overwriting the just-updated `_items` /
 		// `_cachedSummaries`.
 		if (startGeneration !== this._mutationGeneration) {
-			return this.refresh(token);
+			return this._doRefresh(token);
 		}
 		const filtered = sessions.filter(s =>
 			AgentSession.provider(s.session) === this._provider
@@ -276,8 +301,8 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 				activity: s.activity,
 				createdAt: s.startTime,
 				modifiedAt: s.modifiedTime,
+				changes: s.changes,
 				workingDirectory: s.workingDirectory?.toString(),
-				changesets: s.changesets ? [...s.changesets] : undefined,
 			});
 			return this._makeItem(rawId, {
 				title: s.summary,
@@ -286,7 +311,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 				workingDirectory: s.workingDirectory,
 				createdAt: s.startTime,
 				modifiedAt: s.modifiedTime,
-				changesets: s.changesets,
+				changesSummary: s.changes,
 			});
 		});
 		this._cacheValid = true;
@@ -330,7 +355,6 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			workingDirectory: workingDir,
 			createdAt: summary.createdAt,
 			modifiedAt: summary.modifiedAt,
-			changesets: summary.changesets,
 		});
 	}
 
@@ -341,7 +365,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		workingDirectory?: URI;
 		createdAt: number;
 		modifiedAt: number;
-		changesets?: readonly ChangesetSummary[];
+		changesSummary?: ChangesSummary;
 	}): IChatSessionItem {
 		const inProgress = opts.status !== undefined && (opts.status & SessionStatus.InProgress) !== 0;
 		const description = inProgress && opts.activity ? opts.activity : this._description;
@@ -349,7 +373,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			resource: URI.from({ scheme: this._sessionType, path: `/${rawId}` }),
 			label: opts.title || `Session ${rawId.substring(0, 8)}`,
 			description,
-			iconPath: getAgentHostIcon(this._productService),
+			iconPath: Codicon.copilot,
 			status: mapSessionStatus(opts.status),
 			archived: opts.status !== undefined && (opts.status & SessionStatus.IsArchived) === SessionStatus.IsArchived,
 			metadata: this._buildMetadata(opts.workingDirectory),
@@ -358,12 +382,13 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 				lastRequestStarted: opts.modifiedAt,
 				lastRequestEnded: opts.modifiedAt,
 			},
-			// Sidebar chip data: aggregate `{ files, insertions, deletions }`
-			// from the catalogue. Per-file detail (used by the session detail
-			// "Changes" view) requires subscribing to the changeset URI;
-			// `BaseAgentHostSessionsProvider._ensureChangesetSubscription`
-			// owns that path.
-			changes: changesetCountsToChanges(pickDefaultChangeset(opts.changesets)),
+			changes: opts.changesSummary
+				? {
+					files: opts.changesSummary.files ?? 0,
+					insertions: opts.changesSummary.additions ?? 0,
+					deletions: opts.changesSummary.deletions ?? 0,
+				}
+				: undefined,
 		};
 	}
 
