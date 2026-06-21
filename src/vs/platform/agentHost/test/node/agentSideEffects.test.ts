@@ -587,7 +587,50 @@ suite('AgentSideEffects', () => {
 
 			await new Promise(r => setTimeout(r, 10));
 
-			assert.deepStrictEqual(agent.changeModelCalls, [{ session: URI.parse(sessionUri.toString()), model: { id: 'gpt-5' } }]);
+			assert.deepStrictEqual(agent.changeModelCalls, [{ session: URI.parse(sessionUri.toString()), model: { id: 'gpt-5' }, chat: undefined }]);
+		});
+
+		test('forwards the chat channel for an additional (peer) chat', async () => {
+			setupSession();
+			const chatChannel = `${sessionUri.toString()}#peer-1`;
+			sideEffects.handleAction(sessionUri.toString(), {
+				type: ActionType.SessionModelChanged,
+				model: { id: 'gpt-5' },
+			}, chatChannel);
+
+			await new Promise(r => setTimeout(r, 10));
+
+			assert.deepStrictEqual(agent.changeModelCalls, [{ session: URI.parse(sessionUri.toString()), model: { id: 'gpt-5' }, chat: URI.parse(chatChannel) }]);
+		});
+	});
+
+	// ---- handleAction: session/agentChanged -----------------------------
+
+	suite('handleAction — session/agentChanged', () => {
+
+		test('calls changeAgent on the agent for the session default chat', async () => {
+			setupSession();
+			sideEffects.handleAction(sessionUri.toString(), {
+				type: ActionType.SessionAgentChanged,
+				agent: { uri: 'file:///agents/reviewer.md' },
+			});
+
+			await new Promise(r => setTimeout(r, 10));
+
+			assert.deepStrictEqual(agent.changeAgentCalls, [{ session: URI.parse(sessionUri.toString()), agent: { uri: 'file:///agents/reviewer.md' }, chat: undefined }]);
+		});
+
+		test('forwards the chat channel for an additional (peer) chat', async () => {
+			setupSession();
+			const chatChannel = `${sessionUri.toString()}#peer-1`;
+			sideEffects.handleAction(sessionUri.toString(), {
+				type: ActionType.SessionAgentChanged,
+				agent: { uri: 'file:///agents/reviewer.md' },
+			}, chatChannel);
+
+			await new Promise(r => setTimeout(r, 10));
+
+			assert.deepStrictEqual(agent.changeAgentCalls, [{ session: URI.parse(sessionUri.toString()), agent: { uri: 'file:///agents/reviewer.md' }, chat: URI.parse(chatChannel) }]);
 		});
 	});
 
@@ -903,6 +946,40 @@ suite('AgentSideEffects', () => {
 			// Queued message should be removed from state
 			const state = stateManager.getSessionState(sessionUri.toString());
 			assert.strictEqual(state?.queuedMessages, undefined);
+		});
+
+		test('does not drain queued messages when the active turn is cancelled', () => {
+			// Cancelling a turn means "stop": messages queued behind it must stay
+			// queued for the user to dequeue/run manually, not auto-start. (A
+			// message the user sends *after* the abort is consumed separately via
+			// the ChatPendingMessageSet path once cancellation clears the turn.)
+			setupSession();
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			// Queue a message while a turn is active.
+			startTurn('turn-1');
+			const setAction = {
+				type: ActionType.ChatPendingMessageSet as const,
+				kind: PendingMessageKind.Queued,
+				id: 'q-after-abort',
+				message: { text: 'queued behind abort', origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(sessionUri.toString(), setAction, { clientId: 'test', clientSeq: 1 });
+			sideEffects.handleAction(sessionUri.toString(), setAction);
+
+			// Not consumed yet — the turn is still active.
+			assert.strictEqual(agent.sendMessageCalls.length, 0);
+
+			// Cancel the active turn (client abort).
+			const cancelAction = { type: ActionType.ChatTurnCancelled as const, turnId: 'turn-1' };
+			stateManager.dispatchClientAction(sessionUri.toString(), cancelAction, { clientId: 'test', clientSeq: 2 });
+			sideEffects.handleAction(sessionUri.toString(), cancelAction);
+
+			// The queued message must NOT auto-start, and must remain queued.
+			assert.strictEqual(agent.sendMessageCalls.length, 0, 'cancelling must not drain queued messages');
+			const state = stateManager.getSessionState(sessionUri.toString());
+			assert.strictEqual(state?.queuedMessages?.length, 1, 'queued message should remain for manual dequeue');
+			assert.strictEqual(state?.queuedMessages?.[0].id, 'q-after-abort');
 		});
 
 		test('intercepts queued /rename and drains the message queued behind it', () => {

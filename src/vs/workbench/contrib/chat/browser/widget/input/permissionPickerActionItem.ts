@@ -49,7 +49,7 @@ export interface IPermissionPickerDelegate {
 	/**
 	 * The setting id the elevated-level warning dialog links to as "make this
 	 * the default". Defaults to `chat.permissions.default`; agent-host sessions
-	 * pass `chat.agentSessions.defaultConfiguration`.
+	 * pass `chat.defaultConfiguration`.
 	 */
 	readonly defaultSettingKey?: string;
 	/**

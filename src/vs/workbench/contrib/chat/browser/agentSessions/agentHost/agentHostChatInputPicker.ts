@@ -616,7 +616,7 @@ export class AgentHostChatInputPicker extends Disposable {
 				? value
 				: (value !== ChatPermissionLevel.Default ? ChatPermissionLevel.AutoApprove : undefined);
 			if (levelToConfirm) {
-				const confirmed = await maybeConfirmElevatedPermissionLevel(levelToConfirm, this._dialogService, this._storageService, { defaultSettingKey: ChatConfiguration.AgentSessionDefaultConfiguration });
+				const confirmed = await maybeConfirmElevatedPermissionLevel(levelToConfirm, this._dialogService, this._storageService, { defaultSettingKey: ChatConfiguration.DefaultConfiguration });
 				if (!confirmed) {
 					return;
 				}
