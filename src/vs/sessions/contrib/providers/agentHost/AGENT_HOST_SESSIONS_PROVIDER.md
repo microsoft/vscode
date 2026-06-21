@@ -26,6 +26,10 @@ Agent host providers implement `IAgentHostSessionsProvider` (defined in sessions
 Registered by `LocalAgentHostContribution` in `browser/localAgentHost.contribution.ts`:
 
 - **Gated on `chat.agentHost.enabled`** (`AgentHostEnabledSettingId`). If the setting is off the contribution returns early and registers nothing.
+- **Not hidden by workspace trust.** The local agent host is host-level, not
+  workspace-specific, so the provider and its session types remain visible in
+  untrusted windows. Trust is enforced only when a concrete workspace folder
+  would be used to create or send an agent session.
 - Creates `LocalAgentHostSessionsProvider` via `IInstantiationService` and registers it through `ISessionsProvidersService.registerProvider`.
 - Registers a per-session-type **working-directory resolver** (`IAgentHostSessionWorkingDirectoryResolver`) for each `agent-host-${sessionType.id}` scheme, refreshed on `onDidChangeSessionTypes`.
 - The same module also wires the heavy lifting from the workbench chat layer at `WorkbenchPhase.AfterRestored`:
@@ -106,6 +110,10 @@ End-to-end in the Agents window:
 - **Open / load content** — `ChatView.setChat(chat)` → `IChatService.acquireOrLoadSession(chat.resource, …)` → `ChatWidget.setModel(ref.object)`. `IChatService` routes the resource scheme to `AgentHostSessionHandler.provideChatSessionContent()`. `ChatView` first **locks** the widget to the contributed chat session type so follow-up turns keep routing to the same handler.
 - **Send** — `ISessionsManagementService.sendNewChatRequest` → `provider.createNewChat()` → `provider.sendRequest()` → `IChatService.sendRequest(chatResource, …)`, which the bound `AgentHostSessionHandler` forwards to the backend over the agent host protocol.
 
+Workspace trust is checked at send time, not registration time: new-session
+drafts prompt in `sendRequest`, while existing/restored sessions prompt in
+`AgentHostSessionHandler` before dispatching the turn to the backend.
+
 The Agents window thus depends on the classic `ChatWidget` for rendering and on
 the `IChatSessionContentProvider` for content/send, but **not** on
 `IChatSessionItemController` — that API exists only to feed the classic chat
@@ -117,7 +125,7 @@ sidebar list.
 
 1. Resolves the `ISessionType` and validates the workspace (`resolveWorkspace`).
 2. Constructs a `NewSession` draft, stores it in `_newSessions`, and fires `onDidChangeSessionConfig`.
-3. If a connection exists and authentication is **not** pending, eagerly starts the backend session and resolves its dynamic config in parallel. While auth is pending the draft waits; `_resumeNewSessionAfterAuthenticationSettles` (driven by the `authenticationPending` observable going false) starts the backend for all pending drafts.
+3. If a connection exists, the workspace folder is trusted, and authentication is **not** pending, eagerly starts the backend session and resolves its dynamic config in parallel. While auth is pending the draft waits; `_resumeNewSessionAfterAuthenticationSettles` (driven by the `authenticationPending` observable going false) starts the backend for all pending drafts. If the folder is untrusted, the draft stays local until `sendRequest` prompts for trust.
 
 `createNewChat(chatId)` creates the chat session model (`IChatSessionsService.getOrCreateChatSession`) so the management service can open the widget, and returns the draft's main chat.
 
@@ -126,11 +134,12 @@ sidebar list.
 `sendRequest(chatId, chatResource, options)`:
 
 1. Requires the draft and an active connection.
-2. Builds `IChatSendRequestOptions` (agent mode from the selected custom agent or the built-in agent, selected model, attached context, and `agentHostSessionConfig` from `getCreateSessionConfig`).
-3. Loads the chat model and seeds the selected model / custom agent into the input state so the pickers reflect the choice immediately.
-4. Snapshots existing cache keys, then `IChatService.sendRequest` (which the registered `AgentHostSessionHandler` routes to the backend).
-5. Publishes a skeleton session (title seeded from the first line of the query) via `onDidChangeSessions` as `_pendingSession`.
-6. Waits for the committed backend session (`_waitForNewSession`); on arrival the draft **graduates** (releases its eager subscription without firing `disposeSession`), config is preserved, `_pendingSession` is cleared, and `onDidReplaceSession` fires from skeleton → committed session.
+2. Requires workspace trust for the draft's workspace URI, prompting the user if the window or folder is untrusted.
+3. Builds `IChatSendRequestOptions` (agent mode from the selected custom agent or the built-in agent, selected model, attached context, and `agentHostSessionConfig` from `getCreateSessionConfig`).
+4. Loads the chat model and seeds the selected model / custom agent into the input state so the pickers reflect the choice immediately.
+5. Snapshots existing cache keys, then `IChatService.sendRequest` (which the registered `AgentHostSessionHandler` routes to the backend).
+6. Publishes a skeleton session (title seeded from the first line of the query) via `onDidChangeSessions` as `_pendingSession`.
+7. Waits for the committed backend session (`_waitForNewSession`); on arrival the draft **graduates** (releases its eager subscription without firing `disposeSession`), config is preserved, `_pendingSession` is cleared, and `onDidReplaceSession` fires from skeleton → committed session.
 
 ## CRUD & Stubbed Operations
 

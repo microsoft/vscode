@@ -1285,11 +1285,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (cancellationToken.isCancellationRequested) {
 			return;
 		}
-
 		const turnId = request.requestId;
-		this._clientDispatchedTurnIds.add(turnId);
 		const chatKey = this._resolveChatUri(request.sessionResource).toString();
 		const turnChannel = this._resolveTurnDispatchChannel(request.sessionResource);
+		const workingDirectory = this._resolveSessionWorkingDirectory(session, request.sessionResource);
+		if (workingDirectory) {
+			await this._workspaceTrust.requireTrusted(workingDirectory);
+		}
 		const messageAttachments = await this._convertVariablesToAttachments(request);
 		if (cancellationToken.isCancellationRequested) {
 			return;
@@ -1361,6 +1363,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			turnId,
 			message: userOriginMessage(request.message, messageAttachments),
 		};
+		this._clientDispatchedTurnIds.add(turnId);
 		this._config.connection.dispatch(turnChannel, turnAction);
 
 		// Ensure the snapshot controller records a sentinel checkpoint for this
@@ -3038,6 +3041,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			?? this._newSessionFolderService.getFolder(sessionResource)
 			?? this._workingDirectoryResolver.resolve(sessionResource)
 			?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
+	}
+
+	private _resolveSessionWorkingDirectory(session: URI, sessionResource: URI): URI | undefined {
+		const rawWorkingDirectory = this._getSessionState(session.toString())?.summary.workingDirectory;
+		const workingDirectory = typeof rawWorkingDirectory === 'string' ? URI.parse(rawWorkingDirectory) : rawWorkingDirectory;
+		return workingDirectory ?? this._resolveRequestedWorkingDirectory(sessionResource);
 	}
 
 	private _convertVariablesToAttachments(request: IChatAgentRequest): MessageAttachment[] {

@@ -9,7 +9,6 @@ import { AgentHostEnabledSettingId, claudePreferAgentHostSettingId, IAgentHostSe
 import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
@@ -67,9 +66,7 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 	private readonly _agentRegistrations = this._register(new DisposableMap<AgentProvider, DisposableStore>());
 	private readonly _listControllers = new Map<AgentProvider, AgentHostSessionListController>();
 	private readonly _sessionListConnection: CoalescingAgentHostSessionListConnection;
-
 	private readonly _isSessionsWindow: boolean;
-	private _workspaceTrusted = false;
 
 	constructor(
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
@@ -78,7 +75,6 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IAgentHostSessionWorkingDirectoryResolver private readonly _workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
-		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
 
@@ -88,30 +84,6 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 		if (this._isSessionsWindow || !this._configurationService.getValue<boolean>(AgentHostEnabledSettingId)) {
 			return;
 		}
-
-		this._workspaceTrusted = this._workspaceTrustManagementService.isWorkspaceTrusted();
-		void this._workspaceTrustManagementService.workspaceTrustInitialized.then(() => {
-			this._workspaceTrusted = this._workspaceTrustManagementService.isWorkspaceTrusted();
-			if (!this._workspaceTrusted) {
-				this._clearAgentRegistrations();
-			} else {
-				const current = this._agentHostService.rootState.value;
-				if (current && !(current instanceof Error)) {
-					this._handleRootStateChange(current);
-				}
-			}
-		});
-		this._register(this._workspaceTrustManagementService.onDidChangeTrust(trusted => {
-			this._workspaceTrusted = trusted;
-			if (!trusted) {
-				this._clearAgentRegistrations();
-			} else {
-				const current = this._agentHostService.rootState.value;
-				if (current && !(current instanceof Error)) {
-					this._handleRootStateChange(current);
-				}
-			}
-		}));
 
 		this._register(this._agentHostService.rootState.onDidChange(rootState => {
 			this._handleRootStateChange(rootState);
@@ -124,7 +96,7 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 		}));
 
 		const initialRootState = this._agentHostService.rootState.value;
-		if (this._workspaceTrusted && initialRootState && !(initialRootState instanceof Error)) {
+		if (initialRootState && !(initialRootState instanceof Error)) {
 			this._handleRootStateChange(initialRootState);
 		}
 
@@ -134,7 +106,7 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 				return;
 			}
 			const current = this._agentHostService.rootState.value;
-			if (this._workspaceTrusted && current && !(current instanceof Error)) {
+			if (current && !(current instanceof Error)) {
 				this._handleRootStateChange(current);
 			}
 		}));
@@ -145,11 +117,6 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 	}
 
 	private _handleRootStateChange(rootState: RootState): void {
-		if (!this._workspaceTrusted) {
-			this._clearAgentRegistrations();
-			return;
-		}
-
 		const allowed = rootState.agents.filter(agent => this._shouldRegisterAgent(agent.provider));
 		const incoming = new Set(allowed.map(agent => agent.provider));
 
@@ -179,8 +146,4 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 		store.add(this._workingDirectoryResolver.registerResolver(sessionType, _sessionResource => undefined, sessionResource => listController.isNewSession(sessionResource)));
 	}
 
-	private _clearAgentRegistrations(): void {
-		this._agentRegistrations.clearAndDisposeAll();
-		this._listControllers.clear();
-	}
 }

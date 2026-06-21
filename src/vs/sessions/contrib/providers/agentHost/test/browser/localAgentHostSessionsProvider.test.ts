@@ -467,19 +467,28 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(provider.sessionTypes, []);
 	});
 
-	test('does not advertise session types while workspace is untrusted', () => {
+	test('advertises session types while workspace is untrusted', () => {
 		const provider = createProvider(disposables, agentHost, undefined, { workspaceTrusted: false });
 
-		assert.deepStrictEqual(provider.sessionTypes, []);
+		assert.deepStrictEqual(provider.sessionTypes.map(t => ({ id: t.id, label: t.label })), [
+			{ id: 'copilotcli', label: 'Copilot' },
+		]);
 	});
 
-	test('does not list sessions while workspace is untrusted', async () => {
+	test('lists sessions while workspace is untrusted', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('untrusted-visible', { summary: 'Untrusted visible' }));
 		const provider = createProvider(disposables, agentHost, undefined, { workspaceTrusted: false });
 		provider.getSessions();
 		await timeout(0);
 
-		assert.strictEqual(agentHost.listSessionsCallCount, 0);
-	});
+		assert.deepStrictEqual({
+			listCalls: agentHost.listSessionsCallCount,
+			titles: provider.getSessions().map(session => session.title.get()),
+		}, {
+			listCalls: 1,
+			titles: ['Untrusted visible'],
+		});
+	}));
 
 	test('session type icons use per-agent codicons', () => {
 		agentHost.setAgents([

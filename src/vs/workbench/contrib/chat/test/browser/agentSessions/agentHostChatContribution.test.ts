@@ -459,7 +459,32 @@ class MockChatWidgetService extends mock<IChatWidgetService>() {
 
 // ---- Helpers ----------------------------------------------------------------
 
-function createTestServices(disposables: DisposableStore, workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }, authServiceOverride?: Partial<IAuthenticationService>, languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>, provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>, isSessionsWindow = false) {
+type TestWorkingDirectoryResolver = {
+	resolve(sessionResource: URI): URI | undefined;
+	isNewSession?: (sessionResource: URI) => boolean;
+};
+
+type TestWorkspaceTrustOptions = {
+	workspaceTrustManagementService?: TestWorkspaceTrustManagementService;
+	resourceTrustResponse?: boolean;
+};
+
+type TestContributionOptions = {
+	authServiceOverride?: Partial<IAuthenticationService>;
+	workingDirectoryResolver?: TestWorkingDirectoryResolver;
+	languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>;
+	provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>;
+} & TestWorkspaceTrustOptions;
+
+function createTestServices(
+	disposables: DisposableStore,
+	workingDirectoryResolver?: TestWorkingDirectoryResolver,
+	authServiceOverride?: Partial<IAuthenticationService>,
+	languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>,
+	provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>,
+	isSessionsWindow = false,
+	trustOptions?: TestWorkspaceTrustOptions
+) {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	const agentHostService = new MockAgentHostService();
@@ -526,8 +551,14 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	});
 	instantiationService.stub(IOutputService, { getChannel: () => undefined });
 	instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => ({ id: '', folders: [] }), getWorkspaceFolder: () => null, onDidChangeWorkspaceFolders: Event.None });
-	instantiationService.stub(IWorkspaceTrustManagementService, disposables.add(new TestWorkspaceTrustManagementService(true)));
-	instantiationService.stub(IWorkspaceTrustRequestService, disposables.add(new TestWorkspaceTrustRequestService(true)));
+	instantiationService.stub(
+		IWorkspaceTrustManagementService,
+		trustOptions?.workspaceTrustManagementService ?? disposables.add(new TestWorkspaceTrustManagementService(true))
+	);
+	instantiationService.stub(
+		IWorkspaceTrustRequestService,
+		disposables.add(new TestWorkspaceTrustRequestService(trustOptions?.resourceTrustResponse ?? true))
+	);
 	instantiationService.stub(IChatEditingService, {
 		registerEditingSessionProvider: () => toDisposable(() => { }),
 	});
@@ -639,8 +670,16 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	return { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, activeClientService, seedActiveClient, chatSessionContributions, chatSessionItemControllers, newSessionFolderService };
 }
 
-function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService> }) {
-	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride);
+function createContribution(disposables: DisposableStore, opts?: TestContributionOptions) {
+	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService } = createTestServices(
+		disposables,
+		opts?.workingDirectoryResolver,
+		opts?.authServiceOverride,
+		opts?.languageModels,
+		opts?.provisionalServiceOverride,
+		false,
+		{ workspaceTrustManagementService: opts?.workspaceTrustManagementService, resourceTrustResponse: opts?.resourceTrustResponse }
+	);
 
 	const listController = disposables.add(instantiationService.createInstance(AgentHostSessionListController, 'agent-host-copilot', 'copilot', agentHostService, undefined, 'local'));
 	const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
@@ -1813,6 +1852,40 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 
 			assert.strictEqual(AgentSession.id(URI.parse(session)), 'existing-session-42');
+		}));
+
+		test('requires workspace trust before sending to an existing session', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const workspaceTrustManagementService = disposables.add(new TestWorkspaceTrustManagementService(false));
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+				workspaceTrustManagementService,
+				resourceTrustResponse: false,
+			});
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/existing-untrusted' });
+			const backendSession = AgentSession.uri('copilot', 'existing-untrusted');
+			const workingDirectory = URI.file('/home/user/untrusted');
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState({
+					resource: backendSession.toString(),
+					provider: 'copilot',
+					title: 'Existing untrusted',
+					status: SessionStatus.Idle,
+					createdAt: Date.now(),
+					modifiedAt: Date.now(),
+					workingDirectory: workingDirectory.toString(),
+				}),
+				lifecycle: SessionLifecycle.Ready,
+			});
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+			agentHostService.dispatchedActions.length = 0;
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+
+			await assert.rejects(
+				() => registered.impl.invoke(makeRequest({ message: 'Blocked', sessionResource }), () => { }, [], CancellationToken.None),
+				/Workspace trust is required/,
+			);
+
+			assert.deepStrictEqual(agentHostService.turnActions, []);
 		}));
 
 		test('recovers from stale failed subscription before first send', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

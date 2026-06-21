@@ -32,7 +32,6 @@ import { AGENT_HOST_CLIENT_RESOURCE_CHANNEL, AgentHostClientResourceChannel } fr
 import { TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostTelemetryLevelConfigKey, AgentHostSessionSyncEnabledConfigKey, SESSION_SYNC_ENABLED_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
-import { IWorkspaceTrustManagementService } from '../../workspace/common/workspaceTrust.js';
 
 interface ILocalAgentHostConnection extends IDisposable {
 	readonly proxy: IAgentService;
@@ -42,8 +41,7 @@ interface ILocalAgentHostConnection extends IDisposable {
 /**
  * Renderer-side implementation of {@link IAgentHostService} that connects
  * directly to the agent host utility process via MessagePort, bypassing
- * the main process relay. The local agent host is process-wide, but each
- * renderer window only connects while its workspace is trusted.
+ * the main process relay.
  */
 export class LocalAgentHostServiceClient extends Disposable implements IAgentHostService {
 	declare readonly _serviceBrand: undefined;
@@ -56,7 +54,6 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	private readonly _connection = this._register(new MutableDisposable<ILocalAgentHostConnection>());
 	private _connecting: Promise<ILocalAgentHostConnection | undefined> | undefined;
 	private _connectionGeneration = 0;
-	private _workspaceTrusted = false;
 	private _isDisposed = false;
 
 	private readonly _onAgentHostExit = this._register(new Emitter<number>());
@@ -95,7 +92,6 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
 
@@ -130,27 +126,12 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			}
 		}));
 
-		this._register(this._workspaceTrustManagementService.onDidChangeTrust(trusted => this._setWorkspaceTrusted(trusted)));
-		void this._initializeWorkspaceTrust();
+		this._syncConnectionState();
 	}
 
 	override dispose(): void {
 		this._isDisposed = true;
 		super.dispose();
-	}
-
-	private async _initializeWorkspaceTrust(): Promise<void> {
-		await this._workspaceTrustManagementService.workspaceTrustInitialized;
-		this._setWorkspaceTrusted(this._workspaceTrustManagementService.isWorkspaceTrusted());
-	}
-
-	private _setWorkspaceTrusted(trusted: boolean): void {
-		if (this._workspaceTrusted === trusted) {
-			return;
-		}
-
-		this._workspaceTrusted = trusted;
-		this._syncConnectionState();
 	}
 
 	private _syncConnectionState(): void {
@@ -171,13 +152,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	}
 
 	private _canCommunicate(): boolean {
-		return !this._isDisposed && this._workspaceTrusted && isAgentHostEnabled(this._configurationService);
+		return !this._isDisposed && isAgentHostEnabled(this._configurationService);
 	}
 
 	private _createUnavailableError(): Error {
-		if (!this._workspaceTrusted) {
-			return new ErrorNoTelemetry(localize('agentHost.workspaceTrustRequired', "The local agent host is unavailable because this workspace is not trusted."));
-		}
 		if (!isAgentHostEnabled(this._configurationService)) {
 			return new ErrorNoTelemetry(localize('agentHost.disabled', "The local agent host is disabled."));
 		}
