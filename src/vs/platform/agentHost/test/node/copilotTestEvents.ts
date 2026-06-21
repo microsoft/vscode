@@ -52,7 +52,7 @@ export interface ISessionEventMessage {
 	id?: string;
 	/** Envelope-level sub-agent instance id. See {@link ISessionEventToolStart.agentId}. */
 	agentId?: string;
-	data?: {
+	data: {
 		messageId?: string;
 		interactionId?: string;
 		content?: string;

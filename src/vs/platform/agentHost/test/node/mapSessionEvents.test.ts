@@ -22,7 +22,7 @@ suite('mapSessionEvents — task_complete rendering', () => {
 
 	test('task_complete with a summary renders as a markdown part, not a tool call', async () => {
 		const events: ISessionEvent[] = [
-			{ type: 'user.message', data: { messageId: 'm1', content: 'hi' } },
+			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },
 			{ type: 'assistant.message', data: { messageId: 'm2', content: 'Working on it.', toolRequests: [{ toolCallId: 'tc-1', name: 'task_complete' }] } },
 			{ type: 'tool.execution_start', data: { toolCallId: 'tc-1', toolName: 'task_complete', arguments: { summary: 'Done. All good.' } } },
 			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-1', success: true } },
@@ -39,7 +39,7 @@ suite('mapSessionEvents — task_complete rendering', () => {
 
 	test('task_complete without a summary renders nothing', async () => {
 		const events: ISessionEvent[] = [
-			{ type: 'user.message', data: { messageId: 'm1', content: 'hi' } },
+			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },
 			{ type: 'assistant.message', data: { messageId: 'm2', content: 'All set.', toolRequests: [{ toolCallId: 'tc-1', name: 'task_complete' }] } },
 			{ type: 'tool.execution_start', data: { toolCallId: 'tc-1', toolName: 'task_complete', arguments: {} } },
 			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-1', success: true } },
@@ -55,7 +55,7 @@ suite('mapSessionEvents — task_complete rendering', () => {
 
 	test('a regular tool still renders as a tool call', async () => {
 		const events: ISessionEvent[] = [
-			{ type: 'user.message', data: { messageId: 'm1', content: 'hi' } },
+			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },
 			{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-1', name: 'bash' }] } },
 			{ type: 'tool.execution_start', data: { toolCallId: 'tc-1', toolName: 'bash', arguments: { command: 'echo hi' } } },
 			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-1', success: true, result: { content: 'hi\n' } } },
@@ -86,7 +86,7 @@ suite('mapSessionEvents — subagent routing', () => {
 	// into the subagent transcript rather than leaking them into the parent.
 	test('routes subagent events tagged with envelope agentId into the subagent transcript', async () => {
 		const events: ISessionEvent[] = [
-			{ type: 'user.message', data: { messageId: 'm1', content: 'spawn a subagent' } },
+			{ type: 'user.message', data: { interactionId: 'm1', content: 'spawn a subagent' } },
 			{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-task', name: 'task' }] } },
 			{ type: 'tool.execution_start', data: { toolCallId: 'tc-task', toolName: 'task', arguments: { description: 'explore', agentName: 'explore' } } },
 			{ type: 'subagent.started', agentId: 'agent-1', data: { toolCallId: 'tc-task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores' } },
