@@ -301,6 +301,8 @@ function toPromptsType(type: ChildCustomization['type']): PromptsType | undefine
 			return PromptsType.instructions;
 		case CustomizationType.Prompt:
 			return PromptsType.prompt;
+		case CustomizationType.Hook:
+			return PromptsType.hook;
 		default:
 			return undefined;
 	}

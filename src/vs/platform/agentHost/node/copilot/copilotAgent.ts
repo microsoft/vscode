@@ -42,7 +42,7 @@ import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDa
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ProtectedResourceMetadata, type AgentSelection, type ChildCustomizationType, type ConfigPropertySchema, type ConfigSchema, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
-import { AgentCustomization, CustomizationLoadStatus, CustomizationType, ResponsePartKind, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildChatUri, isDefaultChatUri, parseChatUri, parseSubagentSessionUri, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ResponsePart, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { AgentCustomization, CustomizationLoadStatus, CustomizationType, ResponsePartKind, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildChatUri, isDefaultChatUri, parseChatUri, parseSubagentSessionUri, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ResponsePart, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { ActiveClientState } from '../activeClientState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
@@ -2539,6 +2539,8 @@ function toDirectoryContentsType(type: DiscoveredType): ChildCustomizationType {
 		case DiscoveredType.Instruction:
 		case DiscoveredType.AgentInstruction:
 			return CustomizationType.Rule;
+		case DiscoveredType.Hook:
+			return CustomizationType.Hook;
 	}
 }
 
@@ -2582,6 +2584,15 @@ async function toDiscoveredChildCustomization(file: URI, type: DiscoveredType, f
 			alwaysApply: ruleInfo.alwaysApply,
 		};
 		return ruleCustomization;
+	}
+	if (type === DiscoveredType.Hook) {
+		const hookCustomization: HookCustomization = {
+			type: CustomizationType.Hook,
+			id,
+			uri,
+			name: resourceBasename(file),
+		};
+		return hookCustomization;
 	}
 	// agent instruction
 	return {
