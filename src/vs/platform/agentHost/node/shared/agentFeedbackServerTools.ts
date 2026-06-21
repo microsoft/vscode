@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { FEEDBACK_ANNOTATION_META_KEY, VIEW_UNREVIEWED_COMMENTS_TOOL_NAME, type IFeedbackAnnotationMeta } from '../../common/agentFeedbackAnnotations.js';
+import { FEEDBACK_ANNOTATION_META_KEY, readFeedbackAnnotationMeta, VIEW_UNREVIEWED_COMMENTS_TOOL_NAME, type IFeedbackAnnotationMeta } from '../../common/meta/agentFeedbackAnnotations.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import type { AnnotationsAction } from '../../common/state/sessionActions.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
@@ -249,7 +249,7 @@ function entryText(text: StringOrMarkdown): string {
 }
 
 function readMeta(annotation: Annotation): IFeedbackAnnotationMeta | undefined {
-	return annotation._meta?.[FEEDBACK_ANNOTATION_META_KEY] as IFeedbackAnnotationMeta | undefined;
+	return readFeedbackAnnotationMeta(annotation);
 }
 
 interface ISerializedComment {

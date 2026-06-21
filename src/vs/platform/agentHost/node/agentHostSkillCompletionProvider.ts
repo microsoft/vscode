@@ -9,6 +9,7 @@ import { URI } from '../../../base/common/uri.js';
 import type { IAgent } from '../common/agentService.js';
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../common/state/protocol/commands.js';
 import { MessageAttachmentKind } from '../common/state/protocol/state.js';
+import { toSkillCompletionAttachmentMeta } from '../common/meta/agentCompletionAttachmentMeta.js';
 import { CustomizationType, SkillCustomization } from '../common/state/sessionState.js';
 import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider } from './agentHostCompletions.js';
 import { extractWhitespaceDelimitedSlashToken } from './agentHostSlashCompletion.js';
@@ -64,12 +65,12 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 				attachment: {
 					type: MessageAttachmentKind.Simple,
 					label: '/' + skill.slashCommandName,
-					_meta: {
+					_meta: toSkillCompletionAttachmentMeta({
 						uri: skill.uri,
 						name: skill.name,
 						displayName: skill.slashCommandName,
-						...(skill.description !== undefined ? { description: skill.description } : {}),
-					},
+						description: skill.description,
+					}),
 				},
 			}));
 	}

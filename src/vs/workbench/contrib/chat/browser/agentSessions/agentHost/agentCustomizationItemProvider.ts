@@ -14,6 +14,7 @@ import { ICustomizationItem, ICustomizationItemAction, ICustomizationItemProvide
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { readAgentCustomizationMeta } from '../../../../../../platform/agentHost/common/meta/agentCustomizationMeta.js';
 import { AICustomizationSource, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 import { PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
 import { AgentCustomizationContentExpander } from './agentCustomizationContentExpander.js';
@@ -118,7 +119,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		}
 		let userInvocable: boolean | undefined = undefined;
 		if (child.type === CustomizationType.Agent) {
-			userInvocable = child._meta?.userInvocable !== false;
+			userInvocable = readAgentCustomizationMeta(child).userInvocable !== false;
 		}
 
 		return {
@@ -157,7 +158,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			agentInstructions: { content: '', toolReferences: [] },
 			visibility: {
 				agentInvocable: true,
-				userInvocable: agent._meta?.userInvocable !== false
+				userInvocable: readAgentCustomizationMeta(agent).userInvocable !== false
 			},
 			target: Target.Undefined
 		} satisfies ICustomAgent));

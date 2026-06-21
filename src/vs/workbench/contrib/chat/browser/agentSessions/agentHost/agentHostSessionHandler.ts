@@ -21,7 +21,9 @@ import { IPosition } from '../../../../../../editor/common/core/position.js';
 import { isLocation, type Location } from '../../../../../../editor/common/languages.js';
 import { localize } from '../../../../../../nls.js';
 import { AgentProvider, AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/agentFeedbackAttachments.js';
+import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
+import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
+import { readCompletionAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ChatTruncatedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
@@ -159,7 +161,7 @@ function confirmedReasonToProtocol(reason: ConfirmedReason | undefined): ToolCal
 }
 
 function shouldAutoApproveClientToolCall(toolCall: ToolCallState): boolean {
-	return toolCall._meta?.autoApproveBySetting === true;
+	return readToolCallMeta(toolCall).autoApproveBySetting === true;
 }
 
 /**
@@ -591,20 +593,21 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const attachment = raw.attachment;
 		switch (attachment.type) {
 			case MessageAttachmentKind.Simple: {
-				if (typeof attachment._meta?.command === 'string') {
+				const completionMeta = readCompletionAttachmentMeta(attachment);
+				if (completionMeta?.kind === 'command') {
 					return this._createCompletionItem(raw, text, {
 						kind: 'command',
-						command: attachment._meta.command,
-						description: typeof attachment._meta.description === 'string' ? attachment._meta.description : '',
+						command: completionMeta.command,
+						description: completionMeta.description ?? '',
 						...(attachment._meta !== undefined && { _meta: attachment._meta }),
 					});
 				}
-				if (typeof attachment._meta?.uri === 'string') {
+				if (completionMeta?.kind === 'skill') {
 					return this._createCompletionItem(raw, text, {
 						kind: 'skill',
-						uri: URI.parse(attachment._meta.uri),
-						...(typeof attachment._meta.displayName === 'string' ? { displayName: attachment._meta.displayName } : {}),
-						...(typeof attachment._meta.description === 'string' ? { description: attachment._meta.description } : {}),
+						uri: URI.parse(completionMeta.uri),
+						...(completionMeta.displayName !== undefined ? { displayName: completionMeta.displayName } : {}),
+						...(completionMeta.description !== undefined ? { description: completionMeta.description } : {}),
 						...(attachment._meta !== undefined && { _meta: attachment._meta }),
 					});
 				}
@@ -917,7 +920,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (turn?.state !== TurnState.Error || !turn.error) {
 			return undefined;
 		}
-		return getChatErrorDetailsFromMeta(turn.error._meta, this._chatErrorContext())
+		return getChatErrorDetailsFromMeta(turn.error, this._chatErrorContext())
 			?? { message: localize('agentHost.turnError', "Error: ({0}) {1}", turn.error.errorType, turn.error.message) };
 	}
 
@@ -1665,7 +1668,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				return;
 			}
 			if (!opts.suppressErrorMarkdown && lastTurn?.state === TurnState.Error && lastTurn.error) {
-				const forwarded = getChatErrorDetailsFromMeta(lastTurn.error._meta, this._chatErrorContext());
+				const forwarded = getChatErrorDetailsFromMeta(lastTurn.error, this._chatErrorContext());
 				const content = forwarded
 					? new MarkdownString(`\n\n${forwarded.message}`)
 					: new MarkdownString(`\n\nError: (${lastTurn.error.errorType}) ${lastTurn.error.message}`);

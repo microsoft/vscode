@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { FEEDBACK_ANNOTATION_META_KEY } from '../../common/agentFeedbackAnnotations.js';
+import { FEEDBACK_ANNOTATION_META_KEY } from '../../common/meta/agentFeedbackAnnotations.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { Annotation, AnnotationsState, SessionStatus, SessionSummary } from '../../common/state/sessionState.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';

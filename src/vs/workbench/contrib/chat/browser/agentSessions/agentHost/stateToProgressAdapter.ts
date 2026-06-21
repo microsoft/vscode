@@ -8,12 +8,13 @@ import { escapeMarkdownLinkLabel, IMarkdownString, MarkdownString } from '../../
 import { marked, type Token, type Tokens, type TokensList } from '../../../../../../base/common/marked/marked.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { MessageKind, ToolCallContributorKind, ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, getToolSubagentContent, type ActiveTurn, type ICompletedToolCall, type Message, type ToolCallState, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo, type UsageInfoMeta } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { MessageKind, ToolCallContributorKind, ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, getToolSubagentContent, readUsageInfoMeta, type ActiveTurn, type ICompletedToolCall, type Message, type ToolCallState, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo, type UsageInfoMeta } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
+import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import { getChatErrorDetailsFromMeta, IChatErrorContext } from '../../../common/chatErrorMessages.js';
 import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAnnotationsAttachment, isAgentFeedbackAttachment } from '../../../../../../platform/agentHost/common/agentFeedbackAttachments.js';
-import { isViewUnreviewedCommentsTool } from '../../../../../../platform/agentHost/common/agentFeedbackAnnotations.js';
+import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAnnotationsAttachment, isAgentFeedbackAttachment } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
+import { isViewUnreviewedCommentsTool } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatExternalEdit, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
@@ -55,17 +56,17 @@ export function parseAhpTerminalToolSessionId(id: string): { terminal: string; s
  * mapper. This is the short task description (e.g., "Find related files"),
  * NOT the agent's own description.
  */
-function getSubagentTaskDescription(tc: { _meta?: Record<string, unknown> }): string | undefined {
-	const v = tc._meta?.subagentDescription;
-	return typeof v === 'string' && v.length > 0 ? v : undefined;
+function getSubagentTaskDescription(tc: ToolCallState): string | undefined {
+	const v = readToolCallMeta(tc).subagentDescription;
+	return v && v.length > 0 ? v : undefined;
 }
 
 /**
  * Extracts the agent name from `_meta.subagentAgentName`.
  */
-function getSubagentAgentName(tc: { _meta?: Record<string, unknown> }): string | undefined {
-	const v = tc._meta?.subagentAgentName;
-	return typeof v === 'string' && v.length > 0 ? v : undefined;
+function getSubagentAgentName(tc: ToolCallState): string | undefined {
+	const v = readToolCallMeta(tc).subagentAgentName;
+	return v && v.length > 0 ? v : undefined;
 }
 
 /**
@@ -86,16 +87,16 @@ function getMcpAppData(tc: ToolCallState, _sessionResource: URI): ChatMcpAppData
 	if (tc.contributor?.kind !== ToolCallContributorKind.MCP) {
 		return undefined;
 	}
-	const ui = tc._meta?.ui;
-	if (!ui || typeof ui !== 'object') {
+	const ui = readToolCallMeta(tc).ui;
+	if (!ui) {
 		return undefined;
 	}
-	const resourceUri = (ui as { resourceUri?: unknown }).resourceUri;
-	if (typeof resourceUri !== 'string' || resourceUri.length === 0) {
+	const resourceUri = ui.resourceUri;
+	if (resourceUri.length === 0) {
 		return undefined;
 	}
-	const channelValue = (ui as { channel?: unknown }).channel;
-	if (typeof channelValue !== 'string' || channelValue.length === 0) {
+	const channelValue = ui.channel;
+	if (channelValue === undefined || channelValue.length === 0) {
 		// No channel yet — the App's sub-RPCs would have nowhere to go.
 		// Skip mounting until the customization reaches Ready and the
 		// producer re-emits with the channel populated.
@@ -183,7 +184,7 @@ export function usageInfoToChatUsage(usage: UsageInfo | undefined): IChatUsage |
 }
 
 function getCopilotCredits(usage: UsageInfo | undefined): number | undefined {
-	const meta = usage?._meta as UsageInfoMeta | undefined;
+	const meta = readUsageInfoMeta(usage);
 	const totalNanoAiu = meta?.copilotUsage?.totalNanoAiu;
 	if (typeof totalNanoAiu === 'number' && totalNanoAiu >= 0) {
 		return totalNanoAiu / 1_000_000_000;
@@ -243,7 +244,7 @@ function mapAccountQuotaSnapshot(snapshot: AccountQuotaSnapshot): IQuotaSnapshot
  * service. Returns `undefined` when no usable snapshot is present.
  */
 export function usageInfoToQuotas(usage: UsageInfo | undefined): IAgentHostQuotaUpdate | undefined {
-	const meta = usage?._meta as UsageInfoMeta | undefined;
+	const meta = readUsageInfoMeta(usage);
 	const snapshots = meta?.quotaSnapshots;
 	if (!snapshots) {
 		return undefined;
@@ -363,7 +364,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 		// consistently with the live agent result.
 		let errorDetails: IChatResponseErrorDetails | undefined;
 		if (turn.state === TurnState.Error && turn.error) {
-			errorDetails = getChatErrorDetailsFromMeta(turn.error._meta, errorContext)
+			errorDetails = getChatErrorDetailsFromMeta(turn.error, errorContext)
 				?? { message: `Error: (${turn.error.errorType}) ${turn.error.message}` };
 		}
 

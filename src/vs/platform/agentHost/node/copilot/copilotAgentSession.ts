@@ -14,7 +14,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { isAbsolute, join } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase, normalizePath } from '../../../../base/common/resources.js';
 import { splitLinesIncludeSeparators } from '../../../../base/common/strings.js';
-import { hasKey, isDefined, isObject, isString } from '../../../../base/common/types.js';
+import { hasKey, isDefined, isObject, isString, type Mutable } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -28,10 +28,11 @@ import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/san
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
 import { AgentSignal, IMcpNotification } from '../../common/agentService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
+import { toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta } from '../../common/meta/agentToolCallMeta.js';
 import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmitter.js';
 import type { LanguageModelToolInvokedClassification, LanguageModelToolInvokedEvent } from '../../../telemetry/common/languageModelToolTelemetry.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { isAgentFeedbackAnnotationsAttachment, renderAgentFeedbackAnnotationsAttachment } from '../../common/agentFeedbackAttachments.js';
+import { isAgentFeedbackAnnotationsAttachment, renderAgentFeedbackAnnotationsAttachment } from '../../common/meta/agentFeedbackAttachments.js';
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
@@ -342,7 +343,7 @@ export class CopilotAgentSession extends Disposable {
 	get workingDirectory(): URI | undefined { return this._workingDirectory; }
 
 	/** Tracks active tool invocations so we can produce past-tense messages on completion. */
-	private readonly _activeToolCalls = new Map<string, { toolName: string; displayName: string; parameters: Record<string, unknown> | undefined; content: ToolResultContent[]; parentToolCallId: string | undefined; startTimeMs: number; mcpServerName: string | undefined; meta: Record<string, unknown> | undefined }>();
+	private readonly _activeToolCalls = new Map<string, { toolName: string; displayName: string; parameters: Record<string, unknown> | undefined; content: ToolResultContent[]; parentToolCallId: string | undefined; startTimeMs: number; mcpServerName: string | undefined; meta: IToolCallMeta | undefined }>();
 	private readonly _parentToolCallIdsByAgentId = new Map<string, string>();
 	/** Pending permission requests awaiting a renderer-side decision. */
 	private readonly _pendingPermissions = new Map<string, DeferredPromise<boolean>>();
@@ -2140,7 +2141,7 @@ export class CopilotAgentSession extends Disposable {
 			this._currentMarkdownPartIds.delete(parentToolCallId ?? '');
 			this._currentReasoningPartIds.delete(parentToolCallId ?? '');
 
-			const meta: Record<string, unknown> = { toolKind, language: toolKind === 'terminal' ? getShellLanguage(e.data.toolName) : undefined };
+			const meta: Mutable<IToolCallMeta> = { toolKind, language: toolKind === 'terminal' ? getShellLanguage(e.data.toolName) : undefined };
 			if (subagentMeta?.description) {
 				meta.subagentDescription = subagentMeta.description;
 			}
@@ -2179,7 +2180,7 @@ export class CopilotAgentSession extends Disposable {
 				toolName: e.data.toolName,
 				displayName,
 				contributor,
-				_meta: meta,
+				_meta: toToolCallMeta(meta),
 			}, parentToolCallId);
 
 			// No client is connected to run this client tool. Fail it
@@ -2294,10 +2295,11 @@ export class CopilotAgentSession extends Disposable {
 			}
 
 			this._sendToolInvokedTelemetry(e.data.success, e.data.error?.code, tracked);
+			// eslint-disable-next-line local/code-no-untyped-meta-access -- Copilot SDK's own typed `_meta`, not the AHP protocol bag.
 			const resourceUri = e.data.toolDescription?._meta?.ui?.resourceUri;
-			let completeMeta: Record<string, unknown> | undefined = tracked.meta;
+			let completeMeta: IToolCallMeta | undefined = tracked.meta;
 			if (resourceUri) {
-				const ui: Record<string, unknown> = { resourceUri };
+				const ui: Mutable<IToolCallUiMeta> = { resourceUri };
 				if (tracked.mcpServerName) {
 					const channel = this._mcpCustomizations.channelForServer(tracked.mcpServerName);
 					if (channel !== undefined) {
@@ -2320,7 +2322,7 @@ export class CopilotAgentSession extends Disposable {
 					content: content.length > 0 ? content : undefined,
 					error: e.data.error,
 				},
-				_meta: completeMeta,
+				_meta: completeMeta ? toToolCallMeta(completeMeta) : undefined,
 			}, parentToolCallId);
 		}));
 
