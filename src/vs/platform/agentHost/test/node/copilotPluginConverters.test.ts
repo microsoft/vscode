@@ -225,6 +225,18 @@ suite('copilotPluginConverters', () => {
 				prompt: 'Body only.',
 			}]);
 		});
+
+		test('trims whitespace from frontmatter name to match parsed agent name', async () => {
+			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/padded.md' });
+			await fileService.writeFile(agentUri, VSBuffer.fromString(
+				`---\nname: "  Inbox  "\n---\nBody.`
+			));
+
+			const agents: INamedPluginResource[] = [{ uri: agentUri, name: 'padded' }];
+			const result = await toSdkCustomAgents(agents, fileService);
+
+			assert.strictEqual(result[0].name, 'Inbox');
+		});
 	});
 
 	// ---- toSdkSessionCustomAgents ---------------------------------------

@@ -131,7 +131,11 @@ export async function toSdkCustomAgents(agents: readonly INamedPluginResource[],
 			const content = await fileService.readFile(agent.uri);
 			const raw = content.value.toString();
 			const md = parseFrontMatter(raw);
-			const name = md?.getStringValue('name') ?? agent.name;
+			// Match `parseAgentFile`'s name derivation (trim + falsy fallback) so
+			// the SDK config name equals the `resolvedAgentName` resolved from the
+			// parsed plugin agent; otherwise a whitespace-padded frontmatter `name`
+			// would make the SDK reject the session-start `agent:` as not found.
+			const name = md?.getStringValue('name')?.trim() || agent.name;
 			const description = md?.getStringValue('description');
 			const tools = md?.getStringArrayValue('tools');
 			const prompt = md?.body ?? raw;
