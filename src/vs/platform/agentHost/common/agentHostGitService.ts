@@ -39,6 +39,29 @@ export interface IComputeSessionFileDiffsOptions {
 	readonly baseBranch?: string;
 }
 
+/** Options for {@link IAgentHostGitService.push}. */
+export interface IPushOptions {
+	/** The branch or refspec to push. Defaults to the current branch. */
+	readonly ref?: string;
+	/** The remote to push to. Defaults to `origin`. */
+	readonly remote?: string;
+	/**
+	 * When true, the push uses `-u` so the pushed branch tracks the remote
+	 * branch for subsequent fetch/push commands.
+	 */
+	readonly setUpstream?: boolean;
+}
+
+/** Options for {@link IAgentHostGitService.pull}. */
+export interface IPullOptions {
+	/** The branch or ref to pull. Defaults to the configured upstream. */
+	readonly ref?: string;
+	/** The remote to pull from. Defaults to `origin`. */
+	readonly remote?: string;
+	/** When true, local commits are rebased onto the fetched ref (`-r`) instead of merged. */
+	readonly rebase?: boolean;
+}
+
 export const IAgentHostGitService = createDecorator<IAgentHostGitService>('agentHostGitService');
 
 export interface IAgentHostGitService {
@@ -90,17 +113,29 @@ export interface IAgentHostGitService {
 
 	/**
 	 * Returns true when the named branch has an upstream tracking ref
-	 * (i.e. `<branch>@{upstream}` resolves). Used before {@link pushBranch}
+	 * (i.e. `<branch>@{upstream}` resolves). Used before {@link push}
 	 * to decide whether `--set-upstream` is needed.
 	 */
 	hasUpstream(workingDirectory: URI, branchName: string): Promise<boolean>;
 
 	/**
-	 * Pushes {@link branchName} to `origin`. When {@link setUpstream} is
-	 * true, the push uses `--set-upstream` so subsequent fetch/push
-	 * commands track the remote branch.
+	 * Fetches the latest changes from the remote (`origin` unless
+	 * {@link IPullOptions.remote} overrides it) and integrates them into the
+	 * current branch. When {@link IPullOptions.rebase} is true, local commits
+	 * are rebased onto the fetched ref instead of merged. When
+	 * {@link IPullOptions.ref} is provided, that ref is pulled instead of the
+	 * branch's configured upstream.
 	 */
-	pushBranch(workingDirectory: URI, branchName: string, setUpstream: boolean): Promise<void>;
+	pull(workingDirectory: URI, options?: IPullOptions): Promise<void>;
+
+	/**
+	 * Pushes the current branch (or {@link IPushOptions.ref}) to the remote
+	 * (`origin` unless {@link IPushOptions.remote} overrides it). When
+	 * {@link IPushOptions.setUpstream} is true, the push uses `-u` so
+	 * subsequent fetch/push commands track the remote branch.
+	 */
+	push(workingDirectory: URI, options: IPushOptions): Promise<void>;
+
 	/**
 	 * Computes the {@link ISessionGitState} for the working directory by
 	 * shelling out to `git`. Returns undefined if the directory is not a

@@ -12,7 +12,7 @@ import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileEditKind, type ISessionFileDiff, type ISessionGitState } from '../common/state/sessionState.js';
 import { buildGitBlobUri } from './gitDiffContent.js';
-import { EMPTY_TREE_OBJECT, getBranchCompletions, IAgentHostGitService, IComputeSessionFileDiffsOptions } from '../common/agentHostGitService.js';
+import { EMPTY_TREE_OBJECT, getBranchCompletions, IAgentHostGitService, IComputeSessionFileDiffsOptions, IPullOptions, IPushOptions } from '../common/agentHostGitService.js';
 
 export class AgentHostGitService implements IAgentHostGitService {
 	declare readonly _serviceBrand: undefined;
@@ -143,13 +143,46 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return output !== undefined && output.trim().length > 0;
 	}
 
-	async pushBranch(workingDirectory: URI, branchName: string, setUpstream: boolean): Promise<void> {
+	async pull(workingDirectory: URI, options?: IPullOptions): Promise<void> {
+		const args = ['pull'];
+
+		if (options?.rebase) {
+			args.push('-r');
+		}
+
+		// A ref can only be passed alongside a
+		// remote; default to `origin` when a ref
+		// is given without one.
+		if (options?.remote || options?.ref) {
+			args.push(options.remote ?? 'origin');
+
+			if (options.ref) {
+				args.push(options.ref);
+			}
+		}
+
+		await this._runGit(workingDirectory, args, { timeout: 180_000, throwOnError: true });
+	}
+
+	async push(workingDirectory: URI, options: IPushOptions): Promise<void> {
 		const args = ['push'];
-		if (setUpstream) {
+
+		if (options.setUpstream) {
 			args.push('--set-upstream');
 		}
-		args.push('origin', branchName);
-		await this._runGit(workingDirectory, args, { timeout: 60_000, throwOnError: true });
+
+		// A ref can only be passed alongside a
+		// remote; default to `origin` when a ref
+		// is given without one.
+		if (options.remote || options.ref) {
+			args.push(options.remote ?? 'origin');
+
+			if (options.ref) {
+				args.push(options.ref);
+			}
+		}
+
+		await this._runGit(workingDirectory, args, { timeout: 180_000, throwOnError: true });
 	}
 
 	async computeSessionFileDiffs(workingDirectory: URI, options: IComputeSessionFileDiffsOptions): Promise<readonly ISessionFileDiff[] | undefined> {
