@@ -180,8 +180,8 @@ CommandsRegistry.registerCommand('_agentsVoice.openWindow', async (accessor) => 
 	}
 });
 
-// --- Mic button in Chat toolbar ---
-// Shows mic (unfilled) normally, mic-filled when actively listening.
+// --- Voice mode button in Chat toolbar ---
+// Shows the voice mode icon in both idle and active states.
 // Click to connect if disconnected, or toggle PTT if connected.
 // The disconnect button (shown when connected) indicates active voice mode.
 
@@ -217,7 +217,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'agentsVoice.startVoiceInChat',
 			title: nls.localize2('agentsVoice.startVoiceInChat', "Voice Mode"),
-			icon: Codicon.mic,
+			icon: Codicon.voiceMode,
 			precondition: ContextKeyExpr.equals('config.agents.voice.enabled', true),
 			menu: {
 				id: MenuId.ChatExecute,
@@ -256,7 +256,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'agentsVoice.pttStopInChat',
 			title: nls.localize2('agentsVoice.pttStopInChat', "Voice Mode: Stop Recording"),
-			icon: Codicon.micFilled,
+			icon: Codicon.voiceMode,
 			precondition: ContextKeyExpr.and(
 				ContextKeyExpr.equals('config.agents.voice.enabled', true),
 				AGENTS_VOICE_ACTIVE.isEqualTo(true),
