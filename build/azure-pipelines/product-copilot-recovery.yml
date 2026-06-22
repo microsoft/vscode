@@ -15,6 +15,11 @@ resources:
       name: microsoft/vscode-capi
       ref: main
       endpoint: Monaco
+    - repository: vscode_loc
+      type: github
+      name: microsoft/vscode-extensions-loc
+      ref: main
+      endpoint: Monaco
 
 parameters:
   - name: customNPMRegistry
@@ -42,6 +47,13 @@ extends:
     workingDirectory: ./extensions/copilot
     l10nSourcePaths: ./extensions/copilot/src
     nodeVersion: 22.21.x
+    # Copilot handles localization itself via copilot/l10n-steps.yml (importing
+    # translated strings from the microsoft/vscode-extensions-loc checkout),
+    # mirroring product-copilot.yml. Disable the template's own l10n jobs and
+    # the import-localized-files step: the latter runs before buildSteps and
+    # expects an implicit self checkout, which is unavailable here because
+    # build-steps.yml checks out microsoft/vscode-capi.
+    l10nShouldProcess: false
 
     cgIgnoreDirectories: $(Build.SourcesDirectory)/extensions/copilot/script
 
@@ -57,8 +69,17 @@ extends:
               exit 1
             displayName: Validate release branch
 
+      - checkout: self
+        path: s
+        lfs: true
+        fetchDepth: 1
+        fetchTags: false
+        retryCountOnTaskFailure: 3
+        displayName: Checkout microsoft/vscode
+
       - template: copilot/setup-steps.yml
       - template: copilot/build-steps.yml
+      - template: copilot/l10n-steps.yml
       - script: |
           set -e
 
@@ -89,16 +110,17 @@ extends:
         serviceTreeID: '1788a767-5861-45fb-973b-c686b67c5541'
       enabled: true
 
-    # The Copilot build steps check out microsoft/vscode-capi (via the Monaco
-    # GitHub App instead of a PAT). Every checked-out repository must be declared
-    # for the 1ES SDL source analysis, so re-declare the template defaults plus
-    # capi here.
+    # The Copilot build steps check out microsoft/vscode-capi and
+    # microsoft/vscode-extensions-loc (via the Monaco GitHub App instead of a
+    # PAT). Every checked-out repository must be declared for the 1ES SDL source
+    # analysis, so re-declare the template defaults plus capi and vscode_loc here.
     sourceRepositoriesToScan:
       exclude:
         - repository: translations
         - repository: vscode-copilot-cache
         - repository: templates
         - repository: capi
+        - repository: vscode_loc
 
     ${{ if eq(parameters.customNPMRegistry, false) }}:
       customNPMRegistry: ''
