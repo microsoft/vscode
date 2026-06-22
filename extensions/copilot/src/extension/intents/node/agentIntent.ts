@@ -21,11 +21,13 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { IEditLogService } from '../../../platform/multiFileEdit/common/editLogService';
 import { CUSTOM_TOOL_SEARCH_NAME, isAnthropicContextEditingEnabled } from '../../../platform/networking/common/anthropic';
 import { IChatEndpoint, isCAPIEndpoint } from '../../../platform/networking/common/networking';
-import { APIUsage, modelsWithoutResponsesContextManagement } from '../../../platform/networking/common/openai';
+import { APIUsage, modelsWithoutResponsesContextManagement, nanoAiuToCredits } from '../../../platform/networking/common/openai';
 import { INotebookService } from '../../../platform/notebook/common/notebookService';
 import { GenAiMetrics } from '../../../platform/otel/common/genAiMetrics';
 import { IOTelService } from '../../../platform/otel/common/otelService';
 import { IPromptPathRepresentationService } from '../../../platform/prompts/common/promptPathRepresentationService';
+import { CustomInstructionsReferenceLogger, IAutomaticInstructionsCollector } from '../../../platform/promptFiles/node/automaticInstructionsCollector';
+import { PromptConfig } from '../../../platform/promptFiles/common/promptsService';
 import { ITasksService } from '../../../platform/tasks/common/tasksService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
@@ -78,6 +80,34 @@ function isResponsesCompactionContextManagementEnabled(endpoint: IChatEndpoint, 
 	return endpoint.apiType === 'responses'
 		&& configurationService.getExperimentBasedConfig(ConfigKey.ResponsesApiContextManagementEnabled, experimentationService)
 		&& !modelsWithoutResponsesContextManagement.has(endpoint.family);
+}
+
+/**
+ * Applies the user's "Context Size" model-picker selection to the endpoint used
+ * for the agent's model requests.
+ *
+ * The picker offers two tiers — the model's default context max and its full
+ * native window (see `getContextSizeOptions`). For server-managed context (the
+ * Responses-API compaction path) the request endpoint's `modelMaxPromptTokens`
+ * is what drives the `compact_threshold` sent to the server. If the default
+ * tier is not propagated to the request endpoint, the server compacts against
+ * the model's full window and the stateful conversation grows far past the
+ * user's selection — billing them for the larger context. Mirrors the override
+ * applied on the `vscode.lm` path in `languageModelAccess.ts`.
+ *
+ * Only clamps when the selection is strictly smaller than the model window so
+ * the full tier ("Longer sessions without compaction") stays uncompacted.
+ *
+ * @internal - exported for testing
+ */
+export function applyContextSizeOverride(endpoint: IChatEndpoint, request: vscode.ChatRequest): IChatEndpoint {
+	const contextSize = request.modelConfiguration?.contextSize;
+	// Guard against non-positive / non-finite selections (e.g. 0, -1, NaN, Infinity):
+	// a non-positive token budget would produce an invalid endpoint configuration.
+	if (typeof contextSize === 'number' && Number.isFinite(contextSize) && contextSize > 0 && contextSize < endpoint.modelMaxPromptTokens) {
+		return endpoint.cloneWithTokenOverride(contextSize);
+	}
+	return endpoint;
 }
 
 /**
@@ -521,6 +551,7 @@ export class AgentIntent extends EditCodeIntent {
 				stream.usage({
 					promptTokens: summaryMetadata.usage.prompt_tokens,
 					completionTokens: summaryMetadata.usage.completion_tokens,
+					copilotCredits: nanoAiuToCredits(summaryMetadata.usage.copilot_usage?.total_nano_aiu),
 					promptTokenDetails: summaryMetadata.promptTokenDetails,
 				});
 			}
@@ -607,9 +638,14 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		@IAutomodeService private readonly automodeService: IAutomodeService,
 		@IOTelService protected override readonly otelService: IOTelService,
 		@ISessionTranscriptService private readonly sessionTranscriptService: ISessionTranscriptService,
+		@IAutomaticInstructionsCollector private readonly _automaticInstructionsCollector: IAutomaticInstructionsCollector,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 	) {
-		super(intent, location, endpoint, request, intentOptions, instantiationService, codeMapperService, envService, promptPathRepresentationService, _endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, otelService);
+		// Apply the user's "Context Size" picker selection to the request endpoint
+		// so the server-managed compaction threshold (Responses API) is keyed to the
+		// selected tier rather than the model's full native window. See
+		// applyContextSizeOverride for the cost rationale.
+		super(intent, location, applyContextSizeOverride(endpoint, request), request, intentOptions, instantiationService, codeMapperService, envService, promptPathRepresentationService, _endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, otelService);
 	}
 
 	public override getAvailableTools(): Promise<vscode.LanguageModelToolInformation[]> {
@@ -622,6 +658,21 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		token: vscode.CancellationToken
 	): Promise<IBuildPromptResult> {
 		this._resolvedCustomizations = await PromptRegistry.resolveAllCustomizations(this.instantiationService, this.endpoint);
+
+		// Only collect automatic instructions in the extension when the corresponding core setting opts in.
+		// Otherwise the core workbench performs the collection before the request reaches the extension.
+		const collectInstructionsInExtension = this.configurationService.getNonExtensionConfig<boolean>(PromptConfig.COLLECT_INSTRUCTIONS_IN_EXTENSION) === true;
+		if (collectInstructionsInExtension) {
+			const addedInstructionsAndIndex = await this._automaticInstructionsCollector.collect(this.request, token);
+			if (addedInstructionsAndIndex.length > 0) {
+				promptContext = { ...promptContext, chatVariables: ChatVariablesCollection.merge(promptContext.chatVariables, new ChatVariablesCollection(addedInstructionsAndIndex)) };
+			}
+		} else {
+			await this.instantiationService.createInstance(CustomInstructionsReferenceLogger).compare(this.request, this._automaticInstructionsCollector, token);
+		}
+		await this.instantiationService.createInstance(CustomInstructionsReferenceLogger).logReferences(promptContext.conversation?.sessionId, promptContext.chatVariables.references, collectInstructionsInExtension);
+
+
 		// Add any references from the codebase invocation to the request
 		const codebase = await this._getCodebaseReferences(promptContext, token);
 
@@ -629,7 +680,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		let toolReferences: vscode.ChatPromptReference[] = [];
 		if (codebase) {
 			toolReferences = toNewChatReferences(variables, codebase.references);
-			variables = new ChatVariablesCollection([...this.request.references, ...toolReferences]);
+			variables = new ChatVariablesCollection([...variables.references, ...toolReferences]);
 		}
 
 		const tools = promptContext.tools?.availableTools;
@@ -677,6 +728,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			endpoint,
 			promptContext: {
 				...promptContext,
+				chatVariables: variables,
 				tools: promptContext.tools && {
 					...promptContext.tools,
 					toolReferences: this.stableToolReferences.filter((r) => r.name !== ToolName.Codebase),

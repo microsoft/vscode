@@ -12,6 +12,7 @@ import { computeMergeability, GitHubPRFetcher } from '../fetchers/githubPRFetche
 import { GitHubApiClient } from '../githubApiClient.js';
 
 const LOG_PREFIX = '[GitHubPullRequestModel]';
+const TRACE_PREFIX = '[PR-ICON-TRACE]';
 const DEFAULT_POLL_INTERVAL_MS = 60_000;
 
 export class GitHubPullRequestModelReferenceCollection extends ReferenceCollection<GitHubPullRequestModel> {
@@ -26,12 +27,12 @@ export class GitHubPullRequestModelReferenceCollection extends ReferenceCollecti
 	}
 
 	protected override createReferencedObject(key: string, owner: string, repo: string, prNumber: number): GitHubPullRequestModel {
-		this._logService.trace(`[GitHubPullRequestModelReferenceCollection][createReferencedObject] Creating PR model for ${key}`);
+		this._logService.trace(`${TRACE_PREFIX} [GitHubPullRequestModelReferenceCollection][createReferencedObject] Creating PR model for ${key}`);
 		return new GitHubPullRequestModel(owner, repo, prNumber, this._fetcher, this._logService);
 	}
 
 	protected override destroyReferencedObject(key: string, object: GitHubPullRequestModel): void {
-		this._logService.trace(`[GitHubPullRequestModelReferenceCollection][destroyReferencedObject] Disposing PR model for ${key}`);
+		this._logService.trace(`${TRACE_PREFIX} [GitHubPullRequestModelReferenceCollection][destroyReferencedObject] Disposing PR model for ${key}`);
 		object.dispose();
 	}
 }
@@ -105,6 +106,7 @@ export class GitHubPullRequestModel extends Disposable {
 		this._pollingDisposables.add(disposable);
 
 		if (this._pollingDisposables.size === 1) {
+			this._logService.trace(`${TRACE_PREFIX} [PRModel] Start polling ${this.owner}/${this.repo}#${this.prNumber} every ${intervalMs}ms`);
 			this._pollScheduler.schedule(intervalMs);
 		}
 
@@ -112,6 +114,7 @@ export class GitHubPullRequestModel extends Disposable {
 	}
 
 	private async _poll(): Promise<void> {
+		this._logService.trace(`${TRACE_PREFIX} [PRModel] Poll cycle for ${this.owner}/${this.repo}#${this.prNumber}`);
 		await this.refresh();
 		// Re-schedule for next poll cycle (RunOnceScheduler is one-shot)
 		if (!this._store.isDisposed && this._pollingDisposables.size > 0) {
@@ -120,6 +123,7 @@ export class GitHubPullRequestModel extends Disposable {
 	}
 
 	private async _refresh(): Promise<void> {
+		this._logService.trace(`${TRACE_PREFIX} [PRModel] Refreshing ${this.owner}/${this.repo}#${this.prNumber} (prEtag ${this._pullRequestEtag ?? 'none'}, reviewsEtag ${this._reviewsEtag ?? 'none'})`);
 		try {
 			const [pr, reviews] = await Promise.all([
 				this._fetcher.getPullRequest(this.owner, this.repo, this.prNumber, this._pullRequestEtag),
@@ -150,8 +154,11 @@ export class GitHubPullRequestModel extends Disposable {
 					}
 				}
 			});
+
+			const current = this._pullRequest.get();
+			this._logService.trace(`${TRACE_PREFIX} [PRModel] Refreshed ${this.owner}/${this.repo}#${this.prNumber}: prStatus ${pr.statusCode}, reviewsStatus ${reviews.statusCode}, state ${current?.state ?? 'unknown'}, isDraft ${current?.isDraft ?? 'unknown'}, headSha ${current?.headSha ?? 'unknown'}`);
 		} catch (err) {
-			this._logService.error(`${LOG_PREFIX} Failed to refresh PR #${this.prNumber}:`, err);
+			this._logService.error(`${TRACE_PREFIX} ${LOG_PREFIX} Failed to refresh PR #${this.prNumber}:`, err);
 		}
 	}
 

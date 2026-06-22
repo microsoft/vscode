@@ -858,6 +858,11 @@ declare module 'vscode' {
 		readonly outputBuffer?: number;
 
 		/**
+		 * The number of copilot credits consumed by this request.
+		 */
+		readonly copilotCredits?: number;
+
+		/**
 		 * Optional breakdown of prompt token usage by category and label.
 		 * If the percentages do not sum to 100%, the remaining will be shown as "Uncategorized".
 		 */
@@ -1078,6 +1083,7 @@ declare module 'vscode' {
 		readonly name: string;
 		readonly content: string;
 		readonly toolReferences?: readonly ChatLanguageModelToolReference[];
+		readonly allowedSubagents?: readonly string[];
 		readonly metadata?: Record<string, boolean | string | number>;
 		/**
 		 * Whether the mode is a builtin mode (e.g. Ask, Edit, Agent) rather than a user or extension-defined custom mode.

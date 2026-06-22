@@ -1707,13 +1707,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.createInput(this.inputContainer);
 				this.input.setChatMode(this.inputPart.currentModeObs.get().id);
 				this.input.setPermissionLevel(this.inputPart.currentModeInfo.permissionLevel ?? ChatPermissionLevel.Default);
-				if (currentElement.modelId) {
-					this.input.switchModelByIdentifier(currentElement.modelId);
-				}
 				this.input.setEditing(true, isEditingSentRequest);
 				this._onDidChangeActiveInputEditor.fire();
 			} else {
 				this.inputPart.element.classList.add('editing');
+			}
+			if (currentElement.modelId) {
+				this.input.switchModelByIdentifier(currentElement.modelId);
 			}
 
 			this.inputPart.toggleChatInputOverlay(!isInput);
@@ -2426,9 +2426,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
+		// The advanced autopilot goal banner is only supported in the local chat
+		// harness. Agent-host backed sessions (Copilot CLI, Claude, Codex and the
+		// local/remote agent hosts) must never render it.
+		const sessionResource = this.viewModel?.model.sessionResource;
+		const isLocalHarness = !!sessionResource && getChatSessionType(sessionResource) === localChatSessionType;
 		const permissionLevel = inputPart.currentModeInfo?.permissionLevel;
 		const goalModeOn = this.configurationService.getValue<boolean>(ChatConfiguration.AutopilotAdvancedEnabled) === true;
-		if (permissionLevel !== ChatPermissionLevel.Autopilot || !goalModeOn) {
+		if (!isLocalHarness || permissionLevel !== ChatPermissionLevel.Autopilot || !goalModeOn) {
 			this._cancelGoalSummary();
 			inputPart.clearGoalBanner();
 			return;
