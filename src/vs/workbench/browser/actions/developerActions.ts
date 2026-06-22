@@ -46,6 +46,8 @@ import { IDefaultAccountService } from '../../../platform/defaultAccount/common/
 import { IAuthenticationService } from '../../services/authentication/common/authentication.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
 import { IPolicyService } from '../../../platform/policy/common/policy.js';
+import { ICopilotManagedSettingsService, ManagedSettingsSource, projectManagedSettings, selectManagedSettings } from '../../../platform/policy/common/copilotManagedSettings.js';
+import { IManagedSettingPolicyDefinition, ManagedSettingsData } from '../../../base/common/policy.js';
 import { APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME, IAccountPolicyGateService } from '../../services/policies/common/accountPolicyService.js';
 
 class InspectContextKeysAction extends Action2 {
@@ -665,6 +667,15 @@ class StopTrackDisposables extends Action2 {
 	}
 }
 
+/** Human-readable label for a managed-settings {@link ManagedSettingsSource} in the diagnostics report. */
+function managedSettingsSourceLabel(source: ManagedSettingsSource): string {
+	switch (source) {
+		case 'server': return 'GitHub Server API';
+		case 'nativeMdm': return 'Native MDM';
+		case 'none': return 'None (no managed settings active)';
+	}
+}
+
 class PolicyDiagnosticsAction extends Action2 {
 
 	constructor() {
@@ -685,6 +696,15 @@ class PolicyDiagnosticsAction extends Action2 {
 		const authenticationAccessService = accessor.get(IAuthenticationAccessService);
 		const policyService = accessor.get(IPolicyService);
 		const accountPolicyGateService = accessor.get(IAccountPolicyGateService);
+		// Native MDM is a desktop-only channel (registered via the main process); it is absent in
+		// web windows. Resolve it now, synchronously, because the accessor is only valid before the
+		// first `await` below.
+		let copilotManagedSettingsService: ICopilotManagedSettingsService | undefined;
+		try {
+			copilotManagedSettingsService = accessor.get(ICopilotManagedSettingsService);
+		} catch {
+			// no native MDM channel in this window
+		}
 
 		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
@@ -783,30 +803,69 @@ class PolicyDiagnosticsAction extends Action2 {
 		content += '## Managed Settings\n\n';
 		try {
 			const policyData = defaultAccountService.policyData;
+			const serverManagedSettings = policyData?.managedSettings;
 
+			const nativeManagedSettings: ManagedSettingsData | undefined = copilotManagedSettingsService?.managedSettings;
+
+			// Reuse the same precedence as policy evaluation so this report can never drift from the
+			// source AccountPolicyService actually applies.
+			const selection = selectManagedSettings(serverManagedSettings, nativeManagedSettings);
+
+			content += `**Active source**: ${managedSettingsSourceLabel(selection.source)}\n\n`;
+			content += 'Managed settings can arrive from more than one channel. The GitHub server API takes precedence over native MDM and the channels are never merged, so exactly one channel is active at a time.\n\n';
+
+			// --- GitHub server API channel ---
+			content += '### GitHub Server API\n\n';
+			content += 'Endpoint: `/copilot_internal/managed_settings`\n\n';
 			content += '| Property | Value |\n';
 			content += '|----------|-------|\n';
 			const fetchStatus = defaultAccountService.managedSettingsFetchStatus;
-			const fetchStatusDisplay = fetchStatus === null ? '*not yet fetched*' : `\`${fetchStatus}\``;
-			content += `| Last fetch | ${fetchStatusDisplay} |\n`;
+			content += `| Last fetch (most recent attempt) | ${fetchStatus === null ? '*not yet fetched*' : `\`${fetchStatus}\``} |\n`;
 			const fetchedAt = defaultAccountService.managedSettingsFetchedAt;
-			content += `| Fetched at | ${fetchedAt ? new Date(fetchedAt).toLocaleString() : '*n/a*'} |\n`;
+			content += `| Last successful fetch | ${fetchedAt ? new Date(fetchedAt).toLocaleString() : '*n/a*'} |\n`;
+			content += `| Active | ${selection.source === 'server' ? 'yes' : 'no'} |\n`;
 			content += '\n';
 
 			const rawResponse = defaultAccountService.managedSettingsRawResponse;
 			if (rawResponse !== null && rawResponse !== undefined) {
-				content += '### Raw Response\n\n';
+				content += 'Raw response captured on the last *successful* fetch. A more recent failed fetch (for example a `404` above) leaves this value stale and does NOT apply it, so it can disagree with the effective bag below:\n\n';
 				content += '```json\n';
 				content += JSON.stringify(rawResponse, null, 2);
 				content += '\n```\n\n';
 			}
 
-			content += '### Processed (after projection)\n\n';
-			const managedSettingsData = {
-				managedSettings: policyData?.managedSettings,
-			};
+			content += 'Normalized bag (server response flattened to dot-path keys):\n\n';
 			content += '```json\n';
-			content += JSON.stringify(managedSettingsData, null, 2);
+			content += JSON.stringify(serverManagedSettings ?? {}, null, 2);
+			content += '\n```\n\n';
+
+			// --- Native MDM channel ---
+			content += '### Native MDM\n\n';
+			content += 'OS registry (Windows) / managed preferences (macOS)\n\n';
+			if (copilotManagedSettingsService === undefined) {
+				content += '*Not available in this window (desktop only).*\n\n';
+			} else {
+				content += `Active: ${selection.source === 'nativeMdm' ? 'yes' : 'no'}\n\n`;
+				content += '```json\n';
+				content += JSON.stringify(nativeManagedSettings ?? {}, null, 2);
+				content += '\n```\n\n';
+			}
+
+			// --- Effective bag after selection + projection ---
+			// Mirror AccountPolicyService: project the winning bag onto the keys declared by policies
+			// so the report shows exactly what reaches `policy.value(...)`.
+			const declaredDefinitions: Record<string, IManagedSettingPolicyDefinition> = {};
+			for (const property of [...Object.values(configurationRegistry.getConfigurationProperties()), ...Object.values(configurationRegistry.getExcludedConfigurationProperties())]) {
+				const declared = property.policy?.managedSettings;
+				if (declared) {
+					Object.assign(declaredDefinitions, declared);
+				}
+			}
+			const effective = projectManagedSettings({ ...selection.values }, declaredDefinitions);
+			content += '### Effective (after selection and projection)\n\n';
+			content += 'The bag passed to `policy.value(...)`: the active source projected onto the keys declared by policies. Undeclared keys and type mismatches are dropped.\n\n';
+			content += '```json\n';
+			content += JSON.stringify(effective, null, 2);
 			content += '\n```\n\n';
 		} catch (error) {
 			content += `*Error rendering managed settings diagnostics: ${error}*\n\n`;

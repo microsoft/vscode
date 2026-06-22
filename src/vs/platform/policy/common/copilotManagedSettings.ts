@@ -157,3 +157,43 @@ export function projectManagedSettings(values: ManagedSettingsData, definitions:
 	}
 	return projected;
 }
+
+/**
+ * The delivery channel that provided the active managed-settings bag. Managed settings can be
+ * delivered by more than one channel, so this names the known sources to give policy evaluation
+ * and the Policy Diagnostics report one shared vocabulary. Extend this union (and
+ * {@link selectManagedSettings}) when adding a new channel.
+ */
+export type ManagedSettingsSource =
+	/** No channel currently provides managed settings. */
+	| 'none'
+	/** GitHub `/copilot_internal/managed_settings` endpoint (server-delivered). */
+	| 'server'
+	/** Native MDM: OS registry (Windows) / managed preferences (macOS) via `@vscode/policy-watcher`. */
+	| 'nativeMdm';
+
+export interface IManagedSettingsSelection {
+	/** Which channel won. */
+	readonly source: ManagedSettingsSource;
+	/** The winning bag, or `undefined` when {@link source} is `'none'`. */
+	readonly values: ManagedSettingsData | undefined;
+}
+
+/**
+ * Select the authoritative managed-settings bag from the available delivery channels.
+ *
+ * Server-delivered settings win over native MDM and the two are never merged — managed settings
+ * have a single authoritative source. Centralizing the precedence here (rather than inlining it at
+ * each call site) keeps policy evaluation ({@link AccountPolicyService.getPolicyData}) and the
+ * Policy Diagnostics report from drifting apart, and gives one obvious place to extend when a new
+ * channel is introduced.
+ */
+export function selectManagedSettings(server: ManagedSettingsData | undefined, nativeMdm: ManagedSettingsData | undefined): IManagedSettingsSelection {
+	if (server && !isEmptyObject(server)) {
+		return { source: 'server', values: server };
+	}
+	if (nativeMdm && !isEmptyObject(nativeMdm)) {
+		return { source: 'nativeMdm', values: nativeMdm };
+	}
+	return { source: 'none', values: undefined };
+}

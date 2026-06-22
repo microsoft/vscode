@@ -7,7 +7,7 @@ import assert from 'assert';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { collectManagedSettingsDefinitions, hasManagedSettingsDefinitions, managedSettingValue, projectManagedSettings } from '../../common/copilotManagedSettings.js';
+import { collectManagedSettingsDefinitions, hasManagedSettingsDefinitions, managedSettingValue, projectManagedSettings, selectManagedSettings } from '../../common/copilotManagedSettings.js';
 import { PolicyDefinition } from '../../common/policy.js';
 
 suite('Copilot managed settings projection', () => {
@@ -106,5 +106,25 @@ suite('Copilot managed settings projection', () => {
 			msg => warnings.push(msg),
 		);
 		assert.strictEqual(warnings.length, 1);
+	});
+
+	test('selectManagedSettings: server wins over native MDM, never merged', () => {
+		const selection = selectManagedSettings(
+			{ 'permissions.x': 'server' },
+			{ 'permissions.y': 'native' },
+		);
+		assert.deepStrictEqual(selection, { source: 'server', values: { 'permissions.x': 'server' } });
+	});
+
+	test('selectManagedSettings: falls through to native MDM when server is absent or empty', () => {
+		const fromUndefined = selectManagedSettings(undefined, { 'permissions.y': 'native' });
+		const fromEmptyObject = selectManagedSettings({}, { 'permissions.y': 'native' });
+		assert.deepStrictEqual(fromUndefined, { source: 'nativeMdm', values: { 'permissions.y': 'native' } });
+		assert.deepStrictEqual(fromEmptyObject, { source: 'nativeMdm', values: { 'permissions.y': 'native' } });
+	});
+
+	test('selectManagedSettings: reports `none` with no values when every channel is empty', () => {
+		assert.deepStrictEqual(selectManagedSettings(undefined, undefined), { source: 'none', values: undefined });
+		assert.deepStrictEqual(selectManagedSettings({}, {}), { source: 'none', values: undefined });
 	});
 });
