@@ -73,11 +73,11 @@ suite('AgentHostStateManager', () => {
 	test('seeds host build info into root state _meta when provided', () => {
 		const buildInfo = { version: '1.96.0', commit: 'abc1234', date: '2024-01-02T03:04:05Z', quality: 'insider' };
 		const localManager = disposables.add(new AgentHostStateManager(new NullLogService(), { hostBuildInfo: buildInfo }));
-		assert.deepStrictEqual(readHostBuildInfo(localManager.rootState._meta), buildInfo);
+		assert.deepStrictEqual(readHostBuildInfo(localManager.rootState), buildInfo);
 	});
 
 	test('omits host build info from root state _meta when not provided', () => {
-		assert.strictEqual(readHostBuildInfo(manager.rootState._meta), undefined);
+		assert.strictEqual(readHostBuildInfo(manager.rootState), undefined);
 	});
 
 	test('getSnapshot returns session snapshot after creation', () => {

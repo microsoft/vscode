@@ -34,12 +34,13 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { buildSdkSessionResource } from '../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
 import { IChatSendRequestOptions, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel, type IAgentSessionDefaultConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel, type IChatDefaultConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
@@ -97,7 +98,7 @@ function normalizeSessionConfigValue(property: string, value: unknown, policyRes
 /** Copilot CLI session type */
 export const CopilotCLISessionType: ISessionType = {
 	id: 'copilotcli',
-	label: localize('copilotCLI', "Copilot CLI"),
+	label: localize('copilotCLI', "Copilot"),
 	icon: Codicon.copilot,
 };
 
@@ -892,6 +893,7 @@ class NewSession extends Disposable {
 	readonly sessionId: string;
 	readonly agentProvider: string;
 	readonly workspaceUri: URI;
+	readonly requiresWorkspaceTrust: boolean;
 
 	private readonly _status: ISettableObservable<SessionStatus>;
 	private readonly _title: ISettableObservable<string>;
@@ -954,6 +956,7 @@ class NewSession extends Disposable {
 			throw new Error('Workspace has no repository URI');
 		}
 		this.workspaceUri = workspaceUri;
+		this.requiresWorkspaceTrust = !!ctx.workspace.requiresWorkspaceTrust;
 		this.agentProvider = ctx.sessionType.id;
 		this._providerId = ctx.providerId;
 		this._logService = ctx.logService;
@@ -1440,6 +1443,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		@IAgentHostActiveClientService protected readonly _activeClientService: IAgentHostActiveClientService,
 		@IStorageService protected readonly _storageService: IStorageService,
 		@IDialogService protected readonly _dialogService: IDialogService,
+		@IWorkspaceTrustManagementService protected readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
 		this._register(toDisposable(() => {
@@ -1497,7 +1501,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 */
 	protected abstract resourceSchemeForProvider(provider: string): string;
 
-	/** Format the human-readable label for a session type entry (e.g. `Copilot CLI`). */
+	/** Format the human-readable label for a session type entry (e.g. `Copilot`). */
 	protected abstract _formatSessionTypeLabel(agentLabel: string): string;
 
 	/**
@@ -1729,7 +1733,34 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	private _startNewSessionBackend(newSession: NewSession, connection: IAgentConnection): void {
+		// Resolving the session config (schema + defaults for the picker chips)
+		// is part of viewing the new-session UI and stays ungated.
 		void this._refreshNewSessionConfig(newSession);
+
+		// Defense-in-depth: never eagerly spawn an agent backend in an
+		// untrusted folder. The interactive trust prompt lives at folder-pick
+		// time (newChatWidget) and a backstop runs on first Send
+		// (AgentHostSessionHandler), so in the normal flow the folder is
+		// already trusted here. This guards alternate entry points (e.g.
+		// delegation). No-op for providers that don't require trust (remote).
+		if (newSession.requiresWorkspaceTrust) {
+			void (async () => {
+				const { trusted } = await this._workspaceTrustManagementService.getUriTrustInfo(newSession.workspaceUri);
+				// Bail if the draft was abandoned/replaced while we awaited
+				// trust info (e.g. deleteNewSession, connection drop) — don't
+				// spawn a backend session for a stale entry.
+				if (this._newSessions.get(newSession.sessionId) !== newSession) {
+					return;
+				}
+				if (!trusted) {
+					this._logService.trace(`[${this.id}] Skipping eager createSession for untrusted folder ${newSession.workspaceUri.toString()}`);
+					newSession.setLoading(false);
+					return;
+				}
+				newSession.eagerCreate(connection);
+			})();
+			return;
+		}
 		newSession.eagerCreate(connection);
 	}
 
@@ -1775,7 +1806,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * normalized against policy/feature constraints.
 	 *
 	 * The agent-host defaults are controlled by the single
-	 * `chat.agentSessions.defaultConfiguration` object setting (with `mode` and
+	 * `chat.defaultConfiguration` object setting (with `mode` and
 	 * `approvals` properties), which takes precedence over remembered values.
 	 * The local-only `chat.permissions.default` setting is intentionally NOT
 	 * consulted here.
@@ -1804,7 +1835,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 		// Configured agent-host defaults (a single object setting controlling
 		// both axes) win over remembered values.
-		const configuredDefaults = this._baseConfigurationService.getValue<IAgentSessionDefaultConfiguration>(ChatConfiguration.AgentSessionDefaultConfiguration);
+		const configuredDefaults = this._baseConfigurationService.getValue<IChatDefaultConfiguration>(ChatConfiguration.DefaultConfiguration);
 
 		// Approval axis.
 		const normalizedConfiguredAutoApprove = normalizeAutoApproveValue(configuredDefaults?.approvals, policyRestricted);

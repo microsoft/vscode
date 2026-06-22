@@ -10,6 +10,7 @@ import { isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
+import { toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type Message, type ResponsePart, type StringOrMarkdown, type ToolCallCompletedState, type ToolResultContent, type Turn } from '../../common/state/sessionState.js';
@@ -682,12 +683,12 @@ function makeCompletedToolCallPart(
 		content: content.length > 0 ? content : undefined,
 		error: d.error,
 		confirmed: ToolCallConfirmationReason.NotNeeded,
-		_meta: {
+		_meta: toToolCallMeta({
 			toolKind: info.toolKind,
 			language: info.language,
 			subagentDescription: info.subagentDescription,
 			subagentAgentName: info.subagentAgentName,
-		},
+		}),
 	};
 	return { kind: ResponsePartKind.ToolCall, toolCall: tc };
 }

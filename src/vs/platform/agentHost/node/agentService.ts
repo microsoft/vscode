@@ -16,7 +16,7 @@ import { extname as resourcesExtname, isEqual, isEqualOrParent, joinPath } from 
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
-import { FileChangeType, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileChange, IFileService, toFileSystemProviderErrorCode, type FileChangesEvent } from '../../files/common/files.js';
+import { FileChangeType, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileChange, IFileService, toFileOperationResult, toFileSystemProviderErrorCode, type FileChangesEvent } from '../../files/common/files.js';
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
@@ -1737,8 +1737,16 @@ export class AgentService extends Disposable implements IAgentService {
 				encoding: ContentEncoding.Utf8,
 				contentType: 'text/plain',
 			};
-		} catch (_e) {
-			throw new ProtocolError(AhpErrorCodes.NotFound, `Content not found: ${uri.toString()}`);
+		} catch (e) {
+			const error = e instanceof Error ? e : new Error(String(e));
+			const result = toFileOperationResult(error);
+			if (result === FileOperationResult.FILE_NOT_FOUND) {
+				throw new ProtocolError(AhpErrorCodes.NotFound, `Content not found: ${uri.toString()}`);
+			}
+			if (result === FileOperationResult.FILE_PERMISSION_DENIED) {
+				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${uri.toString()}`);
+			}
+			throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Failed to read content: ${uri.toString()}: ${toErrorMessage(error)}`);
 		}
 	}
 
