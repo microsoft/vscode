@@ -997,6 +997,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					this.voiceClientService.sendToolResult(e.callId, result);
 					this._voiceState.set('idle', undefined);
 					this._statusText.set('Hold to speak...', undefined);
+					this._awaitingReplyAudio = true;
+					this._clearAutoListenTimer();
 					this._sendContext();
 				});
 			} else {
