@@ -702,7 +702,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * tier: `[defaultMax, longContextMax]`, smallest first. Returns `undefined` when the model has no
 	 * such distinction (so no picker is offered). Surfaced on {@link IAgentModelInfo.recommendedContextWindows};
 	 * the chosen value flows back via {@link ModelSelection.maxContextWindow} and is mapped to the SDK's
-	 * `contextTier` by {@link _resolveContextTier}. Mirrors `getContextSizeOptions` in
+	 * `contextTier` by {@link _resolveModelSelection}. Mirrors `getContextSizeOptions` in
 	 * `extensions/copilot/src/extension/conversation/vscode-node/languageModelAccess.ts`.
 	 *
 	 * `billing.tokenPrices` is present on the runtime CAPI `/models` payload but not yet declared on the published SDK
