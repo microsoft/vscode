@@ -150,7 +150,7 @@ jobs:
         inputs:
           version: 6.x
 
-      - task: EsrpCodeSigning@5
+      - task: EsrpCodeSigning@6
         inputs:
           UseMSIAuthentication: true
           ConnectedServiceName: vscode-esrp
