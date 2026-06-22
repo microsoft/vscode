@@ -84,15 +84,25 @@ extends:
           set -e
 
           # The GLIBC check (from the shared extension template) scans every .node
-          # under $PWD. @github/copilot vendors @picovoice/pvrecorder-node, whose
-          # linux/x86_64 prebuild depends on GLIBC > 2.28. The native is not
-          # shipped in the VSIX, so just remove the pvrecorder prebuilds before
-          # the check runs.
+          # under the sources root, but only extensions/copilot is packaged into
+          # the VSIX. Native modules outside it belong to the vscode build tooling
+          # (e.g. build/node_modules/tree-sitter) and are never shipped, yet their
+          # newer GLIBC/GLIBCXX dependencies fail the check. Remove them so the
+          # check only validates the copilot extension's own shipped natives.
+          find "$(Build.SourcesDirectory)" \
+            -type f -name '*.node' \
+            -not -path "$(Build.SourcesDirectory)/extensions/copilot/*" \
+            -print -delete
+
+          # @github/copilot (inside extensions/copilot) vendors
+          # @picovoice/pvrecorder-node, whose linux/x86_64 prebuild depends on
+          # GLIBC > 2.28. The native is not shipped in the VSIX, so remove the
+          # pvrecorder prebuilds before the check runs.
           find "$(Build.SourcesDirectory)" \
             -type d -name pvrecorder-node \
             -path "*@picovoice/pvrecorder-node" \
             -print -exec rm -rf {} +
-        displayName: Remove pvrecorder native binaries before GLIBC check
+        displayName: Remove build-only native binaries before GLIBC check
 
     uploadSourceMaps:
       enabled: true
