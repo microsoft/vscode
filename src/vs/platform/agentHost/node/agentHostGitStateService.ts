@@ -9,7 +9,7 @@ import { ILogService } from '../../log/common/log.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { buildBranchChangesetUri, buildSessionChangesetUri, buildUncommittedChangesetUri, formatSessionChangesetDescription } from '../common/changesetUri.js';
 import { readSessionGitState, withSessionGitState, type Changeset, type ISessionGitState } from '../common/state/sessionState.js';
-import { IAgentHostGitService } from './agentHostGitService.js';
+import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 
 export class AgentHostGitStateService implements IAgentHostGitStateService {

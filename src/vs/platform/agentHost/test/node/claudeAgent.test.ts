@@ -42,7 +42,7 @@ import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, Mess
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ProtectedResourceMetadata, ChatInputAnswerState, ChatInputAnswerValueKind, ToolCallStatus, type SessionConfigState, type ChatInputRequest, type ToolDefinition } from '../../common/state/protocol/state.js';
-import { IAgentHostGitService } from '../../node/agentHostGitService.js';
+import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
