@@ -45,7 +45,10 @@ class BlockingUntilAbortPresentation implements IOnboardingPresentation {
 	run(scenario: IOnboardingScenario, context: IOnboardingRunContext): Promise<OnboardingOutcome> {
 		this.runs.push(scenario.id);
 		return new Promise<OnboardingOutcome>(resolve => {
-			context.onAbort(() => resolve(OnboardingOutcome.Aborted));
+			const listener = context.onAbort(() => {
+				listener.dispose();
+				resolve(OnboardingOutcome.Aborted);
+			});
 		});
 	}
 }
