@@ -843,6 +843,10 @@ export const SESSION_META_CHAT_SESSION_IDS_KEY = 'chatSessionIds';
  * {@link SessionMeta}: AHP chat id → backing agent-session id. Returns
  * `undefined` when absent or malformed; entries with a non-string value are
  * dropped so a partial map still propagates.
+ *
+ * Like {@link readSessionGitState}, this takes the raw {@link SessionMeta}
+ * value rather than its parent {@link SessionState}: the sessions provider
+ * stores and reads a detached meta snapshot without retaining the owning state.
  */
 export function readChatSessionIds(meta: SessionMeta | undefined): Record<string, string> | undefined {
 	const value = meta?.[SESSION_META_CHAT_SESSION_IDS_KEY];
