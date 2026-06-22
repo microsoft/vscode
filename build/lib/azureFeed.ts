@@ -7,12 +7,6 @@ import cp from 'child_process';
 import fs from 'fs';
 import path from 'path';
 
-// Shared helpers for downloading prebuilt binaries (Electron, Node.js) on demand
-// from our Azure Artifacts universal package feeds using the `az` CLI, instead
-// of fetching them from private GitHub releases (which would require a
-// long-lived Personal Access Token).
-
-// Reads a required environment variable, throwing if it is not set.
 function getEnv(name: string): string {
 	const value = process.env[name];
 	if (!value) {
