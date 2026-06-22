@@ -5,6 +5,7 @@
 
 import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import * as fs from 'fs';
+import { createRequire } from 'node:module';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -784,15 +785,45 @@ export class CodexAgent extends Disposable implements IAgent {
 		return promise;
 	}
 
+	/**
+	 * Resolve the Codex SDK root — the directory whose
+	 * `node_modules/@openai/codex-<target>/…` holds the native binary.
+	 *
+	 * Mirrors the three-tier resolution in `ClaudeAgentSdkService._loadSdk`:
+	 *   1. dev override / product download, via the downloader, when the SDK
+	 *      `isAvailable` (env override || `product.agentSdks.codex`);
+	 *   2. dev fallback to this repo's `node_modules`, where `@openai/codex`
+	 *      and its per-host binary package are devDependencies — this is what
+	 *      lets running-from-source (and dev smoke tests) spawn Codex without
+	 *      an env-var override.
+	 *
+	 * `isAvailable` is already false in dev, so it discriminates the two
+	 * without injecting `INativeEnvironmentService`. When neither path
+	 * resolves we defer to the downloader so callers get its actionable
+	 * "not configured" diagnostic.
+	 */
+	private async _resolveSdkRoot(): Promise<string> {
+		if (this._agentSdkDownloader.isAvailable(CodexSdkPackage)) {
+			return this._agentSdkDownloader.loadSdkRoot(CodexSdkPackage, CancellationToken.None);
+		}
+		const devRoot = resolveCodexDevSdkRoot();
+		if (devRoot) {
+			this._logService.info(`[Codex] resolving SDK from repo node_modules (dev fallback): ${devRoot}`);
+			return devRoot;
+		}
+		return this._agentSdkDownloader.loadSdkRoot(CodexSdkPackage, CancellationToken.None);
+	}
+
 	private async _startConnection(token: string): Promise<IConnectionReady> {
-		// Resolve the Codex SDK root via the downloader: dev override → cache →
-		// download from `product.agentSdks.codex`. We spawn the native codex
-		// binary inside the platform package directly (the same shape the JS
-		// shim at `node_modules/@openai/codex/bin/codex.js` would resolve to)
-		// — going through the shim adds a launcher hop and forces an
+		// Resolve the Codex SDK root: dev override / product download via the
+		// downloader, or this repo's `node_modules` in a source checkout (see
+		// `_resolveSdkRoot`). We spawn the native codex binary inside the
+		// platform package directly (the same shape the JS shim at
+		// `node_modules/@openai/codex/bin/codex.js` would resolve to) — going
+		// through the shim adds a launcher hop and forces an
 		// `ELECTRON_RUN_AS_NODE` round-trip when the agent host runs as an
 		// Electron utility process.
-		const root = await this._agentSdkDownloader.loadSdkRoot(CodexSdkPackage, CancellationToken.None);
+		const root = await this._resolveSdkRoot();
 		const codexTarget = codexPackageSuffix(process.platform, process.arch);
 		if (!codexTarget) {
 			throw new Error(`Codex: unsupported platform ${process.platform}-${process.arch}`);
@@ -2581,5 +2612,25 @@ export function codexBinaryTriple(sdkTarget: string): string | undefined {
 		case 'win32-x64': return 'x86_64-pc-windows-msvc';
 		case 'win32-arm64': return 'aarch64-pc-windows-msvc';
 		default: return undefined;
+	}
+}
+
+/**
+ * Locate the SDK root for the dev (running-from-source) fallback by resolving
+ * `@openai/codex` — a devDependency in source checkouts — out of this repo's
+ * `node_modules`. Returns the directory that *contains* that `node_modules`
+ * (i.e. the value `_startConnection` joins `node_modules/@openai/codex-<target>`
+ * onto), or undefined when the package can't be resolved (e.g. a built product
+ * where it isn't shipped). `@openai/codex` declares no `exports` map, so its
+ * `package.json` is resolvable.
+ */
+function resolveCodexDevSdkRoot(): string | undefined {
+	try {
+		const nodeRequire = createRequire(import.meta.url);
+		const pkgJson = nodeRequire.resolve('@openai/codex/package.json');
+		// <root>/node_modules/@openai/codex/package.json → <root>
+		return dirname(dirname(dirname(dirname(pkgJson))));
+	} catch {
+		return undefined;
 	}
 }
