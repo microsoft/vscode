@@ -4226,47 +4226,20 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	grid-template-columns: auto auto auto;
 }
 
-/* Rows are transparent: their cells participate directly in the table grid so columns align. */
+/* Each row is a real (positioned) element that still aligns to the table's columns via subgrid,
+	so it can paint a single continuous dotted line behind all of its cells. */
 .chat-model-hover-cost-row {
-	display: contents;
-}
-
-.chat-model-hover-cost-heading {
-	color: var(--vscode-foreground);
-	white-space: nowrap;
-	padding-right: 12px;
-}
-
-/* Label cell: the text plus a dotted leader that fills the rest of the (heading-wide) first column. */
-.chat-model-hover-cost-label {
-	display: flex;
+	display: grid;
+	grid-column: 1 / -1;
+	grid-template-columns: subgrid;
 	align-items: center;
-	gap: 6px;
-	color: var(--vscode-descriptionForeground);
-	white-space: nowrap;
-}
-
-.chat-model-hover-cost-label-text {
-	flex: 0 0 auto;
-}
-
-.chat-model-hover-cost-leader {
-	flex: 1 1 auto;
-	min-width: 12px;
-	height: 0;
-	border-bottom: 1px dotted var(--vscode-descriptionForeground);
-	opacity: 0.5;
-}
-
-/* Each value cell paints a dotted leader behind a right-aligned, background-masked number. */
-.chat-model-hover-cost-value {
 	position: relative;
-	text-align: right;
-	white-space: nowrap;
-	min-width: 0;
 }
 
-.chat-model-hover-cost-value::before {
+/* The single continuous dotted leader, painted behind the cells. The label text and the
+	number have opaque backgrounds (below) that mask it, so the visible dots read as one
+	continuous line running from the label to the number. */
+.chat-model-hover-cost-row:not(.header)::before {
 	content: '';
 	position: absolute;
 	left: 0;
@@ -4276,22 +4249,56 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	opacity: 0.5;
 }
 
-.chat-model-hover-cost-value.subheader::before,
-.chat-model-hover-cost-value.empty::before {
-	content: none;
+.chat-model-hover-cost-heading {
+	color: var(--vscode-foreground);
+	white-space: nowrap;
+	padding-right: 12px;
 }
 
-/* Blank gap (no dots) separating the Default and Long Context value columns. */
+/* Label cell: text only. Opaque background + right padding mask the start of the dotted line
+	and create the gap between the label and the first dot. Positioned above the leader. */
+.chat-model-hover-cost-label {
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+	position: relative;
+	z-index: 1;
+}
+
+.chat-model-hover-cost-label-text {
+	padding-right: 6px;
+	background-color: var(--vscode-editorHoverWidget-background, var(--vscode-editorWidget-background));
+}
+
+/* Value cell: right-aligned number whose opaque background masks the end of the dotted line. */
+.chat-model-hover-cost-value {
+	display: flex;
+	justify-content: flex-end;
+	align-items: center;
+	white-space: nowrap;
+	min-width: 0;
+	position: relative;
+	z-index: 1;
+	/* Blank inset separating the Default and Long Context value columns. */
+	padding-left: 8px;
+}
+
+/* Opaque mask over the second value column's leading inset so the Default column's dots stop
+	cleanly and don't bleed into the Long Context column (a clear separator between them). */
 .chat-model-hover-cost-table.has-long-context .chat-model-hover-cost-value + .chat-model-hover-cost-value {
-	padding-left: 18px;
+	padding-left: 12px;
 }
 
 .chat-model-hover-cost-table.has-long-context .chat-model-hover-cost-value + .chat-model-hover-cost-value::before {
-	left: 18px;
+	content: '';
+	position: absolute;
+	left: 0;
+	top: 0;
+	bottom: 0;
+	width: 12px;
+	background-color: var(--vscode-editorHoverWidget-background, var(--vscode-editorWidget-background));
 }
 
 .chat-model-hover-cost-number {
-	position: relative;
 	padding-left: 6px;
 	font-weight: 700;
 	color: var(--vscode-foreground);
