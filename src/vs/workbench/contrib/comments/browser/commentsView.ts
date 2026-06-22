@@ -514,7 +514,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 
 			if (this.tree.getSelection().length === 0 && this.commentService.commentsModel.hasCommentThreads()) {
 				const firstComment = this.commentService.commentsModel.resourceCommentThreads[0].commentThreads[0];
-				if (firstComment) {
+				if (firstComment && this.tree.hasElement(firstComment)) {
 					this.tree.setFocus([firstComment]);
 					this.tree.setSelection([firstComment]);
 				}

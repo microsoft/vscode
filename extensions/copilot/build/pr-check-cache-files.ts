@@ -33,11 +33,11 @@ type PullRequestCommit = {
 
 const collaborators = [
 	"aeschli", "aiday-mar", "alexdima", "alexr00", "amunger", "anthonykim1", "bamurtaugh", "benibenj", "benvillalobos", "bhavyaus",
-	"binderjoe", "bpasero", "bryanchen-d", "burkeholland", "chrmarti", "connor4312", "cwebster-99", "dbaeumer", "deepak1556",
+	"binderjoe", "bryanchen-d", "burkeholland", "chrmarti", "connor4312", "cwebster-99", "dbaeumer", "deepak1556",
 	"devinvalenciano", "digitarald", "dileepyavan", "dineshc-msft", "dmitrivMS", "DonJayamanne", "egamma", "eleanorjboyd", "eli-w-king",
-	"hawkticehurst", "hediet", "isidorn", "jo-oikawa", "joaomoreno", "joshspicer", "jrieken", "jruales", "justschen", "karthiknadig",
+	"hawkticehurst", "hediet", "isidorn", "jo-oikawa", "joshspicer", "jruales", "justschen", "karthiknadig",
 	"kieferrm", "kkbrooks", "kycutler", "lramos15", "lszomoru", "luabud", "meganrogge", "minsa110", "mjbvz", "mrleemurray", "nguyenchristy",
-	"ntrogh", "olguzzar", "osortega", "pierceboggan", "pwang347", "rebornix", "roblourens", "rzhao271", "sandy081", "sbatten", "TylerLeonhardt",
+	"ntrogh", "olguzzar", "osortega", "pierceboggan", "pwang347", "roblourens", "rzhao271", "sandy081", "sbatten", "TylerLeonhardt",
 	"Tyriar", "ulugbekna", "vijayupadya", "Yoyokrazy"
 ];
 

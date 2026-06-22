@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { MessageKind, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, type ActiveTurn, type ICompletedToolCall, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent, type IChatProgressMessage, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, toolCallStateToInvocation as rawToolCallStateToInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, toolCallStateToInvocation as rawToolCallStateToInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, usageInfoToQuotas } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
 // ---- Helper factories -------------------------------------------------------
 
@@ -1479,6 +1479,99 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.terminalCommandUri, reviveUri);
 			assert.strictEqual(termData.terminalCommandId, 'cmd-id-from-revive');
 			assert.strictEqual(termData.terminalCommandOutput?.text, 'hi\r\n');
+		});
+	});
+
+	suite('usageInfoToQuotas', () => {
+
+		test('returns undefined when no quota snapshots present', () => {
+			assert.strictEqual(usageInfoToQuotas(undefined), undefined);
+			assert.strictEqual(usageInfoToQuotas({ inputTokens: 10 }), undefined);
+			assert.strictEqual(usageInfoToQuotas({ _meta: { cost: 1 } }), undefined);
+		});
+
+		test('maps premium and chat snapshots, deriving additional usage and reset date', () => {
+			const result = usageInfoToQuotas({
+				_meta: {
+					quotaSnapshots: {
+						premium_interactions: {
+							isUnlimitedEntitlement: false,
+							entitlementRequests: 300,
+							usedRequests: 75,
+							remainingPercentage: 75,
+							overage: 1.5,
+							overageAllowedWithExhaustedQuota: true,
+							resetDate: '2026-07-01T00:00:00.000Z',
+						},
+						chat: {
+							isUnlimitedEntitlement: true,
+							entitlementRequests: -1,
+							usedRequests: 10,
+							remainingPercentage: 100,
+						},
+					},
+				},
+			});
+
+			assert.deepStrictEqual(result, {
+				premiumChat: {
+					percentRemaining: 75,
+					unlimited: false,
+					entitlement: 300,
+					quotaRemaining: 225,
+					resetAt: Date.parse('2026-07-01T00:00:00.000Z'),
+				},
+				chat: {
+					percentRemaining: 100,
+					unlimited: true,
+					entitlement: undefined,
+					quotaRemaining: undefined,
+					resetAt: undefined,
+				},
+				additionalUsageEnabled: true,
+				additionalUsageCount: 1.5,
+				resetDate: '2026-07-01T00:00:00.000Z',
+			});
+		});
+
+		test('skips categories with no allocated entitlement', () => {
+			const result = usageInfoToQuotas({
+				_meta: {
+					quotaSnapshots: {
+						premium_interactions: {
+							isUnlimitedEntitlement: false,
+							entitlementRequests: 0,
+							usedRequests: 0,
+							remainingPercentage: 0,
+							overage: 0,
+							overageAllowedWithExhaustedQuota: false,
+						},
+					},
+				},
+			});
+
+			// The 0-entitlement premium snapshot is skipped, but additional-usage fields are still derived.
+			assert.deepStrictEqual(result, {
+				additionalUsageEnabled: false,
+				additionalUsageCount: 0,
+			});
+		});
+
+		test('skips a category whose remainingPercentage is missing', () => {
+			const result = usageInfoToQuotas({
+				_meta: {
+					quotaSnapshots: {
+						chat: {
+							isUnlimitedEntitlement: false,
+							entitlementRequests: 100,
+							usedRequests: 10,
+							// remainingPercentage intentionally absent — must not masquerade as exhausted (0%).
+						},
+					},
+				},
+			});
+
+			assert.strictEqual(result, undefined);
 		});
 	});
 });

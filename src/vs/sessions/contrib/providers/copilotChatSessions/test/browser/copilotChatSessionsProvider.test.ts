@@ -102,6 +102,17 @@ class MockAgentSessionsModel {
 		}
 	}
 
+	replaceSession(session: IAgentSession): void {
+		const idx = this._sessions.findIndex(s => s.resource.toString() === session.resource.toString());
+		assert.ok(idx >= 0, 'session should exist before replacing');
+		this._sessions.splice(idx, 1, session);
+		this._onDidChangeSessions.fire();
+	}
+
+	fireDidChangeSessions(): void {
+		this._onDidChangeSessions.fire();
+	}
+
 	async resolve(): Promise<void> { }
 
 	dispose(): void {
@@ -500,6 +511,44 @@ suite('CopilotChatSessionsProvider', () => {
 
 		assert.ok(changes.length > 0);
 		assert.strictEqual(changes[0].added.length, 1);
+	});
+
+	test('onDidChangeSessions does not fire when cached agent session is unchanged', () => {
+		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/existing-session' });
+		model.addSession(createMockAgentSession(resource, { title: 'Existing Session', createdAt: 1 }));
+
+		const provider = createProvider(disposables, model);
+		provider.getSessions(); // Initialize cache
+
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
+
+		model.fireDidChangeSessions();
+
+		assert.deepStrictEqual(changes, []);
+	});
+
+	test('onDidChangeSessions fires changed session when cached agent session changes', () => {
+		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/existing-session' });
+		model.addSession(createMockAgentSession(resource, { title: 'Existing Session', createdAt: 1 }));
+
+		const provider = createProvider(disposables, model);
+		provider.getSessions(); // Initialize cache
+
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
+
+		model.replaceSession(createMockAgentSession(resource, { title: 'Updated Session', createdAt: 1 }));
+
+		assert.deepStrictEqual(changes.map(e => ({
+			added: e.added.length,
+			removed: e.removed.length,
+			changed: e.changed.map(session => session.title.get()),
+		})), [{
+			added: 0,
+			removed: 0,
+			changed: ['Updated Session'],
+		}]);
 	});
 
 	// ---- Session creation -------

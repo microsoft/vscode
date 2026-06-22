@@ -194,6 +194,8 @@ export interface ISessionsManagementService {
 	readonly onDidDeleteChat: Event<ISession>;
 	/** Fires after a chat was successfully renamed via {@link renameChat}. */
 	readonly onDidRenameChat: Event<ISession>;
+	/** Fires after a session was successfully renamed via {@link renameSession}. */
+	readonly onDidRenameSession: Event<ISession>;
 	/** Fires after a provider replaced a session (e.g. a draft graduating into a committed session). */
 	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }>;
 
@@ -278,11 +280,23 @@ export interface ISessionsManagementService {
 	/** Delete a session. */
 	deleteSession(session: ISession): Promise<void>;
 
+	/**
+	 * Delete multiple sessions at once.
+	 *
+	 * Groups the sessions by provider and deletes each group through its
+	 * provider's batch {@link ISessionsProvider.deleteSessions}. Fires
+	 * {@link onDidDeleteSession} once per deleted session.
+	 */
+	deleteSessions(sessions: readonly ISession[]): Promise<void>;
+
 	/** Delete a single chat from a session by its URI. */
 	deleteChat(session: ISession, chatUri: URI): Promise<void>;
 
 	/** Rename a chat within a session. */
 	renameChat(session: ISession, chatUri: URI, title: string): Promise<void>;
+
+	/** Rename a session, independently of its chats. */
+	renameSession(session: ISession, title: string): Promise<void>;
 }
 
 export const ISessionsManagementService = createDecorator<ISessionsManagementService>('sessionsManagementService');

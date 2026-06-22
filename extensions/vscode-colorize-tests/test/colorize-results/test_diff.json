@@ -8,11 +8,11 @@
 			"dark_vs": "meta.diff.header: #569CD6",
 			"light_vs": "meta.diff.header: #000080",
 			"hc_black": "meta.diff.header: #000080",
-			"2026-dark": "meta.diff.header: #79C0FF",
 			"dark_modern": "meta.diff.header: #569CD6",
-			"2026-light": "meta.diff.header: #0550AE",
 			"hc_light": "meta.diff.header: #062F4A",
-			"light_modern": "meta.diff.header: #000080"
+			"light_modern": "meta.diff.header: #000080",
+			"2026-dark": "meta.diff.header: #79C0FF",
+			"2026-light": "meta.diff.header: #0550AE"
 		}
 	},
 	{
@@ -24,11 +24,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"2026-dark": "default: #BBBEBF",
 			"dark_modern": "default: #CCCCCC",
-			"2026-light": "default: #202020",
 			"hc_light": "default: #292929",
-			"light_modern": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
@@ -40,11 +40,11 @@
 			"dark_vs": "meta.diff.header: #569CD6",
 			"light_vs": "meta.diff.header: #000080",
 			"hc_black": "meta.diff.header: #000080",
-			"2026-dark": "meta.diff.header.from-file: #F48771",
 			"dark_modern": "meta.diff.header: #569CD6",
-			"2026-light": "meta.diff.header.from-file: #AD0707",
 			"hc_light": "meta.diff.header: #062F4A",
-			"light_modern": "meta.diff.header: #000080"
+			"light_modern": "meta.diff.header: #000080",
+			"2026-dark": "meta.diff.header.from-file: #FFA198",
+			"2026-light": "meta.diff.header.from-file: #82071E"
 		}
 	},
 	{
@@ -56,11 +56,11 @@
 			"dark_vs": "meta.diff.header: #569CD6",
 			"light_vs": "meta.diff.header: #000080",
 			"hc_black": "meta.diff.header: #000080",
-			"2026-dark": "meta.diff.header.from-file: #F48771",
 			"dark_modern": "meta.diff.header: #569CD6",
-			"2026-light": "meta.diff.header.from-file: #AD0707",
 			"hc_light": "meta.diff.header: #062F4A",
-			"light_modern": "meta.diff.header: #000080"
+			"light_modern": "meta.diff.header: #000080",
+			"2026-dark": "meta.diff.header.from-file: #FFA198",
+			"2026-light": "meta.diff.header.from-file: #82071E"
 		}
 	},
 	{
@@ -72,11 +72,11 @@
 			"dark_vs": "meta.diff.header: #569CD6",
 			"light_vs": "meta.diff.header: #000080",
 			"hc_black": "meta.diff.header: #000080",
-			"2026-dark": "meta.diff.header.to-file: #73C991",
 			"dark_modern": "meta.diff.header: #569CD6",
-			"2026-light": "meta.diff.header.to-file: #587C0C",
 			"hc_light": "meta.diff.header: #062F4A",
-			"light_modern": "meta.diff.header: #000080"
+			"light_modern": "meta.diff.header: #000080",
+			"2026-dark": "meta.diff.header.to-file: #7EE787",
+			"2026-light": "meta.diff.header.to-file: #116329"
 		}
 	},
 	{
@@ -88,11 +88,11 @@
 			"dark_vs": "meta.diff.header: #569CD6",
 			"light_vs": "meta.diff.header: #000080",
 			"hc_black": "meta.diff.header: #000080",
-			"2026-dark": "meta.diff.header.to-file: #73C991",
 			"dark_modern": "meta.diff.header: #569CD6",
-			"2026-light": "meta.diff.header.to-file: #587C0C",
 			"hc_light": "meta.diff.header: #062F4A",
-			"light_modern": "meta.diff.header: #000080"
+			"light_modern": "meta.diff.header: #000080",
+			"2026-dark": "meta.diff.header.to-file: #7EE787",
+			"2026-light": "meta.diff.header.to-file: #116329"
 		}
 	},
 	{
@@ -104,11 +104,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"2026-dark": "meta.diff.range: #D2A8FF",
 			"dark_modern": "default: #CCCCCC",
-			"2026-light": "meta.diff.range: #8250DF",
 			"hc_light": "default: #292929",
-			"light_modern": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "meta.diff.range: #D2A8FF",
+			"2026-light": "meta.diff.range: #8250DF"
 		}
 	},
 	{
@@ -120,11 +120,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"2026-dark": "meta.diff.range: #D2A8FF",
 			"dark_modern": "default: #CCCCCC",
-			"2026-light": "meta.diff.range: #8250DF",
 			"hc_light": "default: #292929",
-			"light_modern": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "meta.diff.range: #D2A8FF",
+			"2026-light": "meta.diff.range: #8250DF"
 		}
 	},
 	{
@@ -136,11 +136,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"2026-dark": "meta.diff.range: #D2A8FF",
 			"dark_modern": "default: #CCCCCC",
-			"2026-light": "meta.diff.range: #8250DF",
 			"hc_light": "default: #292929",
-			"light_modern": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "meta.diff.range: #D2A8FF",
+			"2026-light": "meta.diff.range: #8250DF"
 		}
 	},
 	{
@@ -152,11 +152,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"2026-dark": "meta.diff.range: #D2A8FF",
 			"dark_modern": "default: #CCCCCC",
-			"2026-light": "meta.diff.range: #8250DF",
 			"hc_light": "default: #292929",
-			"light_modern": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "meta.diff.range: #D2A8FF",
+			"2026-light": "meta.diff.range: #8250DF"
 		}
 	},
 	{
@@ -168,11 +168,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"2026-dark": "meta.diff.range: #D2A8FF",
 			"dark_modern": "default: #CCCCCC",
-			"2026-light": "meta.diff.range: #8250DF",
 			"hc_light": "default: #292929",
-			"light_modern": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "meta.diff.range: #D2A8FF",
+			"2026-light": "meta.diff.range: #8250DF"
 		}
 	},
 	{
@@ -184,11 +184,11 @@
 			"dark_vs": "markup.deleted: #CE9178",
 			"light_vs": "markup.deleted: #A31515",
 			"hc_black": "markup.deleted: #CE9178",
-			"2026-dark": "punctuation.definition.deleted: #F48771",
 			"dark_modern": "markup.deleted: #CE9178",
-			"2026-light": "punctuation.definition.deleted: #AD0707",
 			"hc_light": "markup.deleted: #5A5A5A",
-			"light_modern": "markup.deleted: #A31515"
+			"light_modern": "markup.deleted: #A31515",
+			"2026-dark": "punctuation.definition.deleted: #FFA198",
+			"2026-light": "punctuation.definition.deleted: #82071E"
 		}
 	},
 	{
@@ -200,11 +200,11 @@
 			"dark_vs": "markup.deleted: #CE9178",
 			"light_vs": "markup.deleted: #A31515",
 			"hc_black": "markup.deleted: #CE9178",
-			"2026-dark": "markup.deleted: #F48771",
 			"dark_modern": "markup.deleted: #CE9178",
-			"2026-light": "markup.deleted: #AD0707",
 			"hc_light": "markup.deleted: #5A5A5A",
-			"light_modern": "markup.deleted: #A31515"
+			"light_modern": "markup.deleted: #A31515",
+			"2026-dark": "markup.deleted: #FFA198",
+			"2026-light": "markup.deleted: #82071E"
 		}
 	},
 	{
@@ -216,11 +216,11 @@
 			"dark_vs": "markup.inserted: #B5CEA8",
 			"light_vs": "markup.inserted: #098658",
 			"hc_black": "markup.inserted: #B5CEA8",
-			"2026-dark": "punctuation.definition.inserted: #73C991",
 			"dark_modern": "markup.inserted: #B5CEA8",
-			"2026-light": "punctuation.definition.inserted: #587C0C",
 			"hc_light": "markup.inserted: #096D48",
-			"light_modern": "markup.inserted: #098658"
+			"light_modern": "markup.inserted: #098658",
+			"2026-dark": "punctuation.definition.inserted: #7EE787",
+			"2026-light": "punctuation.definition.inserted: #116329"
 		}
 	},
 	{
@@ -232,11 +232,11 @@
 			"dark_vs": "markup.inserted: #B5CEA8",
 			"light_vs": "markup.inserted: #098658",
 			"hc_black": "markup.inserted: #B5CEA8",
-			"2026-dark": "markup.inserted: #73C991",
 			"dark_modern": "markup.inserted: #B5CEA8",
-			"2026-light": "markup.inserted: #587C0C",
 			"hc_light": "markup.inserted: #096D48",
-			"light_modern": "markup.inserted: #098658"
+			"light_modern": "markup.inserted: #098658",
+			"2026-dark": "markup.inserted: #7EE787",
+			"2026-light": "markup.inserted: #116329"
 		}
 	}
 ]

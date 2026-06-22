@@ -72,12 +72,17 @@ suite('AgentHostSessionTaskRunner', () => {
 	let runner: AgentHostSessionTaskRunner;
 	let createdTerminals: { address: string; options?: IAgentHostTerminalCreateOptions }[];
 	let sentText: { text: string; shouldExecute: boolean }[];
+	let disposedTerminals: ITerminalInstance[];
 	let allTasks: ISessionTaskWithTarget[];
-	const fakeInstance = { sendText: async (text: string, shouldExecute: boolean) => { sentText.push({ text, shouldExecute }); } } as ITerminalInstance;
+	const fakeInstance = {
+		sendText: async (text: string, shouldExecute: boolean) => { sentText.push({ text, shouldExecute }); },
+		dispose: () => { disposedTerminals.push(fakeInstance); },
+	} as unknown as ITerminalInstance;
 
 	setup(() => {
 		createdTerminals = [];
 		sentText = [];
+		disposedTerminals = [];
 		allTasks = [];
 
 		const instantiationService = store.add(new TestInstantiationService());
@@ -146,12 +151,23 @@ suite('AgentHostSessionTaskRunner', () => {
 		const cwd = URI.parse('file:///path/to/worktree');
 		const session = makeSession({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, cwd });
 
-		await runner.runTask(shellTask(), session);
+		(await runner.runTask(shellTask(), session))?.dispose();
 
 		assert.strictEqual(createdTerminals.length, 1);
 		assert.strictEqual(createdTerminals[0].address, '__local__');
 		assert.deepStrictEqual(createdTerminals[0].options?.cwd?.toString(), cwd.toString());
 		assert.deepStrictEqual(sentText, [{ text: 'echo hi', shouldExecute: true }]);
+	});
+
+	test('returned handle stops the task by disposing its terminal', async () => {
+		const session = makeSession({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, cwd: URI.parse('file:///x') });
+
+		const handle = await runner.runTask(shellTask(), session);
+		assert.deepStrictEqual(disposedTerminals, []);
+
+		handle?.dispose();
+
+		assert.deepStrictEqual(disposedTerminals, [fakeInstance]);
 	});
 
 	test('agent-host scheme cwds are unwrapped to their original URI', async () => {
@@ -160,7 +176,7 @@ suite('AgentHostSessionTaskRunner', () => {
 		assert.strictEqual(wrapped.scheme, AGENT_HOST_SCHEME, 'precondition: wrapped uri');
 		const session = makeSession({ providerId: 'agenthost-myhost', cwd: wrapped });
 
-		await runner.runTask(shellTask(), session);
+		(await runner.runTask(shellTask(), session))?.dispose();
 
 		assert.strictEqual(createdTerminals.length, 1);
 		assert.strictEqual(createdTerminals[0].options?.cwd?.toString(), innerCwd.toString());
@@ -169,7 +185,7 @@ suite('AgentHostSessionTaskRunner', () => {
 	test('unknown scheme cwds are omitted (host uses default)', async () => {
 		const session = makeSession({ providerId: 'agenthost-myhost', cwd: URI.parse('vscode-vfs://github/owner/repo') });
 
-		await runner.runTask(shellTask(), session);
+		(await runner.runTask(shellTask(), session))?.dispose();
 
 		assert.strictEqual(createdTerminals.length, 1);
 		assert.strictEqual(createdTerminals[0].options?.cwd, undefined);
@@ -177,7 +193,7 @@ suite('AgentHostSessionTaskRunner', () => {
 
 	test('skips when no command can be resolved from the task', async () => {
 		const session = makeSession({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, cwd: URI.parse('file:///x') });
-		await runner.runTask({ label: 'empty' }, session);
+		(await runner.runTask({ label: 'empty' }, session))?.dispose();
 		assert.deepStrictEqual(createdTerminals, []);
 	});
 
@@ -197,7 +213,7 @@ suite('AgentHostSessionTaskRunner', () => {
 			{ task: top, target: 'workspace' },
 		];
 
-		await runner.runTask(top, session);
+		(await runner.runTask(top, session))?.dispose();
 
 		assert.deepStrictEqual(sentText, [{ text: 'npm run transpile && npm run dev', shouldExecute: true }]);
 	});

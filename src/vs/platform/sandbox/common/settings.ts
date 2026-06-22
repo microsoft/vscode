@@ -11,7 +11,6 @@ export const enum AgentSandboxSettingId {
 	AgentSandboxWindowsEnabled = 'chat.agent.sandbox.enabledWindows',
 	AgentSandboxAllowUnsandboxedCommands = 'chat.agent.sandbox.allowUnsandboxedCommands',
 	AgentSandboxRetryWithAllowNetworkRequests = 'chat.agent.sandbox.retryWithAllowNetworkRequests',
-	AgentSandboxAutoApproveUnsandboxedCommands = 'chat.agent.sandbox.autoApproveUnsandboxedCommands',
 	AgentSandboxAllowAutoApprove = 'chat.agent.sandbox.allowAutoApprove',
 	AgentSandboxLinuxFileSystem = 'chat.agent.sandbox.fileSystem.linux',
 	AgentSandboxMacFileSystem = 'chat.agent.sandbox.fileSystem.mac',

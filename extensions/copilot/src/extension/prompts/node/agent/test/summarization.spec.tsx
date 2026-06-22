@@ -12,6 +12,7 @@ import { CodeGenerationTextInstruction, ConfigKey, IConfigurationService } from 
 import { MockEndpoint } from '../../../../../platform/endpoint/test/node/mockEndpoint';
 import { messageToMarkdown } from '../../../../../platform/log/common/messageStringify';
 import { IResponseDelta } from '../../../../../platform/networking/common/fetch';
+import { IMakeChatRequestOptions } from '../../../../../platform/networking/common/networking';
 import { ITestingServicesAccessor } from '../../../../../platform/test/node/services';
 import { TestWorkspaceService } from '../../../../../platform/test/node/testWorkspaceService';
 import { IWorkspaceService } from '../../../../../platform/workspace/common/workspaceService';
@@ -27,6 +28,7 @@ import { IBuildPromptContext, IToolCall } from '../../../../prompt/common/intent
 import { ToolCallRound } from '../../../../prompt/common/toolCallRound';
 import { createExtensionUnitTestingServices } from '../../../../test/node/services';
 import { ToolName } from '../../../../tools/common/toolNames';
+import { IToolsService } from '../../../../tools/common/toolsService';
 import { PromptRenderer } from '../../base/promptRenderer';
 import { AgentPrompt, AgentPromptProps } from '../agentPrompt';
 import { PromptRegistry } from '../promptRegistry';
@@ -87,6 +89,22 @@ suite('Agent Summarization', () => {
 		normalizeSummariesOnRounds(promptContext.history);
 		if (!promptContext.conversation) {
 			promptContext = { ...promptContext, conversation };
+		}
+
+		// Real agent requests always advertise the non-deferred memory tool, which gates the
+		// memory context blocks. Advertise it here so the rendered Agent prompt matches real usage.
+		if (!promptContext.tools?.availableTools.some(t => t.name === ToolName.Memory)) {
+			const memoryTool = accessor.get(IToolsService).tools.find(t => t.name === ToolName.Memory);
+			if (memoryTool) {
+				promptContext = {
+					...promptContext,
+					tools: {
+						toolInvocationToken: promptContext.tools?.toolInvocationToken ?? (null as never),
+						toolReferences: promptContext.tools?.toolReferences ?? [],
+						availableTools: [...(promptContext.tools?.availableTools ?? []), memoryTool],
+					}
+				};
+			}
 		}
 
 		const baseProps = {
@@ -481,6 +499,26 @@ suite('Agent Summarization', () => {
 		expect(summaryMeta).toBeDefined();
 		expect(summaryMeta!.text).toBe('summarized successfully!');
 		expect(summaryMeta!.toolCallRoundId).toBeTruthy();
+	});
+
+	test('summarization request does not force stream:false (would break SSE-processed streaming models like Gemini) #321085', async () => {
+		chatResponse[0] = 'summarized successfully!';
+		const { instaService, endpoint, historyProps } = createSummarizationTestContext();
+
+		const capturedRequests: IMakeChatRequestOptions[] = [];
+		const originalMakeChatRequest2 = endpoint.makeChatRequest2.bind(endpoint);
+		endpoint.makeChatRequest2 = (options, token) => {
+			capturedRequests.push(options);
+			return originalMakeChatRequest2(options, token);
+		};
+
+		const renderer = PromptRenderer.create(instaService, endpoint, SummarizedConversationHistory, historyProps);
+		await renderer.render();
+
+		expect(capturedRequests.length).toBeGreaterThan(0);
+		for (const request of capturedRequests) {
+			expect(request.requestOptions?.stream).not.toBe(false);
+		}
 	});
 
 	test('failed summarization does not set round.summary', async () => {

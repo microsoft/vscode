@@ -27,7 +27,7 @@ import { IChatWebSocketManager } from '../../networking/node/chatWebSocketManage
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { TelemetryData } from '../../telemetry/common/telemetryData';
-import { getVerbosityForModelSync, isHiddenModelM } from '../common/chatModelCapabilities';
+import { getVerbosityForModelSync, isGpt54, isGpt55, isHiddenModelM } from '../common/chatModelCapabilities';
 import { rawPartAsCompactionData } from '../common/compactionDataContainer';
 import { rawPartAsPhaseData } from '../common/phaseDataContainer';
 import { getIndexOfStatefulMarker, getStatefulMarkerAndIndex } from '../common/statefulMarkerContainer';
@@ -164,7 +164,7 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 		: undefined;
 	const summary = summaryConfig === 'off' || shouldDisableReasoningSummary ? undefined : summaryConfig;
 	const persistentCoTEnabled = configService.getExperimentBasedConfig(ConfigKey.ResponsesApiPersistentCoTEnabled, expService)
-		&& isHiddenModelM(endpoint);
+		&& (isGpt54(endpoint) || isGpt55(endpoint) || isHiddenModelM(endpoint));
 	if (effort || summary || persistentCoTEnabled) {
 		body.reasoning = {
 			...(effort ? { effort } : {}),

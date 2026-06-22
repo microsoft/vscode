@@ -107,7 +107,7 @@ export class NewChatInSessionWidget extends Disposable {
 		const tipContainer = dom.append(container, dom.$('.sub-session-tip-container'));
 		const tipWidget = dom.append(tipContainer, dom.$('.sub-session-tip-widget'));
 		tipWidget.setAttribute('role', 'status');
-		tipWidget.setAttribute('aria-label', localize('subSessionTip.ariaLabel', "Sub-session tip"));
+		tipWidget.setAttribute('aria-label', localize('subSessionTip.ariaLabel', "New chat tip"));
 
 		// Tip icon
 		const iconEl = dom.append(tipWidget, renderIcon(Codicon.lightbulb));
@@ -117,7 +117,7 @@ export class NewChatInSessionWidget extends Disposable {
 		const textEl = dom.append(tipWidget, dom.$('span.sub-session-tip-text'));
 		textEl.textContent = localize(
 			'subSessionTip.message',
-			"This is a sub-session, a new chat in the same workspace. Use it to ask questions, run tasks, or explore ideas with fresh context."
+			"Start a parallel conversation to build on all the changes made in this session."
 		);
 
 		// Dismiss button

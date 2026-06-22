@@ -143,25 +143,9 @@ export class FileEditTracker {
 	 * and returns the result as an {@link ToolResultFileEditContent}
 	 * for inclusion in the tool result.
 	 *
-	 * @param turnId - The turn that produced this edit.
-	 * @param toolCallId - The tool call that produced this edit.
-	 * @param filePath - Absolute path of the edited file.
-	 * @param toolName - The tool that produced this edit. Used together
-	 *   with {@link toolInput} to extract the AI-written text chunks
-	 *   for region-based survival scoring (see
-	 *   {@link IEditSurvivalReporterLaunchParams.aiChunks}). Pass an
-	 *   empty string when the tool is unknown; the survival reporter
-	 *   then falls back to whole-file scoring.
-	 * @param toolInput - The raw tool input, as received from the
-	 *   agent. Parsed by {@link extractAiChunks} -- unknown shapes are
-	 *   tolerated and yield an empty chunk list (whole-file fallback).
-	 * @param modelId - The model that produced this edit (e.g.
-	 *   `claude-sonnet-4.5`). Forwarded to the survival reporter so the
-	 *   resulting telemetry can be sliced by model. Expected to always
-	 *   be populated in practice; the parameter is typed `undefined`-
-	 *   tolerant so a missing model can't suppress the edit-survival
-	 *   sample, but `undefined` here is a bug and is logged as a warning
-	 *   (and surfaces as an empty `modelId` string in telemetry).
+	 * `toolName` and `toolInput` are forwarded to {@link extractAiChunks}
+	 * for region-based survival scoring; unknown shapes fall back to
+	 * whole-file scoring.
 	 */
 	async takeCompletedEdit(turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined): Promise<ToolResultFileEditContent | undefined> {
 		const edit = this._completedEdits.get(filePath);
@@ -215,6 +199,7 @@ export class FileEditTracker {
 			afterText,
 			isCreate,
 			modelId,
+			toolName,
 			aiChunks: extractAiChunks(toolName, toolInput, filePath),
 		});
 

@@ -5,12 +5,59 @@
 
 import assert from 'assert';
 import { suite, test } from 'node:test';
-import { renderADMLString, renderProfileString, renderADMX, renderADML, renderProfileManifest, renderMacOSPolicy, renderGP, renderJsonPolicies } from '../policies/render.ts';
+import { escapeXml, renderADMLString, renderProfileString, renderADMX, renderADML, renderProfileManifest, renderMacOSPolicy, renderGP, renderJsonPolicies } from '../policies/render.ts';
 import { type NlsString, type LanguageTranslations, type Category, type Policy, PolicyType } from '../policies/types.ts';
 
 suite('Render Functions', () => {
 
+	suite('escapeXml', () => {
+
+		test('should escape ampersands', () => {
+			assert.strictEqual(escapeXml('foo & bar'), 'foo &amp; bar');
+		});
+
+		test('should escape angle brackets', () => {
+			assert.strictEqual(escapeXml('<plugin>@<marketplace>'), '&lt;plugin&gt;@&lt;marketplace&gt;');
+		});
+
+		test('should escape all special characters together', () => {
+			assert.strictEqual(escapeXml('a < b & b > c'), 'a &lt; b &amp; b &gt; c');
+		});
+
+		test('should not alter strings without special characters', () => {
+			assert.strictEqual(escapeXml('plain text'), 'plain text');
+		});
+	});
+
 	suite('renderADMLString', () => {
+
+		test('should escape XML special characters in values', () => {
+			const nlsString: NlsString = {
+				value: 'Keys are plugin IDs in `<plugin>@<marketplace>` form',
+				nlsKey: 'test.description'
+			};
+
+			const result = renderADMLString('TestPrefix', 'testModule', nlsString);
+
+			assert.strictEqual(result, '<string id="TestPrefix_test_description">Keys are plugin IDs in `&lt;plugin&gt;@&lt;marketplace&gt;` form</string>');
+		});
+
+		test('should escape XML special characters in translated values', () => {
+			const nlsString: NlsString = {
+				value: 'Original',
+				nlsKey: 'test.key'
+			};
+
+			const translations: LanguageTranslations = {
+				'testModule': {
+					'test.key': 'Git URIs (`<url>[#ref]`)'
+				}
+			};
+
+			const result = renderADMLString('TestPrefix', 'testModule', nlsString, translations);
+
+			assert.strictEqual(result, '<string id="TestPrefix_test_key">Git URIs (`&lt;url&gt;[#ref]`)</string>');
+		});
 
 		test('should render ADML string without translations', () => {
 			const nlsString: NlsString = {
@@ -114,6 +161,17 @@ suite('Render Functions', () => {
 			const result = renderProfileString('ProfilePrefix', 'testModule', nlsString, translations);
 
 			assert.strictEqual(result, 'Original profile value');
+		});
+
+		test('should escape XML special characters in values', () => {
+			const nlsString: NlsString = {
+				value: 'Git URIs (`<url>[#ref]`)',
+				nlsKey: 'profile.key'
+			};
+
+			const result = renderProfileString('ProfilePrefix', 'testModule', nlsString);
+
+			assert.strictEqual(result, 'Git URIs (`&lt;url&gt;[#ref]`)');
 		});
 	});
 

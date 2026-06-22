@@ -19,10 +19,11 @@ import { buildDefaultChatUri, SessionStatus as ProtocolSessionStatus, StateCompo
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService, IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService, type ChatSendResult, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -193,8 +194,13 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IFileDialogService, {});
+	instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	instantiationService.stub(INotificationService, { error: () => { } });
+	instantiationService.stub(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() {
+		override isWorkspaceTrusted(): boolean { return true; }
+		override async getUriTrustInfo(uri: URI) { return { uri, trusted: true }; }
+	});
 	instantiationService.stub(IChatSessionsService, {
 		getChatSessionContribution: () => ({ type: 'remote-test-copilot', name: 'test', displayName: 'Test', description: 'test', icon: undefined }),
 		getOrCreateChatSession: async () => ({ onWillDispose: () => ({ dispose() { } }), sessionResource: URI.from({ scheme: 'test' }), history: [], dispose() { } }),
@@ -657,7 +663,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const target = sessions.find((s) => s.title.get() === 'Old Title');
 		assert.ok(target, 'Session should exist');
 
-		await provider.renameChat(target!.sessionId, target!.resource, 'New Title');
+		await provider.renameSession(target!.sessionId, 'New Title');
 
 		assert.strictEqual(connection.dispatchedActions.length, 1);
 		const dispatched = connection.dispatchedActions[0];
@@ -678,14 +684,14 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const target = sessions.find((s) => s.title.get() === 'Before');
 		assert.ok(target);
 
-		await provider.renameChat(target!.sessionId, target!.resource, 'After');
+		await provider.renameSession(target!.sessionId, 'After');
 
 		assert.strictEqual(target!.title.get(), 'After');
 	});
 
 	test('renameSession is no-op for unknown chatId', async () => {
 		const provider = createProvider(disposables, connection);
-		await provider.renameChat('nonexistent-id', URI.parse('test://nonexistent'), 'Ignored');
+		await provider.renameSession('nonexistent-id', 'Ignored');
 
 		assert.strictEqual(connection.dispatchedActions.length, 0);
 	});
@@ -700,8 +706,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const target = sessions.find((s) => s.title.get() === 'Seq Test');
 		assert.ok(target);
 
-		await provider.renameChat(target!.sessionId, target!.resource, 'Title 1');
-		await provider.renameChat(target!.sessionId, target!.resource, 'Title 2');
+		await provider.renameSession(target!.sessionId, 'Title 1');
+		await provider.renameSession(target!.sessionId, 'Title 2');
 
 		assert.strictEqual(connection.dispatchedActions.length, 2);
 		assert.strictEqual(connection.dispatchedActions[0].clientSeq, 0);

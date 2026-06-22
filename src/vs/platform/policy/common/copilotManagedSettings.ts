@@ -29,7 +29,7 @@ export const COPILOT_ENABLED_PLUGINS_KEY = 'enabledPlugins';
 /** Managed-settings key for enterprise marketplaces (carried as a JSON-encoded `{ [name]: url-or-shorthand }`). */
 export const COPILOT_EXTRA_MARKETPLACES_KEY = 'extraKnownMarketplaces';
 
-/** Managed-settings key for the strict-marketplace flag (boolean). */
+/** Managed-settings key for the strict-marketplace allowlist (carried as a JSON-encoded array of source entries; absent = no restrictions, `[]` = lockdown). */
 export const COPILOT_STRICT_MARKETPLACES_KEY = 'strictKnownMarketplaces';
 
 export const ICopilotManagedSettingsService = createDecorator<ICopilotManagedSettingsService>('copilotManagedSettingsService');

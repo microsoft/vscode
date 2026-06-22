@@ -124,8 +124,7 @@ function toSessionChangesetOperation(operation: ChangesetOperation): ISessionCha
 		icon: operation.icon
 			? ThemeIcon.fromId(operation.icon)
 			: undefined,
-		scopes: operation.scopes.map(toSessionChangesetOperationScope),
-		status: toSessionChangesetOperationStatus(operation.status),
+		group: operation.group,
 		confirmation: operation.confirmation
 			? typeof operation.confirmation === 'string'
 				? operation.confirmation
@@ -133,6 +132,8 @@ function toSessionChangesetOperation(operation: ChangesetOperation): ISessionCha
 					isTrusted: false, supportThemeIcons: true
 				})
 			: undefined,
+		scopes: operation.scopes.map(toSessionChangesetOperationScope),
+		status: toSessionChangesetOperationStatus(operation.status),
 	};
 }
 
@@ -158,8 +159,18 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 		private readonly _options: IAgentHostAdapterOptions,
 		private readonly _dialogService: IDialogService,
 	) {
+		// Throttle only the changes path; `isLoadingChanges` and `operations`
+		// keep reading `this.changesetStateObs` directly so spinners/buttons stay
+		// responsive. Throttle (not debounce) so a continuous stream keeps
+		// updating instead of starving until edits stop. The `derived` wrapper
+		// defers reading the abstract `changesetStateObs` until the observable is
+		// actually observed (it isn't assigned yet during base construction).
+		const throttledChangesetStateObs = throttledObservable(
+			derived(reader => this.changesetStateObs.read(reader).read(reader)),
+			CHANGESET_UPDATE_THROTTLE_MS);
+
 		this.isLoadingChanges = derived(reader => {
-			const changesetState = this.changesetStateObs.read(reader).read(reader);
+			const changesetState = throttledChangesetStateObs.read(reader);
 
 			// If the changeset state is `undefined`, it means that the first snapshot
 			// has not yet arrived, so in order to avoid any flickering in the Changes
@@ -181,19 +192,11 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 
 		const mapDiffUri = this._options.mapDiffUri;
 
-		// Throttle only the changes path; `isLoadingChanges` and `operations`
-		// keep reading `this.changesetStateObs` directly so spinners/buttons stay
-		// responsive. Throttle (not debounce) so a continuous stream keeps
-		// updating instead of starving until edits stop. The `derived` wrapper
-		// defers reading the abstract `changesetStateObs` until the observable is
-		// actually observed (it isn't assigned yet during base construction).
-		const throttledChangesetValueObs = throttledObservable(derived(reader => this.changesetStateObs.read(reader).read(reader)), CHANGESET_UPDATE_THROTTLE_MS);
-
 		// Hold the raw `ChangesetFile[]` (with last-value semantics) so unchanged
 		// files keep their reference across reducer updates, enabling the
 		// per-file cache below to skip rebuilding them.
 		const changesetFilesObs = derivedObservableWithCache<readonly ChangesetFile[] | undefined>(this, (reader, lastValue) => {
-			const changesetState = throttledChangesetValueObs.read(reader);
+			const changesetState = throttledChangesetStateObs.read(reader);
 			if (changesetState === null || changesetState instanceof Error) {
 				return [];
 			}
@@ -215,13 +218,11 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 		// Build one change per file, reusing the cached result for files whose
 		// `ChangesetFile` reference is unchanged so only changed files are
 		// re-parsed and re-mapped.
-		const mappedChangesObs = mapObservableArrayCached(this, changesetFilesObs.map(files => files ?? []), file => changesetFileToChange(file, mapDiffUri));
+		const mappedChangesObs = mapObservableArrayCached(this,
+			changesetFilesObs.map(files => files ?? []),
+			file => changesetFileToChange(file, mapDiffUri));
 
 		const changesObs = derived<readonly ISessionFileChange[] | undefined>(this, reader => {
-			const files = changesetFilesObs.read(reader);
-			if (files === undefined) {
-				return undefined;
-			}
 			return mappedChangesObs.read(reader).filter(isDefined);
 		});
 
@@ -230,7 +231,7 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 		});
 
 		const operationsObs = derivedObservableWithCache<readonly ISessionChangesetOperation[]>(this, (reader, lastValue) => {
-			const changesetState = this.changesetStateObs.read(reader).read(reader);
+			const changesetState = throttledChangesetStateObs.read(reader);
 			if (changesetState === null || changesetState instanceof Error) {
 				return [];
 			}

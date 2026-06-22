@@ -471,6 +471,13 @@ export interface IDebugVariableEntry extends IBaseChatRequestVariableEntry {
 export interface IAgentFeedbackVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'agentFeedback';
 	readonly sessionResource: URI;
+	/**
+	 * The agent-host annotations channel URI that backs these feedback items
+	 * (each item id is an annotation id on this channel). Set only for
+	 * agent-host sessions; used to emit {@link MessageAnnotationsAttachment}s
+	 * referencing the specific comments on the wire.
+	 */
+	readonly annotationsResource?: URI;
 	readonly feedbackItems: ReadonlyArray<{
 		readonly id: string;
 		readonly text: string;

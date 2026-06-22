@@ -22,6 +22,7 @@ import {
 	type Turn,
 } from '../../common/state/protocol/state.js';
 import { buildSubagentSessionUri } from '../../common/state/sessionState.js';
+import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { buildClaudeToolMeta, getClaudeInvocationMessage, getClaudePastTenseMessage, getClaudeToolDisplayName, getClaudeToolInputString } from './claudeToolDisplay.js';
 import { stripClientToolNamePrefix } from './clientTools/claudeClientToolMcpServer.js';
 
@@ -302,7 +303,7 @@ class ReplayBuilder {
 		}
 		const isError = block.is_error;
 		const previousState = part.toolCall;
-		const isSubagent = previousState._meta?.toolKind === 'subagent';
+		const isSubagent = readToolCallMeta(previousState).toolKind === 'subagent';
 		const content: ToolResultContent[] = extractToolResultContent(block.content) ?? [];
 		if (isSubagent) {
 			content.push({

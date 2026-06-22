@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../nls.js';
+import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import { TelemetryConfiguration, TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { SessionConfigKey } from './sessionConfigKeys.js';
 import type { SessionConfigPropertySchema, SessionConfigSchema } from './state/protocol/commands.js';
@@ -259,9 +260,9 @@ function safeStringify(value: unknown): string {
 
 // ---- Platform-owned schema -------------------------------------------------
 
-export type AutoApproveLevel = 'default' | 'autoApprove' | 'autopilot';
+export type AutoApproveLevel = 'default' | 'autoApprove';
 
-export type SessionMode = 'interactive' | 'plan';
+export type SessionMode = 'interactive' | 'plan' | 'autopilot';
 
 export interface IPermissionsValue {
 	readonly allow: readonly string[];
@@ -307,16 +308,14 @@ export const platformSessionSchema = createSchema({
 		type: 'string',
 		title: localize('agentHost.sessionConfig.autoApprove', "Approvals"),
 		description: localize('agentHost.sessionConfig.autoApproveDescription', "Tool approval behavior for this session"),
-		enum: ['default', 'autoApprove', 'autopilot'],
+		enum: ['default', 'autoApprove'],
 		enumLabels: [
 			localize('agentHost.sessionConfig.autoApprove.default', "Default Approvals"),
 			localize('agentHost.sessionConfig.autoApprove.bypass', "Bypass Approvals"),
-			localize('agentHost.sessionConfig.autoApprove.autopilot', "Autopilot (Preview)"),
 		],
 		enumDescriptions: [
 			localize('agentHost.sessionConfig.autoApprove.defaultDescription', "Copilot uses your configured settings"),
 			localize('agentHost.sessionConfig.autoApprove.bypassDescription', "All tool calls are auto-approved"),
-			localize('agentHost.sessionConfig.autoApprove.autopilotDescription', "Autonomously iterates from start to finish"),
 		],
 		default: 'default',
 		sessionMutable: true,
@@ -326,19 +325,51 @@ export const platformSessionSchema = createSchema({
 		type: 'string',
 		title: localize('agentHost.sessionConfig.mode', "Agent Mode"),
 		description: localize('agentHost.sessionConfig.modeDescription', "How the agent should approach this turn"),
-		enum: ['interactive', 'plan'],
+		enum: ['interactive', 'plan', 'autopilot'],
 		enumLabels: [
 			localize('agentHost.sessionConfig.mode.interactive', "Interactive"),
 			localize('agentHost.sessionConfig.mode.plan', "Plan"),
+			localize('agentHost.sessionConfig.mode.autopilot', "Autopilot"),
 		],
 		enumDescriptions: [
 			localize('agentHost.sessionConfig.mode.interactiveDescription', "Step-by-step collaboration"),
 			localize('agentHost.sessionConfig.mode.planDescription', "Plan first, execute when ready"),
+			localize('agentHost.sessionConfig.mode.autopilotDescription', "Autonomously iterates from start to finish"),
 		],
 		default: 'interactive',
 		sessionMutable: true,
 	}),
 });
+
+/**
+ * Rewrites a legacy `autoApprove='autopilot'` config value — used before
+ * Autopilot moved from the `autoApprove` axis onto the orthogonal `mode`
+ * axis — into the current two-axis shape:
+ *
+ *  - `autoApprove='autopilot'` + `mode='plan'`  → `mode='plan'`, `autoApprove='default'`
+ *    (legacy `plan` took precedence over autopilot when resolving the SDK mode).
+ *  - `autoApprove='autopilot'` + any other mode → `mode='autopilot'`, `autoApprove='default'`.
+ *
+ * Returns a shallow copy with the migration applied, or the original
+ * reference unchanged when no legacy value is present. Safe to call on
+ * `undefined`.
+ *
+ * Without this, a session persisted (or a "remembered" picker value seeded)
+ * with `autoApprove='autopilot'` would fail the new schema's enum validation
+ * and silently fall back to `default`, downgrading the session from
+ * autonomous Autopilot to manual per-tool confirmation.
+ */
+export function migrateLegacyAutopilotConfig<T extends Record<string, unknown> | undefined>(config: T): T {
+	if (!config || config[SessionConfigKey.AutoApprove] !== 'autopilot') {
+		return config;
+	}
+	const migrated: Record<string, unknown> = { ...config };
+	if (migrated[SessionConfigKey.Mode] !== 'plan') {
+		migrated[SessionConfigKey.Mode] = 'autopilot' satisfies SessionMode;
+	}
+	migrated[SessionConfigKey.AutoApprove] = 'default' satisfies AutoApproveLevel;
+	return migrated as T;
+}
 
 /**
  * Root (agent host) config properties owned by the platform itself.
@@ -358,6 +389,22 @@ export const AgentHostTelemetryLevelConfigKey = 'telemetryLevel';
  * passed to the copilot-sdk `CopilotClientOptions`.
  */
 export const AgentHostSessionSyncEnabledConfigKey = 'sessionSyncEnabled';
+
+/**
+ * Root config key holding agent-host-level MCP server definitions.
+ *
+ * The value is a map of server name → {@link IMcpServerConfiguration}
+ * (the same `servers` shape used by `mcp.json`). These servers are
+ * exposed to every session created by the host, merged with any
+ * plugin-provided MCP servers when launching the copilot-sdk client.
+ */
+export const AgentHostMcpServersConfigKey = 'mcpServers';
+
+/**
+ * Map of server name → MCP server configuration, as stored in the
+ * {@link AgentHostMcpServersConfigKey} root config value.
+ */
+export type AgentHostMcpServers = Record<string, IMcpServerConfiguration>;
 
 /**
  * The VS Code setting ID for session sync. Defined here so the platform
@@ -394,6 +441,71 @@ export function agentHostConfigValueToTelemetryLevel(value: unknown): TelemetryL
 	}
 }
 
+/**
+ * Field descriptors for a single MCP server entry, shared by the stdio and
+ * http shapes. The agent-host config schema has no `oneOf`, so both variants'
+ * fields are described together; `type` selects which fields apply
+ * (`stdio` uses `command`/`args`/`env`/`cwd`, `http` uses `url`/`headers`).
+ */
+const mcpServerConfigProperties: Record<string, SessionConfigPropertySchema> = {
+	type: {
+		type: 'string',
+		title: localize('agentHost.config.mcpServers.type.title', "Server Type"),
+		description: localize('agentHost.config.mcpServers.type.description', "The transport used to reach the server: `stdio` for a local command, `http` for a remote endpoint."),
+		enum: ['stdio', 'http'],
+	},
+	command: {
+		type: 'string',
+		title: localize('agentHost.config.mcpServers.command.title', "Command"),
+		description: localize('agentHost.config.mcpServers.command.description', "For `stdio` servers, the executable to spawn."),
+	},
+	args: {
+		type: 'array',
+		title: localize('agentHost.config.mcpServers.args.title', "Arguments"),
+		description: localize('agentHost.config.mcpServers.args.description', "For `stdio` servers, the arguments passed to the command."),
+		items: { type: 'string', title: localize('agentHost.config.mcpServers.arg.title', "Argument") },
+	},
+	env: {
+		type: 'object',
+		title: localize('agentHost.config.mcpServers.env.title', "Environment"),
+		description: localize('agentHost.config.mcpServers.env.description', "For `stdio` servers, environment variables set on the spawned process."),
+	},
+	cwd: {
+		type: 'string',
+		title: localize('agentHost.config.mcpServers.cwd.title', "Working Directory"),
+		description: localize('agentHost.config.mcpServers.cwd.description', "For `stdio` servers, the working directory the command runs in."),
+	},
+	url: {
+		type: 'string',
+		title: localize('agentHost.config.mcpServers.url.title', "URL"),
+		description: localize('agentHost.config.mcpServers.url.description', "For `http` servers, the endpoint URL of the MCP server."),
+	},
+	headers: {
+		type: 'object',
+		title: localize('agentHost.config.mcpServers.headers.title', "Headers"),
+		description: localize('agentHost.config.mcpServers.headers.description', "For `http` servers, HTTP headers sent with every request."),
+	},
+};
+
+/**
+ * Documents the value shape of the {@link AgentHostMcpServersConfigKey} map.
+ *
+ * The config value is a map of server name → server config. The schema
+ * language has no `additionalProperties`, so the per-entry shape is attached
+ * under a placeholder key (`<serverName>`) rather than at the map level —
+ * this keeps the field descriptions discoverable without the runtime
+ * validator mistaking a real server named e.g. `command` for the `command`
+ * field. Real entries (keyed by actual server names) are passed through.
+ */
+const mcpServersValueProperties: Record<string, SessionConfigPropertySchema> = {
+	'<serverName>': {
+		type: 'object',
+		title: localize('agentHost.config.mcpServers.entry.title', "MCP Server"),
+		description: localize('agentHost.config.mcpServers.entry.description', "A single MCP server entry. The property key is the server name."),
+		properties: mcpServerConfigProperties,
+	},
+};
+
 export const platformRootSchema = createSchema({
 	[SessionConfigKey.Permissions]: permissionsProperty,
 	[AgentHostTelemetryLevelConfigKey]: schemaProperty<TelemetryConfiguration>({
@@ -408,5 +520,12 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.sessionSyncEnabled.title', "Session Sync"),
 		description: localize('agentHost.config.sessionSyncEnabled.description', "Whether remote session sync is enabled for the copilot-sdk CLI."),
 		default: false,
+	}),
+	[AgentHostMcpServersConfigKey]: schemaProperty<AgentHostMcpServers>({
+		type: 'object',
+		title: localize('agentHost.config.mcpServers.title', "MCP Servers"),
+		description: localize('agentHost.config.mcpServers.description', "Agent-host-level MCP servers exposed to every session, keyed by server name. Each value is a server configuration (see `<serverName>`)."),
+		properties: mcpServersValueProperties,
+		default: {},
 	}),
 });

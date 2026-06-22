@@ -880,7 +880,6 @@ class ConversationHistorySummarizer {
 				location: ChatLocation.Agent,
 				requestOptions: {
 					temperature: 0,
-					stream: false,
 					...toolOpts
 				},
 				telemetryProperties: associatedRequestId ? { associatedRequestId } : undefined,

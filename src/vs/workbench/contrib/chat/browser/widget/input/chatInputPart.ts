@@ -1588,14 +1588,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	/**
 	 * Get the chat session type for the current session, if any.
+	 *
+	 * Once a real session exists, the session resource is the authoritative
+	 * source for which models are valid. The picker delegate only describes the
+	 * welcome/new-session selection, which may not match the session that was
+	 * ultimately created (e.g. an agent-host pick that fell back to an
+	 * in-process `local` session). Preferring the delegate in that case lets an
+	 * agent-host model leak into a local session's pool, so we only consult the
+	 * delegate when there is no session yet (the welcome view has no view model).
 	 */
 	private getCurrentSessionType(): string | undefined {
-		const delegateSessionType = this.options.sessionTypePickerDelegate?.getActiveSessionProvider?.();
-		if (delegateSessionType) {
-			return delegateSessionType;
-		}
 		const sessionResource = this._widget?.viewModel?.model.sessionResource;
-		return sessionResource ? getChatSessionType(sessionResource) : undefined;
+		if (sessionResource) {
+			return getChatSessionType(sessionResource);
+		}
+		return this.options.sessionTypePickerDelegate?.getActiveSessionProvider?.();
 	}
 
 	private isModelValidForCurrentSession(model: ILanguageModelChatMetadataAndIdentifier): boolean {
@@ -2428,6 +2435,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * agent and model pickers. Re-selecting the active session clears the pending target and
 	 * restores the pickers.
 	 */
+	public continueInSession(provider: AgentSessionTarget): void {
+		this.setPendingDelegationTarget(provider);
+		this.focus();
+	}
+
 	private setPendingDelegationTarget(provider: AgentSessionTarget): void {
 		const isActive = this.getActiveSessionTypeForDelegation() === provider;
 		this._pendingDelegationTarget = isActive ? undefined : provider;

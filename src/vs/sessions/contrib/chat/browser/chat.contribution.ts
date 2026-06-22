@@ -50,7 +50,7 @@ class NewChatInSessionsWindowAction extends Action2 {
 			category: CHAT_CATEGORY,
 			f1: true,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib + 2,
+				weight: KeybindingWeight.SessionsContrib,
 				// Don't shadow Ctrl/Cmd+N (and Ctrl/Cmd+L) when focus is in the
 				// editor area so the standard editor commands (new untitled file,
 				// expand line selection) handle the shortcut instead.

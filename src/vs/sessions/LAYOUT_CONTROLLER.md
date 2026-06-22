@@ -89,13 +89,25 @@ advances past `submittedAt`:
 This only applies to the single-visible-session case; the pending state is dropped when multiple
 sessions are visible.
 
-### 3.4 Editor reveal on session switch
+### 3.4 Live visibility tracking
 
-The editor part is revealed programmatically when a session's editor working set is restored on
-session switch (`_revealEditorPartForWorkingSet`, §5). The editor part visibility otherwise follows
-direct editor open/close events and the user's chevron toggle. Each session's saved aux-bar
-visibility wins on switch — a side bar the user hid for a session stays hidden when they return to
-it.
+Aux-bar visibility is also tracked **live** (not only on session switch) via an
+`onDidChangePartVisibility` listener for `AUXILIARYBAR_PART` that re-runs `_captureViewState` for
+the active session (skipped on mobile web and while multiple sessions are visible). Without this,
+the sync autorun — which re-evaluates whenever the session's changes/workspace state updates, not
+just on switch — would find no saved state and re-run the default visibility logic (§3.2),
+re-revealing a side bar the user had just hidden.
+
+### 3.5 Editor reveal on session switch
+
+The editor part is revealed programmatically when a session's editor working set is restored on a
+session **switch** (`_revealEditorPartForWorkingSet`, §5). It is **not** revealed on the initial
+restore after a reload (§5.2) — the editor part visibility the workbench restored is preserved, so a
+session whose editor part was hidden (e.g. by closing the Side Panel, which hides both the auxiliary
+bar and the editor part while keeping the editors open) stays hidden. The editor part visibility
+otherwise follows direct editor open/close events and the user's chevron toggle. Each session's
+saved aux-bar visibility wins on switch — a side bar the user hid for a session stays hidden when
+they return to it.
 
 ---
 
@@ -139,11 +151,18 @@ Using `runOnChange(activeSessionForWorkingSet, ...)`:
 
 On initial load (no previous session) the controller only applies a working set if one is already
 saved for the incoming session — it never applies `'empty'`, to avoid closing editors being restored.
+On this initial restore the working set is applied under `suppressEditorPartAutoVisibility()` and the
+editor part is **not** revealed, so whatever visibility the workbench restored (possibly hidden,
+because the user closed the Side Panel) is preserved across reloads.
 
 ### 5.3 Cleanup
 
-`onDidChangeSessions` removes working sets for **archived** or **deleted** sessions
-(`_deleteWorkingSet`, which also drops the corresponding view state).
+`onDidChangeSessions` removes working sets **and** per-session view state for **archived** or
+**deleted** sessions. View-state removal is done explicitly in that handler — `_deleteWorkingSet`
+only drops the editor working set. (It must **not** drop the view state, because it is also called
+from `_saveWorkingSet` on every switch-away / shutdown; coupling the two would wipe a session's
+saved aux-bar visibility whenever it had editors but no longer does, causing the aux bar to fall
+back to the default-visible logic (§3.2) on the next reload.)
 
 ---
 

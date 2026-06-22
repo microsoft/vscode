@@ -8,11 +8,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"2026-dark": "default: #BBBEBF",
 			"dark_modern": "default: #CCCCCC",
-			"2026-light": "default: #202020",
 			"hc_light": "default: #292929",
-			"light_modern": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
@@ -24,11 +24,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"2026-dark": "default: #BBBEBF",
 			"dark_modern": "default: #CCCCCC",
-			"2026-light": "default: #202020",
 			"hc_light": "default: #292929",
-			"light_modern": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
@@ -40,11 +40,11 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"2026-dark": "comment: #8B949E",
 			"dark_modern": "comment: #6A9955",
-			"2026-light": "comment: #6E7781",
 			"hc_light": "comment: #515151",
-			"light_modern": "comment: #008000"
+			"light_modern": "comment: #008000",
+			"2026-dark": "comment: #8B949E",
+			"2026-light": "comment: #6E7781"
 		}
 	},
 	{
@@ -56,11 +56,11 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"2026-dark": "comment: #8B949E",
 			"dark_modern": "comment: #6A9955",
-			"2026-light": "comment: #6E7781",
 			"hc_light": "comment: #515151",
-			"light_modern": "comment: #008000"
+			"light_modern": "comment: #008000",
+			"2026-dark": "comment: #8B949E",
+			"2026-light": "comment: #6E7781"
 		}
 	},
 	{
@@ -72,11 +72,11 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"2026-dark": "comment: #8B949E",
 			"dark_modern": "comment: #6A9955",
-			"2026-light": "comment: #6E7781",
 			"hc_light": "comment: #515151",
-			"light_modern": "comment: #008000"
+			"light_modern": "comment: #008000",
+			"2026-dark": "comment: #8B949E",
+			"2026-light": "comment: #6E7781"
 		}
 	},
 	{
@@ -88,11 +88,11 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"2026-dark": "comment: #8B949E",
 			"dark_modern": "comment: #6A9955",
-			"2026-light": "comment: #6E7781",
 			"hc_light": "comment: #515151",
-			"light_modern": "comment: #008000"
+			"light_modern": "comment: #008000",
+			"2026-dark": "comment: #8B949E",
+			"2026-light": "comment: #6E7781"
 		}
 	},
 	{
@@ -104,11 +104,11 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"2026-dark": "comment: #8B949E",
 			"dark_modern": "comment: #6A9955",
-			"2026-light": "comment: #6E7781",
 			"hc_light": "comment: #515151",
-			"light_modern": "comment: #008000"
+			"light_modern": "comment: #008000",
+			"2026-dark": "comment: #8B949E",
+			"2026-light": "comment: #6E7781"
 		}
 	},
 	{
@@ -120,11 +120,11 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"2026-dark": "comment: #8B949E",
 			"dark_modern": "comment: #6A9955",
-			"2026-light": "comment: #6E7781",
 			"hc_light": "comment: #515151",
-			"light_modern": "comment: #008000"
+			"light_modern": "comment: #008000",
+			"2026-dark": "comment: #8B949E",
+			"2026-light": "comment: #6E7781"
 		}
 	},
 	{
@@ -136,11 +136,11 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"2026-dark": "comment: #8B949E",
 			"dark_modern": "comment: #6A9955",
-			"2026-light": "comment: #6E7781",
 			"hc_light": "comment: #515151",
-			"light_modern": "comment: #008000"
+			"light_modern": "comment: #008000",
+			"2026-dark": "comment: #8B949E",
+			"2026-light": "comment: #6E7781"
 		}
 	},
 	{
@@ -152,11 +152,11 @@
 			"dark_vs": "markup.deleted: #CE9178",
 			"light_vs": "markup.deleted: #A31515",
 			"hc_black": "markup.deleted: #CE9178",
-			"2026-dark": "markup.deleted: #F48771",
 			"dark_modern": "markup.deleted: #CE9178",
-			"2026-light": "markup.deleted: #AD0707",
 			"hc_light": "markup.deleted: #5A5A5A",
-			"light_modern": "markup.deleted: #A31515"
+			"light_modern": "markup.deleted: #A31515",
+			"2026-dark": "markup.deleted: #FFA198",
+			"2026-light": "markup.deleted: #82071E"
 		}
 	},
 	{
@@ -168,11 +168,11 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"2026-dark": "comment: #8B949E",
 			"dark_modern": "comment: #6A9955",
-			"2026-light": "comment: #6E7781",
 			"hc_light": "comment: #515151",
-			"light_modern": "comment: #008000"
+			"light_modern": "comment: #008000",
+			"2026-dark": "comment: #8B949E",
+			"2026-light": "comment: #6E7781"
 		}
 	},
 	{
@@ -184,11 +184,11 @@
 			"dark_vs": "markup.changed: #569CD6",
 			"light_vs": "markup.changed: #0451A5",
 			"hc_black": "markup.changed: #569CD6",
-			"2026-dark": "markup.changed: #E5BA7D",
 			"dark_modern": "markup.changed: #569CD6",
-			"2026-light": "markup.changed: #667309",
 			"hc_light": "markup.changed: #0451A5",
-			"light_modern": "markup.changed: #0451A5"
+			"light_modern": "markup.changed: #0451A5",
+			"2026-dark": "markup.changed: #FFA657",
+			"2026-light": "markup.changed: #953800"
 		}
 	},
 	{
@@ -200,11 +200,11 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"2026-dark": "comment: #8B949E",
 			"dark_modern": "comment: #6A9955",
-			"2026-light": "comment: #6E7781",
 			"hc_light": "comment: #515151",
-			"light_modern": "comment: #008000"
+			"light_modern": "comment: #008000",
+			"2026-dark": "comment: #8B949E",
+			"2026-light": "comment: #6E7781"
 		}
 	},
 	{
@@ -216,11 +216,11 @@
 			"dark_vs": "markup.inserted: #B5CEA8",
 			"light_vs": "markup.inserted: #098658",
 			"hc_black": "markup.inserted: #B5CEA8",
-			"2026-dark": "markup.inserted: #73C991",
 			"dark_modern": "markup.inserted: #B5CEA8",
-			"2026-light": "markup.inserted: #587C0C",
 			"hc_light": "markup.inserted: #096D48",
-			"light_modern": "markup.inserted: #098658"
+			"light_modern": "markup.inserted: #098658",
+			"2026-dark": "markup.inserted: #7EE787",
+			"2026-light": "markup.inserted: #116329"
 		}
 	},
 	{
@@ -232,11 +232,11 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"2026-dark": "comment: #8B949E",
 			"dark_modern": "comment: #6A9955",
-			"2026-light": "comment: #6E7781",
 			"hc_light": "comment: #515151",
-			"light_modern": "comment: #008000"
+			"light_modern": "comment: #008000",
+			"2026-dark": "comment: #8B949E",
+			"2026-light": "comment: #6E7781"
 		}
 	}
 ]

@@ -140,6 +140,9 @@ import '../workbench/contrib/extensions/electron-browser/extensions.contribution
 // Issues
 import '../workbench/contrib/issue/electron-browser/issue.contribution.js';
 
+// Surveys
+import '../workbench/contrib/surveys/browser/survey.contribution.js';
+
 // Process Explorer
 import '../workbench/contrib/processExplorer/electron-browser/processExplorer.contribution.js';
 
@@ -223,7 +226,6 @@ import './contrib/providers/agentHost/browser/localAgentHost.contribution.js';
 import './contrib/providers/agentHost/browser/agentSessionSettings.contribution.js';
 import './contrib/providers/agentHost/browser/agentHostSettings.contribution.js';
 import './contrib/providers/agentHost/browser/agentHostSessionBranchActions.js';
-import './contrib/providers/agentHost/browser/agentHostSessionDeleteAction.js';
 import './contrib/providers/agentHost/browser/agentHostSkillButtons.js';
 import './contrib/providers/agentHost/electron-browser/agentHost.contribution.js';
 

@@ -42,6 +42,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	readonly onDidDeleteChat: Event<ISession> = this._onDidDeleteChat.event;
 	private readonly _onDidRenameChat = this._register(new Emitter<ISession>());
 	readonly onDidRenameChat: Event<ISession> = this._onDidRenameChat.event;
+	private readonly _onDidRenameSession = this._register(new Emitter<ISession>());
+	readonly onDidRenameSession: Event<ISession> = this._onDidRenameSession.event;
 
 	private readonly _onDidChangeSessionTypes = this._register(new Emitter<void>());
 	readonly onDidChangeSessionTypes: Event<void> = this._onDidChangeSessionTypes.event;
@@ -499,6 +501,38 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._onDidDeleteSession.fire(session);
 	}
 
+	async deleteSessions(sessions: readonly ISession[]): Promise<void> {
+		const byProvider = new Map<ISessionsProvider, ISession[]>();
+		for (const session of sessions) {
+			const provider = this._getProvider(session);
+			if (!provider) {
+				continue;
+			}
+			const group = byProvider.get(provider);
+			if (group) {
+				group.push(session);
+			} else {
+				byProvider.set(provider, [session]);
+			}
+		}
+
+		let firstError: unknown;
+		for (const [provider, providerSessions] of byProvider) {
+			try {
+				await provider.deleteSessions(providerSessions.map(session => session.sessionId));
+				for (const session of providerSessions) {
+					this._onDidDeleteSession.fire(session);
+				}
+			} catch (error) {
+				firstError ??= error;
+			}
+		}
+
+		if (firstError !== undefined) {
+			throw firstError;
+		}
+	}
+
 	async deleteChat(session: ISession, chatUri: URI): Promise<void> {
 		await this._getProvider(session)?.deleteChat(session.sessionId, chatUri);
 		this._onDidDeleteChat.fire(session);
@@ -507,6 +541,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	async renameChat(session: ISession, chatUri: URI, title: string): Promise<void> {
 		await this._getProvider(session)?.renameChat(session.sessionId, chatUri, title);
 		this._onDidRenameChat.fire(session);
+	}
+
+	async renameSession(session: ISession, title: string): Promise<void> {
+		await this._getProvider(session)?.renameSession(session.sessionId, title);
+		this._onDidRenameSession.fire(session);
 	}
 }
 

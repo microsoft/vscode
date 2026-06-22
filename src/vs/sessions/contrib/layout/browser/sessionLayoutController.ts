@@ -236,6 +236,26 @@ export class LayoutController extends Disposable {
 			}
 		}));
 
+		// Track auxiliary bar visibility changes by the user so that hiding the
+		// secondary side bar (Side Panel) for a session is remembered immediately,
+		// not only on the next session switch. Without this the sync autorun
+		// (which re-runs when e.g. the session's changes state updates) would fall
+		// back to the default visibility logic and re-reveal the aux bar.
+		if (!(isWeb && isMobile)) {
+			this._register(this._layoutService.onDidChangePartVisibility(e => {
+				if (e.partId !== Parts.AUXILIARYBAR_PART) {
+					return;
+				}
+				if (multipleSessionsVisibleObs.get()) {
+					return;
+				}
+				const activeSession = this._sessionsService.activeSession.get();
+				if (activeSession) {
+					this._captureViewState(activeSession.resource);
+				}
+			}));
+		}
+
 		// --- Editor working sets ---
 
 		this._useModalConfigObs = observableConfigValue<'off' | 'some' | 'all'>('workbench.editor.useModal', 'all', this._configurationService);
@@ -284,7 +304,7 @@ export class LayoutController extends Disposable {
 				// On initial load (no previous session), only apply if we have a saved working set —
 				// skip applying 'empty' to avoid closing editors that are being restored.
 				if (previousSession || (session && this._workingSets.has(session.resource))) {
-					void this._applyWorkingSet(session?.resource);
+					void this._applyWorkingSet(session?.resource, { isInitialRestore: !previousSession });
 				}
 			}));
 
@@ -293,6 +313,7 @@ export class LayoutController extends Disposable {
 				const archivedSessions = e.changed.filter(session => session.isArchived.read(undefined));
 				for (const session of [...e.removed, ...archivedSessions]) {
 					this._deleteWorkingSet(session.resource);
+					this._viewStateBySession.delete(session.resource);
 				}
 			}));
 		}));
@@ -323,29 +344,41 @@ export class LayoutController extends Disposable {
 			return;
 		}
 
-		if (isUntitled) {
-			this._viewsService.openViewContainer(SESSIONS_FILES_CONTAINER_ID, false);
+		// On session switch or initial load, restore the saved view state.
+		// Untitled sessions never carry meaningful saved state.
+		const savedState = isUntitled ? undefined : this._viewStateBySession.get(sessionResource);
+
+		// Honor an explicitly hidden auxiliary bar for this session.
+		if (savedState && !savedState.auxiliaryBarVisible) {
+			this._layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
 			return;
 		}
 
-		// On session switch or initial load, restore the saved view state
-		const savedState = this._viewStateBySession.get(sessionResource);
-		if (savedState) {
-			if (!savedState.auxiliaryBarVisible) {
-				this._layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
-				return;
-			}
-			if (savedState.auxiliaryBarActiveViewContainerId) {
-				this._viewsService.openViewContainer(savedState.auxiliaryBarActiveViewContainerId, false);
-				return;
-			}
+		// Restore the user's last explicit auxiliary bar choice (Files, Changes or
+		// any other pane), but only if that pane is still pinned. If it was hidden /
+		// unpinned (e.g. the user hid the Files tab) we skip it and fall through to
+		// the default below rather than force-opening a hidden pane.
+		const savedContainerId = savedState?.auxiliaryBarActiveViewContainerId;
+		if (savedContainerId && this._isAuxiliaryBarContainerPinned(savedContainerId)) {
+			this._viewsService.openViewContainer(savedContainerId, false);
+			return;
 		}
 
-		if (hasChanges) {
+		// Default for a session without a saved choice (e.g. fresh or untitled):
+		// prefer Changes when the session has changes. Otherwise show the Files
+		// pane, unless the user has hidden/unpinned it — in which case fall back to
+		// Changes rather than force-opening Files.
+		if (hasChanges || !this._isAuxiliaryBarContainerPinned(SESSIONS_FILES_CONTAINER_ID)) {
 			this._viewsService.openView(CHANGES_VIEW_ID, false);
 		} else {
 			this._viewsService.openViewContainer(SESSIONS_FILES_CONTAINER_ID, false);
 		}
+	}
+
+	private _isAuxiliaryBarContainerPinned(containerId: string): boolean {
+		return this._paneCompositePartService
+			.getPinnedPaneCompositeIds(ViewContainerLocation.AuxiliaryBar)
+			.includes(containerId);
 	}
 
 	private _loadState(): void {
@@ -444,7 +477,7 @@ export class LayoutController extends Disposable {
 
 	// --- Editor working sets ---
 
-	private async _applyWorkingSet(sessionResource: URI | undefined): Promise<void> {
+	private async _applyWorkingSet(sessionResource: URI | undefined, options?: { readonly isInitialRestore?: boolean }): Promise<void> {
 		const preserveFocus = this._layoutService.hasFocus(Parts.PANEL_PART);
 		const workingSet: IEditorWorkingSet | 'empty' = sessionResource
 			? (this._workingSets.get(sessionResource) ?? 'empty')
@@ -478,6 +511,22 @@ export class LayoutController extends Disposable {
 				return;
 			}
 
+			// On the initial restore after a reload, preserve the editor part
+			// visibility that the workbench already restored. The user may have
+			// hidden the editor part while keeping its editors open (e.g. closing
+			// the Side Panel hides both the auxiliary bar and the editor part). The
+			// working set still exists, so restore its editors without auto-showing
+			// the part — otherwise the editor area would re-appear on every reload.
+			if (options?.isInitialRestore) {
+				const suppression = this._layoutService.suppressEditorPartAutoVisibility();
+				try {
+					await this._editorGroupsService.applyWorkingSet(workingSet, { preserveFocus });
+				} finally {
+					suppression.dispose();
+				}
+				return;
+			}
+
 			if (!isModal && !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
 				this._revealEditorPartForWorkingSet();
 			}
@@ -507,6 +556,5 @@ export class LayoutController extends Disposable {
 
 		this._editorGroupsService.deleteWorkingSet(existingWorkingSet);
 		this._workingSets.delete(sessionResource);
-		this._viewStateBySession.delete(sessionResource);
 	}
 }

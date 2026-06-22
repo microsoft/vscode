@@ -24,6 +24,7 @@ import { ICodeReviewSuggestion } from '../../codeReview/browser/codeReviewServic
 import { ISession, ISessionFileChange, SessionStatus } from '../../../services/sessions/common/session.js';
 import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { AnnotationsAgentFeedbackItemsBackend, IAgentFeedbackItemsBackend, InMemoryAgentFeedbackItemsBackend } from './agentFeedbackItemsBackend.js';
+import { ATTACHMENT_ID_PREFIX, createAgentFeedbackVariableEntry } from './agentFeedbackAttachmentEntry.js';
 import { AgentFeedbackKind, AgentFeedbackState, type IAgentFeedback } from './agentFeedbackModel.js';
 
 // --- Types --------------------------------------------------------------------
@@ -651,6 +652,34 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		const widget = this._chatWidgetService.getWidgetBySessionResource(sessionResource);
 		if (!widget) {
 			this._logService.error('[AgentFeedback] submitFeedback: no chat widget found for session', sessionResource.toString());
+			return;
+		}
+
+		// Agent-host sessions don't keep a reactive feedback attachment in the
+		// chat input (their feedback lives in the annotations backend and is
+		// submitted via the "Submit Feedback" button). Attach the accepted
+		// items — which are about to become submitted — to this single request
+		// so the agent receives the comments, then remove the transient
+		// attachment again once the request has been sent.
+		if (this._isAgentHostSession(sessionResource)) {
+			const acceptedItems = this.getFeedback(sessionResource).filter(item => item.state === AgentFeedbackState.Accepted);
+			const attachmentId = ATTACHMENT_ID_PREFIX + sessionResource.toString();
+			if (acceptedItems.length) {
+				const annotationsResource = this._getAnnotationsBackend().getAnnotationsChannelResource(sessionResource);
+				widget.attachmentModel.delete(attachmentId);
+				widget.attachmentModel.addContext(createAgentFeedbackVariableEntry(sessionResource, acceptedItems, annotationsResource));
+			}
+
+			try {
+				await widget.acceptInput('/act-on-feedback');
+			} catch (err) {
+				this._logService.error('[AgentFeedback] Failed to submit feedback', err);
+				return;
+			} finally {
+				widget.attachmentModel.delete(attachmentId);
+			}
+
+			this.markFeedbackSubmitted(sessionResource);
 			return;
 		}
 

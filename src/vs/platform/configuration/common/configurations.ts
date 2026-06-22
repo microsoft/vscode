@@ -130,11 +130,15 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 	}
 
 	private toPolicyDefinitionType(configType: unknown, policyName: PolicyName): 'string' | 'number' | 'boolean' | undefined {
-		if (configType !== 'string' && configType !== 'number' && configType !== 'array' && configType !== 'object' && configType !== 'boolean') {
+		// `configType` may be a single type or a union (e.g. `['array', 'null']`).
+		// Normalize to an array and keep only the types we can represent as policies.
+		const configTypes = Array.isArray(configType) ? configType : [configType];
+		const supportedTypes = configTypes.filter(type => type === 'string' || type === 'number' || type === 'array' || type === 'object' || type === 'boolean');
+		if (supportedTypes.length === 0) {
 			this.logService.warn(`PolicyConfiguration#updatePolicyDefinitions - policy '${policyName}' has unsupported type '${configType}'`);
 			return undefined;
 		}
-		return configType === 'number' ? 'number' : configType === 'boolean' ? 'boolean' : 'string';
+		return supportedTypes.includes('number') ? 'number' : supportedTypes.includes('boolean') ? 'boolean' : 'string';
 	}
 
 	private async updatePolicyDefinitions(properties: string[]): Promise<string[]> {
@@ -240,7 +244,11 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 			const policyName = property?.policy?.name ?? property?.policyReference?.name;
 			if (policyName) {
 				let policyValue: PolicyValue | ParsedType | undefined = this.policyService.getPolicyValue(policyName);
-				if (isString(policyValue) && property.type !== 'string') {
+				// `property.type` may be a single type or a union (e.g. `['array', 'null']`).
+				// A string policy value carries a JSON payload that must be parsed unless the
+				// setting itself is (or can be) a plain string.
+				const acceptsStringType = Array.isArray(property.type) ? property.type.includes('string') : property.type === 'string';
+				if (isString(policyValue) && !acceptsStringType) {
 					try {
 						policyValue = this.parse(policyValue);
 					} catch (e) {
