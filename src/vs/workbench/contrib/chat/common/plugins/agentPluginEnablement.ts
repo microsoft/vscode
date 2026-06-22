@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IObservable } from '../../../../../base/common/observable.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
 import { AgentPluginDiscoveryPriority, IAgentPlugin } from './agentPluginService.js';
 import { IGitHubPluginSource, IGitUrlPluginSource, IMarketplacePlugin, INpmPluginSource, IPipPluginSource, PluginSourceKind } from './pluginMarketplaceService.js';
 import { type IMarketplaceReference } from './marketplaceReference.js';
@@ -72,20 +71,17 @@ export function getCanonicalAgentPluginCollisionGroups(discoveries: readonly IDi
 export function isAgentPluginBlockedByPolicy(
 	plugin: IAgentPlugin,
 	enabledPluginsPolicy: Record<string, boolean> | undefined,
-	logService: ILogService,
 ): boolean {
-	const identity = getPolicyIdentity(plugin);
-	if (!identity) {
-		return false;
-	}
-	const pluginId = `${identity.name}@${identity.marketplace}`;
+	const pluginId = getAgentPluginPolicyId(plugin);
 	if (enabledPluginsPolicy && Object.keys(enabledPluginsPolicy).length > 0) {
-		if (enabledPluginsPolicy[pluginId] !== true) {
-			logService.debug(`[AgentPluginService] Plugin '${pluginId}' blocked — not enabled by ChatEnabledPlugins policy`);
-			return true;
-		}
+		return pluginId !== undefined && enabledPluginsPolicy[pluginId] !== true;
 	}
 	return false;
+}
+
+export function getAgentPluginPolicyId(plugin: IAgentPlugin): string | undefined {
+	const identity = getPolicyIdentity(plugin);
+	return identity ? `${identity.name}@${identity.marketplace}` : undefined;
 }
 
 function getAgentPluginCandidates(discoveries: readonly IDiscoveredAgentPlugins[]): IAgentPluginCandidate[] {

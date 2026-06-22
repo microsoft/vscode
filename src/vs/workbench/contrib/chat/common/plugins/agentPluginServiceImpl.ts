@@ -50,7 +50,7 @@ import { IPathService } from '../../../../services/path/common/pathService.js';
 import { ChatConfiguration } from '../constants.js';
 import { ContributionEnablementState, EnablementModel, IEnablementModel } from '../enablement.js';
 import { HookType } from '../promptSyntax/hookTypes.js';
-import { AgentPluginCollisionEnablementModel, getCanonicalAgentPluginCollisionGroups, getSortedAgentPlugins, IDiscoveredAgentPlugins, isAgentPluginBlockedByPolicy } from './agentPluginEnablement.js';
+import { AgentPluginCollisionEnablementModel, getAgentPluginPolicyId, getCanonicalAgentPluginCollisionGroups, getSortedAgentPlugins, IDiscoveredAgentPlugins, isAgentPluginBlockedByPolicy } from './agentPluginEnablement.js';
 import { IAgentPluginRepositoryService } from './agentPluginRepositoryService.js';
 import { AgentPluginDiscoveryPriority, agentPluginDiscoveryRegistry, IAgentPlugin, IAgentPluginDiscovery, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginMcpServerDefinition, IAgentPluginService } from './agentPluginService.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from './pluginMarketplaceService.js';
@@ -129,7 +129,7 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 				return new Map<string, readonly string[]>();
 			}
 			const policy = enabledPluginsPolicy.read(reader);
-			return getCanonicalAgentPluginCollisionGroups(discoveredPlugins, plugin => isAgentPluginBlockedByPolicy(plugin, policy, logService));
+			return getCanonicalAgentPluginCollisionGroups(discoveredPlugins, plugin => isAgentPluginBlockedByPolicy(plugin, policy));
 		});
 
 		this.enablementModel = new AgentPluginCollisionEnablementModel(baseEnablementModel, collisionGroups);
@@ -157,7 +157,10 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 			const policy = enabledPluginsPolicy.read(reader);
 			transaction(tx => {
 				for (const plugin of plugins) {
-					setPolicyBlocked(plugin, isAgentPluginBlockedByPolicy(plugin, policy, logService), tx);
+					const blocked = isAgentPluginBlockedByPolicy(plugin, policy);
+					if (setPolicyBlocked(plugin, blocked, tx) && blocked) {
+						logService.debug(`[AgentPluginService] Plugin '${getAgentPluginPolicyId(plugin) ?? plugin.uri.toString()}' blocked — not enabled by ChatEnabledPlugins policy`);
+					}
 				}
 			});
 		}));
@@ -196,11 +199,16 @@ interface PluginEntry extends IAgentPlugin {
  * for any {@link IAgentPlugin}; entries without a settable observable (e.g. test
  * doubles) are ignored.
  */
-function setPolicyBlocked(plugin: IAgentPlugin, blocked: boolean, tx: ITransaction): void {
+function setPolicyBlocked(plugin: IAgentPlugin, blocked: boolean, tx: ITransaction): boolean {
 	const obs = plugin.policyBlocked as ISettableObservable<boolean> | undefined;
 	if (obs && typeof obs.set === 'function') {
+		if (obs.get() === blocked) {
+			return false;
+		}
 		obs.set(blocked, tx);
+		return true;
 	}
+	return false;
 }
 
 /**
