@@ -29,6 +29,7 @@ import { ChatAgentLocation } from '../../common/constants.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import {
 	VoiceFirstConnectClassification, VoiceFirstConnectEvent,
 	VoiceSessionStartedClassification, VoiceSessionStartedEvent,
@@ -255,6 +256,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
 	) {
 		super();
 
@@ -1159,9 +1161,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this.ttsPlaybackService.stopPlayback();
 		this._voiceState.set('listening', undefined);
 		this._statusText.set('Listening...', undefined);
-		if (this._window) {
-			this.ttsPlaybackService.playListeningCue(this._window);
-		}
+		// Audible cue that the mic is hot. voiceRecordingStarted defaults to
+		// `sound: 'on'`, so it plays for all users (not just screen reader users).
+		this.accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStarted);
 
 		this._pttMaxDurationTimer = setTimeout(() => {
 			if (this._pttHeld) {
@@ -1198,6 +1200,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._voiceState.set('processing', undefined);
 		this._statusText.set('Processing...', undefined);
 		this.micCaptureService.pttUp();
+		this.accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStopped);
 	}
 
 	markUserCancelled(sessionId: string): void {
