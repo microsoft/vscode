@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
+import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import type { ITranscriptTurn } from '../../../chat/browser/voiceClient/voiceSessionController.js';
 import { COLOR, FONT_SIZE } from './tokens.js';
 
@@ -12,15 +15,11 @@ const LINE_HEIGHT = 1.4;
 const MAX_HEIGHT = `${MAX_LINES * LINE_HEIGHT}em`;
 
 const USER_CONTAINER_STYLE = [
-	`max-height:${MAX_HEIGHT}`,
 	'overflow-x:hidden',
-	'overflow-y:auto',
 ].join(';');
 
 const ASSISTANT_STYLE = [
-	`max-height:${MAX_HEIGHT}`,
 	'overflow-x:hidden',
-	'overflow-y:auto',
 	'white-space:pre-wrap',
 	`color:${COLOR.assistantTranscript}`,
 ].join(';');
@@ -32,6 +31,8 @@ const TRANSCRIPT_CSS = `
 export interface TranscriptProps {
 	readonly turns: readonly ITranscriptTurn[];
 	readonly chatStyle?: boolean;
+	/** When true, keep the scroll anchored to the top instead of the bottom. */
+	readonly scrollToTop?: boolean;
 }
 
 function createUserTurn(turn: ITranscriptTurn, chatStyle?: boolean): HTMLElement {
@@ -83,14 +84,20 @@ export interface TranscriptComponent {
 	update(props: TranscriptProps): void;
 }
 
-export function createTranscript(): TranscriptComponent {
-	const wrapper = dom.$('div');
+export function createTranscript(): TranscriptComponent & IDisposable {
+	const store = new DisposableStore();
 	const container = dom.$('div');
-	container.style.cssText = `display:flex;flex-direction:column;gap:2px;padding:2px 2px 4px;font-size:${FONT_SIZE.body};line-height:${LINE_HEIGHT};word-break:break-word;`;
+	container.style.cssText = `display:flex;flex-direction:column;gap:2px;padding:2px 2px 4px;font-size:${FONT_SIZE.body};line-height:${LINE_HEIGHT};word-break:break-word;max-height:${MAX_HEIGHT};overflow:hidden;box-sizing:border-box;`;
+	const scrollable = store.add(new DomScrollableElement(container, {
+		horizontal: ScrollbarVisibility.Hidden,
+		vertical: ScrollbarVisibility.Auto,
+	}));
+	const wrapper = scrollable.getDomNode();
+	wrapper.style.maxHeight = MAX_HEIGHT;
 
 	const style = dom.$('style');
 	style.textContent = TRANSCRIPT_CSS;
-	wrapper.append(style, container);
+	wrapper.prepend(style);
 
 	return {
 		element: wrapper,
@@ -114,6 +121,11 @@ export function createTranscript(): TranscriptComponent {
 			for (const turn of visible) {
 				container.append(turn.speaker === 'user' ? createUserTurn(turn, props.chatStyle) : createAssistantTurn(turn, props.chatStyle));
 			}
+			scrollable.scanDomNode();
+			scrollable.setScrollPosition({ scrollTop: props.scrollToTop ? 0 : container.scrollHeight });
+		},
+		dispose() {
+			store.dispose();
 		}
 	};
 }
