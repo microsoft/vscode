@@ -78,6 +78,21 @@ else
 	echo "    (WSL_DISTRO_NAME not set — skipping remote WSL install.)"
 fi
 
+echo ""
+echo "----------------------------------------------------------------------"
+echo " TIP: Alternative install for VS Code Remote WSL"
+echo "----------------------------------------------------------------------"
+echo " If the remote-side install fails or you prefer a manual approach,"
+echo " open VS Code connected to your WSL remote, then run from the"
+echo " built-in terminal (Ctrl+\`):"
+echo ""
+echo "   code --install-extension '${VSIX_FILE}' --force"
+echo ""
+echo " The built-in terminal in a Remote-WSL session has the correct 'code'"
+echo " binary on PATH — the one pointing to the remote server — so the"
+echo " extension lands on the right host without needing --remote flags."
+echo "----------------------------------------------------------------------"
+
 # 4. Detect Windows host IP (WSL2)
 #
 # Detection strategy (in priority order):
