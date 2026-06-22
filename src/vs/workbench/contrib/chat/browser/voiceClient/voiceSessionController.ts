@@ -609,6 +609,19 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					this._isConnected.set(true, tx);
 				});
 
+				// When auto-send is enabled, begin listening immediately on a fresh
+				// connect (enter toggle mode via a synthetic short tap) so the user
+				// doesn't have to activate voice mode and then tap a second time to
+				// start talking. Skipped on reconnects to avoid hijacking an
+				// in-progress turn.
+				if (!isResuming) {
+					const autoSendDelay = this.configurationService.getValue<number>('agents.voice.autoSendDelay');
+					if (typeof autoSendDelay === 'number' && autoSendDelay >= 0) {
+						this.pttDown();
+						this.pttUp();
+					}
+				}
+
 				// Seed previous session states so existing sessions don't trigger false transitions
 				const seededResources = new Set<string>();
 				for (const s of this.agentSessionsService.model.sessions.filter(ss => !ss.isArchived())) {
@@ -885,11 +898,14 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				}
 				// Persist the user's final transcript (local-only, no backend coordination).
 				this._persistTurn('user', e.text);
-				// In toggle mode we keep recording after a final transcript; start
-				// the silence timer so a configured pause auto-finishes the turn.
-				if (this._pttToggleMode && this._pttHeld) {
-					this._scheduleAutoSendOnSilence();
-				}
+			}
+			// In toggle mode the mic keeps recording, so we drive auto-send off
+			// transcription activity: every update (partial or final) restarts the
+			// silence countdown, so a configured pause after the user stops talking
+			// auto-finishes the turn — even if the backend never emits a `final`
+			// while the mic is still open.
+			if (this._pttToggleMode && this._pttHeld) {
+				this._scheduleAutoSendOnSilence();
 			}
 		}));
 
