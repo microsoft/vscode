@@ -55,11 +55,28 @@ fi
 echo "    Built: $VSIX_FILE"
 
 # 3. Install the extension
+#
+# VS Code Remote WSL uses two separate extension hosts:
+#   - The Windows/local host  → targeted by plain `code --install-extension`
+#   - The WSL remote server   → targeted by `code --remote wsl+<distro> --install-extension`
+#
+# When the script runs inside WSL, the `code` shim points to the Windows binary,
+# so we must install on both sides explicitly.
 
 echo ""
-echo "==> Installing extension into VS Code..."
+echo "==> Installing extension into VS Code (local/Windows side)..."
 code --install-extension "$VSIX_FILE" --force
 echo "    Done."
+
+if [[ -n "${WSL_DISTRO_NAME:-}" ]]; then
+	echo ""
+	echo "==> Installing extension into VS Code Remote WSL (${WSL_DISTRO_NAME})..."
+	code --remote "wsl+${WSL_DISTRO_NAME}" --install-extension "$VSIX_FILE" --force
+	echo "    Done."
+else
+	echo ""
+	echo "    (WSL_DISTRO_NAME not set — skipping remote WSL install.)"
+fi
 
 # 4. Detect Windows host IP (WSL2)
 #
@@ -170,7 +187,8 @@ echo " it when auto-update runs."
 echo ""
 echo " To prevent that, also add to your VS Code settings.json:"
 echo ""
-echo '   "extensions.autoUpdate": false'
+echo '   "extensions.autoUpdate": false,'
+echo '   "extensions.autoCheckUpdates": false'
 echo ""
 echo " If VS Code ever replaces the extension, simply re-run this script:"
 echo "   bash $0 [--port ${HEADROOM_PORT}]"
