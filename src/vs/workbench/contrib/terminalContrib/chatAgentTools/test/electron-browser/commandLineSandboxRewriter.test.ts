@@ -141,6 +141,29 @@ suite('CommandLineSandboxRewriter', () => {
 		deepStrictEqual(calls, ['prereqs', 'wrap:echo hello:true', 'commands:']);
 	});
 
+	test('forwards force-sandboxed execution requests', async () => {
+		const calls: string[] = [];
+		stubSandboxService({
+			wrapCommand: async (command, requestUnsandboxedExecution, _shell, _cwd, _commandDetails, _requestAllowNetwork, forceSandboxed) => {
+				calls.push(`wrap:${command}:${String(requestUnsandboxedExecution)}:${String(forceSandboxed)}`);
+				return {
+					command: `sandbox:${command}`,
+					isSandboxWrapped: true,
+				};
+			},
+			checkForSandboxingPrereqs: async () => ({ enabled: true, sandboxConfigPath: '/tmp/sandbox.json', failedCheck: undefined }),
+		});
+
+		const rewriter = store.add(instantiationService.createInstance(CommandLineSandboxRewriter, stubTreeSitterCommandParser()));
+		const result = await rewriter.rewrite({
+			...createRewriteOptions('echo hello'),
+			forceSandboxed: true,
+		});
+
+		strictEqual(result?.rewritten, 'sandbox:echo hello');
+		deepStrictEqual(calls, ['wrap:echo hello:undefined:true']);
+	});
+
 	test('forwards explicit sandboxed allow-network requests', async () => {
 		const calls: string[] = [];
 		stubSandboxService({
