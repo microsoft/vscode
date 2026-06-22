@@ -96,8 +96,11 @@ the VS Code bag is **flattened** to dot-paths — e.g. the schema's nested
 > [Structured settings](#structured-objectarray-settings)). The *setting's* own `type` is
 > the real shape — e.g. `chat.plugins.strictMarketplaces` is `['array', 'null']`, modeling
 > the schema's array allowlist; only the bag-carrying type is `'string'`. That `'string'` is
-> **required, not cosmetic**: omitting it (or declaring the object/array type) makes the key
-> fail projection validation and silently never apply.
+> **required, not cosmetic**: `type` is a required field whose only allowed values are
+> `'string' | 'number' | 'boolean'`, so omitting it or declaring `'object'` / `'array'` is a
+> *compile* error; declaring `'number'` / `'boolean'` compiles but then fails projection
+> validation at *runtime* (the JSON-string bag value flunks `typeof value === type`), so the key
+> is dropped and silently never applies.
 
 Note the schema's `x-composition` describes the **server/runtime** layering across
 enterprise/org/user. Inside VS Code the bag has already been collapsed to a single
@@ -169,9 +172,11 @@ managed-settings key as a **string** (the JSON is carried as a string), and the
 `value` callback returns that raw string. The `{ type: 'string' }` is **mandatory and must
 be `'string'`** for these keys, not filler: `projectManagedSettings` keeps a bag value only
 when `typeof value === type`, and the native MDM watcher reads the registry/plist value as
-that type. Because the structured value travels as a JSON string, declaring `'object'` /
-`'array'` (or omitting `type`) makes the value fail that `typeof` check and get dropped, so
-the managed setting silently never applies. When the policy value is a string but the
+that type. `type` is a required field whose only allowed values are `'string' | 'number' |
+'boolean'` (`IManagedSettingPolicyDefinition` in `base/common/policy.ts`), so omitting it or
+declaring `'object'` / `'array'` is a *compile* error. Declaring `'number'` / `'boolean'`
+compiles, but because the structured value travels as a JSON string it then flunks that
+`typeof` check at *runtime* and gets dropped, so the managed setting silently never applies. When the policy value is a string but the
 setting's type is not, `PolicyConfiguration` parses it back into the typed value on read
 via its own lenient JSONC parser (`PolicyConfiguration.parse()` using a `json.visit`
 streaming visitor — *not* `JSON.parse`; see `configurations.ts`). Examples in

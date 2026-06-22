@@ -7,6 +7,7 @@ import { Event } from '../../../base/common/event.js';
 import { IPolicyData } from '../../../base/common/defaultAccount.js';
 import { IManagedSettingPolicyDefinition, IManagedSettingsPolicyDefinitions, ManagedSettingValue, ManagedSettingsData } from '../../../base/common/policy.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
+import { isEmptyObject } from '../../../base/common/types.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { PolicyDefinition } from './policy.js';
 
@@ -125,7 +126,7 @@ export function collectManagedSettingsDefinitions(policyDefinitions: IStringDict
 export function hasManagedSettingsDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): boolean {
 	for (const policyName in policyDefinitions) {
 		const policyManagedSettings = policyDefinitions[policyName].managedSettings;
-		if (policyManagedSettings && Object.keys(policyManagedSettings).length > 0) {
+		if (policyManagedSettings && !isEmptyObject(policyManagedSettings)) {
 			return true;
 		}
 	}

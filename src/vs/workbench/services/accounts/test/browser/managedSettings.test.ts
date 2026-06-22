@@ -140,6 +140,18 @@ suite('adaptManagedSettings', () => {
 		});
 	});
 
+	test('resilience: a primitive own `__proto__` scalar is dropped, never pollutes the result', () => {
+		// The reviewer-flagged case. flattenManagedSettings only assigns at the bare `__proto__`
+		// key when the value is a PRIMITIVE, where the inherited `__proto__` setter is a no-op, so
+		// the value is simply dropped (no prototype mutation), matching the original `...rest`.
+		const response = JSON.parse('{"permissions":{"x":1},"__proto__":true}') as IManagedSettingsResponse;
+		assert.deepStrictEqual(adaptManagedSettings(response), {
+			managedSettings: {
+				'permissions.x': 1,
+			},
+		});
+	});
+
 	test('resilience: malformed marketplace entries are skipped, valid entries still processed', () => {
 		const warnings: string[] = [];
 		const result = adaptManagedSettings({
