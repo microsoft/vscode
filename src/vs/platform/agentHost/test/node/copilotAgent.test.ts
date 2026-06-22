@@ -46,7 +46,7 @@ import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, getCopilotWorktreeName
 import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
 import { CopilotBranchNameGenerator, ICopilotBranchNameGenerator, getCopilotBranchNameHintFromMessage, normalizeCopilotBranchName } from '../../node/copilot/copilotBranchNameGenerator.js';
-import type { CopilotSessionLaunchPlan, IActiveClientSnapshot } from '../../node/copilot/copilotSessionLauncher.js';
+import { mapContextSizeToContextTier, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from '../../node/copilot/copilotSessionLauncher.js';
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
@@ -974,6 +974,32 @@ suite('CopilotAgent', () => {
 		} finally {
 			await disposeAgent(agent);
 		}
+	});
+
+	test('mapContextSizeToContextTier only selects long context when the long window is reached', () => {
+		const defaultWindow = 200_000;
+		const longWindow = 1_000_000;
+		assert.deepStrictEqual(
+			{
+				unset: mapContextSizeToContextTier(undefined, longWindow),
+				noWindow: mapContextSizeToContextTier(longWindow, undefined),
+				exactDefault: mapContextSizeToContextTier(defaultWindow, longWindow),
+				// A value nudged just above the default must NOT round up into long context.
+				roundedUpDefault: mapContextSizeToContextTier(defaultWindow + 1, longWindow),
+				justBelowLong: mapContextSizeToContextTier(longWindow - 1, longWindow),
+				exactLong: mapContextSizeToContextTier(longWindow, longWindow),
+				aboveLong: mapContextSizeToContextTier(longWindow + 1, longWindow),
+			},
+			{
+				unset: undefined,
+				noWindow: undefined,
+				exactDefault: 'default',
+				roundedUpDefault: 'default',
+				justBelowLong: 'default',
+				exactLong: 'long_context',
+				aboveLong: 'long_context',
+			},
+		);
 	});
 
 	test('agent-created sessions can resolve session-state paths via INativeEnvironmentService', async () => {
