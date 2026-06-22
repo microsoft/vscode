@@ -189,6 +189,7 @@ export function createSandboxLines(sandboxingOptions: ISandboxingOnOptions): str
 			: '- Commands run inside a sandbox by default. The sandbox restricts two things independently: the filesystem and the network.',
 		'- Filesystem: read-only outside the workspace and $TMPDIR, which stay read-write. Parts of $HOME are hidden for privacy, but common developer tools (git, package managers, language toolchains) still work because their $HOME config and cache paths are automatically made readable.',
 		'- Use $TMPDIR for temporary files; /tmp may not be writable. On macOS and Linux the TMPDIR env var is set to a writable path.',
+		'- If a command needs sandboxed write access to specific file paths outside workspace, pass requestFileValidationCheck with those paths. VS Code checks sandbox access before execution and returns Access Denied without running the command when access is unavailable.',
 	];
 
 	if (!isNetworkAvailable) {
@@ -253,7 +254,18 @@ export function createSandboxProperties(sandboxingOptions: ISandboxingOnOptions)
 				type: 'string',
 				description: 'A short explanation of why this sandboxed command needs unrestricted network access. Only provide this when requestAllowNetwork is true.'
 			}
-		})
+		}),
+		requestFileValidationCheck: {
+			type: 'array',
+			description: 'Sandbox write access checks to perform before running the command. Provide the file paths that the command needs to write.',
+			items: {
+				type: 'string'
+			}
+		},
+		requestFileValidationCheckReason: {
+			type: 'string',
+			description: 'A short explanation of why this sandboxed command needs these file paths. Only provide this when requestFileValidationCheck is not empty.'
+		}
 	};
 }
 
@@ -478,6 +490,8 @@ export interface IRunInTerminalInputParams {
 	requestUnsandboxedExecutionReason?: string;
 	requestAllowNetwork?: boolean;
 	requestAllowNetworkReason?: string;
+	requestFileValidationCheck?: string[];
+	requestFileValidationCheckReason?: string;
 	allowToRunUnsandboxedCommands?: boolean;
 }
 
@@ -524,6 +538,18 @@ export interface IAutomaticAllowNetworkRetryOptions {
 	readonly output: string;
 }
 
+export interface IDeferredSandboxAccessRetryOptions {
+	readonly deferredUnsandboxedExecution: boolean;
+	readonly deferredAllowNetworkRequest: boolean;
+	readonly allowUnsandboxedCommands: boolean;
+	readonly retryWithAllowNetworkRequests: boolean;
+	readonly didSandboxWrapCommand: boolean;
+	readonly isPersistentSession: boolean;
+	readonly isBackgroundExecution: boolean;
+	readonly didTimeout: boolean;
+	readonly exitCode: number | undefined;
+}
+
 function shouldAutomaticallyRetrySandbox(options: IAutomaticSandboxRetryPredicateOptions): boolean {
 	return options.retryAllowed
 		&& options.didSandboxWrapCommand
@@ -562,6 +588,17 @@ export function shouldAutomaticallyRetryAllowNetworkInSandboxed(options: IAutoma
 		output: options.output,
 		outputLooksRetryable: outputLooksSandboxNetworkBlocked,
 	});
+}
+
+export function shouldRetryDeferredSandboxAccess(options: IDeferredSandboxAccessRetryOptions): boolean {
+	return (options.deferredUnsandboxedExecution && options.allowUnsandboxedCommands
+		|| options.deferredAllowNetworkRequest && options.retryWithAllowNetworkRequests)
+		&& options.didSandboxWrapCommand
+		&& !options.isPersistentSession
+		&& !options.isBackgroundExecution
+		&& !options.didTimeout
+		&& options.exitCode !== undefined
+		&& options.exitCode !== 0;
 }
 
 /**
@@ -745,12 +782,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		return this._configurationService.getValue<boolean>(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands) === true;
 	}
 
-	private get _autoApproveUnsandboxedCommands(): boolean {
-		return this._allowUnsandboxedCommands && this._configurationService.getValue<boolean>(AgentSandboxSettingId.AgentSandboxAutoApproveUnsandboxedCommands) === true;
-	}
-
 	private get _retryWithAllowNetworkRequests(): boolean {
 		return this._configurationService.getValue<boolean>(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests) === true;
+	}
+
+	private get _forceFirstExecutionInSandbox(): boolean {
+		return this._configurationService.getValue<boolean>(AgentSandboxSettingId.AgentSandboxForceFirstExecutionInSandbox) === true;
 	}
 
 	private get _allowSandboxAutoApprove(): boolean {
@@ -780,6 +817,24 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		return localize(
 			'runInTerminal.allowNetwork.disabled.result',
 			"The command was not executed because it requested unrestricted network access in the terminal sandbox, but per-command network access is disabled by chat.agent.sandbox.retryWithAllowNetworkRequests. Run the command with restricted network access instead, or enable the setting to allow network access requests."
+		);
+	}
+
+	private async _getDeniedSandboxFileAccess(paths: readonly string[] | undefined, sandboxPrecheckInputs: ITerminalSandboxPrecheckInputs | undefined): Promise<string[]> {
+		if (!paths?.length) {
+			return [];
+		}
+
+		const result = await this._terminalSandboxService.checkFileAccess('write', paths, sandboxPrecheckInputs);
+		return result.denied;
+	}
+
+	private _buildSandboxFileAccessDeniedMessage(deniedPaths: readonly string[]): string {
+		const deniedPathsMessage = deniedPaths.map(path => `write: ${path}`).join('\n');
+		return localize(
+			'runInTerminal.sandbox.fileAccessDenied',
+			"Access Denied: The command was not executed because the terminal sandbox does not allow access to the requested file paths:\n{0}",
+			deniedPathsMessage
 		);
 	}
 
@@ -931,10 +986,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const isSandboxEnabled = sandboxPrereqs.enabled;
 		const isSandboxAllowNetworkEnabled = isSandboxEnabled && await this._terminalSandboxService.isSandboxAllowNetworkEnabled();
 		const allowUnsandboxedCommands = this._getAllowToRunUnsandboxedCommands(args);
+		const forceFirstExecutionInSandbox = isSandboxEnabled && this._forceFirstExecutionInSandbox;
 		const explicitUnsandboxRequest = isSandboxEnabled && allowUnsandboxedCommands && args.requestUnsandboxedExecution === true;
-		const explicitAllowNetworkRequest = isSandboxEnabled && !isSandboxAllowNetworkEnabled && this._retryWithAllowNetworkRequests && !explicitUnsandboxRequest && args.requestAllowNetwork === true;
-		let requiresUnsandboxConfirmation = explicitUnsandboxRequest;
-		let requestUnsandboxedExecutionReason = explicitUnsandboxRequest ? args.requestUnsandboxedExecutionReason : undefined;
+		const deferredUnsandboxedExecution = explicitUnsandboxRequest && forceFirstExecutionInSandbox;
+		const requestedAllowNetwork = isSandboxEnabled && !isSandboxAllowNetworkEnabled && this._retryWithAllowNetworkRequests && (!explicitUnsandboxRequest || deferredUnsandboxedExecution) && args.requestAllowNetwork === true;
+		const deferredAllowNetworkRequest = requestedAllowNetwork && forceFirstExecutionInSandbox;
+		const explicitAllowNetworkRequest = requestedAllowNetwork && !deferredAllowNetworkRequest;
+		let requiresUnsandboxConfirmation = explicitUnsandboxRequest && !deferredUnsandboxedExecution;
+		let requestUnsandboxedExecutionReason = requiresUnsandboxConfirmation ? args.requestUnsandboxedExecutionReason : undefined;
 		let requiresAllowNetworkConfirmation = explicitAllowNetworkRequest;
 		let requestAllowNetworkReason = explicitAllowNetworkRequest ? args.requestAllowNetworkReason : undefined;
 
@@ -1007,6 +1066,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			requestUnsandboxedExecutionReason,
 			requestAllowNetwork: explicitAllowNetworkRequest,
 			requestAllowNetworkReason,
+			forceSandboxed: forceFirstExecutionInSandbox,
 			sandboxPrecheckInputs,
 		});
 		const rewrittenCommand: string | undefined = rewriteResult.rewrittenCommand;
@@ -1033,6 +1093,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			isBackground: executionOptions.persistentSession,
 			requestUnsandboxedExecution: requiresUnsandboxConfirmation,
 			requestUnsandboxedExecutionReason,
+			deferredUnsandboxedExecution,
+			deferredAllowNetworkRequest,
 			requestAllowNetwork: requiresAllowNetworkConfirmation,
 			requestAllowNetworkReason,
 			missingSandboxDependencies: missingDependencies,
@@ -1146,9 +1208,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			// Would be auto-approved based on rules
 			wouldBeAutoApproved
 		);
-		const isUnsandboxedAutoApproved = isSandboxEnabled && requiresUnsandboxConfirmation === true && this._autoApproveUnsandboxedCommands;
 		const isSandboxAutoApproved = isSandboxEnabled && toolSpecificData.commandLine.isSandboxWrapped === true && !requiresAllowNetworkConfirmation && this._allowSandboxAutoApprove;
-		const isFinalAutoApproved = isUnsandboxedAutoApproved || isSandboxAutoApproved || isAutoApprovedByRules || commandLineAnalyzerResults.some(e => e.forceAutoApproval);
+		const isFinalAutoApproved = isSandboxAutoApproved || isAutoApprovedByRules || commandLineAnalyzerResults.some(e => e.forceAutoApproval);
 
 		// Pass auto approve info if the command:
 		// - Was auto approved
@@ -1308,6 +1369,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		requestUnsandboxedExecutionReason?: string;
 		requestAllowNetwork: boolean;
 		requestAllowNetworkReason?: string;
+		forceSandboxed?: boolean;
 		sandboxPrecheckInputs?: ITerminalSandboxPrecheckInputs;
 	}): Promise<{
 		rewrittenCommand: string;
@@ -1337,6 +1399,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				isBackground: options.isBackground,
 				requestUnsandboxedExecution: requiresUnsandboxConfirmation,
 				requestAllowNetwork: options.requestAllowNetwork,
+				forceSandboxed: options.forceSandboxed,
 				sandboxPrecheckInputs: options.sandboxPrecheckInputs,
 			});
 			if (rewriteResult) {
@@ -1383,9 +1446,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	}
 
 	private async _confirmAutomaticSandboxRetry(retryKind: AutomaticSandboxRetryKind, sessionResource: URI | undefined, command: string, shell: string, blockedDomains: string[] | undefined, riskAssessment: { toolId: string; parameters: unknown } | undefined, token: CancellationToken): Promise<boolean> {
-		if (retryKind === 'unsandboxed' && this._autoApproveUnsandboxedCommands) {
-			return true;
-		}
 		const chatModel = sessionResource && this._chatService.getSession(sessionResource);
 		if (!(chatModel instanceof ChatModel)) {
 			return false;
@@ -1668,6 +1728,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			},
 			requestUnsandboxedExecution: requestUnsandboxedExecution || (requestAllowNetwork ? false : undefined),
 			requestUnsandboxedExecutionReason: requestUnsandboxedExecution ? rewrittenRetryReason : undefined,
+			deferredUnsandboxedExecution: undefined,
+			deferredAllowNetworkRequest: undefined,
 			requestAllowNetwork: requestAllowNetwork || undefined,
 			requestAllowNetworkReason: requestAllowNetwork ? rewrittenRetryReason : undefined,
 			terminalCommandUri: undefined,
@@ -1890,6 +1952,25 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
+		}
+
+		if (didSandboxWrapCommand) {
+			const deniedAccess = await this._getDeniedSandboxFileAccess(args.requestFileValidationCheck, sandboxPrecheckInputs);
+			if (deniedAccess.length > 0) {
+				const message = this._buildSandboxFileAccessDeniedMessage(deniedAccess);
+				return {
+					toolResultError: message,
+					toolResultDetails: {
+						input: args.command,
+						output: [{ type: 'embed', isText: true, value: message }],
+						isError: true,
+					},
+					content: [{
+						kind: 'text',
+						value: message,
+					}],
+				};
+			}
 		}
 
 		let error: string | undefined;
@@ -2360,6 +2441,18 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			return altBufferResult;
 		}
 
+		const retryWithAllowNetworkRequests = isSandboxEnabled && !isSandboxAllowNetworkEnabled && this._retryWithAllowNetworkRequests;
+		const shouldRetryDeferredAccess = shouldRetryDeferredSandboxAccess({
+			deferredUnsandboxedExecution: toolSpecificData.deferredUnsandboxedExecution === true,
+			deferredAllowNetworkRequest: toolSpecificData.deferredAllowNetworkRequest === true,
+			allowUnsandboxedCommands,
+			retryWithAllowNetworkRequests,
+			didSandboxWrapCommand,
+			isPersistentSession: executionOptions.persistentSession,
+			isBackgroundExecution: isBackgroundExecution || didInputNeeded,
+			didTimeout,
+			exitCode,
+		});
 		const shouldAutoRetryUnsandboxed = shouldAutomaticallyRetryUnsandboxed({
 			allowUnsandboxedCommands,
 			didSandboxWrapCommand,
@@ -2371,7 +2464,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			output: terminalResult,
 		});
 		const shouldAutoRetryAllowNetwork = shouldAutomaticallyRetryAllowNetworkInSandboxed({
-			retryWithAllowNetworkRequests: isSandboxEnabled && !isSandboxAllowNetworkEnabled && this._retryWithAllowNetworkRequests,
+			retryWithAllowNetworkRequests,
 			didSandboxWrapCommand,
 			requestUnsandboxedExecution: args.requestUnsandboxedExecution === true,
 			requestAllowNetwork: args.requestAllowNetwork === true,
@@ -2382,11 +2475,22 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			output: terminalResult,
 		});
 
-		const automaticSandboxRetry = shouldAutoRetryAllowNetwork
-			? { retryKind: 'allowNetwork' as const, retryReason: automaticAllowNetworkRetryReason }
-			: shouldAutoRetryUnsandboxed
-				? { retryKind: 'unsandboxed' as const, retryReason: automaticUnsandboxRetryReason }
-				: undefined;
+		const shouldRetryDeferredAllowNetwork = toolSpecificData.deferredAllowNetworkRequest === true && retryWithAllowNetworkRequests;
+		const automaticSandboxRetry = shouldRetryDeferredAccess
+			? shouldRetryDeferredAllowNetwork
+				? {
+					retryKind: 'allowNetwork' as const,
+					retryReason: args.requestAllowNetworkReason ?? localize('runInTerminal.allowNetwork.deferredRetry.reason', 'The model requested unrestricted network access in the sandbox.'),
+				}
+				: {
+					retryKind: 'unsandboxed' as const,
+					retryReason: args.requestUnsandboxedExecutionReason ?? localize('runInTerminal.unsandboxed.deferredRetry.reason', 'The model requested unsandboxed execution.'),
+				}
+			: shouldAutoRetryAllowNetwork
+				? { retryKind: 'allowNetwork' as const, retryReason: automaticAllowNetworkRetryReason }
+				: shouldAutoRetryUnsandboxed
+					? { retryKind: 'unsandboxed' as const, retryReason: automaticUnsandboxRetryReason }
+					: undefined;
 		if (automaticSandboxRetry) {
 			const retryResult = await this._runAutomaticSandboxRetry({
 				...automaticSandboxRetry,
@@ -2784,6 +2888,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._sessionTerminalInstances.delete(chatSessionResource);
 
 		for (const terminal of terminalsToDispose) {
+			// Only dispose if the terminal is still hidden from the user. Once
+			// the user reveals it (via the terminal panel or the outputLocation
+			// setting), it joins foregroundInstances and should persist so they
+			// can inspect/interact with it. This prevents user-revealed
+			// terminals from being destroyed when switching between sessions.
+			if (this._terminalService.foregroundInstances.includes(terminal)) {
+				this._logService.debug(`RunInTerminalTool: Skipping disposal of user-revealed terminal ${terminal.instanceId} for session ${chatSessionResource}`);
+				continue;
+			}
 			// Skip redundant map walks in onDidDispose since this session has already been removed.
 			this._terminalsBeingDisposedBySessionCleanup.add(terminal);
 			terminal.dispose();
@@ -2793,6 +2906,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const terminalToRemove: string[] = [];
 		for (const [termId, execution] of RunInTerminalTool._activeExecutions.entries()) {
 			if (terminalsToDispose.has(execution.instance)) {
+				// Skip active executions for terminals that were preserved above
+				if (this._terminalService.foregroundInstances.includes(execution.instance)) {
+					continue;
+				}
 				execution.dispose();
 				terminalToRemove.push(termId);
 			}

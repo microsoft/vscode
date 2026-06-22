@@ -4165,8 +4165,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-model-hover {
 	display: flex;
 	flex-direction: column;
-	gap: 8px;
-	max-width: 250px;
+	gap: 24px;
+	/* max-width: 250px; */
 }
 
 .chat-model-hover.has-long-context {
@@ -4174,8 +4174,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-model-hover-name {
-	font-weight: bold;
-	font-size: 13px;
+	font-weight: 500;
+	font-size: 14px;
 }
 
 .chat-model-hover-title-row {
@@ -4200,60 +4200,108 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-color: var(--vscode-notificationsWarningIcon-foreground, var(--vscode-editorWarning-foreground));
 }
 
-.chat-model-hover-separator {
-	border-top: 1px solid var(--vscode-menu-separatorBackground, var(--vscode-editorWidget-border));
-	margin: 2px 0;
+.chat-model-hover-title-tags {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex: 0 0 auto;
 }
 
-.chat-model-hover-description {
-	font-size: 12px;
-	line-height: 1.4;
-}
-
-.monaco-workbench .chat-model-hover-description .codicon[class*='codicon-'] {
-	vertical-align: middle;
-	font-size: 12px;
-}
-
-.chat-model-hover-description > div p {
-	margin: 0;
+.chat-model-hover-category {
+	font-size: 11px;
+	/* color: var(--vscode-descriptionForeground); */
+	white-space: nowrap;
 }
 
 .chat-model-hover-cost-table {
 	display: grid;
 	grid-template-columns: auto auto;
-	column-gap: 16px;
-	row-gap: 2px;
+	column-gap: 0;
+	row-gap: 12px;
+	align-items: center;
 	font-size: 12px;
-	color: var(--vscode-descriptionForeground);
 }
 
 .chat-model-hover-cost-table.has-long-context {
 	grid-template-columns: auto auto auto;
 }
 
-.chat-model-hover-cost-cell.value {
-	text-align: right;
+/* Rows are transparent: their cells participate directly in the table grid so columns align. */
+.chat-model-hover-cost-row {
+	display: contents;
 }
 
-.chat-model-hover-cost-count {
-	font-weight: 500;
+.chat-model-hover-cost-heading {
 	color: var(--vscode-foreground);
+	white-space: nowrap;
+	padding-right: 12px;
 }
 
-.chat-model-hover-cost-unit {
+/* Label cell: the text plus a dotted leader that fills the rest of the (heading-wide) first column. */
+.chat-model-hover-cost-label {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+}
+
+.chat-model-hover-cost-label-text {
+	flex: 0 0 auto;
+}
+
+.chat-model-hover-cost-leader {
+	flex: 1 1 auto;
+	min-width: 12px;
+	height: 0;
+	border-bottom: 1px dotted var(--vscode-descriptionForeground);
+	opacity: 0.5;
+}
+
+/* Each value cell paints a dotted leader behind a right-aligned, background-masked number. */
+.chat-model-hover-cost-value {
+	position: relative;
+	text-align: right;
+	white-space: nowrap;
+	min-width: 0;
+}
+
+.chat-model-hover-cost-value::before {
+	content: '';
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: 50%;
+	border-top: 1px dotted var(--vscode-descriptionForeground);
+	opacity: 0.5;
+}
+
+.chat-model-hover-cost-value.subheader::before,
+.chat-model-hover-cost-value.empty::before {
+	content: none;
+}
+
+/* Blank gap (no dots) separating the Default and Long Context value columns. */
+.chat-model-hover-cost-table.has-long-context .chat-model-hover-cost-value + .chat-model-hover-cost-value {
+	padding-left: 18px;
+}
+
+.chat-model-hover-cost-table.has-long-context .chat-model-hover-cost-value + .chat-model-hover-cost-value::before {
+	left: 18px;
+}
+
+.chat-model-hover-cost-number {
+	position: relative;
+	padding-left: 6px;
+	font-weight: 700;
+	color: var(--vscode-foreground);
+	background-color: var(--vscode-editorHoverWidget-background, var(--vscode-editorWidget-background));
+}
+
+.chat-model-hover-cost-value.subheader {
 	font-weight: normal;
 	color: var(--vscode-descriptionForeground);
-}
-
-.chat-model-hover-cost-cell.header {
-	color: var(--vscode-foreground);
-	font-weight: 600;
-}
-
-.chat-model-hover-cost-cell.subheader {
-	font-size: 11px;
-	padding-bottom: 4px;
+	padding-left: 6px;
 }
 
 .chat-model-hover-cost {
@@ -4278,13 +4326,25 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .chat-model-hover-configurable {
 	display: flex;
-	flex-wrap: wrap;
 	align-items: center;
-	gap: 6px;
+	gap: 8px;
 	font-size: 12px;
 }
 
-.chat-model-hover-configurable > .monaco-button {
+.chat-model-hover-configurable-label {
+	flex: 0 0 auto;
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+}
+
+.chat-model-hover-configurable-buttons {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-start;
+	gap: 6px;
+}
+
+.chat-model-hover-configurable-buttons > .monaco-button {
 	width: auto;
 	padding: 2px 8px;
 	font-size: 11px;
@@ -4292,4 +4352,19 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .monaco-workbench .chat-model-hover-configurable > .monaco-button .codicon[class*='codicon-'] {
 	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+/* Voice mode: color the mic icon blue when listening, purple when speaking */
+/* Voice mode: color the mic icon when listening/speaking */
+.chat-input-container.voice-active.voice-listening .chat-input-toolbars .action-label.codicon-mic-filled {
+	color: var(--vscode-charts-blue, #58a6ff) !important;
+}
+
+.chat-input-container.voice-active:not(.voice-listening) .chat-input-toolbars .action-label.codicon-mic-filled {
+	color: var(--vscode-charts-purple, #a371f7) !important;
+}
+
+/* Voice mode: green disconnect button */
+.chat-input-container .chat-input-toolbars .codicon-debug-disconnect {
+	color: var(--vscode-charts-green, #3fb950) !important;
 }

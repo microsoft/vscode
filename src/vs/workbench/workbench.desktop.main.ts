@@ -131,6 +131,9 @@ import './contrib/extensions/electron-browser/devtoolsExtensionHost.contribution
 // Issues
 import './contrib/issue/electron-browser/issue.contribution.js';
 
+// Surveys
+import './contrib/surveys/browser/survey.contribution.js';
+
 // Process Explorer
 import './contrib/processExplorer/electron-browser/processExplorer.contribution.js';
 
