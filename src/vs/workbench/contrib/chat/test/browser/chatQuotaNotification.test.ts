@@ -890,16 +890,13 @@ suite('ChatQuotaNotificationContribution', () => {
 						data: {
 							treatment: true,
 							entitlement: 'Pro',
+							averageDailyUsage: 4.67,
+							percentUsed: 28,
 						},
 					},
 					{
 						name: 'chatQuotaTrajectoryNudgeLinkClicked',
-						data: {
-							severity: 'info',
-							entitlement: 'Pro',
-							averageDailyUsage: 4.67,
-							percentUsed: 28,
-						},
+						data: undefined,
 					},
 				],
 				opened: [CREDIT_EFFICIENCY_LEARN_MORE_URL],
@@ -925,7 +922,7 @@ suite('ChatQuotaNotificationContribution', () => {
 			}, {
 				events: [{
 					name: 'chatQuotaTrajectoryNudgeEnrolled',
-					data: { treatment: false, entitlement: 'Pro' },
+					data: { treatment: false, entitlement: 'Pro', averageDailyUsage: 4.67, percentUsed: 28 },
 				}],
 				notification: undefined,
 			});

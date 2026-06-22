@@ -36,25 +36,16 @@ const TRAJECTORY_NUDGE_SPEC = {
 	learnMoreCommandId: 'workbench.action.chat.learnMoreAboutCreditUsage',
 } as const;
 
-type ChatQuotaTrajectoryNudgeEvent = {
-	severity: 'info';
-	entitlement: string;
-	averageDailyUsage: number;
-	percentUsed: number;
-};
-
-type ChatQuotaTrajectoryNudgeClassification = {
+type ChatQuotaTrajectoryNudgeLinkClickedClassification = {
 	owner: 'rfeltis';
 	comment: 'Tracks when users click the chat quota trajectory nudge learn more link.';
-	severity: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The severity of the quota trajectory nudge.' };
-	entitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The user entitlement when the quota trajectory nudge event was logged.' };
-	averageDailyUsage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The average daily monthly quota usage percentage that caused the nudge.' };
-	percentUsed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The monthly quota percentage used when the quota trajectory nudge event was logged.' };
 };
 
 type ChatQuotaTrajectoryNudgeEnrollmentEvent = {
 	treatment: boolean;
 	entitlement: string;
+	averageDailyUsage: number;
+	percentUsed: number;
 };
 
 type ChatQuotaTrajectoryNudgeEnrollmentClassification = {
@@ -62,6 +53,8 @@ type ChatQuotaTrajectoryNudgeEnrollmentClassification = {
 	comment: 'Tracks when a user is assigned to a flight for the chat quota trajectory nudge experiment, to measure experiment exposure.';
 	treatment: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The treatment value assigned by the experiment service (true for the treatment arm, false for control).' };
 	entitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The user entitlement when the user was assigned to the experiment flight.' };
+	averageDailyUsage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The average daily monthly quota usage percentage when the user was assigned to the experiment flight.' };
+	percentUsed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The monthly quota percentage used when the user was assigned to the experiment flight.' };
 };
 
 /**
@@ -102,7 +95,6 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	private _prevWeeklyPercentUsed: number | undefined;
 	private _trajectoryTreatment: boolean | undefined;
 	private _trajectoryAssignmentRequested = false;
-	private _activeTrajectoryTelemetryData: ChatQuotaTrajectoryNudgeEvent | undefined;
 
 	constructor(
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
@@ -155,11 +147,11 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	 * enrollment that may not exist. Enrollment telemetry is emitted only when
 	 * the user is actually assigned to a flight.
 	 */
-	private async _resolveTrajectoryTreatment(): Promise<void> {
+	private async _resolveTrajectoryTreatment(warning: { averageDailyUsage: number; percentUsed: number }): Promise<void> {
 		const treatment = await this._assignmentService.getTreatment<boolean>(TRAJECTORY_NUDGE_SPEC.treatment);
 		this._trajectoryTreatment = treatment;
 		if (treatment !== undefined) {
-			this._logQuotaTrajectoryNudgeEnrolled(treatment);
+			this._logQuotaTrajectoryNudgeEnrolled(treatment, warning);
 		}
 		this._update();
 	}
@@ -340,14 +332,13 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		// resolves and only the treatment cohort then renders the nudge.
 		if (!this._trajectoryAssignmentRequested) {
 			this._trajectoryAssignmentRequested = true;
-			void this._resolveTrajectoryTreatment();
+			void this._resolveTrajectoryTreatment({ averageDailyUsage, percentUsed });
 		}
 		return this._trajectoryTreatment === true ? { averageDailyUsage, percentUsed } : undefined;
 	}
 
 	private _showQuotaTrajectoryWarning(warning: { averageDailyUsage: number; percentUsed: number }): void {
 		this._showingExhausted = false;
-		this._activeTrajectoryTelemetryData = this._getQuotaTrajectoryNudgeTelemetryData(warning);
 		this._storeTrajectoryShown();
 		const learnMoreLink = createMarkdownCommandLink({
 			text: localize('quota.trajectory.learnMore', "Learn more about managing credits"),
@@ -367,31 +358,22 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	}
 
 	private async _handleCreditEfficiencyLearnMoreCommand(accessor: ServicesAccessor): Promise<void> {
-		if (this._activeTrajectoryTelemetryData) {
-			this._logQuotaTrajectoryNudgeLinkClicked(this._activeTrajectoryTelemetryData);
-			queueMicrotask(() => this._hideNotification());
-		}
+		this._logQuotaTrajectoryNudgeLinkClicked();
+		queueMicrotask(() => this._hideNotification());
 		await accessor.get(IOpenerService).open(URI.parse(TRAJECTORY_NUDGE_SPEC.learnMoreUrl));
 	}
 
-	private _logQuotaTrajectoryNudgeLinkClicked(data: ChatQuotaTrajectoryNudgeEvent): void {
-		this._telemetryService.publicLog2<ChatQuotaTrajectoryNudgeEvent, ChatQuotaTrajectoryNudgeClassification>('chatQuotaTrajectoryNudgeLinkClicked', data);
+	private _logQuotaTrajectoryNudgeLinkClicked(): void {
+		this._telemetryService.publicLog2<{}, ChatQuotaTrajectoryNudgeLinkClickedClassification>('chatQuotaTrajectoryNudgeLinkClicked');
 	}
 
-	private _logQuotaTrajectoryNudgeEnrolled(treatment: boolean): void {
+	private _logQuotaTrajectoryNudgeEnrolled(treatment: boolean, warning: { averageDailyUsage: number; percentUsed: number }): void {
 		this._telemetryService.publicLog2<ChatQuotaTrajectoryNudgeEnrollmentEvent, ChatQuotaTrajectoryNudgeEnrollmentClassification>('chatQuotaTrajectoryNudgeEnrolled', {
 			treatment,
 			entitlement: ChatEntitlement[this._chatEntitlementService.entitlement],
-		});
-	}
-
-	private _getQuotaTrajectoryNudgeTelemetryData(warning: { averageDailyUsage: number; percentUsed: number }): ChatQuotaTrajectoryNudgeEvent {
-		return {
-			severity: 'info',
-			entitlement: ChatEntitlement[this._chatEntitlementService.entitlement],
 			averageDailyUsage: Math.round(warning.averageDailyUsage * 100) / 100,
 			percentUsed: Math.round(warning.percentUsed * 100) / 100,
-		};
+		});
 	}
 
 	/**
@@ -414,7 +396,6 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	private _showExhaustedNotification(): void {
 		this._showingExhausted = true;
-		this._activeTrajectoryTelemetryData = undefined;
 
 		const entitlement = this._chatEntitlementService.entitlement;
 		const quotas = this._chatEntitlementService.quotas;
@@ -456,7 +437,6 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	private _showOverageActivationNotification(): void {
 		this._showingExhausted = true;
-		this._activeTrajectoryTelemetryData = undefined;
 
 		this._setNotification({
 			id: QUOTA_NOTIFICATION_ID,
@@ -474,7 +454,6 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	private _showQuotaApproachingWarning(warning: { percentUsed: number }): void {
 		this._showingExhausted = false;
-		this._activeTrajectoryTelemetryData = undefined;
 
 		const entitlement = this._chatEntitlementService.entitlement;
 		const quotas = this._chatEntitlementService.quotas;
@@ -547,7 +526,6 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	private _showRateLimitWarning(warning: { percentUsed: number; type: 'session' | 'weekly'; resetDate: string | undefined }): void {
 		this._showingExhausted = false;
-		this._activeTrajectoryTelemetryData = undefined;
 
 		const message = warning.type === 'session'
 			? localize('rateLimit.session', "You've used {0}% of your session rate limit.", warning.percentUsed)
@@ -596,7 +574,6 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	private _showManagedPlanBlockedNotification(): void {
 		this._showingExhausted = true;
-		this._activeTrajectoryTelemetryData = undefined;
 
 		this._setNotification({
 			id: QUOTA_NOTIFICATION_ID,
@@ -650,7 +627,6 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	private _hideNotification(): void {
 		this._showingExhausted = false;
-		this._activeTrajectoryTelemetryData = undefined;
 		this._chatInputNotificationService.deleteNotification(QUOTA_NOTIFICATION_ID);
 	}
 
