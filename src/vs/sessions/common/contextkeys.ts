@@ -19,6 +19,7 @@ export const ActiveSessionUsesCombinedConfigPickerContext = new RawContextKey<bo
 export const ChatSessionProviderIdContext = new RawContextKey<string>('chatSessionProviderId', '', localize('chatSessionProviderId', "The provider ID of a session in context menu overlays"));
 export const ChatSessionTypeContext = new RawContextKey<string>('chatSessionType', '', localize('chatSessionType', "The session type of a session in context menu overlays"));
 export const ChatSessionSupportsRenameContext = new RawContextKey<boolean>('chatSessionSupportsRename', false, localize('chatSessionSupportsRename', "Whether a session in context menu overlays can be renamed"));
+export const ChatSessionSupportsDeleteContext = new RawContextKey<boolean>('chatSessionSupportsDelete', false, localize('chatSessionSupportsDelete', "Whether a session in context menu overlays can be deleted"));
 
 //#endregion
 

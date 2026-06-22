@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { FEEDBACK_ANNOTATION_META_KEY, VIEW_UNREVIEWED_COMMENTS_TOOL_NAME, type IFeedbackAnnotationMeta } from '../../common/agentFeedbackAnnotations.js';
+import { FEEDBACK_ANNOTATION_META_KEY, readFeedbackAnnotationMeta, VIEW_UNREVIEWED_COMMENTS_TOOL_NAME, type IFeedbackAnnotationMeta } from '../../common/meta/agentFeedbackAnnotations.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import type { AnnotationsAction } from '../../common/state/sessionActions.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
-import type { Annotation, AnnotationsState, StringOrMarkdown, TextRange, ToolDefinition } from '../../common/state/sessionState.js';
+import { parseChatUri, type Annotation, type AnnotationsState, type StringOrMarkdown, type TextRange, type ToolDefinition } from '../../common/state/sessionState.js';
 import type { IServerToolGroup } from './agentServerToolHost.js';
 
 /**
@@ -249,7 +249,7 @@ function entryText(text: StringOrMarkdown): string {
 }
 
 function readMeta(annotation: Annotation): IFeedbackAnnotationMeta | undefined {
-	return annotation._meta?.[FEEDBACK_ANNOTATION_META_KEY] as IFeedbackAnnotationMeta | undefined;
+	return readFeedbackAnnotationMeta(annotation);
 }
 
 interface ISerializedComment {
@@ -515,10 +515,15 @@ export const feedbackServerToolGroup: IServerToolGroup = {
 		return feedbackToolRequiresConfirmation(toolName);
 	},
 	execute(stateManager, sessionUri, toolName, rawArgs): string {
-		const annotationsUri = buildAnnotationsUri(sessionUri);
+		// A session can contain multiple chats, each addressed by its own
+		// `ahp-chat` URI but sharing the same context/workspace. Comments belong
+		// to the session as a whole, so always resolve a chat URI back to its
+		// owning session and operate on the main session's annotations channel.
+		const mainSessionUri = parseChatUri(sessionUri)?.session ?? sessionUri;
+		const annotationsUri = buildAnnotationsUri(mainSessionUri);
 		const snapshot = stateManager.getSnapshot(annotationsUri);
 		const state: AnnotationsState = (snapshot?.state as AnnotationsState | undefined) ?? { annotations: [] };
-		const outcome = applyFeedbackTool(state, sessionUri, toolName, rawArgs);
+		const outcome = applyFeedbackTool(state, mainSessionUri, toolName, rawArgs);
 		for (const action of outcome.actions) {
 			stateManager.dispatchServerAction(annotationsUri, action);
 		}

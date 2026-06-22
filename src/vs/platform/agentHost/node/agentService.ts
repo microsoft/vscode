@@ -16,7 +16,7 @@ import { extname as resourcesExtname, isEqual, isEqualOrParent, joinPath } from 
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
-import { FileChangeType, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileChange, IFileService, toFileSystemProviderErrorCode, type FileChangesEvent } from '../../files/common/files.js';
+import { FileChangeType, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileChange, IFileService, toFileOperationResult, toFileSystemProviderErrorCode, type FileChangesEvent } from '../../files/common/files.js';
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
@@ -154,6 +154,8 @@ export class AgentService extends Disposable implements IAgentService {
 	 * for it.
 	 */
 	private readonly _resourceSubscribers = new ResourceMap<Set<string>>();
+	private readonly _restoreSessionInFlight = new Map<string, Promise<void>>();
+	private readonly _restoreSubagentInFlight = new Map<string, Promise<void>>();
 
 	/**
 	 * Pending {@link _runSessionGc} timers, keyed by session URI. A timer is
@@ -1104,7 +1106,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!targetState || targetState.activeTurn !== undefined) {
 			return;
 		}
-		this._logService.trace(`[AgentService] Evicting idle session: ${evictionTargetKey} (triggered by unsubscribe of ${key})`);
+		this._logService.info(`[AgentService] Evicting idle session: ${evictionTargetKey} (triggered by unsubscribe of ${key})`);
 		// Also evict any sibling subagent entries cached under the parent: their
 		// authoritative state is the parent's turn tree, and dropping the parent
 		// would leave them orphaned.
@@ -1395,6 +1397,27 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 
+		const inFlight = this._restoreSessionInFlight.get(sessionStr);
+		if (inFlight) {
+			return inFlight;
+		}
+
+		const restore = this._doRestoreSession(session, sessionStr);
+		this._restoreSessionInFlight.set(sessionStr, restore);
+		try {
+			await restore;
+		} finally {
+			if (this._restoreSessionInFlight.get(sessionStr) === restore) {
+				this._restoreSessionInFlight.delete(sessionStr);
+			}
+		}
+	}
+
+	private async _doRestoreSession(session: URI, sessionStr: string): Promise<void> {
+		if (this._stateManager.getSessionState(sessionStr)) {
+			return;
+		}
+
 		const agent = this._findProviderForSession(session);
 		if (!agent) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `No agent for session: ${sessionStr}`);
@@ -1499,6 +1522,11 @@ export class AgentService extends Disposable implements IAgentService {
 
 		this._stateManager.restoreSession(summary, [...turns]);
 
+		// Restore any additional (non-default) peer chats the provider has
+		// persisted for this session, seeding each with its own history and
+		// persisted title so they reappear after a process restart.
+		await this._restorePeerChats(agent, session);
+
 		const changesets = buildDefaultChangesetCatalogue(sessionStr);
 		this._stateManager.setSessionChangesets(sessionStr, changesets);
 
@@ -1525,12 +1553,26 @@ export class AgentService extends Disposable implements IAgentService {
 		// sessions that were not created in the current process lifetime.
 		// Overlay any values the user previously selected (persisted via
 		// `SessionConfigChanged`) on top of the provider's resolved defaults.
-		const restoredConfig = await this._resolveCreatedSessionConfig(agent, {
-			workingDirectory: meta.workingDirectory,
-			config: persistedConfigValues,
-		});
+		const [restoredConfig, restoredCustomizations] = await Promise.all([
+			this._resolveCreatedSessionConfig(agent, {
+				workingDirectory: meta.workingDirectory,
+				config: persistedConfigValues,
+			}),
+			agent.getSessionCustomizations
+				? agent.getSessionCustomizations(session).catch(err => {
+					this._logService.error('[AgentService] restoreSession: failed to resolve session customizations', err);
+					return undefined;
+				})
+				: Promise.resolve(undefined),
+		]);
 		if (restoredConfig) {
 			this._stateManager.setSessionConfig(sessionStr, restoredConfig);
+		}
+		// Seed restored session customizations into state so the very first
+		// snapshot after selecting an existing session contains effective
+		// instructions/agents without waiting for a follow-up republish.
+		if (restoredCustomizations && restoredCustomizations.length > 0) {
+			this._stateManager.setSessionCustomizations(sessionStr, restoredCustomizations);
 		}
 
 		this._logService.info(`[AgentService] Restored session ${sessionStr} with ${turns.length} turns`);
@@ -1538,6 +1580,54 @@ export class AgentService extends Disposable implements IAgentService {
 		// Lazily compute git state for sessions with a working directory;
 		// attaches under `state._meta.git` once ready.
 		this._attachGitState(session, meta.workingDirectory);
+	}
+
+	/**
+	 * Restores the additional (non-default) peer chats persisted for a session.
+	 * For each chat returned by the provider, loads its history and persisted
+	 * title and re-registers it in the state manager so it reappears in the
+	 * session's chat catalog after a process restart. Best-effort: a chat whose
+	 * history fails to load is restored with no turns rather than dropped.
+	 */
+	private async _restorePeerChats(agent: IAgent, session: URI): Promise<void> {
+		if (!agent.getChats) {
+			return;
+		}
+		let chats: readonly URI[];
+		try {
+			chats = await agent.getChats(session);
+		} catch (err) {
+			this._logService.warn(`[AgentService] Failed to enumerate peer chats for ${session.toString()}: ${toErrorMessage(err)}`);
+			return;
+		}
+		if (chats.length === 0) {
+			return;
+		}
+		for (const chatUri of chats) {
+			let turns: readonly Turn[] = [];
+			try {
+				turns = await agent.getSessionMessages(chatUri);
+			} catch (err) {
+				this._logService.warn(`[AgentService] Failed to load history for peer chat ${chatUri.toString()}: ${toErrorMessage(err)}`);
+			}
+			const title = await this._readPersistedChatTitle(session, chatUri);
+			this._stateManager.restoreChat(session.toString(), chatUri.toString(), { title, turns: [...turns] });
+		}
+	}
+
+	/** Reads a peer chat's persisted custom title, if any. */
+	private async _readPersistedChatTitle(session: URI, chatUri: URI): Promise<string | undefined> {
+		const ref = await this._sessionDataService.tryOpenDatabase?.(session);
+		if (!ref) {
+			return undefined;
+		}
+		try {
+			return (await ref.object.getMetadata(`customChatTitle:${chatUri.toString()}`)) ?? undefined;
+		} catch {
+			return undefined;
+		} finally {
+			ref.dispose();
+		}
 	}
 
 	private async _getSessionMetadataForRestore(agent: IAgent, session: URI): Promise<IAgentSessionMetadata | undefined> {
@@ -1606,8 +1696,16 @@ export class AgentService extends Disposable implements IAgentService {
 				encoding: ContentEncoding.Utf8,
 				contentType: 'text/plain',
 			};
-		} catch (_e) {
-			throw new ProtocolError(AhpErrorCodes.NotFound, `Content not found: ${uri.toString()}`);
+		} catch (e) {
+			const error = e instanceof Error ? e : new Error(String(e));
+			const result = toFileOperationResult(error);
+			if (result === FileOperationResult.FILE_NOT_FOUND) {
+				throw new ProtocolError(AhpErrorCodes.NotFound, `Content not found: ${uri.toString()}`);
+			}
+			if (result === FileOperationResult.FILE_PERMISSION_DENIED) {
+				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${uri.toString()}`);
+			}
+			throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Failed to read content: ${uri.toString()}: ${toErrorMessage(error)}`);
 		}
 	}
 
@@ -2011,6 +2109,27 @@ export class AgentService extends Disposable implements IAgentService {
 	 * turns from those events.
 	 */
 	private async _restoreSubagentSession(subagentUri: string, parentSession: URI): Promise<void> {
+		if (this._stateManager.getSessionState(subagentUri)) {
+			return;
+		}
+
+		const inFlight = this._restoreSubagentInFlight.get(subagentUri);
+		if (inFlight) {
+			return inFlight;
+		}
+
+		const restore = this._doRestoreSubagentSession(subagentUri, parentSession);
+		this._restoreSubagentInFlight.set(subagentUri, restore);
+		try {
+			await restore;
+		} finally {
+			if (this._restoreSubagentInFlight.get(subagentUri) === restore) {
+				this._restoreSubagentInFlight.delete(subagentUri);
+			}
+		}
+	}
+
+	private async _doRestoreSubagentSession(subagentUri: string, parentSession: URI): Promise<void> {
 		// Ensure the parent session is loaded first
 		const parentSessionKey = parentSession.toString();
 		if (!this._stateManager.getSessionState(parentSessionKey)) {

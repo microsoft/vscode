@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isString } from '../../../base/common/types.js';
-import { MessageAttachmentKind, type MessageAnnotationsAttachment, type MessageAttachment, type SimpleMessageAttachment, type TextRange } from './state/protocol/state.js';
+import { isString } from '../../../../base/common/types.js';
+import { MessageAttachmentKind, type MessageAnnotationsAttachment, type MessageAttachment, type SimpleMessageAttachment, type TextRange } from '../state/protocol/state.js';
 
 export const AgentFeedbackAttachmentDisplayKind = 'agentFeedback';
 export const AgentFeedbackAttachmentMetadataKey = 'agentFeedback';
@@ -56,6 +56,7 @@ export function getAgentFeedbackAttachmentMetadata(attachment: MessageAttachment
 	if (!isAgentFeedbackAttachment(attachment) && !isAgentFeedbackAnnotationsAttachment(attachment)) {
 		return undefined;
 	}
+	// eslint-disable-next-line local/code-no-untyped-meta-access -- sanctioned first hop into the namespaced feedback slot; validated below.
 	const metadata = attachment._meta?.[AgentFeedbackAttachmentMetadataKey];
 	if (!isRecord(metadata) || !isString(metadata.sessionResource) || !Array.isArray(metadata.feedbackItems)) {
 		return undefined;
