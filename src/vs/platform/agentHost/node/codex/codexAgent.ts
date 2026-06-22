@@ -5,7 +5,6 @@
 
 import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import * as fs from 'fs';
-import { createRequire } from 'node:module';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -806,7 +805,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (this._agentSdkDownloader.isAvailable(CodexSdkPackage)) {
 			return this._agentSdkDownloader.loadSdkRoot(CodexSdkPackage, CancellationToken.None);
 		}
-		const devRoot = resolveCodexDevSdkRoot();
+		const devRoot = await resolveCodexDevSdkRoot();
 		if (devRoot) {
 			this._logService.info(`[Codex] resolving SDK from repo node_modules (dev fallback): ${devRoot}`);
 			return devRoot;
@@ -2623,14 +2622,28 @@ export function codexBinaryTriple(sdkTarget: string): string | undefined {
  * onto), or undefined when the package can't be resolved (e.g. a built product
  * where it isn't shipped). `@openai/codex` declares no `exports` map, so its
  * `package.json` is resolvable.
+ *
+ * `resolvePackageJsonPath` is a seam for tests; production resolves the path
+ * via {@link defaultResolveCodexPackageJsonPath}.
  */
-function resolveCodexDevSdkRoot(): string | undefined {
+export async function resolveCodexDevSdkRoot(
+	resolvePackageJsonPath: () => string | Promise<string> = defaultResolveCodexPackageJsonPath,
+): Promise<string | undefined> {
 	try {
-		const nodeRequire = createRequire(import.meta.url);
-		const pkgJson = nodeRequire.resolve('@openai/codex/package.json');
+		const pkgJson = await resolvePackageJsonPath();
 		// <root>/node_modules/@openai/codex/package.json → <root>
 		return dirname(dirname(dirname(dirname(pkgJson))));
 	} catch {
 		return undefined;
 	}
+}
+
+async function defaultResolveCodexPackageJsonPath(): Promise<string> {
+	// Dynamic import of `node:module` (not a static top-level import): the
+	// unit-test electron renderer that loads this module for
+	// `codexPackagePaths.test` cannot fetch a static `node:module` import, so
+	// the sibling WSL/SSH host services resolve `createRequire` the same way
+	// for the same reason.
+	const { createRequire } = await import('node:module');
+	return createRequire(import.meta.url).resolve('@openai/codex/package.json');
 }
