@@ -16,7 +16,7 @@ import { extname as resourcesExtname, isEqual, isEqualOrParent, joinPath } from 
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
-import { FileChangeType, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileChange, IFileService, toFileSystemProviderErrorCode, type FileChangesEvent } from '../../files/common/files.js';
+import { FileChangeType, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileChange, IFileService, toFileOperationResult, toFileSystemProviderErrorCode, type FileChangesEvent } from '../../files/common/files.js';
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
@@ -36,7 +36,7 @@ import { AgentHostTerminalManager, type IAgentHostTerminalManager } from './agen
 import { ISessionDbUriFields, parseSessionDbUri } from './shared/fileEditTracker.js';
 import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
-import { IAgentHostGitService } from './agentHostGitService.js';
+import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { AgentSideEffects } from './agentSideEffects.js';
 import { AgentServerToolHost } from './shared/agentServerToolHost.js';
 import { feedbackServerToolGroup } from './shared/agentFeedbackServerTools.js';
@@ -1106,7 +1106,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!targetState || targetState.activeTurn !== undefined) {
 			return;
 		}
-		this._logService.trace(`[AgentService] Evicting idle session: ${evictionTargetKey} (triggered by unsubscribe of ${key})`);
+		this._logService.info(`[AgentService] Evicting idle session: ${evictionTargetKey} (triggered by unsubscribe of ${key})`);
 		// Also evict any sibling subagent entries cached under the parent: their
 		// authoritative state is the parent's turn tree, and dropping the parent
 		// would leave them orphaned.
@@ -1696,8 +1696,16 @@ export class AgentService extends Disposable implements IAgentService {
 				encoding: ContentEncoding.Utf8,
 				contentType: 'text/plain',
 			};
-		} catch (_e) {
-			throw new ProtocolError(AhpErrorCodes.NotFound, `Content not found: ${uri.toString()}`);
+		} catch (e) {
+			const error = e instanceof Error ? e : new Error(String(e));
+			const result = toFileOperationResult(error);
+			if (result === FileOperationResult.FILE_NOT_FOUND) {
+				throw new ProtocolError(AhpErrorCodes.NotFound, `Content not found: ${uri.toString()}`);
+			}
+			if (result === FileOperationResult.FILE_PERMISSION_DENIED) {
+				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${uri.toString()}`);
+			}
+			throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Failed to read content: ${uri.toString()}: ${toErrorMessage(error)}`);
 		}
 	}
 

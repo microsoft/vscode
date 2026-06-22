@@ -45,11 +45,11 @@ export interface ITerminalSandboxWrapResult {
 	requiresAllowNetworkConfirmation?: boolean;
 }
 
-export interface ITerminalSandboxPrecheckInputs {
-	/**
-	 * Whether the current caller is using the default approval permission flow.
-	 */
-	readonly isDefaultApprovalPermissionEnabled?: boolean;
+export type TerminalSandboxFileAccessPermission = 'read' | 'write';
+
+export interface ITerminalSandboxFileAccessCheckResult {
+	allowed: boolean;
+	denied: string[];
 }
 
 export interface ITerminalSandboxPrecheckInputs {
@@ -115,8 +115,11 @@ export interface ITerminalSandboxService {
 	 * but when provided they are used to derive command-specific read/write
 	 * allow-list entries. When explicitly requested, `requestAllowNetwork`
 	 * retains sandbox execution while using a network-unrestricted config.
+	 * `forceSandboxed` prevents an initial access elevation, including both
+	 * unsandboxed execution and unrestricted network access.
 	 */
-	wrapCommand(command: string, requestUnsandboxedExecution?: boolean, shell?: string, cwd?: URI, commandDetails?: readonly ITerminalSandboxCommand[], requestAllowNetwork?: boolean): Promise<ITerminalSandboxWrapResult>;
+	wrapCommand(command: string, requestUnsandboxedExecution?: boolean, shell?: string, cwd?: URI, commandDetails?: readonly ITerminalSandboxCommand[], requestAllowNetwork?: boolean, forceSandboxed?: boolean): Promise<ITerminalSandboxWrapResult>;
+	checkFileAccess(permission: TerminalSandboxFileAccessPermission, paths: readonly string[], precheckInputs?: ITerminalSandboxPrecheckInputs): Promise<ITerminalSandboxFileAccessCheckResult>;
 	getSandboxConfigPath(forceRefresh?: boolean, precheckInputs?: ITerminalSandboxPrecheckInputs): Promise<string | undefined>;
 	getTempDir(): URI | undefined;
 	setNeedsForceUpdateConfigFile(): void;
@@ -147,6 +150,10 @@ export class NullTerminalSandboxService implements ITerminalSandboxService {
 
 	async wrapCommand(command: string): Promise<ITerminalSandboxWrapResult> {
 		return { command, isSandboxWrapped: false };
+	}
+
+	async checkFileAccess(): Promise<ITerminalSandboxFileAccessCheckResult> {
+		return { allowed: true, denied: [] };
 	}
 
 	async getSandboxConfigPath(): Promise<string | undefined> {

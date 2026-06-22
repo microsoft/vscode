@@ -15,7 +15,7 @@ import { ChangesSummary } from '../../common/state/protocol/state.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { SessionStatus, type ISessionFileDiff } from '../../common/state/sessionState.js';
 import { AgentHostDiscardChangesOperationHandler } from '../../node/agentHostDiscardChangesOperationHandler.js';
-import type { IAgentHostGitService } from '../../node/agentHostGitService.js';
+import type { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import type { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs } from '../../common/agentHostChangesetService.js';
 

@@ -15,7 +15,7 @@
  *
  * All rules are gated behind the `.style-override-keyboardFocusOnly` class, which
  * the StyleOverridesContribution toggles onto the workbench container(s) when the
- * `workbench.experimental.styleOverrides` setting includes "keyboardFocusOnly".
+ * `workbench.experimental.modernUI` (Modern UI Update) setting is enabled.
  *
  * Scoped to the panel surfaces (side bar, bottom panel, auxiliary bar, status
  * bar) so editor and global widget focus rings are unaffected.

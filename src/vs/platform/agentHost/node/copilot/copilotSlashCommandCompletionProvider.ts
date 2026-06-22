@@ -8,6 +8,7 @@ import { localize } from '../../../../nls.js';
 import { AgentSession } from '../../common/agentService.js';
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../../common/state/protocol/commands.js';
 import { MessageAttachmentKind } from '../../common/state/protocol/state.js';
+import { toCommandCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
 import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider } from '../agentHostCompletions.js';
 import { extractLeadingSlashToken } from '../agentHostSlashCompletion.js';
 
@@ -145,7 +146,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 				attachment: {
 					type: MessageAttachmentKind.Simple,
 					label: '/' + command,
-					_meta: { command, description: getCommandDescription(command) },
+					_meta: toCommandCompletionAttachmentMeta({ command, description: getCommandDescription(command) }),
 				},
 			});
 		}

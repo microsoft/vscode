@@ -12,7 +12,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { GITHUB_REPO_PROTECTED_RESOURCE, type IAgentService } from '../../common/agentService.js';
 import { buildSessionChangesetUri } from '../../common/changesetUri.js';
 import { withSessionGitState, type ISessionFileDiff, SessionStatus } from '../../common/state/sessionState.js';
-import type { IAgentHostGitService } from '../../node/agentHostGitService.js';
+import type { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { AgentHostPullRequestOperationHandler } from '../../node/agentHostPullRequestOperationHandler.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import type { CreatedPullRequest, IAgentHostOctoKitService } from '../../node/shared/agentHostOctoKitService.js';

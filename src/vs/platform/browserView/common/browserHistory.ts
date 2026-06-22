@@ -133,10 +133,12 @@ export class BrowserHistoryEntriesStore extends Disposable {
 		const nextFaviconHash = patch.faviconHash === undefined
 			? existing.icon
 			: (patch.faviconHash ?? undefined);
-		if (nextUrl === existing.url && nextTitle === existing.title && nextFaviconHash === existing.icon) {
+		// Update the time if the URL has been updated.
+		const nextTime = patch.url ? Date.now() : existing.time;
+		if (nextUrl === existing.url && nextTitle === existing.title && nextFaviconHash === existing.icon && nextTime === existing.time) {
 			return false;
 		}
-		this._items[idx] = { ...existing, url: nextUrl, title: nextTitle, icon: nextFaviconHash };
+		this._items[idx] = { ...existing, url: nextUrl, title: nextTitle, icon: nextFaviconHash, time: nextTime };
 		this._onDidChange.fire();
 		return true;
 	}

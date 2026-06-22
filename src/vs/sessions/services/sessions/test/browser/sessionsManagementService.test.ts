@@ -153,6 +153,7 @@ class TestSessionsProvider extends mock<ISessionsProvider>() {
 	override async archiveSession(): Promise<void> { }
 	override async unarchiveSession(): Promise<void> { }
 	override async deleteSession(): Promise<void> { }
+	override async deleteSessions(_sessionIds: readonly string[]): Promise<void> { }
 	override async deleteChat(): Promise<void> { }
 	override deleteNewSession(): void { }
 	override async sendRequest(_sessionId: string, _chatResource: URI, _options: ISendRequestOptions): Promise<ISession> { return this._session; }
@@ -900,6 +901,63 @@ suite('SessionsManagementService', () => {
 		// `from` matches the active session: active is replaced with `to`.
 		onDidReplaceSession.fire({ from: a, to: b });
 		assert.strictEqual(view.activeSession.get()?.sessionId, 'b');
+	});
+
+	suite('deleteSessions', () => {
+
+		class RecordingProvider extends TestSessionsProvider {
+			readonly deleted: string[][] = [];
+			constructor(public override readonly id: string, private readonly _fail: boolean, session: ISession) {
+				super(session);
+			}
+			override async deleteSessions(sessionIds: readonly string[]): Promise<void> {
+				this.deleted.push([...sessionIds]);
+				if (this._fail) {
+					throw new Error(`${this.id} failed`);
+				}
+			}
+		}
+
+		function createService(providers: ISessionsProvider[]): ISessionsManagementService {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
+			instantiationService.stub(ILogService, new NullLogService());
+			instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
+			instantiationService.stub(ISessionsProvidersService, new TestSessionsProvidersService(providers));
+			instantiationService.stub(IUriIdentityService, { extUri: extUriBiasedIgnorePathCase });
+			instantiationService.stub(IChatWidgetService, new TestChatWidgetService());
+			instantiationService.stub(IProgressService, new TestProgressService());
+			instantiationService.stub(IChatService, new class extends mock<IChatService>() {
+				override readonly onDidSubmitRequest = Event.None;
+			});
+			instantiationService.stub(IChatWidgetHistoryService, new class extends mock<IChatWidgetHistoryService>() {
+				override moveHistory(): void { }
+			});
+			return disposables.add(instantiationService.createInstance(SessionsManagementService));
+		}
+
+		test('groups sessions by provider and continues when one provider fails (best-effort)', async () => {
+			const s1 = stubSession({ sessionId: 's1', providerId: 'p1' });
+			const s2 = stubSession({ sessionId: 's2', providerId: 'p2' });
+			const failing = new RecordingProvider('p1', true, s1);
+			const succeeding = new RecordingProvider('p2', false, s2);
+			const service = createService([failing, succeeding]);
+
+			const deleted: string[] = [];
+			disposables.add(service.onDidDeleteSession(session => deleted.push(session.sessionId)));
+
+			await assert.rejects(service.deleteSessions([s1, s2]), /p1 failed/);
+
+			assert.deepStrictEqual({
+				failingDeleted: failing.deleted,
+				succeedingDeleted: succeeding.deleted,
+				eventsFired: deleted,
+			}, {
+				failingDeleted: [['s1']],
+				succeedingDeleted: [['s2']],
+				eventsFired: ['s2'],
+			});
+		});
 	});
 
 	suite('createNewChatInSession', () => {
