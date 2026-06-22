@@ -9,6 +9,12 @@ import { execSync } from 'child_process';
 
 const root = path.dirname(path.dirname(path.dirname(import.meta.dirname)));
 
+// The microsoft/vscode-distro repository is checked out locally by
+// download-distro.yml (into .build/distro) using the agent's GitHub App
+// (Monaco) credentials, so we can resolve branch heads without a token that
+// has private repository access.
+const distroPath = path.join(root, '.build', 'distro');
+
 function getEnv(name: string): string {
 	const result = process.env[name];
 
@@ -19,12 +25,13 @@ function getEnv(name: string): string {
 	return result;
 }
 
+function assertDistroCheckout(): void {
+	if (!fs.existsSync(path.join(distroPath, '.git'))) {
+		throw new Error(`Expected a vscode-distro checkout at ${distroPath} but found none. Ensure download-distro.yml ran before this check.`);
+	}
+}
+
 function getDistroBranchHead(branch: string): string {
-	// The microsoft/vscode-distro repository is checked out locally by
-	// download-distro.yml (into .build/distro) using the agent's GitHub App
-	// (Monaco) credentials. Resolve the branch head from that checkout so we
-	// don't need a token with private repository access.
-	const distroPath = path.join(root, '.build', 'distro');
 	return execSync(`git -C "${distroPath}" rev-parse "refs/remotes/origin/${branch}"`, { encoding: 'utf8' }).trim();
 }
 
@@ -53,6 +60,11 @@ async function checkDistroCommit(): Promise<void> {
 
 	const branch = branchMatch[1];
 	console.log(`Current branch: ${branch}`);
+
+	// Make sure the distro repository is actually checked out before we try to
+	// resolve a branch head from it; otherwise a missing checkout would be
+	// indistinguishable from a branch that simply doesn't exist in distro.
+	assertDistroCheckout();
 
 	// Resolve the HEAD of the matching branch from the local distro checkout
 	let distroBranchHead: string;
