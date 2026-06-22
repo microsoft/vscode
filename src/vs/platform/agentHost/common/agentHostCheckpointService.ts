@@ -65,7 +65,7 @@ export interface IAgentHostCheckpointService {
 	 * the parent ref is recorded against the turn rather than creating a
 	 * redundant commit / new ref.
 	 *
-	 * Called from `AgentSideEffects` when a `SessionTurnComplete` action
+	 * Called from `AgentSideEffects` when a `ChatTurnComplete` action
 	 * fires, BEFORE the changeset service's `onTurnComplete` hook so the
 	 * per-turn changeset compute can pick up the new refs.
 	 */
@@ -77,6 +77,14 @@ export interface IAgentHostCheckpointService {
 	 * to decide whether to take the git-diff fast path for per-turn diffs.
 	 */
 	getTurnCheckpointPair(sessionUri: URI, turnId: string): Promise<{ parent: string; current: string } | undefined>;
+
+	/**
+	 * Returns the session's baseline checkpoint ref, or `undefined` when
+	 * the baseline was never captured (non-git-backed session, or capture
+	 * failed). Used by the changeset service to resolve compare-turns
+	 * URIs whose `originalTurnId` is the `BASELINE_TURN_ID` sentinel.
+	 */
+	getBaselineCheckpointRef(sessionUri: URI): Promise<string | undefined>;
 
 	/**
 	 * Deletes every checkpoint ref this service created for the session
@@ -101,5 +109,6 @@ export const NULL_CHECKPOINT_SERVICE: IAgentHostCheckpointService = {
 	captureBaseline: async () => undefined,
 	captureTurnCheckpoint: async () => undefined,
 	getTurnCheckpointPair: async () => undefined,
+	getBaselineCheckpointRef: async () => undefined,
 	disposeSessionData: async () => { },
 };

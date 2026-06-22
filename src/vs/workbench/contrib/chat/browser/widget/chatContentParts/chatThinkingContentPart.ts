@@ -7,7 +7,7 @@ import { $, clearNode, DisposableResizeObserver, getWindow, hide, scheduleAtNext
 import { alert } from '../../../../../../base/browser/ui/aria/aria.js';
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
-import { IChatMarkdownContent, IChatTerminalToolInvocationData, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
+import { IChatExternalEdit, IChatMarkdownContent, IChatTerminalToolInvocationData, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { IChatContentPartRenderContext, IChatContentPart } from './chatContentParts.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { ChatConfiguration, ThinkingDisplayMode } from '../../../common/constants.js';
@@ -15,6 +15,7 @@ import { ChatTreeItem } from '../../chat.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { AccessibilityWorkbenchSettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IRenderedMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
@@ -42,6 +43,22 @@ import { ChatThinkingExternalResourceWidget } from './chatThinkingExternalResour
 import { LocalChatSessionUri, chatSessionResourceToId } from '../../../common/model/chatUri.js';
 import { IEditSessionDiffStats } from '../../../common/editing/chatEditingService.js';
 
+
+// Context key id mirrored from `vs/sessions/common/contextkeys` (`IsPhoneLayoutContext`).
+// Inlined as a string because `vs/workbench` must not import from `vs/sessions`.
+const SESSIONS_IS_PHONE_LAYOUT_KEY = 'sessionsIsPhoneLayout';
+
+/**
+ * Resolves the effective thinking display mode. On phone layout we always force
+ * {@link ThinkingDisplayMode.CollapsedPreview} so streaming reasoning takes less
+ * room and auto-collapses on completion regardless of the user's setting.
+ */
+export function getEffectiveThinkingDisplayMode(configurationService: IConfigurationService, contextKeyService: IContextKeyService): ThinkingDisplayMode {
+	if (contextKeyService.getContextKeyValue<boolean>(SESSIONS_IS_PHONE_LAYOUT_KEY) === true) {
+		return ThinkingDisplayMode.CollapsedPreview;
+	}
+	return configurationService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle') ?? ThinkingDisplayMode.Collapsed;
+}
 
 function extractTextFromPart(content: IChatThinkingPart): string {
 	const raw = Array.isArray(content.value) ? content.value.join('') : (content.value || '');
@@ -87,7 +104,8 @@ export function getToolInvocationIcon(toolId: string, registeredIcon?: ThemeIcon
 		lowerToolId.includes('list') ||
 		lowerToolId.includes('semantic') ||
 		lowerToolId.includes('changes') ||
-		lowerToolId.includes('codebase')
+		lowerToolId.includes('codebase') ||
+		lowerToolId.includes('checked')
 	) {
 		return Codicon.search;
 	}
@@ -125,11 +143,24 @@ function extractTitleFromThinkingContent(content: string): string | undefined {
 	return headerMatch ? headerMatch[1] : undefined;
 }
 
+/**
+ * Metadata passed to {@link ChatThinkingContentPart.appendItem} to drive
+ * title / icon extraction. The `kind` discriminates which payload is
+ * available; the thinking part inspects it to compute a label like
+ * "Edited foo.ts" without rendering the actual content itself (the
+ * factory provides the DOM).
+ */
+export type ChatThinkingItemMetadata =
+	| IChatToolInvocation
+	| IChatToolInvocationSerialized
+	| IChatMarkdownContent
+	| IChatExternalEdit;
+
 interface ILazyToolItem {
 	kind: 'tool';
 	lazy: Lazy<{ domNode: HTMLElement; disposable?: IDisposable }>;
 	toolInvocationId?: string;
-	toolInvocationOrMarkdown?: IChatToolInvocation | IChatToolInvocationSerialized | IChatMarkdownContent;
+	toolInvocationOrMarkdown?: ChatThinkingItemMetadata;
 	originalParent?: HTMLElement;
 	isHook?: boolean;
 }
@@ -182,6 +213,7 @@ const funWorkingMessages = [
 	localize('chat.working.fun.1', "Bribing the hamster"),
 	localize('chat.working.fun.2', "Reticulating splines"),
 	localize('chat.working.fun.3', "Untangling the spaghetti"),
+	localize('chat.working.fun.4', "Communing with the codebase"),
 
 	// Minecraft
 	localize('chat.working.fun.minecraft.1', "Mining diamonds"),
@@ -190,7 +222,7 @@ const funWorkingMessages = [
 	localize('chat.working.fun.ms.1', "Summoning Clippy"),
 ];
 
-const FUN_WORKING_MESSAGE_RATE = 100;
+const FUN_WORKING_MESSAGE_RATE = 50;
 
 type ThinkingPhrasesConfiguration = { mode?: 'replace' | 'append'; phrases?: string[] };
 
@@ -292,6 +324,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private titleShimmerSpan: HTMLElement | undefined;
 	private titleDetailContainer: HTMLElement | undefined;
 	private readonly _externalResourceWidget: ChatThinkingExternalResourceWidget;
+	private readonly _pendingExternalResources = new Map<string, IChatToolInvocation | IChatToolInvocationSerialized>();
 	private readonly _titleDetailRendered = this._register(new MutableDisposable<IRenderedMarkdown>());
 	private readonly _pendingAppendRefresh = this._register(new MutableDisposable<IDisposable>());
 	private readonly diffStatsByPartId = new Map<string, IEditSessionDiffStats>();
@@ -341,6 +374,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		@IHoverService hoverService: IHoverService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		const initialText = extractTextFromPart(content);
 		const extractedTitle = extractTitleFromThinkingContent(initialText)
@@ -353,7 +387,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.allThinkingParts.push(content);
 		this.showProgressDetails = this.configurationService.getValue<boolean>(ChatConfiguration.ChatPersistentProgressEnabled) !== false
 			&& (this.configurationService.getValue<boolean>(ChatConfiguration.ProgressBorder) !== true || accessibilityService.isMotionReduced());
-		const configuredMode = this.configurationService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle') ?? ThinkingDisplayMode.Collapsed;
+		const configuredMode = getEffectiveThinkingDisplayMode(this.configurationService, contextKeyService);
 
 		this.fixedScrollingMode = configuredMode === ThinkingDisplayMode.FixedScrolling;
 
@@ -1029,6 +1063,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.domNode.classList.remove('chat-thinking-fade-top', 'chat-thinking-fade-bottom');
 		this.streamingCompleted = true;
 
+		// Now that streaming is complete, render any aggregated images that were
+		// deferred while scrolling was pinned in fixed scrolling mode.
+		this.flushPendingExternalResources();
+
 		if (this.wrapperResizeObserverDisposable) {
 			this.wrapperResizeObserverDisposable.dispose();
 			this.wrapperResizeObserverDisposable = undefined;
@@ -1435,6 +1473,9 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		this.domNode.classList.remove('chat-thinking-persistent-streaming');
 		this.streamingCompleted = true;
 
+		// Render any aggregated images that were deferred during fixed scrolling streaming.
+		this.flushPendingExternalResources();
+
 		if (this._collapseButton) {
 			this._collapseButton.icon = Codicon.check;
 			this.setFinalizedTitle(finalLabel);
@@ -1459,7 +1500,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 	public appendItem(
 		factory: () => { domNode: HTMLElement; disposable?: IDisposable },
 		toolInvocationId?: string,
-		toolInvocationOrMarkdown?: IChatToolInvocation | IChatToolInvocationSerialized | IChatMarkdownContent,
+		toolInvocationOrMarkdown?: ChatThinkingItemMetadata,
 		originalParent?: HTMLElement,
 		onDidChangeDiff?: Event<IEditSessionDiffStats>,
 		eagerDisposable?: IDisposable,
@@ -1550,6 +1591,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		}
 		this.toolLabelsByCallId.delete(toolCallId);
 
+		this._pendingExternalResources.delete(toolCallId);
 		this._externalResourceWidget.removeToolInvocation(toolCallId);
 
 		this.updateWorkingSpinnerVisibility();
@@ -1608,6 +1650,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			// Use the tracked displayed label (which may differ from invocationMessage
 			// for streaming edit tools that show "Editing files")
 			const toolCallId = removedItem.toolInvocationOrMarkdown.toolCallId;
+			this._pendingExternalResources.delete(toolCallId);
 			this._externalResourceWidget.removeToolInvocation(toolCallId);
 			const label = this.toolLabelsByCallId.get(toolCallId);
 			if (label) {
@@ -1704,6 +1747,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			this.extractedTitles.splice(titleIndex, 1);
 		}
 		this.toolLabelsByCallId.delete(toolCallId);
+		this._pendingExternalResources.delete(toolCallId);
 		this._externalResourceWidget.removeToolInvocation(toolCallId);
 		this.updateWorkingSpinnerVisibility();
 		this.updateDropdownClickability();
@@ -1712,7 +1756,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 
 	private trackToolMetadata(
 		toolInvocationId?: string,
-		toolInvocationOrMarkdown?: IChatToolInvocation | IChatToolInvocationSerialized | IChatMarkdownContent
+		toolInvocationOrMarkdown?: ChatThinkingItemMetadata
 	): void {
 		if (!toolInvocationId) {
 			return;
@@ -1890,6 +1934,22 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			} else {
 				toolCallLabel = localize('chat.thinking.editingFile', 'Edited file');
 			}
+		} else if (toolInvocationOrMarkdown?.kind === 'externalEdit') {
+			const filename = basename(toolInvocationOrMarkdown.uri);
+			switch (toolInvocationOrMarkdown.editKind) {
+				case 'create':
+					toolCallLabel = localize('chat.thinking.createdFile', 'Created {0}', filename);
+					break;
+				case 'delete':
+					toolCallLabel = localize('chat.thinking.deletedFile', 'Deleted {0}', filename);
+					break;
+				case 'rename':
+					toolCallLabel = localize('chat.thinking.renamedFile', 'Renamed {0}', filename);
+					break;
+				case 'edit':
+					toolCallLabel = localize('chat.thinking.editedFile', 'Edited {0}', filename);
+					break;
+			}
 		} else {
 			toolCallLabel = toolInvocationId;
 		}
@@ -1907,6 +1967,14 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 	}
 
 	private updateExternalResourceParts(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): void {
+		// In fixed scrolling mode, defer rendering aggregated images at the bottom while
+		// the response is still streaming. The images would otherwise overlap the pinned
+		// scrolling viewport. They are flushed once streaming completes.
+		if (this.fixedScrollingMode && !this.streamingCompleted && !this.element.isComplete) {
+			this._pendingExternalResources.set(toolInvocation.toolCallId, toolInvocation);
+			return;
+		}
+
 		const extractedImages = extractImagesFromToolInvocationOutputDetails(toolInvocation, this.element.sessionResource);
 		if (extractedImages.length === 0) {
 			return;
@@ -1922,10 +1990,21 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		this._externalResourceWidget.setToolInvocationParts(toolInvocation.toolCallId, parts);
 	}
 
+	private flushPendingExternalResources(): void {
+		if (this._pendingExternalResources.size === 0) {
+			return;
+		}
+		const pending = Array.from(this._pendingExternalResources.values());
+		this._pendingExternalResources.clear();
+		for (const toolInvocation of pending) {
+			this.updateExternalResourceParts(toolInvocation);
+		}
+	}
+
 	private appendItemToDOM(
 		content: HTMLElement,
 		toolInvocationId?: string,
-		toolInvocationOrMarkdown?: IChatToolInvocation | IChatToolInvocationSerialized | IChatMarkdownContent,
+		toolInvocationOrMarkdown?: ChatThinkingItemMetadata,
 		originalParent?: HTMLElement
 	): void {
 		if (!content.hasChildNodes() || content.textContent?.trim() === '') {
@@ -1947,12 +2026,13 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 
 		const itemWrapper = $('.chat-thinking-tool-wrapper');
 		const isMarkdownEdit = toolInvocationOrMarkdown?.kind === 'markdownContent';
+		const isExternalEdit = toolInvocationOrMarkdown?.kind === 'externalEdit';
 		const isTerminalTool = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') && toolInvocationOrMarkdown.toolSpecificData?.kind === 'terminal';
 		const isSearchTool = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') && toolInvocationOrMarkdown.toolSpecificData?.kind === 'search';
 		const toolInvocationIcon = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') ? toolInvocationOrMarkdown.icon : undefined;
 
 		let icon: ThemeIcon;
-		if (isMarkdownEdit) {
+		if (isMarkdownEdit || isExternalEdit) {
 			icon = Codicon.pencil;
 		} else if (isSearchTool) {
 			icon = Codicon.search;
@@ -2124,6 +2204,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			this.titleShimmerSpan = undefined;
 			this.titleDetailContainer = undefined;
 			this._titleDetailRendered.clear();
+			this._titleFileWidgetStore.clear();
 			this.currentTitle = title;
 			return;
 		}
@@ -2148,10 +2229,11 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 
 		// Dispose previous detail rendering
 		this._titleDetailRendered.clear();
+		this._titleFileWidgetStore.clear();
 
 		const result = this.chatContentMarkdownRenderer.render(new MarkdownString(title));
 		result.element.classList.add('collapsible-title-content', 'chat-thinking-title-detail');
-		renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._store);
+		renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._titleFileWidgetStore);
 		this._titleDetailRendered.value = result;
 
 		if (this.titleDetailContainer) {

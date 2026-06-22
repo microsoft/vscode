@@ -525,6 +525,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 						promptTokens: progress.promptTokens,
 						completionTokens: progress.completionTokens,
 						outputBuffer: progress.outputBuffer,
+						copilotCredits: progress.copilotCredits,
 						promptTokenDetails: progress.promptTokenDetails
 					});
 				}
@@ -716,6 +717,10 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				// Convert UriComponents to URI and register any inline content
 				return contributions.map(c => {
 					return {
+						name: c.name,
+						description: c.description,
+						sessionTypes: c.sessionTypes,
+						when: c.when,
 						uri: URI.revive(c.uri),
 					};
 				});

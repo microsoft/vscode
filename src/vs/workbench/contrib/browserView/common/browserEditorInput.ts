@@ -9,7 +9,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
-import { BrowserViewSharingState, IBrowserEditorViewState, IBrowserViewWorkbenchService } from './browserView.js';
+import { BrowserViewSharingState, INavigateOptions, IBrowserEditorViewState, IBrowserViewWorkbenchService } from './browserView.js';
 import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput, Verbosity } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
@@ -21,7 +21,7 @@ import { hasKey } from '../../../../base/common/types.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { logBrowserOpen } from '../../../../platform/browserView/common/browserViewTelemetry.js';
 import { LRUCachedFunction } from '../../../../base/common/cache.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 
 const LOADING_SPINNER_SVG = (color: string | undefined) => `
@@ -51,6 +51,26 @@ export interface IBrowserEditorInputData extends IBrowserEditorViewState {
  */
 export interface IBeforeDisposeBrowserEditorEvent {
 	veto(): void;
+}
+
+/**
+ * Slice the fragment off a raw URL. A literal `#` always starts the fragment,
+ * so a plain substring keeps the rest of the URL byte-for-byte intact (no
+ * re-encoding), matching what the navbar displays.
+ */
+function stripUrlFragment(url: string): string {
+	const hash = url.indexOf('#');
+	return hash === -1 ? url : url.slice(0, hash);
+}
+
+/**
+ * Slice both the query and fragment off a raw URL, preserving the exact
+ * encoding of the remaining scheme/authority/path.
+ */
+function stripUrlQueryAndFragment(url: string): string {
+	const stripped = stripUrlFragment(url);
+	const query = stripped.indexOf('?');
+	return query === -1 ? stripped : stripped.slice(0, query);
 }
 
 export class BrowserEditorInput extends EditorInput {
@@ -117,6 +137,15 @@ export class BrowserEditorInput extends EditorInput {
 		this._onDidResolveModel.fire(model);
 	}
 
+	onceModelResolves(cb: (model: IBrowserViewModel) => void): IDisposable {
+		if (this._model) {
+			cb(this._model);
+			return Disposable.None;
+		} else {
+			return Event.once(this.onDidResolveModel)(cb);
+		}
+	}
+
 	get id() {
 		return this._id;
 	}
@@ -148,14 +177,15 @@ export class BrowserEditorInput extends EditorInput {
 		return this._model ? this._model.sharingState !== BrowserViewSharingState.Unavailable : this.browserViewWorkbenchService.isSharingAvailable;
 	}
 
-	navigate(url: string): void {
+	navigate(url: string, options?: INavigateOptions): void {
+		const destination = url.trim();
 		if (this._model) {
-			void this._model.loadURL(url);
+			void this._model.loadURL(destination, options);
 		} else {
 			// If the model isn't created yet, update the initial data so that the URL is correct when the model is created
 			this._initialData = {
 				id: this._id,
-				url
+				url: destination
 			};
 			this._onDidChangeLabel.fire();
 		}
@@ -227,32 +257,33 @@ export class BrowserEditorInput extends EditorInput {
 	}
 
 	private readonly getURLTitles = new LRUCachedFunction((url: string) => {
-		let _parsed: URI | undefined = undefined;
 		let _short: string | undefined = undefined;
 		let _medium: string | undefined = undefined;
 		let _long: string | undefined = undefined;
-		function getParsed() {
-			if (!_parsed) {
-				_parsed = URI.parse(url);
-			}
-			return _parsed;
-		}
 		return {
+			// Host only. Derived via the WHATWG URL parser so it matches the
+			// host shown by the navbar's raw URL (e.g. punycode for IDNs).
 			get [Verbosity.SHORT]() {
-				if (!_short) {
-					_short = getParsed().authority;
+				if (_short === undefined) {
+					const parsed = URL.parse(url);
+					_short = parsed ? parsed.host : stripUrlQueryAndFragment(url);
 				}
 				return _short;
 			},
+			// Raw URL without the query/fragment. Computed by string slicing
+			// (not a URI round-trip) so the displayed text stays byte-for-byte
+			// consistent with the canonical URL shown in the navbar.
 			get [Verbosity.MEDIUM]() {
-				if (!_medium) {
-					_medium = getParsed().with({ query: '', fragment: '' }).toString();
+				if (_medium === undefined) {
+					_medium = stripUrlQueryAndFragment(url);
 				}
 				return _medium;
 			},
+			// Raw URL without the fragment, sliced from the canonical string for
+			// the same consistency reason as the medium form.
 			get [Verbosity.LONG]() {
-				if (!_long) {
-					_long = getParsed().with({ fragment: '' }).toString();
+				if (_long === undefined) {
+					_long = stripUrlFragment(url);
 				}
 				return _long;
 			}

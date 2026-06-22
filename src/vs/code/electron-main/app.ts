@@ -104,6 +104,8 @@ import { IWorkspacesHistoryMainService, WorkspacesHistoryMainService } from '../
 import { WorkspacesMainService } from '../../platform/workspaces/electron-main/workspacesMainService.js';
 import { IWorkspacesManagementMainService, WorkspacesManagementMainService } from '../../platform/workspaces/electron-main/workspacesManagementMainService.js';
 import { IPolicyService } from '../../platform/policy/common/policy.js';
+import { ICopilotManagedSettingsService } from '../../platform/policy/common/copilotManagedSettings.js';
+import { CopilotManagedSettingsChannel } from '../../platform/policy/common/copilotManagedSettingsIpc.js';
 import { PolicyChannel } from '../../platform/policy/common/policyIpc.js';
 import { IUserDataProfilesMainService } from '../../platform/userDataProfile/electron-main/userDataProfile.js';
 import { IExtensionsProfileScannerService } from '../../platform/extensionManagement/common/extensionsProfileScannerService.js';
@@ -125,8 +127,10 @@ import { ElectronPtyHostStarter } from '../../platform/terminal/electron-main/el
 import { PtyHostService } from '../../platform/terminal/node/ptyHostService.js';
 import { ElectronAgentHostStarter } from '../../platform/agentHost/electron-main/electronAgentHostStarter.js';
 import { AgentHostProcessManager } from '../../platform/agentHost/node/agentHostService.js';
-import { AgentHostEnabledSettingId } from '../../platform/agentHost/common/agentService.js';
+import { isAgentHostEnabled } from '../../platform/agentHost/common/agentService.js';
 import { NODE_REMOTE_RESOURCE_CHANNEL_NAME, NODE_REMOTE_RESOURCE_IPC_METHOD_NAME, NodeRemoteResourceResponse, NodeRemoteResourceRouter } from '../../platform/remote/common/electronRemoteResources.js';
+import { RemoteFileSystemProxyMainHandler } from '../../platform/files/electron-main/remoteFileSystemProxyMainHandler.js';
+import { REMOTE_FILE_SYSTEM_PROXY_HANDLER_CHANNEL_NAME } from '../../platform/files/common/remoteFileSystemProxy.js';
 import { Lazy } from '../../base/common/lazy.js';
 import { IAuxiliaryWindowsMainService } from '../../platform/auxiliaryWindow/electron-main/auxiliaryWindows.js';
 import { AuxiliaryWindowsMainService } from '../../platform/auxiliaryWindow/electron-main/auxiliaryWindowsMainService.js';
@@ -228,20 +232,9 @@ export class CodeApplication extends Disposable {
 			return false;
 		});
 
-		// Without this, starting recording in the issue reporting wizard takes
-		// a few seconds due to overhead of enumerating sources, so we warm up the sources in advance.
 		let cachedScreenSources: Electron.DesktopCapturerSource[] | undefined;
-		const warmUpScreenSources = () => {
-			desktopCapturer.getSources({
-				types: ['screen'],
-				thumbnailSize: { width: 0, height: 0 },
-			}).then(sources => { cachedScreenSources = sources; }).catch(() => { /* best-effort */ });
-		};
 		const invalidateScreenSourceCache = () => {
 			cachedScreenSources = undefined;
-			if (!isMacintosh || systemPreferences.getMediaAccessStatus('screen') === 'granted') {
-				warmUpScreenSources();
-			}
 		};
 		electronScreen.on('display-added', invalidateScreenSourceCache);
 		electronScreen.on('display-removed', invalidateScreenSourceCache);
@@ -251,9 +244,6 @@ export class CodeApplication extends Disposable {
 			electronScreen.off('display-removed', invalidateScreenSourceCache);
 			electronScreen.off('display-metrics-changed', invalidateScreenSourceCache);
 		}));
-		if (!isMacintosh || systemPreferences.getMediaAccessStatus('screen') === 'granted') {
-			warmUpScreenSources();
-		}
 		session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
 			try {
 				const frame = request.frame;
@@ -1179,7 +1169,7 @@ export class CodeApplication extends Disposable {
 		services.set(ILocalPtyService, ptyHostService);
 
 		// Agent Host
-		if (this.configurationService.getValue(AgentHostEnabledSettingId)) {
+		if (isAgentHostEnabled(this.configurationService)) {
 			const agentHostStarter = new ElectronAgentHostStarter(this.configurationService, this.environmentMainService, this.lifecycleMainService, this.logService);
 			this._register(new AgentHostProcessManager(agentHostStarter, this.logService, this.loggerService));
 		}
@@ -1267,6 +1257,9 @@ export class CodeApplication extends Disposable {
 		mainProcessElectronServer.registerChannel('policy', policyChannel);
 		sharedProcessClient.then(client => client.registerChannel('policy', policyChannel));
 
+		const copilotManagedSettingsChannel = disposables.add(new CopilotManagedSettingsChannel(accessor.get(ICopilotManagedSettingsService)));
+		mainProcessElectronServer.registerChannel('copilotManagedSettings', copilotManagedSettingsChannel);
+
 		// Local Files
 		const diskFileSystemProvider = this.fileService.getProvider(Schemas.file);
 		assertType(diskFileSystemProvider instanceof DiskFileSystemProvider);
@@ -1310,6 +1303,10 @@ export class CodeApplication extends Disposable {
 		const browserViewGroupChannel = ProxyChannel.fromService(accessor.get(IBrowserViewGroupMainService), disposables);
 		mainProcessElectronServer.registerChannel(ipcBrowserViewGroupChannelName, browserViewGroupChannel);
 		sharedProcessClient.then(client => client.registerChannel(ipcBrowserViewGroupChannelName, browserViewGroupChannel));
+
+		// Remote File System Proxy
+		const remoteFileSystemProxyHandler = disposables.add(new RemoteFileSystemProxyMainHandler(accessor.get(IWindowsMainService), mainProcessElectronServer));
+		mainProcessElectronServer.registerChannel(REMOTE_FILE_SYSTEM_PROXY_HANDLER_CHANNEL_NAME, remoteFileSystemProxyHandler);
 
 		// Signing
 		const signChannel = ProxyChannel.fromService(accessor.get(ISignService), disposables);

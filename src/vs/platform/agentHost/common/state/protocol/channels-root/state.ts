@@ -8,7 +8,7 @@
 
 import type { ConfigSchema, ProtectedResourceMetadata } from '../common/state.js';
 import type { TerminalInfo } from '../channels-terminal/state.js';
-import type { CustomizationRef } from '../channels-session/state.js';
+import type { Customization } from '../channels-session/state.js';
 
 // ─── Root State ──────────────────────────────────────────────────────────────
 
@@ -37,6 +37,12 @@ export interface RootState {
 	terminals?: TerminalInfo[];
 	/** Agent host configuration schema and current values */
 	config?: RootConfigState;
+	/**
+	 * Additional implementation-defined metadata about the agent host itself.
+	 *
+	 * Clients MAY look for well-known keys here to provide enhanced UI.
+	 */
+	_meta?: Record<string, unknown>;
 }
 
 /**
@@ -64,12 +70,19 @@ export interface AgentInfo {
 	 */
 	protectedResources?: ProtectedResourceMetadata[];
 	/**
-	 * Customizations (Open Plugins) associated with this agent.
+	 * Customizations associated with this agent.
 	 *
-	 * Each entry is a reference to an [Open Plugins](https://open-plugins.com/)
-	 * plugin that the agent host can activate for sessions using this agent.
+	 * Either container customizations —
+	 * {@link PluginCustomization | `PluginCustomization`} entries the agent
+	 * bundles, plus {@link DirectoryCustomization | `DirectoryCustomization`}
+	 * entries it watches in any workspace it's used with — or top-level
+	 * {@link McpServerCustomization | `McpServerCustomization`} entries
+	 * the agent host declares directly. When a session is created with
+	 * this agent, these entries are augmented (e.g. directory URIs are
+	 * resolved against the workspace, children are parsed) and propagated
+	 * into the session's `customizations` list.
 	 */
-	customizations?: CustomizationRef[];
+	customizations?: Customization[];
 }
 
 /**

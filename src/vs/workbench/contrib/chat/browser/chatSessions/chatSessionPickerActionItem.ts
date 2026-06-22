@@ -22,6 +22,10 @@ import { localize } from '../../../../../nls.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IChatInputPickerOptions } from '../widget/input/chatInputPickerActionItem.js';
 import { autorun } from '../../../../../base/common/observable.js';
+import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { IActionListItemHover } from '../../../../../platform/actionWidget/browser/actionList.js';
+import { getModelHoverContent } from '../widget/input/chatModelPicker.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 
 
 export interface IChatSessionPickerDelegate {
@@ -50,6 +54,7 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ICommandService protected readonly commandService: ICommandService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 	) {
 		const { group, item } = initialState;
 		const actionWithLabel: IAction = {
@@ -116,6 +121,7 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 				description: optionItem.description,
 				tooltip: optionItem.description ?? optionItem.name,
 				label: optionItem.name,
+				hover: this._buildOptionHover(optionItem),
 				run: () => {
 					this.delegate.setOption(optionItem);
 				}
@@ -149,6 +155,50 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 		}
 
 		return actions;
+	}
+
+	private _buildOptionHover(optionItem: IChatSessionProviderOptionItem): IActionListItemHover | undefined {
+		if (optionItem.modelMetadata) {
+			const isUBB = !!this.chatEntitlementService.quotas.usageBasedBilling;
+			const syntheticModel = {
+				identifier: optionItem.id,
+				metadata: {
+					extension: new ExtensionIdentifier(''),
+					name: optionItem.modelMetadata.name,
+					id: optionItem.modelMetadata.id,
+					vendor: optionItem.modelMetadata.vendor ?? '',
+					version: optionItem.modelMetadata.version ?? '',
+					family: optionItem.modelMetadata.family ?? '',
+					tooltip: optionItem.modelMetadata.tooltip,
+					pricing: optionItem.modelMetadata.pricing,
+					multiplierNumeric: optionItem.modelMetadata.multiplierNumeric,
+					inputCost: optionItem.modelMetadata.inputCost,
+					outputCost: optionItem.modelMetadata.outputCost,
+					cacheCost: optionItem.modelMetadata.cacheCost,
+					cacheWriteCost: optionItem.modelMetadata.cacheWriteCost,
+					longContextInputCost: optionItem.modelMetadata.longContextInputCost,
+					longContextOutputCost: optionItem.modelMetadata.longContextOutputCost,
+					longContextCacheCost: optionItem.modelMetadata.longContextCacheCost,
+					longContextCacheWriteCost: optionItem.modelMetadata.longContextCacheWriteCost,
+					priceCategory: optionItem.modelMetadata.priceCategory,
+					maxInputTokens: optionItem.modelMetadata.maxInputTokens ?? 0,
+					maxOutputTokens: optionItem.modelMetadata.maxOutputTokens ?? 0,
+					capabilities: optionItem.modelMetadata.capabilities ? {
+						vision: optionItem.modelMetadata.capabilities.vision,
+						toolCalling: optionItem.modelMetadata.capabilities.toolCalling,
+					} : undefined,
+					isDefaultForLocation: {},
+				},
+			};
+			const hover = getModelHoverContent(syntheticModel, isUBB);
+			if (hover) {
+				return { content: hover.element, disposable: hover.disposable };
+			}
+		}
+		if (optionItem.tooltip) {
+			return { content: optionItem.tooltip };
+		}
+		return undefined;
 	}
 
 	/**

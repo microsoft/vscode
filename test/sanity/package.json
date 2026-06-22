@@ -18,7 +18,7 @@
   "devDependencies": {
     "@types/minimist": "^1.2.5",
     "@types/mocha": "^10.0.10",
-    "@types/node": "22.x",
+    "@types/node": "24.x",
     "typescript": "^6.0.0-dev.20251110"
   },
   "overrides": {

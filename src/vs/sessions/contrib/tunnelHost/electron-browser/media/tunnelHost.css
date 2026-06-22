@@ -11,7 +11,7 @@
 	padding: 3px 6px;
 	cursor: pointer;
 	color: var(--vscode-icon-foreground);
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .tunnel-host-toggle:hover {
@@ -56,7 +56,7 @@
 	overflow: hidden;
 	white-space: nowrap;
 	opacity: 0;
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-label2, 11px);
 	transition: max-width 0.3s ease-out, opacity 0.3s ease-out;
 }
 
