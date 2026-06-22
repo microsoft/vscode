@@ -32,7 +32,6 @@ jobs:
       BUILDS_API_URL: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
       NPM_ARCH: ${{ parameters.NPM_ARCH }}
       VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
-      AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
     templateContext:
       sdl:
         binskim:

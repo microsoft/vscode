@@ -20,7 +20,6 @@ jobs:
     variables:
       VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
       BUILDS_API_URL: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
-      AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
     templateContext:
       outputParentDirectory: $(Build.ArtifactStagingDirectory)/out
       outputs:
