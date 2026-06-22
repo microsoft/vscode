@@ -170,7 +170,8 @@ export function fetchUriText(uri: string, timeoutMs = 10_000, maxRedirects = 5):
 				const loc = res.headers.location;
 				res.resume();
 				if (loc) {
-					resolve(fetchUriText(loc, timeoutMs, maxRedirects - 1));
+					const resolved = new URL(loc, uri).href;
+					resolve(fetchUriText(resolved, timeoutMs, maxRedirects - 1));
 				} else {
 					resolve(undefined);
 				}

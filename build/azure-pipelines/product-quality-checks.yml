@@ -300,7 +300,8 @@ jobs:
             --cg "$(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt" \
             --extensions "$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.extensions.txt" \
             --cglicenses "$(Build.SourcesDirectory)/cglicenses.json" \
-            --output "$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.new.txt"
+            --output "$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.new.txt" \
+            --provenance
 
           # Upload all artifacts
           echo "##vso[artifact.upload containerfolder=notice_output;artifactname=notice_output]$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.extensions.txt"

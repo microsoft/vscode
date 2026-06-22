@@ -30,7 +30,7 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$RepoRoot = 'C:\src\vscode.worktrees\oss-cg-validation',
+    [string]$RepoRoot = (Resolve-Path "$PSScriptRoot\..\..\..").Path,
     [string]$OutDir = 'C:\temp\oss-local',
     [string]$CgNotice = '',
     [switch]$SkipScan
@@ -98,6 +98,7 @@ if ($CgNotice -and (Test-Path $CgNotice)) {
 else {
     Write-Warning "No CG cache (-CgNotice) - merging without a CG base. Inject/stale logic still validated."
 }
+$mergeArgs += '--provenance'
 Invoke-OssScript -Script 'merge-notices.ts' -ScriptArgs $mergeArgs
 
 # --- 3. focused summary ----------------------------------------------------

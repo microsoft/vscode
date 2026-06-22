@@ -5,15 +5,20 @@
 
 /**
  * Parse CLI arguments of the form `--key value` into a Record.
- * NOTE: This always consumes the next token as a value — boolean flags
- * (e.g. --strict) should be checked via `process.argv.includes()` instead.
+ * If the next token after a `--key` is another `--`-prefixed flag (or there
+ * is no next token), the key is treated as a boolean flag with value `'true'`.
  */
 export function parseArgs(argv: string[]): Record<string, string> {
 	const args: Record<string, string> = {};
 	for (let i = 0; i < argv.length; i++) {
-		if (argv[i].startsWith('--') && i + 1 < argv.length) {
-			args[argv[i].substring(2)] = argv[i + 1];
-			i++;
+		if (argv[i].startsWith('--')) {
+			const key = argv[i].substring(2);
+			if (i + 1 < argv.length && !argv[i + 1].startsWith('--')) {
+				args[key] = argv[i + 1];
+				i++;
+			} else {
+				args[key] = 'true';
+			}
 		}
 	}
 	return args;

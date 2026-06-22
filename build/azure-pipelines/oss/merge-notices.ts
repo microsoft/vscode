@@ -123,6 +123,7 @@ async function mainAsync(): Promise<void> {
 	const outputPath = args['output'];
 	const cglicensesPath = args['cglicenses'] || '';
 	const strict = process.argv.includes('--strict');
+	const provenance = 'provenance' in args;
 
 	if (!outputPath) {
 		console.error('Usage: merge-notices.js --cg <path> --extensions <path> --output <path> [--cglicenses <path>] [--strict]');
@@ -379,16 +380,17 @@ required to debug changes to any libraries licensed under the GNU Lesser General
 		if (entry.url) {
 			output += entry.url + '\n';
 		}
-		// Mark scanner-sourced entries so reviewers know the license text was
-		// read directly from the package's on-disk LICENSE file rather than
-		// pulled from ClearlyDefined / CG. If the text looks unusual or stale,
-		// this points reviewers at the package's installed copy.
-		if (entry.source === 'extension-scanner') {
-			output += '(license text obtained directly from package LICENSE file)\n';
-		} else if (entry.source === 'cargo-stub-override') {
-			output += '(license text fetched from the crate repository — replaces CG SPDX-expression stub)\n';
-		} else if (entry.source === 'cglicenses-override') {
-			output += '(license text supplied by cglicenses.json manual override)\n';
+		// Provenance annotations help reviewers trace where each license text
+		// came from. Gated behind --provenance so they can be stripped from the
+		// final shipped NOTICE when we cut over from the shadow copy.
+		if (provenance) {
+			if (entry.source === 'extension-scanner') {
+				output += '(license text obtained directly from package LICENSE file)\n';
+			} else if (entry.source === 'cargo-stub-override') {
+				output += '(license text fetched from the crate repository — replaces CG SPDX-expression stub)\n';
+			} else if (entry.source === 'cglicenses-override') {
+				output += '(license text supplied by cglicenses.json manual override)\n';
+			}
 		}
 		output += '\n';
 		if (entry.licenseText) {
