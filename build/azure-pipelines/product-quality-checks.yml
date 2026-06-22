@@ -242,7 +242,8 @@ jobs:
             fi
           }
 
-          # `notice@0` succeeded if the file exists and is non-trivial (>1KB).
+          # Safety net: never overwrite a valid NOTICE. If CG produced a good
+          # file, skip the fallback even if we were reached by mistake.
           if [ -f "$GEN" ] && [ "$(wc -c < "$GEN")" -gt 1024 ]; then
             echo "##[section]CG NOTICE generation succeeded; no fallback needed."
             echo "##vso[task.setvariable variable=NOTICE_FROM_CACHE]false"
@@ -272,6 +273,7 @@ jobs:
           echo "##vso[task.setvariable variable=NOTICE_FROM_CACHE]none"
         displayName: "Cache: apply NOTICE fallback if CG failed"
         continueOnError: true
+        condition: and(succeeded(), ne(variables.CG_NOTICE_OK, 'true'))
 
       - script: |
           echo "=== CG NOTICE artifact ==="
