@@ -80,7 +80,7 @@ export enum ChatConfiguration {
 	AutopilotAdvancedEnabled = 'chat.autopilot.advanced.enabled',
 	PlanReviewInlineEditorEnabled = 'chat.planReview.inlineEditor.enabled',
 	DefaultPermissionLevel = 'chat.permissions.default',
-	AgentSessionDefaultConfiguration = 'chat.agentSessions.defaultConfiguration',
+	DefaultConfiguration = 'chat.defaultConfiguration',
 	ImageCarouselEnabled = 'imageCarousel.chat.enabled',
 	ArtifactsEnabled = 'chat.artifacts.enabled',
 	ArtifactsRulesByMimeType = 'chat.artifacts.rules.byMimeType',
@@ -132,14 +132,14 @@ export function isChatPermissionLevel(level: unknown | undefined): level is Chat
 }
 
 /**
- * Shape of the {@link ChatConfiguration.AgentSessionDefaultConfiguration}
+ * Shape of the {@link ChatConfiguration.DefaultConfiguration}
  * object setting. Controls the starting `mode` and `approvals` for new
  * agent-host sessions (such as Copilot CLI). Both properties are optional —
  * a missing property falls back to the per-axis default.
  */
 export type AgentSessionMode = 'interactive' | 'plan' | 'autopilot';
 
-export interface IAgentSessionDefaultConfiguration {
+export interface IChatDefaultConfiguration {
 	/** Starting agent mode: `interactive` / `plan` / `autopilot`. */
 	readonly mode?: AgentSessionMode;
 	/** Starting approval level: `default` / `autoApprove`. */

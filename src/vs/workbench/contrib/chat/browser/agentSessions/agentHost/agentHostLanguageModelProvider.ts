@@ -61,7 +61,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 		return this._models
 			.filter(m => m.policyState !== 'disabled')
 			.map(m => {
-				const pricing = readAgentModelPricingMeta(m._meta);
+				const pricing = readAgentModelPricingMeta(m);
 				const multiplierNumeric = pricing.multiplierNumeric;
 				return {
 					identifier: `${this._vendor}:${m.id}`,

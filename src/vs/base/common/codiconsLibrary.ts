@@ -726,4 +726,5 @@ export const codiconsLibrary = {
 	rightPanelShow: register('right-panel-show', 0xecc8),
 	vscodeInsidersOutline: register('vscode-insiders-outline', 0xecc9),
 	vscodeOutline: register('vscode-outline', 0xecca),
+	voiceMode: register('voice-mode', 0xeccb),
 } as const;

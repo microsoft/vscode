@@ -438,8 +438,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.updateShadows();
 			}
 
-			// Floating Panels
-			if (e.affectsConfiguration(LayoutSettings.FLOATING_PANELS)) {
+			// Modern UI Update (floating panels presentation)
+			if (e.affectsConfiguration(LayoutSettings.MODERN_UI)) {
 				this.updateFloatingPanels();
 				this.layout(); // re-layout so parts pick up the new floating margins
 			}
@@ -619,7 +619,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	isFloatingPanelsEnabled(): boolean {
-		return this.configurationService.getValue<boolean>(LayoutSettings.FLOATING_PANELS) === true;
+		return this.configurationService.getValue<boolean>(LayoutSettings.MODERN_UI) === true;
 	}
 
 	private updateFloatingPanels(): void {
