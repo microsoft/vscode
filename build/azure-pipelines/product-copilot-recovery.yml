@@ -29,6 +29,12 @@ parameters:
 variables:
   - name: VSCODE_QUALITY
     value: stable
+  # The 1ES extension template configures the NPM registry itself (via the
+  # customNPMRegistry / Terrapin parameter below). Set NPM_REGISTRY to 'none'
+  # so the shared copilot/setup-steps.yml skips its own registry rewrite, which
+  # would otherwise corrupt package-lock.json resolved URLs when unset.
+  - name: NPM_REGISTRY
+    value: none
 
 extends:
   template: azure-pipelines/extension/stable.yml@templates
