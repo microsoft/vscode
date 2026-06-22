@@ -11,7 +11,7 @@ import { BaseActionViewItem } from '../../../../../../base/browser/ui/actionbar/
 import { Delayer } from '../../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
@@ -220,13 +220,12 @@ export function resolveConfigChipValue(isUntitled: boolean, serverValue: unknown
  */
 export class AgentHostChatInputPicker extends Disposable {
 
+	private _container: HTMLElement | undefined;
+	private _initialResolved: { readonly sessionResource: URI; readonly result: ResolveSessionConfigResult } | undefined;
+	private readonly _initialResolveCts = this._registerInitialResolveCts();
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	private readonly _filterDelayer = this._register(new Delayer<readonly IActionListItem<IConfigPickerItem>[]>(200));
 	private readonly _subRef = this._register(new MutableDisposable<IDisposable & { readonly sub: IAgentSubscription<SessionState>; readonly backendSession: URI }>());
-	private _container: HTMLElement | undefined;
-
-	private _initialResolved: { readonly sessionResource: URI; readonly result: ResolveSessionConfigResult } | undefined;
-	private readonly _initialResolveCts = this._register(new MutableDisposable<CancellationTokenSource>());
 
 	constructor(
 		private readonly _widget: IChatWidget,
@@ -255,6 +254,15 @@ export class AgentHostChatInputPicker extends Disposable {
 			}
 		}));
 		this._reattach();
+	}
+
+	private _registerInitialResolveCts(): MutableDisposable<CancellationTokenSource> {
+		const cts = new MutableDisposable<CancellationTokenSource>();
+		this._register(toDisposable(() => {
+			this._container = undefined;
+			this._cancelInitialResolve();
+		}));
+		return this._register(cts);
 	}
 
 	render(container: HTMLElement): void {
@@ -346,7 +354,7 @@ export class AgentHostChatInputPicker extends Disposable {
 	}
 
 	private _renderChip(): void {
-		if (!this._container) {
+		if (!this._container || this._renderDisposables.isDisposed) {
 			return;
 		}
 		this._renderDisposables.clear();
@@ -608,7 +616,7 @@ export class AgentHostChatInputPicker extends Disposable {
 				? value
 				: (value !== ChatPermissionLevel.Default ? ChatPermissionLevel.AutoApprove : undefined);
 			if (levelToConfirm) {
-				const confirmed = await maybeConfirmElevatedPermissionLevel(levelToConfirm, this._dialogService, this._storageService, { defaultSettingKey: ChatConfiguration.AgentSessionDefaultConfiguration });
+				const confirmed = await maybeConfirmElevatedPermissionLevel(levelToConfirm, this._dialogService, this._storageService, { defaultSettingKey: ChatConfiguration.DefaultConfiguration });
 				if (!confirmed) {
 					return;
 				}

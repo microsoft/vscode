@@ -5,7 +5,7 @@
 
 import './media/agentFeedbackEditorInput.css';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { ICodeEditor, IDiffEditor, IOverlayWidget, IOverlayWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
 import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
@@ -298,7 +298,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		}
 
 		const selection = this._editor.getSelection();
-		if (!selection || (selection.isEmpty() && !this._getDiffHunkForSelection(selection))) {
+		if (!selection || selection.isEmpty()) {
 			this._autoHide();
 			return;
 		}
@@ -544,51 +544,6 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		this._agentFeedbackService.addFeedbackAndSubmit(sessionResource, model.uri, selection, text, undefined, createAgentFeedbackContext(this._editor, this._codeEditorService, model.uri, selection));
 	}
 
-	private _getContainingDiffEditor(): IDiffEditor | undefined {
-		return this._codeEditorService.listDiffEditors().find(diffEditor =>
-			diffEditor.getModifiedEditor() === this._editor || diffEditor.getOriginalEditor() === this._editor
-		);
-	}
-
-	private _getDiffHunkForSelection(selection: Selection): { startLineNumber: number; endLineNumberExclusive: number } | undefined {
-		if (!selection.isEmpty()) {
-			return undefined;
-		}
-
-		const diffEditor = this._getContainingDiffEditor();
-		if (!diffEditor) {
-			return undefined;
-		}
-
-		const diffResult = diffEditor.getDiffComputationResult();
-		if (!diffResult) {
-			return undefined;
-		}
-
-		const position = selection.getStartPosition();
-		const lineNumber = position.lineNumber;
-		const isModifiedEditor = diffEditor.getModifiedEditor() === this._editor;
-		for (const change of diffResult.changes2) {
-			const lineRange = isModifiedEditor ? change.modified : change.original;
-			if (!lineRange.isEmpty && lineRange.contains(lineNumber)) {
-				// Don't show when cursor is at the start or end position of the hunk
-				const isAtHunkStart = lineNumber === lineRange.startLineNumber && position.column === 1;
-				const lastHunkLine = lineRange.endLineNumberExclusive - 1;
-				const model = this._editor.getModel();
-				const isAtHunkEnd = model && lineNumber === lastHunkLine && position.column === model.getLineMaxColumn(lastHunkLine);
-				if (isAtHunkStart || isAtHunkEnd) {
-					return undefined;
-				}
-				return {
-					startLineNumber: lineRange.startLineNumber,
-					endLineNumberExclusive: lineRange.endLineNumberExclusive,
-				};
-			}
-		}
-
-		return undefined;
-	}
-
 	private _updatePosition(): void {
 		if (!this._widget || !this._visible) {
 			return;
@@ -612,35 +567,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		const widgetWidth = widgetDom.offsetWidth || 150;
 
 		if (selection.isEmpty()) {
-			const diffHunk = this._getDiffHunkForSelection(selection);
-			if (!diffHunk) {
-				this._autoHide();
-				return;
-			}
-
-			const cursorPosition = selection.getStartPosition();
-			const scrolledPosition = this._editor.getScrolledVisiblePosition(cursorPosition);
-			if (!scrolledPosition) {
-				this._widget.setPosition(null);
-				return;
-			}
-
-			const hunkLineCount = diffHunk.endLineNumberExclusive - diffHunk.startLineNumber;
-			const cursorLineOffset = cursorPosition.lineNumber - diffHunk.startLineNumber;
-			const topHalfLineCount = Math.ceil(hunkLineCount / 2);
-			const top = hunkLineCount < 10
-				? cursorLineOffset < topHalfLineCount
-					? scrolledPosition.top - (cursorLineOffset * lineHeight) - widgetHeight
-					: scrolledPosition.top + ((diffHunk.endLineNumberExclusive - cursorPosition.lineNumber) * lineHeight)
-				: scrolledPosition.top - widgetHeight;
-			const left = Math.max(0, Math.min(scrolledPosition.left, layoutInfo.width - widgetWidth));
-
-			this._widget.setPosition({
-				preference: {
-					top: Math.max(0, Math.min(top, layoutInfo.height - widgetHeight)),
-					left,
-				}
-			});
+			this._autoHide();
 			return;
 		}
 

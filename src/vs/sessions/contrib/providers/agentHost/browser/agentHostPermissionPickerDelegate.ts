@@ -74,7 +74,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 	];
 
 	/** Agent-host sessions seed their default approval level from this setting. */
-	readonly defaultSettingKey = ChatConfiguration.AgentSessionDefaultConfiguration;
+	readonly defaultSettingKey = ChatConfiguration.DefaultConfiguration;
 
 	constructor(
 		private readonly _session: IObservable<IActiveSession | undefined>,

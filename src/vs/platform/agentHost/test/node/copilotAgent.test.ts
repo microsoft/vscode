@@ -38,7 +38,7 @@ import { ActionType, type ChatAction, type IDeltaAction, type SessionAction } fr
 
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import { IAgentHostGitService } from '../../node/agentHostGitService.js';
+import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from '../../node/agentHostCompletions.js';
@@ -98,7 +98,8 @@ class TestAgentHostGitService implements IAgentHostGitService {
 	async commitAll(): Promise<void> { }
 	async restore(): Promise<void> { }
 	async hasUpstream(): Promise<boolean> { return false; }
-	async pushBranch(): Promise<void> { }
+	async pull(): Promise<void> { }
+	async push(): Promise<void> { }
 	async getSessionGitState(): Promise<undefined> { return undefined; }
 	async computeSessionFileDiffs(): Promise<undefined> { return undefined; }
 	async showBlob(): Promise<undefined> { return undefined; }
@@ -476,7 +477,7 @@ function createAgentSessionThroughAgent(agent: CopilotAgent, instantiationServic
 		sessionId: 'test-session-1',
 		workingDirectory: undefined,
 		resolvedAgentName: undefined,
-		snapshot: { tools: [], plugins: [] },
+		snapshot: { tools: [], plugins: [], mcpServers: {} },
 		shellManager,
 		githubToken: 'token',
 		model: undefined,
@@ -519,6 +520,19 @@ async function disposeAgent(agent: CopilotAgent): Promise<void> {
 
 suite('CopilotAgent', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('advertises Copilot as its display name', async () => {
+		const agent = createTestAgent(disposables);
+		try {
+			assert.deepStrictEqual(agent.getDescriptor(), {
+				provider: 'copilotcli',
+				displayName: 'Copilot',
+				description: 'Copilot SDK agent running in a dedicated process',
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
 
 	test('uses the Copilot CLI sibling worktrees root convention', () => {
 		assert.strictEqual(

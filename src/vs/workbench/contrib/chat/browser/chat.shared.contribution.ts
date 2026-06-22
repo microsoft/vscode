@@ -12,7 +12,7 @@ import { PolicyCategory } from '../../../../base/common/policy.js';
 import '../../../../platform/agentHost/common/agentHost.config.contribution.js';
 import '../../../../platform/agentHost/browser/agentHost.config.contribution.js';
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
-import { AgentHostAhpJsonlLoggingSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostSdkSandboxEnabledSettingId, ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
+import { AgentHostAhpJsonlLoggingSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostSdkSandboxEnabledSettingId, ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
 import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_STRICT_MARKETPLACES_KEY } from '../../../../platform/policy/common/copilotManagedSettings.js';
@@ -68,7 +68,7 @@ import { ILanguageModelToolsConfirmationService } from '../common/tools/language
 import { ILanguageModelToolsService } from '../common/tools/languageModelToolsService.js';
 import { ChatToolRiskAssessmentService, IChatToolRiskAssessmentService } from './tools/chatToolRiskAssessmentService.js';
 import { ChatGoalSummaryService, IChatGoalSummaryService } from './chatGoalSummaryService.js';
-import { agentPluginDiscoveryRegistry, IAgentPluginService } from '../common/plugins/agentPluginService.js';
+import { AgentPluginDiscoveryPriority, agentPluginDiscoveryRegistry, IAgentPluginService } from '../common/plugins/agentPluginService.js';
 import { ChatPromptFilesExtensionPointHandler } from '../common/promptSyntax/chatPromptFilesContribution.js';
 import { isTildePath, PromptsConfig } from '../common/promptSyntax/config/config.js';
 import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_FILE_EXTENSION, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION, DEFAULT_SKILL_SOURCE_FOLDERS, AGENTS_SOURCE_FOLDER, AGENT_FILE_EXTENSION, SKILL_FILENAME, CLAUDE_AGENTS_SOURCE_FOLDER, DEFAULT_HOOK_FILE_PATHS, DEFAULT_INSTRUCTIONS_SOURCE_FOLDERS, COPILOT_USER_AGENTS_SOURCE_FOLDER } from '../common/promptSyntax/config/promptFileLocations.js';
@@ -491,7 +491,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.permissions.default.settingDescription', "Controls the default permissions picker mode for new local chat sessions. You can still change the permission mode per session, and each session remembers the permission mode that was used. If enterprise policy disables auto approval, new sessions use Default Approvals."),
 			default: ChatPermissionLevel.Default,
 		},
-		[ChatConfiguration.AgentSessionDefaultConfiguration]: {
+		[ChatConfiguration.DefaultConfiguration]: {
 			type: 'object',
 			additionalProperties: false,
 			properties: {
@@ -499,26 +499,26 @@ configurationRegistry.registerConfiguration({
 					type: 'string',
 					enum: ['interactive', 'plan', 'autopilot'],
 					enumDescriptions: [
-						nls.localize('chat.agentSessions.defaultConfiguration.mode.interactive', "Interactive — step-by-step collaboration."),
-						nls.localize('chat.agentSessions.defaultConfiguration.mode.plan', "Plan — plan first, execute when ready."),
-						nls.localize('chat.agentSessions.defaultConfiguration.mode.autopilot', "Autopilot — autonomously iterate from start to finish."),
+						nls.localize('chat.defaultConfiguration.mode.interactive', "Interactive — step-by-step collaboration."),
+						nls.localize('chat.defaultConfiguration.mode.plan', "Plan — plan first, execute when ready."),
+						nls.localize('chat.defaultConfiguration.mode.autopilot', "Autopilot — autonomously iterate from start to finish."),
 					],
 					default: 'interactive',
-					description: nls.localize('chat.agentSessions.defaultConfiguration.mode.description', "The starting mode for new agent sessions."),
+					description: nls.localize('chat.defaultConfiguration.mode.description', "The starting mode for new agent sessions."),
 				},
 				approvals: {
 					type: 'string',
 					enum: [ChatPermissionLevel.Default, ChatPermissionLevel.AutoApprove],
 					enumDescriptions: [
-						nls.localize('chat.agentSessions.defaultConfiguration.approvals.default', "Default Approvals — Copilot uses your configured settings."),
-						nls.localize('chat.agentSessions.defaultConfiguration.approvals.autoApprove', "Bypass Approvals — all tool calls are auto-approved."),
+						nls.localize('chat.defaultConfiguration.approvals.default', "Default Approvals — Copilot uses your configured settings."),
+						nls.localize('chat.defaultConfiguration.approvals.autoApprove', "Bypass Approvals — all tool calls are auto-approved."),
 					],
 					default: ChatPermissionLevel.Default,
-					description: nls.localize('chat.agentSessions.defaultConfiguration.approvals.description', "The starting approval behavior for new agent sessions. If enterprise policy disables auto approval, new sessions use Default Approvals."),
+					description: nls.localize('chat.defaultConfiguration.approvals.description', "The starting approval behavior for new agent sessions. If enterprise policy disables auto approval, new sessions use Default Approvals."),
 				},
 			},
 			default: { mode: 'interactive', approvals: ChatPermissionLevel.Default },
-			markdownDescription: nls.localize('chat.agentSessions.defaultConfiguration.settingDescription', "Controls the default configuration (mode and approval behavior) for new agent sessions (such as Copilot CLI). You can still change the mode and approval level per session, and each session remembers what was used."),
+			markdownDescription: nls.localize('chat.defaultConfiguration.settingDescription', "Controls the default configuration (mode and approval behavior) for new agent sessions (such as Copilot CLI). You can still change the mode and approval level per session, and each session remembers what was used."),
 		},
 		[ChatConfiguration.GlobalAutoApprove]: {
 			default: false,
@@ -1000,7 +1000,7 @@ configurationRegistry.registerConfiguration({
 				localization: {
 					description: {
 						key: 'chat.plugins.enabledPlugins.policy',
-						value: nls.localize('chat.plugins.enabledPlugins.policy', "Plugin enablement. Keys are plugin IDs in `<plugin>@<marketplace>` form; values enable or disable the plugin."),
+						value: nls.localize('chat.plugins.enabledPlugins.policy', "Plugin enablement. Keys are plugin IDs in `{plugin}@{marketplace}` form; values enable or disable the plugin."),
 					}
 				},
 			},
@@ -1045,7 +1045,7 @@ configurationRegistry.registerConfiguration({
 				localization: {
 					description: {
 						key: 'chat.plugins.extraMarketplaces.policy',
-						value: nls.localize('chat.plugins.extraMarketplaces.policy', "Additional plugin marketplaces to query. Keys are marketplace names; values are GitHub shorthand (`owner/repo[#ref]`) or Git URIs (`<url>[#ref]`)."),
+						value: nls.localize('chat.plugins.extraMarketplaces.policy', "Additional plugin marketplaces to query. Keys are marketplace names; values are GitHub shorthand (`owner/repo[#ref]`) or Git URIs (`{url}[#ref]`)."),
 					}
 				},
 			},
@@ -1200,6 +1200,12 @@ configurationRegistry.registerConfiguration({
 		[AgentHostCustomTerminalToolEnabledSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.customTerminalTool.enabled', "When enabled, Copilot SDK sessions use the Agent Host terminal tool override instead of the SDK's default terminal behavior."),
+			default: false,
+			tags: ['experimental', 'advanced'],
+		},
+		[AgentHostOpus48PromptEnabledSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.opus48Prompt.enabled', "When enabled, Copilot SDK sessions running a Claude Opus 4.8 model apply Opus 4.8-tuned system-prompt section overrides on top of the default system message."),
 			default: false,
 			tags: ['experimental', 'advanced'],
 		},
@@ -1891,6 +1897,13 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 );
 Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).registerConfigurationMigrations([
 	{
+		key: 'chat.agentSessions.defaultConfiguration',
+		migrateFn: (value, _accessor) => ([
+			['chat.agentSessions.defaultConfiguration', { value: undefined }],
+			[ChatConfiguration.DefaultConfiguration, { value }]
+		])
+	},
+	{
 		key: 'chat.experimental.detectParticipant.enabled',
 		migrateFn: (value, _accessor) => ([
 			['chat.experimental.detectParticipant.enabled', { value: undefined }],
@@ -2493,10 +2506,10 @@ registerPlanReviewFeedbackEditorActions();
 registerAction2(ConfigureToolSets);
 registerEditorFeature(ChatPasteProvidersFeature);
 
-agentPluginDiscoveryRegistry.register(new SyncDescriptor(ConfiguredAgentPluginDiscovery));
-agentPluginDiscoveryRegistry.register(new SyncDescriptor(MarketplaceAgentPluginDiscovery));
-agentPluginDiscoveryRegistry.register(new SyncDescriptor(ExtensionAgentPluginDiscovery));
-agentPluginDiscoveryRegistry.register(new SyncDescriptor(CopilotCliAgentPluginDiscovery));
+agentPluginDiscoveryRegistry.register(new SyncDescriptor(ConfiguredAgentPluginDiscovery), AgentPluginDiscoveryPriority.Configured);
+agentPluginDiscoveryRegistry.register(new SyncDescriptor(MarketplaceAgentPluginDiscovery), AgentPluginDiscoveryPriority.Marketplace);
+agentPluginDiscoveryRegistry.register(new SyncDescriptor(ExtensionAgentPluginDiscovery), AgentPluginDiscoveryPriority.Extension);
+agentPluginDiscoveryRegistry.register(new SyncDescriptor(CopilotCliAgentPluginDiscovery), AgentPluginDiscoveryPriority.CopilotCli);
 
 registerSingleton(IChatResponseResourceFileSystemProvider, ChatResponseResourceFileSystemProvider, InstantiationType.Delayed);
 registerSingleton(IChatTransferService, ChatTransferService, InstantiationType.Delayed);

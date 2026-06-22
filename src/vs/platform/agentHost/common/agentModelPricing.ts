@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { SessionModelInfo } from './state/protocol/state.js';
+import type { IAgentModelInfo } from './agentService.js';
+
 /**
  * Well-known pricing metadata carried under a model's open `_meta` bag (see {@link IAgentModelInfo._meta} /
  * {@link SessionModelInfo._meta}). Agents that know a model's billing details populate these keys so the chat model
@@ -51,7 +54,8 @@ const NUMBER_KEYS = [
  * provider-specific keys and values of the wrong type. Returns an object containing only the keys that were present
  * with a valid value.
  */
-export function readAgentModelPricingMeta(meta: Record<string, unknown> | undefined): IAgentModelPricingMeta {
+export function readAgentModelPricingMeta(model: IAgentModelInfo | SessionModelInfo): IAgentModelPricingMeta {
+	const meta = model._meta;
 	if (!meta) {
 		return {};
 	}
