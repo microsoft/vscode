@@ -46,7 +46,7 @@ import { AgentCustomization, CustomizationLoadStatus, CustomizationType, Respons
 import { ActiveClientState } from '../activeClientState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
-import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../agentHostGitService.js';
+import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { findMcpChildId } from '../shared/mcpCustomizationController.js';
 import { ICopilotBranchNameGenerator } from './copilotBranchNameGenerator.js';
 import { CopilotAgentSession, type CopilotSdkMode } from './copilotAgentSession.js';
