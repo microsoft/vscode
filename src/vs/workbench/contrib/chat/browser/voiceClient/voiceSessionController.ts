@@ -553,6 +553,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					if (this._pttWaitingForPlayback) {
 						this._scheduleDelayedMicStop();
 					}
+					// Hands-free mode: re-enter listening right after the assistant
+					// finishes speaking so the conversation continues without a tap.
+					if (this._isAutoSendEnabled()) {
+						this._enterAutoListen();
+					}
 				}
 			}
 		}));
@@ -843,12 +848,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				// start talking. Done last so the idle reset above doesn't clobber
 				// the listening state. Skipped on reconnects to avoid hijacking an
 				// in-progress turn.
-				if (!isResuming) {
-					const autoSendDelay = this.configurationService.getValue<number>('agents.voice.autoSendDelay');
-					if (typeof autoSendDelay === 'number' && autoSendDelay >= 0) {
-						this.pttDown();
-						this.pttUp();
-					}
+				if (!isResuming && this._isAutoSendEnabled()) {
+					this._enterAutoListen();
 				}
 			} else if (this._isConnected.get()) {
 				this._onConnectionLost();
@@ -1158,6 +1159,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this.ttsPlaybackService.stopPlayback();
 		this._voiceState.set('listening', undefined);
 		this._statusText.set('Listening...', undefined);
+		if (this._window) {
+			this.ttsPlaybackService.playListeningCue(this._window);
+		}
 
 		this._pttMaxDurationTimer = setTimeout(() => {
 			if (this._pttHeld) {
@@ -1226,6 +1230,28 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this._delayedMicStopTimer = undefined;
 			this._pttWaitingForPlayback = false;
 		}, 1000);
+	}
+
+	/**
+	 * Whether auto-send (hands-free) mode is enabled via
+	 * `agents.voice.autoSendDelay` (any value >= 0).
+	 */
+	private _isAutoSendEnabled(): boolean {
+		const delaySeconds = this.configurationService.getValue<number>('agents.voice.autoSendDelay');
+		return typeof delaySeconds === 'number' && delaySeconds >= 0;
+	}
+
+	/**
+	 * Enter listening immediately via a synthetic short tap (toggle mode) so the
+	 * user can keep talking hands-free. No-op if not connected or already
+	 * recording.
+	 */
+	private _enterAutoListen(): void {
+		if (!this._isConnected.get() || this._pttHeld) {
+			return;
+		}
+		this.pttDown();
+		this.pttUp();
 	}
 
 	/**

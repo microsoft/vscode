@@ -20,6 +20,9 @@ export interface ITtsPlaybackService {
 	/** Stop any current playback immediately. */
 	stopPlayback(): void;
 
+	/** Play a short cue tone to signal that listening has started. */
+	playListeningCue(window: Window & typeof globalThis): void;
+
 	readonly isPlaying: boolean;
 
 	readonly onPlaybackStarted: Event<void>;
@@ -137,6 +140,36 @@ export class TtsPlaybackService extends Disposable implements ITtsPlaybackServic
 		if (this._isPlaying) {
 			this._isPlaying = false;
 			this._onPlaybackStopped.fire();
+		}
+	}
+
+	playListeningCue(window: Window & typeof globalThis): void {
+		try {
+			const ctx = this.ensureContext(window);
+			// Two short ascending blips with a quick attack/decay envelope so the
+			// cue is audible but unobtrusive and click-free. Routed straight to
+			// destination, independent of the streaming TTS playback graph.
+			const tones = [660, 880];
+			const blipDuration = 0.1;
+			const peakGain = 0.12;
+			const start = ctx.currentTime + 0.01;
+			tones.forEach((frequency, i) => {
+				const t0 = start + i * blipDuration;
+				const t1 = t0 + blipDuration;
+				const osc = ctx.createOscillator();
+				osc.type = 'sine';
+				osc.frequency.value = frequency;
+				const gain = ctx.createGain();
+				gain.gain.setValueAtTime(0, t0);
+				gain.gain.linearRampToValueAtTime(peakGain, t0 + 0.015);
+				gain.gain.linearRampToValueAtTime(0, t1);
+				osc.connect(gain);
+				gain.connect(ctx.destination);
+				osc.start(t0);
+				osc.stop(t1 + 0.02);
+			});
+		} catch (err) {
+			this.logService.warn('[voice] failed to play listening cue', err);
 		}
 	}
 
