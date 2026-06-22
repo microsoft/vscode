@@ -607,7 +607,7 @@ export class ChatListWidget extends Disposable {
 				this.configurationService,
 			),
 		);
-		this._scrollbarPromptMarkerController.setVisible(options.scrollbarPromptMarkersEnabled);
+		this._scrollbarPromptMarkerController.setEnabled(options.scrollbarPromptMarkersEnabled);
 	}
 
 	//#region Internal event handlers
