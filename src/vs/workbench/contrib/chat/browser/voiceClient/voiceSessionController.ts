@@ -581,11 +581,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 				const isResuming = this.voiceClientService.isResuming;
 
-				// Suppress greeting audio early when auto-listen will activate.
-				if (!isResuming && this._isAutoSendEnabled()) {
-					this._suppressIncomingAudio = true;
-				}
-
 				// --- Telemetry: session/connect ---
 				const now = Date.now();
 				const connectMs = this._telemetryConnectStartMs ? now - this._telemetryConnectStartMs : 0;
@@ -857,11 +852,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				this.micCaptureService.isMuted = false;
 				this._statusText.set('Hold to speak...', undefined);
 				this._voiceState.set('idle', undefined);
-
-				// Auto-listen on fresh connect (skipped on reconnects).
-				if (!isResuming && this._isAutoSendEnabled()) {
-					this._enterAutoListen();
-				}
 			} else if (this._isConnected.get()) {
 				this._onConnectionLost();
 			} else if (this._isReconnecting.get()) {
@@ -1732,7 +1722,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// running-concat transcript on every chunk, including late chunks of
 		// the suppressed previous response.)
 		if (this._suppressIncomingAudio) {
-			if (isFirstChunk && !this._pttHeld) {
+			if (isFirstChunk) {
 				this._suppressIncomingAudio = false;
 			} else {
 				return;
