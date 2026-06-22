@@ -112,7 +112,7 @@ interface IProvisionalSession {
 	 */
 	readonly workingDirectory: URI;
 	/** Most recent model selection. Updated by `changeModel` while provisional. */
-	model: ModelSelection | undefined;
+	model: ResolvedModelSelection | undefined;
 	/** Most recent custom agent selection. Updated by `changeAgent` while provisional. */
 	agent: AgentSelection | undefined;
 	/** Project info eagerly resolved at create time so the summary renders. */
@@ -122,6 +122,16 @@ interface IProvisionalSession {
 export { COPILOT_AGENT_HOST_SYSTEM_MESSAGE } from './prompts/systemMessage.js';
 
 type ModelInfo = Awaited<ReturnType<CopilotClient['rpc']['models']['list']>>['models'][number];
+
+declare const resolvedModelSelectionBrand: unique symbol;
+/**
+ * A {@link ModelSelection} that has passed through {@link CopilotAgent._resolveModelSelection}: its
+ * numeric `maxContextWindow` has been resolved into `config.contextTier` (and dropped). The brand is
+ * compiler-enforced — every field that stores, persists, or launches a model requires it — so a raw
+ * client selection cannot be used without first being resolved, removing the risk of forgetting the
+ * conversion at a new call site.
+ */
+type ResolvedModelSelection = Omit<ModelSelection, 'maxContextWindow'> & { readonly [resolvedModelSelectionBrand]: true };
 
 interface ISerializedModelSelection {
 	id?: unknown;
@@ -135,7 +145,7 @@ interface ISerializedModelSelection {
  */
 interface IPersistedChat {
 	readonly sdkSessionId: string;
-	readonly model?: ModelSelection;
+	readonly model?: ResolvedModelSelection;
 }
 
 /**
@@ -731,24 +741,33 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * value the model does not recommend is rejected (no tier is set), so a stale or out-of-range client
 	 * selection cannot silently request an unsupported window. Resolving here — when the selection
 	 * arrives and the model list is freshly loaded — is more reliable than at launch/resume time.
+	 *
+	 * The branded {@link ResolvedModelSelection} return type makes this the only producer of a storable
+	 * model, so the compiler rejects persisting or launching a raw client selection that skipped it.
 	 */
-	private _resolveModelSelection(model: ModelSelection | undefined): ModelSelection | undefined {
-		if (!model || typeof model.maxContextWindow !== 'number') {
-			return model;
+	private _resolveModelSelection(model: ModelSelection): ResolvedModelSelection;
+	private _resolveModelSelection(model: ModelSelection | undefined): ResolvedModelSelection | undefined;
+	private _resolveModelSelection(model: ModelSelection | undefined): ResolvedModelSelection | undefined {
+		if (!model) {
+			return undefined;
 		}
 		const { maxContextWindow, ...rest } = model;
+		if (typeof maxContextWindow !== 'number') {
+			return rest as ResolvedModelSelection;
+		}
 		const windows = this._models.get().find(m => m.id === model.id)?.recommendedContextWindows;
 		if (!windows || windows.length === 0 || !windows.includes(maxContextWindow)) {
 			if (windows && windows.length > 0) {
 				this._logService.warn(`[Copilot] Ignoring unsupported context window ${maxContextWindow} for model '${model.id}'; expected one of [${windows.join(', ')}]`);
 			}
-			return rest;
+			return rest as ResolvedModelSelection;
 		}
 		const contextTier = mapContextSizeToContextTier(maxContextWindow, Math.max(...windows));
 		if (!contextTier) {
-			return rest;
+			return rest as ResolvedModelSelection;
 		}
-		return { ...rest, config: { ...rest.config, [ContextTierConfigKey]: contextTier } };
+		const resolved: ModelSelection = { ...rest, config: { ...rest.config, [ContextTierConfigKey]: contextTier } };
+		return resolved as ResolvedModelSelection;
 	}
 
 	/**
@@ -799,7 +818,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return JSON.stringify(model);
 	}
 
-	private _parseModelSelection(raw: string | undefined): ModelSelection | undefined {
+	private _parseModelSelection(raw: string | undefined): ResolvedModelSelection | undefined {
 		if (!raw) {
 			return undefined;
 		}
@@ -819,13 +838,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 						modelSelection.config = config;
 					}
 				}
-				return modelSelection;
+				// Persisted selections were already resolved (and stripped of `maxContextWindow`) before
+				// they were written, so the parsed result is a resolved model.
+				return modelSelection as ResolvedModelSelection;
 			}
 		} catch {
 			// Older session metadata stored the raw model id as a plain string.
 		}
 
-		return { id: raw };
+		const fallback: ModelSelection = { id: raw };
+		return fallback as ResolvedModelSelection;
 	}
 
 	private _serializeAgentSelection(agent: AgentSelection): string {
@@ -1825,26 +1847,26 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async changeModel(session: URI, model: ModelSelection, chat?: URI): Promise<void> {
-		model = this._resolveModelSelection(model) ?? model;
+		const resolved = this._resolveModelSelection(model);
 		// Additional (non-default) chats are backed by their own SDK
 		// conversation tracked in `_chatSessions`; apply the change there and
 		// skip the session-level metadata store (peer chats are not persisted
 		// per-chat).
 		if (chat && !isDefaultChatUri(chat)) {
-			await this._chatSessions.get(chat.toString())?.setModel(model.id, getCopilotReasoningEffort(model), getCopilotContextTier(model));
+			await this._chatSessions.get(chat.toString())?.setModel(resolved.id, getCopilotReasoningEffort(resolved), getCopilotContextTier(resolved));
 			return;
 		}
 		const sessionId = AgentSession.id(session);
 		const provisional = this._provisionalSessions.get(sessionId);
 		if (provisional) {
-			provisional.model = model;
+			provisional.model = resolved;
 			return;
 		}
 		const entry = this._sessions.get(sessionId);
 		if (entry) {
-			await entry.setModel(model.id, getCopilotReasoningEffort(model), getCopilotContextTier(model));
+			await entry.setModel(resolved.id, getCopilotReasoningEffort(resolved), getCopilotContextTier(resolved));
 		}
-		await this._storeSessionMetadata(session, model, undefined, undefined, undefined);
+		await this._storeSessionMetadata(session, resolved, undefined, undefined, undefined);
 	}
 
 	async changeAgent(session: URI, agent: AgentSelection | undefined, chat?: URI): Promise<void> {
@@ -2209,7 +2231,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				if (typeof sdkSessionId !== 'string' || !sdkSessionId) {
 					continue;
 				}
-				result.set(chatId, { sdkSessionId, ...(model ? { model: model as ModelSelection } : {}) });
+				result.set(chatId, { sdkSessionId, ...(model ? { model: model as ResolvedModelSelection } : {}) });
 			}
 			return result;
 		} catch (err) {
@@ -2277,7 +2299,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _storeSessionMetadata(session: URI, model: ModelSelection | undefined, workingDirectory: URI | undefined, customizationDirectory: URI | undefined, project: IAgentSessionProjectInfo | undefined, projectResolved = project !== undefined): Promise<void> {
+	private async _storeSessionMetadata(session: URI, model: ResolvedModelSelection | undefined, workingDirectory: URI | undefined, customizationDirectory: URI | undefined, project: IAgentSessionProjectInfo | undefined, projectResolved = project !== undefined): Promise<void> {
 		const dbRef = this._sessionDataService.openDatabase(session);
 		const db = dbRef.object;
 		try {
@@ -2304,7 +2326,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _readSessionMetadata(session: URI): Promise<{ model?: ModelSelection; agent?: AgentSelection; workingDirectory?: URI; customizationDirectory?: URI }> {
+	private async _readSessionMetadata(session: URI): Promise<{ model?: ResolvedModelSelection; agent?: AgentSelection; workingDirectory?: URI; customizationDirectory?: URI }> {
 		const ref = await this._sessionDataService.tryOpenDatabase(session);
 		if (!ref) {
 			return {};
@@ -2327,7 +2349,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _readStoredSessionMetadata(session: URI): Promise<{ model?: ModelSelection; agent?: AgentSelection; workingDirectory?: URI; customizationDirectory?: URI; project?: IAgentSessionProjectInfo; resolved: boolean } | undefined> {
+	private async _readStoredSessionMetadata(session: URI): Promise<{ model?: ResolvedModelSelection; agent?: AgentSelection; workingDirectory?: URI; customizationDirectory?: URI; project?: IAgentSessionProjectInfo; resolved: boolean } | undefined> {
 		const ref = await this._sessionDataService.tryOpenDatabase(session);
 		if (!ref) {
 			return undefined;

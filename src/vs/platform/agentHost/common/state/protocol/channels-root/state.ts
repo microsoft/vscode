@@ -99,9 +99,9 @@ export interface SessionModelInfo {
 	maxContextWindow?: number;
 	/**
 	 * Context-window sizes (in tokens) this model recommends as user-selectable options, smallest
-	 * first. The first entry is the recommended default. Present only when the model offers more than
-	 * one window. Clients render these as a context-size picker and send the chosen value back via
-	 * {@link ModelSelection.maxContextWindow}.
+	 * first. The first entry is the recommended default. Present only when the model offers meaningful
+	 * context-window options (e.g., long context pricing). Clients can optionally render these as a
+	 * context-size picker and send the chosen value back via {@link ModelSelection.maxContextWindow}.
 	 */
 	recommendedContextWindows?: readonly number[];
 	/** Whether the model supports vision */
