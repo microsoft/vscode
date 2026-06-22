@@ -182,7 +182,7 @@ export class StaticCompletionsFetchService implements ICompletionsFetchService {
 	constructor(private readonly fetcher: FakeFetcher) { }
 	async fetch(
 		url: string,
-		_secretKey: string,
+		_secretKey: string | undefined,
 		params: Completions.ModelParams,
 		requestId: string,
 		ct: CancellationToken,

@@ -39,6 +39,8 @@ import {
 import { delay } from '../util/async';
 import { ICompletionsRuntimeModeService } from '../util/runtimeMode';
 import { getKey } from '../util/unknown';
+import { getCustomCompletionModel, getCustomCompletionModelHeaders, resolveCustomCompletionModelUrl } from './customCompletionModels';
+import { ICompletionsModelManagerService } from './model';
 import {
 	APIChoice,
 	APIJsonData,
@@ -68,6 +70,8 @@ type BaseFetchRequest = {
  * API request.
  */
 type CompletionFetchRequestFields = {
+	/** Model name to send to an OpenAI-compatible completions endpoint. */
+	model?: string;
 	/** The prompt suffix to send to the model. */
 	suffix: string;
 	/** Whether to stream back a response in SSE format. Always true: non streaming requests are not supported by this proxy */
@@ -353,7 +357,8 @@ export class LiveOpenAIFetcher extends OpenAIFetcher {
 			return { type: 'canceled', reason: this.#disabledReason };
 		}
 		const endpoint = 'completions';
-		const copilotToken = this.copilotTokenManager.token ?? await this.copilotTokenManager.getToken();
+		const customCompletionModel = this.getResolvedCustomCompletionModel(params.engineModelId);
+		const copilotToken = customCompletionModel ? undefined : this.copilotTokenManager.token ?? await this.copilotTokenManager.getToken();
 
 		const request: CompletionRequest = {
 			prompt: params.prompt.prefix,
@@ -366,6 +371,9 @@ export class LiveOpenAIFetcher extends OpenAIFetcher {
 			stream: true, // Always true: non streaming requests are not supported by this proxy
 			extra: params.extra,
 		} satisfies CompletionRequest;
+		if (customCompletionModel) {
+			request.model = customCompletionModel.model ?? customCompletionModel.id;
+		}
 
 		{
 
@@ -401,7 +409,9 @@ export class LiveOpenAIFetcher extends OpenAIFetcher {
 			const telemetryExp = baseTelemetryData;
 			const uiKind = params.uiKind;
 			const headers = params.headers;
-			const uri = this.instantiationService.invokeFunction(getProxyEngineUrl, copilotToken, engineModelId, endpoint);
+			const uri = customCompletionModel
+				? resolveCustomCompletionModelUrl(customCompletionModel)
+				: this.instantiationService.invokeFunction(getProxyEngineUrl, copilotToken!, engineModelId, endpoint);
 
 			const telemetryData = telemetryExp.extendedBy(
 				{
@@ -427,19 +437,27 @@ export class LiveOpenAIFetcher extends OpenAIFetcher {
 			let fullHeaders: Record<string, string>;
 
 			{
-				fullHeaders = {
-					...headers,
-					...this.instantiationService.invokeFunction(editorVersionHeaders),
-				};
+				if (customCompletionModel) {
+					fullHeaders = {
+						...headers,
+						...getCustomCompletionModelHeaders(customCompletionModel),
+						'X-Request-Id': ourRequestId,
+					};
+				} else {
+					fullHeaders = {
+						...headers,
+						...this.instantiationService.invokeFunction(editorVersionHeaders),
+					};
 
-				fullHeaders['Openai-Organization'] = 'github-copilot';
-				fullHeaders['X-Request-Id'] = ourRequestId;
-				fullHeaders['VScode-SessionId'] = this.envService.sessionId;
-				fullHeaders['VScode-MachineId'] = this.envService.machineId;
-				fullHeaders['X-GitHub-Api-Version'] = apiVersion;
+					fullHeaders['Openai-Organization'] = 'github-copilot';
+					fullHeaders['X-Request-Id'] = ourRequestId;
+					fullHeaders['VScode-SessionId'] = this.envService.sessionId;
+					fullHeaders['VScode-MachineId'] = this.envService.machineId;
+					fullHeaders['X-GitHub-Api-Version'] = apiVersion;
 
-				if (intent) {
-					fullHeaders['OpenAI-Intent'] = intent;
+					if (intent) {
+						fullHeaders['OpenAI-Intent'] = intent;
+					}
 				}
 			}
 
@@ -447,7 +465,7 @@ export class LiveOpenAIFetcher extends OpenAIFetcher {
 			const cancelToken = cancel ?? CancellationToken.None;
 			const res = await this.fetchService.fetch(
 				uri,
-				copilotToken.token,
+				copilotToken?.token,
 				request,
 				ourRequestId,
 				cancelToken,
@@ -459,7 +477,7 @@ export class LiveOpenAIFetcher extends OpenAIFetcher {
 					return this.fetchService.disconnectAll().then(() => {
 						return this.fetchService.fetch(
 							uri,
-							copilotToken.token,
+							copilotToken?.token,
 							request,
 							ourRequestId,
 							cancelToken,
@@ -790,12 +808,31 @@ export class LiveOpenAIFetcher extends OpenAIFetcher {
 		}
 	}
 
+	private getResolvedCustomCompletionModel(modelId: string) {
+		const modelItem = this.instantiationService.invokeFunction(accessor =>
+			accessor.get(ICompletionsModelManagerService).getGenericCompletionModels().find(model => model.modelId === modelId)
+		);
+		if (!modelItem?.custom) {
+			return undefined;
+		}
+		return this.instantiationService.invokeFunction(getCustomCompletionModel, modelId);
+	}
+
 	async handleError(
 		statusReporter: ICompletionsStatusReporter,
 		telemetryData: TelemetryData,
 		response: { status: number; text(): Promise<string>; headers: IHeaders },
-		copilotToken: CopilotToken
+		copilotToken: CopilotToken | undefined
 	): Promise<CompletionError> {
+		if (!copilotToken) {
+			const reason = `custom completion endpoint returned ${response.status}`;
+			statusReporter.setWarning(reason);
+			telemetryData.properties.error = reason;
+			telemetryData.properties.status = String(response.status);
+			this.instantiationService.invokeFunction(telemetry, 'request.shownWarning', telemetryData);
+			return { type: 'failed', reason };
+		}
+
 		const text = await response.text();
 		if (response.status === 402) {
 			this.#disabledReason = 'monthly free code completions exhausted';

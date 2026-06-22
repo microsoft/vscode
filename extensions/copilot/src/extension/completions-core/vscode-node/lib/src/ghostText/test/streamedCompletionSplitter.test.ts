@@ -26,7 +26,7 @@ class FakeCompletionsFetchService implements ICompletionsFetchService {
 	constructor(private readonly completionTexts: string[], private readonly annotations?: CopilotNamedAnnotationList) { }
 	async fetch(
 		_url: string,
-		_secretKey: string,
+		_secretKey: string | undefined,
 		_params: Completions.ModelParams,
 		_requestId: string,
 		_ct: CancellationToken,

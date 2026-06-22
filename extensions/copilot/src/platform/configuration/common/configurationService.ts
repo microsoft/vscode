@@ -953,6 +953,7 @@ export namespace ConfigKey {
 		'scminput': false
 	});
 	export const selectedCompletionsModel = defineSetting<string>('selectedCompletionModel', ConfigType.Simple, '');
+	export const customCompletionModels = defineSetting<readonly unknown[]>('customCompletionModels', ConfigType.Simple, []);
 
 	export const RateLimitAutoSwitchToAuto = defineSetting<boolean>('chat.rateLimitAutoSwitchToAuto', ConfigType.Simple, false, vBoolean());
 
