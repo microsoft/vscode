@@ -1727,7 +1727,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// running-concat transcript on every chunk, including late chunks of
 		// the suppressed previous response.)
 		if (this._suppressIncomingAudio) {
-			if (isFirstChunk) {
+			if (isFirstChunk && !this._pttHeld) {
 				this._suppressIncomingAudio = false;
 			} else {
 				return;
