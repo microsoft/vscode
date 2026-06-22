@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
@@ -39,6 +40,7 @@ function createTestTiming(options?: {
 interface MockChatModel extends IChatModel {
 	setCustomTitle(title: string): void;
 	setRequestInProgress(inProgress: boolean): void;
+	addFirstRequest(): void;
 }
 
 function createMockChatModel(options: {
@@ -63,7 +65,7 @@ function createMockChatModel(options: {
 }): MockChatModel {
 	const requests: IChatRequestModel[] = [];
 
-	if (options.hasRequests !== false) {
+	const createRequest = (): IChatRequestModel => {
 		const mockResponse: Partial<IChatResponseModel> = {
 			isComplete: options.lastResponseComplete ?? true,
 			isCanceled: options.lastResponseCanceled ?? false,
@@ -78,10 +80,15 @@ function createMockChatModel(options: {
 			}
 		};
 
-		requests.push({
+		return {
 			id: 'request-1',
 			response: mockResponse as IChatResponseModel
-		} as IChatRequestModel);
+		} as IChatRequestModel;
+	};
+
+	let hasRequests = options.hasRequests !== false;
+	if (hasRequests) {
+		requests.push(createRequest());
 	}
 
 	const editingSessionEntries = options.editingSession?.entries.map(entry => ({
@@ -106,7 +113,9 @@ function createMockChatModel(options: {
 			return title;
 		},
 		sessionResource: options.sessionResource,
-		hasRequests: options.hasRequests !== false,
+		get hasRequests() {
+			return hasRequests;
+		},
 		timestamp: options.timestamp ?? Date.now(),
 		timing: createTestTiming({ created: options.timestamp }),
 		requestInProgress,
@@ -126,6 +135,14 @@ function createMockChatModel(options: {
 			}
 			requestInProgress.set(inProgress, undefined);
 			_onDidChange.fire({ kind: 'changedRequest' } as IChatChangedRequestEvent);
+		},
+		addFirstRequest: () => {
+			if (hasRequests) {
+				return;
+			}
+			hasRequests = true;
+			requests.push(createRequest());
+			_onDidChange.fire({ kind: 'addRequest' } as IChatChangeEvent);
 		},
 	} as Partial<IChatModel> as MockChatModel;
 }
@@ -576,34 +593,29 @@ suite('LocalAgentsSessionsController', () => {
 				const mockModel = createMockChatModel({
 					sessionResource,
 					hasRequests: true,
-					requestInProgress: true
+					requestInProgress: false
 				});
 
 				// Add the session first
 				mockChatService.addSession(mockModel);
-				mockChatService.setLiveSessionItems([{
-					sessionResource,
-					title: 'Test Session',
-					lastMessageDate: Date.now(),
-					isActive: true,
-					timing: createTestTiming(),
-					lastResponseState: ResponseModelState.Complete
-				}]);
+				mockChatService.setLiveSessionItems([await chatModelToChatDetail(mockModel)]);
+
+				// Flush the initial add/reconcile churn from session creation.
+				await controller.refresh(CancellationToken.None);
+				await timeout(0);
 
 				let changeEventCount = 0;
 				disposables.add(controller.onDidChangeChatSessionItems(() => {
 					changeEventCount++;
 				}));
 
-				await controller.refresh(CancellationToken.None);
-
 				const onDidChangeChatSessionItems = Event.toPromise(controller.onDidChangeChatSessionItems);
 
-				// Simulate progress change by triggering the progress listener
+				// Simulate a real progress change by toggling the in-progress state.
 				mockModel.setRequestInProgress(true);
 				await onDidChangeChatSessionItems;
 
-				assert.strictEqual(changeEventCount, 3);
+				assert.strictEqual(changeEventCount, 1);
 			});
 		});
 
@@ -670,6 +682,34 @@ suite('LocalAgentsSessionsController', () => {
 				const addedResources = fired.flatMap(d => d.addedOrUpdated ?? []).map(i => i.resource.toString());
 				assert.ok(addedResources.includes(sessionResource2.toString()), 'forked session should appear in addedOrUpdated');
 				assert.ok(!addedResources.includes(sessionResource1.toString()), 'existing session should not appear in addedOrUpdated');
+			});
+		});
+
+		test('should add a newly started session once it gets its first request', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = createController();
+
+				const sessionResource = LocalChatSessionUri.forSession('new-session');
+				const mockModel = createMockChatModel({
+					sessionResource,
+					hasRequests: false
+				});
+
+				const fired: { addedOrUpdated?: readonly IChatSessionItem[]; removed?: readonly URI[] }[] = [];
+				disposables.add(controller.onDidChangeChatSessionItems(delta => fired.push(delta)));
+
+				// A brand new session is created without any requests yet.
+				mockChatService.addSession(mockModel);
+				await timeout(0);
+				assert.strictEqual(controller.items.length, 0, 'session without requests should not be listed yet');
+
+				// The user sends the first message, so the session now qualifies as a list item.
+				mockModel.addFirstRequest();
+				await timeout(0);
+
+				assert.strictEqual(controller.items.length, 1, 'session should appear as soon as it has a request');
+				const addedResources = fired.flatMap(d => d.addedOrUpdated ?? []).map(i => i.resource.toString());
+				assert.ok(addedResources.includes(sessionResource.toString()), 'new session should appear in addedOrUpdated without a manual refresh');
 			});
 		});
 
