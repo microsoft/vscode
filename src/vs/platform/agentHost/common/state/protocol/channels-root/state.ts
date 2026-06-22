@@ -97,6 +97,13 @@ export interface SessionModelInfo {
 	name: string;
 	/** Maximum context window size */
 	maxContextWindow?: number;
+	/**
+	 * Context-window sizes (in tokens) this model recommends as user-selectable options, smallest
+	 * first. The first entry is the recommended default. Present only when the model offers more than
+	 * one window. Clients render these as a context-size picker and send the chosen value back via
+	 * {@link ModelSelection.maxContextWindow}.
+	 */
+	recommendedContextWindows?: readonly number[];
 	/** Whether the model supports vision */
 	supportsVision?: boolean;
 	/** Policy configuration state */
@@ -128,6 +135,13 @@ export interface ModelSelection {
 	id: string;
 	/** Model-specific configuration values */
 	config?: Record<string, string>;
+	/**
+	 * The context-window size (in tokens) the user selected for this model, chosen from the
+	 * windows the model offers (see {@link SessionModelInfo.maxContextWindow} for the model's true
+	 * maximum). The agent maps this to whatever backend representation it uses (e.g. a context
+	 * tier). Absent when the model exposes no selectable windows or the user kept the default.
+	 */
+	maxContextWindow?: number;
 }
 
 // ─── Root Config Types ───────────────────────────────────────────────────────

@@ -673,6 +673,13 @@ export interface IAgentModelInfo {
 	readonly id: string;
 	readonly name: string;
 	readonly maxContextWindow?: number;
+	/**
+	 * The context-window sizes (in tokens) this model recommends as user-selectable options, smallest
+	 * first. The first entry is the recommended default. Present only when the model offers more than
+	 * one window. Clients render these as a context-size picker and send the chosen value back via
+	 * {@link ModelSelection.maxContextWindow}.
+	 */
+	readonly recommendedContextWindows?: readonly number[];
 	readonly supportsVision: boolean;
 	readonly configSchema?: ConfigSchema;
 	readonly policyState?: PolicyState;

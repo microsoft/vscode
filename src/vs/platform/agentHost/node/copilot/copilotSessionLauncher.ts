@@ -26,13 +26,9 @@ import { agentHostPromptRegistry, type IAgentHostPromptContext } from './prompts
 import './prompts/allPrompts.js';
 
 export const ThinkingLevelConfigKey = 'thinkingLevel';
-export const ContextTierConfigKey = 'contextTier';
 
 const ReasoningEfforts = ['low', 'medium', 'high', 'xhigh'] as const;
 type ReasoningEffort = NonNullable<SessionConfig['reasoningEffort']>;
-
-const ContextTiers = ['default', 'long_context'] as const;
-type ContextTier = NonNullable<SessionConfig['contextTier']>;
 
 type UserInputHandler = NonNullable<SessionConfig['onUserInputRequest']>;
 type UserInputRequest = Parameters<UserInputHandler>[0];
@@ -108,6 +104,12 @@ interface ICopilotSessionLaunchBase {
 export interface ICopilotCreateSessionLaunchPlan extends ICopilotSessionLaunchBase {
 	readonly kind: 'create';
 	readonly model: ModelSelection | undefined;
+	/**
+	 * The SDK context tier resolved from the model selection's numeric `contextSize`. Resolved by
+	 * the agent (which owns the model list / window sizes) rather than recomputed here, since the
+	 * number→tier mapping needs the model's `maxContextWindow`.
+	 */
+	readonly contextTier?: SessionConfig['contextTier'];
 }
 
 export interface ICopilotResumeSessionLaunchPlan extends ICopilotSessionLaunchBase {
@@ -115,17 +117,15 @@ export interface ICopilotResumeSessionLaunchPlan extends ICopilotSessionLaunchBa
 	readonly workingDirectory: URI;
 	readonly fallback: {
 		readonly model: ModelSelection | undefined;
+		/** Resolved SDK context tier for {@link fallback.model}; see {@link ICopilotCreateSessionLaunchPlan.contextTier}. */
+		readonly contextTier?: SessionConfig['contextTier'];
 	};
 }
 
 export type CopilotSessionLaunchPlan = ICopilotCreateSessionLaunchPlan | ICopilotResumeSessionLaunchPlan;
 
-function isReasoningEffort(value: string | undefined): value is ReasoningEffort {
+function isReasoningEffort(value: string | number | undefined): value is ReasoningEffort {
 	return ReasoningEfforts.some(reasoningEffort => reasoningEffort === value);
-}
-
-function isContextTier(value: string | undefined): value is ContextTier {
-	return ContextTiers.some(contextTier => contextTier === value);
 }
 
 function getCopilotSdkErrorCode(err: unknown): number | undefined {
@@ -177,9 +177,20 @@ export function getCopilotReasoningEffort(model: ModelSelection | undefined): Se
 	return isReasoningEffort(thinkingLevel) ? thinkingLevel : undefined;
 }
 
-export function getCopilotContextTier(model: ModelSelection | undefined): SessionConfig['contextTier'] {
-	const contextTier = model?.config?.[ContextTierConfigKey];
-	return isContextTier(contextTier) ? contextTier : undefined;
+/**
+ * Maps a user-selected context-window size (in tokens) to the SDK's two-valued
+ * {@link SessionConfig.contextTier}. The model offers exactly two windows — the default-tier window
+ * and the larger long-context window — so any selection above the default-tier window opts into
+ * `long_context`.
+ *
+ * Returns `undefined` when no size was selected or the default-tier window is unknown, leaving the
+ * SDK on its default tier.
+ */
+export function mapContextSizeToContextTier(selectedWindow: number | undefined, defaultContextWindow: number | undefined): SessionConfig['contextTier'] {
+	if (typeof selectedWindow !== 'number' || typeof defaultContextWindow !== 'number') {
+		return undefined;
+	}
+	return selectedWindow > defaultContextWindow ? 'long_context' : 'default';
 }
 
 export class CopilotSessionLauncher implements ICopilotSessionLauncher {
@@ -224,6 +235,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				...plan,
 				kind: 'create',
 				model: plan.fallback.model,
+				contextTier: plan.fallback.contextTier,
 			}, config, sandboxConfig);
 			this._logService.info(`[Copilot:${plan.sessionId}] Fallback createSession succeeded`);
 			return wrapper;
@@ -237,7 +249,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			streaming: true,
 			model: plan.model?.id,
 			reasoningEffort: getCopilotReasoningEffort(plan.model),
-			contextTier: getCopilotContextTier(plan.model),
+			contextTier: plan.contextTier,
 			...(plan.resolvedAgentName ? { agent: plan.resolvedAgentName } : {}),
 			workingDirectory: plan.workingDirectory?.fsPath,
 		});

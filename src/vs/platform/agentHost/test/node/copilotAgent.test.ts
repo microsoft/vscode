@@ -846,6 +846,7 @@ suite('CopilotAgent', () => {
 				id: 'gpt-4o',
 				name: 'GPT-4o',
 				maxContextWindow: 128000,
+				recommendedContextWindows: undefined,
 				supportsVision: true,
 				configSchema: undefined,
 				policyState: undefined,
@@ -911,18 +912,18 @@ suite('CopilotAgent', () => {
 			const schema = models[0].configSchema;
 			assert.deepStrictEqual(schema?.properties.thinkingLevel?.enum, ['low', 'medium', 'high']);
 			assert.strictEqual(schema?.properties.thinkingLevel?.default, 'medium');
-			assert.strictEqual(schema?.properties.contextTier, undefined);
+			assert.strictEqual(schema?.properties.contextSize, undefined);
 		} finally {
 			await disposeAgent(agent);
 		}
 	});
 
-	test('configSchema emits a contextTier property when long_context tier exceeds default', async () => {
+	test('models advertise recommendedContextWindows when long_context tier exceeds default', async () => {
 		const agent = createTestAgent(disposables, {
 			copilotClient: new TestCopilotClient([], [{
 				id: 'claude-sonnet',
 				name: 'Claude Sonnet',
-				capabilities: { limits: { max_context_window_tokens: 200_000 } },
+				capabilities: { limits: { max_context_window_tokens: 1_000_000 } },
 				billing: {
 					multiplier: 1,
 					tokenPrices: {
@@ -936,16 +937,17 @@ suite('CopilotAgent', () => {
 			await agent.authenticate('https://api.github.com', 'token');
 			const models = await waitForState(agent.models, models => models.length > 0);
 
-			const contextTier = models[0].configSchema?.properties.contextTier;
-			assert.deepStrictEqual(contextTier?.enum, ['default', 'long_context']);
-			assert.strictEqual(contextTier?.default, 'default');
-			assert.deepStrictEqual(contextTier?.enumLabels, ['200K', '1M']);
+			// The selectable windows ride on the models list, not a numeric config property; the true
+			// (long) maximum stays on `maxContextWindow`.
+			assert.deepStrictEqual(models[0].recommendedContextWindows, [200_000, 1_000_000]);
+			assert.strictEqual(models[0].maxContextWindow, 1_000_000);
+			assert.strictEqual(models[0].configSchema?.properties.contextSize, undefined);
 		} finally {
 			await disposeAgent(agent);
 		}
 	});
 
-	test('configSchema omits contextTier when long_context tier is missing or not larger', async () => {
+	test('models omit recommendedContextWindows when long_context tier is missing or not larger', async () => {
 		const agent = createTestAgent(disposables, {
 			copilotClient: new TestCopilotClient([], [
 				{
@@ -967,8 +969,8 @@ suite('CopilotAgent', () => {
 			await agent.authenticate('https://api.github.com', 'token');
 			const models = await waitForState(agent.models, models => models.length > 0);
 
-			assert.strictEqual(models[0].configSchema, undefined);
-			assert.strictEqual(models[1].configSchema, undefined);
+			assert.strictEqual(models[0].recommendedContextWindows, undefined);
+			assert.strictEqual(models[1].recommendedContextWindows, undefined);
 		} finally {
 			await disposeAgent(agent);
 		}
@@ -1644,6 +1646,56 @@ suite('CopilotAgent', () => {
 			} finally {
 				await disposeAgent(agent);
 			}
+		});
+
+		test('materialization maps the selected context window to the SDK context tier', async () => {
+			const longContextModel: ITestCopilotModelInfo = {
+				id: 'claude-sonnet',
+				name: 'Claude Sonnet',
+				capabilities: { limits: { max_context_window_tokens: 1_000_000 } },
+				billing: {
+					multiplier: 1,
+					tokenPrices: {
+						contextMax: 200_000,
+						longContext: { contextMax: 1_000_000, inputPrice: 2 },
+					},
+				},
+			};
+
+			const materializeWithSelectedWindow = async (selectedWindow: number | undefined): Promise<string | undefined> => {
+				const sessionDataService = disposables.add(new TestSessionDataService());
+				const client = new TestCopilotClient([], [longContextModel]);
+				let capturedConfig: Parameters<ITestCopilotClient['createSession']>[0] | undefined;
+				client.createSession = async config => {
+					capturedConfig = config;
+					return new MockCopilotSession() as unknown as CopilotSession;
+				};
+
+				const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
+				try {
+					await agent.authenticate('https://api.github.com', 'token');
+					await waitForState(agent.models, models => models.length > 0);
+
+					const result = await agent.createSession({
+						session: AgentSession.uri('copilotcli', `ctx-${selectedWindow ?? 'none'}`),
+						workingDirectory: URI.file('/workspace'),
+						model: { id: 'claude-sonnet', ...(selectedWindow !== undefined ? { maxContextWindow: selectedWindow } : {}) },
+					});
+					await agent.sendMessage(result.session, 'hello');
+					return capturedConfig?.contextTier ?? undefined;
+				} finally {
+					await disposeAgent(agent);
+				}
+			};
+
+			assert.deepStrictEqual(
+				{
+					long: await materializeWithSelectedWindow(1_000_000),
+					default: await materializeWithSelectedWindow(200_000),
+					unset: await materializeWithSelectedWindow(undefined),
+				},
+				{ long: 'long_context', default: 'default', unset: undefined },
+			);
 		});
 
 		test('materialization forwards the GitHub token to the SDK at the session level (#318693)', async () => {

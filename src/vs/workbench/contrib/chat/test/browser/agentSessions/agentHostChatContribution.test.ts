@@ -1889,6 +1889,35 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual(agentHostService.createSessionCalls[0].model, { id: 'claude-sonnet-4-20250514', config: { thinkingLevel: 'high' } });
 		}));
 
+		test('lifts the selected context window into maxContextWindow instead of the config bag', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const languageModels = new Map<string, ILanguageModelChatMetadata>([
+				['agent-host-copilot:claude-sonnet-4-20250514', upcastPartial<ILanguageModelChatMetadata>({
+					configurationSchema: {
+						properties: {
+							thinkingLevel: { type: 'string', group: 'navigation', enum: ['low', 'high'] },
+							contextSize: { type: 'number', group: 'tokens', enum: [200_000, 1_000_000] },
+						},
+					},
+				})],
+			]);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { languageModels });
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'Hi',
+				userSelectedModelId: 'agent-host-copilot:claude-sonnet-4-20250514',
+				modelConfiguration: { thinkingLevel: 'high', contextSize: 1_000_000 },
+			});
+			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
+			assert.deepStrictEqual(agentHostService.createSessionCalls[0].model, {
+				id: 'claude-sonnet-4-20250514',
+				config: { thinkingLevel: 'high' },
+				maxContextWindow: 1_000_000,
+			});
+		}));
+
 		test('passes model id as-is when no vendor prefix', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
@@ -3765,9 +3794,46 @@ suite('AgentHostChatContribution', () => {
 				enum: ['low', 'medium', 'high'],
 				enumItemLabels: ['Low', 'Medium', 'High'],
 				enumDescriptions: undefined,
-				readOnly: undefined,
 				group: 'navigation',
 			});
+		});
+
+		test('synthesizes a tokens-group context size picker from recommendedContextWindows', async () => {
+			const provider = disposables.add(new AgentHostLanguageModelProvider('agent-host-copilot', 'agent-host-copilot'));
+			provider.updateModels([
+				{
+					provider: 'copilot',
+					id: 'claude-sonnet',
+					name: 'Claude Sonnet',
+					maxContextWindow: 1_000_000,
+					recommendedContextWindows: [200_000, 1_000_000],
+					supportsVision: false,
+				},
+			]);
+
+			const models = await provider.provideLanguageModelChatInfo({}, CancellationToken.None);
+
+			assert.deepStrictEqual(models[0].metadata.configurationSchema?.properties?.contextSize, {
+				type: 'number',
+				title: 'Context Size',
+				description: 'Selects the context window size for this model.',
+				default: 200_000,
+				enum: [200_000, 1_000_000],
+				enumItemLabels: ['200K', '1M'],
+				enumDescriptions: ['Default', 'Longer sessions'],
+				group: 'tokens',
+			});
+		});
+
+		test('omits the context size picker when fewer than two recommended windows', async () => {
+			const provider = disposables.add(new AgentHostLanguageModelProvider('agent-host-copilot', 'agent-host-copilot'));
+			provider.updateModels([
+				{ provider: 'copilot', id: 'gpt-4o', name: 'GPT-4o', maxContextWindow: 128_000, supportsVision: false },
+			]);
+
+			const models = await provider.provideLanguageModelChatInfo({}, CancellationToken.None);
+
+			assert.strictEqual(models[0].metadata.configurationSchema, undefined);
 		});
 
 		test('returns empty when no models set', async () => {
