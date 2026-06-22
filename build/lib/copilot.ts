@@ -13,6 +13,7 @@ import * as path from 'path';
 export const copilotPlatforms = [
 	'darwin-arm64', 'darwin-x64',
 	'linux-arm64', 'linux-x64',
+	'linuxmusl-arm64', 'linuxmusl-x64',
 	'win32-arm64', 'win32-x64',
 ];
 
@@ -73,6 +74,18 @@ function toCopilotTgrepPlatformArch(platform: string, arch: string): string {
 	return `${nodePlatform}-${nodeArch}`;
 }
 
+function toCopilotPackagePlatformArch(platform: string, arch: string): string {
+	if (platform === 'alpine') {
+		return `linuxmusl-${arch}`;
+	}
+	if (arch === 'alpine') {
+		return 'linuxmusl-x64';
+	}
+
+	const { nodePlatform, nodeArch } = toNodePlatformArch(platform, arch);
+	return `${nodePlatform}-${nodeArch}`;
+}
+
 /**
  * Returns a glob filter that strips @vscode/ripgrep-universal bin directories
  * for architectures other than the build target.
@@ -102,14 +115,13 @@ export function getCopilotTgrepExcludeFilter(platform: string, arch: string): st
  * Returns a glob filter that strips @github/copilot platform packages
  * for architectures other than the build target.
  *
- * For platforms the copilot SDK doesn't natively support (e.g. alpine, armhf),
- * ALL platform packages are stripped - that's fine because the copilot CLI SDK
- * resolves `node-pty` from the embedder (VS Code) first via `hostRequire`,
- * falling back to its bundled copy only if the embedder can't provide it.
+ * Alpine uses the linuxmusl-* packages. Other platform package names follow
+ * Node's `${process.platform}-${process.arch}` naming. If Copilot does not
+ * ship the computed platform package (for example linux-arm for armhf builds),
+ * this strips every known @github/copilot-* platform package.
  */
 export function getCopilotExcludeFilter(platform: string, arch: string): string[] {
-	const { nodePlatform, nodeArch } = toNodePlatformArch(platform, arch);
-	const targetPlatformArch = `${nodePlatform}-${nodeArch}`;
+	const targetPlatformArch = toCopilotPackagePlatformArch(platform, arch);
 	const nonTargetPlatforms = copilotPlatforms.filter(p => p !== targetPlatformArch);
 
 	// Strip wrong-architecture @github/copilot-{platform} packages.
@@ -119,45 +131,22 @@ export function getCopilotExcludeFilter(platform: string, arch: string): string[
 }
 
 /**
- * Returns the public @github/copilot-sdk runtime native addon files that must
- * survive app/remote packaging for the target platform.
+ * Returns the public @github/copilot package files that must survive
+ * app/remote packaging for the target platform.
  *
- * .moduleignore strips @github/copilot/prebuilds/** globally because the
- * internal extension SDK uses a copied sdk/prebuilds layout. Agent Host uses
- * the public SDK, whose runtime addon loader expects runtime.node in the root
- * prebuilds layout. The SDK's built-in shell tool additionally spawns commands
- * through node-pty, whose native binaries live in the same root prebuilds
- * layout, so those must be preserved too (otherwise the sandboxed shell fails
- * with `Cannot find module './prebuilds/<platform>/pty.node'` — or conpty.node
- * on Windows).
+ * .moduleignore strips all @github/copilot-* platform packages globally.
+ * Re-add only the selected package metadata and executable needed by
+ * @github/copilot/npm-loader.js. Do not re-add platform prebuilds or optional
+ * native payloads that are not needed by Agent Host.
  */
 export function getCopilotRuntimePrebuildFiles(platform: string, arch: string, nodeModulesRoot = 'node_modules'): string[] {
-	const { nodePlatform, nodeArch } = toNodePlatformArch(platform, arch);
-	const targetPlatformArch = `${nodePlatform}-${nodeArch}`;
-	const prebuildDir = path.posix.join(nodeModulesRoot, '@github', 'copilot', 'prebuilds', targetPlatformArch);
+	const copilotPackagePlatformArch = toCopilotPackagePlatformArch(platform, arch);
+	const copilotPlatformPackageDir = path.posix.join(nodeModulesRoot, '@github', `copilot-${copilotPackagePlatformArch}`);
 
-	const files = [
-		path.posix.join(prebuildDir, 'runtime.node'),
+	return [
+		path.posix.join(copilotPlatformPackageDir, 'package.json'),
+		path.posix.join(copilotPlatformPackageDir, 'copilot'),
 	];
-
-	// node-pty native binaries for the SDK's built-in shell tool. Windows uses
-	// ConPTY (conpty.node plus the conpty/ helpers); darwin/linux use pty.node,
-	// and darwin additionally ships the spawn-helper executable.
-	if (nodePlatform === 'win32') {
-		files.push(
-			path.posix.join(prebuildDir, 'conpty.node'),
-			path.posix.join(prebuildDir, 'conpty_console_list.node'),
-			path.posix.join(prebuildDir, 'conpty', 'OpenConsole.exe'),
-			path.posix.join(prebuildDir, 'conpty', 'conpty.dll'),
-		);
-	} else {
-		files.push(path.posix.join(prebuildDir, 'pty.node'));
-		if (nodePlatform === 'darwin') {
-			files.push(path.posix.join(prebuildDir, 'spawn-helper'));
-		}
-	}
-
-	return files;
 }
 
 /**
@@ -179,6 +168,7 @@ export function getCopilotRuntimePrebuildFiles(platform: string, arch: string, n
 export function prepareBuiltInCopilotRipgrepShim(platform: string, arch: string, builtInCopilotExtensionDir: string, appNodeModulesDir: string): void {
 	const { nodePlatform, nodeArch } = toNodePlatformArch(platform, arch);
 	const platformArch = `${nodePlatform}-${nodeArch}`;
+	const copilotPackagePlatformArch = toCopilotPackagePlatformArch(platform, arch);
 	const tgrepPlatformArch = toCopilotTgrepPlatformArch(platform, arch);
 
 	const extensionNodeModules = path.join(builtInCopilotExtensionDir, 'node_modules');
@@ -187,7 +177,7 @@ export function prepareBuiltInCopilotRipgrepShim(platform: string, arch: string,
 	if (!fs.existsSync(copilotSdkBase)) {
 		throw new Error(`[prepareBuiltInCopilotRipgrepShim] Copilot SDK directory not found at ${copilotSdkBase}`);
 	}
-	pruneNonTargetCopilotSdkPrebuilds(platformArch, path.join(copilotSdkBase, 'prebuilds'), copilotPlatforms);
+	pruneNonTargetCopilotSdkPrebuilds(copilotPackagePlatformArch, path.join(copilotSdkBase, 'prebuilds'), copilotPlatforms);
 	pruneNonTargetCopilotSdkPrebuilds(tgrepPlatformArch, path.join(copilotSdkBase, path.join('tgrep', 'bin')), copilotTgrepPlatforms);
 	pruneNonTargetCopilotSdkPrebuilds(tgrepPlatformArch, path.join(copilotBase, path.join('tgrep', 'bin')), copilotTgrepPlatforms);
 
