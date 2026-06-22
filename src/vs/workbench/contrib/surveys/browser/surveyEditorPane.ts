@@ -110,14 +110,18 @@ export class SurveyEditorPane extends EditorPane {
 		const hintId = `survey-hint-${this.renderNonce}`;
 		const hint = append(submitRow, $('div.survey-submit-hint'));
 		hint.id = hintId;
-		hint.textContent = localize('survey.submitHint', "Answer all questions to submit");
+		hint.textContent = localize('survey.submitHint', "Answer the required question to submit");
 		submitButton.element.setAttribute('aria-describedby', hintId);
 
+		const requiredQuestionIds = survey.questions.filter(q => q.required).map(q => q.id);
+
 		const updateSubmitState = () => {
-			const allAnswered = this.answers.size >= survey.questions.length
-				&& ![...this.answers.values()].some(v => v.length === 0);
-			submitButton.enabled = allAnswered;
-			hint.style.display = allAnswered ? 'none' : '';
+			const allRequiredAnswered = requiredQuestionIds.every(id => {
+				const answer = this.answers.get(id);
+				return answer && answer.length > 0;
+			});
+			submitButton.enabled = allRequiredAnswered;
+			hint.style.display = allRequiredAnswered ? 'none' : '';
 		};
 
 		this.inputDisposables.add(submitButton.onDidClick(() => {
@@ -154,7 +158,9 @@ export class SurveyEditorPane extends EditorPane {
 		const group = append(parent, $('div.survey-segment-group'));
 		group.setAttribute('role', 'radiogroup');
 		group.setAttribute('aria-labelledby', labelId);
-		group.setAttribute('aria-required', 'true');
+		if (question.required) {
+			group.setAttribute('aria-required', 'true');
+		}
 
 		for (let i = 0; i < question.options.length; i++) {
 			const option = question.options[i];
@@ -184,7 +190,9 @@ export class SurveyEditorPane extends EditorPane {
 		const group = append(parent, $('div.survey-list-group'));
 		group.setAttribute('role', 'radiogroup');
 		group.setAttribute('aria-labelledby', labelId);
-		group.setAttribute('aria-required', 'true');
+		if (question.required) {
+			group.setAttribute('aria-required', 'true');
+		}
 
 		if (question.columns === 2) {
 			group.classList.add('columns-2');

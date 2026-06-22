@@ -19,6 +19,8 @@ interface ISurveyQuestionBase {
 	readonly id: string;
 	readonly label: string;
 	readonly options: readonly ISurveyOption[];
+	/** When true, the question must be answered before submission. */
+	readonly required?: boolean;
 	/**
 	 * The telemetry field name this answer maps to in the `survey/submit` event.
 	 * When set, the selected option ID (or numeric index if {@link asMeasurement} is true) is emitted under this key.
@@ -58,6 +60,7 @@ export const CopilotPMFSurvey: ISurveyDefinition = {
 		{
 			type: SurveyQuestionType.Segment,
 			id: 'disappointment',
+			required: true,
 			telemetryKey: 'score',
 			asMeasurement: true,
 			label: localize('survey.copilotPmf.q1', "How disappointed would you be if you could no longer use Copilot?"),
