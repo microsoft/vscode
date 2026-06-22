@@ -1384,10 +1384,11 @@ export class CopilotAgentSession extends Disposable {
 		const mcpRequestId = generateUuid();
 		this._pendingMcpSamplings.add(requestId);
 		try {
+			type McpExecuteSamplingParams = Parameters<typeof this._wrapper.session.rpc.mcp.executeSampling>[0];
 			const result = await this._wrapper.session.rpc.mcp.executeSampling({
 				requestId,
 				serverName,
-				mcpRequestId,
+				mcpRequestId: mcpRequestId as unknown as McpExecuteSamplingParams['mcpRequestId'],
 				request: params,
 			});
 			if (result.action === 'success') {
