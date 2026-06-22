@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MessageOptions } from '@github/copilot-sdk';
+import type { AssistantMessageToolRequest, Attachment, SessionEvent, ToolExecutionCompleteData } from '@github/copilot-sdk';
 import { decodeBase64 } from '../../../../base/common/buffer.js';
 import { basename } from '../../../../base/common/path.js';
 import { isString } from '../../../../base/common/types.js';
@@ -26,100 +26,6 @@ function tryStringify(value: unknown): string | undefined {
 	}
 }
 
-// ---- Minimal event shapes matching the SDK's SessionEvent union ---------
-// Defined here so tests can construct events without importing the SDK.
-
-export interface ISessionEventToolStart {
-	type: 'tool.execution_start';
-	data: {
-		toolCallId: string;
-		toolName: string;
-		arguments?: unknown;
-		mcpServerName?: string;
-		mcpToolName?: string;
-		parentToolCallId?: string;
-	};
-}
-
-export interface ISessionEventToolComplete {
-	type: 'tool.execution_complete';
-	data: {
-		toolCallId: string;
-		success: boolean;
-		result?: { content?: string };
-		error?: { message: string; code?: string };
-		isUserRequested?: boolean;
-		toolTelemetry?: unknown;
-		parentToolCallId?: string;
-	};
-}
-
-export interface ISessionEventMessage {
-	type: 'assistant.message' | 'user.message';
-	/**
-	 * SDK envelope-level event id. This is the same id `setTurnEventId`
-	 * persists into `turns.event_id`, so using it as the protocol turn id
-	 * keeps the live and restored ids aligned with what the SDK fork /
-	 * truncate RPCs need.
-	 */
-	id?: string;
-	data?: {
-		messageId?: string;
-		interactionId?: string;
-		content?: string;
-		toolRequests?: readonly { toolCallId: string; name: string; arguments?: unknown; type?: 'function' | 'custom' }[];
-		reasoningOpaque?: string;
-		reasoningText?: string;
-		encryptedContent?: string;
-		parentToolCallId?: string;
-		/**
-		 * Origin of this message. The SDK sets this to a non-`'user'` value
-		 * (e.g. `'skill-pdf'`) for messages it injects on behalf of a skill or
-		 * other internal mechanism. We filter those out so they don't render
-		 * as user turns.
-		 */
-		source?: string;
-		/**
-		 * Attachments persisted with the user message by the SDK. Mirrors
-		 * the SDK's `UserMessageAttachment` union; intentionally typed
-		 * locally so we don't pull the SDK package into shared code.
-		 */
-		attachments?: readonly ISdkUserMessageAttachment[];
-	};
-}
-
-type ISdkUserMessageAttachment = Required<MessageOptions>['attachments'][number];
-
-/** Minimal event shape for `skill.invoked`, used to synthesize a tool-style render. */
-export interface ISessionEventSkillInvoked {
-	type: 'skill.invoked';
-	id?: string;
-	data: {
-		name: string;
-		path?: string;
-		description?: string;
-	};
-}
-
-export interface ISessionEventSubagentStarted {
-	type: 'subagent.started';
-	data: {
-		toolCallId: string;
-		agentName: string;
-		agentDisplayName: string;
-		agentDescription: string;
-	};
-}
-
-/** Minimal event shape for session history mapping. */
-export type ISessionEvent =
-	| ISessionEventToolStart
-	| ISessionEventToolComplete
-	| ISessionEventMessage
-	| ISessionEventSubagentStarted
-	| ISessionEventSkillInvoked
-	| { type: string; data?: unknown };
-
 /**
  * Returns true if the event is a SDK-injected `user.message` that should not
  * be shown to the user (e.g. skill-content injection).
@@ -128,11 +34,11 @@ export type ISessionEvent =
  * persisted before `source` existed will not be filtered; that is accepted
  * leakage rather than guessed-at content sniffing.
  */
-function isSyntheticUserMessage(event: ISessionEvent): boolean {
+function isSyntheticUserMessage(event: SessionEvent): boolean {
 	if (event.type !== 'user.message') {
 		return false;
 	}
-	const source = (event as ISessionEventMessage).data?.source;
+	const source = event.data.source;
 	return !!source && source.toLowerCase() !== 'user';
 }
 
@@ -153,8 +59,6 @@ interface IToolStartInfo {
 	readonly parameters: Record<string, unknown> | undefined;
 	readonly parentToolCallId?: string;
 }
-
-type IToolRequestInfo = NonNullable<NonNullable<ISessionEventMessage['data']>['toolRequests']>[number];
 
 /** Subagent metadata seen via `subagent.started`, applied to the parent tool call's content at `tool.execution_complete`. */
 interface ISubagentInfo {
@@ -242,23 +146,42 @@ function finalizeTurn(builder: ITurnBuilder, state: TurnState): Turn {
 export async function mapSessionEvents(
 	session: URI,
 	db: ISessionDatabase | undefined,
-	events: readonly ISessionEvent[],
+	events: readonly SessionEvent[],
 	workingDirectory?: URI,
 ): Promise<{ turns: Turn[]; subagentTurnsByToolCallId: ReadonlyMap<string, Turn[]> }> {
 	// First pass: collect tool-arg info and identify edit tool calls so we
 	// can batch-load their stored file edits before the second pass needs
-	// them at `tool.execution_complete` time.
+	// them at `tool.execution_complete` time. We also build the
+	// `agentId` -> parent tool call id map here so the second pass can route
+	// sub-agent events without depending on event ordering.
 	const toolInfoByCallId = new Map<string, IToolStartInfo>();
 	const editToolCallIds: string[] = [];
-	const completionsByCallId = new Map<string, ISessionEventToolComplete['data']>();
+	const completionsByCallId = new Map<string, ToolExecutionCompleteData>();
+
+	// The SDK tags events that originate from a sub-agent with an
+	// envelope-level `agentId` (the deprecated `data.parentToolCallId` is no
+	// longer populated). `subagent.started` carries both the sub-agent's
+	// `agentId` and the parent tool call id it was spawned from, so we map
+	// one to the other and resolve every later sub-agent event through it.
+	const parentToolCallIdByAgentId = new Map<string, string>();
+	const resolveParentToolCallId = (agentId: string | undefined, deprecatedParentToolCallId: string | undefined): string | undefined => {
+		const mapped = agentId ? parentToolCallIdByAgentId.get(agentId) : undefined;
+		return mapped ?? deprecatedParentToolCallId;
+	};
+
 	for (const e of events) {
+		if (e.type === 'subagent.started') {
+			if (e.agentId) {
+				parentToolCallIdByAgentId.set(e.agentId, e.data.toolCallId);
+			}
+		}
 		if (e.type === 'tool.execution_complete') {
-			const d = (e as ISessionEventToolComplete).data;
-			completionsByCallId.set(d.toolCallId, d);
+			completionsByCallId.set(e.data.toolCallId, e.data);
 		}
 		if (e.type === 'tool.execution_start') {
-			const d = (e as ISessionEventToolStart).data;
-			const info = makeToolStartInfo(d.toolName, d.arguments, d.parentToolCallId, workingDirectory);
+			const d = e.data;
+			const parentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId);
+			const info = makeToolStartInfo(d.toolName, d.arguments, parentToolCallId, workingDirectory);
 			if (!info) {
 				continue;
 			}
@@ -339,16 +262,19 @@ export async function mapSessionEvents(
 				if (isSyntheticUserMessage(e)) {
 					continue;
 				}
-				const d = (e as ISessionEventMessage).data;
-				const messageId = d?.messageId ?? d?.interactionId ?? '';
-				const content = d?.content ?? '';
-				const attachments = sdkAttachmentsToProtocol(d?.attachments);
-				if (d?.parentToolCallId) {
-					// User messages with a parent tool call route into the
-					// subagent's transcript. They never start a new parent
-					// turn; subagents currently only see assistant messages
-					// in practice, but route conservatively.
-					const builder = ensureSubagentBuilder(d.parentToolCallId);
+				const d = e.data;
+				const messageId = d.interactionId ?? '';
+				const content = d.content ?? '';
+				const attachments = sdkAttachmentsToProtocol(d.attachments);
+				// User messages carry no deprecated `parentToolCallId`; route
+				// sub-agent user messages by the envelope `agentId` only.
+				const parentToolCallId = resolveParentToolCallId(e.agentId, undefined);
+				if (parentToolCallId) {
+					// User messages from a sub-agent route into the subagent's
+					// transcript. They never start a new parent turn; subagents
+					// currently only see assistant messages in practice, but
+					// route conservatively.
+					const builder = ensureSubagentBuilder(parentToolCallId);
 					if (content) {
 						builder.responseParts.push({
 							kind: ResponsePartKind.Markdown,
@@ -368,24 +294,25 @@ export async function mapSessionEvents(
 					if (parentBuilder) {
 						turns.push(finalizeTurn(parentBuilder, TurnState.Cancelled));
 					}
-					const turnId = (e as ISessionEventMessage).id ?? messageId;
+					const turnId = e.id ?? messageId;
 					parentBuilder = newTurnBuilder(turnId, content, attachments);
 				}
 				break;
 			}
 			case 'assistant.message': {
-				const d = (e as ISessionEventMessage).data;
-				const messageId = d?.messageId ?? d?.interactionId ?? '';
-				const content = d?.content ?? '';
-				const reasoningText = d?.reasoningText;
-				const hasToolRequests = !!d?.toolRequests && d.toolRequests.length > 0;
+				const d = e.data;
+				const messageId = d.messageId ?? d.interactionId ?? '';
+				const content = d.content ?? '';
+				const reasoningText = d.reasoningText;
+				const hasToolRequests = !!d.toolRequests && d.toolRequests.length > 0;
+				const parentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId);
 				// When this is the first event in a turn (no parent builder
 				// yet), seed the builder with the SDK envelope id so the
 				// turn id matches `turns.event_id` for fork/truncate
 				// lookups. See the matching note in the `user.message`
 				// branch above.
-				const fallbackTurnId = (e as ISessionEventMessage).id ?? messageId;
-				const builder = targetBuilderFor(d?.parentToolCallId)
+				const fallbackTurnId = e.id ?? messageId;
+				const builder = targetBuilderFor(parentToolCallId)
 					?? (parentBuilder = newTurnBuilder(fallbackTurnId, ''));
 				if (reasoningText) {
 					builder.responseParts.push({
@@ -401,21 +328,21 @@ export async function mapSessionEvents(
 						content,
 					});
 				}
-				if (d?.toolRequests?.length) {
-					appendFallbackToolRequests(builder, d.toolRequests, d.parentToolCallId);
+				if (d.toolRequests?.length) {
+					appendFallbackToolRequests(builder, d.toolRequests, parentToolCallId);
 				}
 				// A parent assistant message without further tool requests
 				// terminates the current parent turn (no more responses
 				// expected). Subagent turns are flushed at the parent's
 				// `tool.execution_complete` instead.
-				if (!d?.parentToolCallId && !hasToolRequests && builder === parentBuilder) {
+				if (!parentToolCallId && !hasToolRequests && builder === parentBuilder) {
 					turns.push(finalizeTurn(parentBuilder, TurnState.Complete));
 					parentBuilder = undefined;
 				}
 				break;
 			}
 			case 'subagent.started': {
-				const d = (e as ISessionEventSubagentStarted).data;
+				const d = e.data;
 				subagentInfoByToolCallId.set(d.toolCallId, {
 					agentName: d.agentName,
 					agentDisplayName: d.agentDisplayName,
@@ -429,15 +356,16 @@ export async function mapSessionEvents(
 				break;
 			}
 			case 'tool.execution_complete': {
-				const d = (e as ISessionEventToolComplete).data;
+				const d = e.data;
 				const info = toolInfoByCallId.get(d.toolCallId);
 				if (!info) {
 					// Orphan complete (no matching start), or hidden tool.
 					continue;
 				}
 				toolInfoByCallId.delete(d.toolCallId);
+				const parentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId);
 				if (isTaskCompleteTool(info.toolName)) {
-					const builder = targetBuilderFor(d.parentToolCallId);
+					const builder = targetBuilderFor(parentToolCallId);
 					if (!builder) {
 						continue;
 					}
@@ -449,13 +377,13 @@ export async function mapSessionEvents(
 							content: summary,
 						});
 					}
-					if (!d.parentToolCallId && d.success && builder === parentBuilder) {
+					if (!parentToolCallId && d.success && builder === parentBuilder) {
 						turns.push(finalizeTurn(parentBuilder, TurnState.Complete));
 						parentBuilder = undefined;
 					}
 					continue;
 				}
-				const builder = targetBuilderFor(d.parentToolCallId);
+				const builder = targetBuilderFor(parentToolCallId);
 				if (!builder) {
 					// No active turn to attach this completion to.
 					continue;
@@ -464,14 +392,13 @@ export async function mapSessionEvents(
 				builder.responseParts.push(completedPart);
 				// When a parent tool call that spawned a subagent completes,
 				// flush the subagent's accumulated turn.
-				if (!d.parentToolCallId && subagentInfoByToolCallId.has(d.toolCallId)) {
+				if (!parentToolCallId && subagentInfoByToolCallId.has(d.toolCallId)) {
 					flushSubagent(d.toolCallId);
 				}
 				break;
 			}
 			case 'skill.invoked': {
-				const skill = (e as ISessionEventSkillInvoked);
-				const synth = synthesizeSkillToolCall(skill.data, skill.id);
+				const synth = synthesizeSkillToolCall(e.data, e.id);
 				const builder = parentBuilder ?? (parentBuilder = newTurnBuilder(generateUuid(), ''));
 				builder.responseParts.push({
 					kind: ResponsePartKind.ToolCall,
@@ -504,7 +431,7 @@ export async function mapSessionEvents(
 
 	return { turns, subagentTurnsByToolCallId: subagentTurns };
 
-	function appendFallbackToolRequests(builder: ITurnBuilder, toolRequests: readonly IToolRequestInfo[], parentToolCallId: string | undefined): void {
+	function appendFallbackToolRequests(builder: ITurnBuilder, toolRequests: readonly AssistantMessageToolRequest[], parentToolCallId: string | undefined): void {
 		for (const request of toolRequests) {
 			const completion = completionsByCallId.get(request.toolCallId);
 			if (completion && toolInfoByCallId.has(request.toolCallId)) {
@@ -549,7 +476,7 @@ export async function mapSessionEvents(
  * authoritative record for replay.
  */
 function sdkAttachmentsToProtocol(
-	attachments: readonly ISdkUserMessageAttachment[] | undefined,
+	attachments: readonly Attachment[] | undefined,
 ): MessageAttachment[] | undefined {
 	if (!attachments?.length) {
 		return undefined;
@@ -565,7 +492,7 @@ function sdkAttachmentsToProtocol(
 }
 
 function sdkAttachmentToProtocol(
-	attachment: ISdkUserMessageAttachment,
+	attachment: Attachment,
 ): MessageAttachment | undefined {
 	switch (attachment.type) {
 		case 'file': {
@@ -622,7 +549,7 @@ function sdkAttachmentToProtocol(
  * tool call spawned a child session.
  */
 function makeCompletedToolCallPart(
-	d: ISessionEventToolComplete['data'],
+	d: ToolExecutionCompleteData,
 	info: IToolStartInfo,
 	sessionUriStr: string,
 	storedEdits: Map<string, IFileEditRecord[]> | undefined,

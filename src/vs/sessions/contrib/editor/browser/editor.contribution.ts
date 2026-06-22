@@ -11,7 +11,7 @@ import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { ActiveEditorContext, AuxiliaryBarVisibleContext, EditorPartModalContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, EditorPartModalContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { EditorMaximizedContext } from '../../../common/contextkeys.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
@@ -146,65 +146,6 @@ class CloseMainEditorPartAction extends Action2 {
 }
 
 registerAction2(CloseMainEditorPartAction);
-
-const editorLeftRightWhen = ContextKeyExpr.and(
-	IsSessionsWindowContext,
-	IsAuxiliaryWindowContext.toNegated(),
-	IsTopRightEditorGroupContext);
-
-class PushEditorRightAction extends Action2 {
-	static readonly ID = 'workbench.action.agentSessions.pushEditorRight';
-
-	constructor() {
-		super({
-			id: PushEditorRightAction.ID,
-			title: localize2('pushEditorRight', "Push Editor Right"),
-			icon: Codicon.chevronRight,
-			f1: false,
-			menu: {
-				id: MenuId.EditorTitleLayout,
-				group: 'navigation',
-				order: 99.5,
-				when: ContextKeyExpr.and(editorLeftRightWhen, AuxiliaryBarVisibleContext)
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
-		layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
-	}
-}
-
-registerAction2(PushEditorRightAction);
-
-class PullEditorLeftAction extends Action2 {
-	static readonly ID = 'workbench.action.agentSessions.pullEditorLeft';
-
-	constructor() {
-		super({
-			id: PullEditorLeftAction.ID,
-			title: localize2('pullEditorLeft', "Show Secondary Side Bar"),
-			icon: Codicon.chevronLeft,
-			f1: false,
-			toggled: AuxiliaryBarVisibleContext.toNegated(),
-			menu: {
-				id: MenuId.EditorTitleLayout,
-				group: 'navigation',
-				order: 99.5,
-				when: ContextKeyExpr.and(editorLeftRightWhen, AuxiliaryBarVisibleContext.toNegated())
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
-		layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
-	}
-}
-
-registerAction2(PullEditorLeftAction);
-
 
 class OpenEditorInModalEditorAction extends Action2 {
 	static readonly ID = 'workbench.action.agentSessions.openEditorInModal';
