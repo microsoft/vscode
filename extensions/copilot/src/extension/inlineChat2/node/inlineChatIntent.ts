@@ -278,6 +278,11 @@ class InlineChatToolCalling {
 
 	private async _runInlineToolLoop(endpoint: IChatEndpoint, conversation: Conversation, request: vscode.ChatRequest, stream: vscode.ChatResponseStream, token: CancellationToken, documentContext: IDocumentContext, chatTelemetry: ChatTelemetryBuilder): Promise<IInlineChatEditResult> {
 
+		// Re-narrow `request.location2` for the type checker. `run()` has already asserted this,
+		// but the narrowing does not survive across the async boundary into this private method.
+		assertType(request.location2 instanceof ChatRequestEditorData);
+		const location2 = request.location2;
+
 		const isLargeFile = documentContext.document.lineCount > LARGE_FILE_LINE_THRESHOLD;
 		const availableTools = await this._getAvailableTools(request, endpoint, isLargeFile);
 
@@ -302,7 +307,7 @@ class InlineChatToolCalling {
 				previousRounds,
 				hasFailedEdits: failedEditCount > 0,
 				snapshotAtRequest: documentContext.document,
-				data: request.location2,
+				data: location2,
 				exitToolName: INLINE_CHAT_EXIT_TOOL_NAME,
 				isLargeFile,
 				readToolName: isLargeFile ? ToolName.ReadFile : undefined,

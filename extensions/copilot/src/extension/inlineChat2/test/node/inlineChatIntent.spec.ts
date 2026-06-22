@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { expect, suite, test, vi } from 'vitest';
+import { expect, Mock, suite, test, vi } from 'vitest';
 import type * as vscode from 'vscode';
 import { InlineChatIntent } from '../../node/inlineChatIntent';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
@@ -21,6 +21,8 @@ import { ChatTelemetryBuilder } from '../../../prompt/node/chatParticipantTeleme
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { ChatRequestEditorData } from '../../../../vscodeTypes';
 import { CopilotInteractiveEditorResponse } from '../../../inlineChat/node/promptCraftingTypes';
+import { IToolCall } from '../../../prompt/common/intents';
+import { ToolCallRound } from '../../../prompt/common/toolCallRound';
 import { TextDocumentSnapshot } from '../../../../platform/editing/common/textDocumentSnapshot';
 import { createTextDocumentData } from '../../../../util/common/test/shims/textDocument';
 import { URI } from '../../../../util/vs/base/common/uri';
@@ -30,6 +32,7 @@ import { IOTelService, SpanStatusCode } from '../../../../platform/otel/common/o
 import { CapturingOTelService } from '../../../../platform/otel/common/test/capturingOTelService';
 import { CopilotChatAttr, GenAiAttr, GenAiOperationName, GitHubCopilotAttr } from '../../../../platform/otel/common/genAiAttributes';
 import { PromptRenderer } from '../../../prompts/node/base/promptRenderer';
+import { BasePromptElementProps } from '@vscode/prompt-tsx';
 import { ToolName } from '../../../tools/common/toolNames';
 
 type TestToolCall = { id: string; name: string; arguments: string };
@@ -264,9 +267,12 @@ suite('InlineChatIntent', () => {
 		}
 
 		const rootSpan = harness.otelService.spans[0];
-		const rounds = harness.telemetry.sendToolCallingTelemetry.mock.calls[0][0].map(round => ({
+		const sendToolCallingTelemetryMock = harness.telemetry.sendToolCallingTelemetry as Mock;
+		const invokeToolWithEndpointMock = harness.mockToolsService.invokeToolWithEndpoint as unknown as Mock;
+		const recordedRounds = sendToolCallingTelemetryMock.mock.calls[0][0] as ToolCallRound[];
+		const rounds = recordedRounds.map(round => ({
 			response: round.response,
-			toolCalls: round.toolCalls.map(toolCall => ({ id: toolCall.id, name: toolCall.name })),
+			toolCalls: round.toolCalls.map((toolCall: IToolCall) => ({ id: toolCall.id, name: toolCall.name })),
 		}));
 
 		expect({
@@ -274,7 +280,7 @@ suite('InlineChatIntent', () => {
 				statusCode: rootSpan.statusCode,
 				attributes: rootSpan.attributes,
 			},
-			toolInvocations: harness.mockToolsService.invokeToolWithEndpoint.mock.calls.length,
+			toolInvocations: invokeToolWithEndpointMock.mock.calls.length,
 			rounds,
 			metrics: harness.otelService.metrics,
 		}).toEqual({
@@ -465,7 +471,7 @@ function createInlineChatHarness(options: InlineChatHarnessOptions = {}) {
 				tokenCount: 3,
 				references: []
 			})
-		} as unknown as PromptRenderer<unknown, unknown>);
+		} as unknown as PromptRenderer<BasePromptElementProps>);
 
 		const intent = new InlineChatIntent(
 			mockInstantiationService,
