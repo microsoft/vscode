@@ -161,26 +161,16 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 *  toggle mode where a second tap finishes the recording. */
 	private static readonly _PTT_TOGGLE_THRESHOLD_MS = 300;
 
-	/**
-	 * Hands-free mode: how long the assistant must stay quiet (no further audio
-	 * playback) after it stops speaking before we re-enter listening. Prevents
-	 * the gaps between segments of a multi-part reply from triggering a
-	 * premature re-listen that would drop the remaining reply audio.
-	 */
+	/** Debounce before re-entering listening after assistant stops speaking. */
 	private static readonly _AUTO_LISTEN_QUIET_MS = 1200;
 	private _delayedMicStopTimer: ReturnType<typeof setTimeout> | undefined;
 	private _autoSendSilenceTimer: ReturnType<typeof setTimeout> | undefined;
 	private _autoListenTimer: ReturnType<typeof setTimeout> | undefined;
 	private _pttWaitingForPlayback = false;
-	/**
-	 * Hands-free mode: set when the user's turn is auto-sent and cleared once a
-	 * genuine assistant reply has actually started playing. Gates the auto
-	 * re-listen so that, after a send, we stay idle/processing (waiting for the
-	 * reply) instead of jumping back to listening on a spurious `onPlaybackStopped`
-	 * (e.g. residual playback from the previous turn). We only re-arm listening
-	 * after a reply has been read out.
-	 */
+	/** Guards auto re-listen: only re-arm after a reply has actually played. */
 	private _replyPlayedSinceSend = false;
+	/** Set after send_to_chat; blocks auto-listen until the reply TTS starts. */
+	private _awaitingReplyAudio = false;
 
 	// --- Audio FIFO queue ---
 	private readonly _audioQueue: { sessionId: string | undefined; chunks: { audio: string; isFirstChunk: boolean; isFinal: boolean; transcript: string | undefined }[] }[] = [];
@@ -575,21 +565,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					if (this._pttWaitingForPlayback) {
 						this._scheduleDelayedMicStop();
 					}
-					// Hands-free mode: re-enter listening once the assistant has
-					// genuinely finished speaking. `onPlaybackStopped` fires after
-					// EACH played segment (every server message's final chunk), so a
-					// multi-part reply produces several stops with brief gaps. We must
-					// not re-listen on those intermediate stops — doing so would call
-					// pttDown(), set `_suppressIncomingAudio` and drop the rest of the
-					// reply. Debounce instead: only re-listen after a quiet window with
-					// no further audio. Any new playback / tap / speech cancels it.
-					//
-					// We also require that a genuine reply has actually played since
-					// the last send (`_replyPlayedSinceSend`). This keeps us idle and
-					// waiting right after a turn is sent — re-listening only happens
-					// once the response has come back and been read, never on a
-					// spurious stop from residual playback before the reply arrives.
-					if (this._isAutoSendEnabled() && this._replyPlayedSinceSend) {
+					// Hands-free: debounced re-listen after reply finishes.
+					if (this._isAutoSendEnabled() && this._replyPlayedSinceSend && !this._awaitingReplyAudio) {
 						this._scheduleAutoListen();
 					}
 				}
@@ -876,12 +853,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				this._statusText.set('Hold to speak...', undefined);
 				this._voiceState.set('idle', undefined);
 
-				// When auto-send is enabled, begin listening immediately on a fresh
-				// connect (enter toggle mode via a synthetic short tap) so the user
-				// doesn't have to activate voice mode and then tap a second time to
-				// start talking. Done last so the idle reset above doesn't clobber
-				// the listening state. Skipped on reconnects to avoid hijacking an
-				// in-progress turn.
+				// Auto-listen on fresh connect (skipped on reconnects).
 				if (!isResuming && this._isAutoSendEnabled()) {
 					this._enterAutoListen();
 				}
@@ -936,11 +908,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				// Persist the user's final transcript (local-only, no backend coordination).
 				this._persistTurn('user', e.text);
 			}
-			// In toggle mode the mic keeps recording, so we drive auto-send off
-			// transcription activity: every update (partial or final) restarts the
-			// silence countdown, so a configured pause after the user stops talking
-			// auto-finishes the turn — even if the backend never emits a `final`
-			// while the mic is still open.
+			// Restart silence countdown for auto-send in toggle mode.
 			if (this._pttToggleMode && this._pttHeld) {
 				this._scheduleAutoSendOnSilence();
 			}
@@ -995,6 +963,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					this.voiceClientService.sendToolResult(e.callId, 'ok');
 					this._voiceState.set('idle', undefined);
 					this._statusText.set('Hold to speak...', undefined);
+					this._awaitingReplyAudio = true;
 					this._sendContext();
 				});
 				return;
@@ -1196,10 +1165,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this.ttsPlaybackService.stopPlayback();
 		this._voiceState.set('listening', undefined);
 		this._statusText.set('Listening...', undefined);
-		// Audible cue that the mic is hot. Only force this for all users when
-		// hands-free auto-send is enabled (`agents.voice.autoSendDelay !== -1`),
-		// where the conversation flows without taps and the cue signals that
-		// listening has re-armed. Otherwise we leave the default behavior.
+		// Audible cue when hands-free mode re-arms listening.
 		if (this._isAutoSendEnabled()) {
 			this.accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStarted);
 		}
@@ -1228,6 +1194,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private _finishPtt(): void {
 		if (!this._pttHeld) { return; }
 		this._clearAutoSendSilenceTimer();
+		this._clearAutoListenTimer();
 		this._pttHeld = false;
 		this._telemetryPttUpMs = Date.now();
 		const holdMs = this._telemetryPttDownMs ? Date.now() - this._telemetryPttDownMs : 0;
@@ -1238,18 +1205,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 		this._voiceState.set('processing', undefined);
 		this._statusText.set('Processing...', undefined);
-		// Turn sent — wait for the reply. Re-listen stays disarmed until a
-		// genuine reply has been read out (see `_replyPlayedSinceSend`).
 		this._replyPlayedSinceSend = false;
-		// We are now awaiting the reply to THIS turn. The previous assistant
-		// response was already stopped when listening began (pttDown), so there
-		// is no stale audio left to drop — clear suppression so the incoming
-		// reply is never dropped if its first chunk doesn't cleanly carry the
-		// `is_first_chunk` marker that would otherwise clear suppression.
+		this._awaitingReplyAudio = false;
 		this._suppressIncomingAudio = false;
 		this.micCaptureService.pttUp();
-		// "Recording stopped" cue is primarily a screen-reader affordance, so
-		// only play it when the screen reader is active.
 		if (this.accessibilityService.isScreenReaderOptimized()) {
 			this.accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStopped);
 		}
@@ -1287,20 +1246,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}, 1000);
 	}
 
-	/**
-	 * Whether auto-send (hands-free) mode is enabled via
-	 * `agents.voice.autoSendDelay` (any value >= 0).
-	 */
 	private _isAutoSendEnabled(): boolean {
 		const delayMs = this.configurationService.getValue<number>('agents.voice.autoSendDelay');
 		return typeof delayMs === 'number' && delayMs >= 0;
 	}
 
-	/**
-	 * Enter listening immediately via a synthetic short tap (toggle mode) so the
-	 * user can keep talking hands-free. No-op if not connected or already
-	 * recording.
-	 */
+	/** Re-enter listening via synthetic short tap. */
 	private _enterAutoListen(): void {
 		this._clearAutoListenTimer();
 		if (!this._isConnected.get() || this._pttHeld) {
@@ -1310,13 +1261,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this.pttUp();
 	}
 
-	/**
-	 * Debounced re-listen for hands-free mode. Waits for a short quiet window
-	 * after the assistant stops speaking before re-entering listening, so that
-	 * the gaps between segments of a multi-part reply don't trigger a premature
-	 * re-listen (which would suppress/drop the remaining reply audio). The timer
-	 * is cancelled whenever new audio plays, the user taps, or speech starts.
-	 */
+	/** Debounced re-listen after assistant stops speaking. */
 	private _scheduleAutoListen(): void {
 		this._clearAutoListenTimer();
 		this._autoListenTimer = setTimeout(() => {
@@ -1332,11 +1277,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 	}
 
-	/**
-	 * In toggle mode (short tap), automatically finish recording after a
-	 * configured period of silence. Reads `agents.voice.autoSendDelay` (in
-	 * milliseconds); a value of -1 (the default) disables the behavior.
-	 */
+	/** Auto-finish recording after configured silence in toggle mode. */
 	private _scheduleAutoSendOnSilence(): void {
 		this._clearAutoSendSilenceTimer();
 		const delayMs = this.configurationService.getValue<number>('agents.voice.autoSendDelay');
@@ -1793,6 +1734,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 		}
 
+		if (isFirstChunk) {
+			this._awaitingReplyAudio = false;
+		}
+
 		// If nothing is playing and queue is empty, or same session is playing, play immediately
 		const nothingPlaying = this._currentPlaybackSessionId === null;
 		const sameSession = !nothingPlaying && this._currentPlaybackSessionId === sessionId;
@@ -1838,9 +1783,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 		const ttsEnabled = this.configurationService.getValue<boolean>('agents.voice.textToSpeech') !== false;
 		if (ttsEnabled && audio) {
-			// More assistant audio is arriving — cancel any pending hands-free
-			// re-listen so we don't cut off a multi-part reply. Mark that a
-			// genuine reply has played so re-listen is allowed once it ends.
 			this._clearAutoListenTimer();
 			this._replyPlayedSinceSend = true;
 			this.micCaptureService.suppressUntil(Date.now() + 800);
@@ -1848,13 +1790,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this._statusText.set('Speaking...', undefined);
 			this.ttsPlaybackService.playAudioChunk(audio, isFinal, this._window!);
 		} else if (!ttsEnabled) {
-			// TTS disabled — skip audio but still complete the playback cycle
 			this._replyPlayedSinceSend = true;
 			if (isFinal) {
 				this._currentPlaybackSessionId = null;
 				this._processQueue();
-				// No audio was played so onPlaybackStopped won't fire. Re-enter
-				// listening directly once the final chunk arrives.
 				if (this._isAutoSendEnabled()) {
 					this._scheduleAutoListen();
 				}
