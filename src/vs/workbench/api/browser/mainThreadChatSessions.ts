@@ -76,6 +76,19 @@ export class ObservableChatSession extends Disposable implements IChatSession {
 	private _interruptionWasCanceled = false;
 	private _disposalPending = false;
 
+	/**
+	 * Number of currently in-flight `requestHandler` invocations. Used to
+	 * defer `$disposeChatSessionContent` when the workbench wants to release
+	 * this session while a request is mid-flight on a `requestHandler`-style
+	 * session (e.g. Copilot CLI). Without this guard, the proxy dispose
+	 * synchronously cancels the ext-host `disposeCts` and tears down the
+	 * underlying SDK session (which calls `sdkSession.abort()`), so the
+	 * in-flight request is lost. The `activeResponseCallback`-style sessions
+	 * have their own deferral via {@link interruptActiveResponseCallback};
+	 * this counter is the equivalent for `requestHandler`-style sessions.
+	 */
+	private _inFlightRequestCount = 0;
+
 	private _initializationPromise?: Promise<void>;
 
 	interruptActiveResponseCallback?: () => Promise<boolean>;
@@ -215,6 +228,7 @@ export class ObservableChatSession extends Disposable implements IChatSession {
 					history: any[],
 					token: CancellationToken
 				) => {
+					this._inFlightRequestCount++;
 					// Clear previous progress and mark as active
 					this._progressObservable.set([], undefined);
 					this._isCompleteObservable.set(false, undefined);
@@ -256,6 +270,15 @@ export class ObservableChatSession extends Disposable implements IChatSession {
 					} finally {
 						// Ensure progress observation is cleaned up
 						progressDisposable.dispose();
+						this._inFlightRequestCount--;
+						// If a dispose was requested while this request was in flight,
+						// fire the proxy disposal now that the last request has settled.
+						// Guarded by `!this.interruptActiveResponseCallback` so we don't
+						// trample the existing interruption-confirmation flow.
+						if (this._disposalPending && this._inFlightRequestCount === 0 && !this.interruptActiveResponseCallback) {
+							this._disposalPending = false;
+							this._proxy.$disposeChatSessionContent(this._providerHandle, this.sessionResource);
+						}
 					}
 				};
 			}
@@ -358,6 +381,12 @@ export class ObservableChatSession extends Disposable implements IChatSession {
 		if (this.interruptActiveResponseCallback && !this._interruptionWasCanceled) {
 			this._disposalPending = true;
 			// The actual disposal will happen in the interruption callback based on user's choice
+		} else if (this._inFlightRequestCount > 0) {
+			// Defense in depth for `requestHandler`-style sessions (e.g. Copilot CLI):
+			// defer the ext-host disposal until any in-flight request settles so the
+			// SDK session isn't aborted mid-request. The deferred call fires from
+			// the `requestHandler`'s `finally` block when the counter reaches zero.
+			this._disposalPending = true;
 		} else {
 			// No active response callback or user already canceled interruption - dispose immediately
 			this._proxy.$disposeChatSessionContent(this._providerHandle, this.sessionResource);
