@@ -28,7 +28,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { IOTelService, SpanStatusCode } from '../../../../platform/otel/common/otelService';
 import { CapturingOTelService } from '../../../../platform/otel/common/test/capturingOTelService';
-import { CopilotChatAttr, GenAiAttr, GenAiOperationName } from '../../../../platform/otel/common/genAiAttributes';
+import { CopilotChatAttr, GenAiAttr, GenAiOperationName, GitHubCopilotAttr } from '../../../../platform/otel/common/genAiAttributes';
 import { PromptRenderer } from '../../../prompts/node/base/promptRenderer';
 import { ToolName } from '../../../tools/common/toolNames';
 
@@ -99,10 +99,6 @@ suite('InlineChatIntent', () => {
 			trace: vi.fn()
 		} as unknown as ILogService;
 
-		const mockToolsService = {
-			invokeTool: vi.fn()
-		} as unknown as IToolsService;
-
 		const mockIgnoreService = {
 			isCopilotIgnored: vi.fn().mockResolvedValue(false)
 		} as unknown as IIgnoreService;
@@ -123,7 +119,6 @@ suite('InlineChatIntent', () => {
 			mockEndpointProvider,
 			mockAuthService,
 			mockLogService,
-			mockToolsService,
 			mockIgnoreService,
 			mockEditSurvivalTrackerService,
 			mockOctoKitService
@@ -187,9 +182,38 @@ suite('InlineChatIntent', () => {
 					[CopilotChatAttr.SESSION_ID]: 'someId',
 					[CopilotChatAttr.USER_REQUEST]: 'test prompt',
 					[CopilotChatAttr.TURN_COUNT]: 1,
+					[GitHubCopilotAttr.AGENT_TYPE]: 'builtin',
 				})
 			})
 		]);
+	});
+
+	test('Bail-out exit tool is invoked inside the invoke_agent span', async () => {
+		const harness = createInlineChatHarness();
+
+		let invokeToolCalledWhileSpanActive = false;
+		(harness.mockToolsService.invokeTool as ReturnType<typeof vi.fn>).mockImplementation(async (name: string) => {
+			if (name === 'inline_chat_exit') {
+				const rootSpan = harness.otelService.spans.find(s => s.name === 'invoke_agent Inline Chat');
+				invokeToolCalledWhileSpanActive = rootSpan !== undefined && rootSpan.ended === false;
+			}
+			return undefined;
+		});
+
+		try {
+			await harness.run();
+		} finally {
+			harness.restore();
+		}
+
+		// Default harness response has no tool calls -> needsExitTool === true,
+		// so the bail-out invocation must run while the invoke_agent span is still active.
+		expect(harness.mockToolsService.invokeTool).toHaveBeenCalledWith(
+			'inline_chat_exit',
+			expect.anything(),
+			expect.anything()
+		);
+		expect(invokeToolCalledWhileSpanActive).toBe(true);
 	});
 
 	test('Inline tool loop aggregates tokens, tool rounds, and metrics across recovered tool failures', async () => {
@@ -448,7 +472,6 @@ function createInlineChatHarness(options: InlineChatHarnessOptions = {}) {
 			mockEndpointProvider,
 			mockAuthService,
 			mockLogService,
-			mockToolsService,
 			mockIgnoreService,
 			mockEditSurvivalTrackerService,
 			mockOctoKitService

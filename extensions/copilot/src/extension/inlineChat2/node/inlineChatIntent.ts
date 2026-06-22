@@ -16,7 +16,7 @@ import { IOctoKitService } from '../../../platform/github/common/githubService';
 import { IIgnoreService } from '../../../platform/ignore/common/ignoreService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IChatEndpoint, IMakeChatRequestOptions } from '../../../platform/networking/common/networking';
-import { CopilotChatAttr, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, normalizeResponseModel, StdAttr, stringifyToolDefinitionsForOTel, truncateForOTel } from '../../../platform/otel/common/index';
+import { CopilotChatAttr, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, GitHubCopilotAttr, normalizeResponseModel, StdAttr, stringifyToolDefinitionsForOTel, truncateForOTel } from '../../../platform/otel/common/index';
 import { IOTelService, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ChatResponseStreamImpl } from '../../../util/common/chatResponseStreamImpl';
@@ -83,7 +83,6 @@ export class InlineChatIntent implements IIntent {
 		@IEndpointProvider private readonly _endpointProvider: IEndpointProvider,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@ILogService private readonly _logService: ILogService,
-		@IToolsService private readonly _toolsService: IToolsService,
 		@IIgnoreService private readonly _ignoreService: IIgnoreService,
 		@IEditSurvivalTrackerService private readonly _editSurvivalTrackerService: IEditSurvivalTrackerService,
 		@IOctoKitService private readonly _octoKitService: IOctoKitService,
@@ -150,16 +149,6 @@ export class InlineChatIntent implements IIntent {
 
 		if (token.isCancellationRequested) {
 			return CanceledResult;
-		}
-
-		if (result.needsExitTool) {
-			this._logService.warn('[InlineChat], BAIL_OUT because of needsExitTool');
-			// BAILOUT: when no edits were emitted, invoke the exit tool manually
-			await this._toolsService.invokeTool(INLINE_CHAT_EXIT_TOOL_NAME, {
-				toolInvocationToken: request.toolInvocationToken, input: {
-					response: result.lastResponse.type === ChatFetchResponseType.Success ? result.lastResponse.value : undefined,
-				}
-			}, token);
 		}
 
 
@@ -235,12 +224,26 @@ class InlineChatToolCalling {
 					[CopilotChatAttr.INTENT]: this._intent.id,
 					[CopilotChatAttr.LOCATION]: ChatLocation.toStringShorter(ChatLocation.Editor),
 					[CopilotChatAttr.USER_REQUEST]: truncateForOTel(request.prompt, this._otelService.config.maxAttributeSizeChars),
+					[GitHubCopilotAttr.AGENT_TYPE]: 'builtin',
 				},
 			},
 			async span => {
 				const otelStartTime = Date.now();
 				try {
 					const result = await this._runInlineToolLoop(endpoint, conversation, request, stream, token, documentContext, chatTelemetry);
+
+					// Invoke the bail-out exit tool inside the active span so its
+					// `execute_tool` span is parented under `invoke_agent Inline Chat`
+					// instead of becoming a sibling root span.
+					if (!token.isCancellationRequested && result.needsExitTool) {
+						this._logService.warn('[InlineChat], BAIL_OUT because of needsExitTool');
+						await this._toolsService.invokeTool(INLINE_CHAT_EXIT_TOOL_NAME, {
+							toolInvocationToken: request.toolInvocationToken, input: {
+								response: result.lastResponse.type === ChatFetchResponseType.Success ? result.lastResponse.value : undefined,
+							}
+						}, token);
+					}
+
 					const toolDefinitionsJson = stringifyToolDefinitionsForOTel(result.availableTools);
 					const response = result.lastResponse;
 					span.setAttributes({
