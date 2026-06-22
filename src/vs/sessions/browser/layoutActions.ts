@@ -164,53 +164,24 @@ class ToggleSidePanelAction extends Action2 {
 registerAction2(ToggleSidebarVisibilityAction);
 registerAction2(ToggleSidePanelAction);
 
-export class ToggleAuxiliaryBarAction extends Action2 {
-
-	static readonly ID = 'workbench.action.agentSessions.toggleAuxiliaryBar';
-
-	constructor() {
-		super({
-			id: ToggleAuxiliaryBarAction.ID,
-			title: localize2('toggleAuxiliaryBar', "Toggle Secondary Side Bar"),
-			category: Categories.View,
-			f1: true,
-		});
-	}
-
-	run(accessor: ServicesAccessor): void {
-		const layoutService = accessor.get(IWorkbenchLayoutService);
-		const isCurrentlyVisible = layoutService.isVisible(Parts.AUXILIARYBAR_PART);
-
-		layoutService.setPartHidden(isCurrentlyVisible, Parts.AUXILIARYBAR_PART);
-
-		// Announce visibility change to screen readers
-		const alertMessage = isCurrentlyVisible
-			? localize('secondarySideBarHidden', "Secondary Side Bar hidden")
-			: localize('secondarySideBarVisible', "Secondary Side Bar shown");
-		alert(alertMessage);
-	}
-}
-
-registerAction2(ToggleAuxiliaryBarAction);
-
 const editorTitleAuxiliaryBarWhen = ContextKeyExpr.and(
 	IsSessionsWindowContext,
 	IsAuxiliaryWindowContext.toNegated(),
 	IsTopRightEditorGroupContext);
 
-// The editor-title toggle button shows a state-dependent icon: `right-panel-hide`
-// when the secondary side bar is visible and `right-panel-show` when it is hidden.
-// This can't be done via the action's inline `menu`, because inline menu items
-// reuse the action's single command (one icon/title). The usual inline alternative,
-// `toggled`, swaps the icon but also renders a checked/highlighted background, which
-// we explicitly don't want here. Registering two mutually-exclusive menu items —
+// The editor-title toggle button reuses the core `workbench.action.toggleAuxiliaryBar`
+// command (registered by the workbench auxiliary bar part, which is loaded in the agents
+// window too) and shows a state-dependent icon: `right-panel-hide` when the secondary
+// side bar is visible and `right-panel-show` when it is hidden. This can't be expressed
+// via a single menu item with `toggled`, because `toggled` also renders a checked/highlighted
+// background, which we don't want here. Registering two mutually-exclusive menu items —
 // each with its own icon/title — gives the per-state icon without that checked styling.
 for (const { icon, title, visible } of [
 	{ icon: Codicon.rightPanelHide, title: localize('hideSecondarySideBar', "Hide Secondary Side Bar"), visible: true },
 	{ icon: Codicon.rightPanelShow, title: localize('showSecondarySideBar', "Show Secondary Side Bar"), visible: false },
 ]) {
 	MenuRegistry.appendMenuItem(MenuId.EditorTitleLayout, {
-		command: { id: ToggleAuxiliaryBarAction.ID, title, icon },
+		command: { id: 'workbench.action.toggleAuxiliaryBar', title, icon },
 		group: 'navigation',
 		order: 99.5,
 		when: ContextKeyExpr.and(editorTitleAuxiliaryBarWhen, visible ? AuxiliaryBarVisibleContext : AuxiliaryBarVisibleContext.toNegated())
