@@ -155,14 +155,32 @@ export class ChatCompositeBar extends Disposable {
 			return;
 		}
 
+		// Tab-strip visibility is sticky per opened session: once shown it stays
+		// shown for the session's lifetime. We never hide it again when chats are
+		// later removed or renamed, so the experience stays consistent.
+		this._setVisible(false);
+		let shown = false;
 		store.add(autorun(reader => {
 			const chats = session.chats.read(reader);
+			const mainChat = session.mainChat.read(reader);
 			const activeChatUri = session.activeChat.read(reader)?.resource.toString() ?? '';
-			const mainChatUri = session.mainChat.read(reader).resource.toString();
+			const mainChatUri = mainChat.resource.toString();
 			this._rebuildTabs(chats, activeChatUri, mainChatUri);
 
-			// Only show the tab strip once the session is created and has multiple chats.
-			this._setVisible(session.isCreated.read(reader) && chats.length > 1);
+			if (shown) {
+				return;
+			}
+			// Show once the session is created and either has multiple chats, or
+			// its single (default) chat carries a title that differs from the
+			// session title (both independent titles must stay visible).
+			const mainChatTitle = mainChat.title.read(reader);
+			const defaultChatDiverged = chats.length === 1
+				&& !!mainChatTitle
+				&& mainChatTitle !== session.title.read(reader);
+			if (session.isCreated.read(reader) && (chats.length > 1 || defaultChatDiverged)) {
+				shown = true;
+				this._setVisible(true);
+			}
 		}));
 	}
 

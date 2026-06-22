@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ITaskEntry } from '../../browser/sessionsTasksService.js';
-import { resolveTaskCommand } from '../../browser/taskCommand.js';
+import { osToTaskTargetOS, resolveTaskCommand } from '../../browser/taskCommand.js';
 
 suite('resolveTaskCommand', () => {
 
@@ -192,5 +193,16 @@ suite('resolveTaskCommand', () => {
 		assert.strictEqual(resolveTaskCommand(task), 'make');
 		const taskNoOwn: ITaskEntry = { label: 'group', dependsOn: 'prep' };
 		assert.strictEqual(resolveTaskCommand(taskNoOwn), undefined);
+	});
+});
+
+suite('osToTaskTargetOS', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('maps each OperatingSystem to its tasks.json key', () => {
+		assert.strictEqual(osToTaskTargetOS(OperatingSystem.Windows), 'windows');
+		assert.strictEqual(osToTaskTargetOS(OperatingSystem.Macintosh), 'osx');
+		assert.strictEqual(osToTaskTargetOS(OperatingSystem.Linux), 'linux');
 	});
 });

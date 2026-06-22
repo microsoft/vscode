@@ -182,6 +182,8 @@ steps:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     displayName: Download Copilot VSIX (background)
 
+  - template: ../../common/mixin-vscode-capi.yml@self
+
   - script: npm run gulp core-ci
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
@@ -371,7 +373,7 @@ steps:
       inputs:
         version: 6.x
 
-    - task: EsrpCodeSigning@5
+    - task: EsrpCodeSigning@6
       inputs:
         UseMSIAuthentication: true
         ConnectedServiceName: vscode-esrp

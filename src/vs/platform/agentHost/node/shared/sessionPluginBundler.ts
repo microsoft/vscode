@@ -32,6 +32,7 @@ function pluginDirForType(type: DiscoveredType): string | undefined {
 		case DiscoveredType.Agent: return 'agents';
 		case DiscoveredType.Skill: return 'skills';
 		case DiscoveredType.Instruction: return 'rules';
+		case DiscoveredType.Hook: return 'hooks';
 		case DiscoveredType.AgentInstruction: return undefined;
 	}
 }

@@ -18,7 +18,7 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
-import { AgentSession, IAgentConnection, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agentService.js';
+import { AgentSession, IAgentConnection, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agentService.js';
 import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
 import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../common/agentHostUri.js';
@@ -42,6 +42,7 @@ import type { OtlpExportLogsParams } from '../common/state/protocol/channels-otl
 import type { TelemetryCapabilities } from '../common/state/protocol/channels-otlp/state.js';
 import type { InitializeResult } from '../common/state/protocol/common/commands.js';
 import { dirname } from '../../../base/common/resources.js';
+import { isFileResourceRead } from '../common/resourceReadLogging.js';
 
 const AHP_CLIENT_CONNECTION_CLOSED = -32000;
 
@@ -93,6 +94,12 @@ function transportLostError(address: string): ProtocolError {
 
 interface IRemoteAgentHostExtensionCommandMap {
 	'shutdown': { params: undefined; result: void };
+}
+
+interface IPendingRequest {
+	readonly deferred: DeferredPromise<unknown>;
+	readonly suppressNotFoundWarning: boolean;
+	readonly sentAt: number;
 }
 
 /**
@@ -215,7 +222,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	private _state: ClientState = { kind: AgentHostClientState.Connecting };
 
 	/** Pending JSON-RPC requests keyed by request id. */
-	private readonly _pendingRequests = new Map<number, { deferred: DeferredPromise<unknown>; sentAt: number }>();
+	private readonly _pendingRequests = new Map<number, IPendingRequest>();
 	private _nextRequestId = 1;
 
 	/**
@@ -677,6 +684,10 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		return this._subscriptionManager.getSubscriptionUnmanaged<T>(resource);
 	}
 
+	getInflightSessionCreate(resource: URI): Promise<unknown> | undefined {
+		return this._subscriptionManager.getInflightSessionCreate(resource);
+	}
+
 	getActiveSubscriptions(): readonly IActiveSubscriptionInfo[] {
 		return this._subscriptionManager.getActiveSubscriptions();
 	}
@@ -734,7 +745,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	/**
 	 * Create a new session on the remote agent host.
 	 */
-	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
+	createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
 		const provider = config?.provider;
 		if (!provider) {
 			throw new Error('Cannot create remote agent host session without a provider.');
@@ -743,17 +754,18 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		if (config?.activeClient?.customizations) {
 			this._grantImplicitReadsForCustomizations(config.activeClient.customizations);
 		}
-		const inflight = this._sendRequest('createSession', {
+		// Use `.then` (not `async`) so the tracked promise and the returned promise are the same object — callers
+		// awaiting via `getInflightSessionCreate` resume on the same microtask queue as direct `createSession()` awaiters.
+		const promise = this._sendRequest('createSession', {
 			channel: session.toString(),
 			provider,
 			model: config?.model,
 			workingDirectory: config?.workingDirectory ? fromAgentHostUri(config.workingDirectory).toString() : undefined,
 			config: config?.config,
 			activeClient: config?.activeClient,
-		});
-		this._subscriptionManager.trackSessionCreate(session, inflight);
-		await inflight;
-		return session;
+		}).then(() => session);
+		this._subscriptionManager.trackSessionCreate(session, promise);
+		return promise;
 	}
 
 	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
@@ -820,6 +832,18 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 */
 	async disposeSession(session: URI): Promise<void> {
 		await this._sendRequest('disposeSession', { channel: session.toString() });
+	}
+
+	async createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<void> {
+		await this._sendRequest('createChat', {
+			channel: session.toString(),
+			chat: chat.toString(),
+			model: options?.model,
+		});
+	}
+
+	async disposeChat(chat: URI): Promise<void> {
+		await this._sendRequest('disposeChat', { channel: chat.toString() });
 	}
 
 	/**
@@ -1012,7 +1036,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			if (pending) {
 				this._pendingRequests.delete(msg.id);
 				if (hasKey(msg, { error: true })) {
-					this._logService.warn(`[RemoteAgentHostProtocol] Request ${msg.id} failed:`, msg.error);
+					if (this._shouldLogFailedRequest(pending, msg.error)) {
+						this._logService.warn(`[RemoteAgentHostProtocol] Request ${msg.id} failed:`, msg.error);
+					}
 					pending.deferred.error(this._toProtocolError(msg.error));
 				} else {
 					pending.deferred.complete(msg.result);
@@ -1309,10 +1335,17 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 		const id = this._nextRequestId++;
 		const deferred = new DeferredPromise<unknown>();
-		this._pendingRequests.set(id, { deferred, sentAt: Date.now() });
+		this._pendingRequests.set(id, { deferred, suppressNotFoundWarning: isFileResourceRead(method, params), sentAt: Date.now() });
 		const request: JsonRpcRequest = { jsonrpc: '2.0', id, method, params };
 		this._transport.send(request);
 		return deferred.p as Promise<TResult>;
+	}
+
+	private _shouldLogFailedRequest(request: IPendingRequest, error: JsonRpcErrorResponse['error']): boolean {
+		if (error.code === AhpErrorCodes.NotFound && request.suppressNotFoundWarning) {
+			return false;
+		}
+		return true;
 	}
 
 	private _toProtocolError(error: JsonRpcErrorResponse['error']): ProtocolError {
