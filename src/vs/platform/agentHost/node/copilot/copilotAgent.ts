@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CopilotClient, RuntimeConnection, type CopilotClientOptions } from '@github/copilot-sdk';
+import { CopilotClient, RuntimeConnection, type CopilotClientOptions, type SessionConfig } from '@github/copilot-sdk';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import { CancelablePromise, createCancelablePromise, Delayer, Limiter, SequencerByKey } from '../../../../base/common/async.js';
@@ -51,7 +51,7 @@ import { ICopilotBranchNameGenerator } from './copilotBranchNameGenerator.js';
 import { CopilotAgentSession, type CopilotSdkMode } from './copilotAgentSession.js';
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
 import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
-import { CopilotSessionLauncher, ContextTierConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, getCopilotReasoningEffort, mapContextSizeToContextTier, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
+import { CopilotSessionLauncher, ContextTierConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, getCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
 import { ShellManager } from './copilotShellTools.js';
 import { isRestrictedTelemetryEnabled } from './copilotTokenFields.js';
 import { CopilotSlashCommandCompletionProvider } from './copilotSlashCommandCompletionProvider.js';
@@ -132,6 +132,24 @@ declare const resolvedModelSelectionBrand: unique symbol;
  * conversion at a new call site.
  */
 type ResolvedModelSelection = Omit<ModelSelection, 'maxContextWindow'> & { readonly [resolvedModelSelectionBrand]: true };
+
+/**
+ * Maps a user-selected context-window size (in tokens) to the SDK's two-valued
+ * {@link SessionConfig.contextTier}. The model offers two windows — the default-tier window and the
+ * larger long-context window. A selection only opts into `long_context` when it reaches the model's
+ * long-context window: anything smaller (including a value nudged just above the default window)
+ * stays on the default tier, so a client cannot accidentally request long context by rounding a
+ * number up.
+ *
+ * Returns `undefined` when no size was selected or the long-context window is unknown, leaving the
+ * SDK on its default tier.
+ */
+export function mapContextSizeToContextTier(selectedWindow: number | undefined, longContextWindow: number | undefined): SessionConfig['contextTier'] {
+	if (typeof selectedWindow !== 'number' || typeof longContextWindow !== 'number') {
+		return undefined;
+	}
+	return selectedWindow >= longContextWindow ? 'long_context' : 'default';
+}
 
 interface ISerializedModelSelection {
 	id?: unknown;

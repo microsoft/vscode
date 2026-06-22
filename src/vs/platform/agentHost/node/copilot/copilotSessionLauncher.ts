@@ -177,33 +177,9 @@ export function getCopilotReasoningEffort(model: ModelSelection | undefined): Se
 	return isReasoningEffort(thinkingLevel) ? thinkingLevel : undefined;
 }
 
-/**
- * Reads the SDK context tier from a model selection's `config`. The agent resolves the user's numeric
- * context-window choice into this string config value when the selection is received (see
- * `mapContextSizeToContextTier`), so by launch time the tier travels alongside `reasoningEffort` in
- * `config` and is persisted with the session.
- */
 export function getCopilotContextTier(model: ModelSelection | undefined): SessionConfig['contextTier'] {
 	const contextTier = model?.config?.[ContextTierConfigKey];
 	return isContextTier(contextTier) ? contextTier : undefined;
-}
-
-/**
- * Maps a user-selected context-window size (in tokens) to the SDK's two-valued
- * {@link SessionConfig.contextTier}. The model offers two windows — the default-tier window and the
- * larger long-context window. A selection only opts into `long_context` when it reaches the model's
- * long-context window: anything smaller (including a value nudged just above the default window)
- * stays on the default tier, so a client cannot accidentally request long context by rounding a
- * number up.
- *
- * Returns `undefined` when no size was selected or the long-context window is unknown, leaving the
- * SDK on its default tier.
- */
-export function mapContextSizeToContextTier(selectedWindow: number | undefined, longContextWindow: number | undefined): SessionConfig['contextTier'] {
-	if (typeof selectedWindow !== 'number' || typeof longContextWindow !== 'number') {
-		return undefined;
-	}
-	return selectedWindow >= longContextWindow ? 'long_context' : 'default';
 }
 
 export class CopilotSessionLauncher implements ICopilotSessionLauncher {
