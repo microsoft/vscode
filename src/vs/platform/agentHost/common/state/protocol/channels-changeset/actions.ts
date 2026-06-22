@@ -57,6 +57,28 @@ export interface ChangesetFileRemovedAction {
 }
 
 /**
+ * The changeset's full content changed. Full replacement semantics: `files`
+ * replaces the previous file list, and `operations`, when present, replaces
+ * the previous operation list.
+ *
+ * Producers SHOULD use this action for initial snapshots and bulk refreshes;
+ * use {@link ChangesetFileSetAction}, {@link ChangesetFileRemovedAction}, and
+ * {@link ChangesetOperationsChangedAction} for incremental updates.
+ *
+ * @category Changeset Actions
+ * @version 4
+ */
+export interface ChangesetContentChangedAction {
+	type: ActionType.ChangesetContentChanged;
+	/** Full replacement file list. */
+	files: ChangesetFile[];
+	/** Full replacement operation list. Omit when operations are unchanged. */
+	operations?: ChangesetOperation[];
+	/** Error information, if the changeset content change failed. */
+	error?: ErrorInfo;
+}
+
+/**
  * The set of operations available on this changeset changed. Full
  * replacement semantics: `operations` replaces the previous list (or
  * removes it entirely when `operations` is `undefined`).
