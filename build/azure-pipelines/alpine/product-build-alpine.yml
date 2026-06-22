@@ -13,9 +13,6 @@ jobs:
       NPM_ARCH: ${{ parameters.VSCODE_ARCH }}
       VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
       BUILDS_API_URL: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
-      # Resolve server Node.js (incl. musl) from our Azure Artifacts feed
-      # (instead of private GitHub releases) for every step in the job.
-      VSCODE_NODEJS_INTERNAL_FEED: vscode-node
       AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
     templateContext:
       outputParentDirectory: $(Build.ArtifactStagingDirectory)/out
@@ -228,7 +225,6 @@ jobs:
           echo "##vso[task.setvariable variable=SERVER_PATH]$ARCHIVE_PATH"
         env:
           GITHUB_TOKEN: "$(github-token-code-oss)"
-          VSCODE_NODEJS_INTERNAL_FEED: vscode-node
           AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
         displayName: Build server
 
@@ -245,6 +241,5 @@ jobs:
           echo "##vso[task.setvariable variable=WEB_PATH]$ARCHIVE_PATH"
         env:
           GITHUB_TOKEN: "$(github-token-code-oss)"
-          VSCODE_NODEJS_INTERNAL_FEED: vscode-node
           AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
         displayName: Build server (web)

@@ -29,7 +29,7 @@ import * as cp from 'child_process';
 import crypto from 'crypto';
 import log from 'fancy-log';
 import buildfile from './buildfile.ts';
-import { fetchUrls, fetchGithub } from './lib/fetch.ts';
+import { fetchUrls } from './lib/fetch.ts';
 import { downloadFeedPackage } from './lib/azureFeed.ts';
 import { getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotTgrepExcludeFilter, getRipgrepExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';
 import { readAgentSdkResults } from './agent-sdk/common.ts';
@@ -211,13 +211,12 @@ function patchElfLoadAlign(): NodeJS.ReadWriteStream {
 const { nodeVersion, internalNodeVersion } = getNodeVersion();
 
 // In product builds, the server (reh) Node.js binaries are fetched on demand
-// from our Azure Artifacts `vscode-node` feed using the `az` CLI (gated on
-// `VSCODE_NODEJS_INTERNAL_FEED`), instead of from a private GitHub release
-// (which would require a long-lived Personal Access Token). Each universal
-// package contains exactly one file, named after the asset minus its last
-// extension, lowercased and sanitized (e.g. `node-v24.15.0-linux-x64.tar`,
-// `win-x64-node`).
-const nodejsInternalFeed = process.env['VSCODE_NODEJS_INTERNAL_FEED'];
+// from our Azure Artifacts feed named by `product.nodejsArtifactFeed` using the
+// `az` CLI, instead of from nodejs.org (which is used by OSS builds when no feed
+// is configured). Each universal package contains exactly one file, named after
+// the asset minus its last extension, lowercased and sanitized (e.g.
+// `node-v24.15.0-linux-x64.tar`, `win-x64-node`).
+const nodejsArtifactFeed = product.nodejsArtifactFeed;
 
 function internalNodeFeedPackageName(assetName: string): string {
 	return assetName
@@ -278,13 +277,13 @@ function nodejs(platform: string, arch: string): NodeJS.ReadWriteStream | undefi
 		arch = 'x64';
 	}
 
-	log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from ${product.nodejsRepository}...`);
+	log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from ${nodejsArtifactFeed || 'https://nodejs.org'}...`);
 
 	const glibcPrefix = process.env['VSCODE_NODE_GLIBC'] ?? '';
 	let expectedName: string | undefined;
 	switch (platform) {
 		case 'win32':
-			expectedName = product.nodejsRepository !== 'https://nodejs.org' ?
+			expectedName = nodejsArtifactFeed ?
 				`win-${arch}-node.exe` : `win-${arch}/node.exe`;
 			break;
 
@@ -308,13 +307,13 @@ function nodejs(platform: string, arch: string): NodeJS.ReadWriteStream | undefi
 
 	switch (platform) {
 		case 'win32':
-			return (product.nodejsRepository !== 'https://nodejs.org' ?
+			return (nodejsArtifactFeed ?
 				fetchNodejs(expectedName!, checksumSha256) :
 				fetchUrls(`/dist/v${nodeVersion}/win-${arch}/node.exe`, { base: 'https://nodejs.org', checksumSha256 }))
 				.pipe(rename('node.exe'));
 		case 'darwin':
 		case 'linux': {
-			const downloaded = (product.nodejsRepository !== 'https://nodejs.org' ?
+			const downloaded = (nodejsArtifactFeed ?
 				fetchNodejs(expectedName!, checksumSha256) :
 				fetchUrls(`/dist/v${nodeVersion}/node-v${nodeVersion}-${platform}-${arch}.tar.gz`, { base: 'https://nodejs.org', checksumSha256 })
 			).pipe(flatmap(stream => stream.pipe(gunzip()).pipe(untar())))
@@ -324,7 +323,7 @@ function nodejs(platform: string, arch: string): NodeJS.ReadWriteStream | undefi
 			return platform === 'linux' && arch === 'x64' ? downloaded.pipe(patchElfLoadAlign()) : downloaded;
 		}
 		case 'alpine':
-			return product.nodejsRepository !== 'https://nodejs.org' ?
+			return nodejsArtifactFeed ?
 				fetchNodejs(expectedName!, checksumSha256)
 					.pipe(flatmap(stream => stream.pipe(gunzip()).pipe(untar())))
 					.pipe(filter('**/node'))
@@ -334,13 +333,11 @@ function nodejs(platform: string, arch: string): NodeJS.ReadWriteStream | undefi
 	}
 }
 
-// Fetches a server (reh) Node.js asset either from the internal Azure Artifacts
-// feed (product builds) or directly from the private GitHub release.
+// Fetches a server (reh) Node.js asset from the Azure Artifacts feed named by
+// `product.nodejsArtifactFeed`. Only called when that feed is configured.
 function fetchNodejs(assetName: string, checksumSha256: string | undefined): NodeJS.ReadWriteStream {
 	const version = `${nodeVersion}-${internalNodeVersion}`;
-	return nodejsInternalFeed ?
-		fetchNodejsFromInternalFeed(nodejsInternalFeed, assetName, version, checksumSha256) :
-		fetchGithub(product.nodejsRepository, { version, name: assetName, checksumSha256 }) as NodeJS.ReadWriteStream;
+	return fetchNodejsFromInternalFeed(nodejsArtifactFeed, assetName, version, checksumSha256);
 }
 
 function packageTask(type: string, platform: string, arch: string, sourceFolderName: string, destinationFolderName: string) {

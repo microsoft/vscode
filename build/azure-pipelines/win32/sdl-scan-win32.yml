@@ -113,7 +113,6 @@ steps:
     env:
       GITHUB_TOKEN: "$(github-token-code-oss)"
       AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
-      VSCODE_ELECTRON_PREBUILT_FEED: vscode-electron-prebuilt
     displayName: Download Symbols
 
   - powershell: |

@@ -106,12 +106,13 @@ const { msBuildId } = util.getElectronVersion();
 export const electronVersion = '42.2.0';
 
 // In product builds, `@vscode/gulp-electron` is given an asset resolver (via the
-// `repo` option) that fetches the prebuilt Electron archives on demand from our
-// Azure Artifacts feed using the `az` CLI, instead of downloading them from a
-// private GitHub release (which would require a long-lived Personal Access
-// Token). Each universal package contains exactly one file, which is streamed
-// back as a `Response` and validated against the feed's `SHASUMS256.txt`.
-const electronFeed = process.env['VSCODE_ELECTRON_PREBUILT_FEED'];
+// `repo` option) that fetches the prebuilt Electron archives on demand from the
+// Azure Artifacts feed named by `product.electronArtifactFeed` using the `az`
+// CLI, instead of downloading them from electron's official GitHub releases
+// (which OSS builds use when no feed is configured). Each universal package
+// contains exactly one file, which is streamed back as a `Response` and
+// validated against the feed's `SHASUMS256.txt`.
+const electronFeed: string | undefined = product.electronArtifactFeed;
 
 // Maps the artifact file name `@vscode/gulp-electron` requests to the matching
 // universal package name in the feed, or `undefined` when it is not mirrored.
@@ -141,7 +142,6 @@ const electronAssetResolver = electronFeed
 
 export const config = {
 	version: electronVersion,
-	tag: product.electronRepository ? `v${electronVersion}-${msBuildId}` : undefined,
 	productAppName: product.nameLong,
 	companyName: 'Microsoft Corporation',
 	copyright: 'Copyright (C) 2026 Microsoft. All rights reserved',
@@ -239,7 +239,7 @@ export const config = {
 	linuxExecutableName: product.applicationName,
 	winIcon: 'resources/win32/code.ico',
 	token: process.env['GITHUB_TOKEN'],
-	repo: electronAssetResolver ?? (product.electronRepository || undefined),
+	repo: electronAssetResolver,
 	validateChecksum: true,
 	checksumFile: path.join(root, 'build', 'checksums', 'electron.txt'),
 	createVersionedResources: useVersionedUpdate,

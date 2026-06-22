@@ -165,7 +165,6 @@ steps:
     env:
       GITHUB_TOKEN: "$(github-token-code-oss)"
       AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
-      VSCODE_ELECTRON_PREBUILT_FEED: vscode-electron-prebuilt
     displayName: Build client
 
   - script: |
@@ -174,7 +173,6 @@ steps:
       mv ../vscode-reh-darwin-$(VSCODE_ARCH) ../vscode-server-darwin-$(VSCODE_ARCH) # TODO@joaomoreno
     env:
       GITHUB_TOKEN: "$(github-token-code-oss)"
-      VSCODE_NODEJS_INTERNAL_FEED: vscode-node
       AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
     displayName: Build server
 
@@ -184,7 +182,6 @@ steps:
       mv ../vscode-reh-web-darwin-$(VSCODE_ARCH) ../vscode-server-darwin-$(VSCODE_ARCH)-web # TODO@joaomoreno
     env:
       GITHUB_TOKEN: "$(github-token-code-oss)"
-      VSCODE_NODEJS_INTERNAL_FEED: vscode-node
       AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
     displayName: Build server (web)
 
