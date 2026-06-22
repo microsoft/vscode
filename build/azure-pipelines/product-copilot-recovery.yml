@@ -83,6 +83,17 @@ extends:
         serviceTreeID: '1788a767-5861-45fb-973b-c686b67c5541'
       enabled: true
 
+    # The Copilot build steps check out microsoft/vscode-capi (via the Monaco
+    # GitHub App instead of a PAT). Every checked-out repository must be declared
+    # for the 1ES SDL source analysis, so re-declare the template defaults plus
+    # capi here.
+    sourceRepositoriesToScan:
+      exclude:
+        - repository: translations
+        - repository: vscode-copilot-cache
+        - repository: templates
+        - repository: capi
+
     ${{ if eq(parameters.customNPMRegistry, false) }}:
       customNPMRegistry: ''
 
