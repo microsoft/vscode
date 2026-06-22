@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import { Application, ApplicationOptions, Logger, Quality } from '../../../../automation';
+import { Application, ApplicationOptions, Logger } from '../../../../automation';
 import { createApp, dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, installAppAfterHandler, installDiagnosticsHandler, installAllHandlers, MockLlmServer, suiteCrashPath, suiteLogsPath } from '../../utils';
 
 // Selector for the send button in the Agents Window new-session homepage.
@@ -598,17 +598,25 @@ export function setup(logger: Logger) {
 				// Codex must be available — and so this test must run rather than
 				// skip — whenever the build under test is supposed to be able to
 				// resolve the SDK:
-				//   - Dev (running from source): resolves from the repo's
-				//     `node_modules` (`@openai/codex` is a devDependency).
+				//   - Running from source (VSCODE_DEV=1, set by the smoke runner
+				//     when no `--build` is passed): the agent host is not built, so
+				//     it resolves the SDK from the repo's `node_modules`
+				//     (`@openai/codex` is a devDependency).
 				//   - Publish builds: `product.agentSdks.codex` is stamped (only
 				//     when VSCODE_PUBLISH=true, see build/azure-pipelines/common/
 				//     agent-sdk-produce.yml) so the SDK is fetched from the CDN.
 				// In both cases an unavailable Codex is a regression — fail loudly.
 				// Otherwise (built non-publish CI, where the SDK is neither shipped
 				// nor stamped) Codex is legitimately absent, so skip gracefully.
+				//
+				// VSCODE_DEV (not app.quality === Quality.Dev) is the precise
+				// "from source" signal: parseQuality() also returns Quality.Dev for
+				// a `--build` product when VSCODE_QUALITY is unset, which would
+				// wrongly hard-fail a packaged build that legitimately lacks Codex.
+				const isFromSource = process.env['VSCODE_DEV'] === '1';
 				const isPublishBuild = (process.env['VSCODE_PUBLISH'] ?? '').toLowerCase() === 'true';
-				if (app.quality === Quality.Dev || isPublishBuild) {
-					throw new Error(`[Agents Window/Codex] Codex session type unexpectedly unavailable (quality=${app.quality}, VSCODE_PUBLISH=${process.env['VSCODE_PUBLISH'] ?? '<unset>'}) — the SDK should be resolvable from node_modules (dev) or product.agentSdks.codex (publish build)`);
+				if (isFromSource || isPublishBuild) {
+					throw new Error(`[Agents Window/Codex] Codex session type unexpectedly unavailable (VSCODE_DEV=${process.env['VSCODE_DEV'] ?? '<unset>'}, VSCODE_PUBLISH=${process.env['VSCODE_PUBLISH'] ?? '<unset>'}) — the SDK should be resolvable from node_modules (from source) or product.agentSdks.codex (publish build)`);
 				}
 				logger.log('[Agents Window/Codex] Codex session type not available in this built product (no product.agentSdks.codex); skipping');
 				this.skip();
