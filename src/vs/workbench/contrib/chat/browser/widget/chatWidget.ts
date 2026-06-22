@@ -1596,7 +1596,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				location: this.location,
 				getCurrentLanguageModelId: () => this.input.currentLanguageModel,
 				getCurrentModeInfo: () => this.input.currentModeInfo,
-				scrollbarPromptMarkersEnabled: !isInlineChat(this) && !isQuickChat(this),
+				scrollbarPromptMarkersEnabled: !isInlineChat(this) && !isQuickChat(this)
+					&& this.configurationService.getValue<boolean>(ChatConfiguration.ScrollbarPromptMarkersEnabled),
 			}
 		));
 

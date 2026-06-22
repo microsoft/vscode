@@ -36,6 +36,7 @@ export enum ChatConfiguration {
 	RepoInfoEnabled = 'chat.repoInfo.enabled',
 	EditRequests = 'chat.editRequests',
 	InlineReferencesStyle = 'chat.inlineReferences.style',
+	ScrollbarPromptMarkersEnabled = 'chat.scrollbarPromptMarkers.enabled',
 	ScrollbarPromptMarkerClickBehavior = 'chat.scrollbarPromptMarkers.clickBehavior',
 	AutoReply = 'chat.autoReply',
 	GlobalAutoApprove = 'chat.tools.global.autoApprove',

@@ -437,6 +437,12 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.inlineReferences.style', "Controls how file and symbol references are displayed in chat messages."),
 			default: 'box'
 		},
+		[ChatConfiguration.ScrollbarPromptMarkersEnabled]: {
+			type: 'boolean',
+			description: nls.localize('chat.scrollbarPromptMarkers.enabled', "Controls whether typed scrollbar markers are shown in the Chat View transcript scrollbar."),
+			default: false,
+			tags: ['experimental'],
+		},
 		[ChatConfiguration.ScrollbarPromptMarkerClickBehavior]: {
 			type: 'string',
 			enum: ['revealAndFocus', 'reveal'],
@@ -445,7 +451,8 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.scrollbarPromptMarkers.clickBehavior.reveal', "Reveal the target prompt without changing keyboard focus."),
 			],
 			description: nls.localize('chat.scrollbarPromptMarkers.clickBehavior', "Controls what happens when you click a chat scrollbar prompt marker in the transcript scrollbar."),
-			default: 'revealAndFocus'
+			default: 'revealAndFocus',
+			tags: ['experimental'],
 		},
 		[ChatConfiguration.EditorAssociations]: {
 			type: 'object',
