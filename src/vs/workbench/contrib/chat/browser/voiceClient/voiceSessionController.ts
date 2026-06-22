@@ -988,6 +988,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 						approved: e.name === 'approve_confirmation',
 					});
 				}
+				// Exit listening mode so the response audio isn't suppressed.
+				if (this._pttHeld) {
+					this._finishPtt();
+				}
+				this._suppressIncomingAudio = false;
 				this.voiceToolDispatchService.dispatchToolCall(e).then(result => {
 					this.voiceClientService.sendToolResult(e.callId, result);
 					this._voiceState.set('idle', undefined);
