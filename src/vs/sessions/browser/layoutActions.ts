@@ -164,29 +164,36 @@ class ToggleSidePanelAction extends Action2 {
 registerAction2(ToggleSidebarVisibilityAction);
 registerAction2(ToggleSidePanelAction);
 
+// The editor-title secondary side bar toggle reuses the core `workbench.action.toggleAuxiliaryBar`
+// command (registered by the workbench auxiliary bar part, which is also loaded in the agents
+// window). Two mutually-exclusive menu items give the state-dependent icon without the
+// checked/highlighted background that a single `toggled` menu item would render.
 const editorTitleAuxiliaryBarWhen = ContextKeyExpr.and(
 	IsSessionsWindowContext,
 	IsAuxiliaryWindowContext.toNegated(),
 	IsTopRightEditorGroupContext);
 
-// The editor-title toggle button reuses the core `workbench.action.toggleAuxiliaryBar`
-// command (registered by the workbench auxiliary bar part, which is loaded in the agents
-// window too) and shows a state-dependent icon: `right-panel-hide` when the secondary
-// side bar is visible and `right-panel-show` when it is hidden. This can't be expressed
-// via a single menu item with `toggled`, because `toggled` also renders a checked/highlighted
-// background, which we don't want here. Registering two mutually-exclusive menu items —
-// each with its own icon/title — gives the per-state icon without that checked styling.
-for (const { icon, title, visible } of [
-	{ icon: Codicon.rightPanelHide, title: localize('hideSecondarySideBar', "Hide Secondary Side Bar"), visible: true },
-	{ icon: Codicon.rightPanelShow, title: localize('showSecondarySideBar', "Show Secondary Side Bar"), visible: false },
-]) {
-	MenuRegistry.appendMenuItem(MenuId.EditorTitleLayout, {
-		command: { id: 'workbench.action.toggleAuxiliaryBar', title, icon },
-		group: 'navigation',
-		order: 99.5,
-		when: ContextKeyExpr.and(editorTitleAuxiliaryBarWhen, visible ? AuxiliaryBarVisibleContext : AuxiliaryBarVisibleContext.toNegated())
-	});
-}
+MenuRegistry.appendMenuItem(MenuId.EditorTitleLayout, {
+	command: {
+		id: 'workbench.action.toggleAuxiliaryBar',
+		title: localize('hideSecondarySideBar', "Hide Secondary Side Bar"),
+		icon: Codicon.rightPanelHide
+	},
+	group: 'navigation',
+	order: 99.5,
+	when: ContextKeyExpr.and(editorTitleAuxiliaryBarWhen, AuxiliaryBarVisibleContext)
+});
+
+MenuRegistry.appendMenuItem(MenuId.EditorTitleLayout, {
+	command: {
+		id: 'workbench.action.toggleAuxiliaryBar',
+		title: localize('showSecondarySideBar', "Show Secondary Side Bar"),
+		icon: Codicon.rightPanelShow
+	},
+	group: 'navigation',
+	order: 99.5,
+	when: ContextKeyExpr.and(editorTitleAuxiliaryBarWhen, AuxiliaryBarVisibleContext.toNegated())
+});
 
 MenuRegistry.appendMenuItem(Menus.PanelTitle, {
 	command: {
