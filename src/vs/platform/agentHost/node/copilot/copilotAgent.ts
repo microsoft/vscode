@@ -77,6 +77,47 @@ function copilotCliLogLevelFor(level: LogLevel): NonNullable<CopilotClientOption
 	}
 }
 
+interface ICopilotPackageJson {
+	bin?: string | { copilot?: string };
+}
+
+async function fileExists(filePath: string): Promise<boolean> {
+	try {
+		await fs.access(filePath);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+async function resolveCopilotCliPath(nodeModulesUri: URI): Promise<string> {
+	const copilotPackageUri = URI.joinPath(nodeModulesUri, '@github', 'copilot');
+	const packageJsonPath = URI.joinPath(copilotPackageUri, 'package.json').fsPath;
+	const fallbackPath = URI.joinPath(copilotPackageUri, 'index.js').fsPath;
+
+	let bin: string | undefined;
+	try {
+		const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf8')) as ICopilotPackageJson;
+		bin = typeof packageJson.bin === 'string' ? packageJson.bin : packageJson.bin?.copilot;
+	} catch {
+		// Fall back below. Older @github/copilot packages used index.js, while
+		// 1.0.64-1+ resolves through package.json's bin entry.
+	}
+
+	if (typeof bin === 'string' && bin.length > 0) {
+		const binPath = join(copilotPackageUri.fsPath, bin);
+		if (await fileExists(binPath)) {
+			return binPath;
+		}
+	}
+
+	if (await fileExists(fallbackPath)) {
+		return fallbackPath;
+	}
+
+	throw new Error(`Unable to resolve @github/copilot CLI path from ${copilotPackageUri.fsPath}`);
+}
+
 interface ICreatedWorktree {
 	readonly repositoryRoot: URI;
 	readonly worktree: URI;
@@ -631,7 +672,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// because @github/copilot's exports map blocks direct subpath access.
 			// FileAccess.asFileUri('') points to the `out/` directory; node_modules is one level up.
 			const nodeModulesUri = URI.joinPath(FileAccess.asFileUri(''), '..', 'node_modules');
-			const cliPath = URI.joinPath(nodeModulesUri, '@github', 'copilot', 'index.js').fsPath;
+			const cliPath = await resolveCopilotCliPath(nodeModulesUri);
 
 			// The SDK's sandbox auto-detection looks for `<MXC_BIN_DIR>/<arch>/wxc-exec.exe`
 			// (and the Linux/macOS equivalents). VS Code core ships the MXC sandbox binaries
