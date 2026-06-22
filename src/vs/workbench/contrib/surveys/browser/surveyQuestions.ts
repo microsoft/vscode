@@ -84,6 +84,7 @@ export const CopilotPMFSurvey: ISurveyDefinition = {
 				{ id: 'planning', label: localize('survey.copilotPmf.q2.planning', "Planning an approach") },
 				{ id: 'reviewing', label: localize('survey.copilotPmf.q2.reviewing', "Improving or reviewing code") },
 				{ id: 'no-clear-value', label: localize('survey.copilotPmf.q2.noClearValue', "I haven't gotten clear value yet") },
+				{ id: 'other', label: localize('survey.copilotPmf.q2.other', "Something else") },
 			],
 		},
 		{
@@ -102,6 +103,7 @@ export const CopilotPMFSurvey: ISurveyDefinition = {
 				{ id: 'setup', label: localize('survey.copilotPmf.q3.setup', "Setup or integrations are hard") },
 				{ id: 'security', label: localize('survey.copilotPmf.q3.security', "Security or permissions friction") },
 				{ id: 'cost', label: localize('survey.copilotPmf.q3.cost', "Limits, cost, or billing") },
+				{ id: 'other', label: localize('survey.copilotPmf.q3.other', "Something else") },
 			],
 		},
 		{

@@ -215,7 +215,8 @@ export class SurveyService implements ISurveyService {
 				try {
 					await vscode.commands.executeCommand('_workbench.action.openCopilotSurvey', source);
 				} catch {
-					// Command may be unavailable in older VS Code versions - silently ignore
+					// Command unavailable — reset cooldown so user can be prompted again
+					await this.updateNextSurveyDate(DAYS_LATER);
 				}
 			} else if (postponed) {
 				await this.updateNextSurveyDate(DAYS_LATER);

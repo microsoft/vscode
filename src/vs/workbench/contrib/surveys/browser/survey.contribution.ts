@@ -60,19 +60,21 @@ class OpenSurveyAction extends Action2 {
 
 registerAction2(OpenSurveyAction);
 
-// Known survey sources (allowlist for telemetry safety)
-const KNOWN_SURVEY_SOURCES = new Set([
-	'completions', 'panel', 'inline-chat', 'terminal',
-	'panel.agent', 'agent.codeEdit', 'agent.ask', 'agent.generate',
-	'sessions',
-]);
+// Known survey source prefixes (validated for telemetry safety)
+const KNOWN_SOURCE_PREFIXES = [
+	'completions', 'panel.', 'inline.', 'terminal',
+	'agent.', 'sessions', 'nps', 'churn', 'dev-command',
+];
 
 function sanitizeSurveySource(source: unknown): string {
 	if (typeof source !== 'string') {
 		return 'unknown';
 	}
 	const trimmed = source.trim().slice(0, 64);
-	return KNOWN_SURVEY_SOURCES.has(trimmed) ? trimmed : 'unknown';
+	if (KNOWN_SOURCE_PREFIXES.some(prefix => trimmed === prefix || trimmed.startsWith(prefix))) {
+		return trimmed;
+	}
+	return 'unknown';
 }
 
 // Programmatic command for extensions to trigger the survey (e.g. from Copilot survey service)
