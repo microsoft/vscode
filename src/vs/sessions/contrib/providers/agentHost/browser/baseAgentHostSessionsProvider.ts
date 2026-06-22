@@ -11,7 +11,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
-import { constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, ISettableObservable, mapObservableArrayCached, observableFromEvent, observableFromPromise, observableValue, observableValueOpts, throttledObservable, transaction, waitForState } from '../../../../../base/common/observable.js';
+import { constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, ISettableObservable, mapObservableArrayCached, observableFromEvent, observableValue, observableValueOpts, throttledObservable, transaction, waitForState } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isDefined } from '../../../../../base/common/types.js';
@@ -48,13 +48,12 @@ import { IChat, IGitHubInfo, ISession, ISessionAgentRef, ISessionCapabilities, I
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
-import { computePullRequestIcon, GitHubCIOverallStatus, GitHubPullRequestState } from '../../../github/common/types.js';
 import { CHANGESET_UPDATE_THROTTLE_MS } from './agentHostChangesetConstants.js';
 import { changesetFileToChange, mapProtocolStatus } from './agentHostDiffs.js';
 import { createChangesets } from './agentHostSessionChangesets.js';
+import { SessionGitHubInfoResolver } from './sessionGitHubInfo.js';
 
 const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.sessionConfigPicker.selectedValues';
-const TRACE_PREFIX = '[PR-ICON-TRACE]';
 const UNSAFE_SESSION_CONFIG_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
 function isSafeSessionConfigKey(property: string): boolean {
@@ -338,69 +337,11 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		// gitHubInfo is reactively derived from `_meta.git`. Owner/repo come
 		// from the agent host's git state; the PR number is resolved by the
 		// workbench-side GitHub service and the PR's live state (open/closed/
-		// merged/draft) is observed so the icon stays current.
-		const gitHubService = _options.gitHubService;
-		const gitHubCoords = derivedOpts<{ readonly owner: string; readonly repo: string; readonly branch: string } | undefined>(
-			{ owner: this, equalsFn: structuralEquals },
-			reader => {
-				const git = readSessionGitState(this._metaObs.read(reader));
-				if (git?.githubOwner && git?.githubRepo && git?.branchName) {
-					return { owner: git.githubOwner, repo: git.githubRepo, branch: git.branchName };
-				}
-				return undefined;
-			});
-		const pullRequestNumberObs = derived<IObservable<{ readonly value?: number | undefined }> | undefined>(
-			this,
-			reader => {
-				const coords = gitHubCoords.read(reader);
-				if (!coords || !gitHubService) {
-					return undefined;
-				}
-				return observableFromPromise(
-					gitHubService.findPullRequestNumberByHeadBranch(coords.owner, coords.repo, coords.branch)
-				);
-			});
-		this.gitHubInfo = derived<IGitHubInfo | undefined>(this, reader => {
-			const coords = gitHubCoords.read(reader);
-			if (!coords) {
-				this._logService.trace(`${TRACE_PREFIX} [IconAdapter] Session ${this.sessionId} has no GitHub coords (missing owner/repo/branch in git state); no PR icon`);
-				return undefined;
-			}
-			const innerObs = pullRequestNumberObs.read(reader);
-			const prNumber = innerObs?.read(reader)?.value;
-			if (prNumber === undefined) {
-				this._logService.trace(`${TRACE_PREFIX} [IconAdapter] Session ${this.sessionId} coords ${coords.owner}/${coords.repo}@${coords.branch}: PR number not resolved yet; emitting gitHubInfo without pullRequest`);
-				return { owner: coords.owner, repo: coords.repo };
-			}
-			const uri = URI.parse(`https://github.com/${coords.owner}/${coords.repo}/pull/${prNumber}`);
-			let icon: ThemeIcon | undefined;
-			if (gitHubService) {
-				const ref = reader.store.add(gitHubService.createPullRequestModelReference(coords.owner, coords.repo, prNumber));
-				const livePR = ref.object.pullRequest.read(reader);
-				if (livePR) {
-					let hasFailingChecks = false;
-					let hasUnresolvedComments = false;
-					if (!livePR.isDraft && livePR.state === GitHubPullRequestState.Open) {
-						const ciRef = reader.store.add(gitHubService.createPullRequestCIModelReference(coords.owner, coords.repo, prNumber, livePR.headSha));
-						hasFailingChecks = ciRef.object.overallStatus.read(reader) === GitHubCIOverallStatus.Failure;
-
-						const reviewThreadsRef = reader.store.add(gitHubService.createPullRequestReviewThreadsModelReference(coords.owner, coords.repo, prNumber));
-						hasUnresolvedComments = reviewThreadsRef.object.reviewThreads.read(reader).some(thread => !thread.isResolved);
-					}
-					icon = computePullRequestIcon(livePR.isDraft ? 'draft' : livePR.state, { hasFailingChecks, hasUnresolvedComments });
-					this._logService.trace(`${TRACE_PREFIX} [IconAdapter] Session ${this.sessionId} PR ${coords.owner}/${coords.repo}#${prNumber}: livePR present (state ${livePR.state}, isDraft ${livePR.isDraft}, headSha ${livePR.headSha}), hasFailingChecks ${hasFailingChecks}, hasUnresolvedComments ${hasUnresolvedComments} -> icon ${icon?.id ?? 'none'}`);
-				} else {
-					this._logService.trace(`${TRACE_PREFIX} [IconAdapter] Session ${this.sessionId} PR ${coords.owner}/${coords.repo}#${prNumber}: livePR not loaded yet; icon undefined (waiting for PR model refresh)`);
-				}
-			} else {
-				this._logService.trace(`${TRACE_PREFIX} [IconAdapter] Session ${this.sessionId} PR ${coords.owner}/${coords.repo}#${prNumber}: no GitHub service available; icon undefined`);
-			}
-			return {
-				owner: coords.owner,
-				repo: coords.repo,
-				pullRequest: { number: prNumber, uri, icon },
-			};
-		});
+		// merged/draft, plus CI checks and review threads) is observed so the
+		// icon stays current. The whole coords -> PR number -> icon chain lives
+		// in SessionGitHubInfoResolver.
+		const gitHubInfoResolver = new SessionGitHubInfoResolver(this._metaObs, this.sessionId, _options.gitHubService, this._logService);
+		this.gitHubInfo = gitHubInfoResolver.gitHubInfo;
 
 		const initialGitState = readSessionGitState(this._meta);
 		const initialWorkspace = _options.buildWorkspace(this._project, this._workingDirectory, this.gitHubInfo, initialGitState);

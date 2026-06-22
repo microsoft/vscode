@@ -1048,97 +1048,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: none;
 }
 
-/* Hover popup contents shown when hovering an item in the chat-input-status toolbar */
-.chat-input-status-hover.chat-input-status-hover-content {
-	display: flex;
-	flex-direction: column;
-	gap: 6px;
-	padding: 8px 10px;
-	min-width: 240px;
-	max-width: 420px;
-}
-
-.chat-input-status-hover .chat-input-status-hover-title {
-	font-weight: 600;
-}
-
-.chat-input-status-hover .chat-input-status-hover-title p {
-	margin: 0;
-}
-
-.chat-input-status-hover .chat-input-status-hover-title a {
-	color: var(--vscode-textLink-foreground);
-	text-decoration: none;
-}
-
-.chat-input-status-hover .chat-input-status-hover-title a:hover {
-	text-decoration: underline;
-}
-
-.chat-input-status-hover .chat-input-status-hover-detail a {
-	color: var(--vscode-textLink-foreground);
-	text-decoration: none;
-}
-
-.chat-input-status-hover .chat-input-status-hover-detail a:hover {
-	text-decoration: underline;
-}
-
-.chat-input-status-hover .chat-input-status-hover-detail code {
-	font-family: var(--monaco-monospace-font);
-	font-size: 11px;
-	background: var(--vscode-textCodeBlock-background, transparent);
-	padding: 1px 4px;
-	border-radius: 3px;
-	white-space: nowrap;
-}
-
-.chat-input-status-hover .chat-input-status-hover-description {
-	color: var(--vscode-descriptionForeground);
-	white-space: pre-wrap;
-}
-
-.chat-input-status-hover .chat-input-status-hover-detail {
-	color: var(--vscode-foreground);
-}
-
-.chat-input-status-hover .chat-input-status-hover-detail table {
-	width: 100%;
-	border-collapse: collapse;
-	font-size: 12px;
-}
-
-.chat-input-status-hover .chat-input-status-hover-detail thead {
-	display: none;
-}
-
-.chat-input-status-hover .chat-input-status-hover-detail th,
-.chat-input-status-hover .chat-input-status-hover-detail td {
-	padding: 3px 8px 3px 0;
-	text-align: left;
-	vertical-align: top;
-	word-break: break-word;
-}
-
-.chat-input-status-hover .chat-input-status-hover-detail tbody tr:not(:last-child) td {
-	border-bottom: 1px solid var(--vscode-widget-border, transparent);
-}
-
-.chat-input-status-hover .chat-input-status-hover-detail tbody td:first-child {
-	color: var(--vscode-descriptionForeground);
-	white-space: nowrap;
-}
-
-.chat-input-status-hover .chat-input-status-hover-detail p {
-	margin: 0;
-}
-
-.chat-input-status-hover .chat-input-status-hover-actions {
-	display: flex;
-	justify-content: flex-end;
-	margin-top: 4px;
-}
-
 /* When context usage is inside the toolbars (compact mode), keep the ordering */
 .interactive-session .chat-input-toolbars .chat-context-usage-container {
 	order: 1;
@@ -4445,14 +4354,37 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
-/* Voice mode: color the mic icon blue when listening, purple when speaking */
-/* Voice mode: color the mic icon when listening/speaking */
-.chat-input-container.voice-active.voice-listening .chat-input-toolbars .action-label.codicon-mic-filled {
-	color: var(--vscode-charts-blue, #58a6ff) !important;
+@keyframes chat-voice-icon-glow {
+	0%,
+	100% {
+		box-shadow: 0 0 4px var(--chat-voice-icon-glow-color);
+	}
+
+	50% {
+		box-shadow: 0 0 9px var(--chat-voice-icon-glow-color);
+	}
 }
 
-.chat-input-container.voice-active:not(.voice-listening) .chat-input-toolbars .action-label.codicon-mic-filled {
+/* Voice mode: blue when listening */
+.chat-input-container.voice-active.voice-listening .chat-input-toolbars .action-label.codicon-voice-mode {
+	--chat-voice-icon-glow-color: rgba(88, 166, 255, 0.65);
+	color: var(--vscode-charts-blue, #58a6ff) !important;
+	border-radius: 50%;
+}
+
+.monaco-workbench.monaco-enable-motion .chat-input-container.voice-active.voice-listening .chat-input-toolbars .action-label.codicon-voice-mode {
+	animation: chat-voice-icon-glow 1.4s ease-in-out infinite;
+}
+
+/* Voice mode: purple when speaking */
+.chat-input-container.voice-active:not(.voice-listening) .chat-input-toolbars .action-label.codicon-voice-mode {
+	--chat-voice-icon-glow-color: rgba(163, 113, 247, 0.65);
 	color: var(--vscode-charts-purple, #a371f7) !important;
+	border-radius: 50%;
+}
+
+.monaco-workbench.monaco-enable-motion .chat-input-container.voice-active:not(.voice-listening) .chat-input-toolbars .action-label.codicon-voice-mode {
+	animation: chat-voice-icon-glow 1.4s ease-in-out infinite;
 }
 
 /* Voice mode: green disconnect button */

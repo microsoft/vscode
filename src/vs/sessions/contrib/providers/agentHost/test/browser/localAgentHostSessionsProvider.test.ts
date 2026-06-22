@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, ImmortalReference, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, ISettableObservable, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -39,6 +39,7 @@ import { CHANGESET_UPDATE_THROTTLE_MS } from '../../browser/agentHostChangesetCo
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IGitHubService } from '../../../../github/browser/githubService.js';
+import { GitHubPullRequestModel } from '../../../../github/browser/models/githubPullRequestModel.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../workbench/services/environment/common/environmentService.js';
 
 // ---- Mock IAgentHostService -------------------------------------------------
@@ -284,7 +285,7 @@ function createPolicyRestrictedConfigurationService(): TestConfigurationService 
 
 function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = [
 	{ type: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
-], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; storageService?: IStorageService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean }): LocalAgentHostSessionsProvider {
+], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; storageService?: IStorageService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; gitHubService?: IGitHubService }): LocalAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IAgentHostService, agentHostService);
@@ -316,7 +317,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	});
 	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(IStorageService, options?.storageService ?? disposables.add(new InMemoryStorageService()));
-	instantiationService.stub(IGitHubService, new class extends mock<IGitHubService>() {
+	instantiationService.stub(IGitHubService, options?.gitHubService ?? new class extends mock<IGitHubService>() {
 		override findPullRequestNumberByHeadBranch = async () => undefined;
 	}());
 	const activeSessionObs = options?.activeSession ?? constObservable<IActiveSession | undefined>(undefined);
@@ -2358,6 +2359,69 @@ suite('LocalAgentHostSessionsProvider', () => {
 		// Re-access after release re-subscribes.
 		provider.getSessionConfig(session!.sessionId);
 		assert.strictEqual(agentHost.sessionSubscribeCounts.get(sessionUriStr), 2, 'fresh subscribe after release');
+	}));
+
+	// ---- gitHubInfo / PR icon -------
+
+	test('keeps a resolved PR number sticky across gitHubInfo recomputes (no re-lookup / icon flap)', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// A GitHub service that resolves a PR number asynchronously (mirroring the
+		// real `findPullRequestNumberByHeadBranch` REST lookup) and hands out a
+		// live PR model. We count lookups so we can assert the number is resolved
+		// exactly once and then reused, rather than re-queried (and reset to
+		// `undefined`) every time `gitHubInfo` recomputes.
+		const gitHubService = new class extends mock<IGitHubService>() {
+			lookupCalls = 0;
+			private readonly _model = { pullRequest: constObservable(undefined) } as unknown as GitHubPullRequestModel;
+			override findPullRequestNumberByHeadBranch = async () => {
+				this.lookupCalls++;
+				return 42;
+			};
+			override createPullRequestModelReference = () => new ImmortalReference(this._model);
+		}();
+
+		agentHost.addSession(createSession('pr-sticky', { summary: 'PR Session', project: { uri: URI.parse('file:///repo'), displayName: 'repo' } }));
+		const provider = createProvider(disposables, agentHost, undefined, { gitHubService });
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'PR Session');
+		assert.ok(session);
+
+		// Force a session-state subscription and push git coords so the session
+		// resolves owner/repo/branch and looks up its PR number.
+		provider.getSessionConfig(session!.sessionId);
+		agentHost.setSessionState('pr-sticky', 'copilotcli', {
+			summary: { resource: AgentSession.uri('copilotcli', 'pr-sticky').toString(), provider: 'copilotcli', title: 'PR Session', status: ProtocolSessionStatus.Idle, createdAt: 0, modifiedAt: 0 },
+			lifecycle: SessionLifecycle.Ready,
+			chats: [],
+			_meta: { git: { hasGitHubRemote: true, githubOwner: 'owner', githubRepo: 'repo', branchName: 'feature' } },
+		});
+
+		const gitHubInfoObs = session!.workspace.get()!.folders[0]!.gitRepository!.gitHubInfo;
+
+		// Observe until the async PR-number lookup resolves.
+		const sub1 = autorun(reader => { gitHubInfoObs.read(reader); });
+		await timeout(0);
+		assert.strictEqual(gitHubInfoObs.get()?.pullRequest?.number, 42, 'PR number resolves while observed');
+		assert.strictEqual(gitHubService.lookupCalls, 1, 'one PR-number lookup after first resolution');
+		sub1.dispose();
+
+		// Unobserve then re-observe — this mirrors a session switch / sessions-list
+		// re-render, which previously recreated a fresh (unresolved) promise
+		// observable and flapped the PR number back to `undefined`, disposing the
+		// shared live model and blanking the icon. The number must stay resolved
+		// on the very first synchronous re-read, and no new lookup may be issued.
+		let firstReObservedNumber: number | undefined;
+		let captured = false;
+		const sub2 = autorun(reader => {
+			const number = gitHubInfoObs.read(reader)?.pullRequest?.number;
+			if (!captured) {
+				firstReObservedNumber = number;
+				captured = true;
+			}
+		});
+		assert.strictEqual(firstReObservedNumber, 42, 'PR number stays sticky across unobserve/reobserve');
+		assert.strictEqual(gitHubService.lookupCalls, 1, 'no extra PR-number lookup on recompute');
+		sub2.dispose();
 	}));
 
 	// ---- replaceSessionConfig -------
