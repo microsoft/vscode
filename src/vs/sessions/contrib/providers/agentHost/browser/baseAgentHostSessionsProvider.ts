@@ -319,7 +319,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this.sessionId = toSessionId(providerId, this.resource);
 		this.providerId = providerId;
 		this.sessionType = logicalSessionType;
-		this.capabilities = { supportsMultipleChats: logicalSessionType === CopilotCLISessionType.id, supportsRename: true };
+		this.capabilities = { supportsMultipleChats: logicalSessionType === CopilotCLISessionType.id, supportsRename: true, supportsDelete: true };
 		this.icon = _options.icon;
 		this.createdAt = new Date(metadata.startTime);
 		this.title = observableValue('title', metadata.summary || `Session ${rawId.substring(0, 8)}`);
@@ -1005,7 +1005,7 @@ class NewSession extends Disposable {
 			lastTurnEnd,
 			mainChat: this._mainChat,
 			chats,
-			capabilities: { supportsMultipleChats: false, supportsRename: true },
+			capabilities: { supportsMultipleChats: false, supportsRename: true, supportsDelete: true },
 		};
 		this.sessionId = this.session.sessionId;
 
@@ -2294,15 +2294,34 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	async deleteSession(sessionId: string): Promise<void> {
-		const rawId = this._rawIdFromChatId(sessionId);
-		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		await this.deleteSessions([sessionId]);
+	}
+
+	async deleteSessions(sessionIds: readonly string[]): Promise<void> {
 		const connection = this.connection;
-		if (cached && rawId && connection) {
+		if (!connection) {
+			return;
+		}
+		const targets: { rawId: string; sessionId: string; cached: AgentHostSessionAdapter }[] = [];
+		for (const sessionId of sessionIds) {
+			const rawId = this._rawIdFromChatId(sessionId);
+			const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+			if (cached && rawId) {
+				targets.push({ rawId, sessionId, cached });
+			}
+		}
+		if (targets.length === 0) {
+			return;
+		}
+		for (const { rawId, sessionId, cached } of targets) {
 			await connection.disposeSession(AgentSession.uri(cached.agentProvider, rawId));
 			this._sessionCache.delete(rawId);
 			this._runningSessionConfigs.delete(sessionId);
 			this._runningSessionConfigResolveSeq.delete(sessionId);
-			this._onDidChangeSessions.fire({ added: [], removed: [cached], changed: [] });
+		}
+		const removed = targets.map(target => target.cached);
+		this._onDidChangeSessions.fire({ added: [], removed, changed: [] });
+		for (const cached of removed) {
 			cached.dispose();
 		}
 	}

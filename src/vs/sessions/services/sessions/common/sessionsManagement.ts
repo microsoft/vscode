@@ -280,6 +280,15 @@ export interface ISessionsManagementService {
 	/** Delete a session. */
 	deleteSession(session: ISession): Promise<void>;
 
+	/**
+	 * Delete multiple sessions at once.
+	 *
+	 * Groups the sessions by provider and deletes each group through its
+	 * provider's batch {@link ISessionsProvider.deleteSessions}. Fires
+	 * {@link onDidDeleteSession} once per deleted session.
+	 */
+	deleteSessions(sessions: readonly ISession[]): Promise<void>;
+
 	/** Delete a single chat from a session by its URI. */
 	deleteChat(session: ISession, chatUri: URI): Promise<void>;
 
