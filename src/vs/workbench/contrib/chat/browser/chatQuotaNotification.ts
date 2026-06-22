@@ -151,7 +151,12 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		const treatment = await this._assignmentService.getTreatment<boolean>(TRAJECTORY_NUDGE_SPEC.treatment);
 		this._trajectoryTreatment = treatment;
 		if (treatment !== undefined) {
-			this._logQuotaTrajectoryNudgeEnrolled(treatment, warning);
+			this._telemetryService.publicLog2<ChatQuotaTrajectoryNudgeEnrollmentEvent, ChatQuotaTrajectoryNudgeEnrollmentClassification>('chatQuotaTrajectoryNudgeEnrolled', {
+				treatment,
+				entitlement: ChatEntitlement[this._chatEntitlementService.entitlement],
+				averageDailyUsage: Math.round(warning.averageDailyUsage * 100) / 100,
+				percentUsed: Math.round(warning.percentUsed * 100) / 100,
+			});
 		}
 		this._update();
 	}
@@ -290,7 +295,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	}
 
 	private _computeQuotaTrajectoryWarning(): { averageDailyUsage: number; percentUsed: number } | undefined {
-		if (!Language.isDefaultVariant() || !this._isTrajectoryEligibleEntitlement() || this._isTrajectoryShownInCurrentPeriod()) {
+		if (!this._isTrajectoryEligibleEntitlement() || this._isTrajectoryShownInCurrentPeriod()) {
 			return undefined;
 		}
 
@@ -358,13 +363,9 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	}
 
 	private async _handleCreditEfficiencyLearnMoreCommand(accessor: ServicesAccessor): Promise<void> {
-		this._logQuotaTrajectoryNudgeLinkClicked();
+		this._telemetryService.publicLog2<{}, ChatQuotaTrajectoryNudgeLinkClickedClassification>('chatQuotaTrajectoryNudgeLinkClicked');
 		queueMicrotask(() => this._hideNotification());
 		await accessor.get(IOpenerService).open(URI.parse(TRAJECTORY_NUDGE_SPEC.learnMoreUrl));
-	}
-
-	private _logQuotaTrajectoryNudgeLinkClicked(): void {
-		this._telemetryService.publicLog2<{}, ChatQuotaTrajectoryNudgeLinkClickedClassification>('chatQuotaTrajectoryNudgeLinkClicked');
 	}
 
 	private _logQuotaTrajectoryNudgeEnrolled(treatment: boolean, warning: { averageDailyUsage: number; percentUsed: number }): void {
