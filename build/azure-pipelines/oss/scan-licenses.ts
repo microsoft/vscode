@@ -77,7 +77,7 @@ function findLicenseFile(pkgDir: string): string | undefined {
 
 /**
  * Build candidate raw.githubusercontent.com URLs for a LICENSE file in a git
- * component, pinned to the exact commit hash (NOT a branch — pinning avoids the
+ * component, pinned to the exact commit hash (NOT a branch -- pinning avoids the
  * symlink/branch-drift trap where raw.githubusercontent serves a moved or
  * symlinked file's target string instead of real text).
  *
@@ -105,7 +105,7 @@ function githubRawLicenseCandidates(repositoryUrl: string, commitHash: string): 
  * real license body. Returns undefined if none resolve.
  *
  * Guards against the symlink-stub trap: a fetched body that is a short relative
- * path (e.g. "../../LICENSE-MIT") is rejected — raw.githubusercontent serves a
+ * path (e.g. "../../LICENSE-MIT") is rejected -- raw.githubusercontent serves a
  * symlink's target string, not the file it points at.
  */
 export async function fetchLicenseFromGitRepo(repositoryUrl: string, commitHash: string): Promise<string | undefined> {
@@ -133,7 +133,7 @@ export async function fetchLicenseFromGitRepo(repositoryUrl: string, commitHash:
 // entry-point guard at the bottom of this file, mirroring parse-notices.ts).
 // =============================================================================
 
-/** The User-Agent crates.io requires — it rejects requests without a descriptive one. */
+/** The User-Agent crates.io requires -- it rejects requests without a descriptive one. */
 const CRATES_IO_USER_AGENT = 'vscode-oss-scanner';
 
 export interface CrateInfo {
@@ -150,16 +150,16 @@ export interface CargoPackage {
 /**
  * Hand-rolled parser for Cargo.lock `[[package]]` blocks. We only need three
  * fields (name, version, source), the format is stable, and the `oss/` dir has
- * no package.json — so we avoid adding a `toml` dependency (spec Q4).
+ * no package.json -- so we avoid adding a `toml` dependency (spec Q4).
  *
  * Packages with no `source` are first-party workspace crates (e.g. the CLI
- * itself), not third-party OSS — callers skip those.
+ * itself), not third-party OSS -- callers skip those.
  */
 export function parseCargoLock(content: string): CargoPackage[] {
 	const packages: CargoPackage[] = [];
 	// Split on the [[package]] table header. Each block holds key = "value" lines.
 	const blocks = content.split(/^\s*\[\[package\]\]\s*$/m);
-	// blocks[0] is the file preamble (version = 3, etc.) — skip it.
+	// blocks[0] is the file preamble (version = 3, etc.) -- skip it.
 	for (let i = 1; i < blocks.length; i++) {
 		const block = blocks[i];
 		let name = '';
@@ -210,7 +210,7 @@ export function getCrateRepository(info: CrateInfo): string {
  * Ordered list of git refs to try when pinning a crate's license fetch. Tag
  * conventions vary across crates, so we try the common version-tag shapes first
  * (reproducible, immutable), then fall back to the repo default branch
- * (parity-acceptable — the legacy tool fetched unpinned from the default
+ * (parity-acceptable -- the legacy tool fetched unpinned from the default
  * branch). See spec Q1.
  */
 export function crateLicenseRefs(name: string, version: string): string[] {
@@ -227,7 +227,7 @@ export function crateLicenseRefs(name: string, version: string): string[] {
 /**
  * Detect a CG "stub" license body: a body that is just an SPDX license
  * expression (e.g. "Zlib OR Apache-2.0 OR MIT" or the deprecated slash form
- * "MIT/Apache-2.0") rather than real license text. Five gates, ALL must pass —
+ * "MIT/Apache-2.0") rather than real license text. Five gates, ALL must pass --
  * the combination makes a false positive require a body that is simultaneously
  * tiny, single-line, SPDX-shaped, and prose-free, which is the definition of a
  * stub. See spec section 4.
@@ -237,11 +237,11 @@ export function isSpdxStub(body: string): boolean {
 	if (!trimmed) {
 		return false;
 	}
-	// Gate 1: length — SPDX expressions are tiny; real licenses are long.
+	// Gate 1: length -- SPDX expressions are tiny; real licenses are long.
 	if (trimmed.length > 120) {
 		return false;
 	}
-	// Gate 2: single logical line — real license texts are multi-line.
+	// Gate 2: single logical line -- real license texts are multi-line.
 	if (trimmed.split(/\n/).filter(l => l.trim()).length > 1) {
 		return false;
 	}
@@ -253,7 +253,7 @@ export function isSpdxStub(body: string): boolean {
 	}
 	// Gate 4: SPDX-expression shape. Tokens separated by uppercase OR/AND/WITH
 	// operators OR the deprecated "/" disjunction (e.g. winapi's "MIT/Apache-2.0").
-	// Operators are case-sensitive (uppercase) — this is what separates an SPDX
+	// Operators are case-sensitive (uppercase) -- this is what separates an SPDX
 	// expression from prose like "Permission is granted...". Parens are stripped
 	// first (mirroring gate 5) so compound expressions with INTERNAL parens like
 	// "(MIT OR Apache-2.0) AND BSD-3-Clause" (e.g. encoding_rs) are still detected.
@@ -262,7 +262,7 @@ export function isSpdxStub(body: string): boolean {
 	if (!spdxShape.test(deparen)) {
 		return false;
 	}
-	// Gate 5: token sanity — every non-operator/non-separator token must contain
+	// Gate 5: token sanity -- every non-operator/non-separator token must contain
 	// a letter (guards against a punctuation-only body sneaking through).
 	const tokens = trimmed
 		.replace(/[()]/g, ' ')
@@ -278,7 +278,7 @@ export function isSpdxStub(body: string): boolean {
 /**
  * GET https://crates.io/api/v1/crates/<name> with the required User-Agent.
  * fetchUriText() can't set headers, so we use a small dedicated fetcher here.
- * Resolves undefined on any failure (caller logs + continues — never crashes).
+ * Resolves undefined on any failure (caller logs + continues -- never crashes).
  */
 export function fetchCratesIoJson(name: string, timeoutMs = 10_000): Promise<CrateInfo | undefined> {
 	return new Promise(resolve => {
@@ -294,9 +294,17 @@ export function fetchCratesIoJson(name: string, timeoutMs = 10_000): Promise<Cra
 				resolve(undefined);
 				return;
 			}
+			const MAX_BODY_SIZE = 10 * 1024 * 1024; // 10MB
 			let data = '';
 			res.setEncoding('utf8');
-			res.on('data', chunk => data += chunk);
+			res.on('data', chunk => {
+				data += chunk;
+				if (data.length > MAX_BODY_SIZE) {
+					req.destroy();
+					resolve(undefined);
+					return;
+				}
+			});
 			res.on('end', () => {
 				try {
 					resolve(JSON.parse(data) as CrateInfo);
@@ -312,7 +320,7 @@ export function fetchCratesIoJson(name: string, timeoutMs = 10_000): Promise<Cra
 
 /**
  * Run async tasks with a small concurrency cap (crates.io asks crawlers to be
- * gentle). Order of results is not significant — each task mutates shared state.
+ * gentle). Order of results is not significant -- each task mutates shared state.
  */
 async function runWithConcurrency(tasks: Array<() => Promise<void>>, limit: number): Promise<void> {
 	let next = 0;
@@ -338,7 +346,7 @@ function githubOwnerRepo(repositoryUrl: string): { owner: string; repo: string }
 /**
  * A fetched body counts as a real license only if it is long enough, is not a
  * symlink-target stub (a short relative path), and is not an aggregate "pointer"
- * doc — e.g. objc2's LICENSE.md which just links to ./LICENSE-MIT.txt etc.
+ * doc -- e.g. objc2's LICENSE.md which just links to ./LICENSE-MIT.txt etc.
  * rather than containing actual license text.
  */
 function isRealLicenseBody(text: string): boolean {
@@ -357,7 +365,7 @@ function isRealLicenseBody(text: string): boolean {
 	// markdown License heading and explain a multi-license choice / link to the
 	// real per-license files, rather than being actual license text. Real
 	// licenses start with "MIT License", "Copyright", "Apache License",
-	// "Permission...", etc. — never a "# License" heading — so this is safe.
+	// "Permission...", etc. -- never a "# License" heading -- so this is safe.
 	if (/^#+\s*licen[sc]e\b/i.test(t) && /at your option|licensing (of|in)|\bLICENSE-[A-Z]/i.test(t)) {
 		return false;
 	}
@@ -388,12 +396,12 @@ export function spdxLicenseIds(expr: string): string[] {
 }
 
 /**
- * Detect a conjunctive (`AND`) SPDX expression — one where ALL named licenses
+ * Detect a conjunctive (`AND`) SPDX expression -- one where ALL named licenses
  * are legally required, not the licensee's choice. For `OR` it's fine to emit a
  * single license's text (we pick one); for `AND` emitting only one produces a
  * legally deficient notice. We tokenize on the `AND` operator (case-sensitive,
  * matching the SPDX grammar and isSpdxStub gate 3). Parens are irrelevant to
- * presence detection — an `AND` anywhere makes at least one conjunction.
+ * presence detection -- an `AND` anywhere makes at least one conjunction.
  */
 export function hasSpdxAnd(expr: string): boolean {
 	return /\bAND\b/.test(expr || '');
@@ -418,10 +426,10 @@ function licenseFileCandidates(id: string): string[] {
  * gets the ACTUAL license text for the chosen license instead of an aggregate
  * pointer doc (e.g. objc2's LICENSE.md).
  *
- * IMPORTANT — disjunctive vs conjunctive: this returns the FIRST SPDX id that
+ * IMPORTANT -- disjunctive vs conjunctive: this returns the FIRST SPDX id that
  * yields a real file. For `OR` expressions that is legally correct (the
  * licensee chooses one license). For `AND` expressions ALL named licenses are
- * legally required, so a single body is an INCOMPLETE notice — we do NOT yet
+ * legally required, so a single body is an INCOMPLETE notice -- we do NOT yet
  * concatenate all of them, so the caller must warn loudly (see hasSpdxAnd at
  * the call site) until proper multi-text concatenation lands. None of today's
  * target crates use `AND`. Falls back to the generic LICENSE/COPYING fetcher
@@ -501,7 +509,7 @@ function collectPackagesInNodeModules(nmDir: string): string[] {
 			}
 
 			if (entry.startsWith('@')) {
-				// Scoped package — read subdirectories
+				// Scoped package -- read subdirectories
 				try {
 					for (const sub of fs.readdirSync(full)) {
 						const subFull = path.join(full, sub);
@@ -685,7 +693,7 @@ export function readBuiltInExtensionManifest(productJson: unknown): Array<{ name
 /**
  * Build the public raw.githubusercontent.com URL for a built-in extension's
  * package-lock.json at its release tag. These repos are PUBLIC, so no token is
- * needed (and embedding one in the URL userinfo makes native fetch throw — the
+ * needed (and embedding one in the URL userinfo makes native fetch throw -- the
  * exact bug that left extensionsCG/ empty in CI). Mirrors the host parsing in
  * githubRawLicenseCandidates. Returns undefined for a non-GitHub/unparseable
  * repo or a missing version so the caller can warn rather than build a bad URL.
@@ -706,11 +714,11 @@ export function builtInExtensionLockfileUrl(repo: string, version: string): stri
  * (lockfileVersion 2/3 `packages` map). Returns one {name, version} per distinct
  * dependency, skipping:
  *   - the root project entry (lockKey has no `node_modules/` segment)
- *   - dev-only dependencies (`dev: true` — they do not ship)
+ *   - dev-only dependencies (`dev: true` -- they do not ship)
  *   - workspace link entries (`link: true`)
  *   - arch-suffixed binaries (Section 5 enumerates those from their parent's
  *     optionalDependencies; double-handling would duplicate them)
- * Optional and peer production deps are KEPT — deliberate over-inclusion, since
+ * Optional and peer production deps are KEPT -- deliberate over-inclusion, since
  * the legacy OSS tool listed them and crediting a license you do not strictly
  * need is the safe direction. Returns [] for a lockfileVersion-1 file (no
  * `packages` map) so the caller can warn rather than silently miss coverage.
@@ -869,9 +877,17 @@ export function fetchNpmRegistryJson(name: string, timeoutMs = 10_000): Promise<
 				resolve(undefined);
 				return;
 			}
+			const MAX_BODY_SIZE = 10 * 1024 * 1024; // 10MB
 			let data = '';
 			res.setEncoding('utf8');
-			res.on('data', chunk => data += chunk);
+			res.on('data', chunk => {
+				data += chunk;
+				if (data.length > MAX_BODY_SIZE) {
+					req.destroy();
+					resolve(undefined);
+					return;
+				}
+			});
 			res.on('end', () => {
 				try {
 					resolve(JSON.parse(data) as NpmPackument);
@@ -963,7 +979,7 @@ function findFilesRecursive(repoRoot: string, targetFileName: string): string[] 
 					if (fs.statSync(full).isDirectory() && !fs.lstatSync(full).isSymbolicLink()) {
 						walk(full);
 					}
-				} catch { /* broken symlink or inaccessible — skip entry, continue */ }
+				} catch { /* broken symlink or inaccessible -- skip entry, continue */ }
 			}
 		}
 	}
@@ -1058,7 +1074,7 @@ async function main(): Promise<void> {
 	// "engines": { "vscode": "..." }. This is hardcoded in CG's NpmComponentDetector
 	// (microsoft/component-detection, NpmComponentDetector.cs lines 85-97).
 	//
-	// CG does this because for most repos, VS Code extensions are dev tools —
+	// CG does this because for most repos, VS Code extensions are dev tools --
 	// not shipping code. But we ARE VS Code. Our built-in extensions ship in
 	// the installer, and their transitive dependencies get webpack-bundled into
 	// the extension JS. CG skips them all, so we scan them here.
@@ -1068,14 +1084,14 @@ async function main(): Promise<void> {
 	console.log('SECTION 1: Scanning built-in extension dependencies');
 	console.log('  Why: CG skips all packages with engines.vscode in their package.json.');
 	console.log('  This is a CG workaround for consumers of VS Code extensions, but we');
-	console.log('  ARE VS Code — our built-in extensions ship in the product.');
+	console.log('  ARE VS Code -- our built-in extensions ship in the product.');
 	console.log('=========================================================================');
 	console.log('');
 
 	// Step 3: Scan each extension's node_modules
 	const entries = new Map<string, LicenseEntry>();
 	// Presence index: packages found on disk in node_modules but with NO license
-	// file. These never reach the NOTICE output, but they ARE shipped — so we
+	// file. These never reach the NOTICE output, but they ARE shipped -- so we
 	// record name+version here. merge-notices.ts reads this sibling file to tell
 	// "present but unlicensed" (an override should INJECT) apart from "not shipped"
 	// (an override is stale and should be deleted). Keyed by lowercased name.
@@ -1120,7 +1136,13 @@ async function main(): Promise<void> {
 				const licenseFilePath = findLicenseFile(pkgDir);
 
 				if (licenseFilePath) {
-					const licenseText = fs.readFileSync(licenseFilePath, 'utf8').trim();
+					let licenseText: string;
+					try {
+						licenseText = fs.readFileSync(licenseFilePath, 'utf8').trim();
+					} catch (err) {
+						console.warn(`  WARN: could not read ${licenseFilePath}: ${(err as Error).message}`);
+						continue;
+					}
 					validateCopyright(resolvedName, licenseText, `extension: ${ext}`);
 					entries.set(key, {
 						name: resolvedName,
@@ -1149,14 +1171,14 @@ async function main(): Promise<void> {
 	// ClearlyDefined can't resolve the text, CG's notice@0 silently omits
 	// the package from the NOTICE output.
 	//
-	// The LICENSE files are right there in node_modules/ — we just read them.
+	// The LICENSE files are right there in node_modules/ -- we just read them.
 	// This is a best-effort gap fill, not a replacement for CG.
 	// =========================================================================
 	console.log('');
 	console.log('=========================================================================');
 	console.log('SECTION 2: Scanning root node_modules for ClearlyDefined gaps');
 	console.log('  Why: CG detects these packages but ClearlyDefined may not have their');
-	console.log('  license text. The LICENSE files exist on disk — we read them directly.');
+	console.log('  license text. The LICENSE files exist on disk -- we read them directly.');
 	console.log('=========================================================================');
 	console.log('');
 
@@ -1182,7 +1204,13 @@ async function main(): Promise<void> {
 			const licenseFilePath = findLicenseFile(pkgDir);
 
 			if (licenseFilePath) {
-				const licenseText = fs.readFileSync(licenseFilePath, 'utf8').trim();
+				let licenseText: string;
+				try {
+					licenseText = fs.readFileSync(licenseFilePath, 'utf8').trim();
+				} catch (err) {
+					console.warn(`  WARN: could not read ${licenseFilePath}: ${(err as Error).message}`);
+					continue;
+				}
 				validateCopyright(resolvedName, licenseText, 'root node_modules');
 				entries.set(key, {
 					name: resolvedName,
@@ -1209,11 +1237,11 @@ async function main(): Promise<void> {
 	//
 	// Language grammars, vendored code (chromium, electron, nodejs), and other
 	// manually declared components are registered in cgmanifest.json files
-	// throughout the repo. These are not npm packages — they don't exist in
+	// throughout the repo. These are not npm packages -- they don't exist in
 	// node_modules. The license text is stored inline in a custom
 	// "licenseDetail" field (an array of strings, one per line).
 	//
-	// This is the same field that the manual OSS tool read. CG ignores it —
+	// This is the same field that the manual OSS tool read. CG ignores it --
 	// licenseDetail is not part of the CG schema.
 	// =========================================================================
 	console.log('');
@@ -1221,7 +1249,7 @@ async function main(): Promise<void> {
 	console.log('SECTION 3: Extracting licenses from cgmanifest.json licenseDetail');
 	console.log('  Why: Language grammars, vendored code, and other manually declared');
 	console.log('  components have license text inline in cgmanifest.json. CG ignores');
-	console.log('  this field — it is a VS Code custom extension.');
+	console.log('  this field -- it is a VS Code custom extension.');
 	console.log('=========================================================================');
 	console.log('');
 
@@ -1298,7 +1326,7 @@ async function main(): Promise<void> {
 			}
 
 			// No inline licenseDetail. If CG already covered this component
-			// (ClearlyDefined harvested it), there's nothing to do — skip.
+			// (ClearlyDefined harvested it), there's nothing to do -- skip.
 			if (cgCovered.has(key)) {
 				cgManifestSkippedCgCovered++;
 				continue;
@@ -1307,7 +1335,7 @@ async function main(): Promise<void> {
 			// CG did NOT cover it and there's no inline text. If it's a git
 			// component with a repo + pinned commit, fetch the LICENSE from the
 			// repo directly (this is what the legacy OSS tool did). Reading the
-			// real LICENSE file is CELA-clean — we never manufacture text.
+			// real LICENSE file is CELA-clean -- we never manufacture text.
 			const relPath = path.relative(repoRoot, manifestPath);
 			const repoUrl = comp.git?.repositoryUrl || '';
 			const commitHash = comp.git?.commitHash || '';
@@ -1330,7 +1358,7 @@ async function main(): Promise<void> {
 					continue;
 				}
 				cgManifestFetchFailed++;
-				console.warn(`  FETCH FAILED: ${name} (${repoUrl}@${commitHash.substring(0, 7)}) — no LICENSE resolved`);
+				console.warn(`  FETCH FAILED: ${name} (${repoUrl}@${commitHash.substring(0, 7)}) -- no LICENSE resolved`);
 				continue;
 			}
 
@@ -1357,7 +1385,7 @@ async function main(): Promise<void> {
 	// resolve repo URL -> fetch the REAL license text from the repo (tag-pinned).
 	// CG-coverage gating bounds network calls to ~34 crates, not all ~419.
 	//
-	// We never manufacture license text — the SPDX id is used only as the
+	// We never manufacture license text -- the SPDX id is used only as the
 	// `license` field label; the body is always the real upstream LICENSE file.
 	// =========================================================================
 	console.log('');
@@ -1379,7 +1407,7 @@ async function main(): Promise<void> {
 	let cargoFetchFailed = 0;
 	let cargoApiFailed = 0;
 	// Crates with a conjunctive (AND) SPDX expression where we emitted only one
-	// license's text — a legally incomplete notice that needs a cglicenses.json
+	// license's text -- a legally incomplete notice that needs a cglicenses.json
 	// override with the full combined text. See hasSpdxAnd. (0 for today's set.)
 	let cargoAndIncomplete = 0;
 
@@ -1410,13 +1438,13 @@ async function main(): Promise<void> {
 
 		for (const pkg of pkgs) {
 			cargoCratesSeen++;
-			// Skip first-party workspace crates (no source) — not third-party OSS.
+			// Skip first-party workspace crates (no source) -- not third-party OSS.
 			if (!pkg.source) {
 				cargoNoSource++;
 				continue;
 			}
 			// git+ sources embed their own commit; none of our targets use this.
-			// Log-and-skip (spec Q3) — cheap to add later, no current consumer.
+			// Log-and-skip (spec Q3) -- cheap to add later, no current consumer.
 			if (pkg.source.startsWith('git+')) {
 				cargoGitSource++;
 				console.log(`  SKIP (git source, TODO): ${pkg.name}@${pkg.version}`);
@@ -1433,7 +1461,7 @@ async function main(): Promise<void> {
 			const cgBody = cgBodies.get(key);
 			const cgHasIt = cgCovered.has(key);
 			if (cgHasIt && (typeof cgBody === 'undefined' || !isSpdxStub(cgBody))) {
-				// CG covered it with real text — nothing to do, do NOT fetch.
+				// CG covered it with real text -- nothing to do, do NOT fetch.
 				cargoSkippedCgCovered++;
 				continue;
 			}
@@ -1456,46 +1484,46 @@ async function main(): Promise<void> {
 			const info = await fetchCratesIoJson(p.name);
 			if (!info) {
 				cargoApiFailed++;
-				console.warn(`  CRATES.IO FAILED: ${p.name}@${p.version} — no crate info`);
+				console.warn(`  CRATES.IO FAILED: ${p.name}@${p.version} -- no crate info`);
 				return;
 			}
 			// Shape guard: fetchCratesIoJson only guarantees "HTTP 200 + JSON.parse
-			// succeeded" — NOT object shape. A 200 with an unexpected body (error
+			// succeeded" -- NOT object shape. A 200 with an unexpected body (error
 			// envelope `{errors:[…]}`, schema drift, missing `versions`/`crate`)
 			// would make the dereferences below throw a TypeError, rejecting the
 			// task → Promise.all → main() → process.exit(1), crashing the build.
 			// Spec sec. 6.6: a failed crates.io call must log and continue, never crash.
 			if (!Array.isArray(info.versions) || !info.crate || typeof info.crate.id !== 'string') {
 				cargoApiFailed++;
-				console.warn(`  CRATES.IO FAILED: ${p.name}@${p.version} — unexpected response shape (no versions/crate)`);
+				console.warn(`  CRATES.IO FAILED: ${p.name}@${p.version} -- unexpected response shape (no versions/crate)`);
 				return;
 			}
 			const versionInfo = info.versions.find(v => v.num === p.version);
 			const license = versionInfo?.license || '';
 			if (!versionInfo) {
-				console.warn(`  WARN: version ${p.version} not found for crate ${p.name} — using repo default`);
+				console.warn(`  WARN: version ${p.version} not found for crate ${p.name} -- using repo default`);
 			}
 			const repoUrl = getCrateRepository(info);
 			if (!repoUrl) {
 				cargoFetchFailed++;
-				console.warn(`  FETCH FAILED: ${p.name}@${p.version} — no repository URL`);
+				console.warn(`  FETCH FAILED: ${p.name}@${p.version} -- no repository URL`);
 				return;
 			}
 
 			// SPDX-id-driven, tag-pinned fetch. For OR expressions, fetching the
 			// first available license's text is correct (licensee's choice). For AND
 			// expressions, ALL named licenses are legally required but we currently
-			// emit only the first — warn loudly so an AND-licensed crate can never
+			// emit only the first -- warn loudly so an AND-licensed crate can never
 			// silently ship a one-sided (deficient) notice. See hasSpdxAnd / spec sec. 6.
 			const result = await fetchCargoLicense(repoUrl, p.name, p.version, license);
 			if (!result) {
 				cargoFetchFailed++;
-				console.warn(`  FETCH FAILED: ${p.name}@${p.version} (${repoUrl}) — no LICENSE resolved at any ref (needs cglicenses.json override)`);
+				console.warn(`  FETCH FAILED: ${p.name}@${p.version} (${repoUrl}) -- no LICENSE resolved at any ref (needs cglicenses.json override)`);
 				return;
 			}
 			if (hasSpdxAnd(license)) {
 				cargoAndIncomplete++;
-				console.warn(`  AND-LICENSE INCOMPLETE: ${p.name}@${p.version} — SPDX "${license}" is conjunctive (AND); only one license's text was fetched. ALL named licenses are legally required — add a cglicenses.json override with the full combined text.`);
+				console.warn(`  AND-LICENSE INCOMPLETE: ${p.name}@${p.version} -- SPDX "${license}" is conjunctive (AND); only one license's text was fetched. ALL named licenses are legally required -- add a cglicenses.json override with the full combined text.`);
 			}
 			const fetched = result.text;
 			const usedRef = result.ref;
@@ -1525,7 +1553,7 @@ async function main(): Promise<void> {
 			// Defense-in-depth: any unexpected throw in this task must log and
 			// continue, never reject (which would crash the build per sec. 6.6).
 			cargoApiFailed++;
-			console.warn(`  CRATES.IO FAILED: ${p.name}@${p.version} — unexpected error: ${(err as Error).message}`);
+			console.warn(`  CRATES.IO FAILED: ${p.name}@${p.version} -- unexpected error: ${(err as Error).message}`);
 		}
 	});
 
@@ -1881,7 +1909,7 @@ async function main(): Promise<void> {
 	//   1. Prefer extensionsCG/<name>/package-lock.json, deposited by the
 	//      `download-builtin-extensions-cg` build step.
 	//   2. If that file is absent, self-fetch the lockfile straight from the public
-	//      raw.githubusercontent.com URL at the release tag — no token needed.
+	//      raw.githubusercontent.com URL at the release tag -- no token needed.
 	// The download step is continueOnError and has silently failed in CI for ~2y
 	// (it embeds a token in the URL userinfo, which makes native fetch throw), so
 	// the self-fetch fallback is what actually delivers coverage today. Keeping the
@@ -1923,7 +1951,7 @@ async function main(): Promise<void> {
 		console.log(`  Built-in extensions in product.json: ${s7ExtCount}` +
 			`${s7ExtCount ? ' (' + extManifest.map(e => e.name).join(', ') + ')' : ''}`);
 
-		// Acquire each extension's package-lock.json — disk first (deposited by the
+		// Acquire each extension's package-lock.json -- disk first (deposited by the
 		// download-builtin-extensions-cg step), then self-fetch the public raw URL
 		// at the release tag when disk is empty. Runs concurrently; each extension
 		// lands in lockByExt or s7MissingLockfiles.
@@ -1942,7 +1970,7 @@ async function main(): Promise<void> {
 			}
 			const lockUrl = builtInExtensionLockfileUrl(ext.repo, ext.version);
 			if (!lockUrl) {
-				console.warn(`  WARN: ${ext.name} has no parseable GitHub repo/version in product.json — cannot self-fetch its lockfile`);
+				console.warn(`  WARN: ${ext.name} has no parseable GitHub repo/version in product.json -- cannot self-fetch its lockfile`);
 				s7MissingLockfiles.push(ext.name);
 				return;
 			}
@@ -1988,7 +2016,7 @@ async function main(): Promise<void> {
 
 		// Resolve license text for each missing dep: packument -> license id + repo
 		// url, then fetch the LICENSE from the repository (same path as Section 5).
-		// Every fetch is wrapped so a network failure logs and continues — never
+		// Every fetch is wrapped so a network failure logs and continues -- never
 		// crashes the build. A dep with no fetchable text is seeded into the
 		// presence index so a cglicenses override can supply it (loud, not silent).
 		const s7Tasks = [...s7Pending.values()].map(dep => async (): Promise<void> => {
@@ -2106,23 +2134,23 @@ async function main(): Promise<void> {
 	// Summary
 	console.log('');
 	console.log('=== License Scan Summary ===');
-	console.log(`  Section 1 — Extensions:`);
+	console.log(`  Section 1 -- Extensions:`);
 	console.log(`    Extensions scanned:        ${extensions.length}`);
 	console.log(`    Packages found:            ${scanned}`);
 	console.log(`    LICENSE found:             ${scanned - noLicense}`);
 	console.log(`    NO LICENSE:                ${noLicense}`);
-	console.log(`  Section 2 — Root node_modules:`);
+	console.log(`  Section 2 -- Root node_modules:`);
 	console.log(`    Packages found:            ${rootScanned}`);
 	console.log(`    LICENSE found:             ${rootScanned - rootNoLicense}`);
 	console.log(`    NO LICENSE:                ${rootNoLicense}`);
-	console.log(`  Section 3 — cgmanifest.json:`);
+	console.log(`  Section 3 -- cgmanifest.json:`);
 	console.log(`    Files scanned:             ${cgManifestFiles.length}`);
 	console.log(`    Entries with licenseDetail: ${cgManifestFound}`);
 	console.log(`    Fetched from git repo:     ${cgManifestFetched}`);
 	console.log(`    Fetch failed (no LICENSE): ${cgManifestFetchFailed}`);
 	console.log(`    Skipped (CG already covers): ${cgManifestSkippedCgCovered}`);
 	console.log(`    No detail, not fetchable:  ${cgManifestNoDetail}`);
-	console.log(`  Section 4 — Cargo.lock crates:`);
+	console.log(`  Section 4 -- Cargo.lock crates:`);
 	console.log(`    Lock files scanned:        ${cargoLockFiles.length}`);
 	console.log(`    Crates seen:               ${cargoCratesSeen}`);
 	console.log(`    Workspace crates skipped:  ${cargoNoSource}`);
@@ -2169,12 +2197,12 @@ async function main(): Promise<void> {
 	// hard failure. (The CI-vs-offline distinction for logging is handled inline
 	// above via `inCI`; --strict is an explicit opt-in regardless of environment.)
 	if (strictBuiltin && s7MissingLockfiles.length > 0) {
-		console.error(`--strict-builtin-extensions: failing build — ${s7MissingLockfiles.length} built-in extension lockfile(s) unobtainable (disk or self-fetch): ${s7MissingLockfiles.join(', ')}`);
+		console.error(`--strict-builtin-extensions: failing build -- ${s7MissingLockfiles.length} built-in extension lockfile(s) unobtainable (disk or self-fetch): ${s7MissingLockfiles.join(', ')}`);
 		process.exit(1);
 	}
 }
 
-// Only run main() when scan-licenses is the entry point — not when a test or
+// Only run main() when scan-licenses is the entry point -- not when a test or
 // another module imports the exported helpers (mirrors parse-notices.ts).
 if (/scan-licenses(\.[jt]s)?$/.test(process.argv[1] || '')) {
 	main().catch(err => {

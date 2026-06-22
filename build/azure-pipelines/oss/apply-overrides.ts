@@ -182,9 +182,17 @@ export function fetchUriText(uri: string, timeoutMs = 10_000, maxRedirects = 5):
 				resolve(undefined);
 				return;
 			}
+			const MAX_BODY_SIZE = 10 * 1024 * 1024; // 10MB
 			let data = '';
 			res.setEncoding('utf8');
-			res.on('data', chunk => data += chunk);
+			res.on('data', chunk => {
+				data += chunk;
+				if (data.length > MAX_BODY_SIZE) {
+					req.destroy();
+					resolve(undefined);
+					return;
+				}
+			});
 			res.on('end', () => resolve(data));
 		});
 		req.on('error', () => resolve(undefined));

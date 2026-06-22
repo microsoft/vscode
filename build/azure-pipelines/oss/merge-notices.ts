@@ -142,7 +142,7 @@ async function mainAsync(): Promise<void> {
 	console.log(`  Entries parsed: ${extEntries.length}`);
 	console.log('');
 
-	// Build merged map — CG entries go in first (they win on conflicts).
+	// Build merged map -- CG entries go in first (they win on conflicts).
 	// Key is `<name>@<version>` so multiple versions of the same package are
 	// preserved as separate entries (per CELA guidance: keep every shipped
 	// version's license text, even if license text is identical between versions).
@@ -196,7 +196,7 @@ async function mainAsync(): Promise<void> {
 	for (const entry of extEntries) {
 		const key = mergeKey(entry);
 		if (merged.has(key)) {
-			// Normally CG wins the collision. Exception: cargo stub-override keys —
+			// Normally CG wins the collision. Exception: cargo stub-override keys --
 			// the scanner replaces CG's SPDX-as-body stub with real fetched text.
 			if (stubOverrideKeys.has(key)) {
 				merged.set(key, { ...entry, source: 'cargo-stub-override' });
@@ -217,12 +217,12 @@ async function mainAsync(): Promise<void> {
 	// Stub-override only flips priority on a `name@version` collision. If CG
 	// recorded a crate at a DIFFERENT version than Cargo.lock resolved, there is
 	// no collision: the scanner entry is added as a separate record and CG's stub
-	// SURVIVES — a silent divergence (the scanner's cargoStubOverride counter
+	// SURVIVES -- a silent divergence (the scanner's cargoStubOverride counter
 	// still claimed success). Warn loudly for any override key that never
 	// collided so the mismatch is visible to the operator.
 	const uncollidedOverrideKeys = [...stubOverrideKeys].filter(k => !collidedOverrideKeys.has(k)).sort();
 	if (uncollidedOverrideKeys.length > 0) {
-		console.warn(`  WARN: ${uncollidedOverrideKeys.length} stub-override key(s) never collided with a CG entry — CG's stub may survive at a different version. Verify these crates' notice text:`);
+		console.warn(`  WARN: ${uncollidedOverrideKeys.length} stub-override key(s) never collided with a CG entry -- CG's stub may survive at a different version. Verify these crates' notice text:`);
 		for (const k of uncollidedOverrideKeys) {
 			console.warn(`    - ${k}`);
 		}
@@ -315,7 +315,7 @@ async function mainAsync(): Promise<void> {
 					const platformToken = /(darwin|win32|linux|linuxmusl|alpine|freebsd|android|arm64|x64|ia32|armhf|ppc64|s390x|musl)/i;
 					for (const name of result.staleNames.sort()) {
 						const hint = platformToken.test(name)
-							? ' (likely platform-specific — do NOT delete based on a single-platform build)'
+							? ' (likely platform-specific -- do NOT delete based on a single-platform build)'
 							: '';
 						console.warn(`    ? stale: ${name}${hint}`);
 					}
@@ -387,7 +387,7 @@ required to debug changes to any libraries licensed under the GNU Lesser General
 			if (entry.source === 'extension-scanner') {
 				output += '(license text obtained directly from package LICENSE file)\n';
 			} else if (entry.source === 'cargo-stub-override') {
-				output += '(license text fetched from the crate repository — replaces CG SPDX-expression stub)\n';
+				output += '(license text fetched from the crate repository -- replaces CG SPDX-expression stub)\n';
 			} else if (entry.source === 'cglicenses-override') {
 				output += '(license text supplied by cglicenses.json manual override)\n';
 			}
@@ -400,7 +400,12 @@ required to debug changes to any libraries licensed under the GNU Lesser General
 
 	output += '\n' + SEPARATOR + '\n';
 
-	fs.writeFileSync(outputPath, output, 'utf8');
+	try {
+		fs.writeFileSync(outputPath, output, 'utf8');
+	} catch (err) {
+		console.error(`ERROR: Failed to write output file ${outputPath}: ${(err as Error).message}`);
+		process.exit(1);
+	}
 
 	const sizeMB = (output.length / 1024 / 1024).toFixed(2);
 
