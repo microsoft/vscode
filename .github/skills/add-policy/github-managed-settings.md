@@ -95,7 +95,9 @@ the VS Code bag is **flattened** to dot-paths — e.g. the schema's nested
 > object/array value is carried as a JSON string in the bag and parsed back on read (see
 > [Structured settings](#structured-objectarray-settings)). The *setting's* own `type` is
 > the real shape — e.g. `chat.plugins.strictMarketplaces` is `['array', 'null']`, modeling
-> the schema's array allowlist; only the bag-carrying type is `'string'`.
+> the schema's array allowlist; only the bag-carrying type is `'string'`. That `'string'` is
+> **required, not cosmetic**: omitting it (or declaring the object/array type) makes the key
+> fail projection validation and silently never apply.
 
 Note the schema's `x-composition` describes the **server/runtime** layering across
 enterprise/org/user. Inside VS Code the bag has already been collapsed to a single
@@ -164,7 +166,12 @@ needless re-registration.
 
 For settings whose `type` is `'object'` or `'array'`, the policy still declares the
 managed-settings key as a **string** (the JSON is carried as a string), and the
-`value` callback returns that raw string. When the policy value is a string but the
+`value` callback returns that raw string. The `{ type: 'string' }` is **mandatory and must
+be `'string'`** for these keys, not filler: `projectManagedSettings` keeps a bag value only
+when `typeof value === type`, and the native MDM watcher reads the registry/plist value as
+that type. Because the structured value travels as a JSON string, declaring `'object'` /
+`'array'` (or omitting `type`) makes the value fail that `typeof` check and get dropped, so
+the managed setting silently never applies. When the policy value is a string but the
 setting's type is not, `PolicyConfiguration` parses it back into the typed value on read
 via its own lenient JSONC parser (`PolicyConfiguration.parse()` using a `json.visit`
 streaming visitor — *not* `JSON.parse`; see `configurations.ts`). Examples in
