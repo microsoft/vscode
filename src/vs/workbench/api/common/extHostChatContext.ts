@@ -285,6 +285,9 @@ export class ExtHostChatContext extends Disposable implements ExtHostChatContext
 		for (let i = 0; i < itemsToEvict && this._itemInsertionOrder.length > 0; i++) {
 			const oldestHandle = this._itemInsertionOrder.shift()!;
 			this._globalItems.delete(oldestHandle);
+			for (const itemHandles of this._providerItems.values()) {
+				itemHandles.delete(oldestHandle);
+			}
 		}
 	}
 
