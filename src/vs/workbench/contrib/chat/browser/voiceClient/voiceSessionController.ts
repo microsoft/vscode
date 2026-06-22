@@ -171,6 +171,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private _replyPlayedSinceSend = false;
 	/** Set after send_to_chat; blocks auto-listen until the reply TTS starts. */
 	private _awaitingReplyAudio = false;
+	/** Enter listening immediately after greeting finishes (no debounce). */
+	private _autoListenAfterGreeting = false;
 
 	// --- Audio FIFO queue ---
 	private readonly _audioQueue: { sessionId: string | undefined; chunks: { audio: string; isFirstChunk: boolean; isFinal: boolean; transcript: string | undefined }[] }[] = [];
@@ -569,6 +571,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					if (this._isAutoSendEnabled() && this._replyPlayedSinceSend && !this._awaitingReplyAudio) {
 						this._scheduleAutoListen();
 					}
+					// Enter listening immediately after greeting finishes.
+					if (this._autoListenAfterGreeting) {
+						this._autoListenAfterGreeting = false;
+						this._enterAutoListen();
+					}
 				}
 			}
 		}));
@@ -852,6 +859,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				this.micCaptureService.isMuted = false;
 				this._statusText.set('Hold to speak...', undefined);
 				this._voiceState.set('idle', undefined);
+
+				if (!isResuming && this._isAutoSendEnabled()) {
+					this._autoListenAfterGreeting = true;
+				}
 			} else if (this._isConnected.get()) {
 				this._onConnectionLost();
 			} else if (this._isReconnecting.get()) {
