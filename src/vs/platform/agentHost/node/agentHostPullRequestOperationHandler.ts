@@ -145,7 +145,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		const upstreamPresent = await this._gitService.hasUpstream(workingDirectory, branchName);
 		this._throwIfCancelled(token);
 		try {
-			await this._gitService.pushBranch(workingDirectory, branchName, !upstreamPresent);
+			await this._gitService.push(workingDirectory, { ref: branchName, setUpstream: !upstreamPresent });
 		} catch (err) {
 			this._throwIfCancelled(token);
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Failed to push branch '${branchName}': ${err instanceof Error ? err.message : String(err)}`);
