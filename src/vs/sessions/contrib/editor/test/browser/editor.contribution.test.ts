@@ -197,45 +197,63 @@ suite('Sessions - Editor Contribution', () => {
 		assert.strictEqual(layoutService.panelVisible, true);
 	});
 
-	test('push editor right hides the auxiliary bar', async () => {
+	test('toggle auxiliary bar hides the auxiliary bar when visible', async () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const layoutService = new class extends mock<IAgentWorkbenchLayoutService>() {
+			auxiliaryBarVisible = true;
 			readonly hiddenParts: Parts[] = [];
 
+			override isVisible(part: Parts): boolean {
+				return part === Parts.AUXILIARYBAR_PART ? this.auxiliaryBarVisible : false;
+			}
+
 			override setPartHidden(hidden: boolean, part: Parts): void {
-				if (hidden) {
-					this.hiddenParts.push(part);
+				if (part === Parts.AUXILIARYBAR_PART) {
+					this.auxiliaryBarVisible = !hidden;
+					if (hidden) {
+						this.hiddenParts.push(part);
+					}
 				}
 			}
 		};
 		instantiationService.set(IAgentWorkbenchLayoutService, layoutService);
 
-		const handler = CommandsRegistry.getCommand('workbench.action.agentSessions.pushEditorRight')?.handler;
+		const handler = CommandsRegistry.getCommand('workbench.action.agentSessions.toggleAuxiliaryBar')?.handler;
 		assert.ok(handler, 'Command handler should be registered');
 
 		await handler(instantiationService);
 
 		assert.deepStrictEqual(layoutService.hiddenParts, [Parts.AUXILIARYBAR_PART]);
+		assert.strictEqual(layoutService.auxiliaryBarVisible, false);
 	});
 
-	test('pull editor left shows the auxiliary bar', async () => {
+	test('toggle auxiliary bar shows the auxiliary bar when hidden', async () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const layoutService = new class extends mock<IAgentWorkbenchLayoutService>() {
+			auxiliaryBarVisible = false;
 			readonly shownParts: Parts[] = [];
 
+			override isVisible(part: Parts): boolean {
+				return part === Parts.AUXILIARYBAR_PART ? this.auxiliaryBarVisible : false;
+			}
+
 			override setPartHidden(hidden: boolean, part: Parts): void {
-				if (!hidden) {
-					this.shownParts.push(part);
+				if (part === Parts.AUXILIARYBAR_PART) {
+					this.auxiliaryBarVisible = !hidden;
+					if (!hidden) {
+						this.shownParts.push(part);
+					}
 				}
 			}
 		};
 		instantiationService.set(IAgentWorkbenchLayoutService, layoutService);
 
-		const handler = CommandsRegistry.getCommand('workbench.action.agentSessions.pullEditorLeft')?.handler;
+		const handler = CommandsRegistry.getCommand('workbench.action.agentSessions.toggleAuxiliaryBar')?.handler;
 		assert.ok(handler, 'Command handler should be registered');
 
 		await handler(instantiationService);
 
 		assert.deepStrictEqual(layoutService.shownParts, [Parts.AUXILIARYBAR_PART]);
+		assert.strictEqual(layoutService.auxiliaryBarVisible, true);
 	});
 });
