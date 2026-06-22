@@ -797,9 +797,9 @@ export class SCMRepositoriesViewPane extends ViewPane {
 			return;
 		}
 
-		const isParentCollapsed = this.tree.hasNode(parentRepository) && this.tree.isCollapsed(parentRepository);
+		const wasParentCollapsed = this.tree.hasNode(parentRepository) && this.tree.isCollapsed(parentRepository);
 		await this.updateChildren(parentRepository);
-		if (!isParentCollapsed) {
+		if (!wasParentCollapsed && this.tree.hasNode(parentRepository) && !this.tree.isCollapsed(parentRepository)) {
 			await this.expand(parentRepository);
 		}
 	}
