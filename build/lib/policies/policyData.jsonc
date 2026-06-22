@@ -487,7 +487,7 @@
             "key": "chat.agent.sandbox.forceFirstExecutionInSandbox",
             "name": "ChatAgentSandboxForceFirstExecutionInSandbox",
             "category": "IntegratedTerminal",
-            "minimumVersion": "1.126",
+            "minimumVersion": "1.127",
             "localization": {
                 "description": {
                     "key": "agentSandbox.forceFirstExecutionInSandbox",

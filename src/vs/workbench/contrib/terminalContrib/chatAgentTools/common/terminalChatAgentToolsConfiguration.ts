@@ -611,7 +611,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		policy: {
 			name: 'ChatAgentSandboxForceFirstExecutionInSandbox',
 			category: PolicyCategory.IntegratedTerminal,
-			minimumVersion: '1.126',
+			minimumVersion: '1.127',
 			localization: {
 				description: {
 					key: 'agentSandbox.forceFirstExecutionInSandbox',
