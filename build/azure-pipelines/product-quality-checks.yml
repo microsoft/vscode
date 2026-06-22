@@ -171,6 +171,26 @@ jobs:
       # run fresh against current HEAD, so extension licenses and
       # cglicenses.json overrides are always current-PR-accurate.
       # =========================================================================
+
+      # Detect up front whether CG produced a usable NOTICE. The cache-download
+      # tasks below run ONLY when it did not -- otherwise they execute on the
+      # happy path and, when no prior cache artifact exists (e.g. the first build
+      # on a branch), fail-with-continueOnError and mark the whole build
+      # partiallySucceeded for no real reason. Uses the same >1KB heuristic as
+      # the "apply NOTICE fallback" step below so the two always agree.
+      - script: |
+          set -u
+          GEN="$(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt"
+          if [ -f "$GEN" ] && [ "$(wc -c < "$GEN")" -gt 1024 ]; then
+            echo "##[section]CG NOTICE generation succeeded; skipping cache download."
+            echo "##vso[task.setvariable variable=CG_NOTICE_OK]true"
+          else
+            echo "##[warning]CG NOTICE generation failed or produced empty output; will attempt cache fallback."
+            echo "##vso[task.setvariable variable=CG_NOTICE_OK]false"
+          fi
+        displayName: "Cache: detect whether CG NOTICE needs fallback"
+        continueOnError: true
+
       - task: DownloadPipelineArtifact@2
         displayName: "Cache: download last good NOTICE (same branch)"
         inputs:
@@ -184,6 +204,7 @@ jobs:
           itemPattern: "**/{ThirdPartyNotices.generated.txt,notice-meta.txt}"
           targetPath: $(Pipeline.Workspace)/cached-notice-branch
         continueOnError: true
+        condition: and(succeeded(), ne(variables.CG_NOTICE_OK, 'true'))
 
       - task: DownloadPipelineArtifact@2
         displayName: "Cache: download last good NOTICE (main fallback)"
@@ -198,7 +219,7 @@ jobs:
           itemPattern: "**/{ThirdPartyNotices.generated.txt,notice-meta.txt}"
           targetPath: $(Pipeline.Workspace)/cached-notice-main
         continueOnError: true
-        condition: ne(variables['Build.SourceBranch'], 'refs/heads/main')
+        condition: and(succeeded(), ne(variables.CG_NOTICE_OK, 'true'), ne(variables['Build.SourceBranch'], 'refs/heads/main'))
 
       - script: |
           set -u
@@ -292,10 +313,6 @@ jobs:
             --repo "$(Build.SourcesDirectory)" \
             --cg "$(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt" \
             --output "$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.extensions.txt"
-        displayName: "Scan extension-bundled licenses"
-        continueOnError: true
-
-      - script: |
           node .oss-build-out/merge-notices.js \
             --cg "$(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt" \
             --extensions "$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.extensions.txt" \
@@ -306,7 +323,7 @@ jobs:
           # Upload all artifacts
           echo "##vso[artifact.upload containerfolder=notice_output;artifactname=notice_output]$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.extensions.txt"
           echo "##vso[artifact.upload containerfolder=notice_output;artifactname=notice_output]$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.new.txt"
-        displayName: "Merge CG + extension notices into .new.txt"
+        displayName: "Build merged NOTICE (scan extensions + merge into .new.txt)"
         continueOnError: true
 
       - task: AzureCLI@2
