@@ -18,7 +18,7 @@
 /* general questions styling - matches the tool confirmation (permissions) box family */
 .interactive-session .chat-question-carousel-container {
 	margin: 8px 0;
-	border: 1px solid var(--vscode-input-border, var(--vscode-chat-requestBorder));
+	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-chat-requestBorder));
 	border-radius: var(--vscode-cornerRadius-large);
 	background-color: var(--vscode-panel-background);
 	display: flex;
@@ -27,6 +27,10 @@
 	container-type: inline-size;
 	max-height: min(420px, 45vh);
 	position: relative;
+}
+
+.interactive-session .chat-question-carousel-container:focus {
+	outline: none;
 }
 
 .interactive-session .chat-question-carousel-container:focus-visible,
