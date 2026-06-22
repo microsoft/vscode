@@ -685,6 +685,9 @@ function jsonBlock(value: unknown): string {
 	return '```json\n' + JSON.stringify(value ?? {}, null, 2) + '\n```\n\n';
 }
 
+/** Header row + separator for the report's two-column `Property | Value` tables. */
+const PROPERTY_VALUE_TABLE_HEADER = '| Property | Value |\n|----------|-------|\n';
+
 class PolicyDiagnosticsAction extends Action2 {
 
 	constructor() {
@@ -705,14 +708,14 @@ class PolicyDiagnosticsAction extends Action2 {
 		const authenticationAccessService = accessor.get(IAuthenticationAccessService);
 		const policyService = accessor.get(IPolicyService);
 		const accountPolicyGateService = accessor.get(IAccountPolicyGateService);
-		// Native MDM is a desktop-only channel (registered via the main process); it is absent in
-		// web windows. Resolve it now, synchronously, because the accessor is only valid before the
-		// first `await` below.
+		// Native MDM is a desktop-only channel, registered in the renderer service collection on
+		// desktop and Agents windows but absent in web. Resolve it now, synchronously, because the
+		// accessor is only valid before the first `await` below.
 		let copilotManagedSettingsService: ICopilotManagedSettingsService | undefined;
 		try {
 			copilotManagedSettingsService = accessor.get(ICopilotManagedSettingsService);
 		} catch {
-			// no native MDM channel in this window
+			// no native MDM channel in this window (e.g. web)
 		}
 
 		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -720,8 +723,7 @@ class PolicyDiagnosticsAction extends Action2 {
 		let content = '# VS Code Policy Diagnostics\n\n';
 		content += '*WARNING: This file may contain sensitive information.*\n\n';
 		content += '## System Information\n\n';
-		content += '| Property | Value |\n';
-		content += '|----------|-------|\n';
+		content += PROPERTY_VALUE_TABLE_HEADER;
 		content += `| Generated | ${new Date().toISOString()} |\n`;
 		content += `| Product | ${productService.nameLong} ${productService.version} |\n`;
 		content += `| Commit | ${productService.commit || 'n/a'} |\n\n`;
@@ -755,8 +757,7 @@ class PolicyDiagnosticsAction extends Action2 {
 				content += `**Account Label**: ${accountLabel}\n\n`;
 
 				content += '### Detailed Account Properties\n\n';
-				content += '| Property | Value |\n';
-				content += '|----------|-------|\n';
+				content += PROPERTY_VALUE_TABLE_HEADER;
 
 				// Iterate through all properties of the account object
 				for (const [key, value] of Object.entries(account)) {
@@ -791,8 +792,7 @@ class PolicyDiagnosticsAction extends Action2 {
 		try {
 			const gateInfo = accountPolicyGateService.gateInfo;
 			const approvedOrgsRaw = policyService.getPolicyValue(APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME);
-			content += '| Property | Value |\n';
-			content += '|----------|-------|\n';
+			content += PROPERTY_VALUE_TABLE_HEADER;
 			content += `| State | \`${gateInfo.state}\` |\n`;
 			content += `| Reason | ${gateInfo.reason ? `\`${gateInfo.reason}\`` : '*n/a*'} |\n`;
 			content += `| ${APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME} | ${approvedOrgsRaw !== undefined ? `\`${String(approvedOrgsRaw)}\`` : '*not set*'} |\n`;
@@ -828,8 +828,7 @@ class PolicyDiagnosticsAction extends Action2 {
 			const parseErrors: { stage: string; message: string }[] = [];
 
 			content += '### GitHub Server API\n\n';
-			content += '| Property | Value |\n';
-			content += '|----------|-------|\n';
+			content += PROPERTY_VALUE_TABLE_HEADER;
 			content += '| Endpoint | `/copilot_internal/managed_settings` |\n';
 			const fetchStatus = defaultAccountService.managedSettingsFetchStatus;
 			content += `| Last fetch | ${fetchStatus === null ? '*never*' : `\`${fetchStatus}\``} |\n`;
@@ -848,9 +847,8 @@ class PolicyDiagnosticsAction extends Action2 {
 			content += jsonBlock(serverManagedSettings);
 
 			content += '### Native MDM\n\n';
-			content += '| Property | Value |\n';
-			content += '|----------|-------|\n';
-			content += `| Available | ${copilotManagedSettingsService ? 'yes' : 'no (desktop only)'} |\n`;
+			content += PROPERTY_VALUE_TABLE_HEADER;
+			content += `| Available | ${copilotManagedSettingsService ? 'yes' : 'no'} |\n`;
 			content += `| Active | ${selection.source === 'nativeMdm' ? 'yes' : 'no'} |\n\n`;
 			if (copilotManagedSettingsService) {
 				content += jsonBlock(nativeManagedSettings);
