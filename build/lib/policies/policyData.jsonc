@@ -484,6 +484,21 @@
             "included": true
         },
         {
+            "key": "chat.agent.sandbox.forceFirstExecutionInSandbox",
+            "name": "ChatAgentSandboxForceFirstExecutionInSandbox",
+            "category": "IntegratedTerminal",
+            "minimumVersion": "1.126",
+            "localization": {
+                "description": {
+                    "key": "agentSandbox.forceFirstExecutionInSandbox",
+                    "value": "Controls whether agent mode terminal commands first run with the sandbox's configured restrictions before honoring a request for execution outside the sandbox or unrestricted network access. The user is prompted to approve the requested additional access only if that sandboxed command fails. This applies only when `#chat.agent.sandbox.enabled#` is enabled."
+                }
+            },
+            "type": "boolean",
+            "default": false,
+            "included": true
+        },
+        {
             "key": "chat.agent.sandbox.allowAutoApprove",
             "name": "ChatAgentSandboxAllowAutoApprove",
             "category": "IntegratedTerminal",
