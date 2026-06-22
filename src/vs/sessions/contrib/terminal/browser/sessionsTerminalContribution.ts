@@ -272,7 +272,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			if (e.removed.length === 0 && justArchived.length === 0) {
 				return;
 			}
-			this._logService.trace(`[SessionsTerminal] onDidChangeSessions cleanup (removed: ${e.removed.length}, justArchived: ${justArchived.length}, trackedSessions: [${[...this._sessionTerminals.keys()].join(', ')}], activeKey: ${this._activeKey ?? '<none>'})`);
+			this._logService.trace(`[SessionsTerminal] onDidChangeSessions cleanup (removed: ${e.removed.length}, justArchived: ${justArchived.length}, trackedSessions: ${this._sessionTerminals.size}, activeKey: ${this._activeKey ?? '<none>'})`);
 			for (const session of e.removed) {
 				void this._closeTerminalsForSession(session.sessionId, `session removed (${session.sessionId})`).finally(() => this._sessionTerminals.delete(session.sessionId));
 			}
