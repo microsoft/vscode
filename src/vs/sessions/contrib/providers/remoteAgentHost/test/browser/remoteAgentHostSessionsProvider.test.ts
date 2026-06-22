@@ -23,6 +23,7 @@ import { IDialogService, IFileDialogService } from '../../../../../../platform/d
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService, type ChatSendResult, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -196,6 +197,10 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	instantiationService.stub(INotificationService, { error: () => { } });
+	instantiationService.stub(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() {
+		override isWorkspaceTrusted(): boolean { return true; }
+		override async getUriTrustInfo(uri: URI) { return { uri, trusted: true }; }
+	});
 	instantiationService.stub(IChatSessionsService, {
 		getChatSessionContribution: () => ({ type: 'remote-test-copilot', name: 'test', displayName: 'Test', description: 'test', icon: undefined }),
 		getOrCreateChatSession: async () => ({ onWillDispose: () => ({ dispose() { } }), sessionResource: URI.from({ scheme: 'test' }), history: [], dispose() { } }),

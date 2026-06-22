@@ -63,6 +63,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ChatConfiguration, type IChatDefaultConfiguration } from '../../../common/constants.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
@@ -218,6 +219,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
+		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
 
@@ -288,6 +290,14 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			if (settled) {
 				return settled;
 			}
+			// Don't eagerly spawn a provisional backend session in an
+			// untrusted target folder — that would start an agent in the
+			// folder before the user has opted in. This pre-warm is a silent
+			// optimization; trust is requested interactively on first Send
+			// (see AgentHostSessionHandler).
+			if (!await this._isTargetFolderTrusted(workingDirectory)) {
+				return undefined;
+			}
 			const backendSession = this._toBackendUri(sessionResource, provider);
 			const initialConfig = this._getInitialConfig();
 			try {
@@ -312,6 +322,20 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			}
 		});
 		return work;
+	}
+
+	/**
+	 * Whether the folder the provisional agent would run in is trusted. When a
+	 * working directory is known (it may be a standalone folder outside the
+	 * open workspace, e.g. a per-session folder), gate on that folder's trust;
+	 * otherwise fall back to whole-workspace trust.
+	 */
+	private async _isTargetFolderTrusted(workingDirectory: URI | undefined): Promise<boolean> {
+		if (workingDirectory) {
+			const { trusted } = await this._workspaceTrustManagementService.getUriTrustInfo(workingDirectory);
+			return trusted;
+		}
+		return this._workspaceTrustManagementService.isWorkspaceTrusted();
 	}
 
 	async tryRebind(
