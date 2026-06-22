@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize, localize2 } from '../../../../nls.js';
+import { localize2 } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
-import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { ActiveEditorContext, AuxiliaryBarVisibleContext, EditorPartModalContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, EditorPartModalContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { EditorMaximizedContext } from '../../../common/contextkeys.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
@@ -146,53 +146,6 @@ class CloseMainEditorPartAction extends Action2 {
 }
 
 registerAction2(CloseMainEditorPartAction);
-
-const editorLeftRightWhen = ContextKeyExpr.and(
-	IsSessionsWindowContext,
-	IsAuxiliaryWindowContext.toNegated(),
-	IsTopRightEditorGroupContext);
-
-class ToggleAuxiliaryBarAction extends Action2 {
-	static readonly ID = 'workbench.action.agentSessions.toggleAuxiliaryBar';
-
-	constructor() {
-		super({
-			id: ToggleAuxiliaryBarAction.ID,
-			title: localize2('toggleAuxiliaryBar', "Toggle Secondary Side Bar"),
-			icon: Codicon.rightPanelShow,
-			f1: false,
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
-		const isCurrentlyVisible = layoutService.isVisible(Parts.AUXILIARYBAR_PART);
-		layoutService.setPartHidden(isCurrentlyVisible, Parts.AUXILIARYBAR_PART);
-	}
-}
-
-registerAction2(ToggleAuxiliaryBarAction);
-
-// The toggle button shows a state-dependent icon: `right-panel-hide` when the
-// secondary side bar is visible and `right-panel-show` when it is hidden. This
-// can't be done via the action's inline `menu`, because inline menu items reuse
-// the action's single command (one icon/title). The usual inline alternative,
-// `toggled`, swaps the icon but also renders a checked/highlighted background,
-// which we explicitly don't want here. Registering two mutually-exclusive menu
-// items — each with its own icon/title — gives the per-state icon without that
-// checked styling.
-for (const { icon, title, visible } of [
-	{ icon: Codicon.rightPanelHide, title: localize('hideSecondarySideBar', "Hide Secondary Side Bar"), visible: true },
-	{ icon: Codicon.rightPanelShow, title: localize('showSecondarySideBar', "Show Secondary Side Bar"), visible: false },
-]) {
-	MenuRegistry.appendMenuItem(MenuId.EditorTitleLayout, {
-		command: { id: ToggleAuxiliaryBarAction.ID, title, icon },
-		group: 'navigation',
-		order: 99.5,
-		when: ContextKeyExpr.and(editorLeftRightWhen, visible ? AuxiliaryBarVisibleContext : AuxiliaryBarVisibleContext.toNegated())
-	});
-}
-
 
 class OpenEditorInModalEditorAction extends Action2 {
 	static readonly ID = 'workbench.action.agentSessions.openEditorInModal';

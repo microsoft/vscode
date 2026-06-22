@@ -8,13 +8,13 @@ import { Codicon } from '../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../base/common/keyCodes.js';
 import { localize, localize2 } from '../../nls.js';
 import { Categories } from '../../platform/action/common/actionCommonCategories.js';
-import { Action2, MenuRegistry, registerAction2 } from '../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../platform/contextkey/common/contextkey.js';
 import { Menus } from './menus.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../platform/keybinding/common/keybindingsRegistry.js';
 import { registerIcon } from '../../platform/theme/common/iconRegistry.js';
-import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsWindowAlwaysOnTopContext, MainEditorAreaVisibleContext, SideBarVisibleContext } from '../../workbench/common/contextkeys.js';
+import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, IsWindowAlwaysOnTopContext, MainEditorAreaVisibleContext, SideBarVisibleContext } from '../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../workbench/services/layout/browser/layoutService.js';
 import { IEditorGroupsService } from '../../workbench/services/editor/common/editorGroupsService.js';
 import { SessionsWelcomeVisibleContext } from '../common/contextkeys.js';
@@ -163,6 +163,59 @@ class ToggleSidePanelAction extends Action2 {
 
 registerAction2(ToggleSidebarVisibilityAction);
 registerAction2(ToggleSidePanelAction);
+
+export class ToggleAuxiliaryBarAction extends Action2 {
+
+	static readonly ID = 'workbench.action.agentSessions.toggleAuxiliaryBar';
+
+	constructor() {
+		super({
+			id: ToggleAuxiliaryBarAction.ID,
+			title: localize2('toggleAuxiliaryBar', "Toggle Secondary Side Bar"),
+			category: Categories.View,
+			f1: true,
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+		const isCurrentlyVisible = layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+
+		layoutService.setPartHidden(isCurrentlyVisible, Parts.AUXILIARYBAR_PART);
+
+		// Announce visibility change to screen readers
+		const alertMessage = isCurrentlyVisible
+			? localize('secondarySideBarHidden', "Secondary Side Bar hidden")
+			: localize('secondarySideBarVisible', "Secondary Side Bar shown");
+		alert(alertMessage);
+	}
+}
+
+registerAction2(ToggleAuxiliaryBarAction);
+
+const editorTitleAuxiliaryBarWhen = ContextKeyExpr.and(
+	IsSessionsWindowContext,
+	IsAuxiliaryWindowContext.toNegated(),
+	IsTopRightEditorGroupContext);
+
+// The editor-title toggle button shows a state-dependent icon: `right-panel-hide`
+// when the secondary side bar is visible and `right-panel-show` when it is hidden.
+// This can't be done via the action's inline `menu`, because inline menu items
+// reuse the action's single command (one icon/title). The usual inline alternative,
+// `toggled`, swaps the icon but also renders a checked/highlighted background, which
+// we explicitly don't want here. Registering two mutually-exclusive menu items —
+// each with its own icon/title — gives the per-state icon without that checked styling.
+for (const { icon, title, visible } of [
+	{ icon: Codicon.rightPanelHide, title: localize('hideSecondarySideBar', "Hide Secondary Side Bar"), visible: true },
+	{ icon: Codicon.rightPanelShow, title: localize('showSecondarySideBar', "Show Secondary Side Bar"), visible: false },
+]) {
+	MenuRegistry.appendMenuItem(MenuId.EditorTitleLayout, {
+		command: { id: ToggleAuxiliaryBarAction.ID, title, icon },
+		group: 'navigation',
+		order: 99.5,
+		when: ContextKeyExpr.and(editorTitleAuxiliaryBarWhen, visible ? AuxiliaryBarVisibleContext : AuxiliaryBarVisibleContext.toNegated())
+	});
+}
 
 MenuRegistry.appendMenuItem(Menus.PanelTitle, {
 	command: {
