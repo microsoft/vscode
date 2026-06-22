@@ -255,6 +255,23 @@ suite('TerminalSandboxEngine', () => {
 		deepStrictEqual(config.network, { allowedDomains: [], deniedDomains: [] });
 	});
 
+	test('forceSandboxed keeps filesystem and network sandbox restrictions', async () => {
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
+		setSandboxSetting(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['example.com']);
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost()));
+
+		const wrapped = await engine.wrapCommand('curl https://example.com', true, 'bash', undefined, undefined, true, true);
+		const configPath = await engine.getSandboxConfigPath();
+		ok(configPath, 'Config path should be defined');
+		const config = JSON.parse(createdFiles.get(configPath)!);
+
+		strictEqual(wrapped.isSandboxWrapped, true);
+		strictEqual(wrapped.requiresUnsandboxConfirmation, undefined);
+		strictEqual(wrapped.requiresAllowNetworkConfirmation, undefined);
+		deepStrictEqual(config.network, { allowedDomains: [], deniedDomains: ['example.com'] });
+		ok(config.filesystem.denyRead.includes(configPath), 'Filesystem sandbox policy should remain active');
+	});
+
 	test('blocked domains request sandboxed network access before execution when enabled', async () => {
 		setSandboxSetting(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
 		setSandboxSetting(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['example.com']);
