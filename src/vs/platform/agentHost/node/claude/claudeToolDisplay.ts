@@ -8,6 +8,7 @@ import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel } from '../../
 import { basename } from '../../../../base/common/resources.js';
 import { truncate } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
+import { toToolCallMeta, type IToolCallMeta, type ToolKind } from '../../common/meta/agentToolCallMeta.js';
 import type { StringOrMarkdown } from '../../common/state/protocol/state.js';
 
 /**
@@ -46,7 +47,7 @@ export type ClaudePermissionKind =
  * renderer). Mirror of
  * [`copilotToolDisplay.getToolKind`](../copilot/copilotToolDisplay.ts).
  */
-export type ClaudeToolKind = 'terminal' | 'subagent' | 'search';
+export type ClaudeToolKind = ToolKind;
 
 /**
  * Which field on the SDK's `tool_input` carries the path/url surfaced
@@ -276,6 +277,17 @@ export function getClaudeToolKind(toolName: string): ClaudeToolKind | undefined 
  * single-write pattern.
  */
 export function buildClaudeToolMeta(toolName: string): Record<string, unknown> | undefined {
+	const meta = buildClaudeToolCallMeta(toolName);
+	return meta ? toToolCallMeta(meta) : undefined;
+}
+
+/**
+ * Typed variant of {@link buildClaudeToolMeta} that returns the
+ * {@link IToolCallMeta} directly, for callers that consume the typed view
+ * rather than the serialized `_meta` bag. Returns `undefined` for tools that
+ * have no `toolKind` hint.
+ */
+export function buildClaudeToolCallMeta(toolName: string): IToolCallMeta | undefined {
 	const row = TOOL_ROWS[toolName];
 	if (!row?.toolKind) {
 		return undefined;
@@ -315,7 +327,7 @@ function firstShellLine(input: unknown): string | undefined {
 
 /**
  * Phase 8.5 — rich invocation message for a `pending_confirmation`
- * card or a streaming `SessionToolCallStart` action. Reads the
+ * card or a streaming `ChatToolCallStart` action. Reads the
  * SDK's `tool_use.input` defensively and falls back to the static
  * `displayName` on any shape mismatch. Mirror of
  * [`copilotToolDisplay.getInvocationMessage`](../copilot/copilotToolDisplay.ts#L473).

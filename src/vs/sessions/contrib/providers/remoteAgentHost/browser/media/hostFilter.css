@@ -60,7 +60,7 @@
 .agent-host-filter-combo.sidebar .agent-host-filter-button .agent-host-filter-trailing-icon {
 	flex: 0 0 auto;
 	opacity: 0.7;
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
 }
 
 /* Connect indicator: independent control sitting next to the picker
@@ -83,8 +83,8 @@
 	margin: 0 2px;
 	cursor: pointer;
 	color: var(--vscode-titleBar-activeForeground);
-	border-radius: 4px;
-	font-size: 12px;
+	border-radius: var(--vscode-cornerRadius-small);
+	font-size: var(--vscode-agents-fontSize-label1);
 	user-select: none;
 	-webkit-user-select: none;
 	touch-action: manipulation;
@@ -150,7 +150,7 @@
 	margin-left: auto;
 	width: 22px;
 	height: 22px;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	cursor: pointer;
 	touch-action: manipulation;
 	-webkit-user-select: none;

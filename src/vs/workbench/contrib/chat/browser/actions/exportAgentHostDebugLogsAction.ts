@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { VSBuffer, type VSBufferReadableStream } from '../../../../../base/common/buffer.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -12,29 +13,33 @@ import { Categories } from '../../../../../platform/action/common/actionCommonCa
 import { Action2 } from '../../../../../platform/actions/common/actions.js';
 import { agentHostAuthority, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentHostEnabledSettingId, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
-import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, remoteAgentHostLogOutputChannelId, AGENT_HOST_LOG_OUTPUT_CHANNEL_ID } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsWebContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IFileService, type IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { createDecorator, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { COPILOT_CLI_LOCAL_AH_SCHEME, parseRemoteAuthorityFromScheme, resolveEventsUri } from '../copilotCliEventsUri.js';
+import { buildLocalCopilotLogsUri, buildRemoteCopilotLogsUri, COPILOT_CLI_LOCAL_AH_SCHEME, getCopilotCliSessionRawId, parseRemoteAuthorityFromScheme, resolveEventsUri } from '../copilotCliEventsUri.js';
 
 /** Output channel ID for the agent host process logger (forwarded via RemoteLoggerChannelClient). */
-const AGENT_HOST_LOGGER_CHANNEL_ID = 'agenthost';
+const AGENT_HOST_LOGGER_CHANNEL_ID = AGENT_HOST_LOG_OUTPUT_CHANNEL_ID;
 /** Output channel ID for the current window's renderer log. */
 const WINDOW_LOG_CHANNEL_ID = 'rendererLog';
 /** Output channel ID for the shared process compound log. */
 const SHARED_PROCESS_LOG_CHANNEL_ID = 'shared';
+/** Bound the best-effort scan of Copilot SDK process logs. */
+const MAX_COPILOT_LOG_SCAN_FILES = 20;
+const MAX_COPILOT_LOG_FILE_SIZE = 10 * 1024 * 1024;
 
 /**
  * Description of the agent-host session whose logs should be exported. If
@@ -59,7 +64,7 @@ export const IAgentHostDebugLogsExportService = createDecorator<IAgentHostDebugL
 
 export interface IAgentHostDebugLogsExportService {
 	readonly _serviceBrand: undefined;
-	save(exportName: string, files: readonly { path: string; contents: string }[]): Promise<void>;
+	save(exportName: string, files: readonly { path: string; contents: string }[]): Promise<boolean>;
 }
 
 export class BrowserAgentHostDebugLogsExportService implements IAgentHostDebugLogsExportService {
@@ -70,15 +75,16 @@ export class BrowserAgentHostDebugLogsExportService implements IAgentHostDebugLo
 		@IFileService private readonly fileService: IFileService,
 	) { }
 
-	async save(exportName: string, files: readonly { path: string; contents: string }[]): Promise<void> {
-		await exportFilesToLocalFolder(this.fileDialogService, this.fileService, exportName, files);
+	async save(exportName: string, files: readonly { path: string; contents: string }[]): Promise<boolean> {
+		return exportFilesToLocalFolder(this.fileDialogService, this.fileService, exportName, files);
 	}
 }
 
 /**
  * Shared implementation of "Export Agent Host Debug Logs". Collects the
- * Copilot CLI session events file (if available), the window/shared/agent-host
- * output channel logs, and the AHP transport JSONL logs.
+ * Copilot CLI session events file (if available), the window/shared/local
+ * agent-host output channel logs, remote forwarded logs, and the AHP
+ * transport JSONL logs.
  *
  * Both the workbench-side action (resolves the active session via
  * `IChatWidgetService`) and the sessions-app-side action (resolves it via
@@ -118,20 +124,18 @@ export async function collectAgentHostDebugLogs(
 		if (activeSession.isLocal) {
 			// Agent host process logger (forwarded from the utility process)
 			channelIds.add(AGENT_HOST_LOGGER_CHANNEL_ID);
-			channelIds.add(`agenthost.${agentHostService.clientId}`);
 			const localClientId = sanitizeFilePart(agentHostService.clientId);
 			ahpLogNameFilter = name => name.includes(localClientId);
 		} else {
 			remoteConnection = getRemoteConnectionForSession(activeSession.resource, remoteAgentHostService.connections);
 			if (remoteConnection) {
-				channelIds.add(`agenthost.${remoteConnection.clientId}`);
+				channelIds.add(remoteAgentHostLogOutputChannelId(remoteConnection.address));
 			}
 		}
 	} else {
 		channelIds.add(AGENT_HOST_LOGGER_CHANNEL_ID);
-		channelIds.add(`agenthost.${agentHostService.clientId}`);
 		for (const connection of remoteAgentHostService.connections) {
-			channelIds.add(`agenthost.${connection.clientId}`);
+			channelIds.add(remoteAgentHostLogOutputChannelId(connection.address));
 		}
 	}
 
@@ -201,6 +205,19 @@ export async function collectAgentHostDebugLogs(
 		}
 	}
 
+	// 5. Copilot SDK process logs under ~/.copilot/logs do not include the
+	// session id in the filename, but relevant entries include it in the content.
+	const rawSessionId = getCopilotCliSessionRawId(activeSession?.resource);
+	if (rawSessionId) {
+		const copilotLogsDir = activeSession?.isLocal
+			? buildLocalCopilotLogsUri(userHome)
+			: remoteConnection ? buildRemoteCopilotLogsUri(remoteConnection) : undefined;
+		if (copilotLogsDir) {
+			const copilotLogFiles = await readCopilotLogsForSession(copilotLogsDir, rawSessionId, fileService, logService);
+			files.push(...copilotLogFiles);
+		}
+	}
+
 	if (files.length === 0) {
 		notificationService.notify({
 			severity: Severity.Warning,
@@ -217,18 +234,119 @@ export async function collectAgentHostDebugLogs(
 	return { files, exportName: `ah-logs${titleSlug}` };
 }
 
+async function readCopilotLogsForSession(
+	logsDir: URI,
+	rawSessionId: string,
+	fileService: IFileService,
+	logService: ILogService,
+): Promise<{ path: string; contents: string }[]> {
+	let children: IFileStatWithMetadata[] | undefined;
+	try {
+		children = (await fileService.resolve(logsDir, { resolveMetadata: true })).children;
+	} catch {
+		return [];
+	}
+
+	const files: { path: string; contents: string }[] = [];
+	const candidateLogs = (children ?? [])
+		.filter(child => !child.isDirectory && child.name.endsWith('.log') && child.size <= MAX_COPILOT_LOG_FILE_SIZE)
+		.sort((a, b) => b.mtime - a.mtime)
+		.slice(0, MAX_COPILOT_LOG_SCAN_FILES);
+	for (const child of candidateLogs) {
+		try {
+			if (await logStreamContains(child.resource, rawSessionId, fileService)) {
+				const content = await fileService.readFile(child.resource, { limits: { size: MAX_COPILOT_LOG_FILE_SIZE } });
+				const contents = content.value.toString();
+				files.push({ path: `copilot-logs/${child.name}`, contents });
+			}
+		} catch (error) {
+			logService.warn(`[ExportAgentHostDebugLogs] Failed to read Copilot log '${child.name}': ${error instanceof Error ? error.message : String(error)}`);
+		}
+	}
+	return files;
+}
+
+async function logStreamContains(
+	resource: URI,
+	rawSessionId: string,
+	fileService: IFileService,
+): Promise<boolean> {
+	const tokenSource = new CancellationTokenSource();
+	let stream: VSBufferReadableStream;
+	try {
+		stream = (await fileService.readFileStream(resource, {
+			length: MAX_COPILOT_LOG_FILE_SIZE,
+			limits: { size: MAX_COPILOT_LOG_FILE_SIZE },
+		}, tokenSource.token)).value;
+	} catch (error) {
+		tokenSource.dispose(true);
+		throw error;
+	}
+	return new Promise<boolean>((resolve, reject) => {
+		let settled = false;
+		let previous = '';
+
+		const cleanup = (removeErrorListener: boolean) => {
+			stream.removeListener('data', onData);
+			stream.removeListener('end', onEnd);
+			if (removeErrorListener) {
+				stream.removeListener('error', onError);
+			}
+		};
+		const settle = (contains: boolean) => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			tokenSource.dispose(contains);
+			cleanup(!contains);
+			resolve(contains);
+		};
+		const onData = (chunk: VSBuffer) => {
+			const text = previous + chunk.toString();
+			if (text.includes(rawSessionId)) {
+				settle(true);
+				return;
+			}
+			previous = text.slice(Math.max(0, text.length - rawSessionId.length + 1));
+		};
+		const onError = (error: Error) => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			tokenSource.dispose();
+			cleanup(true);
+			reject(error);
+		};
+		const onEnd = () => {
+			settle(false);
+		};
+
+		stream.on('error', onError);
+		stream.on('end', onEnd);
+		stream.on('data', onData);
+	});
+}
+
 export async function exportAgentHostDebugLogs(
 	accessor: ServicesAccessor,
 	activeSession: IActiveAgentHostSessionForExport | undefined,
 ): Promise<void> {
 	const exportService = accessor.get(IAgentHostDebugLogsExportService);
 	const notificationService = accessor.get(INotificationService);
+	const chatEntitlementService = accessor.get(IChatEntitlementService);
 	const logs = await collectAgentHostDebugLogs(accessor, activeSession);
 	if (!logs) {
 		return;
 	}
 	try {
-		await exportService.save(logs.exportName, logs.files);
+		const saved = await exportService.save(logs.exportName, logs.files);
+		if (saved) {
+			notificationService.warn(chatEntitlementService.isInternal
+				? localize('exportDebugLogs.privacyWarning.internal', "Note: This log may contain personal information such as auth tokens, file contents, or terminal output. It MUST be shared privately via Slack or in an issue filed on the microsoft/vscode-internalbacklog repo.")
+				: localize('exportDebugLogs.privacyWarning', "Note: This log may contain personal information such as auth tokens, file contents, or terminal output. Please consider sharing privately or reviewing the contents carefully before sharing."));
+		}
 	} catch (error) {
 		notificationService.notify({
 			severity: Severity.Error,
@@ -286,7 +404,8 @@ export function toActiveAgentHostSession(resource: URI, title: string | undefine
 }
 
 function getRemoteConnectionForSession(sessionResource: URI, connections: readonly IRemoteAgentHostConnectionInfo[]): IRemoteAgentHostConnectionInfo | undefined {
-	return connections.find(connection => sessionResource.scheme.startsWith(`remote-${agentHostAuthority(connection.address)}-`));
+	const authority = parseRemoteAuthorityFromScheme(sessionResource.scheme);
+	return authority ? connections.find(connection => agentHostAuthority(connection.address) === authority) : undefined;
 }
 
 function sanitizeFilePart(value: string): string {
@@ -298,7 +417,7 @@ async function exportFilesToLocalFolder(
 	fileService: IFileService,
 	exportName: string,
 	files: readonly { path: string; contents: string }[],
-): Promise<void> {
+): Promise<boolean> {
 	const folders = await fileDialogService.showOpenDialog({
 		title: localize('exportDebugLogs.folderDialogTitle', "Select Folder for Agent Host Debug Logs"),
 		canSelectFiles: false,
@@ -309,7 +428,7 @@ async function exportFilesToLocalFolder(
 
 	const parentFolder = folders?.[0];
 	if (!parentFolder) {
-		return;
+		return false;
 	}
 
 	const exportFolder = joinPath(parentFolder, exportName);
@@ -327,6 +446,7 @@ async function exportFilesToLocalFolder(
 		}
 		await fileService.writeFile(joinPath(folder, segments[segments.length - 1]), VSBuffer.fromString(file.contents));
 	}
+	return true;
 }
 
 function toSafeRelativePathSegments(path: string): string[] {

@@ -26,6 +26,7 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 import { isLocation, type SymbolTag } from '../../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
+import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { EditDeltaInfo } from '../../../../../../editor/common/textModelEditSource.js';
 import { localize } from '../../../../../../nls.js';
 import { getFlatContextMenuActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -366,7 +367,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 							feature: 'sideBarChat',
 							editDeltaInfo: info.editDeltaInfo,
 							languageId: info.languageId,
-							modeId: element.model.request?.modeInfo?.modeId,
+							modeId: element.model.request?.modeInfo?.telemetryModeId,
 							modelId: element.model.request?.modelId,
 							applyCodeBlockSuggestionId: undefined,
 							source: undefined,
@@ -851,6 +852,7 @@ export class CollapsedCodeBlock extends ChatEditPillElement {
 		@IHoverService hoverService: IHoverService,
 		@IChatService private readonly chatService: IChatService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ITextModelService private readonly textModelService: ITextModelService,
 	) {
 		super(labelService, modelService, languageService, hoverService);
 
@@ -877,15 +879,40 @@ export class CollapsedCodeBlock extends ChatEditPillElement {
 		}));
 	}
 
-	private showDiff({ editorOptions: options, openToSide }: IOpenEditorOptions): void {
+	private async showDiff({ editorOptions: options, openToSide }: IOpenEditorOptions): Promise<void> {
+		const group = openToSide ? SIDE_GROUP : undefined;
 		if (this.currentDiff) {
+			// If the change is a pure addition into a file whose original version did not
+			// exist or was empty, there is nothing meaningful to diff against. Open the
+			// file in a normal editor instead of a diff editor.
+			if (this.currentDiff.removed === 0 && await this.isOriginalEmpty(this.currentDiff.originalURI) && this.uri) {
+				this.editorService.openEditor({ resource: this.uri, options }, group);
+				return;
+			}
 			this.editorService.openEditor({
 				original: { resource: this.currentDiff.originalURI },
 				modified: { resource: this.currentDiff.modifiedURI },
 				options
-			}, openToSide ? SIDE_GROUP : undefined);
+			}, group);
 		} else if (this.uri) {
-			this.editorService.openEditor({ resource: this.uri, options }, openToSide ? SIDE_GROUP : undefined);
+			this.editorService.openEditor({ resource: this.uri, options }, group);
+		}
+	}
+
+	/**
+	 * Resolves the original (pre-edit) snapshot and reports whether it had no
+	 * content, which is the case when the file was newly created or was empty.
+	 */
+	private async isOriginalEmpty(originalURI: URI): Promise<boolean> {
+		try {
+			const ref = await this.textModelService.createModelReference(originalURI);
+			try {
+				return ref.object.textEditorModel.getValueLength() === 0;
+			} finally {
+				ref.dispose();
+			}
+		} catch {
+			return false;
 		}
 	}
 

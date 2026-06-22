@@ -250,7 +250,7 @@
   },
   "devDependencies": {
     "@types/markdown-it": "^14.1.0",
-    "@types/node": "^22.18.10",
+    "@types/node": "24.x",
     "@types/vscode-notebook-renderer": "^1.72.0",
     "@vscode/codicons": "^0.0.36"
   },
@@ -260,7 +260,7 @@
     "@mermaid-js/layout-elk": "^0.2.0",
     "@mermaid-js/layout-tidy-tree": "^0.2.0",
     "@mermaid-js/mermaid-zenuml": "^0.2.0",
-    "dompurify": "^3.4.1",
+    "dompurify": "^3.4.10",
     "mermaid": "^11.15.0"
   },
   "overrides": {

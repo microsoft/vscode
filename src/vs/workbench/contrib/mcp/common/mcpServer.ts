@@ -8,11 +8,11 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { Iterable } from '../../../../base/common/iterator.js';
 import * as json from '../../../../base/common/json.js';
 import { normalizeDriveLetter } from '../../../../base/common/labels.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { mapValues } from '../../../../base/common/objects.js';
-import { autorun, autorunSelfDisposable, derived, disposableObservableValue, IDerivedReader, IObservable, IReader, ITransaction, observableFromEvent, ObservablePromise, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, autorunSelfDisposable, derived, derivedDisposable, disposableObservableValue, IDerivedReader, IObservable, IReader, ITransaction, observableFromEvent, ObservablePromise, observableValue, transaction } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createURITransformer } from '../../../../base/common/uriTransformer.js';
@@ -211,6 +211,53 @@ export class McpServerMetadataCache extends Disposable {
 			this.extensionServers.delete(collectionId);
 		}
 		this.didChange = true;
+	}
+}
+
+/**
+ * Shared across all {@link McpServer}s. Each server `take`s the name it wants
+ * to base its tool prefix on (announced `serverInfo.title`/`name` when known,
+ * otherwise the mcp.json key) and gets back a stable, collision-resolved prefix
+ * observable. When a server's preferred name changes (e.g. after the live
+ * `serverInfo` arrives), it simply takes again and disposes the previous
+ * reference; other servers that share the name keep the suffix they were
+ * already assigned. See #299749.
+ */
+export class McpPrefixGenerator {
+	private readonly _buckets = new Map<string, { usedIndexes: Set<number>; size: number }>();
+
+	take(name: string): IReference<string> {
+		const safeName = name.toLowerCase().replace(/[^a-z0-9_.-]+/g, '_').slice(0, McpToolName.MaxPrefixLen - McpToolName.Prefix.length - 1);
+		let bucket = this._buckets.get(safeName);
+		if (!bucket) {
+			bucket = { usedIndexes: new Set(), size: 0 };
+			this._buckets.set(safeName, bucket);
+		}
+
+		let index = 1;
+		while (bucket.usedIndexes.has(index)) {
+			index++;
+		}
+		bucket.usedIndexes.add(index);
+		bucket.size++;
+
+		// Trim safeName for this output if a multi-digit suffix would push us past
+		// MaxPrefixLen. The bucket is keyed on the un-trimmed safeName so collisions
+		// are still detected consistently across indexes.
+		const suffix = (index === 1 ? '' : String(index)) + '_';
+		const maxNameLen = McpToolName.MaxPrefixLen - McpToolName.Prefix.length - suffix.length;
+		const prefix = McpToolName.Prefix + safeName.slice(0, maxNameLen) + suffix;
+
+		return {
+			object: prefix,
+			dispose: () => {
+				bucket!.usedIndexes.delete(index);
+				bucket!.size--;
+				if (bucket!.size === 0) {
+					this._buckets.delete(safeName);
+				}
+			},
+		};
 	}
 }
 
@@ -433,7 +480,7 @@ export class McpServer extends Disposable implements IMcpServer {
 		explicitRoots: URI[] | undefined,
 		private readonly _requiresExtensionActivation: boolean | undefined,
 		private readonly _primitiveCache: McpServerMetadataCache,
-		toolPrefix: string,
+		prefixGenerator: McpPrefixGenerator,
 		enablementModel: IEnablementModel,
 		@IMcpRegistry private readonly _mcpRegistry: IMcpRegistry,
 		@IWorkspaceContextService workspacesService: IWorkspaceContextService,
@@ -516,6 +563,22 @@ export class McpServer extends Disposable implements IMcpServer {
 			return def && def.cacheNonce !== this._tools.fromCache?.nonce ? def.staticMetadata : undefined;
 		});
 
+		this._serverMetadata = new CachedPrimitive<ServerMetadata, StoredServerMetadata | undefined>(
+			this.definition.id,
+			this._primitiveCache,
+			staticMetadata.map(m => m ? this._toStoredMetadata(m?.serverInfo, m?.instructions) : undefined),
+			(entry) => ({ serverName: entry.serverName, serverInstructions: entry.serverInstructions, serverIcons: entry.serverIcons }),
+			(entry) => ({ serverName: entry?.serverName, serverInstructions: entry?.serverInstructions, icons: McpIcons.fromStored(entry?.serverIcons) }),
+			undefined,
+		);
+
+		// Form the tool prefix from the server-announced name when known so that
+		// registry-style mcp.json keys like `io.github.upstash/context7` don't end
+		// up in `mcp_io_github_ups_*` truncated names. See #299749.
+		const preferredName = derived(reader => this._serverMetadata.value.read(reader)?.serverName || this.definition.label);
+		const prefixRef = derivedDisposable(reader => prefixGenerator.take(preferredName.read(reader)));
+		const toolPrefix = prefixRef.map(ref => ref.object);
+
 		// 3. Publish tools
 		this._tools = new CachedPrimitive<readonly IMcpTool[], readonly ValidatedMcpTool[]>(
 			this.definition.id,
@@ -527,7 +590,7 @@ export class McpServer extends Disposable implements IMcpServer {
 				})
 				.map((o, reader) => o?.promiseResult.read(reader)?.data),
 			(entry) => entry.tools,
-			(entry) => entry.map(def => this._instantiationService.createInstance(McpTool, this, toolPrefix, def)).sort((a, b) => a.compare(b)),
+			(entry, reader) => entry.map(def => this._instantiationService.createInstance(McpTool, this, toolPrefix.read(reader), def)).sort((a, b) => a.compare(b)),
 			[],
 		);
 
@@ -541,15 +604,6 @@ export class McpServer extends Disposable implements IMcpServer {
 			[],
 		);
 
-		this._serverMetadata = new CachedPrimitive<ServerMetadata, StoredServerMetadata | undefined>(
-			this.definition.id,
-			this._primitiveCache,
-			staticMetadata.map(m => m ? this._toStoredMetadata(m?.serverInfo, m?.instructions) : undefined),
-			(entry) => ({ serverName: entry.serverName, serverInstructions: entry.serverInstructions, serverIcons: entry.serverIcons }),
-			(entry) => ({ serverName: entry?.serverName, serverInstructions: entry?.serverInstructions, icons: McpIcons.fromStored(entry?.serverIcons) }),
-			undefined,
-		);
-
 		this._capabilities = new CachedPrimitive<number | undefined, number | undefined>(
 			this.definition.id,
 			this._primitiveCache,
@@ -558,6 +612,10 @@ export class McpServer extends Disposable implements IMcpServer {
 			(entry) => entry,
 			undefined,
 		);
+
+		// Hold the prefix for the lifetime of the server so its tool name stays
+		// stable even when no one is currently observing the tools list.
+		prefixRef.recomputeInitiallyAndOnChange(this._store);
 	}
 
 	public readDefinitions(): IObservable<{ server: McpServerDefinition | undefined; collection: McpCollectionDefinition | undefined }> {

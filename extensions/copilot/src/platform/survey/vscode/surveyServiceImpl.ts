@@ -4,15 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
 import { l10n } from 'vscode';
-import { Uri } from '../../../vscodeTypes';
-import { IAuthenticationService } from '../../authentication/common/authentication';
-import { IEnvService } from '../../env/common/envService';
 import { IVSCodeExtensionContext } from '../../extContext/common/extensionContext';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { ISurveyService } from '../common/surveyService';
 
-const SURVEY_URI = 'https://aka.ms/vscode-gh-copilot';
 const USAGE_DATA_KEY = 'survey.usage';
 const NEXT_SURVEY_DATE_KEY = 'survey.nextSurveyDate';
 const DAYS_14 = 14 * 24 * 60 * 60 * 1000;
@@ -33,8 +29,8 @@ interface UsageData {
 export class SurveyService implements ISurveyService {
 	readonly _serviceBrand: undefined;
 
-	private readonly surveyUri: vscode.Uri;
-	private debounceTimeout: any | null = null;
+	private debounceTimeout: ReturnType<typeof setTimeout> | undefined;
+	private readonly inactiveTimeout: ReturnType<typeof setTimeout>;
 	private lastSource: string | null = null;
 	private lastLanguageId: string | null = null;
 	private readonly sessionSeed: number;
@@ -42,21 +38,23 @@ export class SurveyService implements ISurveyService {
 	constructor(
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IVSCodeExtensionContext private readonly vscodeExtensionContext: IVSCodeExtensionContext,
-		@IEnvService private readonly envService: IEnvService,
 		@IExperimentationService private readonly experimentationService: IExperimentationService,
-		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 	) {
-		this.surveyUri = Uri.parse(SURVEY_URI);
 		this.sessionSeed = Math.random();
 
 		// Inactive survey check only runs once
-		setTimeout(async () => {
+		this.inactiveTimeout = setTimeout(async () => {
 			await this.updateUsageData(false);
 			const eligible = await this.checkInactiveUserHeuristic();
 			if (eligible) {
 				this.promptSurvey('churn');
 			}
 		}, INACTIVE_TIMEOUT);
+	}
+
+	dispose(): void {
+		clearTimeout(this.inactiveTimeout);
+		clearTimeout(this.debounceTimeout);
 	}
 
 	public async signalUsage(source: string, languageId?: string): Promise<void> {
@@ -66,13 +64,13 @@ export class SurveyService implements ISurveyService {
 			this.lastLanguageId = languageId;
 		}
 
-		if (!this.debounceTimeout) {
+		if (this.debounceTimeout === undefined) {
 			this.debounceTimeout = setTimeout(async () => {
 				const eligible = await this.checkEligibility();
 				if (eligible) {
 					this.promptSurvey('usage');
 				}
-				this.debounceTimeout = null;
+				this.debounceTimeout = undefined;
 			}, DEBOUNCE_TIME);
 		}
 	}
@@ -213,22 +211,13 @@ export class SurveyService implements ISurveyService {
 			});
 
 			if (accepted) {
-				const copilotToken = await this.authenticationService.getCopilotToken();
-				const params: Record<string, string> = {
-					m: this.envService.machineId,
-					s: this.envService.sessionId,
-					k: copilotToken.sku ?? '',
-					d: usage.activeDays.length.toString(),
-					f: firstSeenInDays.toString(),
-					v: this.envService.getVersion(),
-					l: language,
-					src: source,
-					type: surveyType
-				};
-				const surveyUriWithParams = this.surveyUri.with({
-					query: new URLSearchParams(params).toString(),
-				});
-				vscode.env.openExternal(surveyUriWithParams);
+				// Open in-editor survey pane with the source context
+				try {
+					await vscode.commands.executeCommand('_workbench.action.openCopilotSurvey', source);
+				} catch {
+					// Command unavailable — reset cooldown so user can be prompted again
+					await this.updateNextSurveyDate(DAYS_LATER);
+				}
 			} else if (postponed) {
 				await this.updateNextSurveyDate(DAYS_LATER);
 			}

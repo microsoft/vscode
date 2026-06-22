@@ -41,9 +41,16 @@
 	box-sizing: content-box;
 }
 
-.models-widget .models-search-and-button-container .section-title-actions .models-add-model-button {
+.models-widget .models-search-and-button-container .section-title-actions {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.models-widget .models-search-and-button-container .section-title-actions .models-add-model-button,
+.models-widget .models-search-and-button-container .section-title-actions .models-browse-marketplace-button {
 	white-space: nowrap;
-	padding: 5px 8px 5px 4px;
+	padding: 6px 8px 6px 4px;
 }
 
 /** Table styling **/
@@ -155,7 +162,7 @@
 
 .models-widget .models-table-container .monaco-table-td .model-cost-grid {
 	display: grid;
-	grid-template-columns: 1fr 1fr 1fr;
+	grid-template-columns: 1fr 1fr 1fr 1fr;
 	gap: 4px;
 	width: 100%;
 	overflow: hidden;
