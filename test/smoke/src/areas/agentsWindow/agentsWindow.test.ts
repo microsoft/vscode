@@ -240,7 +240,32 @@ export function setup(logger: Logger) {
 					logger.log(`Agents Window (${session.name}) response 1: ${text}`);
 
 					if (!session.skipReply2) {
-						await app.workbench.agentsWindow.sendFollowUpMessage(`hello again [scenario:${session.scenarioId2}]`);
+						// Copilot CLI: after a request completes, the Agents Window
+						// auto-switches the active view to a fresh untitled session;
+						// sending a follow-up prompt there would spawn a brand new
+						// agent session (with its own session id and branch) rather
+						// than continuing the existing one. Click back into the
+						// just-completed session before sending message 2 so the
+						// follow-up lands in the same session. Identify the row by
+						// its msg1 reply text since the sessions list also contains
+						// workspace folder group headers and historical sessions.
+						if (session.name === 'Copilot CLI') {
+							await app.workbench.agentsWindow.activateSessionByLabel(session.reply);
+						}
+
+						// Follow-up message in the same session — exercises the
+						// active-session input path (not the new-session homepage).
+						// For Copilot CLI, pass the expected active label so
+						// `sendFollowUpMessage` re-verifies the active slot right
+						// before sending (the workbench can auto-swap the slot to
+						// a fresh untitled session between `activateSessionByLabel`
+						// returning and the send-button click).
+						const expectedActiveLabel = session.name === 'Copilot CLI' ? session.reply : undefined;
+						await app.workbench.agentsWindow.sendFollowUpMessage(
+							`hello again [scenario:${session.scenarioId2}]`,
+							undefined,
+							expectedActiveLabel,
+						);
 
 						const secondTurnTimeout = session.name === 'Copilot CLI' ? 180_000 : 60_000;
 						const text2 = await app.workbench.agentsWindow.waitForAssistantText(session.reply2, secondTurnTimeout);
