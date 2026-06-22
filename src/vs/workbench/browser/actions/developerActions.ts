@@ -46,7 +46,7 @@ import { IDefaultAccountService } from '../../../platform/defaultAccount/common/
 import { IAuthenticationService } from '../../services/authentication/common/authentication.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
 import { IPolicyService } from '../../../platform/policy/common/policy.js';
-import { ICopilotManagedSettingsService, ManagedSettingsSource, projectManagedSettings, selectManagedSettings } from '../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_STRICT_MARKETPLACES_KEY, ICopilotManagedSettingsService, ManagedSettingsSource, projectManagedSettings, selectManagedSettings } from '../../../platform/policy/common/copilotManagedSettings.js';
 import { IManagedSettingPolicyDefinition, ManagedSettingsData } from '../../../base/common/policy.js';
 import { APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME, IAccountPolicyGateService } from '../../services/policies/common/accountPolicyService.js';
 import { adaptManagedSettings, IManagedSettingsResponse } from '../../services/accounts/browser/managedSettings.js';
@@ -680,6 +680,11 @@ function managedSettingsSourceLabel(source: ManagedSettingsSource): string {
 	}
 }
 
+/** Render a value as a fenced JSON code block for the diagnostics report. */
+function jsonBlock(value: unknown): string {
+	return '```json\n' + JSON.stringify(value ?? {}, null, 2) + '\n```\n\n';
+}
+
 class PolicyDiagnosticsAction extends Action2 {
 
 	constructor() {
@@ -835,14 +840,12 @@ class PolicyDiagnosticsAction extends Action2 {
 			const rawResponse = defaultAccountService.managedSettingsRawResponse;
 			if (isObject(rawResponse)) {
 				adaptManagedSettings(rawResponse as IManagedSettingsResponse, message => parseErrors.push({ stage: 'adapt', message }));
-			}
-			if (rawResponse !== null && rawResponse !== undefined) {
 				content += '**Raw response** (last successful fetch)\n\n';
-				content += '```json\n' + JSON.stringify(rawResponse, null, 2) + '\n```\n\n';
+				content += jsonBlock(rawResponse);
 			}
 
 			content += '**Normalized bag**\n\n';
-			content += '```json\n' + JSON.stringify(serverManagedSettings ?? {}, null, 2) + '\n```\n\n';
+			content += jsonBlock(serverManagedSettings);
 
 			content += '### Native MDM\n\n';
 			content += '| Property | Value |\n';
@@ -850,7 +853,7 @@ class PolicyDiagnosticsAction extends Action2 {
 			content += `| Available | ${copilotManagedSettingsService ? 'yes' : 'no (desktop only)'} |\n`;
 			content += `| Active | ${selection.source === 'nativeMdm' ? 'yes' : 'no'} |\n\n`;
 			if (copilotManagedSettingsService) {
-				content += '```json\n' + JSON.stringify(nativeManagedSettings ?? {}, null, 2) + '\n```\n\n';
+				content += jsonBlock(nativeManagedSettings);
 			}
 
 			// Mirror AccountPolicyService: project the winning bag onto the keys declared by policies
@@ -862,22 +865,25 @@ class PolicyDiagnosticsAction extends Action2 {
 					Object.assign(declaredDefinitions, declared);
 				}
 			}
-			const effective = projectManagedSettings({ ...selection.values }, declaredDefinitions, message => parseErrors.push({ stage: 'project', message }));
+			const effective = projectManagedSettings(selection.values ?? {}, declaredDefinitions, message => parseErrors.push({ stage: 'project', message }));
 
-			// JSON payloads (the strings PolicyConfiguration parses back into typed values), checked
-			// with the same jsonc parser and error messages so malformed values surface here too.
-			for (const [key, value] of Object.entries(effective)) {
-				if (typeof value === 'string' && /^\s*[{[]/.test(value)) {
-					const jsonErrors: json.ParseError[] = [];
-					json.parse(value, jsonErrors);
-					for (const e of jsonErrors) {
-						parseErrors.push({ stage: 'parse', message: `${key} @ offset ${e.offset}: ${getParseErrorMessage(e.error)}` });
-					}
+			// JSON payloads: the structured keys carry a JSON string that PolicyConfiguration parses
+			// back into the object/array-typed setting on read. Re-parse exactly those keys with the
+			// same jsonc parser so a malformed value surfaces here instead of being silently rejected.
+			for (const key of [COPILOT_ENABLED_PLUGINS_KEY, COPILOT_STRICT_MARKETPLACES_KEY, COPILOT_EXTRA_MARKETPLACES_KEY]) {
+				const value = effective[key];
+				if (typeof value !== 'string') {
+					continue;
+				}
+				const jsonErrors: json.ParseError[] = [];
+				json.parse(value, jsonErrors);
+				for (const e of jsonErrors) {
+					parseErrors.push({ stage: 'parse', message: `${key} @ offset ${e.offset}: ${getParseErrorMessage(e.error)}` });
 				}
 			}
 
 			content += '### Effective\n\n';
-			content += '```json\n' + JSON.stringify(effective, null, 2) + '\n```\n\n';
+			content += jsonBlock(effective);
 
 			content += `### Parse Errors (${parseErrors.length})\n\n`;
 			if (parseErrors.length > 0) {
