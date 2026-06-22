@@ -22,7 +22,9 @@ export function osToTaskTargetOS(os: OperatingSystem): TaskTargetOS {
 	switch (os) {
 		case OperatingSystem.Windows: return 'windows';
 		case OperatingSystem.Macintosh: return 'osx';
-		case OperatingSystem.Linux: return 'linux';
+		case OperatingSystem.Linux:
+		default:
+			return 'linux';
 	}
 }
 
