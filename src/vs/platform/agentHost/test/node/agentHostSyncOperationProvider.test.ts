@@ -17,6 +17,7 @@ const sessionChangesetUri = buildSessionChangesetUri(sessionKey);
 
 const gitStateWithOutgoingChanges: ISessionGitState = {
 	branchName: 'feature/test',
+	upstreamBranchName: 'origin/feature/test',
 	outgoingChanges: 2,
 };
 
@@ -33,7 +34,12 @@ suite('AgentHostSyncOperationContribution', () => {
 	test('advertises sync when there are outgoing changes', () => {
 		const provider = createContribution();
 
-		const operations = provider.getOperations({ sessionKey, changesetUri: sessionChangesetUri, changesetKind: ChangesetKind.Session, gitState: gitStateWithOutgoingChanges });
+		const operations = provider.getOperations({
+			sessionKey,
+			changesetUri: sessionChangesetUri,
+			changesetKind: ChangesetKind.Session,
+			gitState: gitStateWithOutgoingChanges
+		});
 
 		assert.deepStrictEqual(operations?.map(op => op.id), ['sync']);
 	});
@@ -41,7 +47,12 @@ suite('AgentHostSyncOperationContribution', () => {
 	test('does not advertise sync without outgoing changes', () => {
 		const provider = createContribution();
 
-		const operations = provider.getOperations({ sessionKey, changesetUri: sessionChangesetUri, changesetKind: ChangesetKind.Session, gitState: { ...gitStateWithOutgoingChanges, outgoingChanges: 0 } });
+		const operations = provider.getOperations({
+			sessionKey,
+			changesetUri: sessionChangesetUri,
+			changesetKind: ChangesetKind.Session,
+			gitState: { ...gitStateWithOutgoingChanges, outgoingChanges: 0 }
+		});
 
 		assert.strictEqual(operations, undefined);
 	});
