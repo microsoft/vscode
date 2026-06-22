@@ -12,6 +12,7 @@ import { GitHubApiClient } from '../githubApiClient.js';
 import { computeOverallCIStatus, GitHubPRCIFetcher } from '../fetchers/githubPRCIFetcher.js';
 
 const LOG_PREFIX = '[GitHubPullRequestCIModel]';
+const TRACE_PREFIX = '[PR-ICON-TRACE]';
 const DEFAULT_POLL_INTERVAL_MS = 60_000;
 
 export class GitHubPullRequestCIModelReferenceCollection extends ReferenceCollection<GitHubPullRequestCIModel> {
@@ -26,12 +27,12 @@ export class GitHubPullRequestCIModelReferenceCollection extends ReferenceCollec
 	}
 
 	protected override createReferencedObject(key: string, owner: string, repo: string, prNumber: number, headSha: string): GitHubPullRequestCIModel {
-		this._logService.trace(`[GitHubPullRequestCIModelReferenceCollection][createReferencedObject] Creating CI model for ${key}`);
+		this._logService.trace(`${TRACE_PREFIX} [GitHubPullRequestCIModelReferenceCollection][createReferencedObject] Creating CI model for ${key}`);
 		return new GitHubPullRequestCIModel(owner, repo, prNumber, headSha, this._fetcher, this._logService);
 	}
 
 	protected override destroyReferencedObject(key: string, object: GitHubPullRequestCIModel): void {
-		this._logService.trace(`[GitHubPullRequestCIModelReferenceCollection][destroyReferencedObject] Disposing CI model for ${key}`);
+		this._logService.trace(`${TRACE_PREFIX} [GitHubPullRequestCIModelReferenceCollection][destroyReferencedObject] Disposing CI model for ${key}`);
 		object.dispose();
 	}
 }
@@ -90,6 +91,7 @@ export class GitHubPullRequestCIModel extends Disposable {
 	}
 
 	private async _refresh(): Promise<void> {
+		this._logService.trace(`${TRACE_PREFIX} [CIModel] Refreshing CI for ${this.owner}/${this.repo}#${this.prNumber}@${this.headSha} (checksEtag ${this._checksEtag ?? 'none'})`);
 		try {
 			const response = await this._fetcher.getCheckRuns(this.owner, this.repo, this.headSha, this._checksEtag);
 			if (response.statusCode === 200 && response.data) {
@@ -97,8 +99,9 @@ export class GitHubPullRequestCIModel extends Disposable {
 				this._checks.set(response.data, undefined);
 				this._overallStatus.set(computeOverallCIStatus(response.data), undefined);
 			}
+			this._logService.trace(`${TRACE_PREFIX} [CIModel] Refreshed CI for ${this.owner}/${this.repo}#${this.prNumber}@${this.headSha}: status ${response.statusCode}, ${this._checks.get().length} check(s), overallStatus ${this._overallStatus.get()}`);
 		} catch (err) {
-			this._logService.error(`${LOG_PREFIX} Failed to refresh CI checks for ${this.owner}/${this.repo}#${this.prNumber}@${this.headSha}:`, err);
+			this._logService.error(`${TRACE_PREFIX} ${LOG_PREFIX} Failed to refresh CI checks for ${this.owner}/${this.repo}#${this.prNumber}@${this.headSha}:`, err);
 		}
 	}
 
@@ -128,6 +131,7 @@ export class GitHubPullRequestCIModel extends Disposable {
 	 */
 	startPolling(intervalMs: number = DEFAULT_POLL_INTERVAL_MS): IDisposable {
 		if (this._pollingClientCount++ === 0) {
+			this._logService.trace(`${TRACE_PREFIX} [CIModel] Start polling ${this.owner}/${this.repo}#${this.prNumber}@${this.headSha} every ${intervalMs}ms`);
 			this._pollScheduler.schedule(intervalMs);
 		}
 
@@ -143,6 +147,7 @@ export class GitHubPullRequestCIModel extends Disposable {
 	}
 
 	private async _poll(): Promise<void> {
+		this._logService.trace(`${TRACE_PREFIX} [CIModel] Poll cycle for ${this.owner}/${this.repo}#${this.prNumber}@${this.headSha}`);
 		await this.refresh();
 		// Re-schedule if not disposed (RunOnceScheduler is one-shot)
 		if (!this._store.isDisposed && this._pollingClientCount > 0) {

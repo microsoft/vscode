@@ -372,6 +372,54 @@ suite('CopilotApiService', () => {
 			assert.ok(minted.some(h => h.includes('gh-tok-A')));
 			assert.ok(minted.some(h => h.includes('gh-tok-B')));
 		});
+
+		suite('CAPI URL override (VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE)', () => {
+			const ENV = 'VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE';
+			let saved: string | undefined;
+
+			setup(() => { saved = process.env[ENV]; });
+			teardown(() => {
+				if (saved === undefined) {
+					delete process.env[ENV];
+				} else {
+					process.env[ENV] = saved;
+				}
+			});
+
+			test('a loopback override skips discovery and routes CAPI at the override', async () => {
+				process.env[ENV] = 'http://127.0.0.1:12345';
+				let discoveryHit = false;
+				const service = createService(async (input) => {
+					const url = getUrl(input);
+					if (url.includes('/copilot_internal')) {
+						discoveryHit = true;
+						return tokenResponse();
+					}
+					return anthropicResponse([{ type: 'text', text: 'ok' }]);
+				});
+
+				await service.messages('gh-secret', baseRequest);
+
+				assert.strictEqual(discoveryHit, false, 'discovery must be skipped for a loopback override');
+			});
+
+			test('a non-loopback override is ignored and normal discovery runs (no token leak)', async () => {
+				process.env[ENV] = 'https://evil.example.com';
+				let discoveryHit = false;
+				const service = createService(async (input) => {
+					const url = getUrl(input);
+					if (url.includes('/copilot_internal')) {
+						discoveryHit = true;
+						return tokenResponse();
+					}
+					return anthropicResponse([{ type: 'text', text: 'ok' }]);
+				});
+
+				await service.messages('gh-secret', baseRequest);
+
+				assert.strictEqual(discoveryHit, true, 'a non-loopback override must be ignored so the token is never sent to it');
+			});
+		});
 	});
 
 	// #endregion
@@ -539,23 +587,18 @@ suite('CopilotApiService', () => {
 			assert.strictEqual(headers['OpenAI-Intent'], 'messages-proxy');
 		});
 
-		test('suppressIntegrationId opt-in controls the Copilot-Integration-Id header', async () => {
+		test('sends a derived Copilot-Integration-Id header by default', async () => {
 			const { fetch: fetchFn, captured } = routingFetch(
 				() => anthropicResponse([{ type: 'text', text: 'ok' }]),
 			);
 			const service = createService(fetchFn);
 
-			// Default (no opt-in): @vscode/copilot-api derives and sends the header.
+			// @vscode/copilot-api derives the integration id from the license /
+			// SKU / build state and sends it on every request.
 			await service.messages('gh-tok', baseRequest);
-			const withHeader = captured().init?.headers as Record<string, string>;
+			const headers = captured().init?.headers as Record<string, string>;
 
-			// Opt-in: the header is omitted entirely so CAPI authorizes against
-			// the token's real entitlement instead of the derived integration id.
-			await service.messages('gh-tok', baseRequest, { suppressIntegrationId: true });
-			const suppressed = captured().init?.headers as Record<string, string>;
-
-			assert.ok(withHeader['Copilot-Integration-Id'], 'integration id should be present by default');
-			assert.strictEqual(suppressed['Copilot-Integration-Id'], undefined, 'integration id should be suppressed when opted in');
+			assert.ok(headers['Copilot-Integration-Id'], 'integration id should be present');
 		});
 	});
 
@@ -1540,6 +1583,18 @@ suite('CopilotApiService', () => {
 				headers: { 'Authorization': 'Bearer attacker-token' },
 			});
 			assert.strictEqual(capturedHeaders?.['Authorization'], 'Bearer gh-tok');
+		});
+
+		test('sends a derived Copilot-Integration-Id header by default', async () => {
+			const { fetch: fetchFn, captured } = routingFetch(() => modelsResponse([]));
+			const service = createService(fetchFn);
+
+			// @vscode/copilot-api derives the integration id from the license /
+			// SKU / build state and sends it on every request.
+			await service.models('gh-tok');
+			const headers = captured().init?.headers as Record<string, string>;
+
+			assert.ok(headers['Copilot-Integration-Id'], 'integration id should be present');
 		});
 	});
 

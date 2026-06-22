@@ -21,7 +21,7 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { IEditLogService } from '../../../platform/multiFileEdit/common/editLogService';
 import { CUSTOM_TOOL_SEARCH_NAME, isAnthropicContextEditingEnabled } from '../../../platform/networking/common/anthropic';
 import { IChatEndpoint, isCAPIEndpoint } from '../../../platform/networking/common/networking';
-import { APIUsage, modelsWithoutResponsesContextManagement } from '../../../platform/networking/common/openai';
+import { APIUsage, modelsWithoutResponsesContextManagement, nanoAiuToCredits } from '../../../platform/networking/common/openai';
 import { INotebookService } from '../../../platform/notebook/common/notebookService';
 import { GenAiMetrics } from '../../../platform/otel/common/genAiMetrics';
 import { IOTelService } from '../../../platform/otel/common/otelService';
@@ -80,6 +80,34 @@ function isResponsesCompactionContextManagementEnabled(endpoint: IChatEndpoint, 
 	return endpoint.apiType === 'responses'
 		&& configurationService.getExperimentBasedConfig(ConfigKey.ResponsesApiContextManagementEnabled, experimentationService)
 		&& !modelsWithoutResponsesContextManagement.has(endpoint.family);
+}
+
+/**
+ * Applies the user's "Context Size" model-picker selection to the endpoint used
+ * for the agent's model requests.
+ *
+ * The picker offers two tiers — the model's default context max and its full
+ * native window (see `getContextSizeOptions`). For server-managed context (the
+ * Responses-API compaction path) the request endpoint's `modelMaxPromptTokens`
+ * is what drives the `compact_threshold` sent to the server. If the default
+ * tier is not propagated to the request endpoint, the server compacts against
+ * the model's full window and the stateful conversation grows far past the
+ * user's selection — billing them for the larger context. Mirrors the override
+ * applied on the `vscode.lm` path in `languageModelAccess.ts`.
+ *
+ * Only clamps when the selection is strictly smaller than the model window so
+ * the full tier ("Longer sessions without compaction") stays uncompacted.
+ *
+ * @internal - exported for testing
+ */
+export function applyContextSizeOverride(endpoint: IChatEndpoint, request: vscode.ChatRequest): IChatEndpoint {
+	const contextSize = request.modelConfiguration?.contextSize;
+	// Guard against non-positive / non-finite selections (e.g. 0, -1, NaN, Infinity):
+	// a non-positive token budget would produce an invalid endpoint configuration.
+	if (typeof contextSize === 'number' && Number.isFinite(contextSize) && contextSize > 0 && contextSize < endpoint.modelMaxPromptTokens) {
+		return endpoint.cloneWithTokenOverride(contextSize);
+	}
+	return endpoint;
 }
 
 /**
@@ -523,6 +551,7 @@ export class AgentIntent extends EditCodeIntent {
 				stream.usage({
 					promptTokens: summaryMetadata.usage.prompt_tokens,
 					completionTokens: summaryMetadata.usage.completion_tokens,
+					copilotCredits: nanoAiuToCredits(summaryMetadata.usage.copilot_usage?.total_nano_aiu),
 					promptTokenDetails: summaryMetadata.promptTokenDetails,
 				});
 			}
@@ -612,7 +641,11 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		@IAutomaticInstructionsCollector private readonly _automaticInstructionsCollector: IAutomaticInstructionsCollector,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 	) {
-		super(intent, location, endpoint, request, intentOptions, instantiationService, codeMapperService, envService, promptPathRepresentationService, _endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, otelService);
+		// Apply the user's "Context Size" picker selection to the request endpoint
+		// so the server-managed compaction threshold (Responses API) is keyed to the
+		// selected tier rather than the model's full native window. See
+		// applyContextSizeOverride for the cost rationale.
+		super(intent, location, applyContextSizeOverride(endpoint, request), request, intentOptions, instantiationService, codeMapperService, envService, promptPathRepresentationService, _endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, otelService);
 	}
 
 	public override getAvailableTools(): Promise<vscode.LanguageModelToolInformation[]> {

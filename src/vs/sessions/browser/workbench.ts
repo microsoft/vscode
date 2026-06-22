@@ -306,6 +306,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	private _editorLastNonMaximizedVisibility: IPartVisibilityState | undefined;
 	private _restoreAttachedEditorMaximizedOnShow = false;
 	private _editorPartAutoVisibilitySuppressionCount = 0;
+	private _hasAppliedInitialEditorSplit = false;
 
 	private readonly restoredPromise = new DeferredPromise<void>();
 	readonly whenRestored = this.restoredPromise.p;
@@ -314,13 +315,11 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	readonly openedDefaultEditors = false;
 
 	private _savedPartSizes: IPartSizesState = {};
-	private _editorInitialSizeApplied = false;
 
 	//#endregion
 
 	private static readonly _PART_VISIBILITY_KEY = 'workbench.sessions.partVisibility';
 	private static readonly _PART_SIZES_KEY = 'workbench.sessions.partSizes';
-	private static readonly _EDITOR_INITIAL_SIZE_APPLIED_KEY = 'workbench.sessions.editorInitialSizeApplied';
 
 	//#region Services
 
@@ -655,6 +654,20 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		return {};
 	}
 
+	/**
+	 * Overlays the persisted part visibility on top of the current
+	 * (layout-policy default) `partVisibility` state. Must run before the
+	 * `WorkbenchContextKeysHandler` reads the initial visibility so that
+	 * context keys like `auxiliaryBarVisible` reflect the restored state on
+	 * reload rather than the hardcoded defaults.
+	 */
+	private _applyPersistedPartVisibility(): void {
+		const savedPartVisibility = this._loadPartVisibility(this.storageService);
+		this.partVisibility.editor = savedPartVisibility.editor ?? this.partVisibility.editor;
+		this.partVisibility.auxiliaryBar = savedPartVisibility.auxiliaryBar ?? this.partVisibility.auxiliaryBar;
+		this.partVisibility.sidebar = savedPartVisibility.sidebar ?? this.partVisibility.sidebar;
+	}
+
 	private _savePartVisibility(): void {
 		if (this.layoutPolicy.viewportClass.get() === 'phone') {
 			return;
@@ -724,16 +737,13 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.partVisibility.auxiliaryBar = visibilityDefaults.auxiliaryBar;
 		this.partVisibility.panel = visibilityDefaults.panel;
 		this.partVisibility.sessions = visibilityDefaults.sessions;
-		const savedPartVisibility = this._loadPartVisibility(storageService);
-		this.partVisibility.editor = savedPartVisibility.editor ?? visibilityDefaults.editor;
-		this.partVisibility.auxiliaryBar = savedPartVisibility.auxiliaryBar ?? visibilityDefaults.auxiliaryBar;
-		this.partVisibility.sidebar = savedPartVisibility.sidebar ?? visibilityDefaults.sidebar;
+		this.partVisibility.editor = visibilityDefaults.editor;
+		this._applyPersistedPartVisibility();
 
 		// Load saved grid part sizes — these will be consumed when building the
 		// grid descriptor so editor/sidebar/auxbar/panel restore to their previous
 		// dimensions across reloads.
 		this._savedPartSizes = this._loadPartSizes(storageService);
-		this._editorInitialSizeApplied = storageService.getBoolean(Workbench._EDITOR_INITIAL_SIZE_APPLIED_KEY, StorageScope.WORKSPACE, false);
 
 		// State specific classes
 		const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';
@@ -1059,6 +1069,12 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.partVisibility.panel = visDefaults.panel;
 		this.partVisibility.sessions = visDefaults.sessions;
 		this.partVisibility.editor = visDefaults.editor;
+
+		// Overlay the persisted visibility now so that the context keys handler
+		// (created right after initLayout) initializes part-visibility context
+		// keys (e.g. auxiliaryBarVisible) from the restored state rather than the
+		// defaults. Without this, the editor-title toggle icon is wrong on reload.
+		this._applyPersistedPartVisibility();
 	}
 
 	private areAllGroupsInMainPartEmpty(): boolean {
@@ -1159,6 +1175,10 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.mainContainer.setAttribute('role', 'application');
 		this.workbenchGrid = workbenchGrid;
 		this.workbenchGrid.edgeSnapping = this.mainWindowFullscreen;
+
+		// If the editor is restored visible, it already has an established
+		// width, so a later reveal must not force an even split over it.
+		this._hasAppliedInitialEditorSplit = this.partVisibility.editor;
 
 		// Listen for part visibility changes (for parts in grid)
 		for (const part of [titleBar, panelPart, sideBar, auxiliaryBarPart, sessionsPart, editorPart]) {
@@ -1473,6 +1493,10 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		}
 	}
 
+	isFloatingPanelsEnabled(): boolean {
+		return false; // the agents window has its own floating card design
+	}
+
 	getLayoutClasses(): string[] {
 		return coalesce([
 			!this.partVisibility.sidebar ? LayoutClasses.SIDEBAR_HIDDEN : undefined,
@@ -1714,11 +1738,29 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.mainContainer.classList.toggle(LayoutClasses.MAIN_EDITOR_AREA_HIDDEN, hidden);
 
 		if (this.editorPartView) {
+			// Force an even 50/50 split only the *first* time the editor is
+			// revealed in this workbench instance. On later show/hide cycles the
+			// grid caches and restores the user-adjusted width, so we must not
+			// override it. The grid always seeds a cached visible size from the
+			// serialized descriptor, so it can't be used to detect the first
+			// reveal — a runtime flag is needed instead.
+			const shouldApplyEvenSplit = !hidden && !this._hasAppliedInitialEditorSplit;
+
+			// Capture the sessions part width *before* revealing the editor. The
+			// editor is hidden (0px) right now, so the sessions part spans the
+			// whole main area; we split that in half below so the editor opens
+			// as an even split rather than at its minimum/restored width.
+			// Measuring after the reveal is unreliable because the grid first
+			// restores the editor to its cached/minimum width.
+			const mainAreaWidthBeforeReveal = shouldApplyEvenSplit
+				? this.workbenchGrid.getViewSize(this.sessionsPartView).width
+				: 0;
+
 			this.workbenchGrid.setViewVisible(this.editorPartView, !hidden);
 
-			const shouldApplyInitialSize = !hidden && !this._editorInitialSizeApplied;
-			if (shouldApplyInitialSize) {
-				this._applyInitialEditorSize();
+			if (shouldApplyEvenSplit) {
+				this._hasAppliedInitialEditorSplit = true;
+				this._applyEditorSplitSize(mainAreaWidthBeforeReveal);
 			}
 		}
 
@@ -1726,25 +1768,21 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	}
 
 	/**
-	 * Sizes the editor part to half of the given chat bar width on its first
-	 * appearance in this workspace. The result is persisted so subsequent
-	 * show/hide cycles leave the user's chosen sizes untouched.
+	 * Sizes the editor part to half of the main area each time it is revealed
+	 * from a hidden state, so it opens as an even split with the sessions part
+	 * rather than at its minimum/restored width.
+	 *
+	 * @param mainAreaWidth The width of the sessions part captured *before* the
+	 * editor was revealed (i.e. the full main area width, since the editor was
+	 * hidden).
 	*/
-	private _applyInitialEditorSize(): void {
-		// On the very first time the editor becomes visible, capture the
-		// chat bar width before showing so we can size the editor to half
-		// of it afterwards. The editor is hidden by default, so without this
-		// initial split it would appear too small
-		const mainAreaWidth = this.workbenchGrid.getViewSize(this.sessionsPartView).width + this.workbenchGrid.getViewSize(this.editorPartView).width;
+	private _applyEditorSplitSize(mainAreaWidth: number): void {
 		const targetEditorWidth = Math.max(300, Math.floor(mainAreaWidth / 2));
 		const currentEditorSize = this.workbenchGrid.getViewSize(this.editorPartView);
 		this.workbenchGrid.resizeView(this.editorPartView, {
 			width: targetEditorWidth,
 			height: currentEditorSize.height
 		});
-
-		this._editorInitialSizeApplied = true;
-		this.storageService.store(Workbench._EDITOR_INITIAL_SIZE_APPLIED_KEY, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	private setPanelHidden(hidden: boolean): void {

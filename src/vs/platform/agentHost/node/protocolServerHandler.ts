@@ -20,6 +20,7 @@ import { VSCODE_UPGRADE_METHOD, type UnsupportedProtocolVersionErrorDataEx } fro
 import { getAgentHostManagementSocketPath, requestAgentHostUpgrade } from './agentHostUpgradeChannel.js';
 import {
 	AHP_AUTH_REQUIRED,
+	AhpErrorCodes,
 	AHP_PROVIDER_NOT_FOUND,
 	AHP_SESSION_NOT_FOUND,
 	AHP_UNSUPPORTED_PROTOCOL_VERSION,
@@ -36,7 +37,7 @@ import {
 	type IStateSnapshot,
 	type SubscribeResult,
 } from '../common/state/sessionProtocol.js';
-import { isAhpResourceWatchChannel, isAhpRootChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, isAhpChatChannel, parseDefaultChatUri, type ISessionWithDefaultChat, type SessionState } from '../common/state/sessionState.js';
+import { isAhpResourceWatchChannel, isAhpRootChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, isAhpChatChannel, parseChatUri, parseDefaultChatUri, type ISessionWithDefaultChat, type SessionState } from '../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import {
@@ -50,6 +51,7 @@ import {
 	type IOtlpLogRecord,
 	type OtlpLogLevelName,
 } from '../common/otlp/otlpLogEmitter.js';
+import { isFileResourceRead } from '../common/resourceReadLogging.js';
 
 /** Default capacity of the server-side action replay buffer. */
 const REPLAY_BUFFER_CAPACITY = 1000;
@@ -80,6 +82,13 @@ function jsonRpcErrorFrom(id: number, err: unknown): JsonRpcResponse {
 	}
 	const message = err instanceof Error ? (err.stack ?? err.message) : String(err);
 	return jsonRpcError(id, JSON_RPC_INTERNAL_ERROR, message);
+}
+
+function shouldLogFailedRequest(method: string, params: unknown, err: unknown): boolean {
+	if (!(err instanceof ProtocolError) || err.code !== AhpErrorCodes.NotFound || !isFileResourceRead(method, params)) {
+		return true;
+	}
+	return false;
 }
 
 /** True when `value` is a non-null params object (as opposed to an array or primitive). */
@@ -1007,26 +1016,33 @@ export class ProtocolServerHandler extends Disposable {
 			await this._agentService.disposeSession(URI.parse(params.channel));
 			return null;
 		},
-		// Multi-chat is not yet surfaced: every session is served by a single
-		// implicit default chat created alongside it. Accept createChat for
-		// that default chat as a no-op and reject additional chats until the
-		// multi-chat surface lands.
 		createChat: async (_client, params) => {
 			const state = this._stateManager.getSessionState(params.channel);
 			if (!state) {
 				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${params.channel}`);
 			}
 			const defaultChat = state.defaultChat ?? buildDefaultChatUri(params.channel);
-			if (URI.parse(params.chat).toString() !== URI.parse(defaultChat).toString()) {
-				throw new ProtocolError(
-					JsonRpcErrorCodes.InvalidParams,
-					`createChat: additional chats are not yet supported (session ${params.channel}, chat ${params.chat})`,
-				);
+			// The default chat is created alongside its session; creating it
+			// again is a no-op. Any other chat URI spins up an additional chat.
+			if (URI.parse(params.chat).toString() === URI.parse(defaultChat).toString()) {
+				return null;
 			}
+			await this._agentService.createChat(
+				URI.parse(params.channel),
+				URI.parse(params.chat),
+				{
+					...(params.model ? { model: params.model } : {}),
+				},
+			);
 			return null;
 		},
-		disposeChat: async (_client, _params) => {
-			// The default chat lives and dies with its session; nothing to do.
+		disposeChat: async (_client, params) => {
+			const chat = URI.parse(params.channel);
+			const parsed = parseChatUri(chat);
+			if (!parsed) {
+				return null;
+			}
+			await this._agentService.disposeChat(URI.parse(parsed.session), chat);
 			return null;
 		},
 		resourceWrite: async (_client, params) => {
@@ -1197,7 +1213,9 @@ export class ProtocolServerHandler extends Disposable {
 				this._logService.trace(`[ProtocolServer] Request '${method}' id=${id} succeeded`);
 				client.transport.send(jsonRpcSuccess(id, result ?? null));
 			}).catch(err => {
-				this._logService.error(`[ProtocolServer] Request '${method}' failed`, err);
+				if (shouldLogFailedRequest(method, params, err)) {
+					this._logService.error(`[ProtocolServer] Request '${method}' failed`, err);
+				}
 				client.transport.send(jsonRpcErrorFrom(id, err));
 			});
 			return;

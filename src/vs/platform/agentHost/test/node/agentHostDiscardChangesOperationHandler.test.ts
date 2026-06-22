@@ -15,7 +15,7 @@ import { ChangesSummary } from '../../common/state/protocol/state.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { SessionStatus, type ISessionFileDiff } from '../../common/state/sessionState.js';
 import { AgentHostDiscardChangesOperationHandler } from '../../node/agentHostDiscardChangesOperationHandler.js';
-import type { IAgentHostGitService } from '../../node/agentHostGitService.js';
+import type { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import type { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs } from '../../common/agentHostChangesetService.js';
 
@@ -67,8 +67,13 @@ class TestChangesetService implements IAgentHostChangesetService {
 	restorePersistedStaticChangesets(_sessionUri: string, _metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs { return {}; }
 	persistChangesSummary(_sessionUri: string, _summary: ChangesSummary): void { }
 	isStaticChangesetComputeActive(): boolean { return false; }
+	getListMetadataKeys(_sessionUri: string): Record<string, true> | undefined { return undefined; }
+	computeListEntryChanges(_sessionUri: string, _metadata: Record<string, string | undefined>): ChangesSummary | undefined { return undefined; }
 	refreshBranchChangeset(): void { }
 	refreshSessionChangeset(): void { }
+	onWorkingDirectoryAvailable(): void { }
+	recomputeSubscribedChangesets(): void { }
+	onSessionDisposed(): void { }
 	async computeUncommittedChangeset(session: string): Promise<string> {
 		this.calls.push(`computeUncommitted:${session}`);
 		return `${session}/changeset/uncommitted`;
@@ -78,8 +83,6 @@ class TestChangesetService implements IAgentHostChangesetService {
 	onToolCallEditsApplied(): void { }
 	onTurnComplete(): void { }
 	onSessionTruncated(): void { }
-	setTurnSubscriberProbe(): void { }
-	setUncommittedSubscriberProbe(): void { }
 }
 
 function setup(disposables: Pick<DisposableStore, 'add'>, opts?: { readonly withWorkingDirectory?: boolean; readonly registerSession?: boolean }): { handler: AgentHostDiscardChangesOperationHandler; gitService: TestGitService; changesets: TestChangesetService; session: URI } {

@@ -14,6 +14,7 @@ import { IPosition } from '../../../../editor/common/core/position.js';
 import { isRemoteAgentHostSessionType } from '../../../../platform/agentHost/common/agentHostSessionType.js';
 import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
+import { LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from './participants/chatAgents.js';
 import { IChatEditingSession } from './editing/chatEditingService.js';
 import { IChatRequestModeInstructions, IChatRequestVariableData, ISerializableChatModelInputState } from './model/chatModel.js';
@@ -313,7 +314,7 @@ export namespace SessionType {
  */
 export function isLocalAgentHostTarget(target: string): boolean {
 	return target === SessionType.AgentHostCopilot ||
-		target.startsWith('agent-host-');
+		target.startsWith(LOCAL_AGENT_HOST_SCHEME_PREFIX);
 }
 
 /**
