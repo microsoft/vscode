@@ -587,23 +587,18 @@ suite('CopilotApiService', () => {
 			assert.strictEqual(headers['OpenAI-Intent'], 'messages-proxy');
 		});
 
-		test('suppressIntegrationId opt-in controls the Copilot-Integration-Id header', async () => {
+		test('sends a derived Copilot-Integration-Id header by default', async () => {
 			const { fetch: fetchFn, captured } = routingFetch(
 				() => anthropicResponse([{ type: 'text', text: 'ok' }]),
 			);
 			const service = createService(fetchFn);
 
-			// Default (no opt-in): @vscode/copilot-api derives and sends the header.
+			// @vscode/copilot-api derives the integration id from the license /
+			// SKU / build state and sends it on every request.
 			await service.messages('gh-tok', baseRequest);
-			const withHeader = captured().init?.headers as Record<string, string>;
+			const headers = captured().init?.headers as Record<string, string>;
 
-			// Opt-in: the header is omitted entirely so CAPI authorizes against
-			// the token's real entitlement instead of the derived integration id.
-			await service.messages('gh-tok', baseRequest, { suppressIntegrationId: true });
-			const suppressed = captured().init?.headers as Record<string, string>;
-
-			assert.ok(withHeader['Copilot-Integration-Id'], 'integration id should be present by default');
-			assert.strictEqual(suppressed['Copilot-Integration-Id'], undefined, 'integration id should be suppressed when opted in');
+			assert.ok(headers['Copilot-Integration-Id'], 'integration id should be present');
 		});
 	});
 
@@ -1588,6 +1583,18 @@ suite('CopilotApiService', () => {
 				headers: { 'Authorization': 'Bearer attacker-token' },
 			});
 			assert.strictEqual(capturedHeaders?.['Authorization'], 'Bearer gh-tok');
+		});
+
+		test('sends a derived Copilot-Integration-Id header by default', async () => {
+			const { fetch: fetchFn, captured } = routingFetch(() => modelsResponse([]));
+			const service = createService(fetchFn);
+
+			// @vscode/copilot-api derives the integration id from the license /
+			// SKU / build state and sends it on every request.
+			await service.models('gh-tok');
+			const headers = captured().init?.headers as Record<string, string>;
+
+			assert.ok(headers['Copilot-Integration-Id'], 'integration id should be present');
 		});
 	});
 

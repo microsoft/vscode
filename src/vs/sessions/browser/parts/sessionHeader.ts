@@ -32,7 +32,6 @@ import { DraggedSessionIdentifier, SessionsDataTransfers } from '../dnd.js';
 import { applyDragImage } from '../../../base/browser/ui/dnd/dnd.js';
 import { applySessionBarThemeColors } from './sessionBarStyles.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
-import { isAgentHostProviderId } from '../../common/agentHostSessionsProvider.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { SessionStatusIcon } from '../sessionStatusIcon.js';
 
@@ -370,8 +369,9 @@ export class SessionHeader extends Disposable {
 	}
 
 	/**
-	 * Builds the workspace hover content for the current session: the complete
-	 * absolute folder path and git branch, mirroring the session list hover.
+	 * Builds the workspace hover content for the current session. Shows the repo
+	 * folder and, when the working directory differs from the repo root, the
+	 * working directory on a separate line, followed by the git branch.
 	 * Returns `undefined` when there is no workspace to describe.
 	 */
 	private _buildWorkspaceHover(): IManagedHoverTooltipMarkdownString | undefined {
@@ -381,25 +381,22 @@ export class SessionHeader extends Disposable {
 			return undefined;
 		}
 
-		const path = folder.root.fsPath;
+		const workingDirPath = folder.workingDirectory.fsPath;
 		const branch = folder.gitRepository?.branchName?.trim();
 
 		const md = new MarkdownString('', { supportThemeIcons: true });
-
-		// Folder icon + absolute path. Mirror the meta-row icon logic: cloud for
-		// virtual workspaces, folder when the session runs in the repo checkout,
-		// worktree otherwise.
-		const isWorkspaceFolder = folder.gitRepository?.workTreeUri === undefined;
-		const folderIcon = workspace.isVirtualWorkspace ? Codicon.cloud : isWorkspaceFolder ? Codicon.folder : Codicon.worktree;
-		md.appendMarkdown(`$(${folderIcon.id}) `);
-		md.appendText(path);
+		const fallbackLines: string[] = [];
+		md.appendMarkdown(`$(${Codicon.folder.id}) `);
+		md.appendText(workingDirPath);
+		fallbackLines.push(workingDirPath);
 
 		if (branch) {
-			md.appendMarkdown(' · $(git-branch) ');
+			md.appendMarkdown('\n\n$(git-branch) ');
 			md.appendText(branch);
+			fallbackLines.push(branch);
 		}
 
-		return { markdown: md, markdownNotSupportedFallback: branch ? `${path} · ${branch}` : path };
+		return { markdown: md, markdownNotSupportedFallback: fallbackLines.join('\n') };
 	}
 
 	private _setVisible(visible: boolean): void {
@@ -416,12 +413,12 @@ export class SessionHeader extends Disposable {
 	}
 
 	/**
-	 * The title is editable when the session is backed by an agent host provider —
-	 * the same condition that gates the `Rename...` context menu action in the
-	 * sessions list, since only those providers implement `renameChat`.
+	 * The title is editable when the backing provider declares it supports
+	 * renaming the session (`capabilities.supportsRename`). This is the same
+	 * signal that gates the `Rename...` context menu action in the sessions list.
 	 */
 	private _isTitleEditable(): boolean {
-		return !!this._session && isAgentHostProviderId(this._session.providerId);
+		return !!this._session && (this._session.capabilities.supportsRename ?? false);
 	}
 
 	startTitleEditing(): void {
@@ -477,9 +474,8 @@ export class SessionHeader extends Disposable {
 			const newTitle = input.value.trim();
 			this._endTitleEditing();
 			if (commit && newTitle && newTitle !== initialTitle) {
-				const mainChat = session.mainChat.get();
 				this._sessionsManagementService
-					.renameChat(session, mainChat.resource, newTitle)
+					.renameSession(session, newTitle)
 					.catch(onUnexpectedError);
 			}
 		};

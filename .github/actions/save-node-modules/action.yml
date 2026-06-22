@@ -1,0 +1,21 @@
+name: Save node_modules cache
+description: Archives node_modules and saves the archive to the GitHub Actions cache.
+
+runs:
+  using: composite
+  steps:
+    - name: Create node_modules archive
+      if: runner.os != 'Windows'
+      shell: bash
+      run: ./.github/workflows/node_modules_cache/cache.sh archive
+
+    - name: Create node_modules archive
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: ./.github/workflows/node_modules_cache/cache.ps1 archive
+
+    - name: Save node_modules cache
+      uses: actions/cache/save@v5
+      with:
+        path: .build/node_modules_cache
+        key: ${{ env.NODE_MODULES_CACHE_KEY }}

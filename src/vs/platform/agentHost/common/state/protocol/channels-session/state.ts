@@ -238,6 +238,14 @@ export interface SessionSummary {
 	 * does not expose an annotations channel.
 	 */
 	annotations?: AnnotationsSummary;
+
+	/**
+	 * Lightweight server-defined metadata clients may use for the session
+	 * presentation. The protocol does not interpret these values; producers
+	 * SHOULD keep the payload small because summaries appear in session lists
+	 * and session notifications.
+	 */
+	_meta?: Record<string, unknown>;
 }
 
 /**

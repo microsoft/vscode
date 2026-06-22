@@ -595,6 +595,10 @@ export interface IChatTerminalToolInvocationData {
 	requestUnsandboxedExecution?: boolean;
 	/** The model-provided reason for requesting sandbox bypass */
 	requestUnsandboxedExecutionReason?: string;
+	/** Whether an explicit unsandboxed request was deferred for an initial sandboxed execution. */
+	deferredUnsandboxedExecution?: boolean;
+	/** Whether an explicit unrestricted-network request was deferred for an initial sandboxed execution. */
+	deferredAllowNetworkRequest?: boolean;
 	/** Whether the terminal command was approved to run sandboxed with unrestricted network access */
 	requestAllowNetwork?: boolean;
 	/** The model-provided reason for requesting unrestricted network access within the sandbox */
@@ -1117,7 +1121,7 @@ export interface IChatAgentFeedbackReviewConfirmationData {
  */
 export interface IChatAgentFeedbackReviewComment {
 	readonly id: string;
-	/** Localized origin label, e.g. "PR Review" or "Code Review"; absent for user-authored comments. */
+	/** Localized origin label, e.g. "PR Review" or "Agent Review"; absent for user-authored comments. */
 	readonly kindLabel?: string;
 	/** The comment body. */
 	readonly text: string;
