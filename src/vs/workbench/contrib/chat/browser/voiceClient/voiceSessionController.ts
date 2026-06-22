@@ -171,6 +171,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private _replyPlayedSinceSend = false;
 	/** Set after send_to_chat; blocks auto-listen until the reply TTS starts. */
 	private _awaitingReplyAudio = false;
+	private _awaitingReplyWatchdog: ReturnType<typeof setTimeout> | undefined;
 	/** Enter listening immediately after greeting finishes (no debounce). */
 	private _autoListenAfterGreeting = false;
 
@@ -962,8 +963,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					toolName: e.name,
 					toolArgs: e.args,
 				});
-				this._awaitingReplyAudio = true;
-				this._clearAutoListenTimer();
+				this._setAwaitingReply();
 				const sendPromise = text.trim()
 					? this._sendTranscriptionToChat(text)
 					: Promise.resolve();
@@ -993,8 +993,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					this._finishPtt();
 				}
 				this._suppressIncomingAudio = false;
-				this._awaitingReplyAudio = true;
-				this._clearAutoListenTimer();
+				this._setAwaitingReply();
 				this.voiceToolDispatchService.dispatchToolCall(e).then(result => {
 					this.voiceClientService.sendToolResult(e.callId, result);
 					this._voiceState.set('idle', undefined);
@@ -1054,6 +1053,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._transcriptTurns.set([], undefined);
 		this._clearAutoSendSilenceTimer();
 		this._clearAutoListenTimer();
+		this._clearAwaitingReply();
+		this._autoListenAfterGreeting = false;
+		this._replyPlayedSinceSend = false;
 		this._audioQueue.length = 0;
 		this._currentPlaybackSessionId = null;
 		this._isProcessingQueue = false;
@@ -1138,6 +1140,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 		if (this._pttHeld) { return; }
 		this._pttHeld = true;
+		this._autoListenAfterGreeting = false;
 		this._clearAutoListenTimer();
 		this._pttCurrentTurnId = generateUuid();
 		this._pttWaitingForPlayback = false;
@@ -1220,7 +1223,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._voiceState.set('processing', undefined);
 		this._statusText.set('Processing...', undefined);
 		this._replyPlayedSinceSend = false;
-		this._awaitingReplyAudio = false;
+		this._clearAwaitingReply();
 		this._suppressIncomingAudio = false;
 		this.micCaptureService.pttUp();
 		if (this.accessibilityService.isScreenReaderOptimized()) {
@@ -1271,6 +1274,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		if (!this._isConnected.get() || this._pttHeld) {
 			return;
 		}
+		// Don't enter listening if audio is still playing or queued.
+		if (this.ttsPlaybackService.isPlaying || this._audioQueue.length > 0 || this._currentPlaybackSessionId !== null) {
+			return;
+		}
 		this.pttDown();
 		this.pttUp();
 	}
@@ -1313,6 +1320,31 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		if (this._autoSendSilenceTimer) {
 			clearTimeout(this._autoSendSilenceTimer);
 			this._autoSendSilenceTimer = undefined;
+		}
+	}
+
+	/** Block auto-listen until reply audio arrives (with 30s watchdog). */
+	private _setAwaitingReply(): void {
+		this._awaitingReplyAudio = true;
+		this._clearAutoListenTimer();
+		if (this._awaitingReplyWatchdog) {
+			clearTimeout(this._awaitingReplyWatchdog);
+		}
+		this._awaitingReplyWatchdog = setTimeout(() => {
+			this._awaitingReplyWatchdog = undefined;
+			this._awaitingReplyAudio = false;
+			// No reply came — re-enter listening if eligible.
+			if (this._isAutoSendEnabled() && !this._pttHeld) {
+				this._enterAutoListen();
+			}
+		}, 30_000);
+	}
+
+	private _clearAwaitingReply(): void {
+		this._awaitingReplyAudio = false;
+		if (this._awaitingReplyWatchdog) {
+			clearTimeout(this._awaitingReplyWatchdog);
+			this._awaitingReplyWatchdog = undefined;
 		}
 	}
 
@@ -1751,7 +1783,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 
 		if (isFirstChunk) {
-			this._awaitingReplyAudio = false;
+			this._clearAwaitingReply();
 		}
 
 		// If nothing is playing and queue is empty, or same session is playing, play immediately
