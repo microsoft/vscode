@@ -31,11 +31,16 @@
 	right: 0;
 	bottom: 36px;
 	z-index: 10;
-	pointer-events: auto;
+	/* Let clicks pass through to the input editor unless there is scrollable transcript content */
+	pointer-events: none;
 	background: var(--vscode-input-background, transparent);
 	border-radius: inherit;
 	border-bottom-left-radius: 0;
 	border-bottom-right-radius: 0;
+}
+
+.voice-transcript-overlay-scrollable.has-transcript {
+	pointer-events: auto;
 }
 
 .voice-transcript-overlay {

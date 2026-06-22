@@ -501,6 +501,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 			if (!connected) {
 				transcriptOverlayNode.style.display = 'none';
+				transcriptOverlayNode.classList.remove('has-transcript');
 				return;
 			}
 
@@ -510,6 +511,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const currentSession = this._widget?.viewModel?.sessionResource;
 			if (this.agentsVoiceWindowService.isOpen && targetSession && currentSession && targetSession.toString() !== currentSession.toString()) {
 				transcriptOverlayNode.style.display = 'none';
+				transcriptOverlayNode.classList.remove('has-transcript');
 				return;
 			}
 
@@ -517,6 +519,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			if (visible.length === 0 || !showTranscript) {
 				if (voiceState === 'idle' && visible.length === 0) {
 					transcriptOverlayNode.style.display = '';
+					transcriptOverlayNode.classList.remove('has-transcript');
 					transcriptOverlay.replaceChildren();
 					const hint = $('span.partial');
 					const kb = this.keybindingService.lookupKeybinding('agentsVoice.pushToTalk');
@@ -528,11 +531,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					transcriptScrollable.scanDomNode();
 				} else {
 					transcriptOverlayNode.style.display = 'none';
+					transcriptOverlayNode.classList.remove('has-transcript');
 				}
 				return;
 			}
 
 			transcriptOverlayNode.style.display = '';
+			transcriptOverlayNode.classList.add('has-transcript');
 			// Show only the latest turn: user question first, then assistant reply replaces it
 			const lastTurn = visible[visible.length - 1];
 			const contentElements: HTMLElement[] = [];
