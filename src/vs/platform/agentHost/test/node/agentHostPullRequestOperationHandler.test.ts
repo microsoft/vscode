@@ -12,7 +12,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { GITHUB_REPO_PROTECTED_RESOURCE, type IAgentService } from '../../common/agentService.js';
 import { buildSessionChangesetUri } from '../../common/changesetUri.js';
 import { withSessionGitState, type ISessionFileDiff, SessionStatus } from '../../common/state/sessionState.js';
-import type { IAgentHostGitService } from '../../node/agentHostGitService.js';
+import type { IAgentHostGitService, IPushOptions } from '../../common/agentHostGitService.js';
 import { AgentHostPullRequestOperationHandler } from '../../node/agentHostPullRequestOperationHandler.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import type { CreatedPullRequest, IAgentHostOctoKitService } from '../../node/shared/agentHostOctoKitService.js';
@@ -48,8 +48,9 @@ class TestGitService implements IAgentHostGitService {
 		this.calls.push('hasUpstream');
 		return this.upstream;
 	}
-	async pushBranch(_workingDirectory: URI, branchName: string, setUpstream: boolean): Promise<void> {
-		this.calls.push(`pushBranch:${branchName}:${setUpstream}`);
+	async pull(): Promise<void> { }
+	async push(_workingDirectory: URI, options: IPushOptions): Promise<void> {
+		this.calls.push(`push:${options.ref}:${options.setUpstream}`);
 	}
 	async getSessionGitState(): Promise<undefined> { return undefined; }
 	async computeSessionFileDiffs(): Promise<readonly ISessionFileDiff[] | undefined> {
@@ -153,7 +154,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 				'commitAll:Agent Host changes for feature/test',
 				'computeSessionFileDiffs',
 				'hasUpstream',
-				'pushBranch:feature/test:true',
+				'push:feature/test:true',
 			],
 			octoCalls: [
 				'findPullRequestByHeadBranch:feature/test',

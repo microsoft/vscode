@@ -954,6 +954,7 @@
 		"--session-view-foreground",
 		"--session-view-centered-content-max-width",
 		"--chat-editing-last-edit-shift",
+		"--chat-voice-icon-glow-color",
 		"--chat-current-response-min-height",
 		"--chat-smooth-delay",
 		"--chat-smooth-duration",

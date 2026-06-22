@@ -32,7 +32,7 @@ interface SessionConfig {
 }
 
 const SESSIONS: readonly SessionConfig[] = [
-	{ name: 'Copilot CLI', scenarioId: 'smoke-hello-copilot', reply: 'MOCKED_COPILOT_RESPONSE', scenarioId2: 'smoke-hello-copilot-2', reply2: 'MOCKED_COPILOT_RESPONSE_2', skipReply2: true },
+	{ name: 'Copilot', scenarioId: 'smoke-hello-copilot', reply: 'MOCKED_COPILOT_RESPONSE', scenarioId2: 'smoke-hello-copilot-2', reply2: 'MOCKED_COPILOT_RESPONSE_2', skipReply2: true },
 	{ name: 'Claude', scenarioId: 'smoke-hello-claude', reply: 'MOCKED_CLAUDE_RESPONSE', scenarioId2: 'smoke-hello-claude-2', reply2: 'MOCKED_CLAUDE_RESPONSE_2' },
 	{ name: 'Local', scenarioId: 'smoke-hello-local', reply: 'MOCKED_LOCAL_RESPONSE', scenarioId2: 'smoke-hello-local-2', reply2: 'MOCKED_LOCAL_RESPONSE_2' },
 ];
@@ -215,8 +215,9 @@ export function setup(logger: Logger) {
 					await app.workbench.agentsWindow.selectSessionType(session.name);
 
 					const requestsBefore = mockServer.requestCount();
+					const firstPrompt = `hello world [scenario:${session.scenarioId}]`;
 					logger.log(`[Agents Window/${session.name}] submitting prompt; requestCount=${requestsBefore}`);
-					await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${session.scenarioId}]`);
+					await app.workbench.agentsWindow.submitNewSessionPrompt(firstPrompt);
 					logger.log(`[Agents Window/${session.name}] prompt submitted; waiting for assistant text '${session.reply}'; requestCount=${mockServer.requestCount()}`);
 
 					const text = await app.workbench.agentsWindow.waitForAssistantText(session.reply);
@@ -229,10 +230,15 @@ export function setup(logger: Logger) {
 					// than continuing the existing one. Click back into the
 					// just-completed session before sending message 2 so the
 					// follow-up lands in the same session. Identify the row by
-					// its msg1 reply text since the sessions list also contains
-					// workspace folder group headers and historical sessions.
-					if (session.name === 'Copilot CLI') {
-						await app.workbench.agentsWindow.activateSessionByLabel(session.reply);
+					// EITHER the first prompt or the msg1 reply: the row text is
+					// the session title, which starts as the prompt (synchronous
+					// fallback) and is asynchronously replaced by a generated
+					// title (the reply, in the mock). Matching either avoids a
+					// race on when title generation lands. The sessions list also
+					// contains workspace folder group headers and historical
+					// sessions, so we can't just click the topmost row.
+					if (session.name === 'Copilot') {
+						await app.workbench.agentsWindow.activateSessionByLabel([firstPrompt, session.reply], session.reply);
 					}
 
 					if (!session.skipReply2) {
@@ -243,14 +249,16 @@ export function setup(logger: Logger) {
 						// before sending (the workbench can auto-swap the slot to
 						// a fresh untitled session between `activateSessionByLabel`
 						// returning and the send-button click).
-						const expectedActiveLabel = session.name === 'Copilot CLI' ? session.reply : undefined;
+						const expectedActiveLabel = session.name === 'Copilot' ? session.reply : undefined;
+						const activeRowMatch = session.name === 'Copilot' ? [firstPrompt, session.reply] : undefined;
 						await app.workbench.agentsWindow.sendFollowUpMessage(
 							`hello again [scenario:${session.scenarioId2}]`,
 							undefined,
 							expectedActiveLabel,
+							activeRowMatch,
 						);
 
-						const secondTurnTimeout = session.name === 'Copilot CLI' ? 180_000 : 60_000;
+						const secondTurnTimeout = session.name === 'Copilot' ? 180_000 : 60_000;
 						const text2 = await app.workbench.agentsWindow.waitForAssistantText(session.reply2, secondTurnTimeout);
 						logger.log(`Agents Window (${session.name}) response 2: ${text2}`);
 					} else {
@@ -305,7 +313,7 @@ export function setup(logger: Logger) {
 
 			await app.workbench.agentsWindow.startNewSession();
 			await app.workbench.agentsWindow.waitForNewSessionView();
-			await app.workbench.agentsWindow.selectSessionType('Copilot CLI');
+			await app.workbench.agentsWindow.selectSessionType('Copilot');
 
 			const requestsBefore = mockServer.requestCount();
 			await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${COPILOT_SANDBOX_SCENARIO_ID}]`);
@@ -557,7 +565,7 @@ export function setup(logger: Logger) {
 		});
 	});
 
-	describe.skip('Agents Window (Codex)', () => {
+	describe('Agents Window (Codex)', () => {
 
 		const codex = setupAgentHostSuite(logger, {
 			serverLabel: 'Codex',

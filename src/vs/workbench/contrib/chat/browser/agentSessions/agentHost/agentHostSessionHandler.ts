@@ -21,7 +21,9 @@ import { IPosition } from '../../../../../../editor/common/core/position.js';
 import { isLocation, type Location } from '../../../../../../editor/common/languages.js';
 import { localize } from '../../../../../../nls.js';
 import { AgentProvider, AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/agentFeedbackAttachments.js';
+import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
+import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
+import { readCompletionAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ChatTruncatedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
@@ -35,6 +37,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
 import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import {
@@ -67,7 +70,7 @@ import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderSe
 import { AgentHostSnapshotController } from './agentHostSnapshotController.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
-import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, getTerminalContentUri, isSubagentTool, makeAhpTerminalToolSessionId, messageToVariableData, parseAhpTerminalToolSessionId, rawMarkdownToString, stringOrMarkdownToString, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, usageInfoToChatUsage, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
+import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, getTerminalContentUri, isSubagentTool, makeAhpTerminalToolSessionId, messageToVariableData, parseAhpTerminalToolSessionId, rawMarkdownToString, stringOrMarkdownToString, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, usageInfoToChatUsage, usageInfoToQuotas, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
 export { toolDataToDefinition };
 
 // =============================================================================
@@ -159,7 +162,7 @@ function confirmedReasonToProtocol(reason: ConfirmedReason | undefined): ToolCal
 }
 
 function shouldAutoApproveClientToolCall(toolCall: ToolCallState): boolean {
-	return toolCall._meta?.autoApproveBySetting === true;
+	return readToolCallMeta(toolCall).autoApproveBySetting === true;
 }
 
 /**
@@ -264,6 +267,17 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	readonly interruptActiveResponseCallback: IChatSession['interruptActiveResponseCallback'];
 	readonly forkSession: IChatSession['forkSession'];
 	readonly renameSession: IChatSession['renameSession'];
+
+	/**
+	 * Last model/agent selection dispatched for this chat. Peer chats have no
+	 * server-confirmed session `summary` to diff against (the protocol tracks
+	 * `summary.model`/`summary.agent` for the default chat only), so these
+	 * locally-tracked values let {@link AgentHostSessionHandler._handleTurn}
+	 * dispatch a model/agent change only when the selection actually changes —
+	 * including a transition back to "no agent" (`undefined`).
+	 */
+	lastDispatchedModel: ModelSelection | undefined;
+	lastDispatchedAgentUri: string | undefined;
 
 	constructor(
 		readonly sessionResource: URI,
@@ -436,6 +450,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 */
 	private readonly _additionalChatSubscriptions = new Map<string, IReference<IAgentSubscription<ChatState>>>();
 
+	/**
+	 * Backend session URIs with an in-flight {@link provideChatSessionContent}
+	 * call, keyed by session URI string with a refcount value. While a chat is
+	 * still hydrating its subscriptions, a sibling chat of the same session
+	 * closing must not tear down the shared session subscription out from under
+	 * it (see {@link _releaseChatSessionSubscriptions} / {@link _hasOtherSessionHold}).
+	 */
+	private readonly _hydratingChatSessions = new Map<string, number>();
+
 	constructor(
 		config: IAgentHostSessionHandlerConfig,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
@@ -455,6 +478,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
+		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 	) {
 		super();
 		this._config = config;
@@ -582,20 +606,21 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const attachment = raw.attachment;
 		switch (attachment.type) {
 			case MessageAttachmentKind.Simple: {
-				if (typeof attachment._meta?.command === 'string') {
+				const completionMeta = readCompletionAttachmentMeta(attachment);
+				if (completionMeta?.kind === 'command') {
 					return this._createCompletionItem(raw, text, {
 						kind: 'command',
-						command: attachment._meta.command,
-						description: typeof attachment._meta.description === 'string' ? attachment._meta.description : '',
+						command: completionMeta.command,
+						description: completionMeta.description ?? '',
 						...(attachment._meta !== undefined && { _meta: attachment._meta }),
 					});
 				}
-				if (typeof attachment._meta?.uri === 'string') {
+				if (completionMeta?.kind === 'skill') {
 					return this._createCompletionItem(raw, text, {
 						kind: 'skill',
-						uri: URI.parse(attachment._meta.uri),
-						...(typeof attachment._meta.displayName === 'string' ? { displayName: attachment._meta.displayName } : {}),
-						...(typeof attachment._meta.description === 'string' ? { description: attachment._meta.description } : {}),
+						uri: URI.parse(completionMeta.uri),
+						...(completionMeta.displayName !== undefined ? { displayName: completionMeta.displayName } : {}),
+						...(completionMeta.description !== undefined ? { description: completionMeta.description } : {}),
 						...(attachment._meta !== undefined && { _meta: attachment._meta }),
 					});
 				}
@@ -637,68 +662,82 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		let initialProgress: IChatProgress[] | undefined;
 		let activeTurnId: string | undefined;
 		let sessionTitle: string | undefined;
-		if (!isNewSession) {
-			try {
-				const sub = this._ensureSessionSubscription(resolvedSession.toString());
-				const chatSub = this._ensureChatSubscription(resolvedSession.toString(), chatKey);
-				// Wait for both the session summary and its default-chat
-				// conversation state to hydrate from the server. After the
-				// multi-chat protocol adoption, turns/activeTurn live on the
-				// separate chat channel, so reading them before the chat
-				// subscription lands would yield an empty history.
-				await Promise.all([
-					this._whenSubscriptionHydrated(sub, token),
-					this._whenSubscriptionHydrated(chatSub, token),
-				]);
-				const sessionState = this._getSessionState(resolvedSession.toString(), chatKey);
-				if (sessionState) {
-					sessionTitle = sessionState.summary.title;
-					const fallbackRawModelId = sessionState.summary.model?.id;
-					const lookup = this._createTurnModelLookup(sessionResource, fallbackRawModelId);
-					history.push(...turnsToHistory(resolvedSession, sessionState.turns, this._config.agentId, this._config.connectionAuthority, lookup, this._chatErrorContext()));
+		// Mark this session as hydrating so that a sibling chat of the same
+		// session closing while we await our subscriptions does not tear down
+		// the shared session subscription (which would strand us forever).
+		const hydrationKey = resolvedSession.toString();
+		this._hydratingChatSessions.set(hydrationKey, (this._hydratingChatSessions.get(hydrationKey) ?? 0) + 1);
+		try {
+			if (!isNewSession) {
+				try {
+					const sub = this._ensureSessionSubscription(resolvedSession.toString());
+					const chatSub = this._ensureChatSubscription(resolvedSession.toString(), chatKey);
+					// Wait for both the session summary and its default-chat
+					// conversation state to hydrate from the server. After the
+					// multi-chat protocol adoption, turns/activeTurn live on the
+					// separate chat channel, so reading them before the chat
+					// subscription lands would yield an empty history.
+					await Promise.all([
+						this._whenSubscriptionHydrated(sub, token),
+						this._whenSubscriptionHydrated(chatSub, token),
+					]);
+					const sessionState = this._getSessionState(resolvedSession.toString(), chatKey);
+					if (sessionState) {
+						sessionTitle = sessionState.summary.title;
+						const fallbackRawModelId = sessionState.summary.model?.id;
+						const lookup = this._createTurnModelLookup(sessionResource, fallbackRawModelId);
+						history.push(...turnsToHistory(resolvedSession, sessionState.turns, this._config.agentId, this._config.connectionAuthority, lookup, this._chatErrorContext()));
 
-					// Enrich history with inner tool calls from subagent
-					// child sessions. Subscribes to each child session so
-					// its tool calls appear grouped under the parent widget.
-					await this._enrichHistoryWithSubagentCalls(history, resolvedSession);
+						// Enrich history with inner tool calls from subagent
+						// child sessions. Subscribes to each child session so
+						// its tool calls appear grouped under the parent widget.
+						await this._enrichHistoryWithSubagentCalls(history, resolvedSession);
 
-					// Store historical turns so the editing session can seed a
-					// request-level checkpoint for each turn (with file edits
-					// folded in) when the controller is created lazily. We seed
-					// for every turn — not just those with edits — so "Restore
-					// Checkpoint" on any historical request can find a boundary
-					// to navigate to.
-					if (sessionState.turns.length > 0) {
-						this._pendingHistoryTurns.set(sessionResource, sessionState.turns);
+						// Store historical turns so the editing session can seed a
+						// request-level checkpoint for each turn (with file edits
+						// folded in) when the controller is created lazily. We seed
+						// for every turn — not just those with edits — so "Restore
+						// Checkpoint" on any historical request can find a boundary
+						// to navigate to.
+						if (sessionState.turns.length > 0) {
+							this._pendingHistoryTurns.set(sessionResource, sessionState.turns);
+						}
+
+						// If there's an active turn, include its request in history
+						// with an empty response so the chat service creates a
+						// pending request, then provide accumulated progress via
+						// progressObs for live streaming.
+						if (sessionState.activeTurn) {
+							activeTurnId = sessionState.activeTurn.id;
+							const activeRawModelId = sessionState.activeTurn.usage?.model ?? fallbackRawModelId;
+							history.push({
+								type: 'request',
+								prompt: sessionState.activeTurn.message.text,
+								participant: this._config.agentId,
+								modelId: lookup.toLanguageModelId(activeRawModelId),
+								variableData: messageToVariableData(sessionState.activeTurn.message, this._config.connectionAuthority),
+								isSystemInitiated: sessionState.activeTurn.message.origin.kind === MessageKind.SystemNotification,
+							});
+							history.push({
+								type: 'response',
+								parts: [],
+								participant: this._config.agentId,
+								details: lookup.toResponseDetails(activeRawModelId, sessionState.activeTurn.usage),
+							});
+							initialProgress = activeTurnToProgress(resolvedSession, sessionState.activeTurn, this._config.connectionAuthority);
+							this._logService.info(`[AgentHost] Reconnecting to active turn ${activeTurnId} for session ${resolvedSession.toString()}`);
+						}
 					}
-
-					// If there's an active turn, include its request in history
-					// with an empty response so the chat service creates a
-					// pending request, then provide accumulated progress via
-					// progressObs for live streaming.
-					if (sessionState.activeTurn) {
-						activeTurnId = sessionState.activeTurn.id;
-						const activeRawModelId = sessionState.activeTurn.usage?.model ?? fallbackRawModelId;
-						history.push({
-							type: 'request',
-							prompt: sessionState.activeTurn.message.text,
-							participant: this._config.agentId,
-							modelId: lookup.toLanguageModelId(activeRawModelId),
-							variableData: messageToVariableData(sessionState.activeTurn.message, this._config.connectionAuthority),
-							isSystemInitiated: sessionState.activeTurn.message.origin.kind === MessageKind.SystemNotification,
-						});
-						history.push({
-							type: 'response',
-							parts: [],
-							participant: this._config.agentId,
-							details: lookup.toResponseDetails(activeRawModelId, sessionState.activeTurn.usage),
-						});
-						initialProgress = activeTurnToProgress(resolvedSession, sessionState.activeTurn, this._config.connectionAuthority);
-						this._logService.info(`[AgentHost] Reconnecting to active turn ${activeTurnId} for session ${resolvedSession.toString()}`);
-					}
+				} catch (err) {
+					this._logService.warn(`[AgentHost] Failed to subscribe to existing session: ${resolvedSession.toString()}`, err);
 				}
-			} catch (err) {
-				this._logService.warn(`[AgentHost] Failed to subscribe to existing session: ${resolvedSession.toString()}`, err);
+			}
+		} finally {
+			const remaining = (this._hydratingChatSessions.get(hydrationKey) ?? 1) - 1;
+			if (remaining > 0) {
+				this._hydratingChatSessions.set(hydrationKey, remaining);
+			} else {
+				this._hydratingChatSessions.delete(hydrationKey);
 			}
 		}
 		const session = this._instantiationService.createInstance(
@@ -726,7 +765,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				this._pendingMessageSubscriptions.deleteAndDispose(sessionResource);
 				this._serverTurnWatchers.deleteAndDispose(sessionResource);
 				this._pendingHistoryTurns.delete(sessionResource);
-				this._releaseSessionSubscription(resolvedSession.toString());
+				this._releaseChatSessionSubscriptions(resolvedSession.toString(), chatKey);
 			},
 			() => {
 				const sessionKey = resolvedSession.toString();
@@ -821,6 +860,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	): Promise<IChatAgentResult> {
 		this._logService.info(`[AgentHost] _invokeAgent called for resource: ${request.sessionResource.toString()}`);
 
+		// Gate spawning an agent on workspace trust. Viewing chat and the
+		// agent list does not require trust, but sending a message does, since
+		// the agent reads files, runs commands, and makes changes in the
+		// target folder. Mirrors how extension-host chat is gated. If the user
+		// declines, abort without starting a session.
+		if (!await this._ensureWorkspaceTrust(request.sessionResource)) {
+			return {};
+		}
+
 		const resolvedSession = this._resolveSessionUri(request.sessionResource);
 		const sessionKey = resolvedSession.toString();
 
@@ -894,7 +942,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (turn?.state !== TurnState.Error || !turn.error) {
 			return undefined;
 		}
-		return getChatErrorDetailsFromMeta(turn.error._meta, this._chatErrorContext())
+		return getChatErrorDetailsFromMeta(turn.error, this._chatErrorContext())
 			?? { message: localize('agentHost.turnError', "Error: ({0}) {1}", turn.error.errorType, turn.error.message) };
 	}
 
@@ -1275,17 +1323,31 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// in the middle of a turn.
 		this._ensureActiveClientForMessage(session);
 
+		// Model and agent selections are dispatched to the per-chat turn
+		// channel, not the session URI: for an additional (peer) chat the
+		// `turnChannel` carries a chatId fragment so the host applies the
+		// change to that chat's own conversation rather than the session's
+		// default chat. The default chat diffs against the server-confirmed
+		// session `summary`; peer chats have no such summary, so they diff
+		// against the last selection dispatched for that chat (tracked on the
+		// `AgentHostChatSession`) to avoid re-dispatching every turn.
+		const isPeerChat = !!request.sessionResource.fragment;
+		const peerChatSession = isPeerChat ? this._activeSessions.get(request.sessionResource) : undefined;
+
 		// If the user selected a different model since the session was created
 		// (or since the last turn), dispatch a model change action first so the
 		// agent backend picks up the new model before processing the turn.
 		const selectedModel = this._createModelSelection(request.userSelectedModelId, request.modelConfiguration);
 		if (selectedModel) {
-			const currentModel = this._getSessionState(session.toString())?.summary.model;
+			const currentModel = isPeerChat ? peerChatSession?.lastDispatchedModel : this._getSessionState(session.toString())?.summary.model;
 			if (!this._modelSelectionsEqual(currentModel, selectedModel)) {
-				this._config.connection.dispatch(session.toString(), {
+				this._config.connection.dispatch(turnChannel, {
 					type: ActionType.SessionModelChanged,
 					model: selectedModel,
 				});
+				if (peerChatSession) {
+					peerChatSession.lastDispatchedModel = selectedModel;
+				}
 			}
 		}
 
@@ -1294,12 +1356,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// new-session picker so a graduating session's `summary.agent` reflects
 		// the user's choice; on subsequent turns this also handles a swap.
 		const requestedAgentUri = request.modeInstructions?.uri?.toString();
-		const currentAgentUri = this._getSessionState(session.toString())?.summary.agent?.uri.toString();
+		const currentAgentUri = isPeerChat ? peerChatSession?.lastDispatchedAgentUri : this._getSessionState(session.toString())?.summary.agent?.uri.toString();
 		if (requestedAgentUri !== currentAgentUri) {
-			this._config.connection.dispatch(session.toString(), {
+			this._config.connection.dispatch(turnChannel, {
 				type: ActionType.SessionAgentChanged,
 				...(requestedAgentUri ? { agent: { uri: requestedAgentUri } } : {}),
 			});
+			if (peerChatSession) {
+				peerChatSession.lastDispatchedAgentUri = requestedAgentUri;
+			}
 		}
 
 		// If the chat model has fewer previous requests than the protocol has
@@ -1554,6 +1619,32 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				opts.sink([usage]);
 			}));
 
+			// Surface the account quota snapshots the agent host reports on each model-call usage event
+			// into the entitlement service, keeping the quota UI current for agent-host sessions (mirrors
+			// the extension-host CLI path). `acceptQuotas` replaces state, so shallow-merge the top-level
+			// container and deep-merge each per-category snapshot to preserve fields the usage event
+			// doesn't carry (e.g. `hasQuota`, `usageBasedBilling` from a prior full entitlement fetch).
+			let lastQuotaSignature: string | undefined;
+			store.add(autorun(reader => {
+				const quotaUpdate = usageInfoToQuotas(usage$.read(reader));
+				if (!quotaUpdate) {
+					return;
+				}
+				const signature = JSON.stringify(quotaUpdate);
+				if (signature === lastQuotaSignature) {
+					return;
+				}
+				lastQuotaSignature = signature;
+				const existing = this._chatEntitlementService.quotas;
+				this._chatEntitlementService.acceptQuotas({
+					...existing,
+					...quotaUpdate,
+					chat: quotaUpdate.chat ? { ...existing.chat, ...quotaUpdate.chat } : existing.chat,
+					completions: quotaUpdate.completions ? { ...existing.completions, ...quotaUpdate.completions } : existing.completions,
+					premiumChat: quotaUpdate.premiumChat ? { ...existing.premiumChat, ...quotaUpdate.premiumChat } : existing.premiumChat,
+				});
+			}));
+
 			store.add(autorunPerKeyedItem(
 				inputRequests$,
 				ir => ir.id,
@@ -1616,7 +1707,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				return;
 			}
 			if (!opts.suppressErrorMarkdown && lastTurn?.state === TurnState.Error && lastTurn.error) {
-				const forwarded = getChatErrorDetailsFromMeta(lastTurn.error._meta, this._chatErrorContext());
+				const forwarded = getChatErrorDetailsFromMeta(lastTurn.error, this._chatErrorContext());
 				const content = forwarded
 					? new MarkdownString(`\n\n${forwarded.message}`)
 					: new MarkdownString(`\n\nError: (${lastTurn.error.errorType}) ${lastTurn.error.message}`);
@@ -1757,8 +1848,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				invocation.didExecuteTool(undefined);
 				const confirmInvocation = toolCallStateToInvocation(tc, subAgentInvocationId, opts.backendSession, this._config.connectionAuthority);
 				opts.sink([confirmInvocation]);
-				this._awaitToolConfirmation(confirmInvocation, toolCallId, opts.backendSession, opts.turnId, opts.cancellationToken, tc.options, opts.chatChannel);
 				invocation = confirmInvocation;
+				this._awaitToolConfirmation(confirmInvocation, toolCallId, opts.backendSession, opts.turnId, opts.cancellationToken, tc.options, opts.chatChannel);
 			} else if (status === ToolCallStatus.Running || status === ToolCallStatus.PendingResultConfirmation) {
 				invocation.invocationMessage = stringOrMarkdownToString(tc.invocationMessage, this._config.connectionAuthority);
 				this._reviveTerminalIfNeeded(invocation, tc, opts.backendSession);
@@ -2984,6 +3075,28 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
 	}
 
+	/**
+	 * Ensures the workspace/folder the agent will run in is trusted before a
+	 * session is spawned. Returns `false` if the user declines.
+	 *
+	 * When the agent runs inside the currently open workspace (editor window),
+	 * gate on workspace trust to match how extension-host chat is gated. When
+	 * it targets a standalone folder outside the open workspace (Agents window
+	 * per-session folders), gate on that folder's trust instead. Both request
+	 * helpers resolve immediately when the target is already trusted, so this
+	 * never double-prompts.
+	 */
+	private async _ensureWorkspaceTrust(sessionResource: URI): Promise<boolean> {
+		const message = localize('agentHost.workspaceTrust', "AI features are currently only supported in trusted workspaces.");
+		const workingDirectory = this._resolveRequestedWorkingDirectory(sessionResource);
+
+		if (!workingDirectory || this._workspaceContextService.getWorkspaceFolder(workingDirectory)) {
+			return !!await this._workspaceTrustRequestService.requestWorkspaceTrust({ message });
+		}
+
+		return !!await this._workspaceTrustRequestService.requestResourcesTrust({ uri: workingDirectory, message });
+	}
+
 	private _convertVariablesToAttachments(request: IChatAgentRequest): MessageAttachment[] {
 		return this._variableEntriesToAttachments(request.variables.variables, request.sessionResource, request.message);
 	}
@@ -3306,6 +3419,65 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				ref.dispose();
 			}
 		}
+	}
+
+	/**
+	 * Release the subscriptions held by a single chat session on dispose.
+	 *
+	 * Unlike {@link _releaseSessionSubscription} (which tears down every chat
+	 * of a session at once), this only releases the disposed chat's own
+	 * conversation subscription and never touches sibling peer chats: closing
+	 * one chat of a multi-chat session must not strand another chat — including
+	 * one that is concurrently hydrating in {@link provideChatSessionContent} —
+	 * on a disposed subscription. The session summary subscription (and its
+	 * lockstep default-chat subscription) is shared by every chat of the
+	 * session, so it is only torn down once no sibling chat session is still
+	 * active or mid-hydration for the same backend session.
+	 */
+	private _releaseChatSessionSubscriptions(sessionUri: string, chatUri: string): void {
+		// Release this chat's own conversation subscription. The default chat's
+		// subscription is keyed by session URI and torn down together with the
+		// shared session subscription below; peer chats own a dedicated entry.
+		if (chatUri !== this._resolveDefaultChatUri(sessionUri)) {
+			const chatRef = this._additionalChatSubscriptions.get(chatUri);
+			if (chatRef) {
+				this._additionalChatSubscriptions.delete(chatUri);
+				chatRef.dispose();
+			}
+		}
+		// Keep the shared session subscription alive while any sibling chat of
+		// the same backend session is still active or hydrating.
+		if (this._hasOtherSessionHold(sessionUri)) {
+			return;
+		}
+		const ref = this._sessionSubscriptions.get(sessionUri);
+		if (ref) {
+			this._sessionSubscriptions.delete(sessionUri);
+			ref.dispose();
+		}
+		const chatRef = this._defaultChatSubscriptions.get(sessionUri);
+		if (chatRef) {
+			this._defaultChatSubscriptions.delete(sessionUri);
+			chatRef.dispose();
+		}
+	}
+
+	/**
+	 * Returns whether another chat session for the given backend session URI is
+	 * still active or in the middle of hydrating its subscriptions, so the
+	 * shared session subscription must be kept alive. Callers invoke this after
+	 * removing their own entry from {@link _activeSessions}.
+	 */
+	private _hasOtherSessionHold(sessionUri: string): boolean {
+		if ((this._hydratingChatSessions.get(sessionUri) ?? 0) > 0) {
+			return true;
+		}
+		for (const resource of this._activeSessions.keys()) {
+			if (this._resolveSessionUri(resource).toString() === sessionUri) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**

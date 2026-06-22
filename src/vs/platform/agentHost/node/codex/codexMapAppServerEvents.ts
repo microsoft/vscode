@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { ActionType, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
 import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState } from '../../common/state/sessionState.js';
 import { extractForwardedErrorInfo } from '../shared/forwardedChatError.js';
@@ -316,7 +317,7 @@ export function mapItemStarted(
 				toolCallId,
 				toolName: 'shell',
 				displayName: 'Run shell command',
-				_meta: { toolKind: 'terminal' },
+				_meta: toToolCallMeta({ toolKind: 'terminal' }),
 			},
 			{
 				type: ActionType.ChatToolCallDelta,
@@ -331,7 +332,7 @@ export function mapItemStarted(
 				invocationMessage: command,
 				toolInput: command,
 				confirmed: ToolCallConfirmationReason.NotNeeded,
-				_meta: { toolKind: 'terminal' },
+				_meta: toToolCallMeta({ toolKind: 'terminal' }),
 			},
 		];
 	}
@@ -351,7 +352,7 @@ export function mapItemStarted(
 				toolCallId,
 				toolName: 'web_search',
 				displayName: 'Web search',
-				_meta: { toolKind: 'search' },
+				_meta: toToolCallMeta({ toolKind: 'search' }),
 			},
 			{
 				type: ActionType.ChatToolCallDelta,
@@ -366,7 +367,7 @@ export function mapItemStarted(
 				invocationMessage: query,
 				toolInput: query,
 				confirmed: ToolCallConfirmationReason.NotNeeded,
-				_meta: { toolKind: 'search' },
+				_meta: toToolCallMeta({ toolKind: 'search' }),
 			},
 		];
 	}
