@@ -10,7 +10,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IAgentConnection } from './agentService.js';
 import type { UnsupportedProtocolVersionErrorData } from './state/protocol/errors.js';
 import { AHP_UNSUPPORTED_PROTOCOL_VERSION, ProtocolError } from './state/sessionProtocol.js';
-import type { UnsupportedProtocolVersionErrorMeta, IVscodeUpgradeResult } from './state/protocolUpgrade.js';
+import { readUnsupportedProtocolVersionErrorMeta, type IVscodeUpgradeResult } from './state/protocolUpgrade.js';
 import { TUNNEL_ADDRESS_PREFIX } from './tunnelAgentHost.js';
 
 /**
@@ -80,9 +80,9 @@ export namespace RemoteAgentHostConnectionStatus {
 	 */
 	export function fromConnectError(err: unknown, supportedByClient: readonly string[]): RemoteAgentHostConnectionStatus | undefined {
 		if (err instanceof ProtocolError && err.code === AHP_UNSUPPORTED_PROTOCOL_VERSION) {
-			const data = err.data as (Partial<UnsupportedProtocolVersionErrorData> & { _meta?: UnsupportedProtocolVersionErrorMeta }) | undefined;
+			const data = err.data as Partial<UnsupportedProtocolVersionErrorData> | undefined;
 			const offeredByServer = Array.isArray(data?.supportedVersions) ? data.supportedVersions : undefined;
-			const vscodeUpgradeMethod = typeof data?._meta?.vscodeUpgradeMethod === 'string' ? data._meta.vscodeUpgradeMethod : undefined;
+			const vscodeUpgradeMethod = readUnsupportedProtocolVersionErrorMeta(err.data)?.vscodeUpgradeMethod;
 			return incompatible(err.message, supportedByClient, offeredByServer, vscodeUpgradeMethod);
 		}
 		return undefined;

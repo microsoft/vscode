@@ -9,6 +9,7 @@ import { autorun, IObservable, IReader } from '../../../base/common/observable.j
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
@@ -767,7 +768,7 @@ export class AgentSideEffects extends Disposable {
 			&& !!e.state.confirmationTitle;
 		if (clientShouldAutoApprove) {
 			this._toolCallAgents.set(`${sessionKey}:${e.state.toolCallId}`, agent.id);
-			effective = { ...e, state: { ...e.state, _meta: { ...toolCall?._meta, ...e.state._meta, autoApproveBySetting: true } } };
+			effective = { ...e, state: { ...e.state, _meta: { ...toolCall?._meta, ...e.state._meta, ...toToolCallMeta({ autoApproveBySetting: true }) } } };
 		} else if (autoApproval !== undefined) {
 			this._toolCallAgents.delete(`${sessionKey}:${e.state.toolCallId}`);
 			agent.respondToPermissionRequest(e.state.toolCallId, true);
@@ -804,6 +805,9 @@ export class AgentSideEffects extends Disposable {
 				}
 
 				const state = this._stateManager.getSessionState(channel);
+				if (!state) {
+					this._logService.info(`[AgentSideEffects] Turn started for session not in state manager: ${channel}, turnId=${action.turnId} - status/summary updates may be dropped unless the session is restored`);
+				}
 				this._titleController.seedTitleFromFirstMessage(channel, action.message.text, chatChannel);
 
 				const agent = this._options.getAgent(channel);
@@ -871,14 +875,14 @@ export class AgentSideEffects extends Disposable {
 			}
 			case ActionType.SessionModelChanged: {
 				const agent = this._options.getAgent(channel);
-				agent?.changeModel?.(URI.parse(channel), action.model).catch(err => {
+				agent?.changeModel?.(URI.parse(channel), action.model, chatChannel ? URI.parse(chatChannel) : undefined).catch(err => {
 					this._logService.error('[AgentSideEffects] changeModel failed', err);
 				});
 				break;
 			}
 			case ActionType.SessionAgentChanged: {
 				const agent = this._options.getAgent(channel);
-				agent?.changeAgent?.(URI.parse(channel), action.agent).catch(err => {
+				agent?.changeAgent?.(URI.parse(channel), action.agent, chatChannel ? URI.parse(chatChannel) : undefined).catch(err => {
 					this._logService.error('[AgentSideEffects] changeAgent failed', err);
 				});
 				break;

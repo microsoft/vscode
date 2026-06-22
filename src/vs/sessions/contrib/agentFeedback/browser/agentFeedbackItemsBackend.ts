@@ -12,7 +12,7 @@ import { IAgentSubscription } from '../../../../platform/agentHost/common/state/
 import { ActionType } from '../../../../platform/agentHost/common/state/protocol/common/actions.js';
 import { Annotation, AnnotationEntry, AnnotationsState, StateComponents, StringOrMarkdown } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { TextRange } from '../../../../platform/agentHost/common/state/protocol/common/state.js';
-import { FEEDBACK_ANNOTATION_META_KEY } from '../../../../platform/agentHost/common/agentFeedbackAnnotations.js';
+import { FEEDBACK_ANNOTATION_META_KEY, readFeedbackAnnotationMeta, type AgentFeedbackKindValue, type AgentFeedbackStateValue, type IFeedbackAnnotationMeta } from '../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { ICodeReviewSuggestion } from '../../codeReview/browser/codeReviewService.js';
 import { IAgentHostSessionsProvider, isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -146,15 +146,12 @@ export class InMemoryAgentFeedbackItemsBackend extends Disposable implements IAg
 // --- Annotations-backed backend -----------------------------------------------
 
 /**
- * Feedback semantics carried in an annotation's {@link Annotation._meta}.
- * Everything not expressible by the annotation's own fields lives here.
- *
- * Mirrors the shared `IFeedbackAnnotationMeta` from `agentFeedbackAnnotations.ts`
- * but types the client-only fields concretely (e.g. {@link suggestion}). The
- * namespaced {@link FEEDBACK_ANNOTATION_META_KEY} is shared so the two sides
- * cannot drift.
+ * Client-side typed view of a feedback annotation's `_meta`, resolved from the
+ * shared wire shape: {@link kind}/{@link state} as the client enums and
+ * {@link suggestion} as the concrete {@link ICodeReviewSuggestion} (the shared
+ * reader validates it only as opaque data, since its shape lives in this layer).
  */
-interface IFeedbackAnnotationMeta {
+interface IFeedbackMetaView {
 	readonly kind: AgentFeedbackKind;
 	readonly state: AgentFeedbackState;
 	readonly sessionResource: string;
@@ -163,6 +160,52 @@ interface IFeedbackAnnotationMeta {
 	readonly diffHunks?: string;
 	readonly sourcePRReviewCommentId?: string;
 	readonly pendingAgentReveal?: boolean;
+}
+
+const KIND_FROM_VALUE: Record<AgentFeedbackKindValue, AgentFeedbackKind> = {
+	user: AgentFeedbackKind.UserReview,
+	codeReview: AgentFeedbackKind.AgentReview,
+	prReview: AgentFeedbackKind.PRReview,
+};
+
+const STATE_FROM_VALUE: Record<AgentFeedbackStateValue, AgentFeedbackState> = {
+	created: AgentFeedbackState.Created,
+	accepted: AgentFeedbackState.Accepted,
+	submitted: AgentFeedbackState.Submitted,
+	resolved: AgentFeedbackState.Resolved,
+};
+
+function asCodeReviewSuggestion(suggestion: unknown): ICodeReviewSuggestion | undefined {
+	// `suggestion` is opaque client-only data this backend itself serialized from
+	// an `ICodeReviewSuggestion`; validate the shape we depend on (an `edits`
+	// array) and trust the round-tripped contents.
+	if (suggestion && typeof suggestion === 'object' && Array.isArray((suggestion as { edits?: unknown }).edits)) {
+		return suggestion as ICodeReviewSuggestion;
+	}
+	return undefined;
+}
+
+/**
+ * Resolves the shared feedback `_meta` (validated by
+ * {@link readFeedbackAnnotationMeta}) into the client-typed
+ * {@link IFeedbackMetaView}, returning `undefined` for annotations that aren't
+ * feedback items.
+ */
+function readFeedbackMeta(annotation: Annotation): IFeedbackMetaView | undefined {
+	const base = readFeedbackAnnotationMeta(annotation);
+	if (!base) {
+		return undefined;
+	}
+	return {
+		kind: KIND_FROM_VALUE[base.kind],
+		state: STATE_FROM_VALUE[base.state],
+		sessionResource: base.sessionResource,
+		suggestion: asCodeReviewSuggestion(base.suggestion),
+		codeSelection: base.codeSelection,
+		diffHunks: base.diffHunks,
+		sourcePRReviewCommentId: base.sourcePRReviewCommentId,
+		pendingAgentReveal: base.pendingAgentReveal,
+	};
 }
 
 function toTextRange(range: IRange): TextRange {
@@ -216,7 +259,7 @@ function feedbackToAnnotation(feedback: IAgentFeedback): Annotation {
 
 function annotationToFeedback(annotation: Annotation, sessionResource: URI): IAgentFeedback | undefined {
 	const entries = annotation.entries ?? [];
-	const meta = annotation._meta?.[FEEDBACK_ANNOTATION_META_KEY] as IFeedbackAnnotationMeta | undefined;
+	const meta = readFeedbackMeta(annotation);
 	// The annotations channel is generic and may carry annotations produced by
 	// other features. Only annotations that carry feedback metadata are feedback
 	// items; everything else is ignored so feedback never surfaces or mutates
@@ -419,14 +462,15 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 			return '';
 		}
 		const feedback = value.annotations
-			.filter(annotation => annotation._meta?.[FEEDBACK_ANNOTATION_META_KEY] !== undefined && (annotation.entries?.length ?? 0) > 0)
-			.map(annotation => ({
+			.map(annotation => ({ annotation, meta: readFeedbackMeta(annotation) }))
+			.filter(({ annotation, meta }) => meta !== undefined && (annotation.entries?.length ?? 0) > 0)
+			.map(({ annotation, meta }) => ({
 				id: annotation.id,
 				resource: annotation.resource,
 				range: annotation.range,
 				resolved: annotation.resolved,
 				entries: annotation.entries,
-				meta: annotation._meta?.[FEEDBACK_ANNOTATION_META_KEY],
+				meta,
 			}))
 			.sort((a, b) => a.id.localeCompare(b.id));
 		return JSON.stringify(feedback);
