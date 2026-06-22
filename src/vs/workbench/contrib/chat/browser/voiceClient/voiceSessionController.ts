@@ -172,6 +172,15 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private _autoSendSilenceTimer: ReturnType<typeof setTimeout> | undefined;
 	private _autoListenTimer: ReturnType<typeof setTimeout> | undefined;
 	private _pttWaitingForPlayback = false;
+	/**
+	 * Hands-free mode: set when the user's turn is auto-sent and cleared once a
+	 * genuine assistant reply has actually started playing. Gates the auto
+	 * re-listen so that, after a send, we stay idle/processing (waiting for the
+	 * reply) instead of jumping back to listening on a spurious `onPlaybackStopped`
+	 * (e.g. residual playback from the previous turn). We only re-arm listening
+	 * after a reply has been read out.
+	 */
+	private _replyPlayedSinceSend = false;
 
 	// --- Audio FIFO queue ---
 	private readonly _audioQueue: { sessionId: string | undefined; chunks: { audio: string; isFirstChunk: boolean; isFinal: boolean; transcript: string | undefined }[] }[] = [];
@@ -574,7 +583,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					// pttDown(), set `_suppressIncomingAudio` and drop the rest of the
 					// reply. Debounce instead: only re-listen after a quiet window with
 					// no further audio. Any new playback / tap / speech cancels it.
-					if (this._isAutoSendEnabled()) {
+					//
+					// We also require that a genuine reply has actually played since
+					// the last send (`_replyPlayedSinceSend`). This keeps us idle and
+					// waiting right after a turn is sent — re-listening only happens
+					// once the response has come back and been read, never on a
+					// spurious stop from residual playback before the reply arrives.
+					if (this._isAutoSendEnabled() && this._replyPlayedSinceSend) {
 						this._scheduleAutoListen();
 					}
 				}
@@ -1223,6 +1238,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 		this._voiceState.set('processing', undefined);
 		this._statusText.set('Processing...', undefined);
+		// Turn sent — wait for the reply. Re-listen stays disarmed until a
+		// genuine reply has been read out (see `_replyPlayedSinceSend`).
+		this._replyPlayedSinceSend = false;
 		this.micCaptureService.pttUp();
 		// "Recording stopped" cue is primarily a screen-reader affordance, so
 		// only play it when the screen reader is active.
@@ -1815,8 +1833,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		const ttsEnabled = this.configurationService.getValue<boolean>('agents.voice.textToSpeech') !== false;
 		if (ttsEnabled && audio) {
 			// More assistant audio is arriving — cancel any pending hands-free
-			// re-listen so we don't cut off a multi-part reply.
+			// re-listen so we don't cut off a multi-part reply. Mark that a
+			// genuine reply has played so re-listen is allowed once it ends.
 			this._clearAutoListenTimer();
+			this._replyPlayedSinceSend = true;
 			this.micCaptureService.suppressUntil(Date.now() + 800);
 			this._voiceState.set('speaking', undefined);
 			this._statusText.set('Speaking...', undefined);
