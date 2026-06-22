@@ -595,15 +595,20 @@ export function setup(logger: Logger) {
 			await app.workbench.agentsWindow.waitForNewSessionView();
 			const codexAvailable = await app.workbench.agentsWindow.isSessionTypeAvailable('Codex');
 			if (!codexAvailable) {
-				// In dev (running from source) Codex resolves from the repo's
-				// `node_modules` — `@openai/codex` is a devDependency — so it must
-				// always be available; fail loudly rather than skip. In built
-				// products the SDK is not shipped (devDependencies are stripped)
-				// and is fetched from `product.agentSdks.codex` only on publish
-				// builds, so skip gracefully when it is genuinely absent (e.g.
-				// non-publish CI builds).
-				if (app.quality === Quality.Dev) {
-					throw new Error('[Agents Window/Codex] Codex session type unexpectedly unavailable in dev — the node_modules SDK fallback should make it resolvable');
+				// Codex must be available — and so this test must run rather than
+				// skip — whenever the build under test is supposed to be able to
+				// resolve the SDK:
+				//   - Dev (running from source): resolves from the repo's
+				//     `node_modules` (`@openai/codex` is a devDependency).
+				//   - Publish builds: `product.agentSdks.codex` is stamped (only
+				//     when VSCODE_PUBLISH=true, see build/azure-pipelines/common/
+				//     agent-sdk-produce.yml) so the SDK is fetched from the CDN.
+				// In both cases an unavailable Codex is a regression — fail loudly.
+				// Otherwise (built non-publish CI, where the SDK is neither shipped
+				// nor stamped) Codex is legitimately absent, so skip gracefully.
+				const isPublishBuild = (process.env['VSCODE_PUBLISH'] ?? '').toLowerCase() === 'true';
+				if (app.quality === Quality.Dev || isPublishBuild) {
+					throw new Error(`[Agents Window/Codex] Codex session type unexpectedly unavailable (quality=${app.quality}, VSCODE_PUBLISH=${process.env['VSCODE_PUBLISH'] ?? '<unset>'}) — the SDK should be resolvable from node_modules (dev) or product.agentSdks.codex (publish build)`);
 				}
 				logger.log('[Agents Window/Codex] Codex session type not available in this built product (no product.agentSdks.codex); skipping');
 				this.skip();
