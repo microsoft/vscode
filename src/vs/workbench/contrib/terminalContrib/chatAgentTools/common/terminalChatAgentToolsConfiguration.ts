@@ -152,28 +152,6 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			]
 		},
 		default: {
-			// This is the default set of terminal auto approve commands. Note that these are best
-			// effort and do not aim to provide exhaustive coverage to prevent dangerous commands
-			// from executing as that is simply not feasible. Workspace trust and warnings of
-			// possible prompt injection are _the_ thing protecting the user in agent mode, once
-			// that trust boundary has been breached all bets are off as trusting a workspace that
-			// contains anything malicious has already compromised the machine.
-			//
-			// Instead, the focus here is to unblock the user from approving clearly safe commands
-			// frequently and cover common edge cases that could arise from the user auto-approving
-			// commands.
-			//
-			// Take for example `find` which looks innocuous and most users are likely to auto
-			// approve future calls when offered. However, the `-exec` argument can run anything. So
-			// instead of leaving this decision up to the user we provide relatively safe defaults
-			// and block common edge cases. So offering these default rules, despite their flaws, is
-			// likely to protect the user more in general than leaving everything up to them (plus
-			// make agent mode more convenient).
-
-			// #region Safe commands
-			//
-			// Generally safe and common readonly commands
-
 			cd: true,
 			echo: true,
 			ls: true,
@@ -199,53 +177,19 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			df: true,
 			sleep: true,
 			nl: true,
-
-			// grep
-			// - Variable
-			// - `-f`: Read patterns from file, this is an acceptable risk since you can do similar
-			//   with cat
-			// - `-P`: PCRE risks include denial of service (memory exhaustion, catastrophic
-			//   backtracking) which could lock up the terminal. Older PCRE versions allow code
-			//   execution via this flag but this has been patched with CVEs.
-			// - Variable injection is possible, but requires setting a variable which would need
-			//   manual approval.
 			grep: true,
-
-			// #endregion
-
-			// #region Safe sub-commands
-			//
-			// Safe and common sub-commands
-
-			// Note: These patterns support `-C <path>` and `--no-pager` immediately after `git`
 			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+status\\b/': true,
 			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+log\\b/': true,
 			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+log\\b.*\\s--output(=|\\s|$)/': false,
 			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+show\\b/': true,
 			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+diff\\b/': true,
 			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+ls-files\\b/': true,
-
-			// git grep
-			// - `--open-files-in-pager`: This is the configured pager, so no risk of code execution
-			// - See notes on `grep`
 			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+grep\\b/': true,
-
-			// git branch
-			// - `-d`, `-D`, `--delete`: Prevent branch deletion
-			// - `-m`, `-M`: Prevent branch renaming
-			// - `--force`: Generally dangerous
 			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+branch\\b/': true,
 			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+branch\\b.*\\s-(d|D|m|M|-delete|-force)\\b/': false,
-
-			// docker - readonly sub-commands
 			'/^docker\\s+(ps|images|info|version|inspect|logs|top|stats|port|diff|search|events)\\b/': true,
 			'/^docker\\s+(container|image|network|volume|context|system)\\s+(ls|ps|inspect|history|show|df|info)\\b/': true,
 			'/^docker\\s+compose\\s+(ps|ls|top|logs|images|config|version|port|events)\\b/': true,
-
-			// #endregion
-
-			// #region PowerShell
-
 			'Get-ChildItem': true,
 			'Get-Content': true,
 			'Get-Date': true,
@@ -259,125 +203,46 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			'Join-Path': true,
 			'Start-Sleep': true,
 			'Where-Object': true,
-
-			// Blanket approval of safe verbs
 			'/^Select-[a-z0-9]/i': true,
 			'/^Measure-[a-z0-9]/i': true,
 			'/^Compare-[a-z0-9]/i': true,
 			'/^Format-[a-z0-9]/i': true,
 			'/^Sort-[a-z0-9]/i': true,
-
-			// #endregion
-
-			// #region Package managers (npm, yarn, pnpm)
-			//
-			// Read-only commands that don't modify files or execute arbitrary code.
-
-			// npm read-only commands
 			'/^npm\\s+(ls|list|outdated|view|info|show|explain|why|root|prefix|bin|search|doctor|fund|repo|bugs|docs|home|help(-search)?)\\b/': true,
 			'/^npm\\s+config\\s+(list|get)\\b/': true,
 			'/^npm\\s+pkg\\s+get\\b/': true,
 			'/^npm\\s+audit$/': true,
 			'/^npm\\s+cache\\s+verify\\b/': true,
-
-			// yarn read-only commands
 			'/^yarn\\s+(list|outdated|info|why|bin|help|versions)\\b/': true,
 			'/^yarn\\s+licenses\\b/': true,
 			'/^yarn\\s+audit\\b(?!.*\\bfix\\b)/': true,
 			'/^yarn\\s+config\\s+(list|get)\\b/': true,
 			'/^yarn\\s+cache\\s+dir\\b/': true,
-
-			// pnpm read-only commands
 			'/^pnpm\\s+(ls|list|outdated|why|root|bin|doctor)\\b/': true,
 			'/^pnpm\\s+licenses\\b/': true,
 			'/^pnpm\\s+audit\\b(?!.*\\bfix\\b)/': true,
 			'/^pnpm\\s+config\\s+(list|get)\\b/': true,
-
-			// Safe lockfile-only installs since we trust the workspace and lock file is trusted.
 			'npm ci': true,
 			'/^yarn\\s+install\\s+--frozen-lockfile\\b/': true,
 			'/^pnpm\\s+install\\s+--frozen-lockfile\\b/': true,
-
-			// #endregion
-
-			// #region Safe + disabled args
-			//
-			// Commands that are generally allowed with special cases we block. Note that shell
-			// expansion is handled by the inline command detection when parsing sub-commands.
-
-			// column
-			// - `-c`: We block excessive columns that could lead to memory exhaustion.
 			column: true,
 			'/^column\\b.*\\s-c\\s+[0-9]{4,}/': false,
-
-			// date
-			// -s|--set: Sets the system clock
 			date: true,
 			'/^date\\b.*\\s(-s|--set)\\b/': false,
-
-			// find
-			// - `-delete`: Deletes files or directories.
-			// - `-exec`/`-execdir`: Execute on results.
-			// - `-fprint`/`fprintf`/`fls`: Writes files.
-			// - `-ok`/`-okdir`: Like exec but with a confirmation.
 			find: true,
 			'/^find\\b.*\\s-(delete|exec|execdir|fprint|fprintf|fls|ok|okdir)\\b/': false,
-
-			// rg (ripgrep)
-			// - `--pre`: Executes arbitrary command as preprocessor for every file searched.
-			// - `--hostname-bin`: Executes arbitrary command to get hostname.
 			rg: true,
 			'/^rg\\b.*\\s(--pre|--hostname-bin)\\b/': false,
-
-			// sed
-			// - `-e`/`--expression`: Add the commands in script to the set of commands to be run
-			//   while processing the input.
-			// - `-f`/`--file`: Add the commands contained in the file script-file to the set of
-			//   commands to be run while processing the input.
-			// - `w`/`W` commands: Write to files (blocked by `-i` check + agent typically won't use).
-			// - `s///e` flag: Executes substitution result as shell command
-			// - `s///w` flag: Write substitution result to file
-			// - `;W` Write first line of pattern space to file
-			// - Note that `--sandbox` exists which blocks unsafe commands that could potentially be
-			//   leveraged to auto approve
-			// - In-place editing (`-i`, `-I`, `--in-place`) is detected and blocked via file write
-			//   detection if necessary
 			sed: true,
 			'/^sed\\b.*\\s(-[a-zA-Z]*(e|f)[a-zA-Z]*|--expression|--file)\\b/': false,
 			'/^sed\\b.*s\\/.*\\/.*\\/[ew]/': false,
 			'/^sed\\b.*;W/': false,
-
-			// sort
-			// - `-o`: Output redirection can write files (`sort -o /etc/something file`) which are
-			//   blocked currently
-			// - `-S`: Memory exhaustion is possible (`sort -S 100G file`), we allow possible denial
-			//   of service.
 			sort: true,
 			'/^sort\\b.*\\s-(o|S)\\b/': false,
-
-			// tree
-			// - `-o`: Output redirection can write files (`tree -o /etc/something file`) which are
-			//   blocked currently
 			tree: true,
 			'/^tree\\b.*\\s-o\\b/': false,
-
-			// xxd
-			// - Only allow flags and a single input file as it's difficult to parse the outfile
-			//   positional argument safely.
 			'/^xxd$/': true,
 			'/^xxd\\b(\\s+-\\S+)*\\s+[^-\\s]\\S*$/': true,
-
-			// #endregion
-
-			// #region Dangerous commands
-			//
-			// There are countless dangerous commands available on the command line, the defaults
-			// here include common ones that the user is likely to want to explicitly approve first.
-			// This is not intended to be a catch all as the user needs to opt-in to auto-approve
-			// commands, it provides some additional safety when the commands get approved by overly
-			// broad user/workspace rules.
-
-			// Deleting files
 			rm: false,
 			rmdir: false,
 			del: false,
@@ -386,8 +251,6 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			rd: false,
 			erase: false,
 			dd: false,
-
-			// Managing/killing processes, dangerous thing to do generally
 			kill: false,
 			ps: false,
 			top: false,
@@ -395,30 +258,22 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			spps: false,
 			taskkill: false,
 			'taskkill.exe': false,
-
-			// Web requests, prompt injection concerns
 			curl: false,
 			wget: false,
 			'Invoke-RestMethod': false,
 			'Invoke-WebRequest': false,
-			'irm': false,
-			'iwr': false,
-
-			// File permissions and ownership, messing with these can cause hard to diagnose issues
+			irm: false,
+			iwr: false,
 			chmod: false,
 			chown: false,
 			'Set-ItemProperty': false,
 			'sp': false,
 			'Set-Acl': false,
-
-			// General eval/command execution, can lead to anything else running
 			jq: false,
 			xargs: false,
 			eval: false,
 			'Invoke-Expression': false,
 			iex: false,
-
-			// #endregion
 		} satisfies Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>,
 	},
 	[TerminalChatAgentToolsSettingId.IgnoreDefaultAutoApproveRules]: {
@@ -430,8 +285,6 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 	[TerminalChatAgentToolsSettingId.AutoApproveWorkspaceNpmScripts]: {
 		restricted: true,
 		type: 'boolean',
-		// In order to use agent mode the workspace must be trusted, this plus the fact that
-		// modifying package.json is protected means this is safe to enable by default.
 		default: true,
 		tags: ['experimental'],
 		markdownDescription: localize('autoApproveWorkspaceNpmScripts.description', "Whether to automatically approve npm, yarn, and pnpm run commands when the script is defined in a workspace package.json file. Since the workspace is trusted, scripts defined in package.json are considered safe to run without explicit approval."),
@@ -608,6 +461,17 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		default: false,
 		tags: ['preview'],
 		restricted: true,
+		policy: {
+			name: 'ChatAgentSandboxForceFirstExecutionInSandbox',
+			category: PolicyCategory.IntegratedTerminal,
+			minimumVersion: '1.126',
+			localization: {
+				description: {
+					key: 'agentSandbox.forceFirstExecutionInSandbox',
+					value: localize('agentSandbox.forceFirstExecutionInSandbox', "Controls whether agent mode terminal commands first run with the sandbox's configured restrictions before honoring a request for execution outside the sandbox or unrestricted network access. The user is prompted to approve the requested additional access only if that sandboxed command fails. This applies only when {0} is enabled.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
+				}
+			}
+		},
 	},
 	[AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests]: {
 		markdownDescription: localize('agentSandbox.retryWithAllowNetworkRequests', "Controls whether agent mode terminal commands can retry in the sandbox with unrestricted network access after user confirmation. This applies only when {0} is set to `on` and preserves file system sandboxing while relaxing network restrictions for an approved command.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
@@ -742,7 +606,6 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		restricted: true,
 	},
 	[AgentSandboxSettingId.AgentSandboxWindowsSchemaVersion]: {
-		// Intentionally available only to callers that explicitly set it in settings.json.
 		included: false,
 		restricted: true,
 		type: 'string',
