@@ -996,15 +996,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					this._voiceState.set('idle', undefined);
 					this._statusText.set('Hold to speak...', undefined);
 					this._sendContext();
-					// send_to_chat routes to the coding agent which replies via
-					// the chat UI (text), not via spoken audio. No audio response
-					// will arrive, so `_replyPlayedSinceSend` will never be set
-					// and the normal auto-listen path (onPlaybackStopped) won't
-					// fire. Re-enter listening directly so the hands-free loop
-					// continues: listening → send → idle → listening.
-					if (this._isAutoSendEnabled()) {
-						this._enterAutoListen();
-					}
 				});
 				return;
 			}
