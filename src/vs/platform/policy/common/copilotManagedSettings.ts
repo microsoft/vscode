@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
+import { IPolicyData } from '../../../base/common/defaultAccount.js';
 import { IManagedSettingPolicyDefinition, IManagedSettingsPolicyDefinitions, ManagedSettingValue, ManagedSettingsData } from '../../../base/common/policy.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
@@ -31,6 +32,27 @@ export const COPILOT_EXTRA_MARKETPLACES_KEY = 'extraKnownMarketplaces';
 
 /** Managed-settings key for the strict-marketplace allowlist (carried as a JSON-encoded array of source entries; absent = no restrictions, `[]` = lockdown). */
 export const COPILOT_STRICT_MARKETPLACES_KEY = 'strictKnownMarketplaces';
+
+const managedSettingValueCallbacks = new Map<string, (policyData: IPolicyData) => ManagedSettingValue | undefined>();
+
+/**
+ * Standard pass-through `value` callback for a managed-settings-driven policy: locks the setting
+ * to the managed value when the enterprise has set it, and returns `undefined` otherwise so the
+ * user's own setting falls through. Use for the common case; policies that combine the managed
+ * value with other conditions (e.g. `chat_preview_features_enabled`) keep a custom callback.
+ *
+ * The callback is memoized per key, so repeated calls for the same key return the SAME function
+ * reference. That reference identity is what lets `isSamePolicyDefinition` skip needless
+ * re-registration, and memoizing makes the guarantee hold regardless of where the helper is called.
+ */
+export function managedSettingValue(key: string): (policyData: IPolicyData) => ManagedSettingValue | undefined {
+	let callback = managedSettingValueCallbacks.get(key);
+	if (!callback) {
+		callback = policyData => policyData.managedSettings?.[key];
+		managedSettingValueCallbacks.set(key, callback);
+	}
+	return callback;
+}
 
 export const ICopilotManagedSettingsService = createDecorator<ICopilotManagedSettingsService>('copilotManagedSettingsService');
 
@@ -93,6 +115,21 @@ export function collectManagedSettingsDefinitions(policyDefinitions: IStringDict
 		}
 	}
 	return definitions;
+}
+
+/**
+ * Whether any policy in `policyDefinitions` declares at least one managed-settings key. Cheap
+ * existence check (short-circuits) used to decide whether the native MDM watcher is needed at all,
+ * without aggregating the full {@link collectManagedSettingsDefinitions} map.
+ */
+export function hasManagedSettingsDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): boolean {
+	for (const policyName in policyDefinitions) {
+		const policyManagedSettings = policyDefinitions[policyName].managedSettings;
+		if (policyManagedSettings && Object.keys(policyManagedSettings).length > 0) {
+			return true;
+		}
+	}
+	return false;
 }
 
 /**

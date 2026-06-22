@@ -126,6 +126,20 @@ suite('adaptManagedSettings', () => {
 		});
 	});
 
+	test('resilience: a server-sent own `__proto__` key is carried like any scalar, never applied to the prototype', () => {
+		// JSON.parse (not an object literal) yields an OWN enumerable `__proto__` data property.
+		// The scalar remainder must keep `{ ...rest }` semantics: copy it as data (so it flattens
+		// to `__proto__.polluted`) rather than assigning through the inherited `__proto__` setter
+		// (which would swap the prototype and instead surface the inherited `polluted` key).
+		const response = JSON.parse('{"permissions":{"x":1},"__proto__":{"polluted":true}}') as IManagedSettingsResponse;
+		assert.deepStrictEqual(adaptManagedSettings(response), {
+			managedSettings: {
+				'permissions.x': 1,
+				'__proto__.polluted': true,
+			},
+		});
+	});
+
 	test('resilience: malformed marketplace entries are skipped, valid entries still processed', () => {
 		const warnings: string[] = [];
 		const result = adaptManagedSettings({
