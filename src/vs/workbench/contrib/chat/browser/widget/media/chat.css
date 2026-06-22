@@ -4266,7 +4266,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .chat-model-hover-cost-label-text {
 	padding-right: 6px;
-	background-color: var(--vscode-menu-background);
+	background-color: var(--model-hover-surface-background, var(--vscode-menu-background));
 }
 
 /* Value cell: right-aligned number whose opaque background masks the end of the dotted line. */
@@ -4295,14 +4295,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	top: 0;
 	bottom: 0;
 	width: 12px;
-	background-color: var(--vscode-menu-background);
+	background-color: var(--model-hover-surface-background, var(--vscode-menu-background));
 }
 
 .chat-model-hover-cost-number {
 	padding-left: 6px;
 	font-weight: 700;
 	color: var(--vscode-foreground);
-	background-color: var(--vscode-menu-background);
+	background-color: var(--model-hover-surface-background, var(--vscode-menu-background));
 }
 
 .chat-model-hover-cost-value.subheader {
