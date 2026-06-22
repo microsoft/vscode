@@ -947,19 +947,25 @@ function findFilesRecursive(repoRoot: string, targetFileName: string): string[] 
 	const results: string[] = [];
 
 	function walk(dir: string): void {
+		let entries: string[];
 		try {
-			for (const entry of fs.readdirSync(dir)) {
-				if (entry === 'node_modules' || entry === '.git' || entry === 'out' || entry === 'test') {
-					continue;
-				}
-				const full = path.join(dir, entry);
-				if (entry === targetFileName) {
-					results.push(full);
-				} else if (fs.statSync(full).isDirectory() && !fs.lstatSync(full).isSymbolicLink()) {
-					walk(full);
-				}
+			entries = fs.readdirSync(dir);
+		} catch { return; }
+		for (const entry of entries) {
+			if (entry === 'node_modules' || entry === '.git' || entry === 'out' || entry === 'test') {
+				continue;
 			}
-		} catch { /* skip */ }
+			const full = path.join(dir, entry);
+			if (entry === targetFileName) {
+				results.push(full);
+			} else {
+				try {
+					if (fs.statSync(full).isDirectory() && !fs.lstatSync(full).isSymbolicLink()) {
+						walk(full);
+					}
+				} catch { /* broken symlink or inaccessible — skip entry, continue */ }
+			}
+		}
 	}
 
 	walk(repoRoot);

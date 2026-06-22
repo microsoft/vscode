@@ -137,7 +137,7 @@ function collectPackageJsonDeps(filePath: string): ManifestPackage[] {
 				for (const [name, ver] of Object.entries(deps)) {
 					results.push({
 						name,
-						version: String(ver).replace(/^[\^~>=<]/, ''),
+						version: String(ver).replace(/^[\^~>=<]+/, ''),
 						source: 'package.json',
 					});
 				}
@@ -271,7 +271,6 @@ interface CrossRefResult {
 function crossReference(noticeNames: Set<string>, manifestPackages: ManifestPackage[]): CrossRefResult {
 	const manifestUniqueNames = new Set<string>();
 	const manifestUniqueNameVersions = new Set<string>();
-	const bySource = new Map<string, number>();
 
 	for (const pkg of manifestPackages) {
 		const lower = pkg.name.toLowerCase();
@@ -279,10 +278,9 @@ function crossReference(noticeNames: Set<string>, manifestPackages: ManifestPack
 		if (pkg.version) {
 			manifestUniqueNameVersions.add(`${lower}@${pkg.version}`);
 		}
-		bySource.set(pkg.source, (bySource.get(pkg.source) ?? 0) + 1);
 	}
 
-	// De-dup by source for per-source unique counts
+	// Unique package counts per source (de-duped by name)
 	const uniqueBySource = new Map<string, Set<string>>();
 	for (const pkg of manifestPackages) {
 		if (!uniqueBySource.has(pkg.source)) {
@@ -290,9 +288,9 @@ function crossReference(noticeNames: Set<string>, manifestPackages: ManifestPack
 		}
 		uniqueBySource.get(pkg.source)!.add(pkg.name.toLowerCase());
 	}
-	const bySourceUnique = new Map<string, number>();
+	const bySource = new Map<string, number>();
 	for (const [src, names] of uniqueBySource) {
-		bySourceUnique.set(src, names.size);
+		bySource.set(src, names.size);
 	}
 
 	const noticeOnlyNames = [...noticeNames].filter(n => !manifestUniqueNames.has(n)).sort();
@@ -306,7 +304,7 @@ function crossReference(noticeNames: Set<string>, manifestPackages: ManifestPack
 		noticeOnlyNames,
 		manifestOnlyNames,
 		overlapCount,
-		bySource: bySourceUnique,
+		bySource,
 	};
 }
 
