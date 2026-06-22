@@ -592,7 +592,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					if (this._isAutoSendEnabled() && this._replyPlayedSinceSend) {
 						this._scheduleAutoListen();
 					}
-					this._hfLog(`onPlaybackStopped: idle branch (willRelisten=${this._isAutoSendEnabled() && this._replyPlayedSinceSend})`);
 				}
 			}
 		}));
@@ -961,7 +960,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				this._telemetryPttUpMs = undefined;
 			}
 			this._enqueueAudio(e.codingSessionId, e.audio, e.isFirstChunk, e.isFinal, e.transcript);
-			this._hfLog(`onAudioResponse: first=${e.isFirstChunk} final=${e.isFinal} audioLen=${e.audio?.length ?? 0}`);
 			// On the final chunk we have the complete assistant transcript to persist.
 			if (e.isFinal && e.transcript) {
 				this._persistTurn('assistant', e.transcript);
@@ -985,7 +983,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			];
 			if (e.name === 'send_to_chat') {
 				const text = typeof e.args?.['text'] === 'string' ? (e.args['text'] as string) : '';
-				this._hfLog(`onToolCall send_to_chat: routing to chat (textLen=${text.trim().length}) — no spoken reply expected on this path`);
 				this._statusText.set(VoiceToolDispatchService.getActionLabel(e.name), undefined);
 				this._persistEntry('agent_tool_call', this._renderToolCallSummary(e.name, e.args), {
 					toolName: e.name,
@@ -1006,7 +1003,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					// fire. Re-enter listening directly so the hands-free loop
 					// continues: listening → send → idle → listening.
 					if (this._isAutoSendEnabled()) {
-						this._hfLog('send_to_chat: no spoken reply expected, re-entering listening');
 						this._enterAutoListen();
 					}
 				});
@@ -1261,7 +1257,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// `is_first_chunk` marker that would otherwise clear suppression.
 		this._suppressIncomingAudio = false;
 		this.micCaptureService.pttUp();
-		this._hfLog('_finishPtt: turn committed, awaiting reply');
 		// "Recording stopped" cue is primarily a screen-reader affordance, so
 		// only play it when the screen reader is active.
 		if (this.accessibilityService.isScreenReaderOptimized()) {
@@ -1306,8 +1301,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * `agents.voice.autoSendDelay` (any value >= 0).
 	 */
 	private _isAutoSendEnabled(): boolean {
-		const delaySeconds = this.configurationService.getValue<number>('agents.voice.autoSendDelay');
-		return typeof delaySeconds === 'number' && delaySeconds >= 0;
+		const delayMs = this.configurationService.getValue<number>('agents.voice.autoSendDelay');
+		return typeof delayMs === 'number' && delayMs >= 0;
 	}
 
 	/**
@@ -1318,10 +1313,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private _enterAutoListen(): void {
 		this._clearAutoListenTimer();
 		if (!this._isConnected.get() || this._pttHeld) {
-			this._hfLog(`_enterAutoListen: skipped (connected=${this._isConnected.get()}, pttHeld=${this._pttHeld})`);
 			return;
 		}
-		this._hfLog('_enterAutoListen: re-entering listening');
 		this.pttDown();
 		this.pttUp();
 	}
@@ -1349,37 +1342,23 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	}
 
 	/**
-	 * Diagnostic logging for the hands-free auto-send/auto-listen loop. Only
-	 * emits when the feature is enabled so normal voice sessions stay quiet.
-	 * Helps trace the listening -> processing -> speaking -> listening flow.
-	 */
-	private _hfLog(msg: string): void {
-		if (this._isAutoSendEnabled()) {
-			this.logService.info(`[voice][handsfree] ${msg} (state=${this._voiceState.get()}, pttHeld=${this._pttHeld}, toggle=${this._pttToggleMode}, replyPlayed=${this._replyPlayedSinceSend}, suppress=${this._suppressIncomingAudio}, queue=${this._audioQueue.length})`);
-		}
-	}
-
-	/**
 	 * In toggle mode (short tap), automatically finish recording after a
 	 * configured period of silence. Reads `agents.voice.autoSendDelay` (in
-	 * seconds); a value of -1 (the default) disables the behavior.
+	 * milliseconds); a value of -1 (the default) disables the behavior.
 	 */
 	private _scheduleAutoSendOnSilence(): void {
 		this._clearAutoSendSilenceTimer();
-		const delaySeconds = this.configurationService.getValue<number>('agents.voice.autoSendDelay');
-		if (typeof delaySeconds !== 'number' || delaySeconds < 0) {
+		const delayMs = this.configurationService.getValue<number>('agents.voice.autoSendDelay');
+		if (typeof delayMs !== 'number' || delayMs < 0) {
 			return;
 		}
 		this._autoSendSilenceTimer = setTimeout(() => {
 			this._autoSendSilenceTimer = undefined;
 			if (this._pttToggleMode && this._pttHeld) {
-				this._hfLog(`auto-send: silence elapsed (${delaySeconds}s), finishing turn`);
 				this._pttToggleMode = false;
 				this._finishPtt();
-			} else {
-				this._hfLog(`auto-send: silence elapsed but not eligible (toggle=${this._pttToggleMode}, pttHeld=${this._pttHeld})`);
 			}
-		}, delaySeconds * 1000);
+		}, delayMs);
 	}
 
 	private _clearAutoSendSilenceTimer(): void {
@@ -1877,7 +1856,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this._voiceState.set('speaking', undefined);
 			this._statusText.set('Speaking...', undefined);
 			this.ttsPlaybackService.playAudioChunk(audio, isFinal, this._window!);
-			this._hfLog(`_playChunk: speaking (first=${isFirstChunk} final=${isFinal})`);
 		} else if (!ttsEnabled) {
 			// TTS disabled — skip audio but still complete the playback cycle
 			this._replyPlayedSinceSend = true;
@@ -1890,7 +1868,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					this._scheduleAutoListen();
 				}
 			}
-			this._hfLog(`_playChunk: TTS disabled, no audio played (final=${isFinal})`);
 		} else {
 			this.ttsPlaybackService.playAudioChunk(audio, isFinal, this._window!);
 		}
