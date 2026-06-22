@@ -91,6 +91,50 @@ interface ITestHandle {
 	dispose(): void;
 }
 
+/**
+ * Concrete proxy whose per-bind state is seeded at `acquire()` time, used to
+ * exercise the seed → {@link LoopbackProxyServer.createState} flow. Every seed
+ * threaded into `createState` is recorded so tests can assert when — and with
+ * which value — the state was built.
+ */
+class SeededTestProxyServer extends LoopbackProxyServer<ITestState, string> {
+
+	readonly seeds: string[] = [];
+
+	requestHandler: RequestHandler = async (_req, res) => {
+		res.writeHead(200, { 'Content-Type': 'text/plain' });
+		res.end('ok');
+	};
+
+	constructor(name = 'SeededTestProxyServer') {
+		super(name, new NullLogService());
+	}
+
+	protected createState(seed: string): ITestState {
+		this.seeds.push(seed);
+		return { value: seed };
+	}
+
+	protected override handleRequest(
+		req: http.IncomingMessage,
+		res: http.ServerResponse,
+		runtime: ILoopbackProxyRuntime<ITestState>,
+	): Promise<void> {
+		return this.requestHandler(req, res, runtime);
+	}
+
+	/** Test-only public wrapper around the protected {@link acquire}. */
+	async startHandle(seed: string): Promise<ITestHandle> {
+		const { runtime, release } = await this.acquire(seed);
+		return {
+			baseUrl: runtime.baseUrl,
+			nonce: runtime.nonce,
+			runtime,
+			dispose: release,
+		};
+	}
+}
+
 // #endregion
 
 // #region HTTP helpers
@@ -297,6 +341,74 @@ suite('LoopbackProxyServer', () => {
 				assert.notStrictEqual(h2.nonce, nonce1);
 				assert.match(h2.baseUrl, /^http:\/\/127\.0\.0\.1:\d+$/);
 				assert.strictEqual(service.createStateCalls, 2, 'state is rebuilt per bind');
+			} finally {
+				h2.dispose();
+				service.dispose();
+			}
+		});
+	});
+
+	// #endregion
+
+	// #region Seeding
+
+	suite('Seeding', () => {
+
+		test('acquire seeds createState so the state is born valid with no placeholder window', async () => {
+			const service = new SeededTestProxyServer();
+			// Capture the state the very first dispatched request observes to
+			// prove no empty/placeholder value is ever visible on the wire.
+			let firstRequestValue: string | undefined;
+			service.requestHandler = async (_req, res, runtime) => {
+				firstRequestValue = runtime.state.value;
+				res.writeHead(200);
+				res.end();
+			};
+			const handle = await service.startHandle('token-1');
+			try {
+				await fetchHttp(`${handle.baseUrl}/`);
+				assert.deepStrictEqual(
+					{ seeds: service.seeds, state: handle.runtime.state.value, firstRequestValue },
+					{ seeds: ['token-1'], state: 'token-1', firstRequestValue: 'token-1' },
+				);
+			} finally {
+				handle.dispose();
+				service.dispose();
+			}
+		});
+
+		test('concurrent acquires build state once from the seed that wins the bind', async () => {
+			const service = new SeededTestProxyServer();
+			// Both are issued before the first bind resolves; the first caller
+			// wins the bind race so createState runs once with its seed, while
+			// the second just joins the shared runtime.
+			const [h1, h2] = await Promise.all([
+				service.startHandle('token-1'),
+				service.startHandle('token-2'),
+			]);
+			try {
+				assert.deepStrictEqual(
+					{ seeds: service.seeds, shared: h1.runtime.state === h2.runtime.state, value: h1.runtime.state.value },
+					{ seeds: ['token-1'], shared: true, value: 'token-1' },
+				);
+			} finally {
+				h1.dispose();
+				h2.dispose();
+				service.dispose();
+			}
+		});
+
+		test('rebinding after refcount-0 teardown re-seeds createState with the new value', async () => {
+			const service = new SeededTestProxyServer();
+			const h1 = await service.startHandle('token-1');
+			h1.dispose();
+
+			const h2 = await service.startHandle('token-2');
+			try {
+				assert.deepStrictEqual(
+					{ seeds: service.seeds, value: h2.runtime.state.value },
+					{ seeds: ['token-1', 'token-2'], value: 'token-2' },
+				);
 			} finally {
 				h2.dispose();
 				service.dispose();

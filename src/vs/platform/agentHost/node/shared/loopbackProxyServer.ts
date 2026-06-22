@@ -26,7 +26,8 @@ export interface IProxyInFlight {
  * The shared, refcounted runtime exposed to subclasses while servicing
  * requests and minting handles. `state` is the subclass-owned mutable
  * payload (e.g. the current GitHub token) created once per bind by
- * {@link LoopbackProxyServer.createState}.
+ * {@link LoopbackProxyServer.createState} from the seed supplied to the
+ * `acquire()` call that triggered the bind.
  */
 export interface ILoopbackProxyRuntime<TState> {
 	/** e.g. `http://127.0.0.1:54321` — no trailing slash. */
@@ -100,13 +101,18 @@ export function readProxyRequestBody(req: http.IncomingMessage): Promise<string>
  * proxy only has to implement request routing (`handleRequest`) and the
  * shape of its `state` (`createState`).
  *
+ * `TState` is the subclass-owned per-bind mutable state; `TSeed` is the
+ * value each `acquire()` caller threads into `createState()` so the state
+ * is born valid (e.g. with a real GitHub token rather than a placeholder).
+ * It defaults to `void` for proxies whose state needs no seed.
+ *
  * Lifecycle: the first `start()` binds a single shared server; concurrent
  * `start()` calls share that bind. Each handle holds a refcount; when the
  * last one is disposed (or `dispose()` is called explicitly) the listener
  * closes, in-flight requests are aborted, and the next `start()` rebinds
  * with a fresh port and nonce.
  */
-export abstract class LoopbackProxyServer<TState> {
+export abstract class LoopbackProxyServer<TState, TSeed = void> {
 
 	private _runtime: IInternalRuntime<TState> | undefined;
 	private _starting: Promise<IInternalRuntime<TState>> | undefined;
@@ -124,9 +130,11 @@ export abstract class LoopbackProxyServer<TState> {
 
 	/**
 	 * Build the subclass-owned mutable state object stored on the runtime.
-	 * Called exactly once per bind, before any request can be dispatched.
+	 * Called exactly once per bind, before any request can be dispatched,
+	 * with the `seed` from the `acquire()` call that won the bind race so
+	 * the state starts out valid instead of holding a placeholder.
 	 */
-	protected abstract createState(): TState;
+	protected abstract createState(seed: TSeed): TState;
 
 	/**
 	 * Route + service an authenticated inbound request. Invoked for every
@@ -154,14 +162,19 @@ export abstract class LoopbackProxyServer<TState> {
 	 * if it isn't running yet. Subclasses build their public handle around
 	 * the returned `runtime` and wire its `dispose()` to `release`.
 	 *
+	 * `seed` is forwarded to {@link createState} when this call triggers the
+	 * bind; for callers that join an existing bind it is ignored (the state
+	 * already exists), so they must apply their own value to `runtime.state`
+	 * afterwards if they need last-writer-wins semantics.
+	 *
 	 * Throws if the service has been disposed (including if `dispose()`
 	 * raced the bind).
 	 */
-	protected async acquire(): Promise<{ runtime: ILoopbackProxyRuntime<TState>; release: () => void }> {
+	protected async acquire(seed: TSeed): Promise<{ runtime: ILoopbackProxyRuntime<TState>; release: () => void }> {
 		if (this._disposed) {
 			throw new Error(`${this.name} has been disposed`);
 		}
-		const runtime = await this._ensureRuntime();
+		const runtime = await this._ensureRuntime(seed);
 		// Re-check after the await: dispose() may have run while
 		// _ensureRuntime was awaiting the bind, in which case the runtime
 		// we received is already torn down — but a fresh start() in between
@@ -200,14 +213,14 @@ export abstract class LoopbackProxyServer<TState> {
 	 * server is torn down here and the awaiting caller sees a rejected
 	 * promise.
 	 */
-	private _ensureRuntime(): Promise<IInternalRuntime<TState>> {
+	private _ensureRuntime(seed: TSeed): Promise<IInternalRuntime<TState>> {
 		if (this._runtime) {
 			return Promise.resolve(this._runtime);
 		}
 		if (!this._starting) {
 			this._starting = (async () => {
 				try {
-					const rt = await this._startServer();
+					const rt = await this._startServer(seed);
 					if (this._disposed) {
 						// dispose() ran while we were binding — the teardown
 						// noop'd because _runtime was still undefined, so
@@ -258,7 +271,7 @@ export abstract class LoopbackProxyServer<TState> {
 		});
 	}
 
-	private async _startServer(): Promise<IInternalRuntime<TState>> {
+	private async _startServer(seed: TSeed): Promise<IInternalRuntime<TState>> {
 		const nonce = generateNonce();
 		const inFlight = new Set<IProxyInFlight>();
 		const httpModule = await import('http');
@@ -287,7 +300,7 @@ export abstract class LoopbackProxyServer<TState> {
 			nonce,
 			inFlight,
 			refcount: 0,
-			state: this.createState(),
+			state: this.createState(seed),
 		};
 
 		// Attach the request handler only after `runtime` is fully built.
