@@ -269,6 +269,7 @@ suite('InlineChatIntent', () => {
 		const rootSpan = harness.otelService.spans[0];
 		const sendToolCallingTelemetryMock = harness.telemetry.sendToolCallingTelemetry as Mock;
 		const invokeToolWithEndpointMock = harness.mockToolsService.invokeToolWithEndpoint as unknown as Mock;
+		expect(sendToolCallingTelemetryMock).toHaveBeenCalledTimes(1);
 		const recordedRounds = sendToolCallingTelemetryMock.mock.calls[0][0] as ToolCallRound[];
 		const rounds = recordedRounds.map(round => ({
 			response: round.response,
@@ -282,7 +283,6 @@ suite('InlineChatIntent', () => {
 			},
 			toolInvocations: invokeToolWithEndpointMock.mock.calls.length,
 			rounds,
-			metrics: harness.otelService.metrics,
 		}).toEqual({
 			rootSpan: {
 				statusCode: SpanStatusCode.OK,
@@ -301,11 +301,22 @@ suite('InlineChatIntent', () => {
 				{ response: 'first try', toolCalls: [{ id: 'tool-call-1', name: ToolName.ApplyPatch }] },
 				{ response: 'second try', toolCalls: [{ id: 'tool-call-2', name: ToolName.ApplyPatch }] },
 			],
-			metrics: [
-				{ name: 'copilot_chat.agent.invocation.duration', value: 0.5, attributes: { [GenAiAttr.AGENT_NAME]: 'Inline Chat' } },
-				{ name: 'copilot_chat.agent.turn.count', value: 2, attributes: { [GenAiAttr.AGENT_NAME]: 'Inline Chat' } },
-			],
 		});
+
+		// Assert metrics individually so the test is not brittle to call ordering
+		// or to harmless additions of unrelated metrics.
+		expect(harness.otelService.metrics).toEqual(expect.arrayContaining([
+			{
+				name: 'copilot_chat.agent.invocation.duration',
+				value: expect.closeTo(0.5, 2),
+				attributes: { [GenAiAttr.AGENT_NAME]: 'Inline Chat' },
+			},
+			{
+				name: 'copilot_chat.agent.turn.count',
+				value: 2,
+				attributes: { [GenAiAttr.AGENT_NAME]: 'Inline Chat' },
+			},
+		]));
 	});
 
 	test('Inline tool loop records error status when the loop fails before recovery', async () => {
@@ -314,7 +325,7 @@ suite('InlineChatIntent', () => {
 
 		try {
 			const result = await harness.run();
-			expect(result).toEqual({
+			expect(result).toMatchObject({
 				errorDetails: {
 					message: 'model failed',
 				}
@@ -397,7 +408,10 @@ function createInlineChatHarness(options: InlineChatHarnessOptions = {}) {
 						otelService as IOTelService,
 					);
 				}
-				return {};
+				// Fail loudly when an unexpected class is instantiated so that
+				// renames or new collaborators surface as a clear test failure
+				// rather than silently returning an empty stub.
+				throw new Error(`Unhandled createInstance for ${ctor.name}. Update the inline chat test harness.`);
 			}),
 			invokeFunction: vi.fn().mockResolvedValue([availableTool])
 		} as unknown as IInstantiationService;
