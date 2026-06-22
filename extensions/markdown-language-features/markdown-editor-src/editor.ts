@@ -104,11 +104,13 @@ class Editor extends Disposable {
 		host.appendChild(view.element);
 
 		if (!readonly) {
+			let firstTime = true;
 			this._register(autorun((reader) => {
 				const text = reader.readObservable(this.model.sourceText).value;
-				if (!this.isUpdatingFromExtension) {
+				if (!this.isUpdatingFromExtension && !firstTime) {
 					this.#vscode.postMessage({ type: 'edit', content: text });
 				}
+				firstTime = false;
 			}));
 		}
 	}
