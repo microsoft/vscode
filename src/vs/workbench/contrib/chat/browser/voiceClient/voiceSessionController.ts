@@ -159,6 +159,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 *  toggle mode where a second tap finishes the recording. */
 	private static readonly _PTT_TOGGLE_THRESHOLD_MS = 300;
 	private _delayedMicStopTimer: ReturnType<typeof setTimeout> | undefined;
+	private _autoSendSilenceTimer: ReturnType<typeof setTimeout> | undefined;
 	private _pttWaitingForPlayback = false;
 
 	// --- Audio FIFO queue ---
@@ -855,6 +856,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// Speech started → stop TTS, suppress late chunks from the previous turn
 		// (same flow as pttDown, but for server-VAD path).
 		this._voiceEventDisposables.add(this.voiceClientService.onSpeechStarted(() => {
+			this._clearAutoSendSilenceTimer();
 			this.ttsPlaybackService.stopPlayback();
 			this._audioQueue.length = 0;
 			this._currentPlaybackSessionId = null;
@@ -883,6 +885,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				}
 				// Persist the user's final transcript (local-only, no backend coordination).
 				this._persistTurn('user', e.text);
+				// In toggle mode we keep recording after a final transcript; start
+				// the silence timer so a configured pause auto-finishes the turn.
+				if (this._pttToggleMode && this._pttHeld) {
+					this._scheduleAutoSendOnSilence();
+				}
 			}
 		}));
 
@@ -1009,6 +1016,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._voiceState.set('idle', undefined);
 		this._statusText.set('Tap to start', undefined);
 		this._transcriptTurns.set([], undefined);
+		this._clearAutoSendSilenceTimer();
 		this._audioQueue.length = 0;
 		this._currentPlaybackSessionId = null;
 		this._isProcessingQueue = false;
@@ -1081,6 +1089,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 	pttDown(): void {
 		if (!this._isConnected.get()) { return; }
+
+		this._clearAutoSendSilenceTimer();
 
 		// Toggle mode: second tap finishes recording
 		if (this._pttToggleMode) {
@@ -1155,6 +1165,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 	private _finishPtt(): void {
 		if (!this._pttHeld) { return; }
+		this._clearAutoSendSilenceTimer();
 		this._pttHeld = false;
 		this._telemetryPttUpMs = Date.now();
 		const holdMs = this._telemetryPttDownMs ? Date.now() - this._telemetryPttDownMs : 0;
@@ -1198,6 +1209,33 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this._delayedMicStopTimer = undefined;
 			this._pttWaitingForPlayback = false;
 		}, 1000);
+	}
+
+	/**
+	 * In toggle mode (short tap), automatically finish recording after a
+	 * configured period of silence. Reads `agents.voice.autoSendDelay` (in
+	 * seconds); a value of -1 (the default) disables the behavior.
+	 */
+	private _scheduleAutoSendOnSilence(): void {
+		this._clearAutoSendSilenceTimer();
+		const delaySeconds = this.configurationService.getValue<number>('agents.voice.autoSendDelay');
+		if (typeof delaySeconds !== 'number' || delaySeconds < 0) {
+			return;
+		}
+		this._autoSendSilenceTimer = setTimeout(() => {
+			this._autoSendSilenceTimer = undefined;
+			if (this._pttToggleMode && this._pttHeld) {
+				this._pttToggleMode = false;
+				this._finishPtt();
+			}
+		}, delaySeconds * 1000);
+	}
+
+	private _clearAutoSendSilenceTimer(): void {
+		if (this._autoSendSilenceTimer) {
+			clearTimeout(this._autoSendSilenceTimer);
+			this._autoSendSilenceTimer = undefined;
+		}
 	}
 
 	/**
