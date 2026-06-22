@@ -144,9 +144,23 @@ export class SessionGitHubInfoResolver {
 			return undefined;
 		}
 
-		const prNumber = this._pullRequestNumber.read(reader)?.read(reader)?.value;
+		const coordsLabel = `${coords.owner}/${coords.repo}@${coords.branch}`;
+		const pullRequestNumberObs = this._pullRequestNumber.read(reader);
+		if (!pullRequestNumberObs) {
+			// With coords present, `_pullRequestNumber` is only `undefined` when no
+			// GitHub service is wired up, so the PR number can never resolve.
+			this._logService.trace(`${TRACE_PREFIX} [IconAdapter] Session ${this._sessionId} coords ${coordsLabel}: no GitHub service available; emitting gitHubInfo without pullRequest`);
+			return { owner: coords.owner, repo: coords.repo };
+		}
+
+		// `observableFromPromise` starts as `{}` and becomes `{ value }` once the lookup
+		// settles, so a present `value` key (even when its value is `undefined`) means the
+		// lookup resolved with no PR — distinct from a still-pending lookup.
+		const resolved = pullRequestNumberObs.read(reader);
+		const prNumber = resolved.value;
 		if (prNumber === undefined) {
-			this._logService.trace(`${TRACE_PREFIX} [IconAdapter] Session ${this._sessionId} coords ${coords.owner}/${coords.repo}@${coords.branch}: PR number not resolved yet; emitting gitHubInfo without pullRequest`);
+			const reason = Object.hasOwn(resolved, 'value') ? 'no pull request targets this branch' : 'PR number lookup still pending';
+			this._logService.trace(`${TRACE_PREFIX} [IconAdapter] Session ${this._sessionId} coords ${coordsLabel}: ${reason}; emitting gitHubInfo without pullRequest`);
 			return { owner: coords.owner, repo: coords.repo };
 		}
 
