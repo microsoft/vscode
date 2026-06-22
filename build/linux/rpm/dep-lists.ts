@@ -282,7 +282,6 @@ export const referenceGeneratedDepsByArch = {
 		'libgtk-3.so.0()(64bit)',
 		'libm.so.6()(64bit)',
 		'libm.so.6(GLIBC_2.17)(64bit)',
-		'libm.so.6(GLIBC_2.27)(64bit)',
 		'libnspr4.so()(64bit)',
 		'libnss3.so()(64bit)',
 		'libnss3.so(NSS_3.11)(64bit)',
