@@ -411,7 +411,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		inputContainerEl.style.position = 'relative';
 		const transcriptOverlay = $('.voice-transcript-overlay');
 		// Leave bottom 36px for the toolbar (Agent, model picker, mic, send)
-		transcriptOverlay.style.cssText = 'display:none;position:absolute;top:0;left:0;right:0;bottom:36px;z-index:10;padding:8px 12px;font-size:13px;line-height:1.4;word-break:break-word;overflow:hidden;pointer-events:none;background:var(--vscode-input-background, transparent);border-radius:inherit;border-bottom-left-radius:0;border-bottom-right-radius:0;';
+		transcriptOverlay.style.cssText = 'display:none;position:absolute;top:0;left:0;right:0;bottom:36px;z-index:10;padding:8px 12px;font-size:13px;line-height:1.4;word-break:break-word;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;pointer-events:auto;background:var(--vscode-input-background, transparent);border-radius:inherit;border-bottom-left-radius:0;border-bottom-right-radius:0;';
 		inputContainerEl.append(transcriptOverlay);
 
 		const style = document.createElement('style');
@@ -419,7 +419,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			@keyframes voiceTextPulse { 0%,100%{opacity:0.9} 50%{opacity:0.4} }
 			.voice-transcript-overlay .committed { color: var(--vscode-foreground); }
 			.voice-transcript-overlay .partial { color: var(--vscode-foreground); opacity:0.6; font-style:italic; animation: voiceTextPulse 1.5s ease-in-out infinite; }
-			.voice-transcript-overlay .assistant-text { color: var(--vscode-descriptionForeground); display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+			.voice-transcript-overlay .assistant-text { color: var(--vscode-descriptionForeground); max-height:14em; overflow-y:auto; overflow-x:hidden; white-space:pre-wrap; }
 		`;
 		transcriptOverlay.append(style);
 
@@ -569,6 +569,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			for (const el of contentElements) {
 				transcriptOverlay.append(el);
 			}
+			transcriptOverlay.scrollTop = transcriptOverlay.scrollHeight;
 		}));
 	}
 

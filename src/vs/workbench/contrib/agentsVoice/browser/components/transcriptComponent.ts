@@ -10,29 +10,23 @@ import { COLOR, FONT_SIZE } from './tokens.js';
 const MAX_LINES = 10;
 const LINE_HEIGHT = 1.4;
 const MAX_HEIGHT = `${MAX_LINES * LINE_HEIGHT}em`;
-const FADE_PX = 20;
 
 const USER_CONTAINER_STYLE = [
 	`max-height:${MAX_HEIGHT}`,
-	'overflow:hidden',
-	'display:flex',
-	'flex-direction:column-reverse',
+	'overflow-x:hidden',
+	'overflow-y:auto',
 ].join(';');
 
 const ASSISTANT_STYLE = [
-	'display:-webkit-box',
-	`-webkit-line-clamp:${MAX_LINES}`,
-	'-webkit-box-orient:vertical',
-	'overflow:hidden',
+	`max-height:${MAX_HEIGHT}`,
+	'overflow-x:hidden',
+	'overflow-y:auto',
+	'white-space:pre-wrap',
 	`color:${COLOR.assistantTranscript}`,
 ].join(';');
 
 const TRANSCRIPT_CSS = `
 	@keyframes textPulse { 0%,100%{opacity:0.9} 50%{opacity:0.4} }
-	.voice-user-transcript.overflowing {
-		mask-image: linear-gradient(to bottom, transparent, black ${FADE_PX}px);
-		-webkit-mask-image: linear-gradient(to bottom, transparent, black ${FADE_PX}px);
-	}
 `;
 
 export interface TranscriptProps {
@@ -122,18 +116,4 @@ export function createTranscript(): TranscriptComponent {
 			}
 		}
 	};
-}
-
-/**
- * Toggle the `overflowing` class on each user-transcript container based on
- * whether its inner child exceeds its clipped height. Call after each render.
- */
-export function updateTranscriptOverflowState(container: HTMLElement): void {
-	// eslint-disable-next-line no-restricted-syntax
-	const containers = container.querySelectorAll('.voice-user-transcript');
-	containers.forEach(el => {
-		const inner = el.firstElementChild as HTMLElement | null;
-		if (!inner) { return; }
-		el.classList.toggle('overflowing', inner.scrollHeight > (el as HTMLElement).clientHeight);
-	});
 }

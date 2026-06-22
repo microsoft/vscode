@@ -12,7 +12,7 @@ import { getWindow } from '../../../../base/browser/dom.js';
 import { AGENTS_VOICE_WINDOW_DEFAULT_WIDTH, AGENTS_VOICE_WINDOW_DEFAULT_HEIGHT } from '../common/agentsVoice.js';
 import { createHeader } from './components/headerComponent.js';
 import { createStatusRows } from './components/statusRowsComponent.js';
-import { createTranscript, updateTranscriptOverflowState } from './components/transcriptComponent.js';
+import { createTranscript } from './components/transcriptComponent.js';
 import { createSessionList, type SessionRowData, type SessionGroupData } from './components/sessionListComponent.js';
 import { createFeedbackDialog, type FeedbackDialogState } from './components/feedbackDialog.js';
 import { createOnboarding } from './components/onboardingComponent.js';
@@ -448,7 +448,6 @@ export class AgentsVoiceWidget extends Disposable {
 		const renderDisposable = autorun(reader => {
 			this._updateDOM(reader);
 			getWindow(this.container).requestAnimationFrame(() => {
-				updateTranscriptOverflowState(this.container);
 				this.callbacks.onResize();
 			});
 		});
