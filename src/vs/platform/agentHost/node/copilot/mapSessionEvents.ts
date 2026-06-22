@@ -10,10 +10,11 @@ import { isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
+import { toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type Message, type ResponsePart, type StringOrMarkdown, type ToolCallCompletedState, type ToolResultContent, type Turn } from '../../common/state/sessionState.js';
-import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, synthesizeSkillToolCall } from './copilotToolDisplay.js';
+import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall } from './copilotToolDisplay.js';
 import { buildSessionDbUri } from '../shared/fileEditTracker.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 
@@ -435,6 +436,25 @@ export async function mapSessionEvents(
 					continue;
 				}
 				toolInfoByCallId.delete(d.toolCallId);
+				if (isTaskCompleteTool(info.toolName)) {
+					const builder = targetBuilderFor(d.parentToolCallId);
+					if (!builder) {
+						continue;
+					}
+					const summary = getTaskCompleteMarkdown(info.parameters, d.error?.message ?? d.result?.content);
+					if (summary) {
+						builder.responseParts.push({
+							kind: ResponsePartKind.Markdown,
+							id: generateUuid(),
+							content: summary,
+						});
+					}
+					if (!d.parentToolCallId && d.success && builder === parentBuilder) {
+						turns.push(finalizeTurn(parentBuilder, TurnState.Complete));
+						parentBuilder = undefined;
+					}
+					continue;
+				}
 				const builder = targetBuilderFor(d.parentToolCallId);
 				if (!builder) {
 					// No active turn to attach this completion to.
@@ -493,6 +513,17 @@ export async function mapSessionEvents(
 			const info = toolInfoByCallId.get(request.toolCallId)
 				?? makeToolStartInfo(request.name, request.arguments, parentToolCallId, workingDirectory);
 			if (!info) {
+				continue;
+			}
+			if (isTaskCompleteTool(info.toolName)) {
+				const summary = getTaskCompleteMarkdown(info.parameters, completion?.error?.message ?? completion?.result?.content);
+				if (summary) {
+					builder.responseParts.push({
+						kind: ResponsePartKind.Markdown,
+						id: generateUuid(),
+						content: summary,
+					});
+				}
 				continue;
 			}
 			builder.responseParts.push(makeCompletedToolCallPart(
@@ -652,12 +683,12 @@ function makeCompletedToolCallPart(
 		content: content.length > 0 ? content : undefined,
 		error: d.error,
 		confirmed: ToolCallConfirmationReason.NotNeeded,
-		_meta: {
+		_meta: toToolCallMeta({
 			toolKind: info.toolKind,
 			language: info.language,
 			subagentDescription: info.subagentDescription,
 			subagentAgentName: info.subagentAgentName,
-		},
+		}),
 	};
 	return { kind: ResponsePartKind.ToolCall, toolCall: tc };
 }

@@ -34,6 +34,7 @@ import { InstantiationService } from '../../instantiation/common/instantiationSe
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { registerAgentHostNetworkServices } from './agentHostBootstrap.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
+import { CopilotBranchNameGenerator, ICopilotBranchNameGenerator } from './copilot/copilotBranchNameGenerator.js';
 import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';
 import { ClaudeAgent } from './claude/claudeAgent.js';
 import { ClaudeAgentSdkService, ClaudeSdkPackage, IClaudeAgentSdkService } from './claude/claudeAgentSdkService.js';
@@ -57,6 +58,7 @@ import { Schemas } from '../../../base/common/network.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
+import { IEditSurvivalReporterFactory, EditSurvivalReporterFactory } from './shared/editSurvivalReporter.js';
 import { SessionDataService } from './sessionDataService.js';
 import { IWindowsMxcTerminalSandboxRuntime, WindowsMxcTerminalSandboxRuntime } from '../../sandbox/common/terminalSandboxMxcRuntime.js';
 import { ISandboxHelperService } from '../../sandbox/common/sandboxHelperService.js';
@@ -251,6 +253,7 @@ async function main(): Promise<void> {
 		const pluginManager = new AgentPluginManager(URI.file(environmentService.userDataPath), fileService, logService);
 		diServices.set(IAgentPluginManager, pluginManager);
 		diServices.set(IDiffComputeService, disposables.add(new NodeWorkerDiffComputeService(logService)));
+		diServices.set(IEditSurvivalReporterFactory, instantiationService.createInstance(EditSurvivalReporterFactory));
 		diServices.set(IAgentHostTerminalManager, agentService.terminalManager);
 		diServices.set(IAgentConfigurationService, agentService.configurationService);
 		diServices.set(IAgentHostCompletions, agentService.completionsService);
@@ -259,6 +262,7 @@ async function main(): Promise<void> {
 		// the proxy service constructor requires it.
 		const copilotApiService = instantiationService.createInstance(CopilotApiService, undefined);
 		diServices.set(ICopilotApiService, copilotApiService);
+		diServices.set(ICopilotBranchNameGenerator, instantiationService.createInstance(CopilotBranchNameGenerator));
 		// CLI flags become env vars BEFORE the downloader is constructed so
 		// `isAvailable()` and `loadSdkRoot()` see them as dev overrides.
 		if (options.claudeSdkRoot) {

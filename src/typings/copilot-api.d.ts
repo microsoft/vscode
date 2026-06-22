@@ -26,7 +26,6 @@ declare module '@vscode/copilot-api' {
 		json?: unknown;
 		method?: 'GET' | 'POST' | 'PUT';
 		signal?: IAbortSignal;
-		suppressIntegrationId?: boolean;
 	}
 
 	export type MakeRequestOptions = Omit<FetchOptions, 'callSite'> & {
@@ -91,15 +90,13 @@ declare module '@vscode/copilot-api' {
 	interface CCAModelTokenPriceTier {
 		input_price?: number;
 		cache_price?: number;
+		cache_write_price?: number;
 		output_price?: number;
 		context_max?: number;
 	}
 
 	interface CCAModelTokenPrices {
 		batch_size?: number;
-		input_price?: number;
-		cache_price?: number;
-		output_price?: number;
 		default?: CCAModelTokenPriceTier;
 		long_context?: CCAModelTokenPriceTier;
 	}

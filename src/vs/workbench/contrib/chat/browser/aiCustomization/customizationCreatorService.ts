@@ -88,6 +88,7 @@ export class CustomizationCreatorService {
 					name: 'customization-creator',
 					content: systemInstructions,
 					toolReferences: [],
+					allowedSubagents: undefined,
 				},
 			},
 		});
