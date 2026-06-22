@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import { Application, ApplicationOptions, Logger } from '../../../../automation';
+import { Application, ApplicationOptions, Logger, Quality } from '../../../../automation';
 import { createApp, dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, installAppAfterHandler, installDiagnosticsHandler, installAllHandlers, MockLlmServer, suiteCrashPath, suiteLogsPath } from '../../utils';
 
 // Selector for the send button in the Agents Window new-session homepage.
@@ -575,10 +575,11 @@ export function setup(logger: Logger) {
 			},
 			settings: {
 				// Register the Codex provider in the agent host process (it is
-				// off by default). The provider only actually appears if the
-				// codex SDK is resolvable (product.agentSdks.codex in packaged
-				// builds, or VSCODE_AGENT_HOST_CODEX_SDK_ROOT in dev) — the test
-				// skips gracefully when it is not.
+				// off by default). The provider resolves the codex SDK from the
+				// repo's `node_modules` in dev, or `product.agentSdks.codex` in
+				// packaged builds (or the VSCODE_AGENT_HOST_CODEX_SDK_ROOT
+				// override) — so the test below is a hard requirement in dev and
+				// skips only in built products where the SDK is genuinely absent.
 				'chat.agentHost.codexAgent.enabled': true,
 			},
 		});
@@ -588,15 +589,23 @@ export function setup(logger: Logger) {
 
 			const app = this.app as Application;
 
-			// Gate on Codex availability OUTSIDE the try/catch below so that the
+			// Resolve Codex availability OUTSIDE the try/catch below so that the
 			// Pending thrown by `this.skip()` is not swallowed (and re-thrown as a
-			// failure) by the failure-diagnostics handler. Codex registers only
-			// when its native SDK is resolvable; until it ships in the build this
-			// keeps the suite green instead of red.
+			// failure) by the failure-diagnostics handler.
 			await app.workbench.agentsWindow.waitForNewSessionView();
 			const codexAvailable = await app.workbench.agentsWindow.isSessionTypeAvailable('Codex');
 			if (!codexAvailable) {
-				logger.log('[Agents Window/Codex] Codex session type not available (no product.agentSdks.codex / VSCODE_AGENT_HOST_CODEX_SDK_ROOT); skipping');
+				// In dev (running from source) Codex resolves from the repo's
+				// `node_modules` — `@openai/codex` is a devDependency — so it must
+				// always be available; fail loudly rather than skip. In built
+				// products the SDK is not shipped (devDependencies are stripped)
+				// and is fetched from `product.agentSdks.codex` only on publish
+				// builds, so skip gracefully when it is genuinely absent (e.g.
+				// non-publish CI builds).
+				if (app.quality === Quality.Dev) {
+					throw new Error('[Agents Window/Codex] Codex session type unexpectedly unavailable in dev — the node_modules SDK fallback should make it resolvable');
+				}
+				logger.log('[Agents Window/Codex] Codex session type not available in this built product (no product.agentSdks.codex); skipping');
 				this.skip();
 			}
 
