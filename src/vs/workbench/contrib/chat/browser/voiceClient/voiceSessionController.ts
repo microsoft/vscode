@@ -970,6 +970,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					this._voiceState.set('idle', undefined);
 					this._statusText.set('Hold to speak...', undefined);
 					this._awaitingReplyAudio = true;
+					this._clearAutoListenTimer();
 					this._sendContext();
 				});
 				return;
@@ -1272,6 +1273,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._clearAutoListenTimer();
 		this._autoListenTimer = setTimeout(() => {
 			this._autoListenTimer = undefined;
+			// Re-check: don't enter listening if we're now awaiting reply audio.
+			if (this._awaitingReplyAudio) { return; }
 			this._enterAutoListen();
 		}, VoiceSessionController._AUTO_LISTEN_QUIET_MS);
 	}
