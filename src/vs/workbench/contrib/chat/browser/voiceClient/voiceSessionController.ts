@@ -30,6 +30,7 @@ import { IWorkbenchEnvironmentService } from '../../../../services/environment/c
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import {
 	VoiceFirstConnectClassification, VoiceFirstConnectEvent,
 	VoiceSessionStartedClassification, VoiceSessionStartedEvent,
@@ -159,8 +160,17 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	/** Short-tap threshold: if the key is held for less than this, enter
 	 *  toggle mode where a second tap finishes the recording. */
 	private static readonly _PTT_TOGGLE_THRESHOLD_MS = 300;
+
+	/**
+	 * Hands-free mode: how long the assistant must stay quiet (no further audio
+	 * playback) after it stops speaking before we re-enter listening. Prevents
+	 * the gaps between segments of a multi-part reply from triggering a
+	 * premature re-listen that would drop the remaining reply audio.
+	 */
+	private static readonly _AUTO_LISTEN_QUIET_MS = 1200;
 	private _delayedMicStopTimer: ReturnType<typeof setTimeout> | undefined;
 	private _autoSendSilenceTimer: ReturnType<typeof setTimeout> | undefined;
+	private _autoListenTimer: ReturnType<typeof setTimeout> | undefined;
 	private _pttWaitingForPlayback = false;
 
 	// --- Audio FIFO queue ---
@@ -257,6 +267,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
 		super();
 
@@ -555,10 +566,16 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					if (this._pttWaitingForPlayback) {
 						this._scheduleDelayedMicStop();
 					}
-					// Hands-free mode: re-enter listening right after the assistant
-					// finishes speaking so the conversation continues without a tap.
+					// Hands-free mode: re-enter listening once the assistant has
+					// genuinely finished speaking. `onPlaybackStopped` fires after
+					// EACH played segment (every server message's final chunk), so a
+					// multi-part reply produces several stops with brief gaps. We must
+					// not re-listen on those intermediate stops — doing so would call
+					// pttDown(), set `_suppressIncomingAudio` and drop the rest of the
+					// reply. Debounce instead: only re-listen after a quiet window with
+					// no further audio. Any new playback / tap / speech cancels it.
 					if (this._isAutoSendEnabled()) {
-						this._enterAutoListen();
+						this._scheduleAutoListen();
 					}
 				}
 			}
@@ -874,6 +891,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// (same flow as pttDown, but for server-VAD path).
 		this._voiceEventDisposables.add(this.voiceClientService.onSpeechStarted(() => {
 			this._clearAutoSendSilenceTimer();
+			this._clearAutoListenTimer();
 			this.ttsPlaybackService.stopPlayback();
 			this._audioQueue.length = 0;
 			this._currentPlaybackSessionId = null;
@@ -1037,6 +1055,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._statusText.set('Tap to start', undefined);
 		this._transcriptTurns.set([], undefined);
 		this._clearAutoSendSilenceTimer();
+		this._clearAutoListenTimer();
 		this._audioQueue.length = 0;
 		this._currentPlaybackSessionId = null;
 		this._isProcessingQueue = false;
@@ -1121,6 +1140,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 		if (this._pttHeld) { return; }
 		this._pttHeld = true;
+		this._clearAutoListenTimer();
 		this._pttCurrentTurnId = generateUuid();
 		this._pttWaitingForPlayback = false;
 		this._telemetryPttDownMs = Date.now();
@@ -1161,9 +1181,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this.ttsPlaybackService.stopPlayback();
 		this._voiceState.set('listening', undefined);
 		this._statusText.set('Listening...', undefined);
-		// Audible cue that the mic is hot. voiceRecordingStarted defaults to
-		// `sound: 'on'`, so it plays for all users (not just screen reader users).
-		this.accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStarted);
+		// Audible cue that the mic is hot. Only force this for all users when
+		// hands-free auto-send is enabled (`agents.voice.autoSendDelay !== -1`),
+		// where the conversation flows without taps and the cue signals that
+		// listening has re-armed. Otherwise we leave the default behavior.
+		if (this._isAutoSendEnabled()) {
+			this.accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStarted);
+		}
 
 		this._pttMaxDurationTimer = setTimeout(() => {
 			if (this._pttHeld) {
@@ -1200,7 +1224,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._voiceState.set('processing', undefined);
 		this._statusText.set('Processing...', undefined);
 		this.micCaptureService.pttUp();
-		this.accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStopped);
+		// "Recording stopped" cue is primarily a screen-reader affordance, so
+		// only play it when the screen reader is active.
+		if (this.accessibilityService.isScreenReaderOptimized()) {
+			this.accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStopped);
+		}
 	}
 
 	markUserCancelled(sessionId: string): void {
@@ -1250,11 +1278,34 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * recording.
 	 */
 	private _enterAutoListen(): void {
+		this._clearAutoListenTimer();
 		if (!this._isConnected.get() || this._pttHeld) {
 			return;
 		}
 		this.pttDown();
 		this.pttUp();
+	}
+
+	/**
+	 * Debounced re-listen for hands-free mode. Waits for a short quiet window
+	 * after the assistant stops speaking before re-entering listening, so that
+	 * the gaps between segments of a multi-part reply don't trigger a premature
+	 * re-listen (which would suppress/drop the remaining reply audio). The timer
+	 * is cancelled whenever new audio plays, the user taps, or speech starts.
+	 */
+	private _scheduleAutoListen(): void {
+		this._clearAutoListenTimer();
+		this._autoListenTimer = setTimeout(() => {
+			this._autoListenTimer = undefined;
+			this._enterAutoListen();
+		}, VoiceSessionController._AUTO_LISTEN_QUIET_MS);
+	}
+
+	private _clearAutoListenTimer(): void {
+		if (this._autoListenTimer) {
+			clearTimeout(this._autoListenTimer);
+			this._autoListenTimer = undefined;
+		}
 	}
 
 	/**
@@ -1763,6 +1814,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 		const ttsEnabled = this.configurationService.getValue<boolean>('agents.voice.textToSpeech') !== false;
 		if (ttsEnabled && audio) {
+			// More assistant audio is arriving — cancel any pending hands-free
+			// re-listen so we don't cut off a multi-part reply.
+			this._clearAutoListenTimer();
 			this.micCaptureService.suppressUntil(Date.now() + 800);
 			this._voiceState.set('speaking', undefined);
 			this._statusText.set('Speaking...', undefined);
