@@ -567,15 +567,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					if (this._pttWaitingForPlayback) {
 						this._scheduleDelayedMicStop();
 					}
-					// Hands-free: debounced re-listen after reply finishes.
-					if (this._isAutoSendEnabled() && this._replyPlayedSinceSend && !this._awaitingReplyAudio) {
-						this._scheduleAutoListen();
-					}
-					// Enter listening immediately after greeting finishes.
-					if (this._autoListenAfterGreeting) {
-						this._autoListenAfterGreeting = false;
-						this._enterAutoListen();
-					}
 				}
 			}
 		}));
@@ -937,6 +928,15 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			// On the final chunk we have the complete assistant transcript to persist.
 			if (e.isFinal && e.transcript) {
 				this._persistTurn('assistant', e.transcript);
+			}
+			// Hands-free: enter listening after the audio response finishes.
+			if (e.isFinal && this._isAutoSendEnabled() && !this._pttHeld) {
+				if (this._autoListenAfterGreeting) {
+					this._autoListenAfterGreeting = false;
+					this._enterAutoListen();
+				} else if (this._replyPlayedSinceSend && !this._awaitingReplyAudio) {
+					this._scheduleAutoListen();
+				}
 			}
 		}));
 
