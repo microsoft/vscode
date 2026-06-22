@@ -887,4 +887,90 @@ suite('ChatScrollbarPromptMarkerController', () => {
 			assert.strictEqual(controller['markerById'].size, 1);
 		});
 	});
+
+	suite('setEnabled', () => {
+		test('setEnabled(false) hides the container and clears all marker nodes', () => {
+			const req = makeRequest('r1');
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100]]);
+			const tops = new Map([['r1', 0]]);
+			const host = new FakeHost({
+				renderHeight: 200, scrollHeight: 200,
+				items: [req], heights, tops, layoutInfo,
+			});
+			const controller = createController(host);
+
+			controller.layout();
+			assert.strictEqual(controller['container'].querySelectorAll('.chat-scrollbar-prompt-marker').length, 1);
+			assert.strictEqual(controller['container'].style.display, '');
+
+			controller.setEnabled(false);
+
+			assert.strictEqual(controller['container'].style.display, 'none');
+			assert.strictEqual(controller['container'].querySelectorAll('.chat-scrollbar-prompt-marker').length, 0);
+			assert.strictEqual(controller['markerById'].size, 0);
+		});
+
+		test('setEnabled(true) after disable re-renders markers and shows the container', () => {
+			const req = makeRequest('r1');
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100]]);
+			const tops = new Map([['r1', 0]]);
+			const host = new FakeHost({
+				renderHeight: 200, scrollHeight: 200,
+				items: [req], heights, tops, layoutInfo,
+			});
+			const controller = createController(host);
+
+			controller.layout();
+			controller.setEnabled(false);
+			assert.strictEqual(controller['container'].querySelectorAll('.chat-scrollbar-prompt-marker').length, 0);
+
+			controller.setEnabled(true);
+
+			assert.strictEqual(controller['container'].style.display, '');
+			assert.strictEqual(controller['container'].querySelectorAll('.chat-scrollbar-prompt-marker').length, 1);
+			assert.strictEqual(controller['markerById'].size, 1);
+		});
+
+		test('setEnabled is a no-op when the value does not change', () => {
+			const req = makeRequest('r1');
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100]]);
+			const tops = new Map([['r1', 0]]);
+			const host = new FakeHost({
+				renderHeight: 200, scrollHeight: 200,
+				items: [req], heights, tops, layoutInfo,
+			});
+			const controller = createController(host);
+
+			controller.layout();
+			const markerCountBefore = controller['markerById'].size;
+
+			controller.setEnabled(true);
+
+			assert.strictEqual(controller['markerById'].size, markerCountBefore);
+		});
+
+		test('disabled controller does not render markers on layout or refresh', () => {
+			const req = makeRequest('r1');
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100]]);
+			const tops = new Map([['r1', 0]]);
+			const host = new FakeHost({
+				renderHeight: 200, scrollHeight: 200,
+				items: [req], heights, tops, layoutInfo,
+			});
+			const controller = createController(host);
+
+			controller.layout();
+			controller.setEnabled(false);
+
+			controller.layout();
+			controller.refresh();
+
+			assert.strictEqual(controller['container'].querySelectorAll('.chat-scrollbar-prompt-marker').length, 0);
+			assert.strictEqual(controller['markerById'].size, 0);
+		});
+	});
 });

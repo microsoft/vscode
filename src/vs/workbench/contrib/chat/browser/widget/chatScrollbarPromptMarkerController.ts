@@ -75,6 +75,7 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 	);
 	private pointerDownListenerParent: HTMLElement | undefined;
 	private visible = true;
+	private enabled = true;
 	private markerActivated = false;
 	private _lastScrollHeight = -1;
 	private _lastRenderHeight = -1;
@@ -107,6 +108,27 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 	setVisible(visible: boolean): void {
 		this.visible = visible;
 		this.updateContainerVisibility();
+	}
+
+	/**
+	 * Enable or disable the marker overlay at runtime (e.g. when the
+	 * `chat.scrollbarPromptMarkers.enabled` setting changes). When disabled,
+	 * the overlay container is hidden and all marker DOM nodes are cleared.
+	 * When re-enabled, the overlay is re-laid-out and markers are refreshed.
+	 */
+	setEnabled(enabled: boolean): void {
+		if (this.enabled === enabled) {
+			return;
+		}
+		this.enabled = enabled;
+		if (!enabled) {
+			this.clearMarkers();
+		}
+		this.updateContainerVisibility();
+		if (enabled) {
+			this.layout();
+			this.refresh();
+		}
 	}
 
 	layout(): void {
@@ -172,12 +194,18 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 	}
 
 	private updateContainerVisibility(): void {
-		const shouldShow = this.visible && this.host.renderHeight > 0;
+		const shouldShow = this.visible && this.enabled && this.host.renderHeight > 0;
 		this.container.style.display = shouldShow ? '' : 'none';
 	}
 
+	private clearMarkers(): void {
+		for (const [, marker] of this.markerById) { marker.remove(); }
+		this.markerById.clear();
+		this.targetById.clear();
+	}
+
 	private renderMarkers(): void {
-		if (!this.visible) {
+		if (!this.visible || !this.enabled) {
 			this.updateContainerVisibility();
 			return;
 		}
