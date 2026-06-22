@@ -602,30 +602,19 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			}
 		}
 	},
+	[AgentSandboxSettingId.AgentSandboxForceFirstExecutionInSandbox]: {
+		markdownDescription: localize('agentSandbox.forceFirstExecutionInSandbox', "Controls whether agent mode terminal commands first run with the sandbox's configured restrictions before honoring a request for execution outside the sandbox or unrestricted network access. The user is prompted to approve the requested additional access only if that sandboxed command fails. This applies only when {0} is enabled.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
+		type: 'boolean',
+		default: false,
+		tags: ['preview'],
+		restricted: true,
+	},
 	[AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests]: {
 		markdownDescription: localize('agentSandbox.retryWithAllowNetworkRequests', "Controls whether agent mode terminal commands can retry in the sandbox with unrestricted network access after user confirmation. This applies only when {0} is set to `on` and preserves file system sandboxing while relaxing network restrictions for an approved command.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
 		type: 'boolean',
 		default: true,
 		tags: ['preview'],
 		restricted: true
-	},
-	[AgentSandboxSettingId.AgentSandboxAutoApproveUnsandboxedCommands]: {
-		markdownDescription: localize('agentSandbox.autoApproveUnsandboxedCommands', "Controls whether agent mode terminal commands that run outside the sandbox are auto-approved. This applies only when both {0} and {1} are enabled.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``, `\`#${AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands}#\``),
-		type: 'boolean',
-		default: false,
-		tags: ['preview'],
-		restricted: true,
-		policy: {
-			name: 'ChatAgentSandboxAutoApproveUnsandboxedCommands',
-			category: PolicyCategory.IntegratedTerminal,
-			minimumVersion: '1.116',
-			localization: {
-				description: {
-					key: 'agentSandbox.autoApproveUnsandboxedCommands',
-					value: localize('agentSandbox.autoApproveUnsandboxedCommands', "Controls whether agent mode terminal commands that run outside the sandbox are auto-approved. This applies only when both {0} and {1} are enabled.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``, `\`#${AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands}#\``),
-				}
-			}
-		}
 	},
 	[AgentSandboxSettingId.AgentSandboxAllowAutoApprove]: {
 		markdownDescription: localize('agentSandbox.allowAutoApprove', "Controls whether agent mode terminal commands that run inside the sandbox are auto-approved. When disabled, the run in terminal tool uses the existing approval flow. This applies only when {0} is enabled.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
