@@ -123,7 +123,7 @@ async function mainAsync(): Promise<void> {
 	const outputPath = args['output'];
 	const cglicensesPath = args['cglicenses'] || '';
 	const strict = process.argv.includes('--strict');
-	const provenance = 'provenance' in args;
+	const provenance = args['provenance'] !== undefined;
 
 	if (!outputPath) {
 		console.error('Usage: merge-notices.js --cg <path> --extensions <path> --output <path> [--cglicenses <path>] [--strict]');
