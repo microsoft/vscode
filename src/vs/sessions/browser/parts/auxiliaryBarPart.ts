@@ -28,6 +28,7 @@ import { Part } from '../../../workbench/browser/part.js';
 import { ActionsOrientation, IActionViewItem } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { IPaneCompositeBarOptions } from '../../../workbench/browser/parts/paneCompositeBar.js';
 import { IMenuService, IMenu, MenuId, MenuItemAction } from '../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { Menus } from '../menus.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
@@ -90,7 +91,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			return undefined;
 		}
 
-		return Math.max(width, 340);
+		return Math.max(width, 300);
 	}
 
 	readonly priority = LayoutPriority.Low;
@@ -108,6 +109,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IExtensionService extensionService: IExtensionService,
 		@IMenuService menuService: IMenuService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super(
 			Parts.AUXILIARYBAR_PART,
@@ -138,6 +140,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			contextKeyService,
 			extensionService,
 			menuService,
+			configurationService,
 		);
 
 		this._register(this.layoutService.onDidChangePartVisibility(e => {

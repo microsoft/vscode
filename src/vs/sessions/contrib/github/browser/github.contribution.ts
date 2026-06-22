@@ -3,50 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Disposable, DisposableMap, IDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun, derived, derivedOpts, IReader } from '../../../../base/common/observable.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
-import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, derivedOpts, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { GitHubPullRequestState } from '../common/types.js';
 import { GitHubService, IGitHubService } from './githubService.js';
 
-/**
- * In addition to the sessions currently open in the grid, poll the pull request
- * state of the N most recently updated sessions so their list icons stay fresh
- * without polling every session's PR.
- */
-const MAX_POLLED_RECENT_SESSIONS = 5;
+const TRACE_PREFIX = '[PR-ICON-TRACE]';
 
 export class GitHubPullRequestPollingContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.contrib.githubPullRequestPolling';
 
-	/**
-	 * Per-session tracking (keyed by {@link ISession.sessionId}) that fetches and
-	 * (when in the polling set) polls each session's pull request state for as
-	 * long as the session exists.
-	 */
-	private readonly _sessionTracking = new DisposableMap<string>();
-
-	/** Reactive mirror of all known sessions, used to pick the most recent ones. */
-	private readonly _allSessions: ISettableObservable<readonly ISession[]> = observableValue(this, []);
-
-	/**
-	 * Session ids whose pull request state should be polled continuously: the
-	 * sessions currently open in the grid plus the {@link MAX_POLLED_RECENT_SESSIONS}
-	 * most recently updated (non-archived) sessions.
-	 */
-	private readonly _polledSessionIds: IObservable<ReadonlySet<string>>;
+	/** Per-session pollers, keyed by `session.sessionId`. */
+	private readonly _sessionTrackers = this._register(new DisposableMap<string>());
 
 	constructor(
 		@IGitHubService private readonly _gitHubService: IGitHubService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 
@@ -102,116 +86,134 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 			reader.store.add(model.startPolling());
 		}));
 
-		this._polledSessionIds = derived(this, reader => {
-			const ids = new Set<string>();
-
-			// Always poll the sessions currently open in the grid.
-			for (const session of this._sessionsService.visibleSessions.read(reader)) {
-				if (session && !session.isArchived.read(reader)) {
-					ids.add(session.sessionId);
-				}
-			}
-
-			// Plus the most recently updated (non-archived) sessions.
-			const recent = this._allSessions.read(reader)
-				.filter(session => !session.isArchived.read(reader))
-				.sort((a, b) => b.updatedAt.read(reader).getTime() - a.updatedAt.read(reader).getTime())
-				.slice(0, MAX_POLLED_RECENT_SESSIONS);
-			for (const session of recent) {
-				ids.add(session.sessionId);
-			}
-
-			return ids;
-		});
-
 		this._sessionsManagementService.onDidChangeSessions(this._onDidChangeSessions, this, this._store);
 		this._onDidChangeSessions({ added: this._sessionsManagementService.getSessions(), removed: [], changed: [] });
 	}
 
 	private _onDidChangeSessions(e: ISessionsChangeEvent): void {
-		for (const session of [...e.added, ...e.changed]) {
+		// Track added and changed sessions. Archived state and async PR-number
+		// resolution are handled reactively inside the per-session poller, so we
+		// can track unconditionally here (the tracker is a no-op until a PR
+		// number actually resolves).
+		for (const session of e.added) {
 			this._trackSession(session);
 		}
 
-		for (const session of e.removed) {
-			this._sessionTracking.deleteAndDispose(session.sessionId);
+		for (const session of e.changed) {
+			this._trackSession(session);
 		}
 
-		this._allSessions.set(this._sessionsManagementService.getSessions(), undefined);
+		// Removed sessions
+		for (const session of e.removed) {
+			if (this._sessionTrackers.has(session.sessionId)) {
+				this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} removed; disposing its poller (PR model no longer kept warm)`);
+				this._sessionTrackers.deleteAndDispose(session.sessionId);
+			}
+		}
 	}
 
-	/**
-	 * Track a session's pull request state.
-	 *
-	 * The PR icon shown in the sessions list is derived from the shared PR-state
-	 * cache, so we must keep that cache populated for the session. We do two
-	 * things, both reactive on the session's `gitHubInfo` (some providers — e.g.
-	 * the agent host — resolve the PR number asynchronously):
-	 *
-	 * - Fetch the state once when the PR number first resolves (or changes),
-	 *   unless the cache is already populated (it may have been seeded from
-	 *   storage on reload). This keeps the icon correct for every session without
-	 *   polling all of them.
-	 * - Poll the state continuously while the session is in the limited polling
-	 *   set (see {@link _polledSessionIds}). When the session leaves the set we
-	 *   stop polling but keep the last-seen state in the cache, so the icon keeps
-	 *   rendering.
-	 */
 	private _trackSession(session: ISession): void {
-		const key = session.sessionId;
-		if (this._sessionTracking.has(key)) {
+		if (this._sessionTrackers.has(session.sessionId)) {
 			return;
 		}
 
-		// Depend only on the PR identity (owner/repo/number) via structural
-		// equality so cache writes (which recompute `gitHubInfo`) don't re-trigger
-		// the autoruns below. Archived sessions resolve to `undefined`.
-		const pullRequestObs = derivedOpts<{ owner: string; repo: string; number: number } | undefined>(
-			{ equalsFn: structuralEquals },
+		this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} now tracked; poller will keep its PR model warm once a PR number resolves`);
+		this._sessionTrackers.set(session.sessionId, this._createSessionPoller(session));
+	}
+
+	/**
+	 * Reactively poll the pull request for a single session.
+	 *
+	 * Unlike a one-shot snapshot, the returned autorun re-runs when the session's
+	 * pull-request identity changes — so polling starts once a provider resolves
+	 * the PR number asynchronously (e.g. the agent host), and stops when the
+	 * session is archived or the PR goes away. A merged pull request can never
+	 * change again, so it stops polling unless it is the active session.
+	 */
+	private _createSessionPoller(session: ISession): IDisposable {
+		// PR identity (owner/repo/number) only. Structural equality keeps this
+		// stable while the PR's live data — and therefore its computed icon —
+		// updates, so the poller doesn't churn (or feed back into itself) every
+		// time `gitHubInfo` re-derives.
+		const pullRequestIdentityObs = derivedOpts<{ readonly owner: string; readonly repo: string; readonly prNumber: number } | undefined>(
+			{ owner: this, equalsFn: structuralEquals },
 			reader => {
 				if (session.isArchived.read(reader)) {
 					return undefined;
 				}
+
 				const gitHubInfo = session.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 				if (!gitHubInfo?.pullRequest) {
 					return undefined;
 				}
-				return { owner: gitHubInfo.owner, repo: gitHubInfo.repo, number: gitHubInfo.pullRequest.number };
+
+				return { owner: gitHubInfo.owner, repo: gitHubInfo.repo, prNumber: gitHubInfo.pullRequest.number };
 			});
 
-		// Boolean membership with default (value) equality so the polling autorun
-		// only re-runs when this session actually joins/leaves the polling set.
-		const isPolledObs = derived(reader => this._polledSessionIds.read(reader).has(session.sessionId));
-
-		const disposables = new DisposableStore();
-
-		// Fetch once when the PR number resolves/changes (skip if already cached).
-		disposables.add(autorun(reader => {
-			const pullRequest = pullRequestObs.read(reader);
-			if (!pullRequest) {
+		return autorun(reader => {
+			const identity = pullRequestIdentityObs.read(reader);
+			if (!identity) {
+				// No PR number yet (or archived); this autorun re-runs once it resolves.
+				this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} has no PR identity yet (no PR number or archived); waiting`);
 				return;
 			}
-			if (this._gitHubService.getCachedPullRequestState(pullRequest.owner, pullRequest.repo, pullRequest.number).read(undefined) === undefined) {
-				this._gitHubService.fetchPullRequestState(pullRequest.owner, pullRequest.repo, pullRequest.number);
-			}
-		}));
 
-		// Poll while in the polling set; stops (retaining cached state) otherwise.
-		disposables.add(autorun(reader => {
-			const pullRequest = pullRequestObs.read(reader);
-			if (!pullRequest || !isPolledObs.read(reader)) {
-				return;
-			}
-			reader.store.add(this._gitHubService.pollPullRequestState(pullRequest.owner, pullRequest.repo, pullRequest.number));
-		}));
+			const { owner, repo, prNumber } = identity;
+			this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} resolved PR identity ${owner}/${repo}#${prNumber}; acquiring model and refreshing`);
 
-		this._sessionTracking.set(key, disposables);
+			const modelRef = reader.store.add(this._gitHubService.createPullRequestModelReference(owner, repo, prNumber));
+			const model = modelRef.object;
+
+			// Fetch once so we learn the PR state and can render the icon — even for
+			// a merged PR that won't keep polling.
+			model.refresh();
+
+			// Gate the repeating poll loop on a stable boolean so poll results (which
+			// update `pullRequest`) don't toggle the loop on every refresh.
+			const shouldPollObs = derived(this, pollReader => {
+				const prDetails = model.pullRequest.read(pollReader);
+				const isMerged = prDetails?.state === GitHubPullRequestState.Merged;
+				return !isMerged || this._isActiveSession(session, pollReader);
+			});
+			reader.store.add(autorun(pollReader => {
+				if (!shouldPollObs.read(pollReader)) {
+					this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} PR ${owner}/${repo}#${prNumber} is merged and not active; not polling`);
+					return;
+				}
+
+				this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} starting PR polling for ${owner}/${repo}#${prNumber}`);
+				pollReader.store.add(model.startPolling());
+			}));
+
+			// Poll CI checks and review threads so the session's PR icon can reflect
+			// failing checks / unresolved comments even when the session is not active.
+			// Only open, non-draft PRs need this (merged/closed/draft don't surface it).
+			reader.store.add(autorun(statusReader => {
+				const prDetails = model.pullRequest.read(statusReader);
+				if (!prDetails || prDetails.isDraft || prDetails.state !== GitHubPullRequestState.Open) {
+					return;
+				}
+
+				this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} starting CI + review-thread polling for ${owner}/${repo}#${prNumber}@${prDetails.headSha}`);
+
+				const ciModelRef = statusReader.store.add(this._gitHubService.createPullRequestCIModelReference(owner, repo, prNumber, prDetails.headSha));
+				ciModelRef.object.refresh();
+				statusReader.store.add(ciModelRef.object.startPolling());
+
+				const reviewThreadsModelRef = statusReader.store.add(this._gitHubService.createPullRequestReviewThreadsModelReference(owner, repo, prNumber));
+				reviewThreadsModelRef.object.refresh();
+				statusReader.store.add(reviewThreadsModelRef.object.startPolling());
+			}));
+		});
 	}
 
-	override dispose(): void {
-		this._sessionTracking.dispose();
+	private _isActiveSession(session: ISession, reader: IReader): boolean {
+		const activeSession = this._sessionsService.activeSession.read(reader);
+		if (!activeSession || activeSession.isArchived.read(reader)) {
+			return false;
+		}
 
-		super.dispose();
+		return isEqual(activeSession.resource, session.resource);
 	}
 }
 
