@@ -154,7 +154,7 @@ jobs:
         continueOnError: true
 
       # =========================================================================
-      # FLAG-FOR-REVIEW: Cached-NOTICE fallback
+      # Cached-NOTICE fallback
       #
       # Goal: never ship without *some* CG NOTICE. If `notice@0` above fails or
       # produces an empty file (CG service down, timeout, etc.), substitute the
@@ -165,8 +165,7 @@ jobs:
       #   1. Most recent successful run on the CURRENT branch
       #   2. Most recent successful run on `main`
       #
-      # Cache freshness: an explicit max-age check (~30 days) is intentionally
-      # NOT yet enforced — flag this for design review before this lands.
+      # TODO: consider enforcing a max-age check (~30 days) on cached NOTICEs.
       # Today the only signal is the warning emitted below.
       #
       # Architecture note: the fallback ONLY substitutes the CG-supplied portion.
