@@ -581,6 +581,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 				const isResuming = this.voiceClientService.isResuming;
 
+				// Suppress greeting audio early when auto-listen will activate.
+				if (!isResuming && this._isAutoSendEnabled()) {
+					this._suppressIncomingAudio = true;
+				}
+
 				// --- Telemetry: session/connect ---
 				const now = Date.now();
 				const connectMs = this._telemetryConnectStartMs ? now - this._telemetryConnectStartMs : 0;
