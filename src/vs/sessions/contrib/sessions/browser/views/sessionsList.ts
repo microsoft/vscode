@@ -6,7 +6,7 @@
 import '../media/sessionsList.css';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { Gesture } from '../../../../../base/browser/touch.js';
-import { IListVirtualDelegate, NotSelectableGroupId } from '../../../../../base/browser/ui/list/list.js';
+import { IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType, NotSelectableGroupId } from '../../../../../base/browser/ui/list/list.js';
 import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
 import { IObjectTreeElement, ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ObjectTreeElementCollapseState, ITreeDragAndDrop, ITreeDragOverReaction } from '../../../../../base/browser/ui/tree/tree.js';
 import { RenderIndentGuides, TreeFindMode } from '../../../../../base/browser/ui/tree/abstractTree.js';
@@ -44,7 +44,7 @@ import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { ISessionsManagementService, IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
+import { ISessionsListModelService, SessionSortMode } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
 // =============================================================================
 // TEMPORARY (tracked by https://github.com/microsoft/vscode/issues/320480)
@@ -65,7 +65,7 @@ import { IAgentHostFilterService } from '../../../../services/agentHostFilter/co
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
 import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../../../browser/dnd.js';
 import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
-import { ElementsDragAndDropData } from '../../../../../base/browser/ui/list/listView.js';
+import { ElementsDragAndDropData, ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { buildSessionHoverContent } from '../sessionHoverContent.js';
 import { SessionStatusIcon } from '../../../../browser/sessionStatusIcon.js';
@@ -92,6 +92,13 @@ export enum SessionsSorting {
 	Created = 'created',
 	Updated = 'updated',
 }
+
+function sortingToMode(sorting: SessionsSorting): SessionSortMode {
+	return sorting === SessionsSorting.Updated ? 'updated' : 'created';
+}
+
+/** Fallback spacing (ms) used when assigning synthetic sort keys past an open boundary. */
+const SORT_FALLBACK_STEP_MS = 60_000;
 
 export interface ISessionSection {
 	readonly id: string;
@@ -759,9 +766,27 @@ class SessionsAccessibilityProvider {
 
 //#region Drag and Drop
 
+/**
+ * Callbacks the sessions list provides to its drag-and-drop controller so the
+ * controller can validate and apply manual reordering without owning the list
+ * model itself.
+ */
+interface ISessionsListDndDelegate {
+	/** Whether a session may participate in reordering (regular, non-pinned, non-archived). */
+	isReorderable(session: ISession): boolean;
+	/** Whether the dragged sessions may be reordered relative to the given target. */
+	canDropOn(dragged: ISession[], target: ISession): boolean;
+	/** Apply the reorder, placing the dragged sessions before/after the target. */
+	reorder(dragged: ISession[], target: ISession, position: 'before' | 'after'): void;
+}
+
 class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<SessionListItem> {
 
 	private readonly _transfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
+
+	constructor(private readonly delegate: ISessionsListDndDelegate) {
+		super();
+	}
 
 	getDragURI(element: SessionListItem): string | null {
 		if (isSessionSection(element) || isSessionShowMore(element)) {
@@ -771,7 +796,7 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 	}
 
 	getDragLabel(elements: SessionListItem[]): string | undefined {
-		const sessions = elements.filter((e): e is ISession => !isSessionSection(e) && !isSessionShowMore(e));
+		const sessions = this.toSessions(elements);
 		if (sessions.length === 0) {
 			return undefined;
 		}
@@ -782,8 +807,7 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 	}
 
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
-		const elements = (data instanceof ElementsDragAndDropData ? data.elements : []) as SessionListItem[];
-		const sessions = elements.filter((e): e is ISession => !isSessionSection(e) && !isSessionShowMore(e));
+		const sessions = this.toSessions(data instanceof ElementsDragAndDropData ? data.elements as SessionListItem[] : []);
 		if (sessions.length === 0) {
 			return;
 		}
@@ -803,11 +827,62 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		this._transfer.clearData(DraggedSessionIdentifier.prototype);
 	}
 
-	onDragOver(): boolean | ITreeDragOverReaction {
-		return false;
+	onDragOver(data: IDragAndDropData, targetElement: SessionListItem | undefined, _targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined): boolean | ITreeDragOverReaction {
+		const target = this.resolveReorderTarget(data, targetElement);
+		if (!target) {
+			return false;
+		}
+		const position = sectorToPosition(targetSector);
+		return {
+			accept: true,
+			effect: {
+				type: ListDragOverEffectType.Move,
+				position: position === 'after' ? ListDragOverEffectPosition.After : ListDragOverEffectPosition.Before,
+			},
+		};
 	}
 
-	drop(): void { }
+	drop(data: IDragAndDropData, targetElement: SessionListItem | undefined, _targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined): void {
+		const target = this.resolveReorderTarget(data, targetElement);
+		if (!target) {
+			return;
+		}
+		const dragged = this.toSessions(data instanceof ElementsDragAndDropData ? data.elements as SessionListItem[] : []);
+		this.delegate.reorder(dragged, target, sectorToPosition(targetSector));
+	}
+
+	/**
+	 * Resolve the session the drop should be positioned against, or `undefined`
+	 * if the current drag is not a valid in-list reorder.
+	 */
+	private resolveReorderTarget(data: IDragAndDropData, targetElement: SessionListItem | undefined): ISession | undefined {
+		if (!targetElement || isSessionSection(targetElement) || isSessionShowMore(targetElement)) {
+			return undefined;
+		}
+		const target = targetElement;
+		if (!this.delegate.isReorderable(target)) {
+			return undefined;
+		}
+		const dragged = this.toSessions(data instanceof ElementsDragAndDropData ? data.elements as SessionListItem[] : []);
+		if (dragged.length === 0 || dragged.some(s => s.sessionId === target.sessionId)) {
+			return undefined;
+		}
+		if (dragged.some(s => !this.delegate.isReorderable(s))) {
+			return undefined;
+		}
+		if (!this.delegate.canDropOn(dragged, target)) {
+			return undefined;
+		}
+		return target;
+	}
+
+	private toSessions(elements: SessionListItem[]): ISession[] {
+		return elements.filter((e): e is ISession => !isSessionSection(e) && !isSessionShowMore(e));
+	}
+}
+
+function sectorToPosition(sector: ListViewTargetSector | undefined): 'before' | 'after' {
+	return sector !== undefined && sector >= ListViewTargetSector.CENTER_BOTTOM ? 'after' : 'before';
 }
 
 //#endregion
@@ -988,7 +1063,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 			],
 			{
 				accessibilityProvider: new SessionsAccessibilityProvider(),
-				dnd: this._register(new SessionsListDragAndDrop()),
+				dnd: this._register(new SessionsListDragAndDrop({
+					isReorderable: session => this.isReorderable(session),
+					canDropOn: (dragged, target) => this.canReorderOnto(dragged, target),
+					reorder: (dragged, target, position) => this.reorderSessions(dragged, target, position),
+				})),
 				identityProvider: {
 					getId: (element: SessionListItem) => {
 						if (isSessionSection(element)) {
@@ -1222,7 +1301,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 
 		const grouping = this.options.grouping();
-		const sections = groupSessionsForList(filtered, grouping, this.options.sorting(), session => this.isSessionPinned(session));
+		const sections = groupSessionsForList(filtered, grouping, this.options.sorting(), session => this.isSessionPinned(session), (s, sorting) => this._sessionsListModelService.getSortKey(s, sortingToMode(sorting)));
 
 		const hasTodaySessions = sections.some(s => s.id === 'today' && s.sessions.length > 0);
 
@@ -1455,6 +1534,77 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * the full selection is returned (clicked session first), otherwise just the
 	 * clicked session.
 	 */
+	/**
+	 * Whether a session may participate in manual reordering. Only regular
+	 * sessions reorder — pinned and archived (Done) sessions keep their fixed
+	 * sections.
+	 */
+	private isReorderable(session: ISession): boolean {
+		return !session.isArchived.get() && !this.isSessionPinned(session);
+	}
+
+	/**
+	 * Whether the dragged sessions can be reordered relative to the target.
+	 * When grouping by workspace, reordering is restricted to within the same
+	 * workspace group.
+	 */
+	private canReorderOnto(dragged: ISession[], target: ISession): boolean {
+		if (this.options.grouping() === SessionsGrouping.Workspace) {
+			const targetLabel = sessionWorkspaceLabel(target);
+			return dragged.every(s => sessionWorkspaceLabel(s) === targetLabel);
+		}
+		return true;
+	}
+
+	/**
+	 * Reorder the dragged sessions so they land as a contiguous block before or
+	 * after the target session, persisting a synthetic sort key (the midpoint of
+	 * the surrounding sessions' keys). When the dragged sessions' natural
+	 * timestamps already sort them into the dropped slot, any stored override is
+	 * dropped instead so the list falls back to natural ordering.
+	 */
+	private reorderSessions(dragged: ISession[], target: ISession, position: 'before' | 'after'): void {
+		const mode = sortingToMode(this.options.sorting());
+		const grouping = this.options.grouping();
+		const getKey = (s: ISession) => this._sessionsListModelService.getSortKey(s, mode);
+
+		// Derive neighbours from the actual visible display order (which already
+		// respects filtering and grouping) so the drop slot matches what the user
+		// sees. For workspace grouping only the target's workspace participates;
+		// for date grouping the regular list is one continuous sequence.
+		let scope = this.getVisibleSessions().filter(s => this.isReorderable(s));
+		if (grouping === SessionsGrouping.Workspace) {
+			const targetLabel = sessionWorkspaceLabel(target);
+			scope = scope.filter(s => sessionWorkspaceLabel(s) === targetLabel);
+		}
+
+		const draggedIds = new Set(dragged.map(s => s.sessionId));
+		const draggedOrdered = scope.filter(s => draggedIds.has(s.sessionId));
+		if (draggedOrdered.length === 0) {
+			return;
+		}
+		const remaining = scope.filter(s => !draggedIds.has(s.sessionId));
+
+		const targetIndex = remaining.findIndex(s => s.sessionId === target.sessionId);
+		if (targetIndex === -1) {
+			return;
+		}
+
+		const insertIndex = position === 'before' ? targetIndex : targetIndex + 1;
+		const above = remaining[insertIndex - 1];
+		const below = remaining[insertIndex];
+
+		const { set, clear } = computeReorderSortChanges({
+			draggedIds: draggedOrdered.map(s => s.sessionId),
+			naturalKeys: draggedOrdered.map(s => this._sessionsListModelService.getNaturalSortKey(s, mode)),
+			aboveKey: above ? getKey(above) : undefined,
+			belowKey: below ? getKey(below) : undefined,
+			now: Date.now(),
+			fallbackStep: SORT_FALLBACK_STEP_MS,
+		});
+		this._sessionsListModelService.applySortChanges(mode, set, clear);
+	}
+
 	private getMultiSelectedSessions(session: ISession): ISession[] {
 		const selection = this.tree.getSelection().filter((s): s is ISession => !!s && !isSessionSection(s) && !isSessionShowMore(s));
 		return selection.includes(session) ? [session, ...selection.filter(s => s !== session)] : [session];
@@ -1772,13 +1922,78 @@ function sessionMatchesFolder(session: ISession, folder: URI): boolean {
 
 //#region Sorting & Grouping Helpers
 
-export function sortSessions(sessions: ISession[], sorting: SessionsSorting): ISession[] {
-	return [...sessions].sort((a, b) => {
-		if (sorting === SessionsSorting.Updated) {
-			return b.updatedAt.get().getTime() - a.updatedAt.get().getTime();
+export function sortSessions(sessions: ISession[], sorting: SessionsSorting, getSortKey?: (session: ISession, sorting: SessionsSorting) => number): ISession[] {
+	const key = getSortKey ?? defaultSortKey;
+	return [...sessions].sort((a, b) => key(b, sorting) - key(a, sorting));
+}
+
+function defaultSortKey(session: ISession, sorting: SessionsSorting): number {
+	if (sorting === SessionsSorting.Updated) {
+		return session.updatedAt.get().getTime();
+	}
+	return session.createdAt.getTime();
+}
+
+export interface IReorderSortInput {
+	/** Dragged session ids in display (descending-key) order. */
+	readonly draggedIds: readonly string[];
+	/** Natural sort key per dragged session (same order as {@link draggedIds}). */
+	readonly naturalKeys: readonly number[];
+	/** Effective key of the neighbour above the drop point (higher), if any. */
+	readonly aboveKey: number | undefined;
+	/** Effective key of the neighbour below the drop point (lower), if any. */
+	readonly belowKey: number | undefined;
+	/** Current time, used when dropping above the first session. */
+	readonly now: number;
+	/** Spacing used when stepping past an open boundary. */
+	readonly fallbackStep: number;
+}
+
+/**
+ * Compute the manual sort-override changes for a reorder drop. Assigns the
+ * dragged block strictly-descending synthetic keys spread between the
+ * surrounding neighbours, except when the sessions' natural keys already sort
+ * them into the dropped slot — in which case any existing override is dropped.
+ */
+export function computeReorderSortChanges(input: IReorderSortInput): { set: Map<string, number>; clear: string[] } {
+	const { draggedIds, naturalKeys, aboveKey, belowKey, now, fallbackStep } = input;
+	const count = draggedIds.length;
+
+	// "Drop the fake value": when every dragged session's natural key already
+	// lands strictly inside the surrounding gap (and in descending display
+	// order), clear overrides instead of storing synthetic keys.
+	const upperFit = aboveKey ?? Number.POSITIVE_INFINITY;
+	const lowerFit = belowKey ?? Number.NEGATIVE_INFINITY;
+	let naturalFits = true;
+	for (let i = 0; i < count; i++) {
+		if (!(naturalKeys[i] < upperFit && naturalKeys[i] > lowerFit)) {
+			naturalFits = false;
+			break;
 		}
-		return b.createdAt.getTime() - a.createdAt.getTime();
-	});
+		if (i > 0 && !(naturalKeys[i] < naturalKeys[i - 1])) {
+			naturalFits = false;
+			break;
+		}
+	}
+
+	const set = new Map<string, number>();
+	const clear: string[] = [];
+	if (naturalFits) {
+		for (const id of draggedIds) {
+			clear.push(id);
+		}
+	} else {
+		// Spread `count` strictly-descending synthetic keys across the gap. An
+		// open top boundary uses the current time so the block sorts to the very
+		// top; an open bottom boundary steps below the last key.
+		const upper = aboveKey ?? now;
+		const lower = belowKey ?? (upper - (count + 1) * fallbackStep);
+		const step = (upper - lower) / (count + 1);
+		for (let i = 0; i < count; i++) {
+			set.set(draggedIds[i], upper - (i + 1) * step);
+		}
+	}
+	return { set, clear };
 }
 
 export function groupSessionsForList(
@@ -1786,8 +2001,9 @@ export function groupSessionsForList(
 	grouping: SessionsGrouping,
 	sorting: SessionsSorting,
 	isSessionPinned: (session: ISession) => boolean,
+	getSortKey?: (session: ISession, sorting: SessionsSorting) => number,
 ): ISessionSection[] {
-	const sorted = sortSessions(sessions, sorting);
+	const sorted = sortSessions(sessions, sorting, getSortKey);
 
 	// Archived always wins over pinned so done sessions stay grouped together.
 	const pinned: ISession[] = [];
@@ -1810,7 +2026,7 @@ export function groupSessionsForList(
 
 	sections.push(...(grouping === SessionsGrouping.Workspace
 		? groupByWorkspace(regular)
-		: groupByDate(regular, sorting)));
+		: groupByDate(regular, sorting, getSortKey)));
 
 	if (archived.length > 0) {
 		sections.push({ id: 'archived', label: localize('archived', "Done"), sessions: archived });
@@ -1819,11 +2035,15 @@ export function groupSessionsForList(
 	return sections;
 }
 
+/** The workspace group label a session belongs to (matches {@link groupByWorkspace}). */
+function sessionWorkspaceLabel(session: ISession): string {
+	return session.workspace.get()?.label || localize('unknown', "Unknown");
+}
+
 export function groupByWorkspace(sessions: ISession[]): ISessionSection[] {
 	const groups = new Map<string, ISession[]>();
 	for (const session of sessions) {
-		const workspace = session.workspace.get();
-		const label = workspace?.label || localize('unknown', "Unknown");
+		const label = sessionWorkspaceLabel(session);
 		let group = groups.get(label);
 		if (!group) {
 			group = [];
@@ -1852,7 +2072,8 @@ export function groupByWorkspace(sessions: ISession[]): ISessionSection[] {
 	return result;
 }
 
-export function groupByDate(sessions: ISession[], sorting: SessionsSorting): ISessionSection[] {
+export function groupByDate(sessions: ISession[], sorting: SessionsSorting, getSortKey?: (session: ISession, sorting: SessionsSorting) => number): ISessionSection[] {
+	const key = getSortKey ?? defaultSortKey;
 	const now = new Date();
 	const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
 	const startOfYesterday = startOfToday - 86_400_000;
@@ -1864,9 +2085,7 @@ export function groupByDate(sessions: ISession[], sorting: SessionsSorting): ISe
 	const older: ISession[] = [];
 
 	for (const session of sessions) {
-		const time = sorting === SessionsSorting.Updated
-			? session.updatedAt.get().getTime()
-			: session.createdAt.getTime();
+		const time = key(session, sorting);
 
 		if (time >= startOfToday) {
 			today.push(session);
