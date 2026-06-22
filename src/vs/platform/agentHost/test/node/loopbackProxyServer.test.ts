@@ -16,6 +16,7 @@ import {
 } from '../../node/shared/loopbackProxyServer.js';
 
 // #region Test subclass
+
 interface ITestState {
 	value: string;
 }
