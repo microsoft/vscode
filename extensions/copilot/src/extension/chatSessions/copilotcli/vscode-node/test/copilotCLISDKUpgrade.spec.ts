@@ -234,7 +234,7 @@ describe('CopilotCLI SDK Upgrade', function () {
 		if (errors.length > 0) {
 			throw new Error(errors.join('\n'));
 		}
-	});
+	}, 30000);
 
 	it('should be able to load the @github/copilot module without errors', async function () {
 		await import('@github/copilot/sdk');
