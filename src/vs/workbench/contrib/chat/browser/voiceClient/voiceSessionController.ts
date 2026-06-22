@@ -609,19 +609,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					this._isConnected.set(true, tx);
 				});
 
-				// When auto-send is enabled, begin listening immediately on a fresh
-				// connect (enter toggle mode via a synthetic short tap) so the user
-				// doesn't have to activate voice mode and then tap a second time to
-				// start talking. Skipped on reconnects to avoid hijacking an
-				// in-progress turn.
-				if (!isResuming) {
-					const autoSendDelay = this.configurationService.getValue<number>('agents.voice.autoSendDelay');
-					if (typeof autoSendDelay === 'number' && autoSendDelay >= 0) {
-						this.pttDown();
-						this.pttUp();
-					}
-				}
-
 				// Seed previous session states so existing sessions don't trigger false transitions
 				const seededResources = new Set<string>();
 				for (const s of this.agentSessionsService.model.sessions.filter(ss => !ss.isArchived())) {
@@ -849,6 +836,20 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				this.micCaptureService.isMuted = false;
 				this._statusText.set('Hold to speak...', undefined);
 				this._voiceState.set('idle', undefined);
+
+				// When auto-send is enabled, begin listening immediately on a fresh
+				// connect (enter toggle mode via a synthetic short tap) so the user
+				// doesn't have to activate voice mode and then tap a second time to
+				// start talking. Done last so the idle reset above doesn't clobber
+				// the listening state. Skipped on reconnects to avoid hijacking an
+				// in-progress turn.
+				if (!isResuming) {
+					const autoSendDelay = this.configurationService.getValue<number>('agents.voice.autoSendDelay');
+					if (typeof autoSendDelay === 'number' && autoSendDelay >= 0) {
+						this.pttDown();
+						this.pttUp();
+					}
+				}
 			} else if (this._isConnected.get()) {
 				this._onConnectionLost();
 			} else if (this._isReconnecting.get()) {
