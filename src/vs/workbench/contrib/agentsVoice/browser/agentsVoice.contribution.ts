@@ -439,5 +439,12 @@ configurationRegistry.registerConfiguration({
 			included: false,
 			tags: ['advanced'],
 		},
+		'agents.voice.microphoneDevice': {
+			type: 'string',
+			description: nls.localize('agents.voice.microphoneDevice', "The device ID of the microphone to use for voice mode. Leave empty to use the system default."),
+			default: '',
+			scope: ConfigurationScope.APPLICATION,
+			included: false,
+		},
 	}
 });
