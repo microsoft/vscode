@@ -132,6 +132,37 @@ export default ESLintUtils.RuleCreator.withoutDocs<[], MessageIds>({
 					report(node.key, node.key.name, reason);
 				}
 			},
+
+			// Direct usage of a deprecated top-level SDK export, e.g.
+			// `deprecatedFn()`, `new DeprecatedClass()`, `type X = DeprecatedType`
+			// or a plain `deprecatedConst` reference. Member access and
+			// destructuring are handled above, and import/export bindings and
+			// declaration names are not usages, so all of those are skipped to
+			// avoid double-reporting.
+			Identifier(node: TSESTree.Identifier): void {
+				const parent = node.parent;
+				switch (parent.type) {
+					case 'MemberExpression':
+						if (parent.property === node && !parent.computed) {
+							return;
+						}
+						break;
+					case 'Property':
+						if (parent.key === node && !parent.computed) {
+							return;
+						}
+						break;
+					case 'ImportSpecifier':
+					case 'ImportDefaultSpecifier':
+					case 'ImportNamespaceSpecifier':
+					case 'ExportSpecifier':
+						return;
+				}
+				const reason = getSdkDeprecation(services.getSymbolAtLocation(node));
+				if (reason !== undefined) {
+					report(node, node.name, reason);
+				}
+			},
 		};
 	},
 });
