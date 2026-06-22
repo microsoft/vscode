@@ -6,7 +6,9 @@
 /*---------------------------------------------------------------------------------------------
  *  Merge CG-generated and extension-scanned NOTICE files into a single output.
  *
- *  - Deduplicates by package name (CG wins if both have it)
+ *  - Keys by lowercased name@version so multiple shipped versions are preserved
+ *  - CG entries win on collision; scanner cargo entries override CG on stub
+ *    collisions (SPDX-as-body replaced with real fetched license text)
  *  - Logs every package with its source
  *  - Produces ThirdPartyNotices.new.txt
  *

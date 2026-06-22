@@ -135,8 +135,6 @@ jobs:
         displayName: Compile & Hygiene
 
       - script: npm run download-builtin-extensions-cg
-        env:
-          GITHUB_TOKEN: "$(github-distro-mixin-password)"
         displayName: Download component details of built-in extensions
         continueOnError: true
 

@@ -144,7 +144,7 @@ function collectPackageJsonDeps(filePath: string): ManifestPackage[] {
 			}
 		}
 	} catch {
-		// malformed JSON — skip
+		// malformed JSON -- skip
 	}
 	return results;
 }
@@ -169,7 +169,7 @@ function collectCargoLockDeps(filePath: string): ManifestPackage[] {
 			}
 		}
 	} catch {
-		// read error — skip
+		// read error -- skip
 	}
 	return results;
 }
@@ -207,7 +207,7 @@ function collectPackageLockDeps(filePath: string): ManifestPackage[] {
 			}
 		}
 	} catch {
-		// malformed JSON or read error — skip
+		// malformed JSON or read error -- skip
 	}
 	return results;
 }
@@ -249,7 +249,7 @@ function collectCgManifestDeps(filePath: string): ManifestPackage[] {
 			}
 		}
 	} catch {
-		// malformed JSON — skip
+		// malformed JSON -- skip
 	}
 	return results;
 }
@@ -315,34 +315,34 @@ function crossReference(noticeNames: Set<string>, manifestPackages: ManifestPack
 function printReport(noticePath: string, stats: NoticeStats, xref: CrossRefResult, lockfileBreakdown: Map<string, number>): void {
 	const sizeMB = (fs.statSync(noticePath).size / 1024 / 1024).toFixed(2);
 
-	console.log('╔══════════════════════════════════════════════════════════════╗');
-	console.log('║              NOTICE FILE AUDIT REPORT                       ║');
-	console.log('╚══════════════════════════════════════════════════════════════╝');
+	console.log('+==============================================================+');
+	console.log('|              NOTICE FILE AUDIT REPORT                        |');
+	console.log('+==============================================================+');
 	console.log('');
 
 	// -- Section 1: NOTICE stats --
-	console.log('── 1. NOTICE FILE STATS ──────────────────────────────────────');
+	console.log('-- 1. NOTICE FILE STATS ---------------------------------------');
 	console.log(`  File:            ${noticePath}`);
 	console.log(`  Size:            ${sizeMB} MB`);
 	console.log(`  Total entries:   ${stats.entries.length}`);
 	console.log(`  Unique (name@v): ${stats.uniqueKey.size}`);
 	console.log('');
 
-	// Duplicates (same name@version — bugs)
+	// Duplicates (same name@version -- bugs)
 	if (stats.duplicateEntries.length > 0) {
-		console.log(`  ⚠  DUPLICATE ENTRIES (same name@version): ${stats.duplicateEntries.length}`);
+		console.log(`  WARNING: DUPLICATE ENTRIES (same name@version): ${stats.duplicateEntries.length}`);
 		for (const d of stats.duplicateEntries) {
-			console.log(`     ${d.key}  (×${d.count})`);
+			console.log(`     ${d.key}  (x${d.count})`);
 		}
 		console.log('');
 	} else {
-		console.log('  ✓  No duplicate name@version entries');
+		console.log('  OK: No duplicate name@version entries');
 		console.log('');
 	}
 
 	// Same name, different versions (expected but noted)
 	if (stats.duplicateNames.length > 0) {
-		console.log(`  ℹ  Multi-version packages (same name, different versions): ${stats.duplicateNames.length}`);
+		console.log(`  INFO: Multi-version packages (same name, different versions): ${stats.duplicateNames.length}`);
 		for (const d of stats.duplicateNames.slice(0, 20)) {
 			console.log(`     ${d.name}: ${d.versions.join(', ')}`);
 		}
@@ -355,7 +355,7 @@ function printReport(noticePath: string, stats: NoticeStats, xref: CrossRefResul
 	// License breakdown (top 10)
 	console.log('  License breakdown (top 10):');
 	for (const l of stats.licenseBreakdown.slice(0, 10)) {
-		const bar = '█'.repeat(Math.min(Math.round(l.count / stats.entries.length * 40), 40));
+		const bar = '#'.repeat(Math.min(Math.round(l.count / stats.entries.length * 40), 40));
 		const pct = ((l.count / stats.entries.length) * 100).toFixed(1);
 		console.log(`     ${l.license.padEnd(30)} ${String(l.count).padStart(5)}  ${pct.padStart(5)}%  ${bar}`);
 	}
@@ -366,7 +366,7 @@ function printReport(noticePath: string, stats: NoticeStats, xref: CrossRefResul
 	console.log('');
 
 	// -- Section 2: Manifest cross-reference --
-	console.log('── 2. REPO MANIFEST CROSS-REFERENCE ─────────────────────────');
+	console.log('-- 2. REPO MANIFEST CROSS-REFERENCE --------------------------');
 	console.log('');
 	console.log('  Manifest sources found:');
 	for (const [src, count] of xref.bySource) {
@@ -382,7 +382,7 @@ function printReport(noticePath: string, stats: NoticeStats, xref: CrossRefResul
 	console.log('');
 
 	if (xref.manifestOnlyNames.length > 0) {
-		console.log('  ⚠  Packages in manifests but NOT in NOTICE (investigate):');
+		console.log('  WARNING: Packages in manifests but NOT in NOTICE (investigate):');
 		for (const name of xref.manifestOnlyNames.slice(0, 50)) {
 			console.log(`     - ${name}`);
 		}
@@ -393,13 +393,13 @@ function printReport(noticePath: string, stats: NoticeStats, xref: CrossRefResul
 	}
 
 	if (xref.noticeOnlyNames.length > 0) {
-		console.log(`  ℹ  Packages in NOTICE but not in manifests: ${xref.noticeOnlyNames.length}`);
-		console.log('     (Expected — CG auto-detects transitive deps not listed in manifests)');
+		console.log(`  INFO: Packages in NOTICE but not in manifests: ${xref.noticeOnlyNames.length}`);
+		console.log('     (Expected -- CG auto-detects transitive deps not listed in manifests)');
 		console.log('');
 	}
 
 	// -- Section 3: Summary --
-	console.log('── 3. SUMMARY ───────────────────────────────────────────────');
+	console.log('-- 3. SUMMARY ------------------------------------------------');
 	console.log('');
 	const noticeUniqueNames = new Set([...stats.uniqueKey].map(k => k.replace(/@[^@]*$/, '')));
 	console.log(`  NOTICE has ${stats.entries.length} entries (${noticeUniqueNames.size} unique names).`);
@@ -408,16 +408,16 @@ function printReport(noticePath: string, stats: NoticeStats, xref: CrossRefResul
 	console.log('');
 
 	if (xref.manifestOnlyNames.length > 0) {
-		console.log('  ❌  ACTION REQUIRED: Manifest-only packages need investigation.');
+		console.log('  FAIL: ACTION REQUIRED: Manifest-only packages need investigation.');
 		console.log('     These may be missing from the NOTICE file.');
 	} else {
-		console.log('  ✅  All manifest packages are covered in the NOTICE file.');
+		console.log('  PASS: All manifest packages are covered in the NOTICE file.');
 	}
 	console.log('');
 
 	// -- Section 4: Package source breakdown --
 	if (lockfileBreakdown.size > 0) {
-		console.log('── 4. PACKAGE SOURCE BREAKDOWN ──────────────────────────────');
+		console.log('-- 4. PACKAGE SOURCE BREAKDOWN -------------------------------');
 		console.log('');
 
 		// Sort by count descending
