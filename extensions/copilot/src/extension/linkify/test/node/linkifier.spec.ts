@@ -414,4 +414,109 @@ suite('Stateful Linkifier', () => {
 			]);
 		}
 	});
+
+	test(`Should not linkify multi-token inline code with non-existent paths`, async () => {
+		// Inline code like `./scripts/test.sh src/vs/...` should be treated as one path
+		// and not linkified when the whole path doesn't exist
+		const linkifier = createTestLinkifierService(
+			'scripts/test.sh',
+		).createLinkifier(emptyContext);
+
+		const result = await runLinkifier(linkifier, [
+			'`./scripts/test.sh src/vs/editor/test/common/model.test.ts src/vs/editor/test/common/range.test.ts`',
+		]);
+		assertPartsEqual(result, [
+			'`./scripts/test.sh src/vs/editor/test/common/model.test.ts src/vs/editor/test/common/range.test.ts`',
+		]);
+	});
+
+	test(`Should linkify multi-token inline code when the whole path exists`, async () => {
+		const linkifier = createTestLinkifierService(
+			'src/vs/editor/test/common/model.test.ts',
+		).createLinkifier(emptyContext);
+
+		const result = await runLinkifier(linkifier, [
+			'`src/vs/editor/test/common/model.test.ts`',
+		]);
+		assertPartsEqual(result, [
+			new LinkifyLocationAnchor(workspaceFile('src/vs/editor/test/common/model.test.ts')),
+		]);
+	});
+
+	test(`Should handle multi-token inline code split across parts`, async () => {
+		// Simulate streaming where inline code is split across multiple append calls
+		const linkifier = createTestLinkifierService(
+			'scripts/test.sh',
+		).createLinkifier(emptyContext);
+
+		const result = await runLinkifier(linkifier, [
+			'`./scripts/test.sh ',
+			'src/vs/editor/test/common/model.test.ts ',
+			'src/vs/editor/test/common/range.test.ts`',
+		]);
+		assertPartsEqual(result, [
+			'`./scripts/test.sh src/vs/editor/test/common/model.test.ts src/vs/editor/test/common/range.test.ts`',
+		]);
+	});
+
+	test(`Should not linkify plain text paths after inline code block`, async () => {
+		// Ensure that paths after inline code are still linkified normally
+		const linkifier = createTestLinkifierService(
+			'scripts/test.sh',
+			'src/file.ts',
+		).createLinkifier(emptyContext);
+
+		const result = await runLinkifier(linkifier, [
+			'`./scripts/test.sh src/vs/editor/test/common/model.test.ts` ',
+			'src/file.ts',
+		]);
+		assertPartsEqual(result, [
+			'`./scripts/test.sh src/vs/editor/test/common/model.test.ts` ',
+			new LinkifyLocationAnchor(workspaceFile('src/file.ts')),
+		]);
+	});
+
+	test(`Should not linkify inline code with space-containing path that exists in workspace`, async () => {
+		// Multi-token inline code preserves backticks in the accumulated text.
+		// resolvePathText receives the text with backtick characters, which won't
+		// match any real file, so it remains unchanged.
+		const linkifier = createTestLinkifierService(
+			'space file.ts',
+			'sub space/space file.ts',
+		).createLinkifier(emptyContext);
+
+		const result = await runLinkifier(linkifier, [
+			'`space file.ts`',
+		]);
+		assertPartsEqual(result, [
+			'`space file.ts`',
+		]);
+	});
+
+	test(`Should not linkify inline code with space-containing directory path`, async () => {
+		const linkifier = createTestLinkifierService(
+			'sub space/space file.ts',
+		).createLinkifier(emptyContext);
+
+		const result = await runLinkifier(linkifier, [
+			'`sub space/space file.ts`',
+		]);
+		assertPartsEqual(result, [
+			'`sub space/space file.ts`',
+		]);
+	});
+
+	test(`Should not linkify inline code with space-containing path split across stream parts`, async () => {
+		const linkifier = createTestLinkifierService(
+			'space file.ts',
+		).createLinkifier(emptyContext);
+
+		const result = await runLinkifier(linkifier, [
+			'`space ',
+			'file.ts`',
+		]);
+		assertPartsEqual(result, [
+			'`space file.ts`',
+		]);
+	});
 });

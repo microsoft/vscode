@@ -44,6 +44,16 @@ export class FilePathLinkifier implements IContributedLinkifier {
 	) { }
 
 	async linkify(text: string, context: LinkifierContext, token: CancellationToken): Promise<LinkifiedText> {
+		// For multi-token inline code, the entire content is a single path candidate.
+		// Try the whole text as one path — if it doesn't resolve, leave it unchanged.
+		if (context.isInlineCode) {
+			const uri = await this.resolvePathText(text, context);
+			if (uri) {
+				return { parts: [new LinkifyLocationAnchor(uri)] };
+			}
+			return { parts: [text] };
+		}
+
 		const parts: Array<Promise<LinkifiedPart> | LinkifiedPart> = [];
 
 		let endLastMatch = 0;
