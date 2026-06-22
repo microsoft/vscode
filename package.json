@@ -1,6 +1,6 @@
 {
   "name": "code-oss-dev",
-  "version": "1.126.0",
+  "version": "1.127.0",
   "distro": "e6b302180cc8fecde16d482d0f2add78b067b6bf",
   "author": {
     "name": "Microsoft Corporation"
@@ -136,6 +136,7 @@
     "@xterm/headless": "^6.1.0-beta.285",
     "@xterm/xterm": "^6.1.0-beta.285",
     "chrome-remote-interface": "^0.33.0",
+    "detect-libc": "^2.1.2",
     "http-proxy-agent": "^7.0.0",
     "https-proxy-agent": "^7.0.2",
     "jschardet": "3.1.4",

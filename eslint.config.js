@@ -1551,6 +1551,7 @@ export default defineConfig(
 						'console',
 						'cookie',
 						'crypto',
+						'detect-libc',
 						'dns',
 						'events',
 						'fs',
