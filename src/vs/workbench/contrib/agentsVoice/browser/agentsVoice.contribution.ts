@@ -430,5 +430,14 @@ configurationRegistry.registerConfiguration({
 			included: false,
 			tags: ['advanced'],
 		},
+		'agents.voice.autoSendDelay': {
+			type: 'number',
+			description: nls.localize('agents.voice.autoSendDelay', "In toggle voice mode (short tap), automatically finish recording after this many milliseconds of silence. Set to -1 to disable."),
+			default: 1000,
+			minimum: -1,
+			scope: ConfigurationScope.APPLICATION,
+			included: false,
+			tags: ['advanced'],
+		},
 	}
 });
