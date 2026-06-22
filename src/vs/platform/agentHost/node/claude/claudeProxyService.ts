@@ -8,6 +8,7 @@ import type { CCAModel } from '@vscode/copilot-api';
 import type * as http from 'http';
 import { once } from 'events';
 import { AddressInfo } from 'net';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
@@ -17,6 +18,7 @@ import {
 	ICopilotApiService,
 	type ICopilotApiServiceRequestOptions,
 } from '../shared/copilotApiService.js';
+import { buildForwardedChatError, encodeForwardedChatError } from '../shared/forwardedChatError.js';
 import { filterSupportedBetas } from './anthropicBetas.js';
 import {
 	buildErrorEnvelope,
@@ -48,8 +50,32 @@ export interface IClaudeProxyHandle extends IDisposable {
 	readonly nonce: string;
 }
 
+/**
+ * A per-request credits report. CAPI returns the actual billed credits
+ * for a `/v1/messages` request as `copilot_usage.total_nano_aiu` on the
+ * Anthropic SSE stream. The Claude SDK subprocess strips this field from
+ * its `result` message, so the proxy — which sees the raw CAPI response —
+ * is the only place the real billed amount survives. `sessionId` is
+ * decoded from the proxy Bearer token (`<nonce>.<sessionId>`) so consumers
+ * can attribute credits to the originating session/turn.
+ */
+export interface IClaudeProxyCreditsReport {
+	readonly sessionId: string;
+	/** Billed credits for the request, in nano-AIU (1 credit = 1e9 nano-AIU). */
+	readonly totalNanoAiu: number;
+}
+
 export interface IClaudeProxyService {
 	readonly _serviceBrand: undefined;
+
+	/**
+	 * Fires once per completed CAPI `/v1/messages` request that reported
+	 * `copilot_usage.total_nano_aiu`. Consumers accumulate per turn to
+	 * surface real per-turn Copilot credits (the SDK-computed
+	 * `total_cost_usd` is an Anthropic-list-price estimate, not the
+	 * amount CAPI actually bills).
+	 */
+	readonly onDidReportCredits: Event<IClaudeProxyCreditsReport>;
 
 	/**
 	 * Start the proxy (if not already running) and return a refcounted
@@ -105,6 +131,7 @@ interface IProxyRuntime {
 const KNOWN_CLAUDE_VENDORS = new Set(['anthropic']);
 const ANTHROPIC_MESSAGES_ENDPOINT = '/v1/messages';
 const PROXY_USER_FACING_NAME = 'ClaudeProxyService';
+const USER_AGENT_PREFIX = 'vscode_claude_code';
 
 /**
  * Build the 256-bit hex nonce embedded in the `Bearer <nonce>.<sessionId>`
@@ -119,6 +146,26 @@ function generateNonce(): string {
 		out += bytes[i].toString(16).padStart(2, '0');
 	}
 	return out;
+}
+
+/**
+ * CAPI augments the Anthropic `/v1/messages` response with the request's
+ * billed credits under `copilot_usage.total_nano_aiu`. The published
+ * Anthropic SDK types don't declare it, so narrow through this shape
+ * (mirrors `messagesApi.ts` in the Copilot extension).
+ */
+interface ICopilotUsageEnvelope {
+	readonly copilot_usage?: { readonly total_nano_aiu?: number };
+}
+
+/**
+ * Read `copilot_usage.total_nano_aiu` off an Anthropic stream event or
+ * message, returning `undefined` unless it is a finite, non-negative
+ * number.
+ */
+function readCopilotUsageNanoAiu(event: unknown): number | undefined {
+	const value = (event as ICopilotUsageEnvelope | undefined)?.copilot_usage?.total_nano_aiu;
+	return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
 }
 
 /**
@@ -138,6 +185,9 @@ export class ClaudeProxyService implements IClaudeProxyService {
 	private _runtime: IProxyRuntime | undefined;
 	private _starting: Promise<IProxyRuntime> | undefined;
 	private _disposed = false;
+
+	private readonly _onDidReportCredits = new Emitter<IClaudeProxyCreditsReport>();
+	readonly onDidReportCredits: Event<IClaudeProxyCreditsReport> = this._onDidReportCredits.event;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -185,6 +235,20 @@ export class ClaudeProxyService implements IClaudeProxyService {
 		}
 		this._disposed = true;
 		this._teardownRuntime();
+		this._onDidReportCredits.dispose();
+	}
+
+	/**
+	 * Fire {@link onDidReportCredits} for a completed request. No-op when
+	 * the request carried no credits (`copilot_usage` absent) or the
+	 * Bearer token lacked a session id (shouldn't happen post-auth).
+	 */
+	private _reportCredits(sessionId: string | undefined, totalNanoAiu: number | undefined): void {
+		if (sessionId === undefined || totalNanoAiu === undefined) {
+			return;
+		}
+		this._logService.trace(`[${PROXY_USER_FACING_NAME}] credits: session=${sessionId} totalNanoAiu=${totalNanoAiu}`);
+		this._onDidReportCredits.fire({ sessionId, totalNanoAiu });
 	}
 
 	/**
@@ -340,12 +404,12 @@ export class ClaudeProxyService implements IClaudeProxyService {
 		}
 
 		if (method === 'GET' && pathname === '/v1/models') {
-			await this._handleModels(res, runtime);
+			await this._handleModels(req, res, runtime);
 			return;
 		}
 
 		if (method === 'POST' && pathname === '/v1/messages') {
-			await this._handleMessages(req, res, runtime);
+			await this._handleMessages(req, res, runtime, auth.sessionId);
 			return;
 		}
 
@@ -361,10 +425,11 @@ export class ClaudeProxyService implements IClaudeProxyService {
 
 	// #region GET /v1/models
 
-	private async _handleModels(res: http.ServerResponse, runtime: IProxyRuntime): Promise<void> {
+	private async _handleModels(req: http.IncomingMessage, res: http.ServerResponse, runtime: IProxyRuntime): Promise<void> {
+		const headers = buildOutboundHeaders(req.headers);
 		let models: CCAModel[];
 		try {
-			models = await this._copilotApiService.models(runtime.githubToken);
+			models = await this._copilotApiService.models(runtime.githubToken, { headers });
 		} catch (err) {
 			this._writeUpstreamErrorResponse(res, err);
 			return;
@@ -406,6 +471,7 @@ export class ClaudeProxyService implements IClaudeProxyService {
 		req: http.IncomingMessage,
 		res: http.ServerResponse,
 		runtime: IProxyRuntime,
+		sessionId: string | undefined,
 	): Promise<void> {
 		let bodyString: string;
 		try {
@@ -443,6 +509,9 @@ export class ClaudeProxyService implements IClaudeProxyService {
 			writeJsonError(res, 404, 'not_found_error', `Unknown model: ${sdkModelId}`);
 			return;
 		}
+		// The SDK/CLI sends the model in SDK format (dashed, `claude-haiku-4-5`);
+		// CAPI's `/v1/messages` expects the endpoint format (dotted,
+		// `claude-haiku-4.5`). Rewrite on the way out.
 		const endpointModelId = parsedModel.toEndpointModelId();
 		body.model = endpointModelId;
 
@@ -470,6 +539,7 @@ export class ClaudeProxyService implements IClaudeProxyService {
 					entry,
 					runtime,
 					sdkModelId,
+					sessionId,
 				);
 			} else {
 				await this._sendNonStreamingMessage(
@@ -479,6 +549,7 @@ export class ClaudeProxyService implements IClaudeProxyService {
 					entry,
 					runtime,
 					sdkModelId,
+					sessionId,
 				);
 			}
 		} finally {
@@ -494,6 +565,7 @@ export class ClaudeProxyService implements IClaudeProxyService {
 		entry: IInFlight,
 		runtime: IProxyRuntime,
 		originalSdkModelId: string,
+		sessionId: string | undefined,
 	): Promise<void> {
 		const options: ICopilotApiServiceRequestOptions = { headers, signal: entry.ac.signal };
 		let message: Anthropic.Message;
@@ -506,9 +578,11 @@ export class ClaudeProxyService implements IClaudeProxyService {
 				}
 				return;
 			}
-			this._writeUpstreamErrorResponse(res, err);
+			this._writeUpstreamErrorResponse(res, err, true);
 			return;
 		}
+
+		this._reportCredits(sessionId, readCopilotUsageNanoAiu(message));
 
 		// Rewrite outbound `model` to SDK format. Failure to re-parse
 		// shouldn't normally happen because we just translated it on
@@ -527,6 +601,7 @@ export class ClaudeProxyService implements IClaudeProxyService {
 		entry: IInFlight,
 		runtime: IProxyRuntime,
 		_originalSdkModelId: string,
+		sessionId: string | undefined,
 	): Promise<void> {
 		const options: ICopilotApiServiceRequestOptions = { headers, signal: entry.ac.signal };
 		let stream: AsyncGenerator<Anthropic.MessageStreamEvent>;
@@ -541,7 +616,7 @@ export class ClaudeProxyService implements IClaudeProxyService {
 				}
 				return;
 			}
-			this._writeUpstreamErrorResponse(res, err);
+			this._writeUpstreamErrorResponse(res, err, true);
 			return;
 		}
 
@@ -557,7 +632,7 @@ export class ClaudeProxyService implements IClaudeProxyService {
 				}
 				return;
 			}
-			this._writeUpstreamErrorResponse(res, err);
+			this._writeUpstreamErrorResponse(res, err, true);
 			return;
 		}
 
@@ -585,8 +660,14 @@ export class ClaudeProxyService implements IClaudeProxyService {
 			return true;
 		};
 
+		// Tracks the latest `copilot_usage.total_nano_aiu` seen on the
+		// stream; CAPI sends the request's running total on `message_delta`
+		// (assign-last-wins). Reported once on clean stream end.
+		let reportedNanoAiu: number | undefined;
+
 		try {
 			if (!first.done) {
+				reportedNanoAiu = readCopilotUsageNanoAiu(first.value) ?? reportedNanoAiu;
 				const ok = await writeFrame(first.value);
 				if (!ok) {
 					return;
@@ -605,7 +686,7 @@ export class ClaudeProxyService implements IClaudeProxyService {
 					}
 					// Mid-stream error: emit Anthropic SSE error frame, then end.
 					const envelope = err instanceof CopilotApiError
-						? err.envelope
+						? embedForwardedChatError(err)
 						: buildErrorEnvelope('api_error', stringifyError(err));
 					if (!res.writableEnded) {
 						try {
@@ -620,6 +701,7 @@ export class ClaudeProxyService implements IClaudeProxyService {
 				if (next.done) {
 					break;
 				}
+				reportedNanoAiu = readCopilotUsageNanoAiu(next.value) ?? reportedNanoAiu;
 				const ok = await writeFrame(next.value);
 				if (!ok) {
 					return;
@@ -628,6 +710,12 @@ export class ClaudeProxyService implements IClaudeProxyService {
 			if (!res.writableEnded) {
 				res.end();
 			}
+			// CAPI reports the request's billed credits as the last
+			// `copilot_usage.total_nano_aiu` seen on the stream
+			// (assign-last-wins, matching the Copilot messages client).
+			// Fire only after a clean end so we never attribute credits
+			// for a request the client abandoned mid-stream.
+			this._reportCredits(sessionId, reportedNanoAiu);
 		} catch (err) {
 			// Defense in depth — should not be reached.
 			this._logService.warn(`[${PROXY_USER_FACING_NAME}] stream loop unexpected error: ${stringifyError(err)}`);
@@ -641,7 +729,15 @@ export class ClaudeProxyService implements IClaudeProxyService {
 
 	// #region Error helpers
 
-	private _writeUpstreamErrorResponse(res: http.ServerResponse, err: unknown): void {
+	/**
+	 * Writes an upstream error as a JSON response. When `embedChatError` is set
+	 * (the `/v1/messages` paths), a `VSCODE_PROXY_ERROR` marker is appended to
+	 * the envelope message so the structured CAPI error round-trips back through
+	 * the SDK subprocess to the agent host (which decodes it into `_meta` and
+	 * strips the marker). The `/v1/models` path does not round-trip, so it
+	 * re-emits the envelope verbatim.
+	 */
+	private _writeUpstreamErrorResponse(res: http.ServerResponse, err: unknown, embedChatError = false): void {
 		if (res.headersSent) {
 			// Headers are already sent — caller should have routed to
 			// the SSE error path. This is a defensive log.
@@ -657,7 +753,7 @@ export class ClaudeProxyService implements IClaudeProxyService {
 			// don't ship a 520 with a JSON body that violates HTTP
 			// semantics for the consumer.
 			const status = err.status === COPILOT_API_ERROR_STATUS_STREAMING ? 502 : err.status;
-			writeUpstreamJsonError(res, status, err.envelope);
+			writeUpstreamJsonError(res, status, embedChatError ? embedForwardedChatError(err) : err.envelope);
 			return;
 		}
 		writeJsonError(res, 502, 'api_error', err instanceof Error ? err.message : String(err));
@@ -711,9 +807,9 @@ function rewriteEventModel(
 
 /**
  * Build the headers we forward to {@link ICopilotApiService.messages}
- * from the inbound request. Drops everything except `anthropic-version`
- * (verbatim) and `anthropic-beta` (filtered through
- * {@link filterSupportedBetas}).
+ * from the inbound request. Forwards `anthropic-version` (verbatim),
+ * `anthropic-beta` (filtered through {@link filterSupportedBetas}), and
+ * `user-agent` (transformed via {@link transformUserAgent}).
  */
 function buildOutboundHeaders(inbound: http.IncomingHttpHeaders): Record<string, string> {
 	const out: Record<string, string> = {};
@@ -728,7 +824,31 @@ function buildOutboundHeaders(inbound: http.IncomingHttpHeaders): Record<string,
 			out['anthropic-beta'] = filtered;
 		}
 	}
+	const userAgent = inbound['user-agent'];
+	if (typeof userAgent === 'string' && userAgent.length > 0) {
+		out['User-Agent'] = transformUserAgent(userAgent);
+	}
 	return out;
+}
+
+/**
+ * Transform an incoming user-agent string by replacing the client name
+ * portion (before the first `/`) with {@link USER_AGENT_PREFIX}. This
+ * mirrors the pattern used by `claudeLanguageModelServer.ts` in the
+ * extension, ensuring all Claude requests are tagged with a consistent
+ * prefix for server-side identification.
+ *
+ * Examples:
+ * - `claude-code/1.2.3` → `vscode_claude_code/1.2.3`
+ * - `Anthropic/Python/1.0` → `vscode_claude_code/Python/1.0`
+ * - `unknown` → `vscode_claude_code/unknown`
+ */
+function transformUserAgent(userAgent: string): string {
+	const slashIndex = userAgent.indexOf('/');
+	if (slashIndex === -1) {
+		return `${USER_AGENT_PREFIX}/${userAgent}`;
+	}
+	return `${USER_AGENT_PREFIX}${userAgent.substring(slashIndex)}`;
 }
 
 function readRequestBody(req: http.IncomingMessage): Promise<string> {
@@ -756,6 +876,25 @@ function stringifyError(err: unknown): string {
 		return err.message;
 	}
 	return String(err);
+}
+
+/**
+ * Returns a copy of a {@link CopilotApiError}'s Anthropic envelope with a
+ * `VSCODE_PROXY_ERROR:<base64>` marker appended to the error message. The
+ * marker carries the structured chat fetch error so the agent host can
+ * forward rich, localized error messaging to core once the SDK subprocess
+ * echoes the text back. The original message is preserved (the decoder stops
+ * at the first whitespace), so non-core consumers still read it verbatim.
+ */
+function embedForwardedChatError(err: CopilotApiError): Anthropic.ErrorResponse {
+	const marker = encodeForwardedChatError(buildForwardedChatError(err));
+	return {
+		...err.envelope,
+		error: {
+			...err.envelope.error,
+			message: `${err.envelope.error.message} ${marker}`,
+		},
+	};
 }
 
 // #endregion

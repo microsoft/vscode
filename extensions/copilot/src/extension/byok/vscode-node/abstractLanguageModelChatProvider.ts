@@ -37,6 +37,13 @@ export abstract class AbstractLanguageModelChatProvider<C extends LanguageModelC
 		this.configureDefaultGroupWithApiKeyOnly();
 	}
 
+	updateKnownModels(knownModels: BYOKKnownModels | undefined): void {
+		if (!knownModels) {
+			return;
+		}
+		this._knownModels = { ...this._knownModels, ...knownModels };
+	}
+
 	// TODO: Remove this after 6 months
 	protected async configureDefaultGroupWithApiKeyOnly(): Promise<string | undefined> {
 		const apiKey = await this._byokStorageService.getAPIKey(this._name);
@@ -60,6 +67,7 @@ export abstract class AbstractLanguageModelChatProvider<C extends LanguageModelC
 		const models = await this.getAllModels(silent, apiKey, configuration as C);
 		return models.map(model => ({
 			...model,
+			isBYOK: true,
 			apiKey,
 			configuration
 		}));

@@ -424,7 +424,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: TOGGLE_DIFF_SID
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: SHOW_EDITORS_IN_GROUP, title: localize('showOpenedEditors', "Show Opened Editors") }, group: '3_open', order: 10, when: EditorPartModalContext.toNegated() /* not applicable to modal editor */ });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: CLOSE_EDITORS_IN_GROUP_COMMAND_ID, title: localize('closeAll', "Close All") }, group: '5_close', order: 10, when: EditorPartModalContext.toNegated() /* not applicable to modal editor */ });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: CLOSE_SAVED_EDITORS_COMMAND_ID, title: localize('closeAllSaved', "Close Saved") }, group: '5_close', order: 20, when: EditorPartModalContext.toNegated() /* not applicable to modal editor */ });
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: TOGGLE_KEEP_EDITORS_COMMAND_ID, title: localize('togglePreviewMode', "Enable Preview Editors"), toggled: ContextKeyExpr.has('config.workbench.editor.enablePreview') }, group: '7_settings', order: 10 });
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: TOGGLE_KEEP_EDITORS_COMMAND_ID, title: localize('togglePreviewMode', "Enable Preview Editors"), toggled: ContextKeyExpr.has('config.workbench.editor.enablePreview') }, group: '7_settings', order: 10, when: EditorPartModalContext.toNegated() /* not applicable to modal editor */ });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: TOGGLE_MAXIMIZE_EDITOR_GROUP, title: localize('maximizeGroup', "Maximize Group") }, group: '8_group_operations', order: 5, when: ContextKeyExpr.and(EditorPartMaximizedEditorGroupContext.negate(), EditorPartMultipleEditorGroupsContext) });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: TOGGLE_MAXIMIZE_EDITOR_GROUP, title: localize('unmaximizeGroup', "Unmaximize Group") }, group: '8_group_operations', order: 5, when: EditorPartMaximizedEditorGroupContext });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: TOGGLE_LOCK_GROUP_COMMAND_ID, title: localize('lockGroup', "Lock Group"), toggled: ActiveEditorGroupLockedContext }, group: '8_group_operations', order: 10, when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), EditorPartModalContext.toNegated()) /* already a primary action for aux windows, not applicable to modal editor */ });
@@ -465,13 +465,15 @@ const SPLIT_ORDER = 100000;  // towards the end
 const CLOSE_ORDER = 1000000; // towards the far end
 
 // Editor Title Menu: Split Editor
+// In the agents window the split editor action is moved into the overflow (...)
+// menu (see below) rather than being shown as a primary toolbar icon.
 appendEditorToolItem(
 	{
 		id: SPLIT_EDITOR,
 		title: localize('splitEditorRight', "Split Editor Right"),
 		icon: Codicon.splitHorizontal
 	},
-	SplitEditorsVertically.negate(),
+	ContextKeyExpr.and(SplitEditorsVertically.negate(), IsSessionsWindowContext.toNegated()),
 	SPLIT_ORDER,
 	{
 		id: SPLIT_EDITOR_DOWN,
@@ -486,7 +488,7 @@ appendEditorToolItem(
 		title: localize('splitEditorDown', "Split Editor Down"),
 		icon: Codicon.splitVertical
 	},
-	SplitEditorsVertically,
+	ContextKeyExpr.and(SplitEditorsVertically, IsSessionsWindowContext.toNegated()),
 	SPLIT_ORDER,
 	{
 		id: SPLIT_EDITOR_RIGHT,
@@ -494,6 +496,30 @@ appendEditorToolItem(
 		icon: Codicon.splitHorizontal
 	}
 );
+
+// Agents window: show Split Editor in the editor title overflow (...) menu
+// instead of as a primary toolbar icon. Mirror the orientation handling of the
+// primary toolbar items so the label/icon match the configured split direction.
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	command: {
+		id: SPLIT_EDITOR,
+		title: localize('splitEditorRight', "Split Editor Right"),
+		icon: Codicon.splitHorizontal
+	},
+	group: '4_split',
+	order: 10,
+	when: ContextKeyExpr.and(IsSessionsWindowContext, SplitEditorsVertically.negate())
+});
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	command: {
+		id: SPLIT_EDITOR,
+		title: localize('splitEditorDown', "Split Editor Down"),
+		icon: Codicon.splitVertical
+	},
+	group: '4_split',
+	order: 10,
+	when: ContextKeyExpr.and(IsSessionsWindowContext, SplitEditorsVertically)
+});
 
 // Side by side: layout
 appendEditorToolItem(
@@ -648,7 +674,9 @@ appendEditorToolItem(
 	ActiveCustomEditorTextDiffContext,
 	16,
 	undefined,
-	undefined
+	undefined,
+	undefined,
+	true
 );
 
 const toggleWhitespace = registerIcon('diff-editor-toggle-whitespace', Codicon.whitespace, localize('toggleWhitespace', 'Icon for the toggle whitespace action in the diff editor.'));

@@ -44,6 +44,7 @@ suite('StorageMainService', function () {
 		keybindingsResource: joinPath(inMemoryProfileRoot, 'keybindingsResource'),
 		tasksResource: joinPath(inMemoryProfileRoot, 'tasksResource'),
 		mcpResource: joinPath(inMemoryProfileRoot, 'mcp.json'),
+		languageModelsResource: joinPath(inMemoryProfileRoot, 'chatLanguageModels.json'),
 		snippetsHome: joinPath(inMemoryProfileRoot, 'snippetsHome'),
 		promptsHome: joinPath(inMemoryProfileRoot, 'promptsHome'),
 		extensionsResource: joinPath(inMemoryProfileRoot, 'extensionsResource'),

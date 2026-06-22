@@ -94,7 +94,7 @@ export class InlineChatProgressMessages {
 		}
 
 		try {
-			const endpoint = await this._endpointProvider.getChatEndpoint('copilot-fast');
+			const endpoint = await this._endpointProvider.getChatEndpoint('copilot-utility-small');
 
 			const selectedCode = documentContext.selection.isEmpty
 				? undefined
@@ -187,7 +187,7 @@ export class InlineChatProgressMessages {
 
 	private async _fetchMessages(scenario: ProgressMessageScenario): Promise<void> {
 		try {
-			const endpoint = await this._endpointProvider.getChatEndpoint('copilot-fast');
+			const endpoint = await this._endpointProvider.getChatEndpoint('copilot-utility-small');
 
 			const props: ProgressMessagesPromptProps = { scenario, count: MESSAGES_PER_FETCH };
 			const { messages: promptMessages } = await renderPromptElement(

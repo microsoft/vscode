@@ -21,6 +21,7 @@ import { IInstantiationService } from '../../../util/vs/platform/instantiation/c
 import { renderPromptElement } from '../../prompts/node/base/promptRenderer';
 import { PromptCategorizationPrompt } from '../../prompts/node/panel/promptCategorization';
 import { CATEGORIZE_PROMPT_TOOL_NAME, CATEGORIZE_PROMPT_TOOL_SCHEMA, isValidDomain, isValidIntent, isValidScope, PromptClassification } from '../common/promptCategorizationTaxonomy';
+import { getModeNameForTelemetry } from './telemetry';
 
 /** Experiment flag to enable prompt categorization */
 const EXP_FLAG_PROMPT_CATEGORIZATION = 'copilotchat.promptCategorization';
@@ -172,13 +173,13 @@ export class PromptCategorizerService implements IPromptCategorizerService {
 		// Gather context signals (outside try block for telemetry access)
 		const currentLanguage = this.tabsAndEditorsService.activeTextEditor?.document.languageId;
 
-		// Use 10 second timeout - classification should be fast with copilot-fast model
+		// Use 10 second timeout - classification should be fast with copilot-utility-small model
 		const CATEGORIZATION_TIMEOUT_MS = 10_000;
 		const cts = new CancellationTokenSource();
 		const timeoutHandle = setTimeout(() => cts.cancel(), CATEGORIZATION_TIMEOUT_MS);
 
 		try {
-			const endpoint = await this.endpointProvider.getChatEndpoint('copilot-fast');
+			const endpoint = await this.endpointProvider.getChatEndpoint('copilot-utility-small');
 
 			const { messages } = await renderPromptElement(
 				this.instantiationService,
@@ -326,7 +327,7 @@ export class PromptCategorizerService implements IPromptCategorizerService {
 				sessionId: request.sessionId ?? '',
 				requestId: telemetryMessageId,
 				vscodeRequestId: request.id ?? '',
-				modeName: request.modeInstructions2?.isBuiltin ? request.modeInstructions2?.name.toLowerCase() : 'custom',
+				modeName: getModeNameForTelemetry(request.modeInstructions2) ?? 'custom',
 				currentLanguage: currentLanguage ?? '',
 				outcome,
 				intent: classification?.intent ?? '',
@@ -358,7 +359,7 @@ export class PromptCategorizerService implements IPromptCategorizerService {
 				sessionId: request.sessionId ?? '',
 				requestId: telemetryMessageId,
 				vscodeRequestId: request.id ?? '',
-				modeName: request.modeInstructions2?.isBuiltin ? request.modeInstructions2?.name.toLowerCase() : 'custom',
+				modeName: getModeNameForTelemetry(request.modeInstructions2) ?? 'custom',
 				currentLanguage: currentLanguage ?? '',
 				outcome,
 				errorDetail: truncatedErrorDetail,

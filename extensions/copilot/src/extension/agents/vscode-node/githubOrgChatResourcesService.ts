@@ -125,7 +125,13 @@ export class GitHubOrgChatResourcesService extends Disposable implements IGitHub
 
 	private async computePreferredOrganizationName(): Promise<string | undefined> {
 		// Check if user is signed in first
-		const currentUser = await this.octoKitService.getCurrentAuthedUser();
+		let currentUser: Awaited<ReturnType<typeof this.octoKitService.getCurrentAuthedUser>>;
+		try {
+			currentUser = await this.octoKitService.getCurrentAuthedUser();
+		} catch (error) {
+			this.logService.error(`[GitHubOrgChatResourcesService] Error checking authenticated user: ${error}`);
+			return undefined;
+		}
 		if (!currentUser) {
 			this.logService.trace('[GitHubOrgChatResourcesService] User is not signed in');
 			return undefined;

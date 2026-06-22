@@ -19,9 +19,10 @@ import { Action2, IMenuService, MenuId, MenuItemAction, MenuRegistry, registerAc
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IRelaxedExtensionDescription } from '../../../../../platform/extensions/common/extensions.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
-import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { isDark } from '../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -30,7 +31,7 @@ import { ExtensionsRegistry } from '../../../../services/extensions/common/exten
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { ChatSessionOptionsMap, ChatSessionStatus, IChatNewSessionRequest, IChatSession, IChatSessionCommitEvent, IChatSessionContentProvider, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, IChatInputCompletionsParams, IChatInputCompletionsResult, isSessionInProgressStatus, ReadonlyChatSessionOptionsMap, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
+import { ChatSessionOptionsMap, ChatSessionStatus, ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatNewSessionRequest, IChatSession, IChatSessionCommitEvent, IChatSessionContentProvider, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, IChatInputCompletionsParams, IChatInputCompletionsResult, isSessionInProgressStatus, localChatSessionType, ReadonlyChatSessionOptionsMap, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
@@ -219,6 +220,11 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 					type: 'boolean',
 					default: false
 				},
+				supportsAutoModel: {
+					description: localize('chatSessionsExtPoint.supportsAutoModel', 'Whether the chat session supports the synthetic "Auto" model fallback. Defaults to false. When true and no models are available, the picker shows "Auto" instead of a "No models available" state.'),
+					type: 'boolean',
+					default: false
+				},
 				autoAttachReferences: {
 					description: localize('chatSessionsExtPoint.autoAttachReferences', 'Whether to automatically attach instruction files to chat requests for this session type.'),
 					type: 'boolean',
@@ -275,6 +281,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	readonly _serviceBrand: undefined;
 
 	private readonly _itemControllers = new Map</* type */ string, { readonly controller: IChatSessionItemController; readonly initialRefresh: Promise<void> }>();
+	private readonly _asyncActivationRegistry = Registry.as<IAsyncChatSessionActivationRegistry>(ChatSessionsExtensions.AsyncActivation);
 
 	private readonly _contributions: Map</* type */ string, { readonly contribution: IChatSessionsExtensionPoint; readonly extension: IRelaxedExtensionDescription | undefined }> = new Map();
 	private readonly _contributionDisposables = this._register(new DisposableMap</* type */ string>());
@@ -324,7 +331,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IMenuService private readonly _menuService: IMenuService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@ILabelService private readonly _labelService: ILabelService
+		@ILabelService private readonly _labelService: ILabelService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -368,7 +376,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				const knownProvider = getAgentSessionProvider(type);
 				if (knownProvider) {
 					// Well-known provider — use hardcoded name
-					reader.store.add(registerNewSessionInPlaceAction(type, getAgentSessionProviderName(knownProvider)));
+					const label = getAgentSessionProviderName(knownProvider);
+					reader.store.add(registerNewSessionInPlaceAction(type, label));
 				} else {
 					// Extension-contributed — use contribution metadata
 					const contrib = this._contributions.get(type);
@@ -417,7 +426,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			for await (const result of this.getChatSessionItems([chatSessionType], CancellationToken.None)) {
 				items.push(...result.items);
 			}
-			const inProgress = items.filter(item => item.status && isSessionInProgressStatus(item.status));
+			const inProgress = items.filter(item => !item.archived && item.status && isSessionInProgressStatus(item.status));
 			this.reportInProgress(chatSessionType, inProgress.length);
 		} catch (error) {
 			this._logService.warn(`Failed to update in-progress status for chat session type '${chatSessionType}':`, error);
@@ -478,6 +487,26 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}
 		const whenExpr = ContextKeyExpr.deserialize(contribution.when);
 		return !whenExpr || this._contextKeyService.contextMatchesRules(whenExpr);
+	}
+
+	/**
+	 * Type-keyed companion to {@link _isContributionAvailable}. Resolves the
+	 * session type (including alternative ids) to its contribution and reports
+	 * whether that contribution is currently enabled by its `when` clause.
+	 *
+	 * Session types with no contribution entry (e.g. the built-in `local`
+	 * provider, or item controllers registered without a matching contribution)
+	 * are treated as available, since there is no `when` clause gating them.
+	 */
+	private _isContributionAvailableForType(sessionType: string): boolean {
+		// Resolve the owning contribution by primary type, falling back to the
+		// alternative-id map. We must NOT use `_resolveToPrimaryType` here: it
+		// returns `undefined` once the primary contribution is unavailable, which
+		// would make a gated contribution reached via an alternative id read as
+		// "no contribution" and therefore available.
+		const primaryType = this._contributions.has(sessionType) ? sessionType : this._alternativeIdMap.get(sessionType);
+		const contribution = primaryType ? this._contributions.get(primaryType)?.contribution : undefined;
+		return !contribution || this._isContributionAvailable(contribution);
 	}
 
 	/**
@@ -564,15 +593,15 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 					if (chatOptions) {
 						let attachedContext = chatOptions.attachedContext;
 
-						const resource = URI.revive(chatOptions.resource);
-						const ref = await chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None, 'ChatSessionsContribution#sendPrompt');
+						const sessionResource = URI.revive(chatOptions.resource);
+						const ref = await chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None, 'ChatSessionsContribution#sendPrompt');
 						try {
-							const promptFile = await resolvePromptSlashCommand(chatOptions.prompt, contribution.type, customizationHarnessService, toolsService);
+							const promptFile = await resolvePromptSlashCommand(chatOptions.prompt, sessionResource, customizationHarnessService, toolsService);
 							if (promptFile) {
 								attachedContext = [promptFile, ...(attachedContext ?? [])];
 							}
 
-							const result = await chatService.sendRequest(resource, chatOptions.prompt, { agentIdSilent: type, attachedContext });
+							const result = await chatService.sendRequest(sessionResource, chatOptions.prompt, { agentIdSilent: type, attachedContext });
 							if (result.kind === 'queued') {
 								await result.deferred;
 							} else if (result.kind === 'sent') {
@@ -838,8 +867,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			chatViewType = resolvedType;
 		}
 
-		const contribution = this._contributions.get(chatViewType)?.contribution;
-		if (contribution && !this._isContributionAvailable(contribution)) {
+		if (!this._isContributionAvailableForType(chatViewType)) {
 			return false;
 		}
 
@@ -855,9 +883,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	async canResolveChatSession(sessionType: string) {
 		await this._extensionService.whenInstalledExtensionsRegistered();
-		const resolvedType = this._resolveToPrimaryType(sessionType) || sessionType;
-		const contribution = this._contributions.get(resolvedType)?.contribution;
-		if (contribution && !this._isContributionAvailable(contribution)) {
+		if (!this._isContributionAvailableForType(sessionType)) {
 			return false;
 		}
 
@@ -865,8 +891,29 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			return true;
 		}
 
+		const asyncActivators = this._asyncActivationRegistry.getActivators(sessionType);
+		if (asyncActivators.length) {
+			for (const activator of asyncActivators) {
+				if (await this._instantiationService.invokeFunction(accessor => activator.waitForActivation(accessor, sessionType))) {
+					await this.waitForContentProvider(sessionType);
+					if (this._contentProviders.has(sessionType)) {
+						return true;
+					}
+				}
+			}
+			return false;
+		}
+
 		await this._extensionService.activateByEvent(`onChatSession:${sessionType}`);
 		return this._contentProviders.has(sessionType);
+	}
+
+	private async waitForContentProvider(sessionType: string): Promise<void> {
+		if (this._contentProviders.has(sessionType)) {
+			return;
+		}
+
+		await Event.toPromise(Event.filter(this.onDidChangeContentProviderSchemes, e => e.added.includes(sessionType)));
 	}
 
 	async provideChatInputCompletions(sessionResource: URI, params: IChatInputCompletionsParams, token: CancellationToken): Promise<IChatInputCompletionsResult | undefined> {
@@ -916,6 +963,15 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				const resolvedType = this._resolveToPrimaryType(chatSessionType) ?? chatSessionType;
 				if (providersToResolve && !providersToResolve.includes(resolvedType)) {
 					return; // skip: not considered for resolving
+				}
+
+				// Skip controllers whose contribution is gated off by its `when`
+				// clause. The item controller is registered independently of the
+				// contribution (e.g. by the extension host), so without this check
+				// its sessions would still be listed even though they can no longer
+				// be resolved/opened (which obeys the same `when` via canResolveChatSession).
+				if (!this._isContributionAvailableForType(chatSessionType)) {
+					return; // skip: contribution disabled by its `when` clause
 				}
 
 				try {
@@ -1049,6 +1105,18 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return controllerData.controller.newChatSessionItem?.(request, token);
 	}
 
+	async deleteChatSessionItem(sessionResource: URI, token: CancellationToken): Promise<void> {
+		const sessionType = getChatSessionType(sessionResource);
+		const resolvedType = this._resolveToPrimaryType(sessionType) ?? sessionType;
+		const controllerData = this._itemControllers.get(resolvedType);
+		if (!controllerData?.controller.deleteChatSessionItem) {
+			throw new Error(`Session ${sessionResource.toString()} does not support deletion`);
+		}
+
+		await controllerData.initialRefresh;
+		return controllerData.controller.deleteChatSessionItem(sessionResource, token);
+	}
+
 	public async getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession> {
 		{
 			const existingSessionData = this._sessions.get(sessionResource);
@@ -1107,7 +1175,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		{
 			const existingSessionData = this._sessions.get(sessionResource);
 			if (existingSessionData) {
-				session.dispose();
 				return existingSessionData.session;
 			}
 		}
@@ -1250,6 +1317,16 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return !!contribution?.requiresCustomModels;
 	}
 
+	public supportsAutoModelForSessionType(chatSessionType: string): boolean {
+		// The built-in local chat is not a registered contribution but always
+		// supports the synthetic "Auto" model fallback.
+		if (chatSessionType === localChatSessionType) {
+			return true;
+		}
+		const contribution = this._contributions.get(chatSessionType)?.contribution;
+		return !!contribution?.supportsAutoModel;
+	}
+
 	public supportsDelegationForSessionType(chatSessionType: string): boolean {
 		const contribution = this._contributions.get(chatSessionType)?.contribution;
 		return contribution?.supportsDelegation !== false;
@@ -1270,6 +1347,23 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			throw new Error(`Session ${sessionResource.toString()} does not support forking`);
 		}
 		return session.session.forkSession(request, token);
+	}
+
+	public sessionSupportsRename(sessionResource: URI): boolean {
+		const session = this._sessions.get(sessionResource)
+			// Try to resolve in case an alias was used
+			?? this._sessions.get(this._resolveResource(sessionResource));
+		return !!session?.session.renameSession;
+	}
+
+	public async renameChatSession(sessionResource: URI, title: string, token: CancellationToken): Promise<void> {
+		// Resolve the session (creating it if necessary) so that rename works
+		// even when the session is not currently open in an editor.
+		const session = await this.getOrCreateChatSession(sessionResource, token);
+		if (!session.renameSession) {
+			throw new Error(`Session ${sessionResource.toString()} does not support renaming`);
+		}
+		return session.renameSession(title, token);
 	}
 
 	public getContentProviderSchemes(): string[] {
@@ -1354,7 +1448,7 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 	const toolsService = accessor.get(ILanguageModelToolsService);
 
 	// Determine resource to open
-	const resource = getResourceForNewChatSession(openOptions);
+	const sessionResource = getResourceForNewChatSession(openOptions);
 
 	// Open chat session
 	try {
@@ -1362,9 +1456,9 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 			case ChatSessionPosition.Sidebar: {
 				const view = await viewsService.openView(ChatViewId) as ChatViewPane;
 				if (openOptions.type === AgentSessionProviders.Local) {
-					await view.widget.clear();
+					await view.startNewLocalSession();
 				} else {
-					await view.loadSession(resource);
+					await view.loadSession(sessionResource);
 				}
 				view.focus();
 				break;
@@ -1383,9 +1477,9 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 					if (!activeEditor || !(activeEditor instanceof ChatEditorInput)) {
 						throw new Error('No active chat editor to replace');
 					}
-					await editorService.replaceEditors([{ editor: activeEditor, replacement: { resource, options } }], editorGroupService.activeGroup);
+					await editorService.replaceEditors([{ editor: activeEditor, replacement: { resource: sessionResource, options } }], editorGroupService.activeGroup);
 				} else {
-					await editorService.openEditor({ resource, options });
+					await editorService.openEditor({ resource: sessionResource, options });
 				}
 				break;
 			}
@@ -1402,15 +1496,32 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 			// Set initial session options on the model before sending the request,
 			// so that the contributed session provider can read them.
 			if (chatSendOptions.initialSessionOptions) {
-				chatSessionService.updateSessionOptions(resource, normalizeSessionOptions(chatSendOptions.initialSessionOptions));
+				chatSessionService.updateSessionOptions(sessionResource, normalizeSessionOptions(chatSendOptions.initialSessionOptions));
 			}
 
 			let attachedContext = chatSendOptions.attachedContext;
-			const promptFile = await resolvePromptSlashCommand(chatSendOptions.prompt, openOptions.type, customizationHarnessService, toolsService);
+			const promptFile = await resolvePromptSlashCommand(chatSendOptions.prompt, sessionResource, customizationHarnessService, toolsService);
 			if (promptFile) {
 				attachedContext = [promptFile, ...(attachedContext ?? [])];
 			}
-			await chatService.sendRequest(resource, chatSendOptions.prompt, { agentIdSilent: openOptions.type, attachedContext });
+			const result = await chatService.sendRequest(sessionResource, chatSendOptions.prompt, { agentIdSilent: openOptions.type, attachedContext });
+			if (result.kind === 'sent' && result.newSessionResource && !resources.isEqual(result.newSessionResource, sessionResource)) {
+				switch (openOptions.position) {
+					case ChatSessionPosition.Sidebar: {
+						const view = await viewsService.openView(ChatViewId) as ChatViewPane;
+						await view.loadSession(result.newSessionResource);
+						break;
+					}
+					case ChatSessionPosition.Editor: {
+						const activeEditor = editorGroupService.activeGroup.activeEditor;
+						if (activeEditor instanceof ChatEditorInput && resources.isEqual(activeEditor.sessionResource, sessionResource)) {
+							await editorService.replaceEditors([{ editor: activeEditor, replacement: { resource: result.newSessionResource, options: { override: ChatEditorInput.EditorID, pinned: true } } }], editorGroupService.activeGroup);
+						}
+						break;
+					}
+					default: assertNever(openOptions.position, `Unknown chat session position: ${openOptions.position}`);
+				}
+			}
 		} catch (e) {
 			logService.error(`Failed to send initial request to '${openOptions.type}' chat session with contextOptions: ${JSON.stringify(chatSendOptions)}`, e);
 		}
@@ -1442,12 +1553,12 @@ function normalizeSessionOptions(options: ReadonlyChatSessionOptionsMap | Readon
 /**
  * Returns the variable entry for a slash command if the prompt starts with a slash command that can be resolved to a prompt file, otherwise returns undefined.
  */
-async function resolvePromptSlashCommand(prompt: string, sessionType: string, customizationHarnessService: ICustomizationHarnessService, toolsService: ILanguageModelToolsService): Promise<IChatRequestVariableEntry | undefined> {
+async function resolvePromptSlashCommand(prompt: string, sessionResource: URI, customizationHarnessService: ICustomizationHarnessService, toolsService: ILanguageModelToolsService): Promise<IChatRequestVariableEntry | undefined> {
 	const slashMatch = prompt.match(slashReg);
 	// starts with a slash command, add the corresponding prompt file to the context if it exists
 	if (slashMatch) {
 		// need to resolve the slash command to get the prompt file
-		const slashCommand = await customizationHarnessService.resolvePromptSlashCommand(slashMatch[1], sessionType, CancellationToken.None);
+		const slashCommand = await customizationHarnessService.resolvePromptSlashCommand(slashMatch[1], sessionResource, CancellationToken.None);
 		if (slashCommand) {
 			const parseResult = slashCommand.parsedPromptFile;
 			// add the prompt file to the context

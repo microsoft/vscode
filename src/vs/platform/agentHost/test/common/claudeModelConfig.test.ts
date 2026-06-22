@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { CLAUDE_THINKING_LEVEL_KEY, createClaudeThinkingLevelSchema, isClaudeEffortLevel, resolveClaudeEffort, type ClaudeEffortLevel } from '../../common/claudeModelConfig.js';
+import { CLAUDE_THINKING_LEVEL_KEY, clampEffortForRuntime, createClaudeThinkingLevelSchema, isClaudeEffortLevel, resolveClaudeEffort, type ClaudeEffortLevel } from '../../common/claudeModelConfig.js';
 import type { ModelSelection } from '../../common/state/protocol/state.js';
 
 suite('resolveClaudeEffort (Phase 6.1 / Cycle E)', () => {
@@ -36,6 +36,24 @@ suite('resolveClaudeEffort (Phase 6.1 / Cycle E)', () => {
 			{ id: 'claude-opus-4.6', config: { [CLAUDE_THINKING_LEVEL_KEY]: 'turbo' } },
 		];
 		assert.deepStrictEqual(cases.map(resolveClaudeEffort), [undefined, undefined, undefined, undefined, undefined]);
+	});
+});
+
+suite('clampEffortForRuntime (Phase 9 / Step 4)', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('clamps `max` to `xhigh`; passes other levels through; preserves undefined', () => {
+		// `Query.applyFlagSettings({ effortLevel })` (sdk.d.ts:4914) only
+		// accepts `'low' | 'medium' | 'high' | 'xhigh'` — `'max'` is a
+		// startup-only level. The clamp seam keeps `'max'` selections from
+		// being lost entirely on the runtime path; genuine `'max'` would
+		// require the restart-required path (Phase 9 D7).
+		const inputs: readonly (ClaudeEffortLevel | undefined)[] = [undefined, 'low', 'medium', 'high', 'xhigh', 'max'];
+		assert.deepStrictEqual(
+			inputs.map(clampEffortForRuntime),
+			[undefined, 'low', 'medium', 'high', 'xhigh', 'xhigh'],
+		);
 	});
 });
 
@@ -91,6 +109,7 @@ suite('createClaudeThinkingLevelSchema (Phase 6.1 / Cycle D3)', () => {
 						description: 'Controls how much reasoning effort Claude uses.',
 						enum: ['low', 'medium', 'high', 'xhigh', 'max'],
 						enumLabels: ['Low', 'Medium', 'High', 'Extra High', 'Max'],
+						enumDescriptions: ['Faster responses with less reasoning', 'Balanced reasoning and speed', 'Greater reasoning depth but slower', 'Highest reasoning depth but slowest', 'Absolute maximum capability with no constraints'],
 						default: 'high',
 					},
 				},
@@ -104,6 +123,7 @@ suite('createClaudeThinkingLevelSchema (Phase 6.1 / Cycle D3)', () => {
 						description: 'Controls how much reasoning effort Claude uses.',
 						enum: ['low', 'medium', 'high'],
 						enumLabels: ['Low', 'Medium', 'High'],
+						enumDescriptions: ['Faster responses with less reasoning', 'Balanced reasoning and speed', 'Greater reasoning depth but slower'],
 						default: 'high',
 					},
 				},
@@ -117,6 +137,7 @@ suite('createClaudeThinkingLevelSchema (Phase 6.1 / Cycle D3)', () => {
 						description: 'Controls how much reasoning effort Claude uses.',
 						enum: ['high'],
 						enumLabels: ['High'],
+						enumDescriptions: ['Greater reasoning depth but slower'],
 						default: 'high',
 					},
 				},
@@ -130,6 +151,7 @@ suite('createClaudeThinkingLevelSchema (Phase 6.1 / Cycle D3)', () => {
 						description: 'Controls how much reasoning effort Claude uses.',
 						enum: ['max', 'low'],
 						enumLabels: ['Max', 'Low'],
+						enumDescriptions: ['Absolute maximum capability with no constraints', 'Faster responses with less reasoning'],
 					},
 				},
 			},

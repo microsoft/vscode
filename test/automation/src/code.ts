@@ -37,6 +37,14 @@ export interface LaunchOptions {
 	readonly quality: Quality;
 	version: { major: number; minor: number; patch: number };
 	readonly extensionDevelopmentPath?: string;
+
+	/**
+	 * Extra environment variables merged on top of the inherited `process.env`
+	 * when launching the Electron child process. Set a value to `undefined`
+	 * to unset the variable. Used by tests that need to inject env-based
+	 * mocks (e.g. `VSCODE_COPILOT_CHAT_TOKEN`).
+	 */
+	readonly extraEnv?: Readonly<Record<string, string | undefined>>;
 }
 
 interface ICodeInstance {
@@ -290,8 +298,8 @@ export class Code {
 		await this.poll(() => this.driver.setValue(selector, value), () => true, `set value '${selector}'`);
 	}
 
-	async waitForElements(selector: string, recursive: boolean, accept: (result: IElement[]) => boolean = result => result.length > 0): Promise<IElement[]> {
-		return await this.poll(() => this.driver.getElements(selector, recursive), accept, `get elements '${selector}'`);
+	async waitForElements(selector: string, recursive: boolean, accept: (result: IElement[]) => boolean = result => result.length > 0, retryCount?: number): Promise<IElement[]> {
+		return await this.poll(() => this.driver.getElements(selector, recursive), accept, `get elements '${selector}'`, retryCount);
 	}
 
 	async waitForElement(selector: string, accept: (result: IElement | undefined) => boolean = result => !!result, retryCount: number = 200): Promise<IElement> {

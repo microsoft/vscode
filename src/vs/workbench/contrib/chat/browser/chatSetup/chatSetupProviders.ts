@@ -256,14 +256,16 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 	}
 
 	private async doInvoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService, chatAgentService: IChatAgentService, languageModelToolsService: ILanguageModelToolsService, defaultAccountService: IDefaultAccountService): Promise<IChatAgentResult> {
+		const hasByokModels = this.chatEntitlementService.hasByokModels;
 		if (
-			!this.context.state.completed ||									// Setup not completed
+			(!this.context.state.completed && !hasByokModels) ||				// Setup not completed (unless BYOK models are available)
 			this.context.state.disabled ||										// Extension disabled: run setup to enable
 			this.context.state.untrusted ||										// Workspace untrusted: run setup to ask for trust
 			this.context.state.entitlement === ChatEntitlement.Available ||		// Entitlement available: run setup to sign up
 			(
 				this.context.state.entitlement === ChatEntitlement.Unknown &&	// Entitlement unknown: run setup to sign in / sign up
-				!this.chatEntitlementService.anonymous							// unless anonymous access is enabled
+				!this.chatEntitlementService.anonymous &&						// unless anonymous access is enabled
+				!hasByokModels													// unless BYOK models are available
 			)
 		) {
 			return this.doInvokeWithSetup(request, progress, chatService, languageModelsService, chatWidgetService, chatAgentService, languageModelToolsService, defaultAccountService);

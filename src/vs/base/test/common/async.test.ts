@@ -1043,6 +1043,59 @@ suite('Async', () => {
 		});
 	});
 
+	suite('disposableLongTimeout', () => {
+		test('fires after a delay larger than the setTimeout maximum', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				let cb = false;
+				const t = async.disposableLongTimeout(() => cb = true, async.MAX_TIMEOUT_DELAY * 2 + 1000);
+
+				await async.timeout(async.MAX_TIMEOUT_DELAY * 2 + 2000);
+
+				assert.strictEqual(cb, true);
+				t.dispose();
+			});
+		});
+
+		test('does not fire after disposal mid-wait', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				let cb = false;
+				const t = async.disposableLongTimeout(() => cb = true, async.MAX_TIMEOUT_DELAY * 2);
+
+				await async.timeout(async.MAX_TIMEOUT_DELAY); // advance one chunk, then re-armed
+				t.dispose();
+				await async.timeout(async.MAX_TIMEOUT_DELAY * 2);
+
+				assert.strictEqual(cb, false);
+			});
+		});
+
+		test('store managed success evicts on fire', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				let cb = false;
+				const s = new DisposableStore();
+				async.disposableLongTimeout(() => cb = true, async.MAX_TIMEOUT_DELAY + 500, s);
+
+				await async.timeout(async.MAX_TIMEOUT_DELAY + 1000);
+
+				assert.strictEqual(cb, true);
+				s.dispose();
+			});
+		});
+
+		test('store managed cancel via store', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				let cb = false;
+				const s = new DisposableStore();
+				async.disposableLongTimeout(() => cb = true, async.MAX_TIMEOUT_DELAY * 2, s);
+				s.dispose();
+
+				await async.timeout(async.MAX_TIMEOUT_DELAY * 2);
+
+				assert.strictEqual(cb, false);
+			});
+		});
+	});
+
 	test('raceCancellation', async () => {
 		const cts = store.add(new CancellationTokenSource());
 		const ctsTimeout = store.add(new CancellationTokenSource());

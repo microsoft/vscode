@@ -5,12 +5,13 @@
 
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { isString } from '../../../../base/common/types.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
-import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type ResponsePart, type StringOrMarkdown, type ToolCallCompletedState, type ToolResultContent, type Turn } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type Message, type ResponsePart, type StringOrMarkdown, type ToolCallCompletedState, type ToolResultContent, type Turn } from '../../common/state/sessionState.js';
 import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, synthesizeSkillToolCall } from '../../node/copilot/copilotToolDisplay.js';
 import { buildSessionDbUri } from '../../node/shared/fileEditTracker.js';
-import type { ISessionEvent, ISessionEventMessage, ISessionEventSkillInvoked, ISessionEventSubagentStarted, ISessionEventToolComplete, ISessionEventToolStart } from '../../node/copilot/mapSessionEvents.js';
+import type { ISessionEvent, ISessionEventMessage, ISessionEventSkillInvoked, ISessionEventSubagentStarted, ISessionEventToolComplete, ISessionEventToolStart } from './copilotTestEvents.js';
 
 // =============================================================================
 // History-record test fixtures
@@ -116,7 +117,7 @@ export function buildTurnsFromHistory(messages: readonly IHistoryRecord[]): Turn
 	const subagentsByToolCallId = new Map<string, IHistorySubagentStartedRecord>();
 	let currentTurn: {
 		id: string;
-		userMessage: { text: string };
+		message: Message;
 		responseParts: ResponsePart[];
 		pendingTools: Map<string, IHistoryToolStartRecord>;
 	} | undefined;
@@ -124,7 +125,7 @@ export function buildTurnsFromHistory(messages: readonly IHistoryRecord[]): Turn
 	const finalizeTurn = (turn: NonNullable<typeof currentTurn>, state: TurnState): void => {
 		turns.push({
 			id: turn.id,
-			userMessage: turn.userMessage,
+			message: turn.message,
 			responseParts: turn.responseParts,
 			usage: undefined,
 			state,
@@ -133,7 +134,7 @@ export function buildTurnsFromHistory(messages: readonly IHistoryRecord[]): Turn
 
 	const startTurn = (id: string, text: string): NonNullable<typeof currentTurn> => ({
 		id,
-		userMessage: { text },
+		message: { text, origin: { kind: MessageKind.User } },
 		responseParts: [],
 		pendingTools: new Map(),
 	});
@@ -337,7 +338,7 @@ export function buildSubagentTurnsFromHistory(
 
 	return [{
 		id: generateUuid(),
-		userMessage: { text: '' },
+		message: { text: '', origin: { kind: MessageKind.User } },
 		responseParts,
 		usage: undefined,
 		state: TurnState.Complete,
@@ -385,7 +386,23 @@ export async function mapSessionEventsToHistoryRecords(
 	const toolInfoByCallId = new Map<string, { toolName: string; parameters: Record<string, unknown> | undefined; rewrittenArgs?: string }>();
 	const editToolCallIds: string[] = [];
 
+	// The SDK tags sub-agent events with an envelope-level `agentId` (the
+	// `data.parentToolCallId` field is deprecated). `subagent.started` maps the
+	// sub-agent's `agentId` to the parent tool call id; resolve later events
+	// through it so the produced records carry the right `parentToolCallId`.
+	const parentToolCallIdByAgentId = new Map<string, string>();
+	const resolveParentToolCallId = (agentId: string | undefined, deprecatedParentToolCallId: string | undefined): string | undefined => {
+		const mapped = agentId ? parentToolCallIdByAgentId.get(agentId) : undefined;
+		return mapped ?? deprecatedParentToolCallId;
+	};
+
 	for (const e of events) {
+		if (e.type === 'subagent.started') {
+			const sub = e as ISessionEventSubagentStarted;
+			if (sub.agentId) {
+				parentToolCallIdByAgentId.set(sub.agentId, sub.data.toolCallId);
+			}
+		}
 		if (e.type === 'tool.execution_start') {
 			const d = (e as ISessionEventToolStart).data;
 			if (isHiddenTool(d.toolName)) {
@@ -398,7 +415,8 @@ export async function mapSessionEventsToHistoryRecords(
 			}
 			const rewrittenArgs = stripRedundantCdPrefix(d.toolName, parameters, workingDirectory) ? tryStringify(parameters) : undefined;
 			toolInfoByCallId.set(d.toolCallId, { toolName: d.toolName, parameters, rewrittenArgs });
-			if (isEditTool(d.toolName)) {
+			const command = isString(parameters?.command) ? parameters.command : undefined;
+			if (isEditTool(d.toolName, command)) {
 				editToolCallIds.push(d.toolCallId);
 			}
 		}
@@ -447,7 +465,7 @@ export async function mapSessionEventsToHistoryRecords(
 				reasoningOpaque: d?.reasoningOpaque,
 				reasoningText: d?.reasoningText,
 				encryptedContent: d?.encryptedContent,
-				parentToolCallId: d?.parentToolCallId,
+				parentToolCallId: resolveParentToolCallId((e as ISessionEventMessage).agentId, d?.parentToolCallId),
 			});
 		} else if (e.type === 'tool.execution_start') {
 			const d = (e as ISessionEventToolStart).data;
@@ -474,7 +492,7 @@ export async function mapSessionEventsToHistoryRecords(
 				subagentDescription: subagentMeta?.description,
 				mcpServerName: d.mcpServerName,
 				mcpToolName: d.mcpToolName,
-				parentToolCallId: d.parentToolCallId,
+				parentToolCallId: resolveParentToolCallId((e as ISessionEventToolStart).agentId, d.parentToolCallId),
 			});
 		} else if (e.type === 'tool.execution_complete') {
 			const d = (e as ISessionEventToolComplete).data;
@@ -526,7 +544,7 @@ export async function mapSessionEventsToHistoryRecords(
 				},
 				isUserRequested: d.isUserRequested,
 				toolTelemetry: d.toolTelemetry !== undefined ? tryStringify(d.toolTelemetry) : undefined,
-				parentToolCallId: d.parentToolCallId,
+				parentToolCallId: resolveParentToolCallId((e as ISessionEventToolComplete).agentId, d.parentToolCallId),
 			});
 		} else if (e.type === 'subagent.started') {
 			const d = (e as ISessionEventSubagentStarted).data;

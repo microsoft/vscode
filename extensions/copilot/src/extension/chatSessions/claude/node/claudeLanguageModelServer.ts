@@ -8,7 +8,7 @@ import { RequestMetadata, RequestType } from '@vscode/copilot-api';
 import { Raw } from '@vscode/prompt-tsx';
 import * as http from 'http';
 import { IChatMLFetcher, Source } from '../../../../platform/chat/common/chatMLFetcher';
-import { ChatLocation, ChatResponse } from '../../../../platform/chat/common/commonTypes';
+import { ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../../platform/chat/common/commonTypes';
 import { CustomModel, EndpointEditToolName } from '../../../../platform/endpoint/common/endpointProvider';
 import { AnthropicMessagesProcessor, processNonStreamingResponseFromMessagesEndpoint } from '../../../../platform/endpoint/node/messagesApi';
 import { ILogService } from '../../../../platform/log/common/logService';
@@ -16,7 +16,7 @@ import { IOTelService } from '../../../../platform/otel/common/otelService';
 import { FinishedCallback, getRequestId, OptionalChatRequestParams } from '../../../../platform/networking/common/fetch';
 import { Response } from '../../../../platform/networking/common/fetcherService';
 import { IChatEndpoint, ICreateEndpointBodyOptions, IEndpointBody, IEndpointFetchOptions, IMakeChatRequestOptions } from '../../../../platform/networking/common/networking';
-import { ChatCompletion } from '../../../../platform/networking/common/openai';
+import { ChatCompletion, nanoAiuToCredits } from '../../../../platform/networking/common/openai';
 import { IRequestLogger } from '../../../../platform/requestLogger/common/requestLogger';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 import { TelemetryData } from '../../../../platform/telemetry/common/telemetryData';
@@ -28,6 +28,7 @@ import { SSEParser } from '../../../../util/vs/base/common/sseParser';
 import { generateUuid } from '../../../../util/vs/base/common/uuid';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { IClaudeCodeModels } from './claudeCodeModels';
+import { PROXY_ERROR_PREFIX } from '../common/claudeMessageDispatch';
 import { IClaudeSessionStateService } from '../common/claudeSessionStateService';
 
 /**
@@ -238,10 +239,19 @@ export class ClaudeLanguageModelServer extends Disposable {
 				? () => this._otelService.runWithTraceContext(traceContext, doRequest)
 				: doRequest;
 
+			let chatResponse: ChatResponse;
 			if (capturingToken) {
-				await this.requestLogger.captureInvocation(capturingToken, doRequestInContext);
+				chatResponse = await this.requestLogger.captureInvocation(capturingToken, doRequestInContext);
 			} else {
-				await doRequestInContext();
+				chatResponse = await doRequestInContext();
+			}
+
+			// If the upstream returned an error, forward a proper HTTP error to the
+			// SDK subprocess so it can surface it instead of silently hanging.
+			if (chatResponse.type !== ChatFetchResponseType.Success && !res.headersSent) {
+				const { status, errorType, message } = this.mapChatResponseToHttpError(chatResponse);
+				this.sendErrorResponse(res, status, errorType, message);
+				return;
 			}
 
 			requestComplete = true;
@@ -254,12 +264,40 @@ export class ClaudeLanguageModelServer extends Disposable {
 		}
 	}
 
+	/**
+	 * Maps a non-success ChatResponse to an HTTP status, Anthropic error type, and message
+	 * that the SDK subprocess can interpret.
+	 */
+	private mapChatResponseToHttpError(chatResponse: ChatResponse): { status: number; errorType: AnthropicErrorResponse['error']['type']; message: string } {
+		// Base64-encode the full ChatFetchError JSON after the proxy error prefix.
+		// Base64 survives the SDK's JSON re-encoding without double-escaping issues.
+		const proxyMessage = `${PROXY_ERROR_PREFIX}${Buffer.from(JSON.stringify(chatResponse)).toString('base64')}`;
+
+		switch (chatResponse.type) {
+			case ChatFetchResponseType.QuotaExceeded:
+				return { status: 402, errorType: 'invalid_request_error', message: proxyMessage };
+			case ChatFetchResponseType.RateLimited:
+				return { status: 429, errorType: 'rate_limit_error', message: proxyMessage };
+			case ChatFetchResponseType.Canceled:
+				return { status: 499, errorType: 'api_error', message: proxyMessage };
+			case ChatFetchResponseType.Filtered:
+			case ChatFetchResponseType.PromptFiltered:
+				return { status: 400, errorType: 'invalid_request_error', message: proxyMessage };
+			default:
+				return { status: 500, errorType: 'api_error', message: proxyMessage };
+		}
+	}
+
 	private sendErrorResponse(
 		res: http.ServerResponse,
 		statusCode: number,
 		errorType: AnthropicErrorResponse['error']['type'],
 		message: string
 	): void {
+		if (res.headersSent) {
+			res.end();
+			return;
+		}
 		const errorResponse: AnthropicErrorResponse = {
 			type: 'error',
 			error: {
@@ -452,7 +490,7 @@ function messagesApiInputToRawMessagesForLogging(request: AnthropicMessagesReque
 export function processNonStreamingPassThroughResponse(
 	response: Response,
 	forwardChunk: (chunk: Uint8Array) => void,
-	onUsage: ((usage: { promptTokens: number; completionTokens: number }) => void) | undefined,
+	onUsage: ((usage: { promptTokens: number; completionTokens: number; copilotCredits?: number }) => void) | undefined,
 	telemetryService: ITelemetryService,
 	logService: ILogService,
 	finishCallback: FinishedCallback,
@@ -508,6 +546,7 @@ export function processNonStreamingPassThroughResponse(
 					onUsage({
 						promptTokens: completion.usage.prompt_tokens,
 						completionTokens: completion.usage.completion_tokens,
+						copilotCredits: nanoAiuToCredits(completion.usage.copilot_usage?.total_nano_aiu),
 					});
 				}
 			}
@@ -750,7 +789,8 @@ class ClaudeStreamingPassThroughEndpoint implements IChatEndpoint {
 								usageHandler({
 									// Could we bucketize these token counts somehow for the details?
 									promptTokens: completion.usage.prompt_tokens,
-									completionTokens: completion.usage.completion_tokens
+									completionTokens: completion.usage.completion_tokens,
+									copilotCredits: nanoAiuToCredits(completion.usage.copilot_usage?.total_nano_aiu),
 								});
 							}
 						}
@@ -787,7 +827,7 @@ class ClaudeStreamingPassThroughEndpoint implements IChatEndpoint {
 		// branch above) in case it gets registered after the request starts.
 		const sessionId = this.sessionId;
 		const onUsage = sessionId
-			? (usage: { promptTokens: number; completionTokens: number }) => {
+			? (usage: { promptTokens: number; completionTokens: number; copilotCredits?: number }) => {
 				this.sessionStateService.getUsageHandlerForSession(sessionId)?.(usage);
 			}
 			: undefined;
