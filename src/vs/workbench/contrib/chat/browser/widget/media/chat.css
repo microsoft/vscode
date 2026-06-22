@@ -4245,7 +4245,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	left: 0;
 	right: 0;
 	top: 50%;
-	border-top: 1px dotted var(--vscode-descriptionForeground);
+	border-top: var(--vscode-strokeThickness) dotted var(--vscode-descriptionForeground);
 	opacity: 0.5;
 }
 
