@@ -173,27 +173,25 @@ class ToggleAuxiliaryBarAction extends Action2 {
 
 registerAction2(ToggleAuxiliaryBarAction);
 
-MenuRegistry.appendMenuItem(MenuId.EditorTitleLayout, {
-	command: {
-		id: ToggleAuxiliaryBarAction.ID,
-		title: localize('hideSecondarySideBar', "Hide Secondary Side Bar"),
-		icon: Codicon.rightPanelHide,
-	},
-	group: 'navigation',
-	order: 99.5,
-	when: ContextKeyExpr.and(editorLeftRightWhen, AuxiliaryBarVisibleContext)
-});
-
-MenuRegistry.appendMenuItem(MenuId.EditorTitleLayout, {
-	command: {
-		id: ToggleAuxiliaryBarAction.ID,
-		title: localize('showSecondarySideBar', "Show Secondary Side Bar"),
-		icon: Codicon.rightPanelShow,
-	},
-	group: 'navigation',
-	order: 99.5,
-	when: ContextKeyExpr.and(editorLeftRightWhen, AuxiliaryBarVisibleContext.toNegated())
-});
+// The toggle button shows a state-dependent icon: `right-panel-hide` when the
+// secondary side bar is visible and `right-panel-show` when it is hidden. This
+// can't be done via the action's inline `menu`, because inline menu items reuse
+// the action's single command (one icon/title). The usual inline alternative,
+// `toggled`, swaps the icon but also renders a checked/highlighted background,
+// which we explicitly don't want here. Registering two mutually-exclusive menu
+// items — each with its own icon/title — gives the per-state icon without that
+// checked styling.
+for (const { icon, title, visible } of [
+	{ icon: Codicon.rightPanelHide, title: localize('hideSecondarySideBar', "Hide Secondary Side Bar"), visible: true },
+	{ icon: Codicon.rightPanelShow, title: localize('showSecondarySideBar', "Show Secondary Side Bar"), visible: false },
+]) {
+	MenuRegistry.appendMenuItem(MenuId.EditorTitleLayout, {
+		command: { id: ToggleAuxiliaryBarAction.ID, title, icon },
+		group: 'navigation',
+		order: 99.5,
+		when: ContextKeyExpr.and(editorLeftRightWhen, visible ? AuxiliaryBarVisibleContext : AuxiliaryBarVisibleContext.toNegated())
+	});
+}
 
 
 class OpenEditorInModalEditorAction extends Action2 {
