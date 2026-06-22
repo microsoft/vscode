@@ -869,11 +869,22 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			const chatViewWidget = this._chatWidgetService.getWidgetBySessionResource(originalResource);
 			if (chatViewWidget && isIChatViewViewContext(chatViewWidget.viewContext)) {
 				await this._chatWidgetService.openSession(modifiedResource, undefined, { preserveFocus: true });
-			} else {
-				// Loading the session to ensure the session is created and editing session is transferred.
+			} else if (!chatViewWidget) {
+				// No widget currently shows the original session — eagerly load the
+				// session so the transferred state set above is materialized into a
+				// chat model. We immediately release the reference; if a consumer
+				// later acquires the session, the model will be re-created.
 				const ref = await this._chatService.acquireOrLoadSession(modifiedResource, ChatAgentLocation.Chat, CancellationToken.None);
 				ref?.dispose();
 			}
+			// When a chat widget exists for `originalResource` but is not an
+			// `IChatViewViewContext` (e.g. the Agents Window's session-view chat
+			// widget), that widget owns the rebind to `modifiedResource` via its
+			// own observer-driven mechanism. Eagerly load+dispose here would
+			// drop the chat model refcount to 0 between this dispose and the
+			// widget's async re-acquire, tearing down the ext-host
+			// `CopilotCLISession` (and its SDK session) — which aborts any
+			// in-flight request on that session.
 
 			// Re-send queued requests from the original session on the committed session
 			this._resendPendingRequests(originalResource, modifiedResource);
