@@ -183,7 +183,8 @@ function findLicenseOnDisk(repo: string, manifestRelPath: string, depName: strin
  */
 function clearlyDefinedHas(name: string, version: string, timeoutMs = 8_000): Promise<boolean> {
 	// ClearlyDefined coordinate format: <type>/<provider>/<namespace>/<name>/<version>
-	// For npm: type=npm provider=npmjs namespace=- (or scope without @) name=pkg version=...
+	// For npm: type=npm provider=npmjs namespace=@scope (URL-encoded) name=pkg version=...
+	// For unscoped packages: namespace=-
 	let nsPath: string;
 	if (name.startsWith('@')) {
 		const slash = name.indexOf('/');
