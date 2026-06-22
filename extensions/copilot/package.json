@@ -151,21 +151,6 @@
     "toolInvocationApproveCombination",
     "chatSessionCustomizationProvider"
   ],
-  "capabilities": {
-    "untrustedWorkspaces": {
-      "supported": "limited",
-      "description": "%workspaceTrust%",
-      "restrictedConfigurations": [
-        "github.copilot.chat.otel.enabled",
-        "github.copilot.chat.otel.exporterType",
-        "github.copilot.chat.otel.otlpEndpoint",
-        "github.copilot.chat.otel.captureContent",
-        "github.copilot.chat.otel.maxAttributeSizeChars",
-        "github.copilot.chat.otel.outfile",
-        "github.copilot.chat.otel.dbSpanExporter.enabled"
-      ]
-    }
-  },
   "contributes": {
     "languageModelTools": [
       {
@@ -2875,12 +2860,6 @@
         "icon": "$(broadcast)"
       },
       {
-        "command": "github.copilot.chat.otel.statusCapturing",
-        "title": "OpenTelemetry",
-        "category": "Chat",
-        "icon": "$(eye)"
-      },
-      {
         "command": "github.copilot.sessionSync.deleteSessions",
         "title": "%github.copilot.command.sessionSync.deleteSessions%",
         "category": "Chat",
@@ -5311,7 +5290,8 @@
           "github.copilot.chat.otel.enabled": {
             "type": "boolean",
             "default": false,
-            "markdownDescription": "Enable OpenTelemetry trace/metric/log emission for Copilot Chat operations. Env var `COPILOT_OTEL_ENABLED` takes precedence. Requires window reload.",
+            "scope": "application",
+            "markdownDescription": "Enable OpenTelemetry trace/metric/log emission for Copilot Chat operations. Configurable in user settings only. Env var `COPILOT_OTEL_ENABLED` takes precedence. Requires window reload.",
             "tags": [
               "advanced"
             ]
@@ -5325,7 +5305,8 @@
               "file"
             ],
             "default": "otlp-http",
-            "markdownDescription": "OTel exporter type for Copilot Chat telemetry. Requires window reload.",
+            "scope": "application",
+            "markdownDescription": "OTel exporter type for Copilot Chat telemetry. Configurable in user settings only. Requires window reload.",
             "tags": [
               "advanced"
             ]
@@ -5333,7 +5314,8 @@
           "github.copilot.chat.otel.otlpEndpoint": {
             "type": "string",
             "default": "http://localhost:4318",
-            "markdownDescription": "OTLP collector endpoint URL for Copilot Chat OTel data. Env var `OTEL_EXPORTER_OTLP_ENDPOINT` takes precedence. Requires window reload.",
+            "scope": "application",
+            "markdownDescription": "OTLP collector endpoint URL for Copilot Chat OTel data. Configurable in user settings only. Env var `OTEL_EXPORTER_OTLP_ENDPOINT` takes precedence. Requires window reload.",
             "tags": [
               "advanced"
             ]
@@ -5341,7 +5323,8 @@
           "github.copilot.chat.otel.captureContent": {
             "type": "boolean",
             "default": false,
-            "markdownDescription": "Capture input/output messages, system instructions, and tool definitions in OTel telemetry. **Contains potentially sensitive data.** Env var `COPILOT_OTEL_CAPTURE_CONTENT` takes precedence. Requires window reload.",
+            "scope": "application",
+            "markdownDescription": "Capture input/output messages, system instructions, and tool definitions in OTel telemetry. **Contains potentially sensitive data.** Configurable in user settings only. Env var `COPILOT_OTEL_CAPTURE_CONTENT` takes precedence. Requires window reload.",
             "tags": [
               "advanced"
             ]
@@ -5350,7 +5333,8 @@
             "type": "integer",
             "default": 0,
             "minimum": 0,
-            "markdownDescription": "Maximum size **in characters** for free-form OTel content attributes (prompts, responses, tool arguments/results, hook input/output). `0` (the default) disables truncation so backends without per-attribute size limits receive full JSON payloads. Set to a positive value when your OTel backend caps attribute size — consult your backend's documentation for its per-attribute limit. Truncated values are suffixed with `...[truncated, original N chars]`. Env var `COPILOT_OTEL_MAX_ATTRIBUTE_SIZE_CHARS` takes precedence. Requires window reload.",
+            "scope": "application",
+            "markdownDescription": "Maximum size **in characters** for free-form OTel content attributes (prompts, responses, tool arguments/results, hook input/output). `0` (the default) disables truncation so backends without per-attribute size limits receive full JSON payloads. Set to a positive value when your OTel backend caps attribute size — consult your backend's documentation for its per-attribute limit. Truncated values are suffixed with `...[truncated, original N chars]`. Configurable in user settings only. Env var `COPILOT_OTEL_MAX_ATTRIBUTE_SIZE_CHARS` takes precedence. Requires window reload.",
             "tags": [
               "advanced"
             ]
@@ -5358,7 +5342,8 @@
           "github.copilot.chat.otel.outfile": {
             "type": "string",
             "default": "",
-            "markdownDescription": "File path for file-based OTel exporter output (JSON-lines). When set, overrides exporter type to `file`. Requires window reload.",
+            "scope": "application",
+            "markdownDescription": "File path for file-based OTel exporter output (JSON-lines). When set, overrides exporter type to `file`. Configurable in user settings only. Requires window reload.",
             "tags": [
               "advanced"
             ]
@@ -5366,7 +5351,8 @@
           "github.copilot.chat.otel.dbSpanExporter.enabled": {
             "type": "boolean",
             "default": false,
-            "markdownDescription": "Enable SQLite DB span exporter. Persists OTel spans to a local SQLite database. Automatically enables OTel when set to true. Requires window reload.",
+            "scope": "application",
+            "markdownDescription": "Enable SQLite DB span exporter. Persists OTel spans to a local SQLite database. Automatically enables OTel when set to true. Configurable in user settings only. Requires window reload.",
             "tags": [
               "advanced"
             ]
@@ -5584,6 +5570,13 @@
           "when": "!chatIsAgentHostSession"
         }
       ],
+      "chat/input/status": [
+        {
+          "command": "github.copilot.chat.otel.statusActive",
+          "when": "github.copilot.otel.enabledExplicitly && isSessionsWindow",
+          "group": "otel@1"
+        }
+      ],
       "chat/newSession": [
         {
           "command": "github.copilot.cli.newSession",
@@ -5604,27 +5597,7 @@
           "group": "inline@2"
         }
       ],
-      "chat/input/status": [
-        {
-          "command": "github.copilot.chat.otel.statusActive",
-          "when": "github.copilot.otel.state == 'active'",
-          "group": "navigation"
-        },
-        {
-          "command": "github.copilot.chat.otel.statusCapturing",
-          "when": "github.copilot.otel.state == 'capturing'",
-          "group": "navigation"
-        }
-      ],
       "commandPalette": [
-        {
-          "command": "github.copilot.chat.otel.statusActive",
-          "when": "false"
-        },
-        {
-          "command": "github.copilot.chat.otel.statusCapturing",
-          "when": "false"
-        },
         {
           "command": "github.copilot.cli.openInCopilotCLI",
           "when": "false"
@@ -5643,6 +5616,10 @@
         },
         {
           "command": "github.copilot.chat.triggerPermissiveSignIn",
+          "when": "false"
+        },
+        {
+          "command": "github.copilot.chat.otel.statusActive",
           "when": "false"
         },
         {
