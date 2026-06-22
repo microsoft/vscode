@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { SessionModelInfo } from '../../../../../../platform/agentHost/common/state/protocol/channels-root/state.js';
+import { SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 
 suite('AgentHostLanguageModelProvider', () => {

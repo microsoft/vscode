@@ -67,7 +67,9 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				// "Auto" advertises the auto-mode discount (detail) + description (tooltip). microsoft/vscode#321778, #321659.
 				const isAuto = m.id === 'auto';
 				const discountPercent = pricing.discountPercent;
-				const detail = isAuto && typeof discountPercent === 'number' && discountPercent > 0
+				// Guard against a non-finite or out-of-range value from the open `_meta` bag so we never render
+				// nonsense like "Infinity% discount"; the documented range is a whole number in (0, 100].
+				const detail = isAuto && typeof discountPercent === 'number' && discountPercent > 0 && discountPercent <= 100
 					? localize('agentHost.auto.discount', "{0}% discount", discountPercent)
 					: undefined;
 				const tooltip = isAuto
