@@ -54,10 +54,10 @@ export class AgentHostSyncOperationHandler implements IChangesetOperationHandler
 		this._logService.info(`[AgentHostSyncOperationHandler] Syncing branch ${branchName} for session ${sessionUri}`);
 		try {
 			// Pull
-			await this._gitService.pull(workingDirectory, { ref: branchName });
+			await this._gitService.pull(workingDirectory);
 
 			// Push
-			await this._gitService.push(workingDirectory, { ref: branchName });
+			await this._gitService.push(workingDirectory);
 		} catch (err) {
 			this._throwIfCancelled(token);
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Failed to sync changes: ${err instanceof Error ? err.message : String(err)}`);

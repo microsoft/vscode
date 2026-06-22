@@ -134,7 +134,7 @@ export interface IAgentHostGitService {
 	 * {@link IPushOptions.setUpstream} is true, the push uses `-u` so
 	 * subsequent fetch/push commands track the remote branch.
 	 */
-	push(workingDirectory: URI, options: IPushOptions): Promise<void>;
+	push(workingDirectory: URI, options?: IPushOptions): Promise<void>;
 
 	/**
 	 * Computes the {@link ISessionGitState} for the working directory by

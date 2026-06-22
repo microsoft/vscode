@@ -164,17 +164,17 @@ export class AgentHostGitService implements IAgentHostGitService {
 		await this._runGit(workingDirectory, args, { timeout: 180_000, throwOnError: true });
 	}
 
-	async push(workingDirectory: URI, options: IPushOptions): Promise<void> {
+	async push(workingDirectory: URI, options?: IPushOptions): Promise<void> {
 		const args = ['push'];
 
-		if (options.setUpstream) {
+		if (options?.setUpstream) {
 			args.push('--set-upstream');
 		}
 
 		// A ref can only be passed alongside a
 		// remote; default to `origin` when a ref
 		// is given without one.
-		if (options.remote || options.ref) {
+		if (options?.remote || options?.ref) {
 			args.push(options.remote ?? 'origin');
 
 			if (options.ref) {
