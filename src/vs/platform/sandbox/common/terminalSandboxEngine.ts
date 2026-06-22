@@ -681,8 +681,12 @@ export class TerminalSandboxEngine extends Disposable {
 			},
 		};
 		if (this._os !== OperatingSystem.Windows) {
-			this._mergeAdditionalSandboxConfigProperties(sandboxSettings as Record<string, unknown>, allowNetwork ? this._withoutNetworkRuntimeSetting(runtimeSetting) : runtimeSetting);
-			this._mergeAdditionalSandboxConfigProperties(sandboxSettings as Record<string, unknown>, commandRuntimeSetting);
+			const sandboxRuntimeSettings = sandboxSettings as Record<string, unknown>;
+			this._mergeAdditionalSandboxConfigProperties(sandboxRuntimeSettings, allowNetwork ? this._withoutNetworkRuntimeSetting(runtimeSetting) : runtimeSetting);
+			this._mergeAdditionalSandboxConfigProperties(sandboxRuntimeSettings, commandRuntimeSetting);
+			if (this._os === OperatingSystem.Macintosh) {
+				sandboxRuntimeSettings.allowPty ??= true;
+			}
 		}
 		this._sandboxConfigPath = configFilePath;
 		await this._fileService.createFile(configFileUri, VSBuffer.fromString(JSON.stringify(sandboxSettings, null, '\t')), { overwrite: true });

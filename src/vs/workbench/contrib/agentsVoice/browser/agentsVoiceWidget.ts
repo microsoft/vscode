@@ -12,7 +12,7 @@ import { getWindow } from '../../../../base/browser/dom.js';
 import { AGENTS_VOICE_WINDOW_DEFAULT_WIDTH, AGENTS_VOICE_WINDOW_DEFAULT_HEIGHT } from '../common/agentsVoice.js';
 import { createHeader } from './components/headerComponent.js';
 import { createStatusRows } from './components/statusRowsComponent.js';
-import { createTranscript, updateTranscriptOverflowState } from './components/transcriptComponent.js';
+import { createTranscript } from './components/transcriptComponent.js';
 import { createSessionList, type SessionRowData, type SessionGroupData } from './components/sessionListComponent.js';
 import { createFeedbackDialog, type FeedbackDialogState } from './components/feedbackDialog.js';
 import { createOnboarding } from './components/onboardingComponent.js';
@@ -158,7 +158,8 @@ export class AgentsVoiceWidget extends Disposable {
 	private readonly _onboardingComponent = createOnboarding();
 	private readonly _feedbackDialogComponent = createFeedbackDialog();
 	private readonly _voiceBarComponent = createVoiceBar();
-	private readonly _transcriptComponent = createTranscript();
+	private readonly _transcriptComponent = this._register(createTranscript());
+	private readonly _inputBoxTranscriptComponent = this._register(createTranscript());
 	private readonly _statusRowsComponent = createStatusRows();
 	private readonly _sessionListComponent = createSessionList();
 
@@ -266,6 +267,13 @@ export class AgentsVoiceWidget extends Disposable {
 			styleEl.textContent = `
 				@property --voice-processing-angle { syntax: '<angle>'; inherits: false; initial-value: 135deg; }
 				@keyframes voice-processing-spin { from { --voice-processing-angle: 135deg; } to { --voice-processing-angle: 495deg; } }
+				@keyframes agents-voice-input-icon-pulse {
+					0%, 100% { box-shadow: 0 0 4px rgba(var(--agents-voice-input-icon-rgb, 88,166,255), 0.45); }
+					50% { box-shadow: 0 0 10px rgba(var(--agents-voice-input-icon-rgb, 88,166,255), 0.75); }
+				}
+				.monaco-workbench.monaco-enable-motion .agents-voice-mode-button.agents-voice-mode-active {
+					animation: agents-voice-input-icon-pulse 1.4s ease-in-out infinite;
+				}
 				.processing { overflow: visible !important; }
 				.processing::before {
 					content: ''; position: absolute; inset: -1px; border-radius: inherit; padding: 1px;
@@ -297,7 +305,9 @@ export class AgentsVoiceWidget extends Disposable {
 
 			this._inputBoxPlaceholder = dom.$('span');
 			this._inputBoxPlaceholder.style.cssText = `font-size:${FONT_SIZE.body};color:var(--vscode-input-placeholderForeground, var(--vscode-descriptionForeground));user-select:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;`;
-			this._inputBoxContainer.append(this._inputBoxPlaceholder);
+			this._inputBoxTranscriptComponent.element.style.width = '100%';
+			this._inputBoxTranscriptComponent.element.style.display = 'none';
+			this._inputBoxContainer.append(this._inputBoxPlaceholder, this._inputBoxTranscriptComponent.element);
 
 			// Toolbar row below the input box
 			this._inputBoxToolbar = dom.$('div');
@@ -317,7 +327,7 @@ export class AgentsVoiceWidget extends Disposable {
 			};
 
 			// Mic button
-			this._inputBoxMicBtn = dom.$('span.codicon.codicon-mic');
+			this._inputBoxMicBtn = dom.$('span.codicon.codicon-voice-mode.agents-voice-mode-button');
 			this._inputBoxMicBtn.role = 'button';
 			this._inputBoxMicBtn.tabIndex = 0;
 			this._inputBoxMicBtn.ariaLabel = localize('agentsVoice.pushToTalkSpace', "Push to talk (Space)");
@@ -448,7 +458,6 @@ export class AgentsVoiceWidget extends Disposable {
 		const renderDisposable = autorun(reader => {
 			this._updateDOM(reader);
 			getWindow(this.container).requestAnimationFrame(() => {
-				updateTranscriptOverflowState(this.container);
 				this.callbacks.onResize();
 			});
 		});
@@ -605,20 +614,20 @@ export class AgentsVoiceWidget extends Disposable {
 				this._transcriptComponent.element.style.padding = '8px 12px';
 				this._transcriptComponent.element.style.borderBottom = '1px solid var(--vscode-widget-border, var(--vscode-input-border, transparent))';
 				this._transcriptComponent.update({ turns: transcriptTurns, chatStyle: true });
-				// Hide the input box placeholder since transcript is shown above
 				this._inputBoxPlaceholder!.style.display = 'none';
+				this._inputBoxTranscriptComponent.element.style.display = 'none';
 			} else {
-				// Show transcript text inside the placeholder (no purple coloring)
-				this._inputBoxPlaceholder!.style.display = '';
+				this._inputBoxPlaceholder!.style.display = 'none';
 				this._transcriptComponent.element.style.display = 'none';
 				this._transcriptComponent.element.style.padding = '';
 				this._transcriptComponent.element.style.borderBottom = '';
-				const lastTurn = transcriptTurns[transcriptTurns.length - 1];
-				this._inputBoxPlaceholder!.textContent = lastTurn?.text ?? '';
+				this._inputBoxTranscriptComponent.element.style.display = '';
+				this._inputBoxTranscriptComponent.update({ turns: transcriptTurns, chatStyle: true, scrollToTop: true });
 			}
 		} else {
 			// Show placeholder
 			this._inputBoxPlaceholder!.style.display = '';
+			this._inputBoxTranscriptComponent.element.style.display = 'none';
 			this._transcriptComponent.element.style.display = 'none';
 			const keyLabel = this._pttKeyLabel.read(reader);
 			if (showConnected) {
@@ -626,7 +635,7 @@ export class AgentsVoiceWidget extends Disposable {
 			} else if (keyLabel) {
 				this._inputBoxPlaceholder!.textContent = localize('agentsVoice.holdToTalk', "Hold {0} to talk", keyLabel);
 			} else {
-				this._inputBoxPlaceholder!.textContent = localize('agentsVoice.clickMicToTalk', "Click mic to talk");
+				this._inputBoxPlaceholder!.textContent = localize('agentsVoice.clickMicToTalk', "Click voice mode to talk");
 			}
 		}
 
@@ -669,10 +678,13 @@ export class AgentsVoiceWidget extends Disposable {
 				: voiceState === 'speaking' ? 'var(--vscode-agentsVoice-speakingForeground)'
 					: 'var(--vscode-descriptionForeground)';
 		this._inputBoxMicBtn!.style.color = micColor;
-		// Toggle filled state when actively listening or speaking
-		const micFilled = voiceState === 'listening' || voiceState === 'speaking';
-		this._inputBoxMicBtn!.classList.toggle('codicon-mic', !micFilled);
-		this._inputBoxMicBtn!.classList.toggle('codicon-mic-filled', micFilled);
+		const micIsActive = voiceState === 'listening' || voiceState === 'speaking';
+		this._inputBoxMicBtn!.classList.toggle('agents-voice-mode-active', micIsActive);
+		this._inputBoxMicBtn!.style.setProperty('--agents-voice-input-icon-rgb', voiceState === 'speaking' ? '163,113,247' : '88,166,255');
+		this._inputBoxMicBtn!.style.borderRadius = '50%';
+		if (!micIsActive) {
+			this._inputBoxMicBtn!.style.boxShadow = 'none';
+		}
 		this._inputBoxMicBtn!.onmousedown = (e: MouseEvent) => { e.preventDefault(); this.callbacks.pttDown(); };
 		this._inputBoxMicBtn!.onmouseup = () => { this.callbacks.pttUp(); };
 
@@ -980,6 +992,9 @@ export class AgentsVoiceWidget extends Disposable {
 					this._inputBoxContainer.style.borderColor = 'var(--vscode-input-border, transparent)';
 					this._inputBoxContainer.style.boxShadow = 'none';
 				}
+				if (this._inputBoxMicBtn) {
+					this._inputBoxMicBtn.style.boxShadow = 'none';
+				}
 				return;
 			}
 
@@ -1007,6 +1022,18 @@ export class AgentsVoiceWidget extends Disposable {
 				const shadowAlpha = 0.15 + intensity * 0.35;
 				this._inputBoxContainer.style.borderColor = `rgba(${r},${borderAlpha})`;
 				this._inputBoxContainer.style.boxShadow = `0 0 ${shadowSpread}px rgba(${r},${shadowAlpha}), inset 0 0 ${shadowSpread * 0.4}px rgba(${r},${shadowAlpha * 0.3})`;
+			}
+
+			if (this._inputBoxMicBtn) {
+				const iconGlowActive = voiceState === 'listening' || voiceState === 'speaking';
+				if (iconGlowActive) {
+					const r = voiceState === 'speaking' ? '163,113,247' : '88,166,255';
+					const shadowSpread = 3 + intensity * 8;
+					const shadowAlpha = 0.2 + intensity * 0.45;
+					this._inputBoxMicBtn.style.boxShadow = `0 0 ${shadowSpread}px rgba(${r},${shadowAlpha})`;
+				} else {
+					this._inputBoxMicBtn.style.boxShadow = 'none';
+				}
 			}
 
 			// Classic layout glow div
