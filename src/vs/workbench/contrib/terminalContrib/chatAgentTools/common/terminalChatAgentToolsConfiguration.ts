@@ -512,7 +512,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 					path: '${1}'
 				}
 			}
-		]
+			]
 	},
 	[TerminalChatAgentToolsSettingId.OutputLocation]: {
 		markdownDescription: localize('outputLocation.description', "Where to show the output from the run in terminal tool."),
@@ -608,6 +608,17 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		default: false,
 		tags: ['preview'],
 		restricted: true,
+		policy: {
+			name: 'ChatAgentSandboxForceFirstExecutionInSandbox',
+			category: PolicyCategory.IntegratedTerminal,
+			minimumVersion: '1.127',
+			localization: {
+				description: {
+					key: 'agentSandbox.forceFirstExecutionInSandbox',
+					value: localize('agentSandbox.forceFirstExecutionInSandbox', "Controls whether agent mode terminal commands first run with the sandbox's configured restrictions before honoring a request for execution outside the sandbox or unrestricted network access. The user is prompted to approve the requested additional access only if that sandboxed command fails. This applies only when {0} is enabled.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
+				}
+			}
+		}
 	},
 	[AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests]: {
 		markdownDescription: localize('agentSandbox.retryWithAllowNetworkRequests', "Controls whether agent mode terminal commands can retry in the sandbox with unrestricted network access after user confirmation. This applies only when {0} is set to `on` and preserves file system sandboxing while relaxing network restrictions for an approved command.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
@@ -762,10 +773,10 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		default: true,
 		markdownDescription: [
 			localize('preventShellHistory.description', "Whether to exclude commands run by the terminal tool from the shell history. See below for the supported shells and the method used for each:"),
-			`- \`bash\`: ${localize('preventShellHistory.description.bash', "Sets `HISTCONTROL=ignorespace` and prepends the command with space")}`,
-			`- \`zsh\`: ${localize('preventShellHistory.description.zsh', "Sets `HIST_IGNORE_SPACE` option and prepends the command with space")}`,
-			`- \`fish\`: ${localize('preventShellHistory.description.fish', "Sets `fish_private_mode` to prevent any command from entering history")}`,
-			`- \`pwsh\`: ${localize('preventShellHistory.description.pwsh', "Sets a custom history handler via PSReadLine's `AddToHistoryHandler` to prevent any command from entering history")}`,
+			`- \`bash\`: ${localize('preventShellHistory.description.bash', "Sets \`HISTCONTROL=ignorespace\` and prepends the command with space")}`,
+			`- \`zsh\`: ${localize('preventShellHistory.description.zsh', "Sets \`HIST_IGNORE_SPACE\` option and prepends the command with space")}`,
+			`- \`fish\`: ${localize('preventShellHistory.description.fish', "Sets \`fish_private_mode\` to prevent any command from entering history")}`,
+			`- \`pwsh\`: ${localize('preventShellHistory.description.pwsh', "Sets a custom history handler via PSReadLine's \`AddToHistoryHandler\` to prevent any command from entering history")}`,
 		].join('\n'),
 	},
 	[TerminalChatAgentToolsSettingId.EnforceTimeoutFromModel]: {
