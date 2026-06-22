@@ -203,6 +203,37 @@ suite('OnboardingScenarioService', () => {
 		assert.deepStrictEqual({ runs: presentation.runs, outcome }, { runs: ['manual-1'], outcome: OnboardingOutcome.Completed });
 	});
 
+	test('runScenario joins an in-flight run instead of starting a second one', async () => {
+		let release!: () => void;
+		const gate = new Promise<void>(resolve => { release = resolve; });
+		const kind = uniqueKind();
+		const runs: string[] = [];
+		const presentation: IOnboardingPresentation = {
+			kind,
+			async run(scenario: IOnboardingScenario): Promise<OnboardingOutcome> {
+				runs.push(scenario.id);
+				await gate;
+				return OnboardingOutcome.Completed;
+			}
+		};
+		registerPresentation(presentation);
+		registerScenario({ id: 'inflight-1', trigger: { kind: 'command', commandId: 'noop' }, presentation: { kind, payload: undefined } });
+
+		const { service } = createService();
+		service.start();
+
+		const first = service.runScenario('inflight-1');
+		await timeout(0);
+		// Second call while the first run is still in-flight must not start again.
+		const second = service.runScenario('inflight-1');
+		await timeout(0);
+
+		release();
+		const [a, b] = await Promise.all([first, second]);
+
+		assert.deepStrictEqual({ runs, a, b }, { runs: ['inflight-1'], a: OnboardingOutcome.Completed, b: OnboardingOutcome.Completed });
+	});
+
 	test('resetAll clears shown state so the scenario can run again', async () => {
 		const presentation = new RecordingPresentation(uniqueKind());
 		registerPresentation(presentation);

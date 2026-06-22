@@ -44,6 +44,8 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 	/** Scenario ids currently queued or running (prevents double-scheduling). */
 	private readonly _pending = new Set<string>();
 	private readonly _queue: { scenario: IOnboardingScenario; deferred: DeferredPromise<OnboardingOutcome> }[] = [];
+	/** Deferreds for scenarios that have been dequeued and are currently running, keyed by id. */
+	private readonly _inflight = new Map<string, DeferredPromise<OnboardingOutcome>>();
 	private _pumping = false;
 
 	/** Abort signal for the scenario currently running. */
@@ -193,9 +195,16 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 			return Promise.resolve(OnboardingOutcome.Aborted);
 		}
 
-		const existing = this._queue.find(entry => entry.scenario.id === scenario.id);
-		if (existing) {
-			return existing.deferred.p;
+		// De-duplicate against both the queue and the in-flight run so a repeated
+		// `runScenario(id)` (e.g. a command invoked while the tour is active)
+		// joins the existing run instead of scheduling a second one.
+		const queued = this._queue.find(entry => entry.scenario.id === scenario.id);
+		if (queued) {
+			return queued.deferred.p;
+		}
+		const inflight = this._inflight.get(scenario.id);
+		if (inflight) {
+			return inflight.p;
 		}
 
 		const deferred = new DeferredPromise<OnboardingOutcome>();
@@ -224,6 +233,9 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 			let entry: { scenario: IOnboardingScenario; deferred: DeferredPromise<OnboardingOutcome> } | undefined;
 			while (!this._stopped && (entry = this._queue.shift())) {
 				const { scenario, deferred } = entry;
+				// Track the running scenario so a concurrent `_enqueue` for the same
+				// id joins this run instead of scheduling another.
+				this._inflight.set(scenario.id, deferred);
 				let outcome: OnboardingOutcome;
 				try {
 					outcome = await this._runPresentation(scenario);
@@ -231,6 +243,7 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 					onUnexpectedError(error);
 					outcome = OnboardingOutcome.Aborted;
 				} finally {
+					this._inflight.delete(scenario.id);
 					this._pending.delete(scenario.id);
 				}
 				deferred.complete(outcome);

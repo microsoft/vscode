@@ -168,17 +168,22 @@ export class SpotlightOverlay extends Disposable {
 		}));
 
 		// When the step advances by pressing the target, hide the Next button and
-		// advance on a click of the (interactive) target instead.
+		// advance on a click of the (interactive) target instead. The target is
+		// kept keyboard-reachable: it joins the focus trap (see `_collectFocusable`)
+		// and we route Tab/Esc from it through the same handler, so keyboard-only
+		// users can focus the spotlighted control and activate it to advance.
 		const advanceOnTargetClick = !!options.advanceOnTargetClick;
 		this._nextButton.element.style.display = advanceOnTargetClick ? 'none' : '';
 		if (advanceOnTargetClick) {
 			this._stepListeners.add(addDisposableListener(target, EventType.CLICK, () => this._onDidClickNext.fire()));
+			this._stepListeners.add(addDisposableListener(target, EventType.KEY_DOWN, e => this._onKeyDown(e)));
 		}
 
 		this.layout();
 
-		// Move focus into the callout for keyboard users.
-		(advanceOnTargetClick ? this._skipButton : this._nextButton).focus();
+		// Move focus to the spotlighted control (so keyboard users can activate it
+		// to advance) or, otherwise, into the callout's primary action.
+		(advanceOnTargetClick ? target : this._nextButton.element).focus();
 	}
 
 	/** Recompute the hole and callout positions for the current target. */
@@ -286,8 +291,17 @@ export class SpotlightOverlay extends Disposable {
 
 		const active = getActiveElement();
 		const currentIndex = focusable.findIndex(element => element === active);
-		const delta = event.shiftKey ? -1 : 1;
-		const nextIndex = (currentIndex + delta + focusable.length) % focusable.length;
+
+		// When focus isn't currently on a tracked element (e.g. it landed on the
+		// callout container itself), start from the appropriate end so Tab goes to
+		// the first element and Shift+Tab to the last.
+		let nextIndex: number;
+		if (currentIndex === -1) {
+			nextIndex = event.shiftKey ? focusable.length - 1 : 0;
+		} else {
+			const delta = event.shiftKey ? -1 : 1;
+			nextIndex = (currentIndex + delta + focusable.length) % focusable.length;
+		}
 
 		event.preventDefault();
 		event.stopPropagation();
@@ -295,12 +309,15 @@ export class SpotlightOverlay extends Disposable {
 	}
 
 	/**
-	 * The focusable elements inside the callout, in DOM order: any interactive
-	 * content rendered in the (possibly markdown) description first, then the
-	 * visible action buttons. Querying the description ensures links inside a
-	 * markdown body remain keyboard-reachable despite `aria-modal`.
+	 * The focusable elements participating in the focus trap, in DOM order: the
+	 * spotlighted target (when the step advances by pressing it), then any
+	 * interactive content in the (possibly markdown) description, then the visible
+	 * action buttons. Including the target keeps the spotlighted control
+	 * keyboard-reachable, and querying the description keeps markdown links
+	 * reachable despite `aria-modal`.
 	 */
 	private _collectFocusable(): HTMLElement[] {
+		const target = (this._options.advanceOnTargetClick && this._target) ? [this._target] : [];
 		const descriptionFocusables = Array.from(
 			// eslint-disable-next-line no-restricted-syntax -- querying our own callout description subtree for focusable markdown content (e.g. links)
 			this._description.querySelectorAll<HTMLElement>('a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])')
@@ -308,7 +325,7 @@ export class SpotlightOverlay extends Disposable {
 		const buttons = [this._skipButton, this._backButton, this._nextButton]
 			.filter(button => button.element.style.display !== 'none')
 			.map(button => button.element);
-		return [...descriptionFocusables, ...buttons];
+		return [...target, ...descriptionFocusables, ...buttons];
 	}
 
 	private _scheduleLayout(): void {
