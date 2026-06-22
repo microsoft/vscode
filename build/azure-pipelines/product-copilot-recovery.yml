@@ -47,6 +47,17 @@ extends:
     workingDirectory: ./extensions/copilot
     l10nSourcePaths: ./extensions/copilot/src
     nodeVersion: 22.21.x
+    # The copilot extension is bundled with esbuild and vendors prebuilt native
+    # modules (e.g. @os-theme, @picovoice/pvrecorder-node) that depend on a
+    # newer GLIBC than the template's sysroot check allows. The main product
+    # build (product-copilot.yml) ships these natives without a sysroot or GLIBC
+    # check, so disable the sysroot here for parity; this also skips the GLIBC/
+    # GLIBCXX verification that would otherwise fail on those vendored natives.
+    buildPlatforms:
+      - name: Linux
+        vsceTarget: ""
+        useSysroot: false
+        codesignPaths: []
     # Copilot handles localization itself via copilot/l10n-steps.yml (importing
     # translated strings from the microsoft/vscode-extensions-loc checkout),
     # mirroring product-copilot.yml. Disable the template's own l10n jobs and
@@ -80,29 +91,6 @@ extends:
       - template: copilot/setup-steps.yml
       - template: copilot/build-steps.yml
       - template: copilot/l10n-steps.yml
-      - script: |
-          set -e
-
-          # The GLIBC check (from the shared extension template) scans every .node
-          # under the sources root, but only extensions/copilot is packaged into
-          # the VSIX. Native modules outside it belong to the vscode build tooling
-          # (e.g. build/node_modules/tree-sitter) and are never shipped, yet their
-          # newer GLIBC/GLIBCXX dependencies fail the check. Remove them so the
-          # check only validates the copilot extension's own shipped natives.
-          find "$(Build.SourcesDirectory)" \
-            -type f -name '*.node' \
-            -not -path "$(Build.SourcesDirectory)/extensions/copilot/*" \
-            -print -delete
-
-          # @github/copilot (inside extensions/copilot) vendors
-          # @picovoice/pvrecorder-node, whose linux/x86_64 prebuild depends on
-          # GLIBC > 2.28. The native is not shipped in the VSIX, so remove the
-          # pvrecorder prebuilds before the check runs.
-          find "$(Build.SourcesDirectory)" \
-            -type d -name pvrecorder-node \
-            -path "*@picovoice/pvrecorder-node" \
-            -print -exec rm -rf {} +
-        displayName: Remove build-only native binaries before GLIBC check
 
     uploadSourceMaps:
       enabled: true
