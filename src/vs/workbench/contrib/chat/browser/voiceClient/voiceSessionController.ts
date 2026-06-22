@@ -962,6 +962,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					toolName: e.name,
 					toolArgs: e.args,
 				});
+				this._awaitingReplyAudio = true;
+				this._clearAutoListenTimer();
 				const sendPromise = text.trim()
 					? this._sendTranscriptionToChat(text)
 					: Promise.resolve();
@@ -969,8 +971,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					this.voiceClientService.sendToolResult(e.callId, 'ok');
 					this._voiceState.set('idle', undefined);
 					this._statusText.set('Hold to speak...', undefined);
-					this._awaitingReplyAudio = true;
-					this._clearAutoListenTimer();
 					this._sendContext();
 				});
 				return;
@@ -993,12 +993,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					this._finishPtt();
 				}
 				this._suppressIncomingAudio = false;
+				this._awaitingReplyAudio = true;
+				this._clearAutoListenTimer();
 				this.voiceToolDispatchService.dispatchToolCall(e).then(result => {
 					this.voiceClientService.sendToolResult(e.callId, result);
 					this._voiceState.set('idle', undefined);
 					this._statusText.set('Hold to speak...', undefined);
-					this._awaitingReplyAudio = true;
-					this._clearAutoListenTimer();
 					this._sendContext();
 				});
 			} else {
