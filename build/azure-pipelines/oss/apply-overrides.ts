@@ -34,9 +34,9 @@
  *      `unmatchedNames` so the caller can warn or hard-fail.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as https from 'https';
-import * as http from 'http';
+import fs from 'fs';
+import https from 'https';
+import http from 'http';
 import { URL } from 'url';
 
 export interface CglicenseEntry {

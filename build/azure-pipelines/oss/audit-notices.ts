@@ -17,8 +17,8 @@
  *  --repo     Path to the repo root (defaults to cwd)
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
+import fs from 'fs';
+import path from 'path';
 import { parseNoticeFile, type NoticeEntry } from './parse-notices.js';
 import { parseArgs } from './utils.js';
 

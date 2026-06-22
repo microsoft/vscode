@@ -14,7 +14,7 @@
  *    node merge-notices.js --cg <path> --extensions <path> --output <path>
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
+import fs from 'fs';
 import { applyOverrides, readCglicenses } from './apply-overrides.js';
 import { isPackageHeader } from './parse-notices.js';
 import { parseArgs } from './utils.js';

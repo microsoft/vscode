@@ -17,8 +17,8 @@
  *    3. getCrateRepository — override map returns mirror URLs.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
+import fs from 'fs';
+import path from 'path';
 import { isSpdxStub, parseCargoLock, getCrateRepository, crateLicenseRefs } from './scan-licenses.js';
 
 let passed = 0;

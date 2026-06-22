@@ -11,7 +11,7 @@
  *    node parse-notices.js --diff <pathA> <pathB>     Compare two files
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
+import fs from 'fs';
 
 export interface NoticeEntry {
 	name: string;

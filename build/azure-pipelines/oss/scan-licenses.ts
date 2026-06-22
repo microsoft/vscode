@@ -24,9 +24,9 @@
  *                 cannot be obtained from disk or self-fetch (Section 7 guard)
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
-import * as https from 'https';
+import fs from 'fs';
+import path from 'path';
+import https from 'https';
 import { fetchUriText } from './apply-overrides.js';
 import { parseNoticeFile } from './parse-notices.js';
 import { parseArgs } from './utils.js';
