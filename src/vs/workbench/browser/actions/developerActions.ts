@@ -49,6 +49,10 @@ import { IPolicyService } from '../../../platform/policy/common/policy.js';
 import { ICopilotManagedSettingsService, ManagedSettingsSource, projectManagedSettings, selectManagedSettings } from '../../../platform/policy/common/copilotManagedSettings.js';
 import { IManagedSettingPolicyDefinition, ManagedSettingsData } from '../../../base/common/policy.js';
 import { APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME, IAccountPolicyGateService } from '../../services/policies/common/accountPolicyService.js';
+import { adaptManagedSettings, IManagedSettingsResponse } from '../../services/accounts/browser/managedSettings.js';
+import { isObject } from '../../../base/common/types.js';
+import * as json from '../../../base/common/json.js';
+import { getParseErrorMessage } from '../../../base/common/jsonErrorMessages.js';
 
 class InspectContextKeysAction extends Action2 {
 
@@ -812,46 +816,43 @@ class PolicyDiagnosticsAction extends Action2 {
 			const selection = selectManagedSettings(serverManagedSettings, nativeManagedSettings);
 
 			content += `**Active source**: ${managedSettingsSourceLabel(selection.source)}\n\n`;
-			content += 'Managed settings can arrive from more than one channel. The GitHub server API takes precedence over native MDM and the channels are never merged, so exactly one channel is active at a time.\n\n';
 
-			// --- GitHub server API channel ---
+			// Collect non-fatal issues from every managed-settings parsing/normalization callback
+			// (adapt, projection, JSON payload) so the report explains *why* a key was dropped.
+			// jsonc-style: accumulate every error instead of failing on the first.
+			const parseErrors: { stage: string; message: string }[] = [];
+
 			content += '### GitHub Server API\n\n';
-			content += 'Endpoint: `/copilot_internal/managed_settings`\n\n';
 			content += '| Property | Value |\n';
 			content += '|----------|-------|\n';
+			content += '| Endpoint | `/copilot_internal/managed_settings` |\n';
 			const fetchStatus = defaultAccountService.managedSettingsFetchStatus;
-			content += `| Last fetch (most recent attempt) | ${fetchStatus === null ? '*not yet fetched*' : `\`${fetchStatus}\``} |\n`;
+			content += `| Last fetch | ${fetchStatus === null ? '*never*' : `\`${fetchStatus}\``} |\n`;
 			const fetchedAt = defaultAccountService.managedSettingsFetchedAt;
 			content += `| Last successful fetch | ${fetchedAt ? new Date(fetchedAt).toLocaleString() : '*n/a*'} |\n`;
-			content += `| Active | ${selection.source === 'server' ? 'yes' : 'no'} |\n`;
-			content += '\n';
+			content += `| Active | ${selection.source === 'server' ? 'yes' : 'no'} |\n\n`;
 
 			const rawResponse = defaultAccountService.managedSettingsRawResponse;
+			if (isObject(rawResponse)) {
+				adaptManagedSettings(rawResponse as IManagedSettingsResponse, message => parseErrors.push({ stage: 'adapt', message }));
+			}
 			if (rawResponse !== null && rawResponse !== undefined) {
-				content += 'Raw response captured on the last *successful* fetch. A more recent failed fetch (for example a `404` above) leaves this value stale and does NOT apply it, so it can disagree with the effective bag below:\n\n';
-				content += '```json\n';
-				content += JSON.stringify(rawResponse, null, 2);
-				content += '\n```\n\n';
+				content += '**Raw response** (last successful fetch)\n\n';
+				content += '```json\n' + JSON.stringify(rawResponse, null, 2) + '\n```\n\n';
 			}
 
-			content += 'Normalized bag (server response flattened to dot-path keys):\n\n';
-			content += '```json\n';
-			content += JSON.stringify(serverManagedSettings ?? {}, null, 2);
-			content += '\n```\n\n';
+			content += '**Normalized bag**\n\n';
+			content += '```json\n' + JSON.stringify(serverManagedSettings ?? {}, null, 2) + '\n```\n\n';
 
-			// --- Native MDM channel ---
 			content += '### Native MDM\n\n';
-			content += 'OS registry (Windows) / managed preferences (macOS)\n\n';
-			if (copilotManagedSettingsService === undefined) {
-				content += '*Not available in this window (desktop only).*\n\n';
-			} else {
-				content += `Active: ${selection.source === 'nativeMdm' ? 'yes' : 'no'}\n\n`;
-				content += '```json\n';
-				content += JSON.stringify(nativeManagedSettings ?? {}, null, 2);
-				content += '\n```\n\n';
+			content += '| Property | Value |\n';
+			content += '|----------|-------|\n';
+			content += `| Available | ${copilotManagedSettingsService ? 'yes' : 'no (desktop only)'} |\n`;
+			content += `| Active | ${selection.source === 'nativeMdm' ? 'yes' : 'no'} |\n\n`;
+			if (copilotManagedSettingsService) {
+				content += '```json\n' + JSON.stringify(nativeManagedSettings ?? {}, null, 2) + '\n```\n\n';
 			}
 
-			// --- Effective bag after selection + projection ---
 			// Mirror AccountPolicyService: project the winning bag onto the keys declared by policies
 			// so the report shows exactly what reaches `policy.value(...)`.
 			const declaredDefinitions: Record<string, IManagedSettingPolicyDefinition> = {};
@@ -861,12 +862,32 @@ class PolicyDiagnosticsAction extends Action2 {
 					Object.assign(declaredDefinitions, declared);
 				}
 			}
-			const effective = projectManagedSettings({ ...selection.values }, declaredDefinitions);
-			content += '### Effective (after selection and projection)\n\n';
-			content += 'The bag passed to `policy.value(...)`: the active source projected onto the keys declared by policies. Undeclared keys and type mismatches are dropped.\n\n';
-			content += '```json\n';
-			content += JSON.stringify(effective, null, 2);
-			content += '\n```\n\n';
+			const effective = projectManagedSettings({ ...selection.values }, declaredDefinitions, message => parseErrors.push({ stage: 'project', message }));
+
+			// JSON payloads (the strings PolicyConfiguration parses back into typed values), checked
+			// with the same jsonc parser and error messages so malformed values surface here too.
+			for (const [key, value] of Object.entries(effective)) {
+				if (typeof value === 'string' && /^\s*[{[]/.test(value)) {
+					const jsonErrors: json.ParseError[] = [];
+					json.parse(value, jsonErrors);
+					for (const e of jsonErrors) {
+						parseErrors.push({ stage: 'parse', message: `${key} @ offset ${e.offset}: ${getParseErrorMessage(e.error)}` });
+					}
+				}
+			}
+
+			content += '### Effective\n\n';
+			content += '```json\n' + JSON.stringify(effective, null, 2) + '\n```\n\n';
+
+			content += `### Parse Errors (${parseErrors.length})\n\n`;
+			if (parseErrors.length > 0) {
+				content += '| Stage | Message |\n';
+				content += '|-------|---------|\n';
+				for (const { stage, message } of parseErrors) {
+					content += `| ${stage} | ${message.replace(/\|/g, '\\|')} |\n`;
+				}
+				content += '\n';
+			}
 		} catch (error) {
 			content += `*Error rendering managed settings diagnostics: ${error}*\n\n`;
 		}

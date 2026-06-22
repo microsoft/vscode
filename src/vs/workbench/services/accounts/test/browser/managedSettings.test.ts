@@ -169,6 +169,19 @@ suite('adaptManagedSettings', () => {
 		assert.strictEqual(warnings.length, 2);
 	});
 
+	test('resilience: extraKnownMarketplaces github entry missing "repo" is skipped with a warning', () => {
+		const warnings: string[] = [];
+		const result = adaptManagedSettings({
+			extraKnownMarketplaces: {
+				'example-key': { source: { source: 'github' } } as IManagedSettingsResponse['extraKnownMarketplaces'] extends Record<string, infer V> ? V : never,
+			},
+		} as IManagedSettingsResponse, msg => warnings.push(msg));
+		assert.deepStrictEqual(
+			{ result, warned: warnings.length, mentionsRepo: warnings.some(w => w.includes('requires "repo"')) },
+			{ result: { managedSettings: {} }, warned: 1, mentionsRepo: true }
+		);
+	});
+
 	test('resilience: a marketplace string array (wrong format) is treated as missing, no throw', () => {
 		assert.deepStrictEqual(adaptManagedSettings({
 			extraKnownMarketplaces: ['https://plugins.acme.com'] as unknown as IManagedSettingsResponse['extraKnownMarketplaces'],
