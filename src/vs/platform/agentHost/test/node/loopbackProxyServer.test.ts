@@ -421,7 +421,7 @@ suite('LoopbackProxyServer', () => {
 		test('dispose() aborts in-flight requests and destroys their sockets', async () => {
 			const service = new TestProxyServer();
 			let aborted = false;
-			let entered: () => void;
+			let entered!: () => void;
 			const handlerEntered = new Promise<void>(resolve => { entered = resolve; });
 
 			service.requestHandler = async (_req, res, runtime) => {
