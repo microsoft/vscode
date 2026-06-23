@@ -37,10 +37,8 @@ CommandsRegistry.registerCommand(LOCAL_AGENT_DISABLED_CONTINUE_IN_AGENT_HOST_COP
 
 CommandsRegistry.registerCommand(LOCAL_AGENT_DISABLED_MUTE_CONTINUE_IN_AGENT_HOST_COPILOT_COMMAND_ID, (accessor: ServicesAccessor) => {
 	const storageService = accessor.get(IStorageService);
-	const notificationService = accessor.get(IChatInputNotificationService);
 
 	storageService.store(LOCAL_AGENT_DISABLED_MUTE_STORAGE_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
-	notificationService.deleteNotification(LOCAL_AGENT_DISABLED_NOTIFICATION_ID);
 });
 
 export class LocalAgentDisabledInputTipContribution extends Disposable implements IWorkbenchContribution {
