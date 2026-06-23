@@ -6,7 +6,7 @@
 import { $, addDisposableListener, append, EventType, getActiveElement, getWindow, isHTMLElement, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
-import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, isMarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -278,7 +278,7 @@ export class SpotlightOverlay extends Disposable {
 			return;
 		}
 
-		if (event.equals(KeyCode.Tab) || event.equals(KeyCode.Shift | KeyCode.Tab)) {
+		if (event.equals(KeyCode.Tab) || event.equals(KeyMod.Shift | KeyCode.Tab)) {
 			this._trapFocus(event);
 		}
 	}
