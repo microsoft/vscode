@@ -274,8 +274,14 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 				};
 			}
 			Object.keys(properties).forEach(name => {
-				// Use schema allOf property to get independent error reporting #21113
-				ConfigurationResolverUtils.applyDeprecatedVariableMessage(properties[name]);
+				const property = properties[name];
+				// A debugger extension may contribute a malformed property whose value is not a schema
+				// object (e.g. the bare string 'integer' instead of `{ "type": "integer" }`). Skip those so
+				// one bad contribution does not throw and abort schema generation for every debugger.
+				if (isObject(property)) {
+					// Use schema allOf property to get independent error reporting #21113
+					ConfigurationResolverUtils.applyDeprecatedVariableMessage(property);
+				}
 			});
 
 			definitions[definitionId] = { ...attributes };
