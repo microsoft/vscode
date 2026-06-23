@@ -8,7 +8,7 @@ import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { CancellableRequestMap } from '../../../base/common/cancellableRequestMap.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
-import { SerializedError, transformErrorForSerialization, transformErrorFromSerialization } from '../../../base/common/errors.js';
+import { CancellationError, SerializedError, transformErrorForSerialization, transformErrorFromSerialization } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { equalSets } from '../../../base/common/collections.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -109,6 +109,16 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 									part.value.data = VSBuffer.wrap(await resizeImage(part.value.data.buffer));
 								})
 						);
+						if (token.isCancellationRequested) {
+							this._pendingProgress.delete(requestId);
+							const err = new CancellationError();
+							stream.reject(err);
+							defer.error(err);
+							return {
+								result: defer.p,
+								stream: stream.asyncIterable
+							} satisfies ILanguageModelChatResponse;
+						}
 						await this._proxy.$startChatRequest(modelId, requestId, from, new SerializableObjectWithBuffers(messages), options, token);
 					} catch (err) {
 						this._pendingProgress.delete(requestId);
