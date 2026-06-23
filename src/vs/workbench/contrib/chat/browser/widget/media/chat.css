@@ -4516,3 +4516,60 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-input-container .chat-input-toolbars .codicon-debug-disconnect {
 	color: var(--vscode-charts-green, #3fb950) !important;
 }
+
+.chat-scrollbar-prompt-markers {
+	overflow: hidden;
+	/* Scrollbar .visible layer uses z-index 11; keep markers above it so marker clicks are not swallowed by the scrollbar. */
+	z-index: 12;
+	pointer-events: auto;
+}
+
+.chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker {
+	position: absolute;
+	left: 0;
+	right: 0;
+	min-height: 4px;
+	border-radius: 0;
+	background-color: var(--vscode-scrollbarSlider-background);
+	opacity: 0.85;
+	pointer-events: auto;
+	transition: top 0.15s ease-out, height 0.15s ease-out;
+}
+
+.chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker.chat-scrollbar-prompt-marker-lane-left {
+	left: 0;
+	right: auto;
+	width: 50%;
+}
+
+.chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker.chat-scrollbar-prompt-marker-lane-right {
+	left: auto;
+	right: 0;
+	width: 50%;
+}
+
+.chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker.chat-scrollbar-prompt-marker-lane-full {
+	left: 0;
+	right: 0;
+	width: auto;
+}
+
+.chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker.chat-scrollbar-prompt-marker-type-prompt {
+	background-color: var(--vscode-charts-purple, #a371f7);
+}
+
+.chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker.chat-scrollbar-prompt-marker-type-askQuestion {
+	background-color: var(--vscode-charts-yellow, #e5c07b);
+}
+
+.chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker.chat-scrollbar-prompt-marker-type-fileChange {
+	background-color: var(--vscode-charts-green, #3fb950);
+}
+
+.chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker.chat-scrollbar-prompt-marker-type-compaction {
+	background-color: var(--vscode-charts-yellow, #e5c07b);
+}
+
+.chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker.chat-scrollbar-prompt-marker-type-error {
+	background-color: var(--vscode-charts-red, #f85149);
+}
