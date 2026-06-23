@@ -26,7 +26,7 @@ import { CustomizationType, ROOT_STATE_URI, StateComponents, customizationId } f
 import type { IClientTransport, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { AgentHostTelemetryLevelConfigKey, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
+import { AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 
 type ProtocolTransportMessage = ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest;
 
@@ -467,6 +467,15 @@ suite('RemoteAgentHostProtocolClient', () => {
 					type: ActionType.RootConfigChanged,
 					config: { [AgentHostTelemetryLevelConfigKey]: telemetryLevelToAgentHostConfigValue(TelemetryLevel.USAGE) },
 				},
+			},
+		});
+		const terminalAutoApproveEnabled = transport.sentMessages[3] as JsonRpcNotification;
+		assert.deepStrictEqual(terminalAutoApproveEnabled.params, {
+			channel: ROOT_STATE_URI,
+			clientSeq: 0,
+			action: {
+				type: ActionType.RootConfigChanged,
+				config: { [AgentHostTerminalAutoApproveEnabledConfigKey]: true },
 			},
 		});
 	});
