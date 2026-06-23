@@ -721,6 +721,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/sessionInputBanners",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/terminal",
 			"project": "vscode-sessions"
 		},
