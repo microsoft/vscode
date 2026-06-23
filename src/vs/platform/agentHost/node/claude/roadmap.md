@@ -1093,6 +1093,9 @@ Shipped in PR #318113. Two-tier model:
   single "Discovered in Claude" Open Plugins-conformant on-disk tree under
   `IAgentPluginManager.basePath`, namespaced by working-directory hash and
   nonce-stable across repeated bundles of the same SDK snapshot.
+  **(Superseded by Phase 16:** the synthetic-stub bundle was replaced by a
+  disk scan returning real editable `file:` URIs; `ClaudeSdkCustomizationBundler`
+  is deleted.**)**
 
 **Per-session ownership.** All customization state lives on
 `ClaudeAgentSession`:
@@ -1107,6 +1110,7 @@ Shipped in PR #318113. Two-tier model:
   demand from `getSessionCustomizations`. Repeated calls with the same SDK
   snapshot skip the rewrite. The tree is intentionally a cross-session warm
   cache (not deleted on session dispose).
+  **(Superseded by Phase 16 — this bundler is deleted; see Phase 16.)**
 
 Full step-by-step plan: [phase11-plan.md](./phase11-plan.md).
 
@@ -1276,22 +1280,33 @@ fork end-to-end ships in Phase 6.5.
 
 Exit criteria: ready to enable for external preview.
 
-### Phase 15 — SDK distribution via `product.json` + main.vscode-cdn.net
+### Phase 15 — SDK distribution via `product.json` + main.vscode-cdn.net ✅ **DONE**
 
-**Status as of 2026-06-12:** Runtime shape is per-SDK `urlTemplate` +
-runtime `{sdkTarget}` substitution (replaced the per-platform
-`{url, sha256}` pair so macOS Universal bundles can share one
-`product.json`; see
-[`phase15-per-platform-plan.md`](./phase15-per-platform-plan.md) and the
-follow-up `urlTemplate` PR). The Claude and Codex SDK distributions are
-declared in `product.json` and downloaded on demand by
+> **Implementation contract / retrospective:
+> [phase15-plan.md](./phase15-plan.md).** That file documents what
+> actually shipped — runtime downloader, the `build/agent-sdk/` tarball
+> pipeline, the per-platform `produce.ts` step, and the gulpfile
+> `product.json` stamping. The summary below stays high-level for roadmap
+> continuity.
+
+**Status:** both the runtime and the build pipeline have landed. Runtime
+shape is per-SDK `urlTemplate` + runtime `{sdkTarget}` substitution
+(replaced the per-platform `{url, sha256}` pair so macOS Universal bundles
+can share one `product.json`). The Claude and Codex SDK distributions are
+declared in `product.json` (built by the per-platform
+[`produce.ts`](../../../../../../build/agent-sdk/produce.ts) step and
+stamped into `product.json` by `packageTask` in
+[`gulpfile.vscode.ts`](../../../../../../build/gulpfile.vscode.ts)) and
+downloaded on demand by
 [`agentSdkDownloader.ts`](../agentSdkDownloader.ts) into
 `<userDataPath>/agent-host/sdk-cache/<pkg>/<sdkVersion>/<sdkTarget>/`. The
 hand-supplied paths (`chat.agentHost.claudeAgent.path` →
 `AgentHostClaudeSdkRootEnvVar`, see
 [`claudeAgentSdkService.ts:148`](./claudeAgentSdkService.ts#L148), and the
 Codex equivalent) survive as a **dev override** only — set them to bypass
-the download.
+the download. SDK versions are pinned in
+[`build/agent-sdk/agents/<sdk>/package.json`](../../../../../../build/agent-sdk/agents/claude/package.json)
+(today: Claude `0.3.169`, Codex `0.135.0`).
 
 **Shape:**
 
@@ -1328,105 +1343,162 @@ the download.
   registered and never appears in the agent picker (matches the
   pre-CDN UX).
 
-**Exit criteria (met for runtime; build is a follow-up PR):**
+**Exit criteria (met):**
 - Fresh insiders install can use Claude/Codex without manually
   installing the SDK or setting any path.
-- SDK version bumps are now build-pipeline changes that re-pin
-  `product.agentSdks[pkg]` per platform during packaging.
+- SDK version bumps are now build-pipeline changes that re-pin the SDK
+  version in `build/agent-sdk/agents/<sdk>/package.json` (+ lockfile);
+  the per-platform `produce.ts` step republishes the tarballs and
+  `packageTask` re-stamps `product.agentSdks[pkg]` during packaging.
 - Dev override keeps working for SDK development.
 
-**Build pipeline** — see `build/agent-sdk/` for the tarball production
-and CDN upload tooling, including the deterministic-tar setup that
-makes `verify-determinism.ts` enforceable in CI. The inline integration
-into each `packageTask(platform, arch, ...)` so that the gulpfile patches
-`product.json` directly (no `AgentSDK` pipeline stage, no
-`aggregate.ts`) ships in a follow-up PR per
-[`phase15-per-platform-plan.md`](./phase15-per-platform-plan.md) §PR 2.
+**Build pipeline** — see [`build/agent-sdk/`](../../../../../../build/agent-sdk/README.md)
+for the tarball production and CDN upload tooling, including the
+deterministic-tar setup. The per-platform
+[`agent-sdk-produce.yml`](../../../../../../build/azure-pipelines/common/agent-sdk-produce.yml)
+template runs `produce.ts` before each `gulp vscode-<platform>-<arch>-min-ci`
+step; `packageTask`'s `jsonEditor` callback then merges the results into
+`product.json` via `readAgentSdkResults()` (no separate `AgentSDK`
+pipeline stage, no `aggregate.ts`). Full retrospective in
+[phase15-plan.md](./phase15-plan.md).
 
-### Phase 16 — Eager session materialization at create time
+### Phase 16 — Editable customization resolution via disk scan
 
-**Status:** follow-up to Phase 11. Phase 11's
-`getProjectedSessionCustomizations` already returns the SDK-resolved
-customization tier when the pipeline is bound, but for provisional
-sessions it returns only the client-pushed half. The full picture —
-SDK-discovered skills (`~/.claude/skills/**`), agents (`.claude/agents/**`),
-and `~/.claude/settings.json` MCP servers — only materializes after the
-first `sendMessage`. Workbench UX wants the full list available
-immediately on `createSession` so a draft session can show its true
-capability surface before the user types.
+> **Redesigned 2026-06-17.** This phase originally proposed "eager
+> session materialization at create time" — warming the SDK inside
+> `createSession` so `getSessionCustomizations` could return the
+> SDK-resolved tier before the first `sendMessage`. That premise is
+> **retired.** Investigation (below) showed the SDK query APIs can't
+> deliver what the customization UX actually needs, and that a disk
+> scan — not a warm session — is the right resolution path. The
+> warm-at-create machinery (and its JSONL-write-timing / cleanup-on-
+> discard tail) is no longer part of this phase.
 
-**Direction:** collapse the provisional/materialize split for the
-non-fork `createSession` path. `createSession` synchronously
-materializes (spawns the SDK subprocess, opens the proxy refcount,
-runs the metadata write, fires `onDidMaterializeSession`) before
-returning.
+**Status:** follow-up to Phase 11. Phase 11 bundles the SDK-discovered
+customization tier (`Query.supportedCommands()` / `supportedAgents()` /
+`mcpServerStatus()`) into a synthetic "Discovered in Claude" plugin
+tree. The problem: those SDK APIs return **only names + descriptions —
+no file paths and no content** (`SlashCommand` / `AgentInfo` /
+`McpServerStatus` in `sdk.d.ts`). So today's bundler synthesizes **stub
+files** (frontmatter with name + description, empty body) and ships
+URIs pointing at those *stubs*. A user who opens a "Discovered in
+Claude" item edits a generated stub, not their real
+`~/.claude/agents/foo.md` — and there is no real content anywhere in
+the projection.
 
-**Why this is its own phase, not part of Phase 11.** Phase 11's
-projector and SDK snapshot work stand on their own — they make
-`getSessionCustomizations` correct *whenever* the pipeline is bound.
-The eager-materialize change rewrites the M9 lifecycle contract,
-touches the `_sessionSequencer`'s first-send branch, changes
-disposable semantics for never-used sessions, and updates CONTEXT.md.
-Coupling the two would inflate Phase 11's blast radius for no review
-benefit; landing them serially keeps each change small.
+**Driver:** the customization surface must give the user the **real,
+editable file path** of each customization (agents, skills, slash
+commands, MCP servers). Content follows for free — like
+`CopilotAgent`, we ship the real `uri` and the client reads content on
+demand by opening it; we do **not** need to ship content bytes through
+the protocol.
+
+**Direction:** resolve customizations by **scanning the file system**
+(the `CopilotAgent` model), not by trusting the SDK query payloads.
+The SDK list becomes a **post-materialize filter**, not the source of
+the data.
+
+- **Pre-materialization (provisional / draft):** a disk scan resolves
+  the full set with real paths + parsed metadata. No warm SDK session
+  required, so `createSession` stays **cold and provisional** — no
+  subprocess, no proxy refcount, no JSONL, fully invisible in the
+  sidebar until the first `sendMessage`. **The provisional/materialize
+  split is preserved, not collapsed.** Show *everything* discovered on
+  disk (optimistic — no session yet to say what's actually active).
+- **Post-materialization (live session):** intersect the disk-scan
+  superset with the SDK's "known" set (`supportedCommands` /
+  `supportedAgents` / `mcpServerStatus`, matched by name per type).
+  A customization discovered on disk that the live session did **not**
+  load (malformed, disabled, wrong `settingSource`, shadowed by
+  precedence) is **hidden** post-materialize. The warm session already
+  exists here, so the filter is free.
+
+**Why a disk scan (and why it's not really duplicating Claude).**
+`CopilotAgent` already scans disk for customizations
+(`sessionCustomizationDiscovery.ts` — which *already* walks
+`.claude/agents` and `.claude/skills`) and parses frontmatter via the
+shared `pluginParsers.ts` (`parseAgentFile` / `parseSkillFile` /
+`readSkills` / `readMcpServers`). The Claude provider reuses that
+infrastructure. The genuinely net-new surface is only: **user-home
+`~/.claude/**`**, **`~/.claude/commands`** (slash commands), and
+**Claude's `settings.json` / `.mcp.json` MCP format** — i.e. encoding
+Claude's directory conventions, not reimplementing Claude.
 
 **Scope:**
 
-- `ClaudeAgent.createSession` calls `_materializeProvisional(sessionId)`
-  synchronously before returning. Return value's `provisional` flag is
-  either dropped or redefined ("no on-disk transcript yet" rather than
-  "no SDK" — settle in the plan).
-- `_sessionSequencer`'s "first call materializes" branch in
-  `sendMessage` is removed; every reachable session has a live pipeline.
-- `disposeSession` for a never-sent session now tears down a live
-  subprocess (the existing teardown handles it but is no longer free —
-  audit cost).
-- Fork path (Phase 6.5, when it lands) already materializes synchronously
-  on `forkSession` return — semantics align naturally.
-- CONTEXT.md M9: revise the "Provisional sessions own no SDK
-  resources" invariant; relax the "two-phase contract is locked"
-  framing; update the lifecycle tables to reflect "creation is the
-  materialize trigger". Phase 16 owns the doc update.
-- Tests that exercise the provisional → first-send materialize race
-  (Phase 10.5 regression coverage, Phase 11 mid-turn toggle race)
-  reworked against the new contract.
-- `getSessionCustomizations` for a freshly-created session now returns
-  the full SDK-resolved + client-pushed projection without waiting on
-  a send.
+- New Claude customization **disk-scan resolver** (mirrors
+  `CopilotAgent`'s discovery) covering, scoped by the session's `cwd`
+  + user home + `settingSources`:
+  - agents — `~/.claude/agents/**`, `<cwd>/.claude/agents/**`
+  - skills — `~/.claude/skills/**`, `<cwd>/.claude/skills/**`
+  - slash commands — `~/.claude/commands/**`, `<cwd>/.claude/commands/**`
+  - MCP servers — `~/.claude/settings.json`, `<cwd>/.claude/settings.json`,
+    `<cwd>/.mcp.json`
+  - Reuse `pluginParsers.ts` + `sessionCustomizationDiscovery.ts` where
+    possible; add Claude-specific roots + the `settings.json` MCP parser.
+- Each resolved item ships a **real `uri`** (editable file path) + parsed
+  name/description, replacing the synthetic-stub bundler for the
+  discovered tier.
+- Rules (CLAUDE.md + `.claude/rules/**`) are scanned and surfaced too;
+  they have no SDK counterpart, so they bypass the post-materialize
+  filter (always kept).
+- `getSessionCustomizations`:
+  - **provisional:** client-pushed ∪ full disk scan (no filter).
+  - **materialized:** client-pushed ∪ (disk scan ∩ SDK-known set).
+- The synthetic-stub `claudeSdkCustomizationBundler` is **deleted**; the
+  SDK-only non-editable fallback is generated declaratively inline in
+  `buildDiscoveredCustomizations` (no stub files on disk).
+- **Read-only built-in tier** (added during implementation): a curated set
+  of built-in slash commands (13) + built-in agents (5) is surfaced
+  read-only pre-materialize for discoverability (on the `agent-builtin:`
+  scheme), then superseded by the live SDK set post-materialize. Lives in
+  `claudeBuiltinCommands.ts`. Built-ins are display-only — `contrib/chat`
+  is untouched, so clicking one does not render content (accepted; a
+  read-only editor view is a future request).
+- `createSession` is **unchanged** in lifecycle terms: stays
+  provisional, no warm SDK, no `onDidMaterializeSession` at create.
+  The provisional path simply gains a disk scan for its customization
+  projection.
 
-**Trade-offs accepted (documented for posterity):**
+**What this phase explicitly does NOT do (retired from the old design):**
 
-- Drafting is no longer free — every `createSession` pays a subprocess
-  spawn, plugin sync, proxy refcount, and metadata write.
-- A draft the user cancels without sending costs the same as a session
-  that runs a turn (minus the actual model call).
-- The two-phase model (provisional → materialized) collapses into a
-  single phase for non-fork creation. Fork already materializes
-  eagerly; this aligns the two paths.
+- No eager / warm materialization inside `createSession`.
+- No collapsing of the provisional/materialize split.
+- No `IAgentCreateSessionResult.provisional` change, no
+  `_sessionSequencer` first-send-branch removal, no `onDidMaterialize`
+  ordering rework, no JSONL-write-timing investigation, no
+  cleanup-on-discard net. The lifecycle (M9) is untouched.
 
-**Open design points** (settle in the phase plan when scheduled):
+**Open design points** (settle in the phase plan):
 
-- Does `IAgentCreateSessionResult.provisional` get dropped, or
-  redefined to mean "no on-disk SDK transcript yet" (true until the
-  first message lands and the SDK persists)? Workbench callers may
-  rely on the flag for deferred-notification semantics.
-- `_onDidMaterializeSession` fires from inside `createSession`. The
-  service-layer deferred `sessionAdded` dispatch (`agentService.ts:412`)
-  must still see the event between the create and the visibility
-  window — verify ordering.
-- Failure modes: if materialization throws (proxy down, SDK install
-  broken), does `createSession` reject? Probably yes — the user has
-  no usable session anyway. Today's lazy path lets the failure surface
-  on first `sendMessage` instead; eager surfaces it earlier, which is
-  arguably better UX.
-- E2E coverage: a workbench scenario that creates a session and
-  inspects `getSessionCustomizations` *without* sending a message,
-  verifies the full SDK-resolved list is present.
+- **SDK-knows-it-but-not-found-on-disk** (built-ins, plugin-provided,
+  or an unscanned dir): show it as a **non-editable name/description
+  entry** (so the active capability list stays complete) or **drop**
+  it? Leaning *show as non-editable* — retains the honest active set
+  while only the locatable items are editable.
+- **Skills vs commands mapping** — the SDK surfaces skills via
+  `reloadSkills()` / `supportedCommands()` as `SlashCommand[]`, but the
+  disk layout separates `~/.claude/commands` (slash commands) from
+  `~/.claude/skills` (skills). The name-match filter needs a per-type
+  mapping so a skill isn't matched against a command.
+- **File watching** — do we re-scan on disk change (live updates to the
+  customization list) or scan once per `getSessionCustomizations` call?
+  Prefer correlated watchers via `fileService.createWatcher` if live.
+- **MCP completeness pre-materialize** — disk-scan reads declared MCP
+  servers from `settings.json`; their *connection status* is only known
+  post-materialize via `mcpServerStatus()`. Pre-materialize entries
+  carry config but no live status.
 
-Exit criteria: `getSessionCustomizations(freshlyCreatedSession)`
-returns the full SDK + client-pushed projection synchronously after
-`createSession` resolves; M9 doc updated; Phase 10.5 / 11 race tests
-reworked and green.
+Exit criteria: opening a discovered agent / skill / command from a
+Claude session's customization list opens the **real on-disk file**
+(editable), not a synthetic stub; a provisional (never-sent) session
+lists the full disk-scanned set; a materialized session hides on-disk
+customizations the live session did not load, and surfaces
+SDK-known-but-not-on-disk items as **non-editable** entries; the
+synthetic-stub bundler is **deleted** (the non-editable fallback and the
+curated built-in agents/skills tier are generated declaratively inline,
+no stub files on disk); `createSession` lifecycle (provisional, cold) is
+unchanged. **Shipped.**
 
 ---
 
