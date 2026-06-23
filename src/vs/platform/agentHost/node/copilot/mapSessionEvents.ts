@@ -159,12 +159,14 @@ export async function mapSessionEvents(
 	const completionsByCallId = new Map<string, ToolExecutionCompleteData>();
 
 	// The SDK tags events that originate from a sub-agent with an
-	// envelope-level `agentId`. `subagent.started` carries both the sub-agent's
-	// `agentId` and the parent tool call id it was spawned from, so we map one
-	// to the other and resolve every later sub-agent event through it.
+	// envelope-level `agentId` (the deprecated `data.parentToolCallId` is no
+	// longer populated). `subagent.started` carries both the sub-agent's
+	// `agentId` and the parent tool call id it was spawned from, so we map
+	// one to the other and resolve every later sub-agent event through it.
 	const parentToolCallIdByAgentId = new Map<string, string>();
-	const resolveParentToolCallId = (agentId: string | undefined): string | undefined => {
-		return agentId ? parentToolCallIdByAgentId.get(agentId) : undefined;
+	const resolveParentToolCallId = (agentId: string | undefined, deprecatedParentToolCallId: string | undefined): string | undefined => {
+		const mapped = agentId ? parentToolCallIdByAgentId.get(agentId) : undefined;
+		return mapped ?? deprecatedParentToolCallId;
 	};
 
 	for (const e of events) {
@@ -178,7 +180,7 @@ export async function mapSessionEvents(
 		}
 		if (e.type === 'tool.execution_start') {
 			const d = e.data;
-			const parentToolCallId = resolveParentToolCallId(e.agentId);
+			const parentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId);
 			const info = makeToolStartInfo(d.toolName, d.arguments, parentToolCallId, workingDirectory);
 			if (!info) {
 				continue;
@@ -264,8 +266,9 @@ export async function mapSessionEvents(
 				const messageId = d.interactionId ?? '';
 				const content = d.content ?? '';
 				const attachments = sdkAttachmentsToProtocol(d.attachments);
-				// Sub-agent user messages route by the envelope `agentId`.
-				const parentToolCallId = resolveParentToolCallId(e.agentId);
+				// User messages carry no deprecated `parentToolCallId`; route
+				// sub-agent user messages by the envelope `agentId` only.
+				const parentToolCallId = resolveParentToolCallId(e.agentId, undefined);
 				if (parentToolCallId) {
 					// User messages from a sub-agent route into the subagent's
 					// transcript. They never start a new parent turn; subagents
@@ -302,7 +305,7 @@ export async function mapSessionEvents(
 				const content = d.content ?? '';
 				const reasoningText = d.reasoningText;
 				const hasToolRequests = !!d.toolRequests && d.toolRequests.length > 0;
-				const parentToolCallId = resolveParentToolCallId(e.agentId);
+				const parentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId);
 				// When this is the first event in a turn (no parent builder
 				// yet), seed the builder with the SDK envelope id so the
 				// turn id matches `turns.event_id` for fork/truncate
@@ -360,7 +363,7 @@ export async function mapSessionEvents(
 					continue;
 				}
 				toolInfoByCallId.delete(d.toolCallId);
-				const parentToolCallId = resolveParentToolCallId(e.agentId);
+				const parentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId);
 				if (isTaskCompleteTool(info.toolName)) {
 					const builder = targetBuilderFor(parentToolCallId);
 					if (!builder) {
