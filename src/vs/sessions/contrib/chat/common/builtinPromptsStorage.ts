@@ -5,10 +5,10 @@
 
 import { URI } from '../../../../base/common/uri.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { AICustomizationPromptsStorage } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { AICustomizationSource } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 
 // Re-export from common for backward compatibility
-export type { AICustomizationPromptsStorage } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+export type { AICustomizationSource as AICustomizationPromptsStorage } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 export { BUILTIN_STORAGE } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 
 /**
@@ -16,7 +16,7 @@ export { BUILTIN_STORAGE } from '../../../../workbench/contrib/chat/common/aiCus
  */
 export interface IBuiltinPromptPath {
 	readonly uri: URI;
-	readonly storage: AICustomizationPromptsStorage;
+	readonly storage: AICustomizationSource;
 	readonly type: PromptsType;
 	readonly name?: string;
 	readonly description?: string;

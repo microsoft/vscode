@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserViewCommandId, BrowserViewStorageScope, IBrowserViewOpenOptions, IBrowserViewOwner, IBrowserViewService, IBrowserViewState, ipcBrowserViewChannelName } from '../../../../platform/browserView/common/browserView.js';
-import { IBrowserViewWorkbenchService, IBrowserViewModel, BrowserViewModel, IBrowserEditorViewState } from '../common/browserView.js';
+import { BrowserViewCommandId, BrowserViewStorageScope, IBrowserViewOpenOptions, IBrowserViewOwner, IBrowserViewService, IBrowserViewState, IBrowserViewTheme, ipcBrowserViewChannelName } from '../../../../platform/browserView/common/browserView.js';
+import { IBrowserViewWorkbenchService, IBrowserViewModel, BrowserViewModel, IBrowserEditorViewState, IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewOpenHandler } from '../common/browserView.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
 import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { AUX_WINDOW_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { AUX_WINDOW_GROUP, IEditorService, PreferredGroup } from '../../../services/editor/common/editorService.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -23,11 +23,19 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../platform/context
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { ChatConfiguration } from '../../chat/common/constants.js';
-import { AgentHostEnabledSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { focusBorder } from '../../../../platform/theme/common/colors/baseColors.js';
 import { buttonForeground, buttonBackground } from '../../../../platform/theme/common/colors/inputColors.js';
 import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts.js';
+import { findGroup } from '../../../services/editor/common/editorGroupFinder.js';
+import { ChatEditorInput } from '../../chat/browser/widgetHosts/editor/chatEditorInput.js';
+import { IChatWidgetService } from '../../chat/browser/chat.js';
+import { URI } from '../../../../base/common/uri.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { localChatSessionType } from '../../chat/common/chatSessionsService.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { ITunnelProxyInfo } from '../../../../platform/tunnel/common/tunnelProxy.js';
 
 /**
  * When enabled, integrated browser tools are exposed as client-provided tools
@@ -35,6 +43,8 @@ import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts.js';
  * Sessions window or when the agent host is disabled.
  */
 export const AgentHostChatToolsEnabledSettingId = 'workbench.browser.agentHostChatToolsEnabled';
+export const BrowserMaxHistoryEntriesSettingId = 'workbench.browser.maxHistoryEntries';
+export const BrowserRemoteProxyEnabledSettingId = 'workbench.browser.enableRemoteProxy';
 
 /** Command IDs whose accelerators are shown in browser view context menus. */
 const browserViewContextMenuCommands = [
@@ -48,7 +58,12 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 
 	private readonly _browserViewService: IBrowserViewService;
 	private readonly _known = new Map<string, BrowserEditorInput>();
+	private readonly _contextualFilters = new Set<IBrowserViewContextualFilter>();
+	private readonly _openHandlers = new Set<IBrowserViewOpenHandler>();
 	private readonly _mainWindowId: number;
+
+	/** Latest tunnel-proxy credentials pushed from the local extension host. */
+	private _remoteProxyInfo: ITunnelProxyInfo | undefined;
 
 	private readonly _onDidChangeBrowserViews = this._register(new Emitter<void>());
 	readonly onDidChangeBrowserViews: Event<void> = this._onDidChangeBrowserViews.event;
@@ -61,9 +76,11 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		ContextKeyExpr.or(
 			IsSessionsWindowContext.negate(),
 			ContextKeyExpr.and(
-				IsSessionsWindowContext,
-				ContextKeyExpr.has(`config.${AgentHostEnabledSettingId}`),
 				ContextKeyExpr.has(`config.${AgentHostChatToolsEnabledSettingId}`),
+				ContextKeyExpr.or(
+					ContextKeyExpr.equals('activeSessionType', localChatSessionType),
+					ContextKeyExpr.equals('sessions.isAgentHostSession', true),
+				)
 			),
 		),
 	)!;
@@ -88,24 +105,32 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@ILogService private readonly logService: ILogService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IThemeService private readonly themeService: IThemeService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super();
 		const channel = mainProcessService.getChannel(ipcBrowserViewChannelName);
 		this._browserViewService = ProxyChannel.toService<IBrowserViewService>(channel);
 		this._mainWindowId = mainWindow.vscodeWindowId;
 
-		this.sendKeybindings();
-		this._register(this.keybindingService.onDidUpdateKeybindings(() => this.sendKeybindings()));
-
-		this.sendTheme();
-		this._register(this.themeService.onDidColorThemeChange(() => this.sendTheme()));
-
-		this.sendConfiguration();
+		// Send the full per-window configuration as a single unit, and resend it
+		// whenever any of its inputs change.
+		this._updateWindowConfiguration();
 		const chatEnabledKeys = new Set(ChatContextKeys.enabled.keys());
+		this._register(this.keybindingService.onDidUpdateKeybindings(() => this._updateWindowConfiguration()));
+		this._register(this.themeService.onDidColorThemeChange(() => this._updateWindowConfiguration()));
+		this._register(this.workspaceTrustManagementService.onDidChangeTrustedFolders(() => this._updateWindowConfiguration()));
+		this._register(this.workspaceTrustManagementService.onDidChangeTrust(() => this._updateWindowConfiguration()));
+		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => this._updateWindowConfiguration()));
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(chatEnabledKeys)) {
-				this.sendConfiguration();
+				this._updateWindowConfiguration();
+			}
+		}));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(BrowserMaxHistoryEntriesSettingId) || e.affectsConfiguration(BrowserRemoteProxyEnabledSettingId)) {
+				this._updateWindowConfiguration();
 			}
 		}));
 
@@ -138,13 +163,62 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 
 			const editor = this._known.get(e.info.id);
 			if (editor && e.openOptions) {
-				this._openEditorForCreatedView(editor, e.openOptions);
+				void this._openEditorForCreatedView(editor, e.info.owner, e.openOptions).catch(error => {
+					this.logService.error('[BrowserViewWorkbenchService] Failed to open editor for created browser view.', error);
+				});
 			}
 		}));
 	}
 
+	willUseRemoteProxy(): boolean {
+		if (!this.environmentService.remoteAuthority) {
+			return false;
+		}
+		if (!this.configurationService.getValue<boolean>(BrowserRemoteProxyEnabledSettingId)) {
+			return false;
+		}
+		return true;
+	}
+
+	setRemoteProxyInfo(info: ITunnelProxyInfo | undefined): void {
+		this._remoteProxyInfo = info;
+		this._updateWindowConfiguration();
+	}
+
 	getKnownBrowserViews(): Map<string, BrowserEditorInput> {
 		return this._known;
+	}
+
+	registerContextualFilter(filter: IBrowserViewContextualFilter): IDisposable {
+		this._contextualFilters.add(filter);
+		const changeListener = filter.onDidChange?.(() => this._onDidChangeBrowserViews.fire());
+		this._onDidChangeBrowserViews.fire();
+		return toDisposable(() => {
+			this._contextualFilters.delete(filter);
+			changeListener?.dispose();
+			this._onDidChangeBrowserViews.fire();
+		});
+	}
+
+	getContextualBrowserViews(context?: IBrowserViewFilterContext): Map<string, BrowserEditorInput> {
+		if (this._contextualFilters.size === 0) {
+			return this._known;
+		}
+		const filters = [...this._contextualFilters];
+		const result = new Map<string, BrowserEditorInput>();
+		for (const [id, input] of this._known) {
+			if (filters.every(filter => filter.include(input, { ...context }))) {
+				result.set(id, input);
+			}
+		}
+		return result;
+	}
+
+	registerOpenHandler(handler: IBrowserViewOpenHandler): IDisposable {
+		this._openHandlers.add(handler);
+		return toDisposable(() => {
+			this._openHandlers.delete(handler);
+		});
 	}
 
 	getOrCreateLazy(id: string, initialState?: IBrowserEditorViewState, model?: IBrowserViewModel): BrowserEditorInput {
@@ -154,7 +228,9 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 					id,
 					{
 						owner: this._getDefaultOwner(),
-						scope: await this._resolveStorageScope(),
+						sessionOptions: {
+							scope: await this._resolveStorageScope()
+						},
 						initialState: {
 							url: initialState?.url,
 							title: initialState?.title,
@@ -192,9 +268,9 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	}
 
 	private async _resolveStorageScope(): Promise<BrowserViewStorageScope> {
-		const dataStorageSetting = this.configurationService.getValue<BrowserViewStorageScope>(
+		let dataStorage = this.configurationService.getValue<BrowserViewStorageScope | 'default'>(
 			'workbench.browser.dataStorage'
-		) ?? BrowserViewStorageScope.Global;
+		) ?? 'default';
 
 		await this.workspaceTrustManagementService.workspaceTrustInitialized;
 
@@ -202,7 +278,17 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY &&
 			!this.workspaceTrustManagementService.isWorkspaceTrusted();
 
-		return isWorkspaceUntrusted ? BrowserViewStorageScope.Ephemeral : dataStorageSetting;
+		if (isWorkspaceUntrusted) {
+			// Always use ephemeral sessions for untrusted workspaces
+			dataStorage = BrowserViewStorageScope.Ephemeral;
+		} else if (dataStorage === 'default') {
+			// Workspace-scoped for remote workspaces.
+			dataStorage = this.environmentService.remoteAuthority
+				? BrowserViewStorageScope.Workspace
+				: BrowserViewStorageScope.Global;
+		}
+
+		return dataStorage;
 	}
 
 	/**
@@ -236,11 +322,18 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	/**
 	 * Open an editor tab for a newly created browser view.
 	 */
-	private _openEditorForCreatedView(view: BrowserEditorInput, openOptions: IBrowserViewOpenOptions): void {
+	private async _openEditorForCreatedView(view: BrowserEditorInput, owner: IBrowserViewOwner, openOptions: IBrowserViewOpenOptions): Promise<void> {
 		const opts = openOptions;
 
+		// Give registered handlers a chance to prevent the editor from opening.
+		for (const handler of this._openHandlers) {
+			if (!handler.shouldOpenEditor(view, owner, opts)) {
+				return;
+			}
+		}
+
 		// Resolve target group: auxiliary window, parent's group, or default
-		let targetGroup: number | typeof AUX_WINDOW_GROUP | undefined;
+		let targetGroup: PreferredGroup | undefined;
 		if (opts.auxiliaryWindow) {
 			targetGroup = AUX_WINDOW_GROUP;
 		} else if (opts.parentViewId) {
@@ -250,14 +343,31 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			}
 		}
 
-		void this.editorService.openEditor(view, {
+		const editorOptions = {
 			inactive: opts.background,
 			preserveFocus: opts.preserveFocus,
 			pinned: opts.pinned,
 			auxiliary: opts.auxiliaryWindow
 				? { bounds: opts.auxiliaryWindow, compact: true }
 				: undefined,
-		}, targetGroup);
+		};
+
+		// If the browser is opened by a chat session,
+		// only open in the foreground if the session's widget is currently visible
+		// and not the active editor in the target group.
+		const [group] = await this.instantiationService.invokeFunction(findGroup, { editor: view, options: editorOptions }, targetGroup);
+		if (owner.sessionId) {
+			const sessionResource = URI.parse(owner.sessionId);
+			const widget = this.chatWidgetService.getWidgetBySessionResource(sessionResource);
+			const isWidgetVisible = !!widget && widget.domNode.offsetParent !== null;
+			const activeIsSameSession = group.activeEditor instanceof ChatEditorInput
+				&& isEqual(group.activeEditor.sessionResource, sessionResource);
+			if (!isWidgetVisible || activeIsSameSession) {
+				editorOptions.inactive = true;
+			}
+		}
+
+		void this.editorService.openEditor(view, editorOptions, group);
 	}
 
 	/**
@@ -275,7 +385,18 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		return undefined;
 	}
 
-	private sendKeybindings(): void {
+	private _updateWindowConfiguration(): void {
+		void this._browserViewService.updateWindowConfiguration(this._mainWindowId, {
+			theme: this._getTheme(),
+			keybindings: this._getKeybindings(),
+			aiFeaturesDisabled: !this.contextKeyService.contextMatchesRules(ChatContextKeys.enabled),
+			maxHistoryEntries: this.configurationService.getValue<number>(BrowserMaxHistoryEntriesSettingId),
+			proxyInfo: this._remoteProxyInfo,
+			trustedFileRoots: this._getTrustedFileRoots(),
+		});
+	}
+
+	private _getKeybindings(): { [commandId: string]: string } {
 		const keybindings: { [commandId: string]: string } = Object.create(null);
 		for (const commandId of browserViewContextMenuCommands) {
 			const binding = this.keybindingService.lookupKeybinding(commandId);
@@ -284,22 +405,33 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 				keybindings[commandId] = accelerator;
 			}
 		}
-		void this._browserViewService.updateKeybindings(keybindings);
+		return keybindings;
 	}
 
-	private sendTheme(): void {
+	private _getTheme(): IBrowserViewTheme {
 		const theme = this.themeService.getColorTheme();
-		void this._browserViewService.updateTheme({
+		return {
 			focusBorder: theme.getColor(focusBorder)?.toString(),
 			buttonBackground: theme.getColor(buttonBackground)?.toString(),
 			buttonForeground: theme.getColor(buttonForeground)?.toString(),
 			font: DEFAULT_FONT_FAMILY,
-		});
+		};
 	}
 
-	private sendConfiguration(): void {
-		void this._browserViewService.updateConfiguration({
-			aiFeaturesDisabled: !this.contextKeyService.contextMatchesRules(ChatContextKeys.enabled),
-		});
+	private _getTrustedFileRoots(): string[] {
+		const roots = new Set<string>();
+		if (this.workspaceTrustManagementService.isWorkspaceTrusted()) {
+			for (const folder of this.workspaceContextService.getWorkspace().folders) {
+				if (folder.uri.scheme === Schemas.file) {
+					roots.add(folder.uri.fsPath);
+				}
+			}
+		}
+		for (const uri of this.workspaceTrustManagementService.getTrustedUris()) {
+			if (uri.scheme === Schemas.file) {
+				roots.add(uri.fsPath);
+			}
+		}
+		return [...roots];
 	}
 }

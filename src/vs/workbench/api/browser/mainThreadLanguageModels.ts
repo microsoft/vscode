@@ -9,6 +9,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { SerializedError, transformErrorForSerialization, transformErrorFromSerialization } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
+import { equalSets } from '../../../base/common/collections.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
@@ -45,6 +46,20 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		@ILanguageModelIgnoredFilesService private readonly _ignoredFilesService: ILanguageModelIgnoredFilesService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatProvider);
+
+		// Bridge workbench-side language-model changes to extensions via `vscode.lm.onDidChangeChatModels`.
+		// Only forward when the set of model identifiers changes. Providers (e.g. BYOK utility aliases) can
+		// re-publish models with metadata-only diffs many times per second; firing on those lets listeners
+		// that re-resolve models (e.g. `selectChatModels`) spin an unbounded CPU-pinning feedback loop.
+		let lastModelIds = new Set(this._chatProviderService.getLanguageModelIds());
+		this._store.add(this._chatProviderService.onDidChangeLanguageModels(() => {
+			const currentModelIds = new Set(this._chatProviderService.getLanguageModelIds());
+			if (equalSets(lastModelIds, currentModelIds)) {
+				return;
+			}
+			lastModelIds = currentModelIds;
+			this._proxy.$onChatModelsChange();
+		}));
 	}
 
 	dispose(): void {
@@ -71,6 +86,12 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 				sendChatRequest: async (modelId, messages, from, options, token) => {
 					const requestId = (Math.random() * 1e6) | 0;
 					const defer = new DeferredPromise<unknown>();
+					// `result` mirrors the stream's terminal status and is rejected together with the
+					// stream on error (see `$reportResponseDone`). Consumers that read the stream let the
+					// for-await throw and never reach `await response.result`, leaving its rejection (e.g.
+					// an expected `ChatQuotaExceeded`) unobserved. Attach a no-op handler so it cannot
+					// surface as an unhandled rejection; real awaiters of `result` still see the error.
+					defer.p.catch(() => { });
 					const stream = new AsyncIterableSource<IChatResponsePart | IChatResponsePart[]>();
 
 					try {

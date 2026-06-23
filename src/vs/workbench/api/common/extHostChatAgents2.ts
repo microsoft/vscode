@@ -5,7 +5,7 @@
 
 import type * as vscode from 'vscode';
 import { coalesce } from '../../../base/common/arrays.js';
-import { DeferredPromise, raceCancellation, timeout } from '../../../base/common/async.js';
+import { DeferredPromise, raceCancellation, raceCancellationError, timeout } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter } from '../../../base/common/event.js';
@@ -453,6 +453,7 @@ export class ChatAgentResponseStream {
 						promptTokens: usage.promptTokens,
 						completionTokens: usage.completionTokens,
 						outputBuffer: usage.outputBuffer,
+						copilotCredits: usage.copilotCredits,
 						promptTokenDetails: usage.promptTokenDetails
 					};
 					_report(dto);
@@ -821,14 +822,21 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return disposables;
 	}
 
-	async $provideChatSessionCustomizations(handle: number, token: CancellationToken): Promise<IChatSessionCustomizationItemDto[] | undefined> {
+	async $provideChatSessionCustomizations(handle: number, sessionResource: UriComponents | undefined, token: CancellationToken): Promise<IChatSessionCustomizationItemDto[] | undefined> {
 		const providerData = this._customizationProviders.get(handle);
 		if (!providerData) {
 			return undefined;
 		}
 
+		// The proposed API requires a real session URI; bail out when the
+		// internal caller (e.g. the management UI populating a global list)
+		// has nothing scoped to forward.
+		if (!sessionResource) {
+			return undefined;
+		}
+
 		try {
-			const items = await providerData.provider.provideChatSessionCustomizations(token);
+			const items = await providerData.provider.provideChatSessionCustomizations(URI.revive(sessionResource), token);
 			if (!items) {
 				return undefined;
 			}
@@ -838,11 +846,13 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				type: typeConvert.ChatSessionCustomizationType.from(item.type),
 				name: item.name,
 				description: item.description,
+				source: item.source,
 				groupKey: item.groupKey,
 				badge: item.badge,
 				badgeTooltip: item.badgeTooltip,
 				extensionId: item.extensionId,
 				pluginUri: item.pluginUri,
+				pluginLabel: item.pluginLabel,
 				userInvocable: item.userInvocable,
 			} satisfies IChatSessionCustomizationItemDto));
 		} catch (err) {
@@ -1534,7 +1544,9 @@ class CachedPromise<T> {
 			this.cachedPromise = promise;
 		}
 
-		return raceCancellation(this.cachedPromise, token, []);
+		// Each caller observes the shared computation through its own token so that
+		// one caller cancelling does not affect concurrent callers.
+		return raceCancellationError(this.cachedPromise, token);
 	}
 
 	clear(): void {

@@ -6,8 +6,9 @@ import type MarkdownIt from 'markdown-it';
 import mermaid from 'mermaid';
 import type { RendererContext } from 'vscode-notebook-renderer';
 import { extendMarkdownItWithMermaid } from '../../src/markdownMermaid/markdownIt';
-import { loadExtensionConfig, loadMermaidConfig, registerMermaidAddons, renderMermaidBlocksInElement } from '../shared';
+import { buildMermaidConfig, loadExtensionConfig, registerMermaidAddons, renderMermaidBlocksInElement } from '../shared';
 import { DiagramManager } from '../shared/diagramManager';
+import { VsCodeMermaidThemeTracker } from '../shared/vsCodeTheme';
 
 interface MarkdownItRenderer {
 	extendMarkdownIt(fn: (md: MarkdownIt) => void): void;
@@ -19,7 +20,8 @@ export async function activate(ctx: RendererContext<void>) {
 		throw new Error(`Could not load 'vscode.markdown-it-renderer'`);
 	}
 
-	mermaid.initialize(loadMermaidConfig());
+	const themeTracker = new VsCodeMermaidThemeTracker();
+	mermaid.initialize(buildMermaidConfig(loadExtensionConfig(), themeTracker));
 	await registerMermaidAddons();
 
 	markdownItRenderer.extendMarkdownIt((md: MarkdownIt) => {
@@ -32,20 +34,27 @@ export async function activate(ctx: RendererContext<void>) {
 			const result = render.call(this, tokens, options, env);
 			const shadowRoot = document.getElementById(env?.outputItem.id)?.shadowRoot;
 
-			diagramManager.updateConfig(loadExtensionConfig());
+			// The active VS Code theme may have changed since the last render, so re-resolve
+			// the theme variables before reinitializing mermaid for this batch of diagrams.
+			const extensionConfig = loadExtensionConfig();
+			themeTracker.refresh();
+			mermaid.initialize(buildMermaidConfig(extensionConfig, themeTracker));
+			diagramManager.updateConfig(extensionConfig);
 
 			const temp = document.createElement('div');
 			temp.innerHTML = result;
-			renderMermaidBlocksInElement(temp, (mermaidContainer, content) => {
+			renderMermaidBlocksInElement(temp, (mermaidContainer, content, _contentHash, isError) => {
 				const liveEl = shadowRoot?.getElementById(mermaidContainer.id);
 				if (liveEl) {
 					liveEl.dataset.vscodeContext = mermaidContainer.dataset.vscodeContext ?? '';
 					liveEl.innerHTML = content;
-					diagramManager.setup(liveEl.id, liveEl);
+					if (!isError) {
+						diagramManager.setup(liveEl.id, liveEl);
+					}
 				} else {
 					console.warn('Could not find live element to render mermaid to');
 				}
-			});
+			}, new AbortController().signal);
 			return temp.innerHTML;
 		};
 		return md;

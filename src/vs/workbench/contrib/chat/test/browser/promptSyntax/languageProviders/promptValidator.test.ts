@@ -137,6 +137,7 @@ suite('PromptValidator', () => {
 		});
 
 		const customChatMode = new CustomChatMode({
+			id: 'beast-mode',
 			uri: URI.parse('myFs://test/test/chatmode.md'),
 			name: 'BeastMode',
 			agentInstructions: { content: 'Beast mode instructions', toolReferences: [] },
@@ -156,6 +157,7 @@ suite('PromptValidator', () => {
 		});
 		const promptsService = new MockPromptsService();
 		const customMode: ICustomAgent = {
+			id: 'custom-mode',
 			uri: URI.parse('file:///test/custom-mode.md'),
 			name: 'Plan',
 			description: 'A test custom mode',

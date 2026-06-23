@@ -6,17 +6,19 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ResolveSessionConfigResult, SessionConfigPropertySchema } from '../../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatPermissionLevel } from '../../../../../../../workbench/contrib/chat/common/constants.js';
 import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema, isWellKnownClaudePermissionModeSchema, isWellKnownModeSchema } from '../../../browser/agentHostPermissionPickerDelegate.js';
+import { getPermissionLevelMeta } from '../../../../copilotChatSessions/browser/permissionPicker.js';
 import { IAgentHostSessionsProvider } from '../../../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../../../services/sessions/common/sessionsProvider.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../../../services/sessions/browser/sessionsService.js';
 
 const PROVIDER_ID = 'local-agent-host';
 const SESSION_ID = 'local-agent-host:s1';
@@ -30,7 +32,7 @@ function makeWellKnownConfig(value: string | undefined): ResolveSessionConfigRes
 					title: 'Auto Approve',
 					description: '',
 					type: 'string',
-					enum: ['default', 'autoApprove', 'autopilot'],
+					enum: ['default', 'autoApprove'],
 					sessionMutable: true,
 				},
 			},
@@ -39,7 +41,7 @@ function makeWellKnownConfig(value: string | undefined): ResolveSessionConfigRes
 	} as ResolveSessionConfigResult;
 }
 
-class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChangeSessionConfig' | 'getSessionConfig' | 'setSessionConfigValue'> {
+class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChangeSessionConfig' | 'getSessionConfig' | 'setSessionConfigValue' | 'isSessionConfigResolving'> {
 	readonly id: string = PROVIDER_ID;
 	private readonly _onDidChange = new Emitter<string>();
 	readonly onDidChangeSessionConfig: Event<string> = this._onDidChange.event;
@@ -49,6 +51,9 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 
 	getSessionConfig(_sessionId: string): ResolveSessionConfigResult | undefined {
 		return this.config;
+	}
+	isSessionConfigResolving(_sessionId: string) {
+		return constObservable(false);
 	}
 	async setSessionConfigValue(sessionId: string, property: string, value: string): Promise<void> {
 		this.setCalls.push([sessionId, property, value]);
@@ -82,15 +87,15 @@ function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSessio
 		}
 	})();
 	const activeSessionObs = observableValue<IActiveSession | undefined>('activeSession', activeSession);
-	const sessionsManagementService = new (class extends mock<ISessionsManagementService>() {
+	const sessionsManagementService = new (class extends mock<ISessionsService>() {
 		override readonly activeSession = activeSessionObs;
 	})();
 
 	const insta = store.add(new TestInstantiationService());
-	insta.set(ISessionsManagementService, sessionsManagementService);
+	insta.set(ISessionsService, sessionsManagementService);
 	insta.set(ISessionsProvidersService, sessionsProvidersService);
 
-	const delegate = store.add(insta.createInstance(AgentHostPermissionPickerDelegate));
+	const delegate = store.add(insta.createInstance(AgentHostPermissionPickerDelegate, activeSessionObs));
 	return { delegate, provider, activeSessionObs };
 }
 
@@ -118,12 +123,17 @@ suite('AgentHostPermissionPickerDelegate', () => {
 
 		assert.strictEqual(delegate.currentPermissionLevel.get(), ChatPermissionLevel.AutoApprove);
 
-		provider.config = makeWellKnownConfig('autopilot');
-		provider.fireChange();
-		assert.strictEqual(delegate.currentPermissionLevel.get(), ChatPermissionLevel.Autopilot);
-
 		provider.config = makeWellKnownConfig('default');
 		provider.fireChange();
+		assert.strictEqual(delegate.currentPermissionLevel.get(), ChatPermissionLevel.Default);
+	});
+
+	test('maps a legacy autoApprove=autopilot value to Default (Autopilot moved onto the mode axis)', () => {
+		const { delegate } = setup(store, makeActiveSession(), 'autopilot');
+
+		// `autopilot` is no longer a valid approval level — the picker does not
+		// offer it, so the chip must surface Default rather than a level it
+		// cannot render.
 		assert.strictEqual(delegate.currentPermissionLevel.get(), ChatPermissionLevel.Default);
 	});
 
@@ -137,11 +147,11 @@ suite('AgentHostPermissionPickerDelegate', () => {
 		const { delegate, provider } = setup(store, makeActiveSession(), 'default');
 
 		delegate.setPermissionLevel(ChatPermissionLevel.AutoApprove);
-		delegate.setPermissionLevel(ChatPermissionLevel.Autopilot);
+		delegate.setPermissionLevel(ChatPermissionLevel.Default);
 
 		assert.deepStrictEqual(provider.setCalls, [
 			[SESSION_ID, 'autoApprove', 'autoApprove'],
-			[SESSION_ID, 'autoApprove', 'autopilot'],
+			[SESSION_ID, 'autoApprove', 'default'],
 		]);
 	});
 
@@ -151,6 +161,15 @@ suite('AgentHostPermissionPickerDelegate', () => {
 		delegate.setPermissionLevel(ChatPermissionLevel.AutoApprove);
 
 		assert.deepStrictEqual(provider.setCalls, []);
+	});
+
+	test('provides agent-host-specific hover copy for permission levels', () => {
+		const { delegate } = setup(store, makeActiveSession(), 'autoApprove');
+
+		assert.strictEqual(
+			delegate.getPermissionLevelHover(ChatPermissionLevel.AutoApprove, getPermissionLevelMeta(ChatPermissionLevel.AutoApprove)),
+			'Copilot runs all tools without asking for approval.'
+		);
 	});
 
 	test('isApplicable reacts to active session and config changes', () => {
@@ -182,13 +201,17 @@ suite('isWellKnownAutoApproveSchema', () => {
 			title: 'Auto Approve',
 			description: 'desc',
 			type: 'string',
-			enum: ['default', 'autoApprove', 'autopilot'],
+			enum: ['default', 'autoApprove'],
 			...overrides,
 		} as SessionConfigPropertySchema;
 	}
 
-	test('matches the canonical three-value enum', () => {
+	test('matches the canonical two-value enum', () => {
 		assert.strictEqual(isWellKnownAutoApproveSchema(schema()), true);
+	});
+
+	test('still accepts a legacy enum that contains "autopilot" for backward compatibility', () => {
+		assert.strictEqual(isWellKnownAutoApproveSchema(schema({ enum: ['default', 'autoApprove', 'autopilot'] })), true);
 	});
 
 	test('matches a subset that still contains "default"', () => {
@@ -251,7 +274,7 @@ suite('isWellKnownClaudePermissionModeSchema', () => {
 			title: 'Approvals',
 			description: 'desc',
 			type: 'string',
-			enum: ['default', 'acceptEdits', 'bypassPermissions', 'plan', 'dontAsk', 'auto'],
+			enum: ['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions'],
 			...overrides,
 		} as SessionConfigPropertySchema;
 	}
@@ -262,6 +285,10 @@ suite('isWellKnownClaudePermissionModeSchema', () => {
 
 	test('matches a subset that still contains "default"', () => {
 		assert.strictEqual(isWellKnownClaudePermissionModeSchema(schema({ enum: ['default', 'acceptEdits'] })), true);
+	});
+
+	test('rejects schemas that include unsupported SDK-only values', () => {
+		assert.strictEqual(isWellKnownClaudePermissionModeSchema(schema({ enum: ['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions', 'dontAsk'] })), false);
 	});
 
 	test('rejects schemas missing "default" or containing custom values', () => {

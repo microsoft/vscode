@@ -97,7 +97,7 @@ Phase numbers are stable identifiers — code comments, plan files
 do **not** renumber. The actual landing order diverges from numeric order
 to unblock self-hosting sooner:
 
-**1 → 1.5 → 2 → 3 → 4 → 5 → 6 → 9 → 13 → 7 → 8 → 10 → 11 → 12 → 6.5 → 14 → 15**
+**1 → 1.5 → 2 → 3 → 4 → 5 → 6 → 9 → 13 → 7 → 8 → 10 → 10.5 → 11 → 12 → 6.5 → 14 → 15 → 16**
 
 Phase 13 (session restoration) is pulled forward immediately after Phase 9
 because it unlocks two high-leverage capabilities:
@@ -444,7 +444,7 @@ round-trip correctly.
 Exit criteria: a workbench client sees the Claude provider listed, can pick
 a Claude model, but can't yet send a message.
 
-### Phase 5 — Session lifecycle: create / dispose / list / shutdown
+### Phase 5 — Session lifecycle: create / dispose / list / shutdown ✅ **DONE**
 
 Implement the lifecycle methods that don't require live LLM traffic.
 **Provisional / materialize is the load-bearing model in this phase**
@@ -520,7 +520,7 @@ restarts find materialised sessions; externally-created Claude Code
 sessions appear; agent host can shut down cleanly. Fork is deferred to
 Phase 6.5.
 
-### Phase 6 — `sendMessage` + streaming progress events (single-turn, no tools)
+### Phase 6 — `sendMessage` + streaming progress events (single-turn, no tools) ✅ **DONE**
 
 Wire the proxy + SDK from Phase 3 into a real session. **Port the lifecycle
 machinery from `claudeCodeAgent.ts`:**
@@ -714,7 +714,7 @@ with restored sessions, and honors the workbench's "keep `[0..N]`
 INCLUSIVE" semantic. The reverted heuristic is **not** retained behind a
 flag.
 
-### Phase 7 — Tool calls + permission + user input
+### Phase 7 — Tool calls + permission + user input ✅ **DONE**
 
 Wire the SDK's tool-use loop through to the agent host's tool infrastructure.
 **Transcript-only in this phase** — file edit tracking is Phase 8.
@@ -777,7 +777,7 @@ Exit criteria: a real "read this file" prompt completes end-to-end.
   — see roadmap.md` marker at the call site so the upgrade path stays
   discoverable. Implement when Phase N introduces multi-action plan UX.
 
-### Phase 8 — File edit tracking
+### Phase 8 — File edit tracking ✅ **DONE**
 
 Build the Claude analog of `fileEditTracker.ts` from `node/copilot/`.
 
@@ -802,6 +802,102 @@ client-side accept of one and reject of the other behaves correctly.
 
 Exit criteria: file diffs render in the workbench; per-file accept/reject
 works.
+
+### Phase 8.5 — Rich tool-call rendering parity with Copilot ✅ **DONE**
+
+Claude's tool-call cards today only carry the static display name from
+[`claudeToolDisplay.ts`](./claudeToolDisplay.ts) (`"Run shell command"`,
+`"Find files"`, ...). Copilot's [`copilotToolDisplay.ts`](../copilot/copilotToolDisplay.ts)
+formats the actual `tool_use.input` into the row title and tags the row
+with a `toolKind` so the workbench renders terminal / search /
+subagent specially. Phase 12 already laid the `_meta.toolKind:
+'subagent'` half down; this phase finishes the parity for the rest of
+the SDK's built-in tools.
+
+Gap surfaced live: a `Bash` permission card reads *"Run shell command"*
+with no command attached, and `Bash` / `Grep` / `Glob` rows render in
+the generic tool renderer instead of the dedicated terminal / search
+renderers.
+
+Scope:
+
+- **Port the Copilot helper shape** into
+  [`claudeToolDisplay.ts`](./claudeToolDisplay.ts), keyed off the SDK's
+  `tool_use.input` schemas:
+  - `getClaudeInvocationMessage(toolName, displayName, input)` →
+    markdown that includes the actual params (`` Running `git status` ``,
+    `Reading [src/foo.ts](src/foo.ts)`, `` Searching for `pattern` ``,
+    `Fetching [https://...](https://...)`).
+  - `getClaudePastTenseMessage(toolName, displayName, input, success)` →
+    success/failure-aware past-tense (`` Ran `git status` ``,
+    `Read foo.ts`, `Searched for ...`); replaces the
+    `"<displayName> finished"` hardcode at
+    [`claudeMapSessionEvents.ts:332`](./claudeMapSessionEvents.ts#L332).
+  - `getClaudeToolKind(toolName)` → `'terminal' | 'subagent' |
+    'search' | undefined`. `Bash` / `BashOutput` / `KillBash` →
+    `'terminal'`; `Grep` / `Glob` → `'search'`; `Task` →
+    `'subagent'` (Phase 12 already does this; consolidate the call
+    site).
+  - `getClaudeShellLanguage(toolName)` → `'bash'` for the shell tools
+    (drives terminal renderer's syntax highlighting).
+  - `getClaudeToolInputString(toolName, input)` → the canonical
+    "input as code" string used for the code block under the row
+    (e.g. the multi-line `command` for `Bash`, the formatted
+    arguments for the rest).
+  - Per-tool input typings live alongside the helpers
+    (`IClaudeBashInput`, `IClaudeGrepInput`, ...), validated
+    defensively (Claude's input can be malformed across SDK
+    versions — fall back to the static display name on shape
+    mismatch).
+- **Wire the helpers through both code paths**:
+  - [`claudeCanUseTool.ts`](./claudeCanUseTool.ts) — set
+    `invocationMessage` on `pending_confirmation` from the rich
+    helper so the **permission card shows the actual command /
+    file / pattern**, not just the display name. Add `toolKind` and
+    `language` to the signal so the card uses the terminal renderer
+    when relevant.
+  - [`claudeMapSessionEvents.ts`](./claudeMapSessionEvents.ts) —
+    set `invocationMessage` on `SessionToolCallReady` for the
+    non-interactive (auto-approved) path, set `pastTenseMessage` on
+    `SessionToolCallComplete`, and emit `_meta.toolKind` /
+    `_meta.language` on the `tool_use` block alongside the existing
+    `_meta.toolKind: 'subagent'` (single canonical path; Phase 12's
+    spawn helpers consume the same field).
+  - **Replay path** — `claudeReplayMapper.ts` writes the same
+    `_meta.toolKind` / `_meta.language` and rich
+    invocation/past-tense on historical `tool_use` blocks so
+    restored sessions render identically to live ones.
+- **Snapshot test** in `claudeToolDisplay.test.ts` covering each tool
+  row × `{ invocation, pastTense, toolKind, language, inputString }`.
+  Mirrors the existing display-name snapshot so any new SDK tool
+  added to the `TOOL_ROWS` table forces a snapshot update.
+
+Tests:
+
+- Unit: snapshot table covers every tool; `getClaudeInvocationMessage`
+  defends against malformed input shapes and falls back cleanly.
+- Integration: an interactive `Bash` request → the
+  `pending_confirmation` signal carries the command in
+  `invocationMessage` and `_meta.toolKind: 'terminal'`; the same flow
+  on completion emits a past-tense message that includes the command.
+
+Manual E2E:
+
+- Live: ask the Claude agent to run a shell command. The permission
+  card should render in the **terminal** style with the command
+  highlighted; the card should read *Running `git status`* (or
+  similar) instead of *Run shell command*. After approval the row
+  collapses to *Ran `git status`*. Same for `Grep` / `Glob`
+  rendering in the search style.
+- Replay: open a historical Claude session that contains shell and
+  search tool calls. The historical rows should render in the same
+  terminal / search style as the live rows.
+
+Exit criteria: Claude tool-call cards (live and replayed) match
+Copilot's rendering quality — permission cards show the actual
+invocation, terminal tools render in the terminal renderer, search
+tools render in the search renderer. Adding a new SDK tool means
+adding one row to `TOOL_ROWS` and updating the snapshot test.
 
 ### Phase 9 — Abort + steering + model change + shutdown polish ✅ **DONE**
 
@@ -884,7 +980,7 @@ restart), killed subprocess triggers recovery.
 
 Exit criteria: parity with Copilot agent on stop / steer / switch model.
 
-### Phase 10 — Client-provided tools (in-process MCP)
+### Phase 10 — Client-provided tools (in-process MCP) ✅ **DONE**
 
 The Claude SDK exposes **two distinct MCP entry points** that classify into
 different M11 buckets — do not conflate them:
@@ -931,46 +1027,92 @@ Exit criteria: client tools callable from a Claude session.
   Check what `ideMcpServer.ts` does.
 - Idle timeout for the MCP gateway — sensible default?
 
-### Phase 11 — Customizations / plugins (full surface)
+### Phase 10.5 — Unified `ClaudeAgentSession` lifecycle ✅ **DONE**
+
+Structural follow-up to Phase 10. The dual-map session pattern
+(`_provisionalSessions` + `_sessions`) is the direct source of every
+race bug surfaced by Phase 10's council review. Each was fixed with
+compensation code; this phase collapses the structure so the
+compensation goes away.
+
+**Goal:** one `_sessions` map of `ClaudeAgentSession` objects that own
+their own `materialize()` lifecycle. Delete `_provisionalSessions`,
+`IClaudeProvisionalSession`, and the `ClaudeMaterializer` class (pure
+helpers move to a new `claudeSdkOptions.ts` module).
+
+**Scope:** internal refactor — `IAgent` surface unchanged. 8 bite-size
+steps, each landing behind the agentHost test suite. Phase 10's race
+regressions remain green and become trivially true once the structural
+split is gone. `CopilotAgent` uses the same pattern but stays as
+reference only (different lifecycle semantics — no MCP, no
+yield-restart).
+
+Exit criteria: zero `_provisionalSessions` / `IClaudeProvisionalSession`
+/ `ClaudeMaterializer` references under `src/vs/platform/agentHost/`;
+Phase 10 race regressions still passing; E2E scenario (create →
+set-model → send → set-client-tools → send → rebind → abort →
+dispose) clean across the whole session lifecycle.
+
+Full step-by-step plan: [phase10.5-plan.md](./phase10.5-plan.md).
+
+### Phase 11 — Customizations / plugins (full surface) ✅ **DONE**
+
+Shipped in PR #318113. Two-tier model:
 
 **Inbound (host → SDK):**
 
-- `setClientCustomizations(clientId, customizations, progress?)` — call
-  `agentPluginManager.syncCustomizations` to download `CustomizationRef[]`
-  to local dirs, get back `ISyncedCustomization[]` with local paths.
-  Forward incremental results via the `progress` callback
-  (`agentService.ts:439`) for progressive loading UI.
-- Pass the local paths as `options.plugins: [{ type: 'local', path }, ...]`
-  on the next `query()` call.
-- **`setCustomizationEnabled(uri, enabled)` — defer-and-coalesce, NOT
-  restart.** Set `_pendingPluginReload`; at the next yield boundary, call
-  `Query.reloadPlugins()` (a cheap runtime SDK setter — bijective per
-  M11). `reloadPlugins` is in M11's **defer-and-coalesce** bucket, not
-  restart-required: the running subprocess stays up. Only when the *tool
-  set* implied by the new plugin list diverges from the live one do we
-  fall back to the **restart-required** path (yield-restart via
-  `resume: sessionId`); that's the narrow `_toolsMatch` case from
-  `claudeCodeAgent.ts`, not the default. The misnamed `_pendingRestart`
-  flag from the reference impl is a historical artifact — the canonical
-  taxonomy treats plugin reload as cheap.
+- `setClientCustomizations(clientId, customizations, progress?)` — runs inside
+  the per-session sequencer (so a fire-and-forget call from `AgentSideEffects`
+  cannot race a first `sendMessage`). Calls
+  `IAgentPluginManager.syncCustomizations` to download `CustomizationRef[]` to
+  local dirs, forwards incremental results via the `progress` callback for
+  progressive loading UI, and adopts the resulting `ISyncedCustomization[]` on
+  the session.
+- `setCustomizationEnabled(uri, enabled)` — flips the per-session enablement
+  bit. Drains at the next `send()` pre-flight.
+- **Both writes → yield-restart, NOT in-place reload.** `Query.reloadPlugins()`
+  in `@anthropic-ai/claude-agent-sdk` is parameterless: it can only re-read
+  files at plugin paths captured into `Options.plugins` at startup, so it
+  cannot add a new plugin, drop a disabled one, or pick up a content refresh
+  via nonce bump. `send()`'s pre-flight runs a single `rebindForRestart()`
+  when either `toolDiff` or `clientCustomizationsDiff` is dirty; the
+  rematerializer reads `clientCustomizationsDiff.consume()` while building
+  `Options`, so the new plugin URI list lands on the rebuilt `Query`.
 
-**Outbound (SDK → host) — required for Copilot parity
-(`agentService.ts:399–417`):**
+**Outbound (SDK → host):**
 
-- `onDidCustomizationsChange` event.
-- `getCustomizations()` — return host-known customizations (synced + active).
-- `getSessionCustomizations(session)` — per-session active list.
-- See `copilotAgent.ts:190–205, 232–240` for the wiring pattern.
+- `onDidCustomizationsChange` event — fires from (1) client-pushed writes via
+  the diff observable, (2) materialize completion (surfaces the SDK-discovered
+  tier for the first time), (3) pre-flight rebind completion.
+- `getCustomizations()` — provider-level catalogue (host-configured); returns
+  `[]` for Claude today since there is no host-configured surface yet.
+- `getSessionCustomizations(session)` — returns the merged projection of
+  client-pushed entries (with per-URI enablement overlay) plus the
+  SDK-discovered bundle from `ClaudeSdkCustomizationBundler`. Server-side
+  commands / agents / MCP servers from the live `Query` are bundled as a
+  single "Discovered in Claude" Open Plugins-conformant on-disk tree under
+  `IAgentPluginManager.basePath`, namespaced by working-directory hash and
+  nonce-stable across repeated bundles of the same SDK snapshot.
+  **(Superseded by Phase 16: the synthetic-stub bundle was replaced by a
+  disk scan returning real editable `file:` URIs; `ClaudeSdkCustomizationBundler`
+  is deleted.)**
 
-Tests: client provides a customization → agent syncs it → next `query()`
-includes the local path → SDK init message confirms the plugin loaded;
-customization toggle drains via `reloadPlugins` at the next yield (no
-subprocess restart) and the new plugin appears in `available_plugins`; a
-tool-set diff *does* trigger yield-restart; published events fire correctly.
+**Per-session ownership.** All customization state lives on
+`ClaudeAgentSession`:
 
-Exit criteria: customization round-trip works; toggle is defer-and-coalesce
-by default and restart-required only when tool sets diverge; workbench
-renders Claude customizations like Copilot's.
+- `SessionClientCustomizationsModel` + `SessionClientCustomizationsDiff` under
+  `customizations/` (parallel to `clientTools/`) own the synced list,
+  enablement map, derived enabled plugin paths, and dirty bit. Dirty is
+  driven from the model state observable (widened equality covers `nonce`,
+  `displayName`, `description`, `statusMessage`, `agents`, `pluginDir`,
+  status, enablement) so same-URI content refreshes correctly flip dirty.
+- `ClaudeSdkCustomizationBundler` writes the on-disk Open Plugin tree on
+  demand from `getSessionCustomizations`. Repeated calls with the same SDK
+  snapshot skip the rewrite. The tree is intentionally a cross-session warm
+  cache (not deleted on session dispose).
+  **(Superseded by Phase 16 — this bundler is deleted; see Phase 16.)**
+
+Full step-by-step plan: [phase11-plan.md](./phase11-plan.md).
 
 ### Phase 12 — Subagents ✅ **DONE**
 
@@ -1138,65 +1280,225 @@ fork end-to-end ships in Phase 6.5.
 
 Exit criteria: ready to enable for external preview.
 
-### Phase 15 — SDK distribution via marketplace extension
+### Phase 15 — SDK distribution via `product.json` + main.vscode-cdn.net ✅ **DONE**
 
-**Status as of 2026-05-13:** the agent host already runs against the latest
-`@anthropic-ai/claude-agent-sdk` rather than `0.2.112`, but the SDK is loaded
-from a path the user supplies (`chat.agentHost.claudeAgent.path` setting →
-`AgentHostClaudeSdkPathEnvVar`, see [`claudeAgentSdkService.ts:148`](./claudeAgentSdkService.ts#L148)).
-That mechanism unblocked development but is **not shippable**: it requires
-every user to install the SDK locally and configure a path.
+> **Implementation contract / retrospective:
+> [phase15-plan.md](./phase15-plan.md).** That file documents what
+> actually shipped — runtime downloader, the `build/agent-sdk/` tarball
+> pipeline, the per-platform `produce.ts` step, and the gulpfile
+> `product.json` stamping. The summary below stays high-level for roadmap
+> continuity.
 
-**Direction:** distribute the SDK as a versioned VS Code extension so users
-get it through the normal install flow.
+**Status:** both the runtime and the build pipeline have landed. Runtime
+shape is per-SDK `urlTemplate` + runtime `{sdkTarget}` substitution
+(replaced the per-platform `{url, sha256}` pair so macOS Universal bundles
+can share one `product.json`). The Claude and Codex SDK distributions are
+declared in `product.json` (built by the per-platform
+[`produce.ts`](../../../../../../build/agent-sdk/produce.ts) step and
+stamped into `product.json` by `packageTask` in
+[`gulpfile.vscode.ts`](../../../../../../build/gulpfile.vscode.ts)) and
+downloaded on demand by
+[`agentSdkDownloader.ts`](../agentSdkDownloader.ts) into
+`<userDataPath>/agent-host/sdk-cache/<pkg>/<sdkVersion>/<sdkTarget>/`. The
+hand-supplied paths (`chat.agentHost.claudeAgent.path` →
+`AgentHostClaudeSdkRootEnvVar`, see
+[`claudeAgentSdkService.ts:148`](./claudeAgentSdkService.ts#L148), and the
+Codex equivalent) survive as a **dev override** only — set them to bypass
+the download. SDK versions are pinned in
+[`build/agent-sdk/agents/<sdk>/package.json`](../../../../../../build/agent-sdk/agents/claude/package.json)
+(today: Claude `0.3.169`, Codex `0.135.0`).
 
-1. **Agent Host gains marketplace-install capability.** Today the agent
-   host is a closed utility process; it cannot fetch or install
-   extensions. Add the IPC + extension-management surface needed for the
-   agent host to install / update / load extensions from the VS Code
-   marketplace (or a registry it trusts).
-2. **Publish a Claude SDK packaging extension to the marketplace.** A
-   thin extension whose only job is to ship a vetted version of
-   `@anthropic-ai/claude-agent-sdk` (and any native deps) and expose its
-   load path to the agent host. Versioned on the marketplace so SDK
-   upgrades become extension updates, not VS Code releases.
-3. **Agent host loads the SDK from the installed extension** instead of
-   from `AgentHostClaudeSdkPathEnvVar`. The env-var path stays as a dev
-   override. The setting `chat.agentHost.claudeAgent.path` is repurposed
-   (or removed) for end users.
+**Shape:**
 
-**Why this shape:**
-- SDK upgrades ship out-of-band from VS Code (no need to bundle a
-  specific SDK version into every VS Code release).
-- The native-dependency packaging burden moves to the extension's
-  publishing pipeline, which is already a solved problem for VS Code
-  extensions across `win32-x64`, `darwin-x64`, `darwin-arm64`,
-  `linux-x64`.
-- Multiple SDK-packaging extensions could coexist (e.g. an `@stable`
-  extension and a `@preview` extension), letting the user opt into
-  newer SDKs without a VS Code update.
-- Other agent SDKs (future Anthropic / OpenAI / etc. providers) follow
-  the same model.
+- `product.agentSdks.{claude,codex}` ships a `version` and a
+  `urlTemplate` — a `format2()`-style template with a `{sdkTarget}`
+  placeholder. The runtime resolves `{sdkTarget}` per-launch from
+  `(process.platform, process.arch, libc)` via `resolveSdkTarget(pkg)`
+  in `agentSdkDownloader.ts`, gated by `IAgentSdkPackage`'s
+  `hasSeparateMuslLinuxPackage` flag (Claude: true, Codex: false — its
+  Linux binary is statically musl-linked so a single SKU runs on both).
+  The build pipeline emits the same template across all platforms — no
+  per-platform stamping at packaging time — so a single shipped
+  `product.json` works for macOS Universal bundles that serve both
+  arm64 and x64 launches.
+- `vscode-distro` no longer carries an `agentSdks` fragment — the
+  build IS the distribution. OSS `product.json` does not have it either.
+- Tarballs ship as the full `node_modules/` subtree extracted into
+  `<userDataPath>/agent-host/sdk-cache/<pkg>/<sdkVersion>/<sdkTarget>/`.
+  The `sdkTarget` segment keeps Universal launches with different
+  resolved targets from thrashing a single cache.
+  `ClaudeAgentSdkService._loadSdk` and `CodexAgent._startConnection`
+  know the package-internal entrypoints
+  (`@anthropic-ai/claude-agent-sdk/sdk.mjs`, `@openai/codex/bin/codex.js`)
+  and resolve them off the returned root.
+- Trust: `product.json` lives inside the signed application bundle
+  and its integrity is covered by `product.checksums`; URLs are HTTPS
+  to a Microsoft-controlled CDN. The runtime no longer carries or
+  verifies a per-tarball sha256 — `product.checksums` + HTTPS are the
+  trust chain.
+- Provider registration is gated on
+  `IAgentSdkDownloader.isAvailable(pkg)` — true iff the dev-override
+  env var is set, OR (`product.agentSdks?.[pkg.id]` is populated AND
+  `resolveSdkTarget(pkg)` resolves). If neither, the provider is not
+  registered and never appears in the agent picker (matches the
+  pre-CDN UX).
 
-**Open design points** (to be detailed in a phase plan when scheduled):
-- IPC surface for agent-host-driven extension install (mirror or
-  delegate to the workbench's extension service?).
-- Discovery contract: how does the agent host know which installed
-  extension provides the Claude SDK? (e.g. an extension `contributes`
-  field, a well-known activation event, a manifest-declared capability).
-- Trust model: is the marketplace publisher the source of truth, or
-  does the agent host pin a specific publisher / extension id?
-- Dev override: keep `AgentHostClaudeSdkPathEnvVar` as the
-  non-marketplace fallback for SDK development.
+**Exit criteria (met):**
+- Fresh insiders install can use Claude/Codex without manually
+  installing the SDK or setting any path.
+- SDK version bumps are now build-pipeline changes that re-pin the SDK
+  version in `build/agent-sdk/agents/<sdk>/package.json` (+ lockfile);
+  the per-platform `produce.ts` step republishes the tarballs and
+  `packageTask` re-stamps `product.agentSdks[pkg]` during packaging.
+- Dev override keeps working for SDK development.
 
-This phase replaces the previous "upgrade the bundled SDK to a newer
-0.2.x" plan, which assumed the SDK would always be a normal `npm`
-dependency. That assumption no longer holds now that the SDK ships
-native binaries.
+**Build pipeline** — see [`build/agent-sdk/`](../../../../../../build/agent-sdk/README.md)
+for the tarball production and CDN upload tooling, including the
+deterministic-tar setup. The per-platform
+[`agent-sdk-produce.yml`](../../../../../../build/azure-pipelines/common/agent-sdk-produce.yml)
+template runs `produce.ts` before each `gulp vscode-<platform>-<arch>-min-ci`
+step; `packageTask`'s `jsonEditor` callback then merges the results into
+`product.json` via `readAgentSdkResults()` (no separate `AgentSDK`
+pipeline stage, no `aggregate.ts`). Full retrospective in
+[phase15-plan.md](./phase15-plan.md).
 
-Exit criteria: a fresh VS Code install can use the Claude agent without
-manually installing the SDK or setting any path. SDK upgrades arrive as
-marketplace extension updates.
+### Phase 16 — Editable customization resolution via disk scan
+
+> **Redesigned 2026-06-17.** This phase originally proposed "eager
+> session materialization at create time" — warming the SDK inside
+> `createSession` so `getSessionCustomizations` could return the
+> SDK-resolved tier before the first `sendMessage`. That premise is
+> **retired.** Investigation (below) showed the SDK query APIs can't
+> deliver what the customization UX actually needs, and that a disk
+> scan — not a warm session — is the right resolution path. The
+> warm-at-create machinery (and its JSONL-write-timing / cleanup-on-
+> discard tail) is no longer part of this phase.
+
+**Status:** follow-up to Phase 11. Phase 11 bundles the SDK-discovered
+customization tier (`Query.supportedCommands()` / `supportedAgents()` /
+`mcpServerStatus()`) into a synthetic "Discovered in Claude" plugin
+tree. The problem: those SDK APIs return **only names + descriptions —
+no file paths and no content** (`SlashCommand` / `AgentInfo` /
+`McpServerStatus` in `sdk.d.ts`). So today's bundler synthesizes **stub
+files** (frontmatter with name + description, empty body) and ships
+URIs pointing at those *stubs*. A user who opens a "Discovered in
+Claude" item edits a generated stub, not their real
+`~/.claude/agents/foo.md` — and there is no real content anywhere in
+the projection.
+
+**Driver:** the customization surface must give the user the **real,
+editable file path** of each customization (agents, skills, slash
+commands, MCP servers). Content follows for free — like
+`CopilotAgent`, we ship the real `uri` and the client reads content on
+demand by opening it; we do **not** need to ship content bytes through
+the protocol.
+
+**Direction:** resolve customizations by **scanning the file system**
+(the `CopilotAgent` model), not by trusting the SDK query payloads.
+The SDK list becomes a **post-materialize filter**, not the source of
+the data.
+
+- **Pre-materialization (provisional / draft):** a disk scan resolves
+  the full set with real paths + parsed metadata. No warm SDK session
+  required, so `createSession` stays **cold and provisional** — no
+  subprocess, no proxy refcount, no JSONL, fully invisible in the
+  sidebar until the first `sendMessage`. **The provisional/materialize
+  split is preserved, not collapsed.** Show *everything* discovered on
+  disk (optimistic — no session yet to say what's actually active).
+- **Post-materialization (live session):** intersect the disk-scan
+  superset with the SDK's "known" set (`supportedCommands` /
+  `supportedAgents` / `mcpServerStatus`, matched by name per type).
+  A customization discovered on disk that the live session did **not**
+  load (malformed, disabled, wrong `settingSource`, shadowed by
+  precedence) is **hidden** post-materialize. The warm session already
+  exists here, so the filter is free.
+
+**Why a disk scan (and why it's not really duplicating Claude).**
+`CopilotAgent` already scans disk for customizations
+(`sessionCustomizationDiscovery.ts` — which *already* walks
+`.claude/agents` and `.claude/skills`) and parses frontmatter via the
+shared `pluginParsers.ts` (`parseAgentFile` / `parseSkillFile` /
+`readSkills` / `readMcpServers`). The Claude provider reuses that
+infrastructure. The genuinely net-new surface is only: **user-home
+`~/.claude/**`**, **`~/.claude/commands`** (slash commands), and
+**Claude's `settings.json` / `.mcp.json` MCP format** — i.e. encoding
+Claude's directory conventions, not reimplementing Claude.
+
+**Scope:**
+
+- New Claude customization **disk-scan resolver** (mirrors
+  `CopilotAgent`'s discovery) covering, scoped by the session's `cwd`
+  + user home + `settingSources`:
+  - agents — `~/.claude/agents/**`, `<cwd>/.claude/agents/**`
+  - skills — `~/.claude/skills/**`, `<cwd>/.claude/skills/**`
+  - slash commands — `~/.claude/commands/**`, `<cwd>/.claude/commands/**`
+  - MCP servers — `~/.claude/settings.json`, `<cwd>/.claude/settings.json`,
+    `<cwd>/.mcp.json`
+  - Reuse `pluginParsers.ts` + `sessionCustomizationDiscovery.ts` where
+    possible; add Claude-specific roots + the `settings.json` MCP parser.
+- Each resolved item ships a **real `uri`** (editable file path) + parsed
+  name/description, replacing the synthetic-stub bundler for the
+  discovered tier.
+- Rules (CLAUDE.md + `.claude/rules/**`) are scanned and surfaced too;
+  they have no SDK counterpart, so they bypass the post-materialize
+  filter (always kept).
+- `getSessionCustomizations`:
+  - **provisional:** client-pushed ∪ full disk scan (no filter).
+  - **materialized:** client-pushed ∪ (disk scan ∩ SDK-known set).
+- The synthetic-stub `claudeSdkCustomizationBundler` is **deleted**; the
+  SDK-only non-editable fallback is generated declaratively inline in
+  `buildDiscoveredCustomizations` (no stub files on disk).
+- **Read-only built-in tier** (added during implementation): a curated set
+  of built-in slash commands (13) + built-in agents (5) is surfaced
+  read-only pre-materialize for discoverability (on the `agent-builtin:`
+  scheme), then superseded by the live SDK set post-materialize. Lives in
+  `claudeBuiltinCommands.ts`. Built-ins are display-only — `contrib/chat`
+  is untouched, so clicking one does not render content (accepted; a
+  read-only editor view is a future request).
+- `createSession` is **unchanged** in lifecycle terms: stays
+  provisional, no warm SDK, no `onDidMaterializeSession` at create.
+  The provisional path simply gains a disk scan for its customization
+  projection.
+
+**What this phase explicitly does NOT do (retired from the old design):**
+
+- No eager / warm materialization inside `createSession`.
+- No collapsing of the provisional/materialize split.
+- No `IAgentCreateSessionResult.provisional` change, no
+  `_sessionSequencer` first-send-branch removal, no `onDidMaterialize`
+  ordering rework, no JSONL-write-timing investigation, no
+  cleanup-on-discard net. The lifecycle (M9) is untouched.
+
+**Open design points** (settle in the phase plan):
+
+- **SDK-knows-it-but-not-found-on-disk** (built-ins, plugin-provided,
+  or an unscanned dir): show it as a **non-editable name/description
+  entry** (so the active capability list stays complete) or **drop**
+  it? Leaning *show as non-editable* — retains the honest active set
+  while only the locatable items are editable.
+- **Skills vs commands mapping** — the SDK surfaces skills via
+  `reloadSkills()` / `supportedCommands()` as `SlashCommand[]`, but the
+  disk layout separates `~/.claude/commands` (slash commands) from
+  `~/.claude/skills` (skills). The name-match filter needs a per-type
+  mapping so a skill isn't matched against a command.
+- **File watching** — do we re-scan on disk change (live updates to the
+  customization list) or scan once per `getSessionCustomizations` call?
+  Prefer correlated watchers via `fileService.createWatcher` if live.
+- **MCP completeness pre-materialize** — disk-scan reads declared MCP
+  servers from `settings.json`; their *connection status* is only known
+  post-materialize via `mcpServerStatus()`. Pre-materialize entries
+  carry config but no live status.
+
+Exit criteria: opening a discovered agent / skill / command from a
+Claude session's customization list opens the **real on-disk file**
+(editable), not a synthetic stub; a provisional (never-sent) session
+lists the full disk-scanned set; a materialized session hides on-disk
+customizations the live session did not load, and surfaces
+SDK-known-but-not-on-disk items as **non-editable** entries; the
+synthetic-stub bundler is **deleted** (the non-editable fallback and the
+curated built-in agents/skills tier are generated declaratively inline,
+no stub files on disk); `createSession` lifecycle (provisional, cold) is
+unchanged. **Shipped.**
 
 ---
 

@@ -190,6 +190,7 @@ suite('ComputeAutomaticInstructions', () => {
 
 		instaService.stub(IRemoteAgentService, {
 			getEnvironment: () => Promise.resolve(null),
+			getConnection: () => null,
 		});
 
 		instaService.stub(IContextKeyService, new MockContextKeyService());
@@ -2341,6 +2342,51 @@ suite('ComputeAutomaticInstructions', () => {
 		assert.ok(!paths.includes(`/home/user/.claude/CLAUDE.md`), 'Should not include ~/.claude/CLAUDE.md when disabled');
 	});
 
+	test('should collect ~/.copilot/copilot-instructions.md when enabled', async () => {
+		const rootFolderName = 'collect-copilot-home-test';
+		const rootFolder = `/${rootFolderName}`;
+		const rootFolderUri = URI.file(rootFolder);
+
+		workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+		await mockFiles(fileService, [
+			{
+				path: `/home/user/.copilot/copilot-instructions.md`,
+				contents: [
+					'Copilot guidelines from home',
+				]
+			},
+			{
+				path: `${rootFolder}/src/file.ts`,
+				contents: [
+					'console.log("test");',
+				]
+			},
+		]);
+
+		testConfigService.setUserConfiguration(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES, true);
+		const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined, localSessionType);
+		const variables = new ChatRequestVariableSet();
+		variables.add(toFileVariableEntry(URI.joinPath(rootFolderUri, 'src/file.ts')));
+
+		await contextComputer.collect(variables, CancellationToken.None);
+
+		let instructionFiles = variables.asArray().filter(v => isPromptFileVariableEntry(v));
+		let paths = instructionFiles.map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined);
+		assert.ok(paths.includes(`/home/user/.copilot/copilot-instructions.md`), 'Should include ~/.copilot/copilot-instructions.md when enabled');
+
+		testConfigService.setUserConfiguration(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES, false);
+		const contextComputer2 = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined, localSessionType);
+		const variables2 = new ChatRequestVariableSet();
+		variables2.add(toFileVariableEntry(URI.joinPath(rootFolderUri, 'src/file.ts')));
+
+		await contextComputer2.collect(variables2, CancellationToken.None);
+
+		instructionFiles = variables2.asArray().filter(v => isPromptFileVariableEntry(v));
+		paths = instructionFiles.map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined);
+		assert.ok(!paths.includes(`/home/user/.copilot/copilot-instructions.md`), 'Should not include ~/.copilot/copilot-instructions.md when disabled');
+	});
+
 	test('should collect instructions from multi-root workspace', async () => {
 		const rootFolder1Name = 'multi-root-1';
 		const rootFolder1 = `/${rootFolder1Name}`;
@@ -2752,5 +2798,31 @@ suite('getFilePath', () => {
 		const uri = URI.file('/workspace/src/file.ts');
 		const result = getFilePath(uri, undefined);
 		assert.strictEqual(result, uri.fsPath);
+	});
+
+	test('should return vscode-local:/ URI string for file:// URIs when connected to a remote', () => {
+		const uri = URI.file('/C:/Users/user/AppData/Roaming/agent-plugins/my-skill/SKILL.md');
+		const result = getFilePath(uri, OperatingSystem.Linux, /* isRemote */ true);
+		assert.strictEqual(result, uri.with({ scheme: 'vscode-local' }).toString());
+	});
+
+	test('should return vscode-local:/ URI string for file:// URIs when connected to a Windows remote', () => {
+		const uri = URI.file('/C:/Users/user/AppData/Roaming/agent-plugins/my-skill/SKILL.md');
+		const result = getFilePath(uri, OperatingSystem.Windows, /* isRemote */ true);
+		assert.strictEqual(result, uri.with({ scheme: 'vscode-local' }).toString());
+	});
+
+	test('should not convert file:// URIs to vscode-local:/ when not connected to a remote', () => {
+		const uri = URI.file('/home/user/.copilot/agent-plugins/my-skill/SKILL.md');
+		const result = getFilePath(uri, undefined, /* isRemote */ false);
+		assert.strictEqual(result, uri.fsPath);
+	});
+
+	test('should not convert vscode-remote:// URIs when connected to a remote', () => {
+		const uri = URI.from({ scheme: Schemas.vscodeRemote, authority: 'wsl+ubuntu', path: '/home/user/project/file.ts' });
+		const result = getFilePath(uri, OperatingSystem.Linux, /* isRemote */ true);
+		// Do not use uri.fsPath here — it is host-OS-dependent and returns
+		// backslashes on Windows CI, but the function normalizes to the remote OS.
+		assert.strictEqual(result, '/home/user/project/file.ts');
 	});
 });

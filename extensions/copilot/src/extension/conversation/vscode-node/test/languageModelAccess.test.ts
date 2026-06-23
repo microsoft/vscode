@@ -25,6 +25,7 @@ import { Event } from '../../../../util/vs/base/common/event';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { createExtensionTestingServices } from '../../../test/vscode-node/services';
 import { buildUtilityAliasModelInfo, CopilotLanguageModelWrapper, LanguageModelAccess } from '../languageModelAccess';
+import { buildReasoningEffortSchemaProperty, formatPricingLabel, normalizeTokenPrices, pickDefaultReasoningEffort } from '../../common/languageModelAccess';
 
 
 suite('CopilotLanguageModelWrapper', () => {
@@ -356,3 +357,127 @@ suite('buildUtilityAliasModelInfo', () => {
 		assert.ok(result.info.maxInputTokens! < 32_000 - 100, `expected maxInputTokens to subtract baseCount and completion reserve, got ${result.info.maxInputTokens}`);
 	});
 });
+
+suite('reasoning effort schema', () => {
+	test('claude family prefers high when available', () => {
+		assert.strictEqual(pickDefaultReasoningEffort(['low', 'medium', 'high'], 'claude-sonnet-4'), 'high');
+	});
+
+	test('non-claude family prefers medium when available', () => {
+		assert.strictEqual(pickDefaultReasoningEffort(['low', 'medium', 'high'], 'gpt-5'), 'medium');
+		assert.strictEqual(pickDefaultReasoningEffort(['low', 'medium', 'high'], 'some-other-family'), 'medium');
+	});
+
+	test('falls back to first advertised level when preferred is missing', () => {
+		// Claude without 'high' → first
+		assert.strictEqual(pickDefaultReasoningEffort(['low', 'medium'], 'claude-haiku'), 'low');
+		// Other family without 'medium' → first
+		assert.strictEqual(pickDefaultReasoningEffort(['low', 'high'], 'unknown-family'), 'low');
+	});
+
+	test('returns undefined for empty levels', () => {
+		assert.strictEqual(pickDefaultReasoningEffort([], 'gpt-5'), undefined);
+	});
+
+	test('buildReasoningEffortSchemaProperty always sets a concrete default for non-empty levels', () => {
+		const prop = buildReasoningEffortSchemaProperty(['low', 'high'], 'unknown-family');
+		assert.strictEqual(prop.default, 'low', 'expected first advertised level, never undefined');
+		assert.deepStrictEqual(prop.enum, ['low', 'high']);
+		assert.strictEqual(prop.group, 'navigation');
+	});
+});
+
+suite('normalizeTokenPrices', () => {
+	test('returns undefined for undefined input', () => {
+		assert.strictEqual(normalizeTokenPrices(undefined), undefined);
+	});
+
+	test('returns undefined when default tier is missing or incomplete', () => {
+		assert.strictEqual(normalizeTokenPrices({ batch_size: 1_000_000 }), undefined);
+		assert.strictEqual(normalizeTokenPrices({ default: { input_price: 100 } }), undefined);
+	});
+
+	test('converts tiered AIU prices to credits per 1M tokens', () => {
+		const result = normalizeTokenPrices({
+			batch_size: 1_000_000,
+			default: { input_price: 3, output_price: 15, cache_price: 0.375, cache_write_price: 1.5 },
+		});
+		assert.ok(result);
+		assert.strictEqual(result.default.inputPrice, 3);
+		assert.strictEqual(result.default.outputPrice, 15);
+		assert.strictEqual(result.default.cachePrice, 0.375);
+		assert.strictEqual(result.default.cacheWritePrice, 1.5);
+		assert.strictEqual(result.longContext, undefined);
+	});
+
+	test('leaves cacheWritePrice undefined when absent from response', () => {
+		const result = normalizeTokenPrices({
+			batch_size: 1_000_000,
+			default: { input_price: 3, output_price: 15 },
+		});
+		assert.ok(result);
+		assert.strictEqual(result.default.cachePrice, undefined);
+		assert.strictEqual(result.default.cacheWritePrice, undefined);
+	});
+
+	test('includes long-context tier when present', () => {
+		const result = normalizeTokenPrices({
+			batch_size: 1_000_000,
+			default: { input_price: 3, output_price: 15, cache_price: 0.375, cache_write_price: 1.5 },
+			long_context: { input_price: 6, output_price: 30, cache_price: 0.75, cache_write_price: 3 },
+		});
+		assert.ok(result);
+		assert.strictEqual(result.default.inputPrice, 3);
+		assert.strictEqual(result.default.cacheWritePrice, 1.5);
+		assert.strictEqual(result.longContext?.inputPrice, 6);
+		assert.strictEqual(result.longContext?.outputPrice, 30);
+		assert.strictEqual(result.longContext?.cachePrice, 0.75);
+		assert.strictEqual(result.longContext?.cacheWritePrice, 3);
+	});
+
+	test('includes long-context tier when cache_write_price differs from default', () => {
+		const result = normalizeTokenPrices({
+			batch_size: 1_000_000,
+			default: { input_price: 3, output_price: 15, cache_write_price: 1.5 },
+			long_context: { input_price: 3, output_price: 15, cache_write_price: 3 },
+		});
+		assert.ok(result);
+		assert.ok(result.longContext, 'long-context tier should be included when cache_write_price differs');
+		assert.strictEqual(result.longContext?.cacheWritePrice, 3);
+	});
+
+	test('converts legacy flat nano-AIU prices to credits per 1M tokens', () => {
+		// Shape returned by the cloud agents endpoint (/agents/swe/models)
+		const result = normalizeTokenPrices({
+			batch_size: 1_000_000,
+			input_price: 500_000_000_000,
+			output_price: 2_500_000_000_000,
+			cache_price: 50_000_000_000,
+		});
+		assert.ok(result);
+		assert.strictEqual(result.default.inputPrice, 500);
+		assert.strictEqual(result.default.outputPrice, 2500);
+		assert.strictEqual(result.default.cachePrice, 50);
+		assert.strictEqual(result.default.cacheWritePrice, undefined);
+		assert.strictEqual(result.longContext, undefined);
+	});
+});
+
+suite('formatPricingLabel', () => {
+	function tier(inputPrice: number, outputPrice: number) {
+		return { default: { inputPrice, outputPrice, cacheReadTokenPrice: 0, cacheWriteTokenPrice: 0 } };
+	}
+
+	test('renders zero prices as 0 instead of exponential notation', () => {
+		assert.strictEqual(formatPricingLabel(tier(0, 0)), 'In: 0 · Out: 0 AICs/1M tokens');
+	});
+
+	test('renders small prices in exponential notation', () => {
+		assert.strictEqual(formatPricingLabel(tier(0.001, 0.005)), 'In: 1.00e-3 · Out: 5.00e-3 AICs/1M tokens');
+	});
+
+	test('renders regular prices trimming trailing zeros', () => {
+		assert.strictEqual(formatPricingLabel(tier(3, 15)), 'In: 3 · Out: 15 AICs/1M tokens');
+	});
+});
+

@@ -2307,7 +2307,7 @@
     "contentFilterCount": 0,
     "passCount": 10,
     "failCount": 0,
-    "score": 0.1,
+    "score": 1,
     "attributes": {
       "CompScore1": 1,
       "CompScore2": 1,

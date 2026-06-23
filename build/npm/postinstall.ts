@@ -79,7 +79,7 @@ async function npmInstallAsync(dir: string, opts?: child_process.SpawnOptions): 
 			'docker', 'run',
 			'-e', 'GITHUB_TOKEN',
 			'-v', `${process.env['VSCODE_HOST_MOUNT']}:/root/vscode`,
-			'-v', `${process.env['VSCODE_HOST_MOUNT']}/.build/.netrc:/root/.netrc`,
+			'-v', `${process.env['VSCODE_HOST_MOUNT']}/.build/.gitconfig-distro:/root/.gitconfig`,
 			'-v', `${process.env['VSCODE_NPMRC_PATH']}:/root/.npmrc`,
 			'-w', path.resolve('/root/vscode', dir),
 			process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME'],
@@ -131,7 +131,11 @@ function setNpmrcConfig(dir: string, env: NodeJS.ProcessEnv) {
 	}
 
 	if (dir === 'build') {
-		env['npm_config_target'] = process.versions.node;
+		// Temporarily lock the target version.
+		// Node 24 V8 headers require C++20, but tree-sitter hard-pin "c++17" in their binding.gyp.
+		// This is fixed in v0.25.1 however the version is not published to npm, refs
+		// https://github.com/tree-sitter/node-tree-sitter/issues/268.
+		// env['npm_config_target'] = process.versions.node;
 		env['npm_config_arch'] = process.arch;
 	}
 }

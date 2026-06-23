@@ -19,7 +19,7 @@ import { Checkbox, createToggleActionViewItemProvider, IToggleStyles } from '../
 import { RenderIndentGuides } from '../../../base/browser/ui/tree/abstractTree.js';
 import { IObjectTreeElement, ITreeNode, ITreeRenderer, TreeVisibility } from '../../../base/browser/ui/tree/tree.js';
 import { equals } from '../../../base/common/arrays.js';
-import { ThrottledDelayer } from '../../../base/common/async.js';
+import { disposableTimeout, ThrottledDelayer } from '../../../base/common/async.js';
 import { compareAnything } from '../../../base/common/comparers.js';
 import { memoize } from '../../../base/common/decorators.js';
 import { isCancellationError } from '../../../base/common/errors.js';
@@ -1157,7 +1157,7 @@ export class QuickInputList extends Disposable {
 		// Accessibility hack, unfortunately on next tick
 		// https://github.com/microsoft/vscode/issues/211976
 		if (this.accessibilityService.isScreenReaderOptimized()) {
-			setTimeout(() => {
+			disposableTimeout(() => {
 				// eslint-disable-next-line no-restricted-syntax
 				const focusedElement = this._tree.getHTMLElement().querySelector(`.monaco-list-row.focused`);
 				const parent = focusedElement?.parentNode;
@@ -1166,7 +1166,7 @@ export class QuickInputList extends Disposable {
 					focusedElement.remove();
 					parent.insertBefore(focusedElement, nextSibling);
 				}
-			}, 0);
+			}, 0, this._elementDisposable);
 		}
 	}
 

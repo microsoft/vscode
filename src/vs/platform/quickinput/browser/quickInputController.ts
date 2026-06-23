@@ -553,6 +553,7 @@ export class QuickInputController extends Disposable {
 			input.hideInput = !!options.hideInput;
 			input.contextKey = options.contextKey;
 			input.anchor = options.anchor;
+			input.anchorPosition = options.anchorPosition;
 			input.busy = true;
 			Promise.all([picks, options.activeItem])
 				.then(([items, _activeItem]) => {
@@ -685,6 +686,14 @@ export class QuickInputController extends Disposable {
 		const oldController = this.controller;
 		this.controller = controller;
 		oldController?.didHide();
+
+		// Anchored controllers always render in the window that owns their anchor element.
+		if (dom.isHTMLElement(controller.anchor)) {
+			const anchorWindow = dom.getWindow(controller.anchor);
+			if (dom.getWindow(this._container) !== anchorWindow) {
+				this.reparentUI(this.layoutService.getContainer(anchorWindow));
+			}
+		}
 
 		this.setEnabled(true);
 		ui.leftActionBar.setActions([]);
@@ -893,15 +902,38 @@ export class QuickInputController extends Disposable {
 
 			// Position
 			if (this.controller?.anchor) {
-				const container = this.layoutService.getContainer(dom.getActiveWindow()).getBoundingClientRect();
-				const anchor = getAnchorRect(this.controller.anchor as HTMLElement | IAnchor);
-				width = 380;
-				listHeight = this.dimension ? Math.min(this.dimension.height * 0.2, 200) : 200;
+				const target = this.controller.anchor as HTMLElement | IAnchor;
+				const isElement = dom.isHTMLElement(target);
+				const anchorWindow = isElement ? dom.getWindow(target) : dom.getActiveWindow();
+				const container = this.layoutService.getContainer(anchorWindow).getBoundingClientRect();
+				const verticalPadding = 6 + 26 + 16; // Accounts for input box and padding
+
+				let anchor = getAnchorRect(target);
+				let preferredAnchorPosition = AnchorPosition.ABOVE;
+				let listHeightRatio = 0.2;
+				let maxListHeight = 200;
+
+				if (this.controller.anchorPosition === 'overlay') {
+					width = anchor.width + 12;
+					listHeightRatio = 0.4;
+					anchor = {
+						top: anchor.top - 7,
+						left: anchor.left - 7,
+						width: anchor.width,
+						height: 0
+					};
+					maxListHeight = Math.min(400, container.bottom - anchor.top - verticalPadding);
+					preferredAnchorPosition = AnchorPosition.BELOW;
+				} else {
+					width = 380;
+				}
+
+				listHeight = this.dimension ? Math.min(this.dimension.height * listHeightRatio, maxListHeight) : maxListHeight;
 
 				// Beware:
 				// We need to add some extra pixels to the height to account for the input and padding.
-				const containerHeight = Math.floor(listHeight) + 6 + 26 + 16;
-				const { top, left, right, bottom, anchorAlignment, anchorPosition } = layout2d(container, { width, height: containerHeight }, anchor, { anchorPosition: AnchorPosition.ABOVE });
+				const containerHeight = Math.floor(listHeight) + verticalPadding;
+				const { top, left, right, bottom, anchorAlignment, anchorPosition } = layout2d(container, { width, height: containerHeight }, anchor, { anchorPosition: preferredAnchorPosition });
 
 				if (anchorAlignment === AnchorAlignment.RIGHT) {
 					style.right = `${right}px`;
