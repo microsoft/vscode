@@ -61,12 +61,9 @@ export function bindWidgetToController(widget: AgentsVoiceWidget, services: IWid
 		widget.setReconnecting(reconnecting);
 		widget.setVoiceState(state);
 		widget.setPendingToolConfirmations(toolConfirmations);
-		// Respect showTranscript setting — filter turns by type
-		const transcriptMode = configurationService?.getValue<string>('agents.voice.showTranscript') ?? 'neither';
-		const showUser = transcriptMode === 'userSpeech' || transcriptMode === 'both';
-		const showResponse = transcriptMode === 'voiceResponse' || transcriptMode === 'both';
-		const filteredTurns = turns.filter(t => t.speaker === 'user' ? showUser : showResponse);
-		widget.setTranscriptTurns(filteredTurns);
+		// Respect showTranscript setting — hide transcript when disabled
+		const showTranscript = configurationService?.getValue<boolean>('agents.voice.showTranscript') !== false;
+		widget.setTranscriptTurns(showTranscript ? turns : []);
 		widget.setStatusText(statusText);
 		widget.setSelectedTargetSession(targetSession);
 
