@@ -435,12 +435,20 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		let glowDataArray: Uint8Array | undefined;
 		const win = getWindow(inputContainerEl);
 		let lastGlowTarget: HTMLElement | undefined;
+		// Lock the glow target to whichever widget was focused when voice connected.
+		// This prevents confirmations/programmatic focus shifts from moving the glow.
+		let lockedGlowWidget: HTMLElement | undefined;
 		const getActiveInputContainer = (): HTMLElement => {
+			if (lockedGlowWidget) {
+				return lockedGlowWidget;
+			}
 			const focused = this.chatWidgetService.lastFocusedWidget;
 			return focused?.input?.inputContainerElement ?? inputContainerEl;
 		};
 		const startGlowAnimation = () => {
 			if (animFrameId !== undefined) { return; }
+			// Lock target to whatever widget is focused at voice start
+			lockedGlowWidget = this.chatWidgetService.lastFocusedWidget?.input?.inputContainerElement ?? inputContainerEl;
 			const animate = () => {
 				animFrameId = win.requestAnimationFrame(animate);
 				const connected = this.voiceSessionController.isConnected.get();
@@ -521,6 +529,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			target.style.boxShadow = '';
 			target.classList.remove('voice-active', 'voice-listening');
 			lastGlowTarget = undefined;
+			lockedGlowWidget = undefined;
 		};
 
 		this._register(autorun(reader => {
