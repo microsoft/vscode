@@ -86,7 +86,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Session has no working directory: ${sessionUri}`);
 		}
 
-		const gitHubState = readSessionGitHubState(sessionState._meta);
+		const gitHubState = readSessionGitHubState(sessionState.summary._meta);
 		if (!gitHubState?.owner || !gitHubState?.repo) {
 			throw new ProtocolError(
 				JsonRpcErrorCodes.InternalError,

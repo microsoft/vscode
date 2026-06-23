@@ -886,11 +886,11 @@ export function readSessionGitHubState(meta: SessionMeta | undefined): ISessionG
 }
 
 /**
- * Returns a new {@link SessionMeta} with the GitHub-state payload set to
+ * Returns a new {@link SessionSummaryMeta} with the GitHub-state payload set to
  * `gitHubState`, or with the GitHub slot removed if `gitHubState` is `undefined`.
  * Returns `undefined` if the result would be empty.
  */
-export function withSessionGitHubState(meta: SessionMeta | undefined, gitHubState: ISessionGitHubState | undefined): SessionMeta | undefined {
+export function withSessionGitHubState(meta: SessionSummaryMeta | undefined, gitHubState: ISessionGitHubState | undefined): SessionSummaryMeta | undefined {
 	const next: { [key: string]: unknown } = { ...meta };
 	if (gitHubState !== undefined) {
 		next[SESSION_META_GITHUB_KEY] = gitHubState;

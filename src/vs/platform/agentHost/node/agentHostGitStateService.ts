@@ -68,7 +68,7 @@ export class AgentHostGitStateService implements IAgentHostGitStateService {
 
 	async getSessionGitHubState(sessionKey: string): Promise<ISessionGitHubState | undefined> {
 		// Attempt to load the GitHub state from the state manager
-		const currentMeta = this._stateManager.getSessionState(sessionKey)?._meta;
+		const currentMeta = this._stateManager.getSessionState(sessionKey)?.summary._meta;
 		const currentGitHubState = readSessionGitHubState(currentMeta);
 		if (currentGitHubState) {
 			return currentGitHubState;
@@ -87,7 +87,7 @@ export class AgentHostGitStateService implements IAgentHostGitStateService {
 			const githubStateStr = await databaseRef.object.getMetadata(META_GITHUB_STATE);
 			if (githubStateStr) {
 				const githubState = JSON.parse(githubStateStr) as ISessionGitHubState;
-				this._stateManager.setSessionMeta(sessionKey, withSessionGitHubState(currentMeta, githubState));
+				this._stateManager.setSessionSummaryMeta(sessionKey, withSessionGitHubState(currentMeta, githubState));
 
 				return githubState;
 			}
@@ -109,14 +109,9 @@ export class AgentHostGitStateService implements IAgentHostGitStateService {
 		}
 
 		// Update session state manager
-		const currentMeta = this._stateManager.getSessionState(sessionKey)?._meta;
+		const currentMeta = this._stateManager.getSessionState(sessionKey)?.summary._meta;
 		const nextMeta = withSessionGitHubState(currentMeta, next);
-		this._stateManager.setSessionMeta(sessionKey, nextMeta);
-
-		if (next.pullRequestUrl && nextMeta) {
-			// Update session summary meta
-			this._stateManager.setSessionSummaryMeta(sessionKey, nextMeta);
-		}
+		this._stateManager.setSessionSummaryMeta(sessionKey, nextMeta);
 
 		// Update session database
 		void this._saveSessionState(sessionKey, META_GITHUB_STATE, JSON.stringify(next));

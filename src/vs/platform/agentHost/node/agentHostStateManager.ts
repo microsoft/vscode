@@ -749,25 +749,23 @@ export class AgentHostStateManager extends Disposable {
 	 * {@link _flushSummaryNotificationFor} pick the new value up via its
 	 * `current._meta !== lastNotified._meta` diff.
 	 */
-	setSessionSummaryMeta(session: URI, meta: SessionSummaryMeta): void {
+	setSessionSummaryMeta(session: URI, meta: SessionSummaryMeta | undefined): void {
 		const state = this._sessionStates.get(session);
 		if (!state) {
 			this._logService.warn(`[AgentHostStateManager] setSessionSummaryMeta: unknown session ${session}`);
 			return;
 		}
 
-		const newMeta = {
-			...state.summary._meta,
-			...meta
-		} satisfies SessionSummaryMeta;
-
-		if (structuralEquals(state.summary._meta, newMeta)) {
+		if (structuralEquals(state.summary._meta, meta)) {
 			return;
 		}
 
 		const newState = {
 			...state,
-			summary: { ...state.summary, _meta: newMeta },
+			summary: {
+				...state.summary,
+				_meta: meta
+			},
 		};
 
 		this._sessionStates.set(session, newState);

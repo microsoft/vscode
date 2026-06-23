@@ -68,11 +68,12 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 
 	private _onPullRequestCreated(event: PullRequestCreatedEvent): void {
 		const sessionKey = event.sessionKey;
+
+		this._registry?.onDidChangeOperations(sessionKey);
+		this._registry?.refreshSessionGitState(sessionKey);
+
 		this._gitStateService.setSessionGitHubState(sessionKey, {
 			pullRequestUrl: event.pullRequestUrl
 		});
-
-		this._registry?.refreshSessionGitState(sessionKey);
-		this._registry?.onDidChangeOperations(sessionKey);
 	}
 }

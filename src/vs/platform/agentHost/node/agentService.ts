@@ -436,9 +436,7 @@ export class AgentService extends Disposable implements IAgentService {
 					if (m[META_GITHUB_STATE]) {
 						try {
 							const gitHubState = JSON.parse(m[META_GITHUB_STATE]) as ISessionGitHubState;
-							if (gitHubState.pullRequestUrl) {
-								updated = { ...updated, _meta: withSessionGitHubState(updated._meta, gitHubState) };
-							}
+							updated = { ...updated, _summaryMeta: withSessionGitHubState(updated._summaryMeta, gitHubState) };
 						} catch (e) {
 							this._logService.warn(`[AgentService][listSessions] Failed to parse GitHub state for ${s.session}`, e);
 						}
@@ -467,6 +465,20 @@ export class AgentService extends Disposable implements IAgentService {
 		const withStatus = result.map(s => {
 			const liveState = this._stateManager.getSessionState(s.session.toString());
 			if (liveState) {
+				// Overlay the live session `_meta` over the DB-derived value.
+				// The summary `_meta` is the freshest source (e.g. the GitHub
+				// state is published here via `setSessionSummaryMeta` as soon
+				// as a PR is created), so a freshly-created session that has
+				// not yet persisted its state to its session database still
+				// reports it here (the DB overlay above only sees persisted
+				// state). Keep the DB value as the base so any keys absent from
+				// the live summary are preserved.
+				const _meta = liveState.summary._meta !== undefined || s._meta !== undefined
+					? { ...s._meta, ...liveState._meta }
+					: undefined;
+				const _summaryMeta = liveState.summary._meta !== undefined || s._meta !== undefined
+					? { ...s._meta, ...liveState.summary._meta }
+					: undefined;
 				return {
 					...s,
 					summary: liveState.summary.title || s.summary,
@@ -476,6 +488,8 @@ export class AgentService extends Disposable implements IAgentService {
 					agent: liveState.summary.agent ?? s.agent,
 					changes: liveState.summary.changes ?? s.changes,
 					changesets: liveState.changesets ?? s.changesets,
+					...(_summaryMeta !== undefined ? { _summaryMeta } : {}),
+					...(_meta !== undefined ? { _meta } : {}),
 				};
 			}
 			return s;
@@ -515,6 +529,13 @@ export class AgentService extends Disposable implements IAgentService {
 				workingDirectory: typeof summary.workingDirectory === 'string' ? URI.parse(summary.workingDirectory) : undefined,
 				...(summary.project ? { project: { uri: URI.parse(summary.project.uri), displayName: summary.project.displayName } } : {}),
 				changes: summary.changes,
+				// This overlay path never opens the session database (unlike the
+				// provider-returned sessions handled above), so carry the
+				// in-memory `summary._meta` directly. It holds the live state
+				// (e.g. the GitHub state published via `setSessionSummaryMeta`
+				// when a PR is created), so a freshly-created session that the
+				// provider transiently omits still reports it here.
+				...(summary._meta !== undefined ? { _summaryMeta: summary._meta } : {}),
 			});
 		}
 		const combined = additions.length > 0 ? [...withStatus, ...additions] : withStatus;

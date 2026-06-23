@@ -28,7 +28,7 @@ import type { IAgentSubscription } from '../../../../../platform/agentHost/commo
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, AgentSelection, ChangesSummary, type ChangesetFile, Customization, CustomizationType, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AgentInfo, buildChatUri, buildDefaultChatUri, isDefaultChatUri, parseChatUri, readSessionGitHubState, readSessionGitState, ROOT_STATE_URI, SessionMeta, StateComponents, type ChatSummary, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { AgentInfo, buildChatUri, buildDefaultChatUri, isDefaultChatUri, parseChatUri, readSessionGitHubState, readSessionGitState, ROOT_STATE_URI, SessionMeta, SessionSummaryMeta, StateComponents, type ChatSummary, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -87,6 +87,23 @@ function normalizeSessionConfigValue(property: string, value: unknown, policyRes
 		return ChatPermissionLevel.Default;
 	}
 	return value;
+}
+
+function isGitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | undefined): boolean {
+	if (a === b) {
+		return true;
+	}
+
+	if (a === undefined || b === undefined) {
+		return false;
+	}
+
+	return a.owner === b.owner &&
+		a.repo === b.repo &&
+		a.pullRequest?.number === b.pullRequest?.number &&
+		a.pullRequest?.icon?.id === b.pullRequest?.icon?.id &&
+		a.pullRequest?.baseRefOid === b.pullRequest?.baseRefOid &&
+		a.pullRequest?.headRefOid === b.pullRequest?.headRefOid;
 }
 
 // ============================================================================
@@ -258,13 +275,21 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	// list refresh). See `_applySessionMetaFromState` / `setMeta`.
 	private _project: IAgentSessionMetadata['project'];
 	private _workingDirectory: URI | undefined;
-	private _meta: IAgentSessionMetadata['_meta'];
+	private _summaryMeta: SessionSummaryMeta | undefined;
+	/**
+	 * Observable mirror of {@link _summaryMeta}, kept in sync with every write to
+	 * `_summaryMeta` so reactive derivations (notably {@link gitHubInfo}) re-fire
+	 * when git state arrives (or changes).
+	 */
+	private readonly _summaryMetaObs: ISettableObservable<SessionSummaryMeta | undefined>;
+	private _meta: SessionMeta | undefined;
 	/**
 	 * Observable mirror of {@link _meta}, kept in sync with every write to
 	 * `_meta` so reactive derivations (notably {@link gitHubInfo}) re-fire
 	 * when git state arrives (or changes).
 	 */
 	private readonly _metaObs: ISettableObservable<SessionMeta | undefined>;
+
 	private _activity: ISettableObservable<string | undefined>;
 
 	private readonly _changesSummary = observableValueOpts<ISessionChangesSummary | undefined>({ equalsFn: structuralEquals }, undefined);
@@ -331,13 +356,17 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this._activity = observableValue('activity', metadata.activity);
 		this._project = metadata.project;
 		this._workingDirectory = metadata.workingDirectory;
+
 		this._meta = metadata._meta;
 		this._metaObs = observableValue<SessionMeta | undefined>('agentHostSessionMeta', this._meta);
 
+		this._summaryMeta = metadata._summaryMeta;
+		this._summaryMetaObs = observableValue<SessionSummaryMeta | undefined>('agentHostSessionSummaryMeta', this._summaryMeta);
+
 		const baseGitHubInfoObs = derivedOpts<IGitHubInfo | undefined>({
-			equalsFn: structuralEquals
+			equalsFn: isGitHubInfoEqual
 		}, reader => {
-			const meta = this._metaObs.read(reader);
+			const meta = this._summaryMetaObs.read(reader);
 			const state = readSessionGitHubState(meta);
 			if (!state) {
 				return undefined;
@@ -373,7 +402,6 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 
 		this.gitHubInfo = derived<IGitHubInfo | undefined>(reader => {
 			const baseGitHubInfo = baseGitHubInfoObs.read(reader);
-			console.log('baseGitHubInfo: ', baseGitHubInfo);
 			if (!baseGitHubInfo?.pullRequest) {
 				return baseGitHubInfo;
 			}
@@ -717,6 +745,10 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				didChange = true;
 			}
 
+			if (metadata._summaryMeta !== undefined && this.setSummaryMeta(metadata._summaryMeta)) {
+				didChange = true;
+			}
+
 			if (metadata._meta !== undefined && this.setMeta(metadata._meta)) {
 				didChange = true;
 			}
@@ -744,7 +776,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 * the workspace actually changed.
 	 */
 	setMeta(meta: IAgentSessionMetadata['_meta']): boolean {
-		this._meta = { ...this._meta, ...meta };
+		this._meta = meta;
 		const gitState = readSessionGitState(this._meta);
 		const workspace = this._options.buildWorkspace(this._project, this._workingDirectory, this.gitHubInfo, gitState);
 		const workspaceChanged = agentHostSessionWorkspaceKey(workspace) !== agentHostSessionWorkspaceKey(this.workspace.get());
@@ -755,6 +787,17 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			}
 		});
 		return workspaceChanged;
+	}
+
+	setSummaryMeta(meta: IAgentSessionMetadata['_meta']): boolean {
+		if (meta === undefined || structuralEquals(this._summaryMeta, meta)) {
+			return false;
+		}
+
+		this._summaryMeta = meta;
+		this._summaryMetaObs.set(this._summaryMeta, undefined);
+
+		return true;
 	}
 
 	updateChangesets(changesetsMetadata: readonly Changeset[] | undefined) {
@@ -2763,14 +2806,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return;
 		}
 
-		// Merge the meta data from the
-		// session state and its summary.
-		const meta = {
-			...state._meta,
-			...state.summary._meta
-		};
-
-		if (cached.setMeta(meta)) {
+		if (cached.setMeta(state._meta)) {
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 		}
 	}
@@ -3016,6 +3052,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				this._handleConfigChanged(e.channel, e.action.config, e.action.replace === true);
 			} else if (e.action.type === ActionType.SessionChangesetsChanged && isSessionAction(e.action)) {
 				this._handleChangesetsChanged(e.channel, e.action.changesets);
+			} else if (e.action.type === ActionType.SessionMetaChanged && isSessionAction(e.action)) {
+				this._handleSessionMetaChanged(e.channel, e.action._meta);
 			}
 		}));
 	}
@@ -3154,7 +3192,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				didChange = true;
 			}
 
-			if (changes._meta !== undefined && cached.setMeta(changes._meta)) {
+			if (changes._meta !== undefined && cached.setSummaryMeta(changes._meta)) {
 				didChange = true;
 			}
 
@@ -3194,6 +3232,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const cached = this._sessionCache.get(rawId);
 		if (cached) {
 			cached.updateChangesets(changesets);
+		}
+	}
+
+	private _handleSessionMetaChanged(session: string, meta: Record<string, unknown> | undefined): void {
+		const rawId = AgentSession.id(session);
+		const cached = this._sessionCache.get(rawId);
+		if (cached) {
+			cached.setMeta(meta);
 		}
 	}
 
