@@ -23,8 +23,8 @@
  * Without that class these rules never apply.
  */
 
-.style-override .part.editor:not(.modal-editor-part) {
-	border: 1px solid var(--vscode-editorGroup-border, color-mix(in srgb, var(--vscode-foreground) 12%, transparent));
+.style-override .monaco-grid-view .part.editor:not(.modal-editor-part) {
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorGroup-border, color-mix(in srgb, var(--vscode-foreground) 12%, transparent));
 	border-radius: var(--vscode-cornerRadius-medium, 6px);
 	box-sizing: border-box;
 	overflow: hidden;
