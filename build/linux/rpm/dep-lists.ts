@@ -126,6 +126,7 @@ export const referenceGeneratedDepsByArch = {
 		'libstdc++.so.6(GLIBCXX_3.4.19)(64bit)',
 		'libstdc++.so.6(GLIBCXX_3.4.20)(64bit)',
 		'libstdc++.so.6(GLIBCXX_3.4.21)(64bit)',
+		'libstdc++.so.6(GLIBCXX_3.4.22)(64bit)',
 		'libstdc++.so.6(GLIBCXX_3.4.9)(64bit)',
 		'libudev.so.1()(64bit)',
 		'libudev.so.1(LIBUDEV_183)(64bit)',
