@@ -74,9 +74,7 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 			// overrides; remote host OS is unknown, so fall back to the default.
 			targetOS: address === LOCAL_AGENT_HOST_ADDRESS ? osToTaskTargetOS(OS) : undefined,
 			lookup: label => byLabel.get(label),
-			// Pass the session folder so `${workspaceFolder}` resolves to the
-			// worktree, not the Agents window's own workspace.
-			resolveVariables: cwd ? value => this._configurationResolverService.resolveAsync(this._toFolderData(cwd), value) : undefined,
+			resolveVariables: this._createVariableResolver(address, cwd),
 		});
 		if (!command) {
 			this._logService.trace(`${LOG_PREFIX} Skipping task '${task.label}' — no command could be resolved.`);
@@ -115,8 +113,7 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 		if (!cwd) {
 			return undefined;
 		}
-		// Unwrap `agent-host:` URIs to a file path the host can chdir into; pass
-		// file URIs through; omit unknown schemes (no remote path mapping).
+		// Unwrap vscode-agent-host URIs to a host file path; pass file URIs through; omit unknown schemes.
 		if (cwd.scheme === AGENT_HOST_SCHEME) {
 			return fromAgentHostUri(cwd);
 		}
@@ -124,6 +121,30 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 			return cwd;
 		}
 		return undefined;
+	}
+
+	/**
+	 * Builds the `${workspaceFolder}` resolver for a task, or `undefined` when
+	 * there is no working directory. Remote hosts only get a literal
+	 * `${workspaceFolder}` substitution (their OS may differ from the
+	 * renderer's); local hosts use the full resolver.
+	 */
+	private _createVariableResolver(address: string, cwd: URI | undefined): ((value: string) => Promise<string>) | undefined {
+		if (!cwd) {
+			return undefined;
+		}
+		if (address !== LOCAL_AGENT_HOST_ADDRESS) {
+			// Use the POSIX URI path, not fsPath, so separators are correct on the remote host.
+			return value => Promise.resolve(value.replaceAll('${workspaceFolder}', cwd.path));
+		}
+		return async value => {
+			try {
+				return await this._configurationResolverService.resolveAsync(this._toFolderData(cwd), value);
+			} catch {
+				// Leave the string unchanged if a variable can't be resolved here (e.g. ${command:}/${input:}).
+				return value;
+			}
+		};
 	}
 
 	private _toFolderData(cwd: URI): IWorkspaceFolderData {

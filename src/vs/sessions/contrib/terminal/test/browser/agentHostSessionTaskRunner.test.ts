@@ -78,6 +78,7 @@ suite('AgentHostSessionTaskRunner', () => {
 	let sentText: { text: string; shouldExecute: boolean }[];
 	let disposedTerminals: ITerminalInstance[];
 	let allTasks: ISessionTaskWithTarget[];
+	let resolverCalls: string[];
 	const fakeInstance = {
 		sendText: async (text: string, shouldExecute: boolean) => { sentText.push({ text, shouldExecute }); },
 		dispose: () => { disposedTerminals.push(fakeInstance); },
@@ -88,6 +89,7 @@ suite('AgentHostSessionTaskRunner', () => {
 		sentText = [];
 		disposedTerminals = [];
 		allTasks = [];
+		resolverCalls = [];
 
 		const instantiationService = store.add(new TestInstantiationService());
 
@@ -127,6 +129,7 @@ suite('AgentHostSessionTaskRunner', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IConfigurationResolverService, new class extends mock<IConfigurationResolverService>() {
 			override resolveAsync(folder: IWorkspaceFolderData | undefined, value: any): any {
+				resolverCalls.push(String(value));
 				return Promise.resolve(
 					typeof value === 'string' && folder
 						? value.replaceAll('${workspaceFolder}', folder.uri.fsPath)
@@ -263,5 +266,25 @@ suite('AgentHostSessionTaskRunner', () => {
 			text: `./scripts/code.sh --user-data-dir=${cwd.fsPath}/.profile-oss`,
 			shouldExecute: true,
 		}]);
+		assert.deepStrictEqual(resolverCalls, ['./scripts/code.sh', '--user-data-dir=${workspaceFolder}/.profile-oss']);
+	});
+
+	test('remote agent-host sessions expand ${workspaceFolder} from the POSIX host path without the renderer resolver', async () => {
+		const innerCwd = URI.file('/remote/worktree');
+		const session = makeSession({ providerId: 'agenthost-myhost', cwd: toAgentHostUri(innerCwd, 'remote') });
+		const task: ITaskEntry = {
+			label: 'Run Client',
+			type: 'shell',
+			command: './scripts/code.sh',
+			args: ['--user-data-dir=${workspaceFolder}/.profile-oss'],
+		};
+
+		(await runner.runTask(task, session))?.dispose();
+
+		assert.deepStrictEqual(sentText, [{
+			text: `./scripts/code.sh --user-data-dir=${innerCwd.path}/.profile-oss`,
+			shouldExecute: true,
+		}]);
+		assert.deepStrictEqual(resolverCalls, []);
 	});
 });
