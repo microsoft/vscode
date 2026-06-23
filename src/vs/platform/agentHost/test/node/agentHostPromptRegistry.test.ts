@@ -13,9 +13,16 @@ import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE } from '../../node/copilot/prompts/sy
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import '../../node/copilot/prompts/allPrompts.js';
 
-/** Builds a prompt context backed by an in-memory bag of customization settings. */
-function context(settings: SchemaValues<typeof agentHostCustomizationConfigSchema.definition> = {}): IAgentHostPromptContext {
-	return { getSetting: key => settings[key] };
+/**
+ * Builds a prompt context backed by an in-memory bag of customization settings
+ * and an optional set of available tool names.
+ */
+function context(settings: SchemaValues<typeof agentHostCustomizationConfigSchema.definition> = {}, tools: readonly string[] = []): IAgentHostPromptContext {
+	const toolNames = new Set(tools);
+	return {
+		getSetting: key => settings[key],
+		hasClientTool: name => toolNames.has(name),
+	};
 }
 
 suite('AgentHostPromptRegistry', () => {
@@ -120,6 +127,32 @@ suite('AgentHostPromptRegistry', () => {
 			assert.strictEqual(resolveOpus(undefined), COPILOT_AGENT_HOST_SYSTEM_MESSAGE);
 			assert.strictEqual(resolveOpus(false), COPILOT_AGENT_HOST_SYSTEM_MESSAGE);
 			assert.strictEqual(resolveOpus(true).mode, 'customize');
+		});
+	});
+
+	suite('universal tool instructions wiring', () => {
+		// No tool-instruction lines are registered yet (concrete tool hookups land
+		// in follow-up changes), so the universal layer is currently a no-op. These
+		// guard the wiring; the composition/gating itself is covered in
+		// toolInstructions.test.ts.
+
+		test('is a no-op while no tool-instruction lines are registered', () => {
+			const registry = new AgentHostPromptRegistry();
+			assert.deepStrictEqual(registry.resolveSystemMessageConfig({ id: 'm' }, context({}, ['anyTool'])), COPILOT_AGENT_HOST_SYSTEM_MESSAGE);
+		});
+
+		test('leaves a per-model tool_instructions override untouched', () => {
+			const registry = new AgentHostPromptRegistry();
+			registry.registerPrompt(class {
+				static readonly familyPrefixes = ['claude'];
+				resolveSectionOverrides(): Partial<Record<SystemMessageSection, SectionOverride>> {
+					return { tool_instructions: { action: 'append', content: 'Always prefer ripgrep.' } };
+				}
+			});
+			assert.deepStrictEqual(
+				registry.resolveSystemMessageConfig({ id: 'claude-x' }, context({}, ['anyTool'])),
+				{ mode: 'customize', sections: { tool_instructions: { action: 'append', content: 'Always prefer ripgrep.' } } }
+			);
 		});
 	});
 });
