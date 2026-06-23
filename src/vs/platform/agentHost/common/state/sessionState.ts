@@ -858,13 +858,13 @@ export function withSessionGitState(meta: SessionMeta | undefined, gitState: ISe
 
 /**
  * Reads the well-known GitHub state payload from {@link SessionSummaryMeta}, if
- * present. Returns `undefined` when the meta bag is absent or the value at
- * the git key is not a plain object (e.g. an array or a primitive).
+ * present. Returns `undefined` when the meta bag is absent or the value at the
+ * GitHub key is not a plain object (e.g. an array or a primitive).
  * Individual fields with wrong types are silently dropped so partial state
  * still propagates.
  *
- * Unlike the other typed readers, this takes the raw {@link SessionMeta} value
- * rather than its parent {@link SessionState}: the sessions provider stores and
+ * Unlike the other typed readers, this takes the raw {@link SessionSummaryMeta}
+ * value rather than its parent {@link SessionState}: the sessions provider stores and
  * reads a detached meta snapshot without retaining the owning state.
  */
 export function readSessionGitHubState(meta: SessionSummaryMeta | undefined): ISessionGitHubState | undefined {
