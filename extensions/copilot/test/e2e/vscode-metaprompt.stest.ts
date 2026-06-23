@@ -15,7 +15,7 @@ ssuite.skip({ title: 'vscode', subtitle: 'metaprompt', location: 'panel' }, asyn
 
 	const scenarios = [
 		{
-			question: 'how to open command pallete',
+			question: 'how to open command palette',
 			keywords: ['open', 'command palette'],
 			excludedKeywords: ['how',]
 		},
