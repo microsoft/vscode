@@ -993,7 +993,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * was found and applied.
 	 */
 	public switchModelByIdentifier(identifier: string): boolean {
-		const model = this.getModelByIdentifier(identifier);
+		const model = this.getModels().find(m => m.identifier === identifier);
 		if (model) {
 			this.setCurrentLanguageModel(model);
 			return true;
@@ -1002,11 +1002,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	public canSwitchModelByIdentifier(identifier: string): boolean {
-		return this.getModelByIdentifier(identifier) !== undefined;
-	}
-
-	private getModelByIdentifier(identifier: string): ILanguageModelChatMetadataAndIdentifier | undefined {
-		return this.getModels().find(m => m.identifier === identifier);
+		return this.getModels().some(m => m.identifier === identifier);
 	}
 
 	public switchModelByQualifiedName(qualifiedModelNames: readonly string[]): boolean {
