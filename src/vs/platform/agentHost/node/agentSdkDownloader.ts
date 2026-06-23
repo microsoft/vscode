@@ -11,7 +11,7 @@ import { CancellationError } from '../../../base/common/errors.js';
 import * as path from '../../../base/common/path.js';
 import { format2 } from '../../../base/common/strings.js';
 import { URI } from '../../../base/common/uri.js';
-import { detectLibc, type LibcFamily } from '../../../base/node/libc.js';
+import { detectLibcSync, type LibcFamily } from '../../../base/node/libc.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { FileOperationError, FileOperationResult, IFileService, toFileOperationResult } from '../../files/common/files.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
@@ -94,7 +94,7 @@ const SUPPORTED_ARCHES = new Set<string>(['x64', 'arm64']);
  */
 export function resolveSdkTarget(
 	pkg: Pick<IAgentSdkPackage, 'hasSeparateMuslLinuxPackage'>,
-	host: ISdkTargetHost = { platform: process.platform, arch: process.arch, libc: detectLibc() },
+	host: ISdkTargetHost = { platform: process.platform, arch: process.arch, libc: detectLibcSync() },
 ): string | undefined {
 	if (!SUPPORTED_PLATFORMS.has(host.platform) || !SUPPORTED_ARCHES.has(host.arch)) {
 		return undefined;

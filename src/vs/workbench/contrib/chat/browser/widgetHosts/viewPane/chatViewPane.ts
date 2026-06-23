@@ -8,12 +8,14 @@ import { $, addDisposableListener, append, EventHelper, EventType, getWindow, se
 import { StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { Orientation, Sash } from '../../../../../../base/browser/ui/sash/sash.js';
+import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MutableDisposable, toDisposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { autorun, IReader } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
+import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
@@ -410,18 +412,14 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private _setupVoiceTranscriptOverlay(inputContainerEl: HTMLElement): void {
 		inputContainerEl.style.position = 'relative';
 		const transcriptOverlay = $('.voice-transcript-overlay');
-		// Leave bottom 36px for the toolbar (Agent, model picker, mic, send)
-		transcriptOverlay.style.cssText = 'display:none;position:absolute;top:0;left:0;right:0;bottom:36px;z-index:10;padding:8px 12px;font-size:13px;line-height:1.4;word-break:break-word;overflow:hidden;pointer-events:none;background:var(--vscode-input-background, transparent);border-radius:inherit;border-bottom-left-radius:0;border-bottom-right-radius:0;';
-		inputContainerEl.append(transcriptOverlay);
-
-		const style = document.createElement('style');
-		style.textContent = `
-			@keyframes voiceTextPulse { 0%,100%{opacity:0.9} 50%{opacity:0.4} }
-			.voice-transcript-overlay .committed { color: var(--vscode-foreground); }
-			.voice-transcript-overlay .partial { color: var(--vscode-foreground); opacity:0.6; font-style:italic; animation: voiceTextPulse 1.5s ease-in-out infinite; }
-			.voice-transcript-overlay .assistant-text { color: var(--vscode-descriptionForeground); display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
-		`;
-		transcriptOverlay.append(style);
+		const transcriptScrollable = this._register(new DomScrollableElement(transcriptOverlay, {
+			horizontal: ScrollbarVisibility.Hidden,
+			vertical: ScrollbarVisibility.Auto,
+		}));
+		const transcriptOverlayNode = transcriptScrollable.getDomNode();
+		transcriptOverlayNode.classList.add('voice-transcript-overlay-scrollable');
+		transcriptOverlayNode.style.display = 'none';
+		inputContainerEl.append(transcriptOverlayNode);
 
 		// Dynamic audio-reactive glow animation (matches aux window behavior)
 		let animFrameId: number | undefined;
@@ -502,7 +500,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const visible = turns.filter(t => t.text.length > 0 || (t.speaker === 'user' && t.isPartial));
 
 			if (!connected) {
-				transcriptOverlay.style.display = 'none';
+				transcriptOverlayNode.style.display = 'none';
+				transcriptOverlayNode.classList.remove('has-transcript');
 				return;
 			}
 
@@ -511,31 +510,34 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const targetSession = this.voiceSessionController.targetSession.read(reader);
 			const currentSession = this._widget?.viewModel?.sessionResource;
 			if (this.agentsVoiceWindowService.isOpen && targetSession && currentSession && targetSession.toString() !== currentSession.toString()) {
-				transcriptOverlay.style.display = 'none';
+				transcriptOverlayNode.style.display = 'none';
+				transcriptOverlayNode.classList.remove('has-transcript');
 				return;
 			}
 
 			// Show hint when connected but no transcript yet
 			if (visible.length === 0 || !showTranscript) {
 				if (voiceState === 'idle' && visible.length === 0) {
-					transcriptOverlay.style.display = '';
-					while (transcriptOverlay.childNodes.length > 1) {
-						transcriptOverlay.removeChild(transcriptOverlay.lastChild!);
-					}
+					transcriptOverlayNode.style.display = '';
+					transcriptOverlayNode.classList.remove('has-transcript');
+					transcriptOverlay.replaceChildren();
 					const hint = $('span.partial');
 					const kb = this.keybindingService.lookupKeybinding('agentsVoice.pushToTalk');
 					const kbLabel = kb?.getLabel();
 					hint.textContent = kbLabel
 						? localize('voiceMode.pttHint', "Press {0} to talk", kbLabel)
-						: localize('voiceMode.clickMicHint', "Click mic to talk");
+						: localize('voiceMode.clickMicHint', "Click voice mode to talk");
 					transcriptOverlay.append(hint);
+					transcriptScrollable.scanDomNode();
 				} else {
-					transcriptOverlay.style.display = 'none';
+					transcriptOverlayNode.style.display = 'none';
+					transcriptOverlayNode.classList.remove('has-transcript');
 				}
 				return;
 			}
 
-			transcriptOverlay.style.display = '';
+			transcriptOverlayNode.style.display = '';
+			transcriptOverlayNode.classList.add('has-transcript');
 			// Show only the latest turn: user question first, then assistant reply replaces it
 			const lastTurn = visible[visible.length - 1];
 			const contentElements: HTMLElement[] = [];
@@ -562,13 +564,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				div.textContent = lastTurn.text;
 				contentElements.push(div);
 			}
-			// Keep the style element, replace content
-			while (transcriptOverlay.childNodes.length > 1) {
-				transcriptOverlay.removeChild(transcriptOverlay.lastChild!);
-			}
-			for (const el of contentElements) {
-				transcriptOverlay.append(el);
-			}
+			transcriptOverlay.replaceChildren(...contentElements);
+			transcriptScrollable.scanDomNode();
+			transcriptScrollable.setScrollPosition({ scrollTop: 0 });
 		}));
 	}
 

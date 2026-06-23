@@ -1551,6 +1551,7 @@ export default defineConfig(
 						'console',
 						'cookie',
 						'crypto',
+						'detect-libc',
 						'dns',
 						'events',
 						'fs',
@@ -2934,6 +2935,26 @@ export default defineConfig(
 				},
 			],
 		}
+	},
+	// Agent host: flag usage of `@deprecated` Copilot SDK members. This is
+	// type-aware, so it requires `parserOptions.project`. It auto-detects newly
+	// deprecated SDK members whenever `@github/copilot-sdk` is updated.
+	{
+		files: [
+			'src/vs/platform/agentHost/**/*.ts',
+		],
+		languageOptions: {
+			parser: tseslint.parser,
+			parserOptions: {
+				project: 'src/tsconfig.json',
+			},
+		},
+		plugins: {
+			'local': pluginLocal,
+		},
+		rules: {
+			'local/code-no-deprecated-copilot-sdk': 'warn',
+		},
 	},
 	// Forbid new JavaScript files - use TypeScript instead.
 	// The allowlist of pre-existing JS/CJS/MJS files lives in
