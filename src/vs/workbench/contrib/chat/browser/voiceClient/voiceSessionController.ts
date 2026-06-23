@@ -964,6 +964,25 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					toolArgs: e.args,
 				});
 				this._setAwaitingReply();
+
+				// If the target session has a pending question/confirmation,
+				// treat the voice input as an answer rather than a new chat message.
+				// This fixes cases where the voice LLM miscategorizes a question
+				// response as a regular send_to_chat. (#8157)
+				const targetResource = this._targetSession.get();
+				if (text.trim() && targetResource) {
+					const model = this.chatService.getSession(targetResource);
+					if (model && this._hasPendingQuestionOrConfirmation(model)) {
+						this.logService.info('[voice] send_to_chat redirected as question response (pending confirmation detected)');
+						this._approveConfirmationForSession(model);
+						this.voiceClientService.sendToolResult(e.callId, 'ok');
+						this._voiceState.set('idle', undefined);
+						this._statusText.set('Hold to speak...', undefined);
+						this._sendContext();
+						return;
+					}
+				}
+
 				const sendPromise = text.trim()
 					? this._sendTranscriptionToChat(text)
 					: Promise.resolve();
@@ -2155,6 +2174,48 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 			cts.dispose();
 		}, () => { cts.dispose(); });
+	}
+
+	/**
+	 * Returns true if the model has a pending question or confirmation that
+	 * should receive the next user utterance as a response.
+	 */
+	private _hasPendingQuestionOrConfirmation(model: IChatModel): boolean {
+		const lastReq = model.getRequests().at(-1);
+		if (!lastReq?.response) {
+			return false;
+		}
+		if (lastReq.response.isPendingConfirmation.get()) {
+			return true;
+		}
+		// Fallback: askQuestions-style tools that enter WaitingForConfirmation
+		// without setting isPendingConfirmation
+		for (const part of lastReq.response.response.value) {
+			if (part.kind === 'toolInvocation') {
+				const state = (part as IChatToolInvocation).state.get();
+				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Approves the pending confirmation for the session (as UserAction).
+	 */
+	private _approveConfirmationForSession(model: IChatModel): void {
+		const lastReq = model.getRequests().at(-1);
+		if (!lastReq?.response) {
+			return;
+		}
+		for (const part of lastReq.response.response.value) {
+			if (part.kind === 'toolInvocation') {
+				if (IChatToolInvocation.confirmWith(part as IChatToolInvocation, { type: ToolConfirmKind.UserAction })) {
+					break;
+				}
+			}
+		}
 	}
 
 	private _getAgentStateInfo(model: IChatModel | undefined | null): { state: string; detail?: string; last_response_summary?: string } {
