@@ -121,6 +121,7 @@ suite('LayoutController', () => {
 		readonly workspaceFolders?: readonly { readonly uri: URI }[];
 		readonly layoutState?: readonly object[];
 		readonly newSessionViewState?: { readonly auxiliaryBarVisible: boolean };
+		readonly newSessionViewStateRaw?: string;
 	}
 
 	function createLayoutController(options: ICreateOptions = {}): LayoutController {
@@ -132,6 +133,9 @@ suite('LayoutController', () => {
 		}
 		if (options.newSessionViewState) {
 			storageService.store('sessions.newSessionViewState', JSON.stringify(options.newSessionViewState), StorageScope.WORKSPACE, 0);
+		}
+		if (options.newSessionViewStateRaw !== undefined) {
+			storageService.store('sessions.newSessionViewState', options.newSessionViewStateRaw, StorageScope.WORKSPACE, 0);
 		}
 		instaService.stub(IStorageService, storageService);
 
@@ -326,6 +330,28 @@ suite('LayoutController', () => {
 		assert.ok(
 			!openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
 			'should not re-open the Files view after reload'
+		);
+	});
+
+	test('ignores malformed persisted new-session state and does not force-hide the aux bar', () => {
+		// Persisted object is missing the `auxiliaryBarVisible` boolean.
+		createLayoutController({ newSessionViewStateRaw: JSON.stringify({ foo: 'bar' }) });
+		const untitled = makeSession(URI.parse('session:untitled'), { status: SessionStatus.Untitled });
+
+		activeSessionObs.set(untitled, undefined);
+
+		assert.ok(
+			!setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
+			'malformed state must not force-hide the aux bar'
+		);
+		assert.ok(
+			openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
+			'should fall back to the default Files view'
+		);
+		assert.strictEqual(
+			storageService.get('sessions.newSessionViewState', StorageScope.WORKSPACE),
+			undefined,
+			'malformed state should be removed from storage'
 		);
 	});
 
