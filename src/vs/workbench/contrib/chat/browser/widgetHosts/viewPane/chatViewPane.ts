@@ -447,8 +447,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		};
 		const startGlowAnimation = () => {
 			if (animFrameId !== undefined) { return; }
-			// Lock target to whatever widget is focused at voice start
-			lockedGlowWidget = this.chatWidgetService.lastFocusedWidget?.input?.inputContainerElement ?? inputContainerEl;
 			const animate = () => {
 				animFrameId = win.requestAnimationFrame(animate);
 				const connected = this.voiceSessionController.isConnected.get();
@@ -529,8 +527,17 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			target.style.boxShadow = '';
 			target.classList.remove('voice-active', 'voice-listening');
 			lastGlowTarget = undefined;
-			lockedGlowWidget = undefined;
 		};
+
+		// Lock glow target on connect, unlock on disconnect
+		this._register(autorun(reader => {
+			const connected = this.voiceSessionController.isConnected.read(reader);
+			if (connected && !lockedGlowWidget) {
+				lockedGlowWidget = this.chatWidgetService.lastFocusedWidget?.input?.inputContainerElement ?? inputContainerEl;
+			} else if (!connected) {
+				lockedGlowWidget = undefined;
+			}
+		}));
 
 		this._register(autorun(reader => {
 			const connected = this.voiceSessionController.isConnected.read(reader);
