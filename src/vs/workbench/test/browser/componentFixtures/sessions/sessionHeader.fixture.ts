@@ -164,36 +164,28 @@ const openPr: IGitHubInfo['pullRequest'] = {
 	icon: { ...Codicon.gitPullRequest, color: themeColorFromId('charts.green') },
 };
 
-const draftPr: IGitHubInfo['pullRequest'] = {
-	number: 678,
-	uri: URI.parse('https://github.com/microsoft/vscode/pull/678'),
-	icon: { ...Codicon.gitPullRequestDraft, color: themeColorFromId('descriptionForeground') },
-};
-
 // ============================================================================
 // Fixtures
 // ============================================================================
 
+// Note: the `#<number>` pull request pill is contributed into the session header
+// meta toolbar (Menus.SessionHeaderMeta) by the GitHub contribution and is
+// covered by `openPullRequest.fixture.ts`. The fixtures below exercise the
+// header itself; a session associated with a pull request surfaces the PR state
+// through the status icon.
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 
-	SessionHeader_NoPullRequest: defineComponentFixture({
+	SessionHeader_Default: defineComponentFixture({
 		render: (ctx) => renderHeader(ctx, createMockSession({
 			title: 'Fix login bug',
 			workspace: createMockWorkspace({ label: 'vscode' }),
 		})),
 	}),
 
-	SessionHeader_WithPullRequest: defineComponentFixture({
+	SessionHeader_PullRequestStatusIcon: defineComponentFixture({
 		render: (ctx) => renderHeader(ctx, createMockSession({
 			title: 'Add session header PR link',
 			workspace: createMockWorkspace({ label: 'vscode', isWorktree: true, pullRequest: openPr }),
-		})),
-	}),
-
-	SessionHeader_DraftPullRequest: defineComponentFixture({
-		render: (ctx) => renderHeader(ctx, createMockSession({
-			title: 'Refactor authentication flow',
-			workspace: createMockWorkspace({ label: 'vscode', isWorktree: true, pullRequest: draftPr }),
 		})),
 	}),
 
