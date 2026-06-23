@@ -707,7 +707,7 @@ suite('AgentSideEffects', () => {
 				}
 				return e.action.agents[0]?.models.length === 1;
 			}));
-			agent.setModels([{ provider: 'mock', id: 'mock-model', name: 'mock Model', maxContextWindow: 128000, supportsVision: false }]);
+			agent.setModels([{ provider: 'mock', id: 'mock-model', name: 'mock Model', maxContextWindow: 128000, maxOutputTokens: 16000, maxPromptTokens: 112000, supportsVision: false }]);
 			await envelope;
 
 			const actions = envelopes.map(e => e.action).filter(action => action.type === ActionType.RootAgentsChanged);
@@ -718,6 +718,8 @@ suite('AgentSideEffects', () => {
 				provider: 'mock',
 				name: 'mock Model',
 				maxContextWindow: 128000,
+				maxOutputTokens: 16000,
+				maxPromptTokens: 112000,
 				supportsVision: false,
 				policyState: undefined,
 				configSchema: undefined,

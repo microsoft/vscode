@@ -194,7 +194,7 @@ interface ITestCopilotModelInfo {
 	readonly name: string;
 	readonly capabilities?: {
 		readonly supports?: { readonly vision?: boolean };
-		readonly limits?: { readonly max_context_window_tokens?: number };
+		readonly limits?: { readonly max_context_window_tokens?: number; readonly max_output_tokens?: number; readonly max_prompt_tokens?: number };
 	};
 	readonly policy?: { readonly state?: NonNullable<ModelInfo['policy']>['state'] };
 	readonly billing?: ModelInfo['billing'] & {
@@ -231,7 +231,12 @@ function toSdkModelInfo(model: ITestCopilotModelInfo): ModelInfo {
 			},
 			limits: {
 				max_context_window_tokens: model.capabilities?.limits?.max_context_window_tokens ?? 0,
-			},
+				// `max_output_tokens` is present on the RPC `models.list` shape the
+				// agent reads but absent from the SDK's `ModelInfo` limits type, so
+				// widen here to let fixtures exercise the real value.
+				max_output_tokens: model.capabilities?.limits?.max_output_tokens,
+				max_prompt_tokens: model.capabilities?.limits?.max_prompt_tokens,
+			} as ModelInfo['capabilities']['limits'],
 		},
 		...(model.policy ? { policy: { state: model.policy.state ?? 'enabled', terms: '' } } : {}),
 		...(model.billing ? { billing: model.billing } : {}),
@@ -954,7 +959,7 @@ suite('CopilotAgent', () => {
 				id: 'gpt-4o',
 				name: 'GPT-4o',
 				billing: { multiplier: 1.5 },
-				capabilities: { limits: { max_context_window_tokens: 128000 }, supports: { vision: true } },
+				capabilities: { limits: { max_context_window_tokens: 128000, max_output_tokens: 16000, max_prompt_tokens: 112000 }, supports: { vision: true } },
 			}]),
 		});
 		try {
@@ -966,6 +971,8 @@ suite('CopilotAgent', () => {
 				id: 'gpt-4o',
 				name: 'GPT-4o',
 				maxContextWindow: 128000,
+				maxOutputTokens: 16000,
+				maxPromptTokens: 112000,
 				supportsVision: true,
 				configSchema: undefined,
 				policyState: undefined,
