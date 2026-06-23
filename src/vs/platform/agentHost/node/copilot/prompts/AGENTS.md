@@ -84,9 +84,10 @@ A contributor provides EITHER:
   keeps the SDK foundation prompt and its guardrails. **Prefer this.**
 - `resolveFullSystemPrompt` → `{ mode: 'replace' }` — owns the entire prompt and
   **drops all SDK guardrails (including safety)**. Only for callers that truly
-  own the whole prompt. A replace contributor bypasses Lever 1, so re-include the
-  universal lines by calling `appendUniversalToolInstructions(content, hasTool)`
-  from `resolveFullSystemPrompt`.
+  own the whole prompt. A replace contributor bypasses Lever 1, so it must inline
+  any universal guidance itself (`universalToolInstructions(hasTool)` renders the
+  same gated lines; add a small replace-mode helper alongside it when the first
+  such contributor lands).
 
 ```ts
 class MyModelPrompt implements IAgentHostPrompt {

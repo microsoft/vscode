@@ -84,7 +84,7 @@ export function universalToolInstructions(hasTool: (name: string) => boolean, li
  *
  * @param existing the per-model contributor's `tool_instructions` override, if any.
  */
-export function composeToolInstructions(existing: SectionOverride | undefined, content: string): SectionOverride {
+function composeToolInstructions(existing: SectionOverride | undefined, content: string): SectionOverride {
 	// No per-model override: append after the SDK foundation section, led by a
 	// newline so it doesn't run on from the foundation content.
 	if (!existing) {
@@ -123,23 +123,4 @@ export function composeToolInstructions(existing: SectionOverride | undefined, c
 export function resolveToolInstructionsOverride(hasTool: (name: string) => boolean, existing: SectionOverride | undefined, lines: readonly ToolInstructionLine[] = TOOL_INSTRUCTION_LINES): SectionOverride | undefined {
 	const content = universalToolInstructions(hasTool, lines);
 	return content === undefined ? undefined : composeToolInstructions(existing, content);
-}
-
-/**
- * Appends the universal tool-instruction lines to a full (`replace`-mode)
- * system prompt's `content`.
- *
- * A `replace`-mode contributor owns its whole prompt and so is skipped by the
- * registry's universal `tool_instructions` layer. When such a contributor is
- * added, calling this from its `resolveFullSystemPrompt` re-includes the same
- * gated guidance (separated by a blank line), mirroring how the extension's
- * full-prompt models inline it. No `resolveFullSystemPrompt` contributor exists
- * yet, so this currently has no production caller. Returns `content` unchanged
- * when no line applies.
- *
- * @param lines defaults to the registered {@link TOOL_INSTRUCTION_LINES}.
- */
-export function appendUniversalToolInstructions(content: string, hasTool: (name: string) => boolean, lines: readonly ToolInstructionLine[] = TOOL_INSTRUCTION_LINES): string {
-	const extra = universalToolInstructions(hasTool, lines);
-	return extra === undefined ? content : `${content}\n\n${extra}`;
 }

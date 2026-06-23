@@ -183,7 +183,7 @@ export class AgentHostPromptRegistry {
 	 * for a contributor's full `replace` prompt (which owns the entire system
 	 * message and intentionally drops the SDK foundation) and for `append` mode.
 	 * A `replace` contributor that wants the universal guidance re-includes it
-	 * itself by calling `appendUniversalToolInstructions` (in `toolInstructions.ts`)
+	 * itself by rendering `universalToolInstructions` (in `toolInstructions.ts`)
 	 * from its `resolveFullSystemPrompt`, mirroring how the extension's full-prompt
 	 * models inline the same lines.
 	 *
