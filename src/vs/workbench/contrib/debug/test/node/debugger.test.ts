@@ -221,6 +221,6 @@ suite('Debug - Debugger', () => {
 		assert.ok(attributes);
 		assert.strictEqual(attributes![0].properties?.['valid'].type, 'string');
 		assert.strictEqual(attributes![0].properties?.['malformed'], 'integer');
-		assert.strictEqual(warningMessage, "Ignoring malformed debug configuration schema properties for type 'mock': malformed");
+		assert.match(warningMessage ?? '', /^Ignoring malformed debug configuration schema properties for type 'mock': malformed$/);
 	});
 });
