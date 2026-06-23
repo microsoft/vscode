@@ -152,7 +152,7 @@ registerAction2(class extends Action2 {
 					AGENTS_VOICE_INITIATED_HERE.isEqualTo(true),
 				),
 				group: 'navigation',
-				order: 4
+				order: -10
 			}
 		});
 	}
@@ -178,7 +178,7 @@ registerAction2(class extends Action2 {
 					AGENTS_VOICE_CONNECTING.negate(),
 				),
 				group: 'navigation',
-				order: 4
+				order: -10
 			},
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -227,7 +227,7 @@ registerAction2(class extends Action2 {
 					AGENTS_VOICE_INITIATED_HERE.isEqualTo(true),
 				),
 				group: 'navigation',
-				order: 4
+				order: -10
 			},
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
