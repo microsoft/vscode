@@ -6,7 +6,7 @@
 import { CopilotClient, RuntimeConnection, type CopilotClientOptions } from '@github/copilot-sdk';
 import * as fs from 'fs/promises';
 import * as os from 'os';
-import { CancelablePromise, createCancelablePromise, Delayer, Limiter, SequencerByKey } from '../../../../base/common/async.js';
+import { CancelablePromise, createCancelablePromise, Delayer, disposableTimeout, Limiter, SequencerByKey } from '../../../../base/common/async.js';
 import { type CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -276,6 +276,20 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, []);
 	readonly models = this._models;
 
+	/**
+	 * Bounded exponential-backoff retry for {@link _refreshModels}. The SDK's
+	 * `models.list` RPC can fail transiently (e.g. a `429 "too many requests"`
+	 * right after startup). Without a retry the model picker would stay empty
+	 * until the GitHub token next changes — the only other trigger for a
+	 * refresh — so we retry a few times before giving up. Overridable in tests
+	 * to avoid real delays.
+	 */
+	protected readonly _modelRefreshMaxAttempts: number = 5;
+	protected readonly _modelRefreshBaseDelayMs: number = 1_000;
+	protected readonly _modelRefreshMaxDelayMs: number = 30_000;
+	/** Pending model-refresh retry timer; cleared on a fresh refresh, shutdown, or dispose. */
+	private readonly _modelRefreshRetry = this._register(new MutableDisposable());
+
 	private _client: CopilotClient | undefined;
 	private _clientStarting: Promise<CopilotClient> | undefined;
 	private _githubToken: string | undefined;
@@ -499,7 +513,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _refreshModels(): Promise<void> {
+	private async _refreshModels(attempt = 0): Promise<void> {
+		// A fresh refresh (e.g. a token change) supersedes any scheduled retry.
+		this._modelRefreshRetry.clear();
+
+		// Once teardown has begun, skip the refresh entirely: a retry timer that
+		// fires during the shutdown window would otherwise call `_ensureClient()`
+		// and resurrect the SDK subprocess after `shutdown()` tore it down.
+		if (this._shutdownPromise) {
+			return;
+		}
+
 		const tokenAtRefreshStart = this._githubToken;
 		if (!tokenAtRefreshStart) {
 			this._models.set([], undefined);
@@ -511,11 +535,41 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._models.set(models, undefined);
 			}
 		} catch (err) {
+			// Token rotated mid-flight — a newer refresh owns the result — or
+			// teardown began while the request was in flight, in which case a
+			// retry would just resurrect the client we are tearing down.
+			if (this._githubToken !== tokenAtRefreshStart || this._shutdownPromise) {
+				return;
+			}
+			if (attempt + 1 < this._modelRefreshMaxAttempts) {
+				const delay = this._modelRefreshBackoff(attempt);
+				this._logService.warn(`[Copilot] Failed to refresh models (attempt ${attempt + 1}), retrying in ${delay}ms`, err);
+				this._modelRefreshRetry.value = disposableTimeout(() => {
+					void this._refreshModels(attempt + 1);
+				}, delay);
+				return;
+			}
+			// Retries exhausted: surface the error. Only blank the list when we
+			// have nothing to show, so a transient failure never wipes a
+			// previously loaded, good model list.
 			this._logService.error(err, '[Copilot] Failed to refresh models');
-			if (this._githubToken === tokenAtRefreshStart) {
+			if (this._models.get().length === 0) {
 				this._models.set([], undefined);
 			}
 		}
+	}
+
+	/**
+	 * Equal-jitter exponential backoff for model-refresh retries. Doubles the
+	 * base delay per attempt (capped at {@link _modelRefreshMaxDelayMs}) and
+	 * picks a random point in the upper half of that window, so the returned
+	 * delay lands in `[exp/2, exp]`. The jitter avoids synchronized retries
+	 * across windows/agents hitting a shared rate limit, while the `exp/2`
+	 * floor keeps a minimum spacing between attempts.
+	 */
+	private _modelRefreshBackoff(attempt: number): number {
+		const exp = Math.min(this._modelRefreshMaxDelayMs, this._modelRefreshBaseDelayMs * 2 ** attempt);
+		return Math.round(exp / 2 + Math.random() * (exp / 2));
 	}
 
 	private async _stopClient(): Promise<void> {
@@ -1867,6 +1921,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	async shutdown(): Promise<void> {
 		this._shutdownPromise ??= (async () => {
+			// Cancel any pending model-refresh retry so its timer cannot fire
+			// after teardown and resurrect the client.
+			this._modelRefreshRetry.clear();
 			this._logService.info('[Copilot] Shutting down...');
 			const sessionIds = new Set([...this._sessions.keys(), ...this._createdWorktrees.keys()]);
 			for (const sessionId of sessionIds) {
