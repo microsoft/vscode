@@ -35,62 +35,6 @@
 	padding: 4px;
 }
 
-.chat-scrollbar-prompt-markers {
-	overflow: hidden;
-	/* Scrollbar .visible layer uses z-index 11; keep markers above it so they remain visible. */
-	z-index: 12;
-}
-
-.chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker {
-	position: absolute;
-	left: 0;
-	right: 0;
-	min-height: 4px;
-	border-radius: 0;
-	background-color: var(--vscode-scrollbarSlider-background);
-	opacity: 0.85;
-	pointer-events: auto;
-	transition: top 0.15s ease-out, height 0.15s ease-out;
-}
-
-.chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker.chat-scrollbar-prompt-marker-lane-left {
-	left: 0;
-	right: auto;
-	width: 50%;
-}
-
-.chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker.chat-scrollbar-prompt-marker-lane-right {
-	left: auto;
-	right: 0;
-	width: 50%;
-}
-
-.chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker.chat-scrollbar-prompt-marker-lane-full {
-	left: 0;
-	right: 0;
-	width: auto;
-}
-
-.chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker.chat-scrollbar-prompt-marker-type-prompt {
-	background-color: var(--vscode-charts-purple, #a371f7);
-}
-
-.chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker.chat-scrollbar-prompt-marker-type-askQuestion {
-	background-color: var(--vscode-charts-yellow, #e5c07b);
-}
-
-.chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker.chat-scrollbar-prompt-marker-type-fileChange {
-	background-color: var(--vscode-charts-green, #3fb950);
-}
-
-.chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker.chat-scrollbar-prompt-marker-type-compaction {
-	background-color: var(--vscode-charts-yellow, #e5c07b);
-}
-
-.chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker.chat-scrollbar-prompt-marker-type-error {
-	background-color: var(--vscode-charts-red, #f85149);
-}
-
 .interactive-item-container {
 	padding: 12px 16px;
 	display: flex;
@@ -98,8 +42,8 @@
 	color: var(--vscode-interactive-session-foreground);
 
 	cursor: default;
-	-webkit-user-select: text;
 	user-select: text;
+	-webkit-user-select: text;
 }
 
 .interactive-item-container:not(:has(.chat-extensions-content-part)) .header {
@@ -198,7 +142,6 @@
 .interactive-item-container .header .avatar-container {
 	display: flex;
 	pointer-events: none;
-	-webkit-user-select: none;
 	user-select: none;
 }
 
@@ -463,7 +406,6 @@
 }
 
 .interactive-item-container .value .rendered-markdown a {
-	-webkit-user-select: text;
 	user-select: text;
 }
 
@@ -637,7 +579,6 @@
 
 		.message-wrapper {
 			/* Fade out the bottom edge so the "see more" link can overlay cleanly. */
-			-webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 1) calc(100% - 24px), rgba(0, 0, 0, 0) 100%);
 			mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 1) calc(100% - 24px), rgba(0, 0, 0, 0) 100%);
 			pointer-events: none;
 			max-height: 96px;
@@ -1105,97 +1046,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-secondary-toolbar .chat-input-status-container:empty {
 	display: none;
-}
-
-/* Hover popup contents shown when hovering an item in the chat-input-status toolbar */
-.chat-input-status-hover.chat-input-status-hover-content {
-	display: flex;
-	flex-direction: column;
-	gap: 6px;
-	padding: 8px 10px;
-	min-width: 240px;
-	max-width: 420px;
-}
-
-.chat-input-status-hover .chat-input-status-hover-title {
-	font-weight: 600;
-}
-
-.chat-input-status-hover .chat-input-status-hover-title p {
-	margin: 0;
-}
-
-.chat-input-status-hover .chat-input-status-hover-title a {
-	color: var(--vscode-textLink-foreground);
-	text-decoration: none;
-}
-
-.chat-input-status-hover .chat-input-status-hover-title a:hover {
-	text-decoration: underline;
-}
-
-.chat-input-status-hover .chat-input-status-hover-detail a {
-	color: var(--vscode-textLink-foreground);
-	text-decoration: none;
-}
-
-.chat-input-status-hover .chat-input-status-hover-detail a:hover {
-	text-decoration: underline;
-}
-
-.chat-input-status-hover .chat-input-status-hover-detail code {
-	font-family: var(--monaco-monospace-font);
-	font-size: 11px;
-	background: var(--vscode-textCodeBlock-background, transparent);
-	padding: 1px 4px;
-	border-radius: 3px;
-	white-space: nowrap;
-}
-
-.chat-input-status-hover .chat-input-status-hover-description {
-	color: var(--vscode-descriptionForeground);
-	white-space: pre-wrap;
-}
-
-.chat-input-status-hover .chat-input-status-hover-detail {
-	color: var(--vscode-foreground);
-}
-
-.chat-input-status-hover .chat-input-status-hover-detail table {
-	width: 100%;
-	border-collapse: collapse;
-	font-size: 12px;
-}
-
-.chat-input-status-hover .chat-input-status-hover-detail thead {
-	display: none;
-}
-
-.chat-input-status-hover .chat-input-status-hover-detail th,
-.chat-input-status-hover .chat-input-status-hover-detail td {
-	padding: 3px 8px 3px 0;
-	text-align: left;
-	vertical-align: top;
-	word-break: break-word;
-}
-
-.chat-input-status-hover .chat-input-status-hover-detail tbody tr:not(:last-child) td {
-	border-bottom: 1px solid var(--vscode-widget-border, transparent);
-}
-
-.chat-input-status-hover .chat-input-status-hover-detail tbody td:first-child {
-	color: var(--vscode-descriptionForeground);
-	white-space: nowrap;
-}
-
-.chat-input-status-hover .chat-input-status-hover-detail p {
-	margin: 0;
-}
-
-.chat-input-status-hover .chat-input-status-hover-actions {
-	display: flex;
-	justify-content: flex-end;
-	margin-top: 4px;
 }
 
 /* When context usage is inside the toolbars (compact mode), keep the ordering */
@@ -2611,14 +2461,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 } */
 
 .interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups .monaco-button {
+	display: block;
 	color: var(--vscode-textLink-foreground);
 	font-size: 12px;
 
 	/* clamp to max 3 lines */
-	display: block;        /* fallback */
-	display: -webkit-box;  /* enhancement — overrides block in supporting browsers */
-	-webkit-line-clamp: 3;
+	display: -webkit-box;
 	line-clamp: 3;
+	-webkit-line-clamp: 3;
 	-webkit-box-orient: vertical;
 	overflow: hidden;
 }
@@ -3240,8 +3090,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 				var(--vscode-descriptionForeground) 70%,
 				var(--vscode-descriptionForeground) 100%);
 		background-size: 400% 100%;
-		-webkit-background-clip: text;
 		background-clip: text;
+		-webkit-background-clip: text;
 		-webkit-text-fill-color: transparent;
 		animation: chat-thinking-shimmer 2s linear infinite;
 		will-change: background-position;
@@ -3936,13 +3786,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		}
 
 		.checkpoint-line-left {
-			-webkit-mask-image: linear-gradient(to right, transparent, black);
 			mask-image: linear-gradient(to right, transparent, black);
+			-webkit-mask-image: linear-gradient(to right, transparent, black);
 		}
 
 		.checkpoint-line-right {
-			-webkit-mask-image: linear-gradient(to left, transparent, black);
 			mask-image: linear-gradient(to left, transparent, black);
+			-webkit-mask-image: linear-gradient(to left, transparent, black);
 		}
 
 		.monaco-toolbar {
@@ -4376,9 +4226,27 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	grid-template-columns: auto auto auto;
 }
 
-/* Rows are transparent: their cells participate directly in the table grid so columns align. */
+/* Each row is a real (positioned) element that still aligns to the table's columns via subgrid,
+	so it can paint a single continuous dotted line behind all of its cells. */
 .chat-model-hover-cost-row {
-	display: contents;
+	display: grid;
+	grid-column: 1 / -1;
+	grid-template-columns: subgrid;
+	align-items: center;
+	position: relative;
+}
+
+/* The single continuous dotted leader, painted behind the cells. The label text and the
+	number have opaque backgrounds (below) that mask it, so the visible dots read as one
+	continuous line running from the label to the number. */
+.chat-model-hover-cost-row:not(.header)::before {
+	content: '';
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: 50%;
+	border-top: var(--vscode-strokeThickness) dotted var(--vscode-descriptionForeground);
+	opacity: 0.5;
 }
 
 .chat-model-hover-cost-heading {
@@ -4387,63 +4255,54 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding-right: 12px;
 }
 
-/* Label cell: the text plus a dotted leader that fills the rest of the (heading-wide) first column. */
+/* Label cell: text only. Opaque background + right padding mask the start of the dotted line
+	and create the gap between the label and the first dot. Positioned above the leader. */
 .chat-model-hover-cost-label {
-	display: flex;
-	align-items: center;
-	gap: 6px;
 	color: var(--vscode-descriptionForeground);
 	white-space: nowrap;
+	position: relative;
+	z-index: 1;
 }
 
 .chat-model-hover-cost-label-text {
-	flex: 0 0 auto;
+	padding-right: 6px;
+	background-color: var(--model-hover-surface-background, var(--vscode-menu-background));
 }
 
-.chat-model-hover-cost-leader {
-	flex: 1 1 auto;
-	min-width: 12px;
-	height: 0;
-	border-bottom: var(--vscode-strokeThickness) dotted var(--vscode-descriptionForeground);	opacity: 0.5;
-}
-
-/* Each value cell paints a dotted leader behind a right-aligned, background-masked number. */
+/* Value cell: right-aligned number whose opaque background masks the end of the dotted line. */
 .chat-model-hover-cost-value {
-	position: relative;
-	text-align: right;
+	display: flex;
+	justify-content: flex-end;
+	align-items: center;
 	white-space: nowrap;
 	min-width: 0;
+	position: relative;
+	z-index: 1;
+	/* Blank inset separating the Default and Long Context value columns. */
+	padding-left: 8px;
 }
 
-.chat-model-hover-cost-value::before {
-	content: '';
-	position: absolute;
-	left: 0;
-	right: 0;
-	top: 50%;
-	border-top: var(--vscode-strokeThickness) dotted var(--vscode-descriptionForeground);	opacity: 0.5;
-}
-
-.chat-model-hover-cost-value.subheader::before,
-.chat-model-hover-cost-value.empty::before {
-	content: none;
-}
-
-/* Blank gap (no dots) separating the Default and Long Context value columns. */
+/* Opaque mask over the second value column's leading inset so the Default column's dots stop
+	cleanly and don't bleed into the Long Context column (a clear separator between them). */
 .chat-model-hover-cost-table.has-long-context .chat-model-hover-cost-value + .chat-model-hover-cost-value {
-	padding-left: 18px;
+	padding-left: 12px;
 }
 
 .chat-model-hover-cost-table.has-long-context .chat-model-hover-cost-value + .chat-model-hover-cost-value::before {
-	left: 18px;
+	content: '';
+	position: absolute;
+	left: 0;
+	top: 0;
+	bottom: 0;
+	width: 12px;
+	background-color: var(--model-hover-surface-background, var(--vscode-menu-background));
 }
 
 .chat-model-hover-cost-number {
-	position: relative;
 	padding-left: 6px;
 	font-weight: 700;
 	color: var(--vscode-foreground);
-	background-color: var(--vscode-editorHoverWidget-background, var(--vscode-editorWidget-background));
+	background-color: var(--model-hover-surface-background, var(--vscode-menu-background));
 }
 
 .chat-model-hover-cost-value.subheader {
@@ -4502,14 +4361,37 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
-/* Voice mode: color the mic icon blue when listening, purple when speaking */
-/* Voice mode: color the mic icon when listening/speaking */
-.chat-input-container.voice-active.voice-listening .chat-input-toolbars .action-label.codicon-mic-filled {
-	color: var(--vscode-charts-blue, #58a6ff) !important;
+@keyframes chat-voice-icon-glow {
+	0%,
+	100% {
+		box-shadow: 0 0 4px var(--chat-voice-icon-glow-color);
+	}
+
+	50% {
+		box-shadow: 0 0 9px var(--chat-voice-icon-glow-color);
+	}
 }
 
-.chat-input-container.voice-active:not(.voice-listening) .chat-input-toolbars .action-label.codicon-mic-filled {
+/* Voice mode: blue when listening */
+.chat-input-container.voice-active.voice-listening .chat-input-toolbars .action-label.codicon-voice-mode {
+	--chat-voice-icon-glow-color: rgba(88, 166, 255, 0.65);
+	color: var(--vscode-charts-blue, #58a6ff) !important;
+	border-radius: 50%;
+}
+
+.monaco-workbench.monaco-enable-motion .chat-input-container.voice-active.voice-listening .chat-input-toolbars .action-label.codicon-voice-mode {
+	animation: chat-voice-icon-glow 1.4s ease-in-out infinite;
+}
+
+/* Voice mode: purple when speaking */
+.chat-input-container.voice-active:not(.voice-listening) .chat-input-toolbars .action-label.codicon-voice-mode {
+	--chat-voice-icon-glow-color: rgba(163, 113, 247, 0.65);
 	color: var(--vscode-charts-purple, #a371f7) !important;
+	border-radius: 50%;
+}
+
+.monaco-workbench.monaco-enable-motion .chat-input-container.voice-active:not(.voice-listening) .chat-input-toolbars .action-label.codicon-voice-mode {
+	animation: chat-voice-icon-glow 1.4s ease-in-out infinite;
 }
 
 /* Voice mode: green disconnect button */
